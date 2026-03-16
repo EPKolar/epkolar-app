@@ -1,5 +1,7 @@
 /**
- * EP: Kolar & Sohn - Service Worker v3.1 (Supabase)
+ * EP: Kolar & Sohn — Service Worker v3.1 (Supabase)
+ * Cache-First für App-Shell, Network-First für Supabase REST
+ * Background Sync Support
  */
 const CACHE = 'epkolar-v3.1-supabase';
 const APP_SHELL = ['./', './index.html'];
@@ -11,41 +13,69 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))));
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+
+  // Supabase REST calls: Network-First (kein Cache)
   if (url.hostname === SUPABASE_HOST) return;
+
+  // CDN resources (React, bcryptjs): Cache-First
   if (url.hostname === 'cdnjs.cloudflare.com') {
-    e.respondWith(caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(resp => {
-        if (resp.ok) { const clone = resp.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
-        return resp;
-      });
-    }));
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(resp => {
+          if (resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return resp;
+        });
+      })
+    );
     return;
   }
-  e.respondWith(caches.match(e.request).then(cached => {
-    if (cached) return cached;
-    return fetch(e.request).then(resp => {
-      if (resp.ok && resp.type === 'basic') { const clone = resp.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
-      return resp;
-    });
-  }).catch(() => caches.match('./index.html')));
+
+  // App-Shell: Cache-First, Fallback Network
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(resp => {
+        if (resp.ok && resp.type === 'basic') {
+          const clone = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return resp;
+      });
+    }).catch(() => caches.match('./index.html'))
+  );
 });
 
+// Background Sync
 self.addEventListener('sync', e => {
   if (e.tag === 'epkolar-sync') {
-    e.waitUntil(self.clients.matchAll().then(clients => { clients.forEach(client => client.postMessage({ type: 'SYNC_TRIGGER' })); }));
+    e.waitUntil(
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => client.postMessage({ type: 'SYNC_TRIGGER' }));
+      })
+    );
   }
 });
 
+// Skip waiting message
 self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
-    self.clients.matchAll().then(clients => { clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' })); });
+    self.clients.matchAll().then(clients => {
+      clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
+    });
   }
 });
