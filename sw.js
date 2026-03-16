@@ -1,81 +1,86 @@
-/**
- * EP: Kolar & Sohn — Service Worker v3.1 (Supabase)
- * Cache-First für App-Shell, Network-First für Supabase REST
- * Background Sync Support
- */
-const CACHE = 'epkolar-v3.1-supabase';
-const APP_SHELL = ['./', './index.html'];
-const SUPABASE_HOST = 'jiggujpruejkaomgxarp.supabase.co';
+// EP Kolar Service Worker v3.2.2
+const CACHE_NAME = 'epkolar-v3.2.2';
+const ASSETS = [
+  './',
+  './index.html'
+];
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(APP_SHELL)));
+// Install: Pre-cache essential assets
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+  );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
+// Activate: Clean old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+// Fetch: Network-first with cache fallback
+self.addEventListener('fetch', event => {
+  const url = event.request.url;
 
-  // Supabase REST calls: Network-First (kein Cache)
-  if (url.hostname === SUPABASE_HOST) return;
+  // Skip non-http(s) schemes (chrome-extension://, blob://, data://, etc.)
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return;
+  }
 
-  // CDN resources (React, bcryptjs): Cache-First
-  if (url.hostname === 'cdnjs.cloudflare.com') {
-    e.respondWith(
-      caches.match(e.request).then(cached => {
-        if (cached) return cached;
-        return fetch(e.request).then(resp => {
-          if (resp.ok) {
-            const clone = resp.clone();
-            caches.open(CACHE).then(c => c.put(e.request, clone));
+  // Skip Supabase API calls — never cache REST data
+  if (url.includes('supabase.co')) {
+    return;
+  }
+
+  // Skip external CDN — let browser handle caching via headers
+  if (url.includes('cdnjs.cloudflare.com')) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        const fetchPromise = fetch(event.request).then(response => {
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           }
-          return resp;
-        });
+          return response;
+        }).catch(() => cached);
+        return cached || fetchPromise;
       })
     );
     return;
   }
 
-  // App-Shell: Cache-First, Fallback Network
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(resp => {
-        if (resp.ok && resp.type === 'basic') {
-          const clone = resp.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return resp;
-      });
-    }).catch(() => caches.match('./index.html'))
+  // App shell: Network first, cache fallback
+  event.respondWith(
+    fetch(event.request).then(response => {
+      if (response && response.ok && event.request.method === 'GET') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          try { cache.put(event.request, clone); } catch(e) {}
+        });
+      }
+      return response;
+    }).catch(() => caches.match(event.request))
   );
 });
 
-// Background Sync
-self.addEventListener('sync', e => {
-  if (e.tag === 'epkolar-sync') {
-    e.waitUntil(
+// Message handler for skip-waiting
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// Background sync support
+self.addEventListener('sync', event => {
+  if (event.tag === 'epkolar-sync') {
+    event.waitUntil(
       self.clients.matchAll().then(clients => {
         clients.forEach(client => client.postMessage({ type: 'SYNC_TRIGGER' }));
       })
     );
-  }
-});
-
-// Skip waiting message
-self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-    self.clients.matchAll().then(clients => {
-      clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
-    });
   }
 });
