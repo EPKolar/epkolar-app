@@ -8163,17 +8163,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     {id:"bh4",fahrer:"Schmid",vonDat:"2025-11-15",vonUhr:"08:00",bisDat:"2025-11-29",bisUhr:"17:00",grund:"krank",ort:"Kirchberg",erstellt:"2025-11-15"},
     {id:"bh5",fahrer:"Paschinger",vonDat:"2025-10-20",vonUhr:"00:00",bisDat:"2025-11-10",bisUhr:"24:00",grund:"andere",ort:"Kirchberg",erstellt:"2025-10-20"}
   ]);
-  // [FIXED v3.2.3: removed duplicate] const _old_addTermin=(fzId)=>{
-    if(!tBeschr.trim()||!tDatum)return;
-    const data={id:uid(),art:tArt,beschreibung:tBeschr,datum:tDatum,erledigt:false};
-    upd(fzId,f=>{
-      f.termine=[{...data,by:_optionalChain([curUser, 'optionalAccess', _651 => _651.name])||""},...(f.termine||[])];
-      return f;
-    });
-    SQ.push({url:"/api/fz-termine/"+fzId,method:"POST",body:{id:data.id,typ:data.art,beschreibung:data.beschreibung,datum:data.datum,erledigt:0}});
-    _optionalChain([window, 'access', _653 => _653.__toast, 'optionalCall', _654 => _654("📅 Termin angelegt")]);
-    setTBeschr("");setTDatum("");
-  };
+  // [REMOVED: duplicate addTermin block - caused Illegal return SyntaxError]
 
   // KPIs
   const aktiv=fahrzeuge.filter(f=>f.status!=="stillgelegt").length;
@@ -8190,6 +8180,1153 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   // Quick-action state for scan results
   const [fzQuickAction,setFzQuickAction]=_react.useState.call(void 0, null); // null|"tank"|"km"|"schaden"
   const [qKm,setQKm]=_react.useState.call(void 0, "");const [qKmNote,setQKmNote]=_react.useState.call(void 0, "");
+  const [qTankL,setQTankL]=_react.useState.call(void 0, "");const [qTankP,setQTankP]=_react.useState.call(void 0, "");const [qTankKm,setQTankKm]=_react.useState.call(void 0, "");const [qTankDat,setQTankDat]=_react.useState.call(void 0, td2());
+  const [qSchadTxt,setQSchadTxt]=_react.useState.call(void 0, "");
+  // Quick-action handlers
+  const qDoKm=()=>{if(!qKm||!fzScannedItem)return;const fid=fzScannedItem.id;const km=parseInt(qKm);
+    const log={id:uid(),km,datum:td2(),notiz:qKmNote};
+    setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,kmStand:km,kmLog:[log,...(f.kmLog||[])]}:f));
+    SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{kmStand:km}});
+    setFzScannedItem(p=>p?{...p,kmStand:km}:p);
+    _optionalChain([window, 'access', _665 => _665.__toast, 'optionalCall', _666 => _666("📏 "+km.toLocaleString("de-AT")+" km eingetragen")]);setFzQuickAction(null);setQKm("");setQKmNote("");
+  };
+  const qDoTank=()=>{if(!qTankL||!qTankP||!fzScannedItem)return;const fid=fzScannedItem.id;
+    const entry={id:uid(),datum:qTankDat,liter:parseFloat(qTankL),preis:parseFloat(qTankP),km:parseInt(qTankKm)||fzScannedItem.kmStand||0,foto:""};
+    setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,tankLog:[entry,...(f.tankLog||[])],kmStand:entry.km>=(f.kmStand||0)?entry.km:f.kmStand}:f));
+    SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{tankLog_add:entry,kmStand:entry.km}});
+    setFzScannedItem(p=>p?{...p,kmStand:Math.max(entry.km,p.kmStand||0)}:p);
+    _optionalChain([window, 'access', _667 => _667.__toast, 'optionalCall', _668 => _668("⛽ "+qTankL+"L · €"+qTankP+" getankt")]);setFzQuickAction(null);setQTankL("");setQTankP("");setQTankKm("");
+  };
+  const qDoSchaden=()=>{if(!qSchadTxt||!fzScannedItem)return;const fid=fzScannedItem.id;
+    const sch={id:uid(),datum:td2(),beschreibung:qSchadTxt,status:"offen",foto:"",by_user:_optionalChain([curUser, 'optionalAccess', _669 => _669.name])||""};
+    setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,schaeden:[sch,...(f.schaeden||[])]}:f));
+    SQ.push({url:"/api/schaeden/"+fid,method:"POST",body:sch});
+    _optionalChain([window, 'access', _670 => _670.__toast, 'optionalCall', _671 => _671("⚠️ Schaden gemeldet")]);setFzQuickAction(null);setQSchadTxt("");
+  };
+
+  // ═══ BATCH TANKEN ═══
+  const batchFz=fahrzeuge.find(f=>f.id===batchFzId);
+  const batchSave=()=>{
+    if(!bLit||!bPreis||!batchFzId)return;
+    const fid=batchFzId;const fz=fahrzeuge.find(f=>f.id===fid);
+    const entry={id:uid(),datum:bDat,liter:parseFloat(bLit),preis:parseFloat(bPreis),km:parseInt(bKm)||_optionalChain([fz, 'optionalAccess', _672 => _672.kmStand])||0,foto:""};
+    // Save to state + DB
+    setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,tankLog:[entry,...(f.tankLog||[])],kmStand:entry.km>=(f.kmStand||0)?entry.km:f.kmStand}:f));
+    SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{tankLog_add:entry,kmStand:entry.km}});
+    // Add to session list
+    setBatchRows(p=>[{...entry,fzId:fid,kennzeichen:_optionalChain([fz, 'optionalAccess', _673 => _673.kennzeichen])||"?",marke:_optionalChain([fz, 'optionalAccess', _674 => _674.marke])||"",modell:_optionalChain([fz, 'optionalAccess', _675 => _675.modell])||""},...p]);
+    _optionalChain([window, 'access', _676 => _676.__toast, 'optionalCall', _677 => _677("⛽ "+bLit+"L · €"+bPreis)]);
+    // Clear form, keep vehicle + advance date
+    setBLit("");setBPreis("");setBKm("");
+    setTimeout(()=>_optionalChain([bLitRef, 'access', _678 => _678.current, 'optionalAccess', _679 => _679.focus, 'call', _680 => _680()]),100);
+  };
+  const batchDel=(rowId)=>{
+    const row=batchRows.find(r=>r.id===rowId);if(!row)return;
+    // Remove from fahrzeuge tankLog
+    setFahrzeuge(p=>p.map(f=>f.id===row.fzId?{...f,tankLog:(f.tankLog||[]).filter(t=>t.id!==rowId)}:f));
+    setBatchRows(p=>p.filter(r=>r.id!==rowId));
+    _optionalChain([window, 'access', _681 => _681.__toast, 'optionalCall', _682 => _682("🗑️ Tankung entfernt")]);
+  };
+  const batchTotal=batchRows.reduce((s,r)=>({liter:s.liter+r.liter,preis:s.preis+r.preis,count:s.count+1}),{liter:0,preis:0,count:0});
+  const openBatch=()=>{setBatchMode(true);setSel(null);setFzScanMode(false);setShowAdd(false);const prefFz=myFzId||_optionalChain([sortedFz, 'access', _683 => _683[0], 'optionalAccess', _684 => _684.id])||"";setBatchFzId(prefFz);const fz=fahrzeuge.find(f=>f.id===prefFz);if(fz)setBKm(String(fz.kmStand||""));};
+
+  const FZ_TYPEN=["PKW","Transporter","LKW","Anhänger","Stapler","Hebewerk","Sonstige"];
+
+  return (
+    React.createElement('div', {}
+      , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}
+        , React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🚐 Fahrzeugverwaltung" )
+        , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:0}}, "Fahrzeuge erfassen, Fahrer zuweisen, Tankbuch & Service verwalten." )
+        , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
+          , !sel&&!batchMode&&React.createElement('div', { style: {display:"flex",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd}}
+            , React.createElement('button', { onClick: ()=>setView("liste"), style: {padding:"6px 10px",border:"none",background:view==="liste"?V.ac+"20":"transparent",color:view==="liste"?V.ac:V.dm,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}, "☰")
+            , React.createElement('button', { onClick: ()=>setView("kacheln"), style: {padding:"6px 10px",border:"none",borderLeft:"1px solid "+V.bd,background:view==="kacheln"?V.ac+"20":"transparent",color:view==="kacheln"?V.ac:V.dm,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}, "⊞")
+          )
+          , React.createElement('button', { onClick: ()=>{if(fzScanMode){fzStopScan();setFzScanMode(false);}else{setBatchMode(false);setFzScanMode(true);setSel(null);}}, style: fzScanMode?bdS:bsS()}, fzScanMode?"✕ Scanner":"📷 Scan")
+          , React.createElement('button', { onClick: ()=>{if(batchMode){setBatchMode(false);}else openBatch();}, style: batchMode?{...bdS,borderColor:"#f97316",color:"#f97316"}:bsS()}, batchMode?"✕ Batch":"⛽ Batch")
+          , !sel&&!batchMode&&React.createElement('button', { onClick: ()=>printLabels(fahrzeuge.filter(f=>f.status!=="stillgelegt").map(f=>({name:f.marke+" "+f.modell,code:f.kennzeichen,kennzeichen:f.kennzeichen})),"Fahrzeug-Labels"), style: bsS()}, "🏷️ Labels" )
+          , !sel&&!batchMode&&isVAdmin&&React.createElement('button', { onClick: ()=>{const h=["Kennzeichen","Marke/Modell","Typ","Fahrer","Baujahr","km-Stand","Reifen","Wischer","Pickerl","Service","Versicherung","Status"];const r=fahrzeuge.map(f=>[f.kennzeichen,f.marke+" "+f.modell,f.typ,_optionalChain([MONT, 'access', _685 => _685.find, 'call', _686 => _686(m=>m.id===f.fahrer), 'optionalAccess', _687 => _687.n])||"",f.baujahr||"",(f.kmStand||0).toLocaleString("de-AT"),f.reifen||"",f.scheibenwischer||"",f.pickerl?fdt(f.pickerl):"",f.naechstService?fdt(f.naechstService):"",f.versicherung||"",f.status]);genXls("🚗 Fuhrpark — Fahrzeugübersicht","Andreas Kolar & Sohn GesmbH · "+fahrzeuge.length+" Fahrzeuge",h,r,"Fuhrpark_"+td2()+".xls");}, style: xBtn("xls")}, "📊 Excel" )
+          , sel&&React.createElement('button', { onClick: ()=>setSel(null), style: bsS()}, "← Zurück" )
+          , isVAdmin&&!sel&&!batchMode&&React.createElement('button', { onClick: ()=>setShowAdd(!showAdd), style: bpS}, showAdd?"✕":"+ Fahrzeug")
+        )
+      )
+
+      , !sel&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:14}}
+        , React.createElement(Kpi, { label: "Fahrzeuge", value: aktiv, icon: "🚐", color: "#0ea5e9"} )
+        , React.createElement(Kpi, { label: "Offene Schäden" , value: offeneSchaeden, icon: "⚠️", color: offeneSchaeden>0?"#ef4444":"#22c55e"} )
+        , React.createElement(Kpi, { label: "Pickerl fällig" , value: pickerFaellig, icon: "📋", color: pickerFaellig>0?"#f97316":"#22c55e"} )
+        , React.createElement(Kpi, { label: "Service fällig" , value: serviceFaellig, icon: "🔧", color: serviceFaellig>0?"#f97316":"#22c55e"} )
+      ))
+
+      /* ═══ FZ SCANNER ═══ */
+      , fzScanMode&&!sel&&(React.createElement('div', { className: "fade-in"}
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:14}}
+          /* Left: Camera / Input */
+          , React.createElement('div', { style: {...CC(),borderColor:"rgba(14,165,233,.2)"}}
+            , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#0ea5e9",marginBottom:12}}, "📷 Fahrzeug scannen"  )
+            , !fzScanning&&!fzScannedItem&&(React.createElement('div', {}
+              , React.createElement('button', { onClick: fzStartScan, style: {...bpS,width:"100%",padding:"16px 20px",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:12}}, "📷 Kamera starten"  )
+              , React.createElement('div', { style: {textAlign:"center",color:V.dm,fontSize:12,marginBottom:10}}, "oder")
+              , React.createElement('div', { style: {display:"flex",gap:6}}
+                , React.createElement('input', { value: fzManualCode, onChange: e=>setFzManualCode(e.target.value), placeholder: "Kennzeichen (z.B. TU-123AB)"  , style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&fzManualCode)fzHandleScan(fzManualCode);}} )
+                , React.createElement('button', { onClick: ()=>{if(fzManualCode)fzHandleScan(fzManualCode);}, style: {...bpS,whiteSpace:"nowrap"}}, "🔍")
+              )
+            ))
+            , fzScanning&&(React.createElement('div', {}
+              , React.createElement('div', { style: {position:"relative",borderRadius:10,overflow:"hidden",background:"#000",marginBottom:10}}
+                , React.createElement('video', { ref: fzVideoRef, style: {width:"100%",display:"block",borderRadius:10}, playsInline: true, autoPlay: true, muted: true} )
+                , React.createElement('div', { style: {position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}
+                  , React.createElement('div', { style: {width:"60%",height:"60%",border:"3px solid #0ea5e9",borderRadius:12,boxShadow:"0 0 0 9999px rgba(0,0,0,.4)"}} )
+                )
+                , React.createElement('div', { style: {position:"absolute",bottom:8,left:0,right:0,textAlign:"center"}}, React.createElement('span', { style: {background:"rgba(0,0,0,.7)",color:"#0ea5e9",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600}}, "Barcode ins Bild halten"   ))
+              )
+              , React.createElement('div', { style: {display:"flex",gap:6}}
+                , React.createElement('button', { onClick: fzStopScan, style: {...bdS,flex:1}}, "⏹ Stopp" )
+                , React.createElement('input', { value: fzManualCode, onChange: e=>setFzManualCode(e.target.value), placeholder: "Manuell...", style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&fzManualCode){fzHandleScan(fzManualCode);setFzManualCode("");}}} )
+              )
+            ))
+            , fzScanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:fzScanMsg.startsWith("✅")?"rgba(34,197,94,.1)":fzScanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:fzScanMsg.startsWith("✅")?"#22c55e":fzScanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, fzScanMsg))
+            , !fzScanning&&fzScannedItem&&(React.createElement('button', { onClick: ()=>{setFzScannedItem(null);setFzScanMsg("");setFzQuickAction(null);fzStartScan();}, style: {...bpS,width:"100%",marginTop:10}}, "📷 Nächstes Fahrzeug scannen"   ))
+          )
+
+          /* Right: Result + Quick Actions */
+          , React.createElement('div', {}
+            , !fzScannedItem&&(React.createElement('div', { style: {...CC(),textAlign:"center",padding:isMob?24:40}}
+              , React.createElement('div', { style: {fontSize:48,marginBottom:8}}, "🚐")
+              , React.createElement('div', { style: {fontSize:15,fontWeight:600,color:V.dm}}, "Fahrzeug scannen" )
+              , React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:4}}, "Barcode am Fahrzeug scannen oder Kennzeichen eingeben"      )
+            ))
+
+            , fzScannedItem&&(React.createElement('div', {}
+              /* Vehicle Info Card */
+              , React.createElement('div', { style: {...CC(),borderColor:"rgba(14,165,233,.3)",background:"rgba(14,165,233,.03)",marginBottom:10}}
+                , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}
+                  , React.createElement('div', {}
+                    , React.createElement('div', { style: {fontSize:11,color:V.dm,fontFamily:mono}}, fzScannedItem.typ||"Fahrzeug")
+                    , React.createElement('div', { style: {fontSize:20,fontWeight:800}}, fzScannedItem.typ==="Transporter"?"🚐":fzScannedItem.typ==="LKW"?"🚛":"🚗", " " , fzScannedItem.kennzeichen)
+                    , React.createElement('div', { style: {fontSize:13,color:V.dm}}, fzScannedItem.marke, " " , fzScannedItem.modell, " " , fzScannedItem.baujahr?"("+fzScannedItem.baujahr+")":"")
+                  )
+                  , React.createElement('div', { style: {textAlign:"right"}}
+                    , React.createElement('div', { style: {fontFamily:mono,fontSize:18,fontWeight:800,color:V.ac}}, (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
+                    , React.createElement('div', { style: {fontSize:11,color:V.dm}}, _optionalChain([MONT, 'access', _688 => _688.find, 'call', _689 => _689(m=>m.id===fzScannedItem.fahrer), 'optionalAccess', _690 => _690.n])||"kein Fahrer")
+                  )
+                )
+                /* Badges */
+                , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap"}}
+                  , fzScannedItem.pickerl&&React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl), color: new Date(fzScannedItem.pickerl)>new Date()?"#22c55e":"#ef4444"} )
+                  , (fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length>0&&React.createElement(Badge, { text: "⚠️ "+(fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length+" offene Schäden", color: "#ef4444"} )
+                  , _optionalChain([fzScannedItem, 'access', _691 => _691.tankLog, 'optionalAccess', _692 => _692.length])>0&&React.createElement(Badge, { text: "⛽ Letzte Tankung: "+fdt(_optionalChain([fzScannedItem, 'access', _693 => _693.tankLog, 'access', _694 => _694[0], 'optionalAccess', _695 => _695.datum])), color: "#f97316"} )
+                )
+              )
+
+              /* Quick Action Buttons */
+              , !fzQuickAction&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}
+                , React.createElement('button', { onClick: ()=>{setFzQuickAction("tank");setQTankKm(String(fzScannedItem.kmStand||""));}, style: {...CC(),cursor:"pointer",padding:isMob?14:18,textAlign:"center",border:"2px solid rgba(249,115,22,.3)",background:"rgba(249,115,22,.04)"}}
+                  , React.createElement('div', { style: {fontSize:28}}, "⛽")
+                  , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#f97316",marginTop:4}}, "Tanken")
+                  , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Tankbeleg erfassen" )
+                )
+                , React.createElement('button', { onClick: ()=>{setFzQuickAction("km");setQKm(String(fzScannedItem.kmStand||""));}, style: {...CC(),cursor:"pointer",padding:isMob?14:18,textAlign:"center",border:"2px solid rgba(14,165,233,.3)",background:"rgba(14,165,233,.04)"}}
+                  , React.createElement('div', { style: {fontSize:28}}, "📏")
+                  , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#0ea5e9",marginTop:4}}, "km eintragen" )
+                  , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Kilometerstand aktualisieren" )
+                )
+                , React.createElement('button', { onClick: ()=>setFzQuickAction("schaden"), style: {...CC(),cursor:"pointer",padding:isMob?14:18,textAlign:"center",border:"2px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.04)"}}
+                  , React.createElement('div', { style: {fontSize:28}}, "⚠️")
+                  , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#ef4444",marginTop:4}}, "Schaden melden" )
+                  , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Neuen Schaden erfassen"  )
+                )
+                , React.createElement('button', { onClick: ()=>{setSel(fzScannedItem.id);setFzScanMode(false);setFzScannedItem(null);}, style: {...CC(),cursor:"pointer",padding:isMob?14:18,textAlign:"center",border:"2px solid "+V.bd}}
+                  , React.createElement('div', { style: {fontSize:28}}, "📋")
+                  , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:V.tx,marginTop:4}}, "Details")
+                  , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Vollständige Fahrzeug-Infos" )
+                )
+              ))
+
+              /* ═══ INLINE: TANKEN ═══ */
+              , fzQuickAction==="tank"&&(React.createElement('div', { className: "fade-in", style: {...CC(),border:"2px solid #f97316"}}
+                , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}
+                  , React.createElement('div', { style: {fontSize:15,fontWeight:800,color:"#f97316"}}, "⛽ Tankprotokoll" )
+                  , React.createElement('button', { onClick: ()=>setFzQuickAction(null), style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,fontFamily:"inherit"}}, "✕")
+                )
+                , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", value: qTankL, onChange: e=>setQTankL(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "45.0", autoFocus: true} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Preis € *"  ), React.createElement('input', { type: "number", value: qTankP, onChange: e=>setQTankP(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "72.50"} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum"), React.createElement('input', { type: "date", value: qTankDat, onChange: e=>setQTankDat(e.target.value), style: II()} ))
+                )
+                , qTankL&&qTankP&&(React.createElement('div', { style: {padding:8,borderRadius:6,background:"rgba(249,115,22,.06)",marginBottom:10,fontSize:12,display:"flex",justifyContent:"space-between"}}
+                  , React.createElement('span', {}, "€/Liter: " , React.createElement('strong', {}, (parseFloat(qTankP)/parseFloat(qTankL)).toFixed(3)))
+                  , React.createElement('span', {}, "Gesamt: " , React.createElement('strong', {}, "€", parseFloat(qTankP).toFixed(2)), " für "  , React.createElement('strong', {}, parseFloat(qTankL).toFixed(1), "L"))
+                ))
+                , React.createElement('button', { onClick: qDoTank, disabled: !qTankL||!qTankP, style: {...bpS,width:"100%",padding:"14px",fontSize:15,background:(!qTankL||!qTankP)?"#555":"",opacity:(!qTankL||!qTankP)?.5:1}}, "⛽ Tankung speichern"  )
+              ))
+
+              /* ═══ INLINE: KM ═══ */
+              , fzQuickAction==="km"&&(React.createElement('div', { className: "fade-in", style: {...CC(),border:"2px solid #0ea5e9"}}
+                , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}
+                  , React.createElement('div', { style: {fontSize:15,fontWeight:800,color:"#0ea5e9"}}, "📏 Kilometerstand" )
+                  , React.createElement('button', { onClick: ()=>setFzQuickAction(null), style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,fontFamily:"inherit"}}, "✕")
+                )
+                , React.createElement('div', { style: {marginBottom:10}}
+                  , React.createElement('span', { style: LL()}, "Neuer km-Stand *"  )
+                  , React.createElement('input', { type: "number", value: qKm, onChange: e=>setQKm(e.target.value), style: {...II(),fontSize:22,fontFamily:mono,textAlign:"center",fontWeight:800}, autoFocus: true} )
+                  , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4}}, "Aktuell: " , (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
+                )
+                , React.createElement('div', { style: {marginBottom:12}}
+                  , React.createElement('span', { style: LL()}, "Notiz (optional)" )
+                  , React.createElement('input', { value: qKmNote, onChange: e=>setQKmNote(e.target.value), style: II(), placeholder: "z.B. Fahrt nach Wien"   } )
+                )
+                , React.createElement('button', { onClick: qDoKm, disabled: !qKm, style: {...bpS,width:"100%",padding:"14px",fontSize:15,background:!qKm?"#555":"",opacity:!qKm?.5:1}}, "📏 km speichern"  )
+              ))
+
+              /* ═══ INLINE: SCHADEN ═══ */
+              , fzQuickAction==="schaden"&&(React.createElement('div', { className: "fade-in", style: {...CC(),border:"2px solid #ef4444"}}
+                , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}
+                  , React.createElement('div', { style: {fontSize:15,fontWeight:800,color:"#ef4444"}}, "⚠️ Schaden melden"  )
+                  , React.createElement('button', { onClick: ()=>setFzQuickAction(null), style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,fontFamily:"inherit"}}, "✕")
+                )
+                , React.createElement('div', { style: {marginBottom:12}}
+                  , React.createElement('span', { style: LL()}, "Beschreibung *" )
+                  , React.createElement('textarea', { value: qSchadTxt, onChange: e=>setQSchadTxt(e.target.value), rows: 3, style: {...II(),resize:"vertical"}, placeholder: "Was ist beschädigt? Z.B. Delle hinten rechts, Kratzer Beifahrerseite..."        , autoFocus: true} )
+                )
+                , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:10}}, "Gemeldet von: "  , React.createElement('strong', {}, _optionalChain([curUser, 'optionalAccess', _696 => _696.name])||"?"), " am "  , fdt(td2()))
+                , React.createElement('button', { onClick: qDoSchaden, disabled: !qSchadTxt, style: {...bdS,width:"100%",padding:"14px",fontSize:15,borderColor:!qSchadTxt?"#555":"#ef4444",color:!qSchadTxt?"#555":"#ef4444",opacity:!qSchadTxt?.5:1}}, "⚠️ Schaden melden"  )
+              ))
+
+              /* Bottom actions */
+              , React.createElement('div', { style: {display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap"}}
+                , React.createElement('button', { onClick: ()=>printLabels([{name:fzScannedItem.marke+" "+fzScannedItem.modell,code:fzScannedItem.kennzeichen,kennzeichen:fzScannedItem.kennzeichen}],"Fahrzeug-Label"), style: {...bsS(),fontSize:11,padding:"6px 12px"}}, "🏷️ Label drucken"  )
+              )
+            ))
+          )
+        )
+      ))
+
+      /* ═══ BATCH TANKEN ═══ */
+      , batchMode&&!sel&&(React.createElement('div', { className: "fade-in"}
+        , React.createElement('div', { style: {...CC(),border:"2px solid #f97316",marginBottom:14}}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}
+            , React.createElement('div', {}
+              , React.createElement('div', { style: {fontSize:17,fontWeight:800,color:"#f97316"}}, "⛽ Batch-Tanken" )
+              , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "Mehrere Tankbelege schnell hintereinander erfassen"    )
+            )
+            , batchRows.length>0&&(React.createElement('div', { style: {background:"rgba(249,115,22,.1)",padding:"6px 14px",borderRadius:8,textAlign:"center"}}
+              , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, batchTotal.count)
+              , React.createElement('div', { style: {fontSize:9,color:V.dm}}, "erfasst")
+            ))
+          )
+
+          /* Vehicle selector — big, prominent */
+          , React.createElement('div', { style: {marginBottom:14}}
+            , React.createElement('span', { style: {...LL(),fontSize:12,fontWeight:700}}, "Fahrzeug wählen" )
+            , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
+              , visibleFz.map(f=>{const isMine=f.id===myFzId;return (React.createElement('button', { key: f.id, onClick: ()=>{setBatchFzId(f.id);setBKm(String(f.kmStand||""));setTimeout(()=>_optionalChain([bLitRef, 'access', _697 => _697.current, 'optionalAccess', _698 => _698.focus, 'call', _699 => _699()]),100);}, style: {padding:"8px 14px",borderRadius:8,border:batchFzId===f.id?"2px solid #f97316":isMine?"2px solid rgba(34,197,94,.4)":"2px solid "+V.bd,background:batchFzId===f.id?"rgba(249,115,22,.08)":isMine?"rgba(34,197,94,.04)":"transparent",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:batchFzId===f.id?700:500,color:batchFzId===f.id?"#f97316":V.tx,display:"flex",alignItems:"center",gap:6,minHeight:44}}
+                , React.createElement('span', { style: {fontSize:16}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":"🚗")
+                , React.createElement('div', { style: {textAlign:"left"}}
+                  , React.createElement('div', { style: {fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:4}}
+                    , f.kennzeichen
+                    , isMine&&React.createElement('span', { style: {fontSize:8,padding:"1px 4px",borderRadius:3,background:"#dcfce7",color:"#16a34a",fontWeight:700}}, "MEIN")
+                    , isFav(f.id)&&!isMine&&React.createElement('span', { style: {color:"#eab308",fontSize:12}}, "★")
+                  )
+                  , React.createElement('div', { style: {fontSize:10,color:V.dm,fontWeight:400}}, f.marke, " " , f.modell)
+                )
+              ));})
+            )
+          )
+
+          /* Entry form — compact, fast */
+          , batchFzId&&(React.createElement('div', { style: {background:"rgba(249,115,22,.04)",borderRadius:10,padding:14,border:"1px solid rgba(249,115,22,.15)"}}
+            , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"1fr 1fr 1fr 1fr auto",gap:8,alignItems:"end"}}
+              , React.createElement('div', {}
+                , React.createElement('span', { style: {...LL(),fontSize:10}}, "Datum")
+                , React.createElement('input', { type: "date", value: bDat, onChange: e=>setBDat(e.target.value), style: {...II(),fontSize:13}} )
+              )
+              , React.createElement('div', {}
+                , React.createElement('span', { style: {...LL(),fontSize:10}}, "Liter *" )
+                , React.createElement('input', { ref: bLitRef, type: "number", step: "0.1", value: bLit, onChange: e=>setBLit(e.target.value), style: {...II(),fontSize:16,fontFamily:mono,fontWeight:700}, placeholder: "45.0", onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+              )
+              , React.createElement('div', {}
+                , React.createElement('span', { style: {...LL(),fontSize:10}}, "Preis € *"  )
+                , React.createElement('input', { type: "number", step: "0.01", value: bPreis, onChange: e=>setBPreis(e.target.value), style: {...II(),fontSize:16,fontFamily:mono,fontWeight:700}, placeholder: "72.50", onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+              )
+              , React.createElement('div', {}
+                , React.createElement('span', { style: {...LL(),fontSize:10}}, "km-Stand")
+                , React.createElement('input', { type: "number", value: bKm, onChange: e=>setBKm(e.target.value), style: {...II(),fontSize:13,fontFamily:mono}, onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+              )
+              , React.createElement('button', { onClick: batchSave, disabled: !bLit||!bPreis, style: {...bpS,padding:"12px 20px",fontSize:14,whiteSpace:"nowrap",minHeight:44,opacity:(!bLit||!bPreis)?.4:1}}, "⛽ Speichern" )
+            )
+            , bLit&&bPreis&&(React.createElement('div', { style: {marginTop:8,padding:"4px 10px",borderRadius:6,background:"rgba(249,115,22,.08)",fontSize:11,display:"flex",justifyContent:"space-between",color:"#f97316",fontWeight:600}}
+              , React.createElement('span', {}, "€/L: " , (parseFloat(bPreis)/parseFloat(bLit)).toFixed(3))
+              , React.createElement('span', {}, parseFloat(bLit).toFixed(1), " Liter · €"   , parseFloat(bPreis).toFixed(2))
+            ))
+            , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:6}}, "💡 Enter drücken zum Speichern — Cursor springt automatisch zurück zu Liter"           )
+          ))
+        )
+
+        /* Session Log */
+        , batchRows.length>0&&(React.createElement('div', { style: {...CC(),marginBottom:14}}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
+            , React.createElement('div', { style: {fontSize:14,fontWeight:700}}, "📋 Diese Sitzung"  )
+            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, " Tankungen · "   , React.createElement('strong', { style: {color:"#f97316"}}, batchTotal.liter.toFixed(1), " L" ), " · "  , React.createElement('strong', { style: {color:"#f97316"}}, "€", batchTotal.preis.toFixed(2)))
+          )
+          , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:4}}
+            , batchRows.map((r,i)=>{
+              const isLast=i===0;
+              return (React.createElement('div', { key: r.id, className: isLast?"fade-in":"", style: {display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:isLast?"rgba(249,115,22,.06)":"transparent",border:isLast?"1px solid rgba(249,115,22,.15)":"1px solid "+V.bd}}
+                , React.createElement('div', { style: {fontSize:18}}, _optionalChain([fahrzeuge, 'access', _700 => _700.find, 'call', _701 => _701(f=>f.id===r.fzId), 'optionalAccess', _702 => _702.typ])==="Transporter"?"🚐":"🚗")
+                , React.createElement('div', { style: {flex:1,minWidth:0}}
+                  , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}}
+                    , React.createElement('span', { style: {fontWeight:700,fontSize:13}}, r.kennzeichen)
+                    , React.createElement('span', { style: {fontSize:11,color:V.dm}}, fdt(r.datum))
+                  )
+                  , React.createElement('div', { style: {display:"flex",gap:12,fontSize:12,marginTop:2}}
+                    , React.createElement('span', { style: {fontFamily:mono,fontWeight:600}}, r.liter.toFixed(1), " L" )
+                    , React.createElement('span', { style: {fontFamily:mono,fontWeight:600,color:"#f97316"}}, "€", r.preis.toFixed(2))
+                    , React.createElement('span', { style: {fontSize:10,color:V.dm}}, "€/L: " , (r.preis/r.liter).toFixed(3))
+                    , r.km>0&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, r.km.toLocaleString("de-AT"), " km" )
+                  )
+                )
+                , React.createElement('button', { onClick: ()=>batchDel(r.id), style: {border:"none",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:14,padding:4,minHeight:36,minWidth:36,display:"flex",alignItems:"center",justifyContent:"center"}, title: "Entfernen"}, "🗑️")
+              ));
+            })
+          )
+
+          /* Summary bar */
+          , batchRows.length>=2&&(React.createElement('div', { style: {marginTop:12,padding:"10px 14px",borderRadius:8,background:"linear-gradient(135deg,rgba(249,115,22,.08),rgba(249,115,22,.03))",border:"1px solid rgba(249,115,22,.2)",display:"flex",justifyContent:"space-around",textAlign:"center"}}
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, batchTotal.count), React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Tankungen"))
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, batchTotal.liter.toFixed(1)), React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Liter gesamt" ))
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, "€", batchTotal.preis.toFixed(2)), React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Kosten gesamt" ))
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, "€", (batchTotal.preis/batchTotal.liter).toFixed(3)), React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Ø €/Liter" ))
+          ))
+        ))
+      ))
+
+      /* Add form (Admin/Pinger) */
+      , showAdd&&isVAdmin&&(React.createElement('div', { style: {...CC(),marginBottom:14,border:"2px solid "+V.ac}}
+        , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "🚐 Neues Fahrzeug anlegen"   )
+        , React.createElement('div', { className: "form-grid-4", style: {marginBottom:10}}
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Kennzeichen *" ), React.createElement('input', { value: nf.kennzeichen, onChange: e=>setNf({...nf,kennzeichen:e.target.value.toUpperCase()}), style: II(), placeholder: "TU-123AB"} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Marke"), React.createElement('input', { value: nf.marke, onChange: e=>setNf({...nf,marke:e.target.value}), style: II(), placeholder: "VW"} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Modell"), React.createElement('input', { value: nf.modell, onChange: e=>setNf({...nf,modell:e.target.value}), style: II(), placeholder: "Crafter"} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Typ"), React.createElement('select', { value: nf.typ, onChange: e=>setNf({...nf,typ:e.target.value}), style: II()}, FZ_TYPEN.map(t=>(React.createElement('option', { key: t}, t)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Farbe"), React.createElement('input', { value: nf.farbe, onChange: e=>setNf({...nf,farbe:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Baujahr"), React.createElement('input', { value: nf.baujahr, onChange: e=>setNf({...nf,baujahr:e.target.value}), style: II(), placeholder: "2022"} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer"), React.createElement('select', { value: nf.fahrer, onChange: e=>setNf({...nf,fahrer:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— keiner —"  ), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", value: nf.kmStand, onChange: e=>setNf({...nf,kmStand:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl bis" ), React.createElement('input', { type: "date", value: nf.pickerl, onChange: e=>setNf({...nf,pickerl:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: nf.naechstService, onChange: e=>setNf({...nf,naechstService:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: nf.versicherung, onChange: e=>setNf({...nf,versicherung:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), React.createElement('input', { value: nf.reifen, onChange: e=>setNf({...nf,reifen:e.target.value}), style: II(), placeholder: "205/65/R16C"} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Scheibenwischer (V/H)" ), React.createElement('input', { value: nf.scheibenwischer, onChange: e=>setNf({...nf,scheibenwischer:e.target.value}), style: II(), placeholder: "65/55"} ))
+        )
+        , React.createElement('button', { onClick: addFz, style: bpS}, "💾 Anlegen" )
+      ))
+
+      /* Vehicle List */
+      , !sel&&!batchMode&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:view==="kacheln"?(isMob?"repeat(2,1fr)":"repeat(auto-fill,minmax(220px,1fr))"):(isMob?"1fr":"repeat(auto-fill,minmax(320px,1fr))"),gap:view==="kacheln"?8:10}}
+        , visibleFz.map(f=>{
+          const fahrer=MONT.find(m=>m.id===f.fahrer);
+          const pickerlOk=f.pickerl&&new Date(f.pickerl)>new Date();
+          const pickerlWarn=f.pickerl&&!pickerlOk||(f.pickerl&&(new Date(f.pickerl)-new Date())/(86400000)<30);
+          const serviceWarn=f.naechstService&&new Date(f.naechstService)<=new Date();
+          const offSch=(f.schaeden||[]).filter(s=>s.status==="offen").length;
+          const isMine=f.id===myFzId;
+          return view==="kacheln"?(React.createElement('div', { key: f.id, style: {...CC(),cursor:"pointer",borderLeft:"3px solid "+(isMine?"#22c55e":offSch>0?"#ef4444":"#0ea5e9"),padding:"10px 12px",position:"relative"}, onClick: ()=>setSel(f.id)}
+            , React.createElement('div', { style: {fontSize:13,fontWeight:800,marginBottom:2}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗", " ", f.kennzeichen, isMine?" ":"")
+            , isMine&&React.createElement('span', { style: {fontSize:8,padding:"1px 4px",borderRadius:3,background:"#dcfce7",color:"#16a34a",fontWeight:700,position:"absolute",top:4,right:4}}, "MEIN")
+            , React.createElement('div', { style: {fontSize:10,color:V.dm,marginBottom:4}}, f.marke," ",f.modell)
+            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:12,fontWeight:700,marginBottom:4}}, (f.kmStand||0).toLocaleString("de-AT")," km")
+            , fahrer&&React.createElement('div', { style: {fontSize:10,color:V.ac}}, "👤 ",fahrer.n)
+            , React.createElement('div', { style: {display:"flex",gap:3,marginTop:4,flexWrap:"wrap"}}
+              , pickerlWarn&&React.createElement('span', { style: {fontSize:8,padding:"1px 4px",borderRadius:3,background:"#fef3c7",color:"#d97706",fontWeight:600}}, "📋")
+              , serviceWarn&&React.createElement('span', { style: {fontSize:8,padding:"1px 4px",borderRadius:3,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "🔧")
+              , offSch>0&&React.createElement('span', { style: {fontSize:8,padding:"1px 4px",borderRadius:3,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️",offSch)
+            )
+          )):(React.createElement('div', { key: f.id, style: {...CC(),cursor:"pointer",borderLeft:"4px solid "+(isMine?"#22c55e":offSch>0?"#ef4444":pickerlWarn?"#f97316":"#0ea5e9"),position:"relative"}, onClick: ()=>setSel(f.id)}
+            /* Fav star */
+            , React.createElement('button', { onClick: e=>{e.stopPropagation();toggleFav(f.id);}, style: {position:"absolute",top:8,right:8,border:"none",background:"transparent",cursor:"pointer",fontSize:18,padding:4,zIndex:2,color:isFav(f.id)?"#eab308":"#555",filter:isFav(f.id)?"drop-shadow(0 0 2px rgba(234,179,8,.4))":"none"}, title: isFav(f.id)?"Favorit entfernen":"Als Favorit markieren"}, isFav(f.id)?"★":"☆")
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingRight:28}}
+              , React.createElement('div', {}
+                , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
+                  , React.createElement('span', { style: {fontSize:16,fontWeight:800}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗", " " , f.kennzeichen)
+                  , isMine&&React.createElement('span', { style: {fontSize:9,padding:"2px 6px",borderRadius:4,background:"#dcfce7",color:"#16a34a",fontWeight:700,letterSpacing:".3px"}}, "MEIN")
+                  , isFav(f.id)&&!isMine&&React.createElement('span', { style: {fontSize:9,padding:"2px 6px",borderRadius:4,background:"rgba(234,179,8,.12)",color:"#ca8a04",fontWeight:700}}, "FAV")
+                )
+                , React.createElement('div', { style: {fontSize:13,color:V.dm}}, f.marke, " " , f.modell, " " , f.baujahr?"("+f.baujahr+")":"", f.farbe?" · "+f.farbe:"")
+              )
+              , React.createElement('div', { style: {textAlign:"right"}}
+                , React.createElement('div', { style: {fontFamily:"monospace",fontSize:14,fontWeight:700}}, (f.kmStand||0).toLocaleString("de-AT"), " km" )
+                , fahrer&&React.createElement('div', { style: {fontSize:11,color:V.ac}}, "👤 " , fahrer.n)
+              )
+            )
+            , React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}
+              , f.pickerl&&React.createElement('span', { style: {fontSize:10,padding:"2px 6px",borderRadius:4,background:pickerlOk&&!pickerlWarn?"#dcfce7":pickerlWarn?"#fef3c7":"#fee2e2",color:pickerlOk&&!pickerlWarn?"#16a34a":pickerlWarn?"#d97706":"#dc2626",fontWeight:600}}, "📋 Pickerl: "  , fdt(f.pickerl))
+              , f.naechstService&&React.createElement('span', { style: {fontSize:10,padding:"2px 6px",borderRadius:4,background:serviceWarn?"#fee2e2":"#e0f2fe",color:serviceWarn?"#dc2626":"#0284c7",fontWeight:600}}, "🔧 Service: "  , fdt(f.naechstService))
+              , offSch>0&&React.createElement('span', { style: {fontSize:10,padding:"2px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️ " , offSch, " Schaden" )
+              , f.reifen&&React.createElement('span', { style: {fontSize:10,padding:"2px 6px",borderRadius:4,background:"#f3f4f6",color:"#4b5563",fontWeight:500}}, "🛞 " , f.reifen)
+              , React.createElement('span', { style: {fontSize:10,padding:"2px 6px",borderRadius:4,background:"#f0f0f0",color:"#666"}}, "⛽ " , (f.tankLog||[]).length, " Tankungen" )
+            )
+          ));
+        })
+      ))
+
+      /* Vehicle Detail */
+      , selFz&&(React.createElement('div', {}
+        , React.createElement('div', { style: CC()}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}
+            , React.createElement('div', {}
+              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
+                , React.createElement('span', { style: {fontSize:20,fontWeight:800}}, selFz.kennzeichen)
+                , sel===myFzId&&React.createElement('span', { style: {fontSize:10,padding:"2px 8px",borderRadius:4,background:"#dcfce7",color:"#16a34a",fontWeight:700}}, "MEIN FAHRZEUG" )
+                , React.createElement('button', { onClick: ()=>toggleFav(sel), style: {border:"none",background:"transparent",cursor:"pointer",fontSize:20,padding:0,color:isFav(sel)?"#eab308":"#555"}, title: isFav(sel)?"Favorit entfernen":"Favorit"}, isFav(sel)?"★":"☆")
+              )
+              , React.createElement('div', { style: {fontSize:14,color:V.dm}}, selFz.marke, " " , selFz.modell, " " , selFz.baujahr?"("+selFz.baujahr+")":"")
+            )
+            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:20,fontWeight:800,color:V.ac}}, (selFz.kmStand||0).toLocaleString("de-AT"), " km" )
+            , React.createElement('div', { style: {marginTop:4}, dangerouslySetInnerHTML: {__html:genBarcodeSVG(selFz.kennzeichen,140,28)}} )
+          )
+          , React.createElement('div', { className: "form-grid-4", style: {marginBottom:12}}
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Typ"), React.createElement('div', { style: {fontSize:13,fontWeight:600}}, selFz.typ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Farbe"), React.createElement('div', { style: {fontSize:13}}, selFz.farbe||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer")
+              , isVAdmin?(React.createElement('select', { value: selFz.fahrer||"", onChange: e=>upd(sel,f=>({...f,fahrer:e.target.value})), style: {...II(),fontSize:12}}, React.createElement('option', { value: ""}, "— keiner —"  ), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))):(React.createElement('div', { style: {fontSize:13}}, _optionalChain([MONT, 'access', _703 => _703.find, 'call', _704 => _704(m=>m.id===selFz.fahrer), 'optionalAccess', _705 => _705.n])||"—"))
+            )
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('div', { style: {fontSize:13}}, selFz.versicherung||"—"))
+            , selFz.reifen&&React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), React.createElement('div', { style: {fontSize:13,fontWeight:600,fontFamily:"monospace"}}, selFz.reifen))
+            , selFz.scheibenwischer&&React.createElement('div', {}, React.createElement('span', { style: LL()}, "Wischer (V/H)" ), React.createElement('div', { style: {fontSize:13,fontFamily:"monospace"}}, selFz.scheibenwischer, " cm" ))
+          )
+          , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
+            , React.createElement('button', { onClick: ()=>{setShowKm(sel);setKmVal(String(selFz.kmStand||""));}, style: bsS()}, "📏 km eintragen"  )
+            , React.createElement('button', { onClick: ()=>{setShowTank(sel);setTankKm(String(selFz.kmStand||""));}, style: bsS()}, "⛽ Tanken" )
+            , React.createElement('button', { onClick: ()=>setShowSchaden(sel), style: {...bsS(),color:"#ef4444"}}, "⚠️ Schaden melden"  )
+            , React.createElement('button', { onClick: ()=>printLabels([{name:selFz.marke+" "+selFz.modell,code:selFz.kennzeichen,kennzeichen:selFz.kennzeichen}],"Fahrzeug-Label"), style: bsS()}, "🏷️ Label" )
+            , isVAdmin&&React.createElement('button', { onClick: ()=>del(sel), style: bdS}, "🗑️ Löschen" )
+          )
+        )
+
+        /* km Modal */
+        , showKm===sel&&(React.createElement('div', { style: {...CC(),border:"2px solid "+V.ac,marginTop:8}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:8}}, "📏 Kilometerstand eintragen"  )
+          , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", value: kmVal, onChange: e=>setKmVal(e.target.value), style: {...II(),fontFamily:"monospace",fontSize:16}, autoFocus: true} ))
+            , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: LL()}, "Notiz"), React.createElement('input', { value: kmNote, onChange: e=>setKmNote(e.target.value), style: II(), placeholder: "z.B. Fahrt nach Wien"   } ))
+            , React.createElement('button', { onClick: ()=>addKm(sel), style: bpS}, "💾")
+            , React.createElement('button', { onClick: ()=>setShowKm(null), style: bsS()}, "✕")
+          )
+        ))
+
+        /* Tank Modal */
+        , showTank===sel&&(React.createElement('div', { style: {...CC(),border:"2px solid #f97316",marginTop:8}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:8}}, "⛽ Tankprotokoll" )
+          , React.createElement('div', { style: {marginBottom:10,padding:10,background:"rgba(249,115,22,.08)",borderRadius:8,border:"1px dashed rgba(249,115,22,.3)"}}
+            , React.createElement('div', { style: {fontSize:12,fontWeight:600,marginBottom:6,color:"#f97316"}}, "📷 Tankbeleg fotografieren"  )
+            , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
+              , React.createElement('button', { onClick: ()=>_optionalChain([tankFotoRef, 'access', _706 => _706.current, 'optionalAccess', _707 => _707.click, 'call', _708 => _708()]), style: {...bsS(),display:"flex",alignItems:"center",gap:4}}, "📸 Beleg fotografieren"  )
+              , React.createElement('input', { ref: tankFotoRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: handleTankFoto} )
+              , tankOcr&&React.createElement('span', { style: {fontSize:11,color:"#f97316",fontWeight:600}}, "⏳ Beleg wird verarbeitet..."   )
+            )
+            , tankFoto&&React.createElement('div', { style: {marginTop:6}}, React.createElement('img', { src: tankFoto, style: {maxWidth:200,maxHeight:140,borderRadius:8,border:"2px solid #f97316"}, alt: "Tankbeleg"} ), React.createElement('div', { style: {fontSize:10,color:"#22c55e",marginTop:2}}, "✅ Beleg gespeichert"  ))
+          )
+          , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum *" ), React.createElement('input', { type: "date", value: tankDatum, onChange: e=>setTankDatum(e.target.value), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", step: "0.1", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52.3" , autoFocus: true} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "number", step: "0.01", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89.50" } ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
+          )
+          , tankLiter&&tankPreis&&parseFloat(tankLiter)>0&&React.createElement('div', { style: {fontSize:12,color:V.ac,fontWeight:600,marginBottom:6}}, "💰 Literpreis: "  , (parseFloat(tankPreis)/parseFloat(tankLiter)).toFixed(3), " €/L" )
+          , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>addTank(sel), style: bpS}, "💾 Speichern" ), React.createElement('button', { onClick: ()=>{setShowTank(null);setTankFoto("");}, style: bsS()}, "✕"))
+        ))
+
+        /* Schaden Modal */
+        , showSchaden===sel&&(React.createElement('div', { style: {...CC(),border:"2px solid #ef4444",marginTop:8}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:8,color:"#ef4444"}}, "⚠️ Schadensmeldung" )
+          , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Beschreibung * 🎤"  ), React.createElement(SpeechWrap, { value: schadBeschr, onChange: v=>setSchadBeschr(v)}, React.createElement('textarea', { value: schadBeschr, onChange: e=>setSchadBeschr(e.target.value), rows: 3, style: {...II(),resize:"vertical"}, placeholder: "Was ist passiert?"  } )))
+          , React.createElement('div', { style: {marginBottom:8}}
+            , React.createElement('span', { style: LL()}, "Foto")
+            , React.createElement('div', { style: {display:"flex",gap:6}}
+              , React.createElement('button', { onClick: ()=>_optionalChain([schadRef, 'access', _709 => _709.current, 'optionalAccess', _710 => _710.click, 'call', _711 => _711()]), style: bsS()}, "📷 Foto aufnehmen"  )
+              , React.createElement('input', { ref: schadRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: handleSchadFoto} )
+            )
+            , schadFoto&&React.createElement('img', { src: schadFoto, style: {maxWidth:200,maxHeight:150,borderRadius:8,marginTop:6}, alt: "Schaden"} )
+          )
+          , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>addSchaden(sel), style: {...bpS,background:"#ef4444"}}, "⚠️ Melden" ), React.createElement('button', { onClick: ()=>{setShowSchaden(null);setSchadFoto("");}, style: bsS()}, "✕"))
+        ))
+
+        /* Termine/Service (Admin/Pinger) */
+        , isVAdmin&&(React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "🗓️ Termine & Werkstatt"   )
+          , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl gültig bis"  ), React.createElement('input', { type: "date", value: selFz.pickerl||"", onChange: e=>upd(sel,f=>({...f,pickerl:e.target.value})), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: selFz.naechstService||"", onChange: e=>upd(sel,f=>({...f,naechstService:e.target.value})), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: selFz.versicherung||"", onChange: e=>upd(sel,f=>({...f,versicherung:e.target.value})), style: II()} ))
+          )
+          /* Zulassungsschein Upload with Preview */
+          , React.createElement('div', { style: {...CC(),marginTop:8,padding:10}}
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:6}}, "📄 Zulassungsschein" )
+            , selFz.zulassungsschein?(React.createElement('div', {}
+              , selFz.zulassungsschein.startsWith("data:application/pdf")?(
+                React.createElement('div', { style: {position:"relative",width:"100%",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,marginBottom:8}}
+                  , React.createElement('iframe', { src: selFz.zulassungsschein, style: {width:"100%",height:300,border:"none"}, title: "Zulassungsschein PDF"} )
+                  , React.createElement('div', { style: {position:"absolute",top:6,right:6,display:"flex",gap:4}}
+                    , React.createElement('button', { onClick: ()=>window.open(selFz.zulassungsschein,"_blank"), style: {padding:"4px 8px",borderRadius:6,border:"none",background:"rgba(0,0,0,.6)",color:"#fff",cursor:"pointer",fontSize:10,fontFamily:"inherit"}}, "🔍 Vollbild")
+                  )
+                )
+              ):(
+                React.createElement('div', { style: {position:"relative",width:"100%",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,marginBottom:8,cursor:"pointer",background:"#000"}, onClick: ()=>window.open(selFz.zulassungsschein,"_blank")}
+                  , React.createElement('img', { src: selFz.zulassungsschein, style: {width:"100%",maxHeight:280,objectFit:"contain",display:"block"}, alt: "Zulassungsschein"} )
+                  , React.createElement('div', { style: {position:"absolute",top:6,right:6,padding:"3px 8px",borderRadius:6,background:"rgba(0,0,0,.6)",color:"#fff",fontSize:9}}, "🔍 Klick zum Vergrößern")
+                )
+              )
+              , isVAdmin&&React.createElement('div', { style: {display:"flex",gap:6}}
+                , React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,zulassungsschein:""})), style: {...bdS,fontSize:10,padding:"4px 8px"}}, "✕ Entfernen" )
+                , React.createElement('label', { style: {...bsS(),fontSize:10,padding:"4px 8px",cursor:"pointer",textAlign:"center"}}, "🔄 Ersetzen", React.createElement('input', { type: "file", accept: "image/*,.pdf", style: {display:"none"}, onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>upd(sel,f=>({...f,zulassungsschein:ev.target.result}));reader.readAsDataURL(file);}} ))
+              )
+            )):(isVAdmin?(React.createElement('label', { style: {display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,padding:"28px 16px",border:"2px dashed "+V.bd,borderRadius:8,cursor:"pointer",color:V.dm,fontSize:12,transition:"border-color .2s,background .2s"}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;e.currentTarget.style.background=V.ac+"11";}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.background="transparent";}, onDrop: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.background="transparent";const file=_optionalChain([e, 'access', _zul1 => _zul1.dataTransfer, 'access', _zul2 => _zul2.files, 'optionalAccess', _zul3 => _zul3[0]]);if(!file)return;const reader=new FileReader();reader.onload=ev=>upd(sel,f=>({...f,zulassungsschein:ev.target.result}));reader.readAsDataURL(file);}}
+              , React.createElement('div', { style: {fontSize:28,marginBottom:2}}, "📷")
+              , "Foto/Scan hochladen oder hierher ziehen"
+              , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "JPG, PNG oder PDF")
+              , React.createElement('input', { type: "file", accept: "image/*,.pdf", style: {display:"none"}, onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>upd(sel,f=>({...f,zulassungsschein:ev.target.result}));reader.readAsDataURL(file);}} )
+            )):React.createElement('div', { style: {fontSize:12,color:V.dm,textAlign:"center",padding:12}}, "Kein Zulassungsschein hinterlegt" ))
+          )
+          , React.createElement('div', { style: {fontSize:13,fontWeight:600,marginBottom:6}}, "Werkstatt-/Prüftermine:")
+          /* Bescheinigung lenkfreier Tage - nur für LKW */
+          , (selFz.typ==="LKW")&&(React.createElement('div', { style: {...CC(),marginTop:8,marginBottom:8,borderColor:"#8b5cf6"}}
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showBesch?10:0}}
+              , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#8b5cf6"}}, "📋 Bescheinigung lenkfreier Tage"  )
+              , React.createElement('button', { onClick: ()=>setShowBesch(!showBesch), style: {...bsS(),fontSize:11,padding:"4px 10px",background:showBesch?"rgba(139,92,246,.15)":"transparent",color:showBesch?"#8b5cf6":V.dm}}, showBesch?"▲ Schließen":"▼ Formular öffnen")
+            )
+            /* Letzte Bescheinigungen - immer sichtbar */
+            , beschHistory.length>0&&React.createElement('div', { style: {marginTop:8,marginBottom:showBesch?10:0}}
+              , React.createElement('div', { style: {fontSize:11,fontWeight:600,color:V.dm,marginBottom:4}}, "📄 Letzte Bescheinigungen (" , beschHistory.length, ")")
+              , beschHistory.slice(0,5).map((bh,i)=>{const GRUND_MAP={"krank":"Krankheit","urlaub":"Urlaub","ruhe":"Ruhe","ausgenommen":"Ausg. FZ","andere":"And. Tätigkeit","verfuegung":"Verfügung"};const tage=Math.floor((new Date()-new Date(bh.bisDat))/(86400000));const tageText=tage<=0?"läuft noch":tage===1?"gestern":tage+" Tage her";const tageColor=tage<=0?"#22c55e":tage<=14?"#eab308":tage<=30?"#f97316":"#ef4444";return React.createElement('div', { key: bh.id||i, style: {display:"flex",alignItems:"center",gap:8,padding:"5px 8px",fontSize:11,borderBottom:"1px solid "+V.bd,cursor:"pointer"}, onClick: ()=>{const m=monteure.find(x=>x.n===bh.fahrer);setBeschForm({fahrer:bh.fahrer,gebDat:m&&m.gebDat||"",fsNr:m&&m.fsNr||"",seitDat:m&&m.eintritt||"",vonDat:"",vonUhr:"00:00",bisDat:"",bisUhr:"24:00",grund:bh.grund||"andere",ort:bh.ort||"Kirchberg"});if(!showBesch)setShowBesch(true);}}
+                , React.createElement('span', { style: {fontWeight:600,minWidth:70}}, bh.fahrer)
+                , React.createElement('span', { style: {color:V.dm}}, fdt(bh.vonDat), " ", bh.vonUhr!=="00:00"?bh.vonUhr:"", " → " , fdt(bh.bisDat), " ", bh.bisUhr!=="24:00"?bh.bisUhr:"")
+                , React.createElement('span', { style: {padding:"1px 6px",borderRadius:4,background:"rgba(139,92,246,.1)",color:"#8b5cf6",fontSize:9,fontWeight:600}}, GRUND_MAP[bh.grund]||bh.grund)
+                , React.createElement('span', { style: {marginLeft:"auto",fontWeight:700,color:tageColor,fontSize:10,whiteSpace:"nowrap"}}, "⏱ ", tageText)
+              );})
+            )
+            , showBesch&&(React.createElement('div', {}
+              , React.createElement('div', { style: {fontSize:10,color:V.dm,marginBottom:8}}, "VO (EG) Nr. 561/2006 · Wird automatisch mit EP Kolar CI und GF-Unterschrift erstellt"  )
+              , React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:8}}
+                , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Fahrer (Name, Vorname)"), React.createElement('select', { value: beschForm.fahrer, onChange: e=>{const v=e.target.value;const m=monteure.find(x=>x.n===v);setBeschForm(f=>({...f,fahrer:v,gebDat:m&&m.gebDat||"",fsNr:m&&m.fsNr||"",seitDat:m&&m.eintritt||""}));}, style: {...II(),fontSize:11,padding:4}}, React.createElement('option', { value: ""}, "— Fahrer wählen —" ), monteure.filter(m=>(m.fs||"").includes("C")).map(m=>React.createElement('option', { key: m.id, value: m.n}, m.n, " (FS: ", m.fs, ")"))))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Geburtsdatum ", React.createElement('span', { style: {fontSize:7,color:"#22c55e"}}, "auto")), React.createElement('input', { type: "date", value: beschForm.gebDat, onChange: e=>setBeschForm({...beschForm,gebDat:e.target.value}), style: {...II(),fontSize:11,padding:4,background:beschForm.gebDat?"rgba(34,197,94,.06)":"transparent"}} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Führerschein-Nr. ", React.createElement('span', { style: {fontSize:7,color:"#22c55e"}}, "auto")), React.createElement('input', { value: beschForm.fsNr, onChange: e=>setBeschForm({...beschForm,fsNr:e.target.value}), style: {...II(),fontSize:11,padding:4,background:beschForm.fsNr?"rgba(34,197,94,.06)":"transparent"}, placeholder: "z.B. 4491"} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Im Unternehmen seit ", React.createElement('span', { style: {fontSize:7,color:"#22c55e"}}, "auto")), React.createElement('input', { type: "date", value: beschForm.seitDat, onChange: e=>setBeschForm({...beschForm,seitDat:e.target.value}), style: {...II(),fontSize:11,padding:4,background:beschForm.seitDat?"rgba(34,197,94,.06)":"transparent"}} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "VON Datum" ), React.createElement('input', { type: "date", value: beschForm.vonDat, onChange: e=>setBeschForm({...beschForm,vonDat:e.target.value}), style: {...II(),fontSize:11,padding:4}} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "VON Uhrzeit" ), React.createElement('input', { type: "time", value: beschForm.vonUhr||"00:00", onChange: e=>setBeschForm({...beschForm,vonUhr:e.target.value}), style: {...II(),fontSize:11,padding:4}} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "BIS Datum" ), React.createElement('input', { type: "date", value: beschForm.bisDat, onChange: e=>setBeschForm({...beschForm,bisDat:e.target.value}), style: {...II(),fontSize:11,padding:4}} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "BIS Uhrzeit" ), React.createElement('input', { type: "time", value: beschForm.bisUhr||"24:00", onChange: e=>setBeschForm({...beschForm,bisUhr:e.target.value}), style: {...II(),fontSize:11,padding:4}} ))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Grund *" ), React.createElement('select', { value: beschForm.grund, onChange: e=>setBeschForm({...beschForm,grund:e.target.value}), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', { value: "krank"}, "Krankheitsurlaub"), React.createElement('option', { value: "urlaub"}, "Erholungsurlaub"), React.createElement('option', { value: "ruhe"}, "Urlaub/Ruhezeit"), React.createElement('option', { value: "ausgenommen"}, "Ausgenommenes Fahrzeug" ), React.createElement('option', { value: "andere"}, "Andere Tätigkeiten" ), React.createElement('option', { value: "verfuegung"}, "Zur Verfügung" )))
+                , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Ort"), React.createElement('input', { value: beschForm.ort, onChange: e=>setBeschForm({...beschForm,ort:e.target.value}), style: {...II(),fontSize:11,padding:4}} ))
+              )
+              , React.createElement('button', { onClick: ()=>{genBescheinigung(beschForm.fahrer,beschForm.gebDat,beschForm.fsNr,beschForm.seitDat,beschForm.vonDat,beschForm.vonUhr||"00:00",beschForm.bisDat,beschForm.bisUhr||"24:00",beschForm.grund,beschForm.ort);const hid=uid();const entry={id:hid,fahrer:beschForm.fahrer,vonDat:beschForm.vonDat,vonUhr:beschForm.vonUhr||"00:00",bisDat:beschForm.bisDat,bisUhr:beschForm.bisUhr||"24:00",grund:beschForm.grund,ort:beschForm.ort,erstellt:td2()};setBeschHistory(h=>[entry,...h].slice(0,20));SQ.push({url:"/api/bescheinigungen",method:"POST",body:entry});}, style: {...bpS,fontSize:12,padding:"8px 16px"}, disabled: !beschForm.fahrer||!beschForm.vonDat||!beschForm.bisDat}, "🖨️ Bescheinigung drucken"  )
+            ))
+          ))
+          , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}
+            , React.createElement('select', { value: tArt, onChange: e=>setTArt(e.target.value), style: {...II(),width:"auto",fontSize:12}}, React.createElement('option', { value: "service"}, "🔧 Service" ), React.createElement('option', { value: "pickerl"}, "📋 Pickerl/§57a" ), React.createElement('option', { value: "reifen"}, "🔄 Reifenwechsel" ), React.createElement('option', { value: "werkstatt"}, "🏪 Werkstatt" ), React.createElement('option', { value: "sonstig"}, "📌 Sonstiges" ))
+            , React.createElement('input', { type: "date", value: tDatum, onChange: e=>setTDatum(e.target.value), style: {...II(),width:"auto",fontSize:12}} )
+            , React.createElement('input', { value: tBeschr, onChange: e=>setTBeschr(e.target.value), placeholder: "Beschreibung...", style: {...II(),flex:1,fontSize:12}} )
+            , React.createElement('button', { onClick: ()=>addTermin(sel), style: {...bpS,fontSize:12}}, "+ Termin" )
+          )
+          , (selFz.termine||[]).map((t,i)=>(React.createElement(Row, { key: t.id||i}
+            , React.createElement('span', { style: {fontSize:14}}, t.art==="service"?"🔧":t.art==="pickerl"?"📋":t.art==="reifen"?"🔄":t.art==="werkstatt"?"🏪":"📌")
+            , React.createElement('div', { style: {flex:1}}, React.createElement('div', { style: {fontSize:13,fontWeight:600}}, t.beschreibung), React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(t.datum), " · "  , t.by))
+            , React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,termine:(f.termine||[]).map((x,j)=>j===i?{...x,erledigt:!x.erledigt}:x)})), style: {...bsS(),padding:"3px 8px",fontSize:11}}, t.erledigt?"✅":"⬜")
+            , React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,termine:(f.termine||[]).filter((_,j)=>j!==i)})), style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+          )))
+        ))
+
+        /* Technische Daten */
+        , React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "🔧 Technische Daten & Verbrauchsmaterial"    )
+          , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), isVAdmin?React.createElement('input', { value: selFz.reifen||"", onChange: e=>upd(sel,f=>({...f,reifen:e.target.value})), style: II(), placeholder: "205/65/R16C"} ):React.createElement('div', { style: {fontSize:13,fontWeight:600,fontFamily:mono}}, selFz.reifen||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Scheibenwischer (V/H cm)"  ), isVAdmin?React.createElement('input', { value: selFz.scheibenwischer||"", onChange: e=>upd(sel,f=>({...f,scheibenwischer:e.target.value})), style: II(), placeholder: "65/55"} ):React.createElement('div', { style: {fontSize:13,fontFamily:mono}}, selFz.scheibenwischer||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Motoröl"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _712 => _712.verbrauchsmaterial, 'optionalAccess', _713 => _713.oel])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),oel:e.target.value}})), style: II(), placeholder: "5W-30"} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _714 => _714.verbrauchsmaterial, 'optionalAccess', _715 => _715.oel])||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Ölfilter"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _716 => _716.verbrauchsmaterial, 'optionalAccess', _717 => _717.oelfilter])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),oelfilter:e.target.value}})), style: II(), placeholder: "Mann HU ..."  } ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _718 => _718.verbrauchsmaterial, 'optionalAccess', _719 => _719.oelfilter])||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Luftfilter"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _720 => _720.verbrauchsmaterial, 'optionalAccess', _721 => _721.luftfilter])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),luftfilter:e.target.value}})), style: II()} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _722 => _722.verbrauchsmaterial, 'optionalAccess', _723 => _723.luftfilter])||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Innenraumfilter"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _724 => _724.verbrauchsmaterial, 'optionalAccess', _725 => _725.innenraumfilter])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),innenraumfilter:e.target.value}})), style: II()} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _726 => _726.verbrauchsmaterial, 'optionalAccess', _727 => _727.innenraumfilter])||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Bremsflüssigkeit"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _728 => _728.verbrauchsmaterial, 'optionalAccess', _729 => _729.bremsfl])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),bremsfl:e.target.value}})), style: II(), placeholder: "DOT4"} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _730 => _730.verbrauchsmaterial, 'optionalAccess', _731 => _731.bremsfl])||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Keilriemen/Sonstiges"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _732 => _732.verbrauchsmaterial, 'optionalAccess', _733 => _733.keilriemen])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),keilriemen:e.target.value}})), style: II()} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _734 => _734.verbrauchsmaterial, 'optionalAccess', _735 => _735.keilriemen])||"—"))
+          )
+        )
+
+        /* Serviceheft */
+        , React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}
+            , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "📒 Serviceheft ("  , (selFz.serviceheft||[]).length, " Einträge)" )
+            , isVAdmin&&React.createElement('button', { onClick: ()=>{const e={id:uid(),datum:td2(),km:selFz.kmStand||0,art:"Service",beschreibung:"",kosten:0,werkstatt:""};upd(sel,f=>({...f,serviceheft:[e,...(f.serviceheft||[])]}));SQ.push({url:"/api/fahrzeuge/"+sel,method:"POST",body:e});_optionalChain([window, 'access', _736 => _736.__toast, 'optionalCall', _737 => _737("📒 Service-Eintrag hinzugefügt")]);}, style: {...bpS,fontSize:11}}, "+ Eintrag" )
+          )
+          , (selFz.serviceheft||[]).length===0&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:16}}, "Keine Service-Einträge vorhanden"  )
+          , (selFz.serviceheft||[]).map((s,i)=>(React.createElement('div', { key: s.id||i, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid #0ea5e9"}}
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
+              , React.createElement('div', { style: {flex:1}}
+                , isVAdmin?(React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:4}}
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "km-Stand"), React.createElement('input', { type: "number", value: s.km||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,km:parseInt(e.target.value)||0}:x)})), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Inspektion"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Reifenwechsel"), React.createElement('option', {}, "Pickerl/§57a"), React.createElement('option', {}, "UVV"), React.createElement('option', {}, "Sonstiges")))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", step: "0.01", value: s.kosten||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:parseFloat(e.target.value)||0}:x)})), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"  } ))
+                  , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Ford Tulln"  } ))
+                  , React.createElement('div', { style: {gridColumn:"span 2",display:"flex",gap:8,flexWrap:"wrap"}}
+                    , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.befund, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>window.open(s.befund,"_blank")} ), React.createElement('span', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)})), style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,befund:ev.target.result}:x)}));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                    , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "🧾 Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.rechnung, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>window.open(s.rechnung,"_blank")} ), React.createElement('span', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)})), style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:ev.target.result}:x)}));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                  )
+                )):(React.createElement('div', {}
+                  , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, s.art, ": " , s.beschreibung)
+                  , React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(s.datum), " · "  , _optionalChain([s, 'access', _738 => _738.km, 'optionalAccess', _739 => _739.toLocaleString, 'call', _740 => _740("de-AT")]), " km" , s.werkstatt?" · "+s.werkstatt:"", s.kosten?" · "+s.kosten.toFixed(2)+" €":"")
+                ))
+              )
+              , isVAdmin&&React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).filter((_,j)=>j!==i)})), style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+            )
+          )))
+          , (selFz.serviceheft||[]).length>0&&(()=>{const total=(selFz.serviceheft||[]).reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:12,fontWeight:700,color:V.ac,marginTop:4}}, "💰 Servicekosten gesamt: "   , total.toFixed(2), " €" ):null;})()
+        )
+
+        /* Schäden-Liste */
+
+        /* ═══ SERVICE-TERMINE (isVAdmin) ═══ */
+        , React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}
+            , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "📅 Service-Termine (", fzTermine.length, ")")
+            , isVAdmin&&React.createElement('button', { onClick: ()=>setShowAddTermin(!showAddTermin), style: {...bpS,fontSize:11}}, showAddTermin?"✕":"+ Termin")
+          )
+          , showAddTermin&&isVAdmin&&React.createElement('div', { style: {...CC(),padding:12,marginBottom:8,border:"2px solid "+V.ac}}
+            , React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:8}}
+              , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Typ"), React.createElement('select', { value: terminForm.typ, onChange: e=>setTerminForm(p=>({...p,typ:e.target.value})), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Inspektion"), React.createElement('option', {}, "Pickerl/§57a"), React.createElement('option', {}, "Reifenwechsel"), React.createElement('option', {}, "UVV-Prüfung"), React.createElement('option', {}, "Versicherung"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Sonstiges")))
+              , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: terminForm.datum, onChange: e=>setTerminForm(p=>({...p,datum:e.target.value})), style: {...II(),fontSize:11,padding:4}} ))
+              , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: terminForm.beschreibung, onChange: e=>setTerminForm(p=>({...p,beschreibung:e.target.value})), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Ölwechsel, Bremsen prüfen..."} ))
+            )
+            , React.createElement('div', { style: {display:"flex",gap:6,justifyContent:"flex-end"}}
+              , React.createElement('button', { onClick: ()=>setShowAddTermin(false), style: {...bsS(),padding:"4px 12px",fontSize:11}}, "Abbrechen")
+              , React.createElement('button', { onClick: addTermin, style: {...bpS,padding:"4px 16px",fontSize:11}}, "✓ Speichern")
+            )
+          )
+          , fzTermine.length===0&&!showAddTermin&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:16}}, "Keine Service-Termine vorhanden")
+          , fzTermine.sort((a,b)=>(a.datum||"").localeCompare(b.datum||"")).map(t=>{
+            const d=t.datum?new Date(t.datum):null;const diff=d?Math.ceil((d-new Date())/86400000):null;
+            const urgent=diff!==null&&diff<0;const soon=diff!==null&&diff>=0&&diff<14;
+            const color=t.erledigt?"#22c55e":urgent?"#ef4444":soon?"#f97316":"#3b82f6";
+            return React.createElement('div', { key: t.id, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid "+color,opacity:t.erledigt?0.6:1}}
+              , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}
+                , React.createElement('div', { style: {flex:1}}
+                  , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
+                    , React.createElement('span', { style: {fontSize:13,fontWeight:700,textDecoration:t.erledigt?"line-through":"none",color:V.tx}}, t.typ)
+                    , t.erledigt&&React.createElement('span', { style: {fontSize:10,padding:"1px 6px",borderRadius:4,background:"#dcfce7",color:"#16a34a",fontWeight:600}}, "✅ Erledigt")
+                    , !t.erledigt&&urgent&&React.createElement('span', { style: {fontSize:10,padding:"1px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️ ÜBERFÄLLIG")
+                    , !t.erledigt&&soon&&React.createElement('span', { style: {fontSize:10,padding:"1px 6px",borderRadius:4,background:"#fef3c7",color:"#d97706",fontWeight:600}}, "⏰ Bald fällig")
+                  )
+                  , React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:2}}, t.datum?fdt(t.datum):"—", diff!==null&&!t.erledigt?" · "+(diff<0?Math.abs(diff)+"T überfällig":"in "+diff+"T"):"", t.beschreibung?" · "+t.beschreibung:"")
+                )
+                , isVAdmin&&React.createElement('div', { style: {display:"flex",gap:4}}
+                  , React.createElement('button', { onClick: ()=>togTermin(t.id), style: {...bsS(),padding:"3px 8px",fontSize:10}, title: t.erledigt?"Wieder öffnen":"Als erledigt markieren"}, t.erledigt?"↩️":"✅")
+                  , React.createElement('button', { onClick: ()=>delTermin(t.id), style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+                )
+              )
+            );
+          })
+        )
+
+        , (selFz.schaeden||[]).length>0&&(React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "⚠️ Schadensmeldungen ("  , (selFz.schaeden||[]).length, ")")
+          , (selFz.schaeden||[]).map((s,i)=>(React.createElement('div', { key: s.id||i, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid "+(s.status==="offen"?"#ef4444":"#22c55e")}}
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}
+              , React.createElement('div', {}
+                , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, s.beschreibung)
+                , React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(s.datum), " · "  , s.by)
+              )
+              , React.createElement('div', { style: {display:"flex",gap:4}}
+                , isVAdmin&&React.createElement('select', { value: s.status, onChange: e=>upd(sel,f=>({...f,schaeden:(f.schaeden||[]).map((x,j)=>j===i?{...x,status:e.target.value}:x)})), style: {...II(),width:"auto",fontSize:11,padding:"2px 4px"}}, React.createElement('option', { value: "offen"}, "⏳ Offen" ), React.createElement('option', { value: "in_reparatur"}, "🔧 In Reparatur"  ), React.createElement('option', { value: "erledigt"}, "✅ Erledigt" ))
+                , !isVAdmin&&React.createElement('span', { style: {fontSize:11,padding:"2px 6px",borderRadius:4,background:s.status==="offen"?"#fee2e2":s.status==="erledigt"?"#dcfce7":"#fef3c7",fontWeight:600}}, s.status==="offen"?"⏳ Offen":s.status==="erledigt"?"✅ Erledigt":"🔧 In Reparatur")
+              )
+            )
+            , s.foto&&React.createElement('img', { src: s.foto, style: {maxWidth:200,maxHeight:120,borderRadius:6,marginTop:6,cursor:"pointer"}, onClick: ()=>window.open(s.foto,"_blank"), alt: "Schaden"} )
+          )))
+        ))
+
+        /* Tank-Historie */
+        , (selFz.tankLog||[]).length>0&&(React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "⛽ Tankprotokoll ("  , (selFz.tankLog||[]).length, ")")
+          , React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}}, React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Datum"), React.createElement('th', { style: thS()}, "Liter"), React.createElement('th', { style: thS()}, "Gesamt €" ), React.createElement('th', { style: thS()}, "€/L"), React.createElement('th', { style: thS()}, "km"), React.createElement('th', { style: thS()}, "Von"), React.createElement('th', { style: thS()}, "Beleg")))
+          , React.createElement('tbody', {}, (selFz.tankLog||[]).map((t,i)=>(React.createElement('tr', { key: i}, React.createElement('td', { style: tdSt()}, fdt(t.datum)), React.createElement('td', { style: {...tdSt(),textAlign:"center",fontWeight:600}}, t.liter, " L" ), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, t.preis?t.preis.toFixed(2)+" €":"—"), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, t.preis&&t.liter?(t.preis/t.liter).toFixed(3):"—"), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, _optionalChain([t, 'access', _741 => _741.km, 'optionalAccess', _742 => _742.toLocaleString, 'call', _743 => _743("de-AT")])), React.createElement('td', { style: {...tdSt(),fontSize:11}}, t.by), React.createElement('td', { style: tdSt()}, t.foto?React.createElement('img', { src: t.foto, onClick: ()=>window.open(t.foto,"_blank"), style: {width:28,height:28,objectFit:"cover",borderRadius:4,cursor:"pointer"}, alt: "Beleg"} ):"—")))))))
+          , (selFz.tankLog||[]).length>1&&(React.createElement('div', { style: {fontSize:12,color:V.ac,fontWeight:600,marginTop:6}}, "Ø Verbrauch: "  , (()=>{const sorted=[...(selFz.tankLog||[])].sort((a,b)=>a.km-b.km);if(sorted.length<2)return"—";const diff=sorted[sorted.length-1].km-sorted[0].km;const lit=sorted.slice(1).reduce((s,t)=>s+t.liter,0);return diff>0?(lit/diff*100).toFixed(1)+" L/100km":"—";})()))
+        ))
+
+        /* Monatsauswertung */
+        , (selFz.tankLog||[]).length>0&&(React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "📊 Monatsauswertung Tanken"  )
+          , (()=>{
+            const byMonth={};(selFz.tankLog||[]).forEach(t=>{const m=(t.datum||"").slice(0,7);if(!m)return;if(!byMonth[m])byMonth[m]={liter:0,kosten:0,cnt:0,minKm:Infinity,maxKm:0};byMonth[m].liter+=t.liter||0;byMonth[m].kosten+=t.preis||0;byMonth[m].cnt++;if(t.km<byMonth[m].minKm)byMonth[m].minKm=t.km;if(t.km>byMonth[m].maxKm)byMonth[m].maxKm=t.km;});
+            const months=Object.keys(byMonth).sort().reverse();
+            return (React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}}, React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Monat"), React.createElement('th', { style: thS()}, "Tankungen"), React.createElement('th', { style: thS()}, "Liter ges." ), React.createElement('th', { style: thS()}, "Kosten ges." ), React.createElement('th', { style: thS()}, "Ø €/L" ), React.createElement('th', { style: thS()}, "km gefahren" ), React.createElement('th', { style: thS()}, "Ø L/100km" )))
+            , React.createElement('tbody', {}, months.map(m=>{const d=byMonth[m];const kmDiff=d.maxKm>d.minKm?d.maxKm-d.minKm:0;const avg=kmDiff>0?(d.liter/kmDiff*100).toFixed(1):"—";const avgPrice=d.liter>0?(d.kosten/d.liter).toFixed(3):"—";const moLabel=m.split("-")[1]+"/"+m.split("-")[0];
+              return (React.createElement('tr', { key: m}, React.createElement('td', { style: {...tdSt(),fontWeight:700}}, moLabel), React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, d.cnt), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, d.liter.toFixed(1), " L" ), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace",fontWeight:600}}, d.kosten.toFixed(2), " €" ), React.createElement('td', { style: {...tdSt(),textAlign:"right"}}, avgPrice), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, kmDiff>0?kmDiff.toLocaleString("de-AT")+" km":"—"), React.createElement('td', { style: {...tdSt(),textAlign:"center",fontWeight:700,color:parseFloat(avg)>12?"#ef4444":parseFloat(avg)>8?"#f97316":"#22c55e"}}, avg)));
+            })))));
+          })()
+          , (()=>{const totalL=(selFz.tankLog||[]).reduce((s,t)=>s+(t.liter||0),0);const totalE=(selFz.tankLog||[]).reduce((s,t)=>s+(t.preis||0),0);
+            return (React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginTop:10}}
+              , React.createElement('div', { style: {padding:8,background:"rgba(14,165,233,.08)",borderRadius:6,textAlign:"center"}}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#0ea5e9"}}, totalL.toFixed(0), " L" ), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Gesamt getankt" ))
+              , React.createElement('div', { style: {padding:8,background:"rgba(249,115,22,.08)",borderRadius:6,textAlign:"center"}}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, totalE.toFixed(0), " €" ), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Gesamtkosten"))
+              , React.createElement('div', { style: {padding:8,background:"rgba(34,197,94,.08)",borderRadius:6,textAlign:"center"}}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#22c55e"}}, totalL>0?(totalE/totalL).toFixed(3):"—", " €/L" ), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Ø Literpreis" ))
+              , React.createElement('div', { style: {padding:8,background:"rgba(168,85,247,.08)",borderRadius:6,textAlign:"center"}}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#a855f7"}}, (selFz.tankLog||[]).length), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Tankungen"))
+            ));
+          })()
+        ))
+
+        /* km-Log */
+        , (selFz.kmLog||[]).length>0&&(React.createElement('div', { style: {...CC(),marginTop:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "📏 Kilometerprotokoll" )
+          , (selFz.kmLog||[]).slice(0,10).map((k,i)=>(React.createElement(Row, { key: i}, React.createElement('div', { style: {fontFamily:"monospace",fontWeight:700,fontSize:13}}, _optionalChain([k, 'access', _744 => _744.km, 'optionalAccess', _745 => _745.toLocaleString, 'call', _746 => _746("de-AT")]), " km" ), React.createElement('div', { style: {flex:1,fontSize:12,color:V.dm}}, k.note||""), React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(k.datum), " · "  , k.by))))
+        ))
+      ))
+    )
+  );
+}
+const DEMO_FZ=[
+  {id:"fz1",kennzeichen:"TU-266BP",marke:"Mercedes",modell:"CL 500",typ:"PKW",fahrer:"w6",farbe:"Schwarz",baujahr:"2012",pickerl:"2026-09-15",naechstService:"2026-05-01",versicherung:"Wiener Städtische",kmStand:142500,status:"aktiv",reifen:"255/55/R17",scheibenwischer:"70/70",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[{datum:"2025-11-10",km:140200,art:"Inspektion",beschreibung:"Jahresservice + Ölwechsel",kosten:890,werkstatt:"Mercedes Tulln"}],verbrauchsmaterial:{oel:"5W-30 MB 229.52",oelfilter:"Mann HU 718/5x",luftfilter:"Mann C 32 130",innenraumfilter:"Mann CUK 3172",bremsfl:"DOT4",keilriemen:"6PK2260"}},
+  {id:"fz1b",kennzeichen:"TU-266BP (X5)",marke:"BMW",modell:"X5",typ:"PKW",fahrer:"",farbe:"Schwarz",baujahr:"2018",pickerl:"2026-06-01",naechstService:"2026-04-15",versicherung:"Wiener Städtische",kmStand:88400,status:"aktiv",reifen:"285/40/R22",scheibenwischer:"60/65",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 BMW LL-04",oelfilter:"Mann HU 816x"}},
+  {id:"fz2",kennzeichen:"TU-83JM",marke:"Scania",modell:"P 93 Ladekran",typ:"LKW",fahrer:"w2",farbe:"Weiß",baujahr:"1998",pickerl:"2026-06-20",naechstService:"2026-04-15",versicherung:"Generali",kmStand:385200,status:"aktiv",reifen:"295/80/R22,5",scheibenwischer:"60/60",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"15W-40",oelfilter:"LKW-Filter",luftfilter:"LKW Luftfilter"}},
+  {id:"fz3",kennzeichen:"TU-545BC",marke:"Renault",modell:"Trafic",typ:"Transporter",fahrer:"w1",farbe:"Weiß",baujahr:"2018",pickerl:"2026-08-10",naechstService:"2026-03-20",versicherung:"Wiener Städtische",kmStand:98750,status:"aktiv",reifen:"205/65/R16C",scheibenwischer:"65/55",kmLog:[{km:98750,datum:"2026-02-20",note:"",by:"Paschinger"}],tankLog:[{liter:55,preis:84.50,km:98400,datum:"2026-02-15",by:"Paschinger"}],schaeden:[],termine:[],serviceheft:[{datum:"2025-09-20",km:92100,art:"Service",beschreibung:"Ölwechsel + Filter",kosten:420,werkstatt:"Renault Tulln"}],verbrauchsmaterial:{oel:"5W-30 RN0720",oelfilter:"Mann HU 711/51x",luftfilter:"Mann C 2564",innenraumfilter:"Mann CU 22 011"}},
+  {id:"fz4",kennzeichen:"TU-709DC",marke:"Nissan",modell:"NV200",typ:"Transporter",fahrer:"w3",farbe:"Weiß",baujahr:"2016",pickerl:"2026-07-05",naechstService:"2026-04-01",versicherung:"Allianz",kmStand:125800,status:"aktiv",reifen:"175/70/R14C",scheibenwischer:"55/40",kmLog:[{km:125800,datum:"2026-02-19",note:"",by:"Cracana"}],tankLog:[{liter:42,preis:63.80,km:125500,datum:"2026-02-14",by:"Cracana"}],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 C4",oelfilter:"Mann HU 7008z"}},
+  {id:"fz5",kennzeichen:"TU-563BT",marke:"Ford",modell:"Custom",typ:"Transporter",fahrer:"w5",farbe:"Weiß",baujahr:"2019",pickerl:"2026-10-25",naechstService:"2026-05-15",versicherung:"Wiener Städtische",kmStand:87400,status:"aktiv",reifen:"215/65/R15C",scheibenwischer:"75/70",kmLog:[{km:87400,datum:"2026-02-18",note:"",by:"Schmid"}],tankLog:[{liter:58,preis:88.20,km:87000,datum:"2026-02-12",by:"Schmid"}],schaeden:[],termine:[],serviceheft:[{datum:"2025-10-05",km:82600,art:"Service",beschreibung:"60.000er Service + Bremsen vorne",kosten:680,werkstatt:"Ford Tulln"}],verbrauchsmaterial:{oel:"5W-20 WSS-M2C948-B",oelfilter:"Mann HU 7020z",luftfilter:"Mann C 16 134/2",innenraumfilter:"Mann CUK 25 007"}},
+  {id:"fz6",kennzeichen:"TU-516CP",marke:"Ford",modell:"Transit",typ:"Transporter",fahrer:"w2",farbe:"Weiß",baujahr:"2020",pickerl:"2026-11-10",naechstService:"2026-06-01",versicherung:"Allianz",kmStand:76200,status:"aktiv",reifen:"195/70/R15C",scheibenwischer:"70/60",kmLog:[{km:76200,datum:"2026-02-20",note:"Baustelle GEDESAG",by:"Barger"}],tankLog:[{liter:62,preis:94.50,km:75800,datum:"2026-02-16",by:"Barger"}],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 WSS-M2C913-D",oelfilter:"Mann HU 719/7x",luftfilter:"Mann C 27 161"}},
+  {id:"fz7",kennzeichen:"TU-742DR",marke:"Ford",modell:"Transit",typ:"Transporter",fahrer:"",farbe:"Weiß",baujahr:"2021",pickerl:"2026-12-15",naechstService:"2026-07-01",versicherung:"Wiener Städtische",kmStand:54300,status:"aktiv",reifen:"195/70/R15C",scheibenwischer:"66/55",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 WSS-M2C913-D",oelfilter:"Mann HU 719/7x",luftfilter:"Mann C 27 161"}},
+  {id:"fz8",kennzeichen:"TU-743DR",marke:"Ford",modell:"Transit",typ:"Transporter",fahrer:"",farbe:"Weiß",baujahr:"2021",pickerl:"2026-12-15",naechstService:"2026-07-01",versicherung:"Wiener Städtische",kmStand:51800,status:"aktiv",reifen:"195/70/R15C",scheibenwischer:"66/55",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 WSS-M2C913-D",oelfilter:"Mann HU 719/7x",luftfilter:"Mann C 27 161"}},
+  {id:"fz9",kennzeichen:"TU-751DR",marke:"Renault",modell:"Clio",typ:"PKW",fahrer:"w7",farbe:"Grau",baujahr:"2020",pickerl:"2026-08-20",naechstService:"2026-04-10",versicherung:"Generali",kmStand:43200,status:"aktiv",reifen:"185/60/R15",scheibenwischer:"60/40",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 RN0720",oelfilter:"Mann HU 6007z"}},
+  {id:"fz10",kennzeichen:"TU-707DR",marke:"Renault",modell:"Clio",typ:"PKW",fahrer:"",farbe:"Weiß",baujahr:"2020",pickerl:"2026-05-30",naechstService:"2026-03-15",versicherung:"Generali",kmStand:38700,status:"aktiv",reifen:"185/60/R15",scheibenwischer:"60/40",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-30 RN0720",oelfilter:"Mann HU 6007z"}},
+  {id:"fz11",kennzeichen:"TU-21CC",marke:"Ford",modell:"Transit Steiger",typ:"LKW",fahrer:"",farbe:"Weiß",baujahr:"2015",pickerl:"2026-04-20",naechstService:"2026-03-01",versicherung:"Wiener Städtische",kmStand:112600,status:"aktiv",reifen:"225/70/R15C",scheibenwischer:"55/55",kmLog:[],tankLog:[],schaeden:[],termine:[{id:"t1",art:"pickerl",beschreibung:"§57a + UVV Steiger",datum:"2026-04-15",erledigt:false,by:"Pinger Leo"}],serviceheft:[{datum:"2025-06-10",km:108400,art:"UVV",beschreibung:"UVV-Prüfung Steiger bestanden",kosten:380,werkstatt:"Palfinger Service"}],verbrauchsmaterial:{oel:"5W-30",hydraulikoel:"HLP 46"}},
+  {id:"fz12",kennzeichen:"TU-656BR",marke:"Ford",modell:"Custom Kasten",typ:"Transporter",fahrer:"w1",farbe:"Weiß",baujahr:"2022",pickerl:"2027-02-10",naechstService:"2026-08-01",versicherung:"Allianz",kmStand:35600,status:"aktiv",reifen:"215/65/R15C",scheibenwischer:"75/70",kmLog:[{km:35600,datum:"2026-02-21",note:"Fels/Wagram",by:"Paschinger"}],tankLog:[{liter:52,preis:79.50,km:35200,datum:"2026-02-18",by:"Paschinger"}],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{oel:"5W-20 WSS-M2C948-B",oelfilter:"Mann HU 7020z",luftfilter:"Mann C 16 134/2",innenraumfilter:"Mann CUK 25 007"}},
+  {id:"fz13",kennzeichen:"N-719.920",marke:"",modell:"Anhänger",typ:"Anhänger",fahrer:"",farbe:"",baujahr:"",pickerl:"2026-09-01",naechstService:"",versicherung:"Wiener Städtische",kmStand:0,status:"aktiv",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{}},
+  {id:"fz14",kennzeichen:"N-779.427",marke:"",modell:"Kompressor",typ:"Anhänger",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"2026-06-01",versicherung:"",kmStand:0,status:"aktiv",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[{datum:"2025-11-01",km:0,art:"Wartung",beschreibung:"Kompressor-Wartung + Ölwechsel",kosten:220,werkstatt:"Eigenleistung"}],verbrauchsmaterial:{oel:"Kompressoröl"}},
+  {id:"fz15",kennzeichen:"TU-777DF",marke:"",modell:"Anhänger klein",typ:"Anhänger",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"",versicherung:"",kmStand:0,status:"aktiv",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{}},
+  {id:"fz16",kennzeichen:"TU-481FK",marke:"Humer",modell:"Anhänger groß",typ:"Anhänger",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"",versicherung:"",kmStand:0,status:"aktiv",zulassungsschein:"",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{}},
+  {id:"fz17",kennzeichen:"STAPLER-1",marke:"Linde",modell:"E20 Elektro",typ:"Stapler",fahrer:"",farbe:"Gelb",baujahr:"2016",pickerl:"",naechstService:"2026-06-01",versicherung:"",kmStand:0,status:"aktiv",standort:"Lager Kirchberg",zulassungsschein:"",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[{datum:"2025-10-15",km:0,art:"UVV",beschreibung:"UVV-Prüfung bestanden",kosten:180,werkstatt:"Eigenleistung"}],verbrauchsmaterial:{}},
+  {id:"fz18",kennzeichen:"HEBE-1",marke:"Genie",modell:"GS-1930 Scherenhubtisch",typ:"Hebewerk",fahrer:"",farbe:"Blau",baujahr:"2019",pickerl:"",naechstService:"2026-05-15",versicherung:"",kmStand:0,status:"aktiv",standort:"Lager Kirchberg",zulassungsschein:"",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[{datum:"2025-08-20",km:0,art:"UVV",beschreibung:"UVV-Prüfung + Hydraulikcheck",kosten:250,werkstatt:"Genie Service"}],verbrauchsmaterial:{hydraulikoel:"HLP 32"}},
+  {id:"fz19",kennzeichen:"HEBE-2",marke:"Böcker",modell:"AHK 30/1500 Möbelaufzug",typ:"Hebewerk",fahrer:"",farbe:"Weiß",baujahr:"2014",pickerl:"",naechstService:"2026-04-01",versicherung:"",kmStand:0,status:"aktiv",standort:"Lager Kirchberg",zulassungsschein:"",reifen:"",scheibenwischer:"",kmLog:[],tankLog:[],schaeden:[],termine:[],serviceheft:[],verbrauchsmaterial:{}},
+];
+
+function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,projects}){
+  const isMob=ww<600;const isAdmin=_optionalChain([curUser, 'optionalAccess', _747 => _747.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _748 => _748.role])==="projektleiter";
+  const [sub,setSub]=_react.useState.call(void 0, "liste");const [search,setSearch]=_react.useState.call(void 0, "");const [filtSt,setFiltSt]=_react.useState.call(void 0, "");const [filtKat,setFiltKat]=_react.useState.call(void 0, "");
+  const [editId,setEditId]=_react.useState.call(void 0, null);const [form,setForm]=_react.useState.call(void 0, {});
+  const [wzServiceSel,setWzServiceSel]=_react.useState.call(void 0, "");
+  // QR Scan
+  const videoRef=_react.useRef.call(void 0, null);const canvasRef=_react.useRef.call(void 0, null);const streamRef=_react.useRef.call(void 0, null);const scanTimer=_react.useRef.call(void 0, null);
+  const [scanning,setScanning]=_react.useState.call(void 0, false);const [scannedWz,setScannedWz]=_react.useState.call(void 0, null);const [scanMsg,setScanMsg]=_react.useState.call(void 0, "");const [manualCode,setManualCode]=_react.useState.call(void 0, "");const [scanTarget,setScanTarget]=_react.useState.call(void 0, "");
+
+  // Stats
+  const stCounts={};Object.keys(WZ_STATUS).forEach(k=>{stCounts[k]=werkzeuge.filter(w=>w.status===k).length;});
+  const totalWert=werkzeuge.reduce((s,w)=>s+w.wert,0);
+  const kalibFaellig=werkzeuge.filter(w=>w.naechsteKalib&&w.naechsteKalib<=td2()).length;
+
+
+  // Role-based pre-filter: Monteur sees only assigned tools, Lagerleiter+Admin see all
+  const isWzAdmin=isAdmin||_optionalChain([curUser, 'optionalAccess', _wza => _wza.username])==="pinger";
+  const _wzPool=isWzAdmin?werkzeuge:werkzeuge.filter(w=>w.zugewiesen===(_optionalChain([curUser, 'optionalAccess', _wzm => _wzm.monteurId])||"__none__"));
+  // Filter
+  const filtered=_wzPool.filter(w=>{
+    if(filtSt&&w.status!==filtSt)return false;
+    if(filtKat&&w.kat!==filtKat)return false;
+    if(search){const s=search.toLowerCase();return (w.name+w.seriennr+w.inventarnr+w.notizen+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
+    return true;
+  });
+
+  const defWz=()=>({id:uid(),name:"",kat:"elektro",seriennr:"",inventarnr:"",status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager",letzteKalib:"",naechsteKalib:"",anschaffung:td2(),wert:0,notizen:"",zustandBewertung:5});
+  const openNew=()=>{setForm(defWz());setEditId(null);setSub("form");};
+  const openEdit=w=>{setForm({...w});setEditId(w.id);setSub("form");};
+  const save=()=>{
+    if(!form.name){alert("Name ist Pflichtfeld!");return;}
+    // Auto-generate inventarnr if empty
+    if(!form.inventarnr){const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;form.inventarnr="EK-"+prefix+String(next).padStart(3,"0");}
+    if(editId){setWerkzeuge(p=>p.map(w=>w.id===editId?{...form}:w));SQ.push({url:"/api/werkzeuge/"+editId,method:"PUT",body:form});_optionalChain([window, 'access', _752 => _752.__toast, 'optionalCall', _753 => _753("✅ Werkzeug aktualisiert")]);}
+    else{setWerkzeuge(p=>[{...form},...p]);SQ.push({url:"/api/werkzeuge",method:"POST",body:form});_optionalChain([window, 'access', _754 => _754.__toast, 'optionalCall', _755 => _755("✅ Werkzeug angelegt — Inventar-Nr: "+form.inventarnr)]);}
+    setSub("liste");setEditId(null);
+  };
+  const del=id=>{if(confirm("Werkzeug wirklich löschen?")){setWerkzeuge(p=>p.filter(w=>w.id!==id));SQ.push({url:"/api/werkzeuge/"+id,method:"DELETE"});_optionalChain([window, 'access', _756 => _756.__toast, 'optionalCall', _757 => _757("🗑️ Werkzeug gelöscht")]);setSub("liste");}};
+  const checkout=(id,monteurId,projektId)=>{const w=werkzeuge.find(x=>x.id===id);setWerkzeuge(p=>p.map(w=>w.id===id?{...w,status:"ausgegeben",zugewiesen:monteurId,projekt:projektId||"",standort:"Baustelle"}:w));SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:{status:"ausgegeben",zugewiesen:monteurId,projekt:projektId||"",standort:"Baustelle"}});_optionalChain([window, 'access', _758 => _758.__toast, 'optionalCall', _759 => _759("📤 Werkzeug ausgegeben")]);_optionalChain([pushNotif, 'optionalCall', _760 => _760("tool_checkout","📤 Werkzeug ausgegeben",(_optionalChain([w, 'optionalAccess', _761 => _761.name])||"Gerät")+" → "+_optionalChain([monteure, 'access', _762 => _762.find, 'call', _763 => _763(m=>m.id===monteurId), 'optionalAccess', _764 => _764.n]))]);};
+  const checkin=id=>{const w=werkzeuge.find(x=>x.id===id);setWerkzeuge(p=>p.map(w=>w.id===id?{...w,status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}:w));SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:{status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}});_optionalChain([window, 'access', _765 => _765.__toast, 'optionalCall', _766 => _766("📥 Werkzeug zurück im Lager")]);_optionalChain([pushNotif, 'optionalCall', _767 => _767("tool_checkout","📥 Werkzeug zurück",(_optionalChain([w, 'optionalAccess', _768 => _768.name])||"Gerät")+" zurück ins Lager")]);};
+
+  // CSV Export
+  const exportWz=()=>{
+    const hdrs=["Nr","Inventar-Nr","Name","Kategorie","Seriennr","Status","Zugewiesen","Projekt","Standort","Wert €","Nächste Kalib.","Anschaffung"];
+    const data=werkzeuge.map((w,i)=>[i+1,w.inventarnr,w.name,_optionalChain([WZ_KAT, 'access', _769 => _769[w.kat], 'optionalAccess', _770 => _770.l])||"",w.seriennr,_optionalChain([WZ_STATUS, 'access', _771 => _771[w.status], 'optionalAccess', _772 => _772.l])||"",_optionalChain([monteure, 'access', _773 => _773.find, 'call', _774 => _774(m=>m.id===w.zugewiesen), 'optionalAccess', _775 => _775.n])||"",w.projekt,w.standort,w.wert||0,w.naechsteKalib?fdt(w.naechsteKalib):"",w.anschaffung?fdt(w.anschaffung):""]);
+    genXls("🔧 Werkzeuge & Geräte","Andreas Kolar & Sohn GesmbH · Inventar · "+werkzeuge.length+" Geräte",hdrs,data,"Werkzeuge_"+td2()+".xls",{colWidths:[35,75,140,85,85,80,90,65,85,55,75,75],leftCols:[0,1,2,3,4,6,7,8],boldCols:[2],statusMap:{"Verfügbar":"#22c55e","Ausgegeben":"#f97316","In Reparatur":"#ef4444","Kalibrierung fällig":"#eab308","Verloren/Defekt":"#71717a","Stillgelegt":"#94a3b8"}});
+  };
+
+  // ═══ QR SCANNER ═══
+  const lookupQR=(code)=>{
+    const c=code.trim().toUpperCase();
+    // Match by inventarnr, seriennr, or id
+    return werkzeuge.find(w=>(w.inventarnr||"").toUpperCase()===c||(w.seriennr||"").toUpperCase()===c||w.id===code||(w.inventarnr||"").toUpperCase().includes(c)||c.includes((w.inventarnr||"").toUpperCase()));
+  };
+  const handleScanResult=(code)=>{
+    const found=lookupQR(code);
+    if(found){setScannedWz(found);setScanMsg("");stopScan();}
+    else{setScanMsg("❌ Kein Gerät gefunden: "+code);}
+  };
+  const startScan=async()=>{
+    setScannedWz(null);setScanMsg("");setScanTarget("");
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:640},height:{ideal:480}}});
+      streamRef.current=stream;
+      if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play();}
+      setScanning(true);
+      // Use BarcodeDetector if available (Chrome, Safari 15.4+)
+      if('BarcodeDetector' in window){
+        const detector=new BarcodeDetector({formats:['qr_code','code_128','code_39','ean_13','ean_8']});
+        const tick=async()=>{
+          if(!videoRef.current||videoRef.current.readyState<2){scanTimer.current=requestAnimationFrame(tick);return;}
+          try{
+            const codes=await detector.detect(videoRef.current);
+            if(codes.length>0){handleScanResult(codes[0].rawValue);return;}
+          }catch(e){}
+          scanTimer.current=requestAnimationFrame(tick);
+        };
+        scanTimer.current=requestAnimationFrame(tick);
+      }else{
+        // Fallback: periodic canvas snapshot (no native barcode detection)
+        setScanMsg("⚠️ Kein QR-Scanner im Browser — bitte Code manuell eingeben");
+      }
+    }catch(err){
+      setScanMsg("📷 Kamera-Zugriff verweigert: "+err.message);
+      setScanning(false);
+    }
+  };
+  const stopScan=()=>{
+    if(scanTimer.current){cancelAnimationFrame(scanTimer.current);scanTimer.current=null;}
+    if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());streamRef.current=null;}
+    if(videoRef.current){videoRef.current.srcObject=null;}
+    setScanning(false);
+  };
+  // Cleanup on unmount or tab change
+  _react.useEffect.call(void 0, ()=>{return ()=>{stopScan();};},[]);
+  const switchToScan=()=>{stopScan();setScannedWz(null);setScanMsg("");setManualCode("");setSub("scan");};
+  // Quick actions after scan
+  const scanCheckout=(wzId,monteurId)=>{const wn=_optionalChain([werkzeuge, 'access', _776 => _776.find, 'call', _777 => _777(x=>x.id===wzId), 'optionalAccess', _778 => _778.name])||"Gerät";setWerkzeuge(p=>p.map(w=>w.id===wzId?{...w,status:"ausgegeben",zugewiesen:monteurId,standort:"Baustelle"}:w));setScannedWz(p=>p?{...p,status:"ausgegeben",zugewiesen:monteurId,standort:"Baustelle"}:p);setScanMsg("✅ Ausgegeben an "+_optionalChain([monteure, 'access', _779 => _779.find, 'call', _780 => _780(m=>m.id===monteurId), 'optionalAccess', _781 => _781.n]));_optionalChain([pushNotif, 'optionalCall', _782 => _782("tool_checkout","📤 "+wn+" ausgegeben",wn+" → "+_optionalChain([monteure, 'access', _783 => _783.find, 'call', _784 => _784(m=>m.id===monteurId), 'optionalAccess', _785 => _785.n])+" (QR-Scan)")]);};
+  const scanCheckin=(wzId)=>{const wn=_optionalChain([werkzeuge, 'access', _786 => _786.find, 'call', _787 => _787(x=>x.id===wzId), 'optionalAccess', _788 => _788.name])||"Gerät";setWerkzeuge(p=>p.map(w=>w.id===wzId?{...w,status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}:w));setScannedWz(p=>p?{...p,status:"verfuegbar",zugewiesen:"",standort:"Lager"}:p);setScanMsg("✅ Zurück ins Lager");_optionalChain([pushNotif, 'optionalCall', _789 => _789("tool_checkout","📥 "+wn+" zurück",wn+" zurück ins Lager (QR-Scan)")]);};
+  const scanToRepair=(wzId)=>{const wn=_optionalChain([werkzeuge, 'access', _790 => _790.find, 'call', _791 => _791(x=>x.id===wzId), 'optionalAccess', _792 => _792.name])||"Gerät";setWerkzeuge(p=>p.map(w=>w.id===wzId?{...w,status:"reparatur",standort:"Werkstatt/Service"}:w));setScannedWz(p=>p?{...p,status:"reparatur",standort:"Werkstatt/Service"}:p);setScanMsg("🔧 In Reparatur gesetzt");_optionalChain([pushNotif, 'optionalCall', _793 => _793("tool_checkout","🔧 "+wn+" in Reparatur",wn+" → Werkstatt/Service (QR-Scan)")]);};
+
+  // Zustand Stars
+  const Stars=({val,onChange})=>(React.createElement('div', { style: {display:"flex",gap:2}}, [1,2,3,4,5].map(i=>(React.createElement('span', { key: i, onClick: onChange?()=>onChange(i):undefined, style: {cursor:onChange?"pointer":"default",fontSize:16,color:i<=val?"#eab308":"#2a2e3f"}}, i<=val?"★":"☆")))));
+
+  return (React.createElement('div', {}
+    , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
+      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geraete erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
+      , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}
+        , isAdmin&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neues Gerät"  )
+        , React.createElement('button', { onClick: ()=>printLabels(werkzeuge.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels"), style: bsS()}, "🏷️ Labels" )
+        , React.createElement('button', { onClick: exportWz, style: xBtn("xls")}, "📊 Excel" )
+      )
+    )
+    , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
+      , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: "€"+totalWert.toLocaleString("de")+" Wert", color: "#d97706"} )
+      , React.createElement(Kpi, { label: "Verfügbar", value: stCounts.verfuegbar||0, sub: "im Lager" , color: "#22c55e"} )
+      , React.createElement(Kpi, { label: "Ausgegeben", value: stCounts.ausgegeben||0, sub: "auf Baustellen" , color: "#f97316"} )
+      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: stCounts.reparatur||0+" in Reparatur", color: kalibFaellig>0?"#ef4444":"#22c55e"} )
+    )
+    , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
+      , [{id:"scan",i:"📷",l:"QR Scan"},{id:"liste",i:"📋",l:"Liste"},{id:"checkout",i:"📤",l:"Check-In/Out"},{id:"kalib",i:"🔧",l:"Service"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+    )
+
+    /* ═══ QR SCAN ═══ */
+    , sub==="scan"&&(React.createElement('div', {}
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:14}}
+        /* Camera / Scanner */
+        , React.createElement('div', { style: {...CC(),borderColor:"rgba(217,119,6,.2)"}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#d97706",marginBottom:12}}, "📷 QR-Code scannen"  )
+          , !scanning&&!scannedWz&&(React.createElement('div', {}
+            , React.createElement('button', { onClick: startScan, style: {...bpS,width:"100%",padding:"18px 20px",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:14}}, "📷 Kamera starten"  )
+            , React.createElement('div', { style: {textAlign:"center",color:V.dm,fontSize:12,marginBottom:14}}, "oder")
+            , React.createElement('div', { style: {display:"flex",gap:6}}
+              , React.createElement('input', { value: manualCode, onChange: e=>setManualCode(e.target.value), placeholder: "Inventar-Nr. eingeben (z.B. EK-E001)"   , style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&manualCode)handleScanResult(manualCode);}} )
+              , React.createElement('button', { onClick: ()=>{if(manualCode)handleScanResult(manualCode);}, style: {...bpS,whiteSpace:"nowrap"}}, "🔍 Suchen" )
+            )
+          ))
+          , scanning&&(React.createElement('div', {}
+            , React.createElement('div', { style: {position:"relative",borderRadius:10,overflow:"hidden",background:"#000",marginBottom:10}}
+              , React.createElement('video', { ref: videoRef, style: {width:"100%",display:"block",borderRadius:10}, playsInline: true, autoPlay: true, muted: true} )
+              /* Scan overlay */
+              , React.createElement('div', { style: {position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}
+                , React.createElement('div', { style: {width:"60%",height:"60%",border:"3px solid #d97706",borderRadius:12,boxShadow:"0 0 0 9999px rgba(0,0,0,.4)"}} )
+              )
+              , React.createElement('div', { style: {position:"absolute",bottom:8,left:0,right:0,textAlign:"center"}}
+                , React.createElement('span', { style: {background:"rgba(0,0,0,.7)",color:"#d97706",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600}}, "QR-Code in den Rahmen halten"    )
+              )
+            )
+            , React.createElement('div', { style: {display:"flex",gap:6}}
+              , React.createElement('button', { onClick: stopScan, style: {...bdS,flex:1}}, "⏹ Stoppen" )
+              , React.createElement('input', { value: manualCode, onChange: e=>setManualCode(e.target.value), placeholder: "Manuell: EK-..." , style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&manualCode){handleScanResult(manualCode);setManualCode("");}}} )
+            )
+          ))
+          , scanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:scanMsg.startsWith("✅")?"rgba(34,197,94,.1)":scanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:scanMsg.startsWith("✅")?"#22c55e":scanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, scanMsg))
+          , !scanning&&scannedWz&&(React.createElement('button', { onClick: ()=>{setScannedWz(null);setScanMsg("");startScan();}, style: {...bpS,width:"100%",marginTop:10}}, "📷 Nächsten Code scannen"   ))
+        )
+
+        /* Scan Result / Quick Actions */
+        , React.createElement('div', {}
+          , !scannedWz&&(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40}}
+            , React.createElement('div', { style: {fontSize:48,marginBottom:8}}, "📱")
+            , React.createElement('div', { style: {fontSize:15,fontWeight:600,color:V.dm}}, "QR-Code scannen" )
+            , React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:4}}, "Halte die Kamera auf den QR-Code am Werkzeug."       , React.createElement('br', {}), "Der Code enthält die Inventar-Nr. (z.B. EK-E001)"      )
+            , React.createElement('div', { style: {marginTop:16,padding:12,borderRadius:8,background:V.bg,fontSize:11,color:V.dm}}
+              , React.createElement('div', { style: {fontWeight:700,marginBottom:4}}, "💡 Tipp: QR-Codes erstellen"   ), "Jedes Gerät hat eine Inventar-Nr. — diese als QR-Code drucken und aufs Gerät kleben."
+
+            )
+          ))
+
+          , scannedWz&&(React.createElement('div', {}
+            /* Tool Card */
+            , React.createElement('div', { style: {...CC(),borderColor:"rgba(217,119,6,.3)",background:"rgba(217,119,6,.03)"}}
+              , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:12}}
+                , React.createElement('div', {}
+                  , React.createElement('div', { style: {fontSize:11,color:V.dm,fontFamily:mono}}, scannedWz.inventarnr)
+                  , React.createElement('div', { style: {fontSize:18,fontWeight:800}}, _optionalChain([WZ_KAT, 'access', _794 => _794[scannedWz.kat], 'optionalAccess', _795 => _795.i]), " " , scannedWz.name)
+                  , React.createElement('div', { style: {fontSize:12,color:V.dm}}, scannedWz.seriennr||"Keine Seriennr.")
+                )
+                , React.createElement(Badge, { text: _optionalChain([WZ_STATUS, 'access', _796 => _796[scannedWz.status], 'optionalAccess', _797 => _797.i])+" "+_optionalChain([WZ_STATUS, 'access', _798 => _798[scannedWz.status], 'optionalAccess', _799 => _799.l]), color: _optionalChain([WZ_STATUS, 'access', _800 => _800[scannedWz.status], 'optionalAccess', _801 => _801.c])} )
+              )
+              , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,marginBottom:14}}
+                , React.createElement('div', {}, React.createElement('span', { style: {color:V.dm}}, "Kategorie:"), " " , _optionalChain([WZ_KAT, 'access', _802 => _802[scannedWz.kat], 'optionalAccess', _803 => _803.l]))
+                , React.createElement('div', {}, React.createElement('span', { style: {color:V.dm}}, "Standort:"), " " , scannedWz.standort)
+                , React.createElement('div', {}, React.createElement('span', { style: {color:V.dm}}, "Zugewiesen:"), " " , _optionalChain([monteure, 'access', _804 => _804.find, 'call', _805 => _805(m=>m.id===scannedWz.zugewiesen), 'optionalAccess', _806 => _806.n])||"—")
+                , React.createElement('div', {}, React.createElement('span', { style: {color:V.dm}}, "Wert:"), " €" , _optionalChain([scannedWz, 'access', _807 => _807.wert, 'optionalAccess', _808 => _808.toLocaleString, 'call', _809 => _809("de")]))
+                , scannedWz.naechsteKalib&&React.createElement('div', { style: {gridColumn:"1/-1"}}, React.createElement('span', { style: {color:V.dm}}, "Nächste Kalib.:" ), " " , fdt(scannedWz.naechsteKalib), " " , scannedWz.naechsteKalib<=td2()&&React.createElement(Badge, { text: "⚠️ FÄLLIG!" , color: "#ef4444"}))
+              )
+            )
+
+            /* Quick Actions */
+            , React.createElement('div', { style: {...CC()}}
+              , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:12}}, "⚡ Schnellaktion" )
+
+              , scannedWz.status==="verfuegbar"&&(React.createElement('div', {}
+                , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:8}}, "Gerät an Monteur ausgeben:"   )
+                , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}
+                  , monteure.map(m=>(React.createElement('button', { key: m.id, onClick: ()=>scanCheckout(scannedWz.id,m.id), style: {...bsS(),width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:8,padding:"12px 14px"}}
+                    , React.createElement('span', { style: {fontSize:18}}, "👷")
+                    , React.createElement('div', { style: {flex:1}}, React.createElement('div', { style: {fontWeight:600}}, m.n), React.createElement('div', { style: {fontSize:10,color:V.dm}}, m.r))
+                    , React.createElement('span', { style: {color:"#f97316",fontSize:12}}, "📤 Ausgeben" )
+                  )))
+                )
+              ))
+
+              , scannedWz.status==="ausgegeben"&&(React.createElement('div', {}
+                , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:8}}, "Aktuell bei: "  , React.createElement('strong', {}, _optionalChain([monteure, 'access', _810 => _810.find, 'call', _811 => _811(m=>m.id===scannedWz.zugewiesen), 'optionalAccess', _812 => _812.n])||"?"))
+                , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}
+                  , React.createElement('button', { onClick: ()=>scanCheckin(scannedWz.id), style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "📥 Zurück ins Lager"   )
+                  , React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:6,marginBottom:4}}, "Oder an anderen Monteur umbuchen:"    )
+                  , monteure.filter(m=>m.id!==scannedWz.zugewiesen).map(m=>(React.createElement('button', { key: m.id, onClick: ()=>scanCheckout(scannedWz.id,m.id), style: {...bsS(),width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}
+                    , React.createElement('span', { style: {fontSize:16}}, "👷")
+                    , React.createElement('div', { style: {flex:1}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, m.n))
+                    , React.createElement('span', { style: {color:"#f97316",fontSize:11}}, "🔄 Umbuchen" )
+                  )))
+                )
+              ))
+
+              , scannedWz.status==="reparatur"&&(React.createElement('div', {}
+                , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:8}}, "Gerät ist in Reparatur"   )
+                , React.createElement('button', { onClick: ()=>scanCheckin(scannedWz.id), style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "✅ Reparatur fertig → Lager"    )
+              ))
+
+              , scannedWz.status==="kalibrierung"&&(React.createElement('div', {}
+                , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:8}}, "Kalibrierung fällig" )
+                , React.createElement('button', { onClick: ()=>{const nd=new Date();nd.setMonth(nd.getMonth()+6);setWerkzeuge(p=>p.map(w=>w.id===scannedWz.id?{...w,letzteKalib:td2(),naechsteKalib:nd.toISOString().split("T")[0],status:"verfuegbar"}:w));setScannedWz(p=>({...p,status:"verfuegbar",letzteKalib:td2()}));setScanMsg("✅ Kalibriert & verfügbar");}, style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "📏 Als kalibriert markieren"   )
+              ))
+
+              , !["verfuegbar","ausgegeben","reparatur","kalibrierung"].includes(scannedWz.status)&&(React.createElement('div', {}
+                , React.createElement('button', { onClick: ()=>scanCheckin(scannedWz.id), style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "📥 Ins Lager zurücksetzen"   )
+              ))
+
+              , React.createElement('div', { style: {borderTop:"1px solid "+V.bd,marginTop:12,paddingTop:12,display:"flex",gap:6,flexWrap:"wrap"}}
+                , React.createElement('button', { onClick: ()=>scanToRepair(scannedWz.id), style: {...bdS,fontSize:11,padding:"6px 12px"}}, "🔧 In Reparatur"  )
+                , React.createElement('button', { onClick: ()=>{openEdit(scannedWz);}, style: {...bsS(),fontSize:11,padding:"6px 12px"}}, "✏️ Bearbeiten" )
+                , React.createElement('button', { onClick: ()=>printLabels([{name:scannedWz.name,code:scannedWz.inventarnr,inventarnr:scannedWz.inventarnr}],"Werkzeug-Label"), style: {...bsS(),fontSize:11,padding:"6px 12px"}}, "🏷️ Label drucken"  )
+              )
+            )
+
+            /* Scan History hint */
+            , React.createElement('div', { style: {textAlign:"center",marginTop:10}}
+              , React.createElement('button', { onClick: ()=>{setScannedWz(null);setScanMsg("");startScan();}, style: {...bpS,padding:"12px 24px",fontSize:14}}, "📷 Nächstes Gerät scannen"   )
+            )
+          ))
+        )
+      )
+    ))
+
+    /* ═══ LISTE ═══ */
+    , sub==="liste"&&(React.createElement('div', {}
+      , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}
+        , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "🔍 Name, Seriennr, Inventar..."   , style: {...II(),width:"auto",flex:1,minWidth:150,fontSize:12}, className: "mob-full"} )
+        , React.createElement('select', { value: filtSt, onChange: e=>setFiltSt(e.target.value), style: {...II(),width:"auto",minWidth:100,fontSize:12}}, React.createElement('option', { value: ""}, "Alle Status" ), Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))
+        , React.createElement('select', { value: filtKat, onChange: e=>setFiltKat(e.target.value), style: {...II(),width:"auto",minWidth:100,fontSize:12}}, React.createElement('option', { value: ""}, "Alle Kategorien" ), Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))
+      )
+      , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, filtered.length, " von "  , werkzeuge.length, " Geräte" )
+      , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { className: "scroll-x"}
+        , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:800}}
+          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}, ["Inventar","Gerät/Werkzeug","Kategorie","Status","Zugewiesen","Standort","Wert €","Zustand",""].map((h,i)=>(React.createElement('th', { key: i, style: {...thS(),textAlign:i===7?"center":"left"}}, h)))))
+          , React.createElement('tbody', {}, filtered.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=w.naechsteKalib&&w.naechsteKalib<=td2();
+            return (React.createElement('tr', { key: w.id, onClick: ()=>openEdit(w), style: {borderBottom:"1px solid "+V.bd,cursor:"pointer",background:kalFaellig?"rgba(239,68,68,.03)":"transparent"}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=kalFaellig?"rgba(239,68,68,.03)":"transparent"}
+              , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:11,fontWeight:600}}, w.inventarnr)
+              , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {fontWeight:600}}, w.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, w.seriennr))
+              , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {fontSize:11}}, _optionalChain([kat, 'optionalAccess', _813 => _813.i]), " " , _optionalChain([kat, 'optionalAccess', _814 => _814.l])))
+              , React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([st, 'optionalAccess', _815 => _815.i])+" "+_optionalChain([st, 'optionalAccess', _816 => _816.l]), color: _optionalChain([st, 'optionalAccess', _817 => _817.c])}))
+              , React.createElement('td', { style: tdSt()}, mont?mont.n:React.createElement('span', { style: {color:V.dm}}, "—"))
+              , React.createElement('td', { style: {...tdSt(),fontSize:11}}, w.standort)
+              , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontWeight:600}}, w.wert.toLocaleString("de"))
+              , React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, React.createElement(Stars, { val: w.zustandBewertung}))
+              , React.createElement('td', { style: tdSt()}, isAdmin&&(React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(w);}, style: {...bsS(),padding:"3px 8px",fontSize:10}}, "✏️")))
+            ));
+          }))
+        )
+      ))
+    ))
+
+    /* ═══ CHECK-IN / CHECK-OUT ═══ */
+    , sub==="checkout"&&(React.createElement('div', {}
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:14}}
+        /* Ausgeben */
+        , React.createElement('div', { style: {...CC(),borderColor:"rgba(249,115,22,.15)"}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#f97316",marginBottom:12}}, "📤 Werkzeug ausgeben"  )
+          , werkzeuge.filter(w=>w.status==="verfuegbar").length===0?(React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm}}, "Keine Geräte verfügbar"  )):(
+            werkzeuge.filter(w=>w.status==="verfuegbar").map(w=>{const kat=WZ_KAT[w.kat];
+              return (React.createElement('div', { key: w.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+V.bd,flexWrap:"wrap"}}
+                , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, _optionalChain([kat, 'optionalAccess', _818 => _818.i]), " " , w.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, w.inventarnr))
+                , React.createElement('select', { id: "co_"+w.id, style: {...II(),width:"auto",minWidth:120,fontSize:11,padding:"5px 8px",minHeight:36}}, React.createElement('option', { value: ""}, "Monteur wählen..." ), monteure.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))
+                , React.createElement('button', { onClick: ()=>{const sel=document.getElementById("co_"+w.id);if(!_optionalChain([sel, 'optionalAccess', _819 => _819.value])){alert("Monteur wählen!");return;}checkout(w.id,sel.value);}, style: {...bpS,padding:"5px 12px",fontSize:11,minHeight:36}}, "📤 Ausgeben" )
+              ));
+            })
+          )
+        )
+        /* Zurücknehmen */
+        , React.createElement('div', { style: {...CC(),borderColor:"rgba(34,197,94,.15)"}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#22c55e",marginBottom:12}}, "📥 Werkzeug zurücknehmen"  )
+          , werkzeuge.filter(w=>w.status==="ausgegeben").length===0?(React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm}}, "Keine Geräte ausgegeben"  )):(
+            werkzeuge.filter(w=>w.status==="ausgegeben").map(w=>{const mont=monteure.find(m=>m.id===w.zugewiesen);const kat=WZ_KAT[w.kat];
+              return (React.createElement('div', { key: w.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+V.bd,flexWrap:"wrap"}}
+                , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, _optionalChain([kat, 'optionalAccess', _820 => _820.i]), " " , w.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, w.inventarnr, " · bei "   , _optionalChain([mont, 'optionalAccess', _821 => _821.n])||"?"))
+                , React.createElement('button', { onClick: ()=>checkin(w.id), style: {...bgS,padding:"5px 12px",fontSize:11,minHeight:36}}, "📥 Zurücknehmen" )
+              ));
+            })
+          )
+        )
+      )
+    ))
+
+    /* ═══ KALIBRIERUNG ═══ */
+    , sub==="kalib"&&(React.createElement('div', {}
+      , React.createElement('div', { style: {...CC()}}
+        , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#d97706",marginBottom:12}}, "🔧 Geräte-Serviceheft"  )
+        , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:10}}, "Gerät auswählen um Service-Einträge zu sehen/bearbeiten" )
+        , React.createElement('select', { value: wzServiceSel, onChange: e=>setWzServiceSel(e.target.value), style: {...II(),fontSize:13,padding:"8px",marginBottom:12}}, React.createElement('option', { value: ""}, "— Gerät wählen —" ), werkzeuge.map(w=>React.createElement('option', { key: w.id, value: w.id}, _optionalChain([WZ_KAT, 'access', _822a => _822a[w.kat], 'optionalAccess', _822b => _822b.i])||"", " ", w.name, " (", w.inventarnr, ")")))
+        , wzServiceSel&&(()=>{
+          const wz=werkzeuge.find(w=>w.id===wzServiceSel);if(!wz)return null;
+          const sh=wz.serviceheft||[];
+          return (React.createElement('div', {}
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingBottom:6,borderBottom:"1px solid "+V.bd}}
+              , React.createElement('div', {}, React.createElement('span', { style: {fontSize:14,fontWeight:700}}, wz.name), React.createElement('span', { style: {fontSize:11,color:V.dm,marginLeft:8}}, wz.inventarnr))
+              , isAdmin&&React.createElement('button', { onClick: ()=>{const e={id:uid(),datum:td2(),art:"Service",beschreibung:"",kosten:0,werkstatt:"",befund:"",rechnung:""};setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:[e,...(w.serviceheft||[])]}:w));SQ.push({url:"/api/werkzeuge/"+wzServiceSel,method:"POST",body:e});_optionalChain([window, 'access', _822c => _822c.__toast, 'optionalCall', _822d => _822d("🔧 Service-Eintrag hinzugefügt")]);}, style: {...bpS,fontSize:11}}, "+ Service-Eintrag" )
+            )
+            , sh.length===0&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:20}}, "Keine Service-Einträge vorhanden"  )
+            , sh.map((s,i)=>(React.createElement('div', { key: s.id||i, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid #d97706"}}
+              , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
+                , React.createElement('div', { style: {flex:1}}
+                  , isAdmin?(React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:4}}
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}} ))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Kalibrierung"), React.createElement('option', {}, "UVV-Prüfung"), React.createElement('option', {}, "Ersatzteil"), React.createElement('option', {}, "Sonstiges")))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", step: "0.01", value: s.kosten||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:parseFloat(e.target.value)||0}:x)}:w)), style: {...II(),fontSize:11,padding:4}} ))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt/Firma"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Hilti Service"} ))
+                    , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"} ))
+                    , React.createElement('div', { style: {gridColumn:"span 2",display:"flex",gap:8,flexWrap:"wrap"}}
+                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.befund, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>window.open(s.befund,"_blank")} ), React.createElement('span', { onClick: ()=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)}:w)), style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:ev.target.result}:x)}:w));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "🧾 Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.rechnung, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>window.open(s.rechnung,"_blank")} ), React.createElement('span', { onClick: ()=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)}:w)), style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:ev.target.result}:x)}:w));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                    )
+                  )):(React.createElement('div', {}
+                    , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, s.art, ": " , s.beschreibung)
+                    , React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(s.datum), s.werkstatt?" · "+s.werkstatt:"", s.kosten?" · "+s.kosten.toFixed(2)+" €":"")
+                  ))
+                )
+                , isAdmin&&React.createElement('button', { onClick: ()=>{const wz=werkzeuge.find(w=>w.id===wzServiceSel);const entry=_optionalChain([wz, 'optionalAccess', _999 => _999.serviceheft, 'optionalAccess', _999b => _999b[i]]);setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).filter((_,j)=>j!==i)}:w));if(entry&&entry.id)SQ.push({url:"/api/wz-service/"+entry.id,method:"DELETE"});}, style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+              )
+            )))
+            , sh.length>0&&(()=>{const total=sh.reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginTop:6}}, "💰 Servicekosten gesamt: "   , total.toFixed(2), " €" ):null;})()
+          ));
+        })()
+      )
+    ))
+
+    /* ═══ FORMULAR ═══ */
+    , sub==="form"&&(React.createElement('div', {}
+      , React.createElement('div', { style: {...CC()}}
+        , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:14,color:"#d97706"}}, editId?"✏️ Gerät bearbeiten":"🔧 Neues Gerät anlegen", editId&&React.createElement('span', { style: {fontFamily:mono,fontSize:12,color:V.dm,marginLeft:8}}, form.inventarnr))
+        , React.createElement('div', { className: "as-form-grid"}
+          , React.createElement('div', {}
+            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Gerätedaten")
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Gerätename *" ), React.createElement('input', { value: form.name||"", onChange: e=>setForm({...form,name:e.target.value}), style: II(), placeholder: "z.B. Hilti TE 30-A36"   }))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Kategorie"), React.createElement('select', { value: form.kat||"elektro", onChange: e=>setForm({...form,kat:e.target.value}), style: II()}, Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Seriennummer"), React.createElement('input', { value: form.seriennr||"", onChange: e=>setForm({...form,seriennr:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Inventar-Nr. / QR-Code"  )
+              , React.createElement('div', { style: {display:"flex",gap:4}}
+                , React.createElement('input', { value: form.inventarnr||"", onChange: e=>setForm({...form,inventarnr:e.target.value}), style: {...II(),fontFamily:mono,flex:1}, placeholder: "EK-E001 oder bestehenden Code eingeben"} )
+                , React.createElement('button', { onClick: ()=>{const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;setForm(f=>({...f,inventarnr:"EK-"+prefix+String(next).padStart(3,"0")}));}, style: {...bsS(),padding:"6px 10px",fontSize:11,whiteSpace:"nowrap"}, title: "Nächste freie Nr. generieren"   }, "🔢 Auto" )
+              )
+              , React.createElement('div', { style: {marginTop:6,padding:10,border:"2px dashed "+V.bd,borderRadius:8,textAlign:"center"}}
+                , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6}}, "📷 Bestehenden QR-/Barcode scannen:"  )
+                , React.createElement('button', { onClick: async()=>{
+                    if(typeof BarcodeDetector!=="undefined"){try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});const overlay=document.createElement("div");overlay.id="qr-overlay";overlay.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;";const video=document.createElement("video");video.style.cssText="width:80%;max-width:400px;border-radius:12px;border:3px solid #009640;";video.srcObject=stream;video.setAttribute("playsinline","true");video.play();const label=document.createElement("div");label.style.cssText="color:#fff;font-size:14px;margin:12px 0;";label.textContent="QR-Code oder Barcode in das Feld halten...";const closeBtn=document.createElement("button");closeBtn.textContent="✕ Abbrechen";closeBtn.style.cssText="padding:10px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px;";closeBtn.onclick=()=>{stream.getTracks().forEach(t=>t.stop());overlay.remove();};overlay.appendChild(label);overlay.appendChild(video);overlay.appendChild(closeBtn);document.body.appendChild(overlay);const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8","data_matrix"]});let found=false;const scan=async()=>{if(found)return;if(video.readyState<2){requestAnimationFrame(scan);return;}try{const codes=await det.detect(video);if(codes.length>0){found=true;setForm(f=>({...f,inventarnr:codes[0].rawValue}));stream.getTracks().forEach(t=>t.stop());overlay.remove();_optionalChain([window, 'access', _823 => _823.__toast, 'optionalCall', _824 => _824("✅ Code gescannt: "+codes[0].rawValue)]);return;}}catch(e){}requestAnimationFrame(scan);};requestAnimationFrame(scan);setTimeout(()=>{if(!found){stream.getTracks().forEach(t=>t.stop());overlay.remove();_optionalChain([window, 'access', _825 => _825.__toast, 'optionalCall', _826 => _826("⏰ Scanner-Timeout (30s)","warn")]);}},30000);}catch(e){_optionalChain([window, 'access', _825b => _825b.__toast, 'optionalCall', _826b => _826b("📷 Kamera: "+e.message,"warn")]);}}else{const code=prompt("QR-/Barcode manuell eingeben:");if(code)setForm(f=>({...f,inventarnr:code}));}
+                  }, style: {...bpS,padding:"8px 20px",fontSize:13}}, "📷 QR-/Barcode scannen"  )
+                , React.createElement('div', { style: {fontSize:9,color:V.dm,marginTop:6}}, "Unterstützt QR-Code, Code128, Code39, EAN · Fullscreen-Kamera mit Live-Erkennung"     )
+              )
+              , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:3}}, "💡 Bestehende Codes scannen oder neue Nr. vergeben. QR-Code-Labels über "            , React.createElement('b', {}, "Labels"), " oben drucken"  )
+            )
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Anschaffungsdatum"), React.createElement('input', { type: "date", value: form.anschaffung||"", onChange: e=>setForm({...form,anschaffung:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wert (€)" ), React.createElement('input', { type: "number", value: form.wert||0, onChange: e=>setForm({...form,wert:parseFloat(e.target.value)||0}), style: {...II(),fontFamily:mono}} ))
+          )
+          , React.createElement('div', {}
+            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Status & Zuweisung"  )
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Status"), React.createElement('select', { value: form.status||"verfuegbar", onChange: e=>setForm({...form,status:e.target.value}), style: II()}, Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zugewiesen an" ), React.createElement('select', { value: form.zugewiesen||"", onChange: e=>setForm({...form,zugewiesen:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— Nicht zugewiesen —"   ), monteure.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n, " (" , m.r, ")")))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Projekt"), React.createElement('select', { value: form.projekt||"", onChange: e=>setForm({...form,projekt:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— Kein Projekt —"   ), projects.filter(p=>p.status==="aktiv").map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr, " — "  , p.name)))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Standort"), React.createElement('input', { value: form.standort||"", onChange: e=>setForm({...form,standort:e.target.value}), style: II(), placeholder: "Lager, Baustelle, Service..."  }))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zustand"), React.createElement(Stars, { val: form.zustandBewertung||5, onChange: v=>setForm({...form,zustandBewertung:v})}))
+          )
+          , React.createElement('div', {}
+            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Service & Notizen"  )
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: form.naechsteKalib||"", onChange: e=>setForm({...form,naechsteKalib:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Letzter Service" ), React.createElement('input', { type: "date", value: form.letzteKalib||"", onChange: e=>setForm({...form,letzteKalib:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Notizen 🎤" ), React.createElement(SpeechWrap, { value: form.notizen||"", onChange: v=>setForm({...form,notizen:v})}, React.createElement('textarea', { value: form.notizen||"", onChange: e=>setForm({...form,notizen:e.target.value}), style: {...II(),minHeight:80}, rows: 3})))
+            , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",marginTop:14}}
+              , React.createElement('button', { onClick: save, style: bpS}, "💾 " , editId?"Aktualisieren":"Speichern")
+              , React.createElement('button', { onClick: ()=>setSub("liste"), style: bsS()}, "Abbrechen")
+              , editId&&(React.createElement('button', { onClick: ()=>del(editId), style: bdS}, "🗑️ Löschen" ))
+            )
+          )
+        )
+      )
+    ))
+  ));
+}
+
+var App=exports.default||window.App;
+var root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+
+// ═══ MOBILE: Auto-wrap tables for horizontal scroll ═══
+(function(){
+  function wrapTable(t){
+    if(t.parentElement&&t.parentElement.classList.contains('mob-table-wrap'))return;
+    if(t.closest('.mob-table-wrap'))return;
+    var w=document.createElement('div');w.className='mob-table-wrap';
+    t.parentNode.insertBefore(w,t);w.appendChild(t);
+  }
+  function scanTables(){document.querySelectorAll('#root table').forEach(wrapTable);}
+  // Run after React renders + on DOM changes
+  setTimeout(scanTables,500);
+  var obs=new MutationObserver(function(){setTimeout(scanTables,100);});
+  obs.observe(document.getElementById('root'),{childList:true,subtree:true});
+})();
+
+// ═══ PWA: Service Worker registered in React useEffect ═══
+</script></body></html>
   const [qTankL,setQTankL]=_react.useState.call(void 0, "");const [qTankP,setQTankP]=_react.useState.call(void 0, "");const [qTankKm,setQTankKm]=_react.useState.call(void 0, "");const [qTankDat,setQTankDat]=_react.useState.call(void 0, td2());
   const [qSchadTxt,setQSchadTxt]=_react.useState.call(void 0, "");
   // Quick-action handlers
