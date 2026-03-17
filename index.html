@@ -181,6 +181,35 @@ const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const SB_REST=SUPABASE_URL+"/rest/v1";
 const SB_HDR={"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"return=representation"};
 
+// ═══ SUPABASE STORAGE ═══
+const SB_BUCKET="epkolar-files";
+const SB_STORAGE=SUPABASE_URL+"/storage/v1";
+function _dataUrlToBlob(dataUrl){
+  if(!dataUrl||!dataUrl.startsWith("data:"))return null;
+  const[header,b64]=dataUrl.split(",");const mime=header.match(/:(.*?);/)[1];
+  const bin=atob(b64);const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+async function _sbUploadFile(path,dataUrl){
+  const blob=_dataUrlToBlob(dataUrl);
+  if(!blob)throw new Error("Invalid dataUrl");
+  const r=await fetch(SB_STORAGE+"/object/"+SB_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),{
+    method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":blob.type,"x-upsert":"true"},body:blob
+  });
+  if(!r.ok){const txt=await r.text();throw new Error("Storage upload failed: "+r.status+" "+txt);}
+  return SUPABASE_URL+"/storage/v1/object/public/"+SB_BUCKET+"/"+path;
+}
+function _storagePath(category,projectId,fileName){
+  const safe=s=>(s||"unknown").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,80);
+  const ts=Date.now();
+  if(category==="photos")return "photos/"+(projectId||"global")+"/"+ts+"_"+safe(fileName);
+  if(category==="plans")return "plans/"+(projectId||"global")+"/"+ts+"_"+safe(fileName);
+  if(category==="docs")return "docs/"+(projectId||"global")+"/"+ts+"_"+safe(fileName);
+  if(category==="absence")return "absence/"+safe(projectId)+"/"+ts+"_"+safe(fileName);
+  return "misc/"+ts+"_"+safe(fileName);
+}
+
 // ═══ camelCase → snake_case field mapper ═══
 function _toSnake(s){return s.replace(/[A-Z]/g,m=>'_'+m.toLowerCase());}
 function _mapBody(obj){
@@ -198,7 +227,7 @@ function _mapBody(obj){
     kundeStatus:'kunde_status',reviewNote:'review_note',kundeFreigabe:'kunde_freigabe',
     dataUrl:'data_url',fileName:'file_name',fileType:'file_type',fileSize:'file_size',
     fileData:'file_data',uploadedBy:'uploaded_by',takenAt:'taken_at',gpsLat:'gps_lat',
-    gpsLon:'gps_lon',entityType:'entity_type',entityId:'entity_id',filePath:'file_path',
+    gpsLon:'gps_lon',entityType:'entity_type',entityId:'entity_id',filePath:'file_path',fileUrl:'file_url',
     formType:'form_type',passwordHash:'password_hash',loginCount:'login_count',
     lastLogin:'last_login',folderId:'folder_id',
     fahrzeugId:'fahrzeug_id',werkzeugId:'werkzeug_id',absenceId:'absence_id',
@@ -281,8 +310,22 @@ function _mapDefect(d){
     ebene:d.ebene||"",frist:d.frist||d.deadline||"",
     gewerk:d.gewerk||""};
 }
-
-// ═══ Supabase REST helpers ═══
+function _mapPlan(p){
+  if(!p)return p;
+  return{id:p.id,pid:p.pid||p.project_id||"",name:p.name||"",filename:p.filename||"",
+    dataUrl:p.dataUrl||p.data_url||p.file_url||"",fileUrl:p.file_url||"",
+    width:p.width||0,height:p.height||0,
+    uploadedAt:p.uploadedAt||p.uploaded_at||(p.created_at||"").split("T")[0],
+    uploadedBy:p.uploadedBy||p.uploaded_by||"",takenAt:p.takenAt||p.taken_at||""};
+}
+function _mapDocFromServer(d){
+  if(!d)return d;
+  return{id:d.id,name:d.name||"",kat:d.category||"",folderId:d.folder_id||"",note:d.note||"",
+    dataUrl:d.file_url||d.file_data||"",fileUrl:d.file_url||"",
+    fileName:d.file_name||"",fileType:d.file_type||"",size:d.file_size||0,
+    uploadedBy:d.uploaded_by||"",uploadedAt:(d.uploaded_at||"").split("T")[0],
+    kundeFreigabe:d.kunde_freigabe||0,isImage:/\.(jpg|jpeg|png|gif|webp)$/i.test(d.file_name||"")};
+}
 const _SB_RD={"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Range":"0-4999"};
 async function _sbGet(table,filter){
   const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&limit=5000";
@@ -573,6 +616,19 @@ async function _translateAndExec(url,method,body){
   const table=entry[1];
   const mapped=_mapBody(body||{});
 
+  // ─── Storage Interception: Upload base64 to Supabase Storage before DB insert ───
+  if(method==="POST"&&mapped.file_data&&typeof mapped.file_data==="string"&&mapped.file_data.startsWith("data:")){
+    try{
+      const cat=resource==="plans"?"plans":resource==="absence-files"?"absence":"docs";
+      const pid=mapped.project_id||mapped.worker_name||"misc";
+      const fname=mapped.file_name||mapped.filename||"file";
+      const storagePath=_storagePath(cat,pid,fname);
+      const publicUrl=await _sbUploadFile(storagePath,mapped.file_data);
+      mapped.file_url=publicUrl;
+      delete mapped.file_data; // Don't store base64 in DB
+    }catch(storageErr){console.warn("Storage upload failed, keeping file_data in DB:",storageErr);}
+  }
+
   if(method==="POST"){
     await _sbPost(table,mapped);
   }else if(method==="PUT"||method==="PATCH"){
@@ -811,7 +867,10 @@ const PhotoQ={
     for(const ph of pending){
       try{
         await PhotoQ.update(ph.id,{status:"uploading"});
-        await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,data_url:ph.dataUrl,taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
+        // Upload to Supabase Storage, then save URL in DB (no Base64 in DB)
+        const storagePath=_storagePath("photos",ph.projectId,ph.name||"photo.jpg");
+        const publicUrl=await _sbUploadFile(storagePath,ph.dataUrl);
+        await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
         await PhotoQ.remove(ph.id);ok++;
       }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;break;}
     }
@@ -1530,7 +1589,7 @@ function KundenPortal({project:p,forms,setForms,onClose}){
   const cls=(forms.checklisten||[]).filter(c=>c.pid===p.id);
   const [defectPhotos,setDefectPhotos]=_react.useState.call(void 0, {});
   // Load photos from server for customer defects
-  _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;(async()=>{const pm={};for(const m of maengel){try{const ph=await API.getPhotos("defect",m.id);if(ph&&ph.length)pm[m.id]=ph.map(x=>x.data_url||x.file_path).filter(Boolean);}catch(e){}}if(Object.keys(pm).length)setDefectPhotos(pm);})();},[maengel.length]);
+  _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;(async()=>{const pm={};for(const m of maengel){try{const ph=await API.getPhotos("defect",m.id);if(ph&&ph.length)pm[m.id]=ph.map(x=>x.file_path||x.data_url).filter(Boolean);}catch(e){}}if(Object.keys(pm).length)setDefectPhotos(pm);})();},[maengel.length]);
   const getDefectPhotos=(m)=>{const local=(m.photos||[]).map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
   const sc=(ST_CFG||{})[p.status]||(ST_CFG||{}).aktiv||{l:"Aktiv",c:"#22c55e",bg:"#22c55e18",i:"🟢"};
   const docs=(forms.kundenDocs||[]).filter(d=>d.pid===p.id);
@@ -2041,7 +2100,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           }else if(wpMap&&typeof wpMap==='object'&&!Array.isArray(wpMap)&&Object.keys(wpMap).length){setMonteurProjekte(wpMap);}
           // Plans + Tickets + Checklists → planData
           if(_optionalChain([plns, 'optionalAccess', _48c => _48c.length])||_optionalChain([tkts, 'optionalAccess', _48d => _48d.length])){
-            setPlanData(prev=>{const upd={...prev};if(plns&&plns.length)upd.plans=plns;if(tkts&&tkts.length)upd.tickets=tkts;return upd;});
+            setPlanData(prev=>{const upd={...prev};if(plns&&plns.length)upd.plans=plns.map(_mapPlan);if(tkts&&tkts.length)upd.tickets=tkts;return upd;});
           }
           if(_optionalChain([chkl, 'optionalAccess', _48e => _48e.length])){
             setForms(prev=>({...prev,checklisten:chkl.map(c=>({id:c.id,pid:c.project_id,name:c.name,items:_jp(c.items),date:(c.created_at||"").split("T")[0],status:c.status||"offen"}))}));
@@ -5310,7 +5369,7 @@ function VMang({p,forms,setForms,curUser}){
         try{
           const photos=await API.getPhotos("defect",did);
           if(photos&&photos.length){
-            photoMap[did]=photos.map(ph=>({id:ph.id,src:ph.data_url||ph.file_path,name:ph.name,date:ph.taken_at||ph.uploaded_at}));
+            photoMap[did]=photos.map(ph=>({id:ph.id,src:ph.file_path||ph.data_url,name:ph.name,date:ph.taken_at||ph.uploaded_at}));
           }
         }catch(e){}
       }
@@ -5651,7 +5710,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms}){
   const handleDragLeave=e=>{e.preventDefault();setDropActive(false);};
   const planTickets=allTickets.filter(t=>t.planId===(_optionalChain([selPlan, 'optionalAccess', _378 => _378.id])||""));
   const filteredTickets=planTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;});
-  const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name}});setSelPlan(np);setSubView("viewer");}).catch(()=>{});});try{e.target.value="";}catch(_){}};
+  const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ph.dataUrl,width:ph.width,height:ph.height,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");}).catch(()=>{});});try{e.target.value="";}catch(_){}};
   const deletePlan=id=>{setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
   const isPlanFreigegeben=(planId)=>!!(forms.kundenDocs||[]).find(kd=>kd.id==="plan_"+planId);
   const togglePlanFreigabe=(pl)=>{
@@ -5757,7 +5816,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
           _sbGet("project_documents","project_id=eq."+encodeURIComponent(p.id)),
           _sbGet("project_folders","project_id=eq."+encodeURIComponent(p.id))
         ]);
-        if(_optionalChain([docsData, 'optionalAccess', _420 => _420.length]))setDocs(docsData.map(d=>({id:d.id,name:d.name,kat:d.category,folderId:d.folder_id,note:d.note,dataUrl:d.file_data,fileName:d.file_name,fileType:d.file_type,size:d.file_size,uploadedBy:d.uploaded_by,uploadedAt:_optionalChain([d, 'access', _422 => _422.uploaded_at, 'optionalAccess', _423 => _423.split, 'call', _424 => _424("T"), 'access', _425 => _425[0]]),kundeFreigabe:d.kunde_freigabe})));
+        if(_optionalChain([docsData, 'optionalAccess', _420 => _420.length]))setDocs(docsData.map(_mapDocFromServer));
         if(_optionalChain([foldersData, 'optionalAccess', _427 => _427.length]))setFolders(foldersData.map(f=>({id:f.id,name:f.name,color:f.color,createdAt:_optionalChain([f, 'access', _428 => _428.created_at, 'optionalAccess', _429 => _429.split, 'call', _430 => _430("T"), 'access', _431 => _431[0]])})));
         }catch(e){console.warn("Docs laden:",e);}
       }
