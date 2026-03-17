@@ -1590,7 +1590,7 @@ function KundenPortal({project:p,forms,setForms,onClose}){
   const [defectPhotos,setDefectPhotos]=_react.useState.call(void 0, {});
   // Load photos from server for customer defects
   _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;(async()=>{const pm={};for(const m of maengel){try{const ph=await API.getPhotos("defect",m.id);if(ph&&ph.length)pm[m.id]=ph.map(x=>x.file_path||x.data_url).filter(Boolean);}catch(e){}}if(Object.keys(pm).length)setDefectPhotos(pm);})();},[maengel.length]);
-  const getDefectPhotos=(m)=>{const local=(m.photos||[]).map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
+  const getDefectPhotos=(m)=>{const raw=m.photos||[];const arr=typeof raw==="string"?(()=>{try{return JSON.parse(raw)}catch(e){return[]}})():Array.isArray(raw)?raw:[];const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
   const sc=(ST_CFG||{})[p.status]||(ST_CFG||{}).aktiv||{l:"Aktiv",c:"#22c55e",bg:"#22c55e18",i:"🟢"};
   const docs=(forms.kundenDocs||[]).filter(d=>d.pid===p.id);
   const offeneMaengel=kundeMaengel.filter(m=>m.kundeStatus!=="abgenommen"&&m.kundeStatus!=="abgelehnt").length;
@@ -2324,7 +2324,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         freshDef.forEach(d=>{newIds.add(d.id);newStatuses[d.id]=d.status;});
         lastSnapshot.current={...snap,defectIds:newIds,defectStatuses:newStatuses};
         // Also update local forms.maengel if server has newer data
-        const mg=freshDef.map(d=>({id:d.id,pid:d.project_id||d.projectId,p:d.project_id||d.projectId,name:d.title,title:d.title,status:d.status,beschreibung:d.description||"",desc:d.description,prio:d.prio||d.priority||"mittel",photos:d.images||[],date:d.created||(d.created_at||"").split("T")[0],melder:d.melder||d.created_by||"",kundeStatus:d.kundeStatus||d.kunde_status||"",ort:d.ort||"",reviewNote:d.reviewNote||d.review_note||"",zugewiesen:d.zugewiesen||"",worker:d.zugewiesen||"",ebene:d.description||"",frist:d.frist||""}));
+        const mg=freshDef.map(d=>({id:d.id,pid:d.project_id||d.projectId,p:d.project_id||d.projectId,name:d.title,title:d.title,status:d.status,beschreibung:d.description||"",desc:d.description,prio:d.prio||d.priority||"mittel",photos:_jp(d.images||d.fotos),date:d.created||(d.created_at||"").split("T")[0],melder:d.melder||d.created_by||"",kundeStatus:d.kundeStatus||d.kunde_status||"",ort:d.ort||"",reviewNote:d.reviewNote||d.review_note||"",zugewiesen:d.zugewiesen||"",worker:d.zugewiesen||"",ebene:d.description||"",frist:d.frist||""}));
         setForms(prev=>({...prev,maengel:mg}));
       }
       // Fetch fresh absences for new Krankmeldungen
@@ -5380,7 +5380,8 @@ function VMang({p,forms,setForms,curUser}){
 
   // Helper: get all photos for a defect (local + server)
   const getPhotos=(m)=>{
-    const local=(m.photos||[]).map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph);
+    const raw=m.photos||[];const arr=typeof raw==="string"?(()=>{try{return JSON.parse(raw)}catch(e){return[]}})():Array.isArray(raw)?raw:[];
+    const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph);
     const server=(defectPhotos[m.id]||[]).map(ph=>ph.src);
     // Deduplicate by checking if starts with same prefix
     const all=[...local];
@@ -5394,7 +5395,7 @@ function VMang({p,forms,setForms,curUser}){
       const ph=await compressPhoto(file,2400,0.88);
       const thumb=await createThumbnail(ph.dataUrl,120);
       // Add to local state immediately
-      setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===defectId?{...m,photos:[...(m.photos||[]),{thumb,full:ph.dataUrl}]}:m)}));
+      setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===defectId?{...m,photos:[..._jp(m.photos),{thumb,full:ph.dataUrl}]}:m)}));
       // Queue for server upload
       await captureAndQueue(file,"defect",defectId,p.id,"Mangel-Foto");
       _optionalChain([window, 'access', _phu1 => _phu1.__toast, 'optionalCall', _phu2 => _phu2("📷 Foto hinzugefügt")]);
