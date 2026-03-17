@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.2.6
-const CACHE_NAME = 'epkolar-v3.2.6';
+// EP Kolar Service Worker v3.3.0
+const CACHE_NAME = 'epkolar-v3.3.0';
 const ASSETS = [
   './',
   './index.html'
@@ -31,7 +31,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Skip Supabase API calls — never cache REST data
+  // Skip Supabase API + Storage calls — never cache REST/Storage data
   if (url.includes('supabase.co')) {
     return;
   }
