@@ -422,7 +422,7 @@ async function _translateAndExec(url,method,body){
   // Fahrzeuge special: POST /api/fahrzeuge/:id (sub-entity: schaden or serviceheft)
   if(resource==="fahrzeuge"&&idOrSub&&method==="POST"&&body&&!body.kennzeichen){
     // Check if it's a schaden entry or serviceheft entry
-    if(body.datum&&(body.by||body.note)){
+    if(body.datum&&(body.by||body.by_user||body.note)){
       // Schaden
       const mapped=_mapBody({...body,fahrzeug_id:idOrSub,id:body.id||Date.now().toString()});
       await _sbPost("fz_schaeden",mapped);
@@ -762,7 +762,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.2.6-supabase-2026-03-17";
+const APP_VERSION="3.2.9-supabase-2026-03-17";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -811,7 +811,7 @@ const PhotoQ={
     for(const ph of pending){
       try{
         await PhotoQ.update(ph.id,{status:"uploading"});
-        await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,data_url:ph.dataUrl,taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||""}));
+        await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,data_url:ph.dataUrl,taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
         await PhotoQ.remove(ph.id);ok++;
       }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;break;}
     }
@@ -4722,7 +4722,7 @@ function VExport({p,entries,forms}){
       , React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Vollständigkeitsprüfung"), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}, [{l:"Zeitbuchungen",v:pe.length,ok:pe.length>0},{l:"Regieberichte",v:rg.length,ok:rg.length>0},{l:"Abnahmeprotokolle",v:ab.length,ok:ab.length>0},{l:"Mängel offen",v:mgOffen,ok:mgOffen===0},{l:"Schließfreigaben",v:sf.length,ok:true},{l:"Dichtheitsprüfungen",v:dh.length,ok:true}].map((c,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid "+V.bd}}, React.createElement('span', { style: {fontSize:16}}, c.ok?"✅":"⚠️"), React.createElement('span', { style: {flex:1,fontSize:12}}, c.l), React.createElement('span', { style: {fontFamily:mono,fontSize:13,fontWeight:700,color:c.ok?"#22c55e":"#eab308"}}, c.v))))), mgOffen>0&&(React.createElement('div', { style: {marginTop:10,padding:"8px 12px",background:"rgba(234,179,8,.1)",border:"1px solid #eab308",borderRadius:6,fontSize:12,color:"#eab308"}}, "⚠️ Es sind noch "    , mgOffen, " offene Mängel vorhanden."   )))
       , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Export-Optionen")
       , React.createElement('div', { className: "export-grid", style: {marginBottom:14}}
-        , [{i:"📄",t:"Projektdokumentation",d:"Komplettexport mit Server-Pfaden",fn:genPdf,primary:true},{i:"📊",t:"Zeiterfassung Excel",d:"Formatierte Excel-Datei: "+buildExportFilename("arbeitsschein",p.nr,td2(),1,"xls"),fn:genCsv},{i:"📥",t:"ZUZEIT.ASC",d:"OFFA-kompatibles Zeitübergabe-Format",fn:()=>{}},{i:"🖨️",t:"Drucken / PDF",d:"Aktuelle Ansicht als PDF drucken",fn:()=>window.print()},{i:"📧",t:"Per E-Mail",d:"Projekt-Zusammenfassung per Mail",fn:()=>{}},{i:"📦",t:"Archivieren",d:"Status 'Archiv' setzen & abschließen",fn:()=>{},warn:true}].map((x,idx)=>(
+        , [{i:"📄",t:"Projektdokumentation",d:"Komplettexport mit Server-Pfaden",fn:genPdf,primary:true},{i:"📊",t:"Zeiterfassung Excel",d:"Formatierte Excel-Datei: "+buildExportFilename("arbeitsschein",p.nr,td2(),1,"xls"),fn:genCsv},{i:"🖨️",t:"Drucken / PDF",d:"Aktuelle Ansicht als PDF drucken",fn:()=>window.print()}].map((x,idx)=>(
           React.createElement('div', { key: idx, style: {...CC(),textAlign:"center",borderColor:x.warn?"#eab308":V.bd}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, x.i), React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:4}}, x.t), React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:12,minHeight:30}}, x.d), React.createElement('button', { onClick: x.fn, style: {...(x.primary?bpS:x.warn?{...bdS,borderColor:"#eab308",color:"#eab308",background:"rgba(234,179,8,.1)"}:bsS()),width:"100%",display:"flex",justifyContent:"center",alignItems:"center",gap:6}}, x.primary?"📥 Exportieren":x.warn?"🔒 Archivieren":"📥 "+x.t))
         ))
       )
@@ -8167,10 +8167,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     if(!schadBeschr.trim())return;
     const data={id:uid(),beschreibung:schadBeschr,foto:schadFoto,datum:td2(),status:"offen"};
     upd(fzId,f=>{
-      f.schaeden=[{...data,by:_optionalChain([curUser, 'optionalAccess', _642 => _642.name])||""},...(f.schaeden||[])];
+      f.schaeden=[{...data,by_user:_optionalChain([curUser, 'optionalAccess', _642 => _642.name])||""},...(f.schaeden||[])];
       return f;
     });
-    SQ.push({url:"/api/schaeden/"+fzId,method:"POST",body:{...data,by:_optionalChain([curUser, 'optionalAccess', _643 => _643.name])||""}});
+    SQ.push({url:"/api/schaeden/"+fzId,method:"POST",body:{...data,by_user:_optionalChain([curUser, 'optionalAccess', _643 => _643.name])||""}});
     _optionalChain([window, 'access', _644 => _644.__toast, 'optionalCall', _645 => _645("🔴 Schaden gemeldet")]);
     setSchadBeschr("");setSchadFoto("");setShowSchaden(null);
   };
