@@ -827,14 +827,14 @@ window.API = (function() {
     createWzService: function(d) { return _sbPost("wz_service",_mapBody(d)); },
     // Activity Log
     getActivityLog: function(limit) { return _sbGetOrder("activity_log","created_at.desc").then(r=>r.slice(0,limit||100)); },
-    health: async function() { return{status:'ok',version:'3.3.0-supabase'}; }
+    health: async function() { return{status:'ok',version:'3.3.1-supabase'}; }
   };
 })();
 
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.3.0-supabase-2026-03-17";
+const APP_VERSION="3.3.1-supabase-2026-03-17";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -2384,7 +2384,84 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
 
-  const logout=()=>{API.setToken(null);setCurUser(null);setKat(0);setOpenP(null);};
+  const logout=()=>{API.setToken(null);setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
+
+  // ═══════════ HISTORY API — Browser-Zurück-Button Support ═══════════
+  const _skipPush=_react.useRef.call(void 0, 0);// counter: >0 means skip N pushes
+  const _projViewRef=_react.useRef.call(void 0, null);// {get,set} from ProjectShell
+  const _lastKat=_react.useRef.call(void 0, 0);
+  const _lastOpenP=_react.useRef.call(void 0, null);
+
+  // Push state when kat changes (main tab navigation)
+  _react.useEffect.call(void 0, ()=>{
+    if(_skipPush.current>0){_skipPush.current--;return;}
+    if(!curUser)return;
+    if(openP)return;// project push is handled separately
+    const s={kat};
+    if(_lastKat.current!==kat||_lastOpenP.current!==null){
+      history.pushState(s,'');
+    }
+    _lastKat.current=kat;
+  },[kat,curUser]);
+
+  // Push state when project opens/closes
+  _react.useEffect.call(void 0, ()=>{
+    if(_skipPush.current>0){_skipPush.current--;return;}
+    if(!curUser)return;
+    if(openP){
+      history.pushState({kat,projId:openP.id,projView:'dashboard'},'');
+      _lastOpenP.current=openP;
+    } else if(_lastOpenP.current){
+      // Project closed — don't push, popstate already handled it or user clicked X
+      _lastOpenP.current=null;
+    }
+  },[openP,curUser]);
+
+  // Initial history state
+  _react.useEffect.call(void 0, ()=>{if(curUser)history.replaceState({kat},'');},[curUser]);
+
+  // popstate handler — browser back/forward button
+  _react.useEffect.call(void 0, ()=>{
+    const onPop=(e)=>{
+      const s=e.state;
+      if(!s){// no state = very first entry, go to home
+        _skipPush.current=2;
+        setOpenP(null);setKat(0);_lastKat.current=0;_lastOpenP.current=null;
+        return;
+      }
+      if(s.projId&&s.projView&&openP){
+        // Navigate within project sub-views
+        if(_projViewRef.current&&_projViewRef.current.set){
+          _projViewRef.current.set(s.projView);
+        }
+        return;// no main-state changes, no skip needed
+      }
+      if(s.projId&&!openP){
+        // Re-open project (forward button) — find project by id
+        _skipPush.current=1;
+        const pr=projects.find(p=>p.id===s.projId);
+        if(pr){setOpenP(pr);_lastOpenP.current=pr;}
+        return;
+      }
+      if(!s.projId){
+        // Back to main tab — close project if open
+        _skipPush.current=openP?2:1;// skip both openP+kat effects if project was open
+        if(openP){setOpenP(null);_lastOpenP.current=null;}
+        setKat(s.kat||0);_lastKat.current=s.kat||0;
+      }
+    };
+    window.addEventListener('popstate',onPop);
+    return()=>window.removeEventListener('popstate',onPop);
+  },[openP,projects]);
+
+  // Expose projView ref for ProjectShell
+  const _regProjView=_react.useCallback.call(void 0, (setter,getter)=>{_projViewRef.current={set:setter,get:getter};},[]);
+  const _unregProjView=_react.useCallback.call(void 0, ()=>{_projViewRef.current=null;},[]);
+  const _pushProjView=_react.useCallback.call(void 0, (viewId)=>{
+    if(!openP)return;
+    history.pushState({kat,projId:openP.id,projView:viewId},'');
+  },[kat,openP]);
+  // ═══════════ END HISTORY API ═══════════
 
   // Auto-sync on login
   _react.useEffect.call(void 0, ()=>{
@@ -2514,7 +2591,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         return React.createElement(S, { onClose: ()=>setShowSearch(false)} );
       })()
       , openP ? (
-        React.createElement(ProjectShell, { p: openP, onBack: ()=>setOpenP(null), entries: entries, setEntries: setEntries, forms: forms, setForms: setForms, ww: ww, curUser: curUser, planData: planData, setPlanData: setPlanData, projects: projects, monteure: monteure, monteurProjekte: monteurProjekte} )
+        React.createElement(ProjectShell, { p: openP, onBack: ()=>{history.back();}, entries: entries, setEntries: setEntries, forms: forms, setForms: setForms, ww: ww, curUser: curUser, planData: planData, setPlanData: setPlanData, projects: projects, monteure: monteure, monteurProjekte: monteurProjekte, _regProjView: _regProjView, _unregProjView: _unregProjView, _pushProjView: _pushProjView} )
       ) : (
         React.createElement('div', {}
           , React.createElement('header', { style: {padding:isMob?"10px 12px":"12px 20px",borderBottom:"1px solid "+V.bd,background:V.sb,display:"flex",justifyContent:"space-between",alignItems:"center"}}
@@ -4614,8 +4691,9 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser}){
   );
 }
 
-function ProjectShell({p,onBack,entries,setEntries,forms,setForms,ww,curUser,planData,setPlanData,monteure,monteurProjekte}){
+function ProjectShell({p,onBack,entries,setEntries,forms,setForms,ww,curUser,planData,setPlanData,monteure,monteurProjekte,_regProjView,_unregProjView,_pushProjView}){
   const [view,setView]=_react.useState.call(void 0, p._initView||"dashboard");
+  const _viewSkipPush=_react.useRef.call(void 0, true);// skip initial + popstate-driven changes
   const [selW,setSelW]=_react.useState.call(void 0, "w2");
   const [kw,setKw]=_react.useState.call(void 0, isoW());
   const yr=new Date().getFullYear();
@@ -4624,6 +4702,17 @@ function ProjectShell({p,onBack,entries,setEntries,forms,setForms,ww,curUser,pla
   const [mobNav,setMobNav]=_react.useState.call(void 0, false);
   const isTab=ww<768;
   const isMob=ww<600;
+
+  // History API: register view setter for popstate coordination
+  _react.useEffect.call(void 0, ()=>{
+    if(_regProjView)_regProjView((v)=>{_viewSkipPush.current=true;setView(v);},()=>view);
+    return()=>{if(_unregProjView)_unregProjView();};
+  },[]);
+  // Push history when view changes (skip initial + popstate-driven)
+  _react.useEffect.call(void 0, ()=>{
+    if(_viewSkipPush.current){_viewSkipPush.current=false;return;}
+    if(_pushProjView)_pushProjView(view);
+  },[view]);
 
   const nav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne"},{id:"formulare",i:"📝",l:"Formulare"},{id:"checklisten",i:"✅",l:"Checklisten"},{id:"maengel",i:"⚠️",l:"Mängel"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA"},{id:"export",i:"📦",l:"Export"}];
   const navIds=nav.filter(Boolean).map(n=>n.id);
@@ -6064,6 +6153,9 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const [sa,setSa]=_react.useState.call(void 0, false);const [nv,setNv]=_react.useState.call(void 0, "");const [nProjId,setNProjId]=_react.useState.call(void 0, "");
   const [editRow,setEditRow]=_react.useState.call(void 0, null);const [editBvh,setEditBvh]=_react.useState.call(void 0, "");
   const [saving,setSaving]=_react.useState.call(void 0, false);
+  const [saved,setSaved]=_react.useState.call(void 0, false);
+  const wpInitRef=_react.useRef.call(void 0, true);
+  const wpSaveTimer=_react.useRef.call(void 0, null);
   const [cellPick,setCellPick]=_react.useState.call(void 0, null);// {rowId,day,type:"ma"|"fz"}
   const isMob=ww<600;const isAdmin=_optionalChain([curUser, 'optionalAccess', _468 => _468.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _469 => _469.role])==="projektleiter";
 
@@ -6108,7 +6200,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const m={};DSHORT.forEach(d=>{const s=new Set();rows.forEach(r=>{(_optionalChain([r, 'access', _477 => _477.z, 'optionalAccess', _478 => _478[d], 'optionalAccess', _479 => _479.ma])||[]).forEach(id=>s.add(id));});m[d]=s.size;});return m;
   },[rows]);
 
-  const switchKw=(newKw)=>{setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);};
+  const switchKw=(newKw)=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);};
 
   const toggleMA=(rowId,day,maId)=>{
     setRows(prev=>prev.map(r=>{
@@ -6129,7 +6221,9 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     }));
   };
 
-  const saveWeek=()=>{setSaving(true);setWpHistory(h=>({...h,[kw]:rows}));SQ.push({url:"/api/weekplans",method:"POST",body:{kw,year:yr,rows}});_optionalChain([window, 'access', _484 => _484.__toast, 'optionalCall', _485 => _485("✅ KW"+kw+" gespeichert")]);setTimeout(()=>setSaving(false),500);};
+  const saveWeek=()=>{setSaving(true);setWpHistory(h=>({...h,[kw]:rows}));SQ.push({url:"/api/weekplans",method:"POST",body:{kw,year:yr,rows}});setTimeout(()=>{setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);},400);};
+  // Auto-save on rows change (debounced 800ms, skip initial load)
+  _react.useEffect.call(void 0, ()=>{if(wpInitRef.current){wpInitRef.current=false;return;}if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);wpSaveTimer.current=setTimeout(()=>saveWeek(),800);return()=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);};},[rows]);
 
   const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;const emptyIdx=rows.findIndex(r=>!r.bvh.trim());if(emptyIdx>=0){setRows(rows.map((r,i)=>i===emptyIdx?{...r,bvh:pn||name,projId:projId||""}:r));}else{setRows([...rows,{id:Date.now(),bvh:pn||name,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}]);}setNv("");setNProjId("");setSa(false);};
   const clearRow=(id)=>setRows(rows.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));
@@ -6219,11 +6313,11 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
           , React.createElement('button', { onClick: ()=>setSa(!sa), style: sa?bdS:bpS}, sa?"✕":"+ Zeile")
           , savedKws.length>0&&React.createElement('button', { onClick: ()=>{const prev=savedKws.filter(k=>k<kw).pop()||savedKws[savedKws.length-1];if(prev)copyWeek(prev);}, style: beS, title: "Vorlage"}, "📋")
-          , React.createElement('button', { onClick: saveWeek, style: bgS, disabled: saving}, saving?"⏳":"💾", " Speichern" )
+          , React.createElement('span',{style:{fontSize:11,color:saving?"#f59e0b":saved?"#22c55e":V.dm,fontWeight:600,padding:"6px 10px",display:"flex",alignItems:"center",gap:4}},saving?"⏳ Speichert...":saved?"✓ Gespeichert":"")
         )
       )
 
-      , React.createElement('p', { style: {color:V.dm,fontSize:11,margin:"0 0 4px",fontStyle:"italic"}}, "Monteure, Baustellen & Fahrzeuge pro Wochentag planen. Zeile per + hinzufügen, Speichern nicht vergessen." )
+      , React.createElement('p', { style: {color:V.dm,fontSize:11,margin:"0 0 4px",fontStyle:"italic"}}, "Monteure, Baustellen & Fahrzeuge pro Wochentag planen. Änderungen werden automatisch gespeichert." )
 
       /* Weather strip - aligned with table columns */
       , React.createElement('div', { style: {overflowX:"auto",borderRadius:"8px 8px 0 0",border:"1px solid "+V.bd,borderBottom:"none",background:V.cd}}
@@ -7426,6 +7520,8 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const [dayEntries,setDayEntries]=_react.useState.call(void 0, {});
   const [loading,setLoading]=_react.useState.call(void 0, false);
   const [saving,setSaving]=_react.useState.call(void 0, false);
+  const [saved,setSaved]=_react.useState.call(void 0, false);
+  const stzSaveTimers=_react.useRef.call(void 0, {});
   const [viewAll,setViewAll]=_react.useState.call(void 0, false);
   const [allData,setAllData]=_react.useState.call(void 0, []);
   const [addDay,setAddDay]=_react.useState.call(void 0, null);
@@ -7437,6 +7533,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const [addBis,setAddBis]=_react.useState.call(void 0, "16:00");
   const [addBemerkung,setAddBemerkung]=_react.useState.call(void 0, "");
   const [addPause,setAddPause]=_react.useState.call(void 0, 1);
+  const [addTaetigkeit,setAddTaetigkeit]=_react.useState.call(void 0, "");
   const [editEntry,setEditEntry]=_react.useState.call(void 0, null);
   const [bwbProjId,setBwbProjId]=_react.useState.call(void 0, "");
 
@@ -7470,13 +7567,14 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
       const asId=e.arbeitsschein_id||"";
       const proj=projId?projects.find(p=>p.id===projId):null;
       const schein=asId?arbeitsscheine.find(s=>s.id===asId):null;
-      let label=e.task||e.taetigkeit||"";
+      const rawTask=e.task||e.taetigkeit||"";
+      let label=rawTask;
       let type="frei";
       if(proj){label=proj.name+" ("+proj.nr+")";type="projekt";}
       else if(schein){label=schein.nummer+" — "+(schein.kundName||"");type="schein";}
       dm[dt].push({
         id:e.id,type:type,project_id:projId,arbeitsschein_id:asId,
-        label:label,hours:parseFloat(e.hours||e.stunden)||0,
+        label:label,taetigkeit:rawTask,hours:parseFloat(e.hours||e.stunden)||0,
         gewerk:e.gewerk||e.gw||"elektro",von:e.von||"",bis:e.bis||"",
         bemerkung:e.description||e.bemerkung||""
       });
@@ -7500,13 +7598,25 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   };
   _react.useEffect.call(void 0, ()=>{if(viewAll)loadAllOverview();},[viewAll,kw,entries]);
 
-  // Update hours for an entry
+  // Update hours for an entry (with debounced auto-save)
   const updateEntryHours=(iso,entryIdx,newHours)=>{
     setDayEntries(prev=>{
       const copy={...prev};
       copy[iso]=[...(copy[iso]||[])];
       if(copy[iso][entryIdx]){
         copy[iso][entryIdx]={...copy[iso][entryIdx],hours:newHours};
+        // Debounced auto-save for this specific entry
+        const entry=copy[iso][entryIdx];
+        const tKey=entry.id||iso+"-"+entryIdx;
+        if(stzSaveTimers.current[tKey])clearTimeout(stzSaveTimers.current[tKey]);
+        stzSaveTimers.current[tKey]=setTimeout(()=>{
+          if(entry.id&&newHours>0){
+            setSaving(true);
+            SQ.push({url:"/api/entries/"+entry.id,method:"PUT",body:{id:entry.id,worker_id:selWorker,project_id:entry.project_id||"",arbeitsschein_id:entry.arbeitsschein_id||"",date:iso,hours:newHours,task:entry.taetigkeit||entry.label,gewerk:entry.gewerk||"elektro",type:"arbeit",description:entry.bemerkung||"",von:entry.von||"",bis:entry.bis||""}});
+            setTimeout(()=>{setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);},400);
+          }
+          delete stzSaveTimers.current[tKey];
+        },800);
       }
       return copy;
     });
@@ -7541,35 +7651,21 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     if(!label){if(window.__toast)window.__toast("⚠️ Bitte Eintrag auswählen");return;}
     const h=parseFloat(addHours)||0;
     if(h<=0){if(window.__toast)window.__toast("⚠️ Stunden müssen > 0 sein");return;}
+    const taet=addType==="frei"?addFrei.trim():(addTaetigkeit.trim()||label);
     const entryId="ze_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
-    const newEntry={id:entryId,type,project_id:projId,arbeitsschein_id:asId,label,hours:h,gewerk:"elektro",von:addVon,bis:addBis,pause:addPause,bemerkung:addBemerkung};
+    const newEntry={id:entryId,type,project_id:projId,arbeitsschein_id:asId,label,hours:h,gewerk:"elektro",von:addVon,bis:addBis,pause:addPause,bemerkung:addBemerkung,taetigkeit:taet};
     setDayEntries(prev=>{
       const copy={...prev};
       copy[addDay]=[...(copy[addDay]||[]),newEntry];
       return copy;
     });
     // Also add to global entries so project dashboard picks it up
-    const globalEntry={id:entryId,p:type==="projekt"?projId:"",pid:type==="projekt"?projId:"",w:selWorker,worker:selWorker,date:addDay,datum:addDay,hours:h,stunden:h,task:label,taetigkeit:label,gw:"elektro",gewerk:"elektro",von:addVon,bis:addBis,pause:addPause,bemerkung:addBemerkung,arbeitsschein_id:asId};
+    const globalEntry={id:entryId,p:type==="projekt"?projId:"",pid:type==="projekt"?projId:"",w:selWorker,worker:selWorker,date:addDay,datum:addDay,hours:h,stunden:h,task:taet,taetigkeit:taet,gw:"elektro",gewerk:"elektro",von:addVon,bis:addBis,pause:addPause,bemerkung:addBemerkung,arbeitsschein_id:asId};
     setEntries(prev=>[...prev,globalEntry]);
     // Push to API
-    SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,task:label,gewerk:"elektro",type:"arbeit",von:addVon,bis:addBis,description:addBemerkung}});
+    SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,task:taet,gewerk:"elektro",type:"arbeit",von:addVon,bis:addBis,description:addBemerkung}});
     if(window.__toast)window.__toast("✅ "+h.toFixed(1)+"h gespeichert");
-    setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);
-  };
-
-  // Save all
-  const saveAll=()=>{
-    setSaving(true);
-    Object.entries(dayEntries).forEach(([iso,dayArr])=>{
-      (dayArr||[]).forEach(entry=>{
-        if(entry.hours>0){
-          const body={id:entry.id,worker_id:selWorker,project_id:entry.project_id||"",arbeitsschein_id:entry.arbeitsschein_id||"",date:iso,hours:entry.hours,task:entry.label,gewerk:entry.gewerk||"elektro",type:"arbeit",description:entry.bemerkung||"",von:entry.von||"",bis:entry.bis||""};
-          SQ.push({url:"/api/entries/"+entry.id,method:"PUT",body});
-        }
-      });
-    });
-    if(window.__toast)window.__toast("✅ KW "+kw+" gespeichert");
-    setTimeout(()=>setSaving(false),600);
+    setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
   };
 
   // Totals
@@ -7595,13 +7691,13 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     let dayRows="";
     DAYS.forEach((d,i)=>{
       const iso=isoDate(i);const arr=dayEntries[iso]||[];const dt=dayTotal(i);
-      const customers=arr.map(e=>esc(e.label)).join(", ")||"";
+      const customers=arr.map(e=>{const t=e.taetigkeit||"";return t&&t!==esc(e.label)?esc(e.label)+" · "+esc(t):esc(e.label);}).join(", ")||"";
       // Row 1: Day name + standard times + Tagessumme + Arbeitszeit + Kunden + KO:
       dayRows+=`<tr style="height:17px;"><td rowspan="${ROWS_PER_DAY}" style="${bdr}padding:4px 6px;font-size:12pt;vertical-align:top;width:90px;">${esc(FULL_DAYS[i])}<br/><span style="font-size:9pt;color:#666;">${esc(STD_TIMES[i]||"")}</span></td><td rowspan="${ROWS_PER_DAY}" style="${bdr}text-align:center;font-weight:bold;font-size:12pt;width:55px;">${dt>0?dt.toFixed(1):""}</td><td rowspan="${ROWS_PER_DAY}" style="${bdr}text-align:center;font-size:12pt;width:60px;">${dt>0?dt.toFixed(1):""}</td>`;
       // Arbeitsstelle rows (up to ROWS_PER_DAY)
       for(let ri=0;ri<ROWS_PER_DAY;ri++){
         const e=arr[ri];
-        const kunde=e?esc(e.label):"";
+        const kunde=e?(esc(e.label)+(e.taetigkeit&&e.taetigkeit!==e.label?"<br/><span style=\"font-size:8pt;color:#555;\">"+esc(e.taetigkeit)+"</span>":"")):"";
         const ko=e&&e.von?esc(e.von):"";
         const ge=e&&e.bis?esc(e.bis):"";
         const mp=ri===0&&i<5?"12:00-13:00":"";
@@ -7673,9 +7769,9 @@ ${dayRows}
       const e=arr[ri];
       const arbZeit=e?((e.von||"")+" – "+(e.bis||"")):"";
       const kunde=e?esc(e.label):"";
-      const taetigkeit=e?esc(e.bemerkung||""):"";
+      const taetigkeit=e?esc(e.taetigkeit||e.task||""):"";
       if(ri===0){
-        entryRows+=`<tr style="height:17px;"><td rowspan="${numRows}" style="${bdr}padding:4px 8px;font-size:20pt;font-weight:bold;vertical-align:top;width:90px;">${esc(FULL_DAYS[dayIdx])}</td><td style="${bdr}padding:4px 6px;font-size:20pt;width:100px;">${esc(arbZeit)}</td><td colspan="2" style="${bdr}padding:4px 6px;font-size:20pt;width:220px;">${kunde}</td><td rowspan="${numRows}" colspan="2" style="${bdr}padding:4px 6px;font-size:20pt;vertical-align:top;width:260px;">${arr.map(x=>esc(x.bemerkung||x.label||"")).join("<br/>")}</td></tr>`;
+        entryRows+=`<tr style="height:17px;"><td rowspan="${numRows}" style="${bdr}padding:4px 8px;font-size:20pt;font-weight:bold;vertical-align:top;width:90px;">${esc(FULL_DAYS[dayIdx])}</td><td style="${bdr}padding:4px 6px;font-size:20pt;width:100px;">${esc(arbZeit)}</td><td colspan="2" style="${bdr}padding:4px 6px;font-size:20pt;width:220px;">${kunde}</td><td rowspan="${numRows}" colspan="2" style="${bdr}padding:4px 6px;font-size:20pt;vertical-align:top;width:260px;">${arr.map(x=>esc(x.taetigkeit||x.task||x.label||"")).join("<br/>")}</td></tr>`;
       }else{
         entryRows+=`<tr style="height:17px;"><td style="${bdr}padding:4px 6px;font-size:20pt;">${esc(arbZeit)}</td><td colspan="2" style="${bdr}padding:4px 6px;font-size:20pt;">${kunde}</td></tr>`;
       }
@@ -7771,7 +7867,7 @@ ${entryRows}
       cells+=`<td style="${bdr}text-align:center;font-weight:bold;font-size:10pt;">${rowSum>0?rowSum.toFixed(1):""}</td>`;
       // Get tätigkeiten for this day from entries
       const iso=dayIdx!==null?isoDate(dayIdx):null;
-      const dayTasks=iso?(entries||[]).filter(e=>{const dt=(e.datum||e.date||"").split("T")[0];const pid=e.project_id||e.p||e.pid||"";return dt===iso&&pid===projId;}).map(e=>e.description||e.bemerkung||e.task||e.taetigkeit||"").filter(Boolean):"";
+      const dayTasks=iso?(entries||[]).filter(e=>{const dt=(e.datum||e.date||"").split("T")[0];const pid=e.project_id||e.p||e.pid||"";return dt===iso&&pid===projId;}).map(e=>e.taetigkeit||e.task||e.description||e.bemerkung||"").filter(Boolean):"";
       cells+=`<td style="${bdr}padding:4px 6px;font-size:9pt;">${Array.isArray(dayTasks)?esc(dayTasks.join("; ")):""}</td>`;
       dayRowsHtml+=`<tr style="height:20px;">${cells}</tr>`;
     }
@@ -7816,10 +7912,10 @@ ${dayRowsHtml}
   // ── Export: Einfache Übersicht (wie bisher) ──
   const exportXls=()=>{
     const wName=(monteure.find(m=>m.id===selWorker)||{}).n||"Unbekannt";
-    const hdrs=["Nr","Tag","Projekt/Tätigkeit","Typ","Stunden","Von","Bis","Bemerkung"];
+    const hdrs=["Nr","Tag","Projekt/Kunde","Tätigkeit","Typ","Stunden","Von","Bis","Bemerkung"];
     const data=[];let nr=0;
-    DAYS.forEach((d,i)=>{const iso=isoDate(i);(dayEntries[iso]||[]).forEach(e=>{nr++;data.push([nr,d+" "+dateFmt(i),e.label,e.type,e.hours.toFixed(1),e.von||"—",e.bis||"—",e.bemerkung||""]);});});
-    data.push(["","","SUMME","",weekTotal.toFixed(1),"","",""]);
+    DAYS.forEach((d,i)=>{const iso=isoDate(i);(dayEntries[iso]||[]).forEach(e=>{nr++;data.push([nr,d+" "+dateFmt(i),e.label,e.taetigkeit||e.label||"",e.type,e.hours.toFixed(1),e.von||"—",e.bis||"—",e.bemerkung||""]);});});
+    data.push(["","","SUMME","","",weekTotal.toFixed(1),"","",""]);
     genXls("⏱️ Zeiterfassung — "+wName+" — KW "+kw+"/"+yr,"Kalenderwoche "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_"+wName+"_KW"+kw+"_"+yr+".xls",{colWidths:[35,70,200,70,55,55,55,150],leftCols:[0,1,2,3,5,6,7],boldCols:[2],sumCol:4});
   };
   const exportTxt=()=>{
@@ -7889,6 +7985,12 @@ ${dayRowsHtml}
           React.createElement('input',{value:addFrei,onChange:e=>setAddFrei(e.target.value),placeholder:"z.B. Lager, Büro, Schulung, Störung Schneider Absdorf...",style:{...II(),fontSize:13},onKeyDown:e=>{if(e.key==="Enter")addEntry();}})
         ),
 
+        // Tätigkeit for Projekt/Schein
+        addType!=="frei"&&React.createElement('div',{style:{marginBottom:12}},
+          React.createElement('label',{style:LL()},"Tätigkeit"),
+          React.createElement('input',{value:addTaetigkeit,onChange:e=>setAddTaetigkeit(e.target.value),placeholder:"z.B. Montage, Inbetriebnahme, Verkabelung, Störungsbehebung...",style:{...II(),fontSize:13}})
+        ),
+
         // Hours
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:12}},
           React.createElement('div',{},
@@ -7943,10 +8045,10 @@ ${dayRowsHtml}
         ),
         React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap"}},
           isAdmin&&React.createElement('button',{onClick:()=>setViewAll(!viewAll),style:viewAll?bgS:bsS()},viewAll?"👤 Einzelansicht":"👥 Alle Monteure"),
-          React.createElement('button',{onClick:saveAll,style:bgS,disabled:saving},saving?"⏳":"💾"," Speichern")
+          React.createElement('span',{style:{fontSize:11,color:saving?"#f59e0b":saved?"#22c55e":V.dm,fontWeight:600,padding:"6px 10px",display:"flex",alignItems:"center",gap:4}},saving?"⏳ Speichert...":saved?"✓ Gespeichert":"")
         )
       )
-      ,React.createElement('p',{style:{color:V.dm,fontSize:12,margin:"0 0 10px",fontStyle:"italic"}},"Arbeitsstunden pro Monteur und Woche erfassen. Pro Tag beliebig viele Projekte, Arbeitsscheine und Störungen zuweisen. Speichern nicht vergessen.")
+      ,React.createElement('p',{style:{color:V.dm,fontSize:12,margin:"0 0 10px",fontStyle:"italic"}},"Arbeitsstunden pro Monteur und Woche erfassen. Pro Tag beliebig viele Projekte, Arbeitsscheine und Störungen zuweisen. Änderungen werden automatisch gespeichert.")
 
       /* Worker selector */
       ,!viewAll&&React.createElement('div',{style:{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}},
@@ -8037,6 +8139,8 @@ ${dayRowsHtml}
                     ),
                     /* Label */
                     React.createElement('div',{style:{fontSize:12,fontWeight:600,color:V.tx,lineHeight:"1.3",overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},entry.label),
+                    /* Tätigkeit (if different from label) */
+                    entry.taetigkeit&&entry.taetigkeit!==entry.label&&React.createElement('div',{style:{fontSize:10,color:"#f59e0b",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},entry.taetigkeit),
                     /* Hours input */
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4}},
                       React.createElement('input',{type:"number",step:"0.5",min:"0",max:"24",value:entry.hours||"",onChange:e=>updateEntryHours(iso,eIdx,parseFloat(e.target.value)||0),style:{...II(),textAlign:"center",fontSize:14,fontWeight:700,padding:"3px 4px",width:56,color:entry.hours>=8?"#10b981":entry.hours>0?V.tx:V.mt,background:"transparent",border:"1px solid "+(entry.hours>0?"rgba(16,185,129,.3)":"rgba(255,255,255,.1)"),borderRadius:4}}),
@@ -8047,7 +8151,7 @@ ${dayRowsHtml}
                 ),
 
                 /* Add entry button */
-                React.createElement('button',{onClick:()=>{setAddDay(iso);setAddType("projekt");setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);},style:{
+                React.createElement('button',{onClick:()=>{setAddDay(iso);setAddType("projekt");setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");},style:{
                   width:"100%",padding:"6px",borderRadius:6,border:"1px dashed "+V.bd,
                   background:"transparent",color:V.dm,fontSize:12,cursor:"pointer",fontFamily:"inherit",
                   display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginTop:"auto",
@@ -9397,69 +9501,4 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('div', { className: "as-form-grid"}
           , React.createElement('div', {}
             , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Gerätedaten")
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Gerätename *" ), React.createElement('input', { value: form.name||"", onChange: e=>setForm({...form,name:e.target.value}), style: II(), placeholder: "z.B. Hilti TE 30-A36"   }))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Kategorie"), React.createElement('select', { value: form.kat||"elektro", onChange: e=>setForm({...form,kat:e.target.value}), style: II()}, Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Seriennummer"), React.createElement('input', { value: form.seriennr||"", onChange: e=>setForm({...form,seriennr:e.target.value}), style: II()} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Inventar-Nr. / QR-Code"  )
-              , React.createElement('div', { style: {display:"flex",gap:4}}
-                , React.createElement('input', { value: form.inventarnr||"", onChange: e=>setForm({...form,inventarnr:e.target.value}), style: {...II(),fontFamily:mono,flex:1}, placeholder: "EK-E001 oder bestehenden Code eingeben"} )
-                , React.createElement('button', { onClick: ()=>{const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;setForm(f=>({...f,inventarnr:"EK-"+prefix+String(next).padStart(3,"0")}));}, style: {...bsS(),padding:"6px 10px",fontSize:11,whiteSpace:"nowrap"}, title: "Nächste freie Nr. generieren"   }, "🔢 Auto" )
-              )
-              , React.createElement('div', { style: {marginTop:6,padding:10,border:"2px dashed "+V.bd,borderRadius:8,textAlign:"center"}}
-                , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6}}, "📷 Bestehenden QR-/Barcode scannen:"  )
-                , React.createElement('button', { onClick: async()=>{
-                    if(typeof BarcodeDetector!=="undefined"){try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});const overlay=document.createElement("div");overlay.id="qr-overlay";overlay.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;";const video=document.createElement("video");video.style.cssText="width:80%;max-width:400px;border-radius:12px;border:3px solid #009640;";video.srcObject=stream;video.setAttribute("playsinline","true");video.play();const label=document.createElement("div");label.style.cssText="color:#fff;font-size:14px;margin:12px 0;";label.textContent="QR-Code oder Barcode in das Feld halten...";const closeBtn=document.createElement("button");closeBtn.textContent="✕ Abbrechen";closeBtn.style.cssText="padding:10px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px;";closeBtn.onclick=()=>{stream.getTracks().forEach(t=>t.stop());overlay.remove();};overlay.appendChild(label);overlay.appendChild(video);overlay.appendChild(closeBtn);document.body.appendChild(overlay);const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8","data_matrix"]});let found=false;const scan=async()=>{if(found)return;if(video.readyState<2){requestAnimationFrame(scan);return;}try{const codes=await det.detect(video);if(codes.length>0){found=true;setForm(f=>({...f,inventarnr:codes[0].rawValue}));stream.getTracks().forEach(t=>t.stop());overlay.remove();_optionalChain([window, 'access', _823 => _823.__toast, 'optionalCall', _824 => _824("✅ Code gescannt: "+codes[0].rawValue)]);return;}}catch(e){}requestAnimationFrame(scan);};requestAnimationFrame(scan);setTimeout(()=>{if(!found){stream.getTracks().forEach(t=>t.stop());overlay.remove();_optionalChain([window, 'access', _825 => _825.__toast, 'optionalCall', _826 => _826("⏰ Scanner-Timeout (30s)","warn")]);}},30000);}catch(e){_optionalChain([window, 'access', _825b => _825b.__toast, 'optionalCall', _826b => _826b("📷 Kamera: "+e.message,"warn")]);}}else{const code=prompt("QR-/Barcode manuell eingeben:");if(code)setForm(f=>({...f,inventarnr:code}));}
-                  }, style: {...bpS,padding:"8px 20px",fontSize:13}}, "📷 QR-/Barcode scannen"  )
-                , React.createElement('div', { style: {fontSize:9,color:V.dm,marginTop:6}}, "Unterstützt QR-Code, Code128, Code39, EAN · Fullscreen-Kamera mit Live-Erkennung"     )
-              )
-              , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:3}}, "💡 Bestehende Codes scannen oder neue Nr. vergeben. QR-Code-Labels über "            , React.createElement('b', {}, "Labels"), " oben drucken"  )
-            )
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Anschaffungsdatum"), React.createElement('input', { type: "date", value: form.anschaffung||"", onChange: e=>setForm({...form,anschaffung:e.target.value}), style: II()} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wert (€)" ), React.createElement('input', { type: "number", value: form.wert||0, onChange: e=>setForm({...form,wert:parseFloat(e.target.value)||0}), style: {...II(),fontFamily:mono}} ))
-          )
-          , React.createElement('div', {}
-            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Status & Zuweisung"  )
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Status"), React.createElement('select', { value: form.status||"verfuegbar", onChange: e=>setForm({...form,status:e.target.value}), style: II()}, Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zugewiesen an" ), React.createElement('select', { value: form.zugewiesen||"", onChange: e=>setForm({...form,zugewiesen:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— Nicht zugewiesen —"   ), monteure.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n, " (" , m.r, ")")))))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Projekt"), React.createElement('select', { value: form.projekt||"", onChange: e=>setForm({...form,projekt:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— Kein Projekt —"   ), projects.filter(p=>p.status==="aktiv").map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr, " — "  , p.name)))))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Standort"), React.createElement('input', { value: form.standort||"", onChange: e=>setForm({...form,standort:e.target.value}), style: II(), placeholder: "Lager, Baustelle, Service..."  }))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zustand"), React.createElement(Stars, { val: form.zustandBewertung||5, onChange: v=>setForm({...form,zustandBewertung:v})}))
-          )
-          , React.createElement('div', {}
-            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Service & Notizen"  )
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: form.naechsteKalib||"", onChange: e=>setForm({...form,naechsteKalib:e.target.value}), style: II()} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Letzter Service" ), React.createElement('input', { type: "date", value: form.letzteKalib||"", onChange: e=>setForm({...form,letzteKalib:e.target.value}), style: II()} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Notizen 🎤" ), React.createElement(SpeechWrap, { value: form.notizen||"", onChange: v=>setForm({...form,notizen:v})}, React.createElement('textarea', { value: form.notizen||"", onChange: e=>setForm({...form,notizen:e.target.value}), style: {...II(),minHeight:80}, rows: 3})))
-            , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",marginTop:14}}
-              , React.createElement('button', { onClick: save, style: bpS}, "💾 " , editId?"Aktualisieren":"Speichern")
-              , React.createElement('button', { onClick: ()=>setSub("liste"), style: bsS()}, "Abbrechen")
-              , editId&&(React.createElement('button', { onClick: ()=>del(editId), style: bdS}, "🗑️ Löschen" ))
-            )
-          )
-        )
-      )
-    ))
-  ));
-}
-
-var App=exports.default||window.App;
-var root=ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(App));
-
-// ═══ MOBILE: Auto-wrap tables for horizontal scroll ═══
-(function(){
-  function wrapTable(t){
-    if(t.parentElement&&t.parentElement.classList.contains('mob-table-wrap'))return;
-    if(t.closest('.mob-table-wrap'))return;
-    var w=document.createElement('div');w.className='mob-table-wrap';
-    t.parentNode.insertBefore(w,t);w.appendChild(t);
-  }
-  function scanTables(){document.querySelectorAll('#root table').forEach(wrapTable);}
-  // Run after React renders + on DOM changes
-  setTimeout(scanTables,500);
-  var obs=new MutationObserver(function(){setTimeout(scanTables,100);});
-  obs.observe(document.getElementById('root'),{childList:true,subtree:true});
-})();
-
-// ═══ PWA: Service Worker registered in React useEffect ═══
-</script></body></html>
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Gerätename *" ), React.createElement('input', { value: form.name||"", onChange: e=>setForm({...form,name:e.target.value}), style: I
