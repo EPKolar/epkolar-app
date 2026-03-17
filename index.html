@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.3.1-fix1';
+  var SW_VER='epkolar-v3.3.3';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -734,158 +734,57 @@ window.API = (function() {
     setToken: setToken, getToken: getToken, getBaseUrl: getBaseUrl, setBaseUrl: setBaseUrl, request: request,
     // Auth
     login: async function(u, p) {
-      // Check against users table via Supabase REST
       const users=await _sbGet("users","username=eq."+encodeURIComponent(u)+"&active=eq.1");
       if(!users||!users.length)throw new Error("Benutzer nicht gefunden");
       const user=users[0];
       if(user.locked)throw new Error("Benutzer gesperrt");
-      // Verify password with bcryptjs
       let valid=false;
       try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("bcrypt:",e);}
       if(!valid)throw new Error("Falsches Passwort");
-      // Update login stats
       try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){}
       try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:navigator.userAgent||""});}catch(e){}
       const perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];
-      const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:user.email||'',permissions:perms,monteurId:user.monteur_id||''};
+      const _po=user.perms_override||user.permsOverride;const _poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;
+      const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:user.email||'',permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
       _user=userData;
       try{localStorage.setItem('epkolar_user',JSON.stringify(userData));localStorage.setItem('epkolar_token','supabase-session');}catch(e){}
       return{token:'supabase-session',user:userData};
     },
-    logout: function() { setToken(null); _user=null; return Promise.resolve({ok:1}); },
-    me: async function() {
-      if(_user)return{user:_user};
-      throw new Error("Nicht angemeldet");
-    },
+    me: async function() { if(_user)return{user:_user};throw new Error("Nicht angemeldet"); },
     changePassword: async function(oldPw, newPw) {
       if(!_user)throw new Error("Nicht angemeldet");
       const users=await _sbGet("users","id=eq."+encodeURIComponent(_user.id));
       if(!users||!users.length)throw new Error("User not found");
-      let valid=false;
-      try{valid=dcodeIO.bcrypt.compareSync(oldPw,users[0].password_hash);}catch(e){}
+      let valid=false;try{valid=dcodeIO.bcrypt.compareSync(oldPw,users[0].password_hash);}catch(e){}
       if(!valid)throw new Error("Falsches Passwort");
-      const hash=dcodeIO.bcrypt.hashSync(newPw,10);
-      await _sbPatch("users",_user.id,{password_hash:hash});
+      await _sbPatch("users",_user.id,{password_hash:dcodeIO.bcrypt.hashSync(newPw,10)});
       return{ok:1};
     },
-    // Data access
+    // Data access (read-only — all writes go through SQ.push → _translateAndExec)
     getUsers: function() { return _sbGetOrder("users","name.asc"); },
-    createUser: async function(d) { const b={...d};if(b.password){b.password_hash=dcodeIO.bcrypt.hashSync(b.password,10);delete b.password;}if(Array.isArray(b.permissions))b.permissions=JSON.stringify(b.permissions);return _sbPost("users",_mapBody(b)); },
-    updateUser: async function(id, d) { const b={...d};if(b.password){b.password_hash=dcodeIO.bcrypt.hashSync(b.password,10);delete b.password;}if(Array.isArray(b.permissions))b.permissions=JSON.stringify(b.permissions);const m=_mapBody(b);delete m.id;return _sbPatch("users",id,m); },
-    deleteUser: function(id) { return _sbDelete("users",id); },
     getProjects: function() { return _sbGet("projects"); },
-    createProject: function(d) { return _sbPost("projects",_mapBody(d)); },
-    updateProject: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("projects",id,m); },
     getWorkers: function() { return _sbGetOrder("workers","name.asc"); },
-    updateWorker: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("workers",id,m); },
     getEntries: function() { return _sbGetOrder("time_entries","date.desc"); },
     getEntriesForWorker: function(wId,from,to) { return _sbGet("time_entries","worker_id=eq."+encodeURIComponent(wId)+"&date=gte."+from+"&date=lte."+to+"&order=date.asc"); },
-    createEntry: function(d) { return _sbPost("time_entries",_mapBody(d)); },
-    updateEntry: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("time_entries",id,m); },
-    upsertEntry: function(d) { return _sbUpsert("time_entries",_mapBody(d)); },
-    deleteEntry: function(id) { return _sbDelete("time_entries",id); },
     getForms: function() { return _sbGet("forms"); },
-    createForm: function(d) { return _sbPost("forms",_mapBody(d)); },
-    updateForm: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("forms",id,m); },
-    deleteForm: function(id) { return _sbDelete("forms",id); },
     getDefects: function() { return _sbGet("defects"); },
-    createDefect: function(d) { return _sbPost("defects",_mapBody(d)); },
-    updateDefect: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("defects",id,m); },
     getAbsences: function() { return _sbGet("absences"); },
-    createAbsence: function(d) { return _sbPost("absences",_mapBody(d)); },
-    updateAbsence: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("absences",id,m); },
-    deleteAbsence: function(id) { return _sbDelete("absences",id); },
-    uploadPhotos: async function(entityType, entityId, files, projectId) { /* photos via base64 in Supabase mode */ return{ok:1}; },
     getPhotos: function(type, id) { return _sbGet("photos","entity_type=eq."+encodeURIComponent(type)+"&entity_id=eq."+encodeURIComponent(id)); },
     exportOffa: function() { return _sbGet("arbeitsscheine"); },
     exportPersonal: function() { return _sbGetOrder("time_entries","date.desc"); },
-    exportProjekt: async function(pid) {
-      const[project,entries,defects,documents]=await Promise.all([
-        _sbGet("projects","id=eq."+encodeURIComponent(pid)),
-        _sbGet("time_entries","project_id=eq."+encodeURIComponent(pid)),
-        _sbGet("defects","project_id=eq."+encodeURIComponent(pid)),
-        _sbGet("project_documents","project_id=eq."+encodeURIComponent(pid))
-      ]);
-      return{project:project&&project[0],entries:entries||[],defects:defects||[],documents:documents||[]};
-    },
-    getExports: function() { return _sbGet("exports"); },
     getFahrzeuge: function() { return _sbGetOrder("fahrzeuge","kennzeichen.asc"); },
-    createFahrzeug: function(d) { return _sbPost("fahrzeuge",_mapBody(d)); },
-    updateFahrzeug: function(id, d) { return _translateAndExec("/api/fahrzeuge/"+id,"PUT",d); },
-    deleteFahrzeug: function(id) { return _sbDelete("fahrzeuge",id); },
-    getWerkzeuge: function() { return _sbGetOrder("werkzeuge","name.asc"); },
-    createWerkzeug: function(d) { return _sbPost("werkzeuge",_mapBody(d)); },
-    updateWerkzeug: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("werkzeuge",id,m); },
-    deleteWerkzeug: function(id) { return _sbDelete("werkzeuge",id); },
-    getBescheinigungen: function() { return _sbGetOrder("bescheinigungen","erstellt.desc"); },
-    createBescheinigung: function(d) { return _sbPost("bescheinigungen",_mapBody(d)); },
-    getArbeitsscheine: function() { return _sbGet("arbeitsscheine"); },
-    createArbeitsschein: function(d) { return _sbPost("arbeitsscheine",_mapBody(d)); },
-    updateArbeitsschein: function(id, d) { const m=_mapBody(d);delete m.id;return _sbPatch("arbeitsscheine",id,m); },
-    deleteArbeitsschein: function(id) { return _sbDelete("arbeitsscheine",id); },
-    // Workers CRUD
-    createWorker: function(d) { return _sbPost("workers",_mapBody(d)); },
-    deleteWorker: function(id) { return _sbDelete("workers",id); },
-    // Projects
-    deleteProject: function(id) { return _sbDelete("projects",id); },
-    // Defects
-    deleteDefect: function(id) { return _sbDelete("defects",id); },
-    // Weekplans
-    getWeekplans: function() { return _sbGet("weekplans"); },
-    getWeekplan: function(y,w) { return _sbGet("weekplans","year=eq."+y+"&week=eq."+w); },
-    createWeekplan: function(d) { return _sbUpsert("weekplans",_mapBody(d)); },
-    updateWeekplan: function(id,d) { const m=_mapBody(d);delete m.id;return _sbPatch("weekplans",id,m); },
-    // Urlaubskontingent
-    getUrlaubskontingent: function() { return _sbGet("urlaubskontingent"); },
-    createUrlaubskontingent: function(d) { return _sbPost("urlaubskontingent",_mapBody(d)); },
-    updateUrlaubskontingent: function(id,d) { const m=_mapBody(d);delete m.id;return _sbPatch("urlaubskontingent",id,m); },
-    // Finkzeit (Monatsabrechnung)
-    getFinkzeit: function() { return _sbGetOrder("finkzeit","uploaded_at.desc"); },
-    createFinkzeit: function(d) { return _sbPost("finkzeit",_mapBody(d)); },
-    updateFinkzeit: function(id,d) { const m=_mapBody(d);delete m.id;return _sbPatch("finkzeit",id,m); },
-    // Plans & Tickets
-    getPlans: function(pid) { return pid?_sbGet("plans","project_id=eq."+encodeURIComponent(pid)):_sbGet("plans"); },
-    createPlan: function(d) { return _sbPost("plans",_mapBody(d)); },
-    deletePlan: function(id) { return _sbDelete("plans",id); },
-    getTickets: function(pid) { return pid?_sbGet("tickets","project_id=eq."+encodeURIComponent(pid)):_sbGet("tickets"); },
-    createTicket: function(d) { return _sbPost("tickets",_mapBody(d)); },
-    updateTicket: function(id,d) { const m=_mapBody(d);delete m.id;return _sbPatch("tickets",id,m); },
-    deleteTicket: function(id) { return _sbDelete("tickets",id); },
-    // Checklists
-    getChecklists: function(pid) { return pid?_sbGet("checklists","project_id=eq."+encodeURIComponent(pid)):_sbGet("checklists"); },
-    createChecklist: function(d) { return _sbPost("checklists",_mapBody(d)); },
-    updateChecklist: function(id,d) { const m=_mapBody(d);delete m.id;return _sbPatch("checklists",id,m); },
-    deleteChecklist: function(id) { return _sbDelete("checklists",id); },
-    // Project Documents & Folders
-    getProjectDocuments: function(pid) { return _sbGet("project_documents","project_id=eq."+encodeURIComponent(pid)); },
-    createProjectDocument: function(d) { return _sbPost("project_documents",_mapBody(d)); },
-    deleteProjectDocument: function(id) { return _sbDelete("project_documents",id); },
-    getProjectFolders: function(pid) { return _sbGet("project_folders","project_id=eq."+encodeURIComponent(pid)); },
-    createProjectFolder: function(d) { return _sbPost("project_folders",_mapBody(d)); },
-    deleteProjectFolder: function(id) { return _sbDelete("project_folders",id); },
-    // Absence Files
-    getAbsenceFiles: function(aid) { return _sbGet("absence_files","absence_id=eq."+encodeURIComponent(aid)); },
-    createAbsenceFile: function(d) { return _sbPost("absence_files",_mapBody(d)); },
-    // FZ Sub-tables
     getFzTermine: function(fid) { return _sbGet("fz_termine","fahrzeug_id=eq."+encodeURIComponent(fid)); },
-    createFzTermin: function(d) { return _sbPost("fz_termine",_mapBody(d)); },
-    updateFzTermin: function(id,d) { const m=_mapBody(d);delete m.id;return _sbPatch("fz_termine",id,m); },
-    deleteFzTermin: function(id) { return _sbDelete("fz_termine",id); },
-    getFzSchaeden: function(fid) { return _sbGet("fz_schaeden","fahrzeug_id=eq."+encodeURIComponent(fid)); },
-    createFzSchaden: function(d) { return _sbPost("fz_schaeden",_mapBody(d)); },
-    // WZ Service
-    getWzService: function(wid) { return _sbGet("wz_service","werkzeug_id=eq."+encodeURIComponent(wid)); },
-    createWzService: function(d) { return _sbPost("wz_service",_mapBody(d)); },
-    // Activity Log
-    getActivityLog: function(limit) { return _sbGetOrder("activity_log","created_at.desc").then(r=>r.slice(0,limit||100)); },
-    health: async function() { return{status:'ok',version:'3.3.1-supabase'}; }
+    getPlans: function(pid) { return pid?_sbGet("plans","project_id=eq."+encodeURIComponent(pid)):_sbGet("plans"); },
+    getTickets: function(pid) { return pid?_sbGet("tickets","project_id=eq."+encodeURIComponent(pid)):_sbGet("tickets"); },
+    getChecklists: function(pid) { return pid?_sbGet("checklists","project_id=eq."+encodeURIComponent(pid)):_sbGet("checklists"); },
+    getWeekplans: function() { return _sbGet("weekplans"); },
   };
 })();
 
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.3.1-fix1-supabase";
+const APP_VERSION="3.3.3-supabase";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -1821,7 +1720,7 @@ function KundenPortal({project:p,forms,setForms,onClose}){
                   , m.ort&&React.createElement('span', { style: {color:V.dm}}, "Ort"), m.ort&&React.createElement('span', {}, m.ort)
                   , m.beschreibung&&React.createElement('span', { style: {color:V.dm}}, "Details"), m.beschreibung&&React.createElement('span', {}, m.beschreibung)
                   , m.reviewNote&&React.createElement('span', { style: {color:V.dm}}, "Rückmeldung"), m.reviewNote&&React.createElement('span', { style: {fontStyle:"italic",color:m.kundeStatus==="abgelehnt"?"#ef4444":"#3b82f6"}}, "\"" , m.reviewNote, "\"" )
-                  , m.zugewiesen&&React.createElement('span', { style: {color:V.dm}}, "Techniker"), m.zugewiesen&&React.createElement('span', {}, _optionalChain([MONT, 'access', _17f => _17f.find, 'call', _17g => _17g(w=>w.id===m.zugewiesen), 'optionalAccess', _17h => _17h.vorname])||_optionalChain([MONT, 'access', _17i => _17i.find, 'call', _17j => _17j(w=>w.id===m.zugewiesen), 'optionalAccess', _17k => _17k.n])||"Zugewiesen")
+                  , m.zugewiesen&&React.createElement('span', { style: {color:V.dm}}, "Techniker"), m.zugewiesen&&React.createElement('span', {}, _optionalChain([(monteure||MONT), 'access', _17f => _17f.find, 'call', _17g => _17g(w=>w.id===m.zugewiesen), 'optionalAccess', _17h => _17h.vorname])||_optionalChain([(monteure||MONT), 'access', _17i => _17i.find, 'call', _17j => _17j(w=>w.id===m.zugewiesen), 'optionalAccess', _17k => _17k.n])||"Zugewiesen")
                 )
                 , (()=>{const allPh=getDefectPhotos(m);return allPh.length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}, allPh.map((ph,i)=>React.createElement('div', { key: i, style: {width:80,height:80,borderRadius:6,overflow:"hidden",cursor:"pointer"}, onClick: e=>{e.stopPropagation();_openFileUrl(ph);}}, React.createElement('img', { src: ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ))));})()
                 , (m.kundeStatus==="behoben")&&(React.createElement('button', { onClick: e=>{e.stopPropagation();kundeAbnahme(m.id);}, style: {padding:"10px 24px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}, "✅ Abnahme bestätigen — Mangel ist behoben"       ))
@@ -2090,7 +1989,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           setCurUser(data.user);
           setAppLoading(false);
           // ═ Auto-refresh user role from DB (fixes stale ODB cache) ═
-          if(data.user&&data.user.id){try{const fresh=await _sbGet("users","id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
+          if(data.user&&data.user.id){try{const fresh=await _sbGet("users","id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
           return;
         }catch(e){
           // Token expired or server unreachable — try offline
@@ -2286,16 +2185,26 @@ function LoginScreen({onLogin,onPortal,projects}){
       if(navigator.onLine){
         const queue=await SQ.getAll();
         if(queue.length>0){
-          /* Batch: gleiche URL+Method zusammenfassen */
           let ok=0,fail=0;
-          const okIds=[];
+          const okIds=[];const skipIds=[];
           for(const item of queue){
             try{
               await _translateAndExec(item.url,item.method||"POST",item.body);
               okIds.push(item.id);ok++;
-            }catch(e){fail++;break;} // stop on network error
+            }catch(e){
+              const isNetwork=!navigator.onLine||e.message==='Failed to fetch'||e.name==='TypeError';
+              if(isNetwork){fail++;break;} // real network error → stop
+              // Data error (400/409/422) → increment retry count, skip after 3
+              const retries=(item._retries||0)+1;
+              if(retries>=3){skipIds.push(item.id);console.warn("SQ: dropping item after 3 fails:",item.url,e.message);}
+              else{item._retries=retries;}
+              fail++;
+            }
           }
-          if(okIds.length>0) await SQ.removeMany(okIds);
+          const removeIds=[...okIds,...skipIds];
+          if(removeIds.length>0) await SQ.removeMany(removeIds);
+          // Update retry counts for items that failed but aren't skipped yet
+          if(fail>0&&skipIds.length===0){const q=await SQ.getAll();const updated=q.map(x=>{const orig=queue.find(o=>o.id===x.id);return orig&&orig._retries?{...x,_retries:orig._retries}:x;});await ODB.save("syncQueue",updated);}
         }
         const cnt=await SQ.count();
         setPendingCount(cnt);
@@ -2549,7 +2458,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{setCurUser(u);setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, onClose: ()=>setPortalProj(null)} ));
 
-  const tabs=[
+  const _allTabs=[
     {l:"Home",i:"🏠",c:"#f59e0b",perm:"_home",g:0},
     {l:"Projekte",i:"🏗️",c:V.ac,perm:"projekte",g:1},
     {l:"Arbeitsscheine",i:"📋",c:"#f97316",perm:"arbeitsscheine",g:1},
@@ -2560,10 +2469,11 @@ function LoginScreen({onLogin,onPortal,projects}){
     {l:"Fahrzeuge",i:"🚐",c:"#0ea5e9",perm:"fahrzeuge",g:3},
     {l:"Werkzeuge",i:"🔧",c:"#d97706",perm:"werkzeuge",g:3},
     {l:"Mitarbeiter",i:"👷",c:"#06b6d4",perm:"mitarbeiter",g:4},
+    {l:"Auswertungen",i:"📊",c:"#a855f7",perm:"auswertungen",g:4},
+    {l:"Einstellungen",i:"🔌",c:"#6366f1",perm:"_settings",g:4},
+    {l:"Admin",i:"⚙️",c:"#ef4444",perm:"admin",g:4},
   ];
-  if(hasPerm(curUser,"auswertungen")) tabs.push({l:"Auswertungen",i:"📊",c:"#a855f7",perm:"auswertungen",g:4});
-  tabs.push({l:"Einstellungen",i:"🔌",c:"#6366f1",perm:"_settings",g:4});
-  if(hasPerm(curUser,"admin")) tabs.push({l:"Admin",i:"⚙️",c:"#ef4444",perm:"admin",g:4});
+  const tabs=_allTabs.filter(t=>t.perm.startsWith("_")||hasPerm(curUser,t.perm));
   if(kat>=tabs.length)setKat(tabs.length-1);
   const GRP_LABELS=["","Baustelle","Planung & Zeit","Fuhrpark","System"];
   const GRP_COLORS=["#f59e0b","#009640","#3b82f6","#0ea5e9","#71717a"];
@@ -2588,13 +2498,14 @@ function LoginScreen({onLogin,onPortal,projects}){
           const ql=query.toLowerCase().trim();
           if(ql.length>=2){
             if(cat==="alle"||cat==="projekte") projects.filter(p=>p.name.toLowerCase().includes(ql)||p.nr.toLowerCase().includes(ql)||(p.kunde||"").toLowerCase().includes(ql)||(p.ort||"").toLowerCase().includes(ql)).forEach(p=>results.push({type:"projekt",icon:"\uD83C\uDFD7\uFE0F",title:p.name,sub:p.nr+" \xb7 "+(p.kunde||"\u2014")+" \xb7 "+p.ort,color:V.ac,action:()=>{setOpenP(p);onClose();}}));
-            if(cat==="alle"||cat==="scheine") arbeitsscheine.filter(a=>(a.nummer||"").toLowerCase().includes(ql)||(a.kundName||"").toLowerCase().includes(ql)||(a.kundOrt||"").toLowerCase().includes(ql)||(a.arbeitsanweisungen||"").toLowerCase().includes(ql)).forEach(a=>{const w=monteure.find(m=>m.id===a.monteur);results.push({type:"schein",icon:"\uD83D\uDCCB",title:(a.nummer||"")+" \u2014 "+(a.kundName||""),sub:(_optionalChain([w, 'optionalAccess', _71 => _71.n])||"")+(" \xb7 "+(_optionalChain([AS_STATUS, 'access', _72 => _72[a.scheinstatus], 'optionalAccess', _73 => _73.l])||"")),color:"#f97316",action:()=>{const idx=tabs.findIndex(t=>t.perm==="arbeitsscheine");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
-            if(cat==="alle"||cat==="fahrzeuge") (fahrzeuge||[]).filter(f=>f.kennzeichen.toLowerCase().includes(ql)||(f.marke||"").toLowerCase().includes(ql)||(f.modell||"").toLowerCase().includes(ql)).forEach(f=>{const fa=monteure.find(m=>m.id===f.fahrer);results.push({type:"fahrzeug",icon:"\uD83D\uDE90",title:f.kennzeichen+" \u2014 "+f.marke+" "+f.modell,sub:(_optionalChain([fa, 'optionalAccess', _74 => _74.n])||"kein Fahrer")+" \xb7 "+(f.kmStand||0).toLocaleString("de-AT")+" km",color:"#0ea5e9",action:()=>{const idx=tabs.findIndex(t=>t.perm==="fahrzeuge");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
-            if(cat==="alle"||cat==="werkzeuge") werkzeuge.filter(w=>(w.name||"").toLowerCase().includes(ql)||(w.marke||"").toLowerCase().includes(ql)||(w.seriennr||"").toLowerCase().includes(ql)||(w.barcode||"").toLowerCase().includes(ql)).forEach(w=>results.push({type:"werkzeug",icon:"\uD83D\uDD27",title:w.name,sub:(w.marke||"")+(" \xb7 "+(_optionalChain([WZ_STATUS, 'access', _75 => _75[w.status], 'optionalAccess', _76 => _76.l])||"")),color:"#d97706",action:()=>{const idx=tabs.findIndex(t=>t.perm==="werkzeuge");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}}));
-            if(cat==="alle"||cat==="mitarbeiter") monteure.filter(m=>m.n.toLowerCase().includes(ql)||(m.r||"").toLowerCase().includes(ql)).forEach(m=>{const fz=(fahrzeuge||[]).find(f=>f.fahrer===m.id);results.push({type:"monteur",icon:"\uD83D\uDC77",title:m.n,sub:(m.r||"")+(fz?" \xb7 \uD83D\uDE90 "+fz.kennzeichen:""),color:"#06b6d4",action:()=>{const idx=tabs.findIndex(t=>t.perm==="mitarbeiter");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
-            if(cat==="alle"||cat==="urlaub") Object.entries(abs).filter(([k])=>k.toLowerCase().includes(ql)).slice(0,5).forEach(([k,v])=>{const nm=k.split("_")[0];results.push({type:"urlaub",icon:_optionalChain([AT_T, 'access', _77 => _77[v.type], 'optionalAccess', _78 => _78.i])||"\uD83D\uDCC5",title:nm+" \u2014 "+(_optionalChain([AT_T, 'access', _79 => _79[v.type], 'optionalAccess', _80 => _80.l])||""),sub:k.split("_").slice(1).join("_"),color:"#22c55e",action:()=>{const idx=tabs.findIndex(t=>t.perm==="urlaub");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
+            if((cat==="alle"||cat==="scheine")&&hasPerm(curUser,"arbeitsscheine")) arbeitsscheine.filter(a=>(a.nummer||"").toLowerCase().includes(ql)||(a.kundName||"").toLowerCase().includes(ql)||(a.kundOrt||"").toLowerCase().includes(ql)||(a.arbeitsanweisungen||"").toLowerCase().includes(ql)).forEach(a=>{const w=monteure.find(m=>m.id===a.monteur);results.push({type:"schein",icon:"\uD83D\uDCCB",title:(a.nummer||"")+" \u2014 "+(a.kundName||""),sub:(_optionalChain([w, 'optionalAccess', _71 => _71.n])||"")+(" \xb7 "+(_optionalChain([AS_STATUS, 'access', _72 => _72[a.scheinstatus], 'optionalAccess', _73 => _73.l])||"")),color:"#f97316",action:()=>{const idx=tabs.findIndex(t=>t.perm==="arbeitsscheine");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
+            if((cat==="alle"||cat==="fahrzeuge")&&hasPerm(curUser,"fahrzeuge")) (fahrzeuge||[]).filter(f=>f.kennzeichen.toLowerCase().includes(ql)||(f.marke||"").toLowerCase().includes(ql)||(f.modell||"").toLowerCase().includes(ql)).forEach(f=>{const fa=monteure.find(m=>m.id===f.fahrer);results.push({type:"fahrzeug",icon:"\uD83D\uDE90",title:f.kennzeichen+" \u2014 "+f.marke+" "+f.modell,sub:(_optionalChain([fa, 'optionalAccess', _74 => _74.n])||"kein Fahrer")+" \xb7 "+(f.kmStand||0).toLocaleString("de-AT")+" km",color:"#0ea5e9",action:()=>{const idx=tabs.findIndex(t=>t.perm==="fahrzeuge");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
+            if((cat==="alle"||cat==="werkzeuge")&&hasPerm(curUser,"werkzeuge")) werkzeuge.filter(w=>(w.name||"").toLowerCase().includes(ql)||(w.marke||"").toLowerCase().includes(ql)||(w.seriennr||"").toLowerCase().includes(ql)||(w.barcode||"").toLowerCase().includes(ql)).forEach(w=>results.push({type:"werkzeug",icon:"\uD83D\uDD27",title:w.name,sub:(w.marke||"")+(" \xb7 "+(_optionalChain([WZ_STATUS, 'access', _75 => _75[w.status], 'optionalAccess', _76 => _76.l])||"")),color:"#d97706",action:()=>{const idx=tabs.findIndex(t=>t.perm==="werkzeuge");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}}));
+            if((cat==="alle"||cat==="mitarbeiter")&&hasPerm(curUser,"mitarbeiter")) monteure.filter(m=>m.n.toLowerCase().includes(ql)||(m.r||"").toLowerCase().includes(ql)).forEach(m=>{const fz=(fahrzeuge||[]).find(f=>f.fahrer===m.id);results.push({type:"monteur",icon:"\uD83D\uDC77",title:m.n,sub:(m.r||"")+(fz?" \xb7 \uD83D\uDE90 "+fz.kennzeichen:""),color:"#06b6d4",action:()=>{const idx=tabs.findIndex(t=>t.perm==="mitarbeiter");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
+            if((cat==="alle"||cat==="urlaub")&&hasPerm(curUser,"urlaub")) Object.entries(abs).filter(([k])=>k.toLowerCase().includes(ql)).slice(0,5).forEach(([k,v])=>{const nm=k.split("_")[0];results.push({type:"urlaub",icon:_optionalChain([AT_T, 'access', _77 => _77[v.type], 'optionalAccess', _78 => _78.i])||"\uD83D\uDCC5",title:nm+" \u2014 "+(_optionalChain([AT_T, 'access', _79 => _79[v.type], 'optionalAccess', _80 => _80.l])||""),sub:k.split("_").slice(1).join("_"),color:"#22c55e",action:()=>{const idx=tabs.findIndex(t=>t.perm==="urlaub");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
           }
-          const cats=[{id:"alle",l:"Alle",i:"\uD83D\uDD0D"},{id:"projekte",l:"Projekte",i:"\uD83C\uDFD7\uFE0F"},{id:"scheine",l:"Scheine",i:"\uD83D\uDCCB"},{id:"fahrzeuge",l:"Fahrzeuge",i:"\uD83D\uDE90"},{id:"werkzeuge",l:"Werkzeuge",i:"\uD83D\uDD27"},{id:"mitarbeiter",l:"Mitarbeiter",i:"\uD83D\uDC77"},{id:"urlaub",l:"Urlaub",i:"\uD83C\uDFD6\uFE0F"}];
+          const _allCats=[{id:"alle",l:"Alle",i:"\uD83D\uDD0D"},{id:"projekte",l:"Projekte",i:"\uD83C\uDFD7\uFE0F",pm:"projekte"},{id:"scheine",l:"Scheine",i:"\uD83D\uDCCB",pm:"arbeitsscheine"},{id:"fahrzeuge",l:"Fahrzeuge",i:"\uD83D\uDE90",pm:"fahrzeuge"},{id:"werkzeuge",l:"Werkzeuge",i:"\uD83D\uDD27",pm:"werkzeuge"},{id:"mitarbeiter",l:"Mitarbeiter",i:"\uD83D\uDC77",pm:"mitarbeiter"},{id:"urlaub",l:"Urlaub",i:"\uD83C\uDFD6\uFE0F",pm:"urlaub"}];
+          const cats=_allCats.filter(c=>!c.pm||hasPerm(curUser,c.pm));
           const grouped={};results.forEach(r=>{if(!grouped[r.type])grouped[r.type]=[];grouped[r.type].push(r);});
           const typeLabels={projekt:"\uD83C\uDFD7\uFE0F Projekte",schein:"\uD83D\uDCCB Arbeitsscheine",fahrzeug:"\uD83D\uDE90 Fahrzeuge",werkzeug:"\uD83D\uDD27 Werkzeuge",monteur:"\uD83D\uDC77 Mitarbeiter",urlaub:"\uD83C\uDFD6\uFE0F Abwesenheiten"};
 
@@ -2804,7 +2715,7 @@ function LoginScreen({onLogin,onPortal,projects}){
             , _optionalChain([tabs, 'access', _101 => _101[kat], 'optionalAccess', _102 => _102.perm])==="mitarbeiter" && hasPerm(curUser,"mitarbeiter") && React.createElement(MitarbeiterView, { monteure: monteure, setMonteure: setMonteure, monteurProjekte: monteurProjekte, setMonteurProjekte: setMonteurProjekte, ww: ww, curUser: curUser, projects: projects} )
             , _optionalChain([tabs, 'access', _103 => _103[kat], 'optionalAccess', _104 => _104.perm])==="auswertungen" && hasPerm(curUser,"auswertungen") && React.createElement(AuswertungView, { arbeitsscheine: arbeitsscheine, monteure: monteure, abs: abs, absApprovals: absApprovals, entries: entries, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, chartCfg: chartCfg, setChartCfg: setChartCfg, ww: ww, curUser: curUser, projects: projects} )
             , _optionalChain([tabs, 'access', _105 => _105[kat], 'optionalAccess', _106 => _106.perm])==="_settings" && React.createElement(VerbindungView, { ww: ww, curUser: curUser, isDark: isDark, toggleTheme: toggleTheme} )
-            , _optionalChain([tabs, 'access', _107 => _107[kat], 'optionalAccess', _108 => _108.perm])==="admin" && hasPerm(curUser,"admin") && React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs} )
+            , _optionalChain([tabs, 'access', _107 => _107[kat], 'optionalAccess', _108 => _108.perm])==="admin" && hasPerm(curUser,"admin") && React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs, monteure: monteure} )
           )
           /* ═══ MOBILE MEHR POPUP ═══ */
           , moreOpen&&isMob&&React.createElement('div', { style: {position:"fixed",bottom:60,left:8,right:8,zIndex:88,background:V.bg,border:"1px solid "+V.bd,borderRadius:12,boxShadow:"0 -8px 24px rgba(0,0,0,.25)",padding:"8px 0"}}
@@ -2844,10 +2755,10 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   const [nf,setNf]=_react.useState.call(void 0, {n:"",vorname:"",r:"Techniker",tel:"",email:"",fs:"",gebDat:"",fsNr:"",svnr:"",reisepass:"",eintritt:"",austritt:""});
   const isMob=ww<600;
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
-
+  const _wmTimer=_react.useRef.call(void 0, {});
+  const updMonteur=(id,f,v)=>{setMonteure(monteure.map(m=>m.id===id?{...m,[f]:v}:m));const k=id+"_"+f;if(_wmTimer.current[k])clearTimeout(_wmTimer.current[k]);_wmTimer.current[k]=setTimeout(()=>{const apiField=f==="n"?"name":f==="r"?"role":f==="tel"?"phone":f;SQ.push({url:"/api/workers/"+id,method:"PUT",body:{[apiField]:v}});delete _wmTimer.current[k];},800);};
   const addMonteur=()=>{if(!nf.n)return;const id=uid();setMonteure([...monteure,{id,n:nf.n,vorname:nf.vorname||"",r:nf.r,tel:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}]);setMonteurProjekte(p=>({...p,[id]:[]}));SQ.push({url:"/api/workers",method:"POST",body:{id,name:nf.n,vorname:nf.vorname||"",role:nf.r,phone:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}});_optionalChain([window, 'access', _109 => _109.__toast, 'optionalCall', _110 => _110("✅ Mitarbeiter angelegt")]);setNf({n:"",vorname:"",r:"Techniker",tel:"",email:"",fs:"",gebDat:"",fsNr:"",svnr:"",reisepass:"",eintritt:"",austritt:""});setShowNew(false);};
   const delMonteur=id=>{setMonteure(monteure.filter(m=>m.id!==id));SQ.push({url:"/api/workers/"+id,method:"DELETE"});const mp={...monteurProjekte};delete mp[id];setMonteurProjekte(mp);if(sel===id)setSel(null);};
-  const updMonteur=(id,f,v)=>{setMonteure(monteure.map(m=>m.id===id?{...m,[f]:v}:m));const apiField=f==="n"?"name":f==="r"?"role":f==="tel"?"phone":f;SQ.push({url:"/api/workers/"+id,method:"PUT",body:{[apiField]:v}});};
   const toggleProj=(mid,pid)=>{const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte({...monteurProjekte,[mid]:nxt});SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
 
   const selM=monteure.find(m=>m.id===sel);
@@ -3579,7 +3490,7 @@ function sharePdf(){
 }
 
 // ═══════════ ADMIN PANEL ═══════════
-function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs}){
+function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure}){
   const [sel,setSel]=_react.useState.call(void 0, null);
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
   const [nf,setNf]=_react.useState.call(void 0, {username:"",name:"",email:"",role:"monteur",monteurId:""});
@@ -3635,7 +3546,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs}){
   };
   const toggleActive=(id)=>{const nu=users.find(u=>u.id===id);setUsers(users.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:!(_optionalChain([nu, 'optionalAccess', _191 => _191.active]))}});_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
   const toggleLock=(id)=>{const nu=users.find(u=>u.id===id);setUsers(users.map(u=>u.id===id?{...u,locked:!u.locked}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{locked:!(_optionalChain([nu, 'optionalAccess', _195 => _195.locked]))}});_optionalChain([window, 'access', _196 => _196.__toast, 'optionalCall', _197 => _197(_optionalChain([nu, 'optionalAccess', _198 => _198.locked])?"🔓 Entsperrt":"🔒 Gesperrt")]);};
-  const setRole=(id,role)=>{setUsers(users.map(u=>u.id===id?{...u,role}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{role}});_optionalChain([window, 'access', _199 => _199.__toast, 'optionalCall', _200 => _200("✅ Rolle geändert")]);};
+  const setRole=(id,role)=>{setUsers(users.map(u=>u.id===id?{...u,role,permsOverride:null}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{role,permsOverride:null}});_optionalChain([window, 'access', _199 => _199.__toast, 'optionalCall', _200 => _200("✅ Rolle geändert — Berechtigungen zurückgesetzt")]);};
   const togglePermOverride=(id,mod)=>{
     setUsers(users.map(u=>{
       if(u.id!==id) return u;
@@ -3699,7 +3610,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs}){
             )
             , React.createElement('div', { className: "form-grid-4", style: {gridTemplateColumns:"1fr 1fr",marginBottom:14}}
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Rolle"), React.createElement('select', { value: nf.role, onChange: e=>setNf({...nf,role:e.target.value}), style: II()}, Object.entries(ROLES).map(([k,r])=>(React.createElement('option', { key: k, value: k}, r.i, " " , r.l)))))
-              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur zuordnen" ), React.createElement('select', { value: nf.monteurId, onChange: e=>setNf({...nf,monteurId:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— keine Zuordnung —"   ), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n, " (" , m.r, ")")))))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur zuordnen" ), React.createElement('select', { value: nf.monteurId, onChange: e=>setNf({...nf,monteurId:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— keine Zuordnung —"   ), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n, " (" , m.r, ")")))))
             )
             , React.createElement('button', { onClick: createUser, style: bpS}, "✅ Benutzer anlegen"  )
           )
@@ -3743,7 +3654,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs}){
                     , React.createElement('span', { style: {color:V.dm}}, "E-Mail"), React.createElement('span', {}, selU.email||"—")
                     , React.createElement('span', { style: {color:V.dm}}, "Erstellt"), React.createElement('span', {}, fdt(selU.created))
                     , React.createElement('span', { style: {color:V.dm}}, "Letzter Login" ), React.createElement('span', {}, selU.lastLogin?fdt(selU.lastLogin):"Nie")
-                    , React.createElement('span', { style: {color:V.dm}}, "Monteur"), React.createElement('span', {}, _optionalChain([MONT, 'access', _218 => _218.find, 'call', _219 => _219(m=>m.id===selU.monteurId), 'optionalAccess', _220 => _220.n])||"—")
+                    , React.createElement('span', { style: {color:V.dm}}, "Monteur"), React.createElement('span', {}, _optionalChain([(monteure||MONT), 'access', _218 => _218.find, 'call', _219 => _219(m=>m.id===selU.monteurId), 'optionalAccess', _220 => _220.n])||"—")
                   )
                 )
                 , React.createElement('div', { style: {marginBottom:14}}
@@ -4391,7 +4302,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             // Confirmed Arbeitsschein termine
             arbeitsscheine.filter(a=>a.terminBestaetigt&&a.scheinstatus!=="abgerechnet"&&a.scheinstatus!=="storniert").forEach(a=>{
               const diff=Math.ceil((new Date(a.terminBestaetigt)-new Date())/86400000);
-              if(diff>=-1&&diff<14){const w=MONT.find(m=>m.id===a.monteur);items.push({date:a.terminBestaetigt,icon:"📋",text:a.kundName||a.nummer,sub:(_optionalChain([w, 'optionalAccess', _280 => _280.n])||"")+" · "+fdt(a.terminBestaetigt)+(a.terminZeit?" "+a.terminZeit:""),urgent:diff<=0,color:diff<=0?"#f97316":"#8b5cf6"});}
+              if(diff>=-1&&diff<14){const w=(monteure||MONT).find(m=>m.id===a.monteur);items.push({date:a.terminBestaetigt,icon:"📋",text:a.kundName||a.nummer,sub:(_optionalChain([w, 'optionalAccess', _280 => _280.n])||"")+" · "+fdt(a.terminBestaetigt)+(a.terminZeit?" "+a.terminZeit:""),urgent:diff<=0,color:diff<=0?"#f97316":"#8b5cf6"});}
             });
             items.sort((a,b)=>a.date.localeCompare(b.date));
             return items.length?items.slice(0,8).map((it,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<Math.min(items.length,8)-1?"1px solid "+V.bd:"none"}}
@@ -4420,7 +4331,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             })
           )
           , arbeitsscheine.filter(a=>a.scheinstatus==="offen"||a.scheinstatus==="in_bearbeitung").slice(0,3).map(a=>{
-            const w=MONT.find(m=>m.id===a.monteur);const prio=AS_PRIO[a.prioritaet]||AS_PRIO.keine;
+            const w=(monteure||MONT).find(m=>m.id===a.monteur);const prio=AS_PRIO[a.prioritaet]||AS_PRIO.keine;
             return (React.createElement('div', { key: a.id, style: {display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:"1px solid "+V.bd,fontSize:12}}
               , React.createElement('span', { style: {color:prio.c,fontSize:14}}, prio.c==="#ef4444"?"🔴":prio.c==="#f97316"?"🟡":"⚪")
               , React.createElement('div', { style: {flex:1,minWidth:0}}
@@ -4614,7 +4525,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser}){
     }
     _optionalChain([window, 'access', _292 => _292.__toast, 'optionalCall', _293 => _293(editP?"✅ Projekt aktualisiert":"✅ Projekt angelegt")]);setForm(emptyProj);setEditP(null);setShowNew(false);
   };
-  const archiveP=id=>{const pn=projects.find(p=>p.id===id);if(!confirm("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(projects.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{...pn,status:"archiv"}});};
+  const archiveP=id=>{const pn=projects.find(p=>p.id===id);if(!confirm("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(projects.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
   const deleteP=id=>{const pn=projects.find(p=>p.id===id);if(!confirm("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!"))return;setProjects(projects.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
   const editProject=p=>{setForm({nr:p.nr||"",name:p.name||"",kunde:p.kunde||"",ort:p.ort||"",plz:p.plz||"",strasse:p.strasse||"",ansprechpartner:p.ansprechpartner||"",telefon:p.telefon||"",emailKunde:p.emailKunde||p.email_kunde||"",status:p.status||"aktiv",type:p.type||"elektro",kundenNr:p.kundenNr||"",matchcode:p.matchcode||"",betrag:p.betrag||0,start:p.start||"",ende:p.ende||"",gewerk:p.gewerk||"",fortschritt:p.fortschritt||0,portalCode:p.portalCode||""});setEditP(p.id);setShowNew(true);};
 
@@ -4727,7 +4638,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser}){
             )
             , isAdmin&&(React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6,marginTop:6}, onClick: e=>e.stopPropagation()}
               , React.createElement('span', { style: {fontSize:10,color:V.dm,minWidth:60}}, "Fortschritt")
-              , React.createElement('input', { type: "range", min: 0, max: 100, step: 5, value: fPct, onChange: e=>{const v=parseInt(e.target.value);setProjects(prev=>prev.map(x=>x.id===p.id?{...x,fortschritt:v}:x));}, onMouseUp: e=>{const v=parseInt(e.target.value);debounce("slider_"+p.id,()=>SQ.push({url:"/api/projects/"+p.id,method:"PUT",body:{...p,fortschritt:v}}),300);}, onTouchEnd: e=>{const v=parseInt(e.target.value);debounce("slider_"+p.id,()=>SQ.push({url:"/api/projects/"+p.id,method:"PUT",body:{...p,fortschritt:v}}),300);}, style: {flex:1,accentColor:"#009640",height:6,cursor:"pointer"}} )
+              , React.createElement('input', { type: "range", min: 0, max: 100, step: 5, value: fPct, onChange: e=>{const v=parseInt(e.target.value);setProjects(prev=>prev.map(x=>x.id===p.id?{...x,fortschritt:v}:x));}, onMouseUp: e=>{const v=parseInt(e.target.value);debounce("slider_"+p.id,()=>SQ.push({url:"/api/projects/"+p.id,method:"PUT",body:{fortschritt:v}}),300);}, onTouchEnd: e=>{const v=parseInt(e.target.value);debounce("slider_"+p.id,()=>SQ.push({url:"/api/projects/"+p.id,method:"PUT",body:{fortschritt:v}}),300);}, style: {flex:1,accentColor:"#009640",height:6,cursor:"pointer"}} )
               , React.createElement('span', { style: {fontSize:12,fontWeight:700,color:fPct>=70?"#22c55e":fPct>=40?"#eab308":"#f97316",minWidth:35,textAlign:"right"}}, fPct,"%")
             ))
             , isAdmin&&(React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}, onClick: e=>e.stopPropagation()}
@@ -4765,7 +4676,9 @@ function ProjectShell({p,onBack,entries,setEntries,forms,setForms,ww,curUser,pla
     if(_pushProjView)_pushProjView(view);
   },[view]);
 
-  const nav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne"},{id:"formulare",i:"📝",l:"Formulare"},{id:"checklisten",i:"✅",l:"Checklisten"},{id:"maengel",i:"⚠️",l:"Mängel"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA"},{id:"export",i:"📦",l:"Export"}];
+  const _allNav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung",pm:"zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne",pm:"plaene"},{id:"formulare",i:"📝",l:"Formulare",pm:"formulare"},{id:"checklisten",i:"✅",l:"Checklisten",pm:"formulare"},{id:"maengel",i:"⚠️",l:"Mängel",pm:"maengel"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA",pm:"offa"},{id:"export",i:"📦",l:"Export",pm:"export"}];
+  const _filtNav=_allNav.filter(n=>n===null||!n.pm||hasPerm(curUser,n.pm));
+  const nav=_filtNav.filter((n,i,a)=>n!==null||i===0||(i>0&&a[i-1]!==null)).filter((n,i,a)=>n!==null||i<a.length-1);
   const navIds=nav.filter(Boolean).map(n=>n.id);
   const shellSwipe=useSwipe(
     ()=>{const i=navIds.indexOf(view);if(i<navIds.length-1)setView(navIds[i+1]);},
@@ -4801,22 +4714,22 @@ function ProjectShell({p,onBack,entries,setEntries,forms,setForms,ww,curUser,pla
           )
           , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
             , React.createElement('select', { value: selW, onChange: e=>setSelW(e.target.value), style: {...II(),width:"auto",fontSize:13,padding:"6px 8px"}}
-              , MONT.map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))
+              , (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))
             )
             , !isMob && (React.createElement('span', { style: {fontSize:12,color:V.dm,fontFamily:mono}}, "KW " , kw))
           )
         )
         , React.createElement('div', { style: {flex:1,overflowY:"auto",padding:isMob?"10px 8px 80px":"20px"}, ...shellSwipe}
-          , view==="dashboard"&&React.createElement(VDash, { p: p, entries: entries, kw: kw, yr: yr, ww: ww} )
+          , view==="dashboard"&&React.createElement(VDash, { p: p, entries: entries, kw: kw, yr: yr, ww: ww, monteure: monteure} )
           , view==="zeit"&&React.createElement(VZeit, { p: p, entries: entries, setEntries: setEntries, selW: selW, sg: sg, setSg: setSg, monteure: monteure, monteurProjekte: monteurProjekte} )
           , view==="berichte"&&React.createElement(VBer, { p: p, entries: entries, kw: kw, setKw: setKw, yr: yr} )
-          , view==="plaene"&&React.createElement(VPlan, { p: p, planData: planData, setPlanData: setPlanData, ww: ww, curUser: curUser, forms: forms, setForms: setForms} )
+          , view==="plaene"&&React.createElement(VPlan, { p: p, planData: planData, setPlanData: setPlanData, ww: ww, curUser: curUser, forms: forms, setForms: setForms, monteure: monteure} )
           , view==="formulare"&&React.createElement(VForm, { p: p, forms: forms, setForms: setForms, fTab: fTab, setFTab: setFTab, ww: ww} )
-          , view==="maengel"&&React.createElement(VMang, { p: p, forms: forms, setForms: setForms, curUser: curUser} )
+          , view==="maengel"&&React.createElement(VMang, { p: p, forms: forms, setForms: setForms, curUser: curUser, monteure: monteure} )
           , view==="checklisten"&&React.createElement(VCheck, { p: p, forms: forms, setForms: setForms, ww: ww, curUser: curUser} )
           , view==="dokumente"&&React.createElement(VDoku, { p: p, ww: ww, curUser: curUser, forms: forms, setForms: setForms} )
-          , view==="offa"&&React.createElement(VOffa, { p: p, entries: entries, kw: kw, yr: yr} )
-          , view==="export"&&React.createElement(VExport, { p: p, entries: entries, forms: forms} )
+          , view==="offa"&&React.createElement(VOffa, { p: p, entries: entries, kw: kw, yr: yr, monteure: monteure} )
+          , view==="export"&&React.createElement(VExport, { p: p, entries: entries, forms: forms, monteure: monteure} )
         )
         /* ═══ MOBILE BOTTOM NAV (PROJECT) ═══ */
         , React.createElement('div', { className: "mob-shell-nav"}
@@ -4833,7 +4746,7 @@ function ProjectShell({p,onBack,entries,setEntries,forms,setForms,ww,curUser,pla
 }
 
 // ═══════════ DASHBOARD ═══════════
-function VDash({p,entries,kw,yr,ww}){
+function VDash({p,entries,kw,yr,ww,monteure}){
   const dates=kwD(yr,kw);const pe=entries.filter(x=>x.p===p.id);
   const we=pe.filter(x=>dates.includes(x.date));const tE=pe.filter(x=>x.date===td2());
   const _h=x=>parseFloat(x.hours||x.stunden)||0;
@@ -4866,7 +4779,7 @@ function VDash({p,entries,kw,yr,ww}){
         , React.createElement('div', { style: CC()}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Letzte Einträge" )
           , pe.slice(-6).reverse().map(x=>{
-            const w=MONT.find(y=>y.id===x.w);
+            const w=(monteure||MONT).find(y=>y.id===x.w);
             return (React.createElement(Row, { key: x.id}, React.createElement(Dot, { color: _optionalChain([GW, 'access', _306 => _306[x.gw], 'optionalAccess', _307 => _307.c])||V.ac} ), React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, _optionalChain([w, 'optionalAccess', _308 => _308.n]), " — "  , x.task), React.createElement('div', { style: {fontSize:10,color:V.mt}}, fd(x.date))), React.createElement('div', { style: {fontFamily:mono,fontSize:13,fontWeight:700,color:V.ac}}, (parseFloat(x.hours||x.stunden)||0).toFixed(2), "h")));
           })
           , !pe.length&&(React.createElement('p', { style: {color:V.mt,fontSize:12}}, "Keine Einträge" ))
@@ -4877,7 +4790,7 @@ function VDash({p,entries,kw,yr,ww}){
 }
 
 // ═══════════ PROJECT EXPORT / ABSCHLUSS ═══════════
-function VExport({p,entries,forms}){
+function VExport({p,entries,forms,monteure}){
   const pe=entries.filter(x=>x.p===p.id);
   const totalH=pe.reduce((s,x)=>s+(parseFloat(x.hours||x.stunden)||0),0);
   const rg=(forms.regie||[]).filter(f=>f.pid===p.id);
@@ -4892,17 +4805,17 @@ function VExport({p,entries,forms}){
   const genPdf=()=>{
     const now=new Date().toLocaleDateString("de-AT");const fname=buildExportFilename("protokoll",p.nr,td2(),1,"txt");
     const lines=["╔══════════════════════════════════════════════════════════════════════════════╗","║     Andreas Kolar & Sohn GesmbH — Der Haustechnikprofi                      ║","║     PROJEKTDOKUMENTATION                                                    ║","╚══════════════════════════════════════════════════════════════════════════════╝","","Projekt:        "+p.name,"PA-Nr:          "+p.nr,"Kunde:          "+p.kunde,"Ort:            "+p.plz+" "+p.ort,"Kunden-Nr:      "+(p.kundenNr||"—"),"Matchcode:       "+p.matchcode,"Auftragssumme:  "+fmt$(p.betrag),"Gewerk:         "+(p.gewerk||_optionalChain([GW, 'access', _309 => _309[p.type], 'optionalAccess', _310 => _310.l])),"Status:         "+sc.l,"Beginn:         "+fdt(p.start),"Ende:           "+(p.ende?fdt(p.ende):"laufend"),"Fortschritt:    "+p.fortschritt+"%","Export-Datum:   "+now,"","Serverpfad:     "+srvBase,"Dateiname:      "+fname,"","───────────────────────────────────────────────","  ZEITERFASSUNG — "+totalH.toFixed(2)+"h gesamt ("+pe.length+" Buchungen)","───────────────────────────────────────────────",""];
-    if(pe.length){lines.push("Datum          Mitarbeiter    Gewerk         Tätigkeit                      Std.");lines.push("─".repeat(90));pe.forEach(x=>{const w=MONT.find(y=>y.id===x.w);lines.push((fdt(x.date)||"").padEnd(15)+(_optionalChain([w, 'optionalAccess', _311 => _311.n])||"").padEnd(15)+(_optionalChain([GW, 'access', _312 => _312[x.gw], 'optionalAccess', _313 => _313.l])||"").padEnd(15)+(x.task||"").padEnd(31)+(parseFloat(x.hours||x.stunden)||0).toFixed(2));});}else{lines.push("Keine Zeitbuchungen vorhanden.");}
+    if(pe.length){lines.push("Datum          Mitarbeiter    Gewerk         Tätigkeit                      Std.");lines.push("─".repeat(90));pe.forEach(x=>{const w=(monteure||MONT).find(y=>y.id===x.w);lines.push((fdt(x.date)||"").padEnd(15)+(_optionalChain([w, 'optionalAccess', _311 => _311.n])||"").padEnd(15)+(_optionalChain([GW, 'access', _312 => _312[x.gw], 'optionalAccess', _313 => _313.l])||"").padEnd(15)+(x.task||"").padEnd(31)+(parseFloat(x.hours||x.stunden)||0).toFixed(2));});}else{lines.push("Keine Zeitbuchungen vorhanden.");}
     lines.push("","───────────────────────────────────────────────","  FORMULARE & PROTOKOLLE","───────────────────────────────────────────────","","Regieberichte:         "+rg.length,"Schließfreigaben:      "+sf.length,"Dichtheitsprüfungen:   "+dh.length,"Ausheizprotokolle:     "+ah.length,"Abnahmeprotokolle:     "+ab.length,"Mängel gesamt:         "+mg.length+" (davon "+mgOffen+" offen)");
     if(rg.length){lines.push("","  Regieberichte:");rg.forEach((r,i)=>{lines.push("  #"+String(i+1).padStart(3,"0")+" "+r.art+" — "+fdt(r.datum)+" — "+(r.arbeit||"").substring(0,60));lines.push("    → "+buildExportPath("regie",p.nr,p.name)+buildExportFilename("regie",p.nr,r.datum,i+1));});}
-    if(mg.length){lines.push("","  Mängelliste:");mg.forEach(m=>{const w=MONT.find(x=>x.id===m.worker);lines.push("  ["+m.status.toUpperCase()+"] "+m.name+" — "+m.ebene+" — "+(_optionalChain([w, 'optionalAccess', _314 => _314.n])||"")+" — Frist: "+fdt(m.frist));});}
+    if(mg.length){lines.push("","  Mängelliste:");mg.forEach(m=>{const w=(monteure||MONT).find(x=>x.id===m.worker);lines.push("  ["+m.status.toUpperCase()+"] "+m.name+" — "+m.ebene+" — "+(_optionalChain([w, 'optionalAccess', _314 => _314.n])||"")+" — Frist: "+fdt(m.frist));});}
     lines.push("","╔══════════════════════════════════════════════════════════════════════════════╗","║  Andreas Kolar & Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram    ║","║  Tel: +43 2279 2361 · office@ep-kolar.at · www.ep-kolar.at                  ║","║  FN 042490k, LG St. Pölten · UID: ATU20296908 · Gerichtsstand: Tulln        ║","║  Es gelten die AGB der Andreas Kolar & Sohn Ges.m.b.H.                      ║","╚══════════════════════════════════════════════════════════════════════════════╝");
     const blob=new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
   };
   const genCsv=()=>{
     const fname=buildExportFilename("arbeitsschein",p.nr,td2(),1,"xls");
     const hdrs=["Nr","Datum","Mitarbeiter","Gewerk","Tätigkeit","Stunden","PA-Nr","Kunde","Matchcode"];
-    const data=pe.map((x,i)=>{const w=MONT.find(y=>y.id===x.w);return [i+1,fdt(x.date),_optionalChain([w, 'optionalAccess', _315 => _315.n])||"",_optionalChain([GW, 'access', _316 => _316[x.gw], 'optionalAccess', _317 => _317.l])||"",x.task,(parseFloat(x.hours||x.stunden)||0).toFixed(2),p.nr,p.kunde,p.matchcode];});
+    const data=pe.map((x,i)=>{const w=(monteure||MONT).find(y=>y.id===x.w);return [i+1,fdt(x.date),_optionalChain([w, 'optionalAccess', _315 => _315.n])||"",_optionalChain([GW, 'access', _316 => _316[x.gw], 'optionalAccess', _317 => _317.l])||"",x.task,(parseFloat(x.hours||x.stunden)||0).toFixed(2),p.nr,p.kunde,p.matchcode];});
     genXls("⏱️ Zeiterfassung — "+p.name,p.nr+" · "+p.kunde+" · "+pe.length+" Buchungen",hdrs,data,fname,{colWidths:[35,75,110,85,200,55,60,110,85],leftCols:[0,1,2,3,4,6,7,8],boldCols:[2,4],sumCol:5});
   };
   // Server folder structure display
@@ -5514,7 +5427,7 @@ function VCheck({p,forms,setForms,ww,curUser}){
 }
 
 // ═══════════ KOSTEN & NACHKALKULATION ═══════════
-function VMang({p,forms,setForms,curUser}){
+function VMang({p,forms,setForms,curUser,monteure}){
   const ms=(forms.maengel||[]).filter(m=>m.pid===p.id);
   const kundenMeldungen=ms.filter(m=>m.melder==="Kunde");
   const neueMeldungen=kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet");
@@ -5609,7 +5522,7 @@ function VMang({p,forms,setForms,curUser}){
           , React.createElement('div', { style: {fontSize:11,color:V.dm}}, kundenMeldungen.length, " gesamt" )
         )
         , kundenMeldungen.sort((a,b)=>{const ord={gemeldet:0,angenommen:1,in_bearbeitung:2,behoben:3,abgenommen:4,abgelehnt:5};return (ord[a.kundeStatus||"gemeldet"]||0)-(ord[b.kundeStatus||"gemeldet"]||0);}).map(m=>{
-          const ks=m.kundeStatus||"gemeldet";const isNew=ks==="gemeldet";const w=MONT.find(x=>x.id===m.zugewiesen);
+          const ks=m.kundeStatus||"gemeldet";const isNew=ks==="gemeldet";const w=(monteure||MONT).find(x=>x.id===m.zugewiesen);
           const ksC=ks==="gemeldet"?"#f97316":ks==="angenommen"?"#3b82f6":ks==="abgelehnt"?"#71717a":ks==="in_bearbeitung"?"#eab308":ks==="behoben"?"#22c55e":"#22c55e";
           return React.createElement('div', { key: m.id, style: {padding:"10px 12px",borderRadius:8,border:"1px solid "+(isNew?"#f97316":V.bd),background:isNew?"rgba(249,115,22,.05)":"transparent",marginBottom:6}}
             , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
@@ -5629,7 +5542,7 @@ function VMang({p,forms,setForms,curUser}){
             )
             , reviewId===m.id&&(React.createElement('div', { style: {marginTop:8,padding:10,borderRadius:6,background:V.bg,border:"1px solid "+V.bd}}
               , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}
-                , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Zuweisen an" ), React.createElement('select', { value: reviewWorker, onChange: e=>setReviewWorker(e.target.value), style: II()}, MONT.map(w=>React.createElement('option', { key: w.id, value: w.id}, w.n, w.vorname?" "+w.vorname:""))))
+                , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Zuweisen an" ), React.createElement('select', { value: reviewWorker, onChange: e=>setReviewWorker(e.target.value), style: II()}, (monteure||MONT).map(w=>React.createElement('option', { key: w.id, value: w.id}, w.n, w.vorname?" "+w.vorname:""))))
                 , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Rückmeldung an Kunde"  ), React.createElement('input', { value: reviewNote, onChange: e=>setReviewNote(e.target.value), style: II(), placeholder: "z.B. Wird nächste Woche behoben"} ))
               )
               , React.createElement('div', { style: {display:"flex",gap:6}}
@@ -5651,7 +5564,7 @@ function VMang({p,forms,setForms,curUser}){
         , React.createElement('div', { className: "form-grid-4", style: {gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",alignItems:"end"}}
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Mangel 🎤" ), React.createElement(SpeechWrap, { value: name, onChange: v=>setName(v)}, React.createElement('input', { value: name, onChange: e=>setName(e.target.value), style: II()} )))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Ebene"), React.createElement('input', { value: ebene, onChange: e=>setEbene(e.target.value), style: II()} ))
-          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantw."), React.createElement('select', { value: worker, onChange: e=>setWorker(e.target.value), style: II()}, MONT.map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantw."), React.createElement('select', { value: worker, onChange: e=>setWorker(e.target.value), style: II()}, (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: frist, onChange: e=>setFrist(e.target.value), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Prio"), React.createElement('select', { value: prio, onChange: e=>setPrio(e.target.value), style: II()}, React.createElement('option', {}, "mittel"), React.createElement('option', {}, "hoch"), React.createElement('option', {}, "niedrig")))
           , React.createElement('button', { onClick: add, style: bpS}, "+")
@@ -5664,7 +5577,7 @@ function VMang({p,forms,setForms,curUser}){
       )
       , MANGEL_ST.map(st=>{
         const items=ms.filter(m=>m.status===st);const icon=st==="offen"?"🔴":st==="in Behebung"?"🟡":"✅";
-        return (React.createElement('div', { key: st, style: {marginBottom:12}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.dm,marginBottom:6}}, icon, " " , st, " (" , items.length, ")"), items.map(m=>{const w=MONT.find(x=>x.id===m.worker);const pi=m.prio==="hoch"?"🔴":m.prio==="mittel"?"🟡":"🟢";const mPh=getPhotos(m);return (React.createElement('div', { key: m.id, style: {...CC(),padding:12,marginBottom:6}}
+        return (React.createElement('div', { key: st, style: {marginBottom:12}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.dm,marginBottom:6}}, icon, " " , st, " (" , items.length, ")"), items.map(m=>{const w=(monteure||MONT).find(x=>x.id===m.worker);const pi=m.prio==="hoch"?"🔴":m.prio==="mittel"?"🟡":"🟢";const mPh=getPhotos(m);return (React.createElement('div', { key: m.id, style: {...CC(),padding:12,marginBottom:6}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}
             , React.createElement('div', {}, React.createElement('div', { style: {fontSize:13,fontWeight:600}}, pi, " " , m.name), React.createElement('div', { style: {fontSize:11,color:V.dm}}, m.ebene, " · "  , _optionalChain([w, 'optionalAccess', _367 => _367.n]), " · Frist: "   , fdt(m.frist)))
             , React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}}, React.createElement('select', { value: m.status, onChange: e=>updSt(m.id,e.target.value), style: {...II(),width:"auto",fontSize:11,padding:"3px 6px"}}, MANGEL_ST.map(s=>(React.createElement('option', { key: s}, s)))), React.createElement('button', { onClick: ()=>delM(m.id), style: {...bdS,padding:"2px 6px",fontSize:10}}, "✕"))
@@ -5796,12 +5709,12 @@ function PlanViewer({plan,tickets,layers,onPlanClick,onTicketClick,selectedTicke
   );
 }
 
-function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww}){
+function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww,monteure}){
   const [comment,setComment]=_react.useState.call(void 0, "");
   const [editing,setEditing]=_react.useState.call(void 0, false);
   const [ed,setEd]=_react.useState.call(void 0, {...ticket});
   const tt=TICKET_TYPES[ticket.type];const ts=TICKET_STATUS[ticket.status];const tp=TICKET_PRIO[ticket.priority];
-  const layer=layers.find(l=>l.id===ticket.layer);const w=MONT.find(x=>x.id===ticket.assignee);
+  const layer=layers.find(l=>l.id===ticket.layer);const w=(monteure||MONT).find(x=>x.id===ticket.assignee);
   _react.useEffect.call(void 0, ()=>{setEd({...ticket});setEditing(false);},[ticket.id]);
   const addComment=()=>{if(!comment.trim())return;onUpdate({...ticket,comments:[...(ticket.comments||[]),{text:comment,author:"Aktueller User",date:new Date().toLocaleDateString("de-AT")+" "+new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"})}]});setComment("");};
   const saveEdit=()=>{onUpdate({...ticket,...ed,updatedAt:td2()});setEditing(false);};
@@ -5819,7 +5732,7 @@ function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww}){
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Typ"), React.createElement('select', { value: ed.type, onChange: e=>setEd({...ed,type:e.target.value}), style: II()}, Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Status"), React.createElement('select', { value: ed.status, onChange: e=>setEd({...ed,status:e.target.value}), style: II()}, Object.entries(TICKET_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Priorität"), React.createElement('select', { value: ed.priority, onChange: e=>setEd({...ed,priority:e.target.value}), style: II()}, Object.entries(TICKET_PRIO).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
-            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: ed.assignee, onChange: e=>setEd({...ed,assignee:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "—"), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: ed.assignee, onChange: e=>setEd({...ed,assignee:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "—"), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ebene"), React.createElement('select', { value: ed.layer, onChange: e=>setEd({...ed,layer:e.target.value}), style: II()}, layers.map(l=>(React.createElement('option', { key: l.id, value: l.id}, l.icon, " " , l.name)))))
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: ed.dueDate||"", onChange: e=>setEd({...ed,dueDate:e.target.value}), style: II()} ))
           )
@@ -5864,11 +5777,11 @@ function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww}){
 }
 
 function TicketListItem({ticket,layers,onClick,selected}){
-  const tt=TICKET_TYPES[ticket.type]||TICKET_TYPES.info;const ts=TICKET_STATUS[ticket.status]||TICKET_STATUS.offen;const tp=TICKET_PRIO[ticket.priority]||TICKET_PRIO.mittel;const w=MONT.find(x=>x.id===ticket.assignee);
+  const tt=TICKET_TYPES[ticket.type]||TICKET_TYPES.info;const ts=TICKET_STATUS[ticket.status]||TICKET_STATUS.offen;const tp=TICKET_PRIO[ticket.priority]||TICKET_PRIO.mittel;const w=(monteure||MONT).find(x=>x.id===ticket.assignee);
   return (React.createElement('div', { onClick: ()=>onClick(ticket), style: {...CC(),padding:10,marginBottom:4,cursor:"pointer",borderColor:selected?tt.c:V.bd,transition:"border-color .15s"}}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}, React.createElement('div', { style: {width:26,height:26,borderRadius:5,background:tt.c+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}, tt.i), React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, ticket.title), React.createElement('div', { style: {fontSize:10,color:V.dm,display:"flex",gap:6}}, React.createElement('span', { style: {color:ts.c}}, ts.l), React.createElement('span', { style: {color:tp.c}}, tp.i), w&&React.createElement('span', {}, "👷", w.n), React.createElement('span', { style: {fontFamily:mono}}, ticket.progress||0, "%")))), (ticket.progress>0)&&React.createElement('div', { style: {height:3,borderRadius:2,background:V.bg,marginTop:4,overflow:"hidden"}}, React.createElement('div', { style: {height:"100%",borderRadius:2,width:(ticket.progress||0)+"%",background:(ticket.progress||0)>=100?"#22c55e":(ticket.progress||0)>=50?"#f97316":"#ef4444"}} ))));
 }
 
-function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms}){
+function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const plans=planData.plans.filter(pl=>pl.pid===p.id);const allTickets=planData.tickets.filter(t=>t.pid===p.id);const layers=planData.layers;
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");const [zoom,setZoom]=_react.useState.call(void 0, 1);const [placing,setPlacing]=_react.useState.call(void 0, false);const [newTicket,setNewTicket]=_react.useState.call(void 0, null);const [filterType,setFilterType]=_react.useState.call(void 0, "alle");const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");const [filterLayer,setFilterLayer]=_react.useState.call(void 0, "alle");const [showSidebar,setShowSidebar]=_react.useState.call(void 0, true);const [sideMode,setSideMode]=_react.useState.call(void 0, "tickets");const fileRef=_react.useRef.call(void 0, null);const isMob=ww<600;const isTab=ww<768;
   const [dropActive,setDropActive]=_react.useState.call(void 0, false);
@@ -5894,7 +5807,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms}){
   const updateLayer=(id,u)=>setPlanData(prev=>({...prev,layers:prev.layers.map(l=>l.id===id?{...l,...u}:l)}));
   const deleteLayer=id=>setPlanData(prev=>({...prev,layers:prev.layers.filter(l=>l.id!==id)}));
   const stats={total:allTickets.length,offen:allTickets.filter(t=>t.status==="offen").length,inBearb:allTickets.filter(t=>t.status==="in_bearbeitung").length,erledigt:allTickets.filter(t=>t.status==="erledigt"||t.status==="abgenommen").length};
-  const exportTickets=()=>{const hdrs=["Nr","Typ","Status","Fortschritt","Titel","Ebene","Verantwortlich","Frist"];const data=allTickets.map((t,i)=>{const tt=TICKET_TYPES[t.type];const ts=TICKET_STATUS[t.status];const l=layers.find(x=>x.id===t.layer);const w=MONT.find(x=>x.id===t.assignee);return [i+1,_optionalChain([tt, 'optionalAccess', _391 => _391.l])||"",_optionalChain([ts, 'optionalAccess', _392 => _392.l])||"",(t.progress||0)+"%",t.title,_optionalChain([l, 'optionalAccess', _393 => _393.name])||"",_optionalChain([w, 'optionalAccess', _394 => _394.n])||"",t.dueDate?fdt(t.dueDate):""];});genXls("🗺️ Tickets — "+p.name,p.nr+" · Pläne & Mängel · "+allTickets.length+" Tickets",hdrs,data,p.nr+"_Tickets.xls",{colWidths:[35,75,85,60,200,95,95,75],leftCols:[0,1,4,5,6],boldCols:[4],statusMap:{"Offen":"#ef4444","In Bearbeitung":"#f97316","Erledigt":"#22c55e","Abgenommen":"#3b82f6","Abgeschlossen":"#6366f1","Storniert":"#71717a"}});};
+  const exportTickets=()=>{const hdrs=["Nr","Typ","Status","Fortschritt","Titel","Ebene","Verantwortlich","Frist"];const data=allTickets.map((t,i)=>{const tt=TICKET_TYPES[t.type];const ts=TICKET_STATUS[t.status];const l=layers.find(x=>x.id===t.layer);const w=(monteure||MONT).find(x=>x.id===t.assignee);return [i+1,_optionalChain([tt, 'optionalAccess', _391 => _391.l])||"",_optionalChain([ts, 'optionalAccess', _392 => _392.l])||"",(t.progress||0)+"%",t.title,_optionalChain([l, 'optionalAccess', _393 => _393.name])||"",_optionalChain([w, 'optionalAccess', _394 => _394.n])||"",t.dueDate?fdt(t.dueDate):""];});genXls("🗺️ Tickets — "+p.name,p.nr+" · Pläne & Mängel · "+allTickets.length+" Tickets",hdrs,data,p.nr+"_Tickets.xls",{colWidths:[35,75,85,60,200,95,95,75],leftCols:[0,1,4,5,6],boldCols:[4],statusMap:{"Offen":"#ef4444","In Bearbeitung":"#f97316","Erledigt":"#22c55e","Abgenommen":"#3b82f6","Abgeschlossen":"#6366f1","Storniert":"#71717a"}});};
   return (
     React.createElement('div', { onDrop: handleDrop, onDragOver: handleDragOver, onDragLeave: handleDragLeave, style: {position:"relative"}}
       , dropActive&&React.createElement('div', { style: {position:"absolute",inset:0,zIndex:100,background:"rgba(249,115,22,.15)",border:"3px dashed "+V.ac,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}, React.createElement('div', { style: {background:V.cd,padding:"20px 40px",borderRadius:12,fontSize:18,fontWeight:700,color:V.ac}}, "📤 Plan hier ablegen"   ))
@@ -5911,8 +5824,8 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms}){
         , showSidebar&&!isMob&&(React.createElement('div', {}
           , React.createElement('div', { style: {display:"flex",gap:2,marginBottom:8}}, [{id:"tickets",l:"🎫 Tickets"},{id:"detail",l:"📋 Detail"}].map(t=>(React.createElement('button', { key: t.id, onClick: ()=>setSideMode(t.id), style: {flex:1,padding:"6px 8px",border:"none",background:sideMode===t.id?"rgba(249,115,22,.1)":"transparent",color:sideMode===t.id?V.ac:V.dm,fontSize:11,fontWeight:sideMode===t.id?700:400,cursor:"pointer",fontFamily:"inherit",borderRadius:6}}, t.l))))
           , sideMode==="tickets"&&(React.createElement('div', {}, React.createElement('div', { style: {display:"flex",gap:4,marginBottom:8}}, React.createElement('select', { value: filterType, onChange: e=>setFilterType(e.target.value), style: {...II(),fontSize:10,padding:"4px 6px",flex:1}}, React.createElement('option', { value: "alle"}, "Alle Typen" ), Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))), React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),fontSize:10,padding:"4px 6px",flex:1}}, React.createElement('option', { value: "alle"}, "Alle Status" ), Object.entries(TICKET_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l))))), React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6}}, filteredTickets.length, " Tickets" ), React.createElement('div', { style: {maxHeight:500,overflowY:"auto"}}, filteredTickets.map(t=>(React.createElement(TicketListItem, { key: t.id, ticket: t, layers: layers, onClick: t=>{setSelTicket(t);setSideMode("detail");}, selected: _optionalChain([selTicket, 'optionalAccess', _401 => _401.id])===t.id} ))), !filteredTickets.length&&React.createElement('div', { style: {padding:20,textAlign:"center",color:V.dm,fontSize:12}}, "Keine Tickets" ))))
-          , sideMode==="detail"&&selTicket&&(React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>{setSelTicket(null);setSideMode("tickets");}, ww: ww} ))
-          , sideMode==="create"&&newTicket&&(React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, "📌 Neues Ticket"  ), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Titel * 🎤"  ), React.createElement(SpeechWrap, { value: newTicket.title, onChange: v=>setNewTicket({...newTicket,title:v})}, React.createElement('input', { value: newTicket.title, onChange: e=>setNewTicket({...newTicket,title:e.target.value}), style: II(), placeholder: "z.B. Steckdose fehlt"  , autoFocus: true} ))), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Beschreibung 🎤" ), React.createElement(SpeechWrap, { value: newTicket.description, onChange: v=>setNewTicket({...newTicket,description:v})}, React.createElement('textarea', { value: newTicket.description, onChange: e=>setNewTicket({...newTicket,description:e.target.value}), rows: 2, style: {...II(),resize:"vertical"}} ))), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}, React.createElement('div', {}, React.createElement('label', { style: LL()}, "Typ"), React.createElement('select', { value: newTicket.type, onChange: e=>setNewTicket({...newTicket,type:e.target.value}), style: II()}, Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Priorität"), React.createElement('select', { value: newTicket.priority, onChange: e=>setNewTicket({...newTicket,priority:e.target.value}), style: II()}, Object.entries(TICKET_PRIO).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ebene"), React.createElement('select', { value: newTicket.layer, onChange: e=>setNewTicket({...newTicket,layer:e.target.value}), style: II()}, layers.map(l=>(React.createElement('option', { key: l.id, value: l.id}, l.icon, " " , l.name))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: newTicket.assignee, onChange: e=>setNewTicket({...newTicket,assignee:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "—"), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))), React.createElement('div', { style: {marginBottom:8}}, React.createElement('label', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: newTicket.dueDate, onChange: e=>setNewTicket({...newTicket,dueDate:e.target.value}), style: II()} )), React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: createTicket, style: bpS}, "✅ Erstellen" ), React.createElement('button', { onClick: ()=>{setNewTicket(null);setSideMode("tickets");}, style: bsS()}, "Abbrechen"))))
+          , sideMode==="detail"&&selTicket&&(React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>{setSelTicket(null);setSideMode("tickets");}, ww: ww, monteure: monteure} ))
+          , sideMode==="create"&&newTicket&&(React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, "📌 Neues Ticket"  ), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Titel * 🎤"  ), React.createElement(SpeechWrap, { value: newTicket.title, onChange: v=>setNewTicket({...newTicket,title:v})}, React.createElement('input', { value: newTicket.title, onChange: e=>setNewTicket({...newTicket,title:e.target.value}), style: II(), placeholder: "z.B. Steckdose fehlt"  , autoFocus: true} ))), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Beschreibung 🎤" ), React.createElement(SpeechWrap, { value: newTicket.description, onChange: v=>setNewTicket({...newTicket,description:v})}, React.createElement('textarea', { value: newTicket.description, onChange: e=>setNewTicket({...newTicket,description:e.target.value}), rows: 2, style: {...II(),resize:"vertical"}} ))), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}, React.createElement('div', {}, React.createElement('label', { style: LL()}, "Typ"), React.createElement('select', { value: newTicket.type, onChange: e=>setNewTicket({...newTicket,type:e.target.value}), style: II()}, Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Priorität"), React.createElement('select', { value: newTicket.priority, onChange: e=>setNewTicket({...newTicket,priority:e.target.value}), style: II()}, Object.entries(TICKET_PRIO).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ebene"), React.createElement('select', { value: newTicket.layer, onChange: e=>setNewTicket({...newTicket,layer:e.target.value}), style: II()}, layers.map(l=>(React.createElement('option', { key: l.id, value: l.id}, l.icon, " " , l.name))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: newTicket.assignee, onChange: e=>setNewTicket({...newTicket,assignee:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "—"), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))), React.createElement('div', { style: {marginBottom:8}}, React.createElement('label', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: newTicket.dueDate, onChange: e=>setNewTicket({...newTicket,dueDate:e.target.value}), style: II()} )), React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: createTicket, style: bpS}, "✅ Erstellen" ), React.createElement('button', { onClick: ()=>{setNewTicket(null);setSideMode("tickets");}, style: bsS()}, "Abbrechen"))))
           , sideMode==="detail"&&!selTicket&&(React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm,fontSize:12}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "👈"), "Ticket auswählen" ))
         ))
       ))
@@ -5920,7 +5833,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms}){
       , subView==="tickets"&&(React.createElement('div', {}
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}, React.createElement('select', { value: filterType, onChange: e=>setFilterType(e.target.value), style: {...II(),width:"auto",fontSize:12}}, React.createElement('option', { value: "alle"}, "Alle Typen" ), Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))), React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),width:"auto",fontSize:12}}, React.createElement('option', { value: "alle"}, "Alle Status" ), Object.entries(TICKET_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l)))), React.createElement('select', { value: filterLayer, onChange: e=>setFilterLayer(e.target.value), style: {...II(),width:"auto",fontSize:12}}, React.createElement('option', { value: "alle"}, "Alle Ebenen" ), layers.map(l=>(React.createElement('option', { key: l.id, value: l.id}, l.icon, " " , l.name)))))
         , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:700,fontSize:12}}, React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: {...thS(),width:40}}, "#"), React.createElement('th', { style: {...thS(),textAlign:"left"}}, "Titel"), React.createElement('th', { style: thS()}, "Typ"), React.createElement('th', { style: thS()}, "Status"), React.createElement('th', { style: thS()}, "Prio"), React.createElement('th', { style: thS()}, "Ebene"), React.createElement('th', { style: thS()}, "Verantw."), React.createElement('th', { style: thS()}, "Plan"), React.createElement('th', { style: thS()}, "Frist"), React.createElement('th', { style: {...thS(),width:50}}, "Akt.")))
-        , React.createElement('tbody', {}, allTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;}).map((t,i)=>{const tt=TICKET_TYPES[t.type];const ts=TICKET_STATUS[t.status];const tp=TICKET_PRIO[t.priority];const l=layers.find(x=>x.id===t.layer);const w=MONT.find(x=>x.id===t.assignee);const pl=plans.find(x=>x.id===t.planId);const od=t.dueDate&&new Date(t.dueDate)<new Date()&&t.status!=="erledigt"&&t.status!=="abgenommen";return (React.createElement('tr', { key: t.id, style: {borderBottom:"1px solid "+V.bd,cursor:"pointer",background:od?"rgba(239,68,68,.03)":"transparent"}, onClick: ()=>{setSelTicket(t);setSelPlan(plans.find(x=>x.id===t.planId)||null);setSubView("viewer");setSideMode("detail");setShowSidebar(true);}}, React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:V.dm,fontSize:10}}, i+1), React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:600}}, t.title), React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([tt, 'optionalAccess', _402 => _402.i])+" "+_optionalChain([tt, 'optionalAccess', _403 => _403.l]), color: _optionalChain([tt, 'optionalAccess', _404 => _404.c])} )), React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([ts, 'optionalAccess', _405 => _405.l]), color: _optionalChain([ts, 'optionalAccess', _406 => _406.c])} )), React.createElement('td', { style: {...tdSt(),color:_optionalChain([tp, 'optionalAccess', _407 => _407.c])}}, _optionalChain([tp, 'optionalAccess', _408 => _408.i])), React.createElement('td', { style: {...tdSt(),color:_optionalChain([l, 'optionalAccess', _409 => _409.color])||V.dm}}, _optionalChain([l, 'optionalAccess', _410 => _410.icon]), " " , _optionalChain([l, 'optionalAccess', _411 => _411.name])||""), React.createElement('td', { style: tdSt()}, _optionalChain([w, 'optionalAccess', _412 => _412.n])||"—"), React.createElement('td', { style: {...tdSt(),fontSize:10,color:V.dm}}, _optionalChain([pl, 'optionalAccess', _413 => _413.name])||"—"), React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:10,color:od?"#ef4444":V.dm}}, t.dueDate?fdt(t.dueDate):"—"), React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {flex:1,height:6,borderRadius:3,background:V.bg,overflow:"hidden",minWidth:40}}, React.createElement('div', { style: {height:"100%",borderRadius:3,width:(t.progress||0)+"%",background:(t.progress||0)>=100?"#22c55e":(t.progress||0)>=50?"#f97316":"#ef4444"}} )), React.createElement('span', { style: {fontSize:9,fontFamily:mono,color:V.dm}}, t.progress||0, "%"))), React.createElement('td', { style: tdSt()}, React.createElement('button', { onClick: e=>{e.stopPropagation();deleteTicket(t.id);}, style: {...bdS,padding:"2px 5px",fontSize:10}}, "✕"))));})))))
+        , React.createElement('tbody', {}, allTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;}).map((t,i)=>{const tt=TICKET_TYPES[t.type];const ts=TICKET_STATUS[t.status];const tp=TICKET_PRIO[t.priority];const l=layers.find(x=>x.id===t.layer);const w=(monteure||MONT).find(x=>x.id===t.assignee);const pl=plans.find(x=>x.id===t.planId);const od=t.dueDate&&new Date(t.dueDate)<new Date()&&t.status!=="erledigt"&&t.status!=="abgenommen";return (React.createElement('tr', { key: t.id, style: {borderBottom:"1px solid "+V.bd,cursor:"pointer",background:od?"rgba(239,68,68,.03)":"transparent"}, onClick: ()=>{setSelTicket(t);setSelPlan(plans.find(x=>x.id===t.planId)||null);setSubView("viewer");setSideMode("detail");setShowSidebar(true);}}, React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:V.dm,fontSize:10}}, i+1), React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:600}}, t.title), React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([tt, 'optionalAccess', _402 => _402.i])+" "+_optionalChain([tt, 'optionalAccess', _403 => _403.l]), color: _optionalChain([tt, 'optionalAccess', _404 => _404.c])} )), React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([ts, 'optionalAccess', _405 => _405.l]), color: _optionalChain([ts, 'optionalAccess', _406 => _406.c])} )), React.createElement('td', { style: {...tdSt(),color:_optionalChain([tp, 'optionalAccess', _407 => _407.c])}}, _optionalChain([tp, 'optionalAccess', _408 => _408.i])), React.createElement('td', { style: {...tdSt(),color:_optionalChain([l, 'optionalAccess', _409 => _409.color])||V.dm}}, _optionalChain([l, 'optionalAccess', _410 => _410.icon]), " " , _optionalChain([l, 'optionalAccess', _411 => _411.name])||""), React.createElement('td', { style: tdSt()}, _optionalChain([w, 'optionalAccess', _412 => _412.n])||"—"), React.createElement('td', { style: {...tdSt(),fontSize:10,color:V.dm}}, _optionalChain([pl, 'optionalAccess', _413 => _413.name])||"—"), React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:10,color:od?"#ef4444":V.dm}}, t.dueDate?fdt(t.dueDate):"—"), React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {flex:1,height:6,borderRadius:3,background:V.bg,overflow:"hidden",minWidth:40}}, React.createElement('div', { style: {height:"100%",borderRadius:3,width:(t.progress||0)+"%",background:(t.progress||0)>=100?"#22c55e":(t.progress||0)>=50?"#f97316":"#ef4444"}} )), React.createElement('span', { style: {fontSize:9,fontFamily:mono,color:V.dm}}, t.progress||0, "%"))), React.createElement('td', { style: tdSt()}, React.createElement('button', { onClick: e=>{e.stopPropagation();deleteTicket(t.id);}, style: {...bdS,padding:"2px 5px",fontSize:10}}, "✕"))));})))))
         , !allTickets.length&&React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "Noch keine Tickets. Wechseln Sie zum Plan-Viewer."      )
       ))
 
@@ -5939,7 +5852,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms}){
         , !plans.length&&React.createElement('div', { style: {gridColumn:"1/-1",textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:48,marginBottom:8}}, "📁"), "Noch keine Pläne hochgeladen"   ))
       ))
 
-      , isMob&&selTicket&&subView==="viewer"&&(React.createElement('div', { style: {position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end"}}, React.createElement('div', { style: {width:"100%",maxHeight:"70vh",overflowY:"auto",borderRadius:"12px 12px 0 0",background:V.cd}}, React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>setSelTicket(null), ww: ww} ))))
+      , isMob&&selTicket&&subView==="viewer"&&(React.createElement('div', { style: {position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end"}}, React.createElement('div', { style: {width:"100%",maxHeight:"70vh",overflowY:"auto",borderRadius:"12px 12px 0 0",background:V.cd}}, React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>setSelTicket(null), ww: ww, monteure: monteure} ))))
     )
   );
 }
@@ -6031,7 +5944,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(_){}};
   const delDoc=id=>{setDocs(docs.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
   const openDoc=d=>{_openFileUrl(d.dataUrl||d.fileUrl,d.fileName||d.name);};
-  const moveDoc=(docId,folderId)=>{setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"POST",body:{id:docId,project_id:p.id,folder_id:folderId}});};
+  const moveDoc=(docId,folderId)=>{setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"PUT",body:{folder_id:folderId}});};
 
   const toggleKundeFreigabe=(d)=>{
     const isFreigegeben=_optionalChain([(forms.kundenDocs||[]), 'access', _kd1 => _kd1.find, 'call', _kd2 => _kd2(kd=>kd.id===d.id)]);
@@ -6144,9 +6057,9 @@ function VDoku({p,ww,curUser,forms,setForms}){
     )
   );
 }
-function VOffa({p,entries,kw,yr}){
+function VOffa({p,entries,kw,yr,monteure}){
   const dates=kwD(yr,kw);const pe=entries.filter(x=>x.p===p.id&&dates.includes(x.date));
-  const ascP=pe.slice(0,5).map(x=>{const w=MONT.find(y=>y.id===x.w);return p.nr+";"+_optionalChain([w, 'optionalAccess', _462 => _462.n])+";"+x.date.split("-").reverse().join(".")+";"+(parseFloat(x.hours||x.stunden)||0).toFixed(2).replace(".",",")+";"+p.kundenNr+";"+x.task+";"+(_optionalChain([GW, 'access', _463 => _463[x.gw], 'optionalAccess', _464 => _464.l])||"")+";"+p.matchcode;}).join("\n")||("Keine Daten für KW "+kw);
+  const ascP=pe.slice(0,5).map(x=>{const w=(monteure||MONT).find(y=>y.id===x.w);return p.nr+";"+_optionalChain([w, 'optionalAccess', _462 => _462.n])+";"+x.date.split("-").reverse().join(".")+";"+(parseFloat(x.hours||x.stunden)||0).toFixed(2).replace(".",",")+";"+p.kundenNr+";"+x.task+";"+(_optionalChain([GW, 'access', _463 => _463[x.gw], 'optionalAccess', _464 => _464.l])||"")+";"+p.matchcode;}).join("\n")||("Keine Daten für KW "+kw);
   return (
     React.createElement('div', {}
       , React.createElement('h2', { style: {fontSize:20,fontWeight:800,marginBottom:2}}, "OFFA Export" )
@@ -8536,7 +8449,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('button', { onClick: ()=>{if(fzScanMode){fzStopScan();setFzScanMode(false);}else{setBatchMode(false);setFzScanMode(true);setSel(null);}}, style: fzScanMode?bdS:bsS()}, fzScanMode?"✕ Scanner":"📷 Scan")
           , React.createElement('button', { onClick: ()=>{if(batchMode){setBatchMode(false);}else openBatch();}, style: batchMode?{...bdS,borderColor:"#f97316",color:"#f97316"}:bsS()}, batchMode?"✕ Batch":"⛽ Batch")
           , !sel&&!batchMode&&React.createElement('button', { onClick: ()=>printLabels(fahrzeuge.filter(f=>f.status!=="stillgelegt").map(f=>({name:f.marke+" "+f.modell,code:f.kennzeichen,kennzeichen:f.kennzeichen})),"Fahrzeug-Labels"), style: bsS()}, "🏷️ Labels" )
-          , !sel&&!batchMode&&isVAdmin&&React.createElement('button', { onClick: ()=>{const h=["Kennzeichen","Marke/Modell","Typ","Fahrer","Baujahr","km-Stand","Reifen","Wischer","Pickerl","Service","Versicherung","Status"];const r=fahrzeuge.map(f=>[f.kennzeichen,f.marke+" "+f.modell,f.typ,_optionalChain([MONT, 'access', _685 => _685.find, 'call', _686 => _686(m=>m.id===f.fahrer), 'optionalAccess', _687 => _687.n])||"",f.baujahr||"",(f.kmStand||0).toLocaleString("de-AT"),f.reifen||"",f.scheibenwischer||"",f.pickerl?fdt(f.pickerl):"",f.naechstService?fdt(f.naechstService):"",f.versicherung||"",f.status]);genXls("🚗 Fuhrpark — Fahrzeugübersicht","Andreas Kolar & Sohn GesmbH · "+fahrzeuge.length+" Fahrzeuge",h,r,"Fuhrpark_"+td2()+".xls");}, style: xBtn("xls")}, "📊 Excel" )
+          , !sel&&!batchMode&&isVAdmin&&React.createElement('button', { onClick: ()=>{const h=["Kennzeichen","Marke/Modell","Typ","Fahrer","Baujahr","km-Stand","Reifen","Wischer","Pickerl","Service","Versicherung","Status"];const r=fahrzeuge.map(f=>[f.kennzeichen,f.marke+" "+f.modell,f.typ,_optionalChain([(monteure||MONT), 'access', _685 => _685.find, 'call', _686 => _686(m=>m.id===f.fahrer), 'optionalAccess', _687 => _687.n])||"",f.baujahr||"",(f.kmStand||0).toLocaleString("de-AT"),f.reifen||"",f.scheibenwischer||"",f.pickerl?fdt(f.pickerl):"",f.naechstService?fdt(f.naechstService):"",f.versicherung||"",f.status]);genXls("🚗 Fuhrpark — Fahrzeugübersicht","Andreas Kolar & Sohn GesmbH · "+fahrzeuge.length+" Fahrzeuge",h,r,"Fuhrpark_"+td2()+".xls");}, style: xBtn("xls")}, "📊 Excel" )
           , sel&&React.createElement('button', { onClick: ()=>setSel(null), style: bsS()}, "← Zurück" )
           , isVAdmin&&!sel&&!batchMode&&React.createElement('button', { onClick: ()=>setShowAdd(!showAdd), style: bpS}, showAdd?"✕":"+ Fahrzeug")
         )
@@ -8599,7 +8512,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                   )
                   , React.createElement('div', { style: {textAlign:"right"}}
                     , React.createElement('div', { style: {fontFamily:mono,fontSize:18,fontWeight:800,color:V.ac}}, (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
-                    , React.createElement('div', { style: {fontSize:11,color:V.dm}}, _optionalChain([MONT, 'access', _688 => _688.find, 'call', _689 => _689(m=>m.id===fzScannedItem.fahrer), 'optionalAccess', _690 => _690.n])||"kein Fahrer")
+                    , React.createElement('div', { style: {fontSize:11,color:V.dm}}, _optionalChain([(monteure||MONT), 'access', _688 => _688.find, 'call', _689 => _689(m=>m.id===fzScannedItem.fahrer), 'optionalAccess', _690 => _690.n])||"kein Fahrer")
                   )
                 )
                 /* Badges */
@@ -8803,7 +8716,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Typ"), React.createElement('select', { value: nf.typ, onChange: e=>setNf({...nf,typ:e.target.value}), style: II()}, FZ_TYPEN.map(t=>(React.createElement('option', { key: t}, t)))))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Farbe"), React.createElement('input', { value: nf.farbe, onChange: e=>setNf({...nf,farbe:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Baujahr"), React.createElement('input', { value: nf.baujahr, onChange: e=>setNf({...nf,baujahr:e.target.value}), style: II(), placeholder: "2022"} ))
-          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer"), React.createElement('select', { value: nf.fahrer, onChange: e=>setNf({...nf,fahrer:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— keiner —"  ), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer"), React.createElement('select', { value: nf.fahrer, onChange: e=>setNf({...nf,fahrer:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— keiner —"  ), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", value: nf.kmStand, onChange: e=>setNf({...nf,kmStand:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl bis" ), React.createElement('input', { type: "date", value: nf.pickerl, onChange: e=>setNf({...nf,pickerl:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: nf.naechstService, onChange: e=>setNf({...nf,naechstService:e.target.value}), style: II()} ))
@@ -8817,7 +8730,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       /* Vehicle List */
       , !sel&&!batchMode&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:view==="kacheln"?(isMob?"repeat(2,1fr)":"repeat(auto-fill,minmax(220px,1fr))"):(isMob?"1fr":"repeat(auto-fill,minmax(320px,1fr))"),gap:view==="kacheln"?8:10}}
         , visibleFz.map(f=>{
-          const fahrer=MONT.find(m=>m.id===f.fahrer);
+          const fahrer=(monteure||MONT).find(m=>m.id===f.fahrer);
           const pickerlOk=f.pickerl&&new Date(f.pickerl)>new Date();
           const pickerlWarn=f.pickerl&&!pickerlOk||(f.pickerl&&(new Date(f.pickerl)-new Date())/(86400000)<30);
           const serviceWarn=f.naechstService&&new Date(f.naechstService)<=new Date();
@@ -8881,7 +8794,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Typ"), React.createElement('div', { style: {fontSize:13,fontWeight:600}}, selFz.typ))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Farbe"), React.createElement('div', { style: {fontSize:13}}, selFz.farbe||"—"))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer")
-              , isVAdmin?(React.createElement('select', { value: selFz.fahrer||"", onChange: e=>upd(sel,f=>({...f,fahrer:e.target.value})), style: {...II(),fontSize:12}}, React.createElement('option', { value: ""}, "— keiner —"  ), MONT.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))):(React.createElement('div', { style: {fontSize:13}}, _optionalChain([MONT, 'access', _703 => _703.find, 'call', _704 => _704(m=>m.id===selFz.fahrer), 'optionalAccess', _705 => _705.n])||"—"))
+              , isVAdmin?(React.createElement('select', { value: selFz.fahrer||"", onChange: e=>upd(sel,f=>({...f,fahrer:e.target.value})), style: {...II(),fontSize:12}}, React.createElement('option', { value: ""}, "— keiner —"  ), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))):(React.createElement('div', { style: {fontSize:13}}, _optionalChain([(monteure||MONT), 'access', _703 => _703.find, 'call', _704 => _704(m=>m.id===selFz.fahrer), 'optionalAccess', _705 => _705.n])||"—"))
             )
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('div', { style: {fontSize:13}}, selFz.versicherung||"—"))
             , selFz.reifen&&React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), React.createElement('div', { style: {fontSize:13,fontWeight:600,fontFamily:"monospace"}}, selFz.reifen))
