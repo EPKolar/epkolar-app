@@ -7,6 +7,31 @@
 <title>EP: Kolar &amp; Sohn — Baustellenmanagement</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23009640'/><text x='50' y='65' font-size='48' font-weight='bold' fill='white' text-anchor='middle' font-family='sans-serif'>EP</text></svg>">
+<script>
+/* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
+(function(){
+  var SW_VER='epkolar-v3.3.1-fix1';
+  try{
+    var stored=localStorage.getItem('epk_sw_ver');
+    if(stored!==SW_VER){
+      /* Version mismatch — nuke everything */
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.getRegistrations().then(function(regs){
+          regs.forEach(function(r){r.unregister();});
+        });
+      }
+      if('caches' in window){
+        caches.keys().then(function(names){
+          names.forEach(function(n){caches.delete(n);});
+        });
+      }
+      localStorage.setItem('epk_sw_ver',SW_VER);
+      /* If this was a stale-cache load, force reload to get fresh HTML */
+      if(stored){location.reload(true);return;}
+    }
+  }catch(e){}
+})();
+</script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
@@ -163,7 +188,33 @@ button, a, [role="button"] { -webkit-tap-highlight-color: rgba(0,150,64,.15); }
 /* Pull-to-refresh verhindern (stört bei Listen) */
 html { overscroll-behavior-y: contain; }
 
-</style></head><body><div id="root"></div><script>
+</style></head><body>
+<div id="root"></div>
+<div id="ep-error-display"></div>
+<div id="ep-boot-indicator" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f1117;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:99998">
+<div style="font-size:15px;font-weight:600;color:#e4e4e7">EP: Kolar &amp; Sohn</div>
+<div style="font-size:11px;color:#71717a">Wird geladen...</div>
+<div style="width:32px;height:32px;border:3px solid #2a2e3f;border-top-color:#f97316;border-radius:50%;animation:epspin .8s linear infinite"></div>
+<style>@keyframes epspin{to{transform:rotate(360deg)}}</style>
+</div>
+<script>
+/* ═══ CDN CHECK + BOOT WATCHDOG ═══ */
+(function(){
+  if(typeof React==="undefined"||typeof ReactDOM==="undefined"){
+    document.getElementById("ep-boot-indicator").innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ Ladefehler</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:320px">React/ReactDOM konnte nicht geladen werden.<br>Bitte Internet prüfen und Seite neu laden.</div><button onclick="if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Cache leeren &amp; Neu laden</button><div style="font-size:9px;color:#555;margin-top:8px">React: '+(typeof React)+' | ReactDOM: '+(typeof ReactDOM)+'</div>';
+    throw new Error("CDN not loaded");
+  }
+  /* Boot watchdog: if root is still empty after 12s, show diagnostic */
+  setTimeout(function(){
+    var root=document.getElementById("root");
+    var boot=document.getElementById("ep-boot-indicator");
+    if(root&&!root.firstChild&&boot){
+      boot.innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ App startet nicht</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:340px">Die App konnte nicht initialisiert werden.<br>Errors: '+(window.__EP_ERRORS||[]).map(function(e){return e.msg}).join("; ")+'</div><button onclick="localStorage.clear();if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Alles zurücksetzen &amp; Neu laden</button>';
+    }
+  },12000);
+})();
+</script>
+<script>
 var exports={};
 var require=function(m){if(m==='react')return React;if(m==='react-dom')return ReactDOM;return {};};
 // ═══ PWA MANIFEST (inline) ═══
@@ -834,7 +885,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.3.1-supabase-2026-03-17";
+const APP_VERSION="3.3.1-fix1-supabase";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -9501,4 +9552,71 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('div', { className: "as-form-grid"}
           , React.createElement('div', {}
             , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Gerätedaten")
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Gerätename *" ), React.createElement('input', { value: form.name||"", onChange: e=>setForm({...form,name:e.target.value}), style: I
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Gerätename *" ), React.createElement('input', { value: form.name||"", onChange: e=>setForm({...form,name:e.target.value}), style: II(), placeholder: "z.B. Hilti TE 30-A36"   }))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Kategorie"), React.createElement('select', { value: form.kat||"elektro", onChange: e=>setForm({...form,kat:e.target.value}), style: II()}, Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Seriennummer"), React.createElement('input', { value: form.seriennr||"", onChange: e=>setForm({...form,seriennr:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Inventar-Nr. / QR-Code"  )
+              , React.createElement('div', { style: {display:"flex",gap:4}}
+                , React.createElement('input', { value: form.inventarnr||"", onChange: e=>setForm({...form,inventarnr:e.target.value}), style: {...II(),fontFamily:mono,flex:1}, placeholder: "EK-E001 oder bestehenden Code eingeben"} )
+                , React.createElement('button', { onClick: ()=>{const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;setForm(f=>({...f,inventarnr:"EK-"+prefix+String(next).padStart(3,"0")}));}, style: {...bsS(),padding:"6px 10px",fontSize:11,whiteSpace:"nowrap"}, title: "Nächste freie Nr. generieren"   }, "🔢 Auto" )
+              )
+              , React.createElement('div', { style: {marginTop:6,padding:10,border:"2px dashed "+V.bd,borderRadius:8,textAlign:"center"}}
+                , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6}}, "📷 Bestehenden QR-/Barcode scannen:"  )
+                , React.createElement('button', { onClick: async()=>{
+                    if(typeof BarcodeDetector!=="undefined"){try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});const overlay=document.createElement("div");overlay.id="qr-overlay";overlay.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;";const video=document.createElement("video");video.style.cssText="width:80%;max-width:400px;border-radius:12px;border:3px solid #009640;";video.srcObject=stream;video.setAttribute("playsinline","true");video.play();const label=document.createElement("div");label.style.cssText="color:#fff;font-size:14px;margin:12px 0;";label.textContent="QR-Code oder Barcode in das Feld halten...";const closeBtn=document.createElement("button");closeBtn.textContent="✕ Abbrechen";closeBtn.style.cssText="padding:10px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px;";closeBtn.onclick=()=>{stream.getTracks().forEach(t=>t.stop());overlay.remove();};overlay.appendChild(label);overlay.appendChild(video);overlay.appendChild(closeBtn);document.body.appendChild(overlay);const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8","data_matrix"]});let found=false;const scan=async()=>{if(found)return;if(video.readyState<2){requestAnimationFrame(scan);return;}try{const codes=await det.detect(video);if(codes.length>0){found=true;setForm(f=>({...f,inventarnr:codes[0].rawValue}));stream.getTracks().forEach(t=>t.stop());overlay.remove();_optionalChain([window, 'access', _823 => _823.__toast, 'optionalCall', _824 => _824("✅ Code gescannt: "+codes[0].rawValue)]);return;}}catch(e){}requestAnimationFrame(scan);};requestAnimationFrame(scan);setTimeout(()=>{if(!found){stream.getTracks().forEach(t=>t.stop());overlay.remove();_optionalChain([window, 'access', _825 => _825.__toast, 'optionalCall', _826 => _826("⏰ Scanner-Timeout (30s)","warn")]);}},30000);}catch(e){_optionalChain([window, 'access', _825b => _825b.__toast, 'optionalCall', _826b => _826b("📷 Kamera: "+e.message,"warn")]);}}else{const code=prompt("QR-/Barcode manuell eingeben:");if(code)setForm(f=>({...f,inventarnr:code}));}
+                  }, style: {...bpS,padding:"8px 20px",fontSize:13}}, "📷 QR-/Barcode scannen"  )
+                , React.createElement('div', { style: {fontSize:9,color:V.dm,marginTop:6}}, "Unterstützt QR-Code, Code128, Code39, EAN · Fullscreen-Kamera mit Live-Erkennung"     )
+              )
+              , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:3}}, "💡 Bestehende Codes scannen oder neue Nr. vergeben. QR-Code-Labels über "            , React.createElement('b', {}, "Labels"), " oben drucken"  )
+            )
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Anschaffungsdatum"), React.createElement('input', { type: "date", value: form.anschaffung||"", onChange: e=>setForm({...form,anschaffung:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wert (€)" ), React.createElement('input', { type: "number", value: form.wert||0, onChange: e=>setForm({...form,wert:parseFloat(e.target.value)||0}), style: {...II(),fontFamily:mono}} ))
+          )
+          , React.createElement('div', {}
+            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Status & Zuweisung"  )
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Status"), React.createElement('select', { value: form.status||"verfuegbar", onChange: e=>setForm({...form,status:e.target.value}), style: II()}, Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zugewiesen an" ), React.createElement('select', { value: form.zugewiesen||"", onChange: e=>setForm({...form,zugewiesen:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— Nicht zugewiesen —"   ), monteure.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n, " (" , m.r, ")")))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Projekt"), React.createElement('select', { value: form.projekt||"", onChange: e=>setForm({...form,projekt:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— Kein Projekt —"   ), projects.filter(p=>p.status==="aktiv").map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr, " — "  , p.name)))))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Standort"), React.createElement('input', { value: form.standort||"", onChange: e=>setForm({...form,standort:e.target.value}), style: II(), placeholder: "Lager, Baustelle, Service..."  }))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zustand"), React.createElement(Stars, { val: form.zustandBewertung||5, onChange: v=>setForm({...form,zustandBewertung:v})}))
+          )
+          , React.createElement('div', {}
+            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Service & Notizen"  )
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: form.naechsteKalib||"", onChange: e=>setForm({...form,naechsteKalib:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Letzter Service" ), React.createElement('input', { type: "date", value: form.letzteKalib||"", onChange: e=>setForm({...form,letzteKalib:e.target.value}), style: II()} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Notizen 🎤" ), React.createElement(SpeechWrap, { value: form.notizen||"", onChange: v=>setForm({...form,notizen:v})}, React.createElement('textarea', { value: form.notizen||"", onChange: e=>setForm({...form,notizen:e.target.value}), style: {...II(),minHeight:80}, rows: 3})))
+            , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",marginTop:14}}
+              , React.createElement('button', { onClick: save, style: bpS}, "💾 " , editId?"Aktualisieren":"Speichern")
+              , React.createElement('button', { onClick: ()=>setSub("liste"), style: bsS()}, "Abbrechen")
+              , editId&&(React.createElement('button', { onClick: ()=>del(editId), style: bdS}, "🗑️ Löschen" ))
+            )
+          )
+        )
+      )
+    ))
+  ));
+}
+
+var App=exports.default||window.App;
+var root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+/* Remove boot indicator once React has rendered */
+try{var _bi=document.getElementById('ep-boot-indicator');if(_bi)_bi.remove();}catch(e){}
+
+// ═══ MOBILE: Auto-wrap tables for horizontal scroll ═══
+(function(){
+  function wrapTable(t){
+    if(t.parentElement&&t.parentElement.classList.contains('mob-table-wrap'))return;
+    if(t.closest('.mob-table-wrap'))return;
+    var w=document.createElement('div');w.className='mob-table-wrap';
+    t.parentNode.insertBefore(w,t);w.appendChild(t);
+  }
+  function scanTables(){document.querySelectorAll('#root table').forEach(wrapTable);}
+  // Run after React renders + on DOM changes
+  setTimeout(scanTables,500);
+  var obs=new MutationObserver(function(){setTimeout(scanTables,100);});
+  obs.observe(document.getElementById('root'),{childList:true,subtree:true});
+})();
+
+// ═══ PWA: Service Worker registered in React useEffect ═══
+</script></body></html>
