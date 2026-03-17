@@ -762,7 +762,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.2.5-supabase-2026-03-17";
+const APP_VERSION="3.2.6-supabase-2026-03-17";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -1032,7 +1032,7 @@ const NOTIF_TYPES={
 const NOTIF_CATS={projekte:{l:"Projekte",i:"🏗️"},arbeitsscheine:{l:"Arbeitsscheine",i:"📋"},urlaub:{l:"Urlaub",i:"🏖️"},werkzeuge:{l:"Werkzeuge",i:"🔧"},kunden:{l:"Kundenportal",i:"👤"},system:{l:"System",i:"⚙️"}};
 
 // ═══════════ SYNC / NETZWERK ═══════════
-const SYNC_MODES={auto:{l:"Automatisch (WLAN)",i:"📶",desc:"Sync wenn im Firmen-WLAN"},manual:{l:"Manuell",i:"🔘",desc:"Nur bei Sync-Button"},always:{l:"Immer",i:"🌐",desc:"Auch über Mobilfunk"}};
+const SYNC_MODES={auto:{l:"Automatisch (WLAN)",i:"📶",desc:"Sync wenn online im WLAN"},manual:{l:"Manuell",i:"🔘",desc:"Nur bei Sync-Button"},always:{l:"Immer",i:"🌐",desc:"Auch über Mobilfunk"}};
 
 // ═══════════ SERVER-DATEISTRUKTUR (\\srvdc02\Projekte) ═══════════
 const SRV_FOLDERS=[
@@ -1528,6 +1528,10 @@ function KundenPortal({project:p,forms,setForms,onClose}){
   const maengel=(forms.maengel||[]).filter(m=>m.pid===p.id);
   const kundeMaengel=maengel.filter(m=>m.melder==="Kunde");
   const cls=(forms.checklisten||[]).filter(c=>c.pid===p.id);
+  const [defectPhotos,setDefectPhotos]=_react.useState.call(void 0, {});
+  // Load photos from server for customer defects
+  _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;(async()=>{const pm={};for(const m of maengel){try{const ph=await API.getPhotos("defect",m.id);if(ph&&ph.length)pm[m.id]=ph.map(x=>x.data_url||x.file_path).filter(Boolean);}catch(e){}}if(Object.keys(pm).length)setDefectPhotos(pm);})();},[maengel.length]);
+  const getDefectPhotos=(m)=>{const local=(m.photos||[]).map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
   const sc=(ST_CFG||{})[p.status]||(ST_CFG||{}).aktiv||{l:"Aktiv",c:"#22c55e",bg:"#22c55e18",i:"🟢"};
   const docs=(forms.kundenDocs||[]).filter(d=>d.pid===p.id);
   const offeneMaengel=kundeMaengel.filter(m=>m.kundeStatus!=="abgenommen"&&m.kundeStatus!=="abgelehnt").length;
@@ -1669,7 +1673,7 @@ function KundenPortal({project:p,forms,setForms,onClose}){
               , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
                 , React.createElement('div', { style: {flex:1,minWidth:0}}
                   , React.createElement('div', { style: {fontSize:14,fontWeight:600,marginBottom:2}}, m.name)
-                  , React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(m.date), m.ort?" · "+m.ort:"")
+                  , React.createElement('div', { style: {fontSize:11,color:V.dm}}, fdt(m.date), m.ort?" · "+m.ort:"", (()=>{const pc=getDefectPhotos(m).length;return pc>0?" · 📷"+pc:"";})())
                 )
                 , React.createElement('div', { style: {padding:"4px 10px",borderRadius:6,background:ks.c+"18",color:ks.c,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}, ks.i, " " , ks.l)
               )
@@ -1683,7 +1687,7 @@ function KundenPortal({project:p,forms,setForms,onClose}){
                   , m.reviewNote&&React.createElement('span', { style: {color:V.dm}}, "Rückmeldung"), m.reviewNote&&React.createElement('span', { style: {fontStyle:"italic",color:m.kundeStatus==="abgelehnt"?"#ef4444":"#3b82f6"}}, "\"" , m.reviewNote, "\"" )
                   , m.zugewiesen&&React.createElement('span', { style: {color:V.dm}}, "Techniker"), m.zugewiesen&&React.createElement('span', {}, _optionalChain([MONT, 'access', _17f => _17f.find, 'call', _17g => _17g(w=>w.id===m.zugewiesen), 'optionalAccess', _17h => _17h.vorname])||_optionalChain([MONT, 'access', _17i => _17i.find, 'call', _17j => _17j(w=>w.id===m.zugewiesen), 'optionalAccess', _17k => _17k.n])||"Zugewiesen")
                 )
-                , (m.photos||[]).length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}, m.photos.map((ph,i)=>React.createElement('div', { key: i, style: {width:80,height:80,borderRadius:6,overflow:"hidden"}}, React.createElement('img', { src: ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ))))
+                , (()=>{const allPh=getDefectPhotos(m);return allPh.length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}, allPh.map((ph,i)=>React.createElement('div', { key: i, style: {width:80,height:80,borderRadius:6,overflow:"hidden",cursor:"pointer"}, onClick: e=>{e.stopPropagation();window.open(ph,"_blank");}}, React.createElement('img', { src: ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ))));})()
                 , (m.kundeStatus==="behoben")&&(React.createElement('button', { onClick: e=>{e.stopPropagation();kundeAbnahme(m.id);}, style: {padding:"10px 24px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}, "✅ Abnahme bestätigen — Mangel ist behoben"       ))
               ))
             ));
@@ -1823,7 +1827,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         )
         , React.createElement('div', { style: {textAlign:"center",fontSize:11,color:V.mt,marginTop:12}}
           , !navigator.onLine&&React.createElement('div', { style: {color:"#f97316",fontWeight:600,marginBottom:4}}, "📡 Offline — Login nur mit zuletzt gespeichertem Benutzer"        )
-          , React.createElement('div', { style: {color:V.dm,marginTop:4}}, "Demo: " , React.createElement('b', {}, "admin"), " / "  , React.createElement('b', {}, "demo"), " oder "  , React.createElement('b', {}, "barger"), " / "  , React.createElement('b', {}, "demo"))
+          , React.createElement('div', { style: {color:V.dm,marginTop:4,fontSize:12}}, "Zugang über Administrator anfragen")
           , React.createElement('button', { onClick: ()=>setShowPwReset(true), style: {background:"none",border:"none",color:V.dm,fontSize:11,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline",marginTop:8}}, "🔑 Passwort vergessen?"  )
         )
         , showPwReset&&(React.createElement('div', { style: {marginTop:12,padding:14,background:V.bg,borderRadius:8,textAlign:"left"}}
@@ -1948,7 +1952,10 @@ function LoginScreen({onLogin,onPortal,projects}){
           const data=await API.me();
           _fixAdminName(data.user);
           setCurUser(data.user);
-          setAppLoading(false);return;
+          setAppLoading(false);
+          // ═ Auto-refresh user role from DB (fixes stale ODB cache) ═
+          if(data.user&&data.user.id){try{const fresh=await _sbGet("users","id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
+          return;
         }catch(e){
           // Token expired or server unreachable — try offline
           try{const u=await ODB.get("meta","lastUser");if(u){
@@ -2157,7 +2164,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         const cnt=await SQ.count();
         setPendingCount(cnt);
         setSyncStatus(p=>({...p,syncing:false,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));
-        if(queue.length>0&&cnt<queue.length){const synced=queue.length-cnt;_optionalChain([window, 'access', _56 => _56.__toast, 'optionalCall', _57 => _57("🔄 "+synced+" Änderung"+(synced>1?"en":"")+" synchronisiert")]);pushNotif("system","Sync abgeschlossen",synced+" Änderung"+(synced>1?"en":"")+" hochgeladen"+(cnt>0?", "+cnt+" ausstehend":""),[_optionalChain([curUser, 'optionalAccess', _58 => _58.id])]);}
+        if(queue.length>0&&cnt<queue.length){const synced=queue.length-cnt;_optionalChain([window, 'access', _56 => _56.__toast, 'optionalCall', _57 => _57("🔄 "+synced+" Änderung"+(synced>1?"en":"")+" synchronisiert")]);}
         // Offline-Fotos hochladen
         try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _56b => _56b.__toast, 'optionalCall', _57b => _57b("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(pe){}      } else {
         setSyncStatus(p=>({...p,syncing:false}));
@@ -2500,11 +2507,10 @@ function LoginScreen({onLogin,onPortal,projects}){
                 })
               )
             )
-            /* Footer: VPN + Polling hint */
+            /* Footer: Connection status */
             , React.createElement('div', { style: {padding:"10px 16px",borderTop:"1px solid "+V.bd,fontSize:10,color:V.dm}}
-              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4,marginBottom:2}}, React.createElement('span', {}, "🔒"), " VPN: "  , syncStatus.connected?"Verbunden":"Nicht verbunden")
-              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4,marginBottom:2}}, React.createElement('span', {}, "📡"), " Polling: Alle 60s auf neue Mängel/Änderungen prüfen"      )
-              , React.createElement('div', {}, "WireGuard → \"Immer aktiv\" in den Android/iOS Einstellungen für Auto-VPN"         )
+              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4,marginBottom:2}}, React.createElement('span', {}, syncStatus.connected?"🟢":"🔴"), " Supabase: " , syncStatus.connected?"Verbunden":"Offline")
+              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('span', {}, "📡"), " Polling: Alle 60s auf Änderungen prüfen"    )
             )
           ))
           , showNotifPanel&&React.createElement('div', { onClick: ()=>setShowNotifPanel(false), style: {position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:199}} )
@@ -3773,36 +3779,33 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs}){
           ))
         )
 
-        /* VPN Config */
+        /* Sync-Konfiguration */
         , React.createElement('div', { style: {...CC(),marginTop:14}}
-          , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:4}}, "🔒 VPN & Sync Konfiguration"    )
-          , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 14px"}}, "WireGuard Auto-VPN und Sync-Modus"   )
+          , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:4}}, "☁️ Sync-Konfiguration"  )
+          , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 14px"}}, "Daten werden automatisch mit Supabase synchronisiert"   )
           , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:14}}
             , React.createElement('div', { style: {padding:14,borderRadius:8,background:V.bg,border:"1px solid "+V.bd}}
-              , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#22c55e",marginBottom:8}}, "📶 WLAN Auto-Sync"  )
-              , React.createElement('p', { style: {fontSize:11,color:V.dm,margin:0}}, "Synct automatisch im Firmen-WLAN. Kein manuelles Sync nötig."       )
+              , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#22c55e",marginBottom:8}}, "📶 Auto-Sync"  )
+              , React.createElement('p', { style: {fontSize:11,color:V.dm,margin:0}}, "Änderungen werden automatisch synchronisiert wenn online."     )
             )
             , React.createElement('div', { style: {padding:14,borderRadius:8,background:V.bg,border:"1px solid "+V.bd}}
-              , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#f97316",marginBottom:8}}, "📱 Mobilfunk (Opt-In)"  )
-              , React.createElement('p', { style: {fontSize:11,color:V.dm,margin:0}}, "Über Mobilfunk nur per Sync-Button. Schont Datenvolumen."      )
+              , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#f97316",marginBottom:8}}, "📴 Offline-Modus"  )
+              , React.createElement('p', { style: {fontSize:11,color:V.dm,margin:0}}, "Offline-Änderungen werden lokal gespeichert und bei Verbindung synchronisiert."       )
             )
             , React.createElement('div', { style: {padding:14,borderRadius:8,background:V.bg,border:"1px solid "+V.bd}}
-              , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#8b5cf6",marginBottom:8}}, "🔒 VPN Always-On"  )
-              , React.createElement('p', { style: {fontSize:11,color:V.dm,margin:0}}, "WireGuard \"Always-On VPN\" pro Handy aktivieren."     )
+              , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#3b82f6",marginBottom:8}}, "📡 Polling (60s)"  )
+              , React.createElement('p', { style: {fontSize:11,color:V.dm,margin:0}}, "Neue Mängel und Statusänderungen werden alle 60 Sekunden geprüft."       )
             )
           )
         )
 
-        /* DB Info */
+        /* System-Info */
         , React.createElement('div', { style: {...CC(),marginTop:14}}
           , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:10}}, "🗃️ System-Info" )
           , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10,fontSize:12}}
-            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Version"), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "v2.9.4"))
-            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "DB Tabellen" ), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "28"))
-            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "API Routes" ), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "89"))
-            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Sync-Queue"), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "62 Operationen" ))
-            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Toast-Feedback"), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "37 Meldungen" ))
-            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Audit-Log"), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "Auto-Track"))
+            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Version"), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "v", APP_VERSION))
+            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Backend" ), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "Supabase"))
+            , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:10}}, "Hosting" ), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "GitHub Pages"))
           )
         )
       ))
@@ -8211,7 +8214,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     {id:"bh4",fahrer:"Schmid",vonDat:"2025-11-15",vonUhr:"08:00",bisDat:"2025-11-29",bisUhr:"17:00",grund:"krank",ort:"Kirchberg",erstellt:"2025-11-15"},
     {id:"bh5",fahrer:"Paschinger",vonDat:"2025-10-20",vonUhr:"00:00",bisDat:"2025-11-10",bisUhr:"24:00",grund:"andere",ort:"Kirchberg",erstellt:"2025-10-20"}
   ]);
-  // [REMOVED: duplicate addTermin — see line ~8068 for correct version]
+
 
   // KPIs
   const aktiv=fahrzeuge.filter(f=>f.status!=="stillgelegt").length;
