@@ -1,4 +1,4 @@
-// EP Kolar Service Worker v3.3.0
+h// EP Kolar Service Worker v3.3.1
 const CACHE_NAME = 'epkolar-v3.3.0';
 const ASSETS = [
   './',
