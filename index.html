@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.3.6';
+  var SW_VER='epkolar-v3.3.7';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -742,8 +742,8 @@ window.API = (function() {
       if(!valid)throw new Error("Falsches Passwort");
       try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){}
       try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:navigator.userAgent||""});}catch(e){}
-      const perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];
-      const _po=user.perms_override||user.permsOverride;const _poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;
+      let perms=[];try{perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];}catch(e){perms=[];}
+      const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:user.email||'',permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
       _user=userData;
       try{localStorage.setItem('epkolar_user',JSON.stringify(userData));localStorage.setItem('epkolar_token','supabase-session');}catch(e){}
@@ -783,7 +783,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.3.6-supabase";
+const APP_VERSION="3.3.7-supabase";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -2018,7 +2018,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           ODB.load("arbeitsscheine"),ODB.load("werkzeuge"),ODB.load("monteure"),
           ODB.load("projects"),ODB.load("monteurProjekte"),ODB.load("fahrzeuge")
         ]);
-        if(_optionalChain([e, 'optionalAccess', _29 => _29.length])) setEntries(e.map(x=>{if(x.pid&&x.p&&x.worker&&x.w)return x;const dt=x.datum||x.date||"";const h=parseFloat(x.hours||x.stunden)||0;const wid=x.worker||x.w||"";const pid=x.pid||x.p||"";return{...x,p:pid,pid:pid,w:wid,worker:wid,date:dt,datum:dt,hours:h,stunden:h,taetigkeit:x.taetigkeit||x.task||""};}));
+        if(_optionalChain([e, 'optionalAccess', _29 => _29.length])) setEntries(e.map(x=>{if(x.pid&&x.p&&x.worker&&x.w)return x;const dt=x.datum||x.date||"";const h=parseFloat(x.hours||x.stunden)||0;const wid=x.worker||x.w||"";const pid=x.pid||x.p||"";return{...x,p:pid,pid:pid,w:wid,worker:wid,date:dt,datum:dt,hours:h,stunden:h,taetigkeit:x.taetigkeit||x.task||"",bemerkung:x.bemerkung||x.description||"",arbeitsschein_id:x.arbeitsschein_id||""};}));
         if(f&&Object.keys(f).length) setForms(prev=>({...prev,...f}));
         if(a&&Object.keys(a).length) setAbs(a);
         if(aa&&Object.keys(aa).length) setAbsApprovals(aa);
@@ -2760,8 +2760,8 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   const _wmTimer=_react.useRef.call(void 0, {});
   const updMonteur=(id,f,v)=>{setMonteure(prev=>prev.map(m=>m.id===id?{...m,[f]:v}:m));const k=id+"_"+f;if(_wmTimer.current[k])clearTimeout(_wmTimer.current[k]);_wmTimer.current[k]=setTimeout(()=>{const apiField=f==="n"?"name":f==="r"?"role":f==="tel"?"phone":f;SQ.push({url:"/api/workers/"+id,method:"PUT",body:{[apiField]:v}});delete _wmTimer.current[k];},800);};
   const addMonteur=()=>{if(!nf.n)return;const id=uid();setMonteure(prev=>[...prev,{id,n:nf.n,vorname:nf.vorname||"",r:nf.r,tel:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}]);setMonteurProjekte(p=>({...p,[id]:[]}));SQ.push({url:"/api/workers",method:"POST",body:{id,name:nf.n,vorname:nf.vorname||"",role:nf.r,phone:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}});_optionalChain([window, 'access', _109 => _109.__toast, 'optionalCall', _110 => _110("✅ Mitarbeiter angelegt")]);setNf({n:"",vorname:"",r:"Techniker",tel:"",email:"",fs:"",gebDat:"",fsNr:"",svnr:"",reisepass:"",eintritt:"",austritt:""});setShowNew(false);};
-  const delMonteur=id=>{if(!confirm("Mitarbeiter wirklich löschen?"))return;setMonteure(prev=>prev.filter(m=>m.id!==id));SQ.push({url:"/api/workers/"+id,method:"DELETE"});const mp={...monteurProjekte};delete mp[id];setMonteurProjekte(mp);if(sel===id)setSel(null);};
-  const toggleProj=(mid,pid)=>{const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte({...monteurProjekte,[mid]:nxt});SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
+  const delMonteur=id=>{if(!confirm("Mitarbeiter wirklich löschen?"))return;setMonteure(prev=>prev.filter(m=>m.id!==id));SQ.push({url:"/api/workers/"+id,method:"DELETE"});setMonteurProjekte(prev=>{const mp={...prev};delete mp[id];return mp;});if(sel===id)setSel(null);};
+  const toggleProj=(mid,pid)=>{const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte(prev=>({...prev,[mid]:nxt}));SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
 
   const selM=monteure.find(m=>m.id===sel);
 
@@ -4905,7 +4905,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte}){
     if(window.__toast)window.__toast("✅ "+_n(h,1)+"h gespeichert");
     setAddDay(null);setAddTaetigkeit("");setAddBemerkung("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddPause(1);
   };
-  const delEntry=(id)=>{SQ.push({url:"/api/entries/"+id,method:"DELETE"});setEntries(prev=>prev.filter(x=>x.id!==id));if(window.__toast)window.__toast("🗑️ Eintrag gelöscht");};
+  const delEntry=(id)=>{if(!confirm("Zeiteintrag wirklich löschen?"))return;SQ.push({url:"/api/entries/"+id,method:"DELETE"});setEntries(prev=>prev.filter(x=>x.id!==id));if(window.__toast)window.__toast("🗑️ Eintrag gelöscht");};
 
   const totalH=pe.reduce((s,e)=>s+(e.stunden||e.hours||0),0);
   const byWorker={};pe.forEach(e=>{const wid=e.worker||e.w||"?";byWorker[wid]=(byWorker[wid]||0)+(e.stunden||e.hours||0);});
@@ -5247,7 +5247,7 @@ function useEditable(forms,setForms,key,pid,defData){
   const load=i=>{setData(JSON.parse(JSON.stringify(saved[i])));setEditIdx(i);};
   const clear=()=>{setData(JSON.parse(JSON.stringify(defData)));setEditIdx(null);};
   const save=()=>{const all=[...(forms[key]||[])];const entry={...data,pid:pid,savedAt:new Date().toLocaleDateString("de-AT")};if(editIdx!==null){const gi=all.indexOf(saved[editIdx]);if(gi>-1){all[gi]=entry;SQ.push({url:"/api/forms/"+entry.id,method:"PUT",body:{form_type:key,project_id:pid,data:entry}});}}else{entry.id=entry.id||uid();all.push(entry);SQ.push({url:"/api/forms",method:"POST",body:{id:entry.id,form_type:key,project_id:pid,data:entry}});}setForms(prev=>({...prev,[key]:all}));_optionalChain([window, 'access', _352 => _352.__toast, 'optionalCall', _353 => _353("✅ Formular gespeichert")]);clear();};
-  const del=i=>{const all=[...(forms[key]||[])];const gi=all.indexOf(saved[i]);if(gi>-1){if(_optionalChain([saved, 'access', _354 => _354[i], 'optionalAccess', _355 => _355.id]))SQ.push({url:"/api/forms/"+saved[i].id,method:"DELETE"});all.splice(gi,1);}setForms(prev=>({...prev,[key]:all}));if(editIdx===i)clear();};
+  const del=i=>{if(!confirm("Eintrag wirklich löschen?"))return;const all=[...(forms[key]||[])];const gi=all.indexOf(saved[i]);if(gi>-1){if(_optionalChain([saved, 'access', _354 => _354[i], 'optionalAccess', _355 => _355.id]))SQ.push({url:"/api/forms/"+saved[i].id,method:"DELETE"});all.splice(gi,1);}setForms(prev=>({...prev,[key]:all}));if(editIdx===i)clear();};
   return {saved,editIdx,data,setData,load,clear,save,del};
 }
 function FormActions({editIdx,save,clear,onPrint}){ return (React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}, React.createElement('button', { onClick: save, style: bpS}, "💾 " , editIdx!==null?"Aktualisieren":"Speichern"), editIdx!==null&&(React.createElement('button', { onClick: clear, style: bsS()}, "Neu")), onPrint&&React.createElement('button', { onClick: onPrint, style: bsS()}, "🖨️ Drucken" ))); }
@@ -5287,7 +5287,7 @@ function FRegie({p,forms,setForms}){
   const loadE=i=>{setD(JSON.parse(JSON.stringify(saved[i])));setEditIdx(i);};
   const clearF=()=>{setD(JSON.parse(JSON.stringify(defD)));setEditIdx(null);};
   const saveE=()=>{const all=[...(forms.regie||[])];const entry={...d,pid:p.id,nr:String(saved.length+1).padStart(3,"0")};if(editIdx!==null){const gi=all.indexOf(saved[editIdx]);if(gi>-1){all[gi]=entry;if(entry.id)SQ.push({url:"/api/forms/"+entry.id,method:"PUT",body:{form_type:"regie",project_id:p.id,data:entry}});}}else{entry.id=entry.id||uid();all.push(entry);SQ.push({url:"/api/forms",method:"POST",body:{id:entry.id,form_type:"regie",project_id:p.id,data:entry}});}setForms(prev=>({...prev,regie:all}));_optionalChain([window, 'access', _356 => _356.__toast, 'optionalCall', _357 => _357("✅ Regiebericht gespeichert")]);clearF();};
-  const delE=i=>{const all=[...(forms.regie||[])];const gi=all.indexOf(saved[i]);if(gi>-1){if(_optionalChain([saved, 'access', _358 => _358[i], 'optionalAccess', _359 => _359.id]))SQ.push({url:"/api/forms/"+saved[i].id,method:"DELETE"});all.splice(gi,1);}setForms(prev=>({...prev,regie:all}));_optionalChain([window, 'access', _360 => _360.__toast, 'optionalCall', _361 => _361("🗑️ Eintrag gelöscht")]);if(editIdx===i)clearF();};
+  const delE=i=>{if(!confirm("Regie-Eintrag wirklich löschen?"))return;const all=[...(forms.regie||[])];const gi=all.indexOf(saved[i]);if(gi>-1){if(_optionalChain([saved, 'access', _358 => _358[i], 'optionalAccess', _359 => _359.id]))SQ.push({url:"/api/forms/"+saved[i].id,method:"DELETE"});all.splice(gi,1);}setForms(prev=>({...prev,regie:all}));_optionalChain([window, 'access', _360 => _360.__toast, 'optionalCall', _361 => _361("🗑️ Eintrag gelöscht")]);if(editIdx===i)clearF();};
   const uP=(i,f,v)=>{const a=[...d.personal];a[i]={...a[i],[f]:v};setD({...d,personal:a});};
   const uM=(i,f,v)=>{const a=[...d.material];a[i]={...a[i],[f]:v};setD({...d,material:a});};
   return (
@@ -5485,7 +5485,7 @@ function VMang({p,forms,setForms,curUser,monteure}){
     newPhotos.forEach(ph=>{if(ph.file)captureAndQueue(ph.file,"defect",mid,p.id,"Mangel-Foto");});
     setName("");setNewPhotos([]);};
   const updSt=(id,st)=>{setForms(prev=>({...prev,maengel:(prev.maengel||[]).map(m=>m.id===id?{...m,status:st}:m)}));SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:st}});};
-  const delM=id=>{setForms(prev=>({...prev,maengel:(prev.maengel||[]).filter(m=>m.id!==id)}));SQ.push({url:"/api/defects/"+id,method:"DELETE"});};
+  const delM=id=>{if(!confirm("Mangel wirklich löschen?"))return;setForms(prev=>({...prev,maengel:(prev.maengel||[]).filter(m=>m.id!==id)}));SQ.push({url:"/api/defects/"+id,method:"DELETE"});};
 
   const reviewAccept=(id)=>{
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"angenommen",zugewiesen:reviewWorker,reviewNote:reviewNote||"Wird bearbeitet",worker:reviewWorker,status:"offen",prio:"hoch"}:m)}));
@@ -5942,7 +5942,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
     reader.readAsDataURL(file);
   };
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(_){}};
-  const delDoc=id=>{setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
+  const delDoc=id=>{if(!confirm("Dokument wirklich löschen?"))return;setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
   const openDoc=d=>{_openFileUrl(d.dataUrl||d.fileUrl,d.fileName||d.name);};
   const moveDoc=(docId,folderId)=>{setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"PUT",body:{folder_id:folderId}});};
 
@@ -6187,10 +6187,10 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   // Auto-save on rows change (debounced 800ms, skip initial load)
   _react.useEffect.call(void 0, ()=>{if(wpInitRef.current){wpInitRef.current=false;return;}if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);wpSaveTimer.current=setTimeout(()=>saveWeek(),800);return()=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);};},[rows]);
 
-  const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;const emptyIdx=rows.findIndex(r=>!r.bvh.trim());if(emptyIdx>=0){setRows(rows.map((r,i)=>i===emptyIdx?{...r,bvh:pn||name,projId:projId||""}:r));}else{setRows([...rows,{id:Date.now(),bvh:pn||name,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}]);}setNv("");setNProjId("");setSa(false);};
-  const clearRow=(id)=>setRows(rows.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));
-  const delRow=(id)=>{const nr=rows.filter(x=>x.id!==id);setRows(padWpRows(nr));};
-  const moveRow=(id,dir)=>{const idx=rows.findIndex(r=>r.id===id);if(idx<0)return;const ni=idx+dir;if(ni<0||ni>=rows.length)return;const nr=[...rows];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];setRows(nr);};
+  const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!r.bvh.trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:pn||name,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:pn||name,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
+  const clearRow=(id)=>setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));
+  const delRow=(id)=>{setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));};
+  const moveRow=(id,dir)=>{setRows(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const ni=idx+dir;if(ni<0||ni>=prev.length)return prev;const nr=[...prev];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];return nr;});};
   const copyWeek=(srcKw)=>{const src=wpHistory[srcKw];if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){alert("KW "+srcKw+" hat keine Einträge");return;}setRows(padWpRows(src.map(r=>({...r,id:Date.now()+Math.random(),z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
 
   // Export helpers
@@ -6329,20 +6329,20 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                 , React.createElement('div', { style: {fontWeight:isEmpty?400:700,fontSize:18,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:isEmpty?V.mt:V.tx}, onDoubleClick: ()=>{if(!isEmpty){setEditRow(r.id);setEditBvh(r.bvh);}}, title: r.bvh||"Klicken zum Benennen"}
                   , editRow===r.id?(isEmpty?(
                     React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}, onClick: e=>e.stopPropagation()}
-                      , React.createElement('select', { autoFocus: true, onChange: e=>{if(e.target.value){const p=projects.find(x=>x.id===e.target.value);if(p){setRows(rows.map(x=>x.id===r.id?{...x,bvh:p.name,projId:p.id}:x));setEditRow(null);}}}, style: {...II(),fontSize:10,padding:"2px 4px",flex:1,minWidth:100}}
+                      , React.createElement('select', { autoFocus: true, onChange: e=>{if(e.target.value){const p=projects.find(x=>x.id===e.target.value);if(p){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:p.name,projId:p.id}:x));setEditRow(null);}}}, style: {...II(),fontSize:10,padding:"2px 4px",flex:1,minWidth:100}}
                         , React.createElement('option', { value: ""}, "📁 Projekt...")
                         , projects.filter(p=>p.status==="aktiv").map(p=>React.createElement('option', { key: p.id, value: p.id}, p.name, " (", p.nr, ")"))
                       )
-                      , React.createElement('input', { value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "oder Freitext...", onKeyDown: e=>{if(e.key==="Enter"&&editBvh.trim()){setRows(rows.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),fontSize:10,padding:"2px 4px",flex:1,minWidth:80}} )
+                      , React.createElement('input', { value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "oder Freitext...", onKeyDown: e=>{if(e.key==="Enter"&&editBvh.trim()){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),fontSize:10,padding:"2px 4px",flex:1,minWidth:80}} )
                       , React.createElement('span', { onClick: ()=>setEditRow(null), style: {cursor:"pointer",fontSize:10,color:"#ef4444",padding:"0 2px"}}, "✕")
                     )
-                  ):(React.createElement('input', { autoFocus: true, value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "BVH / Baustelle eingeben...", onBlur: ()=>{setRows(rows.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}, onKeyDown: e=>{if(e.key==="Enter"){setRows(rows.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),padding:"1px 3px",fontSize:11,fontWeight:600,width:"100%"}} ))):(isEmpty?"":r.bvh)
+                  ):(React.createElement('input', { autoFocus: true, value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "BVH / Baustelle eingeben...", onBlur: ()=>{setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}, onKeyDown: e=>{if(e.key==="Enter"){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),padding:"1px 3px",fontSize:11,fontWeight:600,width:"100%"}} ))):(isEmpty?"":r.bvh)
                 )
                 , proj&&React.createElement('div', { style: {fontSize:9,color:V.ac}}, "📁 " , proj.nr)
               )
               , DSHORT.map(d=>renderCell(r,d))
               , React.createElement('td', { style: {padding:"3px 4px",borderRight:"1px solid "+V.bd,verticalAlign:"top"}, onDoubleClick: ()=>setCellPick({rowId:r.id,day:"b",type:"bem"})}
-                , _optionalChain([cellPick, 'optionalAccess', _512 => _512.rowId])===r.id&&_optionalChain([cellPick, 'optionalAccess', _513 => _513.day])==="b"?(React.createElement('input', { autoFocus: true, value: r.bem, onChange: e=>setRows(rows.map(x=>x.id===r.id?{...x,bem:e.target.value}:x)), onBlur: ()=>setCellPick(null), onKeyDown: e=>e.key==="Enter"&&setCellPick(null), style: {...II(),padding:"4px 6px",fontSize:15}, onClick: e=>e.stopPropagation()} )):(React.createElement('span', { style: {fontSize:15,color:r.bem?"#d97706":V.mt,fontStyle:r.bem?"italic":"normal"}}, r.bem||""))
+                , _optionalChain([cellPick, 'optionalAccess', _512 => _512.rowId])===r.id&&_optionalChain([cellPick, 'optionalAccess', _513 => _513.day])==="b"?(React.createElement('input', { autoFocus: true, value: r.bem, onChange: e=>setRows(prev=>prev.map(x=>x.id===r.id?{...x,bem:e.target.value}:x)), onBlur: ()=>setCellPick(null), onKeyDown: e=>e.key==="Enter"&&setCellPick(null), style: {...II(),padding:"4px 6px",fontSize:15}, onClick: e=>e.stopPropagation()} )):(React.createElement('span', { style: {fontSize:15,color:r.bem?"#d97706":V.mt,fontStyle:r.bem?"italic":"normal"}}, r.bem||""))
               )
               , React.createElement('td', { style: {padding:"2px",textAlign:"center",whiteSpace:"nowrap"}}
                 , !isEmpty&&React.createElement('span', { onClick: ()=>moveRow(r.id,-1), style: {cursor:"pointer",fontSize:9,color:V.dm,padding:"0 1px"}, title: "Hoch"}, "▲")
@@ -6443,7 +6443,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const approve=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt")]);};
   const reject=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"abgelehnt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _561 => _561.name])}});_optionalChain([window, 'access', _562 => _562.__toast, 'optionalCall', _563 => _563("❌ Antrag abgelehnt")]);_optionalChain([pushNotif, 'optionalCall', _564 => _564("absence_approval","❌ Antrag abgelehnt",m+": "+fdt(dk(d))+" abgelehnt")]);};
   const getApproval=(m,d)=>approvals[m+"_"+dk(d)]||"ausstehend";
-  const delEntry=(m,d)=>{const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
+  const delEntry=(m,d)=>{if(!confirm("Abwesenheit wirklich löschen?"))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
   const updateEntry=(key,changes)=>{setAbs(p=>{const c={...p};if(c[key])c[key]={...c[key],...changes};return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(key),method:"PUT",body:changes});setEditEntry(null);_optionalChain([window, 'access', _565a => _565a.__toast, 'optionalCall', _565b => _565b("✏️ Eintrag aktualisiert")]);};
   const bulkApprove=()=>{allEntries.filter(e=>e.approval==="ausstehend").forEach(e=>{setApprovals(p=>({...p,[e.key]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(e.key),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565c => _565c.name])}});});_optionalChain([window, 'access', _565d => _565d.__toast, 'optionalCall', _565e => _565e("✅ Alle genehmigt")]);};
 
@@ -7582,6 +7582,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const deleteEntry=(iso,entryIdx)=>{
     const entry=(dayEntries[iso]||[])[entryIdx];
     if(!entry)return;
+    if(!confirm("Zeiteintrag wirklich löschen?"))return;
     if(entry.id)SQ.push({url:"/api/entries/"+entry.id,method:"DELETE",body:{}});
     // Also remove from global entries
     if(entry.id)setEntries(prev=>prev.filter(x=>x.id!==entry.id));
@@ -8260,7 +8261,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     if(typeof API!=="undefined"&&API.getFzTermine){API.getFzTermine(sel).then(d=>setFzTermine((d||[]).map(t=>({id:t.id,typ:t.typ||"Service",beschreibung:t.beschreibung||"",datum:t.datum||"",erledigt:parseInt(t.erledigt)||0})))).catch(()=>{});}
   },[sel]);
   const addTermin=()=>{if(!terminForm.datum)return;const t={...terminForm,id:uid(),fahrzeug_id:sel};setFzTermine(p=>[t,...p]);SQ.push({url:"/api/fz-termine/"+sel,method:"POST",body:t});setShowAddTermin(false);setTerminForm({typ:"Service",beschreibung:"",datum:td2(),erledigt:0});_optionalChain([window, 'access', _fzt1 => _fzt1.__toast, 'optionalCall', _fzt2 => _fzt2("📅 Service-Termin angelegt")]);};
-  const delTermin=(tid)=>{setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
+  const delTermin=(tid)=>{if(!confirm("Termin wirklich löschen?"))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
   const togTermin=(tid)=>{const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
 
   const upd=(id,fn)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:updated});return updated;}return f;}));};
@@ -8274,7 +8275,6 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       f.kmStand=km;
       return f;
     });
-    SQ.push({url:"/api/fahrzeuge/"+fzId,method:"PUT",body:{kmStand:km}});
     _optionalChain([window, 'access', _633 => _633.__toast, 'optionalCall', _634 => _634("✅ km-Stand aktualisiert")]);
     setKmVal("");setKmNote("");setShowKm(null);
   };
@@ -8303,7 +8303,6 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       if((parseInt(tankKm)||0)>f.kmStand)f.kmStand=parseInt(tankKm)||0;
       return f;
     });
-    SQ.push({url:"/api/fahrzeuge/"+fzId,method:"PUT",body:{tankLog_add:{...data,by:_optionalChain([curUser, 'optionalAccess', _639 => _639.name])||""},kmStand:parseInt(data.km)||0}});
     _optionalChain([window, 'access', _640 => _640.__toast, 'optionalCall', _641 => _641("⛽ Tankung erfasst")]);
     setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
   };
