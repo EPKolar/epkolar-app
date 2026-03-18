@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.4.0';
+  var SW_VER='epkolar-v3.4.1';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -786,7 +786,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.4.0-supabase";
+const APP_VERSION="3.4.1-supabase";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -2753,6 +2753,7 @@ function LoginScreen({onLogin,onPortal,projects}){
 
 // ═══════════ MITARBEITER-VERWALTUNG ═══════════
 function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekte,ww,curUser,projects}){
+  const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const [sel,setSel]=_react.useState.call(void 0, null);
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
   const [nf,setNf]=_react.useState.call(void 0, {n:"",vorname:"",r:"Techniker",tel:"",email:"",fs:"",gebDat:"",fsNr:"",svnr:"",reisepass:"",eintritt:"",austritt:""});
@@ -2761,7 +2762,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   const _wmTimer=_react.useRef.call(void 0, {});
   const updMonteur=(id,f,v)=>{setMonteure(prev=>prev.map(m=>m.id===id?{...m,[f]:v}:m));const k=id+"_"+f;if(_wmTimer.current[k])clearTimeout(_wmTimer.current[k]);_wmTimer.current[k]=setTimeout(()=>{const apiField=f==="n"?"name":f==="r"?"role":f==="tel"?"phone":f;SQ.push({url:"/api/workers/"+id,method:"PUT",body:{[apiField]:v}});delete _wmTimer.current[k];},800);};
   const addMonteur=()=>{if(!nf.n)return;const id=uid();setMonteure(prev=>[...prev,{id,n:nf.n,vorname:nf.vorname||"",r:nf.r,tel:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}]);setMonteurProjekte(p=>({...p,[id]:[]}));SQ.push({url:"/api/workers",method:"POST",body:{id,name:nf.n,vorname:nf.vorname||"",role:nf.r,phone:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}});_optionalChain([window, 'access', _109 => _109.__toast, 'optionalCall', _110 => _110("✅ Mitarbeiter angelegt")]);setNf({n:"",vorname:"",r:"Techniker",tel:"",email:"",fs:"",gebDat:"",fsNr:"",svnr:"",reisepass:"",eintritt:"",austritt:""});setShowNew(false);};
-  const delMonteur=id=>{if(!confirm("Mitarbeiter wirklich löschen?"))return;setMonteure(prev=>prev.filter(m=>m.id!==id));SQ.push({url:"/api/workers/"+id,method:"DELETE"});setMonteurProjekte(prev=>{const mp={...prev};delete mp[id];return mp;});if(sel===id)setSel(null);};
+  const delMonteur=id=>{if(!isAdmin)return;if(!confirm("Mitarbeiter wirklich löschen?"))return;setMonteure(prev=>prev.filter(m=>m.id!==id));SQ.push({url:"/api/workers/"+id,method:"DELETE"});setMonteurProjekte(prev=>{const mp={...prev};delete mp[id];return mp;});if(sel===id)setSel(null);};
   const toggleProj=(mid,pid)=>{const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte(prev=>({...prev,[mid]:nxt}));SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
 
   const selM=monteure.find(m=>m.id===sel);
@@ -2848,6 +2849,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
 
 // ═══════════ ARBEITSSCHEIN-VERWALTUNG (OFFA-Stil) ═══════════
 function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif}){
+  const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
@@ -2892,7 +2894,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     else{setArbeitsscheine(prev=>[{...form,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",form.nummer+" — "+(form.kundName||_optionalChain([form, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+curUser.name+")")]);}
     SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:form});_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(editId?"✅ Schein aktualisiert":"✅ Schein angelegt")]);setSub("liste");setEditId(null);};
   const storno=id=>{setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert"}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{scheinstatus:"storniert"}});const a=arbeitsscheine.find(x=>x.id===id);if(a)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",a.nummer+" — "+a.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
-  const deleteAs=id=>{if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
+  const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{termin_bestaetigt:d}});};
 
   const exportOffa=()=>{if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(()=>{});}
@@ -4494,6 +4496,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 }
 
 function ProjList({onOpen,entries,ww,projects,setProjects,curUser}){
+  const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const [q,setQ]=_react.useState.call(void 0, "");
   const [tab,setTab]=_react.useState.call(void 0, "aktiv");
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
@@ -4525,8 +4528,8 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser}){
     }
     _optionalChain([window, 'access', _292 => _292.__toast, 'optionalCall', _293 => _293(editP?"✅ Projekt aktualisiert":"✅ Projekt angelegt")]);setForm(emptyProj);setEditP(null);setShowNew(false);
   };
-  const archiveP=id=>{const pn=projects.find(p=>p.id===id);if(!confirm("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
-  const deleteP=id=>{const pn=projects.find(p=>p.id===id);if(!confirm("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!"))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
+  const archiveP=id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!confirm("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
+  const deleteP=id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!confirm("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!"))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
   const editProject=p=>{setForm({nr:p.nr||"",name:p.name||"",kunde:p.kunde||"",ort:p.ort||"",plz:p.plz||"",strasse:p.strasse||"",ansprechpartner:p.ansprechpartner||"",telefon:p.telefon||"",emailKunde:p.emailKunde||p.email_kunde||"",status:p.status||"aktiv",type:p.type||"elektro",kundenNr:p.kundenNr||"",matchcode:p.matchcode||"",betrag:p.betrag||0,start:p.start||"",ende:p.ende||"",gewerk:p.gewerk||"",fortschritt:p.fortschritt||0,portalCode:p.portalCode||""});setEditP(p.id);setShowNew(true);};
 
   return (
@@ -5785,6 +5788,7 @@ function TicketListItem({ticket,layers,onClick,selected}){
 }
 
 function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
+  const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const plans=planData.plans.filter(pl=>pl.pid===p.id);const allTickets=planData.tickets.filter(t=>t.pid===p.id);const layers=planData.layers;
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");const [zoom,setZoom]=_react.useState.call(void 0, 1);const [placing,setPlacing]=_react.useState.call(void 0, false);const [newTicket,setNewTicket]=_react.useState.call(void 0, null);const [filterType,setFilterType]=_react.useState.call(void 0, "alle");const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");const [filterLayer,setFilterLayer]=_react.useState.call(void 0, "alle");const [showSidebar,setShowSidebar]=_react.useState.call(void 0, true);const [sideMode,setSideMode]=_react.useState.call(void 0, "tickets");const fileRef=_react.useRef.call(void 0, null);const isMob=ww<600;const isTab=ww<768;
   const [dropActive,setDropActive]=_react.useState.call(void 0, false);
@@ -5794,7 +5798,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const planTickets=allTickets.filter(t=>t.planId===(_optionalChain([selPlan, 'optionalAccess', _378 => _378.id])||""));
   const filteredTickets=planTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;});
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{const isPdf=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf");if(isPdf){const reader=new FileReader();reader.onload=ev=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ev.target.result,width:1200,height:850,isPdf:true,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:new Date().toISOString()};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ev.target.result,width:1200,height:850,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");};reader.readAsDataURL(file);}else{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ph.dataUrl,width:ph.width,height:ph.height,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");}).catch(()=>{});}});try{e.target.value="";}catch(_){}};
-  const deletePlan=id=>{if(!confirm("Plan und alle zugehörigen Tickets löschen?"))return;setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
+  const deletePlan=id=>{if(!isAdmin)return;if(!confirm("Plan und alle zugehörigen Tickets löschen?"))return;setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
   const isPlanFreigegeben=(planId)=>!!(forms.kundenDocs||[]).find(kd=>kd.id==="plan_"+planId);
   const togglePlanFreigabe=(pl)=>{
     const key="plan_"+pl.id;const isFrei=isPlanFreigegeben(pl.id);
@@ -5875,6 +5879,7 @@ const DOC_CATS=[
   {id:"sonstiges",l:"📎 Sonstiges",c:"#71717a"}
 ];
 function VDoku({p,ww,curUser,forms,setForms}){
+  const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const [docs,setDocs]=_react.useState.call(void 0, []);
   const [folders,setFolders]=_react.useState.call(void 0, []);
   const [curFolder,setCurFolder]=_react.useState.call(void 0, null);
@@ -5925,6 +5930,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
     setEditFolderId(null);setEditFolderName("");
   };
   const delFolder=(id)=>{
+    if(!isAdmin)return;
     if(!confirm("Ordner löschen? Dateien werden in 'Ohne Ordner' verschoben."))return;
     setDocs(prev=>prev.map(d=>d.folderId===id?{...d,folderId:""}:d));
     setFolders(prev=>prev.filter(f=>f.id!==id));
@@ -5945,7 +5951,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
     reader.readAsDataURL(file);
   };
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(_){}};
-  const delDoc=id=>{if(!confirm("Dokument wirklich löschen?"))return;setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
+  const delDoc=id=>{if(!isAdmin)return;if(!confirm("Dokument wirklich löschen?"))return;setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
   const openDoc=d=>{_openFileUrl(d.dataUrl||d.fileUrl,d.fileName||d.name);};
   const moveDoc=(docId,folderId)=>{setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"PUT",body:{folder_id:folderId}});};
 
@@ -6070,8 +6076,49 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const [loading,setLoading]=_react.useState.call(void 0, true);
   const WETTER=[{id:"sonnig",l:"☀️ Sonnig"},{id:"bewoelkt",l:"☁️ Bewölkt"},{id:"regen",l:"🌧️ Regen"},{id:"schnee",l:"❄️ Schnee"},{id:"nebel",l:"🌫️ Nebel"},{id:"sturm",l:"⛈️ Sturm/Gewitter"},{id:"frost",l:"🥶 Frost"}];
   const wetterLabel=id=>{const w=WETTER.find(x=>x.id===id);return w?w.l:id||"—";};
+  // WMO weather code → wetter id mapping
+  const _wmoToWetter=code=>{if(code===null||code===undefined)return"sonnig";const c=parseInt(code);if(c<=1)return"sonnig";if(c<=3)return"bewoelkt";if(c>=45&&c<=48)return"nebel";if((c>=51&&c<=67)||(c>=80&&c<=82))return"regen";if((c>=71&&c<=77)||(c>=85&&c<=86))return"schnee";if(c>=95)return"sturm";return"bewoelkt";};
+
+  // Auto-fill: get workers, tasks, weather for a given date
+  const getWorkersForDay=(datum)=>{
+    if(!entries||!entries.length)return[];
+    const dayE=entries.filter(e=>e.p===p.id&&(e.datum||e.date||"").split("T")[0]===datum);
+    return[...new Set(dayE.map(e=>e.w||e.worker||e.worker_id).filter(Boolean))];
+  };
+  const getTasksForDay=(datum)=>{
+    if(!entries||!entries.length)return"";
+    const dayE=entries.filter(e=>e.p===p.id&&(e.datum||e.date||"").split("T")[0]===datum);
+    const tasks=[...new Set(dayE.map(e=>(e.taetigkeit||e.task||"").trim()).filter(Boolean))];
+    return tasks.join("\n");
+  };
+  const autoFillFromEntries=(datum)=>{
+    const workers=getWorkersForDay(datum);
+    const tasks=getTasksForDay(datum);
+    setForm(prev=>({...prev,anwesende:workers.length?workers:prev.anwesende,taetigkeiten:tasks||prev.taetigkeiten}));
+  };
+
+  // Auto-fill weather from open-meteo (Kirchberg am Wagram fallback)
+  const autoFillWeather=(datum)=>{
+    const lat=48.46;const lon=15.74; // Kirchberg am Wagram
+    const today=td2();
+    const url=datum===today
+      ?"https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,weather_code&timezone=Europe%2FVienna"
+      :"https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Europe%2FVienna&start_date="+datum+"&end_date="+datum;
+    fetch(url).then(r=>r.json()).then(d=>{
+      if(datum===today&&d.current){
+        setForm(prev=>({...prev,wetter:_wmoToWetter(d.current.weather_code),temperatur:String(Math.round(d.current.temperature_2m||0))}));
+      }else if(d.daily&&d.daily.weather_code&&d.daily.weather_code[0]!==undefined){
+        const tMax=d.daily.temperature_2m_max?d.daily.temperature_2m_max[0]:null;
+        const tMin=d.daily.temperature_2m_min?d.daily.temperature_2m_min[0]:null;
+        const avg=tMax!==null&&tMin!==null?Math.round((tMax+tMin)/2):"";
+        setForm(prev=>({...prev,wetter:_wmoToWetter(d.daily.weather_code[0]),temperatur:String(avg)}));
+      }
+    }).catch(()=>{});
+  };
+
   const defForm={datum:td2(),wetter:"sonnig",temperatur:"",anwesende:[],taetigkeiten:"",besonderheiten:"",material:""};
   const [form,setForm]=_react.useState.call(void 0, {...defForm});
+  const startNewEntry=()=>{const d=td2();const workers=getWorkersForDay(d);const tasks=getTasksForDay(d);setForm({...defForm,anwesende:workers,taetigkeiten:tasks});setEditing("new");autoFillWeather(d);};
 
   // Load from Supabase + ODB
   _react.useEffect.call(void 0, ()=>{
@@ -6158,14 +6205,6 @@ function VBautag({p,curUser,monteure,ww,entries}){
   // Sorted for display
   const sorted=[...btEntries].sort((a,b)=>b.datum.localeCompare(a.datum));
 
-  // Time entries for the day (auto-detect workers)
-  const getWorkersForDay=(datum)=>{
-    if(!entries||!entries.length)return[];
-    const dayEntries=entries.filter(e=>e.p===p.id&&(e.datum||e.date||"").split("T")[0]===datum);
-    const wids=[...new Set(dayEntries.map(e=>e.w||e.worker||e.worker_id).filter(Boolean))];
-    return wids;
-  };
-
   // ─── RENDER ───
   if(loading)return React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Bautagebuch wird geladen...");
 
@@ -6188,7 +6227,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
           , React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}
             , (monteure||MONT).map(w=>React.createElement('button', { key: w.id, onClick: ()=>toggleWorker(w.id), style: {padding:"6px 12px",borderRadius:16,border:"2px solid "+(form.anwesende.includes(w.id)?V.ac:V.bd),background:form.anwesende.includes(w.id)?"rgba(0,150,64,.12)":"transparent",color:form.anwesende.includes(w.id)?V.ac:V.fg,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.anwesende.includes(w.id)?700:400,transition:"all .15s"}}, w.vorname||w.n))
           )
-          , React.createElement('button', { onClick: ()=>{const auto=getWorkersForDay(form.datum);if(auto.length)setForm(prev=>({...prev,anwesende:auto}));}, style: {marginTop:6,border:"none",background:"transparent",color:V.ac,fontSize:11,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}, "🔄 Aus Zeiterfassung übernehmen")
+          , React.createElement('button', { onClick: ()=>{autoFillFromEntries(form.datum);autoFillWeather(form.datum);}, style: {marginTop:6,border:"none",background:"transparent",color:V.ac,fontSize:11,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}, "🔄 Aus Zeiterfassung übernehmen")
         )
         , React.createElement('div', { style: {marginBottom:14}}, React.createElement('label', { style: LL()}, "Tätigkeiten *"), React.createElement('textarea', { value: form.taetigkeiten, onChange: e=>setForm(prev=>({...prev,taetigkeiten:e.target.value})), rows: 5, style: {...II(),resize:"vertical",minHeight:80}, placeholder: "Beschreibung der durchgeführten Arbeiten..."} ))
         , React.createElement('div', { style: {marginBottom:14}}, React.createElement('label', { style: LL()}, "Material / Verbrauch"), React.createElement('textarea', { value: form.material, onChange: e=>setForm(prev=>({...prev,material:e.target.value})), rows: 3, style: {...II(),resize:"vertical",minHeight:50}, placeholder: "Verwendetes Material, Lieferungen..."} ))
@@ -6207,7 +6246,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
       , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4,flexWrap:"wrap",gap:8}}
         , React.createElement('h2', { style: {fontSize:20,fontWeight:800,margin:0}}, "📋 Bautagebuch")
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
-          , React.createElement('button', { onClick: ()=>{setForm({...defForm});setEditing("new");}, style: bpS}, "➕ Neuer Eintrag")
+          , React.createElement('button', { onClick: startNewEntry, style: bpS}, "➕ Neuer Eintrag")
           , btEntries.length>0&&React.createElement('button', { onClick: exportXls, style: xBtn("xls")}, "📊 Excel")
           , btEntries.length>0&&React.createElement('button', { onClick: exportTxt, style: xBtn("txt")}, "📄 TXT")
         )
@@ -6217,7 +6256,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
         , React.createElement('div', { style: {fontSize:48,marginBottom:12}}, "📋")
         , React.createElement('div', { style: {fontSize:14,fontWeight:600,marginBottom:6}}, "Noch keine Einträge")
         , React.createElement('div', { style: {fontSize:12}}, "Erstellen Sie den ersten Tagesbericht für dieses Projekt.")
-        , React.createElement('button', { onClick: ()=>{setForm({...defForm});setEditing("new");}, style: {...bpS,marginTop:12}}, "➕ Neuer Eintrag")
+        , React.createElement('button', { onClick: startNewEntry, style: {...bpS,marginTop:12}}, "➕ Neuer Eintrag")
       ))
       , sorted.map(e=>{
         const wNames=(e.anwesende||[]).map(wid=>{const w=(monteure||MONT).find(m=>m.id===wid);return w?(w.vorname||w.n):wid;});
@@ -8372,7 +8411,7 @@ ${dayRowsHtml}
 // ═══════════ WERKZEUG-VERWALTUNG (HILTI ON!Track Style) ═══════════
 function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const isMob=ww<600;
-  const isVAdmin=_optionalChain([curUser, 'optionalAccess', _620 => _620.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _621 => _621.username])==="pinger";
+  const isVAdmin=_optionalChain([curUser, 'optionalAccess', _620 => _620.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _621 => _621.role])==="projektleiter"||_optionalChain([curUser, 'optionalAccess', _621b => _621b.username])==="pinger";
   const [sel,setSel]=_react.useState.call(void 0, null);
   const [view,setView]=_react.useState.call(void 0, "liste");
   const [showAdd,setShowAdd]=_react.useState.call(void 0, false);
@@ -8447,11 +8486,11 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     if(typeof API!=="undefined"&&API.getFzTermine){API.getFzTermine(sel).then(d=>setFzTermine((d||[]).map(t=>({id:t.id,typ:t.typ||"Service",beschreibung:t.beschreibung||"",datum:t.datum||"",erledigt:parseInt(t.erledigt)||0})))).catch(()=>{});}
   },[sel]);
   const addTermin=()=>{if(!terminForm.datum)return;const t={...terminForm,id:uid(),fahrzeug_id:sel};setFzTermine(p=>[t,...p]);SQ.push({url:"/api/fz-termine/"+sel,method:"POST",body:t});setShowAddTermin(false);setTerminForm({typ:"Service",beschreibung:"",datum:td2(),erledigt:0});_optionalChain([window, 'access', _fzt1 => _fzt1.__toast, 'optionalCall', _fzt2 => _fzt2("📅 Service-Termin angelegt")]);};
-  const delTermin=(tid)=>{if(!confirm("Termin wirklich löschen?"))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
+  const delTermin=(tid)=>{if(!isVAdmin)return;if(!confirm("Termin wirklich löschen?"))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
   const togTermin=(tid)=>{const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
 
   const upd=(id,fn)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:updated});return updated;}return f;}));};
-  const del=(id)=>{if(!confirm("Fahrzeug wirklich löschen?"))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
+  const del=(id)=>{if(!isVAdmin)return;if(!confirm("Fahrzeug wirklich löschen?"))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
 
   const addKm=(fzId)=>{
     if(!kmVal)return;
@@ -9322,7 +9361,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     else{setWerkzeuge(p=>[{...form},...p]);SQ.push({url:"/api/werkzeuge",method:"POST",body:form});_optionalChain([window, 'access', _754 => _754.__toast, 'optionalCall', _755 => _755("✅ Werkzeug angelegt — Inventar-Nr: "+form.inventarnr)]);}
     setSub("liste");setEditId(null);
   };
-  const del=id=>{if(confirm("Werkzeug wirklich löschen?")){setWerkzeuge(p=>p.filter(w=>w.id!==id));SQ.push({url:"/api/werkzeuge/"+id,method:"DELETE"});_optionalChain([window, 'access', _756 => _756.__toast, 'optionalCall', _757 => _757("🗑️ Werkzeug gelöscht")]);setSub("liste");}};
+  const del=id=>{if(!isAdmin)return;if(confirm("Werkzeug wirklich löschen?")){setWerkzeuge(p=>p.filter(w=>w.id!==id));SQ.push({url:"/api/werkzeuge/"+id,method:"DELETE"});_optionalChain([window, 'access', _756 => _756.__toast, 'optionalCall', _757 => _757("🗑️ Werkzeug gelöscht")]);setSub("liste");}};
   const checkout=(id,monteurId,projektId)=>{const w=werkzeuge.find(x=>x.id===id);setWerkzeuge(p=>p.map(w=>w.id===id?{...w,status:"ausgegeben",zugewiesen:monteurId,projekt:projektId||"",standort:"Baustelle"}:w));SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:{status:"ausgegeben",zugewiesen:monteurId,projekt:projektId||"",standort:"Baustelle"}});_optionalChain([window, 'access', _758 => _758.__toast, 'optionalCall', _759 => _759("📤 Werkzeug ausgegeben")]);_optionalChain([pushNotif, 'optionalCall', _760 => _760("tool_checkout","📤 Werkzeug ausgegeben",(_optionalChain([w, 'optionalAccess', _761 => _761.name])||"Gerät")+" → "+_optionalChain([monteure, 'access', _762 => _762.find, 'call', _763 => _763(m=>m.id===monteurId), 'optionalAccess', _764 => _764.n]))]);};
   const checkin=id=>{const w=werkzeuge.find(x=>x.id===id);setWerkzeuge(p=>p.map(w=>w.id===id?{...w,status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}:w));SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:{status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}});_optionalChain([window, 'access', _765 => _765.__toast, 'optionalCall', _766 => _766("📥 Werkzeug zurück im Lager")]);_optionalChain([pushNotif, 'optionalCall', _767 => _767("tool_checkout","📥 Werkzeug zurück",(_optionalChain([w, 'optionalAccess', _768 => _768.name])||"Gerät")+" zurück ins Lager")]);};
 
