@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.4.1';
+  var SW_VER='epkolar-v3.4.2';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -203,14 +203,26 @@ html { overscroll-behavior-y: contain; }
     document.getElementById("ep-boot-indicator").innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ Ladefehler</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:320px">React/ReactDOM konnte nicht geladen werden.<br>Bitte Internet prüfen und Seite neu laden.</div><button onclick="if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Cache leeren &amp; Neu laden</button><div style="font-size:9px;color:#555;margin-top:8px">React: '+(typeof React)+' | ReactDOM: '+(typeof ReactDOM)+'</div>';
     throw new Error("CDN not loaded");
   }
-  /* Boot watchdog: if root is still empty after 12s, show diagnostic */
+  /* Boot watchdog: if root is still empty after 8s, AUTO-HEAL */
   setTimeout(function(){
     var root=document.getElementById("root");
     var boot=document.getElementById("ep-boot-indicator");
     if(root&&!root.firstChild&&boot){
-      boot.innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ App startet nicht</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:340px">Die App konnte nicht initialisiert werden.<br>Errors: '+(window.__EP_ERRORS||[]).map(function(e){return e.msg}).join("; ")+'</div><button onclick="localStorage.clear();if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Alles zurücksetzen &amp; Neu laden</button>';
-    }
-  },12000);
+      var retries=parseInt(sessionStorage.getItem("epk_boot_retry")||"0");
+      if(retries<2){
+        /* Auto-heal: nuke caches and reload */
+        sessionStorage.setItem("epk_boot_retry",String(retries+1));
+        localStorage.removeItem("epk_sw_ver");
+        if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});
+        if('caches' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+        boot.innerHTML='<div style="font-size:14px;color:#f97316;margin-bottom:8px">🔄 Cache wird repariert...</div><div style="font-size:11px;color:#999">Automatischer Neustart (Versuch '+(retries+1)+'/2)</div>';
+        setTimeout(function(){location.reload(true)},1500);
+      }else{
+        sessionStorage.removeItem("epk_boot_retry");
+        boot.innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ App startet nicht</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:340px">Die App konnte nicht initialisiert werden.<br>Errors: '+(window.__EP_ERRORS||[]).map(function(e){return e.msg}).join("; ")+'</div><button onclick="localStorage.clear();sessionStorage.clear();if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});indexedDB.databases().then(function(d){d.forEach(function(x){indexedDB.deleteDatabase(x.name)})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Alles zurücksetzen &amp; Neu laden</button>';
+      }
+    }else{sessionStorage.removeItem("epk_boot_retry");}
+  },8000);
 })();
 </script>
 <script>
@@ -786,7 +798,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.4.1-supabase";
+const APP_VERSION="3.4.2-supabase";
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -1283,6 +1295,13 @@ function hasPerm(user,mod){
   if(user.permsOverride && user.permsOverride[mod]===false) return false;
   if(user.permsOverride && user.permsOverride[mod]===true) return true;
   return role.modules.includes(mod);
+}
+function canDo(action,user,ownerId){
+  if(!user)return false;const r=user.role;const isA=r==="admin";const isPL=r==="projektleiter";const isM=r==="monteur";const isOwn=!!ownerId&&(ownerId===user.monteurId||ownerId===user.name||ownerId===user.id);
+  const m={proj_create:isA||isPL,proj_delete:isA,proj_archive:isA,worker_create:isA,worker_delete:isA,worker_edit:isA,user_manage:isA,as_create:isA||isPL||isM,as_delete:isA||isPL,fz_create:isA||isPL,fz_delete:isA||isPL,fz_edit:isA||isPL,wz_create:isA,wz_delete:isA,wz_edit:isA,plan_create:isA||isPL,plan_delete:isA,ticket_create:isA||isPL,doc_upload:isA||isPL||isM,doc_delete:isA||isPL,folder_delete:isA||isPL,zeit_other:isA||isPL,zeit_delete_own:isA||isPL||isM,zeit_delete_any:isA||isPL,form_create:isA||isPL||isM,form_delete_own:isA||isPL||isM,form_delete_any:isA||isPL,mangel_create:isA||isPL||isM,mangel_delete:isA||isPL,bt_create:isA||isPL||isM,bt_delete:isA||isPL,abs_approve:isA||isPL,abs_kontingent:isA,admin_panel:isA,auswertungen:isA||isPL,offa_export:isA||isPL};
+  if(action==="zeit_delete")return isA||isPL||(isM&&isOwn);
+  if(action==="form_delete")return isA||isPL||(isM&&isOwn);
+  return !!m[action];
 }
 
 // ═══════════ THEME SYSTEM ═══════════
@@ -3179,7 +3198,7 @@ function sharePdf(){
     React.createElement('div', {}
       , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
         , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📋 Arbeitsscheine / Störungen"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Scheine anlegen, Status setzen, OFFA-Excel exportieren. Schnellerfassung per \uD83C\uDFA4 Sprache." ))
-        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".csv,.txt", style: {display:"none"}, onChange: importOffa} ))
+        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".csv,.txt", style: {display:"none"}, onChange: importOffa} ))
       )
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
@@ -3467,7 +3486,7 @@ function sharePdf(){
               , React.createElement('button', { onClick: saveAs, style: {...bpS,flex:1}}, "💾 " , editId?"Aktualisieren":"Speichern")
               , editId&&React.createElement('button', { onClick: ()=>genAsPdf(form), style: {...beS,flex:1}}, "📄 PDF" )
               , editId&&form.scheinstatus!=="storniert"&&React.createElement('button', { onClick: ()=>{storno(editId);setSub("liste");}, style: bdS}, "⊘ Storno" )
-              , editId&&React.createElement('button', { onClick: ()=>{if(confirm("Arbeitsschein "+form.nummer+" löschen?"))deleteAs(editId);}, style: {...bdS,fontSize:11}}, "🗑️")
+              , editId&&canDo("as_delete",curUser)&&React.createElement('button', { onClick: ()=>{if(confirm("Arbeitsschein "+form.nummer+" löschen?"))deleteAs(editId);}, style: {...bdS,fontSize:11}}, "🗑️")
             )
             , editId&&(React.createElement('div', { style: CC()}
               , React.createElement('div', { style: {fontSize:12,fontWeight:600,marginBottom:6}}, "📅 Termin verschieben"  )
@@ -5431,6 +5450,7 @@ function VCheck({p,forms,setForms,ww,curUser}){
 
 // ═══════════ KOSTEN & NACHKALKULATION ═══════════
 function VMang({p,forms,setForms,curUser,monteure}){
+  const isAdmin=_optionalChain([curUser, 'optionalAccess', _vmg1 => _vmg1.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _vmg2 => _vmg2.role])==="projektleiter";
   const ms=(forms.maengel||[]).filter(m=>m.pid===p.id);
   const kundenMeldungen=ms.filter(m=>m.melder==="Kunde");
   const neueMeldungen=kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet");
@@ -5488,7 +5508,7 @@ function VMang({p,forms,setForms,curUser,monteure}){
     newPhotos.forEach(ph=>{if(ph.file)captureAndQueue(ph.file,"defect",mid,p.id,"Mangel-Foto");});
     setName("");setNewPhotos([]);};
   const updSt=(id,st)=>{setForms(prev=>({...prev,maengel:(prev.maengel||[]).map(m=>m.id===id?{...m,status:st}:m)}));SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:st}});};
-  const delM=id=>{if(!confirm("Mangel wirklich löschen?"))return;setForms(prev=>({...prev,maengel:(prev.maengel||[]).filter(m=>m.id!==id)}));SQ.push({url:"/api/defects/"+id,method:"DELETE"});};
+  const delM=id=>{if(!isAdmin)return;if(!confirm("Mangel wirklich löschen?"))return;setForms(prev=>({...prev,maengel:(prev.maengel||[]).filter(m=>m.id!==id)}));SQ.push({url:"/api/defects/"+id,method:"DELETE"});};
 
   const reviewAccept=(id)=>{
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"angenommen",zugewiesen:reviewWorker,reviewNote:reviewNote||"Wird bearbeitet",worker:reviewWorker,status:"offen",prio:"hoch"}:m)}));
@@ -5583,7 +5603,7 @@ function VMang({p,forms,setForms,curUser,monteure}){
         return (React.createElement('div', { key: st, style: {marginBottom:12}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.dm,marginBottom:6}}, icon, " " , st, " (" , items.length, ")"), items.map(m=>{const w=(monteure||MONT).find(x=>x.id===m.worker);const pi=m.prio==="hoch"?"🔴":m.prio==="mittel"?"🟡":"🟢";const mPh=getPhotos(m);return (React.createElement('div', { key: m.id, style: {...CC(),padding:12,marginBottom:6}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}
             , React.createElement('div', {}, React.createElement('div', { style: {fontSize:13,fontWeight:600}}, pi, " " , m.name), React.createElement('div', { style: {fontSize:11,color:V.dm}}, m.ebene, " · "  , _optionalChain([w, 'optionalAccess', _367 => _367.n]), " · Frist: "   , fdt(m.frist)))
-            , React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}}, React.createElement('select', { value: m.status, onChange: e=>updSt(m.id,e.target.value), style: {...II(),width:"auto",fontSize:11,padding:"3px 6px"}}, MANGEL_ST.map(s=>(React.createElement('option', { key: s}, s)))), React.createElement('button', { onClick: ()=>delM(m.id), style: {...bdS,padding:"2px 6px",fontSize:10}}, "✕"))
+            , React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}}, React.createElement('select', { value: m.status, onChange: e=>updSt(m.id,e.target.value), style: {...II(),width:"auto",fontSize:11,padding:"3px 6px"}}, MANGEL_ST.map(s=>(React.createElement('option', { key: s}, s)))), isAdmin&&React.createElement('button', { onClick: ()=>delM(m.id), style: {...bdS,padding:"2px 6px",fontSize:10}}, "✕"))
           )
           , (mPh.length>0||true)&&React.createElement('div', { style: {display:"flex",gap:4,marginTop:8,flexWrap:"wrap",alignItems:"center"}}
             , mPh.map((ph,i)=>React.createElement('div', { key: i, onClick: ()=>setLightbox({src:ph,title:m.name+" — Foto "+(i+1)}), style: {width:48,height:48,borderRadius:4,overflow:"hidden",cursor:"pointer",border:"2px solid transparent",transition:"border .15s"}, onMouseOver: e=>e.currentTarget.style.borderColor=V.ac, onMouseOut: e=>e.currentTarget.style.borderColor="transparent"}, React.createElement('img', { src: ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} )))
@@ -5815,7 +5835,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   return (
     React.createElement('div', { onDrop: handleDrop, onDragOver: handleDragOver, onDragLeave: handleDragLeave, style: {position:"relative"}}
       , dropActive&&React.createElement('div', { style: {position:"absolute",inset:0,zIndex:100,background:"rgba(249,115,22,.15)",border:"3px dashed "+V.ac,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}, React.createElement('div', { style: {background:V.cd,padding:"20px 40px",borderRadius:12,fontSize:18,fontWeight:700,color:V.ac}}, "📤 Plan hier ablegen"   ))
-      , React.createElement('div', { className: "header-row", style: {marginBottom:12}}, React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🗺️ Pläne & Tickets"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, p.name, " (" , p.nr, ") — Baupläne hochladen, Tickets platzieren, per Drag & Drop verschieben.")), React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>_optionalChain([fileRef, 'access', _395 => _395.current, 'optionalAccess', _396 => _396.click, 'call', _397 => _397()]), style: bpS}, "📤 Plan hochladen"  ), React.createElement('input', { ref: fileRef, type: "file", accept: "image/*,.jpg,.jpeg,.png,.pdf,application/pdf", multiple: true, style: {display:"none"}, onChange: handleUpload} ), React.createElement('button', { onClick: exportTickets, style: xBtn("xls")}, "📥 Export" )))
+      , React.createElement('div', { className: "header-row", style: {marginBottom:12}}, React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🗺️ Pläne & Tickets"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, p.name, " (" , p.nr, ") — Baupläne hochladen, Tickets platzieren, per Drag & Drop verschieben.")), React.createElement('div', { style: {display:"flex",gap:6}}, isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([fileRef, 'access', _395 => _395.current, 'optionalAccess', _396 => _396.click, 'call', _397 => _397()]), style: bpS}, "📤 Plan hochladen"  ), React.createElement('input', { ref: fileRef, type: "file", accept: "image/*,.jpg,.jpeg,.png,.pdf,application/pdf", multiple: true, style: {display:"none"}, onChange: handleUpload} ), React.createElement('button', { onClick: exportTickets, style: xBtn("xls")}, "📥 Export" )))
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}, React.createElement(Kpi, { label: "Pläne", value: plans.length, sub: "hochgeladen", color: "#3b82f6"} ), React.createElement(Kpi, { label: "Tickets", value: stats.total, sub: stats.offen+" offen", color: "#f97316"} ), React.createElement(Kpi, { label: "In Bearbeitung" , value: stats.inBearb, sub: "laufend", color: "#eab308"} ), React.createElement(Kpi, { label: "Erledigt", value: stats.erledigt, sub: "abgeschlossen", color: "#22c55e"} ))
       , React.createElement('div', { style: {display:"flex",gap:2,borderBottom:"2px solid "+V.bd,marginBottom:14,overflowX:"auto"}}, [{id:"viewer",i:"🗺️",l:"Plan-Viewer"},{id:"tickets",i:"🎫",l:"Alle Tickets"},{id:"layers",i:"📐",l:"Ebenen"},{id:"upload",i:"📁",l:"Planverwaltung"}].map(t=>(React.createElement('button', { key: t.id, onClick: ()=>setSubView(t.id), style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:subView===t.id?V.ac:V.dm,fontSize:isMob?11:13,fontWeight:subView===t.id?700:500,borderBottom:"3px solid "+(subView===t.id?V.ac:"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, t.i, " " , isMob?"":t.l))))
 
@@ -5850,9 +5870,9 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
       ))
 
       , subView==="upload"&&(React.createElement('div', {}
-        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}, React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "📁 Planverwaltung ("  , plans.length, ")"), React.createElement('button', { onClick: ()=>_optionalChain([fileRef, 'access', _414 => _414.current, 'optionalAccess', _415 => _415.click, 'call', _416 => _416()]), style: bpS}, "📤 Hochladen" ))
-        , React.createElement('div', { onDrop: handleDrop, onDragOver: handleDragOver, onDragLeave: handleDragLeave, onClick: ()=>_optionalChain([fileRef, 'access', _417 => _417.current, 'optionalAccess', _418 => _418.click, 'call', _419 => _419()]), style: {border:"2px dashed "+(dropActive?V.ac:V.ac+"60"),borderRadius:10,padding:"30px 20px",textAlign:"center",cursor:"pointer",marginBottom:14,background:dropActive?"rgba(249,115,22,.1)":"rgba(249,115,22,.03)",transition:"all .2s"}}, React.createElement('div', { style: {fontSize:36,marginBottom:8}}, "📤"), React.createElement('div', { style: {fontSize:14,fontWeight:600,color:V.ac}}, dropActive?"Hier ablegen!":"Plan hochladen"), React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4}}, "JPG, PNG, PDF — Klicken, Datei wählen oder hierher ziehen"        ))
-        , React.createElement('div', { className: "tile-grid"}, plans.map(pl=>{const tc=allTickets.filter(t=>t.planId===pl.id).length;return (React.createElement('div', { key: pl.id, style: {...CC(),padding:0,overflow:"hidden",cursor:"pointer",position:"relative"}, onClick: ()=>{setSelPlan(pl);setSubView("viewer");}}, React.createElement('div', { style: {height:140,background:"#0a0c14",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}, (pl.isPdf||(_optionalChain([pl, 'access', _pt1 => _pt1.dataUrl, 'optionalAccess', _pt2 => _pt2.startsWith, 'call', _pt3 => _pt3("data:application/pdf")])))?React.createElement('div', { style: {display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:"#ef4444"}}, React.createElement('div', { style: {fontSize:48}}, "📄"), React.createElement('div', { style: {fontSize:10,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,.12)",padding:"2px 8px",borderRadius:3}}, "PDF")):React.createElement('img', { src: pl.dataUrl, alt: pl.name, style: {maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} )), React.createElement('div', { style: {padding:12}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:4}}, pl.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "📐 " , pl.width, "×", pl.height, " · 🎫 "   , tc, " Tickets · 📅 "    , fdt(pl.uploadedAt))), React.createElement('div', { style: {padding:"8px 12px",borderTop:"1px solid "+V.bd,display:"flex",gap:4}}, React.createElement('button', { onClick: e=>{e.stopPropagation();setSelPlan(pl);setSubView("viewer");}, style: {...bgS,padding:"4px 10px",fontSize:10,flex:1}}, "🗺️ Öffnen" ), React.createElement('button', { onClick: e=>{e.stopPropagation();togglePlanFreigabe(pl);}, style: {padding:"4px 10px",borderRadius:6,border:isPlanFreigegeben(pl.id)?"1px solid #009640":"1px solid "+V.bd,background:isPlanFreigegeben(pl.id)?"#00964018":"transparent",color:isPlanFreigegeben(pl.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}}, isPlanFreigegeben(pl.id)?"🔗":"📤"), React.createElement('button', { onClick: e=>{e.stopPropagation();deletePlan(pl.id);}, style: {...bdS,padding:"4px 10px",fontSize:10}}, "🗑️")), isPlanFreigegeben(pl.id)&&React.createElement('div', { style: {position:"absolute",top:8,right:8,padding:"2px 8px",borderRadius:10,background:"#009640",color:"#fff",fontSize:9,fontWeight:700,zIndex:2}}, "🔗 Kundenportal" )));})
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}, React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "📁 Planverwaltung ("  , plans.length, ")"), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([fileRef, 'access', _414 => _414.current, 'optionalAccess', _415 => _415.click, 'call', _416 => _416()]), style: bpS}, "📤 Hochladen" ))
+        , isAdmin&&React.createElement('div', { onDrop: handleDrop, onDragOver: handleDragOver, onDragLeave: handleDragLeave, onClick: ()=>_optionalChain([fileRef, 'access', _417 => _417.current, 'optionalAccess', _418 => _418.click, 'call', _419 => _419()]), style: {border:"2px dashed "+(dropActive?V.ac:V.ac+"60"),borderRadius:10,padding:"30px 20px",textAlign:"center",cursor:"pointer",marginBottom:14,background:dropActive?"rgba(249,115,22,.1)":"rgba(249,115,22,.03)",transition:"all .2s"}}, React.createElement('div', { style: {fontSize:36,marginBottom:8}}, "📤"), React.createElement('div', { style: {fontSize:14,fontWeight:600,color:V.ac}}, dropActive?"Hier ablegen!":"Plan hochladen"), React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4}}, "JPG, PNG, PDF — Klicken, Datei wählen oder hierher ziehen"        ))
+        , React.createElement('div', { className: "tile-grid"}, plans.map(pl=>{const tc=allTickets.filter(t=>t.planId===pl.id).length;return (React.createElement('div', { key: pl.id, style: {...CC(),padding:0,overflow:"hidden",cursor:"pointer",position:"relative"}, onClick: ()=>{setSelPlan(pl);setSubView("viewer");}}, React.createElement('div', { style: {height:140,background:"#0a0c14",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}, (pl.isPdf||(_optionalChain([pl, 'access', _pt1 => _pt1.dataUrl, 'optionalAccess', _pt2 => _pt2.startsWith, 'call', _pt3 => _pt3("data:application/pdf")])))?React.createElement('div', { style: {display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:"#ef4444"}}, React.createElement('div', { style: {fontSize:48}}, "📄"), React.createElement('div', { style: {fontSize:10,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,.12)",padding:"2px 8px",borderRadius:3}}, "PDF")):React.createElement('img', { src: pl.dataUrl, alt: pl.name, style: {maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} )), React.createElement('div', { style: {padding:12}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:4}}, pl.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "📐 " , pl.width, "×", pl.height, " · 🎫 "   , tc, " Tickets · 📅 "    , fdt(pl.uploadedAt))), React.createElement('div', { style: {padding:"8px 12px",borderTop:"1px solid "+V.bd,display:"flex",gap:4}}, React.createElement('button', { onClick: e=>{e.stopPropagation();setSelPlan(pl);setSubView("viewer");}, style: {...bgS,padding:"4px 10px",fontSize:10,flex:1}}, "🗺️ Öffnen" ), isAdmin&&React.createElement('button', { onClick: e=>{e.stopPropagation();togglePlanFreigabe(pl);}, style: {padding:"4px 10px",borderRadius:6,border:isPlanFreigegeben(pl.id)?"1px solid #009640":"1px solid "+V.bd,background:isPlanFreigegeben(pl.id)?"#00964018":"transparent",color:isPlanFreigegeben(pl.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}}, isPlanFreigegeben(pl.id)?"🔗":"📤"), isAdmin&&React.createElement('button', { onClick: e=>{e.stopPropagation();deletePlan(pl.id);}, style: {...bdS,padding:"4px 10px",fontSize:10}}, "🗑️")), isPlanFreigegeben(pl.id)&&React.createElement('div', { style: {position:"absolute",top:8,right:8,padding:"2px 8px",borderRadius:10,background:"#009640",color:"#fff",fontSize:9,fontWeight:700,zIndex:2}}, "🔗 Kundenportal" )));})
         , !plans.length&&React.createElement('div', { style: {gridColumn:"1/-1",textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:48,marginBottom:8}}, "📁"), "Noch keine Pläne hochgeladen"   ))
       ))
 
@@ -5987,7 +6007,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
         , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:0}}, "Fotos & Dateien hochladen, durchsuchen und herunterladen." )
         , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center"}}
           , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "🔍 Suchen..." , style: {...II(),width:"auto",maxWidth:isMob?120:200,fontSize:12}} )
-          , React.createElement('button', { onClick: ()=>setShowUp(!showUp), style: bpS}, showUp?"✕":"📤 Hochladen")
+          , canDo("doc_upload",curUser)&&React.createElement('button', { onClick: ()=>setShowUp(!showUp), style: bpS}, showUp?"✕":"📤 Hochladen")
           , freigegebenCount>0&&React.createElement('span', { style: {padding:"3px 10px",borderRadius:12,background:"#009640",color:"#fff",fontSize:10,fontWeight:700}}, "🔗 " , freigegebenCount, " für Kundenportal" )
         )
       )
@@ -6002,7 +6022,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
             ):(
               React.createElement('button', { onClick: ()=>setCurFolder(f.id), onContextMenu: e=>{e.preventDefault();setEditFolderId(f.id);setEditFolderName(f.name);}, style: {padding:"5px 10px",borderRadius:"6px 0 0 6px",border:curFolder===f.id?"2px solid "+f.color:"1px solid "+V.bd,borderRight:"none",background:curFolder===f.id?f.color+"18":"transparent",color:curFolder===f.id?f.color:V.dm,cursor:"pointer",fontWeight:600,fontSize:11,fontFamily:"inherit"}}, "📁 " , f.name, " (" , folderCounts[f.id]||0, ")")
             )
-            , editFolderId!==f.id&&React.createElement('button', { onClick: ()=>delFolder(f.id), style: {padding:"5px 4px",borderRadius:"0 6px 6px 0",border:curFolder===f.id?"2px solid "+f.color:"1px solid "+V.bd,borderLeft:"none",background:curFolder===f.id?f.color+"18":"transparent",color:V.dm,cursor:"pointer",fontSize:9,fontFamily:"inherit"}}, "✕")
+            , editFolderId!==f.id&&isAdmin&&React.createElement('button', { onClick: ()=>delFolder(f.id), style: {padding:"5px 4px",borderRadius:"0 6px 6px 0",border:curFolder===f.id?"2px solid "+f.color:"1px solid "+V.bd,borderLeft:"none",background:curFolder===f.id?f.color+"18":"transparent",color:V.dm,cursor:"pointer",fontSize:9,fontFamily:"inherit"}}, "✕")
           )))
           , noFolderCount>0&&React.createElement('button', { onClick: ()=>setCurFolder("__none"), style: {padding:"5px 10px",borderRadius:6,border:curFolder==="__none"?"2px solid #71717a":"1px solid "+V.bd,background:curFolder==="__none"?"#71717a18":"transparent",color:curFolder==="__none"?"#71717a":V.dm,cursor:"pointer",fontWeight:600,fontSize:11,fontFamily:"inherit"}}, "📄 Ohne Ordner ("   , noFolderCount, ")")
           , showNewFolder?(
@@ -6053,7 +6073,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
               , React.createElement('button', { onClick: ()=>openDoc(d), style: {...bsS(),padding:"3px 8px",fontSize:10}}, "👁️")
               , React.createElement('button', { onClick: ()=>{if(d.dataUrl){const a=document.createElement("a");a.href=d.dataUrl;a.download=d.filename||d.name;a.click();}}, style: {...beS,padding:"3px 8px",fontSize:10}}, "💾")
               , React.createElement('select', { value: d.folderId||"", onChange: e=>moveDoc(d.id,e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"2px 4px"}}, React.createElement('option', { value: ""}, "— Ordner —"  ), folders.map(f=>(React.createElement('option', { key: f.id, value: f.id}, "📁 " , f.name))))
-              , React.createElement('button', { onClick: ()=>{if(confirm("Löschen?"))delDoc(d.id);}, style: {...bdS,padding:"3px 8px",fontSize:10}}, "🗑️")
+              , isAdmin&&React.createElement('button', { onClick: ()=>{if(confirm("Löschen?"))delDoc(d.id);}, style: {...bdS,padding:"3px 8px",fontSize:10}}, "🗑️")
               , React.createElement('button', { onClick: ()=>toggleKundeFreigabe(d), style: {padding:"3px 8px",borderRadius:6,border:isDocFreigegeben(d.id)?"1px solid #009640":"1px solid "+V.bd,background:isDocFreigegeben(d.id)?"#00964018":"transparent",color:isDocFreigegeben(d.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}, title: isDocFreigegeben(d.id)?"Freigabe zurückziehen":"Für Kundenportal freigeben"}, isDocFreigegeben(d.id)?"🔗 Freigegeben":"📤 Freigeben")
             )
             , isDocFreigegeben(d.id)&&React.createElement('div', { style: {position:"absolute",top:8,right:8,padding:"2px 8px",borderRadius:10,background:"#009640",color:"#fff",fontSize:9,fontWeight:700}}, "🔗 Kundenportal" )
@@ -6155,6 +6175,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
   };
 
   const delEntry=id=>{
+    if(!isAdmin)return;
     if(!confirm("Bautagebuch-Eintrag wirklich löschen?"))return;
     persist(btEntries.filter(x=>x.id!==id));
     SQ.push({url:"/api/bautagebuch/"+id,method:"DELETE",body:{}});
@@ -6665,7 +6686,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const approve=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt")]);};
   const reject=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"abgelehnt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _561 => _561.name])}});_optionalChain([window, 'access', _562 => _562.__toast, 'optionalCall', _563 => _563("❌ Antrag abgelehnt")]);_optionalChain([pushNotif, 'optionalCall', _564 => _564("absence_approval","❌ Antrag abgelehnt",m+": "+fdt(dk(d))+" abgelehnt")]);};
   const getApproval=(m,d)=>approvals[m+"_"+dk(d)]||"ausstehend";
-  const delEntry=(m,d)=>{if(!confirm("Abwesenheit wirklich löschen?"))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
+  const delEntry=(m,d)=>{if(!isAdmin)return;if(!confirm("Abwesenheit wirklich löschen?"))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
   const updateEntry=(key,changes)=>{setAbs(p=>{const c={...p};if(c[key])c[key]={...c[key],...changes};return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(key),method:"PUT",body:changes});setEditEntry(null);_optionalChain([window, 'access', _565a => _565a.__toast, 'optionalCall', _565b => _565b("✏️ Eintrag aktualisiert")]);};
   const bulkApprove=()=>{allEntries.filter(e=>e.approval==="ausstehend").forEach(e=>{setApprovals(p=>({...p,[e.key]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(e.key),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565c => _565c.name])}});});_optionalChain([window, 'access', _565d => _565d.__toast, 'optionalCall', _565e => _565e("✅ Alle genehmigt")]);};
 
@@ -6743,38 +6764,38 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       , React.createElement('div', { style: {...CC(),marginBottom:14,padding:isMob?"10px":"12px 16px"}}
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}
           , React.createElement('div', { style: {fontSize:13,fontWeight:700}}, "🎯 Urlaubskontingent "  , yr)
-          , isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{const mon=monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:ks.stunden||192.5,ueberstunden:ks.ueberstunden||0,urlaub:ks.urlaub||25}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);}, style: {...bsS(),padding:"3px 10px",fontSize:10}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
+          , curUser.role==="admin"&&React.createElement('button', { onClick: ()=>{if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{const mon=monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:ks.stunden||192.5,ueberstunden:ks.ueberstunden||0,urlaub:ks.urlaub||25}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);}, style: {...bsS(),padding:"3px 10px",fontSize:10}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
         )
         , React.createElement('div', { style: {overflowX:"auto"}}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:11}}
           , React.createElement('thead', {}, React.createElement('tr', { style: {background:_dark?"rgba(34,197,94,.06)":"rgba(34,197,94,.04)"}}
             , React.createElement('th', { style: {...thS(),textAlign:"left",fontSize:10}}, "Mitarbeiter")
-            , React.createElement('th', { style: {...thS(),fontSize:10}}, "Std/Wo")
-            , React.createElement('th', { style: {...thS(),fontSize:10}}, "Anspruch h" )
-            , React.createElement('th', { style: {...thS(),fontSize:10}}, "Vorjahr h" )
+            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10}}, "Std/Wo")
+            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10}}, "Anspruch h" )
+            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10}}, "Vorjahr h" )
             , React.createElement('th', { style: {...thS(),fontSize:10}}, "Gesamt h" )
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#3b82f6"}}, "Urlaub")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#ef4444"}}, "Krank")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#a855f7"}}, "ZA")
-            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Sonder")
-            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Pflege")
+            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Sonder")
+            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Pflege")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#22c55e",fontWeight:800}}, "Rest")
-            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f59e0b"}}, "ÜS h")
+            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10,color:"#f59e0b"}}, "ÜS h")
           ))
           , React.createElement('tbody', {}, (isAdmin?names:names.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
             return (React.createElement('tr', { key: m, style: {borderBottom:"1px solid "+V.bd}}
               , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:sel===m?700:500,color:sel===m?"#22c55e":V.tx,cursor:isAdmin?"pointer":"default"}, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}}, m)
-              , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.woche||38.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.woche||38.5))
-              , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.stunden||192.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,stunden:parseFloat(e.target.value)||192.5}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.stunden||192.5))
-              , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.vorjahr||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.vorjahr||0))
+              , isAdmin&&React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.woche||38.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.woche||38.5))
+              , isAdmin&&React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.stunden||192.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,stunden:parseFloat(e.target.value)||192.5}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.stunden||192.5))
+              , isAdmin&&React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.vorjahr||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.vorjahr||0))
               , React.createElement('td', { style: {...tdSt(),fontWeight:700}}, _n(total,1))
               , React.createElement('td', { style: {...tdSt(),color:"#3b82f6",fontWeight:ys.urlaubStd>0?700:400}}, ys.urlaubStd>0?_n(ys.urlaubStd,1):"—")
               , React.createElement('td', { style: {...tdSt(),color:"#ef4444",fontWeight:ys.krankenstandStd>0?700:400}}, ys.krankenstandStd>0?_n(ys.krankenstandStd,1):"—")
               , React.createElement('td', { style: {...tdSt(),color:"#a855f7",fontWeight:ys.zeitausgleichStd>0?700:400}}, ys.zeitausgleichStd>0?_n(ys.zeitausgleichStd,1):"—")
-              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.sonderStdGes>0?700:400}}, ys.sonderStdGes>0?_n(ys.sonderStdGes,1):"—")
-              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.pflegeStdGes>0?700:400}}, ys.pflegeStdGes>0?_n(ys.pflegeStdGes,1):"—")
+              , isAdmin&&React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.sonderStdGes>0?700:400}}, ys.sonderStdGes>0?_n(ys.sonderStdGes,1):"—")
+              , isAdmin&&React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.pflegeStdGes>0?700:400}}, ys.pflegeStdGes>0?_n(ys.pflegeStdGes,1):"—")
               , React.createElement('td', { style: {...tdSt(),fontWeight:800,color:rest<=20?"#ef4444":rest<=50?"#eab308":"#22c55e"}}, rest.toFixed?_n(rest,1):rest, "h")
-              , React.createElement('td', { style: {...tdSt(),color:"#f59e0b",fontWeight:(ks.ueberstunden||0)!==0?700:400}}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.ueberstunden||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_n(ks.ueberstunden,1)):"—")
+              , isAdmin&&React.createElement('td', { style: {...tdSt(),color:"#f59e0b",fontWeight:(ks.ueberstunden||0)!==0?700:400}}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.ueberstunden||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_n(ks.ueberstunden,1)):"—")
             ));
           }))
         )
@@ -7801,7 +7822,9 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   };
 
   // Delete an entry
+  const _canDelEntry=isAdmin||(curUser.role==="monteur"&&selWorker===curUser.monteurId);
   const deleteEntry=(iso,entryIdx)=>{
+    if(!_canDelEntry)return;
     const entry=(dayEntries[iso]||[])[entryIdx];
     if(!entry)return;
     if(!confirm("Zeiteintrag wirklich löschen?"))return;
@@ -8312,7 +8335,7 @@ ${dayRowsHtml}
                     /* Top row: type badge + delete */
                     React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                       typeBadge(entry.type),
-                      React.createElement('span',{onClick:()=>deleteEntry(iso,eIdx),style:{cursor:"pointer",fontSize:10,color:"#ef4444",padding:"2px 4px",borderRadius:3,background:"rgba(239,68,68,.08)"},title:"Eintrag löschen"},"✕")
+                      _canDelEntry&&React.createElement('span',{onClick:()=>deleteEntry(iso,eIdx),style:{cursor:"pointer",fontSize:10,color:"#ef4444",padding:"2px 4px",borderRadius:3,background:"rgba(239,68,68,.08)"},title:"Eintrag löschen"},"✕")
                     ),
                     /* Label */
                     React.createElement('div',{style:{fontSize:12,fontWeight:600,color:V.tx,lineHeight:"1.3",overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},entry.label),
@@ -9441,7 +9464,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: stCounts.reparatur||0+" in Reparatur", color: kalibFaellig>0?"#ef4444":"#22c55e"} )
     )
     , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
-      , [{id:"scan",i:"📷",l:"QR Scan"},{id:"liste",i:"📋",l:"Liste"},{id:"checkout",i:"📤",l:"Check-In/Out"},{id:"kalib",i:"🔧",l:"Service"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+      , [{id:"scan",i:"📷",l:"QR Scan"},{id:"liste",i:"📋",l:"Liste"},{id:"checkout",i:"📤",l:"Check-In/Out"},{id:"kalib",i:"🔧",l:"Service"},...(isAdmin?[{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}]:[])].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
     )
 
     /* ═══ QR SCAN ═══ */
@@ -9554,7 +9577,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
               , React.createElement('div', { style: {borderTop:"1px solid "+V.bd,marginTop:12,paddingTop:12,display:"flex",gap:6,flexWrap:"wrap"}}
                 , React.createElement('button', { onClick: ()=>scanToRepair(scannedWz.id), style: {...bdS,fontSize:11,padding:"6px 12px"}}, "🔧 In Reparatur"  )
-                , React.createElement('button', { onClick: ()=>{openEdit(scannedWz);}, style: {...bsS(),fontSize:11,padding:"6px 12px"}}, "✏️ Bearbeiten" )
+                , isAdmin&&React.createElement('button', { onClick: ()=>{openEdit(scannedWz);}, style: {...bsS(),fontSize:11,padding:"6px 12px"}}, "✏️ Bearbeiten" )
                 , React.createElement('button', { onClick: ()=>printLabels([{name:scannedWz.name,code:scannedWz.inventarnr,inventarnr:scannedWz.inventarnr}],"Werkzeug-Label"), style: {...bsS(),fontSize:11,padding:"6px 12px"}}, "🏷️ Label drucken"  )
               )
             )
@@ -9581,7 +9604,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:800}}
           , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}, ["Inventar","Gerät/Werkzeug","Kategorie","Status","Zugewiesen","Standort","Wert €","Zustand",""].map((h,i)=>(React.createElement('th', { key: i, style: {...thS(),textAlign:i===7?"center":"left"}}, h)))))
           , React.createElement('tbody', {}, filtered.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=w.naechsteKalib&&w.naechsteKalib<=td2();
-            return (React.createElement('tr', { key: w.id, onClick: ()=>openEdit(w), style: {borderBottom:"1px solid "+V.bd,cursor:"pointer",background:kalFaellig?"rgba(239,68,68,.03)":"transparent"}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=kalFaellig?"rgba(239,68,68,.03)":"transparent"}
+            return (React.createElement('tr', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {borderBottom:"1px solid "+V.bd,cursor:isAdmin?"pointer":"default",background:kalFaellig?"rgba(239,68,68,.03)":"transparent"}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=kalFaellig?"rgba(239,68,68,.03)":"transparent"}
               , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:11,fontWeight:600}}, w.inventarnr)
               , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {fontWeight:600}}, w.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, w.seriennr))
               , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {fontSize:11}}, _optionalChain([kat, 'optionalAccess', _813 => _813.i]), " " , _optionalChain([kat, 'optionalAccess', _814 => _814.l])))
@@ -9713,7 +9736,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
             , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",marginTop:14}}
               , React.createElement('button', { onClick: save, style: bpS}, "💾 " , editId?"Aktualisieren":"Speichern")
               , React.createElement('button', { onClick: ()=>setSub("liste"), style: bsS()}, "Abbrechen")
-              , editId&&(React.createElement('button', { onClick: ()=>del(editId), style: bdS}, "🗑️ Löschen" ))
+              , editId&&isAdmin&&(React.createElement('button', { onClick: ()=>del(editId), style: bdS}, "🗑️ Löschen" ))
             )
           )
         )
