@@ -6746,11 +6746,12 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 
 // ═══════════ SVG CHART ENGINE ═══════════
 function SvgBar({data,height=180,color="#f97316"}){
-  if(!data||!data.length)return null;const n=data.length;const mx=Math.max(...data.map(d=>d.v),1);const rot=n>6;const bw=rot?Math.max(20,Math.min(36,240/n)):Math.min(40,Math.floor(280/n));const pad=14;const w=pad*2+n*(bw+6);const btm=rot?55:24;
+  if(!data||!data.length)return null;const n=data.length;const mx=Math.max(...data.map(d=>d.v),1);const many=n>6;const bw=many?Math.max(18,Math.min(36,260/n)):Math.min(40,Math.floor(280/n));const pad=14;const w=pad*2+n*(bw+6);const btm=many?40:24;
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${w} ${height+btm}`, style: {display:"block"}}
-    , data.map((d,i)=>{const bh=(d.v/mx)*(height-20);const x=pad+i*(bw+6);const y=height-bh;const clr=d.c||color;const maxL=rot?14:8;const lbl=d.l.length>maxL?d.l.slice(0,maxL)+"…":d.l;return (React.createElement('g', { key: i}
+    , data.map((d,i)=>{const bh=(d.v/mx)*(height-20);const x=pad+i*(bw+6);const y=height-bh;const clr=d.c||color;const maxL=many?10:8;const lbl=d.l.length>maxL?d.l.slice(0,maxL)+"…":d.l;const lblY=many?(i%2===0?height+12:height+26):height+12;return (React.createElement('g', { key: i}
       , React.createElement('rect', { x: x, y: y, width: bw, height: bh, rx: 3, fill: clr, opacity: .85}, React.createElement('animate', { attributeName: "height", from: "0", to: bh, dur: ".4s", fill: "freeze"}), React.createElement('animate', { attributeName: "y", from: height, to: y, dur: ".4s", fill: "freeze"}))
-      , React.createElement('text', { x: x+bw/2, y: height+10, textAnchor: rot?"end":"middle", fill: V.dm, fontSize: rot?8:9, fontFamily: "system-ui", transform: rot?`rotate(-45,${x+bw/2},${height+10})`:undefined}, lbl)
+      , many&&React.createElement('line', { x1: x+bw/2, y1: height, x2: x+bw/2, y2: lblY-8, stroke: V.dm, strokeOpacity: .25, strokeWidth: .5})
+      , React.createElement('text', { x: x+bw/2, y: lblY, textAnchor: "middle", fill: V.dm, fontSize: many?8:9, fontFamily: "system-ui"}, lbl)
       , React.createElement('text', { x: x+bw/2, y: y-4, textAnchor: "middle", fill: clr, fontSize: 10, fontWeight: 700}, d.v)
     ));})
   ));
@@ -6780,17 +6781,17 @@ function SvgPie({data,size=180,donut=false}){
     , slices.map((s,i)=>(React.createElement('g', { key: i}, React.createElement('rect', { x: size+8, y: i*20+10, width: 10, height: 10, rx: 2, fill: s.color}), React.createElement('text', { x: size+22, y: i*20+19, fill: V.dm, fontSize: 10, fontFamily: "system-ui"}, s.label, " (" , s.value, ")"))))
   ));
 }
-function SvgLine({data,width=320,height=180,color="#f97316"}){
-  if(!data||data.length<2)return null;const mx=Math.max(...data.map(d=>d.v),1);const mn=Math.min(...data.map(d=>d.v),0);const range=mx-mn||1;const pad=30;const pw=width-pad*2;const ph=height-40;
-  const pts=data.map((d,i)=>({x:pad+i*(pw/(data.length-1)),y:10+(1-(d.v-mn)/range)*ph}));
+function SvgLine({data,width=320,height=200,color="#f97316"}){
+  if(!data||data.length<2)return null;const mx=Math.max(...data.map(d=>d.v),1);const mn=Math.min(...data.map(d=>d.v),0);const range=mx-mn||1;const pad=30;const topPad=24;const pw=width-pad*2;const ph=height-topPad-30;
+  const pts=data.map((d,i)=>({x:pad+i*(pw/(data.length-1)),y:topPad+(1-(d.v-mn)/range)*ph}));
   const line=pts.map((p,i)=>(i===0?"M":"L")+p.x+","+p.y).join(" ");
-  const area=line+` L${pts[pts.length-1].x},${10+ph} L${pts[0].x},${10+ph} Z`;
+  const area=line+` L${pts[pts.length-1].x},${topPad+ph} L${pts[0].x},${topPad+ph} Z`;
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${width} ${height}`, style: {display:"block"}}
     , React.createElement('path', { d: area, fill: color, opacity: .08})
     , React.createElement('path', { d: line, fill: "none", stroke: color, strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round"})
     , pts.map((p,i)=>(React.createElement('g', { key: i}, React.createElement('circle', { cx: p.x, cy: p.y, r: 3.5, fill: color, stroke: "#0f1117", strokeWidth: 1.5})
-      , React.createElement('text', { x: p.x, y: 10+ph+14, textAnchor: "middle", fill: V.dm, fontSize: 8, fontFamily: "system-ui"}, data[i].l)
-      , React.createElement('text', { x: p.x, y: p.y-8, textAnchor: "middle", fill: color, fontSize: 9, fontWeight: 600}, data[i].v))))
+      , React.createElement('text', { x: p.x, y: topPad+ph+14, textAnchor: "middle", fill: V.dm, fontSize: 8, fontFamily: "system-ui"}, data[i].l)
+      , React.createElement('text', { x: p.x, y: p.y-10, textAnchor: "middle", fill: color, fontSize: 9, fontWeight: 600}, data[i].v))))
   ));
 }
 function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTypeChange,color="#f97316"}){
@@ -7420,7 +7421,7 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
     {key:"absTyp",title:"Abwesenheiten nach Typ",data:absTyp,def:"pie",color:"#3b82f6"},
     {key:"absPers",title:"Abwesenheit pro Person",data:absPerName,def:"hbar",color:"#3b82f6"},
     {key:"wzStatus",title:"Werkzeuge nach Status",data:wzStatus,def:"donut",color:"#d97706"},
-    {key:"wzKat",title:"Werkzeuge nach Kategorie",data:wzKat,def:"bar",color:"#d97706"},
+    {key:"wzKat",title:"Werkzeuge nach Kategorie",data:wzKat,def:"hbar",color:"#d97706"},
     {key:"wzWert",title:"Werkzeugwert (€) pro Kategorie",data:wzWert,def:"hbar",color:"#22c55e"},
     {key:"zeit7",title:"Stunden letzte 7 Tage",data:last7,def:"line",color:"#3b82f6"},
     {key:"fzTank",title:"Tankkosten pro Fahrzeug (€)",data:fzTankProFz,def:"hbar",color:"#0ea5e9"},
