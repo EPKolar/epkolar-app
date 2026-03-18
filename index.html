@@ -6636,6 +6636,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   // Kontingent: {name: {urlaub:25, vorjahr:3, ueberstunden:0}}
   const [kontingent,setKontingent]=_react.useState.call(void 0, ()=>{const k={};monteure.forEach(m=>{k[m.n]={urlaub:25,stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};});return k;});
   const [editKontingent,setEditKontingent]=_react.useState.call(void 0, false);
+  const [kontExpanded,setKontExpanded]=_react.useState.call(void 0, false);
   const names=monteure.map(m=>m.n);
   const wks=weeksOf(yr,mo);
   const dim=new Date(yr,mo+1,0).getDate();
@@ -6760,46 +6761,65 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
          , React.createElement('b', {}, "So gehts:" ), " " , isAdmin?"Mitarbeiter wählen → ":"", "Typ auswählen (z.B. Urlaub) → Tage im Kalender anklicken → wird automatisch beantragt. Admin/PL genehmigt unter \"Anträge\"."
       )
 
-      /* ═══ KONTINGENT ÜBERSICHT (kompakt) ═══ */
+      /* ═══ KONTINGENT ÜBERSICHT ═══ */
       , React.createElement('div', { style: {...CC(),marginBottom:14,padding:isMob?"10px":"12px 16px"}}
-        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}
           , React.createElement('div', { style: {fontSize:13,fontWeight:700}}, "🎯 Urlaubskontingent "  , yr)
-          , curUser.role==="admin"&&React.createElement('button', { onClick: ()=>{if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{const mon=monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:ks.stunden||192.5,ueberstunden:ks.ueberstunden||0,urlaub:ks.urlaub||25}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);}, style: {...bsS(),padding:"3px 10px",fontSize:10}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
+          , React.createElement('div', { style: {display:"flex",gap:4}}
+            , React.createElement('button', { onClick: ()=>setKontExpanded(!kontExpanded), style: {...bsS(),padding:"3px 10px",fontSize:10}}, kontExpanded?"▲ Kompakt":"▼ Details")
+            , curUser.role==="admin"&&React.createElement('button', { onClick: ()=>{if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{const mon=monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:ks.stunden||192.5,ueberstunden:ks.ueberstunden||0,urlaub:ks.urlaub||25}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:"3px 10px",fontSize:10}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
+          )
         )
-        , React.createElement('div', { style: {overflowX:"auto"}}
+        /* Compact card view (default) */
+        , !kontExpanded&&(React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}, (isAdmin?names:names.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
+          return (React.createElement('div', { key: m, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}, style: {display:"flex",alignItems:"center",gap:isMob?8:12,padding:isMob?"8px":"8px 12px",borderRadius:8,background:sel===m?"rgba(34,197,94,.08)":"transparent",border:sel===m?"1px solid rgba(34,197,94,.3)":"1px solid "+V.bd,cursor:isAdmin?"pointer":"default"}}
+            , React.createElement('div', { style: {flex:1,minWidth:0}}
+              , React.createElement('div', { style: {fontWeight:700,fontSize:isMob?12:13,color:sel===m?"#22c55e":V.tx,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, m)
+              , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Gesamt: " , _n(total,1), "h")
+            )
+            , React.createElement('div', { style: {display:"flex",gap:isMob?6:10,flexShrink:0,alignItems:"center",fontSize:isMob?10:11}}
+              , ys.urlaubStd>0&&React.createElement('span', { style: {color:"#3b82f6",fontWeight:600}}, "🏖️", _n(ys.urlaubStd,1), "h")
+              , ys.krankenstandStd>0&&React.createElement('span', { style: {color:"#ef4444",fontWeight:600}}, "🤒", _n(ys.krankenstandStd,1), "h")
+              , ys.zeitausgleichStd>0&&React.createElement('span', { style: {color:"#a855f7",fontWeight:600}}, "⏰", _n(ys.zeitausgleichStd,1), "h")
+            )
+            , React.createElement('div', { style: {padding:"4px 10px",borderRadius:8,fontWeight:800,fontSize:isMob?12:13,color:rest<=20?"#ef4444":rest<=50?"#eab308":"#22c55e",background:rest<=20?"rgba(239,68,68,.08)":rest<=50?"rgba(234,179,8,.08)":"rgba(34,197,94,.08)",flexShrink:0,minWidth:55,textAlign:"center"}}, _n(rest,1), "h")
+          ));
+        })))
+        /* Expanded full table */
+        , kontExpanded&&(React.createElement('div', { style: {overflowX:"auto"}}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:11}}
           , React.createElement('thead', {}, React.createElement('tr', { style: {background:_dark?"rgba(34,197,94,.06)":"rgba(34,197,94,.04)"}}
             , React.createElement('th', { style: {...thS(),textAlign:"left",fontSize:10}}, "Mitarbeiter")
-            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10}}, "Std/Wo")
-            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10}}, "Anspruch h" )
-            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10}}, "Vorjahr h" )
+            , React.createElement('th', { style: {...thS(),fontSize:10}}, "Std/Wo")
+            , React.createElement('th', { style: {...thS(),fontSize:10}}, "Anspruch h" )
+            , React.createElement('th', { style: {...thS(),fontSize:10}}, "Vorjahr h" )
             , React.createElement('th', { style: {...thS(),fontSize:10}}, "Gesamt h" )
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#3b82f6"}}, "Urlaub")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#ef4444"}}, "Krank")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#a855f7"}}, "ZA")
-            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Sonder")
-            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Pflege")
+            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Sonder")
+            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Pflege")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#22c55e",fontWeight:800}}, "Rest")
-            , isAdmin&&React.createElement('th', { style: {...thS(),fontSize:10,color:"#f59e0b"}}, "ÜS h")
+            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f59e0b"}}, "ÜS h")
           ))
           , React.createElement('tbody', {}, (isAdmin?names:names.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
             return (React.createElement('tr', { key: m, style: {borderBottom:"1px solid "+V.bd}}
               , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:sel===m?700:500,color:sel===m?"#22c55e":V.tx,cursor:isAdmin?"pointer":"default"}, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}}, m)
-              , isAdmin&&React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.woche||38.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.woche||38.5))
-              , isAdmin&&React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.stunden||192.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,stunden:parseFloat(e.target.value)||192.5}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.stunden||192.5))
-              , isAdmin&&React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.vorjahr||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.vorjahr||0))
+              , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.woche||38.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.woche||38.5))
+              , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.stunden||192.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,stunden:parseFloat(e.target.value)||192.5}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.stunden||192.5))
+              , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.vorjahr||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.vorjahr||0))
               , React.createElement('td', { style: {...tdSt(),fontWeight:700}}, _n(total,1))
               , React.createElement('td', { style: {...tdSt(),color:"#3b82f6",fontWeight:ys.urlaubStd>0?700:400}}, ys.urlaubStd>0?_n(ys.urlaubStd,1):"—")
               , React.createElement('td', { style: {...tdSt(),color:"#ef4444",fontWeight:ys.krankenstandStd>0?700:400}}, ys.krankenstandStd>0?_n(ys.krankenstandStd,1):"—")
               , React.createElement('td', { style: {...tdSt(),color:"#a855f7",fontWeight:ys.zeitausgleichStd>0?700:400}}, ys.zeitausgleichStd>0?_n(ys.zeitausgleichStd,1):"—")
-              , isAdmin&&React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.sonderStdGes>0?700:400}}, ys.sonderStdGes>0?_n(ys.sonderStdGes,1):"—")
-              , isAdmin&&React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.pflegeStdGes>0?700:400}}, ys.pflegeStdGes>0?_n(ys.pflegeStdGes,1):"—")
+              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.sonderStdGes>0?700:400}}, ys.sonderStdGes>0?_n(ys.sonderStdGes,1):"—")
+              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.pflegeStdGes>0?700:400}}, ys.pflegeStdGes>0?_n(ys.pflegeStdGes,1):"—")
               , React.createElement('td', { style: {...tdSt(),fontWeight:800,color:rest<=20?"#ef4444":rest<=50?"#eab308":"#22c55e"}}, rest.toFixed?_n(rest,1):rest, "h")
-              , isAdmin&&React.createElement('td', { style: {...tdSt(),color:"#f59e0b",fontWeight:(ks.ueberstunden||0)!==0?700:400}}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.ueberstunden||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_n(ks.ueberstunden,1)):"—")
+              , React.createElement('td', { style: {...tdSt(),color:"#f59e0b",fontWeight:(ks.ueberstunden||0)!==0?700:400}}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.ueberstunden||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), style: {...II(),width:50,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_n(ks.ueberstunden,1)):"—")
             ));
           }))
         )
-        )
+        ))
       )
 
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
