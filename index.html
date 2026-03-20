@@ -2066,7 +2066,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   const [planData,setPlanData]=_react.useState.call(void 0, {plans:[],tickets:[],layers:DEF_LAYERS});
   const [arbeitsscheine,setArbeitsscheine]=_react.useState.call(void 0, []);
   const [monteure,setMonteure]=_react.useState.call(void 0, MONT);
-  const [monteurProjekte,setMonteurProjekte]=_react.useState.call(void 0, {w1:["p1","p4"],w2:["p1","p2","p4","p5"],w3:["p3","p4"],w4:["p4"],w5:["p4"],w6:[],w7:["p5"]});
+  const [monteurProjekte,setMonteurProjekte]=_react.useState.call(void 0, {w1:["p1","p4"],w2:["p1","p2","p4","p5"],w3:["p3","p4"],w4:["p4"],w5:["p4"],w6:["p4"],w7:["p5"]});
   const [werkzeuge,setWerkzeuge]=_react.useState.call(void 0, []);
   const [fahrzeuge,setFahrzeuge]=_react.useState.call(void 0, []);
   const [chartCfg,setChartCfg]=_react.useState.call(void 0, {});
@@ -2256,7 +2256,7 @@ function LoginScreen({onLogin,onPortal,projects}){
             _optionalChain([window, 'access', _49s5 => _49s5.__toast, 'optionalCall', _49s6 => _49s6("🌱 "+MONT.length+" Mitarbeiter initialisiert")]);
           }
           // ═══ SCHEMA VERSION CHECK ═══
-          if(curUser.role==="admin"){try{await _sbGet("bautagebuch","select=id&limit=1");}catch(e){_optionalChain([window, 'access', _schk1 => _schk1.__toast, 'optionalCall', _schk2 => _schk2("⚠️ DB-Schema veraltet — SQL-Migration ausführen! (setup_bautagebuch.sql + fix_schema_v3.3.5.sql)","warn")]);}}
+          if(curUser.role==="admin"){try{const _sc=await fetch(SB_REST+"/bautagebuch?select=id&limit=1",{headers:_sbRH()});if(!_sc.ok)throw new Error(_sc.status);}catch(e){_optionalChain([window, 'access', _schk1 => _schk1.__toast, 'optionalCall', _schk2 => _schk2("⚠️ DB-Schema veraltet — SQL-Migration ausführen! (setup_bautagebuch.sql + fix_schema_v3.3.5.sql)","warn")]);}}
           setSyncStatus(p=>({...p,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));
           // Flush pending queue
           const cnt=await SQ.count();
@@ -5058,9 +5058,11 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   const pid=p.id;
   const isMob=(ww||999)<600;
   const _canDelZ=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter"||(curUser.role==="monteur"));
+  const isAdminPL=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter");
   const assignedWorkers=(monteure||MONT).filter(m=>(monteurProjekte||{})[m.id]&&(monteurProjekte||{})[m.id].includes(pid));
-  const allWorkers=assignedWorkers.length>0?assignedWorkers:(monteure||MONT);
-  const [selWorker,setSelWorker]=_react.useState.call(void 0, selW||((allWorkers[0]||{}).id)||"");
+  const allWorkers=isAdminPL?(monteure||MONT):assignedWorkers.length>0?assignedWorkers:(monteure||MONT);
+  const _defW=(curUser&&curUser.monteurId&&allWorkers.find(w=>w.id===curUser.monteurId))?curUser.monteurId:((allWorkers[0]||{}).id)||"";
+  const [selWorker,setSelWorker]=_react.useState.call(void 0, selW||_defW);
   const [filterW,setFilterW]=_react.useState.call(void 0, "alle");
   const pe=entries.filter(e=>e.pid===pid||e.p===pid);
   const [calKw,setCalKw]=_react.useState.call(void 0, isoW());
