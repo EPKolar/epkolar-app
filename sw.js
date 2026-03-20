@@ -1,16 +1,19 @@
 // EP Kolar Service Worker v3.4.2
-const CACHE_NAME = 'epkolar-v3.4.2';
+const CACHE_NAME = 'epkolar-v3.4.3';
 const ASSETS = [
   './',
   './index.html'
 ];
 
-// Install: Pre-cache essential assets
+// Install: Pre-cache essential assets — do NOT skipWaiting automatically
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  // Notify all clients that update is available
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
+  });
 });
 
 // Activate: Clean old caches
