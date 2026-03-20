@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.4.5';
+  var SW_VER='epkolar-v3.4.6';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -803,7 +803,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.4.5-supabase";
+const APP_VERSION="3.4.6-supabase";
 const SCHEMA_VER=5; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4751,6 +4751,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
   const [sg,setSg]=_react.useState.call(void 0, "elektro");
   const [fTab,setFTab]=_react.useState.call(void 0, "regie");
   const [mobNav,setMobNav]=_react.useState.call(void 0, false);
+  const [photoCount,setPhotoCount]=_react.useState.call(void 0, 0);
   const isTab=ww<768;
   const isMob=ww<600;
 
@@ -4764,6 +4765,10 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
     if(_viewSkipPush.current){_viewSkipPush.current=false;return;}
     if(_pushProjView)_pushProjView(view);
   },[view]);
+
+  // Photo count for sidebar badge
+  const _refreshPhotoCount=_react.useCallback.call(void 0, async()=>{try{if(API.getToken()){const r=await _sbGet("photos","select=id&project_id=eq."+encodeURIComponent(p.id));setPhotoCount(r?r.length:0);}}catch(_){}},[p.id]);
+  _react.useEffect.call(void 0, ()=>{_refreshPhotoCount();window.__refreshProjectPhotos=_refreshPhotoCount;return()=>{delete window.__refreshProjectPhotos;};},[_refreshPhotoCount]);
 
   const _allNav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung",pm:"zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne",pm:"plaene"},{id:"formulare",i:"📝",l:"Formulare",pm:"formulare"},{id:"checklisten",i:"✅",l:"Checklisten",pm:"formulare"},{id:"maengel",i:"⚠️",l:"Mängel",pm:"maengel"},{id:"bautagebuch",i:"📋",l:"Bautagebuch",pm:"bautagebuch"},{id:"fotos",i:"📷",l:"Fotos"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA",pm:"offa"},{id:"export",i:"📦",l:"Export",pm:"export"}];
   const _filtNav=_allNav.filter(n=>n===null||!n.pm||hasPerm(curUser,n.pm));
@@ -4788,7 +4793,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
         , React.createElement('div', { style: {flex:1,padding:6}}
           , nav.map((n,i)=>n===null?(React.createElement('div', { key: i, style: {height:1,background:V.bd,margin:"4px 8px"}} )):(
             React.createElement('button', { key: n.id, onClick: ()=>doNav(n.id), title: n.l, style: {width:"100%",padding:isTab&&!isMob?"10px":"9px 12px",display:"flex",alignItems:"center",gap:8,border:"none",borderRadius:6,background:view===n.id?"rgba(249,115,22,.15)":"transparent",color:view===n.id?V.ac:V.dm,fontSize:12,fontWeight:view===n.id?600:400,cursor:"pointer",fontFamily:"inherit",textAlign:"left",marginBottom:1,justifyContent:isTab&&!isMob?"center":"flex-start"}}
-              , React.createElement('span', { style: {fontSize:isTab&&!isMob?18:14}}, n.i), React.createElement('span', { className: "sb-text"}, n.l)
+              , React.createElement('span', { style: {fontSize:isTab&&!isMob?18:14}}, n.i), React.createElement('span', { className: "sb-text"}, n.l, n.id==="fotos"&&photoCount>0&&React.createElement('span', { style: {marginLeft:6,padding:"1px 6px",borderRadius:10,fontSize:9,fontWeight:700,background:"rgba(249,115,22,.15)",color:"#f97316"}}, photoCount))
             )
           ))
         )
@@ -4806,6 +4811,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
               , (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))
             )
             , !isMob && (React.createElement('span', { style: {fontSize:12,color:V.dm,fontFamily:mono}}, "KW " , kw))
+            , React.createElement('label', { style: {padding:"4px 8px",borderRadius:6,border:"1px solid "+V.bd,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",color:V.dm,transition:"all .15s"}, title: "Schnellfoto"}, "📷", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"schnellfoto","foto_"+Date.now(),p.id,"Schnellfoto").then(()=>{if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});_optionalChain([window, 'access', _shf1 => _shf1.__toast, 'optionalCall', _shf2 => _shf2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" aufgenommen")]);try{e.target.value="";}catch(_){}}} ))
           )
         )
         , React.createElement('div', { className: "tab-bar", style: {padding:"0 "+(isMob?"4px":"12px"),borderBottom:"1px solid "+V.bd,background:V.sb,display:"flex",gap:0,overflowX:"auto",flexShrink:0,WebkitOverflowScrolling:"touch"}},
@@ -4846,6 +4852,9 @@ function VDash({p,entries,kw,yr,ww,monteure}){
   const _h=x=>parseFloat(x.hours||x.stunden)||0;
   const gs={};pe.forEach(x=>{gs[x.gw]=(gs[x.gw]||0)+_h(x);});const mxG=Math.max(...Object.values(gs),1);
   const sc=ST_CFG[p.status]||ST_CFG.aktiv;
+  const [recentPhotos,setRecentPhotos]=_react.useState.call(void 0, []);
+  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{if(API.getToken()){const r=await _sbGetOrder("photos","taken_at.desc","project_id=eq."+encodeURIComponent(p.id)+"&limit=4");if(a&&r)setRecentPhotos(r.slice(0,4));}}catch(_){}})();return()=>{a=false;};},[p.id]);
+  const _phUrl=ph=>ph.file_path||ph.fileUrl||ph.file_url||ph.data_url||ph.dataUrl||"";
   return (
     React.createElement('div', {}
       , React.createElement('h2', { style: {fontSize:20,fontWeight:800,marginBottom:2}}, "Dashboard")
@@ -4877,6 +4886,15 @@ function VDash({p,entries,kw,yr,ww,monteure}){
             return (React.createElement(Row, { key: x.id}, React.createElement(Dot, { color: _optionalChain([GW, 'access', _306 => _306[x.gw], 'optionalAccess', _307 => _307.c])||V.ac} ), React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, _optionalChain([w, 'optionalAccess', _308 => _308.n]), " — "  , x.taetigkeit||x.task||""), React.createElement('div', { style: {fontSize:11,color:V.mt}}, fd(x.date))), React.createElement('div', { style: {fontFamily:mono,fontSize:13,fontWeight:700,color:V.ac}}, _n((parseFloat(x.hours||x.stunden)||0),2), "h")));
           })
           , !pe.length&&(React.createElement('p', { style: {color:V.mt,fontSize:12}}, "Keine Einträge" ))
+        )
+      )
+      /* ═══ LETZTE FOTOS ═══ */
+      , recentPhotos.length>0&&React.createElement('div', { style: {...CC(),marginTop:14}}
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "📷 Letzte Fotos" )
+        )
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat("+(ww<600?2:4)+", 1fr)",gap:8}}
+          , recentPhotos.map(ph=>React.createElement('div', { key: ph.id, style: {borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,background:V.bg,cursor:"pointer",aspectRatio:"1"}, onClick: ()=>{/* navigate to fotos view handled by parent */}}, _phUrl(ph)?React.createElement('img', { src: _phUrl(ph), style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ph.name||"Foto"} ):React.createElement('div', { style: {width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:V.dm,fontSize:24}}, "📷")))
         )
       )
     )
@@ -6021,6 +6039,7 @@ function VFotos({p,curUser,monteure,ww}){
       setPhotos(prev=>prev.filter(x=>x.id!==ph.id));
       if(lbIdx>=0)setLbIdx(-1);
       if(window.__toast)window.__toast("Foto gelöscht");
+      if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();
     }catch(e){if(window.__toast)window.__toast("Fehler beim Löschen");}
   };
   // Capture
@@ -6030,6 +6049,7 @@ function VFotos({p,curUser,monteure,ww}){
       captureAndQueue(f,capCat,"foto_"+Date.now(),p.id,"Foto-Galerie "+capCat).then(entry=>{
         if(entry){
           setPhotos(prev=>[{id:entry.id,entity_type:entry.entityType,entity_id:entry.entityId,project_id:p.id,name:entry.name,data_url:entry.dataUrl,taken_at:entry.takenAt,gps_lat:entry.gpsLat,gps_lon:entry.gpsLon,context:entry.context,uploaded_by:_optionalChain([curUser, 'optionalAccess', _vf1 => _vf1.name])||"",width:entry.width,height:entry.height},...prev]);
+          if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();
         }
       });
     });
@@ -6384,6 +6404,8 @@ function VBautag({p,curUser,monteure,ww,entries}){
 
   const defForm={datum:td2(),wetter:"sonnig",temperatur:"",anwesende:[],taetigkeiten:"",besonderheiten:"",material:""};
   const [form,setForm]=_react.useState.call(void 0, {...defForm});
+  const [btPhotos,setBtPhotos]=_react.useState.call(void 0, []);
+  _react.useEffect.call(void 0, ()=>{if(!editing||editing==="new"){setBtPhotos([]);return;}let a=true;(async()=>{try{if(API.getToken()){const r=await _sbGet("photos","entity_type=eq.bautagebuch&entity_id=eq."+encodeURIComponent(editing));if(a&&r)setBtPhotos(r);}}catch(_){}})();return()=>{a=false;};},[editing]);
   const startNewEntry=()=>{const d=td2();const workers=getWorkersForDay(d);const tasks=getTasksForDay(d);setForm({...defForm,anwesende:workers,taetigkeiten:tasks});setEditing("new");autoFillWeather(d);};
 
   // Load from Supabase + ODB
@@ -6499,6 +6521,13 @@ function VBautag({p,curUser,monteure,ww,entries}){
         , React.createElement('div', { style: {marginBottom:14}}, React.createElement('label', { style: LL()}, "Tätigkeiten *"), React.createElement('textarea', { value: form.taetigkeiten, onChange: e=>setForm(prev=>({...prev,taetigkeiten:e.target.value})), rows: 5, style: {...II(),resize:"vertical",minHeight:80}, placeholder: "Beschreibung der durchgeführten Arbeiten..."} ))
         , React.createElement('div', { style: {marginBottom:14}}, React.createElement('label', { style: LL()}, "Material / Verbrauch"), React.createElement('textarea', { value: form.material, onChange: e=>setForm(prev=>({...prev,material:e.target.value})), rows: 3, style: {...II(),resize:"vertical",minHeight:50}, placeholder: "Verwendetes Material, Lieferungen..."} ))
         , React.createElement('div', { style: {marginBottom:14}}, React.createElement('label', { style: LL()}, "Besonderheiten / Vorkommnisse"), React.createElement('textarea', { value: form.besonderheiten, onChange: e=>setForm(prev=>({...prev,besonderheiten:e.target.value})), rows: 3, style: {...II(),resize:"vertical",minHeight:50}, placeholder: "Störungen, Verzögerungen, besondere Vorkommnisse..."} ))
+        , React.createElement('div', { style: {marginBottom:14}}
+          , React.createElement('label', { style: LL()}, "📷 Fotos", btPhotos.length>0&&React.createElement('span', { style: {fontWeight:400,color:V.dm,marginLeft:4}}, "(", btPhotos.length, ")"))
+          , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}
+            , btPhotos.map((ph,i)=>React.createElement('div', { key: ph.id||i, style: {width:56,height:56,borderRadius:6,overflow:"hidden",border:"1px solid "+V.bd}}, React.createElement('img', { src: ph.file_path||ph.data_url||ph.dataUrl||"", style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} )))
+            , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:V.dm}, title: "Foto hinzufügen"}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;const eid=editing==="new"?"bt_"+Date.now():editing;Array.from(fls).forEach(f=>{captureAndQueue(f,"bautagebuch",eid,p.id,"Bautagebuch").then(entry=>{if(entry)setBtPhotos(prev=>[...prev,{id:entry.id,file_path:entry.dataUrl,data_url:entry.dataUrl}]);if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});try{e.target.value="";}catch(_){}}} ), "📷")
+          )
+        )
         , React.createElement('div', { style: {display:"flex",gap:8}}
           , React.createElement('button', { onClick: saveEntry, disabled: !form.datum||!form.taetigkeiten.trim(), style: {...bpS,opacity:(!form.datum||!form.taetigkeiten.trim())?.5:1}}, editing==="new"?"💾 Eintrag speichern":"💾 Änderungen speichern")
           , React.createElement('button', { onClick: ()=>{setEditing(null);setForm({...defForm});}, style: bsS()}, "Abbrechen")
