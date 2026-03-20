@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.4.4';
+  var SW_VER='epkolar-v3.4.5';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -803,7 +803,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.4.4-supabase";
+const APP_VERSION="3.4.5-supabase";
 const SCHEMA_VER=5; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4765,7 +4765,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
     if(_pushProjView)_pushProjView(view);
   },[view]);
 
-  const _allNav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung",pm:"zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne",pm:"plaene"},{id:"formulare",i:"📝",l:"Formulare",pm:"formulare"},{id:"checklisten",i:"✅",l:"Checklisten",pm:"formulare"},{id:"maengel",i:"⚠️",l:"Mängel",pm:"maengel"},{id:"bautagebuch",i:"📋",l:"Bautagebuch",pm:"bautagebuch"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA",pm:"offa"},{id:"export",i:"📦",l:"Export",pm:"export"}];
+  const _allNav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung",pm:"zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne",pm:"plaene"},{id:"formulare",i:"📝",l:"Formulare",pm:"formulare"},{id:"checklisten",i:"✅",l:"Checklisten",pm:"formulare"},{id:"maengel",i:"⚠️",l:"Mängel",pm:"maengel"},{id:"bautagebuch",i:"📋",l:"Bautagebuch",pm:"bautagebuch"},{id:"fotos",i:"📷",l:"Fotos"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA",pm:"offa"},{id:"export",i:"📦",l:"Export",pm:"export"}];
   const _filtNav=_allNav.filter(n=>n===null||!n.pm||hasPerm(curUser,n.pm));
   const nav=_filtNav.filter((n,i,a)=>n!==null||i===0||(i>0&&a[i-1]!==null)).filter((n,i,a)=>n!==null||i<a.length-1);
   const navIds=nav.filter(Boolean).map(n=>n.id);
@@ -4820,6 +4820,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
           , view==="maengel"&&React.createElement(VMang, { p: p, forms: forms, setForms: setForms, curUser: curUser, monteure: monteure, ww: ww} )
           , view==="checklisten"&&React.createElement(VCheck, { p: p, forms: forms, setForms: setForms, ww: ww, curUser: curUser} )
           , view==="bautagebuch"&&React.createElement(VBautag, { p: p, curUser: curUser, monteure: monteure, ww: ww, entries: entries} )
+          , view==="fotos"&&React.createElement(VFotos, { p: p, curUser: curUser, monteure: monteure, ww: ww} )
           , view==="dokumente"&&React.createElement(VDoku, { p: p, ww: ww, curUser: curUser, forms: forms, setForms: setForms} )
           , view==="offa"&&React.createElement(VOffa, { p: p, entries: entries, kw: kw, yr: yr, monteure: monteure, ww: ww} )
           , view==="export"&&React.createElement(VExport, { p: p, entries: entries, forms: forms, monteure: monteure, ww: ww, curUser: curUser} )
@@ -5959,6 +5960,177 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
 }
 
 // ═══════════ OFFA EXPORT ═══════════
+// ═══════════ FOTO-GALERIE ═══════════
+const FOTO_CATS=[
+  {id:"alle",l:"Alle",i:"📷",c:"#6b7280"},
+  {id:"baufortschritt",l:"Baufortschritt",i:"🏗️",c:"#3b82f6"},
+  {id:"mangel",l:"Mängel",i:"⚠️",c:"#ef4444"},
+  {id:"aufmass",l:"Aufmaß",i:"📏",c:"#8b5cf6"},
+  {id:"abnahme",l:"Abnahme",i:"✅",c:"#22c55e"},
+  {id:"schnellfoto",l:"Schnellfoto",i:"📷",c:"#f97316"},
+  {id:"baustelle",l:"Baustelle",i:"🏠",c:"#0ea5e9"},
+  {id:"allgemein",l:"Allgemein",i:"📎",c:"#6b7280"},
+  {id:"defect",l:"Mangel-Foto",i:"🔧",c:"#ef4444"},
+  {id:"sonstiges",l:"Sonstiges",i:"📎",c:"#71717a"}
+];
+function _fotoCat(t){return FOTO_CATS.find(c=>c.id===t)||FOTO_CATS[FOTO_CATS.length-1];}
+function VFotos({p,curUser,monteure,ww}){
+  const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
+  const [photos,setPhotos]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [vMode,setVMode]=_react.useState.call(void 0, "grid");
+  const [filter,setFilter]=_react.useState.call(void 0, "alle");
+  const [lbIdx,setLbIdx]=_react.useState.call(void 0, -1);
+  const [capCat,setCapCat]=_react.useState.call(void 0, "schnellfoto");
+  const capRef=_react.useRef.call(void 0, null);
+  const isMob=ww<600;
+  const isTab=ww<768;
+  // Load photos
+  _react.useEffect.call(void 0, ()=>{
+    let active=true;
+    (async()=>{try{setLoading(true);
+      if(API.getToken()){
+        const rows=await _sbGetOrder("photos","taken_at.desc","project_id=eq."+encodeURIComponent(p.id));
+        if(active&&rows)setPhotos(rows);
+        ODB.save("fotos_"+p.id,rows||[]);
+      }
+      if(active&&!photos.length){const d=await ODB.load("fotos_"+p.id);if(d&&d.length)setPhotos(d);}
+    }catch(e){
+      try{const d=await ODB.load("fotos_"+p.id);if(active&&d&&d.length)setPhotos(d);}catch(_){}
+    }finally{if(active)setLoading(false);}})();
+    return()=>{active=false;};
+  },[p.id]);
+  // Filtered
+  const filtered=filter==="alle"?photos:photos.filter(ph=>(ph.entity_type||ph.entityType)===filter);
+  // KPIs
+  const now=new Date();const weekAgo=new Date(now);weekAgo.setDate(weekAgo.getDate()-7);
+  const thisWeek=photos.filter(ph=>{const d=new Date(ph.taken_at||ph.takenAt||ph.created_at);return d>=weekAgo;}).length;
+  const mangelCount=photos.filter(ph=>(ph.entity_type||ph.entityType)==="defect"||(ph.entity_type||ph.entityType)==="mangel").length;
+  const gpsCount=photos.filter(ph=>(ph.gps_lat||ph.gpsLat)&&(ph.gps_lat||ph.gpsLat)!=="0"&&(ph.gps_lat||ph.gpsLat)!=="").length;
+  // Photo URL helper
+  const photoUrl=ph=>ph.file_path||ph.fileUrl||ph.file_url||ph.data_url||ph.dataUrl||"";
+  const photoThumb=ph=>{const u=photoUrl(ph);return u;};
+  const photoDate=ph=>{const d=ph.taken_at||ph.takenAt||ph.created_at||"";return d?fdt(d):"—";};
+  const photoTime=ph=>{const d=ph.taken_at||ph.takenAt||ph.created_at||"";if(!d)return "";try{return new Date(d).toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"});}catch(_){return "";}};
+  // Delete
+  const delPhoto=async(ph)=>{
+    if(!isAdmin)return;
+    if(!confirm("Foto wirklich löschen?"))return;
+    try{
+      await _sbDelete("photos",ph.id);
+      setPhotos(prev=>prev.filter(x=>x.id!==ph.id));
+      if(lbIdx>=0)setLbIdx(-1);
+      if(window.__toast)window.__toast("Foto gelöscht");
+    }catch(e){if(window.__toast)window.__toast("Fehler beim Löschen");}
+  };
+  // Capture
+  const handleCapture=e=>{
+    const fls=e.target.files;if(!fls||!fls.length)return;
+    Array.from(fls).forEach(f=>{
+      captureAndQueue(f,capCat,"foto_"+Date.now(),p.id,"Foto-Galerie "+capCat).then(entry=>{
+        if(entry){
+          setPhotos(prev=>[{id:entry.id,entity_type:entry.entityType,entity_id:entry.entityId,project_id:p.id,name:entry.name,data_url:entry.dataUrl,taken_at:entry.takenAt,gps_lat:entry.gpsLat,gps_lon:entry.gpsLon,context:entry.context,uploaded_by:_optionalChain([curUser, 'optionalAccess', _vf1 => _vf1.name])||"",width:entry.width,height:entry.height},...prev]);
+        }
+      });
+    });
+    try{e.target.value="";}catch(_){}
+  };
+  // Lightbox nav
+  const lbPhoto=lbIdx>=0&&lbIdx<filtered.length?filtered[lbIdx]:null;
+  const lbPrev=()=>setLbIdx(prev=>prev>0?prev-1:filtered.length-1);
+  const lbNext=()=>setLbIdx(prev=>prev<filtered.length-1?prev+1:0);
+  _react.useEffect.call(void 0, ()=>{
+    if(lbIdx<0)return;
+    const h=e=>{if(e.key==="Escape")setLbIdx(-1);if(e.key==="ArrowLeft")lbPrev();if(e.key==="ArrowRight")lbNext();};
+    window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);
+  },[lbIdx,filtered.length]);
+  // Render
+  if(loading)return React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Fotos werden geladen...");
+  return (
+    React.createElement('div', { style: {maxWidth:1200,margin:"0 auto"}}
+      , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}
+        , React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📷 Fotos" , React.createElement('span', { style: {fontSize:13,fontWeight:400,color:V.dm,marginLeft:8}}, filtered.length, " / " , photos.length))
+        , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
+          , React.createElement('select', { value: capCat, onChange: e=>setCapCat(e.target.value), style: {...II(),width:"auto",fontSize:11,padding:"6px 8px"}}
+            , FOTO_CATS.filter(c=>c.id!=="alle").map(c=>React.createElement('option', { key: c.id, value: c.id}, c.i, " " , c.l))
+          )
+          , React.createElement('label', { style: {...bpS,fontSize:12,padding:"8px 14px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4}}, "📷 Foto aufnehmen"
+            , React.createElement('input', { ref: capRef, type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: handleCapture} )
+          )
+        )
+      )
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":"repeat(4,1fr)",gap:10,marginBottom:16}}
+        , React.createElement('div', { style: {...CC(),padding:12,textAlign:"center",margin:0}}, React.createElement('div', { style: {fontSize:22,fontWeight:800,color:V.ac}}, photos.length), React.createElement('div', { style: {fontSize:11,color:V.dm}}, "Gesamt"))
+        , React.createElement('div', { style: {...CC(),padding:12,textAlign:"center",margin:0}}, React.createElement('div', { style: {fontSize:22,fontWeight:800,color:"#3b82f6"}}, thisWeek), React.createElement('div', { style: {fontSize:11,color:V.dm}}, "Diese Woche"))
+        , React.createElement('div', { style: {...CC(),padding:12,textAlign:"center",margin:0}}, React.createElement('div', { style: {fontSize:22,fontWeight:800,color:"#ef4444"}}, mangelCount), React.createElement('div', { style: {fontSize:11,color:V.dm}}, "Mängel-Fotos"))
+        , React.createElement('div', { style: {...CC(),padding:12,textAlign:"center",margin:0}}, React.createElement('div', { style: {fontSize:22,fontWeight:800,color:"#22c55e"}}, gpsCount), React.createElement('div', { style: {fontSize:11,color:V.dm}}, "GPS-markiert"))
+      )
+      , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:14}}
+        , FOTO_CATS.filter(c=>c.id==="alle"||photos.some(ph=>(ph.entity_type||ph.entityType)===c.id)).map(c=>(
+          React.createElement('button', { key: c.id, onClick: ()=>setFilter(c.id), style: {padding:"5px 12px",borderRadius:20,border:"1px solid "+(filter===c.id?c.c:V.bd),background:filter===c.id?c.c+"18":"transparent",color:filter===c.id?c.c:V.dm,fontSize:11,fontWeight:filter===c.id?700:400,cursor:"pointer",fontFamily:"inherit"}}, c.i, " " , c.l)
+        ))
+        , React.createElement('div', { style: {marginLeft:"auto",display:"flex",gap:0,border:"1px solid "+V.bd,borderRadius:6,overflow:"hidden"}}
+          , React.createElement('button', { onClick: ()=>setVMode("grid"), style: {padding:"5px 10px",border:"none",background:vMode==="grid"?V.ac+"20":"transparent",color:vMode==="grid"?V.ac:V.dm,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}, "⊞")
+          , React.createElement('button', { onClick: ()=>setVMode("list"), style: {padding:"5px 10px",border:"none",borderLeft:"1px solid "+V.bd,background:vMode==="list"?V.ac+"20":"transparent",color:vMode==="list"?V.ac:V.dm,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}, "☰")
+        )
+      )
+      , filtered.length===0&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:48,marginBottom:8}}, "📷"), filter==="alle"?"Noch keine Fotos in diesem Projekt.":"Keine Fotos in dieser Kategorie." , React.createElement('div', { style: {fontSize:11,marginTop:8}}, "Verwenden Sie den Button oben, um Fotos aufzunehmen."))
+      , filtered.length>0&&vMode==="grid"&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":isTab?"repeat(3,1fr)":"repeat(4,1fr)",gap:8}}
+        , filtered.map((ph,i)=>{const cat=_fotoCat(ph.entity_type||ph.entityType);return (
+          React.createElement('div', { key: ph.id, onClick: ()=>setLbIdx(i), style: {...CC(),padding:0,overflow:"hidden",cursor:"pointer",margin:0,position:"relative"}}
+            , React.createElement('div', { style: {height:isMob?120:160,background:"#0a0c14",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}
+              , photoUrl(ph)?React.createElement('img', { src: photoUrl(ph), alt: ph.name||"Foto", style: {width:"100%",height:"100%",objectFit:"cover"}, loading: "lazy"} ):React.createElement('div', { style: {fontSize:40,color:"#333"}}, "📷")
+            )
+            , React.createElement('div', { style: {padding:"8px 10px"}}
+              , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center"}}
+                , React.createElement('span', { style: {fontSize:10,padding:"1px 6px",borderRadius:10,background:cat.c+"18",color:cat.c,fontWeight:600}}, cat.i, " " , cat.l)
+                , (ph.gps_lat||ph.gpsLat)&&(ph.gps_lat||ph.gpsLat)!=="0"&&(ph.gps_lat||ph.gpsLat)!==""&&React.createElement('span', { style: {fontSize:10,color:"#22c55e"}}, "📍")
+              )
+              , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:4}}, photoDate(ph), " " , photoTime(ph))
+            )
+          )
+        );})
+      )
+      , filtered.length>0&&vMode==="list"&&React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}
+        , filtered.map((ph,i)=>{const cat=_fotoCat(ph.entity_type||ph.entityType);return (
+          React.createElement('div', { key: ph.id, onClick: ()=>setLbIdx(i), style: {...CC(),padding:10,margin:0,cursor:"pointer",display:"flex",gap:12,alignItems:"center"}}
+            , React.createElement('div', { style: {width:60,height:60,borderRadius:6,overflow:"hidden",flexShrink:0,background:"#0a0c14",display:"flex",alignItems:"center",justifyContent:"center"}}
+              , photoUrl(ph)?React.createElement('img', { src: photoUrl(ph), alt: ph.name||"Foto", style: {width:"100%",height:"100%",objectFit:"cover"}, loading: "lazy"} ):React.createElement('div', { style: {fontSize:24,color:"#333"}}, "📷")
+            )
+            , React.createElement('div', { style: {flex:1,minWidth:0}}
+              , React.createElement('div', { style: {fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, ph.name||ph.context||"Foto")
+              , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",marginTop:4}}
+                , React.createElement('span', { style: {fontSize:10,padding:"1px 6px",borderRadius:10,background:cat.c+"18",color:cat.c,fontWeight:600}}, cat.i, " " , cat.l)
+                , (ph.gps_lat||ph.gpsLat)&&(ph.gps_lat||ph.gpsLat)!=="0"&&(ph.gps_lat||ph.gpsLat)!==""&&React.createElement('span', { style: {fontSize:10,color:"#22c55e"}}, "📍 GPS")
+              )
+              , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:2}}, photoDate(ph), " " , photoTime(ph), " · " , ph.uploaded_by||ph.uploadedBy||"—")
+            )
+            , isAdmin&&React.createElement('button', { onClick: e=>{e.stopPropagation();delPhoto(ph);}, style: {...bdS,padding:"4px 8px",fontSize:10}}, "🗑️")
+          )
+        );})
+      )
+      , lbIdx>=0&&lbPhoto&&React.createElement('div', { onClick: ()=>setLbIdx(-1), style: {position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:500,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}
+        , React.createElement('div', { onClick: e=>e.stopPropagation(), style: {position:"relative",maxWidth:"95vw",maxHeight:"90vh",display:"flex",flexDirection:"column",alignItems:"center"}}
+          , React.createElement('img', { src: photoUrl(lbPhoto), alt: lbPhoto.name||"Foto", style: {maxWidth:"90vw",maxHeight:"70vh",objectFit:"contain",borderRadius:6}} )
+          , React.createElement('div', { style: {marginTop:12,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}
+            , React.createElement('span', { style: {fontSize:11,color:"#aaa"}}, photoDate(lbPhoto), " " , photoTime(lbPhoto))
+            , React.createElement(Badge, { text: _fotoCat(lbPhoto.entity_type||lbPhoto.entityType).i+" "+_fotoCat(lbPhoto.entity_type||lbPhoto.entityType).l, color: _fotoCat(lbPhoto.entity_type||lbPhoto.entityType).c} )
+            , (lbPhoto.gps_lat||lbPhoto.gpsLat)&&(lbPhoto.gps_lat||lbPhoto.gpsLat)!=="0"&&(lbPhoto.gps_lat||lbPhoto.gpsLat)!==""&&React.createElement('span', { style: {fontSize:10,color:"#22c55e"}}, "📍 " , _n(parseFloat(lbPhoto.gps_lat||lbPhoto.gpsLat),5), ", " , _n(parseFloat(lbPhoto.gps_lon||lbPhoto.gpsLon),5))
+            , React.createElement('span', { style: {fontSize:10,color:"#aaa"}}, lbPhoto.uploaded_by||lbPhoto.uploadedBy||"")
+          )
+          , React.createElement('div', { style: {marginTop:10,display:"flex",gap:8}}
+            , React.createElement('button', { onClick: e=>{e.stopPropagation();lbPrev();}, style: {padding:"8px 16px",borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:16,fontFamily:"inherit"}}, "◀")
+            , React.createElement('span', { style: {fontSize:11,color:"#888",lineHeight:"36px"}}, lbIdx+1, " / " , filtered.length)
+            , React.createElement('button', { onClick: e=>{e.stopPropagation();lbNext();}, style: {padding:"8px 16px",borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:16,fontFamily:"inherit"}}, "▶")
+            , React.createElement('a', { href: photoUrl(lbPhoto), download: lbPhoto.name||"foto.jpg", onClick: e=>e.stopPropagation(), style: {padding:"8px 14px",borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:12,fontFamily:"inherit",textDecoration:"none",lineHeight:"20px"}}, "📥")
+            , isAdmin&&React.createElement('button', { onClick: e=>{e.stopPropagation();delPhoto(lbPhoto);}, style: {padding:"8px 14px",borderRadius:6,border:"1px solid rgba(239,68,68,.4)",background:"rgba(239,68,68,.12)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}, "🗑️")
+          )
+          , React.createElement('button', { onClick: ()=>setLbIdx(-1), style: {position:"absolute",top:-10,right:-10,width:32,height:32,borderRadius:16,border:"none",background:"rgba(255,255,255,.15)",color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")
+        )
+      )
+    )
+  );
+}
 // ═══════════ PROJEKT-DOKUMENTE (Ablage) ═══════════
 const DOC_CATS=[
   {id:"baubesprechung",l:"🏗️ Baubesprechungsprotokoll",c:"#009640"},
