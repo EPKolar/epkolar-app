@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.4.6';
+  var SW_VER='epkolar-v3.4.7';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -246,7 +246,46 @@ var require=function(m){if(m==='react')return React;if(m==='react-dom')return Re
 const SUPABASE_URL="https://jiggujpruejkaomgxarp.supabase.co";
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ2d1anBydWVqa2FvbWd4YXJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1OTU2NjUsImV4cCI6MjA4OTE3MTY2NX0.RXcu1ri8tK38ApdHWxs0Hl9h1FJQCHGm429QHrS2RMc";
 const SB_REST=SUPABASE_URL+"/rest/v1";
-const SB_HDR={"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json","Prefer":"return=representation"};
+
+// ═══ SUPABASE AUTH (GoTrue) ═══
+let _authToken=null,_authRefreshToken=null,_authRefreshTimer=null;
+const _SB_AUTH=SUPABASE_URL+"/auth/v1";
+
+function _sbH(extra){const h={"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(_authToken||SUPABASE_KEY)};if(extra)Object.assign(h,extra);return h;}
+function _sbRH(){return _sbH({"Range":"0-4999"});}
+function _sbWH(prefer){return _sbH({"Content-Type":"application/json","Prefer":prefer||"return=representation"});}
+
+async function _sbAuthLogin(email,password){
+  const r=await fetch(_SB_AUTH+"/token?grant_type=password",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+  if(!r.ok){const e=await r.text();throw new Error("Auth: "+r.status+" "+e);}
+  return r.json();
+}
+async function _sbAuthRefresh(){
+  if(!_authRefreshToken)return;
+  const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})});
+  if(!r.ok){_authToken=null;_authRefreshToken=null;return null;}
+  const d=await r.json();_storeAuth(d);return d;
+}
+async function _sbAuthLogout(){
+  if(_authToken)try{await fetch(_SB_AUTH+"/logout",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_authToken}});}catch(_){}
+  _authToken=null;_authRefreshToken=null;if(_authRefreshTimer)clearTimeout(_authRefreshTimer);_authRefreshTimer=null;
+  try{localStorage.removeItem("epkolar_auth");}catch(_){}
+}
+function _storeAuth(d){
+  _authToken=d.access_token;_authRefreshToken=d.refresh_token;
+  try{localStorage.setItem("epkolar_auth",JSON.stringify({at:d.access_token,rt:d.refresh_token,exp:Date.now()+(d.expires_in*1000)}));}catch(_){}
+  if(_authRefreshTimer)clearTimeout(_authRefreshTimer);
+  _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max((d.expires_in-60)*1000,30000));
+}
+function _restoreAuth(){
+  try{const s=JSON.parse(localStorage.getItem("epkolar_auth")||"null");
+  if(!s||!s.at)return false;
+  if(s.exp>Date.now()){_authToken=s.at;_authRefreshToken=s.rt;_authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max(s.exp-Date.now()-60000,5000));return true;}
+  if(s.rt){_authRefreshToken=s.rt;_sbAuthRefresh();return true;}
+  }catch(_){}return false;
+}
+_restoreAuth();
+// SB_HDR replaced by dynamic _sbWH() — see auth section above
 
 // ═══ SUPABASE STORAGE ═══
 const SB_BUCKET="epkolar-files";
@@ -262,7 +301,7 @@ async function _sbUploadFile(path,dataUrl){
   const blob=_dataUrlToBlob(dataUrl);
   if(!blob)throw new Error("Invalid dataUrl");
   const r=await fetch(SB_STORAGE+"/object/"+SB_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),{
-    method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":blob.type,"x-upsert":"true"},body:blob
+    method:"POST",headers:_sbH({"Content-Type":blob.type,"x-upsert":"true"}),body:blob
   });
   if(!r.ok){const txt=await r.text();throw new Error("Storage upload failed: "+r.status+" "+txt);}
   return SUPABASE_URL+"/storage/v1/object/public/"+SB_BUCKET+"/"+path;
@@ -400,36 +439,35 @@ function _mapDocFromServer(d){
     uploadedBy:d.uploaded_by||"",uploadedAt:(d.uploaded_at||"").split("T")[0],
     kundeFreigabe:d.kunde_freigabe||0,isImage:/\.(jpg|jpeg|png|gif|webp)$/i.test(d.file_name||"")};
 }
-const _SB_RD={"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Range":"0-4999"};
 async function _sbGet(table,filter){
   const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&limit=5000";
-  const r=await fetch(url,{headers:_SB_RD});
+  const r=await fetch(url,{headers:_sbRH()});
   if(!r.ok){const e=await r.text();throw new Error(e);}
   return r.json();
 }
 async function _sbGetOrder(table,order,filter){
   const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&order="+order+"&limit=5000";
-  const r=await fetch(url,{headers:_SB_RD});
+  const r=await fetch(url,{headers:_sbRH()});
   if(!r.ok){const e=await r.text();throw new Error(e);}
   return r.json();
 }
 async function _sbPost(table,data){
-  const r=await fetch(SB_REST+"/"+table,{method:"POST",headers:{...SB_HDR,"Prefer":"return=representation"},body:JSON.stringify(data)});
+  const r=await fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation"),body:JSON.stringify(data)});
   if(!r.ok){const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbUpsert(table,data){
-  const r=await fetch(SB_REST+"/"+table,{method:"POST",headers:{...SB_HDR,"Prefer":"return=representation,resolution=merge-duplicates"},body:JSON.stringify(data)});
+  const r=await fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation,resolution=merge-duplicates"),body:JSON.stringify(data)});
   if(!r.ok){const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbPatch(table,id,data){
-  const r=await fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:SB_HDR,body:JSON.stringify(data)});
+  const r=await fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)});
   if(!r.ok){const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbDelete(table,id){
-  const r=await fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
+  const r=await fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:_sbH()});
   if(!r.ok){const e=await r.text();throw new Error(e);}
   return{ok:1};
 }
@@ -523,17 +561,17 @@ async function _translateAndExec(url,method,body){
       // We need the user_id — it's not in the body, so we mark all unread as read
       const uid=body&&body.user_id;
       if(uid){
-        await fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",{method:"PATCH",headers:SB_HDR,body:JSON.stringify({read:1})});
+        await fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})});
       }else{
         // fallback: mark all as read (will be filtered later by user context)
-        await fetch(SB_REST+"/notifications?read=eq.0",{method:"PATCH",headers:SB_HDR,body:JSON.stringify({read:1})});
+        await fetch(SB_REST+"/notifications?read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})});
       }
       return{ok:1};
     }
     if(idOrSub==="clear"&&method==="POST"){
       const uid=body&&body.user_id;
       if(uid){
-        await fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),{method:"DELETE",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});
+        await fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),{method:"DELETE",headers:_sbH()});
       }
       return{ok:1};
     }
@@ -649,7 +687,7 @@ async function _translateAndExec(url,method,body){
   // Worker-projects: PUT/POST with worker_id as sub
   if(resource==="worker-projects"&&idOrSub&&(method==="PUT"||method==="POST")){
     // Delete all existing assignments for this worker
-    try{await fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),{method:"DELETE",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});}catch(e){}
+    try{await fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),{method:"DELETE",headers:_sbH()});}catch(e){}
     // Insert individual rows for each project
     const projects=body.projects||[];
     if(projects.length){
@@ -757,14 +795,20 @@ window.API = (function() {
       if(!users||!users.length)throw new Error("Benutzer nicht gefunden");
       const user=users[0];
       if(user.locked)throw new Error("Benutzer gesperrt");
-      let valid=false;
-      try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("bcrypt:",e);}
-      if(!valid)throw new Error("Falsches Passwort");
+      const email=user.email||(u+"@epkolar.local");
+      // Try GoTrue auth first
+      let gotrue=false;
+      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;}catch(authErr){
+        // Fallback: bcrypt (transition period until all users migrated)
+        let valid=false;
+        try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("bcrypt:",e);}
+        if(!valid)throw new Error("Falsches Passwort");
+      }
       try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){}
-      try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:navigator.userAgent||""});}catch(e){}
+      try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""});}catch(e){}
       let perms=[];try{perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];}catch(e){perms=[];}
       const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
-      const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:user.email||'',permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
+      const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:email,permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
       _user=userData;
       try{localStorage.setItem('epkolar_user',JSON.stringify(userData));localStorage.setItem('epkolar_token','supabase-session');}catch(e){}
       return{token:'supabase-session',user:userData};
@@ -777,6 +821,8 @@ window.API = (function() {
       let valid=false;try{valid=dcodeIO.bcrypt.compareSync(oldPw,users[0].password_hash);}catch(e){}
       if(!valid)throw new Error("Falsches Passwort");
       await _sbPatch("users",_user.id,{password_hash:dcodeIO.bcrypt.hashSync(newPw,10)});
+      // Also update GoTrue password if authenticated
+      if(_authToken){try{await fetch(_SB_AUTH+"/user",{method:"PUT",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify({password:newPw})});}catch(_){}}
       return{ok:1};
     },
     // Data access (read-only — all writes go through SQ.push → _translateAndExec)
@@ -803,8 +849,8 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.4.6-supabase";
-const SCHEMA_VER=5; // Increment when SQL migrations are needed. Must match Supabase.
+const APP_VERSION="3.4.7-supabase";
+const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
@@ -2432,7 +2478,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
 
-  const logout=()=>{API.setToken(null);setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
+  const logout=()=>{_sbAuthLogout();API.setToken(null);setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
 
   // ═══════════ HISTORY API — Browser-Zurück-Button Support ═══════════
   const _skipPush=_react.useRef.call(void 0, 0);// counter: >0 means skip N pushes
@@ -7841,7 +7887,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
   const [newPw2,setNewPw2]=_react.useState.call(void 0, "");
   const [pwMsg,setPwMsg]=_react.useState.call(void 0, "");
   const [pwOk,setPwOk]=_react.useState.call(void 0, false);
-  const doTest=async()=>{try{const r=await fetch(SB_REST+"/users?select=id&limit=1",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}});setTestOk(r.ok);}catch(e){setTestOk(false);}};
+  const doTest=async()=>{try{const r=await fetch(SB_REST+"/users?select=id&limit=1",{headers:_sbRH()});setTestOk(r.ok);}catch(e){setTestOk(false);}};
   const doChangePw=async()=>{
     setPwMsg("");setPwOk(false);
     if(!oldPw||!newPw){setPwMsg("Altes und neues Passwort eingeben");return;}
