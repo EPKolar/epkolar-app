@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.4.7';
+  var SW_VER='epkolar-v3.4.8';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -285,6 +285,20 @@ function _restoreAuth(){
   }catch(_){}return false;
 }
 _restoreAuth();
+// Auth error detection: 401/403 from RLS → attempt refresh once, then prompt re-login
+let _authFailShown=false;
+function _isAuthErr(status){return status===401||status===403;}
+function _onAuthFail(){if(_authFailShown)return;_authFailShown=true;if(window.__toast)window.__toast("⚠️ Sitzung abgelaufen — bitte neu anmelden","warn");setTimeout(()=>{_authFailShown=false;},10000);}
+async function _authRetry(fn){
+  const r=await fn();
+  if(_isAuthErr(r.status)&&_authRefreshToken){
+    try{const ref=await _sbAuthRefresh();if(ref&&_authToken)return fn();}catch(_){}
+    _onAuthFail();
+  }
+  return r;
+}
+// Safe user columns (excludes password_hash for non-auth reads)
+const _USER_SAFE_COLS="id,name,username,email,role,active,monteur_id,permissions,perms_override,last_login,login_count,locked,created_at,updated_at,auth_user_id";
 // SB_HDR replaced by dynamic _sbWH() — see auth section above
 
 // ═══ SUPABASE STORAGE ═══
@@ -441,35 +455,43 @@ function _mapDocFromServer(d){
 }
 async function _sbGet(table,filter){
   const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&limit=5000";
-  const r=await fetch(url,{headers:_sbRH()});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
 async function _sbGetOrder(table,order,filter){
   const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&order="+order+"&limit=5000";
-  const r=await fetch(url,{headers:_sbRH()});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
 async function _sbPost(table,data){
-  const r=await fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation"),body:JSON.stringify(data)});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation"),body:JSON.stringify(data)}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbUpsert(table,data){
-  const r=await fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation,resolution=merge-duplicates"),body:JSON.stringify(data)});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation,resolution=merge-duplicates"),body:JSON.stringify(data)}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbPatch(table,id,data){
-  const r=await fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbDelete(table,id){
-  const r=await fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:_sbH()});
-  if(!r.ok){const e=await r.text();throw new Error(e);}
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:_sbH()}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   return{ok:1};
+}
+
+// Safe user reads (excludes password_hash)
+async function _sbGetUsersSafe(filter){
+  const url=SB_REST+"/users?select="+_USER_SAFE_COLS+(filter?"&"+filter:"")+"&limit=5000";
+  const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
+  if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
+  return r.json();
 }
 
 // ═══ ROUTE TRANSLATOR: /api/xxx → Supabase REST ═══
@@ -519,7 +541,7 @@ async function _translateAndExec(url,method,body){
   // Password-Reset: create notification for all admin users
   if(resource==="password-reset"&&method==="POST"){
     try{
-      const admins=await _sbGet("users","role=eq.admin&active=eq.1");
+      const admins=await _sbGetUsersSafe("role=eq.admin&active=eq.1");
       const username=body&&body.username||"Unbekannt";
       const notifs=admins.map(a=>({id:Date.now()+"_pwr_"+a.id,user_id:a.id,type:"system",title:"🔑 Passwort-Reset Anfrage",body:"Benutzer '"+username+"' hat eine Passwort-Zurücksetzung angefordert.",link:"",read:0,created_at:new Date().toISOString()}));
       if(notifs.length)await _sbUpsert("notifications",notifs);
@@ -827,7 +849,7 @@ window.API = (function() {
       return{ok:1};
     },
     // Data access (read-only — all writes go through SQ.push → _translateAndExec)
-    getUsers: function() { return _sbGetOrder("users","name.asc"); },
+    getUsers: function() { return _sbGetUsersSafe("order=name.asc"); },
     getProjects: function() { return _sbGet("projects"); },
     getWorkers: function() { return _sbGetOrder("workers","name.asc"); },
     getEntries: function() { return _sbGetOrder("time_entries","date.desc"); },
@@ -850,7 +872,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.4.7-supabase";
+const APP_VERSION="3.4.8-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -2123,7 +2145,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           setCurUser(data.user);
           setAppLoading(false);
           // ═ Auto-refresh user role from DB (fixes stale ODB cache) ═
-          if(data.user&&data.user.id){try{const fresh=await _sbGet("users","id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
+          if(data.user&&data.user.id){try{const fresh=await _sbGetUsersSafe("id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
           return;
         }catch(e){
           // Token expired or server unreachable — try offline
@@ -2234,7 +2256,7 @@ function LoginScreen({onLogin,onPortal,projects}){
             _optionalChain([window, 'access', _49s5 => _49s5.__toast, 'optionalCall', _49s6 => _49s6("🌱 "+MONT.length+" Mitarbeiter initialisiert")]);
           }
           // ═══ SCHEMA VERSION CHECK ═══
-          if(curUser.role==="admin"){try{await _sbGet("bautagebuch","select=id&limit=1");}catch(e){_optionalChain([window, 'access', _schk1 => _schk1.__toast, 'optionalCall', _schk2 => _schk2("⚠️ DB-Schema veraltet — SQL-Migration ausführen! (setup_bautagebuch.sql + fix_schema_v3.3.5.sql)","warning")]);}}
+          if(curUser.role==="admin"){try{await _sbGet("bautagebuch","select=id&limit=1");}catch(e){_optionalChain([window, 'access', _schk1 => _schk1.__toast, 'optionalCall', _schk2 => _schk2("⚠️ DB-Schema veraltet — SQL-Migration ausführen! (setup_bautagebuch.sql + fix_schema_v3.3.5.sql)","warn")]);}}
           setSyncStatus(p=>({...p,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));
           // Flush pending queue
           const cnt=await SQ.count();
@@ -2327,6 +2349,8 @@ function LoginScreen({onLogin,onPortal,projects}){
               await _translateAndExec(item.url,item.method||"POST",item.body);
               okIds.push(item.id);ok++;
             }catch(e){
+              const isAuth=e.message&&e.message.startsWith("Auth:");
+              if(isAuth){fail++;break;} // auth error → stop, wait for re-login
               const isNetwork=!navigator.onLine||e.message==='Failed to fetch'||e.name==='TypeError';
               if(isNetwork){fail++;break;} // real network error → stop
               // Data error (400/409/422) → increment retry count, skip after 3
@@ -2479,7 +2503,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
 
-  const logout=()=>{_sbAuthLogout();API.setToken(null);setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
+  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
 
   // ═══════════ HISTORY API — Browser-Zurück-Button Support ═══════════
   const _skipPush=_react.useRef.call(void 0, 0);// counter: >0 means skip N pushes
@@ -3647,7 +3671,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     setLoadingStats(true);
     try{
       const [users,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifs,logRows]=await Promise.all([
-        _sbGet("users","active=eq.1").then(r=>r.length).catch(()=>0),
+        _sbGetUsersSafe("active=eq.1").then(r=>r.length).catch(()=>0),
         _sbGet("projects").then(r=>r.length).catch(()=>0),
         _sbGet("time_entries").then(r=>r.length).catch(()=>0),
         _sbGet("arbeitsscheine").then(r=>r.length).catch(()=>0),
