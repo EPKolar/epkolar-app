@@ -633,6 +633,7 @@ async function _translateAndExec(url,method,body){
     if(d.kmStand||d.km_stand){
       try{
         const km=parseInt(d.kmStand||d.km_stand)||0;
+        if(km<0){delete d.kmStand;delete d.km_stand;return{ok:1};}
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
           const kl=JSON.parse(fz[0].km_log||'[]');
@@ -8872,6 +8873,9 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const addKm=(fzId)=>{
     if(!kmVal)return;
     const km=parseInt(kmVal)||0;
+    if(km<0){_optionalChain([window, 'access', _km1 => _km1.__toast, 'optionalCall', _km2 => _km2("❌ km-Stand kann nicht negativ sein")]);return;}
+    const cur=fahrzeuge.find(f=>f.id===fzId);
+    if(cur&&km<(cur.kmStand||0)){if(!confirm("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+((cur.kmStand||0)).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
     upd(fzId,f=>{
       f.kmLog=[{km,datum:td2(),note:kmNote,by:_optionalChain([curUser, 'optionalAccess', _631 => _631.name])||""},...(f.kmLog||[])];
       f.kmStand=km;
@@ -8882,10 +8886,26 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   };
   const parseTankBeleg=(dataUrl)=>{
     setTankFoto(dataUrl);setTankOcr(true);
-    // Extract numbers from receipt image using canvas OCR heuristic
-    // Real OCR would need server — we extract common patterns from filename/metadata
-    // User confirms/corrects values after photo
-    setTimeout(()=>setTankOcr(false),800);
+    // Auto-fill date from current date (photo was just taken)
+    if(!tankDatum||tankDatum===td2())setTankDatum(td2());
+    // Try browser TextDetector API (Chrome Android) for real OCR
+    if(typeof TextDetector!=="undefined"){
+      try{const img=new Image();img.src=dataUrl;img.onload=async()=>{try{const det=new TextDetector();const texts=await det.detect(img);const allText=texts.map(t=>t.rawValue).join(" ");
+        // Extract numbers: look for liter (XX.X L) and price (€ XX.XX or XX,XX)
+        const literMatch=allText.match(/(\d{1,3}[.,]\d{1,2})\s*[Ll]/);
+        const preisMatch=allText.match(/(?:€|EUR|Summe|SUMME|Gesamt|GESAMT|Total|TOTAL)\s*(\d{1,4}[.,]\d{2})/i)||allText.match(/(\d{2,4}[.,]\d{2})\s*€/);
+        const kmMatch=allText.match(/(\d{3,6})\s*km/i);
+        if(literMatch)setTankLiter(literMatch[1].replace(",","."));
+        if(preisMatch)setTankPreis(preisMatch[1].replace(",","."));
+        if(kmMatch)setTankKm(kmMatch[1]);
+        if(literMatch||preisMatch)_optionalChain([window, 'access', _ocr1 => _ocr1.__toast, 'optionalCall', _ocr2 => _ocr2("📷 Werte aus Beleg erkannt — bitte prüfen!")]);
+        else _optionalChain([window, 'access', _ocr3 => _ocr3.__toast, 'optionalCall', _ocr4 => _ocr4("📷 Beleg gespeichert — Werte bitte manuell eingeben")]);
+      }catch(_){_optionalChain([window, 'access', _ocr5 => _ocr5.__toast, 'optionalCall', _ocr6 => _ocr6("📷 Beleg gespeichert — Werte manuell eingeben")]);}setTankOcr(false);};
+      }catch(_){setTankOcr(false);_optionalChain([window, 'access', _ocr7 => _ocr7.__toast, 'optionalCall', _ocr8 => _ocr8("📷 Beleg gespeichert")]);}
+    }else{
+      // No TextDetector (Desktop/iOS) — just save photo
+      setTimeout(()=>{setTankOcr(false);_optionalChain([window, 'access', _ocr9 => _ocr9.__toast, 'optionalCall', _ocr10 => _ocr10("📷 Beleg gespeichert — Werte manuell eingeben")]);},500);
+    }
   };
   const handleTankFoto=(e)=>{
     const file=_optionalChain([e, 'access', _635 => _635.target, 'optionalAccess', _636 => _636.files, 'optionalAccess', _637 => _637[0]]);if(!file)return;
@@ -8979,6 +8999,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const [qSchadTxt,setQSchadTxt]=_react.useState.call(void 0, "");
   // Quick-action handlers
   const qDoKm=()=>{if(!qKm||!fzScannedItem)return;const fid=fzScannedItem.id;const km=parseInt(qKm);
+    if(km<0){_optionalChain([window, 'access', _qkm1 => _qkm1.__toast, 'optionalCall', _qkm2 => _qkm2("❌ km-Stand kann nicht negativ sein")]);return;}
+    if(km<(fzScannedItem.kmStand||0)){if(!confirm("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+(fzScannedItem.kmStand||0).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
     const log={id:uid(),km,datum:td2(),notiz:qKmNote};
     setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,kmStand:km,kmLog:[log,...(f.kmLog||[])]}:f));
     SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{kmStand:km}});
@@ -9145,9 +9167,9 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                   , React.createElement('button', { onClick: ()=>setFzQuickAction(null), style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,fontFamily:"inherit"}}, "✕")
                 )
                 , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", value: qTankL, onChange: e=>setQTankL(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "45.0", autoFocus: true} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Preis € *"  ), React.createElement('input', { type: "number", inputMode:"decimal", value: qTankP, onChange: e=>setQTankP(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "72.50"} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankL, onChange: e=>setQTankL(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "45.0", autoFocus: true} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Preis € *"  ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankP, onChange: e=>setQTankP(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "72.50"} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
                   , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum"), React.createElement('input', { type: "date", value: qTankDat, onChange: e=>setQTankDat(e.target.value), style: II()} ))
                 )
                 , qTankL&&qTankP&&(React.createElement('div', { style: {padding:8,borderRadius:6,background:"rgba(249,115,22,.06)",marginBottom:10,fontSize:12,display:"flex",justifyContent:"space-between"}}
@@ -9165,7 +9187,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 )
                 , React.createElement('div', { style: {marginBottom:10}}
                   , React.createElement('span', { style: LL()}, "Neuer km-Stand *"  )
-                  , React.createElement('input', { type: "number", inputMode:"decimal", value: qKm, onChange: e=>setQKm(e.target.value), style: {...II(),fontSize:22,fontFamily:mono,textAlign:"center",fontWeight:800}, autoFocus: true} )
+                  , React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qKm, onChange: e=>setQKm(e.target.value), style: {...II(),fontSize:22,fontFamily:mono,textAlign:"center",fontWeight:800}, autoFocus: true} )
                   , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4}}, "Aktuell: " , (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
                 )
                 , React.createElement('div', { style: {marginBottom:12}}
@@ -9308,7 +9330,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Farbe"), React.createElement('input', { value: nf.farbe, onChange: e=>setNf({...nf,farbe:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Baujahr"), React.createElement('input', { value: nf.baujahr, onChange: e=>setNf({...nf,baujahr:e.target.value}), style: II(), placeholder: "2022"} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer"), React.createElement('select', { value: nf.fahrer, onChange: e=>setNf({...nf,fahrer:e.target.value}), style: II()}, React.createElement('option', { value: ""}, "— keiner —"  ), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
-          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", value: nf.kmStand, onChange: e=>setNf({...nf,kmStand:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: nf.kmStand, onChange: e=>setNf({...nf,kmStand:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl bis" ), React.createElement('input', { type: "date", value: nf.pickerl, onChange: e=>setNf({...nf,pickerl:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: nf.naechstService, onChange: e=>setNf({...nf,naechstService:e.target.value}), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: nf.versicherung, onChange: e=>setNf({...nf,versicherung:e.target.value}), style: II()} ))
@@ -9404,7 +9426,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , showKm===sel&&(React.createElement('div', { style: {...CC(),border:"2px solid "+V.ac,marginTop:8}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:8}}, "📏 Kilometerstand eintragen"  )
           , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"decimal", value: kmVal, onChange: e=>setKmVal(e.target.value), style: {...II(),fontFamily:"monospace",fontSize:16}, autoFocus: true} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: kmVal, onChange: e=>setKmVal(e.target.value), style: {...II(),fontFamily:"monospace",fontSize:16}, autoFocus: true} ))
             , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: LL()}, "Notiz"), React.createElement('input', { value: kmNote, onChange: e=>setKmNote(e.target.value), style: II(), placeholder: "z.B. Fahrt nach Wien"   } ))
             , React.createElement('button', { onClick: ()=>addKm(sel), style: bpS}, "💾")
             , React.createElement('button', { onClick: ()=>setShowKm(null), style: bsS()}, "✕")
@@ -9425,9 +9447,9 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
           , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum *" ), React.createElement('input', { type: "date", value: tankDatum, onChange: e=>setTankDatum(e.target.value), style: II()} ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.1", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52.3" , autoFocus: true} ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.01", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89.50" } ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"decimal", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.1", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52.3" , autoFocus: true} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89.50" } ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
           )
           , tankLiter&&tankPreis&&parseFloat(tankLiter)>0&&React.createElement('div', { style: {fontSize:12,color:V.ac,fontWeight:600,marginBottom:6}}, "💰 Literpreis: "  , _n((parseFloat(tankPreis)/parseFloat(tankLiter)),3), " €/L" )
           , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>addTank(sel), style: bpS}, "💾 Speichern" ), React.createElement('button', { onClick: ()=>{setShowTank(null);setTankFoto("");}, style: bsS()}, "✕"))
@@ -9561,7 +9583,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                   , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}} ))
                   , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", value: s.km||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,km:parseInt(e.target.value)||0}:x)})), style: {...II(),fontSize:11,padding:4}} ))
                   , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Inspektion"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Reifenwechsel"), React.createElement('option', {}, "Pickerl/§57a"), React.createElement('option', {}, "UVV"), React.createElement('option', {}, "Sonstiges")))
-                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.01", value: s.kosten||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:parseFloat(e.target.value)||0}:x)})), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: s.kosten||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:Math.max(0,parseFloat(e.target.value)||0)}:x)})), style: {...II(),fontSize:11,padding:4}} ))
                   , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"  } ))
                   , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Ford Tulln"  } ))
                   , React.createElement('div', { style: {gridColumn:"span 2",display:"flex",gap:8,flexWrap:"wrap"}}
@@ -10075,7 +10097,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:3}}, "💡 Bestehende Codes scannen oder neue Nr. vergeben. QR-Code-Labels über "            , React.createElement('b', {}, "Labels"), " oben drucken"  )
             )
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Anschaffungsdatum"), React.createElement('input', { type: "date", value: form.anschaffung||"", onChange: e=>setForm({...form,anschaffung:e.target.value}), style: II()} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wert (€)" ), React.createElement('input', { type: "number", inputMode:"decimal", value: form.wert||0, onChange: e=>setForm({...form,wert:parseFloat(e.target.value)||0}), style: {...II(),fontFamily:mono}} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wert (€)" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: form.wert||0, onChange: e=>setForm({...form,wert:Math.max(0,parseFloat(e.target.value)||0)}), style: {...II(),fontFamily:mono}} ))
           )
           , React.createElement('div', {}
             , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Status & Zuweisung"  )
