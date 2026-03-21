@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.0';
+  var SW_VER='epkolar-v3.5.1';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -494,6 +494,11 @@ async function _sbGetUsersSafe(filter){
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
+// Anon-only read (no JWT, avoids 401 on expired tokens for public-read tables)
+async function _sbGetAnon(table,filter){
+  const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&limit=5000";
+  try{const r=await fetch(url,{headers:{"apikey":SUPABASE_KEY,"Range":"0-4999"}});if(!r.ok)return[];return r.json();}catch(_){return[];}
+}
 
 // ═══ ROUTE TRANSLATOR: /api/xxx → Supabase REST ═══
 // Used by doSync() to translate queued SQ.push() calls
@@ -875,7 +880,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.0-supabase";
+const APP_VERSION="3.5.1-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4846,7 +4851,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
   _react.useEffect.call(void 0, ()=>{_refreshPhotoCount();window.__refreshProjectPhotos=_refreshPhotoCount;return()=>{delete window.__refreshProjectPhotos;};},[_refreshPhotoCount]);
 
   // Material open orders count for sidebar badge
-  const _refreshMatCount=_react.useCallback.call(void 0, async()=>{try{if(API.getToken()){const r=await _sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=eq.offen");setMatOrderCount(r?r.length:0);}}catch(_){}},[p.id]);
+  const _refreshMatCount=_react.useCallback.call(void 0, async()=>{try{const r=await _sbGetAnon("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=eq.offen");setMatOrderCount(r?r.length:0);}catch(_){}},[p.id]);
   _react.useEffect.call(void 0, ()=>{_refreshMatCount();window.__refreshMatOrderCount=_refreshMatCount;return()=>{delete window.__refreshMatOrderCount;};},[_refreshMatCount]);
 
   const _allNav=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"zeit",i:"⏱️",l:"Zeiterfassung",pm:"zeiterfassung"},{id:"berichte",i:"📄",l:"Berichte"},null,{id:"plaene",i:"🗺️",l:"Pläne",pm:"plaene"},{id:"formulare",i:"📝",l:"Formulare",pm:"formulare"},{id:"checklisten",i:"✅",l:"Checklisten",pm:"formulare"},{id:"maengel",i:"⚠️",l:"Mängel",pm:"maengel"},{id:"bautagebuch",i:"📋",l:"Bautagebuch",pm:"bautagebuch"},{id:"fotos",i:"📷",l:"Fotos"},{id:"material",i:"🔩",l:"Material",pm:"material"},null,{id:"dokumente",i:"📁",l:"Dokumente"},null,{id:"offa",i:"🔗",l:"OFFA",pm:"offa"},{id:"export",i:"📦",l:"Export",pm:"export"}];
@@ -4935,7 +4940,7 @@ function VDash({p,entries,kw,yr,ww,monteure}){
   const [recentPhotos,setRecentPhotos]=_react.useState.call(void 0, []);
   const [matKpi,setMatKpi]=_react.useState.call(void 0, {items:0,cost:0,openOrders:0});
   _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{if(API.getToken()){const r=await _sbGetOrder("photos","taken_at.desc","project_id=eq."+encodeURIComponent(p.id)+"&limit=4");if(a&&r)setRecentPhotos(r.slice(0,4));}}catch(_){}})();return()=>{a=false;};},[p.id]);
-  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{if(API.getToken()){const [mi,mo]=await Promise.all([_sbGet("material_items","select=menge,preis_einheit&project_id=eq."+encodeURIComponent(p.id)),_sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=eq.offen")]);if(a){const cost=(mi||[]).reduce((s,i)=>(parseFloat(i.menge)||0)*(parseFloat(i.preis_einheit)||0)+s,0);setMatKpi({items:(mi||[]).length,cost,openOrders:(mo||[]).length});}}}catch(_){}})();return()=>{a=false;};},[p.id]);
+  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{const [mi,mo]=await Promise.all([_sbGetAnon("material_items","select=menge,preis_einheit&project_id=eq."+encodeURIComponent(p.id)),_sbGetAnon("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=eq.offen")]);if(a){const cost=(mi||[]).reduce((s,i)=>(parseFloat(i.menge)||0)*(parseFloat(i.preis_einheit)||0)+s,0);setMatKpi({items:(mi||[]).length,cost,openOrders:(mo||[]).length});}}catch(_){}})();return()=>{a=false;};},[p.id]);
   const _phUrl=ph=>ph.file_path||ph.fileUrl||ph.file_url||ph.data_url||ph.dataUrl||"";
   return (
     React.createElement('div', {}
