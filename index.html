@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.1';
+  var SW_VER='epkolar-v3.5.2';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -880,7 +880,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.1-supabase";
+const APP_VERSION="3.5.2-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4904,7 +4904,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
         , React.createElement('div', { style: {flex:1,overflowY:"auto",padding:isMob?"10px 8px 80px":"20px"}, ...shellSwipe}
           , view==="dashboard"&&React.createElement(VDash, { p: p, entries: entries, kw: kw, yr: yr, ww: ww, monteure: monteure} )
           , view==="zeit"&&React.createElement(VZeit, { p: p, entries: entries, setEntries: setEntries, selW: selW, sg: sg, setSg: setSg, monteure: monteure, monteurProjekte: monteurProjekte, curUser: curUser, ww: ww} )
-          , view==="berichte"&&React.createElement(VBer, { p: p, entries: entries, kw: kw, setKw: setKw, yr: yr} )
+          , view==="berichte"&&React.createElement(VBer, { p: p, entries: entries, kw: kw, setKw: setKw, yr: yr, curUser: curUser} )
           , view==="plaene"&&React.createElement(VPlan, { p: p, planData: planData, setPlanData: setPlanData, ww: ww, curUser: curUser, forms: forms, setForms: setForms, monteure: monteure} )
           , view==="formulare"&&React.createElement(VForm, { p: p, forms: forms, setForms: setForms, fTab: fTab, setFTab: setFTab, ww: ww} )
           , view==="maengel"&&React.createElement(VMang, { p: p, forms: forms, setForms: setForms, curUser: curUser, monteure: monteure, ww: ww} )
@@ -5239,7 +5239,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   );
 }
 function BerCell({h}){ return (React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:h>0?V.tx:(_dark?"#5c6378":"#c0c4cc"),fontWeight:h>0?600:400,fontSize:h>0?13:11}}, h>0?_n(h,2):"—")); }
-function VBer({p,entries,kw,setKw,yr}){
+function VBer({p,entries,kw,setKw,yr,curUser}){
   const pid=p.id;const GWL=Object.entries(GW).map(([k,v])=>({k,...v}));
   const pe=entries.filter(e=>(e.p===pid||e.pid===pid));
   const getISO=(y,w)=>{const d=new Date(y,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(w-1)*7);return d;};
@@ -6726,7 +6726,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         _sbGet("material_orders","project_id=eq."+encodeURIComponent(p.id)+"&order=created_at.desc")
       ]);
       setItems(mi||[]);setOrders(mo||[]);
-    }catch(e){console.error("Material load:",e);}
+    }catch(e){console.error("Material load:",e);if(window.__toast)window.__toast("Material laden fehlgeschlagen","error");}
     setLoading(false);
   },[p.id]);
   _react.useEffect.call(void 0, ()=>{loadData();},[loadData]);
@@ -6738,8 +6738,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const weekDays=["Mo","Di","Mi","Do","Fr","Sa","So"];
 
   // Navigate KW
-  function prevKw(){if(kw>1)setKw(kw-1);else{setKw(52);setYr(yr-1);}}
-  function nextKw(){if(kw<52)setKw(kw+1);else{setKw(1);setYr(yr+1);}}
+  function prevKw(){if(kw>1)setKw(kw-1);else{setKw(53);setYr(yr-1);}}
+  function nextKw(){if(kw<53)setKw(kw+1);else{setKw(1);setYr(yr+1);}}
 
   // Save item
   async function saveItem(){
@@ -6750,7 +6750,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     try{
       if(isNew){await SQ.push({url:"/api/material-items",method:"POST",body:payload});setItems(prev=>[payload,...prev]);}
       else{await SQ.push({url:"/api/material-items/"+id,method:"PUT",body:payload});setItems(prev=>prev.map(x=>x.id===id?{...x,...payload}:x));}
-      setEditing(null);setForm({...emptyItem});doSync();
+      setEditing(null);setForm(()=>({...emptyItem}));doSync();
       window.__toast&&window.__toast(isNew?"Material hinzugefügt":"Material aktualisiert","success");
     }catch(e){window.__toast&&window.__toast("Fehler: "+e.message,"error");}
   }
@@ -6771,7 +6771,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     try{
       if(isNew){await SQ.push({url:"/api/material-orders",method:"POST",body:payload});setOrders(prev=>[payload,...prev]);}
       else{const ex=orders.find(x=>x.id===id);await SQ.push({url:"/api/material-orders/"+id,method:"PUT",body:{...ex,...payload}});setOrders(prev=>prev.map(x=>x.id===id?{...x,...payload}:x));}
-      setEditOrder(null);setOForm({...emptyOrder});doSync();
+      setEditOrder(null);setOForm(()=>({...emptyOrder}));doSync();
       if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
       window.__toast&&window.__toast(isNew?"Bestellung erstellt":"Bestellung aktualisiert","success");
     }catch(e){window.__toast&&window.__toast("Fehler: "+e.message,"error");}
@@ -8991,7 +8991,7 @@ ${dayRowsHtml}
     genXls("⏱️ Zeiterfassung Übersicht — KW "+kw+"/"+yr,"Alle Monteure · KW "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_Alle_KW"+kw+"_"+yr+".xls",{colWidths:[35,160,70,70,70,70,70,70,70],leftCols:[0,1],boldCols:[1],sumCol:8});
   };
 
-  const switchKw=(newKw)=>{setKw(Math.max(1,Math.min(52,newKw)));};
+  const switchKw=(newKw)=>{setKw(Math.max(1,Math.min(53,newKw)));};
   const workerName=(monteure.find(m=>m.id===selWorker)||{}).n||"";
 
   // ── Add Entry Modal ──
@@ -10113,7 +10113,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             )
           )
           , fzTermine.length===0&&!showAddTermin&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:16}}, "Keine Service-Termine vorhanden")
-          , fzTermine.sort((a,b)=>(a.datum||"").localeCompare(b.datum||"")).map(t=>{
+          , [...fzTermine].sort((a,b)=>(a.datum||"").localeCompare(b.datum||"")).map(t=>{
             const d=t.datum?new Date(t.datum):null;const diff=d?Math.ceil((d-new Date())/86400000):null;
             const urgent=diff!==null&&diff<0;const soon=diff!==null&&diff>=0&&diff<14;
             const color=t.erledigt?"#22c55e":urgent?"#ef4444":soon?"#f97316":"#3b82f6";
