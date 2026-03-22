@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.14';
+  var SW_VER='epkolar-v3.5.15';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -901,7 +901,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.14-supabase";
+const APP_VERSION="3.5.15-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -3983,6 +3983,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   const [allBT,setAllBT]=_react.useState.call(void 0, []);
   const [selProj,setSelProj]=_react.useState.call(void 0, "alle");
   const [loaded,setLoaded]=_react.useState.call(void 0, false);
+  const [showPreview,setShowPreview]=_react.useState.call(void 0, null);
+  const [filterKWs,setFilterKWs]=_react.useState.call(void 0, null);
+  const [hiddenMA,setHiddenMA]=_react.useState.call(void 0, new Set());
+  const [editTaet,setEditTaet]=_react.useState.call(void 0, {});
   const isMob=ww<600;
 
   const loadAll=async()=>{
@@ -3995,8 +3999,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       setAllEntries((te||[]).map(e=>({...e,datum:e.datum||e.date,projekt:e.projekt||e.project_id,monteur:e.monteur||e.worker_id,stunden:parseFloat(e.stunden||e.hours||0),taetigkeit:e.taetigkeit||e.task||"",bemerkung:e.bemerkung||e.description||""})));
       setAllBT((bt||[]).map(b=>({...b,datum:b.datum||b.date,projekt:b.projekt||b.project_id,taetigkeit:b.taetigkeit||b.task||"",wetter:b.wetter||"",temperatur:b.temperatur||""})));
       setLoaded(true);
-      _optionalChain([window, 'access', _bex1 => _bex1.__toast, 'optionalCall', _bex2 => _bex2("✅ "+((te||[]).length)+" Buchungen + "+((bt||[]).length)+" Tagesberichte geladen")]);
-    }catch(e){_optionalChain([window, 'access', _bex3 => _bex3.__toast, 'optionalCall', _bex4 => _bex4("⚠️ Fehler beim Laden","warn")]);}
+      _optionalChain([window, 'access', _bex1 => _bex1.__toast, 'optionalCall', _bex2 => _bex2("\u2705 "+((te||[]).length)+" Buchungen + "+((bt||[]).length)+" Tagesberichte geladen")]);
+    }catch(e){_optionalChain([window, 'access', _bex3 => _bex3.__toast, 'optionalCall', _bex4 => _bex4("\u26a0\ufe0f Fehler beim Laden","warn")]);}
     setLoading(false);
   };
   _react.useEffect.call(void 0, ()=>{loadAll();},[]);
@@ -4007,156 +4011,154 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   const _kwFromDate=(d)=>{const dt=new Date(d);const jan1=new Date(dt.getFullYear(),0,1);const d4=new Date(dt.getFullYear(),0,4);const dayOfWeek=d4.getDay()||7;const firstMon=new Date(dt.getFullYear(),0,4-dayOfWeek+1);const diff=Math.floor((dt-firstMon)/(7*864e5));return Math.max(1,diff+1);};
   const _fmtDate=(d)=>{const dd=new Date(d);return dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");};
 
-  const generateBWB=(proj)=>{
-    const pEntries=allEntries.filter(e=>e.projekt===proj.id);
-    const pBT=allBT.filter(b=>b.projekt===proj.id);
-    if(!pEntries.length){_optionalChain([window, 'access', _bex5 => _bex5.__toast, 'optionalCall', _bex6 => _bex6("⚠️ Keine Zeiterfassung für "+proj.name,"warn")]);return;}
-
+  // === PREVIEW HELPERS ===
+  const getProjectData=(projId)=>{
+    const pEntries=allEntries.filter(e=>e.projekt===projId);
+    const pBT=allBT.filter(b=>b.projekt===projId);
     const kwSet=new Set();
-    pEntries.forEach(e=>{if(e.datum){const d=new Date(e.datum);const yr=d.getFullYear();const kw=_kwFromDate(d);kwSet.add(yr+"-"+String(kw).padStart(2,"0"));}});
+    pEntries.forEach(e=>{if(e.datum){const d=new Date(e.datum);kwSet.add(d.getFullYear()+"-"+String(_kwFromDate(d)).padStart(2,"0"));}});
     const kwList=[...kwSet].sort();
-    if(!kwList.length){_optionalChain([window, 'access', _bex7 => _bex7.__toast, 'optionalCall', _bex8 => _bex8("⚠️ Keine KW-Daten","warn")]);return;}
-
     const workerIds=new Set();
     pEntries.forEach(e=>{if(e.monteur)workerIds.add(e.monteur);});
     const workers=[...workerIds].map(wid=>{const m=(monteure||MONT).find(x=>x.id===wid);return {id:wid,name:m?m.n:"?",rolle:m?m.r:""};}).sort((a,b)=>a.name.localeCompare(b.name));
+    return {pEntries,pBT,kwList,workers};
+  };
 
-    const colLetters="BCDEFGHIJKLMNOPQRS".split("");
-    const workerCols={};
-    workers.forEach((w,i)=>{if(i<18)workerCols[w.id]={col:colLetters[i],idx:i,name:w.name};});
-    const sumCol=String.fromCharCode(66+Math.min(workers.length,18));
+  const openPreview=(projId)=>{
+    const {kwList,workers}=getProjectData(projId);
+    setShowPreview(projId);
+    setFilterKWs(new Set(kwList));
+    setHiddenMA(new Set());
+    // Init editTaet from existing data
+    const tMap={};
+    kwList.forEach(kwKey=>{
+      const [yr,kwStr]=kwKey.split("-");
+      const kw=parseInt(kwStr);
+      const pBT=allBT.filter(b=>b.projekt===projId);
+      const pEntries=allEntries.filter(e=>e.projekt===projId);
+      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const kwE=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      tMap[kwKey]=kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):(kwE.length?[...new Set(kwE.map(e=>e.taetigkeit).filter(Boolean))].join("; "):"");
+    });
+    setEditTaet(tMap);
+  };
+
+  const toggleKW=(kw)=>{setFilterKWs(prev=>{const n=new Set(prev);if(n.has(kw))n.delete(kw);else n.add(kw);return n;});};
+  const toggleMA=(wid)=>{setHiddenMA(prev=>{const n=new Set(prev);if(n.has(wid))n.delete(wid);else n.add(wid);return n;});};
+
+  const printPreview=()=>{
+    const el=document.getElementById("buero-preview-table");
+    if(!el)return;
+    const proj=activeProjects.find(p=>p.id===showPreview);
+    const w=window.open("","_blank","width=1000,height=800");
+    w.document.write('<html><head><title>Vorschau '+(proj?proj.name:"")+'</title><style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:4px 6px;font-size:10pt}th{background:#e8e8e8;font-weight:bold}.sum{background:#f0f0f0;font-weight:bold}.num{text-align:right}.kwh{background:#009640;color:#fff;font-weight:bold}@media print{body{margin:0}}</style></head><body>');
+    w.document.write(el.innerHTML);
+    w.document.write('</body></html>');
+    w.document.close();
+    setTimeout(()=>{w.print();},300);
+  };
+
+  // === EXCEL GENERATOR (uses editTaet + filters) ===
+  const generateBWB=(proj,useFilters)=>{
+    const {pEntries,pBT,kwList:allKWs,workers:allWorkers}=getProjectData(proj.id);
+    if(!pEntries.length){_optionalChain([window, 'access', _bex5 => _bex5.__toast, 'optionalCall', _bex6 => _bex6("\u26a0\ufe0f Keine Zeiterfassung f\u00fcr "+proj.name,"warn")]);return;}
+
+    const kwList=useFilters&&filterKWs?allKWs.filter(k=>filterKWs.has(k)):allKWs;
+    const workers=useFilters?allWorkers.filter(w=>!hiddenMA.has(w.id)):allWorkers;
+    if(!kwList.length){_optionalChain([window, 'access', _bex7 => _bex7.__toast, 'optionalCall', _bex8 => _bex8("\u26a0\ufe0f Keine KW-Daten","warn")]);return;}
 
     let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
-
     const sheetNames=["Summenblatt",...kwList.map(k=>"Bericht KW"+k.split("-")[1]+"-"+k.split("-")[0])];
     sheetNames.forEach(n=>{html+='<x:ExcelWorksheet><x:Name>'+n+'</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>';});
-    html+='</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><style>td,th{mso-number-format:"\\@";font-family:Arial;font-size:10pt;border:.5pt solid #bbb;padding:3px 5px}th{background:#e8e8e8;font-weight:bold}.sum{background:#f0f0f0;font-weight:bold}.hdr{font-size:14pt;font-weight:bold;background:#009640;color:#fff;border:none}.sub{font-size:11pt;font-weight:bold;border:none}.num{mso-number-format:"0.00";text-align:right}.kwh{background:#009640;color:#fff;font-weight:bold;font-size:11pt}</style></head><body>';
+    html+='</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><style>td,th{mso-number-format:"\\@";font-family:Arial;font-size:10pt;border:.5pt solid #bbb;padding:3px 5px}th{background:#e8e8e8;font-weight:bold}.sum{background:#f0f0f0;font-weight:bold}.num{mso-number-format:"0.00";text-align:right}.kwh{background:#009640;color:#fff;font-weight:bold;font-size:11pt}.hdr{font-size:14pt;font-weight:bold;background:#009640;color:#fff;border:none}.sub{font-size:11pt;font-weight:bold;border:none}</style></head><body>';
 
-    kwList.forEach((kwKey,kwIdx)=>{
+    const nc=workers.length;
+    kwList.forEach((kwKey)=>{
       const [yr,kwStr]=kwKey.split("-");
       const kw=parseInt(kwStr);
       const days=_kwDates(parseInt(yr),kw);
       const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const taetigkeit=kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):(kwEntries.length?[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; "):"");
+      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
 
       html+='<table id="Bericht_KW'+kwStr+'-'+yr+'">';
-      html+='<tr><td colspan="'+(workers.length+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
-      html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none">&nbsp;</td></tr>';
-      html+='<tr><td colspan="'+(workers.length+3)+'" class="hdr">Bauwochenbericht</td></tr>';
-      html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none">&nbsp;</td></tr>';
-      html+='<tr><th>Datum</th>';
-      workers.forEach(w=>{html+='<th>'+w.name+'</th>';});
-      html+='<th>Summe Std.</th><th>Tätigkeit</th></tr>';
-      html+='<tr><td class="kwh" colspan="'+(workers.length+3)+'">KW'+kwStr+' / '+yr+'</td></tr>';
-
-      let dayRowStart=[];
+      html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" class="hdr">Bauwochenbericht</td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
+      html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+w.name+'</th>';});
+      html+='<th>Summe Std.</th><th>T\u00e4tigkeit</th></tr>';
+      html+='<tr><td class="kwh" colspan="'+(nc+3)+'">KW'+kwStr+' / '+yr+'</td></tr>';
       days.forEach((day,di)=>{
-        const ds=_fmtDate(day);
-        const dayNames=["So","Mo","Di","Mi","Do","Fr","Sa"];
-        const dname=dayNames[day.getDay()];
+        const ds=_fmtDate(day);const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
         html+='<tr><td>'+dname+' '+String(day.getDate()).padStart(2,"0")+'.'+String(day.getMonth()+1).padStart(2,"0")+'.'+yr+'</td>';
         let rowSum=0;
-        workers.forEach(w=>{
-          const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);
-          html+='<td class="num">'+(h?_n(h,2):"")+'</td>';
-          rowSum+=h;
-        });
+        workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
         html+='<td class="num sum">'+(rowSum?_n(rowSum,2):"")+'</td>';
         html+='<td>'+(di===0?taetigkeit:"")+'</td></tr>';
-        dayRowStart.push(rowSum);
-      });
-
-      html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
-      workers.forEach((w,wi)=>{
-        const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);
-        html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';
       });
       const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
+      html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
+      workers.forEach(w=>{const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';});
       html+='<td class="num">'+_n(kwTotal,2)+'</td><td></td></tr>';
-
-      html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none;height:20px">&nbsp;</td></tr>';
-      html+='<tr><td colspan="'+(workers.length+3)+'" style="font-size:8pt;color:#666;border:none">Gegen diesen Bauwochenbericht kann innerhalb von 48 Stunden Berufung eingelegt werden. Ansonsten hat der Kunde bzw. Auftraggeber seinen Inhalt vollständig zugestimmt und der Bericht Gültigkeit.</td></tr>';
-      html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none;height:40px">&nbsp;</td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:20px">&nbsp;</td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" style="font-size:8pt;color:#666;border:none">Gegen diesen Bauwochenbericht kann innerhalb von 48 Stunden Berufung eingelegt werden. Ansonsten hat der Kunde bzw. Auftraggeber seinen Inhalt vollst\u00e4ndig zugestimmt und der Bericht G\u00fcltigkeit.</td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:40px">&nbsp;</td></tr>';
       html+='<tr><td colspan="3" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift EP Kolar & Sohn GmbH</td>';
-      html+='<td colspan="'+(workers.length)+'" style="border:none"></td>';
-      html+='<td colspan="2" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift Kunde / ÖBA / Auftraggeber</td></tr>';
+      html+='<td colspan="'+nc+'" style="border:none"></td>';
+      html+='<td colspan="2" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift Kunde / \u00d6BA / Auftraggeber</td></tr>';
       html+='</table>';
     });
 
+    // Summenblatt
     html+='<table id="Summenblatt">';
-    html+='<tr><td colspan="'+(workers.length+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
-    html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none">&nbsp;</td></tr>';
-    html+='<tr><td colspan="'+(workers.length+3)+'" class="hdr">Summenblatt Bauwochenberichte</td></tr>';
-    html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none">&nbsp;</td></tr>';
-
-    kwList.forEach((kwKey,kwIdx)=>{
-      const [yr,kwStr]=kwKey.split("-");
-      const kw=parseInt(kwStr);
+    html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
+    html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
+    html+='<tr><td colspan="'+(nc+3)+'" class="hdr">Summenblatt Bauwochenberichte</td></tr>';
+    html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
+    kwList.forEach(kwKey=>{
+      const [yr,kwStr]=kwKey.split("-");const kw=parseInt(kwStr);
       const days=_kwDates(parseInt(yr),kw);
       const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const taetigkeit=kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):(kwEntries.length?[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; "):"");
-
-      html+='<tr><th>Datum</th>';
-      workers.forEach(w=>{html+='<th>'+w.name+'</th>';});
-      html+='<th>Summe</th><th>Tätigkeit</th></tr>';
-
+      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
+      html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+w.name+'</th>';});html+='<th>Summe</th><th>T\u00e4tigkeit</th></tr>';
       days.forEach((day,di)=>{
-        const ds=_fmtDate(day);
-        const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
+        const ds=_fmtDate(day);const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
         html+='<tr><td>'+dname+' '+String(day.getDate()).padStart(2,"0")+'.'+String(day.getMonth()+1).padStart(2,"0")+'.'+yr+'</td>';
         let rowSum=0;
-        workers.forEach(w=>{
-          const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);
-          html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;
-        });
+        workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
         html+='<td class="num sum">'+(rowSum?_n(rowSum,2):"")+'</td>';
         html+='<td>'+(di===0?taetigkeit:"")+'</td></tr>';
       });
-
       const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
       html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
-      workers.forEach(w=>{
-        const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);
-        html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';
-      });
+      workers.forEach(w=>{const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';});
       html+='<td class="num">'+_n(kwTotal,2)+'</td><td></td></tr>';
-      html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none;height:4px"></td></tr>';
+      html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:4px"></td></tr>';
     });
-
     const rolleGroups={};
     workers.forEach(w=>{const r=(monteure||MONT).find(m=>m.id===w.id);const rolle=r?r.r:"Sonstige";if(!rolleGroups[rolle])rolleGroups[rolle]=[];rolleGroups[rolle].push(w);});
-    html+='<tr><td colspan="'+(workers.length+3)+'" style="border:none;height:12px"></td></tr>';
-    html+='<tr class="sum"><td colspan="'+(workers.length+3)+'">Gesamtübersicht nach Rolle</td></tr>';
+    html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:12px"></td></tr>';
+    html+='<tr class="sum"><td colspan="'+(nc+3)+'">Gesamt\u00fcbersicht nach Rolle</td></tr>';
     Object.entries(rolleGroups).forEach(([rolle,rWorkers])=>{
       html+='<tr><td>'+rolle+'</td>';
-      workers.forEach(w=>{
-        if(rWorkers.find(rw=>rw.id===w.id)){
-          const total=pEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);
-          html+='<td class="num">'+(total?_n(total,2):"")+'</td>';
-        }else{html+='<td></td>';}
-      });
+      workers.forEach(w=>{if(rWorkers.find(rw=>rw.id===w.id)){const total=pEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(total?_n(total,2):"")+'</td>';}else{html+='<td></td>';}});
       const rolleTotal=pEntries.filter(e=>rWorkers.find(rw=>rw.id===e.monteur)).reduce((s,e)=>s+(e.stunden||0),0);
       html+='<td class="num sum">'+_n(rolleTotal,2)+'</td><td></td></tr>';
     });
-    html+='</table>';
-    html+='</body></html>';
+    html+='</table></body></html>';
 
     const blob=new Blob([html],{type:"application/vnd.ms-excel"});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;
-    a.download="Wochen-Bautagesbericht_"+(proj.nr||proj.name).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,"_")+".xls";
-    a.click();
-    URL.revokeObjectURL(url);
-    _optionalChain([window, 'access', _bex9 => _bex9.__toast, 'optionalCall', _bex10 => _bex10("📊 "+a.download+" heruntergeladen")]);
+    const a=document.createElement("a");a.href=url;
+    a.download="BWB_"+(proj.nr||proj.name).replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df_-]/g,"_")+".xls";
+    a.click();URL.revokeObjectURL(url);
+    _optionalChain([window, 'access', _bex9 => _bex9.__toast, 'optionalCall', _bex10 => _bex10("\ud83d\udcca "+a.download+" heruntergeladen")]);
   };
 
   const generateAll=()=>{
     const ps=selProj==="alle"?activeProjects:activeProjects.filter(p=>p.id===selProj);
-    if(!ps.length){_optionalChain([window, 'access', _bex11 => _bex11.__toast, 'optionalCall', _bex12 => _bex12("⚠️ Keine Projekte ausgewählt","warn")]);return;}
-    ps.forEach(p=>generateBWB(p));
+    if(!ps.length){_optionalChain([window, 'access', _bex11 => _bex11.__toast, 'optionalCall', _bex12 => _bex12("\u26a0\ufe0f Keine Projekte ausgew\u00e4hlt","warn")]);return;}
+    ps.forEach(p=>generateBWB(p,false));
   };
 
   const projStats=activeProjects.map(p=>{
@@ -4168,55 +4170,163 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     return {id:p.id,name:p.name,nr:p.nr,kunde:p.kunde,cnt,hrs,btCnt,kws:kwSet.size};
   });
 
+  // === PREVIEW PANEL ===
+  const renderPreview=()=>{
+    if(!showPreview)return null;
+    const proj=activeProjects.find(p=>p.id===showPreview);
+    if(!proj)return null;
+    const {pEntries,pBT,kwList:allKWs,workers:allWorkers}=getProjectData(showPreview);
+    const visibleKWs=filterKWs?allKWs.filter(k=>filterKWs.has(k)):allKWs;
+    const visibleWorkers=allWorkers.filter(w=>!hiddenMA.has(w.id));
+
+    return React.createElement('div', { style: {position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",overflow:"auto",padding:isMob?8:20}},
+      React.createElement('div', { style: {maxWidth:1200,margin:"0 auto",background:V.bg,borderRadius:12,padding:isMob?12:24,minHeight:"80vh"}},
+        // Header
+        React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}},
+          React.createElement('div', {},
+            React.createElement('h3', { style: {margin:0,fontSize:18,fontWeight:800}}, "\ud83d\udc41 Vorschau: ", proj.nr||"", " \u2014 ", proj.name),
+            React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:2}}, visibleKWs.length, " KWs \u00b7 ", visibleWorkers.length, " Mitarbeiter \u00b7 T\u00e4tigkeit editierbar")
+          ),
+          React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}},
+            React.createElement('button', { onClick: printPreview, style: {...bsS(),padding:"6px 14px",fontSize:12}}, "\ud83d\udda8 Drucken"),
+            React.createElement('button', { onClick: ()=>generateBWB(proj,true), style: {...bpS,padding:"6px 14px",fontSize:12}}, "\ud83d\udce5 Excel (mit Filtern)"),
+            React.createElement('button', { onClick: ()=>setShowPreview(null), style: {padding:"6px 14px",fontSize:12,borderRadius:6,border:"1px solid "+V.bd,background:"transparent",color:V.fg,cursor:"pointer",fontFamily:"inherit"}}, "\u2715 Schlie\u00dfen")
+          )
+        ),
+
+        // KW Filter
+        React.createElement('div', { style: {marginBottom:12}},
+          React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6,color:V.dm}}, "\ud83d\udcc5 KW-Filter"),
+          React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap"}},
+            React.createElement('button', { onClick: ()=>setFilterKWs(new Set(allKWs)), style: {padding:"3px 8px",fontSize:10,borderRadius:4,border:"1px solid "+V.bd,background:filterKWs&&filterKWs.size===allKWs.length?"#009640":"transparent",color:filterKWs&&filterKWs.size===allKWs.length?"#fff":V.fg,cursor:"pointer",fontFamily:"inherit"}}, "Alle"),
+            React.createElement('button', { onClick: ()=>setFilterKWs(new Set()), style: {padding:"3px 8px",fontSize:10,borderRadius:4,border:"1px solid "+V.bd,background:filterKWs&&filterKWs.size===0?"#ef4444":"transparent",color:filterKWs&&filterKWs.size===0?"#fff":V.fg,cursor:"pointer",fontFamily:"inherit"}}, "Keine"),
+            allKWs.map(kw=>React.createElement('button', { key: kw, onClick: ()=>toggleKW(kw), style: {padding:"3px 8px",fontSize:10,borderRadius:4,border:"1px solid "+(filterKWs&&filterKWs.has(kw)?"#009640":V.bd),background:filterKWs&&filterKWs.has(kw)?"#00964020":"transparent",color:filterKWs&&filterKWs.has(kw)?"#009640":V.dm,cursor:"pointer",fontWeight:filterKWs&&filterKWs.has(kw)?700:400,fontFamily:"inherit"}}, "KW"+kw.split("-")[1]))
+          )
+        ),
+
+        // MA Filter
+        React.createElement('div', { style: {marginBottom:16}},
+          React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6,color:V.dm}}, "\ud83d\udc77 Mitarbeiter ein/ausblenden"),
+          React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap"}},
+            React.createElement('button', { onClick: ()=>setHiddenMA(new Set()), style: {padding:"3px 8px",fontSize:10,borderRadius:4,border:"1px solid "+V.bd,background:hiddenMA.size===0?"#009640":"transparent",color:hiddenMA.size===0?"#fff":V.fg,cursor:"pointer",fontFamily:"inherit"}}, "Alle"),
+            allWorkers.map(w=>{const vis=!hiddenMA.has(w.id);const clr=_ROLE_CLR?_ROLE_CLR(w.rolle):"#3b82f6";return React.createElement('button', { key: w.id, onClick: ()=>toggleMA(w.id), style: {padding:"3px 8px",fontSize:10,borderRadius:4,border:"1px solid "+(vis?clr:V.bd),background:vis?clr+"20":"transparent",color:vis?clr:V.dm,cursor:"pointer",fontWeight:vis?700:400,fontFamily:"inherit",textDecoration:vis?"none":"line-through"}}, w.name);})
+          )
+        ),
+
+        // TABLE
+        React.createElement('div', { id: "buero-preview-table", style: {overflowX:"auto"}},
+          visibleKWs.map(kwKey=>{
+            const [yr,kwStr]=kwKey.split("-");
+            const kw=parseInt(kwStr);
+            const days=_kwDates(parseInt(yr),kw);
+            const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+            const taet=editTaet[kwKey]!==undefined?editTaet[kwKey]:"";
+            const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
+            const bdr="1px solid "+(V.bd||"#333");
+            const thSt={padding:"4px 8px",fontSize:11,fontWeight:700,background:_dark?"#1e293b":"#f1f5f9",borderBottom:bdr,borderRight:bdr,whiteSpace:"nowrap"};
+            const tdSt2={padding:"4px 8px",fontSize:11,borderBottom:bdr,borderRight:bdr};
+            const numSt={...tdSt2,textAlign:"right",fontFamily:"'SF Mono',monospace",fontWeight:600};
+
+            return React.createElement('div', { key: kwKey, style: {marginBottom:16}},
+              React.createElement('div', { style: {padding:"6px 12px",background:"#009640",color:"#fff",fontWeight:700,fontSize:13,borderRadius:"6px 6px 0 0"}}, "KW"+kwStr+" / "+yr, " \u2014 ", _n(kwTotal,1), "h"),
+              React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:11}},
+                React.createElement('thead', {},
+                  React.createElement('tr', {},
+                    React.createElement('th', { style: {...thSt,width:110}}, "Datum"),
+                    visibleWorkers.map(w=>React.createElement('th', { key: w.id, style: {...thSt,textAlign:"center",minWidth:60}}, w.name.split(" ").pop())),
+                    React.createElement('th', { style: {...thSt,textAlign:"center",width:70}}, "Summe"),
+                    React.createElement('th', { style: {...thSt,minWidth:180}}, "T\u00e4tigkeit")
+                  )
+                ),
+                React.createElement('tbody', {},
+                  days.map((day,di)=>{
+                    const ds=_fmtDate(day);
+                    const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
+                    const isWE=day.getDay()===0||day.getDay()===6;
+                    let rowSum=0;
+                    return React.createElement('tr', { key: di, style: {background:isWE?(_dark?"#1a1a2e":"#f8f8f8"):"transparent"}},
+                      React.createElement('td', { style: {...tdSt2,fontWeight:600,whiteSpace:"nowrap"}}, dname, " ", String(day.getDate()).padStart(2,"0"), ".", String(day.getMonth()+1).padStart(2,"0"), ".", yr),
+                      visibleWorkers.map(w=>{
+                        const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);
+                        rowSum+=h;
+                        return React.createElement('td', { key: w.id, style: {...numSt,color:h?"#22c55e":V.dm}}, h?_n(h,2):"");
+                      }),
+                      React.createElement('td', { style: {...numSt,fontWeight:700,color:rowSum?"#a855f7":V.dm}}, rowSum?_n(rowSum,2):""),
+                      di===0?React.createElement('td', { rowSpan: 7, style: {...tdSt2,verticalAlign:"top",padding:4}},
+                        React.createElement('textarea', { value: taet, onChange: e=>setEditTaet(prev=>({...prev,[kwKey]:e.target.value})), style: {width:"100%",minHeight:120,background:"transparent",border:"1px dashed "+(V.bd||"#444"),borderRadius:4,color:V.fg,fontSize:11,padding:4,resize:"vertical",fontFamily:"inherit"}, placeholder: "T\u00e4tigkeit eingeben..."})
+                      ):null
+                    );
+                  }),
+                  React.createElement('tr', { style: {background:_dark?"#1e293b":"#e2e8f0",fontWeight:700}},
+                    React.createElement('td', { style: {...tdSt2,fontWeight:800}}, "Summe KW"+kwStr),
+                    visibleWorkers.map(w=>{
+                      const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);
+                      return React.createElement('td', { key: w.id, style: numSt}, wSum?_n(wSum,2):"");
+                    }),
+                    React.createElement('td', { style: {...numSt,fontSize:13,color:"#009640"}}, _n(kwTotal,2)),
+                    React.createElement('td', { style: tdSt2})
+                  )
+                )
+              )
+            );
+          })
+        )
+      )
+    );
+  };
+
   return (
-    React.createElement('div', {}
-      , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
-        , React.createElement('div', {}
-          , React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📋 Büro-Export" )
-          , React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Bauwochenberichte nach Vorlage — pro Projekt als Excel mit Summenblatt + KW-Blättern."   )
+    React.createElement('div', {},
+      React.createElement('div', { className: "header-row", style: {marginBottom:12}},
+        React.createElement('div', {},
+          React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "\ud83d\udccb B\u00fcro-Export" ),
+          React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Bauwochenberichte nach Vorlage \u2014 pro Projekt als Excel mit Summenblatt + KW-Bl\u00e4ttern.")
+        ),
+        React.createElement('button', { onClick: loadAll, style: {...bpS,padding:"6px 14px",fontSize:12}}, loading?"\u23f3 Lade...":"\ud83d\udd04 Daten aktualisieren" )
+      ),
+
+      React.createElement('div', { className: "kpi-grid", style: {marginBottom:16}},
+        React.createElement(Kpi, { label: "Buchungen", value: allEntries.length, sub: "Zeiterfassung gesamt", color: "#3b82f6"} ),
+        React.createElement(Kpi, { label: "Tagesberichte", value: allBT.length, sub: "Bautagebuch", color: "#f97316"} ),
+        React.createElement(Kpi, { label: "Projekte", value: activeProjects.length, sub: "aktiv", color: V.ac} ),
+        React.createElement(Kpi, { label: "Stunden total", value: _n(allEntries.reduce((s,e)=>s+(e.stunden||0),0),1), sub: "alle Projekte", color: "#a855f7"} )
+      ),
+
+      React.createElement('div', { style: {...CC(),marginBottom:16}},
+        React.createElement('div', { style: {display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}},
+          React.createElement('label', { style: {fontSize:13,fontWeight:600}}, "Projekt:"),
+          React.createElement('select', { value: selProj, onChange: e=>setSelProj(e.target.value), style: {...II(),width:"auto",minWidth:200}},
+            React.createElement('option', { value: "alle"}, "\u2014 Alle Projekte (" , activeProjects.length, ")"),
+            activeProjects.map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr||"", " \u2014 " , p.name)))
+          ),
+          React.createElement('button', { onClick: generateAll, disabled: loading||!loaded, style: {...bpS,padding:"8px 20px"}}, "\ud83d\udcca Bauwochenbericht herunterladen")
         )
-        , React.createElement('button', { onClick: loadAll, style: {...bpS,padding:"6px 14px",fontSize:12}}, loading?"⏳ Lade...":"🔄 Daten aktualisieren" )
-      )
+      ),
 
-      , React.createElement('div', { className: "kpi-grid", style: {marginBottom:16}}
-        , React.createElement(Kpi, { label: "Buchungen", value: allEntries.length, sub: "Zeiterfassung gesamt", color: "#3b82f6"} )
-        , React.createElement(Kpi, { label: "Tagesberichte", value: allBT.length, sub: "Bautagebuch", color: "#f97316"} )
-        , React.createElement(Kpi, { label: "Projekte", value: activeProjects.length, sub: "aktiv", color: V.ac} )
-        , React.createElement(Kpi, { label: "Stunden total", value: _n(allEntries.reduce((s,e)=>s+(e.stunden||0),0),1), sub: "alle Projekte", color: "#a855f7"} )
-      )
-
-      , React.createElement('div', { style: {...CC(),marginBottom:16}}
-        , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}
-          , React.createElement('label', { style: {fontSize:13,fontWeight:600}}, "Projekt:")
-          , React.createElement('select', { value: selProj, onChange: e=>setSelProj(e.target.value), style: {...II(),width:"auto",minWidth:200}}
-            , React.createElement('option', { value: "alle"}, "— Alle Projekte (" , activeProjects.length, ")")
-            , activeProjects.map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr||"", " — " , p.name)))
-          )
-          , React.createElement('button', { onClick: generateAll, disabled: loading||!loaded, style: {...bpS,padding:"8px 20px"}}, "📊 Bauwochenbericht herunterladen"  )
-        )
-      )
-
-      , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Projektübersicht")
-      , projStats.map(ps=>(
-        React.createElement('div', { key: ps.id, style: {...CC(),marginBottom:8,padding:12,cursor:"pointer",borderColor:selProj===ps.id?V.ac:V.bd,transition:"border-color .15s"}, onClick: ()=>setSelProj(ps.id)}
-          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}
-            , React.createElement('div', {}
-              , React.createElement('div', { style: {fontSize:14,fontWeight:700}}, ps.nr||"", " — " , ps.name)
-              , React.createElement('div', { style: {fontSize:12,color:V.dm}}, ps.kunde||"—")
+      React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Projekt\u00fcbersicht"),
+      projStats.map(ps=>(
+        React.createElement('div', { key: ps.id, style: {...CC(),marginBottom:8,padding:12,cursor:"pointer",borderColor:selProj===ps.id?V.ac:V.bd,transition:"border-color .15s"}, onClick: ()=>setSelProj(ps.id)},
+          React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
+            React.createElement('div', {},
+              React.createElement('div', { style: {fontSize:14,fontWeight:700}}, ps.nr||"", " \u2014 " , ps.name),
+              React.createElement('div', { style: {fontSize:12,color:V.dm}}, ps.kunde||"\u2014")
+            ),
+            React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
+              React.createElement(Badge, { text: ps.cnt+" Buchungen", color: "#3b82f6"} ),
+              React.createElement(Badge, { text: _n(ps.hrs,1)+" Std.", color: "#a855f7"} ),
+              React.createElement(Badge, { text: ps.kws+" KWs", color: V.ac} ),
+              ps.btCnt>0&&React.createElement(Badge, { text: ps.btCnt+" Berichte", color: "#f97316"} ),
+              React.createElement('button', { onClick: (e)=>{e.stopPropagation();openPreview(ps.id);}, disabled: !ps.cnt, style: {...bsS(),padding:"4px 12px",fontSize:11,opacity:ps.cnt?1:.4}}, "\ud83d\udc41 Vorschau" ),
+              React.createElement('button', { onClick: (e)=>{e.stopPropagation();generateBWB(activeProjects.find(p=>p.id===ps.id),false);}, disabled: !ps.cnt, style: {...bsS(),padding:"4px 12px",fontSize:11,opacity:ps.cnt?1:.4}}, "\ud83d\udce5 Excel" )
             )
-            , React.createElement('div', { style: {display:"flex",gap:12,alignItems:"center"}}
-              , React.createElement(Badge, { text: ps.cnt+" Buchungen", color: "#3b82f6"} )
-              , React.createElement(Badge, { text: _n(ps.hrs,1)+" Std.", color: "#a855f7"} )
-              , React.createElement(Badge, { text: ps.kws+" KWs", color: V.ac} )
-              , ps.btCnt>0&&React.createElement(Badge, { text: ps.btCnt+" Berichte", color: "#f97316"} )
-              , React.createElement('button', { onClick: (e)=>{e.stopPropagation();generateBWB(activeProjects.find(p=>p.id===ps.id));}, disabled: !ps.cnt, style: {...bsS(),padding:"4px 12px",fontSize:11,opacity:ps.cnt?1:.4}}, "📥 Excel" )
-            )
           )
         )
-      ))
+      )),
 
-      , !loaded && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "⏳ Daten werden geladen..." )
-      , loaded && !allEntries.length && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "Noch keine Zeiterfassungsdaten vorhanden."  )
+      !loaded && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "\u23f3 Daten werden geladen..." ),
+      loaded && !allEntries.length && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "Noch keine Zeiterfassungsdaten vorhanden."),
+
+      renderPreview()
     )
   );
 }
