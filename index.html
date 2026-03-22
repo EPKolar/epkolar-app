@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.8';
+  var SW_VER='epkolar-v3.5.9';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -421,7 +421,9 @@ function _mapArbeitsschein(a){
     material:_jp(a.material),fotos:_jp(a.fotos),
     unterschriftKunde:a.unterschriftKunde||a.unterschrift_kunde||"",
     unterschriftMonteur:a.unterschriftMonteur||a.unterschrift_monteur||"",
-    abschlussDatum:a.abschlussDatum||a.abschluss_datum||"",telefon:a.telefon||"",arbeitsort:a.arbeitsort||""};
+    abschlussDatum:a.abschlussDatum||a.abschluss_datum||"",telefon:a.telefon||"",arbeitsort:a.arbeitsort||"",
+    juprowa_id:a.juprowa_id||null,juprowa_sync_at:a.juprowa_sync_at||"",juprowa_monteur_code:a.juprowa_monteur_code||"",
+    auftragstyp:a.auftragstyp||"",geschaetzte_dauer:a.geschaetzte_dauer||""};
 }
 function _mapDefect(d){
   if(!d)return d;
@@ -895,7 +897,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.8-supabase";
+const APP_VERSION="3.5.9-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1058,6 +1060,135 @@ const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},n
 const AS_ART={reparatur:{l:"Reparatur",i:"🔧"},wartung:{l:"Wartung",i:"🛠️"},stoerung:{l:"Störung",i:"⚡"},regie:{l:"Regie",i:"📋"},garantie:{l:"Garantiefall",i:"🛡️"}};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
+
+// ═══ JUPROWA CLOUD SYNC ═══
+const JUPROWA_WORKER_MAP={'P011':'w1','P008':'w4','P005':'w5'};
+const JUPROWA_STATUS_MAP={'0':'storniert','3':'offen','10':'abgerechnet','20':'erledigt'};
+const JUPROWA_PRIO_MAP={'0':'keine','1':'hoch'};
+let _juprowaSyncTimer=null;
+let _juprowaSyncing=false;
+
+function _juprowaMapWorksheet(jws){
+  const nr=jws.AK_SCHEINNR||"";
+  const stat=JUPROWA_STATUS_MAP[jws.AK_AUFSTATUS]||"offen";
+  const montCode=jws.AK_MONTEUR||"";
+  const montId=JUPROWA_WORKER_MAP[montCode]||"";
+  const wunDat=(jws.AK_WUNDAT||"").split(" ")[0];
+  const wunZeit=(jws.AK_WUNZEIT||"").replace(/:\d\d$/,"");
+  const termDat=(jws.AK_TERMIN||"").split(" ")[0];
+  const aufDat=(jws.AK_ANLAGE_DATZEIT||"").split(" ")[0];
+  return{
+    nummer:nr,
+    juprowa_id:jws.ID||null,
+    kundNr:jws.AK_BAUADR_NUMMER||jws.ID_CUSTOMER||"",
+    kundName:jws.AK_BAUADR_NAM1||jws.RE_ADR_NAM1||"",
+    kundStr:jws.AK_BAUADR_STR||"",
+    kundPlz:jws.AK_BAUADR_PLZ||"",
+    kundOrt:jws.AK_BAUADR_ORT||"",
+    kundTel:jws.AK_KONTAKT_TELEFON1||jws.RE_KONTAKT_TELEFON1||"",
+    kundEmail:jws.AK_KONTAKT_EMAIL||jws.RE_KONTAKT_EMAIL||"",
+    projektnr:jws.AK_PROJEKTNR||"",
+    scheinstatus:stat,
+    scheinart:jws.AK_SCHEINTYP==="3"?"regie":"service",
+    prioritaet:JUPROWA_PRIO_MAP[jws.AK_PRIOR]||"keine",
+    verrechnung:"verrechenbar",
+    sachbearbeiter:"",
+    monteur:montId,
+    juprowa_monteur_code:montCode,
+    terminVorschlag:wunDat,
+    terminVorschlagZeit:wunZeit,
+    terminBestaetigt:termDat,
+    terminZeit:"",
+    dauer:jws.AK_DAUER||"",
+    aufgenommen:aufDat,
+    aufgZeit:"",
+    bearbeitetVon:"JUPROWA",
+    arbeitsanweisungen:jws.AK_DURCHZUFUEHREN||"",
+    durchgefuehrte:"",
+    notizen:"",
+    kontakt:jws.AK_KONTAKT_NAME||"",
+    stoerungsmelder:"",
+    telefon:jws.AK_KONTAKT_TELEFON1||jws.AK_KONTAKT_MOBILEPHONE||"",
+    arbeitsort:(jws.AK_BAUADR_STR?jws.AK_BAUADR_STR+", ":"")+(jws.AK_BAUADR_PLZ?jws.AK_BAUADR_PLZ+" ":"")+(jws.AK_BAUADR_ORT||""),
+    auftragstyp:jws.AK_SCHEINTYP_TEXT||"",
+    geschaetzte_dauer:jws.AK_DAUER||"",
+    juprowa_raw:jws,
+    juprowa_sync_at:new Date().toISOString()
+  };
+}
+
+async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
+  if(_juprowaSyncing)return{error:"Sync läuft bereits"};
+  if(!_authToken)return{error:"Nicht eingeloggt"};
+  _juprowaSyncing=true;
+  try{
+    const res=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_fetch_worksheets",{method:"POST",headers:_sbWH(),body:"{}"}));
+    if(!res.ok){_juprowaSyncing=false;return{error:"RPC-Fehler: "+res.status};}
+    const data=await res.json();
+    if(data&&data.error){_juprowaSyncing=false;return data;}
+    if(!Array.isArray(data)){_juprowaSyncing=false;return{error:"Unerwartetes Format"};}
+    let added=0,updated=0,skipped=0;
+    const now=new Date().toISOString();
+    for(const jws of data){
+      const mapped=_juprowaMapWorksheet(jws);
+      if(!mapped.nummer){skipped++;continue;}
+      const existing=arbeitsscheine.find(a=>a.nummer===mapped.nummer);
+      if(existing){
+        const upd={};
+        if(mapped.kundName&&mapped.kundName!==existing.kundName)upd.kundName=mapped.kundName;
+        if(mapped.kundStr&&mapped.kundStr!==existing.kundStr)upd.kundStr=mapped.kundStr;
+        if(mapped.kundPlz&&mapped.kundPlz!==existing.kundPlz)upd.kundPlz=mapped.kundPlz;
+        if(mapped.kundOrt&&mapped.kundOrt!==existing.kundOrt)upd.kundOrt=mapped.kundOrt;
+        if(mapped.kundTel&&mapped.kundTel!==existing.kundTel)upd.kundTel=mapped.kundTel;
+        if(mapped.kundEmail&&mapped.kundEmail!==existing.kundEmail)upd.kundEmail=mapped.kundEmail;
+        if(mapped.projektnr&&mapped.projektnr!==existing.projektnr)upd.projektnr=mapped.projektnr;
+        if(mapped.scheinstatus!==existing.scheinstatus)upd.scheinstatus=mapped.scheinstatus;
+        if(mapped.terminVorschlag&&mapped.terminVorschlag!==existing.terminVorschlag)upd.terminVorschlag=mapped.terminVorschlag;
+        if(mapped.terminBestaetigt&&mapped.terminBestaetigt!==existing.terminBestaetigt)upd.terminBestaetigt=mapped.terminBestaetigt;
+        if(mapped.arbeitsanweisungen&&mapped.arbeitsanweisungen!==existing.arbeitsanweisungen)upd.arbeitsanweisungen=mapped.arbeitsanweisungen;
+        if(mapped.kontakt&&mapped.kontakt!==existing.kontakt)upd.kontakt=mapped.kontakt;
+        if(mapped.telefon&&mapped.telefon!==existing.telefon)upd.telefon=mapped.telefon;
+        if(mapped.arbeitsort&&mapped.arbeitsort!==existing.arbeitsort)upd.arbeitsort=mapped.arbeitsort;
+        if(mapped.monteur&&mapped.monteur!==existing.monteur)upd.monteur=mapped.monteur;
+        upd.juprowa_id=mapped.juprowa_id;
+        upd.juprowa_sync_at=now;
+        upd.juprowa_monteur_code=mapped.juprowa_monteur_code;
+        if(Object.keys(upd).length>3){
+          setArbeitsscheine(prev=>prev.map(a=>a.id===existing.id?{...a,...upd}:a));
+          SQ.push({url:"/api/arbeitsscheine/"+existing.id,method:"PUT",body:upd});
+          updated++;
+        }else{
+          SQ.push({url:"/api/arbeitsscheine/"+existing.id,method:"PUT",body:{juprowa_id:mapped.juprowa_id,juprowa_sync_at:now}});
+          skipped++;
+        }
+      }else{
+        const newAs={...mapped,id:uid()};
+        setArbeitsscheine(prev=>[newAs,...prev]);
+        SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});
+        added++;
+      }
+    }
+    const result={total:data.length,added,updated,skipped};
+    if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔄 Juprowa: "+added+" neu, "+updated+" aktualisiert, "+skipped+" unverändert")]);
+    _juprowaSyncing=false;
+    return result;
+  }catch(e){
+    _juprowaSyncing=false;
+    if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa Sync Fehler: "+e.message,"error")]);
+    return{error:e.message};
+  }
+}
+
+function _juprowaStartAutoSync(arbeitsscheine,setArbeitsscheine){
+  _juprowaStopAutoSync();
+  _juprowaSyncTimer=setInterval(()=>{
+    if(navigator.onLine&&_authToken&&!_juprowaSyncing){
+      _juprowaSync(arbeitsscheine,setArbeitsscheine,true);
+    }
+  },300000);
+}
+function _juprowaStopAutoSync(){if(_juprowaSyncTimer){clearInterval(_juprowaSyncTimer);_juprowaSyncTimer=null;}}
+
 // ═══ OFFA PDF IMPORT PARSER ═══
 if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 async function _parseOffaPdf(file){
@@ -3078,6 +3209,10 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
 // ═══════════ ARBEITSSCHEIN-VERWALTUNG (OFFA-Stil) ═══════════
 function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif}){
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
+  const canSync=curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero";
+  const [jupSyncing,setJupSyncing]=_react.useState.call(void 0, false);
+  const doJuprowaSync=async()=>{setJupSyncing(true);await _juprowaSync(arbeitsscheine,setArbeitsscheine,false);setJupSyncing(false);};
+  _react.useEffect.call(void 0, ()=>{if(canSync){_juprowaStartAutoSync(arbeitsscheine,setArbeitsscheine);}return()=>{_juprowaStopAutoSync();};},[canSync]);
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
@@ -3437,7 +3572,7 @@ function sharePdf(){
     React.createElement('div', {}
       , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
         , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📋 Arbeitsscheine / Störungen"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Scheine anlegen, Status setzen, OFFA-Excel exportieren. Schnellerfassung per \uD83C\uDFA4 Sprache." ))
-        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".pdf", multiple: true, style: {display:"none"}, onChange: importOffa} ))
+        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".pdf", multiple: true, style: {display:"none"}, onChange: importOffa} ), canSync&&React.createElement('button', { onClick: doJuprowaSync, disabled: jupSyncing, style: {...bpS,background:jupSyncing?"#6b7280":"linear-gradient(135deg,#06b6d4,#0891b2)",opacity:jupSyncing?.7:1}}, jupSyncing?"⏳ Sync...":"🔄 Juprowa Sync" ))
       )
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
