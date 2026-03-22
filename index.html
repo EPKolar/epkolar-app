@@ -1119,22 +1119,34 @@ function _juprowaMapWorksheet(jws){
 
 async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
   if(_juprowaSyncing)return{error:"Sync läuft bereits"};
-  if(!_authToken)return{error:"Nicht eingeloggt"};
   _juprowaSyncing=true;
   try{
-    const res=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_fetch_worksheets",{method:"POST",headers:_sbWH(),body:"{}"}));
+    // 1. Fetch Juprowa data via RPC
+    const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};
+    const res=await fetch(SB_REST+"/rpc/juprowa_fetch_worksheets",{method:"POST",headers:rpcH,body:"{}"});
     if(!res.ok){_juprowaSyncing=false;return{error:"RPC-Fehler: "+res.status};}
     const data=await res.json();
     if(data&&data.error){_juprowaSyncing=false;return data;}
     if(!Array.isArray(data)){_juprowaSyncing=false;return{error:"Unerwartetes Format"};}
+
+    // 2. Fetch FRESH arbeitsscheine from DB (avoid stale closure!)
+    let dbScheine=[];
+    try{
+      const dbH=_authToken?_sbRH():{apikey:SUPABASE_KEY};
+      const dbRes=await fetch(SB_REST+"/arbeitsscheine?select=*&limit=5000",{headers:dbH});
+      if(dbRes.ok)dbScheine=(await dbRes.json()).map(_mapArbeitsschein);
+    }catch(e){}
+
     let added=0,updated=0,skipped=0;
     const now=new Date().toISOString();
+    const newItems=[];
     for(const jws of data){
       const mapped=_juprowaMapWorksheet(jws);
       if(!mapped.nummer){skipped++;continue;}
-      const existing=arbeitsscheine.find(a=>(a.nummer||"").toUpperCase()===(mapped.nummer||"").toUpperCase());
+      mapped.nummer=mapped.nummer.toUpperCase();
+      const existing=dbScheine.find(a=>(a.nummer||"").toUpperCase()===mapped.nummer);
       if(existing){
-        const upd={};
+        const upd={juprowa_id:mapped.juprowa_id,juprowa_sync_at:now,juprowa_monteur_code:mapped.juprowa_monteur_code};
         if(mapped.kundName&&mapped.kundName!==existing.kundName)upd.kundName=mapped.kundName;
         if(mapped.kundStr&&mapped.kundStr!==existing.kundStr)upd.kundStr=mapped.kundStr;
         if(mapped.kundPlz&&mapped.kundPlz!==existing.kundPlz)upd.kundPlz=mapped.kundPlz;
@@ -1150,24 +1162,28 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
         if(mapped.telefon&&mapped.telefon!==existing.telefon)upd.telefon=mapped.telefon;
         if(mapped.arbeitsort&&mapped.arbeitsort!==existing.arbeitsort)upd.arbeitsort=mapped.arbeitsort;
         if(mapped.monteur&&mapped.monteur!==existing.monteur)upd.monteur=mapped.monteur;
-        upd.juprowa_id=mapped.juprowa_id;
-        upd.juprowa_sync_at=now;
-        upd.juprowa_monteur_code=mapped.juprowa_monteur_code;
         if(Object.keys(upd).length>3){
-          setArbeitsscheine(prev=>prev.map(a=>a.id===existing.id?{...a,...upd}:a));
-          SQ.push({url:"/api/arbeitsscheine/"+existing.id,method:"PUT",body:upd});
+          try{await _sbPut("arbeitsscheine",existing.id,upd);}catch(e){}
           updated++;
         }else{
-          SQ.push({url:"/api/arbeitsscheine/"+existing.id,method:"PUT",body:{juprowa_id:mapped.juprowa_id,juprowa_sync_at:now}});
+          try{await _sbPut("arbeitsscheine",existing.id,upd);}catch(e){}
           skipped++;
         }
       }else{
         const newAs={...mapped,id:uid()};
-        setArbeitsscheine(prev=>[newAs,...prev]);
-        SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});
+        try{await _sbPost("arbeitsscheine",newAs);}catch(e){}
+        newItems.push(newAs);
         added++;
       }
     }
+
+    // 3. Reload ALL arbeitsscheine from DB into React state (single source of truth)
+    try{
+      const dbH2=_authToken?_sbRH():{apikey:SUPABASE_KEY};
+      const freshRes=await fetch(SB_REST+"/arbeitsscheine?select=*&limit=5000",{headers:dbH2});
+      if(freshRes.ok){const fresh=(await freshRes.json()).map(_mapArbeitsschein);setArbeitsscheine(fresh);}
+    }catch(e){}
+
     const result={total:data.length,added,updated,skipped};
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔄 Juprowa: "+added+" neu, "+updated+" aktualisiert, "+skipped+" unverändert")]);
     _juprowaSyncing=false;
@@ -3211,7 +3227,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const canSync=curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero";
   const [jupSyncing,setJupSyncing]=_react.useState.call(void 0, false);
-  const doJuprowaSync=async()=>{if(!arbeitsscheine.length){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("⏳ Daten werden noch geladen…","warn")]);return;}setJupSyncing(true);await _juprowaSync(arbeitsscheine,setArbeitsscheine,false);setJupSyncing(false);};
+  const doJuprowaSync=async()=>{setJupSyncing(true);await _juprowaSync(null,setArbeitsscheine,false);setJupSyncing(false);};
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
