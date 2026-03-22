@@ -7082,6 +7082,10 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const [showNewFolder,setShowNewFolder]=_react.useState.call(void 0, false);
   const [editFolderId,setEditFolderId]=_react.useState.call(void 0, null);
   const [editFolderName,setEditFolderName]=_react.useState.call(void 0, "");
+  const [expanded,setExpanded]=_react.useState.call(void 0, {}); // {folderId:true}
+  const [newSubIn,setNewSubIn]=_react.useState.call(void 0, null); // parentId for new subfolder
+  const [newSubName,setNewSubName]=_react.useState.call(void 0, "");
+  const [treeOpen,setTreeOpen]=_react.useState.call(void 0, true); // mobile toggle
   const fr=_react.useRef.call(void 0, null);
   const isMob=ww<600;
 
@@ -7094,11 +7098,14 @@ function VDoku({p,ww,curUser,forms,setForms}){
           _sbGet("project_folders","project_id=eq."+encodeURIComponent(p.id))
         ]);
         if(_optionalChain([docsData, 'optionalAccess', _420 => _420.length]))setDocs(docsData.map(_mapDocFromServer));
-        if(_optionalChain([foldersData, 'optionalAccess', _427 => _427.length]))setFolders(foldersData.map(f=>({id:f.id,name:f.name,color:f.color,createdAt:_optionalChain([f, 'access', _428 => _428.created_at, 'optionalAccess', _429 => _429.split, 'call', _430 => _430("T"), 'access', _431 => _431[0]])})));
+        if(_optionalChain([foldersData, 'optionalAccess', _427 => _427.length])){
+          setFolders(foldersData.map(f=>({id:f.id,name:f.name,color:f.color,parentId:f.parent_id||"",createdAt:_optionalChain([f, 'access', _428 => _428.created_at, 'optionalAccess', _429 => _429.split, 'call', _430 => _430("T"), 'access', _431 => _431[0]])})));
+          const ex={};foldersData.forEach(f=>{ex[f.id]=true;});setExpanded(ex);
+        }
         }catch(e){console.warn("Docs laden:",e);}
       }
       const d=await ODB.load("docs_"+p.id);if(_optionalChain([d, 'optionalAccess', _432 => _432.length])&&!docs.length)setDocs(d);
-      const f=await ODB.load("folders_"+p.id);if(_optionalChain([f, 'optionalAccess', _433 => _433.length])&&!folders.length)setFolders(f);
+      const f=await ODB.load("folders_"+p.id);if(_optionalChain([f, 'optionalAccess', _433 => _433.length])&&!folders.length){setFolders(f);const ex={};f.forEach(x=>{ex[x.id]=true;});setExpanded(ex);}
     }catch(e){
       ODB.load("docs_"+p.id).then(d=>{if(_optionalChain([d, 'optionalAccess', _434 => _434.length]))setDocs(d);}).catch(()=>{});
       ODB.load("folders_"+p.id).then(d=>{if(_optionalChain([d, 'optionalAccess', _435 => _435.length]))setFolders(d);}).catch(()=>{});
@@ -7107,10 +7114,12 @@ function VDoku({p,ww,curUser,forms,setForms}){
   _react.useEffect.call(void 0, ()=>{ODB.save("docs_"+p.id,docs);},[docs,p.id]);
   _react.useEffect.call(void 0, ()=>{ODB.save("folders_"+p.id,folders);},[folders,p.id]);
 
-  const addFolder=()=>{
-    const name=newFolderName.trim();if(!name)return;
-    const f={id:uid(),name,color:DOC_CATS[Math.floor(Math.random()*DOC_CATS.length)].c,createdAt:td2()};
-    setFolders(prev=>[...prev,f]);SQ.push({url:"/api/project-folders",method:"POST",body:{id:f.id,project_id:p.id,name:f.name,color:f.color}});setNewFolderName("");setShowNewFolder(false);
+  const addFolder=(parentId)=>{
+    const name=(parentId?newSubName:newFolderName).trim();if(!name)return;
+    const f={id:uid(),name,color:DOC_CATS[Math.floor(Math.random()*DOC_CATS.length)].c,parentId:parentId||"",createdAt:td2()};
+    setFolders(prev=>[...prev,f]);SQ.push({url:"/api/project-folders",method:"POST",body:{id:f.id,project_id:p.id,name:f.name,color:f.color,parent_id:f.parentId||null}});
+    if(parentId){setNewSubIn(null);setNewSubName("");setExpanded(prev=>({...prev,[parentId]:true}));}
+    else{setNewFolderName("");setShowNewFolder(false);}
   };
   const renameFolder=()=>{
     if(!editFolderName.trim())return;
@@ -7120,11 +7129,14 @@ function VDoku({p,ww,curUser,forms,setForms}){
   };
   const delFolder=(id)=>{
     if(!isAdmin)return;
-    if(!confirm("Ordner löschen? Dateien werden in 'Ohne Ordner' verschoben."))return;
-    setDocs(prev=>prev.map(d=>d.folderId===id?{...d,folderId:""}:d));
-    setFolders(prev=>prev.filter(f=>f.id!==id));
-    SQ.push({url:"/api/project-folders/"+id,method:"DELETE"});
-    if(curFolder===id)setCurFolder(null);
+    const childIds=[];const collectChildren=(pid)=>{folders.forEach(f=>{if(f.parentId===pid){childIds.push(f.id);collectChildren(f.id);}});};
+    collectChildren(id);
+    const allIds=[id,...childIds];
+    if(!confirm("Ordner"+(childIds.length?" und "+childIds.length+" Unterordner":"")+" löschen? Dateien werden in 'Ohne Ordner' verschoben."))return;
+    setDocs(prev=>prev.map(d=>allIds.includes(d.folderId)?{...d,folderId:""}:d));
+    setFolders(prev=>prev.filter(f=>!allIds.includes(f.id)));
+    allIds.forEach(fid=>SQ.push({url:"/api/project-folders/"+fid,method:"DELETE"}));
+    if(allIds.includes(curFolder))setCurFolder(null);
   };
 
   const addDoc=(file)=>{
@@ -7159,18 +7171,111 @@ function VDoku({p,ww,curUser,forms,setForms}){
     }
   };
   const isDocFreigegeben=(docId)=>!!(forms.kundenDocs||[]).find(kd=>kd.id===docId);
+
+  // --- Folder tree helpers ---
+  const getChildren=(parentId)=>folders.filter(f=>(f.parentId||"")===(parentId||""));
+  const getAllDescendantIds=(fid)=>{const ids=[];const walk=(pid)=>{folders.forEach(f=>{if(f.parentId===pid){ids.push(f.id);walk(f.id);}});};walk(fid);return ids;};
+  const countDocsInFolder=(fid)=>{const allIds=[fid,...getAllDescendantIds(fid)];return docs.filter(d=>allIds.includes(d.folderId)).length;};
+  const toggleExpand=(fid)=>setExpanded(prev=>({...prev,[fid]:!prev[fid]}));
+
   const fil=docs.filter(d=>{
-    if(curFolder==="__none"&&d.folderId)return false;
-    if(curFolder==="__none"&&!d.folderId){}
+    if(curFolder==="__none"&&d.folderId&&folders.find(f=>f.id===d.folderId))return false;
+    if(curFolder==="__none"&&(!d.folderId||!folders.find(f=>f.id===d.folderId))){}
     else if(curFolder&&curFolder!=="__none"&&d.folderId!==curFolder)return false;
     if(search&&!d.name.toLowerCase().includes(search.toLowerCase())&&!d.filename.toLowerCase().includes(search.toLowerCase())&&!(d.note||"").toLowerCase().includes(search.toLowerCase()))return false;
     return true;
   });
 
-  const folderCounts={};folders.forEach(f=>{folderCounts[f.id]=docs.filter(d=>d.folderId===f.id).length;});
   const noFolderCount=docs.filter(d=>!d.folderId||!folders.find(f=>f.id===d.folderId)).length;
-  const curFolderObj=folders.find(f=>f.id===curFolder);
   const freigegebenCount=docs.filter(d=>isDocFreigegeben(d.id)).length;
+
+  // --- Folder breadcrumb ---
+  const getBreadcrumb=(fid)=>{const path=[];let cur=fid;let safety=10;while(cur&&safety-->0){const f=folders.find(x=>x.id===cur);if(!f)break;path.unshift(f);cur=f.parentId||"";}return path;};
+  const breadcrumb=curFolder&&curFolder!=="__none"?getBreadcrumb(curFolder):[];
+
+  // --- Render tree node ---
+  const renderTreeNode=(folder,depth)=>{
+    const children=getChildren(folder.id);
+    const hasKids=children.length>0;
+    const isExp=expanded[folder.id];
+    const isSel=curFolder===folder.id;
+    const docCount=countDocsInFolder(folder.id);
+    const directCount=docs.filter(d=>d.folderId===folder.id).length;
+    return React.createElement('div', {key:folder.id},
+      React.createElement('div', {style:{display:"flex",alignItems:"center",gap:0,paddingLeft:depth*16,cursor:"pointer",background:isSel?"rgba(0,150,64,.12)":"transparent",borderRadius:4,transition:"background .12s"},
+        onMouseEnter:e=>{if(!isSel)e.currentTarget.style.background=V.bd+"44";},
+        onMouseLeave:e=>{if(!isSel)e.currentTarget.style.background="transparent";}},
+        React.createElement('div', {onClick:e=>{e.stopPropagation();if(hasKids)toggleExpand(folder.id);}, style:{width:20,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:V.dm,flexShrink:0,cursor:hasKids?"pointer":"default",userSelect:"none"}},
+          hasKids?(isExp?"▼":"▶"):""
+        ),
+        React.createElement('div', {onClick:()=>{setCurFolder(folder.id);if(isMob)setTreeOpen(false);}, style:{flex:1,display:"flex",alignItems:"center",gap:6,padding:"4px 6px 4px 0",minWidth:0}},
+          React.createElement('span', {style:{fontSize:isMob?15:14,flexShrink:0}}, isExp?"📂":"📁"),
+          editFolderId===folder.id?
+            React.createElement('div', {style:{display:"flex",gap:2,alignItems:"center",flex:1}},
+              React.createElement('input', {value:editFolderName,onChange:e=>setEditFolderName(e.target.value),onKeyDown:e=>{if(e.key==="Enter")renameFolder();if(e.key==="Escape")setEditFolderId(null);},style:{...II(),fontSize:12,padding:"2px 6px",flex:1},autoFocus:true}),
+              React.createElement('button', {onClick:renameFolder,style:{border:"none",background:V.ac,color:"#fff",borderRadius:4,padding:"2px 6px",fontSize:10,cursor:"pointer"}},"✓")
+            )
+          :
+            React.createElement('span', {style:{fontSize:isMob?13:12,fontWeight:isSel?700:400,color:isSel?V.ac:V.fg,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}, folder.name)
+          ,
+          directCount>0&&React.createElement('span', {style:{fontSize:10,color:V.dm,fontFamily:mono,flexShrink:0}}, directCount)
+        ),
+        isAdmin&&editFolderId!==folder.id&&React.createElement('div', {style:{display:"flex",gap:0,opacity:.5,flexShrink:0},className:"tree-actions",onClick:e=>e.stopPropagation()},
+          React.createElement('button', {onClick:()=>{setNewSubIn(folder.id);setNewSubName("");setExpanded(prev=>({...prev,[folder.id]:true}));},style:{border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:10,padding:"2px 4px"},title:"Unterordner erstellen"},"＋"),
+          React.createElement('button', {onClick:()=>{setEditFolderId(folder.id);setEditFolderName(folder.name);},style:{border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:10,padding:"2px 4px"},title:"Umbenennen"},"✏️"),
+          React.createElement('button', {onClick:()=>delFolder(folder.id),style:{border:"none",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"2px 4px"},title:"Löschen"},"✕")
+        )
+      ),
+      isExp&&hasKids&&children.map(ch=>renderTreeNode(ch,depth+1)),
+      isExp&&newSubIn===folder.id&&React.createElement('div', {style:{paddingLeft:(depth+1)*16+20,display:"flex",gap:2,alignItems:"center",padding:"2px 0 2px "+((depth+1)*16+20)+"px"}},
+        React.createElement('span', {style:{fontSize:13}},"📁"),
+        React.createElement('input', {value:newSubName,onChange:e=>setNewSubName(e.target.value),onKeyDown:e=>{if(e.key==="Enter")addFolder(folder.id);if(e.key==="Escape")setNewSubIn(null);},placeholder:"Unterordner...",style:{...II(),fontSize:12,padding:"2px 6px",width:120},autoFocus:true}),
+        React.createElement('button', {onClick:()=>addFolder(folder.id),style:{border:"none",background:V.ac,color:"#fff",borderRadius:4,padding:"2px 6px",fontSize:10,cursor:"pointer"}},"✓"),
+        React.createElement('button', {onClick:()=>setNewSubIn(null),style:{border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:10,padding:"2px 4px"}},"✕")
+      )
+    );
+  };
+
+  // --- Folder select for upload (flat with indent) ---
+  const flatFolderOpts=(parentId,depth)=>{
+    const ch=getChildren(parentId);
+    const arr=[];
+    ch.forEach(f=>{arr.push({id:f.id,label:"\u00A0\u00A0".repeat(depth)+"📁 "+f.name});arr.push(...flatFolderOpts(f.id,depth+1));});
+    return arr;
+  };
+  const allFolderOpts=flatFolderOpts("",0);
+
+  // ─── RENDER ───
+  const treeW=isMob?"100%":"240px";
+  const rootFolders=getChildren("");
+
+  const treePanel=React.createElement('div', {style:{width:isMob?"100%":treeW,minWidth:isMob?"auto":200,flexShrink:0,borderRight:isMob?"none":"1px solid "+V.bd,paddingRight:isMob?0:10,marginBottom:isMob?10:0,maxHeight:isMob?"none":"70vh",overflowY:"auto"}},
+    React.createElement('div', {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
+      React.createElement('div', {style:{fontSize:12,fontWeight:700,color:V.dm,textTransform:"uppercase",letterSpacing:.5}},"Ordner"),
+      isAdmin&&React.createElement('button', {onClick:()=>setShowNewFolder(!showNewFolder),style:{border:"none",background:"transparent",color:V.ac,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:700}}, showNewFolder?"✕":"+ Neu")
+    ),
+    showNewFolder&&React.createElement('div', {style:{display:"flex",gap:2,alignItems:"center",marginBottom:6}},
+      React.createElement('span', {style:{fontSize:13}},"📁"),
+      React.createElement('input', {value:newFolderName,onChange:e=>setNewFolderName(e.target.value),onKeyDown:e=>{if(e.key==="Enter")addFolder("");if(e.key==="Escape")setShowNewFolder(false);},placeholder:"Neuer Ordner...",style:{...II(),fontSize:12,padding:"3px 6px",flex:1},autoFocus:true}),
+      React.createElement('button', {onClick:()=>addFolder(""),style:{border:"none",background:V.ac,color:"#fff",borderRadius:4,padding:"3px 8px",fontSize:10,cursor:"pointer"}},"✓")
+    ),
+    /* "Alle" root */
+    React.createElement('div', {onClick:()=>{setCurFolder(null);if(isMob)setTreeOpen(false);},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",cursor:"pointer",background:!curFolder?"rgba(0,150,64,.12)":"transparent",borderRadius:4,marginBottom:2,transition:"background .12s"},
+      onMouseEnter:e=>{if(curFolder)e.currentTarget.style.background=V.bd+"44";},
+      onMouseLeave:e=>{if(curFolder)e.currentTarget.style.background="transparent";}},
+      React.createElement('span', {style:{fontSize:isMob?15:14}},"💻"),
+      React.createElement('span', {style:{fontSize:isMob?13:12,fontWeight:!curFolder?700:400,color:!curFolder?V.ac:V.fg}}, p.nr||"Projekt"),
+      React.createElement('span', {style:{fontSize:10,color:V.dm,fontFamily:mono,marginLeft:"auto"}}, docs.length)
+    ),
+    rootFolders.map(f=>renderTreeNode(f,1)),
+    noFolderCount>0&&React.createElement('div', {onClick:()=>{setCurFolder("__none");if(isMob)setTreeOpen(false);},style:{display:"flex",alignItems:"center",gap:6,padding:"5px 6px 5px 22px",cursor:"pointer",background:curFolder==="__none"?"rgba(113,113,122,.12)":"transparent",borderRadius:4,marginTop:2,transition:"background .12s"},
+      onMouseEnter:e=>{if(curFolder!=="__none")e.currentTarget.style.background=V.bd+"44";},
+      onMouseLeave:e=>{if(curFolder!=="__none")e.currentTarget.style.background="transparent";}},
+      React.createElement('span', {style:{fontSize:isMob?15:14}},"📄"),
+      React.createElement('span', {style:{fontSize:isMob?13:12,fontWeight:curFolder==="__none"?700:400,color:curFolder==="__none"?"#71717a":V.dm}},"Ohne Ordner"),
+      React.createElement('span', {style:{fontSize:10,color:V.dm,fontFamily:mono,marginLeft:"auto"}}, noFolderCount)
+    )
+  );
 
   return (
     React.createElement('div', {}
@@ -7184,73 +7289,77 @@ function VDoku({p,ww,curUser,forms,setForms}){
         )
       )
 
-      /* Folder bar */
-      , React.createElement('div', { style: {marginBottom:12}}
-        , React.createElement('div', { style: {display:"flex",gap:4,marginBottom:6,flexWrap:"wrap",alignItems:"center"}}
-          , React.createElement('button', { onClick: ()=>setCurFolder(null), style: {padding:"5px 10px",borderRadius:6,border:!curFolder?"2px solid "+V.ac:"1px solid "+V.bd,background:!curFolder?V.ac+"18":"transparent",color:!curFolder?V.ac:V.dm,cursor:"pointer",fontWeight:600,fontSize:11,fontFamily:"inherit"}}, "📂 Alle ("  , docs.length, ")")
-          , folders.map(f=>(React.createElement('div', { key: f.id, style: {display:"flex",alignItems:"center",gap:0}}
-            , editFolderId===f.id?(
-              React.createElement('div', { style: {display:"flex",gap:2,alignItems:"center"}}, React.createElement('input', { value: editFolderName, onChange: e=>setEditFolderName(e.target.value), onKeyDown: e=>{if(e.key==="Enter")renameFolder();if(e.key==="Escape")setEditFolderId(null);}, style: {...II(),width:100,fontSize:11,padding:"4px 6px"}, autoFocus: true} ), React.createElement('button', { onClick: renameFolder, style: {...bpS,padding:"3px 6px",fontSize:10}}, "✓"))
-            ):(
-              React.createElement('button', { onClick: ()=>setCurFolder(f.id), onContextMenu: e=>{e.preventDefault();setEditFolderId(f.id);setEditFolderName(f.name);}, style: {padding:"5px 10px",borderRadius:"6px 0 0 6px",border:curFolder===f.id?"2px solid "+f.color:"1px solid "+V.bd,borderRight:"none",background:curFolder===f.id?f.color+"18":"transparent",color:curFolder===f.id?f.color:V.dm,cursor:"pointer",fontWeight:600,fontSize:11,fontFamily:"inherit"}}, "📁 " , f.name, " (" , folderCounts[f.id]||0, ")")
-            )
-            , editFolderId!==f.id&&isAdmin&&React.createElement('button', { onClick: ()=>delFolder(f.id), style: {padding:"5px 4px",borderRadius:"0 6px 6px 0",border:curFolder===f.id?"2px solid "+f.color:"1px solid "+V.bd,borderLeft:"none",background:curFolder===f.id?f.color+"18":"transparent",color:V.dm,cursor:"pointer",fontSize:9,fontFamily:"inherit"}}, "✕")
-          )))
-          , noFolderCount>0&&React.createElement('button', { onClick: ()=>setCurFolder("__none"), style: {padding:"5px 10px",borderRadius:6,border:curFolder==="__none"?"2px solid #71717a":"1px solid "+V.bd,background:curFolder==="__none"?"#71717a18":"transparent",color:curFolder==="__none"?"#71717a":V.dm,cursor:"pointer",fontWeight:600,fontSize:11,fontFamily:"inherit"}}, "📄 Ohne Ordner ("   , noFolderCount, ")")
-          , showNewFolder?(
-            React.createElement('div', { style: {display:"flex",gap:2,alignItems:"center"}}, React.createElement('input', { value: newFolderName, onChange: e=>setNewFolderName(e.target.value), onKeyDown: e=>{if(e.key==="Enter")addFolder();if(e.key==="Escape")setShowNewFolder(false);}, placeholder: "Ordnername...", style: {...II(),width:130,fontSize:11,padding:"4px 6px"}, autoFocus: true} ), React.createElement('button', { onClick: addFolder, style: {...bpS,padding:"3px 8px",fontSize:10}}, "✓"), React.createElement('button', { onClick: ()=>setShowNewFolder(false), style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕"))
-          ):(
-            React.createElement('button', { onClick: ()=>setShowNewFolder(true), style: {padding:"5px 10px",borderRadius:6,border:"1px dashed "+V.bd,background:"transparent",color:V.ac,cursor:"pointer",fontWeight:600,fontSize:11,fontFamily:"inherit"}}, "+ Ordner" )
-          )
-        )
-        , curFolderObj&&React.createElement('div', { style: {fontSize:12,color:V.dm,padding:"4px 0"}}, "📁 " , React.createElement('b', { style: {color:curFolderObj.color}}, curFolderObj.name), " — "  , folderCounts[curFolderObj.id]||0, " Dateien" )
+      /* Mobile: Toggle tree */
+      , isMob&&React.createElement('button', {onClick:()=>setTreeOpen(prev=>!prev),style:{border:"1px solid "+V.bd,background:"transparent",color:V.fg,padding:"6px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit",marginBottom:8,width:"100%",textAlign:"left",fontWeight:600}},
+        treeOpen?"▼ Ordner ausblenden":"▶ Ordner anzeigen"," (",folders.length,")"
       )
 
-      , showUp&&(React.createElement('div', { style: {...CC(),marginBottom:14,border:"2px solid "+V.ac}}
-        , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, "📤 Dokument hochladen"  )
-        , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Bezeichnung"), React.createElement('input', { value: upName, onChange: e=>setUpName(e.target.value), style: II(), placeholder: "z.B. Baubesprechung 12.02."  } ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Kategorie"), React.createElement('select', { value: upCat, onChange: e=>setUpCat(e.target.value), style: II()}, DOC_CATS.map(c=>(React.createElement('option', { key: c.id, value: c.id}, c.l)))))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ordner"), React.createElement('select', { value: upFolder||curFolder||"", onChange: e=>setUpFolder(e.target.value), style: II()}, React.createElement('option', { value: ""}, "— Kein Ordner —"   ), folders.map(f=>(React.createElement('option', { key: f.id, value: f.id}, "📁 " , f.name)))))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Notiz"), React.createElement('input', { value: upNote, onChange: e=>setUpNote(e.target.value), style: II(), placeholder: "Optional"} ))
-        )
-        , React.createElement('div', { style: {display:"flex",gap:6}}
-          , React.createElement('button', { onClick: ()=>_optionalChain([fr, 'access', _449 => _449.current, 'optionalAccess', _450 => _450.click, 'call', _451 => _451()]), style: {...bsS(),flex:1}}, "📁 Datei wählen"  )
-          , React.createElement('button', { onClick: ()=>{const ci=document.getElementById("cam_doku");_optionalChain([ci, 'optionalAccess', _452 => _452.click, 'call', _453 => _453()]);}, style: bsS()}, "📷 Kamera" )
-        )
-        , React.createElement('input', { ref: fr, type: "file", multiple: true, accept: "image/*,.pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.txt,.csv", style: {display:"none"}, onChange: handleUpload} )
-        , React.createElement('input', { id: "cam_doku", type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: handleUpload} )
-      ))
+      /* Explorer layout: tree left + files right */
+      , React.createElement('div', {style:{display:isMob?"block":"flex",gap:14}}
+        , (isMob?treeOpen:true)&&treePanel
 
-      , !fil.length&&!showUp&&(React.createElement('div', { onDrop: e=>{e.preventDefault();handleUpload({target:{files:_optionalChain([e, 'access', _454 => _454.dataTransfer, 'optionalAccess', _455 => _455.files]),value:""}});}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;}, style: {border:"2px dashed "+V.bd,borderRadius:10,padding:40,textAlign:"center",cursor:"pointer",transition:"border-color .2s"}, onClick: ()=>setShowUp(true)}
-        , React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "📁")
-        , React.createElement('div', { style: {fontSize:14,fontWeight:600,color:V.dm}}, curFolder?"Ordner leer":"Noch keine Dokumente")
-        , React.createElement('div', { style: {fontSize:12,color:V.mt,marginTop:4}}, "Baubesprechungsprotokolle, Datenblätter, Schaltpläne etc. hier ablegen"     )
-        , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:8}}, "📤 Klicken oder Dateien hierher ziehen"     )
-      ))
+        /* Right: file area */
+        , React.createElement('div', {style:{flex:1,minWidth:0}}
 
-      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"repeat(auto-fill,minmax(280,1fr))",gap:8}}
-        , fil.map(d=>{const catInfo=DOC_CATS.find(c=>c.id===d.cat)||DOC_CATS[DOC_CATS.length-1];const ext=_optionalChain([(d.filename||""), 'access', _456 => _456.split, 'call', _457 => _457("."), 'access', _458 => _458.pop, 'call', _459 => _459(), 'optionalAccess', _460 => _460.toUpperCase, 'call', _461 => _461()])||"?";const sizeStr=d.size>1024*1024?(_n((d.size/1024/1024),1)+"MB"):d.size>0?(_n((d.size/1024),0)+"KB"):"";const docFolder=folders.find(f=>f.id===d.folderId);
-          return (React.createElement('div', { key: d.id, style: {...CC(),cursor:"pointer",position:"relative"}, onClick: ()=>openDoc(d)}
-            , React.createElement('div', { style: {display:"flex",gap:10,alignItems:"flex-start"}}
-              , d.isImage&&d.dataUrl?(React.createElement('img', { src: d.dataUrl, style: {width:48,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}, alt: ""} )):(React.createElement('div', { style: {width:48,height:48,borderRadius:6,background:catInfo.c+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, React.createElement('span', { style: {fontSize:10,fontWeight:800,color:catInfo.c}}, ext)))
-              , React.createElement('div', { style: {flex:1,minWidth:0}}
-                , React.createElement('div', { style: {fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name||d.filename)
-                , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:2}}, catInfo.l.split(" ").slice(1).join(" "), " · "  , sizeStr, " · "  , d.uploadedAt)
-                , docFolder&&React.createElement('div', { style: {fontSize:10,color:docFolder.color,marginTop:1}}, "📁 " , docFolder.name)
-                , d.note&&React.createElement('div', { style: {fontSize:10,color:V.dm,fontStyle:"italic",marginTop:1}}, d.note)
-              )
+          /* Breadcrumb */
+          , breadcrumb.length>0&&React.createElement('div', {style:{display:"flex",alignItems:"center",gap:4,marginBottom:8,fontSize:12,flexWrap:"wrap"}},
+            React.createElement('span', {onClick:()=>setCurFolder(null),style:{cursor:"pointer",color:V.ac,fontWeight:600}},"📁 Alle"),
+            breadcrumb.map((bc,i)=>React.createElement(_react.Fragment, {key:bc.id},
+              React.createElement('span', {style:{color:V.dm}}," › "),
+              React.createElement('span', {onClick:()=>setCurFolder(bc.id),style:{cursor:"pointer",color:i===breadcrumb.length-1?V.fg:V.ac,fontWeight:i===breadcrumb.length-1?700:600}}, bc.name)
+            ))
+          )
+
+          /* Upload form */
+          , showUp&&(React.createElement('div', { style: {...CC(),marginBottom:14,border:"2px solid "+V.ac}}
+            , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, "📤 Dokument hochladen"  )
+            , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Bezeichnung"), React.createElement('input', { value: upName, onChange: e=>setUpName(e.target.value), style: II(), placeholder: "z.B. Baubesprechung 12.02."  } ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Kategorie"), React.createElement('select', { value: upCat, onChange: e=>setUpCat(e.target.value), style: II()}, DOC_CATS.map(c=>(React.createElement('option', { key: c.id, value: c.id}, c.l)))))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ordner"), React.createElement('select', { value: upFolder||curFolder||"", onChange: e=>setUpFolder(e.target.value), style: II()}, React.createElement('option', { value: ""}, "— Kein Ordner —"   ), allFolderOpts.map(f=>(React.createElement('option', { key: f.id, value: f.id}, f.label)))))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Notiz"), React.createElement('input', { value: upNote, onChange: e=>setUpNote(e.target.value), style: II(), placeholder: "Optional"} ))
             )
-            , React.createElement('div', { style: {display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}, onClick: e=>e.stopPropagation()}
-              , React.createElement('button', { onClick: ()=>openDoc(d), style: {...bsS(),padding:"3px 8px",fontSize:10}}, "👁️")
-              , React.createElement('button', { onClick: ()=>{if(d.dataUrl){const a=document.createElement("a");a.href=d.dataUrl;a.download=d.filename||d.name;a.click();}}, style: {...beS,padding:"3px 8px",fontSize:10}}, "💾")
-              , React.createElement('select', { value: d.folderId||"", onChange: e=>moveDoc(d.id,e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"2px 4px"}}, React.createElement('option', { value: ""}, "— Ordner —"  ), folders.map(f=>(React.createElement('option', { key: f.id, value: f.id}, "📁 " , f.name))))
-              , isAdmin&&React.createElement('button', { onClick: ()=>{if(confirm("Löschen?"))delDoc(d.id);}, style: {...bdS,padding:"3px 8px",fontSize:10}}, "🗑️")
-              , React.createElement('button', { onClick: ()=>toggleKundeFreigabe(d), style: {padding:"3px 8px",borderRadius:6,border:isDocFreigegeben(d.id)?"1px solid #009640":"1px solid "+V.bd,background:isDocFreigegeben(d.id)?"#00964018":"transparent",color:isDocFreigegeben(d.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}, title: isDocFreigegeben(d.id)?"Freigabe zurückziehen":"Für Kundenportal freigeben"}, isDocFreigegeben(d.id)?"🔗 Freigegeben":"📤 Freigeben")
+            , React.createElement('div', { style: {display:"flex",gap:6}}
+              , React.createElement('button', { onClick: ()=>_optionalChain([fr, 'access', _449 => _449.current, 'optionalAccess', _450 => _450.click, 'call', _451 => _451()]), style: {...bsS(),flex:1}}, "📁 Datei wählen"  )
+              , React.createElement('button', { onClick: ()=>{const ci=document.getElementById("cam_doku");_optionalChain([ci, 'optionalAccess', _452 => _452.click, 'call', _453 => _453()]);}, style: bsS()}, "📷 Kamera" )
             )
-            , isDocFreigegeben(d.id)&&React.createElement('div', { style: {position:"absolute",top:8,right:8,padding:"2px 8px",borderRadius:10,background:"#009640",color:"#fff",fontSize:9,fontWeight:700}}, "🔗 Kundenportal" )
-          ));
-        })
+            , React.createElement('input', { ref: fr, type: "file", multiple: true, accept: "image/*,.pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.txt,.csv", style: {display:"none"}, onChange: handleUpload} )
+            , React.createElement('input', { id: "cam_doku", type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: handleUpload} )
+          ))
+
+          /* Empty state with drop zone */
+          , !fil.length&&!showUp&&(React.createElement('div', { onDrop: e=>{e.preventDefault();handleUpload({target:{files:_optionalChain([e, 'access', _454 => _454.dataTransfer, 'optionalAccess', _455 => _455.files]),value:""}});}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;}, style: {border:"2px dashed "+V.bd,borderRadius:10,padding:40,textAlign:"center",cursor:"pointer",transition:"border-color .2s"}, onClick: ()=>setShowUp(true)}
+            , React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "📁")
+            , React.createElement('div', { style: {fontSize:14,fontWeight:600,color:V.dm}}, curFolder&&curFolder!=="__none"?"Ordner leer":"Noch keine Dokumente")
+            , React.createElement('div', { style: {fontSize:12,color:V.mt,marginTop:4}}, "Baubesprechungsprotokolle, Datenblätter, Schaltpläne etc. hier ablegen"     )
+            , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:8}}, "📤 Klicken oder Dateien hierher ziehen"     )
+          ))
+
+          /* File grid */
+          , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"repeat(auto-fill,minmax(280,1fr))",gap:8}}
+            , fil.map(d=>{const catInfo=DOC_CATS.find(c=>c.id===d.cat)||DOC_CATS[DOC_CATS.length-1];const ext=_optionalChain([(d.filename||""), 'access', _456 => _456.split, 'call', _457 => _457("."), 'access', _458 => _458.pop, 'call', _459 => _459(), 'optionalAccess', _460 => _460.toUpperCase, 'call', _461 => _461()])||"?";const sizeStr=d.size>1024*1024?(_n((d.size/1024/1024),1)+"MB"):d.size>0?(_n((d.size/1024),0)+"KB"):"";const docFolder=folders.find(f=>f.id===d.folderId);
+              return (React.createElement('div', { key: d.id, style: {...CC(),cursor:"pointer",position:"relative"}, onClick: ()=>openDoc(d)}
+                , React.createElement('div', { style: {display:"flex",gap:10,alignItems:"flex-start"}}
+                  , d.isImage&&d.dataUrl?(React.createElement('img', { src: d.dataUrl, style: {width:48,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}, alt: ""} )):(React.createElement('div', { style: {width:48,height:48,borderRadius:6,background:catInfo.c+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, React.createElement('span', { style: {fontSize:10,fontWeight:800,color:catInfo.c}}, ext)))
+                  , React.createElement('div', { style: {flex:1,minWidth:0}}
+                    , React.createElement('div', { style: {fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name||d.filename)
+                    , React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:2}}, catInfo.l.split(" ").slice(1).join(" "), " · "  , sizeStr, " · "  , d.uploadedAt)
+                    , !curFolder&&docFolder&&React.createElement('div', { style: {fontSize:10,color:docFolder.color,marginTop:1}}, "📁 " , docFolder.name)
+                    , d.note&&React.createElement('div', { style: {fontSize:10,color:V.dm,fontStyle:"italic",marginTop:1}}, d.note)
+                  )
+                )
+                , React.createElement('div', { style: {display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}, onClick: e=>e.stopPropagation()}
+                  , React.createElement('button', { onClick: ()=>openDoc(d), style: {...bsS(),padding:"3px 8px",fontSize:10}}, "👁️")
+                  , React.createElement('button', { onClick: ()=>{if(d.dataUrl){const a=document.createElement("a");a.href=d.dataUrl;a.download=d.filename||d.name;a.click();}}, style: {...beS,padding:"3px 8px",fontSize:10}}, "💾")
+                  , React.createElement('select', { value: d.folderId||"", onChange: e=>moveDoc(d.id,e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"2px 4px"}}, React.createElement('option', { value: ""}, "— Ordner —"  ), allFolderOpts.map(f=>(React.createElement('option', { key: f.id, value: f.id}, f.label))))
+                  , isAdmin&&React.createElement('button', { onClick: ()=>{if(confirm("Löschen?"))delDoc(d.id);}, style: {...bdS,padding:"3px 8px",fontSize:10}}, "🗑️")
+                  , React.createElement('button', { onClick: ()=>toggleKundeFreigabe(d), style: {padding:"3px 8px",borderRadius:6,border:isDocFreigegeben(d.id)?"1px solid #009640":"1px solid "+V.bd,background:isDocFreigegeben(d.id)?"#00964018":"transparent",color:isDocFreigegeben(d.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}, title: isDocFreigegeben(d.id)?"Freigabe zurückziehen":"Für Kundenportal freigeben"}, isDocFreigegeben(d.id)?"🔗 Freigegeben":"📤 Freigeben")
+                )
+                , isDocFreigegeben(d.id)&&React.createElement('div', { style: {position:"absolute",top:8,right:8,padding:"2px 8px",borderRadius:10,background:"#009640",color:"#fff",fontSize:9,fontWeight:700}}, "🔗 Kundenportal" )
+              ));
+            })
+          )
+        )
       )
     )
   );
