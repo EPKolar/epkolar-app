@@ -1239,6 +1239,7 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
 
     const result={total:data.length,added,updated,skipped};
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔄 Juprowa: "+added+" neu, "+updated+" aktualisiert, "+skipped+" unverändert")]);
+    try{_sbPost("activity_log",{user_id:_optionalChain([_user,'optionalAccess',_=>_.id])||"system",action:"juprowa_pull",details:JSON.stringify(result)});}catch(e){}
     _juprowaSyncing=false;
     return result;
   }catch(e){
@@ -1250,9 +1251,11 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
 
 function _juprowaStartAutoSync(setArbeitsscheine){
   _juprowaStopAutoSync();
-  _juprowaSyncTimer=setInterval(()=>{
+  _juprowaSyncTimer=setInterval(async()=>{
     if(navigator.onLine&&_authToken&&!_juprowaSyncing){
-      _juprowaSync(null,setArbeitsscheine,true);
+      await _juprowaSync(null,setArbeitsscheine,true);
+      // Also push any locally changed items
+      await _juprowaPushChanged(setArbeitsscheine,true);
     }
   },300000);
 }
@@ -1347,6 +1350,7 @@ async function _juprowaPushChanged(setArbeitsscheine,silent){
       if(r.ok)pushed++;else errors++;
     }
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("📤 Juprowa Push: "+pushed+" gesendet"+(errors?", "+errors+" Fehler":""))]);
+    if(pushed>0){try{_sbPost("activity_log",{user_id:_optionalChain([_user,'optionalAccess',_=>_.id])||"system",action:"juprowa_push",details:JSON.stringify({pushed,errors})});}catch(e){}}
     // Reload state
     try{
       const freshRes=await fetch(SB_REST+"/arbeitsscheine?select=*&limit=5000",{headers:dbH});
@@ -3248,7 +3252,7 @@ function LoginScreen({onLogin,onPortal,projects}){
             , _optionalChain([tabs, 'access', _103 => _103[safeKat], 'optionalAccess', _104 => _104.perm])==="auswertungen" && hasPerm(curUser,"auswertungen") && React.createElement(AuswertungView, { arbeitsscheine: arbeitsscheine, monteure: monteure, abs: abs, absApprovals: absApprovals, entries: entries, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, chartCfg: chartCfg, setChartCfg: setChartCfg, ww: ww, curUser: curUser, projects: projects} )
             , _optionalChain([tabs, 'access', _105 => _105[safeKat], 'optionalAccess', _106 => _106.perm])==="_settings" && React.createElement(VerbindungView, { ww: ww, curUser: curUser, isDark: isDark, toggleTheme: toggleTheme} )
             , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="bueroexport" && hasPerm(curUser,"bueroexport") && React.createElement(VBueroExport, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, ww: ww} )
-            , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="admin" && hasPerm(curUser,"admin") && React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs, monteure: monteure} )
+            , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="admin" && hasPerm(curUser,"admin") && React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs, monteure: monteure, arbeitsscheine: arbeitsscheine} )
           )
           /* ═══ MOBILE MEHR POPUP ═══ */
           , moreOpen&&isMob&&React.createElement('div', { style: {position:"fixed",bottom:60,left:8,right:8,zIndex:88,background:V.bg,border:"1px solid "+V.bd,borderRadius:12,boxShadow:"0 -8px 24px rgba(0,0,0,.25)",padding:"8px 0"}}
@@ -4490,7 +4494,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
 }
 
 // ═══════════ ADMIN PANEL ═══════════
-function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure}){
+function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure,arbeitsscheine}){
   const [sel,setSel]=_react.useState.call(void 0, null);
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
   const [nf,setNf]=_react.useState.call(void 0, {username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});
@@ -4573,8 +4577,17 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     {id:"benutzer",l:"👤 Benutzer",c:"#3b82f6"},
     {id:"aktivitaet",l:"📋 Aktivität",c:"#f97316"},
     {id:"statistiken",l:"📊 Statistiken",c:"#8b5cf6"},
+    {id:"juprowa",l:"🔗 Juprowa",c:"#06b6d4"},
     {id:"einstellungen",l:"⚙️ System",c:"#71717a"}
   ];
+  const [jupCfg,setJupCfg]=_react.useState.call(void 0, null);
+  const [jupCfgLoading,setJupCfgLoading]=_react.useState.call(void 0, false);
+  const [jupNewPassport,setJupNewPassport]=_react.useState.call(void 0, "");
+  const [jupSyncLog,setJupSyncLog]=_react.useState.call(void 0, []);
+  const fetchJupConfig=async()=>{setJupCfgLoading(true);try{const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};const r=await fetch(SB_REST+"/rpc/juprowa_get_config",{method:"POST",headers:rpcH,body:"{}"});if(r.ok){const d=await r.json();setJupCfg(d);}}catch(e){}setJupCfgLoading(false);};
+  const updatePassport=async()=>{if(!jupNewPassport.trim())return;try{const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};const r=await fetch(SB_REST+"/rpc/juprowa_update_passport",{method:"POST",headers:rpcH,body:JSON.stringify({new_passport:jupNewPassport.trim()})});if(r.ok){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ Passport aktualisiert")]);setJupNewPassport("");fetchJupConfig();}else{_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Fehler: "+r.status,"error")]);}}catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}};
+  const fetchJupSyncLog=async()=>{try{const rows=await _sbGetOrder("activity_log","created_at.desc","action=like.juprowa*").catch(()=>[]);setJupSyncLog(rows.slice(0,20));}catch(e){}};
+  _react.useEffect.call(void 0, ()=>{if(adminTab==="juprowa"){fetchJupConfig();fetchJupSyncLog();}},[adminTab]);
 
   return (
     React.createElement('div', {}
@@ -4584,7 +4597,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           , React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Benutzer anlegen/sperren, Rollen & Berechtigungen setzen, Aktivitätslogs prüfen."   )
         )
         , adminTab==="benutzer"&&React.createElement('button', { onClick: ()=>setShowNew(!showNew), style: showNew?bdS:bpS}, showNew?"✕ Abbrechen":"+ Neuer Benutzer")
-        , (adminTab==="aktivitaet"||adminTab==="statistiken")&&React.createElement('button', { onClick: fetchStats, style: {...bpS,padding:"6px 14px",fontSize:12}}, loadingStats?"⏳":"🔄", " Aktualisieren" )
+        , (adminTab==="aktivitaet"||adminTab==="statistiken"||adminTab==="juprowa")&&React.createElement('button', { onClick: ()=>{if(adminTab==="juprowa"){fetchJupConfig();fetchJupSyncLog();}else fetchStats();}, style: {...bpS,padding:"6px 14px",fontSize:12}}, loadingStats||jupCfgLoading?"⏳":"🔄", " Aktualisieren" )
       )
 
       /* Sub-tabs */
@@ -4870,6 +4883,85 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       ))
 
       /* ═══ TAB: SYSTEM-EINSTELLUNGEN ═══ */
+      /* ═══ TAB: JUPROWA ═══ */
+      , adminTab==="juprowa"&&(React.createElement('div', { className: "fade-in"}
+        , React.createElement('div', { style: {...CC(),borderLeft:"4px solid #06b6d4"}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:4}}, "🔗 Juprowa Cloud — Konfiguration"  )
+          , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 14px"}}, "Verbindung zur Juprowa ServicePad Cloud für bidirektionalen Arbeitsschein-Sync"   )
+          , jupCfgLoading?React.createElement('div', {style:{color:V.dm,fontSize:12}},"Lade Konfiguration...")
+          :jupCfg?(
+            React.createElement('div', {style:{display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:14}},
+              React.createElement('div', {style:{padding:12,borderRadius:8,background:V.bg,border:"1px solid "+V.bd}},
+                React.createElement('div', {style:{fontSize:10,color:V.dm,textTransform:"uppercase",letterSpacing:.5}},"UID"),
+                React.createElement('div', {style:{fontSize:12,fontWeight:600,fontFamily:mono,overflow:"hidden",textOverflow:"ellipsis"}}, jupCfg.uid||"—")
+              ),
+              React.createElement('div', {style:{padding:12,borderRadius:8,background:V.bg,border:"1px solid "+(jupCfg.passport?"#22c55e":"#ef4444")}},
+                React.createElement('div', {style:{fontSize:10,color:V.dm,textTransform:"uppercase",letterSpacing:.5}},"Passport"),
+                React.createElement('div', {style:{fontSize:12,fontWeight:600,fontFamily:mono,color:jupCfg.passport?"#22c55e":"#ef4444"}}, jupCfg.passport?(jupCfg.passport.slice(0,8)+"…"):"❌ Nicht gesetzt")
+              ),
+              React.createElement('div', {style:{padding:12,borderRadius:8,background:V.bg,border:"1px solid "+V.bd}},
+                React.createElement('div', {style:{fontSize:10,color:V.dm,textTransform:"uppercase",letterSpacing:.5}},"Letzter Sync"),
+                React.createElement('div', {style:{fontSize:12,fontWeight:600}}, jupCfg.last_sync_at?new Date(jupCfg.last_sync_at).toLocaleString("de-AT"):"Noch nie")
+              )
+            )
+          )
+          :React.createElement('div', {style:{color:"#f97316",fontSize:12}},"Keine Juprowa-Konfiguration gefunden. juprowa_config Tabelle prüfen.")
+          , React.createElement('div', {style:{marginTop:8}},
+            React.createElement('div', {style:{fontSize:13,fontWeight:700,marginBottom:6}},"Passport aktualisieren"),
+            React.createElement('div', {style:{fontSize:11,color:V.dm,marginBottom:6}},"Wenn der Passport abgelaufen ist: In Juprowa Cloud einloggen → aus URL den PASSPORT-Parameter kopieren → hier einfügen."),
+            React.createElement('div', {style:{display:"flex",gap:6,alignItems:"center"}},
+              React.createElement('input', {value:jupNewPassport,onChange:e=>setJupNewPassport(e.target.value),placeholder:"Neuen PASSPORT-Hash einfügen...",style:{...II(),flex:1,fontFamily:mono,fontSize:12}}),
+              React.createElement('button', {onClick:updatePassport,disabled:!jupNewPassport.trim(),style:{...bpS,opacity:jupNewPassport.trim()?1:.5}},"💾 Speichern")
+            )
+          )
+        )
+        , React.createElement('div', {style:{...CC(),marginTop:14}},
+          React.createElement('div', {style:{fontSize:15,fontWeight:800,marginBottom:4}},"📊 Sync-Status"),
+          React.createElement('div', {style:{display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"repeat(4,1fr)",gap:10,marginBottom:14}},
+            React.createElement(Kpi, {label:"Juprowa-Scheine",value:(arbeitsscheine||[]).filter(a=>a.juprowa_id).length,sub:"verknüpft",color:"#06b6d4"}),
+            React.createElement(Kpi, {label:"Lokal geändert",value:(arbeitsscheine||[]).filter(a=>a.juprowa_id&&a.local_updated_at&&(!a.juprowa_pushed_at||new Date(a.local_updated_at)>new Date(a.juprowa_pushed_at))).length,sub:"Push ausstehend",color:"#f97316"}),
+            React.createElement(Kpi, {label:"Worker-Mapping",value:Object.keys(JUPROWA_WORKER_MAP).length,sub:"von "+monteure.length+" MA",color:"#8b5cf6"}),
+            React.createElement(Kpi, {label:"Auto-Sync",value:"5 min",sub:"Pull + Push",color:"#22c55e"})
+          ),
+          React.createElement('div', {style:{fontSize:13,fontWeight:700,marginBottom:8}},"Worker-Mapping"),
+          React.createElement('div', {style:{display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:4,marginBottom:14}},
+            Object.entries(JUPROWA_WORKER_MAP).map(([jCode,epId])=>{
+              const w=monteure.find(m=>m.id===epId);
+              return React.createElement('div', {key:jCode,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:6,background:V.bg,border:"1px solid "+V.bd,fontSize:12}},
+                React.createElement('span', {style:{fontFamily:mono,color:"#06b6d4",fontWeight:700,minWidth:40}}, jCode),
+                React.createElement('span', {style:{color:V.dm}},"→"),
+                React.createElement('span', {style:{fontWeight:600}}, w?(w.vorname||"")+" "+w.n:epId)
+              );
+            })
+          )
+        )
+        , React.createElement('div', {style:{...CC(),marginTop:14}},
+          React.createElement('div', {style:{fontSize:15,fontWeight:800,marginBottom:8}},"📋 Sync-Protokoll"),
+          jupSyncLog.length===0?React.createElement('div', {style:{color:V.dm,fontSize:12}},"Noch keine Sync-Aktivitäten protokolliert.")
+          :React.createElement('div', {style:{maxHeight:300,overflowY:"auto"}},
+            jupSyncLog.map((log,i)=>{
+              const d=log.created_at?new Date(log.created_at):new Date();
+              const isPull=log.action==="juprowa_pull";
+              const isPush=log.action==="juprowa_push";
+              const det=(()=>{try{return JSON.parse(log.details||"{}")}catch(e){return{}}})();
+              const userName=(users||[]).find(u=>u.id===log.user_id);
+              return React.createElement('div', {key:log.id||i,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderBottom:"1px solid "+V.bd+"44",fontSize:12}},
+                React.createElement('span', {style:{fontSize:14,flexShrink:0}}, isPull?"🔽":isPush?"📤":"🔄"),
+                React.createElement('div', {style:{flex:1,minWidth:0}},
+                  React.createElement('div', {style:{fontWeight:600,color:isPull?"#06b6d4":isPush?"#f97316":V.fg}},
+                    isPull?"Pull":isPush?"Push":"Sync",
+                    isPull&&det.added!==undefined?" — "+det.added+" neu, "+det.updated+" aktualisiert":"",
+                    isPush&&det.pushed!==undefined?" — "+det.pushed+" gesendet"+(det.errors?" ("+det.errors+" Fehler":"")+(det.errors?")":""):""
+                  ),
+                  React.createElement('div', {style:{fontSize:10,color:V.dm}}, d.toLocaleDateString("de-AT")+" "+d.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}), userName?" · "+(userName.name||userName.username):"")
+                )
+              );
+            })
+          )
+        )
+      ))
+
+      /* ═══ TAB: EINSTELLUNGEN ═══ */
       , adminTab==="einstellungen"&&(React.createElement('div', { className: "fade-in"}
         /* Notifications */
         , React.createElement('div', { style: CC()}
@@ -5048,6 +5140,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   if(dringendeAS>0)alerts.push({type:"urgent",icon:"🔴",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,color:"#ef4444",go:()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}});
   if(finkStats.offen>0&&isAdmin)alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben (${now.getFullYear()})`,color:"#8b5cf6",go:()=>onNav("stunden")});
   if(finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316",go:()=>onNav("stunden")});
+  const jupLinked=arbeitsscheine.filter(a=>a.juprowa_id).length;
+  const jupPending=arbeitsscheine.filter(a=>a.juprowa_id&&a.local_updated_at&&(!a.juprowa_pushed_at||new Date(a.local_updated_at)>new Date(a.juprowa_pushed_at))).length;
+  if(jupPending>0&&(isAdmin||curUser.role==="buero"))alerts.push({type:"info",icon:"📤",text:`${jupPending} Arbeitsschein${jupPending>1?"e":""} mit lokalen Änderungen — Push to Juprowa ausstehend`,color:"#06b6d4",go:()=>onNav("arbeitsscheine")});
 
   // Recent activity (last 5 entries)
 
@@ -5277,7 +5372,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         , React.createElement('div', { onClick: ()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #f97316",transition:"transform .15s"}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Scheine offen" )
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#f97316",fontFamily:mono}}, offeneAS)
-          , React.createElement('div', { style: {fontSize:11,color:dringendeAS>0?"#ef4444":V.dm}}, dringendeAS>0?dringendeAS+" dringend":arbeitsscheine.length+" gesamt")
+          , React.createElement('div', { style: {fontSize:11,color:dringendeAS>0?"#ef4444":V.dm}}, dringendeAS>0?dringendeAS+" dringend":jupLinked>0?"🔗 "+jupLinked+" Juprowa"+(jupPending>0?" · ↑"+jupPending:""):arbeitsscheine.length+" gesamt")
         )
         , React.createElement('div', { style: {...CC(),padding:isMob?"10px":"14px",borderLeft:"4px solid #3b82f6"}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Stunden heute" )
