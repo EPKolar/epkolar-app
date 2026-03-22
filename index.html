@@ -1132,7 +1132,7 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     for(const jws of data){
       const mapped=_juprowaMapWorksheet(jws);
       if(!mapped.nummer){skipped++;continue;}
-      const existing=arbeitsscheine.find(a=>a.nummer===mapped.nummer);
+      const existing=arbeitsscheine.find(a=>(a.nummer||"").toUpperCase()===(mapped.nummer||"").toUpperCase());
       if(existing){
         const upd={};
         if(mapped.kundName&&mapped.kundName!==existing.kundName)upd.kundName=mapped.kundName;
@@ -3211,8 +3211,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const canSync=curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero";
   const [jupSyncing,setJupSyncing]=_react.useState.call(void 0, false);
-  const doJuprowaSync=async()=>{setJupSyncing(true);await _juprowaSync(arbeitsscheine,setArbeitsscheine,false);setJupSyncing(false);};
-  _react.useEffect.call(void 0, ()=>{if(canSync){_juprowaStartAutoSync(arbeitsscheine,setArbeitsscheine);}return()=>{_juprowaStopAutoSync();};},[canSync]);
+  const doJuprowaSync=async()=>{if(!arbeitsscheine.length){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("⏳ Daten werden noch geladen…","warn")]);return;}setJupSyncing(true);await _juprowaSync(arbeitsscheine,setArbeitsscheine,false);setJupSyncing(false);};
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
@@ -3230,6 +3229,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const importRef=_react.useRef.call(void 0, null);
   // Sprach-Schnellerfassung
   const [showVoice,setShowVoice]=_react.useState.call(void 0, false);
+  const [showExportPicker,setShowExportPicker]=_react.useState.call(void 0, false);
   const [voiceText,setVoiceText]=_react.useState.call(void 0, "");
   const [voiceListening,setVoiceListening]=_react.useState.call(void 0, false);
   const [voiceParsed,setVoiceParsed]=_react.useState.call(void 0, null);
@@ -3267,10 +3267,12 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const verschieben=(id,d)=>{if(!d)return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{termin_bestaetigt:d}});};
   const updAs=(id,updates)=>{setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:updates});};
 
-  const exportOffa=()=>{if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(()=>{});}
+  const exportOffa=(statusFilter)=>{setShowExportPicker(false);if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(()=>{});}
     const hdrs=["Nr","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
-    const data=arbeitsscheine.filter(a=>a.scheinstatus!=="storniert").map((a,i)=>[i+1,a.kundNr,a.kundName,a.projektnr,_optionalChain([AS_ART, 'access', _123 => _123[a.scheinart], 'optionalAccess', _124 => _124.l])||"",_optionalChain([AS_STATUS, 'access', _125 => _125[a.scheinstatus], 'optionalAccess', _126 => _126.l])||"",_optionalChain([monteure, 'access', _127 => _127.find, 'call', _128 => _128(m=>m.id===a.monteur), 'optionalAccess', _129 => _129.n])||"",a.aufgenommen?fdt(a.aufgenommen):"",a.arbeitsanweisungen.replace(/[\n;]/g," ").slice(0,80),a.durchgefuehrte.replace(/[\n;]/g," ").slice(0,80),_optionalChain([AS_VERRECH, 'access', _130 => _130[a.verrechnung], 'optionalAccess', _131 => _131.l])||"",a.sachbearbeiter]);
-    genXls("📋 OFFA Export — Arbeitsscheine","Andreas Kolar & Sohn GesmbH · Arbeitsscheinverwaltung",hdrs,data,"OFFA_Export_"+td2()+".xls",{colWidths:[35,50,130,60,75,85,95,70,160,160,90,85],leftCols:[0,1,2,3,8,9,11],boldCols:[2],statusMap:{"offen":"#eab308","in Bearbeitung":"#f97316","erledigt":"#3b82f6","abgerechnet":"#22c55e"}});
+    const src=statusFilter==="alle"?arbeitsscheine:arbeitsscheine.filter(a=>statusFilter==="offen_bearb"?(a.scheinstatus==="offen"||a.scheinstatus==="in_bearbeitung"):a.scheinstatus===statusFilter);
+    const data=src.map((a,i)=>[i+1,a.kundNr,a.kundName,a.projektnr,_optionalChain([AS_ART, 'access', _123 => _123[a.scheinart], 'optionalAccess', _124 => _124.l])||"",_optionalChain([AS_STATUS, 'access', _125 => _125[a.scheinstatus], 'optionalAccess', _126 => _126.l])||"",_optionalChain([monteure, 'access', _127 => _127.find, 'call', _128 => _128(m=>m.id===a.monteur), 'optionalAccess', _129 => _129.n])||"",a.aufgenommen?fdt(a.aufgenommen):"",a.arbeitsanweisungen.replace(/[\n;]/g," ").slice(0,80),a.durchgefuehrte.replace(/[\n;]/g," ").slice(0,80),_optionalChain([AS_VERRECH, 'access', _130 => _130[a.verrechnung], 'optionalAccess', _131 => _131.l])||"",a.sachbearbeiter]);
+    const lbl=statusFilter==="alle"?"Alle":statusFilter==="offen_bearb"?"Offen+In Bearbeitung":(_optionalChain([AS_STATUS,'access',_=>_[statusFilter],'optionalAccess',_2=>_2.l])||statusFilter);
+    genXls("📋 OFFA Export — "+lbl+" ("+data.length+")","Andreas Kolar & Sohn GesmbH · Arbeitsscheinverwaltung",hdrs,data,"OFFA_Export_"+lbl+"_"+td2()+".xls",{colWidths:[35,50,130,60,75,85,95,70,160,160,90,85],leftCols:[0,1,2,3,8,9,11],boldCols:[2],statusMap:{"offen":"#eab308","in Bearbeitung":"#f97316","erledigt":"#3b82f6","abgerechnet":"#22c55e"}});
   };
 
   const importOffa=async(e)=>{const files=[...(e.target.files||[])];e.target.value="";if(!files.length)return;
@@ -3572,7 +3574,7 @@ function sharePdf(){
     React.createElement('div', {}
       , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
         , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📋 Arbeitsscheine / Störungen"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Scheine anlegen, Status setzen, OFFA-Excel exportieren. Schnellerfassung per \uD83C\uDFA4 Sprache." ))
-        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".pdf", multiple: true, style: {display:"none"}, onChange: importOffa} ), canSync&&React.createElement('button', { onClick: doJuprowaSync, disabled: jupSyncing, style: {...bpS,background:jupSyncing?"#6b7280":"linear-gradient(135deg,#06b6d4,#0891b2)",opacity:jupSyncing?.7:1}}, jupSyncing?"⏳ Sync...":"🔄 Juprowa Sync" ))
+        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('div', { style: {position:"relative",display:"inline-block"}}, React.createElement('button', { onClick: ()=>setShowExportPicker(p=>!p), style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), showExportPicker&&React.createElement('div', { style: {position:"absolute",top:"100%",left:0,zIndex:999,background:V.bg,border:"1px solid "+V.bd,borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.3)",padding:6,minWidth:180,marginTop:4}}, [["offen_bearb","🟡 Offen + In Bearbeitung"],["offen","🟡 Nur Offen"],["in_bearbeitung","🟠 In Bearbeitung"],["erledigt","🔵 Erledigt"],["abgerechnet","🟢 Abgerechnet"],["storniert","🔴 Storniert"],["alle","📋 Alle"]].map(([k,l])=>React.createElement('button',{key:k,onClick:()=>exportOffa(k),style:{display:"block",width:"100%",textAlign:"left",padding:"6px 10px",border:"none",background:"transparent",color:V.tx,fontSize:13,borderRadius:4,cursor:"pointer"}},l)))), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".pdf", multiple: true, style: {display:"none"}, onChange: importOffa} ), canSync&&React.createElement('button', { onClick: doJuprowaSync, disabled: jupSyncing, style: {...bpS,background:jupSyncing?"#6b7280":"linear-gradient(135deg,#06b6d4,#0891b2)",opacity:jupSyncing?.7:1}}, jupSyncing?"⏳ Sync...":"🔄 Juprowa Sync" ))
       )
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
