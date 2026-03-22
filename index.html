@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.7';
+  var SW_VER='epkolar-v3.5.8';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -895,7 +895,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.7-supabase";
+const APP_VERSION="3.5.8-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -2403,6 +2403,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   // Sync trigger — flush offline queue to server
   const doSync=async()=>{
     if(syncStatus.syncing)return;
+    if(!_authToken){return;} // No GoTrue token → skip sync, items stay in queue
     setSyncStatus(p=>({...p,syncing:true}));
     try{
       if(navigator.onLine){
@@ -2421,7 +2422,7 @@ function LoginScreen({onLogin,onPortal,projects}){
               if(isNetwork){fail++;break;} // real network error → stop
               // Data error (400/409/422) → increment retry count, skip after 3
               const retries=(item._retries||0)+1;
-              if(retries>=3){skipIds.push(item.id);console.warn("SQ: dropping item after 3 fails:",item.url,e.message);}
+              if(retries>=5){skipIds.push(item.id);console.warn("SQ: dropping item after 5 fails:",item.url,e.message);}
               else{item._retries=retries;}
               fail++;
             }
@@ -3129,6 +3130,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert"}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{scheinstatus:"storniert"}});const a=arbeitsscheine.find(x=>x.id===id);if(a)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",a.nummer+" — "+a.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{termin_bestaetigt:d}});};
+  const updAs=(id,updates)=>{setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:updates});};
 
   const exportOffa=()=>{if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(()=>{});}
     const hdrs=["Nr","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
@@ -3519,38 +3521,36 @@ function sharePdf(){
         )
         , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:6}}, sorted.length, " von "  , arbeitsscheine.length, " Arbeitsscheine" )
         , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { style: {overflowX:"auto"}}
-          , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:1200,fontSize:12}}
+          , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:1300,fontSize:12}}
             , React.createElement('thead', {}, React.createElement('tr', { style: {background:_dark?"rgba(139,92,246,.08)":"rgba(139,92,246,.06)"}}
               , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("nummer")}, "Nummer", sortArrow("nummer"))
               , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:180,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("arbeitsanweisungen")}, "Durchzuführende Arbeiten", sortArrow("arbeitsanweisungen"))
               , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("aufgenommen")}, "Erf.-Datum", sortArrow("aufgenommen"))
-              , React.createElement('th', { style: {...thS(),width:85,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("terminVorschlag")}, "Vorgeschl.", sortArrow("terminVorschlag"))
-              , React.createElement('th', { style: {...thS(),width:85,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("terminBestaetigt")}, "Bestätigt", sortArrow("terminBestaetigt"))
-              , React.createElement('th', { style: {...thS(),width:90,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("scheinstatus")}, "Status", sortArrow("scheinstatus"))
+              , React.createElement('th', { style: {...thS(),width:120,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("terminVorschlag")}, "Vorgeschl.", sortArrow("terminVorschlag"))
+              , React.createElement('th', { style: {...thS(),width:120,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("terminBestaetigt")}, "Bestätigt", sortArrow("terminBestaetigt"))
+              , React.createElement('th', { style: {...thS(),width:100,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("scheinstatus")}, "Status", sortArrow("scheinstatus"))
               , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("sachbearbeiter")}, "SB", sortArrow("sachbearbeiter"))
-              , React.createElement('th', { style: {...thS(),width:90,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("monteur")}, "Monteur", sortArrow("monteur"))
+              , React.createElement('th', { style: {...thS(),width:100,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("monteur")}, "Monteur", sortArrow("monteur"))
               , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:130,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("kundName")}, "Kundenname", sortArrow("kundName"))
               , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("projektnr")}, "Projektnr.", sortArrow("projektnr"))
-              , React.createElement('th', { style: {...thS(),width:55}}, "Art")
-              , React.createElement('th', { style: {...thS(),width:55}}, "Akt.")
+              , React.createElement('th', { style: {...thS(),width:110,textAlign:"center"}}, "Aktionen")
             ))
-            , React.createElement('tbody', {}, sorted.map(a=>{const st=AS_STATUS[a.scheinstatus]||AS_STATUS.offen;const art=AS_ART[a.scheinart];const pri=AS_PRIO[a.prioritaet];
-              return (React.createElement('tr', { key: a.id, style: {borderBottom:"1px solid "+V.bd,cursor:"pointer",background:a.scheinstatus==="storniert"?"rgba(239,68,68,.03)":"transparent"}, onClick: ()=>openEdit(a)}
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#8b5cf6",fontWeight:600}}, a.nummer)
-                , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.arbeitsanweisungen.split("\n")[0])
+            , React.createElement('tbody', {}, sorted.map(a=>{const st=AS_STATUS[a.scheinstatus]||AS_STATUS.offen;const art=AS_ART[a.scheinart];const pri=AS_PRIO[a.prioritaet];const isSt=a.scheinstatus==="storniert";
+              return (React.createElement('tr', { key: a.id, style: {borderBottom:"1px solid "+V.bd,background:isSt?"rgba(239,68,68,.03)":"transparent"}}
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#8b5cf6",fontWeight:600,cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.nummer)
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.arbeitsanweisungen.split("\n")[0])
                 , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12}}, fdt(a.aufgenommen))
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12,color:a.terminVorschlag?V.tx:V.mt}}, a.terminVorschlag?fdt(a.terminVorschlag):"—")
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12,color:a.terminBestaetigt?"#22c55e":V.mt,fontWeight:a.terminBestaetigt?600:400}}, a.terminBestaetigt?fdt(a.terminBestaetigt):"—")
-                , React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: st.l, color: st.c} ))
-                , React.createElement('td', { style: {...tdSt(),fontSize:13}}, a.sachbearbeiter)
-                , React.createElement('td', { style: {...tdSt(),fontSize:12}}, (monteure.find(m=>m.id===a.monteur)||{}).n||a.monteur||"—")
-                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500}}, a.kundName)
+                , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('input', { type: "date", value: a.terminVorschlag||"", onChange: e=>updAs(a.id,{terminVorschlag:e.target.value}), style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:a.terminVorschlag?V.tx:V.mt,fontSize:11,padding:"2px 3px",width:110,fontFamily:mono}, onClick: e=>e.stopPropagation()}))
+                , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('input', { type: "date", value: a.terminBestaetigt||"", onChange: e=>updAs(a.id,{terminBestaetigt:e.target.value}), style: {background:"transparent",border:"1px solid "+(a.terminBestaetigt?"#22c55e":V.bd),borderRadius:4,color:a.terminBestaetigt?"#22c55e":V.mt,fontWeight:a.terminBestaetigt?600:400,fontSize:11,padding:"2px 3px",width:110,fontFamily:mono}, onClick: e=>e.stopPropagation()}))
+                , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { value: a.scheinstatus, onChange: e=>{e.stopPropagation();updAs(a.id,{scheinstatus:e.target.value});}, style: {background:"transparent",border:"1px solid "+st.c,borderRadius:4,color:st.c,fontSize:10,padding:"2px 3px",fontWeight:600,cursor:"pointer"}, onClick: e=>e.stopPropagation()}, Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k, style: {color:"#000"}}, v.i+" "+v.l))))
+                , React.createElement('td', { style: {...tdSt(),fontSize:12}}, a.sachbearbeiter)
+                , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { value: a.monteur||"", onChange: e=>{e.stopPropagation();updAs(a.id,{monteur:e.target.value});}, style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:V.tx,fontSize:11,padding:"2px 3px",cursor:"pointer",maxWidth:90}, onClick: e=>e.stopPropagation()}, React.createElement('option', { value: ""}, "—"), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))))
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500,cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.kundName)
                 , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12,color:V.ac}}, a.projektnr)
-                , React.createElement('td', { style: tdSt()}, React.createElement('span', { title: _optionalChain([art, 'optionalAccess', _174 => _174.l])}, _optionalChain([art, 'optionalAccess', _175 => _175.i])), pri&&pri.c!=="#71717a"?React.createElement('span', { style: {marginLeft:2,fontSize:9,color:pri.c}, title: pri.l}, "●"):null)
-                , React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, React.createElement('div', { style: {display:"flex",gap:2,justifyContent:"center"}}
-                  , React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(a);}, style: {...bgS,padding:"2px 5px",fontSize:9}}, "✏️")
-                  , React.createElement('button', { onClick: e=>{e.stopPropagation();genAsPdf(a);}, style: {...beS,padding:"2px 5px",fontSize:9}, title: "PDF"}, "📄")
-                  , a.scheinstatus!=="storniert"&&React.createElement('button', { onClick: e=>{e.stopPropagation();storno(a.id);}, style: {...bdS,padding:"2px 5px",fontSize:9}, title: "Stornieren"}, "⊘")
+                , React.createElement('td', { style: {...tdSt(),textAlign:"center",padding:"4px 2px"}}, React.createElement('div', { style: {display:"flex",gap:3,justifyContent:"center",flexWrap:"nowrap"}}
+                  , React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(a);}, style: {background:"#3b82f6",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "Bearbeiten"}, "✏️")
+                  , React.createElement('button', { onClick: e=>{e.stopPropagation();genAsPdf(a);}, style: {background:"#22c55e",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "PDF Vorschau & Drucken"}, "📄")
+                  , !isSt&&React.createElement('button', { onClick: e=>{e.stopPropagation();storno(a.id);}, style: {background:"#ef4444",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "Stornieren"}, "⊘")
                 ))
               ));
             }))
