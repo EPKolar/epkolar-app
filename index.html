@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.19';
+  var SW_VER='epkolar-v3.5.20';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.19-supabase";
+const APP_VERSION="3.5.20-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4034,7 +4034,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         _sbGet("bautagebuch").catch(()=>[])
       ]);
       setAllEntries((te||[]).map(e=>({...e,datum:e.datum||e.date,projekt:e.projekt||e.project_id,monteur:e.monteur||e.worker_id,stunden:parseFloat(e.stunden||e.hours||0),taetigkeit:e.taetigkeit||e.task||"",bemerkung:e.bemerkung||e.description||""})));
-      setAllBT((bt||[]).map(b=>({...b,datum:b.datum||b.date,projekt:b.projekt||b.project_id,taetigkeit:b.taetigkeit||b.task||"",wetter:b.wetter||"",temperatur:b.temperatur||""})));
+      setAllBT((bt||[]).map(b=>({...b,datum:b.datum||b.date,projekt:b.projekt||b.project_id,taetigkeit:b.taetigkeiten||b.taetigkeit||b.task||"",wetter:b.wetter||"",temperatur:b.temperatur||""})));
       setLoaded(true);
       _optionalChain([window, 'access', _bex1 => _bex1.__toast, 'optionalCall', _bex2 => _bex2("\u2705 "+((te||[]).length)+" Buchungen + "+((bt||[]).length)+" Tagesberichte geladen")]);
     }catch(e){_optionalChain([window, 'access', _bex3 => _bex3.__toast, 'optionalCall', _bex4 => _bex4("\u26a0\ufe0f Fehler beim Laden","warn")]);}
@@ -4045,15 +4045,16 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   const activeProjects=projects.filter(p=>p.status!=="archiviert");
 
   const _kwDates=(yr,kw)=>{const jan4=new Date(yr,0,4);const d=jan4.getDate()-jan4.getDay()+1;const mon=new Date(yr,0,d+(kw-1)*7);const days=[];for(let i=0;i<7;i++){const dd=new Date(mon);dd.setDate(mon.getDate()+i);days.push(dd);}return days;};
-  const _kwFromDate=(d)=>{const dt=new Date(d);const jan1=new Date(dt.getFullYear(),0,1);const d4=new Date(dt.getFullYear(),0,4);const dayOfWeek=d4.getDay()||7;const firstMon=new Date(dt.getFullYear(),0,4-dayOfWeek+1);const diff=Math.floor((dt-firstMon)/(7*864e5));return Math.max(1,diff+1);};
-  const _fmtDate=(d)=>{const dd=new Date(d);return dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");};
+  const _localD=(d)=>typeof d==='string'&&/^\d{4}-/.test(d)?new Date(parseInt(d.slice(0,4)),parseInt(d.slice(5,7))-1,parseInt(d.slice(8,10))):new Date(d);
+  const _kwFromDate=(d)=>{const dt=_localD(d);const d4=new Date(dt.getFullYear(),0,4);const dayOfWeek=d4.getDay()||7;const firstMon=new Date(dt.getFullYear(),0,4-dayOfWeek+1);const diff=Math.floor((dt-firstMon)/(7*864e5));return Math.max(1,diff+1);};
+  const _fmtDate=(d)=>{if(typeof d==='string'&&/^\d{4}-\d{2}-\d{2}/.test(d))return d.slice(0,10);const dd=_localD(d);return dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");};
 
   // === PREVIEW HELPERS ===
   const getProjectData=(projId)=>{
     const pEntries=allEntries.filter(e=>e.projekt===projId);
     const pBT=allBT.filter(b=>b.projekt===projId);
     const kwSet=new Set();
-    pEntries.forEach(e=>{if(e.datum){const d=new Date(e.datum);kwSet.add(d.getFullYear()+"-"+String(_kwFromDate(d)).padStart(2,"0"));}});
+    pEntries.forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(d.getFullYear()+"-"+String(_kwFromDate(d)).padStart(2,"0"));}});
     const kwList=[...kwSet].sort();
     const workerIds=new Set();
     pEntries.forEach(e=>{if(e.monteur)workerIds.add(e.monteur);});
@@ -4073,8 +4074,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       const kw=parseInt(kwStr);
       const pBT=allBT.filter(b=>b.projekt===projId);
       const pEntries=allEntries.filter(e=>e.projekt===projId);
-      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const kwE=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const kwE=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
       tMap[kwKey]=kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):(kwE.length?[...new Set(kwE.map(e=>e.taetigkeit).filter(Boolean))].join("; "):"");
     });
     setEditTaet(tMap);
@@ -4114,8 +4115,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       const [yr,kwStr]=kwKey.split("-");
       const kw=parseInt(kwStr);
       const days=_kwDates(parseInt(yr),kw);
-      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
+      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
 
       html+='<table id="Bericht_KW'+kwStr+'-'+yr+'">';
       html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
@@ -4129,14 +4130,15 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         const ds=_fmtDate(day);const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
         html+='<tr><td>'+dname+' '+String(day.getDate()).padStart(2,"0")+'.'+String(day.getMonth()+1).padStart(2,"0")+'.'+yr+'</td>';
         let rowSum=0;
-        workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
+        workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
         html+='<td class="num sum">'+(rowSum?_n(rowSum,2):"")+'</td>';
-        html+='<td>'+(di===0?taetigkeit:"")+'</td></tr>';
+        const _dayT=[...new Set(kwEntries.filter(e=>_fmtDate(e.datum)===ds).map(e=>e.taetigkeit).filter(Boolean))].join("; ");
+        html+='<td>'+(_dayT||"")+'</td></tr>';
       });
       const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
       html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
       workers.forEach(w=>{const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';});
-      html+='<td class="num">'+_n(kwTotal,2)+'</td><td></td></tr>';
+      html+='<td class="num">'+_n(kwTotal,2)+'</td><td>'+taetigkeit+'</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:20px">&nbsp;</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="font-size:8pt;color:#666;border:none">Gegen diesen Bauwochenbericht kann innerhalb von 48 Stunden Berufung eingelegt werden. Ansonsten hat der Kunde bzw. Auftraggeber seinen Inhalt vollst\u00e4ndig zugestimmt und der Bericht G\u00fcltigkeit.</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:40px">&nbsp;</td></tr>';
@@ -4155,21 +4157,22 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     kwList.forEach(kwKey=>{
       const [yr,kwStr]=kwKey.split("-");const kw=parseInt(kwStr);
       const days=_kwDates(parseInt(yr),kw);
-      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=new Date(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
+      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
       html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+w.name+'</th>';});html+='<th>Summe</th><th>T\u00e4tigkeit</th></tr>';
       days.forEach((day,di)=>{
         const ds=_fmtDate(day);const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
         html+='<tr><td>'+dname+' '+String(day.getDate()).padStart(2,"0")+'.'+String(day.getMonth()+1).padStart(2,"0")+'.'+yr+'</td>';
         let rowSum=0;
-        workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
+        workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
         html+='<td class="num sum">'+(rowSum?_n(rowSum,2):"")+'</td>';
-        html+='<td>'+(di===0?taetigkeit:"")+'</td></tr>';
+        const _dayT2=[...new Set(kwEntries.filter(e=>_fmtDate(e.datum)===ds).map(e=>e.taetigkeit).filter(Boolean))].join("; ");
+        html+='<td>'+(_dayT2||"")+'</td></tr>';
       });
       const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
       html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
       workers.forEach(w=>{const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';});
-      html+='<td class="num">'+_n(kwTotal,2)+'</td><td></td></tr>';
+      html+='<td class="num">'+_n(kwTotal,2)+'</td><td>'+taetigkeit+'</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:4px"></td></tr>';
     });
     const rolleGroups={};
@@ -4203,7 +4206,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const hrs=allEntries.filter(e=>e.projekt===p.id).reduce((s,e)=>s+(e.stunden||0),0);
     const btCnt=allBT.filter(b=>b.projekt===p.id).length;
     const kwSet=new Set();
-    allEntries.filter(e=>e.projekt===p.id).forEach(e=>{if(e.datum){const d=new Date(e.datum);kwSet.add(d.getFullYear()+"-KW"+String(_kwFromDate(d)).padStart(2,"0"));}});
+    allEntries.filter(e=>e.projekt===p.id).forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(d.getFullYear()+"-KW"+String(_kwFromDate(d)).padStart(2,"0"));}});
     return {id:p.id,name:p.name,nr:p.nr,kunde:p.kunde,cnt,hrs,btCnt,kws:kwSet.size};
   });
 
@@ -4264,7 +4267,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
             const [yr,kwStr]=kwKey.split("-");
             const kw=parseInt(kwStr);
             const days=_kwDates(parseInt(yr),kw);
-            const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+            const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
             const taet=editTaet[kwKey]!==undefined?editTaet[kwKey]:"";
             const visWorkerIds=new Set(visibleWorkers.map(w=>w.id));
             const kwTotal=kwEntries.filter(e=>visWorkerIds.has(e.monteur)).reduce((s,e)=>s+(e.stunden||0),0);
@@ -4293,7 +4296,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
                     return React.createElement('tr', { key: di, style: {background:isWE?(_dark?"#1a1a2e":"#f8f8f8"):"transparent"}},
                       React.createElement('td', { style: {...tdSt2,fontWeight:600,whiteSpace:"nowrap"}}, dname, " ", String(day.getDate()).padStart(2,"0"), ".", String(day.getMonth()+1).padStart(2,"0"), ".", yr),
                       visibleWorkers.map(w=>{
-                        const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(new Date(e.datum))===ds).reduce((s,e)=>s+(e.stunden||0),0);
+                        const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds).reduce((s,e)=>s+(e.stunden||0),0);
                         rowSum+=h;
                         return React.createElement('td', { key: w.id, style: {...numSt,color:h?"#22c55e":V.dm}}, h?_n(h,2):"");
                       }),
