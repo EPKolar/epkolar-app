@@ -1261,7 +1261,7 @@ function _juprowaStopAutoSync(){if(_juprowaSyncTimer){clearInterval(_juprowaSync
 /* ═══ JUPROWA PHASE 2: WRITE-BACK (EPKolar → Juprowa) ═══ */
 const JUPROWA_WORKER_REVERSE={};Object.entries(JUPROWA_WORKER_MAP).forEach(([k,v])=>{JUPROWA_WORKER_REVERSE[v]=k;});
 
-function _juprowaReverseMap(schein){
+function _juprowaReverseMap(schein,worktimes){
   const ws={};
   if(schein.juprowa_id)ws.ID=schein.juprowa_id;
   if(schein.nummer)ws.AK_SCHEINNR=schein.nummer;
@@ -1284,13 +1284,31 @@ function _juprowaReverseMap(schein){
   if(schein.kundOrt)ws.AK_BAUADR_ORT=schein.kundOrt;
   if(schein.telefon)ws.AK_KONTAKT_TELEFON1=schein.telefon;
   if(schein.kundEmail)ws.AK_KONTAKT_EMAIL=schein.kundEmail;
+  // WORKTIMES array from time_entries
+  if(worktimes&&worktimes.length){
+    ws.WORKTIMES=worktimes.map(e=>{
+      const wCode=JUPROWA_WORKER_REVERSE[e.w||e.worker]||montCode||"";
+      const hrs=parseFloat(e.hours||e.stunden)||0;
+      const pause=parseFloat(e.pause)||0;
+      const hh=Math.floor(hrs);const mm=Math.round((hrs-hh)*60);
+      const ph=Math.floor(pause);const pm=Math.round((pause-ph)*60);
+      return{DATE:(e.datum||e.date||"")+"T00:00:00",MONTEUR:wCode,ARBEITSZEIT:String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0")+":00",PAUSE:String(ph).padStart(2,"0")+":"+String(pm).padStart(2,"0")+":00",VON:e.von||"",BIS:e.bis||""};
+    });
+  }
   return ws;
 }
 
 async function _juprowaPush(schein){
   if(!schein.juprowa_id){return{error:"Kein Juprowa-ID — Schein wurde lokal erstellt"};}
   try{
-    const ws=_juprowaReverseMap(schein);
+    // Fetch time_entries for this Arbeitsschein (by arbeitsschein_id or nummer match)
+    let worktimes=[];
+    try{
+      const dbH=_authToken?_sbRH():{apikey:SUPABASE_KEY};
+      const teRes=await fetch(SB_REST+"/time_entries?select=*&arbeitsschein_id=eq."+encodeURIComponent(schein.id)+"&limit=200",{headers:dbH});
+      if(teRes.ok)worktimes=await teRes.json();
+    }catch(e){}
+    const ws=_juprowaReverseMap(schein,worktimes);
     const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};
     const res=await fetch(SB_REST+"/rpc/juprowa_push_worksheet",{
       method:"POST",headers:rpcH,
