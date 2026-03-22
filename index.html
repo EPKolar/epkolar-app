@@ -410,8 +410,10 @@ function _mapUser(u){
 function _mapArbeitsschein(a){
   if(!a)return a;
   const LEGACY_STATUS={offen:"aufgenommen"};
+  const LEGACY_ART={wartung:"reparatur",regie:"kein",service:"kein"};
   const st=a.scheinstatus||"aufgenommen";
-  return{...a,scheinstatus:LEGACY_STATUS[st]||st,kundNr:a.kundNr||a.kund_nr||"",kundName:a.kundName||a.kund_name||"",
+  const art=a.scheinart||a.schein_art||"kein";
+  return{...a,scheinstatus:LEGACY_STATUS[st]||st,scheinart:LEGACY_ART[art]||art,kundNr:a.kundNr||a.kund_nr||"",kundName:a.kundName||a.kund_name||"",
     kundStr:a.kundStr||a.kund_str||"",kundPlz:a.kundPlz||a.kund_plz||"",
     kundOrt:a.kundOrt||a.kund_ort||"",kundTel:a.kundTel||a.kund_tel||"",
     kundEmail:a.kundEmail||a.kund_email||"",
@@ -1061,7 +1063,10 @@ const AS_STATUS={aufgenommen:{l:"aufgenommen",c:"#eab308",i:"📋",grp:"offen"},
 const AS_GRP_OFFEN=["aufgenommen","freigegeben","in_bearbeitung","aufgeschoben"];
 const AS_GRP_FERTIG=["erledigt","abgerechnet","bar_bezahlt"];
 const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},dringend:{l:"dringend",c:"#ef4444"}};
-const AS_ART={reparatur:{l:"Reparatur",i:"🔧"},wartung:{l:"Wartung",i:"🛠️"},stoerung:{l:"Störung",i:"⚡"},regie:{l:"Regie",i:"📋"},garantie:{l:"Garantiefall",i:"🛡️"}};
+const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
+const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
+const JUPROWA_ART_REVERSE={kein:'0',stoerung:'1',lieferung:'2',reparatur:'3',montage:'4',mangelbehebung:'5',garantie:'6'};
+const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
 
@@ -1075,9 +1080,10 @@ let _juprowaSyncing=false;
 
 function _juprowaMapWorksheet(jws){
   const nr=jws.AK_SCHEINNR||"";
-  const stat=JUPROWA_STATUS_MAP[jws.AK_AUFSTATUS]||"offen";
+  const stat=JUPROWA_STATUS_MAP[jws.AK_AUFSTATUS]||"aufgenommen";
   const montCode=jws.AK_MONTEUR||"";
   const montId=JUPROWA_WORKER_MAP[montCode]||"";
+  const artCode=JUPROWA_ART_MAP[jws.AK_AUFART]||"kein";
   const wunDat=(jws.AK_WUNDAT||"").split(" ")[0];
   const wunZeit=(jws.AK_WUNZEIT||"").replace(/:\d\d$/,"");
   const termDat=(jws.AK_TERMIN||"").split(" ")[0];
@@ -1094,7 +1100,8 @@ function _juprowaMapWorksheet(jws){
     kundEmail:jws.AK_KONTAKT_EMAIL||jws.RE_KONTAKT_EMAIL||"",
     projektnr:jws.AK_PROJEKTNR||"",
     scheinstatus:stat,
-    scheinart:jws.AK_SCHEINTYP==="3"?"regie":"service",
+    scheinart:artCode,
+    auftragstyp:jws.AK_SCHEINTYP==="3"?"regie":"service",
     prioritaet:JUPROWA_PRIO_MAP[jws.AK_PRIOR]||"keine",
     verrechnung:"verrechenbar",
     sachbearbeiter:"",
@@ -1167,6 +1174,8 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
         if(mapped.telefon&&mapped.telefon!==existing.telefon)upd.telefon=mapped.telefon;
         if(mapped.arbeitsort&&mapped.arbeitsort!==existing.arbeitsort)upd.arbeitsort=mapped.arbeitsort;
         if(mapped.monteur&&mapped.monteur!==existing.monteur)upd.monteur=mapped.monteur;
+        if(mapped.scheinart&&mapped.scheinart!==existing.scheinart)upd.scheinart=mapped.scheinart;
+        if(mapped.auftragstyp&&mapped.auftragstyp!==existing.auftragstyp)upd.auftragstyp=mapped.auftragstyp;
         if(Object.keys(upd).length>3){
           try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){}
           updated++;
@@ -1758,9 +1767,9 @@ table thead th{position:sticky;top:0;z-index:1}
 `;
 
 // ═══════════ SMALL COMPONENTS ═══════════
-function Kpi({label,value,sub,color}){
+function Kpi({label,value,sub,color,onClick}){
   return (
-    React.createElement('div', { style: {...CC(),position:"relative",overflow:"hidden"}}
+    React.createElement('div', { onClick: onClick, style: {...CC(),position:"relative",overflow:"hidden",cursor:onClick?"pointer":"default",transition:"transform .15s",":hover":{transform:"scale(1.02)"}}, onMouseEnter: onClick?e=>{e.currentTarget.style.transform="scale(1.02)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,.2)";}:undefined, onMouseLeave: onClick?e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}:undefined}
       , React.createElement('div', { style: {position:"absolute",top:0,left:0,right:0,height:3,background:color}} )
       , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:".05em",marginBottom:4}}, label)
       , React.createElement('div', { style: {fontFamily:mono,fontSize:24,fontWeight:800}}, value)
@@ -3267,7 +3276,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const isMonteurRole=curUser.role==="monteur"||curUser.role==="helfer";
 
   const nextNr=()=>{const nums=arbeitsscheine.map(a=>parseInt(a.nummer.replace("S",""))).filter(n=>!isNaN(n));return "S"+String((nums.length?Math.max(...nums):75275)+1).padStart(6,"0");};
-  const defAs=()=>({nummer:nextNr(),kundNr:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"",scheinstatus:"aufgenommen",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:curUser.name.split(" ").pop().toUpperCase(),monteur:curUser.monteurId||(monteure[0]||{}).id||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:td2(),aufgZeit:new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}),bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),arbeitsanweisungen:"",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:"",telefon:"",arbeitsort:""});
+  const defAs=()=>({nummer:nextNr(),kundNr:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:curUser.name.split(" ").pop().toUpperCase(),monteur:curUser.monteurId||(monteure[0]||{}).id||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:td2(),aufgZeit:new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}),bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),arbeitsanweisungen:"",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:"",telefon:"",arbeitsort:""});
   const [form,setForm]=_react.useState.call(void 0, defAs());
 
   const filtered=arbeitsscheine.filter(a=>{
@@ -3296,9 +3305,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
 
   const exportOffa=(statusFilter)=>{setShowExportPicker(false);if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(()=>{});}
     const hdrs=["Nr","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
-    const src=statusFilter==="alle"?arbeitsscheine:arbeitsscheine.filter(a=>statusFilter==="offen_bearb"?AS_GRP_OFFEN.includes(a.scheinstatus):a.scheinstatus===statusFilter);
+    const src=statusFilter==="alle"?arbeitsscheine:arbeitsscheine.filter(a=>statusFilter==="offen_bearb"?AS_GRP_OFFEN.includes(a.scheinstatus):statusFilter==="fertig"?AS_GRP_FERTIG.includes(a.scheinstatus):a.scheinstatus===statusFilter);
     const data=src.map((a,i)=>[i+1,a.kundNr,a.kundName,a.projektnr,_optionalChain([AS_ART, 'access', _123 => _123[a.scheinart], 'optionalAccess', _124 => _124.l])||"",_optionalChain([AS_STATUS, 'access', _125 => _125[a.scheinstatus], 'optionalAccess', _126 => _126.l])||"",_optionalChain([monteure, 'access', _127 => _127.find, 'call', _128 => _128(m=>m.id===a.monteur), 'optionalAccess', _129 => _129.n])||"",a.aufgenommen?fdt(a.aufgenommen):"",a.arbeitsanweisungen.replace(/[\n;]/g," ").slice(0,80),a.durchgefuehrte.replace(/[\n;]/g," ").slice(0,80),_optionalChain([AS_VERRECH, 'access', _130 => _130[a.verrechnung], 'optionalAccess', _131 => _131.l])||"",a.sachbearbeiter]);
-    const lbl=statusFilter==="alle"?"Alle":statusFilter==="offen_bearb"?"Offen+In Bearbeitung":(_optionalChain([AS_STATUS,'access',_=>_[statusFilter],'optionalAccess',_2=>_2.l])||statusFilter);
+    const lbl=statusFilter==="alle"?"Alle":statusFilter==="offen_bearb"?"Offen (alle)":statusFilter==="fertig"?"Erledigt/Abgerechnet":(_optionalChain([AS_STATUS,'access',_=>_[statusFilter],'optionalAccess',_2=>_2.l])||statusFilter);
     genXls("📋 OFFA Export — "+lbl+" ("+data.length+")","Andreas Kolar & Sohn GesmbH · Arbeitsscheinverwaltung",hdrs,data,"OFFA_Export_"+lbl+"_"+td2()+".xls",{colWidths:[35,50,130,60,75,85,95,70,160,160,90,85],leftCols:[0,1,2,3,8,9,11],boldCols:[2],statusMap:{"aufgenommen":"#eab308","freigegeben":"#84cc16","in Bearbeitung":"#f97316","aufgeschoben":"#a3a3a3","erledigt":"#3b82f6","abgerechnet":"#22c55e","bar bezahlt":"#10b981","storniert":"#ef4444"}});
   };
 
@@ -3318,7 +3327,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const commitImport=()=>{
     const toImport=importPreview.filter(r=>!r.error&&r.nummer);let added=0,updated=0;
     toImport.forEach(r=>{
-      const as={nummer:r.nummer,kundNr:"",kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:r.arbeitsanweisungen&&r.arbeitsanweisungen.toLowerCase().includes("wartung")?"wartung":r.arbeitsanweisungen&&r.arbeitsanweisungen.toLowerCase().includes("störung")?"stoerung":"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:r.sachbearbeiter||"",monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
+      const rawSB=r.sachbearbeiter||"";
+      const mappedSB=JUPROWA_SB_MAP[rawSB]||rawSB;
+      const as={nummer:r.nummer,kundNr:"",kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:mappedSB,monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
       if(r._exists&&r._existId){setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...as}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:as});updated++;}
       else{const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
     });
@@ -3666,11 +3677,11 @@ function sharePdf(){
         )
       ))
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
-        , React.createElement(Kpi, { label: "Gesamt", value: stats.total, sub: "Arbeitsscheine", color: "#f97316"} )
-        , React.createElement(Kpi, { label: "Offen/In Bearb." , value: stats.offen, sub: "zu erledigen" , color: "#eab308"} )
-        , React.createElement(Kpi, { label: "Erledigt", value: stats.erledigt, sub: "abgeschlossen", color: "#3b82f6"} )
-        , React.createElement(Kpi, { label: "Erledigt/Abger." , value: stats.abger, sub: "fertig", color: "#22c55e"} )
-        , React.createElement(Kpi, { label: "Storniert", value: stats.storno, sub: "entfallen", color: "#ef4444"} )
+        , React.createElement(Kpi, { label: "Gesamt", value: stats.total, sub: "Arbeitsscheine", color: "#f97316", onClick: ()=>{setFilterStatus("alle");setSub("liste");}} )
+        , React.createElement(Kpi, { label: "Offen/In Bearb." , value: stats.offen, sub: "zu erledigen" , color: "#eab308", onClick: ()=>{setFilterStatus("offen_bearb");setSub("liste");}} )
+        , React.createElement(Kpi, { label: "Erledigt", value: stats.erledigt, sub: "abgeschlossen", color: "#3b82f6", onClick: ()=>{setFilterStatus("erledigt");setSub("liste");}} )
+        , React.createElement(Kpi, { label: "Erledigt/Abger." , value: stats.abger, sub: "fertig", color: "#22c55e", onClick: ()=>{setFilterStatus("fertig");setSub("liste");}} )
+        , React.createElement(Kpi, { label: "Storniert", value: stats.storno, sub: "entfallen", color: "#ef4444", onClick: ()=>{setFilterStatus("storniert");setSub("liste");}} )
       )
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
         , [{id:"liste",i:"📋",l:"Liste"},{id:"kalender",i:"📅",l:"Kalender"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>setSub(t.id), style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
