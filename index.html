@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.15';
+  var SW_VER='epkolar-v3.5.16';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -901,7 +901,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.15-supabase";
+const APP_VERSION="3.5.16-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4221,7 +4221,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
             const days=_kwDates(parseInt(yr),kw);
             const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=new Date(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
             const taet=editTaet[kwKey]!==undefined?editTaet[kwKey]:"";
-            const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
+            const visWorkerIds=new Set(visibleWorkers.map(w=>w.id));
+            const kwTotal=kwEntries.filter(e=>visWorkerIds.has(e.monteur)).reduce((s,e)=>s+(e.stunden||0),0);
             const bdr="1px solid "+(V.bd||"#333");
             const thSt={padding:"4px 8px",fontSize:11,fontWeight:700,background:_dark?"#1e293b":"#f1f5f9",borderBottom:bdr,borderRight:bdr,whiteSpace:"nowrap"};
             const tdSt2={padding:"4px 8px",fontSize:11,borderBottom:bdr,borderRight:bdr};
@@ -7924,7 +7925,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const isMob=ww<600;const isAdmin=_optionalChain([curUser, 'optionalAccess', _468 => _468.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _469 => _469.role])==="projektleiter";
 
   // Special vehicles (LKW, Steiger, Anhänger)
-  const spezFz=(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt"&&(f.typ==="LKW"||f.typ==="Anhänger"||f.typ==="Stapler"||f.typ==="Hebewerk"||_optionalChain([f, 'access', _470 => _470.modell, 'optionalAccess', _471 => _471.includes, 'call', _472 => _472("Steiger")])||(f.modell||"").includes("Kompressor")));
+  const spezFz=(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt"&&(f.typ==="LKW"||f.typ==="Anhänger"||f.typ==="Stapler"||f.typ==="Hebewerk"||_optionalChain([f, 'access', _470 => _470.modell, 'optionalAccess', _471 => _471.includes, 'call', _472 => _472("Steiger")])||(f.modell||"").includes("Kompressor"))).sort((a,b)=>{const prio=t=>(t.typ==="LKW"?0:(t.modell||"").includes("Steiger")?1:2);return prio(a)-prio(b)||(a.kennzeichen||"").localeCompare(b.kennzeichen||"");});
 
   // Field monteure (exclude Backoffice, Verkauf, GF for field assignment)
   const fieldMA=monteure.filter(m=>!["Backoffice","Verkauf/Buchhaltung","Geschäftsführer"].includes(m.r));
@@ -7984,6 +7985,26 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       return {...r,z:{...r.z,[day]:{...cell,fz:arr}}};
     }));
   };
+  const toggleMAWeek=(rowId,maId)=>{
+    const WDAYS=["Mo","Di","Mi","Do","Fr"];
+    setRows(prev=>prev.map(r=>{
+      if(r.id!==rowId)return r;
+      const allSet=WDAYS.every(d=>((_optionalChain([r, 'access', _484a => _484a.z, 'optionalAccess', _484b => _484b[d], 'optionalAccess', _484c => _484c.ma]))||[]).includes(maId));
+      const newZ={...r.z};
+      WDAYS.forEach(d=>{const cell={...(newZ[d]||{ma:[],fz:[]})};const arr=[...(cell.ma||[])];const idx=arr.indexOf(maId);if(allSet){if(idx>=0)arr.splice(idx,1);}else{if(idx<0)arr.push(maId);}newZ[d]={...cell,ma:arr};});
+      return {...r,z:newZ};
+    }));
+  };
+  const toggleFZWeek=(rowId,fzId)=>{
+    const WDAYS=["Mo","Di","Mi","Do","Fr"];
+    setRows(prev=>prev.map(r=>{
+      if(r.id!==rowId)return r;
+      const allSet=WDAYS.every(d=>((_optionalChain([r, 'access', _484d => _484d.z, 'optionalAccess', _484e => _484e[d], 'optionalAccess', _484f => _484f.fz]))||[]).includes(fzId));
+      const newZ={...r.z};
+      WDAYS.forEach(d=>{const cell={...(newZ[d]||{ma:[],fz:[]})};const arr=[...(cell.fz||[])];const idx=arr.indexOf(fzId);if(allSet){if(idx>=0)arr.splice(idx,1);}else{if(idx<0)arr.push(fzId);}newZ[d]={...cell,fz:arr};});
+      return {...r,z:newZ};
+    }));
+  };
 
   const saveWeek=()=>{setSaving(true);setWpHistory(h=>({...h,[kw]:rows}));SQ.push({url:"/api/weekplans",method:"POST",body:{kw,year:yr,rows}});setTimeout(()=>{setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);},400);};
   // Auto-save on rows change (debounced 800ms, skip initial load)
@@ -8036,9 +8057,11 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
           , React.createElement('div', { style: {flex:1,minWidth:0}}
             , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:V.ac,marginBottom:8}}, "👷 Mitarbeiter" )
             , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:3,maxHeight:200,overflowY:"auto"}}
-              , fieldMA.map(m=>{const sel=(cell.ma||[]).includes(m.id);return (React.createElement('div', { key: m.id, onClick: ()=>toggleMA(r.id,d,m.id), style: {display:"flex",alignItems:"center",gap:6,padding:"6px 8px",borderRadius:5,cursor:"pointer",background:sel?"rgba(0,150,64,.15)":"transparent",fontSize:14,fontWeight:sel?700:400}}
-                , React.createElement('span', { style: {width:18,height:18,borderRadius:3,border:"2px solid "+(sel?"#009640":"#888"),background:sel?"#009640":"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,flexShrink:0}}, sel?"✓":"")
-                , React.createElement('span', {}, m.n), React.createElement('span', { style: {fontSize:10,color:V.dm,marginLeft:"auto"}}, m.r)
+              , fieldMA.map(m=>{const sel=(cell.ma||[]).includes(m.id);const weekSel=["Mo","Di","Mi","Do","Fr"].every(dd=>((_optionalChain([r, 'access', _maW1 => _maW1.z, 'optionalAccess', _maW2 => _maW2[dd], 'optionalAccess', _maW3 => _maW3.ma]))||[]).includes(m.id));return (React.createElement('div', { key: m.id, style: {display:"flex",alignItems:"center",gap:6,padding:"6px 8px",borderRadius:5,background:sel?"rgba(0,150,64,.15)":"transparent",fontSize:14,fontWeight:sel?700:400}}
+                , React.createElement('span', { onClick: ()=>toggleMA(r.id,d,m.id), style: {width:18,height:18,borderRadius:3,border:"2px solid "+(sel?"#009640":"#888"),background:sel?"#009640":"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,flexShrink:0,cursor:"pointer"}}, sel?"✓":"")
+                , React.createElement('span', { onClick: ()=>toggleMA(r.id,d,m.id), style: {cursor:"pointer",flex:1}}, m.n)
+                , React.createElement('span', { onClick: (e)=>{e.stopPropagation();toggleMAWeek(r.id,m.id);}, style: {fontSize:9,padding:"2px 5px",borderRadius:3,border:"1px solid "+(weekSel?"#009640":"#666"),background:weekSel?"#009640":"transparent",color:weekSel?"#fff":V.dm,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap",fontFamily:"inherit"}}, "Mo-Fr")
+                , React.createElement('span', { style: {fontSize:10,color:V.dm}}, m.r)
               ));})
             )
           )
@@ -8048,9 +8071,12 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:3,maxHeight:200,overflowY:"auto"}}
               , spezFz.map(f=>{const sel=(cell.fz||[]).includes(f.id);
                 const otherRow=!sel&&rows.find(or=>or.id!==r.id&&(_optionalChain([or, 'access', _509 => _509.z, 'optionalAccess', _510 => _510[d], 'optionalAccess', _511 => _511.fz])||[]).includes(f.id));
-                return (React.createElement('div', { key: f.id, onClick: ()=>toggleFZ(r.id,d,f.id), style: {display:"flex",alignItems:"center",gap:6,padding:"6px 8px",borderRadius:5,cursor:"pointer",background:sel?"rgba(249,115,22,.15)":otherRow?"rgba(239,68,68,.08)":"transparent",fontSize:14,fontWeight:sel?700:400}}
-                  , React.createElement('span', { style: {width:18,height:18,borderRadius:3,border:"2px solid "+(sel?"#f97316":"#888"),background:sel?"#f97316":"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,flexShrink:0}}, sel?"✓":"")
-                  , React.createElement('span', {}, f.kennzeichen), React.createElement('span', { style: {fontSize:10,color:V.dm}}, f.modell||f.typ)
+                const weekSel=["Mo","Di","Mi","Do","Fr"].every(dd=>((_optionalChain([r, 'access', _fzW1 => _fzW1.z, 'optionalAccess', _fzW2 => _fzW2[dd], 'optionalAccess', _fzW3 => _fzW3.fz]))||[]).includes(f.id));
+                return (React.createElement('div', { key: f.id, style: {display:"flex",alignItems:"center",gap:6,padding:"6px 8px",borderRadius:5,background:sel?"rgba(249,115,22,.15)":otherRow?"rgba(239,68,68,.08)":"transparent",fontSize:14,fontWeight:sel?700:400}}
+                  , React.createElement('span', { onClick: ()=>toggleFZ(r.id,d,f.id), style: {width:18,height:18,borderRadius:3,border:"2px solid "+(sel?"#f97316":"#888"),background:sel?"#f97316":"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,flexShrink:0,cursor:"pointer"}}, sel?"✓":"")
+                  , React.createElement('span', { onClick: ()=>toggleFZ(r.id,d,f.id), style: {cursor:"pointer",flex:1}}, f.kennzeichen)
+                  , React.createElement('span', { onClick: (e)=>{e.stopPropagation();toggleFZWeek(r.id,f.id);}, style: {fontSize:9,padding:"2px 5px",borderRadius:3,border:"1px solid "+(weekSel?"#f97316":"#666"),background:weekSel?"#f97316":"transparent",color:weekSel?"#fff":V.dm,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap",fontFamily:"inherit"}}, "Mo-Fr")
+                  , React.createElement('span', { style: {fontSize:10,color:V.dm}}, f.modell||f.typ)
                   , otherRow&&React.createElement('span', { style: {fontSize:9,color:"#dc2626",marginLeft:"auto",fontWeight:700}}, "⚠️ belegt" )
                 ));
               })
