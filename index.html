@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.24';
+  var SW_VER='epkolar-v3.5.25';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -464,7 +464,6 @@ function _mapArbeitsschein(a){
     unterschriftMonteur:a.unterschriftMonteur||a.unterschrift_monteur||"",
     abschlussDatum:a.abschlussDatum||a.abschluss_datum||"",telefon:a.telefon||"",arbeitsort:a.arbeitsort||"",
     juprowa_id:a.juprowa_id||null,juprowa_sync_at:a.juprowa_sync_at||"",juprowa_monteur_code:a.juprowa_monteur_code||"",
-    juprowa_pushed_at:a.juprowa_pushed_at||"",local_updated_at:a.local_updated_at||"",
     auftragstyp:a.auftragstyp||"",geschaetzte_dauer:a.geschaetzte_dauer||""};
 }
 function _mapDefect(d){
@@ -939,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.24-supabase";
+const APP_VERSION="3.5.25-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1103,29 +1102,29 @@ const AS_GRP_FERTIG=["erledigt","abgerechnet","bar_bezahlt"];
 const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},dringend:{l:"dringend",c:"#ef4444"}};
 const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
-const JUPROWA_ART_REVERSE={kein:'0',stoerung:'1',lieferung:'2',reparatur:'3',montage:'4',mangelbehebung:'5',garantie:'6'};
-const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID'};
+const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBER'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
 
 // ═══ JUPROWA CLOUD SYNC ═══
 const JUPROWA_WORKER_MAP={'P011':'w1','P008':'w4','P005':'w5'};
 const JUPROWA_STATUS_MAP={'0':'aufgenommen','1':'freigegeben','2':'aufgeschoben','3':'in_bearbeitung','4':'freigegeben','5':'erledigt','10':'abgerechnet','11':'bar_bezahlt','15':'bar_bezahlt','20':'storniert'};
-const JUPROWA_STATUS_REVERSE={aufgenommen:'0',freigegeben:'4',aufgeschoben:'2',in_bearbeitung:'3',erledigt:'5',abgerechnet:'10',bar_bezahlt:'15',storniert:'20'};
 const JUPROWA_PRIO_MAP={'0':'keine','1':'hoch'};
 let _juprowaSyncTimer=null;
 let _juprowaSyncing=false;
 
 function _juprowaMapWorksheet(jws){
   const nr=jws.AK_SCHEINNR||"";
-  const stat=JUPROWA_STATUS_MAP[jws.AK_AUFSTATUS]||"aufgenommen";
+  const stat=JUPROWA_STATUS_MAP[String(jws.AK_AUFSTATUS)]||"aufgenommen";
   const montCode=jws.AK_MONTEUR||"";
   const montId=JUPROWA_WORKER_MAP[montCode]||"";
-  const artCode=JUPROWA_ART_MAP[jws.AK_AUFART]||"kein";
+  const artCode=JUPROWA_ART_MAP[String(jws.AK_AUFART)]||"kein";
   const wunDat=(jws.AK_WUNDAT||"").split(" ")[0];
   const wunZeit=(jws.AK_WUNZEIT||"").replace(/:\d\d$/,"");
   const termDat=(jws.AK_TERMIN||"").split(" ")[0];
   const aufDat=(jws.AK_ANLAGE_DATZEIT||"").split(" ")[0];
+  // NOTE: Juprowa Cloud API has NO Sachbearbeiter field (verified 22.03.2026, 48 fields checked)
+  // SB must be set locally via OFFA Import or manually
   return{
     nummer:nr,
     juprowa_id:jws.ID||null,
@@ -1140,11 +1139,11 @@ function _juprowaMapWorksheet(jws){
     scheinstatus:stat,
     scheinart:artCode,
     scheintyp:jws.AK_SCHEINTYP==="3"?"regie":"service",
-    prioritaet:JUPROWA_PRIO_MAP[jws.AK_PRIOR]||"keine",
+    prioritaet:JUPROWA_PRIO_MAP[String(jws.AK_PRIOR)]||"keine",
     verrechnung:"verrechenbar",
-    sachbearbeiter:"",
     monteur:montId,
     juprowa_monteur_code:montCode,
+    monteur_text:jws.AK_MONTEUR_TEXT||"",
     terminVorschlag:wunDat,
     terminVorschlagZeit:wunZeit,
     terminBestaetigt:termDat,
@@ -1154,10 +1153,8 @@ function _juprowaMapWorksheet(jws){
     aufgZeit:"",
     bearbeitetVon:"JUPROWA",
     arbeitsanweisungen:jws.AK_DURCHZUFUEHREN||"",
-    durchgefuehrte:"",
     notizen:"",
     kontakt:jws.AK_KONTAKT_NAME||"",
-    stoerungsmelder:"",
     telefon:jws.AK_KONTAKT_TELEFON1||jws.AK_KONTAKT_MOBILEPHONE||"",
     arbeitsort:(jws.AK_BAUADR_STR?jws.AK_BAUADR_STR+", ":"")+(jws.AK_BAUADR_PLZ?jws.AK_BAUADR_PLZ+" ":"")+(jws.AK_BAUADR_ORT||""),
     auftragstyp:jws.AK_SCHEINTYP_TEXT||"",
@@ -1214,7 +1211,10 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
         if(mapped.monteur&&mapped.monteur!==existing.monteur)upd.monteur=mapped.monteur;
         if(mapped.scheinart&&mapped.scheinart!==existing.scheinart)upd.scheinart=mapped.scheinart;
         if(mapped.auftragstyp&&mapped.auftragstyp!==existing.auftragstyp)upd.auftragstyp=mapped.auftragstyp;
-        const hasChanges=Object.keys(upd).length>3;
+        if(mapped.prioritaet&&mapped.prioritaet!==existing.prioritaet)upd.prioritaet=mapped.prioritaet;
+        if(mapped.dauer&&mapped.dauer!==existing.dauer)upd.dauer=mapped.dauer;
+        if(mapped.juprowa_raw)upd.juprowa_raw=mapped.juprowa_raw;
+        const hasChanges=Object.keys(upd).length>4;
         const needsInit=!existing.juprowa_id;
         if(hasChanges||needsInit){
           try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){}
@@ -1258,108 +1258,6 @@ function _juprowaStartAutoSync(setArbeitsscheine){
   },300000);
 }
 function _juprowaStopAutoSync(){if(_juprowaSyncTimer){clearInterval(_juprowaSyncTimer);_juprowaSyncTimer=null;}}
-
-/* ═══ JUPROWA PHASE 2: WRITE-BACK (EPKolar → Juprowa) ═══ */
-const JUPROWA_WORKER_REVERSE={};Object.entries(JUPROWA_WORKER_MAP).forEach(([k,v])=>{JUPROWA_WORKER_REVERSE[v]=k;});
-
-function _juprowaReverseMap(schein,worktimes){
-  const ws={};
-  if(schein.juprowa_id)ws.ID=schein.juprowa_id;
-  if(schein.nummer)ws.AK_SCHEINNR=schein.nummer;
-  ws.AK_AUFSTATUS=parseInt(JUPROWA_STATUS_REVERSE[schein.scheinstatus]||"0");
-  const montCode=JUPROWA_WORKER_REVERSE[schein.monteur]||schein.juprowa_monteur_code||"";
-  if(montCode)ws.AK_MONTEUR=montCode;
-  if(schein.durchgefuehrte)ws.AK_DURCHGEFUEHRT=schein.durchgefuehrte;
-  if(schein.arbeitsanweisungen)ws.AK_DURCHZUFUEHREN=schein.arbeitsanweisungen;
-  if(schein.terminBestaetigt){
-    const d=schein.terminBestaetigt;
-    ws.AK_TERMIN=d.includes("T")?d:d+"T00:00:00";
-  }
-  if(schein.terminVorschlag){
-    const d=schein.terminVorschlag;
-    ws.AK_WUNDAT=d.includes("T")?d:d+"T00:00:00";
-  }
-  if(schein.kundName)ws.AK_BAUADR_NAM1=schein.kundName;
-  if(schein.kundStr)ws.AK_BAUADR_STR=schein.kundStr;
-  if(schein.kundPlz)ws.AK_BAUADR_PLZ=schein.kundPlz;
-  if(schein.kundOrt)ws.AK_BAUADR_ORT=schein.kundOrt;
-  if(schein.telefon)ws.AK_KONTAKT_TELEFON1=schein.telefon;
-  if(schein.kundEmail)ws.AK_KONTAKT_EMAIL=schein.kundEmail;
-  // WORKTIMES array from time_entries
-  if(worktimes&&worktimes.length){
-    ws.WORKTIMES=worktimes.map(e=>{
-      const wCode=JUPROWA_WORKER_REVERSE[e.w||e.worker]||montCode||"";
-      const hrs=parseFloat(e.hours||e.stunden)||0;
-      const pause=parseFloat(e.pause)||0;
-      const hh=Math.floor(hrs);const mm=Math.round((hrs-hh)*60);
-      const ph=Math.floor(pause);const pm=Math.round((pause-ph)*60);
-      return{DATE:(e.datum||e.date||"")+"T00:00:00",MONTEUR:wCode,ARBEITSZEIT:String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0")+":00",PAUSE:String(ph).padStart(2,"0")+":"+String(pm).padStart(2,"0")+":00",VON:e.von||"",BIS:e.bis||""};
-    });
-  }
-  return ws;
-}
-
-async function _juprowaPush(schein){
-  if(!schein.juprowa_id){return{error:"Kein Juprowa-ID — Schein wurde lokal erstellt"};}
-  try{
-    // Fetch time_entries for this Arbeitsschein (by arbeitsschein_id or nummer match)
-    let worktimes=[];
-    try{
-      const dbH=_authToken?_sbRH():{apikey:SUPABASE_KEY};
-      const teRes=await fetch(SB_REST+"/time_entries?select=*&arbeitsschein_id=eq."+encodeURIComponent(schein.id)+"&limit=200",{headers:dbH});
-      if(teRes.ok)worktimes=await teRes.json();
-    }catch(e){}
-    const ws=_juprowaReverseMap(schein,worktimes);
-    const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};
-    const res=await fetch(SB_REST+"/rpc/juprowa_push_worksheet",{
-      method:"POST",headers:rpcH,
-      body:JSON.stringify({worksheet_json:JSON.stringify(ws)})
-    });
-    if(!res.ok)return{error:"RPC Push Fehler: "+res.status};
-    const result=await res.json();
-    // Mark as pushed
-    const now=new Date().toISOString();
-    try{await _sbPatch("arbeitsscheine",schein.id,{juprowa_pushed_at:now});}catch(e){}
-    return{ok:true,result};
-  }catch(e){
-    return{error:e.message};
-  }
-}
-
-async function _juprowaPushChanged(setArbeitsscheine,silent){
-  // Find all AS with juprowa_id where local_updated_at > juprowa_pushed_at (or no pushed_at)
-  try{
-    const dbH=_authToken?_sbRH():{apikey:SUPABASE_KEY};
-    const dbRes=await fetch(SB_REST+"/arbeitsscheine?select=*&juprowa_id=not.is.null&local_updated_at=not.is.null&limit=500",{headers:dbH});
-    if(!dbRes.ok)return{error:"DB Fehler"};
-    const all=(await dbRes.json()).map(_mapArbeitsschein);
-    const toPush=all.filter(a=>{
-      if(!a.local_updated_at)return false;
-      if(!a.juprowa_pushed_at)return true;
-      return new Date(a.local_updated_at)>new Date(a.juprowa_pushed_at);
-    });
-    if(!toPush.length){
-      if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ Keine lokalen Änderungen zum Pushen")]);
-      return{pushed:0};
-    }
-    let pushed=0,errors=0;
-    for(const schein of toPush){
-      const r=await _juprowaPush(schein);
-      if(r.ok)pushed++;else errors++;
-    }
-    if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("📤 Juprowa Push: "+pushed+" gesendet"+(errors?", "+errors+" Fehler":""))]);
-    if(pushed>0){try{_sbPost("activity_log",{user_id:_optionalChain([_user,'optionalAccess',_=>_.id])||"system",action:"juprowa_push",details:JSON.stringify({pushed,errors})});}catch(e){}}
-    // Reload state
-    try{
-      const freshRes=await fetch(SB_REST+"/arbeitsscheine?select=*&limit=5000",{headers:dbH});
-      if(freshRes.ok){const fresh=(await freshRes.json()).map(_mapArbeitsschein);setArbeitsscheine(fresh);}
-    }catch(e){}
-    return{pushed,errors};
-  }catch(e){
-    if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Push Fehler: "+e.message,"error")]);
-    return{error:e.message};
-  }
-}
 
 // ═══ OFFA PDF IMPORT PARSER ═══
 if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -4912,9 +4810,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           React.createElement('div', {style:{fontSize:15,fontWeight:800,marginBottom:4}},"📊 Sync-Status"),
           React.createElement('div', {style:{display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"repeat(4,1fr)",gap:10,marginBottom:14}},
             React.createElement(Kpi, {label:"Juprowa-Scheine",value:(arbeitsscheine||[]).filter(a=>a.juprowa_id).length,sub:"verknüpft",color:"#06b6d4"}),
-            React.createElement(Kpi, {label:"Lokal geändert",value:(arbeitsscheine||[]).filter(a=>a.juprowa_id&&a.local_updated_at&&(!a.juprowa_pushed_at||new Date(a.local_updated_at)>new Date(a.juprowa_pushed_at))).length,sub:"Push ausstehend",color:"#f97316"}),
+            React.createElement(Kpi, {label:"SB-Mapping",value:Object.keys(JUPROWA_SB_MAP).length,sub:"Sachbearbeiter",color:"#f97316"}),
             React.createElement(Kpi, {label:"Worker-Mapping",value:Object.keys(JUPROWA_WORKER_MAP).length,sub:"von "+monteure.length+" MA",color:"#8b5cf6"}),
-            React.createElement(Kpi, {label:"Auto-Sync",value:"5 min",sub:"Pull + Push",color:"#22c55e"})
+            React.createElement(Kpi, {label:"Auto-Sync",value:"5 min",sub:"nur Pull",color:"#22c55e"})
           ),
           React.createElement('div', {style:{fontSize:13,fontWeight:700,marginBottom:8}},"Worker-Mapping"),
           React.createElement('div', {style:{display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:4,marginBottom:14}},
