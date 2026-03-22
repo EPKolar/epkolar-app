@@ -1066,14 +1066,14 @@ const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},n
 const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
 const JUPROWA_ART_REVERSE={kein:'0',stoerung:'1',lieferung:'2',reparatur:'3',montage:'4',mangelbehebung:'5',garantie:'6'};
-const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER'};
+const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
 
 // ═══ JUPROWA CLOUD SYNC ═══
 const JUPROWA_WORKER_MAP={'P011':'w1','P008':'w4','P005':'w5'};
-const JUPROWA_STATUS_MAP={'0':'aufgenommen','1':'freigegeben','2':'in_bearbeitung','3':'aufgeschoben','5':'erledigt','10':'abgerechnet','15':'bar_bezahlt','20':'storniert'};
-const JUPROWA_STATUS_REVERSE={aufgenommen:'0',freigegeben:'1',in_bearbeitung:'2',aufgeschoben:'3',erledigt:'5',abgerechnet:'10',bar_bezahlt:'15',storniert:'20'};
+const JUPROWA_STATUS_MAP={'0':'aufgenommen','1':'freigegeben','2':'aufgeschoben','3':'in_bearbeitung','5':'erledigt','10':'abgerechnet','15':'bar_bezahlt','20':'storniert'};
+const JUPROWA_STATUS_REVERSE={aufgenommen:'0',freigegeben:'1',aufgeschoben:'2',in_bearbeitung:'3',erledigt:'5',abgerechnet:'10',bar_bezahlt:'15',storniert:'20'};
 const JUPROWA_PRIO_MAP={'0':'keine','1':'hoch'};
 let _juprowaSyncTimer=null;
 let _juprowaSyncing=false;
@@ -3249,7 +3249,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     return()=>{clearTimeout(t);_juprowaStopAutoSync();};
   },[canSync]);
   const [sub,setSub]=_react.useState.call(void 0, "liste");
-  const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");
+  const [filterStatus,setFilterStatus]=_react.useState.call(void 0, ()=>{const f=window.__asFilter||"alle";delete window.__asFilter;return f;});
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
   const [filterMonteur,setFilterMonteur]=_react.useState.call(void 0, "alle");
   const [filterSB,setFilterSB]=_react.useState.call(void 0, "alle");
@@ -3690,7 +3690,7 @@ function sharePdf(){
       , sub==="liste"&&(React.createElement('div', {}
         , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}
           , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "🔍 Suche Nr, Kunde, Arbeit..."    , style: {...II(),width:"auto",flex:1,minWidth:150,fontSize:12}, className: "mob-full"} )
-          , React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle Status" ), Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.l)))
+          , React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle Status" ), React.createElement('option', { value: "offen_bearb"}, "— Offen (alle) —" ), React.createElement('option', { value: "fertig"}, "— Fertig (alle) —" ), Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i+" "+v.l)))
           , React.createElement('select', { value: filterArt, onChange: e=>setFilterArt(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle Arten" ), Object.entries(AS_ART).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.l)))
           , isAdmin&&React.createElement('select', { value: filterMonteur, onChange: e=>setFilterMonteur(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle Monteure" ), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n)))
           , isAdmin&&React.createElement('select', { value: filterSB, onChange: e=>setFilterSB(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle SB" ), [...new Set(arbeitsscheine.map(a=>a.sachbearbeiter).filter(Boolean))].sort().map(s=>React.createElement('option', { key: s, value: s}, s)))
@@ -3713,7 +3713,7 @@ function sharePdf(){
             ))
             , React.createElement('tbody', {}, sorted.map(a=>{const st=AS_STATUS[a.scheinstatus]||AS_STATUS.aufgenommen;const art=AS_ART[a.scheinart];const pri=AS_PRIO[a.prioritaet];const isSt=a.scheinstatus==="storniert";
               return (React.createElement('tr', { key: a.id, style: {borderBottom:"1px solid "+V.bd,background:isSt?"rgba(239,68,68,.03)":"transparent"}}
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#8b5cf6",fontWeight:600,cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.nummer)
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#4ade80",fontWeight:600,cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.nummer)
                 , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.arbeitsanweisungen.split("\n")[0])
                 , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12}}, fdt(a.aufgenommen))
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('input', { type: "date", value: a.terminVorschlag||"", onChange: e=>updAs(a.id,{terminVorschlag:e.target.value}), style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:a.terminVorschlag?V.tx:V.mt,fontSize:11,padding:"2px 3px",width:110,fontFamily:mono}, onClick: e=>e.stopPropagation()}))
@@ -3862,7 +3862,7 @@ function sharePdf(){
             , React.createElement('tbody', {}, importPreview.map((r,oi)=>r.error||!r.nummer?null:
               React.createElement('tr', { key: oi, style: {borderBottom:"1px solid "+V.bd,background:r._exists?"rgba(234,179,8,.06)":"rgba(34,197,94,.04)"}}
                 , React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, r._exists?React.createElement('span', { title: "Aktualisieren", style: {color:"#eab308"}}, "🔄"):React.createElement('span', { title: "Neu", style: {color:"#22c55e"}}, "🆕"))
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#8b5cf6",fontWeight:600}}, r.nummer)
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#4ade80",fontWeight:600}}, r.nummer)
                 , React.createElement('td', { style: {...tdSt(),textAlign:"left",padding:2}}, React.createElement('input', { value: r.kundName||"", onChange: e=>updPreview(oi,"kundName",e.target.value), style: {...II(),fontSize:11,padding:"2px 4px",margin:0}}))
                 , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontSize:10}}, r.kundStr)
                 , React.createElement('td', { style: {...tdSt(),fontSize:10}}, r.kundPlz, " ", r.kundOrt)
@@ -5004,7 +5004,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:V.ac,fontFamily:mono}}, aktivP)
           , React.createElement('div', { style: {fontSize:11,color:V.dm}}, projects.length, " gesamt" )
         )
-        , React.createElement('div', { onClick: ()=>onNav("arbeitsscheine"), style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #f97316",transition:"transform .15s"}}
+        , React.createElement('div', { onClick: ()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #f97316",transition:"transform .15s"}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Scheine offen" )
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#f97316",fontFamily:mono}}, offeneAS)
           , React.createElement('div', { style: {fontSize:11,color:dringendeAS>0?"#ef4444":V.dm}}, dringendeAS>0?dringendeAS+" dringend":arbeitsscheine.length+" gesamt")
