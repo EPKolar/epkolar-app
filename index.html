@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.5';
+  var SW_VER='epkolar-v3.5.6';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -35,6 +35,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 /* EP: Kolar & Sohn - App Styles v2.0 */
 /* CI: EP Green #009640, Dark #006e30, Gray #6d6e71 */
@@ -420,7 +421,7 @@ function _mapArbeitsschein(a){
     material:_jp(a.material),fotos:_jp(a.fotos),
     unterschriftKunde:a.unterschriftKunde||a.unterschrift_kunde||"",
     unterschriftMonteur:a.unterschriftMonteur||a.unterschrift_monteur||"",
-    abschlussDatum:a.abschlussDatum||a.abschluss_datum||""};
+    abschlussDatum:a.abschlussDatum||a.abschluss_datum||"",telefon:a.telefon||"",arbeitsort:a.arbeitsort||""};
 }
 function _mapDefect(d){
   if(!d)return d;
@@ -824,9 +825,11 @@ window.API = (function() {
     setToken: setToken, getToken: getToken, getBaseUrl: getBaseUrl, setBaseUrl: setBaseUrl, request: request,
     // Auth
     login: async function(u, p) {
-      const users=await _sbGet("users","username=eq."+encodeURIComponent(u)+"&active=eq.1");
-      if(!users||!users.length)throw new Error("Benutzer nicht gefunden");
-      const user=users[0];
+      // Use RPC to bypass RLS (anon can't read users table directly)
+      const rpcRes=await fetch(SB_REST+"/rpc/login_lookup",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({p_username:u})});
+      if(!rpcRes.ok)throw new Error("Server nicht erreichbar");
+      const user=await rpcRes.json();
+      if(!user||!user.id)throw new Error("Benutzer nicht gefunden");
       if(user.locked)throw new Error("Benutzer gesperrt");
       const email=user.email||(u+"@epkolar.local");
       // Try GoTrue auth first
@@ -847,8 +850,8 @@ window.API = (function() {
         }catch(_){}
         if(!gotrue)setTimeout(()=>{if(window.__toast)window.__toast("⚠️ Eingeschränkter Modus — GoTrue-Login fehlgeschlagen. Schreibzugriff ggf. eingeschränkt.","warn");},2000);
       }
-      try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){}
-      try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""});}catch(e){}
+      if(_authToken){try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){}}
+      if(_authToken){try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""});}catch(e){}}
       let perms=[];try{perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];}catch(e){perms=[];}
       const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:email,permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
@@ -892,7 +895,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.5-supabase";
+const APP_VERSION="3.5.6-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1054,7 +1057,54 @@ const AS_STATUS={offen:{l:"offen",c:"#eab308",i:"🟡"},in_bearbeitung:{l:"in Be
 const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},dringend:{l:"dringend",c:"#ef4444"}};
 const AS_ART={reparatur:{l:"Reparatur",i:"🔧"},wartung:{l:"Wartung",i:"🛠️"},stoerung:{l:"Störung",i:"⚡"},regie:{l:"Regie",i:"📋"},garantie:{l:"Garantiefall",i:"🛡️"}};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
-const SACHBEARBEITER=["SCHOBER","ZAUNER","GÜNTHER"];
+const SACHBEARBEITER=["SCHOBER","ZAUNER","GÜNTHER","LINDHUBER","ADMIN","SCHMID","TECHNIK","GABI","ERNST"];
+// ═══ OFFA PDF IMPORT PARSER ═══
+if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+async function _parseOffaPdf(file){
+  if(!window.pdfjsLib)throw new Error("PDF.js nicht geladen");
+  const buf=await file.arrayBuffer();
+  const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+  let txt="";for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const tc=await pg.getTextContent();txt+=tc.items.map(it=>it.str).join(" ")+"\n";}
+  // Split on duplicate (OFFA prints 2 copies per page)
+  const parts=txt.split(/Arbeitsanweisung(?=S\d)/);
+  const chunk=(parts.length>1?parts[1]:parts[0])||"";
+  const r={nummer:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",sachbearbeiter:"",projektnr:"",monteur:"",aufgenommen:"",telefon:"",arbeitsanweisungen:"",arbeitsort:""};
+  // Nummer
+  const mNr=chunk.match(/^S(\d+)/);if(mNr)r.nummer="S"+mNr[1];
+  // Sachbearbeiter
+  const mSB=chunk.match(/Sachbearb\.?:\s*(\S+)/);if(mSB)r.sachbearbeiter=mSB[1].toUpperCase();
+  // Projektnr
+  const mPN=chunk.match(/Projektnr\.?:\s*(\S+)/);if(mPN)r.projektnr=mPN[1];
+  // Monteur: text between "Monteur:" and first token with digit (=street) or "Datum"
+  const mMoBlock=chunk.match(/Monteur:\s*(.*?)(?=\s+\S*\d|Datum)/);
+  if(mMoBlock){const mo=mMoBlock[1].trim();if(mo&&!/^\d/.test(mo)&&mo.length>2&&!/straße|gasse|platz|weg|str\.|g\.\s/i.test(mo))r.monteur=mo;}
+  // Datum
+  const mDt=chunk.match(/Datum\s+Zeit:\s*([\d.]+)/);if(mDt){const dp=mDt[1].split(".");if(dp.length===3){const yr=dp[2].length===2?(parseInt(dp[2])>50?"19":"20")+dp[2]:dp[2];r.aufgenommen=yr+"-"+dp[1].padStart(2,"0")+"-"+dp[0].padStart(2,"0");}}
+  // Telefon
+  const mTel=chunk.match(/Erreichbar unter Tel\.?:\s*([^\n]*(?:\n[^\n]*?(?:\d[\d\s\/\-]+))?)/);if(mTel){const telRaw=mTel[1].replace(/\n/g," ").trim();const nums=telRaw.match(/[\d][\d\s\/\-]{4,}/g);if(nums)r.telefon=nums.map(n=>n.trim()).join(", ");}
+  // Parse Kunde + Adresse from header block (between nummer and "Sachbearb")
+  const hdrEnd=chunk.indexOf("Sachbearb");
+  const fullHdr=hdrEnd>0?chunk.substring(0,hdrEnd):"";
+  // Kundename: text between nummer and "Monteur:", excluding Fam./Frau/Herr, stopping at first digit (=street)
+  const kundeBlock=fullHdr.substring(fullHdr.indexOf(" "),fullHdr.indexOf("Monteur:")).replace(/^\s+/,"").replace(/Fam\.\s*/gi,"").replace(/Frau\s*/gi,"").replace(/Herr\s*/gi,"").trim();
+  const kundeWords=kundeBlock.split(/\s+/);const nameEnd=kundeWords.findIndex(w=>/\d/.test(w));
+  r.kundName=nameEnd>0?kundeWords.slice(0,nameEnd).join(" "):kundeBlock;
+  // Straße: token with street suffix + number in header
+  const mStr=fullHdr.match(/([A-ZÄÖÜa-zäöüß][\w.äöüÄÖÜß]*(?:straße|gasse|platz|weg|str\.|g\.)\s*\d[\w\/]*)/i);
+  if(mStr)r.kundStr=mStr[1].trim();
+  else{const mStr2=fullHdr.match(/(\S+\s+\d+(?:\/\d+)?)\s+Datum/);if(mStr2)r.kundStr=mStr2[1].trim();}
+  // PLZ + Ort: 4-digit before Sachbearb
+  const mPlz=fullHdr.match(/(\d{4})\s+([A-ZÄÖÜa-zäöüß][\w\s.äöüÄÖÜß-]+?)\s*$/);
+  if(mPlz){r.kundPlz=mPlz[1];r.kundOrt=mPlz[2].trim();}
+  // Arbeitsort
+  const mAO=chunk.match(/Arbeitsort:\s*([\s\S]*?)(?=Erreichbar|$)/);
+  if(mAO){const ao=mAO[1].trim().split(/\s{3,}|\n/).map(s=>s.trim()).filter(Boolean).join(", ");r.arbeitsort=ao;}
+  // Tätigkeit
+  const mTat=chunk.match(/Tatigkeit:\s*([\s\S]*?)(?=Sonstiges:|$)/);
+  if(mTat){const tatRaw=mTat[1].replace(/-{3,}/g,"").trim().split("\n").map(s=>s.trim()).filter(Boolean).join("\n");r.arbeitsanweisungen=tatRaw;}
+  return r;
+}
+
 const SIG_GF="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAFDAcwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKA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OwJwP/r10lABRRRQAV5P8a7e3jk8J6xfWlzPp2n6mGvGg3fu4jtJJx/uj+QIzXrFFAHmA+I/iXxSGTwR4QuXt2QmPVNVPkQHkjKr/GOOzZ9RV/wx8MYtP1xvEviTUG13xA+GE8yYjt25P7te2M4B7Y4C16BRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUVg+NPEcXhPwhqWtS8m3iPlL/AHpG+VB/30Rn0GTQBwepmHxt8drLTGjS60vw3avPcKRuj+0NgAHtkZQ49Ub0NetV5n8D9C/s/wADjWrh5JNQ1uVrq4dzkkBmC/mMt65Y+lemUAFFFFAEN1dW9jaTXd1MkNvChkklkbCooGSSfSvOfBVrJ4y8X3vj7ULPbZBBa6Esy/MsIJ3S47FiTg9cE9usHxdurnW7rRfAOnSPHPrMwkupFUkJbocnOOeoz6fLyRXpdjY2umWMNlZQR29rAgSOKMYVQOwoAsUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFeP8AxkNx4m1/wx4CsnYNfT/a7vacFIlyAfpjzDz3UV7BXlfg6SLxH8a/GOtN/wAwiOPS4F25H3m3tk9CGjYcdmPXqQD1CCCO2t4reFdsUSBEXOcADAHNSUUUAFFFFAHmmpW2p6Z8b4ddfQ9Q1HT7jSlsIJrVEcQSmTcS25hsUANk/wC1jnNejW0ksttHJNAYJWUFoiwYofQkcEj249zUtFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAV5D+z/G40LxFLduH1FtWdbk46kKvOR1+Yv/AJNevV5vDofiXwf451e78O6PbappGuyC5mWa+EBtLjksxJDEqxYnAB/ADkA9IopFyFG4gtjkgYGaWgAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/2Q==";
 
 function genBescheinigung(fahrer,gebDat,fsNr,seitDat,vonDat,vonUhr,bisDat,bisUhr,grund,ort){
@@ -1969,18 +2019,8 @@ function LoginScreen({onLogin,onPortal,projects}){
     if(!user.trim()||!pw){setErr("Benutzername und Passwort eingeben");return;}
     setLoading(true);setErr("");
     try{
-      // Try server login
-      let data;
-      try{data=await API.login(user,pw);}catch(netErr){
-        // Demo mode: if no server, accept known demo users
-        const demoUsers={"guenther":{id:"u1",name:"Sebastian Günther",username:"guenther",role:"admin",active:true,monteurId:"w6",permsOverride:null},"admin":{id:"u1",name:"Sebastian Günther",username:"guenther",role:"admin",active:true,monteurId:"w6",permsOverride:null},"paschinger":{id:"u2",name:"Norbert Paschinger",username:"paschinger",role:"monteur",active:true,monteurId:"w1",permsOverride:null},"barger":{id:"u4",name:"Ian Barger",username:"barger",role:"monteur",active:true,monteurId:"w2",permsOverride:null},"cracana":{id:"u3",name:"Sorin Cracana",username:"cracana",role:"monteur",active:true,monteurId:"w3",permsOverride:null},"pinger":{id:"u5",name:"Leo Pinger",username:"pinger",role:"projektleiter",active:true,monteurId:"w4",permsOverride:null},"schmid":{id:"u6",name:"Wolfgang Schmid",username:"schmid",role:"monteur",active:true,monteurId:"w5",permsOverride:null},"schober":{id:"u7",name:"Martina Schober",username:"schober",role:"buero",active:true,monteurId:"w7",permsOverride:null},"lindhuber":{id:"u8",name:"Lucia Lindhuber",username:"lindhuber",role:"buero",active:true,monteurId:"w8",permsOverride:null}};
-        const demoU=demoUsers[user.toLowerCase().trim()];
-        if(demoU&&(pw==="demo"||pw==="1234"||pw==="admin")){
-          try{await ODB.set("meta","lastUser",demoU);await ODB.set("meta","offlinePwHash",btoa(user.toLowerCase().trim()+":"+pw));}catch(ex){}
-          onLogin(demoU);setLoading(false);return;
-        }
-        throw netErr;
-      }
+      // Server login (no demoUsers fallback — removed for security)
+      const data=await API.login(user,pw);
       API.setToken(data.token);
       try{await ODB.set("meta","lastUser",data.user);await ODB.set("meta","offlinePwHash",btoa(user.toLowerCase().trim()+":"+pw));}catch(e){}
       onLogin(data.user);
@@ -2018,7 +2058,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         , React.createElement('div', { className: shake?"shake":"", style: {...CC(),padding:28}}
           , React.createElement('div', { style: {marginBottom:16}}
             , React.createElement('label', { style: LL()}, "Benutzername")
-            , React.createElement('input', { value: user, onChange: e=>{setUser(e.target.value);setErr("");}, placeholder: "z.B. admin, barger"  , style: {...II(),fontSize:15,padding:"12px 14px"}, onKeyDown: e=>e.key==="Enter"&&tryLogin(), autoFocus: true} )
+            , React.createElement('input', { value: user, onChange: e=>{setUser(e.target.value);setErr("");}, placeholder: "Benutzername"  , style: {...II(),fontSize:15,padding:"12px 14px"}, onKeyDown: e=>e.key==="Enter"&&tryLogin(), autoFocus: true} )
           )
           , React.createElement('div', { style: {marginBottom:20}}
             , React.createElement('label', { style: LL()}, "Passwort")
@@ -3043,6 +3083,8 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const [filterMonteur,setFilterMonteur]=_react.useState.call(void 0, "alle");
   const [filterSB,setFilterSB]=_react.useState.call(void 0, "alle");
   const [search,setSearch]=_react.useState.call(void 0, "");
+  const [sortCol,setSortCol]=_react.useState.call(void 0, "nummer");
+  const [sortDir,setSortDir]=_react.useState.call(void 0, "desc");
   const [calMo,setCalMo]=_react.useState.call(void 0, new Date().getMonth());
   const [calYr,setCalYr]=_react.useState.call(void 0, new Date().getFullYear());
   const [calMonteur,setCalMonteur]=_react.useState.call(void 0, curUser.monteurId||(monteure[0]||{}).id||"");
@@ -3056,11 +3098,13 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const [voiceListening,setVoiceListening]=_react.useState.call(void 0, false);
   const [voiceParsed,setVoiceParsed]=_react.useState.call(void 0, null);
   const voiceRecRef=_react.useRef.call(void 0, null);
+  const [importPreview,setImportPreview]=_react.useState.call(void 0, []);
+  const [importLoading,setImportLoading]=_react.useState.call(void 0, false);
   const isMob=ww<600;
   const isMonteurRole=curUser.role==="monteur"||curUser.role==="helfer";
 
   const nextNr=()=>{const nums=arbeitsscheine.map(a=>parseInt(a.nummer.replace("S",""))).filter(n=>!isNaN(n));return "S"+String((nums.length?Math.max(...nums):75275)+1).padStart(6,"0");};
-  const defAs=()=>({nummer:nextNr(),kundNr:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"",scheinstatus:"offen",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:isAdmin?"SCHOBER":"",monteur:curUser.monteurId||(monteure[0]||{}).id||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:td2(),aufgZeit:new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}),bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),arbeitsanweisungen:"",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""});
+  const defAs=()=>({nummer:nextNr(),kundNr:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"",scheinstatus:"offen",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:isAdmin?"SCHOBER":"",monteur:curUser.monteurId||(monteure[0]||{}).id||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:td2(),aufgZeit:new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}),bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),arbeitsanweisungen:"",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:"",telefon:"",arbeitsort:""});
   const [form,setForm]=_react.useState.call(void 0, defAs());
 
   const filtered=arbeitsscheine.filter(a=>{
@@ -3072,6 +3116,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     if(search){const s=search.toLowerCase();if(!((a.nummer||"")+(a.kundName||"")+(a.arbeitsanweisungen||"")+(a.projektnr||"")).toLowerCase().includes(s)) return false;}
     return true;
   });
+  const toggleSort=(col)=>{if(sortCol===col)setSortDir(prev=>prev==="asc"?"desc":"asc");else{setSortCol(col);setSortDir(col==="nummer"||col==="aufgenommen"||col==="terminVorschlag"||col==="terminBestaetigt"?"desc":"asc");}};
+  const sortArrow=(col)=>sortCol===col?(sortDir==="asc"?" ▲":" ▼"):" ↕";
+  const sorted=[...filtered].sort((a,b)=>{const d=sortDir==="asc"?1:-1;const va=a[sortCol]||"";const vb=b[sortCol]||"";if(sortCol==="nummer"){const na=parseInt((va+"").replace(/\D/g,""))||0;const nb=parseInt((vb+"").replace(/\D/g,""))||0;return (na-nb)*d;}if(sortCol==="aufgenommen"||sortCol==="terminVorschlag"||sortCol==="terminBestaetigt"){const da=va?new Date(va).getTime():0;const db=vb?new Date(vb).getTime():0;return (da-db)*d;}return va.toString().localeCompare(vb.toString(),"de")*d;});
 
   const openNew=()=>{setForm(defAs());setEditId(null);setSub("form");};
   const openEdit=a=>{setForm({...a});setEditId(a.id);setSub("form");};
@@ -3089,7 +3136,26 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     genXls("📋 OFFA Export — Arbeitsscheine","Andreas Kolar & Sohn GesmbH · Arbeitsscheinverwaltung",hdrs,data,"OFFA_Export_"+td2()+".xls",{colWidths:[35,50,130,60,75,85,95,70,160,160,90,85],leftCols:[0,1,2,3,8,9,11],boldCols:[2],statusMap:{"offen":"#eab308","in Bearbeitung":"#f97316","erledigt":"#3b82f6","abgerechnet":"#22c55e"}});
   };
 
-  const importOffa=e=>{const file=_optionalChain([e, 'access', _132 => _132.target, 'access', _133 => _133.files, 'optionalAccess', _134 => _134[0]]);if(!file)return;const reader=new FileReader();reader.onload=ev=>{const lines=ev.target.result.split("\n").filter(l=>l.trim());const imp=[];lines.slice(1).forEach(line=>{const c=line.split(";");if(c.length<5)return;const nr=_optionalChain([c, 'access', _135 => _135[0], 'optionalAccess', _136 => _136.trim, 'call', _137 => _137()]);if(!nr||arbeitsscheine.find(a=>a.nummer===nr))return;imp.push({id:uid(),nummer:nr,kundNr:c[1]||"",kundName:c[2]||"",kundStr:"",kundPlz:"",kundOrt:"",projektnr:c[3]||"",scheinstatus:_optionalChain([c, 'access', _138 => _138[5], 'optionalAccess', _139 => _139.includes, 'call', _140 => _140("abgerechnet")])?"abgerechnet":_optionalChain([c, 'access', _141 => _141[5], 'optionalAccess', _142 => _142.includes, 'call', _143 => _143("storniert")])?"storniert":"in_bearbeitung",scheinart:_optionalChain([c, 'access', _144 => _144[4], 'optionalAccess', _145 => _145.includes, 'call', _146 => _146("Wartung")])?"wartung":_optionalChain([c, 'access', _147 => _147[4], 'optionalAccess', _148 => _148.includes, 'call', _149 => _149("Störung")])?"stoerung":"reparatur",prioritaet:"keine",verrechnung:_optionalChain([c, 'access', _150 => _150[10], 'optionalAccess', _151 => _151.includes, 'call', _152 => _152("nicht")])?"nicht_verrechenbar":"verrechenbar",sachbearbeiter:_optionalChain([c, 'access', _153 => _153[11], 'optionalAccess', _154 => _154.trim, 'call', _155 => _155()])||"",monteur:curUser.monteurId||(monteure[0]||{}).id||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:c[7]||td2(),aufgZeit:"08:00",bearbeitetVon:"IMPORT",arbeitsanweisungen:c[8]||"",durchgefuehrte:c[9]||"",notizen:"Importiert aus OFFA",kontakt:"",stoerungsmelder:""});});if(imp.length){setArbeitsscheine(prev=>[...imp,...prev]);imp.forEach(a=>SQ.push({url:"/api/arbeitsscheine",method:"POST",body:a}));alert(imp.length+" Arbeitsscheine importiert");}else{alert("Keine neuen Scheine gefunden");}};reader.readAsText(file);e.target.value="";};
+  const importOffa=async(e)=>{const files=[...(e.target.files||[])];e.target.value="";if(!files.length)return;
+    setImportLoading(true);const results=[];
+    for(const f of files){if(!f.name.toLowerCase().endsWith(".pdf")){results.push({error:"Kein PDF: "+f.name});continue;}
+      try{const parsed=await _parseOffaPdf(f);parsed._file=f.name;
+        const existing=arbeitsscheine.find(a=>a.nummer===parsed.nummer);
+        parsed._exists=!!existing;parsed._existId=existing?existing.id:null;
+        // Map monteur name to worker id
+        if(parsed.monteur){const mName=parsed.monteur.toLowerCase();const found=monteure.find(m=>(m.n||"").toLowerCase().includes(mName)||((m.vorname||"")+" "+(m.n||"")).toLowerCase().includes(mName));if(found)parsed._monteurId=found.id;else parsed._monteurId="";}else{parsed._monteurId="";}
+        results.push(parsed);
+      }catch(ex){results.push({error:f.name+": "+ex.message});}
+    }
+    setImportPreview(results);setImportLoading(false);setSub("import_preview");};
+  const commitImport=()=>{
+    const toImport=importPreview.filter(r=>!r.error&&r.nummer);let added=0,updated=0;
+    toImport.forEach(r=>{
+      const as={nummer:r.nummer,kundNr:"",kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"offen",scheinart:r.arbeitsanweisungen&&r.arbeitsanweisungen.toLowerCase().includes("wartung")?"wartung":r.arbeitsanweisungen&&r.arbeitsanweisungen.toLowerCase().includes("störung")?"stoerung":"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:r.sachbearbeiter||"",monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
+      if(r._exists&&r._existId){setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...as}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:as});updated++;}
+      else{const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
+    });
+    _optionalChain([window, 'access', _imp1 => _imp1.__toast, 'optionalCall', _imp2 => _imp2(added+" neu, "+updated+" aktualisiert")]);setImportPreview([]);setSub("liste");};
 
   // ═══ PDF Arbeitsschein mit Kundenunterschrift ═══
   const genAsPdf=(a)=>{
@@ -3367,7 +3433,7 @@ function sharePdf(){
     React.createElement('div', {}
       , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
         , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📋 Arbeitsscheine / Störungen"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Scheine anlegen, Status setzen, OFFA-Excel exportieren. Schnellerfassung per \uD83C\uDFA4 Sprache." ))
-        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".csv,.txt", style: {display:"none"}, onChange: importOffa} ))
+        , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('button', { onClick: exportOffa, style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".pdf", multiple: true, style: {display:"none"}, onChange: importOffa} ))
       )
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
@@ -3449,25 +3515,29 @@ function sharePdf(){
           , isAdmin&&React.createElement('select', { value: filterMonteur, onChange: e=>setFilterMonteur(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle Monteure" ), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n)))
           , isAdmin&&React.createElement('select', { value: filterSB, onChange: e=>setFilterSB(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle SB" ), SACHBEARBEITER.map(s=>React.createElement('option', { key: s, value: s}, s)))
         )
-        , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:6}}, filtered.length, " von "  , arbeitsscheine.length, " Arbeitsscheine" )
+        , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:6}}, sorted.length, " von "  , arbeitsscheine.length, " Arbeitsscheine" )
         , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { style: {overflowX:"auto"}}
-          , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:900,fontSize:12}}
+          , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:1100,fontSize:12}}
             , React.createElement('thead', {}, React.createElement('tr', { style: {background:_dark?"rgba(139,92,246,.08)":"rgba(139,92,246,.06)"}}
-              , React.createElement('th', { style: {...thS(),width:80}}, "Nummer")
-              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:200}}, "Durchzuführende Arbeiten" )
-              , React.createElement('th', { style: {...thS(),width:80}}, "Erf.-Datum")
-              , React.createElement('th', { style: {...thS(),width:100}}, "Status")
-              , React.createElement('th', { style: {...thS(),width:80}}, "Verantw.")
-              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:140}}, "Kundenname")
-              , React.createElement('th', { style: {...thS(),width:80}}, "Projektnr.")
-              , React.createElement('th', { style: {...thS(),width:65}}, "Art")
+              , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("nummer")}, "Nummer", sortArrow("nummer"))
+              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:180,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("arbeitsanweisungen")}, "Durchzuführende Arbeiten", sortArrow("arbeitsanweisungen"))
+              , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("aufgenommen")}, "Erf.-Datum", sortArrow("aufgenommen"))
+              , React.createElement('th', { style: {...thS(),width:85,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("terminVorschlag")}, "Vorgeschl.", sortArrow("terminVorschlag"))
+              , React.createElement('th', { style: {...thS(),width:85,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("terminBestaetigt")}, "Bestätigt", sortArrow("terminBestaetigt"))
+              , React.createElement('th', { style: {...thS(),width:90,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("scheinstatus")}, "Status", sortArrow("scheinstatus"))
+              , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("sachbearbeiter")}, "Verantw.", sortArrow("sachbearbeiter"))
+              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:130,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("kundName")}, "Kundenname", sortArrow("kundName"))
+              , React.createElement('th', { style: {...thS(),width:80,cursor:"pointer",userSelect:"none"}, onClick: ()=>toggleSort("projektnr")}, "Projektnr.", sortArrow("projektnr"))
+              , React.createElement('th', { style: {...thS(),width:55}}, "Art")
               , React.createElement('th', { style: {...thS(),width:55}}, "Akt.")
             ))
-            , React.createElement('tbody', {}, filtered.map(a=>{const st=AS_STATUS[a.scheinstatus]||AS_STATUS.offen;const art=AS_ART[a.scheinart];const pri=AS_PRIO[a.prioritaet];
+            , React.createElement('tbody', {}, sorted.map(a=>{const st=AS_STATUS[a.scheinstatus]||AS_STATUS.offen;const art=AS_ART[a.scheinart];const pri=AS_PRIO[a.prioritaet];
               return (React.createElement('tr', { key: a.id, style: {borderBottom:"1px solid "+V.bd,cursor:"pointer",background:a.scheinstatus==="storniert"?"rgba(239,68,68,.03)":"transparent"}, onClick: ()=>openEdit(a)}
                 , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#8b5cf6",fontWeight:600}}, a.nummer)
-                , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.arbeitsanweisungen.split("\n")[0])
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:13}}, fdt(a.aufgenommen))
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.arbeitsanweisungen.split("\n")[0])
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12}}, fdt(a.aufgenommen))
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12,color:a.terminVorschlag?V.tx:V.mt}}, a.terminVorschlag?fdt(a.terminVorschlag):"—")
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12,color:a.terminBestaetigt?"#22c55e":V.mt,fontWeight:a.terminBestaetigt?600:400}}, a.terminBestaetigt?fdt(a.terminBestaetigt):"—")
                 , React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: st.l, color: st.c} ))
                 , React.createElement('td', { style: {...tdSt(),fontSize:13}}, a.sachbearbeiter)
                 , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500}}, a.kundName)
@@ -3582,6 +3652,51 @@ function sharePdf(){
         })()
 
         , React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,flexWrap:"wrap",fontSize:11}}, Object.entries(AS_STATUS).map(([k,v])=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {width:8,height:8,borderRadius:2,background:v.c}} ), v.l)))
+      ))
+
+      , sub==="import_preview"&&(React.createElement('div', {}
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}
+          , React.createElement('div', { style: {fontSize:16,fontWeight:800}}, "📤 OFFA Import — Vorschau")
+          , React.createElement('div', { style: {display:"flex",gap:6}}
+            , React.createElement('button', { onClick: ()=>{setImportPreview([]);setSub("liste");}, style: beS}, "← Abbrechen")
+            , React.createElement('button', { onClick: commitImport, disabled: !importPreview.filter(r=>!r.error&&r.nummer).length, style: bpS}, "✅ "+importPreview.filter(r=>!r.error&&r.nummer).length+" Scheine importieren")
+          )
+        )
+        , importLoading&&React.createElement('div', { style: {textAlign:"center",padding:30,fontSize:14}}, "⏳ PDFs werden verarbeitet...")
+        , importPreview.filter(r=>r.error).length>0&&React.createElement('div', { style: {padding:10,background:"rgba(239,68,68,.1)",borderRadius:8,marginBottom:10,fontSize:12}}, importPreview.filter(r=>r.error).map((r,i)=>React.createElement('div', { key: i, style: {color:"#ef4444"}}, "❌ ", r.error)))
+        , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { style: {overflowX:"auto"}}
+          , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:900,fontSize:11}}
+            , React.createElement('thead', {}, React.createElement('tr', { style: {background:_dark?"rgba(139,92,246,.08)":"rgba(139,92,246,.06)"}}
+              , React.createElement('th', { style: {...thS(),width:50}}, "")
+              , React.createElement('th', { style: {...thS(),width:75}}, "Nummer")
+              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:130}}, "Kunde")
+              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:100}}, "Adresse")
+              , React.createElement('th', { style: {...thS(),width:70}}, "PLZ/Ort")
+              , React.createElement('th', { style: {...thS(),width:70}}, "SB")
+              , React.createElement('th', { style: {...thS(),width:75}}, "Projektnr.")
+              , React.createElement('th', { style: {...thS(),width:70}}, "Datum")
+              , React.createElement('th', { style: {...thS(),width:100}}, "Telefon")
+              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:140}}, "Tätigkeit")
+              , React.createElement('th', { style: {...thS(),width:50}}, "PDF")
+            ))
+            , React.createElement('tbody', {}, importPreview.filter(r=>!r.error&&r.nummer).map((r,i)=>
+              React.createElement('tr', { key: i, style: {borderBottom:"1px solid "+V.bd,background:r._exists?"rgba(234,179,8,.06)":"rgba(34,197,94,.04)"}}
+                , React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, r._exists?React.createElement('span', { title: "Aktualisieren", style: {color:"#eab308"}}, "🔄"):React.createElement('span', { title: "Neu", style: {color:"#22c55e"}}, "🆕"))
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#8b5cf6",fontWeight:600}}, r.nummer)
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500}}, r.kundName)
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontSize:10}}, r.kundStr)
+                , React.createElement('td', { style: {...tdSt(),fontSize:10}}, r.kundPlz, " ", r.kundOrt)
+                , React.createElement('td', { style: {...tdSt(),fontSize:11}}, r.sachbearbeiter)
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:10,color:V.ac}}, r.projektnr)
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:10}}, r.aufgenommen?fdt(r.aufgenommen):"—")
+                , React.createElement('td', { style: {...tdSt(),fontSize:10}}, r.telefon||"—")
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontSize:10,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, r.arbeitsanweisungen||"—")
+                , React.createElement('td', { style: {...tdSt(),fontSize:9,color:V.dm}}, r._file)
+              )
+            ))
+          )
+        ))
+        , React.createElement('div', { style: {marginTop:10,fontSize:11,color:V.dm}}, "🆕 = Neuer Schein · 🔄 = Bestehender wird aktualisiert (gleiche Nummer)")
       ))
 
       , sub==="form"&&(React.createElement('div', {}
