@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.9';
+  var SW_VER='epkolar-v3.5.10';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -897,7 +897,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.9-supabase";
+const APP_VERSION="3.5.10-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1166,7 +1166,7 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
           try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){}
           updated++;
         }else{
-          try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){}
+          if(!silent){try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){}}
           skipped++;
         }
       }else{
@@ -1195,11 +1195,11 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
   }
 }
 
-function _juprowaStartAutoSync(arbeitsscheine,setArbeitsscheine){
+function _juprowaStartAutoSync(setArbeitsscheine){
   _juprowaStopAutoSync();
   _juprowaSyncTimer=setInterval(()=>{
     if(navigator.onLine&&_authToken&&!_juprowaSyncing){
-      _juprowaSync(arbeitsscheine,setArbeitsscheine,true);
+      _juprowaSync(null,setArbeitsscheine,true);
     }
   },300000);
 }
@@ -3228,6 +3228,12 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const canSync=curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero";
   const [jupSyncing,setJupSyncing]=_react.useState.call(void 0, false);
   const doJuprowaSync=async()=>{setJupSyncing(true);await _juprowaSync(null,setArbeitsscheine,false);setJupSyncing(false);};
+  _react.useEffect.call(void 0, ()=>{
+    if(!canSync)return;
+    const t=setTimeout(()=>{if(navigator.onLine&&_authToken&&!_juprowaSyncing)_juprowaSync(null,setArbeitsscheine,true);},3000);
+    _juprowaStartAutoSync(setArbeitsscheine);
+    return()=>{clearTimeout(t);_juprowaStopAutoSync();};
+  },[canSync]);
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
