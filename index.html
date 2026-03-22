@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.21';
+  var SW_VER='epkolar-v3.5.22';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.21-supabase";
+const APP_VERSION="3.5.22-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4930,15 +4930,15 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _myMonteurId=_optionalChain([curUser, 'optionalAccess', _ffa2 => _ffa2.monteurId])||"";
   const _alertFz=_isFleetAdmin?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMonteurId);
   const pickerFaellig=_alertFz.filter(f=>{if(!f.pickerl)return false;const d=new Date(f.pickerl);const diff=(d-new Date())/(86400000);return diff<30&&diff>-365;});
-  pickerFaellig.forEach(f=>alerts.push({type:"warning",icon:"📋",text:`${f.kennzeichen}: Pickerl läuft ${new Date(f.pickerl)<new Date()?"ABGELAUFEN":"bald ab"} (${fdt(f.pickerl)})`,color:"#f97316"}));
+  pickerFaellig.forEach(f=>alerts.push({type:"warning",icon:"📋",text:`${f.kennzeichen}: Pickerl läuft ${new Date(f.pickerl)<new Date()?"ABGELAUFEN":"bald ab"} (${fdt(f.pickerl)})`,color:"#f97316",go:()=>onNav("fahrzeuge")}));
   const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService)<=new Date());
-  serviceFaellig.forEach(f=>alerts.push({type:"warning",icon:"🔧",text:`${f.kennzeichen}: Service überfällig (${fdt(f.naechstService)})`,color:"#ef4444"}));
+  serviceFaellig.forEach(f=>alerts.push({type:"warning",icon:"🔧",text:`${f.kennzeichen}: Service überfällig (${fdt(f.naechstService)})`,color:"#ef4444",go:()=>onNav("fahrzeuge")}));
   const offeneSchaeden=(fahrzeuge||[]).reduce((s,f)=>s+(f.schaeden||[]).filter(x=>x.status==="offen").length,0);
-  if(offeneSchaeden>0)alerts.push({type:"info",icon:"⚠️",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,color:"#ef4444"});
-  if(pendingAbs>0&&isAdmin)alerts.push({type:"info",icon:"📨",text:`${pendingAbs} ${pendingAbs===1?"Abwesenheitsantrag wartet":"Abwesenheitsanträge warten"} auf Genehmigung`,color:"#eab308"});
-  if(dringendeAS>0)alerts.push({type:"urgent",icon:"🔴",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,color:"#ef4444"});
-  if(finkStats.offen>0&&isAdmin)alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben (${now.getFullYear()})`,color:"#8b5cf6"});
-  if(finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316"});
+  if(offeneSchaeden>0)alerts.push({type:"info",icon:"⚠️",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,color:"#ef4444",go:()=>onNav("fahrzeuge")});
+  if(pendingAbs>0&&isAdmin)alerts.push({type:"info",icon:"📨",text:`${pendingAbs} ${pendingAbs===1?"Abwesenheitsantrag wartet":"Abwesenheitsanträge warten"} auf Genehmigung`,color:"#eab308",go:()=>onNav("urlaub")});
+  if(dringendeAS>0)alerts.push({type:"urgent",icon:"🔴",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,color:"#ef4444",go:()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}});
+  if(finkStats.offen>0&&isAdmin)alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben (${now.getFullYear()})`,color:"#8b5cf6",go:()=>onNav("stunden")});
+  if(finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316",go:()=>onNav("stunden")});
 
   // Recent activity (last 5 entries)
 
@@ -4998,9 +4998,10 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
       /* ═══ ALERTS ═══ */
       , alerts.length>0&&(React.createElement('div', { style: {marginBottom:14}}
-        , alerts.map((a,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:a.color+"11",border:"1px solid "+a.color+"33",borderRadius:8,marginBottom:4,fontSize:12,color:a.color,fontWeight:600}}
+        , alerts.map((a,i)=>(React.createElement('div', { key: i, onClick: a.go||null, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:a.color+"11",border:"1px solid "+a.color+"33",borderRadius:8,marginBottom:4,fontSize:12,color:a.color,fontWeight:600,cursor:a.go?"pointer":"default",transition:"background .15s"}, onMouseEnter: a.go?e=>{e.currentTarget.style.background=a.color+"22";}:null, onMouseLeave: a.go?e=>{e.currentTarget.style.background=a.color+"11";}:null}
           , React.createElement('span', { style: {fontSize:16}}, a.icon)
           , React.createElement('span', { style: {flex:1}}, a.text)
+          , a.go&&React.createElement('span', { style: {fontSize:14,opacity:.6}}, "→")
         )))
       ))
 
