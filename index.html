@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.26';
+  var SW_VER='epkolar-v3.5.27';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.26-supabase";
+const APP_VERSION="3.5.27-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1103,6 +1103,7 @@ const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},n
 const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
 const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBER'};
+const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'ZAUNER','SUSANNE':'ZAUNER','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
 
@@ -1268,13 +1269,13 @@ async function _parseOffaPdf(file){
   const r={nummer:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",sachbearbeiter:"",projektnr:"",monteur:"",aufgenommen:"",telefon:"",arbeitsanweisungen:"",arbeitsort:""};
   // Nummer
   const mNr=chunk.match(/^S(\d+)/);if(mNr)r.nummer="S"+mNr[1];
-  // Sachbearbeiter
-  const mSB=chunk.match(/Sachbearb\.?:\s*(\S+)/);if(mSB)r.sachbearbeiter=mSB[1].toUpperCase();
+  // Sachbearbeiter: capture full name until Projektnr or newline
+  const mSB=chunk.match(/Sachbearb\.?:\s*(.+?)(?=\s+Projektnr|\n|$)/);if(mSB)r.sachbearbeiter=mSB[1].trim().toUpperCase();
   // Projektnr
   const mPN=chunk.match(/Projektnr\.?:\s*(\S+)/);if(mPN)r.projektnr=mPN[1];
-  // Monteur: text between "Monteur:" and first token with digit (=street) or "Datum"
-  const mMoBlock=chunk.match(/Monteur:\s*(.*?)(?=\s+\S*\d|Datum)/);
-  if(mMoBlock){const mo=mMoBlock[1].trim();if(mo&&!/^\d/.test(mo)&&mo.length>2&&!/straße|gasse|platz|weg|str\.|g\.\s/i.test(mo))r.monteur=mo;}
+  // Monteur: match exactly 2 name-words (Vorname Nachname), reject known non-names
+  const mMoBlock=chunk.match(/Monteur:\s*([A-ZÄÖÜa-zäöüß][a-zäöüß]{2,}\s+[A-ZÄÖÜa-zäöüß][a-zäöüß]{2,})/);
+  if(mMoBlock&&!/^Datum|^Die\s|^Arbeit|^Markt|^Gemeinde/i.test(mMoBlock[1]))r.monteur=mMoBlock[1].trim();
   // Datum
   const mDt=chunk.match(/Datum\s+Zeit:\s*([\d.]+)/);if(mDt){const dp=mDt[1].split(".");if(dp.length===3){const yr=dp[2].length===2?(parseInt(dp[2])>50?"19":"20")+dp[2]:dp[2];r.aufgenommen=yr+"-"+dp[1].padStart(2,"0")+"-"+dp[0].padStart(2,"0");}}
   // Telefon
@@ -3356,9 +3357,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
       try{const parsed=await _parseOffaPdf(f);parsed._file=f.name;
         const existing=arbeitsscheine.find(a=>a.nummer===parsed.nummer);
         parsed._exists=!!existing;parsed._existId=existing?existing.id:null;
-        // Map sachbearbeiter: match parsed name against worker first/last names → use last name
-        if(parsed.sachbearbeiter){const sbUp=parsed.sachbearbeiter.toUpperCase();const found=MONT.find(m=>(m.n||"").toUpperCase()===sbUp||(m.vorname||"").toUpperCase()===sbUp);if(found)parsed.sachbearbeiter=found.n.toUpperCase();}
-        if(parsed.monteur){const mName=parsed.monteur.toLowerCase();const found=monteure.find(m=>(m.n||"").toLowerCase().includes(mName)||((m.vorname||"")+" "+(m.n||"")).toLowerCase().includes(mName));if(found)parsed._monteurId=found.id;else parsed._monteurId="";}else{parsed._monteurId="";}
+        // Map sachbearbeiter: try OFFA_SB_MAP first, then match against worker names
+        if(parsed.sachbearbeiter){const sbUp=parsed.sachbearbeiter.toUpperCase();const mapped=OFFA_SB_MAP[sbUp];if(mapped){parsed.sachbearbeiter=mapped;}else{const found=MONT.find(m=>(m.n||"").toUpperCase()===sbUp||(m.vorname||"").toUpperCase()===sbUp);if(found)parsed.sachbearbeiter=found.n.toUpperCase();}}
+        if(parsed.monteur){const mName=parsed.monteur.toLowerCase();const found=monteure.find(m=>{const n=(m.n||"").toLowerCase(),v=(m.vorname||"").toLowerCase();return mName.includes(n)||(v&&mName.includes(v));});if(found)parsed._monteurId=found.id;else parsed._monteurId="";}else{parsed._monteurId="";}
         results.push(parsed);
       }catch(ex){results.push({error:f.name+": "+ex.message});}
     }
@@ -3367,7 +3368,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const toImport=importPreview.filter(r=>!r.error&&r.nummer);let added=0,updated=0;
     toImport.forEach(r=>{
       const rawSB=r.sachbearbeiter||"";
-      const mappedSB=JUPROWA_SB_MAP[rawSB]||rawSB;
+      const mappedSB=OFFA_SB_MAP[rawSB]||JUPROWA_SB_MAP[rawSB]||rawSB;
       const as={nummer:r.nummer,kundNr:"",kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:mappedSB,monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
       if(r._exists&&r._existId){setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...as}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:as});updated++;}
       else{const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
