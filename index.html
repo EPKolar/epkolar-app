@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.30';
+  var SW_VER='epkolar-v3.5.31';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,13 +938,28 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.30-supabase";
+const APP_VERSION="3.5.31-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
   window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
   const d=document.getElementById('ep-error-display');
   if(d) d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0000;color:#ff6666;padding:12px;font-size:11px;font-family:monospace;max-height:40vh;overflow:auto;border-bottom:2px solid #ff0000"><b>EP Kolar v'+APP_VERSION+' — Fehler:</b><br>'+String(msg)+'<br>Zeile: '+line+'<br>'+(_optionalChain([err, 'optionalAccess', _9 => _9.stack])||'')+'<br><button onclick="this.parentElement.parentElement.remove()" style="margin-top:6px;padding:4px 12px;background:#ff4444;color:#fff;border:none;border-radius:4px;cursor:pointer">Schließen</button></div>';
+};
+
+// ═══════════ AUTO CACHE CLEAR ═══════════
+// Clears all SW caches + unregisters SW + reloads. Works across all browsers.
+window._forceCacheClear=async function(silent){
+  try{
+    const regs=await navigator.serviceWorker.getRegistrations();
+    for(const r of regs)await r.unregister();
+  }catch(_){}
+  try{
+    const keys=await caches.keys();
+    for(const k of keys)await caches.delete(k);
+  }catch(_){}
+  if(!silent&&window.__toast)window.__toast("🧹 Cache gelöscht — App wird neu geladen…");
+  setTimeout(()=>{window.location.href=window.location.pathname+"?cc="+Date.now();},500);
 };
 
 // ═══════════ FILE OPEN HELPER (handles data: URLs blocked by Chrome) ═══════════
@@ -1120,7 +1135,7 @@ window.__juprowaUnmapped={}; // {code:{text,count}} — for Admin UI
 function _juprowaResolveWorker(code,text,workers){
   if(!code)return'';
   if(JUPROWA_WORKER_MAP[code])return JUPROWA_WORKER_MAP[code];
-  if(_juprowaDynMap[code])return _juprowaDynMap[code];
+  if(_juprowaDynMap[code])return _juprowaDynMap[code]==='__ausgeschieden'?'':_juprowaDynMap[code];
   // Auto-match: compare AK_MONTEUR_TEXT parts against worker names
   if(text&&!/^M#\s/.test(text)&&workers&&workers.length){
     const parts=text.trim().split(/\s+/).filter(p=>p.length>=3);
@@ -2425,7 +2440,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   },[]);
   const doInstall=async()=>{try{if(!installPrompt)return;installPrompt.prompt();const r=await installPrompt.userChoice;if(r.outcome==="accepted")_optionalChain([window, 'access', _25 => _25.__toast, 'optionalCall', _26 => _26("✅ App installiert!")]);setShowInstallBanner(false);setInstallPrompt(null);}catch(e){console.warn("Install:",e);}};
   const dismissInstall=()=>{setShowInstallBanner(false);localStorage.setItem("epk_install_dismissed","1");};
-  const doSwUpdate=()=>{if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});window.location.reload();};
+  const doSwUpdate=async()=>{if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});await window._forceCacheClear(true);};
   const ww=useW();
   const isMob=ww<600;
 
@@ -3687,7 +3702,7 @@ function sharePdf(){
       )
 
       /* ═══ Unmapped Juprowa Monteur-Codes (Admin only) ═══ */
-      , isAdmin&&(()=>{const um=Object.entries(window.__juprowaUnmapped||{}).filter(([c])=>!JUPROWA_WORKER_MAP[c]&&!_juprowaDynMap[c]);return um.length?React.createElement('div',{style:{margin:"8px 0",padding:"8px 12px",background:"rgba(251,146,60,.12)",border:"1px solid rgba(251,146,60,.3)",borderRadius:8,fontSize:12}},React.createElement('span',{style:{fontWeight:700,color:"#fb923c"}},"⚠ "+um.length+" unbekannte Monteur-Codes: "),um.map(([code,info])=>React.createElement('span',{key:code,style:{display:"inline-flex",alignItems:"center",gap:4,margin:"2px 4px",padding:"2px 6px",background:V.cd,borderRadius:4}},React.createElement('b',null,code),React.createElement('span',{style:{color:V.dm}},info.text||"?"),React.createElement('select',{style:{fontSize:10,padding:"1px 2px",background:"transparent",border:"1px solid "+V.bd,borderRadius:3,color:V.tx,colorScheme:_dark?"dark":"light"},defaultValue:"",onChange:e=>{if(e.target.value){_juprowaSetWorkerMap(code,e.target.value);delete window.__juprowaUnmapped[code];_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ "+code+" → "+e.target.value+" gespeichert")]);}}},React.createElement('option',{value:""},"zuordnen…"),monteure.map(m=>React.createElement('option',{key:m.id,value:m.id},m.n)))))):null;})()
+      , isAdmin&&(()=>{const um=Object.entries(window.__juprowaUnmapped||{}).filter(([c])=>!JUPROWA_WORKER_MAP[c]&&!_juprowaDynMap[c]);return um.length?React.createElement('div',{style:{margin:"8px 0",padding:"8px 12px",background:"rgba(251,146,60,.12)",border:"1px solid rgba(251,146,60,.3)",borderRadius:8,fontSize:12}},React.createElement('span',{style:{fontWeight:700,color:"#fb923c"}},"⚠ "+um.length+" unbekannte Monteur-Codes: "),um.map(([code,info])=>React.createElement('span',{key:code,style:{display:"inline-flex",alignItems:"center",gap:4,margin:"2px 4px",padding:"2px 6px",background:V.cd,borderRadius:4}},React.createElement('b',null,code),React.createElement('span',{style:{color:V.dm}},info.text||"?"),React.createElement('select',{style:{fontSize:10,padding:"1px 2px",background:"transparent",border:"1px solid "+V.bd,borderRadius:3,color:V.tx,colorScheme:_dark?"dark":"light"},defaultValue:"",onChange:e=>{if(e.target.value){_juprowaSetWorkerMap(code,e.target.value);delete window.__juprowaUnmapped[code];_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ "+code+" → "+e.target.value+" gespeichert")]);}}},React.createElement('option',{value:""},"zuordnen…"),React.createElement('option',{value:"__ausgeschieden",style:{color:"#ef4444"}},"❌ ausgeschieden"),monteure.map(m=>React.createElement('option',{key:m.id,value:m.id},m.n)))))):null;})()
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
       , showVoice&&(React.createElement(React.Fragment, null
@@ -4949,6 +4964,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
             , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:11}}, "Version"), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "v", APP_VERSION))
             , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:11}}, "Backend" ), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "Supabase"))
             , React.createElement('div', { style: {padding:10,borderRadius:6,background:V.bg}}, React.createElement('div', { style: {color:V.dm,fontSize:11}}, "Hosting" ), React.createElement('div', { style: {fontWeight:700,fontFamily:mono}}, "GitHub Pages"))
+          )
+          , React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}
+            , React.createElement('button', { onClick: ()=>window._forceCacheClear(), style: {padding:"8px 14px",borderRadius:6,border:"none",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",cursor:"pointer",fontWeight:600,fontSize:12}}, "🧹 Cache löschen & neu laden")
           )
         )
       ))
