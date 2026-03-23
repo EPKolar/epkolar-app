@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.27';
+  var SW_VER='epkolar-v3.5.28';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.27-supabase";
+const APP_VERSION="3.5.28-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1103,7 +1103,7 @@ const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},n
 const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
 const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBER'};
-const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'ZAUNER','SUSANNE':'ZAUNER','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID'};
+const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'','SUSANNE':'','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
 
@@ -1169,20 +1169,18 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
   if(_juprowaSyncing)return{error:"Sync läuft bereits"};
   _juprowaSyncing=true;
   try{
-    // 1. Fetch Juprowa data via RPC
-    const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};
-    const res=await fetch(SB_REST+"/rpc/juprowa_fetch_worksheets",{method:"POST",headers:rpcH,body:"{}"});
+    // 1. Fetch Juprowa data via RPC (with _authRetry for auto token refresh)
+    const res=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_fetch_worksheets",{method:"POST",headers:_sbWH(),body:"{}"}));
     if(!res.ok){_juprowaSyncing=false;return{error:"RPC-Fehler: "+res.status};}
     const data=await res.json();
     if(data&&data.error){_juprowaSyncing=false;return data;}
     if(!Array.isArray(data)){_juprowaSyncing=false;return{error:"Unerwartetes Format"};}
 
-    // 2. Fetch FRESH arbeitsscheine from DB (avoid stale closure!)
+    // 2. Fetch FRESH arbeitsscheine from DB via _sbGet (has _authRetry for auto token refresh)
     let dbScheine=[];
     try{
-      const dbH=_authToken?_sbRH():{apikey:SUPABASE_KEY};
-      const dbRes=await fetch(SB_REST+"/arbeitsscheine?select=*&limit=5000",{headers:dbH});
-      if(dbRes.ok)dbScheine=(await dbRes.json()).map(_mapArbeitsschein);
+      const dbRaw=await _sbGet("arbeitsscheine");
+      if(Array.isArray(dbRaw))dbScheine=dbRaw.map(_mapArbeitsschein);
     }catch(e){}
 
     let added=0,updated=0,skipped=0;
@@ -1229,9 +1227,8 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
 
     // 3. Reload ALL arbeitsscheine from DB into React state (single source of truth)
     try{
-      const dbH2=_authToken?_sbRH():{apikey:SUPABASE_KEY};
-      const freshRes=await fetch(SB_REST+"/arbeitsscheine?select=*&limit=5000",{headers:dbH2});
-      if(freshRes.ok){const fresh=(await freshRes.json()).map(_mapArbeitsschein);setArbeitsscheine(fresh);}
+      const freshRaw=await _sbGet("arbeitsscheine");
+      if(Array.isArray(freshRaw)&&freshRaw.length){const fresh=freshRaw.map(_mapArbeitsschein);setArbeitsscheine(fresh);}
     }catch(e){}
 
     const result={total:data.length,added,updated,skipped};
@@ -3358,7 +3355,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
         const existing=arbeitsscheine.find(a=>a.nummer===parsed.nummer);
         parsed._exists=!!existing;parsed._existId=existing?existing.id:null;
         // Map sachbearbeiter: try OFFA_SB_MAP first, then match against worker names
-        if(parsed.sachbearbeiter){const sbUp=parsed.sachbearbeiter.toUpperCase();const mapped=OFFA_SB_MAP[sbUp];if(mapped){parsed.sachbearbeiter=mapped;}else{const found=MONT.find(m=>(m.n||"").toUpperCase()===sbUp||(m.vorname||"").toUpperCase()===sbUp);if(found)parsed.sachbearbeiter=found.n.toUpperCase();}}
+        if(parsed.sachbearbeiter){const sbUp=parsed.sachbearbeiter.toUpperCase();if(sbUp in OFFA_SB_MAP){parsed.sachbearbeiter=OFFA_SB_MAP[sbUp];}else{const found=MONT.find(m=>(m.n||"").toUpperCase()===sbUp||(m.vorname||"").toUpperCase()===sbUp);if(found)parsed.sachbearbeiter=found.n.toUpperCase();}}
         if(parsed.monteur){const mName=parsed.monteur.toLowerCase();const found=monteure.find(m=>{const n=(m.n||"").toLowerCase(),v=(m.vorname||"").toLowerCase();return mName.includes(n)||(v&&mName.includes(v));});if(found)parsed._monteurId=found.id;else parsed._monteurId="";}else{parsed._monteurId="";}
         results.push(parsed);
       }catch(ex){results.push({error:f.name+": "+ex.message});}
@@ -3368,7 +3365,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const toImport=importPreview.filter(r=>!r.error&&r.nummer);let added=0,updated=0;
     toImport.forEach(r=>{
       const rawSB=r.sachbearbeiter||"";
-      const mappedSB=OFFA_SB_MAP[rawSB]||JUPROWA_SB_MAP[rawSB]||rawSB;
+      const mappedSB=rawSB in OFFA_SB_MAP?OFFA_SB_MAP[rawSB]:(JUPROWA_SB_MAP[rawSB]||rawSB);
       const as={nummer:r.nummer,kundNr:"",kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:mappedSB,monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
       if(r._exists&&r._existId){setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...as}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:as});updated++;}
       else{const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
