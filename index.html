@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.31';
+  var SW_VER='epkolar-v3.5.32';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.31-supabase";
+const APP_VERSION="3.5.32-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1121,9 +1121,12 @@ const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBE
 const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'','SUSANNE':'','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID','LUCIA':'LINDHUBER','LUCIA L':'LINDHUBER'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
+function _getDefaultSB(){return localStorage.getItem('epkolar_default_sb')||'';}
+function _setDefaultSB(v){if(v)localStorage.setItem('epkolar_default_sb',v);else localStorage.removeItem('epkolar_default_sb');}
 
 // ═══ JUPROWA CLOUD SYNC ═══
 const JUPROWA_WORKER_MAP={'P011':'w1','P008':'w4','P005':'w5','P024':'w2','P022':'w3'};
+const JUPROWA_RETIRED=['P002','P006']; // ausgeschiedene Monteure — kein Worker-Match
 const JUPROWA_STATUS_MAP={'0':'aufgenommen','1':'freigegeben','2':'aufgeschoben','3':'in_bearbeitung','4':'freigegeben','5':'erledigt','10':'abgerechnet','11':'bar_bezahlt','15':'bar_bezahlt','20':'storniert'};
 const JUPROWA_PRIO_MAP={'0':'keine','1':'hoch'};
 let _juprowaSyncTimer=null;
@@ -1134,6 +1137,7 @@ try{_juprowaDynMap=JSON.parse(localStorage.getItem('epkolar_juprowa_wmap')||'{}'
 window.__juprowaUnmapped={}; // {code:{text,count}} — for Admin UI
 function _juprowaResolveWorker(code,text,workers){
   if(!code)return'';
+  if(JUPROWA_RETIRED.includes(code))return''; // ausgeschieden
   if(JUPROWA_WORKER_MAP[code])return JUPROWA_WORKER_MAP[code];
   if(_juprowaDynMap[code])return _juprowaDynMap[code]==='__ausgeschieden'?'':_juprowaDynMap[code];
   // Auto-match: compare AK_MONTEUR_TEXT parts against worker names
@@ -1268,6 +1272,7 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
         if(hasFieldChanges){updated++;}else{skipped++;}
       }else{
         const newAs={...mapped,id:uid()};
+        if(!newAs.sachbearbeiter){const dsb=_getDefaultSB();if(dsb)newAs.sachbearbeiter=dsb;}
         try{await _sbPost("arbeitsscheine",_mapBody(newAs));}catch(e){}
         newItems.push(newAs);
         added++;
@@ -4437,6 +4442,10 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const [nf,setNf]=_react.useState.call(void 0, {username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});
   const [adminTab,setAdminTab]=_react.useState.call(void 0, "benutzer");
   const isMob=ww<600;
+  const [defaultSB,setDefaultSBState]=_react.useState.call(void 0, _getDefaultSB());
+  const [userSearch,setUserSearch]=_react.useState.call(void 0, "");
+  const [userSortBy,setUserSortBy]=_react.useState.call(void 0, "role");
+  const [userFilterRole,setUserFilterRole]=_react.useState.call(void 0, "alle");
 
   // ═══ ACTIVITY STATE ═══
   const [stats,setStats]=_react.useState.call(void 0, null);
@@ -4570,8 +4579,27 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
 
         , React.createElement('div', { className: "user-grid"}
           , React.createElement('div', {}
-            , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Benutzer (" , users.length, ")")
-            , users.map(u=>{
+            /* Search + Filter + Sort */
+            , React.createElement('div', { style: {marginBottom:10}}
+              , React.createElement('input', { value: userSearch, onChange: e=>setUserSearch(e.target.value), placeholder: "🔍 Benutzer suchen…", style: {...II(),marginBottom:8,fontSize:13}})
+              , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:8}}
+                , ["alle",...Object.keys(ROLES)].map(r=>React.createElement('button', { key: r, onClick: ()=>setUserFilterRole(r), style: {padding:"4px 10px",borderRadius:20,border:"2px solid "+(userFilterRole===r?(r==="alle"?V.ac:(_optionalChain([ROLES[r],'optionalAccess',_ufr=>_ufr.c])||V.ac)):"transparent"),background:userFilterRole===r?(r==="alle"?V.ac+"15":(_optionalChain([ROLES[r],'optionalAccess',_ufr2=>_ufr2.c])||V.ac)+"15"):V.bg,color:userFilterRole===r?(r==="alle"?V.ac:(_optionalChain([ROLES[r],'optionalAccess',_ufr3=>_ufr3.c])||V.ac)):V.dm,fontSize:11,fontWeight:userFilterRole===r?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, r==="alle"?"Alle":(_optionalChain([ROLES[r],'optionalAccess',_ufr4=>_ufr4.i])||"")+" "+(_optionalChain([ROLES[r],'optionalAccess',_ufr5=>_ufr5.l])||r)))
+                , React.createElement('select', { value: userSortBy, onChange: e=>setUserSortBy(e.target.value), style: {marginLeft:"auto",fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid "+V.bd,background:V.bg,color:V.tx,fontFamily:"inherit",colorScheme:_dark?"dark":"light"}}, React.createElement('option', { value: "role"}, "Sort: Rolle"), React.createElement('option', { value: "name"}, "Sort: Name"), React.createElement('option', { value: "login"}, "Sort: Letzter Login"))
+              )
+            )
+            , (()=>{
+              const ROLE_ORDER=Object.keys(ROLES);
+              let filtered=users.filter(u=>{
+                if(userFilterRole!=="alle"&&u.role!==userFilterRole)return false;
+                if(userSearch){const q=userSearch.toLowerCase();if(!(u.name||"").toLowerCase().includes(q)&&!(u.username||"").toLowerCase().includes(q)&&!(u.email||"").toLowerCase().includes(q))return false;}
+                return true;
+              });
+              filtered.sort((a,b)=>{
+                if(userSortBy==="name")return(a.name||"").localeCompare(b.name||"");
+                if(userSortBy==="login")return(b.lastLogin||"").localeCompare(a.lastLogin||"");
+                return ROLE_ORDER.indexOf(a.role)-ROLE_ORDER.indexOf(b.role)||((a.name||"").localeCompare(b.name||""));
+              });
+              return [React.createElement('div', { key: "_hdr", style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Benutzer (", filtered.length, filtered.length!==users.length?" von "+users.length:"", ")")].concat(filtered.map(u=>{
               const rl2=ROLES[u.role];const isSelf=u.id===curUser.id;
               return (
                 React.createElement('div', { key: u.id, onClick: ()=>setSel(u.id), style: {...CC(),padding:12,marginBottom:6,cursor:"pointer",borderColor:sel===u.id?V.ac:u.locked?"#ef4444":V.bd,opacity:u.active?1:.5,transition:"border-color .15s"}}
@@ -4591,7 +4619,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                   )
                 )
               );
-            })
+            }));})()
           )
           , React.createElement('div', {}
             , selU ? (
@@ -4657,18 +4685,19 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 12px"}}, "Letzte 50 Anmeldungen und Fehlversuche"    )
           , logins.length===0&&!loadingStats?React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm,fontSize:12}}, "Noch keine Login-Daten. Daten werden beim nächsten Server-Login erfasst."        ):(
           React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:500}}
-            , React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Zeit"), React.createElement('th', { style: thS()}, "Benutzer"), React.createElement('th', { style: thS()}, "Status"), React.createElement('th', { style: thS()}, "IP"), React.createElement('th', { style: thS()}, "Details")))
+            , React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Zeit"), React.createElement('th', { style: thS()}, "Benutzer"), React.createElement('th', { style: thS()}, "Status"), React.createElement('th', { style: thS()}, "Auth"), React.createElement('th', { style: thS()}, "Gerät")))
             , React.createElement('tbody', {}, logins.slice(0,50).map((l,i)=>{
               const isFail=l.action==="login_failed";
-              const det=typeof l.details==="string"?(()=>{try{return JSON.parse(l.details||"{}");}catch(e){return {};}})():l.details||{};
+              const det=typeof l.details==="string"?(()=>{try{return JSON.parse(l.details||"{}");}catch(e){return {_raw:l.details||""};}})():l.details||{};
+              const _parseUA=(s)=>{if(!s)return"";let b="",os="";if(/Edg[e\/]/.test(s))b="Edge";else if(/OPR|Opera/.test(s))b="Opera";else if(/Chrome\//.test(s))b="Chrome";else if(/Safari\//.test(s)&&!/Chrome/.test(s))b="Safari";else if(/Firefox\//.test(s))b="Firefox";else b="";if(/Windows/.test(s))os="Windows";else if(/Macintosh|Mac OS/.test(s))os="macOS";else if(/Android/.test(s))os="Android";else if(/iPhone|iPad/.test(s))os="iOS";else if(/Linux/.test(s))os="Linux";return(b+(os?" · "+os:"")).trim();};
               const dt=new Date(l.created_at);
               const uName=(()=>{const u=users.find(x=>x.id===l.user_id||x.username===l.user_id);return u?(u.name||u.username||l.user_id):l.user_id||"?";})();
               return (React.createElement('tr', { key: l.id||i, style: {background:isFail?"rgba(239,68,68,.06)":"transparent"}}
                 , React.createElement('td', { style: {...tdSt(),fontSize:11,whiteSpace:"nowrap"}}, dt.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit"}), " " , dt.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit",second:"2-digit"}))
                 , React.createElement('td', { style: {...tdSt(),fontWeight:600}}, uName)
                 , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:700,background:isFail?"#fecaca":"#dcfce7",color:isFail?"#dc2626":"#16a34a"}}, isFail?"❌ Fehlgeschlagen":"✅ Erfolgreich"))
-                , React.createElement('td', { style: {...tdSt(),fontSize:12,fontFamily:mono,color:V.dm}}, l.ip||"—")
-                , React.createElement('td', { style: {...tdSt(),fontSize:12,color:V.dm}}, det.reason==="wrong_password"?"Falsches Passwort":det.reason==="locked"?"Gesperrt":det.reason==="deactivated"?"Deaktiviert":det.reason==="not_found"?"User nicht gefunden":"—")
+                , React.createElement('td', { style: {...tdSt(),fontSize:11,fontFamily:mono,color:V.dm}}, (()=>{const raw=det._raw||"";const m=raw.split(/\s+/)[0]||"";return m?React.createElement('span',{style:{padding:"2px 6px",borderRadius:3,fontSize:10,fontWeight:600,background:m.toLowerCase()==="gotrue"?"rgba(34,197,94,.15)":"rgba(251,146,60,.15)",color:m.toLowerCase()==="gotrue"?"#16a34a":"#ea580c"}},m.toUpperCase()):"—";})())
+                , React.createElement('td', { style: {...tdSt(),fontSize:11,color:V.dm}}, (()=>{if(isFail){return det.reason==="wrong_password"?"Falsches Passwort":det.reason==="locked"?"Gesperrt":det.reason==="deactivated"?"Deaktiviert":det.reason==="not_found"?"User nicht gefunden":det.reason||"—";}const raw=det._raw||"";const ua=raw.replace(/^(gotrue|bcrypt)\s*/i,"");return _parseUA(ua)||"—";})())
               ));
             }))
           )))
@@ -4935,6 +4964,17 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               ));
             }))
           ))
+        )
+
+        /* Arbeitsscheine-Einstellungen */
+        , React.createElement('div', { style: {...CC(),marginTop:14}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:4}}, "📋 Arbeitsscheine" )
+          , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 14px"}}, "Einstellungen für neue Arbeitsscheine aus Juprowa Sync" )
+          , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}
+            , React.createElement('label', { style: {fontSize:13,fontWeight:600}}, "Standard-Sachbearbeiter:")
+            , React.createElement('select', { value: defaultSB, onChange: e=>{const v=e.target.value;_setDefaultSB(v);setDefaultSBState(v);_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2(v?"✅ Standard-SB: "+v:"Standard-SB deaktiviert")]);}, style: {...II(),width:"auto",minWidth:160}}, React.createElement('option', { value: ""}, "— keiner (leer) —"), SACHBEARBEITER.map(s=>React.createElement('option', { key: s, value: s}, s)))
+            , defaultSB && React.createElement('span', { style: {fontSize:11,color:"#22c55e",fontWeight:600}}, "✓ Neue Juprowa-Scheine → "+defaultSB)
+          )
         )
 
         /* Sync-Konfiguration */
