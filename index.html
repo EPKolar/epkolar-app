@@ -1371,7 +1371,7 @@ function _juprowaReversMap(schein){
 async function _juprowaPush(scheinId){
   // 1. Load fresh from DB
   let rows;
-  try{rows=await _sbGet('arbeitsscheine?id=eq.'+scheinId);}catch(e){return{error:'DB-Fehler: '+e.message};}
+  try{rows=await _sbGet('arbeitsscheine','id=eq.'+scheinId);}catch(e){return{error:'DB-Fehler: '+e.message};}
   if(!rows||!rows.length)return{error:'Schein nicht gefunden'};
   const schein=_mapArbeitsschein(rows[0]);
   if(!schein.juprowa_id)return{error:'Kein Juprowa-Schein (juprowa_id fehlt)'};
@@ -1413,7 +1413,7 @@ async function _juprowaPush(scheinId){
 // Push all pending Arbeitsscheine
 async function _juprowaPushAll(){
   let rows;
-  try{rows=await _sbGet('arbeitsscheine?push_pending=eq.true&juprowa_id=not.is.null');}catch(e){return{error:e.message};}
+  try{rows=await _sbGet('arbeitsscheine','push_pending=eq.true&juprowa_id=not.is.null');}catch(e){return{error:e.message};}
   if(!rows||!rows.length)return{ok:true,count:0};
   let ok=0,fail=0;
   for(const row of rows){
@@ -3518,13 +3518,14 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const openNew=()=>{setForm(defAs());setEditId(null);setSub("form");};
   const openEdit=a=>{setForm({...a});setEditId(a.id);setSub("form");};
   const saveAs=()=>{if(!form.kundName&&!form.arbeitsanweisungen) return;
-    if(editId){setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...form,bearbeitetVon:curUser.name.split(" ").pop().toUpperCase()}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",form.nummer+" — "+form.kundName+" ("+curUser.name+")")]);}
+    const _isPush=editId&&form.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>form[k]!==undefined);
+    if(editId){setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...form,bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",form.nummer+" — "+form.kundName+" ("+curUser.name+")")]);}
     else{setArbeitsscheine(prev=>[{...form,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",form.nummer+" — "+(form.kundName||_optionalChain([form, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+curUser.name+")")]);}
     SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:form});if(editId&&form.juprowa_id)_juprowaMarkEdited(editId,form);_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(editId?"✅ Schein aktualisiert":"✅ Schein angelegt")]);setSub("liste");setEditId(null);};
   const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert"}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{scheinstatus:"storniert"}});const a=arbeitsscheine.find(x=>x.id===id);if(a)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",a.nummer+" — "+a.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
-  const verschieben=(id,d)=>{if(!d)return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{termin_bestaetigt:d}});const s=arbeitsscheine.find(x=>x.id===id);if(s&&s.juprowa_id)_juprowaMarkEdited(id,{terminBestaetigt:d});};
-  const updAs=(id,updates)=>{setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:updates});const s=arbeitsscheine.find(x=>x.id===id);if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);};
+  const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});};
+  const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);};
 
   const exportOffa=(statusFilter)=>{setShowExportPicker(false);if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(()=>{});}
     const hdrs=["Nr","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
