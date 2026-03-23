@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.28';
+  var SW_VER='epkolar-v3.5.30';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -938,7 +938,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.28-supabase";
+const APP_VERSION="3.5.30-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1102,23 +1102,53 @@ const AS_GRP_FERTIG=["erledigt","abgerechnet","bar_bezahlt"];
 const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},dringend:{l:"dringend",c:"#ef4444"}};
 const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
-const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBER'};
-const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'','SUSANNE':'','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID'};
+const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBER','LUCIA':'LINDHUBER'};
+const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'','SUSANNE':'','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID','LUCIA':'LINDHUBER','LUCIA L':'LINDHUBER'};
 const AS_VERRECH={verrechenbar:{l:"verrechenbar",c:"#22c55e"},nicht_verrechenbar:{l:"nicht verrechenbar",c:"#ef4444"},garantie:{l:"Garantiefall",c:"#8b5cf6"}};
 const SACHBEARBEITER=["SCHOBER","LINDHUBER","GÜNTHER","SCHMID"];
 
 // ═══ JUPROWA CLOUD SYNC ═══
-const JUPROWA_WORKER_MAP={'P011':'w1','P008':'w4','P005':'w5'};
+const JUPROWA_WORKER_MAP={'P011':'w1','P008':'w4','P005':'w5','P024':'w2','P022':'w3'};
 const JUPROWA_STATUS_MAP={'0':'aufgenommen','1':'freigegeben','2':'aufgeschoben','3':'in_bearbeitung','4':'freigegeben','5':'erledigt','10':'abgerechnet','11':'bar_bezahlt','15':'bar_bezahlt','20':'storniert'};
 const JUPROWA_PRIO_MAP={'0':'keine','1':'hoch'};
 let _juprowaSyncTimer=null;
 let _juprowaSyncing=false;
+// Dynamic Monteur-Code→Worker-ID map (auto-matched + manually assigned, persisted in localStorage)
+let _juprowaDynMap={};
+try{_juprowaDynMap=JSON.parse(localStorage.getItem('epkolar_juprowa_wmap')||'{}');}catch(_){}
+window.__juprowaUnmapped={}; // {code:{text,count}} — for Admin UI
+function _juprowaResolveWorker(code,text,workers){
+  if(!code)return'';
+  if(JUPROWA_WORKER_MAP[code])return JUPROWA_WORKER_MAP[code];
+  if(_juprowaDynMap[code])return _juprowaDynMap[code];
+  // Auto-match: compare AK_MONTEUR_TEXT parts against worker names
+  if(text&&!/^M#\s/.test(text)&&workers&&workers.length){
+    const parts=text.trim().split(/\s+/).filter(p=>p.length>=3);
+    for(const w of workers){
+      const wN=(w.name||w.n||'').toUpperCase();
+      const wV=(w.vorname||'').toUpperCase();
+      if(parts.some(p=>{const pu=p.toUpperCase();return wN===pu||wV===pu||wN.includes(pu);})){
+        _juprowaDynMap[code]=w.id;
+        try{localStorage.setItem('epkolar_juprowa_wmap',JSON.stringify(_juprowaDynMap));}catch(_){}
+        return w.id;
+      }
+    }
+  }
+  // Track unmapped for Admin UI
+  if(!window.__juprowaUnmapped[code])window.__juprowaUnmapped[code]={text:text||'',count:0};
+  window.__juprowaUnmapped[code].count++;
+  return'';
+}
+function _juprowaSetWorkerMap(code,workerId){
+  if(workerId){_juprowaDynMap[code]=workerId;}else{delete _juprowaDynMap[code];}
+  try{localStorage.setItem('epkolar_juprowa_wmap',JSON.stringify(_juprowaDynMap));}catch(_){}
+}
 
-function _juprowaMapWorksheet(jws){
+function _juprowaMapWorksheet(jws,workers){
   const nr=jws.AK_SCHEINNR||"";
   const stat=JUPROWA_STATUS_MAP[String(jws.AK_AUFSTATUS)]||"aufgenommen";
   const montCode=jws.AK_MONTEUR||"";
-  const montId=JUPROWA_WORKER_MAP[montCode]||"";
+  const montId=_juprowaResolveWorker(montCode,jws.AK_MONTEUR_TEXT||"",workers||[]);
   const artCode=JUPROWA_ART_MAP[String(jws.AK_AUFART)]||"kein";
   const wunDat=(jws.AK_WUNDAT||"").split(" ")[0];
   const wunZeit=(jws.AK_WUNZEIT||"").replace(/:\d\d$/,"");
@@ -1186,8 +1216,12 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     let added=0,updated=0,skipped=0;
     const now=new Date().toISOString();
     const newItems=[];
+    // Fetch workers for auto-matching Monteur codes
+    let _syncWorkers=[];
+    try{_syncWorkers=await _sbGet("workers");}catch(e){}
+    window.__juprowaUnmapped={};
     for(const jws of data){
-      const mapped=_juprowaMapWorksheet(jws);
+      const mapped=_juprowaMapWorksheet(jws,_syncWorkers);
       if(!mapped.nummer){skipped++;continue;}
       mapped.nummer=mapped.nummer.toUpperCase();
       const existing=dbScheine.find(a=>(a.nummer||"").toUpperCase()===mapped.nummer);
@@ -3651,6 +3685,9 @@ function sharePdf(){
         , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "📋 Arbeitsscheine / Störungen"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Scheine anlegen, Status setzen, OFFA-Excel exportieren. Schnellerfassung per \uD83C\uDFA4 Sprache." ))
         , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}, canDo("as_create",curUser)&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neuer Schein"  ), canDo("as_create",curUser)&&SpeechRec&&React.createElement('button', { onClick: voiceStart, style: {...bpS,background:"linear-gradient(135deg,#f97316,#ea580c)"}}, "🎤 Schnellerfassung" ), React.createElement('div', { style: {position:"relative",display:"inline-block"}}, React.createElement('button', { onClick: ()=>setShowExportPicker(p=>!p), style: {...xBtn("xls")}}, "📊 OFFA Excel"  ), showExportPicker&&React.createElement('div', { style: {position:"absolute",top:"100%",left:0,zIndex:999,background:V.bg,border:"1px solid "+V.bd,borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.3)",padding:6,minWidth:180,marginTop:4}}, [["offen_bearb","📋 Offen (alle)"],["aufgenommen","📋 Aufgenommen"],["freigegeben","✅ Freigegeben"],["in_bearbeitung","🔧 In Bearbeitung"],["aufgeschoben","⏸️ Aufgeschoben"],["erledigt","🔵 Erledigt"],["abgerechnet","💰 Abgerechnet"],["bar_bezahlt","💵 Bar bezahlt"],["storniert","❌ Storniert"],["alle","📋 Alle"]].map(([k,l])=>React.createElement('button',{key:k,onClick:()=>exportOffa(k),style:{display:"block",width:"100%",textAlign:"left",padding:"6px 10px",border:"none",background:"transparent",color:V.tx,fontSize:13,borderRadius:4,cursor:"pointer"}},l)))), isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([importRef, 'access', _161 => _161.current, 'optionalAccess', _162 => _162.click, 'call', _163 => _163()]), style: beS}, "📤 OFFA Import"  ), React.createElement('input', { ref: importRef, type: "file", accept: ".pdf", multiple: true, style: {display:"none"}, onChange: importOffa} ), canSync&&React.createElement('button', { onClick: doJuprowaFullSync, disabled: jupSyncing, style: {...bpS,background:jupSyncing?"#6b7280":"linear-gradient(135deg,#06b6d4,#0891b2)",opacity:jupSyncing?.7:1}}, jupSyncing?"⏳ Sync...":"🔄 Juprowa Sync"), canSync&&lastSync&&React.createElement('span', {style:{fontSize:10,color:V.dm,whiteSpace:"nowrap"}},"⏱ "+lastSync))
       )
+
+      /* ═══ Unmapped Juprowa Monteur-Codes (Admin only) ═══ */
+      , isAdmin&&(()=>{const um=Object.entries(window.__juprowaUnmapped||{}).filter(([c])=>!JUPROWA_WORKER_MAP[c]&&!_juprowaDynMap[c]);return um.length?React.createElement('div',{style:{margin:"8px 0",padding:"8px 12px",background:"rgba(251,146,60,.12)",border:"1px solid rgba(251,146,60,.3)",borderRadius:8,fontSize:12}},React.createElement('span',{style:{fontWeight:700,color:"#fb923c"}},"⚠ "+um.length+" unbekannte Monteur-Codes: "),um.map(([code,info])=>React.createElement('span',{key:code,style:{display:"inline-flex",alignItems:"center",gap:4,margin:"2px 4px",padding:"2px 6px",background:V.cd,borderRadius:4}},React.createElement('b',null,code),React.createElement('span',{style:{color:V.dm}},info.text||"?"),React.createElement('select',{style:{fontSize:10,padding:"1px 2px",background:"transparent",border:"1px solid "+V.bd,borderRadius:3,color:V.tx,colorScheme:_dark?"dark":"light"},defaultValue:"",onChange:e=>{if(e.target.value){_juprowaSetWorkerMap(code,e.target.value);delete window.__juprowaUnmapped[code];_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ "+code+" → "+e.target.value+" gespeichert")]);}}},React.createElement('option',{value:""},"zuordnen…"),monteure.map(m=>React.createElement('option',{key:m.id,value:m.id},m.n)))))):null;})()
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
       , showVoice&&(React.createElement(React.Fragment, null
