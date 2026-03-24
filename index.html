@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.37';
+  var SW_VER='epkolar-v3.5.38';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -401,11 +401,13 @@ function _mapBody(obj){
     artikelNr:'artikel_nr',preisEinheit:'preis_einheit',bautagebuchId:'bautagebuch_id',bestelltAm:'bestellt_am',geliefertAm:'geliefert_am',bestelltVon:'bestellt_von',kommentarLager:'kommentar_lager',
     kat:'kategorie',anschaffung:'kaufdatum',letzteKalib:'letzte_kalib',naechsteKalib:'naechste_kalib',zustandBewertung:'zustand_bewertung'};
   const out={};
+  // Fields stored as text that contain JSON (must be pre-stringified)
+  const TEXT_JSON_FIELDS=['perms_override','tank_log','km_log','tags'];
   for(const[k,v]of Object.entries(obj)){
     if(k==='password')continue;
     const sk=RENAME[k]||_toSnake(k);
-    out[sk]=(v!==null&&typeof v==='object'&&!Array.isArray(v))?JSON.stringify(v):
-            (Array.isArray(v)?JSON.stringify(v):v);
+    // Pre-stringify only for text columns storing JSON; jsonb columns get native objects/arrays
+    out[sk]=(v!==null&&typeof v==='object'&&TEXT_JSON_FIELDS.includes(sk))?JSON.stringify(v):v;
   }
   return out;
 }
@@ -941,7 +943,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.37-supabase";
+const APP_VERSION="3.5.38-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1324,9 +1326,11 @@ const JUPROWA_PUSH_FIELDS={
   terminBestaetigt:'AK_TERMIN',
   dauer:'AK_DAUER',
   prioritaet:'AK_PRIOR',
-  arbeitsanweisungen:'AK_DURCHZUFUEHREN'
+  arbeitsanweisungen:'AK_DURCHZUFUEHREN',
+  scheinstatus:'AK_AUFSTATUS'
 };
 const JUPROWA_PRIO_REV={keine:'0',aufgeschoben:'0',niedig:'0',normal:'0',hoch:'1',sehr_hoch:'1',fixtermin:'1'};
+const JUPROWA_STATUS_REV={aufgenommen:'0',freigegeben:'1',in_bearbeitung:'3',aufgeschoben:'2',erledigt:'5',abgerechnet:'10',bar_bezahlt:'11',storniert:'20'};
 
 // Reverse-resolve worker ID → Juprowa Monteur code
 function _juprowaWorkerToCode(workerId){
@@ -1365,6 +1369,8 @@ function _juprowaReversMap(schein){
   if(schein.dauer)json.AK_DAUER=schein.dauer;
   // Priorität reverse
   json.AK_PRIOR=JUPROWA_PRIO_REV[schein.prioritaet]||'0';
+  // Status reverse
+  if(schein.scheinstatus&&JUPROWA_STATUS_REV[schein.scheinstatus]!=null)json.AK_AUFSTATUS=JUPROWA_STATUS_REV[schein.scheinstatus];
   return json;
 }
 
@@ -3532,7 +3538,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     if(editId){setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...form,bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",form.nummer+" — "+form.kundName+" ("+curUser.name+")")]);}
     else{setArbeitsscheine(prev=>[{...form,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",form.nummer+" — "+(form.kundName||_optionalChain([form, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+curUser.name+")")]);}
     SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{...form,push_pending:true,local_updated_at:new Date().toISOString()}:form});if(editId&&form.juprowa_id)_juprowaMarkEdited(editId,form);_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(editId?"✅ Schein aktualisiert":"✅ Schein angelegt")]);setSub("liste");setEditId(null);};
-  const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert"}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:{scheinstatus:"storniert"}});const a=arbeitsscheine.find(x=>x.id===id);if(a)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",a.nummer+" — "+a.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
+  const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});};
   const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);};
@@ -8154,7 +8160,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     });
     if(freitext.trim())positionen.push({artNr:"",name:freitext.trim(),dim:"",menge:1,einheit:"",katalog:"Freitext",kategorie:"Sonstiges"});
     const ordId="mord_"+Date.now();
-    const payload={id:ordId,projectId:p.id,datum:td2(),positionen:positionen,prioritaet:prio,status:"angefordert",createdBy:curUser?curUser.name:"",freitext:freitext.trim(),kommentarLager:""};
+    const ordName=positionen.slice(0,3).map(p2=>p2.name+(p2.dim?" "+p2.dim:"")).join(", ")+(positionen.length>3?" (+"+(_n(positionen.length-3,0))+")":"");
+    const payload={id:ordId,projectId:p.id,datum:td2(),name:ordName,positionen:positionen,prioritaet:prio,status:"angefordert",createdBy:curUser?curUser.name:"",freitext:freitext.trim(),kommentarLager:""};
     try{
       await SQ.push({url:"/api/material-orders",method:"POST",body:payload});
       setOrders(prev=>[{...payload,positionen:positionen,kommentar_lager:""},...prev]);
@@ -8170,7 +8177,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   // Lager: update order status
   const updateStatus=async(ord,newStatus)=>{
-    const upd={...ord,status:newStatus,positionen:JSON.stringify(ord.positionen),kommentar_lager:lagerKommentar||ord.kommentar_lager||""};
+    const upd={status:newStatus,positionen:ord.positionen,kommentar_lager:lagerKommentar||ord.kommentar_lager||""};
     try{
       await SQ.push({url:"/api/material-orders/"+ord.id,method:"PUT",body:upd});
       setOrders(prev=>prev.map(x=>x.id===ord.id?{...x,status:newStatus,kommentar_lager:upd.kommentar_lager}:x));
