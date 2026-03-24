@@ -8062,6 +8062,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const [prio,setPrio]=_react.useState.call(void 0, "normal");
   const [sending,setSending]=_react.useState.call(void 0, false);
   const [expandedCats,setExpandedCats]=_react.useState.call(void 0, {});
+  const [expandedSystems,setExpandedSystems]=_react.useState.call(void 0, {});
   const [orderDetail,setOrderDetail]=_react.useState.call(void 0, null);
   const [lagerKommentar,setLagerKommentar]=_react.useState.call(void 0, "");
   const [orderFilter,setOrderFilter]=_react.useState.call(void 0, "offen");
@@ -8190,13 +8191,33 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const statusBadge=(st)=>{const s=MAT_STATUS[st]||MAT_STATUS.angefordert;return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:s.c+"18",color:s.c}}, s.i, " ", s.l);};
   const prioBadge=(pr)=>{const p2=MAT_PRIO[pr]||MAT_PRIO.normal;return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p2.c+"18",color:p2.c}}, p2.i, " ", p2.l);};
   const toggleCat=(catId)=>setExpandedCats(prev=>({...prev,[catId]:!prev[catId]}));
+  const toggleSystem=(sysId)=>setExpandedSystems(prev=>({...prev,[sysId]:!prev[sysId]}));
 
   // ═══ Render: Warenkorb (Matrix) ═══
   const renderWarenkorb=()=>{
     return React.createElement('div', null
       , catalogs.length===0&&React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Keine Kataloge für Gewerk \"", p.gewerk||"(leer)", "\" verfügbar. Bitte Projekt-Gewerk setzen oder Admin kontaktieren.")
-      , catalogs.map(kat=>(React.createElement('div', { key: kat.id, style: {marginBottom:16}}
-        , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8,color:MATERIAL_CATS[kat.gewerk]?MATERIAL_CATS[kat.gewerk].c:V.tx}}, MATERIAL_CATS[kat.gewerk]?MATERIAL_CATS[kat.gewerk].i:"📦", " ", kat.system)
+      , catalogs.map(kat=>{
+        const sysOpen=expandedSystems[kat.id]===true;// default CLOSED
+        const mc=MATERIAL_CATS[kat.gewerk]||{c:"#71717a",i:"📦"};
+        // Count total items in cart for this system
+        const sysCartCount=kat.cats.reduce((sc,cat)=>{
+          const hasDims=cat.dims&&cat.dims.length>0;
+          return sc+cat.items.reduce((si,item)=>{
+            if(hasDims)return si+cat.dims.reduce((s2,_,di)=>(cart[itemKey(cat.id,item.id,di)]||0)>0?s2+1:s2,0);
+            return si+((cart[itemKey(cat.id,item.id)]||0)>0?1:0);
+          },0);
+        },0);
+        const sysItemCount=kat.cats.reduce((s,c)=>s+(c.items||[]).length,0);
+        return React.createElement('div', { key: kat.id, style: {marginBottom:10}}
+        , React.createElement('div', { onClick: ()=>toggleSystem(kat.id), style: {display:"flex",alignItems:"center",gap:10,padding:isMob?"12px 14px":"10px 14px",background:mc.c+"18",borderRadius:sysOpen?"10px 10px 0 0":10,cursor:"pointer",userSelect:"none",borderBottom:sysOpen?"1px solid "+V.bd:"none"}}
+          , React.createElement('span', { style: {fontSize:isMob?18:16}}, mc.i)
+          , React.createElement('span', { style: {flex:1,fontSize:isMob?15:14,fontWeight:700,color:V.tx}}, kat.system)
+          , React.createElement('span', { style: {fontSize:10,color:V.dm,fontWeight:500}}, sysItemCount, " Art.")
+          , sysCartCount>0&&React.createElement('span', { style: {padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:"#22c55e",color:"#fff"}}, sysCartCount)
+          , React.createElement('span', { style: {fontSize:13,transition:"transform .2s",transform:sysOpen?"rotate(180deg)":"rotate(0)",color:V.dm}}, "▼")
+        )
+        , sysOpen&&React.createElement('div', { style: {border:"1px solid "+V.bd,borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"hidden"}}
         , kat.cats.map(cat=>{
           const isOpen=expandedCats[cat.id]!==false;// default open
           const catItems=cat.items;
@@ -8216,7 +8237,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               , hasDims&&!isMob&&React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:hasDims?Math.max(400,160+cat.dims.length*54):400}}
                 , React.createElement('tbody', null, catItems.map(item=>(
                   React.createElement('tr', { key: item.id, style: {borderBottom:"1px solid "+V.bd}}
-                    , React.createElement('td', { style: {padding:"8px 12px",fontSize:12,color:V.tx,whiteSpace:"nowrap",minWidth:150}}, item.name)
+                    , React.createElement('td', { style: {padding:"8px 12px",fontSize:12,color:V.tx,whiteSpace:"nowrap",minWidth:150}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr))
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
                       return React.createElement('td', { key: di, style: {padding:"4px 3px",textAlign:"center",minWidth:48}}
@@ -8228,7 +8249,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               )
               , hasDims&&isMob&&catItems.map(item=>(
                 React.createElement('div', { key: item.id, style: {padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('div', { style: {fontSize:12,fontWeight:600,color:V.tx,marginBottom:6}}, item.name)
+                  , React.createElement('div', { style: {fontSize:12,fontWeight:600,color:V.tx,marginBottom:6}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontWeight:400,fontFamily:mono}}, item.artNr))
                   , React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:6}}
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
@@ -8244,7 +8265,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               , !hasDims&&catItems.map(item=>{
                 const k=itemKey(cat.id,item.id);const val=cart[k]||"";
                 return React.createElement('div', { key: item.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('span', { style: {flex:1,fontSize:12,color:V.tx}}, item.name)
+                  , React.createElement('span', { style: {flex:1,fontSize:12,color:V.tx}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr))
                   , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", placeholder: "0", value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?56:50,textAlign:"center",fontSize:13,padding:isMob?"6px 4px":"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:isMob?36:0} })
                   , React.createElement('span', { style: {fontSize:10,color:V.dm,minWidth:24}}, item.einheit)
                 );
@@ -8252,7 +8273,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
             )
           );
         })
-      )))
+        )// close sysOpen wrapper
+        );// close system div
+      })// close catalogs.map
       // Freitext
       , React.createElement('div', { style: {marginTop:12,marginBottom:12}}
         , React.createElement('textarea', { value: freitext, onChange: e=>setFreitext(e.target.value), placeholder: "Sonstiges / Freitext (z.B. Spezialmaterial, nicht im Katalog)...", style: {...II(),width:"100%",minHeight:isMob?48:40,fontSize:13,resize:"vertical"} })
