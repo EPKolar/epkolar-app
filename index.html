@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.38';
+  var SW_VER='epkolar-v3.5.39';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -642,17 +642,17 @@ async function _translateAndExec(url,method,body){
       // We need the user_id — it's not in the body, so we mark all unread as read
       const uid=body&&body.user_id;
       if(uid){
-        await fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})});
+        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})}));
       }else{
         // fallback: mark all as read (will be filtered later by user context)
-        await fetch(SB_REST+"/notifications?read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})});
+        await _authRetry(()=>fetch(SB_REST+"/notifications?read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})}));
       }
       return{ok:1};
     }
     if(idOrSub==="clear"&&method==="POST"){
       const uid=body&&body.user_id;
       if(uid){
-        await fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),{method:"DELETE",headers:_sbH()});
+        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),{method:"DELETE",headers:_sbH()}));
       }
       return{ok:1};
     }
@@ -769,7 +769,7 @@ async function _translateAndExec(url,method,body){
   // Worker-projects: PUT/POST with worker_id as sub
   if(resource==="worker-projects"&&idOrSub&&(method==="PUT"||method==="POST")){
     // Delete all existing assignments for this worker
-    try{await fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),{method:"DELETE",headers:_sbH()});}catch(e){}
+    try{await _authRetry(()=>fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),{method:"DELETE",headers:_sbH()}));}catch(e){}
     // Insert individual rows for each project
     const projects=body.projects||[];
     if(projects.length){
@@ -943,7 +943,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.38-supabase";
+const APP_VERSION="3.5.39-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1606,6 +1606,7 @@ const NOTIF_TYPES={
   form_new:{l:"Neues Formular",i:"📋",desc:"Wenn ein Formular (Schließfreigabe, etc.) gespeichert wird",cat:"projekte"},
   as_new:{l:"Neuer Arbeitsschein",i:"📋",desc:"Wenn ein Arbeitsschein/Störung angelegt wird",cat:"arbeitsscheine"},
   as_status:{l:"Arbeitsschein geändert",i:"🔄",desc:"Status-Änderung eines Arbeitsscheins",cat:"arbeitsscheine"},
+  as_eskalation:{l:"AS Eskalation",i:"🔺",desc:"Dringender AS nicht bearbeitet — Eskalation",cat:"arbeitsscheine"},
   absence_new:{l:"Neue Abwesenheit",i:"🏖️",desc:"Wenn Urlaub/Krankenstand eingetragen wird",cat:"urlaub"},
   absence_sick:{l:"Krankmeldung",i:"🤒",desc:"Sofort-Benachrichtigung bei Krankmeldung",cat:"urlaub"},
   absence_sonder:{l:"Sonderurlaub",i:"📌",desc:"Benachrichtigung bei Sonderurlaub-Antrag",cat:"urlaub"},
@@ -1615,9 +1616,17 @@ const NOTIF_TYPES={
   kunde_mangel:{l:"Kunde meldet Mangel",i:"🚨",desc:"Wenn ein Kunde über das Portal einen Mangel meldet",cat:"kunden"},
   kunde_abnahme:{l:"Kunde bestätigt Abnahme",i:"✅",desc:"Wenn ein Kunde einen Mangel als abgenommen bestätigt",cat:"kunden"},
   defect_status:{l:"Mangel-Status geändert",i:"🔄",desc:"Wenn ein Mangel-Status sich ändert",cat:"projekte"},
+  material_order:{l:"Material-Bestellung",i:"📦",desc:"Wenn eine Material-Bestellung ans Lager gesendet wird",cat:"material"},
+  material_eskalation:{l:"Material Eskalation",i:"🔺",desc:"Material-Bestellung nicht bearbeitet — Eskalation",cat:"material"},
+  deadline_fz:{l:"Fahrzeug-Frist",i:"🚐",desc:"Pickerl/Service-Frist läuft ab",cat:"system"},
   system:{l:"System",i:"⚙️",desc:"Systembenachrichtigungen (Sync, Login, etc.)",cat:"system"},
 };
-const NOTIF_CATS={projekte:{l:"Projekte",i:"🏗️"},arbeitsscheine:{l:"Arbeitsscheine",i:"📋"},urlaub:{l:"Urlaub",i:"🏖️"},werkzeuge:{l:"Werkzeuge",i:"🔧"},kunden:{l:"Kundenportal",i:"👤"},system:{l:"System",i:"⚙️"}};
+const NOTIF_CATS={projekte:{l:"Projekte",i:"🏗️"},arbeitsscheine:{l:"Arbeitsscheine",i:"📋"},urlaub:{l:"Urlaub",i:"🏖️"},werkzeuge:{l:"Werkzeuge",i:"🔧"},kunden:{l:"Kundenportal",i:"👤"},material:{l:"Material",i:"📦"},system:{l:"System",i:"⚙️"}};
+// Eskalation: Typ → Stunden bis Eskalation, Ziel-Rollen
+const ESKALATION_RULES={
+  as_new:{hours:24,urgentHours:4,targetRoles:["admin","projektleiter"],msg:"seit {h}h unbearbeitet"},
+  material_order:{hours:8,urgentHours:2,targetRoles:["admin"],msg:"seit {h}h nicht bearbeitet"},
+};
 
 // ═══════════ SYNC / NETZWERK ═══════════
 const SYNC_MODES={auto:{l:"Automatisch (WLAN)",i:"📶",desc:"Sync wenn online im WLAN"},manual:{l:"Manuell",i:"🔘",desc:"Nur bei Sync-Button"},always:{l:"Immer",i:"🌐",desc:"Auch über Mobilfunk"}};
@@ -2532,6 +2541,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   _react.useEffect.call(void 0, ()=>{ODB.get("meta","notifPrefs").then(saved=>{if(saved&&Object.keys(saved).length){setNotifPrefs(prev=>{const merged={...prev};Object.keys(saved).forEach(uid=>{if(merged[uid])merged[uid]={...merged[uid],...saved[uid]};});return merged;});}}).catch(()=>{});},[]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&Object.keys(notifPrefs).length) debounce("odb_nprefs",()=>ODB.set("meta","notifPrefs",notifPrefs),1000);},[notifPrefs]);
   const [showNotifPanel,setShowNotifPanel]=_react.useState.call(void 0, false);
+  const [notifFilter,setNotifFilter]=_react.useState.call(void 0, "alle");
   const [showPhotoQ,setShowPhotoQ]=_react.useState.call(void 0, false);
   const [photoQItems,setPhotoQItems]=_react.useState.call(void 0, []);
   const refreshPhotoQ=_react.useCallback.call(void 0, ()=>PhotoQ.getAll().then(q=>{setPhotoQItems(q);setPhotoCount(q.filter(x=>x.status==="pending"||x.status==="error").length);}),[]);
@@ -2552,6 +2562,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   const [toasts,setToasts]=_react.useState.call(void 0, []);
   const addToast=_react.useCallback.call(void 0, (msg,type="success")=>{const id=Date.now()+"_"+Math.random().toString(36).slice(2,5);setToasts(p=>[...p.slice(-4),{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3200);},[]);
   _react.useEffect.call(void 0, ()=>{window.__toast=addToast;return()=>{delete window.__toast;};},[addToast]);
+  window.__pushNotif=pushNotif;
 
   // ═══ PWA: Install Prompt + SW Update ═══
   _react.useEffect.call(void 0, ()=>{
@@ -2773,7 +2784,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     setNotifications(p=>{const upd=[...newN,...p].slice(0,200);ODB.save("notifications",upd);return upd;});
     // Persist to server
     if(newN.length>0){SQ.push({url:"/api/notifications/batch",method:"POST",body:{items:newN.map(n=>({id:n.id,user_id:n.user,type:n.type,title:n.title,body:n.body,link:n.link,read:0}))}});}
-    const isUrgent=type==="kunde_mangel"||type==="absence_sick";
+    const isUrgent=type==="kunde_mangel"||type==="absence_sick"||type==="as_eskalation"||type==="material_eskalation";
     if(targets.includes(_optionalChain([curUser, 'optionalAccess', _55 => _55.id]))){
       playNotifSound(isUrgent);
       if("Notification" in window&&Notification.permission==="granted"){
@@ -2781,6 +2792,40 @@ function LoginScreen({onLogin,onPortal,projects}){
       }
     }
   };
+  // ═══ AUTO-NOTIFICATIONS & ESKALATION ═══
+  const _autoNotifCooldown=_react.useRef.call(void 0, {});
+  const _checkAutoNotifs=_react.useCallback.call(void 0, ()=>{
+    if(!curUser||curUser.role!=="admin"&&curUser.role!=="projektleiter")return;
+    const cd=_autoNotifCooldown.current;const now=Date.now();
+    try{const saved=JSON.parse(localStorage.getItem("epk_autonotif_cd")||"{}");Object.assign(cd,saved);}catch(e){}
+    const fire=(key,type,title,body,targets)=>{
+      if(cd[key]&&(now-cd[key])<14400000)return; // 4h cooldown per key
+      cd[key]=now;
+      try{localStorage.setItem("epk_autonotif_cd",JSON.stringify(cd));}catch(e){}
+      pushNotif(type,title,body,targets);
+    };
+    // 1. Dringende AS unbearbeitet >24h → Eskalation
+    arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.prioritaet==="hoch"||a.prioritaet==="dringend")).forEach(a=>{
+      const aufg=new Date(a.aufgenommen+" "+(a.aufgZeit||"08:00")).getTime();
+      const hAlt=Math.floor((now-aufg)/3600000);
+      if(hAlt>=24){const admins=users.filter(u=>u.role==="admin").map(u=>u.id);fire("as_esk_"+a.id,"as_eskalation","🔺 Eskalation: "+a.kundName,(a.nummer||"")+" — dringend, seit "+hAlt+"h unbearbeitet",admins);}
+    });
+    // 2. Material-Bestellungen "angefordert" >8h → Eskalation an Admin
+    (async()=>{try{
+      const openMat=await _sbGet("material_orders","status=eq.angefordert").catch(()=>[]);
+      (openMat||[]).forEach(o=>{
+        const created=new Date(o.created_at).getTime();const hAlt=Math.floor((now-created)/3600000);
+        if(hAlt>=8){const admins=users.filter(u=>u.role==="admin").map(u=>u.id);fire("mat_esk_"+o.id,"material_eskalation","🔺 Material wartet: "+(o.name||"Bestellung"),"seit "+hAlt+"h nicht bearbeitet",admins);}
+      });
+    }catch(e){}})();
+    // 3. Fahrzeug-Fristen <7 Tage → Warn-Notification
+    const _fleetU=users.filter(u=>u.role==="admin"||u.username==="pinger").map(u=>u.id);
+    (fahrzeuge||[]).forEach(f=>{
+      if(f.pickerl){const diff=Math.ceil((new Date(f.pickerl)-now)/86400000);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+f.kennzeichen,diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
+      if(f.naechstService){const diff=Math.ceil((new Date(f.naechstService)-now)/86400000);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+f.kennzeichen,"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
+    });
+  },[curUser,arbeitsscheine,fahrzeuge,users,pushNotif]);
+  _react.useEffect.call(void 0, ()=>{if(!curUser)return;const t=setTimeout(_checkAutoNotifs,5000);const iv=setInterval(_checkAutoNotifs,300000);return()=>{clearTimeout(t);clearInterval(iv);};},[_checkAutoNotifs]);
   // Request browser notification permission
   _react.useEffect.call(void 0, ()=>{if("Notification" in window&&Notification.permission==="default"){Notification.requestPermission();}},[curUser]);
 
@@ -2851,6 +2896,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   // My unread notifications
   const myNotifs=curUser?notifications.filter(n=>n.user===curUser.id):[];
   const unreadCount=myNotifs.filter(n=>!n.read).length;
+  const eskCount=myNotifs.filter(n=>!n.read&&(n.type.includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick")).length;
   const markRead=id=>{setNotifications(p=>{const upd=p.map(n=>n.id===id?{...n,read:true}:n);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"PUT",body:{read:1}});};
   const markAllRead=()=>{setNotifications(p=>{const upd=p.map(n=>n.user===_optionalChain([curUser, 'optionalAccess', _65 => _65.id])?{...n,read:true}:n);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/read-all",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65 => _65.id])}});};
   const deleteNotif=id=>{setNotifications(p=>{const upd=p.filter(n=>n.id!==id);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"DELETE"});};
@@ -3190,7 +3236,7 @@ function LoginScreen({onLogin,onPortal,projects}){
               /* Bell */
               , React.createElement('button', { onClick: ()=>setShowNotifPanel(!showNotifPanel), style: {border:"none",background:showNotifPanel?"rgba(249,115,22,.1)":"transparent",cursor:"pointer",padding:"4px 8px",borderRadius:6,position:"relative",minHeight:36,minWidth:36,display:"flex",alignItems:"center",justifyContent:"center"}, title: "Benachrichtigungen"}
                 , React.createElement('span', { style: {fontSize:18}}, "🔔")
-                , unreadCount>0&&(React.createElement('span', { style: {position:"absolute",top:0,right:2,background:"#ef4444",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid "+V.sb}}, unreadCount>9?"9+":unreadCount))
+                , unreadCount>0&&(React.createElement('span', { style: {position:"absolute",top:0,right:2,background:eskCount>0?"#ef4444":"#f97316",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid "+V.sb,animation:eskCount>0?"pulse 1.5s infinite":"none"}}, unreadCount>9?"9+":unreadCount))
               )
               , React.createElement('div', { style: {textAlign:"right"}}
                 , React.createElement('div', { style: {fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}, React.createElement('span', {}, _optionalChain([rl, 'optionalAccess', _81 => _81.i])), " " , isMob?curUser.name.split(" ").pop():curUser.name)
@@ -3224,11 +3270,19 @@ function LoginScreen({onLogin,onPortal,projects}){
               )
             )
             , syncStatus.lastSync&&React.createElement('div', { style: {padding:"4px 16px",fontSize:9,color:V.dm,borderBottom:"1px solid "+V.bd}}, "Letzter Sync: "  , syncStatus.lastSync)
+            /* Filter tabs */
+            , React.createElement('div', { style: {display:"flex",padding:"6px 12px",gap:4,borderBottom:"1px solid "+V.bd,background:V.cd}}
+              , [{id:"alle",l:"Alle",cnt:myNotifs.length},{id:"ungelesen",l:"Ungelesen",cnt:myNotifs.filter(n=>!n.read).length},{id:"eskalation",l:"🔺 Dringend",cnt:myNotifs.filter(n=>n.type.includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick").length}].map(f=>(
+                React.createElement('button', { key: f.id, onClick: ()=>setNotifFilter(f.id), style: {padding:"4px 10px",borderRadius:10,border:"1.5px solid "+(notifFilter===f.id?"#f97316":"transparent"),background:notifFilter===f.id?"rgba(249,115,22,.1)":"transparent",color:notifFilter===f.id?"#f97316":V.dm,fontSize:11,fontWeight:notifFilter===f.id?700:400,cursor:"pointer",fontFamily:"inherit"}}, f.l, f.cnt>0&&React.createElement('span', { style: {marginLeft:4,fontSize:9,fontWeight:700,background:f.id==="eskalation"?"#ef4444":V.ac,color:"#fff",borderRadius:8,padding:"1px 5px"}}, f.cnt))
+              ))
+            )
             /* Notification list */
             , React.createElement('div', { style: {flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}
-              , myNotifs.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "🔕"), "Keine Benachrichtigungen" )):(
-                myNotifs.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const ago=Math.floor((Date.now()-new Date(n.time).getTime())/60000);const agoStr=ago<60?ago+"min":ago<1440?Math.floor(ago/60)+"h":Math.floor(ago/1440)+"d";
-                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=n.read?"transparent":"rgba(249,115,22,.03)"}
+              , (()=>{
+                const filtered=notifFilter==="ungelesen"?myNotifs.filter(n=>!n.read):notifFilter==="eskalation"?myNotifs.filter(n=>n.type.includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick"):myNotifs;
+                return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":"Keine Benachrichtigungen" )):(
+                filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=n.type.includes("eskalation");const ago=Math.floor((Date.now()-new Date(n.time).getTime())/60000);const agoStr=ago<60?ago+"min":ago<1440?Math.floor(ago/60)+"h":Math.floor(ago/1440)+"d";
+                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
                     , React.createElement('span', { style: {fontSize:20,flexShrink:0}}, _optionalChain([nt, 'optionalAccess', _83 => _83.i])||"🔔")
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
                       , React.createElement('div', { style: {fontSize:12,fontWeight:n.read?400:700,color:n.read?V.dm:V.tx}}, n.title)
@@ -3239,7 +3293,7 @@ function LoginScreen({onLogin,onPortal,projects}){
                     , React.createElement('button', { onClick: e=>{e.stopPropagation();deleteNotif(n.id);}, style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:12,padding:"2px",flexShrink:0}}, "✕")
                   ));
                 })
-              )
+              );})()
             )
             /* Footer: Connection status */
             , React.createElement('div', { style: {padding:"10px 16px",borderTop:"1px solid "+V.bd,fontSize:11,color:V.dm}}
@@ -4643,7 +4697,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(nf.password.length<4){alert("Passwort muss mindestens 4 Zeichen haben");return;}
     if(users.find(u=>u.username===nf.username)){alert("Benutzername bereits vergeben");return;}
     const nid=uid();const email=nf.email||(nf.username+"@epkolar.local");setUsers(prev=>[...prev,{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,active:true,monteurId:nf.monteurId||null,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:nf.username,password:nf.password,name:nf.name,email:email,role:nf.role,monteurId:nf.monteurId||null,active:1,locked:0}});
-    try{await fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbH(),body:JSON.stringify({p_email:email,p_password:nf.password})});}catch(e){}
+    try{await _authRetry(()=>fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbH(),body:JSON.stringify({p_email:email,p_password:nf.password})}));}catch(e){}
     _optionalChain([window, 'access', _189 => _189.__toast, 'optionalCall', _190 => _190("✅ Benutzer angelegt")]);setNf({username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});setShowNew(false);
   };
   const toggleActive=(id)=>{const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:!(_optionalChain([nu, 'optionalAccess', _191 => _191.active]))}});_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
@@ -4812,7 +4866,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 )
                 , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
                   , React.createElement('button', { onClick: ()=>toggleLock(selU.id), style: selU.locked?bgS:bdS, disabled: selU.id===curUser.id}, selU.locked?"🔓 Entsperren":"🔒 Sperren")
-                  , React.createElement('button', { onClick: async()=>{const np=prompt("Neues Passwort für "+selU.name+":");if(np&&np.length>=4){SQ.push({url:"/api/users/"+selU.id,method:"PUT",body:{password:np}});const email=selU.email||(selU.username+"@epkolar.local");try{await fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbH(),body:JSON.stringify({p_email:email,p_password:np})});}catch(e){}_optionalChain([window, 'access', _227 => _227.__toast, 'optionalCall', _228 => _228("✅ Passwort geändert")]);}else if(np){alert("Mind. 4 Zeichen!");}}, style: bgS, disabled: selU.id===curUser.id}, "🔑 Passwort zurücksetzen"  )
+                  , React.createElement('button', { onClick: async()=>{const np=prompt("Neues Passwort für "+selU.name+":");if(np&&np.length>=4){SQ.push({url:"/api/users/"+selU.id,method:"PUT",body:{password:np}});const email=selU.email||(selU.username+"@epkolar.local");try{await _authRetry(()=>fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbH(),body:JSON.stringify({p_email:email,p_password:np})}));}catch(e){}_optionalChain([window, 'access', _227 => _227.__toast, 'optionalCall', _228 => _228("✅ Passwort geändert")]);}else if(np){alert("Mind. 4 Zeichen!");}}, style: bgS, disabled: selU.id===curUser.id}, "🔑 Passwort zurücksetzen"  )
                   , React.createElement('button', { onClick: ()=>toggleActive(selU.id), style: selU.active?{...bsS(),borderColor:"#eab308",color:"#eab308"}:bgS, disabled: selU.id===curUser.id}, selU.active?"⏸ Deaktivieren":"▶️ Aktivieren")
                   , selU.id!==curUser.id && (React.createElement('button', { onClick: ()=>delUser(selU.id), style: bdS}, "🗑️ Löschen" ))
                 )
@@ -5172,6 +5226,27 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const [weather,setWeather]=_react.useState.call(void 0, null);
   const [weatherErr,setWeatherErr]=_react.useState.call(void 0, false);
   const [finkStats,setFinkStats]=_react.useState.call(void 0, {total:0,offen:0,freigegeben:0,abgeglichen:0,diffWarn:0});
+  // ═══ LIVE KPIs ═══
+  const [liveKpis,setLiveKpis]=_react.useState.call(void 0, {matOpen:0,matTotal:0,btWeek:0,btTotal:0,actToday:0,loading:false});
+  const [lastRefresh,setLastRefresh]=_react.useState.call(void 0, null);
+  const _fetchLiveKpis=_react.useCallback.call(void 0, async()=>{
+    if(!API.getToken())return;
+    setLiveKpis(prev=>({...prev,loading:true}));
+    try{
+      const weekStart=(()=>{const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return d.toISOString().split("T")[0];})();
+      const [matOpen,matAll,btWeek,btAll,actLog]=await Promise.all([
+        _sbGet("material_orders","select=id&status=in.(angefordert,in_bearbeitung,offen)").catch(()=>[]),
+        _sbGet("material_orders","select=id,status").catch(()=>[]),
+        _sbGet("bautagebuch","select=id&datum=gte."+weekStart).catch(()=>[]),
+        _sbGet("bautagebuch","select=id").catch(()=>[]),
+        _sbGet("activity_log","select=user_id&created_at=gte."+td2()+"T00:00:00").catch(()=>[]),
+      ]);
+      const activeWorkers=new Set((actLog||[]).map(a=>a.user_id)).size;
+      setLiveKpis({matOpen:(matOpen||[]).length,matTotal:(matAll||[]).length,btWeek:(btWeek||[]).length,btTotal:(btAll||[]).length,actToday:activeWorkers,loading:false});
+      setLastRefresh(new Date());
+    }catch(e){setLiveKpis(prev=>({...prev,loading:false}));}
+  },[]);
+  _react.useEffect.call(void 0, ()=>{_fetchLiveKpis();const t=setInterval(_fetchLiveKpis,120000);return()=>clearInterval(t);},[_fetchLiveKpis]);
   // ═══ DASHBOARD VISIBILITY ═══
   const DASH_SECS=[{k:"wetter",l:"🌤️ Wetter"},{k:"meineWoche",l:"📅 Meine Woche"},{k:"baustellen",l:"🏗️ Meine Baustellen"},{k:"fahrzeug",l:"🚐 Mein Fahrzeug"},{k:"kpis",l:"📊 Kennzahlen"},{k:"schnell",l:"⚡ Schnellzugriff"},{k:"charts",l:"📈 Diagramme"}];
   const [dashVis,setDashVis]=_react.useState.call(void 0, ()=>{try{return JSON.parse(localStorage.getItem("epk_dash_vis")||"null")||{};}catch(e){return {};}});
@@ -5251,6 +5326,11 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _weekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1));const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(x.toISOString().split("T")[0]);}return s;})();
   let todayH=0,weekH=0;
   entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(dt===_td)todayH+=h;if(_weekDates.has(dt))weekH+=h;});
+  // Last week hours for trend
+  const _lastWeekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-7);const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(x.toISOString().split("T")[0]);}return s;})();
+  let lastWeekH=0;
+  entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(_lastWeekDates.has(dt))lastWeekH+=h;});
+  const weekTrend=lastWeekH>0?((weekH-lastWeekH)/lastWeekH*100):0;
   const totalWert=werkzeuge.reduce((s,w)=>s+w.wert,0);
   const aktivFz=(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").length;
   const pendingAbs=Object.values(absApprovals).filter(a=>a==="ausstehend").length;
@@ -5291,7 +5371,10 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             , React.createElement('div', { style: {fontSize:isMob?22:28,fontWeight:800,marginBottom:4}}, greet, ", " , React.createElement('span', { style: {color:V.ac}}, firstName), " " , seasonEmoji)
             , React.createElement('div', { style: {fontSize:13,color:V.dm}}, _optionalChain([ROLES, 'access', _247 => _247[_optionalChain([curUser, 'optionalAccess', _248 => _248.role])], 'optionalAccess', _249 => _249.i]), " " , _optionalChain([ROLES, 'access', _250 => _250[_optionalChain([curUser, 'optionalAccess', _251 => _251.role])], 'optionalAccess', _252 => _252.l]), " · "  , React.createElement('span', { style: {fontFamily:mono}}, timeStr))
           )
-          , React.createElement('button', { onClick: ()=>setShowDashCfg(!showDashCfg), style: {background:"none",border:"none",cursor:"pointer",fontSize:18,color:V.dm,padding:4,opacity:.7}, title: "Bereiche anpassen"}, "⚙️")
+          , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}
+            , React.createElement('button', { onClick: ()=>{_fetchLiveKpis();}, style: {background:"none",border:"none",cursor:"pointer",fontSize:16,color:V.dm,padding:4,opacity:liveKpis.loading?.4:.7,transition:"transform .3s",transform:liveKpis.loading?"rotate(180deg)":"none"}, title: lastRefresh?"Aktualisiert "+lastRefresh.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}):"Daten aktualisieren"}, "🔄")
+            , React.createElement('button', { onClick: ()=>setShowDashCfg(!showDashCfg), style: {background:"none",border:"none",cursor:"pointer",fontSize:18,color:V.dm,padding:4,opacity:.7}, title: "Bereiche anpassen"}, "⚙️")
+          )
         )
         , showDashCfg&&React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:"6px 14px",padding:"8px 0 4px",borderTop:"1px solid "+V.bd,marginTop:8}}
           , DASH_SECS.map(s=>(React.createElement('label', { key: s.k, style: {display:"flex",alignItems:"center",gap:4,fontSize:11,color:dv(s.k)?V.tx:V.mt,cursor:"pointer",userSelect:"none"}}
@@ -5505,7 +5588,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         , React.createElement('div', { style: {...CC(),padding:isMob?"10px":"14px",borderLeft:"4px solid #3b82f6"}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Stunden heute" )
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#3b82f6",fontFamily:mono}}, _n(todayH,1), "h")
-          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "KW: " , _n(weekH,1), "h")
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,display:"flex",alignItems:"center",gap:4}}, "KW: " , _n(weekH,1), "h"
+            , lastWeekH>0&&React.createElement('span', { style: {fontSize:10,fontWeight:700,color:weekTrend>=0?"#22c55e":"#f97316",marginLeft:2}}, weekTrend>=0?"↑":"↓", " ", _n(Math.abs(weekTrend),0), "%")
+          )
         )
         , React.createElement('div', { onClick: ()=>onNav("fahrzeuge"), style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #0ea5e9",transition:"transform .15s"}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Fahrzeuge")
@@ -5532,7 +5617,23 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', { style: {fontSize:isMob?20:24,fontWeight:800,color:"#6366f1",fontFamily:mono}}, "€", Math.round((fahrzeuge||[]).reduce((s,f)=>{const moKey=td2().slice(0,7);return s+(f.tankLog||[]).filter(t=>(t.datum||"").startsWith(moKey)).reduce((s2,t)=>s2+(t.preis||0),0);},0)).toLocaleString("de"))
           , React.createElement('div', { style: {fontSize:11,color:V.dm}}, td2().slice(0,7).split("-")[1], "/", td2().slice(0,4))
         )
+        , isAdmin&&React.createElement('div', { onClick: ()=>onNav("projekte"), style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #ec4899",transition:"transform .15s"}}
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "📦 Material" )
+          , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:liveKpis.matOpen>0?"#ec4899":"#22c55e",fontFamily:mono}}, liveKpis.matOpen)
+          , React.createElement('div', { style: {fontSize:11,color:liveKpis.matOpen>0?"#ec4899":V.dm}}, liveKpis.matOpen>0?liveKpis.matOpen+" offen":liveKpis.matTotal>0?liveKpis.matTotal+" gesamt":"Keine Bestellungen")
+        )
+        , isAdmin&&React.createElement('div', { onClick: ()=>onNav("projekte"), style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #14b8a6",transition:"transform .15s"}}
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "📝 Bautagebuch" )
+          , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#14b8a6",fontFamily:mono}}, liveKpis.btWeek)
+          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "diese Woche · " , liveKpis.btTotal, " gesamt" )
+        )
+        , isAdmin&&React.createElement('div', { style: {...CC(),padding:isMob?"10px":"14px",borderLeft:"4px solid #a855f7"}}
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "👥 Team aktiv" )
+          , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#a855f7",fontFamily:mono}}, liveKpis.actToday)
+          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "heute aktiv · " , monteure.length, " gesamt" )
+        )
       )
+      , dv('kpis')&&lastRefresh&&React.createElement('div', { style: {textAlign:"right",fontSize:10,color:V.mt,marginTop:-10,marginBottom:8,fontFamily:mono}}, liveKpis.loading?"⟳ Aktualisiere...":"🟢 Live · "+lastRefresh.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit",second:"2-digit"}))
 
       /* ═══ QUICK ACTIONS ═══ */
       , dv('schnell')&&React.createElement('div', { style: {marginBottom:16}}
@@ -8170,6 +8271,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       if(window.__doSync)window.__doSync();
       if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
       window.__toast&&window.__toast("Anforderung gesendet ("+positionen.length+" Pos.)","success");
+      if(window.__pushNotif)window.__pushNotif("material_order","📦 Material-Anforderung",(curUser?curUser.name:"")+" — "+positionen.length+" Pos. für "+(_optionalChain([p, 'optionalAccess', _mo1 => _mo1.name])||"Projekt"));
       setTab("verlauf");
     }catch(e){window.__toast&&window.__toast("Fehler: "+e.message,"error");}
     setSending(false);
@@ -9035,11 +9137,12 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const [editMode,setEditMode]=_react.useState.call(void 0, false);
   const [editEntry,setEditEntry]=_react.useState.call(void 0, null);
   const [subView,setSubView]=_react.useState.call(void 0, "kalender");
-  const absTabIds=["kalender","antraege","uebersicht"];
+  const absTabIds=["kalender","antraege","uebersicht","timeline"];
   const absSwipe=useSwipe(
     ()=>{const i=absTabIds.indexOf(subView);if(i<absTabIds.length-1)setSubView(absTabIds[i+1]);},
     ()=>{const i=absTabIds.indexOf(subView);if(i>0)setSubView(absTabIds[i-1]);}
   );
+  const [tlWeekOff,setTlWeekOff]=_react.useState.call(void 0, 0); // 0 = current week
   // Kontingent: {name: {urlaub:25, vorjahr:3, ueberstunden:0}}
   const [kontingent,setKontingent]=_react.useState.call(void 0, ()=>{const k={};monteure.forEach(m=>{k[m.n]={urlaub:25,stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};});return k;});
   const [editKontingent,setEditKontingent]=_react.useState.call(void 0, false);
@@ -9239,7 +9342,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
         , [
           {id:"kalender",i:"📅",l:"Kalender"},
-          ...(isAdmin?[{id:"antraege",i:"📨",l:"Anträge"+(pendingCount>0?" ("+pendingCount+")":"")},{id:"uebersicht",i:"📊",l:"Übersicht"}]:[]),
+          ...(isAdmin?[{id:"antraege",i:"📨",l:"Anträge"+(pendingCount>0?" ("+pendingCount+")":"")},{id:"uebersicht",i:"📊",l:"Übersicht"},{id:"timeline",i:"🗓️",l:"Team-Timeline"}]:[]),
         ].map(t=>React.createElement('button', { key: t.id, onClick: ()=>setSubView(t.id), style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:subView===t.id?"#22c55e":V.dm,fontSize:isMob?11:13,fontWeight:subView===t.id?700:500,borderBottom:"3px solid "+(subView===t.id?"#22c55e":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
       )
 
@@ -9399,6 +9502,61 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           )
         )
       ))
+
+      /* ═══ TEAM-TIMELINE ═══ */
+      , subView==="timeline"&&isAdmin&&(()=>{
+        const WEEKS=isMob?3:6;
+        const startMon=(()=>{const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1)+(tlWeekOff*7));return d;})();
+        const days=[];for(let i=0;i<WEEKS*7;i++){const d=new Date(startMon);d.setDate(startMon.getDate()+i);days.push(d);}
+        const dayW=isMob?22:28;const nameW=isMob?60:90;
+        const todayStr=dk(new Date());
+        const kwOf=d=>{const t2=new Date(d);t2.setDate(t2.getDate()-((d.getDay()+6)%7)+3);const jan4=new Date(t2.getFullYear(),0,4);return 1+Math.round(((t2-jan4)/86400000-(t2.getDay()+6)%7+3)/7);};
+        const weekBounds=[];for(let w=0;w<WEEKS;w++){const d=days[w*7];weekBounds.push({start:w*7,label:"KW"+kwOf(d),mo:MO_DE[d.getMonth()].slice(0,3)});}
+        return React.createElement('div', {}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
+            , React.createElement('button', { onClick: ()=>setTlWeekOff(p=>p-WEEKS), style: {...bsS(),padding:"5px 12px",fontSize:12}}, "◀ Zurück")
+            , React.createElement('span', { style: {fontWeight:700,fontSize:14,color:V.ac}}, "🗓️ Team-Timeline — " , WEEKS, " Wochen" )
+            , React.createElement('button', { onClick: ()=>setTlWeekOff(p=>p+WEEKS), style: {...bsS(),padding:"5px 12px",fontSize:12}}, "Vor ▶")
+          )
+          , tlWeekOff!==0&&React.createElement('button', { onClick: ()=>setTlWeekOff(0), style: {...bsS(),padding:"3px 10px",fontSize:10,marginBottom:8}}, "↩ Heute")
+          , React.createElement('div', { style: {overflowX:"auto",borderRadius:10,border:"1px solid "+V.bd}}
+            , React.createElement('div', { style: {display:"inline-block",minWidth:nameW+days.length*dayW}}
+              /* KW header */
+              , React.createElement('div', { style: {display:"flex",borderBottom:"2px solid "+V.bd}}
+                , React.createElement('div', { style: {width:nameW,minWidth:nameW,padding:"4px 6px",fontSize:9,fontWeight:700,color:V.dm,borderRight:"1px solid "+V.bd}}, "Mitarbeiter")
+                , weekBounds.map((wb,wi)=>React.createElement('div', { key: wi, style: {width:dayW*7,textAlign:"center",fontSize:10,fontWeight:700,color:V.ac,borderRight:wi<WEEKS-1?"1px solid "+V.bd:"none",padding:"3px 0",background:V.cd}}, wb.label, " · " , wb.mo))
+              )
+              /* Day numbers */
+              , React.createElement('div', { style: {display:"flex",borderBottom:"1px solid "+V.bd}}
+                , React.createElement('div', { style: {width:nameW,minWidth:nameW,borderRight:"1px solid "+V.bd}})
+                , days.map((d,i)=>{const dow=d.getDay();const we=dow===0||dow===6;const isToday=dk(d)===todayStr;return React.createElement('div', { key: i, style: {width:dayW,textAlign:"center",fontSize:8,fontWeight:isToday?800:400,color:isToday?"#fff":we?V.mt:V.dm,background:isToday?V.ac:we?"rgba(100,100,100,.06)":"transparent",borderRight:dow===0?"1px solid "+V.bd:"none",padding:"2px 0",fontFamily:mono}}, d.getDate());})
+              )
+              /* Day letters */
+              , React.createElement('div', { style: {display:"flex",borderBottom:"2px solid "+V.bd}}
+                , React.createElement('div', { style: {width:nameW,minWidth:nameW,borderRight:"1px solid "+V.bd}})
+                , days.map((d,i)=>{const dow=d.getDay();const we=dow===0||dow===6;return React.createElement('div', { key: i, style: {width:dayW,textAlign:"center",fontSize:7,color:we?"#ef4444":V.mt,fontFamily:mono,padding:"1px 0",borderRight:dow===0?"1px solid "+V.bd:"none"}}, ["So","Mo","Di","Mi","Do","Fr","Sa"][dow]);})
+              )
+              /* Worker rows */
+              , names.map((m,mi)=>{
+                const mRest=resturlaub(m);
+                return React.createElement('div', { key: m, style: {display:"flex",borderBottom:"1px solid "+V.bd,background:mi%2===0?"transparent":V.rowAlt}}
+                  , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, style: {width:nameW,minWidth:nameW,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?9:11,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:2}}
+                    , React.createElement('span', { style: {overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, m)
+                    , React.createElement('span', { style: {fontSize:8,color:mRest<=20?"#ef4444":"#22c55e",fontWeight:700,flexShrink:0}}, _n(mRest,0),"h")
+                  )
+                  , days.map((d,di)=>{const ab=ga(m,d);const at2=ab?AT_T[ab.type]:null;const dow=d.getDay();const we=dow===0||dow===6;const isToday=dk(d)===todayStr;const appr=ab?getApproval(m,d):null;
+                    return React.createElement('div', { key: di, title: at2?(m+": "+at2.l+" "+fdt(dk(d))+(appr?" ("+appr+")":"")):"", style: {width:dayW,height:isMob?24:28,background:at2?at2.c+(appr==="genehmigt"?"40":"25"):isToday?"rgba(0,150,64,.06)":we?"rgba(100,100,100,.04)":"transparent",borderRight:dow===0?"1px solid "+V.bd:"none",borderLeft:isToday?"2px solid "+V.ac:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,cursor:at2?"pointer":"default",transition:"background .1s"}, onClick: ()=>{if(at2){setSel(m);setMo(d.getMonth());setSubView("kalender");}}}, at2?at2.i:"");
+                  })
+                );
+              })
+            )
+          )
+          , React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,fontSize:10,flexWrap:"wrap"}}
+            , Object.entries(AT_T).slice(0,8).map(([k,v])=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:3}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,background:v.c}} ), v.l))
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:3}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,background:V.ac,opacity:.3}} ), "Heute")
+          )
+        );
+      })()
     )
   );
 }
