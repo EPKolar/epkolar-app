@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.36';
+  var SW_VER='epkolar-v3.5.37';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -941,7 +941,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.36-supabase";
+const APP_VERSION="3.5.37-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -7276,6 +7276,52 @@ const MAT_KATALOG_DEFAULT=[
 ];
 // Dynamic catalog: loaded from Supabase, falls back to DEFAULT
 var MAT_KATALOG=[...MAT_KATALOG_DEFAULT];
+/* ═══ EP Kolar Auto-Auswahl Produktlinien (aus Inventur HLS) ═══ */
+const EP_AUTO_FILTER=[
+  {id:"mepla",label:"Geberit Mepla",kw:["geberit mepla","mepla verbund","mepla rohr","mepla übergang","mepla winkel","mepla t-stück","mepla kupplung","mepla reduktion","mepla endstopfen","mepla armaturenanschluss"],system:"Geberit Mepla",gewerk:"sanitaer"},
+  {id:"silent",label:"Geberit Silent-PP",kw:["silent-pp","silent pp","geberit silent"],system:"Geberit Silent-PP",gewerk:"sanitaer"},
+  {id:"silentdb",label:"Geberit Silent db20",kw:["silent db20"],system:"Geberit Silent-PP",gewerk:"sanitaer"},
+  {id:"cstahl",label:"Mapress C-Stahl",kw:["mapress c-stahl","c-stahl bogen","c-stahl t-stück","c-stahl übergang","c-stahl muffe","c-stahl reduktion","c-stahl schiebemuffe","c-stahl kappe","c-stahl systemrohr","c-stahl passbogen","c-stahl sprungbogen","c-stahl kreuzung","c-stahl kugelabsperr"],system:"Mapress C-Stahl",gewerk:"heizung"},
+  {id:"kupfer",label:"Mapress Kupfer",kw:["mapress kupfer"],system:"Mapress Kupfer",gewerk:"sanitaer"},
+  {id:"edelgas",label:"Mapress Edelstahl Gas",kw:["mapress edelstahl gas","edelstahl gas bogen","edelstahl gas t-stück","edelstahl gas übergang","edelstahl gas muffe","edelstahl gas schiebe","edelstahl gas reduktion","edelstahl gas anschluss"],system:"Mapress Edelstahl Gas",gewerk:"sanitaer"},
+  {id:"armacell",label:"Armacell/Armaflex",kw:["armacell","armaflex","armafix"],system:"Armacell Armaflex",gewerk:"sanitaer"},
+  {id:"eurobatex",label:"Eurobatex Isolierung",kw:["eurobatex"],system:"Eurobatex Isolierung",gewerk:"heizung"},
+  {id:"rehauht",label:"Rehau HT Abwasser",kw:["rehau ht","ht bogen","ht abflussrohr","ht abzweiger","ht reduktion","ht überschubmuffe","ht sifonanschluss","ht sifonwinkel","ht muffenstopfen","ht reinigungsrohr"],system:"Rehau HT",gewerk:"sanitaer"},
+  {id:"polokal",label:"Poloplast Polokal",kw:["poloplast","polokal"],system:"Poloplast Polokal",gewerk:"sanitaer"},
+  {id:"plasson",label:"Plasson PE",kw:["plasson"],system:"Plasson PE",gewerk:"sanitaer"},
+  {id:"isiflo",label:"Isiflo PE",kw:["isiflo"],system:"Isiflo PE",gewerk:"sanitaer"},
+  {id:"herz",label:"Herz Ventile",kw:["herz ts-90","herz rl-5","herz 3000","herz thermostatkopf","herz klemmset","herz design"],system:"Herz Ventile",gewerk:"heizung"},
+  {id:"walraven",label:"Walraven Bismat",kw:["walraven","bismat"],system:"Walraven Befestigung",gewerk:"allgemein"},
+  {id:"grundfos",label:"Grundfos Pumpen",kw:["grundfos"],system:"Grundfos",gewerk:"heizung"},
+  {id:"wolf",label:"Wolf Lüftung/CWL",kw:["wolf cwl","wolf comfort","wolf iso-rohr","wolf grobfilter","wolf digitale","wolf flachkanal","wolf bundkragen"],system:"Wolf CWL",gewerk:"klima"},
+  {id:"lueftung",label:"Lüftung Formteile",kw:["lüftung bogen","lüftung wickelfalz","lüftung muffe","lüftung t-stück","lüftung nippel","lüftung reduzi","lüftung enddeckel","lüftung bundkragen","lüftung rückschlag","lüftung schlauchklemme","lüftung safe","lüftung schelle","lüftung ausblas"],system:"Lüftung Formteile",gewerk:"klima"},
+  {id:"hl",label:"HL Ablauftechnik",kw:["hl sifon","hl ablauf","hl gully","hl rückfluss","hl baustopfen","hl tropf","hl fertigabl","hl wc-","hl kellerabl","hl raumspar"],system:"HL Ablauftechnik",gewerk:"sanitaer"},
+  {id:"braukmann",label:"Braukmann/Honeywell",kw:["braukmann","honeywell"],system:"Braukmann Sicherheit",gewerk:"sanitaer"},
+  {id:"bwt",label:"BWT Wasserfilter",kw:["bwt"],system:"BWT",gewerk:"sanitaer"},
+  {id:"concept",label:"Concept Armaturen",kw:["concept"],system:"Concept",gewerk:"sanitaer"},
+  {id:"vaillant",label:"Vaillant Heizung",kw:["vaillant"],system:"Vaillant",gewerk:"heizung"},
+  {id:"esbe",label:"Esbe Mischer",kw:["esbe"],system:"Esbe",gewerk:"heizung"},
+  {id:"aft",label:"AFT Brandschutz",kw:["aft rorcol","brandrohrmansch","brandschutzmansch"],system:"AFT Brandschutz",gewerk:"allgemein"},
+  {id:"schell",label:"Schell Armaturen",kw:["schell"],system:"Schell",gewerk:"sanitaer"},
+  {id:"wernig",label:"Wernig Lüftung",kw:["wernig","edelstahlansaug","kondensatabzweig","mauerdurchführung","pe-saugnische","metall-tellerventil","zuluft-deckenventil"],system:"Wernig",gewerk:"klima"},
+  {id:"rotguss",label:"Rotguss Fittings",kw:["rotguss","holländer","doppelnippel 3","reduktion 3241","muffe 3270","stopfen 3290","kappe 3301","winkel 3090","winkel 3092","t-stück 3130","reduktionsmuffe 3240"],system:"Rotguss Fittings",gewerk:"sanitaer"},
+  {id:"diverse",label:"Sonstige (Kemper/Techem/Kaldewei/Flamco...)",kw:["kemper","techem","kaldewei","flamco","danfoss","neoperl","prisma","wilo","rockwool","steinonorm","durgo"],system:"Diverse",gewerk:"sanitaer"}
+];
+/* Auto-Match: returns Map<groupId, Set<artNr>> */
+function _epAutoMatch(articles){
+  const result=new Map();
+  const matched=new Set();
+  for(const grp of EP_AUTO_FILTER){
+    const hits=new Set();
+    for(const art of articles){
+      if(matched.has(art.artNr))continue;
+      const nl=art.name.toLowerCase();
+      if(grp.kw.some(k=>nl.includes(k))){hits.add(art.artNr);matched.add(art.artNr);}
+    }
+    if(hits.size>0)result.set(grp.id,hits);
+  }
+  return result;
+}
 const FOTO_CATS=[
   {id:"alle",l:"Alle",i:"📷",c:"#6b7280"},
   {id:"baufortschritt",l:"Baufortschritt",i:"🏗️",c:"#3b82f6"},
@@ -8029,6 +8075,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const [dnGewerk,setDnGewerk]=_react.useState.call(void 0, "sanitaer");
   const [dnVersion,setDnVersion]=_react.useState.call(void 0, 0);// 0=auto, 4, 5
   const [savedCatalogs,setSavedCatalogs]=_react.useState.call(void 0, []);
+  const [dnAutoGroups,setDnAutoGroups]=_react.useState.call(void 0, null);// Map<groupId, Set<artNr>> | null
+  const [dnAutoEnabled,setDnAutoEnabled]=_react.useState.call(void 0, new Set());// which groups are toggled on
   const fileRef=_react.useRef.call(void 0, null);
 
   // Load saved catalogs from Supabase
@@ -8336,7 +8384,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           const text=ev.target.result;
           const ver=dnVersion||0;
           const arts=_parseDatanorm(text,ver===0?null:ver);
-          if(arts.length>0){setDnArticles(arts);setDnSelected(new Set());setDnSearch("");
+          if(arts.length>0){setDnArticles(arts);setDnSelected(new Set());setDnSearch("");setDnAutoGroups(null);setDnAutoEnabled(new Set());
             window.__toast&&window.__toast(arts.length+" Artikel aus DATANORM gelesen ("+encoding+")","success");
           }else if(encoding==="ISO-8859-1"){tryParse("UTF-8");}
           else{window.__toast&&window.__toast("Keine Artikel gefunden. Format prüfen.","error");}
@@ -8410,9 +8458,76 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         , React.createElement('button', { onClick: ()=>fileRef.current&&fileRef.current.click(), style: {...bpS,fontSize:12,padding:isMob?"8px 14px":"5px 12px",minHeight:isMob?36:0}}, "📂 DATANORM Datei laden")
         , React.createElement('select', { value: dnVersion, onChange: e=>setDnVersion(parseInt(e.target.value)), style: {...II(),fontSize:12,padding:"4px 8px",width:130}}, React.createElement('option', { value: 0}, "Auto-Erkennung"), React.createElement('option', { value: 4}, "DATANORM 4"), React.createElement('option', { value: 5}, "DATANORM 5"))
         , dnArticles.length>0&&React.createElement('span', { style: {fontSize:12,color:V.ac,fontWeight:600}}, dnArticles.length, " Artikel geladen")
+        , dnArticles.length>0&&React.createElement('button', { onClick: ()=>{const g=_epAutoMatch(dnArticles);setDnAutoGroups(g);const en=new Set();g.forEach((_,k)=>en.add(k));setDnAutoEnabled(en);setDnSelected(new Set());}, style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"#f59e0b",color:"#000",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "🔍 Auto-Auswahl (EP Kolar)")
       )
-      // Parsed articles
-      , dnArticles.length>0&&React.createElement('div', { style: {border:"1px solid "+V.bd,borderRadius:8,overflow:"hidden",marginBottom:12}}
+      // ═══ Auto-Auswahl Gruppen-Ansicht ═══
+      , dnAutoGroups&&dnAutoGroups.size>0&&React.createElement('div', { style: {border:"1px solid "+V.bd,borderRadius:8,overflow:"hidden",marginBottom:12}}
+        , React.createElement('div', { style: {padding:"10px 12px",background:_dark?"#1e293b":"#fffbeb",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}
+          , React.createElement('span', { style: {fontSize:13,fontWeight:700}}, "🎯 ", Array.from(dnAutoGroups.values()).reduce((s,v)=>s+v.size,0), " Treffer in ", dnAutoGroups.size, " Produktlinien")
+          , React.createElement('div', { style: {display:"flex",gap:6}}
+            , React.createElement('button', { onClick: ()=>{const en=new Set();dnAutoGroups.forEach((_,k)=>en.add(k));setDnAutoEnabled(en);}, style: {...bsS(),fontSize:10,padding:"3px 8px"}}, "Alle an")
+            , React.createElement('button', { onClick: ()=>setDnAutoEnabled(new Set()), style: {...bsS(),fontSize:10,padding:"3px 8px"}}, "Alle aus")
+          )
+        )
+        , React.createElement('div', { style: {maxHeight:400,overflowY:"auto"}}
+          , EP_AUTO_FILTER.filter(g=>dnAutoGroups.has(g.id)).map(g=>{
+            const hits=dnAutoGroups.get(g.id);
+            const on=dnAutoEnabled.has(g.id);
+            const mc=MATERIAL_CATS[g.gewerk]||{c:"#71717a",i:"📦"};
+            return React.createElement('div', { key: g.id, onClick: ()=>setDnAutoEnabled(prev=>{const s=new Set(prev);if(s.has(g.id))s.delete(g.id);else s.add(g.id);return s;}), style: {display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:on?(_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)"):"transparent"}}
+              , React.createElement('span', { style: {width:20,height:20,borderRadius:4,border:"2px solid "+(on?"#009640":"#888"),background:on?"#009640":"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,flexShrink:0}}, on?"✓":"")
+              , React.createElement('span', { style: {flex:1,fontSize:13,fontWeight:600,color:V.tx}}, g.label)
+              , React.createElement('span', { style: {fontSize:10,padding:"2px 8px",borderRadius:10,background:mc.c+"18",color:mc.c,fontWeight:600}}, mc.i, " ", g.gewerk)
+              , React.createElement('span', { style: {fontSize:12,fontWeight:700,color:V.ac,minWidth:50,textAlign:"right"}}, hits.size, " Art.")
+            );
+          })
+        )
+        // Auto-Import button
+        , dnAutoEnabled.size>0&&React.createElement('div', { style: {padding:"10px 12px",borderTop:"1px solid "+V.bd,background:_dark?"#0f172a":"#f0fdf4",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}
+          , React.createElement('span', { style: {fontSize:12,color:V.dm}}, dnAutoEnabled.size, " Gruppen · ", Array.from(dnAutoEnabled).reduce((s,gid)=>{const h=dnAutoGroups.get(gid);return s+(h?h.size:0);},0), " Artikel ausgewählt")
+          , React.createElement('button', { onClick: async()=>{
+              const groups=EP_AUTO_FILTER.filter(g=>dnAutoEnabled.has(g.id)&&dnAutoGroups.has(g.id));
+              if(groups.length===0)return;
+              if(!confirm(groups.length+" Produktlinien mit "+Array.from(dnAutoEnabled).reduce((s,gid)=>{const h=dnAutoGroups.get(gid);return s+(h?h.size:0);},0)+" Artikeln importieren?"))return;
+              let imported=0;
+              for(const grp of groups){
+                const artNrs=dnAutoGroups.get(grp.id);
+                const selArts=dnArticles.filter(a=>artNrs.has(a.artNr));
+                if(selArts.length===0)continue;
+                const catId="dn_"+Date.now()+"_"+grp.id;
+                const newCat={id:catId,label:grp.label,dims:[],items:selArts.map((a,i)=>({id:catId+"_"+i,name:a.name,artNr:a.artNr,avail:[],einheit:a.me||"Stk"}))};
+                const existing=savedCatalogs.find(c=>c.system===grp.system);
+                if(existing){
+                  const updCats=[...(existing.cats||[]),newCat];
+                  try{await SQ.push({url:"/api/material-catalogs/"+existing.id,method:"PUT",body:{id:existing.id,system:existing.system,gewerk:grp.gewerk,cats:updCats}});
+                    setSavedCatalogs(prev=>prev.map(c=>c.id===existing.id?{...c,cats:updCats}:c));
+                    imported+=selArts.length;
+                  }catch(_){}
+                }else{
+                  const sysId="sys_"+Date.now()+"_"+grp.id;
+                  const payload={id:sysId,system:grp.system,gewerk:grp.gewerk,cats:[newCat]};
+                  try{await SQ.push({url:"/api/material-catalogs",method:"POST",body:payload});
+                    setSavedCatalogs(prev=>[...prev,{...payload}]);
+                    imported+=selArts.length;
+                  }catch(_){}
+                }
+                await new Promise(r=>setTimeout(r,50));// stagger SQ
+              }
+              // Rebuild MAT_KATALOG
+              setSavedCatalogs(prev=>{MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...prev.map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}))];return prev;});
+              if(window.__doSync)window.__doSync();
+              window.__toast&&window.__toast(imported+" Artikel in "+groups.length+" Katalogen importiert","success");
+              setDnAutoGroups(null);setDnAutoEnabled(new Set());
+            }, style: {padding:isMob?"10px 18px":"6px 16px",borderRadius:6,border:"none",background:"#009640",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?40:0}}, "🚀 ", dnAutoEnabled.size, " Kataloge importieren")
+        )
+      )
+      , dnAutoGroups&&dnAutoGroups.size===0&&React.createElement('div', { style: {padding:16,color:V.dm,fontSize:12,background:_dark?"#1e293b":"#fef3c7",borderRadius:8,marginBottom:12}}, "⚠ Keine EP Kolar Produktlinien in den geladenen DATANORM-Daten gefunden. Manuelle Suche verwenden.")
+      // Toggle manual/auto
+      , dnArticles.length>0&&dnAutoGroups&&React.createElement('div', { style: {marginBottom:8,textAlign:"right"}}
+        , React.createElement('button', { onClick: ()=>{setDnAutoGroups(null);setDnAutoEnabled(new Set());}, style: {background:"transparent",border:"none",color:V.ac,fontSize:11,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}, "↩ Manuelle Suche statt Auto-Auswahl")
+      )
+      // Manual search/select (collapsed when autoGroups active)
+      , dnArticles.length>0&&!dnAutoGroups&&React.createElement('div', { style: {border:"1px solid "+V.bd,borderRadius:8,overflow:"hidden",marginBottom:12}}
         , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",padding:"8px 10px",background:_dark?"#1e293b":"#f1f5f9",borderBottom:"1px solid "+V.bd,flexWrap:"wrap"}}
           , React.createElement('input', { value: dnSearch, onChange: e=>setDnSearch(e.target.value), placeholder: "Suchen (Name oder Art.Nr.)...", style: {...II(),flex:1,fontSize:12,padding:isMob?"8px":"4px 8px",minWidth:150,minHeight:isMob?36:0} })
           , React.createElement('button', { onClick: toggleAll, style: {...bsS(),fontSize:10,padding:"3px 8px"}}, dnSelected.size===filtered.length?"Keine":"Alle", " (", filtered.length, ")")
