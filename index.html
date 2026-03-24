@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.39';
+  var SW_VER='epkolar-v3.5.40';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -943,7 +943,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.39-supabase";
+const APP_VERSION="3.5.40-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -7315,25 +7315,57 @@ const MATERIAL_UNITS=[
 const MAT_STATUS={angefordert:{l:"Angefordert",i:"📝",c:"#3b82f6"},in_bearbeitung:{l:"In Bearbeitung",i:"👀",c:"#f59e0b"},bereitgestellt:{l:"Bereitgestellt",i:"📦",c:"#22c55e"},bestellt:{l:"Bestellt",i:"🛒",c:"#8b5cf6"},erledigt:{l:"Erledigt",i:"✅",c:"#059669"},storniert:{l:"Storniert",i:"❌",c:"#6b7280"},
   /* back-compat */ offen:{l:"Offen",i:"🔵",c:"#3b82f6"},geliefert:{l:"Geliefert",i:"🟢",c:"#22c55e"}};
 const MAT_PRIO={dringend:{l:"Dringend",i:"🔴",c:"#ef4444"},normal:{l:"Normal",i:"🟡",c:"#f59e0b"},niedrig:{l:"Kann warten",i:"⚪",c:"#6b7280"}};
-/* ═══ DATANORM Parser (v4 + v5) ═══ */
+/* ═══ DATANORM Parser (v4 standard + v4 simplified + v5) ═══ */
 function _parseDatanorm(text,version){
-  // Auto-detect encoding issues and normalize
   const lines=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim());
+  // fmt: "v4ext" = standard DATANORM 4 with Änderungskz (Holter/SHT/Richter)
+  //      "v5"    = DATANORM 5 (empty Textschlüssel at p[2])
+  //      "v4sim" = simplified DATANORM 4 (no Änderungskz, rare)
+  let fmt=null;
+  if(version===5)fmt="v5";
+  else if(version===4)fmt="v4ext";// assume standard when forced to v4
+  if(!fmt){
+    for(const l of lines){
+      const p=l.split(";");const sa=(p[0]||"").trim().toUpperCase();
+      // V-record with ; separators: V;Nr;Firma;DATANORM;Version;Datum
+      if(sa==="V"&&p.length>=5){const vf=parseFloat(p[4]);if(vf>=5){fmt="v5";}else{fmt="v4ext";}break;}
+      // V-record fixed-width (no ;): "V 270226Holter..." → DATANORM 4 standard
+      if(l.trim().charAt(0)==="V"&&p.length<=2){fmt="v4ext";break;}
+      // First A-record: detect by parts[1]
+      if(sa==="A"&&p.length>=4){
+        const p1=(p[1]||"").trim();
+        // Standard DATANORM 4: parts[1] is single-char Änderungskz (N/U/D/Ä/L)
+        if(p1.length===1&&/^[NUDÄL]$/i.test(p1)){fmt="v4ext";}
+        // DATANORM 5: parts[2] is empty (Textschlüssel)
+        else if((p[2]||"").trim()===""){fmt="v5";}
+        // Simplified DATANORM 4: A;ArtNr;KT1;KT2;ME;...
+        else{fmt="v4sim";}
+        break;
+      }
+    }
+  }
+  if(!fmt)fmt="v4ext";// default to standard
   const articles=[];
   for(const line of lines){
     const parts=line.split(";");
     if(parts.length<4)continue;
     const satzart=(parts[0]||"").trim().toUpperCase();
-    if(satzart!=="A")continue;// Only A-records (article master)
+    if(satzart!=="A")continue;
     let artNr="",kt1="",kt2="",me="";
-    if(version===5||(!version&&parts.length>=8)){
+    if(fmt==="v4ext"){
+      // Standard DATANORM 4: A;Äkz;ArtNr;WG;Kurztext1;Kurztext2;PE;?;ME;Preis;...
+      artNr=(parts[2]||"").trim();
+      kt1=(parts[4]||"").trim();
+      kt2=(parts[5]||"").trim();
+      me=(parts[8]||"").trim();
+    }else if(fmt==="v5"){
       // DATANORM 5: A;ArtNr;;Kurztext1;Kurztext2;;ME;...
       artNr=(parts[1]||"").trim();
       kt1=(parts[3]||"").trim();
       kt2=(parts[4]||"").trim();
       me=(parts[6]||"").trim();
     }else{
-      // DATANORM 4: A;ArtNr;Kurztext1;Kurztext2;ME;...  (variable)
+      // Simplified v4: A;ArtNr;Kurztext1;Kurztext2;ME;...
       artNr=(parts[1]||"").trim();
       kt1=(parts[2]||"").trim();
       kt2=(parts[3]||"").trim();
@@ -7343,6 +7375,7 @@ function _parseDatanorm(text,version){
     const name=(kt1+(kt2?" "+kt2:"")).trim();
     articles.push({artNr,name,kt1,kt2,me:me||"Stk"});
   }
+  articles.detVer=fmt;
   return articles;
 }
 /* ═══ Material-Katalog (Platzhalter — wird durch DATANORM ersetzt) ═══ */
@@ -8517,7 +8550,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           const ver=dnVersion||0;
           const arts=_parseDatanorm(text,ver===0?null:ver);
           if(arts.length>0){setDnArticles(arts);setDnSelected(new Set());setDnSearch("");setDnAutoGroups(null);setDnAutoEnabled(new Set());
-            window.__toast&&window.__toast(arts.length+" Artikel aus DATANORM gelesen ("+encoding+")","success");
+            window.__toast&&window.__toast(arts.length+" Artikel aus DATANORM"+(arts.detVer?" ("+arts.detVer+")":"")+" gelesen ("+encoding+")","success");
           }else if(encoding==="ISO-8859-1"){tryParse("UTF-8");}
           else{window.__toast&&window.__toast("Keine Artikel gefunden. Format prüfen.","error");}
         };
