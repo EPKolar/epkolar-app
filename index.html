@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.47';
+  var SW_VER='epkolar-v3.5.48';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -949,7 +949,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.47-supabase";
+const APP_VERSION="3.5.48-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -9125,6 +9125,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const wpInitRef=_react.useRef.call(void 0, true);
   const wpSaveTimer=_react.useRef.call(void 0, null);
   const [cellPick,setCellPick]=_react.useState.call(void 0, null);// {rowId,days:["Mo","Di",...],type:"ma"|"fz"}
+  const [wpView,setWpView]=_react.useState.call(void 0, "planung");// "planung"|"maUebersicht"
   const dragRef=_react.useRef.call(void 0, {active:false,rowId:null,startIdx:-1,endIdx:-1});
   const [selCells,setSelCells]=_react.useState.call(void 0, null);// {rowId,days:[]} — visual highlight during drag
   const isMob=ww<600;const isAdmin=_optionalChain([curUser, 'optionalAccess', _468 => _468.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _469 => _469.role])==="projektleiter";
@@ -9357,7 +9358,96 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         )
       )
 
-      , React.createElement('p', { style: {color:V.dm,fontSize:11,margin:"0 0 4px",fontStyle:"italic"}}, "Monteure, Baustellen & Fahrzeuge pro Wochentag planen. ", !isMob?"Mehrere Tage markieren: Maus über Zellen ziehen. ":"", "Änderungen werden automatisch gespeichert." )
+      , React.createElement('p', { style: {color:V.dm,fontSize:11,margin:"0 0 4px",fontStyle:"italic"}}, wpView==="planung"?("Monteure, Baustellen & Fahrzeuge pro Wochentag planen. "+(!isMob?"Mehrere Tage markieren: Maus über Zellen ziehen. ":"")+"Änderungen werden automatisch gespeichert."):"Multi-Projekt Übersicht: Wo ist welcher Mitarbeiter eingeplant?")
+
+      /* View toggle: Planung | MA-Übersicht */
+      , React.createElement('div', { style: {display:"flex",gap:4,marginBottom:8}}
+        , [{id:"planung",l:"📅 Planung",c:"#3b82f6"},{id:"maUebersicht",l:"👷 MA-Übersicht",c:"#f97316"}].map(v=>(
+          React.createElement('button', { key: v.id, onClick: ()=>setWpView(v.id), style: {padding:isMob?"8px 14px":"6px 16px",borderRadius:8,border:"2px solid "+(wpView===v.id?v.c:"transparent"),background:wpView===v.id?v.c+"18":"transparent",color:wpView===v.id?v.c:V.dm,fontSize:13,fontWeight:wpView===v.id?700:500,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?40:0,transition:"all .15s"}}, v.l)
+        ))
+        , wpView==="maUebersicht"&&React.createElement('div', { style: {flex:1}})
+        , wpView==="maUebersicht"&&React.createElement('button', { onClick: ()=>{
+          const activeRows=rows.filter(r=>r.bvh.trim());
+          const hdrs=["Mitarbeiter","Rolle",...DSHORT.map((d,i)=>d+" "+dateFmt(i)),"Tage geplant"];
+          const data=fieldMA.map(m=>{
+            const dayProjs=DSHORT.map(d=>{
+              const projs=activeRows.filter(r=>((_optionalChain([r, 'access', _maX1 => _maX1.z, 'optionalAccess', _maX2 => _maX2[d], 'optionalAccess', _maX3 => _maX3.ma]))||[]).includes(m.id)).map(r=>r.bvh);
+              return projs.join(" + ")||"—";
+            });
+            const daysPlanned=DSHORT.filter(d=>activeRows.some(r=>((_optionalChain([r, 'access', _maX4 => _maX4.z, 'optionalAccess', _maX5 => _maX5[d], 'optionalAccess', _maX6 => _maX6.ma]))||[]).includes(m.id))).length;
+            return [m.n,m.r,...dayProjs,daysPlanned];
+          });
+          genXls("👷 MA-Übersicht — KW "+kw+" / "+yr,"Kalenderwoche "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"MA_Uebersicht_KW"+kw+"_"+yr+".xls",{colWidths:[160,120,...DSHORT.map(()=>140),80]});
+        }, style: {...bsS(),padding:"5px 12px",fontSize:11}}, "📥 Excel")
+      )
+
+      /* MA-Übersicht: Workers as rows, projects per cell */
+      , wpView==="maUebersicht"&&(()=>{
+        const activeRows=rows.filter(r=>r.bvh.trim());
+        // Build MA → day → projects mapping
+        const maData=fieldMA.map(m=>{
+          const dayProjs=DSHORT.map(d=>{
+            return activeRows.filter(r=>((_optionalChain([r, 'access', _maO1 => _maO1.z, 'optionalAccess', _maO2 => _maO2[d], 'optionalAccess', _maO3 => _maO3.ma]))||[]).includes(m.id)).map(r=>({bvh:r.bvh,projId:r.projId}));
+          });
+          const daysPlanned=dayProjs.filter(p=>p.length>0).length;
+          const hasConflict=dayProjs.some(p=>p.length>1);
+          return {m,dayProjs,daysPlanned,hasConflict};
+        });
+        // Project colors
+        const projColors=["#3b82f6","#22c55e","#f97316","#a855f7","#ef4444","#0ea5e9","#d97706","#6366f1","#14b8a6","#ec4899"];
+        const projColorMap={};activeRows.forEach((r,i)=>{projColorMap[r.bvh]=projColors[i%projColors.length];});
+        // Day totals
+        const dayTotals=DSHORT.map((_,di)=>maData.filter(md=>md.dayProjs[di].length>0).length);
+
+        return React.createElement('div', { style: {borderRadius:8,border:"1px solid "+V.bd,overflow:"hidden",background:V.cd,marginBottom:12}}
+          , React.createElement('div', { style: {overflowX:"auto"}}
+          , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:700,tableLayout:"fixed"}}
+            , React.createElement('colgroup', {}, React.createElement('col', { style: {width:"18%"}}), React.createElement('col', { style: {width:"8%"}}), DSHORT.map((_,i)=>(React.createElement('col', { key: i, style: {width:"11%"}}))), React.createElement('col', { style: {width:"6%"}}))
+            , React.createElement('thead', {}, React.createElement('tr', { style: {background:"linear-gradient(135deg,#f97316,#ea580c)"}}
+              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 8px",borderBottom:"2px solid #c2410c",textAlign:"left"}}, "Mitarbeiter")
+              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:11,padding:"10px 4px",borderBottom:"2px solid #c2410c",textAlign:"center"}}, "Rolle")
+              , DSHORT.map((d,i)=>(React.createElement('th', { key: d, style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 6px",borderBottom:"2px solid #c2410c",textAlign:"center"}}, d, React.createElement('br', {}), React.createElement('span', { style: {fontWeight:400,fontSize:11,opacity:.7}}, dateFmt(i)))))
+              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:11,padding:"10px 4px",borderBottom:"2px solid #c2410c",textAlign:"center"}}, "Tage")
+            ))
+            , React.createElement('tbody', {}
+              , maData.map((md,idx)=>{
+                const roleC=md.m.r==="Monteur"?"#22c55e":md.m.r==="Techniker"?"#3b82f6":"#f97316";
+                return React.createElement('tr', { key: md.m.id, style: {borderBottom:"1px solid "+V.bd,background:md.hasConflict?"rgba(239,68,68,.06)":idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent"}}
+                  , React.createElement('td', { style: {padding:"8px 8px",fontWeight:700,fontSize:14,color:V.tx,borderRight:"1px solid "+V.bd,whiteSpace:"nowrap"}}, md.m.n)
+                  , React.createElement('td', { style: {padding:"4px 4px",fontSize:10,color:roleC,fontWeight:600,textAlign:"center",borderRight:"1px solid "+V.bd}}, md.m.r)
+                  , md.dayProjs.map((projs,di)=>{
+                    const isConflict=projs.length>1;
+                    return React.createElement('td', { key: di, style: {padding:"6px 6px",borderRight:"1px solid "+V.bd,verticalAlign:"top",background:isConflict?"rgba(239,68,68,.1)":projs.length===1?(_dark?"rgba(0,150,64,.06)":"rgba(0,150,64,.03)"):"transparent"}}
+                      , projs.length===0&&React.createElement('span', { style: {fontSize:12,color:V.mt}}, "—")
+                      , projs.map((p,pi)=>{
+                        const pc=projColorMap[p.bvh]||"#71717a";
+                        return React.createElement('div', { key: pi, style: {fontSize:12,fontWeight:600,padding:"3px 6px",borderRadius:4,marginBottom:pi<projs.length-1?3:0,background:pc+"18",color:pc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",border:isConflict?"1px solid "+pc+"40":"none"}}, isConflict&&pi===0?"⚠️ ":"", p.bvh);
+                      })
+                    );
+                  })
+                  , React.createElement('td', { style: {padding:"6px 4px",textAlign:"center",fontWeight:700,fontSize:14,color:md.daysPlanned>=5?"#22c55e":md.daysPlanned>=3?"#f97316":md.daysPlanned>0?"#3b82f6":"#999",fontFamily:mono}}, md.daysPlanned)
+                );
+              })
+              /* Summary row */
+              , React.createElement('tr', { style: {borderTop:"2px solid "+V.bd,background:_dark?"rgba(249,115,22,.08)":"rgba(249,115,22,.04)"}}
+                , React.createElement('td', { colSpan: 2, style: {padding:"8px 8px",fontWeight:700,fontSize:13,color:"#f97316"}}, "Σ Eingeteilt")
+                , dayTotals.map((t,di)=>(React.createElement('td', { key: di, style: {padding:"8px 6px",textAlign:"center",fontWeight:800,fontSize:15,color:t>0?"#f97316":"#999",fontFamily:mono}}, t, "/", fieldMA.length)))
+                , React.createElement('td', { style: {padding:"8px 4px",textAlign:"center",fontSize:11,color:V.dm}})
+              )
+            )
+          )
+          )
+          /* Legend */
+          , activeRows.length>0&&React.createElement('div', { style: {padding:"8px 12px",borderTop:"1px solid "+V.bd,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}
+            , React.createElement('span', { style: {fontSize:11,color:V.dm,fontWeight:600}}, "Projekte:")
+            , activeRows.map(r=>{const pc=projColorMap[r.bvh]||"#71717a";return React.createElement('span', { key: r.id, style: {fontSize:11,padding:"2px 8px",borderRadius:4,background:pc+"18",color:pc,fontWeight:600}}, r.bvh);})
+            , React.createElement('span', { style: {fontSize:11,color:"#ef4444",marginLeft:8}}, "⚠️ = Doppelbelegung")
+          )
+        );
+      })()
+
+      /* Normal Planung view */
+      , wpView==="planung"&&React.createElement(React.Fragment, null
 
       /* Spezialfahrzeuge overview strip — LKW+Steiger at top */
       , spezFz.length>0&&(React.createElement('div', { style: {marginBottom:4,padding:"6px 10px",borderRadius:6,border:"1px solid "+V.bd,background:_dark?"rgba(249,115,22,.04)":"rgba(249,115,22,.02)"}}
@@ -9474,6 +9564,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         , React.createElement('button', { onClick: exportTxt, style: xBtn("txt")}, "📄 TXT" )
         , React.createElement('span', { style: {color:V.dm,fontSize:11,marginLeft:4}}, rows.filter(r=>r.bvh.trim()).length, " BVH · "   , Object.keys(fzConflicts).length>0?React.createElement('span', { style: {color:"#ef4444",fontWeight:700}}, "⚠️ Konflikte" ):"✅")
       )
+      )/* end wpView==="planung" Fragment */
     )
   );
 }
