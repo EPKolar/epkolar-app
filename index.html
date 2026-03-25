@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.44';
+  var SW_VER='epkolar-v3.5.47';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -949,7 +949,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.44-supabase";
+const APP_VERSION="3.5.47-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -2572,9 +2572,12 @@ function LoginScreen({onLogin,onPortal,projects}){
   const refreshPhotoQ=_react.useCallback.call(void 0, ()=>PhotoQ.getAll().then(q=>{setPhotoQItems(q);setPhotoCount(q.filter(x=>x.status==="pending"||x.status==="error").length);}),[]);
   // Sync
   const [syncMode,setSyncMode]=_react.useState.call(void 0, "auto");
-  const [syncStatus,setSyncStatus]=_react.useState.call(void 0, {connected:true,lastSync:td2()+"T"+new Date().toTimeString().slice(0,5),syncing:false,isWifi:true});
+  const [syncStatus,setSyncStatus]=_react.useState.call(void 0, {connected:true,lastSync:td2()+"T"+new Date().toTimeString().slice(0,5),syncing:false,isWifi:true,serverOk:true});
   const [pendingCount,setPendingCount]=_react.useState.call(void 0, 0);
   const [photoCount,setPhotoCount]=_react.useState.call(void 0, 0);
+  const [showSyncPanel,setShowSyncPanel]=_react.useState.call(void 0, false);
+  const [pendingItems,setPendingItems]=_react.useState.call(void 0, []);
+  const [lastHeartbeat,setLastHeartbeat]=_react.useState.call(void 0, null);
   _react.useEffect.call(void 0, ()=>{window.__updatePhotoCount=()=>PhotoQ.count().then(c=>setPhotoCount(c));window.__updatePhotoCount();return()=>{delete window.__updatePhotoCount;};},[]);
   // PWA Install + Update
   const [installPrompt,setInstallPrompt]=_react.useState.call(void 0, null);
@@ -2803,6 +2806,51 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(navigator.connection)navigator.connection.removeEventListener("change",checkNet);};
   },[]);
 
+  // Server heartbeat — check actual Supabase reachability every 30s
+  _react.useEffect.call(void 0, ()=>{
+    let active=true;
+    const heartbeat=async()=>{
+      if(!navigator.onLine){setSyncStatus(p=>({...p,serverOk:false}));return;}
+      try{
+        const r=await fetch(SB_REST.replace("/rest/v1","/rest/v1/"),{method:"HEAD",headers:SB_HDR,signal:AbortSignal.timeout(5000)});
+        if(active){setLastHeartbeat(Date.now());setSyncStatus(p=>({...p,serverOk:r.ok,connected:true}));}
+      }catch(e){
+        if(active)setSyncStatus(p=>({...p,serverOk:false}));
+      }
+    };
+    heartbeat();
+    const iv=setInterval(heartbeat,30000);
+    return()=>{active=false;clearInterval(iv);};
+  },[]);
+
+  // Load pending items detail for sync panel
+  const refreshPendingDetail=_react.useCallback.call(void 0, async()=>{
+    const q=await SQ.getAll();setPendingCount(q.length);
+    // Group by entity type
+    const groups={};
+    q.forEach(item=>{
+      const url=item.url||"";
+      let typ="Sonstige";
+      if(url.includes("time"))typ="Zeiteinträge";
+      else if(url.includes("arbeitsschein"))typ="Arbeitsscheine";
+      else if(url.includes("material"))typ="Material";
+      else if(url.includes("defect"))typ="Mängel";
+      else if(url.includes("bautagebuch"))typ="Bautagebuch";
+      else if(url.includes("absence"))typ="Abwesenheiten";
+      else if(url.includes("form"))typ="Formulare";
+      else if(url.includes("checklist"))typ="Checklisten";
+      else if(url.includes("weekplan"))typ="Wochenplanung";
+      else if(url.includes("notification"))typ="Benachrichtigungen";
+      else if(url.includes("photo")||url.includes("plan")||url.includes("document"))typ="Dateien";
+      else if(url.includes("project"))typ="Projekte";
+      else if(url.includes("worker")||url.includes("user"))typ="Benutzer";
+      else if(url.includes("fahrzeug"))typ="Fahrzeuge";
+      else if(url.includes("werkzeug"))typ="Werkzeuge";
+      groups[typ]=(groups[typ]||0)+1;
+    });
+    setPendingItems(Object.entries(groups).sort((a,b)=>b[1]-a[1]));
+  },[]);
+
   // Notification sound (Web Audio API)
   const playNotifSound=_react.useCallback.call(void 0, (urgent)=>{
     try{
@@ -2906,6 +2954,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         setPendingCount(cnt);
         setSyncStatus(p=>({...p,syncing:false,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));
         if(queue.length>0&&cnt<queue.length){const synced=queue.length-cnt;_optionalChain([window, 'access', _56 => _56.__toast, 'optionalCall', _57 => _57("🔄 "+synced+" Änderung"+(synced>1?"en":"")+" synchronisiert")]);}
+        refreshPendingDetail();
         // Offline-Fotos hochladen
         try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _56b => _56b.__toast, 'optionalCall', _57b => _57b("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(pe){}      } else {
         setSyncStatus(p=>({...p,syncing:false}));
@@ -2919,16 +2968,17 @@ function LoginScreen({onLogin,onPortal,projects}){
   // Auto-sync when coming back online
   _react.useEffect.call(void 0, ()=>{
     const onOnline=async()=>{
-      setSyncStatus(p=>({...p,connected:true}));
+      setSyncStatus(p=>({...p,connected:true,serverOk:true}));
       _optionalChain([window, 'access', _59 => _59.__toast, 'optionalCall', _60 => _60("📶 Verbindung wiederhergestellt")]);
       // Register background sync
       if(_optionalChain([swReg, 'access', _61 => _61.current, 'optionalAccess', _62 => _62.sync])) try{await swReg.current.sync.register("epkolar-sync");}catch(e){}
       const cnt=await SQ.count();
+      refreshPendingDetail();
       if(cnt>0) setTimeout(doSync,2000); // auto-flush after 2s
       // Also flush photo queue
       setTimeout(async()=>{try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _pf1 => _pf1.__toast, 'optionalCall', _pf2 => _pf2("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(e){console.warn("PhotoQ flush:",e);}},3000);
     };
-    const onOffline=()=>{setSyncStatus(p=>({...p,connected:false}));_optionalChain([window, 'access', _63 => _63.__toast, 'optionalCall', _64 => _64("📵 Offline — Änderungen werden lokal gespeichert","warn")]);};
+    const onOffline=()=>{setSyncStatus(p=>({...p,connected:false,serverOk:false}));_optionalChain([window, 'access', _63 => _63.__toast, 'optionalCall', _64 => _64("📵 Offline — Änderungen werden lokal gespeichert","warn")]);refreshPendingDetail();};
     window.addEventListener("online",onOnline);
     window.addEventListener("offline",onOffline);
     return ()=>{window.removeEventListener("online",onOnline);window.removeEventListener("offline",onOffline);};
@@ -3124,7 +3174,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   _react.useEffect.call(void 0, ()=>{
     if(!curUser)return;
     const shouldSync=syncMode==="always"||(syncMode==="auto"&&syncStatus.isWifi);
-    if(shouldSync&&syncStatus.connected){
+    if(shouldSync&&syncStatus.connected&&syncStatus.serverOk){
       setSyncStatus(p=>({...p,syncing:true}));
       setTimeout(()=>{setSyncStatus(p=>({...p,syncing:false,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));},1200);
     }
@@ -3261,10 +3311,10 @@ function LoginScreen({onLogin,onPortal,projects}){
             )
             , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
               /* Sync indicator */
-              , React.createElement('button', { onClick: doSync, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+syncStatus.lastSync, style: {border:"none",background:syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s"}}
-                , syncStatus.syncing?React.createElement('span', { style: {fontSize:14,animation:"spin .8s linear infinite",display:"inline-block"}}, "🔄"):React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:syncStatus.connected?(syncStatus.isWifi?"#22c55e":"#eab308"):"#ef4444"}} )
+              , React.createElement('button', { onClick: ()=>{refreshPendingDetail();setShowSyncPanel(!showSyncPanel);}, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+syncStatus.lastSync, style: {border:"none",background:showSyncPanel?"rgba(14,165,233,.12)":syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s"}}
+                , syncStatus.syncing?React.createElement('span', { style: {fontSize:14,animation:"spin .8s linear infinite",display:"inline-block"}}, "🔄"):React.createElement('div', { style: {width:10,height:10,borderRadius:"50%",background:!syncStatus.connected||!syncStatus.serverOk?"#ef4444":syncStatus.isWifi?"#22c55e":"#eab308",border:"2px solid "+(syncStatus.connected&&syncStatus.serverOk?"transparent":"rgba(239,68,68,.3)"),boxShadow:!syncStatus.connected?"0 0 6px rgba(239,68,68,.5)":"none"}} )
                 , pendingCount>0&&React.createElement('span', { style: {position:"absolute",top:-2,right:-4,background:"#f97316",color:"#fff",fontSize:8,fontWeight:800,borderRadius:10,padding:"1px 4px",minWidth:14,textAlign:"center"}}, pendingCount)
-                , !isMob&&React.createElement('span', { style: {fontSize:11,color:syncStatus.connected?V.dm:"#ef4444"}}, syncStatus.syncing?"Sync...":!syncStatus.connected?"Offline":syncStatus.isWifi?"WLAN":"Mobil")
+                , !isMob&&React.createElement('span', { style: {fontSize:11,color:syncStatus.connected&&syncStatus.serverOk?V.dm:"#ef4444"}}, syncStatus.syncing?"Sync...":!syncStatus.connected?"Offline":!syncStatus.serverOk?"Server ❌":syncStatus.isWifi?"WLAN":"Mobil")
               )
               /* Photo Queue */
               , React.createElement('button', { onClick: ()=>{refreshPhotoQ();setShowPhotoQ(!showPhotoQ);}, title: photoCount>0?photoCount+" Foto"+(photoCount>1?"s":"")+" ausstehend":"Foto-Warteschlange", style: {border:"none",background:showPhotoQ?"rgba(59,130,246,.1)":photoCount>0?"rgba(249,115,22,.08)":"transparent",cursor:"pointer",padding:"4px 8px",borderRadius:6,position:"relative",minHeight:36,minWidth:36,display:"flex",alignItems:"center",justifyContent:"center",transition:"background .2s"}}
@@ -3301,14 +3351,14 @@ function LoginScreen({onLogin,onPortal,projects}){
             /* Sync bar */
             , React.createElement('div', { style: {padding:"8px 16px",borderBottom:"1px solid "+V.bd,display:"flex",alignItems:"center",justifyContent:"space-between",background:V.cd}}
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
-                , React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:syncStatus.connected?"#22c55e":"#ef4444"}} )
-                , React.createElement('span', { style: {fontSize:11,color:V.dm}}, syncStatus.connected?(syncStatus.isWifi?"📶 WLAN verbunden":"📱 Mobilfunk"):"❌ Offline")
+                , React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:syncStatus.connected&&syncStatus.serverOk?"#22c55e":"#ef4444"}} )
+                , React.createElement('span', { style: {fontSize:11,color:V.dm}}, syncStatus.connected?(syncStatus.serverOk?(syncStatus.isWifi?"📶 WLAN verbunden":"📱 Mobilfunk"):"⚠️ Server nicht erreichbar"):"❌ Offline")
               )
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                 , React.createElement('select', { value: syncMode, onChange: e=>setSyncMode(e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"3px 6px",minHeight:28,background:V.bg}}
                   , Object.entries(SYNC_MODES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))
                 )
-                , React.createElement('button', { onClick: doSync, disabled: syncStatus.syncing||!syncStatus.connected, style: {...bpS,padding:"4px 10px",fontSize:10,opacity:syncStatus.syncing?.6:1,minHeight:28}}, syncStatus.syncing?"⏳":"🔄", " Sync" )
+                , React.createElement('button', { onClick: doSync, disabled: syncStatus.syncing||!syncStatus.connected||!syncStatus.serverOk, style: {...bpS,padding:"4px 10px",fontSize:10,opacity:syncStatus.syncing?.6:1,minHeight:28}}, syncStatus.syncing?"⏳":"🔄", " Sync" )
               )
             )
             , syncStatus.lastSync&&React.createElement('div', { style: {padding:"4px 16px",fontSize:9,color:V.dm,borderBottom:"1px solid "+V.bd}}, "Letzter Sync: "  , syncStatus.lastSync)
@@ -3339,7 +3389,7 @@ function LoginScreen({onLogin,onPortal,projects}){
             )
             /* Footer: Connection status */
             , React.createElement('div', { style: {padding:"10px 16px",borderTop:"1px solid "+V.bd,fontSize:11,color:V.dm}}
-              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4,marginBottom:2}}, React.createElement('span', {}, syncStatus.connected?"🟢":"🔴"), " Supabase: " , syncStatus.connected?"Verbunden":"Offline")
+              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4,marginBottom:2}}, React.createElement('span', {}, syncStatus.connected&&syncStatus.serverOk?"🟢":syncStatus.connected?"🟡":"🔴"), " Supabase: " , syncStatus.connected&&syncStatus.serverOk?"Verbunden":syncStatus.connected?"Server nicht erreichbar":"Offline")
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('span', {}, "📡"), " Polling: Alle 60s auf Änderungen prüfen"    )
             )
           ))
@@ -3379,6 +3429,46 @@ function LoginScreen({onLogin,onPortal,projects}){
               , React.createElement('button', { onClick: ()=>{if(confirm("Alle Fotos aus der Warteschlange löschen?"))PhotoQ.clear().then(()=>refreshPhotoQ());}, style: {border:"none",background:"transparent",cursor:"pointer",fontSize:10,color:"#ef4444",padding:"2px 6px"}}, "🗑️ Alle löschen" )
             )
           ))
+          /* ═══ SYNC DETAIL PANEL ═══ */
+          , showSyncPanel&&React.createElement('div', { onClick: ()=>setShowSyncPanel(false), style: {position:"fixed",inset:0,zIndex:149}} )
+          , showSyncPanel&&React.createElement('div', { style: {position:"fixed",top:56,right:isMob?8:200,width:isMob?"calc(100% - 16px)":320,background:V.sb,borderRadius:12,border:"1px solid "+V.bd,zIndex:150,boxShadow:"0 8px 32px rgba(0,0,0,.4)",animation:"slideIn .2s ease-out",overflow:"hidden"}, onClick: e=>e.stopPropagation()}
+            , React.createElement('div', { style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
+              , React.createElement('div', { style: {fontWeight:700,fontSize:14}}, "📡 Verbindung & Sync")
+              , React.createElement('button', { onClick: ()=>setShowSyncPanel(false), style: {border:"none",background:"transparent",cursor:"pointer",fontSize:18,color:V.dm,padding:"0 4px"}}, "✕")
+            )
+            /* Connection Status */
+            , React.createElement('div', { style: {padding:"10px 16px",borderBottom:"1px solid "+V.bd}}
+              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,marginBottom:8}}
+                , React.createElement('div', { style: {width:12,height:12,borderRadius:"50%",background:!syncStatus.connected?"#ef4444":!syncStatus.serverOk?"#f97316":syncStatus.isWifi?"#22c55e":"#eab308",boxShadow:"0 0 8px "+(syncStatus.connected&&syncStatus.serverOk?"rgba(34,197,94,.4)":"rgba(239,68,68,.4)")}})
+                , React.createElement('span', { style: {fontSize:13,fontWeight:600,color:V.tx}}, !syncStatus.connected?"Offline":!syncStatus.serverOk?"Server nicht erreichbar":syncStatus.isWifi?"WLAN verbunden":"Mobilfunk")
+              )
+              , React.createElement('div', { style: {display:"flex",gap:12,fontSize:11,color:V.dm}}
+                , React.createElement('span', {}, "Sync: ", SYNC_MODES[syncMode].l)
+                , lastHeartbeat&&React.createElement('span', {}, "Ping: ", Math.round((Date.now()-lastHeartbeat)/1000), "s")
+              )
+              , syncStatus.lastSync&&React.createElement('div', { style: {fontSize:10,color:V.mt,marginTop:4}}, "Letzter Sync: ", syncStatus.lastSync)
+            )
+            /* Pending Queue */
+            , React.createElement('div', { style: {padding:"10px 16px",borderBottom:"1px solid "+V.bd}}
+              , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6,color:V.tx}}, "Ausstehende Änderungen", React.createElement('span', { style: {marginLeft:6,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:pendingCount>0?"#f97316":"#22c55e",color:"#fff"}}, pendingCount))
+              , pendingCount===0&&React.createElement('div', { style: {fontSize:12,color:V.dm,padding:"4px 0"}}, "✅ Alles synchron")
+              , pendingItems.map(([typ,cnt])=>(React.createElement('div', { key: typ, style: {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 0",fontSize:12,color:V.tx}}
+                , React.createElement('span', {}, typ)
+                , React.createElement('span', { style: {fontWeight:700,color:"#f97316",fontFamily:mono}}, cnt)
+              )))
+              , photoCount>0&&React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 0",fontSize:12,color:V.tx}}
+                , React.createElement('span', {}, "📷 Fotos")
+                , React.createElement('span', { style: {fontWeight:700,color:"#f97316",fontFamily:mono}}, photoCount)
+              )
+            )
+            /* Actions */
+            , React.createElement('div', { style: {padding:"10px 16px",display:"flex",gap:8,flexWrap:"wrap"}}
+              , React.createElement('button', { onClick: ()=>{doSync();}, disabled: syncStatus.syncing||!syncStatus.connected, style: {...bpS,padding:"8px 16px",fontSize:12,flex:1,opacity:syncStatus.syncing?.6:1,minHeight:36}}, syncStatus.syncing?"⏳ Synchronisiere...":"🔄 Jetzt synchronisieren")
+              , React.createElement('select', { value: syncMode, onChange: e=>setSyncMode(e.target.value), style: {...II(),width:"auto",fontSize:11,padding:"6px 8px",minHeight:36,background:V.bg}}
+                , Object.entries(SYNC_MODES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " ", v.l)))
+              )
+            )
+          )
           , React.createElement('div', { className: "top-tabs", style: {borderBottom:"2px solid "+V.bd,background:V.sb,alignItems:"center",position:"relative"}}
             , React.createElement('div', { className: "tab-bar", style: {padding:isMob?"0 8px":"0 20px",flex:1,alignItems:"center"}}
               , (ww>=1200?tabs:mainTabs).map((c,mi)=>{const ri=tabs.indexOf(c);const arr=ww>=1200?tabs:mainTabs;const prevG=mi>0?arr[mi-1].g:-1;const showSep=mi>0&&c.g!==prevG;return React.createElement(_react.Fragment, { key: ri}, showSep&&React.createElement('span', { style: {width:1,height:24,background:V.bd,margin:"0 4px",flexShrink:0,opacity:.6}}), React.createElement('button', { onClick: ()=>{setKat(ri);setMoreOpen(false);}, style: {padding:"11px 16px",border:"none",background:"transparent",color:safeKat===ri?c.c:V.dm,fontSize:13,fontWeight:safeKat===ri?700:500,borderBottom:"3px solid "+(safeKat===ri?c.c:"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, c.i, " " , c.l));})
@@ -3391,8 +3481,8 @@ function LoginScreen({onLogin,onPortal,projects}){
               )
             )
           )
-          , !syncStatus.connected&&React.createElement('div', { style: {padding:"8px 16px",background:"linear-gradient(90deg,#ef4444,#dc2626)",color:"#fff",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}
-            , React.createElement('span', { style: {fontSize:16}}, "📡"), " Offline-Modus — Alle Änderungen werden lokal gespeichert"       , pendingCount>0&&React.createElement('span', { style: {background:"rgba(255,255,255,.2)",borderRadius:10,padding:"2px 8px",fontSize:11}}, pendingCount, " ausstehend" ), photoCount>0&&React.createElement('span', { style: {background:"rgba(255,255,255,.2)",borderRadius:10,padding:"2px 8px",fontSize:10}}, "📷 ", photoCount, " Foto", photoCount>1?"s":"" )
+          , (!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { style: {padding:"8px 16px",background:!syncStatus.connected?"linear-gradient(90deg,#ef4444,#dc2626)":"linear-gradient(90deg,#f97316,#ea580c)",color:"#fff",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:8,justifyContent:"center",cursor:"pointer"}, onClick: ()=>{refreshPendingDetail();setShowSyncPanel(true);}}
+            , React.createElement('span', { style: {fontSize:16}}, !syncStatus.connected?"📡":"⚠️"), !syncStatus.connected?" Offline-Modus — Änderungen werden lokal gespeichert":" Server nicht erreichbar — Änderungen werden lokal gespeichert"       , pendingCount>0&&React.createElement('span', { style: {background:"rgba(255,255,255,.2)",borderRadius:10,padding:"2px 8px",fontSize:11}}, pendingCount, " ausstehend" ), photoCount>0&&React.createElement('span', { style: {background:"rgba(255,255,255,.2)",borderRadius:10,padding:"2px 8px",fontSize:10}}, "📷 ", photoCount, " Foto", photoCount>1?"s":"" )
           )
           /* PWA Update Banner */
           , swUpdate&&React.createElement('div', { style: {padding:"10px 16px",background:"linear-gradient(90deg,#0ea5e9,#0284c7)",color:"#fff",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:10,justifyContent:"center",flexWrap:"wrap"}}
@@ -3435,6 +3525,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           )
           /* ═══ MOBILE BOTTOM NAV — 5 Groups ═══ */
           , React.createElement('div', { className: "bottom-nav"}
+            , (!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { style: {position:"absolute",top:-24,left:0,right:0,background:!syncStatus.connected?"#ef4444":"#f97316",color:"#fff",fontSize:10,fontWeight:700,textAlign:"center",padding:"3px 0",letterSpacing:.5}, onClick: ()=>{refreshPendingDetail();setShowSyncPanel(true);}}, !syncStatus.connected?"📡 OFFLINE":"⚠️ SERVER", pendingCount>0?" · "+pendingCount+" ausstehend":"")
             , [{i:"🏠",l:"Home",g:0,c:"#f59e0b"},{i:"🏗️",l:"Baustelle",g:1,c:"#009640"},{i:"⏱️",l:"Zeit",g:2,c:"#3b82f6"},{i:"🚐",l:"Fuhrpark",g:3,c:"#0ea5e9"},{i:"⚙️",l:"Mehr",g:4,c:"#71717a"}].map(gr=>{
               const grTabs=tabs.filter(t=>t.g===gr.g);const grFirst=grTabs[0]?tabs.indexOf(grTabs[0]):0;
               const isActive=grTabs.some(t=>tabs.indexOf(t)===kat);
@@ -7541,17 +7632,73 @@ const MAT_KATALOG_DEFAULT=[
       {id:"mu1",name:"Übergang Mepla/Mapress",artNr:"",avail:[1,1,1,1,1,1,1,1],einheit:"Stk"}
     ]}
   ]},
-  {id:"elektro_basis",system:"Elektro Basis",gewerk:"elektro",cats:[
-    {id:"el_kabel",label:"Kabel",dims:["3x1,5","5x1,5","3x2,5","5x2,5","5x4","5x6"],items:[
-      {id:"ek1",name:"NYM-J Erdkabel",artNr:"",avail:[1,1,1,1,1,1],einheit:"m"},
-      {id:"ek2",name:"NYY-J Erdkabel",artNr:"",avail:[1,1,1,1,1,1],einheit:"m"}
+  {id:"elektro_basis",system:"Kabel & Leitungen",gewerk:"elektro",cats:[
+    {id:"el_nym",label:"NYM-J Mantelleitung",dims:["3x1,5","5x1,5","3x2,5","5x2,5","5x4","5x6","5x10","5x16"],items:[
+      {id:"ek1",name:"NYM-J Ring 100m",artNr:"",avail:[1,1,1,1,1,1,0,0],einheit:"Stk"},
+      {id:"ek1b",name:"NYM-J Ring 50m",artNr:"",avail:[0,0,0,0,1,1,1,1],einheit:"Stk"},
+      {id:"ek1c",name:"NYM-J Schnittlänge",artNr:"",avail:[1,1,1,1,1,1,1,1],einheit:"m"}
     ]},
-    {id:"el_schalt",label:"Schaltmaterial",dims:[],items:[
-      {id:"es1",name:"Steckdose UP",artNr:"",avail:[],einheit:"Stk"},
-      {id:"es2",name:"Wechselschalter",artNr:"",avail:[],einheit:"Stk"},
-      {id:"es3",name:"Kreuzschalter",artNr:"",avail:[],einheit:"Stk"},
-      {id:"es4",name:"FI/LS B16 30mA",artNr:"",avail:[],einheit:"Stk"},
-      {id:"es5",name:"Leitungsschutzschalter B16",artNr:"",avail:[],einheit:"Stk"}
+    {id:"el_nyy",label:"NYY-J Erdkabel",dims:["3x1,5","5x1,5","3x2,5","5x2,5","5x4","5x6","5x10","5x16"],items:[
+      {id:"ek2",name:"NYY-J Ring",artNr:"",avail:[1,1,1,1,1,1,0,0],einheit:"Stk"},
+      {id:"ek2b",name:"NYY-J Schnittlänge",artNr:"",avail:[1,1,1,1,1,1,1,1],einheit:"m"}
+    ]},
+    {id:"el_h07",label:"H07V-U/K Einzeladern",dims:["1,5 gn/ge","1,5 bl","1,5 sw","1,5 br","2,5 gn/ge","2,5 bl","2,5 sw","4 sw","6 gn/ge","6 sw","10 gn/ge","10 sw"],items:[
+      {id:"ek3",name:"H07V-U starr Ring 100m",artNr:"",avail:[1,1,1,1,1,1,1,1,1,1,0,0],einheit:"Stk"},
+      {id:"ek3b",name:"H07V-K flexibel Ring 100m",artNr:"",avail:[1,1,1,1,1,1,1,1,1,1,1,1],einheit:"Stk"}
+    ]}
+  ]},
+  {id:"elektro_inst",system:"Installationsrohre",gewerk:"elektro",cats:[
+    {id:"el_flex",label:"Flexrohr",dims:["M16","M20","M25","M32","M40","M50"],items:[
+      {id:"ef1",name:"Flexrohr leicht 25m",artNr:"",avail:[1,1,1,1,1,1],einheit:"Stk"},
+      {id:"ef2",name:"Flexrohr schwer 25m",artNr:"",avail:[0,1,1,1,1,1],einheit:"Stk"},
+      {id:"ef3",name:"Stangenrohr 3m",artNr:"",avail:[1,1,1,1,1,1],einheit:"Stk"}
+    ]},
+    {id:"el_zubinst",label:"Zubehör Installation",dims:[],items:[
+      {id:"ez1",name:"Nagelschelle M20",artNr:"",avail:[],einheit:"Pkg"},
+      {id:"ez2",name:"Druckschelle M20",artNr:"",avail:[],einheit:"Pkg"},
+      {id:"ez3",name:"Verschraubung M20",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ez4",name:"Verschraubung M25",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ez5",name:"Kabelbinder 200mm schwarz",artNr:"",avail:[],einheit:"Pkg"}
+    ]}
+  ]},
+  {id:"elektro_schalt",system:"Schalterprogramm",gewerk:"elektro",cats:[
+    {id:"el_dosen",label:"Dosen",dims:[],items:[
+      {id:"ed1",name:"UP-Gerätedose Ø68 tief",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ed2",name:"UP-Gerätedose Ø68 flach",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ed3",name:"Hohlwanddose Ø68",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ed4",name:"Abzweigdose AP IP54",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ed5",name:"Verbindungsdose UP rund",artNr:"",avail:[],einheit:"Stk"}
+    ]},
+    {id:"el_schalt",label:"Schalter & Steckdosen",dims:[],items:[
+      {id:"es1",name:"Steckdose UP mit Rahmen",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es2",name:"Doppelsteckdose UP mit Rahmen",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es3",name:"Wechselschalter mit Wippe",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es4",name:"Serienschalter mit Wippe",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es5",name:"Kreuzschalter mit Wippe",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es6",name:"Tastschalter mit Wippe",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es7",name:"Rahmen 1-fach",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es8",name:"Rahmen 2-fach",artNr:"",avail:[],einheit:"Stk"},
+      {id:"es9",name:"Rahmen 3-fach",artNr:"",avail:[],einheit:"Stk"}
+    ]}
+  ]},
+  {id:"elektro_verteil",system:"Verteilungstechnik",gewerk:"elektro",cats:[
+    {id:"el_schutz",label:"Schutzschalter",dims:[],items:[
+      {id:"ev1",name:"FI/LS B16 30mA 1+N",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev2",name:"FI/LS B10 30mA 1+N",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev3",name:"FI/LS C16 30mA 1+N",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev4",name:"FI-Schalter 40A 30mA 4-polig",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev5",name:"Leitungsschutzschalter B16 1-polig",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev6",name:"Leitungsschutzschalter B10 1-polig",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev7",name:"Leitungsschutzschalter C16 3-polig",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ev8",name:"SLS 35A 1+N",artNr:"",avail:[],einheit:"Stk"}
+    ]},
+    {id:"el_klemm",label:"Klemmen & Verbinder",dims:[],items:[
+      {id:"ew1",name:"WAGO 221-412 (2-Leiter)",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ew2",name:"WAGO 221-413 (3-Leiter)",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ew3",name:"WAGO 221-415 (5-Leiter)",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ew4",name:"Reihenklemme 2,5mm²",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ew5",name:"Phasenschiene 3-polig 12TE",artNr:"",avail:[],einheit:"Stk"},
+      {id:"ew6",name:"Hutschiene 35mm 1m",artNr:"",avail:[],einheit:"Stk"}
     ]}
   ]}
 ];
@@ -7560,33 +7707,64 @@ var MAT_KATALOG=[...MAT_KATALOG_DEFAULT];
 /* ═══ EP Kolar Auto-Auswahl Produktlinien (aus Inventur HLS) ═══ */
 const EP_AUTO_FILTER=[
   {id:"mepla",label:"Geberit Mepla",kw:["geberit mepla","mepla verbund","mepla rohr","mepla übergang","mepla winkel","mepla t-stück","mepla kupplung","mepla reduktion","mepla endstopfen","mepla armaturenanschluss"],system:"Geberit Mepla",gewerk:"sanitaer"},
-  {id:"silent",label:"Geberit Silent-PP",kw:["silent-pp","silent pp","geberit silent"],system:"Geberit Silent-PP",gewerk:"sanitaer"},
+  {id:"silent",label:"Geberit Silent-PP",kw:["silent-pp","silent pp","geberit silent","geberit rohbauset","geberit up-sifon","geberit pe steckdichtung","geberit pe abd","geberit urinal-sifon","geberit pe gleitschelle","geberit reinigungsstück","geberit rohranfas","geberit übergang 603508"],system:"Geberit Silent-PP",gewerk:"sanitaer"},
   {id:"silentdb",label:"Geberit Silent db20",kw:["silent db20"],system:"Geberit Silent-PP",gewerk:"sanitaer"},
-  {id:"cstahl",label:"Mapress C-Stahl",kw:["mapress c-stahl","c-stahl bogen","c-stahl t-stück","c-stahl übergang","c-stahl muffe","c-stahl reduktion","c-stahl schiebemuffe","c-stahl kappe","c-stahl systemrohr","c-stahl passbogen","c-stahl sprungbogen","c-stahl kreuzung","c-stahl kugelabsperr"],system:"Mapress C-Stahl",gewerk:"heizung"},
+  {id:"cstahl",label:"Mapress C-Stahl",kw:["mapress c-stahl","c-stahl bogen","c-stahl t-stück","c-stahl übergang","c-stahl muffe","c-stahl reduktion","c-stahl schiebemuffe","c-stahl kappe","c-stahl systemrohr","c-stahl passbogen","c-stahl sprungbogen","c-stahl kreuzung","c-stahl kugelabsperr","mapress absperr","mapress dichtring"],system:"Mapress C-Stahl",gewerk:"heizung"},
   {id:"kupfer",label:"Mapress Kupfer",kw:["mapress kupfer"],system:"Mapress Kupfer",gewerk:"sanitaer"},
-  {id:"edelgas",label:"Mapress Edelstahl Gas",kw:["mapress edelstahl gas","edelstahl gas bogen","edelstahl gas t-stück","edelstahl gas übergang","edelstahl gas muffe","edelstahl gas schiebe","edelstahl gas reduktion","edelstahl gas anschluss"],system:"Mapress Edelstahl Gas",gewerk:"sanitaer"},
+  {id:"edelgas",label:"Mapress Edelstahl Gas",kw:["mapress edelstahl gas","edelstahl gas bogen","edelstahl gas t-stück","edelstahl gas übergang","edelstahl gas muffe","edelstahl gas schiebe","edelstahl gas reduktion","edelstahl gas anschluss","edelst.gas anschlussw","edelst.gas übergangswinkel","edelst.übergangsverschr"],system:"Mapress Edelstahl Gas",gewerk:"sanitaer"},
   {id:"armacell",label:"Armacell/Armaflex",kw:["armacell","armaflex","armafix"],system:"Armacell Armaflex",gewerk:"sanitaer"},
   {id:"eurobatex",label:"Eurobatex Isolierung",kw:["eurobatex"],system:"Eurobatex Isolierung",gewerk:"heizung"},
   {id:"rehauht",label:"Rehau HT Abwasser",kw:["rehau ht","ht bogen","ht abflussrohr","ht abzweiger","ht reduktion","ht überschubmuffe","ht sifonanschluss","ht sifonwinkel","ht muffenstopfen","ht reinigungsrohr"],system:"Rehau HT",gewerk:"sanitaer"},
-  {id:"polokal",label:"Poloplast Polokal",kw:["poloplast","polokal"],system:"Poloplast Polokal",gewerk:"sanitaer"},
+  {id:"polokal",label:"Poloplast Polokal",kw:["poloplast","polokal","polo-kal","auszugsichere verbindung"],system:"Poloplast Polokal",gewerk:"sanitaer"},
   {id:"plasson",label:"Plasson PE",kw:["plasson"],system:"Plasson PE",gewerk:"sanitaer"},
   {id:"isiflo",label:"Isiflo PE",kw:["isiflo"],system:"Isiflo PE",gewerk:"sanitaer"},
-  {id:"herz",label:"Herz Ventile",kw:["herz ts-90","herz rl-5","herz 3000","herz thermostatkopf","herz klemmset","herz design"],system:"Herz Ventile",gewerk:"heizung"},
+  {id:"herz",label:"Herz Ventile",kw:["herz ts-90","herz rl-5","herz 3000","herz thermostatkopf","herz klemmset","herz design","herz ts90-e","herz thermostatkopf de"],system:"Herz Ventile",gewerk:"heizung"},
   {id:"walraven",label:"Walraven Bismat",kw:["walraven","bismat"],system:"Walraven Befestigung",gewerk:"allgemein"},
   {id:"grundfos",label:"Grundfos Pumpen",kw:["grundfos"],system:"Grundfos",gewerk:"heizung"},
-  {id:"wolf",label:"Wolf Lüftung/CWL",kw:["wolf cwl","wolf comfort","wolf iso-rohr","wolf grobfilter","wolf digitale","wolf flachkanal","wolf bundkragen"],system:"Wolf CWL",gewerk:"klima"},
+  {id:"wolf",label:"Wolf Lüftung/CWL",kw:["wolf cwl","wolf comfort","wolf iso-rohr","wolf grobfilter","wolf digitale","wolf flachkanal","wolf bundkragen","wolf flexibl"],system:"Wolf CWL",gewerk:"klima"},
   {id:"lueftung",label:"Lüftung Formteile",kw:["lüftung bogen","lüftung wickelfalz","lüftung muffe","lüftung t-stück","lüftung nippel","lüftung reduzi","lüftung enddeckel","lüftung bundkragen","lüftung rückschlag","lüftung schlauchklemme","lüftung safe","lüftung schelle","lüftung ausblas"],system:"Lüftung Formteile",gewerk:"klima"},
-  {id:"hl",label:"HL Ablauftechnik",kw:["hl sifon","hl ablauf","hl gully","hl rückfluss","hl baustopfen","hl tropf","hl fertigabl","hl wc-","hl kellerabl","hl raumspar"],system:"HL Ablauftechnik",gewerk:"sanitaer"},
+  {id:"hl",label:"HL Ablauftechnik",kw:["hl sifon","hl ablauf","hl gully","hl rückfluss","hl baustopfen","hl tropf","hl fertigabl","hl wc-","hl kellerabl","hl raumspar","hl regensink","hl abfluss-bau","hl2 ","hl72 "],system:"HL Ablauftechnik",gewerk:"sanitaer"},
   {id:"braukmann",label:"Braukmann/Honeywell",kw:["braukmann","honeywell"],system:"Braukmann Sicherheit",gewerk:"sanitaer"},
   {id:"bwt",label:"BWT Wasserfilter",kw:["bwt"],system:"BWT",gewerk:"sanitaer"},
-  {id:"concept",label:"Concept Armaturen",kw:["concept"],system:"Concept",gewerk:"sanitaer"},
+  {id:"concept",label:"Concept Armaturen",kw:["concept","co softline"],system:"Concept",gewerk:"sanitaer"},
   {id:"vaillant",label:"Vaillant Heizung",kw:["vaillant"],system:"Vaillant",gewerk:"heizung"},
   {id:"esbe",label:"Esbe Mischer",kw:["esbe"],system:"Esbe",gewerk:"heizung"},
   {id:"aft",label:"AFT Brandschutz",kw:["aft rorcol","brandrohrmansch","brandschutzmansch"],system:"AFT Brandschutz",gewerk:"allgemein"},
   {id:"schell",label:"Schell Armaturen",kw:["schell"],system:"Schell",gewerk:"sanitaer"},
-  {id:"wernig",label:"Wernig Lüftung",kw:["wernig","edelstahlansaug","kondensatabzweig","mauerdurchführung","pe-saugnische","metall-tellerventil","zuluft-deckenventil"],system:"Wernig",gewerk:"klima"},
+  {id:"wernig",label:"Wernig Lüftung",kw:["wernig","edelstahlansaug","kondensatabzweig","mauerdurchführung","pe-saugnische","metall-tellerventil","zuluft-deckenventil","flanschdichtung nw","pe-verbindungsmuffe","verbindungsmuffe aus pp","zu- und abluftverteiler"],system:"Wernig",gewerk:"klima"},
   {id:"rotguss",label:"Rotguss Fittings",kw:["rotguss","holländer","doppelnippel 3","reduktion 3241","muffe 3270","stopfen 3290","kappe 3301","winkel 3090","winkel 3092","t-stück 3130","reduktionsmuffe 3240"],system:"Rotguss Fittings",gewerk:"sanitaer"},
-  {id:"diverse",label:"Sonstige (Kemper/Techem/Kaldewei/Flamco...)",kw:["kemper","techem","kaldewei","flamco","danfoss","neoperl","prisma","wilo","rockwool","steinonorm","durgo"],system:"Diverse",gewerk:"sanitaer"}
+  {id:"diverse",label:"Sonstige (Kemper/Techem/Kaldewei/Flamco...)",kw:["kemper","techem","kaldewei","flamco","danfoss","neoperl","prisma","wilo","rockwool","steinonorm","durgo","mond ","airfit","kupferrohr","entlüftungsschr","verschlussschr","conex","eder ","fertinger","laufen ablauf","teflon","heizungsthermo","tyfocor","schweißdraht","waschtisch-dübel","sanimeister","kaltschrumpf","zauberzement","ethanol","mhs ","pvc-kleber","alva kappe","profilhalterung","schlüssel für","bette füße","hit winkel","mutterschrauben","sh basic kwl","adapter für kunststoff","röhrensifon"],system:"Diverse",gewerk:"sanitaer"},
+  {id:"duofix",label:"Geberit Duofix/GIS",kw:["duofix","geberit gis","geberit sigma","geberit betätigung","geberit element","geberit waschtisch-element","geberit wc-element","geberit urinal-element"],system:"Geberit Duofix",gewerk:"sanitaer"},
+  {id:"mapress_edel",label:"Mapress Edelstahl",kw:["mapress edelstahl","mapress crnimo","edelstahl bogen","edelstahl t-stück","edelstahl übergang","edelstahl systemrohr"],system:"Mapress Edelstahl",gewerk:"sanitaer"},
+  {id:"viega",label:"Viega Profipress/Sanpress",kw:["viega","profipress","sanpress","megapress"],system:"Viega",gewerk:"sanitaer"},
+  {id:"rautitan",label:"Rehau Rautitan",kw:["rautitan","rehau rautitan","rautitan stabil","rautitan flex","rautitan his"],system:"Rehau Rautitan",gewerk:"sanitaer"},
+  {id:"tece",label:"TECE WC/Spültechnik",kw:["tece","tecebox","teceprofil","teceplanus","teceflush","teceone"],system:"TECE",gewerk:"sanitaer"},
+  {id:"uponor",label:"Uponor",kw:["uponor","wirsbo","unipipe"],system:"Uponor",gewerk:"sanitaer"},
+  {id:"oventrop",label:"Oventrop Ventile",kw:["oventrop","aquia","multidis","regtronic","cocon"],system:"Oventrop",gewerk:"heizung"},
+  /* ═══ ELEKTRO Produktlinien ═══ */
+  {id:"nym",label:"NYM-J Mantelleitung",kw:["nym-j","nym j","nymj","mantelleitung nym"],system:"Kabel & Leitungen",gewerk:"elektro"},
+  {id:"nyy",label:"NYY-J Erdkabel",kw:["nyy-j","nyy j","nyyj","erdkabel nyy"],system:"Kabel & Leitungen",gewerk:"elektro"},
+  {id:"h07",label:"H07V-U/K Einzeladern",kw:["h07v-u","h07v-k","h07v u","h07v k","einzelader","aderleitung"],system:"Kabel & Leitungen",gewerk:"elektro"},
+  {id:"nhxmh",label:"NHXMH Halogenfreie Leitung",kw:["nhxmh","halogenf"],system:"Kabel & Leitungen",gewerk:"elektro"},
+  {id:"flexrohr",label:"Flexrohr/Installationsrohr",kw:["flexrohr","leerrohr","wellrohr","stangenrohr","installationsrohr","schutzrohr pg","panzerrohr"],system:"Installationsrohre",gewerk:"elektro"},
+  {id:"updosen",label:"UP-Dosen/Gerätedosen",kw:["up-dose","updose","gerätedose","schalterdose","hohlwanddose","abzweigdose","verteilerdose"],system:"Dosen & Gehäuse",gewerk:"elektro"},
+  {id:"schalter",label:"Schalter & Steckdosen",kw:["wechselschalter","kreuzschalter","serienschalter","tastschalter","taster ","aus-schalter","steckdose up","schuko","doppelsteckdose","wippe ","abdeckung ","rahmen 1-fach","rahmen 2-fach","rahmen 3-fach","rahmen 4-fach","rahmen 5-fach"],system:"Schalterprogramm",gewerk:"elektro"},
+  {id:"buschjaeger",label:"Busch-Jaeger/ABB",kw:["busch-jaeger","busch jaeger","reflex si","future linear","carat","busch-dimmer","busch-wächter","busch-free"],system:"Schalterprogramm",gewerk:"elektro"},
+  {id:"fircuit",label:"FI/LS & Schutzschalter",kw:["fi/ls","fi-ls","fils","fehlerstrom","fi-schalter","fi schalter","rccb","rcbo","30ma","300ma"],system:"Verteilungstechnik",gewerk:"elektro"},
+  {id:"lsschalter",label:"Leitungsschutzschalter",kw:["leitungsschutzsch","ls-schalter","ls schalter","sicherungsautomat","mcb "],system:"Verteilungstechnik",gewerk:"elektro"},
+  {id:"sls",label:"SLS/Selektive Hauptsicherung",kw:["sls ","selektiv","hauptsicherung","nh-sicherung","nh sicherung","nh-last","sicherungseinsatz","schmelzeinsatz"],system:"Verteilungstechnik",gewerk:"elektro"},
+  {id:"sammelschiene",label:"Sammelschienen & Zubehör",kw:["sammelschiene","kammschiene","phasenschiene","verdrahtungskanal","reihenklemme","durchgangsklemme","hutschiene","endplatte"],system:"Verteilungstechnik",gewerk:"elektro"},
+  {id:"wago",label:"WAGO Klemmen",kw:["wago","hebelklemme","verbindungsklemme 221","verbindungsklemme 222","compact-klemme"],system:"Klemmen & Verbinder",gewerk:"elektro"},
+  {id:"kabelpritsche",label:"Kabelrinne/Kabelpritsche",kw:["kabelrinne","kabelpritsche","kabelkanal","kabeltrasse","gitterbahn","wandhalter","deckenhalter","verbinder kabel"],system:"Kabelführung",gewerk:"elektro"},
+  {id:"led",label:"LED Leuchtmittel & Leuchten",kw:["led panel","led einbau","led röhre","led leuchte","led-röhre","led tube","led stripe","led spot","led downlight"],system:"Beleuchtung",gewerk:"elektro"},
+  {id:"evg",label:"EVG/Treiber/Vorschaltgerät",kw:["evg ","treiber led","vorschaltgerät","led-treiber","led-driver","trafo ","transformator "],system:"Beleuchtung",gewerk:"elektro"},
+  {id:"befestigung_el",label:"Befestigung Elektro",kw:["nagelschelle","druckschelle","rohrschelle pg","kabelbinder","kabelhalter","zugentlastung","schlauchverschraubung pg","verschraubung m20","verschraubung m25","verschraubung m32"],system:"Befestigung Elektro",gewerk:"elektro"},
+  {id:"fawa",label:"FAWA Zentralstaubsauger",kw:["klebe-rohrsystem","saugdose","fawa ","fortluft","hosenstück"],system:"FAWA Zentralstaubsauger",gewerk:"klima"},
+  {id:"fbh",label:"Fußbodenheizung (Multitherm)",kw:["multitherm","multiroll","pe-rt","randdämm","tackern","wärmerückstrahl","polo-gen plt"],system:"Fußbodenheizung",gewerk:"heizung"},
+  {id:"sikla",label:"Sikla Befestigung",kw:["ratio s ","ratio ls ","blockset pbs","block pb ","dämmelement sde","montagesatz mos","verbinder cn ","doppelhalterplatte","universalhalter uni","gewindestab gst","stockschraube bscr","isolierband isob"],system:"Sikla Befestigung",gewerk:"allgemein"},
+  {id:"grohe",label:"Grohe/Hansgrohe",kw:["grohe","hansgrohe","hg axor","hg exafill","hg flexaplus","hg verlängerungsset","hg gewindehülsen","hg ablaufgarnitur","hg quattro","hg up-absperr"],system:"Grohe/Hansgrohe",gewerk:"sanitaer"},
+  {id:"kugelhahn",label:"Kugelhähne/Absperrarmaturen",kw:["kugelhahn","motorkugelhahn","rückschlagv","schmutzfänger","membran-sicherheitsventil","sicherheitsset","manometer "],system:"Absperrarmaturen",gewerk:"allgemein"}
+
 ];
 /* Auto-Match: returns Map<groupId, Set<artNr>> */
 function _epAutoMatch(articles){
