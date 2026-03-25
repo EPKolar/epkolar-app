@@ -36,6 +36,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
 /* EP: Kolar & Sohn - App Styles v2.0 */
 /* CI: EP Green #009640, Dark #006e30, Gray #6d6e71 */
@@ -943,7 +944,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.40-supabase";
+const APP_VERSION="3.5.41-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -975,6 +976,25 @@ function _openFileUrl(url,fileName){
     try{const[hdr,b64]=url.split(",");const mime=hdr.match(/:(.*?);/)[1];const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);const blob=new Blob([arr],{type:mime});const bu=URL.createObjectURL(blob);window.open(bu,"_blank");setTimeout(()=>URL.revokeObjectURL(bu),60000);}
     catch(e){const a=document.createElement("a");a.href=url;a.download=fileName||"datei";document.body.appendChild(a);a.click();document.body.removeChild(a);}
   }
+}
+
+// ═══ QR Code Generator (uses qrcode-generator lib) ═══
+function _genQR(text,size){
+  size=size||256;
+  try{
+    if(typeof qrcode!=="function")return "";
+    const qr=qrcode(0,"M");qr.addData(text);qr.make();
+    const mods=qr.getModuleCount();const cell=Math.floor(size/mods);const realSize=cell*mods;
+    const c=document.createElement("canvas");c.width=realSize;c.height=realSize;
+    const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,realSize,realSize);
+    ctx.fillStyle="#000";
+    for(let r=0;r<mods;r++)for(let col=0;col<mods;col++){if(qr.isDark(r,col))ctx.fillRect(col*cell,r*cell,cell,cell);}
+    return c.toDataURL("image/png");
+  }catch(e){return "";}
+}
+function _asDeepLink(nummer){
+  const base=location.origin+location.pathname;
+  return base+"?as="+encodeURIComponent(nummer);
 }
 
 // ═══════════ OFFLINE DB (IndexedDB) ═══════════
@@ -2740,6 +2760,17 @@ function LoginScreen({onLogin,onPortal,projects}){
   _react.useEffect.call(void 0, ()=>{if(curUser&&Object.keys(wpHistory).length) debounce("odb_meta",()=>ODB.save("meta",wpHistory),2000);},[wpHistory]);
   _react.useEffect.call(void 0, ()=>{if(curUser) ODB.save("planData",planData);},[planData]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&arbeitsscheine.length) ODB.save("arbeitsscheine",arbeitsscheine);},[arbeitsscheine]);
+  // Deep-link: ?as=S075270 → navigate to Arbeitsschein
+  const _asDeepLinkHandled=_react.useRef.call(void 0, false);
+  _react.useEffect.call(void 0, ()=>{
+    if(_asDeepLinkHandled.current||!curUser||!arbeitsscheine.length)return;
+    try{const p=new URLSearchParams(location.search);const asNr=p.get("as");if(!asNr)return;
+      _asDeepLinkHandled.current=true;
+      window.__asDeepLink=asNr;
+      // Clean URL
+      try{history.replaceState(null,"",location.pathname);}catch(e){}
+    }catch(e){}
+  },[curUser,arbeitsscheine.length]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&werkzeuge.length) ODB.save("werkzeuge",werkzeuge);},[werkzeuge]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&monteure.length) ODB.save("monteure",monteure);},[monteure]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&Object.keys(monteurProjekte).length) ODB.save("monteurProjekte",monteurProjekte);},[monteurProjekte]);
@@ -3133,6 +3164,12 @@ function LoginScreen({onLogin,onPortal,projects}){
   const tabs=_allTabs.filter(t=>t.perm.startsWith("_")||hasPerm(curUser,t.perm));
   if(tabs.length>0&&kat>=tabs.length)setKat(tabs.length-1);
   const safeKat=tabs.length>0?Math.min(kat,tabs.length-1):0;
+  // Deep-link: navigate to arbeitsscheine tab when ?as= was detected
+  _react.useEffect.call(void 0, ()=>{
+    if(!window.__asDeepLink)return;
+    const idx=tabs.findIndex(t=>t.perm==="arbeitsscheine");
+    if(idx>=0&&safeKat!==idx)setKat(idx);
+  },[window.__asDeepLink]);
   const mainTabs=tabs.filter(t=>t.g<4);
   const moreTabs=tabs.filter(t=>t.g>=4);
   const moreActive=moreTabs.some((_,mi)=>{const ri=tabs.indexOf(moreTabs[mi]);return ri===safeKat;});
@@ -3543,6 +3580,14 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, ()=>{const f=window.__asFilter||"alle";delete window.__asFilter;return f;});
   _react.useEffect.call(void 0, ()=>{if(window.__asFilter){setFilterStatus(window.__asFilter);setSub("liste");delete window.__asFilter;}});
+  // Deep-link: ?as=S075270 → open QR scan result for that schein
+  _react.useEffect.call(void 0, ()=>{
+    if(!window.__asDeepLink||!arbeitsscheine.length)return;
+    const nr=window.__asDeepLink;delete window.__asDeepLink;
+    const found=arbeitsscheine.find(a=>(a.nummer||"").toUpperCase()===nr.toUpperCase());
+    if(found){setAsScannedAs(found);setSub("qrscan");}
+    else{setAsScanMsg("❌ Arbeitsschein "+nr+" nicht gefunden");setSub("qrscan");}
+  },[arbeitsscheine.length]);
   const [filterArt,setFilterArt]=_react.useState.call(void 0, "alle");
   const [filterMonteur,setFilterMonteur]=_react.useState.call(void 0, "alle");
   const [filterSB,setFilterSB]=_react.useState.call(void 0, "alle");
@@ -3565,6 +3610,39 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const voiceRecRef=_react.useRef.call(void 0, null);
   const [importPreview,setImportPreview]=_react.useState.call(void 0, []);
   const [importLoading,setImportLoading]=_react.useState.call(void 0, false);
+  // QR Scanner für Arbeitsscheine
+  const [asScanning,setAsScanning]=_react.useState.call(void 0, false);
+  const [asScannedAs,setAsScannedAs]=_react.useState.call(void 0, null);
+  const [asScanMsg,setAsScanMsg]=_react.useState.call(void 0, "");
+  const [asManualCode,setAsManualCode]=_react.useState.call(void 0, "");
+  const [asShowQR,setAsShowQR]=_react.useState.call(void 0, null); // id of AS to show QR popup
+  const asVideoRef=_react.useRef.call(void 0, null);
+  const asStreamRef=_react.useRef.call(void 0, null);
+  const asScanTimerRef=_react.useRef.call(void 0, null);
+  const asLookupNummer=(code)=>{
+    // Extract nummer: accept raw "S075270" or deep link URL with ?as=S075270
+    let nr=code.trim();
+    try{const u=new URL(nr);const p=u.searchParams.get("as");if(p)nr=p;}catch(e){}
+    return arbeitsscheine.find(a=>(a.nummer||"").toUpperCase()===nr.toUpperCase());
+  };
+  const asHandleScan=(code)=>{
+    const found=asLookupNummer(code);
+    if(found){setAsScannedAs(found);setAsScanMsg("");asStopScan();}
+    else{setAsScanMsg("❌ Kein Arbeitsschein gefunden: "+code);}
+  };
+  const asStartScan=async()=>{setAsScannedAs(null);setAsScanMsg("");setAsManualCode("");setSub("qrscan");
+    try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:640},height:{ideal:480}}});asStreamRef.current=stream;if(asVideoRef.current){asVideoRef.current.srcObject=stream;asVideoRef.current.play();}setAsScanning(true);
+      if("BarcodeDetector"in window){const det=new BarcodeDetector({formats:["qr_code"]});
+        const tick=async()=>{if(!asVideoRef.current||asVideoRef.current.readyState<2){asScanTimerRef.current=requestAnimationFrame(tick);return;}
+          try{const codes=await det.detect(asVideoRef.current);if(codes.length>0){asHandleScan(codes[0].rawValue);return;}}catch(e){}
+          asScanTimerRef.current=requestAnimationFrame(tick);};
+        asScanTimerRef.current=requestAnimationFrame(tick);
+      }else{setAsScanMsg("⚠️ Kein QR-Scanner — bitte Scheinnummer manuell eingeben");}
+    }catch(err){setAsScanMsg("📷 Kamera-Zugriff verweigert: "+err.message);setAsScanning(false);}
+  };
+  const asStopScan=()=>{if(asScanTimerRef.current){cancelAnimationFrame(asScanTimerRef.current);asScanTimerRef.current=null;}
+    if(asStreamRef.current){asStreamRef.current.getTracks().forEach(t=>t.stop());asStreamRef.current=null;}setAsScanning(false);};
+  _react.useEffect.call(void 0, ()=>{return ()=>{asStopScan();};},[]);
   const isMob=ww<600;
   const isMonteurRole=curUser.role==="monteur"||curUser.role==="helfer";
 
@@ -3638,6 +3716,8 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const ver=AS_VERRECH[a.verrechnung]||{l:"?"};
     const pri=AS_PRIO[a.prioritaet]||{l:"?"};
     const esc=s=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+    const qrUrl=_asDeepLink(a.nummer);
+    const qrImg=_genQR(qrUrl,200);
 
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Arbeitsschein ${a.nummer}</title>
@@ -3647,6 +3727,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
 body{font-family:'Segoe UI',system-ui,sans-serif;font-size:10pt;color:#1a1a1a;line-height:1.4}
 .page{max-width:210mm;margin:0 auto;padding:15mm 18mm 20mm 18mm}
 @media print{.page{padding:0;max-width:none}.no-print{display:none!important}}
+.qr-box{display:flex;flex-direction:column;align-items:center;gap:2px}
+.qr-box img{width:72px;height:72px}
+.qr-box span{font-size:5.5pt;color:#999}
 
 /* Header */
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:10px;margin-bottom:14px}
@@ -3703,6 +3786,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;font-size:10pt;color:#1a1a1a;li
       <div class="doc-nr">${esc(a.nummer)}</div>
       <div class="doc-status" style="background:${st.c}18;color:${st.c}">${esc(st.l)}</div>
     </div>
+    ${qrImg?`<div class="qr-box"><img src="${qrImg}" alt="QR"><span>Scan → App</span></div>`:""}
   </div>
 
   <div class="row">
@@ -3980,8 +4064,46 @@ function sharePdf(){
         , React.createElement(Kpi, { label: "Fertig (alle)" , value: stats.fertig, sub: "erledigt+abgerechnet" , color: "#22c55e", onClick: ()=>{setFilterStatus("fertig");setSub("liste");}} )
       )
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
-        , [{id:"liste",i:"📋",l:"Liste"},{id:"kalender",i:"📅",l:"Kalender"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>setSub(t.id), style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+        , [{id:"liste",i:"📋",l:"Liste"},{id:"qrscan",i:"📷",l:"QR Scan"},{id:"kalender",i:"📅",l:"Kalender"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="qrscan")asStartScan();else{asStopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
       )
+
+      /* ═══ QR SCAN ═══ */
+      , sub==="qrscan"&&(React.createElement('div', { style: {padding:"20px 0"}}
+        , React.createElement('div', { style: {textAlign:"center",marginBottom:16}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#f97316",marginBottom:12}}, "📷 Arbeitsschein QR-Code scannen" )
+          , asScanning&&React.createElement('div', { style: {position:"relative",maxWidth:400,margin:"0 auto",borderRadius:12,overflow:"hidden",border:"3px solid #f97316"}}
+            , React.createElement('video', { ref: asVideoRef, style: {width:"100%",display:"block"}, playsInline: true, muted: true} )
+            , React.createElement('div', { style: {position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"60%",height:"60%",border:"3px solid rgba(249,115,22,.6)",borderRadius:12,pointerEvents:"none"}} )
+          )
+          , React.createElement('div', { style: {marginTop:12,display:"flex",gap:8,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}
+            , React.createElement('input', { value: asManualCode, onChange: e=>setAsManualCode(e.target.value), placeholder: "Scheinnummer z.B. S075270", onKeyDown: e=>{if(e.key==="Enter"&&asManualCode)asHandleScan(asManualCode);}, style: {...II(),width:220,fontSize:14,textAlign:"center"}} )
+            , React.createElement('button', { onClick: ()=>{if(asManualCode)asHandleScan(asManualCode);}, style: bpS}, "🔍 Suchen" )
+          )
+          , asScanMsg&&React.createElement('div', { style: {marginTop:10,fontSize:13,padding:"8px 14px",borderRadius:8,background:asScanMsg.startsWith("✅")?"rgba(34,197,94,.12)":asScanMsg.startsWith("❌")?"rgba(239,68,68,.12)":"rgba(234,179,8,.12)",color:asScanMsg.startsWith("✅")?"#16a34a":asScanMsg.startsWith("❌")?"#dc2626":"#ca8a04"}}, asScanMsg)
+        )
+        , asScannedAs&&React.createElement('div', { style: {...CC(),marginTop:16,padding:16}}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}
+            , React.createElement('div', null
+              , React.createElement('div', { style: {fontSize:20,fontWeight:800,color:"#f97316",fontFamily:"'SF Mono','Cascadia Code','Consolas',monospace"}}, asScannedAs.nummer)
+              , React.createElement('div', { style: {fontSize:16,fontWeight:700,color:V.tx,marginTop:4}}, asScannedAs.kundName||"—")
+              , asScannedAs.kundStr&&React.createElement('div', { style: {fontSize:13,color:V.dm}}, asScannedAs.kundStr, ", ", asScannedAs.kundPlz, " ", asScannedAs.kundOrt)
+            )
+            , React.createElement('div', { style: {display:"inline-block",padding:"4px 12px",borderRadius:6,fontSize:12,fontWeight:700,background:((AS_STATUS[asScannedAs.scheinstatus]||{}).c||"#999")+"18",color:(AS_STATUS[asScannedAs.scheinstatus]||{}).c||"#999"}}, (AS_STATUS[asScannedAs.scheinstatus]||{}).i||""," ",(AS_STATUS[asScannedAs.scheinstatus]||{}).l||asScannedAs.scheinstatus)
+          )
+          , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,marginBottom:12}}
+            , React.createElement('div', null, React.createElement('span', { style: {color:V.dm}}, "Monteur: "), _optionalChain([monteure,'access',_qr1=>_qr1.find,'call',_qr2=>_qr2(m=>m.id===asScannedAs.monteur),'optionalAccess',_qr3=>_qr3.n])||"—")
+            , React.createElement('div', null, React.createElement('span', { style: {color:V.dm}}, "Termin: "), asScannedAs.terminBestaetigt?fdt(asScannedAs.terminBestaetigt):"—")
+            , React.createElement('div', null, React.createElement('span', { style: {color:V.dm}}, "Art: "), _optionalChain([AS_ART,'access',_qr4=>_qr4[asScannedAs.scheinart],'optionalAccess',_qr5=>_qr5.l])||"—")
+            , React.createElement('div', null, React.createElement('span', { style: {color:V.dm}}, "SB: "), asScannedAs.sachbearbeiter||"—")
+          )
+          , asScannedAs.arbeitsanweisungen&&React.createElement('div', { style: {fontSize:12,padding:"8px 10px",background:_dark?"rgba(249,115,22,.08)":"rgba(249,115,22,.05)",borderRadius:6,borderLeft:"3px solid #f97316",marginBottom:12}}, React.createElement('div', { style: {fontWeight:600,color:"#f97316",marginBottom:2,fontSize:11}}, "Durchzuführende Arbeiten:"), React.createElement('div', { style: {color:V.tx,whiteSpace:"pre-wrap"}}, asScannedAs.arbeitsanweisungen.slice(0,300)))
+          , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}}
+            , React.createElement('button', { onClick: ()=>{openEdit(asScannedAs);}, style: bpS}, "✏️ Bearbeiten" )
+            , React.createElement('button', { onClick: ()=>genAsPdf(asScannedAs), style: {...bpS,background:"linear-gradient(135deg,#3b82f6,#2563eb)"}}, "📄 PDF" )
+            , React.createElement('button', { onClick: ()=>{asStopScan();setAsScannedAs(null);setAsScanMsg("");setSub("qrscan");setTimeout(asStartScan,300);}, style: {...bpS,background:"linear-gradient(135deg,#6b7280,#4b5563)"}}, "📷 Nächsten scannen" )
+          )
+        )
+      ))
 
       , sub==="liste"&&(React.createElement('div', {}
         , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}
@@ -4022,6 +4144,7 @@ function sharePdf(){
                 , React.createElement('td', { style: {...tdSt(),textAlign:"center",padding:"4px 2px"}}, React.createElement('div', { style: {display:"flex",gap:3,justifyContent:"center",flexWrap:"nowrap"}}
                   , React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(a);}, style: {background:"#3b82f6",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "Bearbeiten"}, "✏️")
                   , React.createElement('button', { onClick: e=>{e.stopPropagation();genAsPdf(a);}, style: {background:"#22c55e",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "PDF Vorschau & Drucken"}, "📄")
+                  , React.createElement('button', { onClick: e=>{e.stopPropagation();setAsShowQR(asShowQR===a.id?null:a.id);}, style: {background:"#8b5cf6",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "QR-Code anzeigen"}, "⬜")
                   , canSync&&a.juprowa_id&&a.push_pending&&React.createElement('button', { onClick: e=>{e.stopPropagation();doSinglePush(a.id);}, disabled: jupPushing, style: {background:"#f59e0b",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:jupPushing?.5:1}, title: "Zur Juprowa Cloud senden"}, "☁️↑")
                   , !isSt&&React.createElement('button', { onClick: e=>{e.stopPropagation();storno(a.id);}, style: {background:"#ef4444",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "Stornieren"}, "⊘")
                 ))
@@ -4030,6 +4153,19 @@ function sharePdf(){
           )
         ))
         , !filtered.length&&React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "Keine Arbeitsscheine gefunden"  )
+        , asShowQR&&(()=>{const qrAs=arbeitsscheine.find(x=>x.id===asShowQR);if(!qrAs)return null;const qrUrl=_asDeepLink(qrAs.nummer);const qrImg=_genQR(qrUrl,300);return React.createElement('div', { onClick: ()=>setAsShowQR(null), style: {position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
+          , React.createElement('div', { onClick: e=>e.stopPropagation(), style: {background:V.bg,borderRadius:16,padding:24,maxWidth:340,width:"90%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}
+            , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316",fontFamily:"'SF Mono','Cascadia Code','Consolas',monospace",marginBottom:4}}, qrAs.nummer)
+            , React.createElement('div', { style: {fontSize:13,color:V.dm,marginBottom:16}}, qrAs.kundName||"—")
+            , qrImg?React.createElement('img', { src: qrImg, style: {width:200,height:200,borderRadius:8,border:"2px solid "+V.bd}, alt: "QR"} ):React.createElement('div', { style: {color:"#ef4444",fontSize:13}}, "QR-Bibliothek nicht geladen")
+            , React.createElement('div', { style: {marginTop:12,fontSize:10,color:V.dm,wordBreak:"break-all"}}, qrUrl)
+            , React.createElement('div', { style: {display:"flex",gap:8,justifyContent:"center",marginTop:16}}
+              , React.createElement('button', { onClick: ()=>{navigator.clipboard.writeText(qrUrl).then(()=>_optionalChain([window,'access',_qc1=>_qc1.__toast,'optionalCall',_qc2=>_qc2("📋 Link kopiert")])).catch(()=>{});}, style: bpS}, "📋 Link kopieren" )
+              , React.createElement('button', { onClick: ()=>genAsPdf(qrAs), style: {...bpS,background:"linear-gradient(135deg,#22c55e,#16a34a)"}}, "📄 PDF mit QR" )
+              , React.createElement('button', { onClick: ()=>setAsShowQR(null), style: {...bpS,background:"linear-gradient(135deg,#6b7280,#4b5563)"}}, "Schließen" )
+            )
+          )
+        );})()
       ))
 
       , sub==="kalender"&&(React.createElement('div', {}
@@ -8916,7 +9052,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const _dragRange=()=>{const d=dragRef.current;if(!d.active)return[];const lo=Math.min(d.startIdx,d.endIdx),hi=Math.max(d.startIdx,d.endIdx);return DSHORT.slice(lo,hi+1);};
   const onCellMouseDown=(rowId,dayIdx,e)=>{if(isMob||e.button!==0)return;e.preventDefault();dragRef.current={active:true,rowId,startIdx:dayIdx,endIdx:dayIdx};setSelCells({rowId,days:[DSHORT[dayIdx]]});setCellPick(null);};
   const onCellMouseEnter=(rowId,dayIdx)=>{const d=dragRef.current;if(!d.active||d.rowId!==rowId)return;d.endIdx=dayIdx;setSelCells({rowId,days:_dragRange()});};
-  const onCellMouseUp=(rowId,dayIdx)=>{const d=dragRef.current;if(!d.active)return;d.active=false;const days=_dragRange();dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};if(days.length>0){setCellPick({rowId,days,type:"ma"});setSelCells(null);}};
+  const onCellMouseUp=(rowId,dayIdx)=>{const d=dragRef.current;if(!d.active)return;const days=_dragRange();d.active=false;dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};if(days.length>0){setCellPick({rowId,days,type:"ma"});setSelCells(null);}};
   // Global mouseup to cancel drag
   _react.useEffect.call(void 0, ()=>{const h=()=>{const d=dragRef.current;if(d.active){const days=_dragRange();d.active=false;dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};if(days.length>0)setCellPick({rowId:d.rowId,days,type:"ma"});setSelCells(null);}};window.addEventListener("mouseup",h);return()=>window.removeEventListener("mouseup",h);},[]);
 
