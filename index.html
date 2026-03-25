@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.42';
+  var SW_VER='epkolar-v3.5.43';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -949,7 +949,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.42-supabase";
+const APP_VERSION="3.5.43-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -2776,6 +2776,14 @@ function LoginScreen({onLogin,onPortal,projects}){
       try{history.replaceState(null,"",location.pathname);}catch(e){}
     }catch(e){}
   },[curUser,arbeitsscheine.length]);
+  // Deep-link: navigate to arbeitsscheine tab when ?as= detected (must be BEFORE early returns to avoid #310)
+  _react.useEffect.call(void 0, ()=>{
+    if(!window.__asDeepLink||!curUser)return;
+    const _dl=["_home","projekte","arbeitsscheine","wochenplanung","zeiterfassung","urlaub","stunden","fahrzeuge","werkzeuge","mitarbeiter","auswertungen","_settings","bueroexport","admin"];
+    const vis=_dl.filter(p=>p.startsWith("_")||hasPerm(curUser,p));
+    const idx=vis.indexOf("arbeitsscheine");
+    if(idx>=0)setKat(idx);
+  },[curUser]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&werkzeuge.length) ODB.save("werkzeuge",werkzeuge);},[werkzeuge]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&monteure.length) ODB.save("monteure",monteure);},[monteure]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&Object.keys(monteurProjekte).length) ODB.save("monteurProjekte",monteurProjekte);},[monteurProjekte]);
@@ -3169,12 +3177,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   const tabs=_allTabs.filter(t=>t.perm.startsWith("_")||hasPerm(curUser,t.perm));
   if(tabs.length>0&&kat>=tabs.length)setKat(tabs.length-1);
   const safeKat=tabs.length>0?Math.min(kat,tabs.length-1):0;
-  // Deep-link: navigate to arbeitsscheine tab when ?as= was detected
-  _react.useEffect.call(void 0, ()=>{
-    if(!window.__asDeepLink)return;
-    const idx=tabs.findIndex(t=>t.perm==="arbeitsscheine");
-    if(idx>=0&&safeKat!==idx)setKat(idx);
-  },[window.__asDeepLink]);
+  // Deep-link tab nav moved BEFORE early returns (was here — caused #310)
   const mainTabs=tabs.filter(t=>t.g<4);
   const moreTabs=tabs.filter(t=>t.g>=4);
   const moreActive=moreTabs.some((_,mi)=>{const ri=tabs.indexOf(moreTabs[mi]);return ri===safeKat;});
