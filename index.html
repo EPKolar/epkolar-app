@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.48';
+  var SW_VER='epkolar-v3.5.50';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -408,7 +408,7 @@ function _mapBody(obj){
     kat:'kategorie',anschaffung:'kaufdatum',letzteKalib:'letzte_kalib',naechsteKalib:'naechste_kalib',zustandBewertung:'zustand_bewertung'};
   const out={};
   // Fields stored as text that contain JSON (must be pre-stringified)
-  const TEXT_JSON_FIELDS=['perms_override','tank_log','km_log','tags'];
+  const TEXT_JSON_FIELDS=['perms_override','tank_log','km_log','tags','config','order_items'];
   for(const[k,v]of Object.entries(obj)){
     if(k==='password')continue;
     const sk=RENAME[k]||_toSnake(k);
@@ -444,7 +444,10 @@ function _mapWerkzeug(w){
 function _mapUser(u){
   if(!u)return u;
   const po=u.perms_override||u.permsOverride;
-  return{...u,monteurId:u.monteurId||u.monteur_id||"",
+  const mid=u.monteurId||u.monteur_id||"";
+  const worker=mid&&typeof MONT!=="undefined"?MONT.find(m=>m.id===mid):null;
+  return{...u,monteurId:mid,
+    rolle:u.rolle||(worker?worker.r:"")||"",
     permsOverride:typeof po==='string'&&po?_jo(po):po||null,
     permissions:_jp(u.permissions),
     active:!!(u.active===true||u.active===1||u.active==="1"),
@@ -590,6 +593,9 @@ const ROUTE_MAP={
   "material-items":["material-items","material_items"],
   "material-orders":["material-orders","material_orders"],
   "material-catalogs":["material-catalogs","material_catalogs"],
+  "supplier-configs":["supplier-configs","supplier_configs"],
+  "supplier-articles":["supplier-articles","supplier_articles"],
+  "supplier-orders":["supplier-orders","supplier_orders"],
 };
 
 async function _translateAndExec(url,method,body){
@@ -949,7 +955,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.48-supabase";
+const APP_VERSION="3.5.50-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -1870,8 +1876,8 @@ function hasPerm(user,mod){
   return role.modules.includes(mod);
 }
 function canDo(action,user,ownerId){
-  if(!user)return false;const r=user.role;const isA=r==="admin";const isPL=r==="projektleiter";const isB=r==="buero";const isOM=r==="obermonteur";const isTech=r==="techniker";const isM=r==="monteur";const isField=isOM||isTech||isM;const isOwn=!!ownerId&&(ownerId===user.monteurId||ownerId===user.name||ownerId===user.id);
-  const m={proj_create:isA||isPL,proj_delete:isA,proj_archive:isA,worker_create:isA,worker_delete:isA,worker_edit:isA||isB,user_manage:isA,as_create:isA||isPL||isB||isField,as_delete:isA||isPL||isB,fz_create:isA||isPL||isB,fz_delete:isA||isPL,fz_edit:isA||isPL||isB,wz_create:isA,wz_delete:isA,wz_edit:isA,plan_create:isA||isPL,plan_delete:isA,ticket_create:isA||isPL,doc_upload:isA||isPL||isB||isField,doc_delete:isA||isPL||isB,folder_delete:isA||isPL||isB,zeit_other:isA||isPL||isB,zeit_delete_own:isA||isPL||isB||isField,zeit_delete_any:isA||isPL||isB,form_create:isA||isPL||isField,form_delete_own:isA||isPL||isField,form_delete_any:isA||isPL,mangel_create:isA||isPL||isField,mangel_delete:isA||isPL,bt_create:isA||isPL||isField,bt_delete:isA||isPL,abs_approve:isA||isPL||isB,abs_kontingent:isA||isB,admin_panel:isA,auswertungen:isA||isPL||isB,offa_export:isA||isPL||isB,material_view:isA||isPL||isB||isField,material_add:isA||isPL||isB||isField,material_edit:isA||isPL||isB,material_delete:isA||isPL||isB,material_order:isA||isPL||isB};
+  if(!user)return false;const r=user.role;const isA=r==="admin";const isPL=r==="projektleiter";const isB=r==="buero";const isOM=r==="obermonteur";const isTech=r==="techniker";const isM=r==="monteur";const isField=isOM||isTech||isM;const isOwn=!!ownerId&&(ownerId===user.monteurId||ownerId===user.name||ownerId===user.id);const isLager=(user.rolle||"").toLowerCase()==="lagerleitung"||isA||isPL;
+  const m={proj_create:isA||isPL,proj_delete:isA,proj_archive:isA,worker_create:isA,worker_delete:isA,worker_edit:isA||isB,user_manage:isA,as_create:isA||isPL||isB||isField,as_delete:isA||isPL||isB,fz_create:isA||isPL||isB,fz_delete:isA||isPL,fz_edit:isA||isPL||isB,wz_create:isA,wz_delete:isA,wz_edit:isA,plan_create:isA||isPL,plan_delete:isA,ticket_create:isA||isPL,doc_upload:isA||isPL||isB||isField,doc_delete:isA||isPL||isB,folder_delete:isA||isPL||isB,zeit_other:isA||isPL||isB,zeit_delete_own:isA||isPL||isB||isField,zeit_delete_any:isA||isPL||isB,form_create:isA||isPL||isField,form_delete_own:isA||isPL||isField,form_delete_any:isA||isPL,mangel_create:isA||isPL||isField,mangel_delete:isA||isPL,bt_create:isA||isPL||isField,bt_delete:isA||isPL,abs_approve:isA||isPL||isB,abs_kontingent:isA||isB,admin_panel:isA||(user.rolle||"").toLowerCase()==="lagerleitung",auswertungen:isA||isPL||isB,offa_export:isA||isPL||isB,material_view:isA||isPL||isB||isField,material_add:isA||isPL||isB||isField,material_edit:isA||isPL||isB,material_delete:isA||isPL||isB,material_order:isA||isPL||isB,view_ek_price:isA||isPL||isLager,supplier_manage:isA||isLager};
   if(action==="zeit_delete")return isA||isPL||isB||(isField&&isOwn);
   if(action==="form_delete")return isA||isPL||(isField&&isOwn);
   return !!m[action];
@@ -2630,15 +2636,18 @@ function LoginScreen({onLogin,onPortal,projects}){
         try{
           const data=await API.me();
           _fixAdminName(data.user);
+          // Enrich with worker rolle
+          if(data.user&&(data.user.monteurId||data.user.monteur_id)){const _mid=data.user.monteurId||data.user.monteur_id;const _w=MONT.find(m=>m.id===_mid);if(_w&&!data.user.rolle)data.user.rolle=_w.r;}
           setCurUser(data.user);
           setAppLoading(false);
           // ═ Auto-refresh user role from DB (fixes stale ODB cache) ═
-          if(data.user&&data.user.id){try{const fresh=await _sbGetUsersSafe("id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
+          if(data.user&&data.user.id){try{const fresh=await _sbGetUsersSafe("id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,rolle:f.rolle||data.user.rolle||"",permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){}}}}catch(e){}}
           return;
         }catch(e){
           // Token expired or server unreachable — try offline
           try{const u=await ODB.get("meta","lastUser");if(u){
             _fixAdminName(u);
+            if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid2=u.monteurId||u.monteur_id;const _w2=MONT.find(m=>m.id===_mid2);if(_w2)u.rolle=_w2.r;}
             setCurUser(u);setAppLoading(false);return;}}catch(ex){}
           API.setToken(null);
         }
@@ -3202,7 +3211,7 @@ function LoginScreen({onLogin,onPortal,projects}){
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{setCurUser(u);setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const _allTabs=[
@@ -3221,7 +3230,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     {l:"Büro-Export",i:"📋",c:"#6366f1",perm:"bueroexport",g:4},
     {l:"Admin",i:"⚙️",c:"#ef4444",perm:"admin",g:4},
   ];
-  const tabs=_allTabs.filter(t=>t.perm.startsWith("_")||hasPerm(curUser,t.perm));
+  const tabs=_allTabs.filter(t=>t.perm.startsWith("_")||hasPerm(curUser,t.perm)||(t.perm==="admin"&&canDo("admin_panel",curUser)));
   if(tabs.length>0&&kat>=tabs.length)setKat(tabs.length-1);
   const safeKat=tabs.length>0?Math.min(kat,tabs.length-1):0;
   // Deep-link tab nav moved BEFORE early returns (was here — caused #310)
@@ -3517,7 +3526,7 @@ function LoginScreen({onLogin,onPortal,projects}){
             , _optionalChain([tabs, 'access', _103 => _103[safeKat], 'optionalAccess', _104 => _104.perm])==="auswertungen" && hasPerm(curUser,"auswertungen") && React.createElement(AuswertungView, { arbeitsscheine: arbeitsscheine, monteure: monteure, abs: abs, absApprovals: absApprovals, entries: entries, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, chartCfg: chartCfg, setChartCfg: setChartCfg, ww: ww, curUser: curUser, projects: projects} )
             , _optionalChain([tabs, 'access', _105 => _105[safeKat], 'optionalAccess', _106 => _106.perm])==="_settings" && React.createElement(VerbindungView, { ww: ww, curUser: curUser, isDark: isDark, toggleTheme: toggleTheme} )
             , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="bueroexport" && hasPerm(curUser,"bueroexport") && React.createElement(VBueroExport, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, ww: ww} )
-            , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="admin" && hasPerm(curUser,"admin") && React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs, monteure: monteure, arbeitsscheine: arbeitsscheine} )
+            , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="admin" && (hasPerm(curUser,"admin")||canDo("admin_panel",curUser)) && React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs, monteure: monteure, arbeitsscheine: arbeitsscheine} )
           )
           /* ═══ MOBILE MEHR POPUP ═══ */
           , moreOpen&&isMob&&React.createElement('div', { style: {position:"fixed",bottom:60,left:8,right:8,zIndex:88,background:V.bg,border:"1px solid "+V.bd,borderRadius:12,boxShadow:"0 -8px 24px rgba(0,0,0,.25)",padding:"8px 0"}}
@@ -4876,7 +4885,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const [sel,setSel]=_react.useState.call(void 0, null);
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
   const [nf,setNf]=_react.useState.call(void 0, {username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});
-  const [adminTab,setAdminTab]=_react.useState.call(void 0, "benutzer");
+  const [adminTab,setAdminTab]=_react.useState.call(void 0, curUser&&(curUser.rolle||"").toLowerCase()==="lagerleitung"&&curUser.role!=="admin"&&curUser.role!=="projektleiter"?"haendler":"benutzer");
   const isMob=ww<600;
   const [defaultSB,setDefaultSBState]=_react.useState.call(void 0, _getDefaultSB());
   const [userSearch,setUserSearch]=_react.useState.call(void 0, "");
@@ -4959,6 +4968,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     {id:"benutzer",l:"👤 Benutzer",c:"#3b82f6"},
     {id:"aktivitaet",l:"📋 Aktivität",c:"#f97316"},
     {id:"statistiken",l:"📊 Statistiken",c:"#8b5cf6"},
+    {id:"haendler",l:"🏪 Händler",c:"#22c55e"},
     {id:"juprowa",l:"🔗 Juprowa",c:"#06b6d4"},
     {id:"einstellungen",l:"⚙️ System",c:"#71717a"}
   ];
@@ -4970,6 +4980,92 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const updatePassport=async()=>{if(!jupNewPassport.trim())return;try{const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};const r=await fetch(SB_REST+"/rpc/juprowa_update_passport",{method:"POST",headers:rpcH,body:JSON.stringify({new_passport:jupNewPassport.trim()})});if(r.ok){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ Passport aktualisiert")]);setJupNewPassport("");fetchJupConfig();}else{_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Fehler: "+r.status,"error")]);}}catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}};
   const fetchJupSyncLog=async()=>{try{const rows=await _sbGetOrder("activity_log","created_at.desc","action=like.juprowa*").catch(()=>[]);setJupSyncLog(rows.slice(0,20));}catch(e){}};
   _react.useEffect.call(void 0, ()=>{if(adminTab==="juprowa"){fetchJupConfig();fetchJupSyncLog();}},[adminTab]);
+
+  // ═══ Händler State ═══
+  const [suppliers,setSuppliers]=_react.useState.call(void 0, []);
+  const [suppLoading,setSuppLoading]=_react.useState.call(void 0, false);
+  const [suppEdit,setSuppEdit]=_react.useState.call(void 0, null);// null or supplier object
+  const [suppNew,setSuppNew]=_react.useState.call(void 0, false);
+  const [suppArticleCount,setSuppArticleCount]=_react.useState.call(void 0, {});// {suppId: count}
+  const [dnUploadSupp,setDnUploadSupp]=_react.useState.call(void 0, null);// supplier for DATANORM upload
+  const [dnUploadStatus,setDnUploadStatus]=_react.useState.call(void 0, "");
+  const [dnUploadProgress,setDnUploadProgress]=_react.useState.call(void 0, 0);
+  const suppFileRef=_react.useRef.call(void 0, null);
+  const SUPP_GEWERK={shk:{l:"SHK",c:"#8b5cf6",i:"🚿"},elektro:{l:"Elektro",c:"#3b82f6",i:"⚡"},allgemein:{l:"Allgemein",c:"#71717a",i:"📦"}};
+  const SUPP_IFACE={shk_connect:{l:"SHK-Connect",c:"#22c55e"},ids:{l:"IDS-Connect",c:"#0ea5e9"},soap:{l:"SOAP API",c:"#f97316"},oci:{l:"OCI",c:"#8b5cf6"},manual:{l:"Manuell",c:"#71717a"}};
+  const fetchSuppliers=async()=>{
+    setSuppLoading(true);
+    try{
+      const rows=await _sbGet("supplier_configs","order=name.asc");
+      if(rows)setSuppliers(rows.map(r=>({...r,config:_jp(r.config)||{}})));
+      // Article counts
+      const counts={};
+      for(const s of (rows||[])){
+        try{const a=await _sbGet("supplier_articles","select=id&supplier_id=eq."+s.id);counts[s.id]=(a||[]).length;}catch(_){counts[s.id]=0;}
+      }
+      setSuppArticleCount(counts);
+    }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Händler laden: "+e.message,"error")]);}
+    setSuppLoading(false);
+  };
+  const saveSupplier=async(data)=>{
+    const isNew=!data.id;
+    const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",username:data.username||"",password:data.password||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28};
+    try{
+      if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:uid(),...body}});}
+      else{await SQ.push({url:"/api/supplier-configs/"+data.id,method:"PUT",body:body});}
+      if(window.__doSync)window.__doSync();
+      _optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2(isNew?"✅ Händler angelegt":"✅ Gespeichert","success")]);
+      setSuppEdit(null);setSuppNew(false);
+      setTimeout(fetchSuppliers,500);
+    }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}
+  };
+  const deleteSupplier=async(id)=>{
+    if(!confirm("Händler und ALLE zugehörigen Artikel löschen?"))return;
+    try{await SQ.push({url:"/api/supplier-configs/"+id,method:"DELETE",body:{}});if(window.__doSync)window.__doSync();
+    _optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ Gelöscht","success")]);setTimeout(fetchSuppliers,500);
+    }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}
+  };
+  // DATANORM Upload for specific supplier
+  const handleDnUpload=async(file,suppId)=>{
+    if(!file||!suppId)return;
+    setDnUploadStatus("Datei lesen...");setDnUploadProgress(10);
+    try{
+      const text=await file.text();
+      setDnUploadStatus("DATANORM parsen...");setDnUploadProgress(20);
+      const articles=_parseDatanorm(text,0);
+      if(!articles||articles.length===0){setDnUploadStatus("❌ Keine Artikel gefunden (A-Records fehlen?)");setDnUploadProgress(0);return;}
+      setDnUploadStatus("EP-Filter ("+articles.length+" Artikel)...");setDnUploadProgress(40);
+      const autoMap=_epAutoMatch(articles);
+      let totalMatched=0;autoMap.forEach(s=>totalMatched+=s.size);
+      setDnUploadStatus("Speichere "+totalMatched+" von "+articles.length+" Artikeln...");setDnUploadProgress(60);
+      // Build supplier_articles rows — only matched ones
+      const rows=[];
+      for(const art of articles){
+        let epSys=null,epGew=null;
+        for(const grp of EP_AUTO_FILTER){
+          if(autoMap.has(grp.id)&&autoMap.get(grp.id).has(art.artNr)){epSys=grp.system;epGew=grp.gewerk;break;}
+        }
+        if(!epSys)continue;// skip unmatched
+        rows.push({id:uid(),supplier_id:suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew});
+      }
+      // Batch upsert via direct Supabase REST (SQ too slow for bulk)
+      const BATCH=200;
+      for(let i=0;i<rows.length;i+=BATCH){
+        const batch=rows.slice(i,i+BATCH);
+        const pct=60+Math.round((i/rows.length)*35);
+        setDnUploadProgress(pct);
+        setDnUploadStatus("Speichere "+(i+batch.length)+"/"+rows.length+"...");
+        const hdr=_authToken?{..._sbWH(),"Prefer":"resolution=merge-duplicates"}:{apikey:SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"};
+        await fetch(SB_REST+"/supplier_articles",{method:"POST",headers:hdr,body:JSON.stringify(batch)});
+      }
+      // Update supplier last_sync
+      const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};
+      await fetch(SB_REST+"/supplier_configs?id=eq."+suppId,{method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})});
+      setDnUploadStatus("✅ "+rows.length+" Artikel importiert ("+articles.detVer+")");setDnUploadProgress(100);
+      setTimeout(fetchSuppliers,500);
+    }catch(e){setDnUploadStatus("❌ Fehler: "+e.message);setDnUploadProgress(0);}
+  };
+  _react.useEffect.call(void 0, ()=>{if(adminTab==="haendler")fetchSuppliers();},[adminTab]);
 
   return (
     React.createElement('div', {}
@@ -4984,7 +5080,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
 
       /* Sub-tabs */
       , React.createElement('div', { style: {display:"flex",gap:4,marginBottom:14,overflowX:"auto",paddingBottom:4}}
-        , adminTabs.map(t=>(React.createElement('button', { key: t.id, onClick: ()=>setAdminTab(t.id), style: {padding:isMob?"6px 10px":"8px 16px",borderRadius:8,border:"2px solid "+(adminTab===t.id?t.c:"transparent"),background:adminTab===t.id?t.c+"15":V.bg,color:adminTab===t.id?t.c:V.dm,fontWeight:adminTab===t.id?700:500,fontSize:isMob?11:13,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",transition:"all .15s"}}, t.l)))
+        , adminTabs.filter(t=>{const isFullAdmin=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter");return isFullAdmin?true:t.id==="haendler";}).map(t=>(React.createElement('button', { key: t.id, onClick: ()=>setAdminTab(t.id), style: {padding:isMob?"6px 10px":"8px 16px",borderRadius:8,border:"2px solid "+(adminTab===t.id?t.c:"transparent"),background:adminTab===t.id?t.c+"15":V.bg,color:adminTab===t.id?t.c:V.dm,fontWeight:adminTab===t.id?700:500,fontSize:isMob?11:13,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",transition:"all .15s"}}, t.l)))
       )
 
       /* ═══ TAB: BENUTZER ═══ */
@@ -5360,6 +5456,105 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               );
             })
           )
+        )
+      ))
+
+      /* ═══ TAB: HÄNDLER ═══ */
+      , adminTab==="haendler"&&(React.createElement('div', { className: "fade-in"}
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}
+          , React.createElement('div', { style: {fontSize:15,fontWeight:800}}, "🏪 Händler-Verwaltung (",suppliers.length,")")
+          , React.createElement('div', { style: {display:"flex",gap:8}}
+            , React.createElement('button', { onClick: fetchSuppliers, style: {...bpS,padding:"6px 14px",fontSize:12}}, suppLoading?"⏳":"🔄"," Aktualisieren")
+            , curUser&&curUser.role==="admin"&&React.createElement('button', { onClick: ()=>{setSuppNew(true);setSuppEdit({name:"",gewerk:"shk",interface_type:"manual",active:true,config:{}});}, style: {...bpS,padding:"6px 14px",fontSize:12,background:"#22c55e",color:"#fff"}}, "+ Neuer Händler")
+          )
+        )
+        // Edit/New Form
+        , suppEdit&&React.createElement('div', { style: {...CC(),marginBottom:14,border:"2px solid #22c55e"}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, suppNew?"Neuer Händler anlegen":"Händler bearbeiten: "+suppEdit.name)
+          , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10}}
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Name *"), React.createElement('input', { value: suppEdit.name||"", onChange: e=>setSuppEdit(prev=>({...prev,name:e.target.value})), style: II(), placeholder: "z.B. Holter", disabled: curUser&&curUser.role!=="admin"} ))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Gewerk"), React.createElement('select', { value: suppEdit.gewerk||"shk", onChange: e=>setSuppEdit(prev=>({...prev,gewerk:e.target.value})), style: II(), disabled: curUser&&curUser.role!=="admin"}, Object.entries(SUPP_GEWERK).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i+" "+v.l))))
+            , curUser&&curUser.role==="admin"&&React.createElement('div', {}, React.createElement('label', { style: LL()}, "Schnittstelle"), React.createElement('select', { value: suppEdit.interface_type||"manual", onChange: e=>setSuppEdit(prev=>({...prev,interface_type:e.target.value})), style: II()}, Object.entries(SUPP_IFACE).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.l))))
+          )
+          , curUser&&curUser.role==="admin"&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10,marginTop:10}}
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Kundennummer"), React.createElement('input', { value: suppEdit.kunde_nr||"", onChange: e=>setSuppEdit(prev=>({...prev,kunde_nr:e.target.value})), style: II()} ))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Benutzername"), React.createElement('input', { value: suppEdit.username||"", onChange: e=>setSuppEdit(prev=>({...prev,username:e.target.value})), style: II()} ))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Passwort"), React.createElement('input', { value: suppEdit.password||"", onChange: e=>setSuppEdit(prev=>({...prev,password:e.target.value})), style: II(), type: "password"} ))
+          )
+          , curUser&&curUser.role==="admin"&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:10,marginTop:10}}
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Shop-URL"), React.createElement('input', { value: suppEdit.base_url||"", onChange: e=>setSuppEdit(prev=>({...prev,base_url:e.target.value})), style: II(), placeholder: "https://..."} ))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Sync-Intervall"), React.createElement('select', { value: suppEdit.sync_interval||"weekly", onChange: e=>setSuppEdit(prev=>({...prev,sync_interval:e.target.value})), style: II()}, React.createElement('option', { value: "daily"}, "Täglich"), React.createElement('option', { value: "weekly"}, "Wöchentlich"), React.createElement('option', { value: "monthly"}, "Monatlich"), React.createElement('option', { value: "manual"}, "Nur manuell")))
+          )
+          , React.createElement('div', { style: {marginTop:14,padding:"12px 14px",borderRadius:8,background:_dark?"rgba(245,158,11,.06)":"rgba(245,158,11,.04)",border:"1px solid rgba(245,158,11,.2)"}}
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8,color:"#f59e0b"}}, "💰 Konditionen (für EK-Preisvergleich)")
+            , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr 1fr",gap:10}}
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Zahlungskondition"), React.createElement('input', { value: suppEdit.zahlungskonditionen||"", onChange: e=>setSuppEdit(prev=>({...prev,zahlungskonditionen:e.target.value})), style: II(), placeholder: "z.B. 30 Tage netto"} ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Skonto %"), React.createElement('input', { type: "number", inputMode: "decimal", min: "0", max: "100", step: "0.1", value: suppEdit.skonto_prozent||"", onChange: e=>setSuppEdit(prev=>({...prev,skonto_prozent:e.target.value})), style: II(), placeholder: "z.B. 3"} ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Jahresbonus %"), React.createElement('input', { type: "number", inputMode: "decimal", min: "0", max: "100", step: "0.1", value: suppEdit.jahresbonus_prozent||"", onChange: e=>setSuppEdit(prev=>({...prev,jahresbonus_prozent:e.target.value})), style: II(), placeholder: "z.B. 2"} ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "DATANORM-Intervall (Tage)"), React.createElement('input', { type: "number", inputMode: "decimal", min: "1", max: "365", value: suppEdit.datanorm_intervall_tage||28, onChange: e=>setSuppEdit(prev=>({...prev,datanorm_intervall_tage:e.target.value})), style: II(), placeholder: "28"} ))
+            )
+          )
+          , React.createElement('div', { style: {display:"flex",gap:8,marginTop:12}}
+            , React.createElement('button', { onClick: ()=>saveSupplier(suppEdit), style: {...bpS,padding:"8px 20px",background:"#22c55e",color:"#fff",fontWeight:700}}, "💾 Speichern")
+            , React.createElement('button', { onClick: ()=>{setSuppEdit(null);setSuppNew(false);}, style: {...bdS,padding:"8px 20px"}}, "Abbrechen")
+          )
+        )
+        // Supplier List
+        , suppLoading&&React.createElement('div', { style: {textAlign:"center",padding:30,color:V.dm}}, "⏳ Lade Händler...")
+        , !suppLoading&&suppliers.length===0&&React.createElement('div', { style: {textAlign:"center",padding:30,color:V.dm}}, "Noch keine Händler konfiguriert. Klicke \"+ Neuer Händler\" um zu starten.")
+        , !suppLoading&&suppliers.map(s=>{
+          const gw=SUPP_GEWERK[s.gewerk]||SUPP_GEWERK.allgemein;
+          const ifc=SUPP_IFACE[s.interface_type]||SUPP_IFACE.manual;
+          const artCount=suppArticleCount[s.id]||0;
+          const lastSync=s.last_sync?new Date(s.last_sync).toLocaleString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"nie";
+          return React.createElement('div', { key: s.id, style: {...CC(),marginBottom:10,opacity:s.active?1:.5}}
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}
+              , React.createElement('span', { style: {fontSize:22}}, gw.i)
+              , React.createElement('div', { style: {flex:1,minWidth:150}}
+                , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, s.name, !s.active&&React.createElement('span', { style: {fontSize:10,color:"#ef4444",marginLeft:8}}, "(inaktiv)"))
+                , React.createElement('div', { style: {fontSize:11,color:V.dm,display:"flex",gap:8,flexWrap:"wrap",marginTop:2}}
+                  , React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:10,fontWeight:600,background:gw.c+"18",color:gw.c}}, gw.l)
+                  , React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:10,fontWeight:600,background:ifc.c+"18",color:ifc.c}}, ifc.l)
+                  , s.kunde_nr&&React.createElement('span', {}, "KdNr: "+s.kunde_nr)
+                  , (s.skonto_prozent>0||s.jahresbonus_prozent>0)&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:10,fontWeight:600,background:"rgba(245,158,11,.15)",color:"#f59e0b"}}, (s.skonto_prozent>0?_n(s.skonto_prozent,1)+"% Sk":""), (s.skonto_prozent>0&&s.jahresbonus_prozent>0?" + ":""), (s.jahresbonus_prozent>0?_n(s.jahresbonus_prozent,1)+"% JB":""))
+                  , s.zahlungskonditionen&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, s.zahlungskonditionen)
+                )
+              )
+              , React.createElement('div', { style: {textAlign:"right",minWidth:100}}
+                , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:artCount>0?"#22c55e":V.dm}}, _n(artCount,0))
+                , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Artikel")
+              )
+              , React.createElement('div', { style: {textAlign:"right",minWidth:100}}
+                , React.createElement('div', { style: {fontSize:11,fontWeight:600,color:s.last_sync_status==="success"?"#22c55e":s.last_sync_status==="error"?"#ef4444":V.dm}}, s.last_sync_status==="success"?"✅":"⏳"," ",lastSync)
+                , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "Letzter Sync")
+              )
+            )
+            , React.createElement('div', { style: {display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}
+              , React.createElement('button', { onClick: ()=>{setSuppEdit({...s});setSuppNew(false);}, style: {...bpS,padding:"5px 12px",fontSize:11}}, "✏️ Bearbeiten")
+              , React.createElement('button', { onClick: ()=>{setDnUploadSupp(s);setDnUploadStatus("");setDnUploadProgress(0);}, style: {...bpS,padding:"5px 12px",fontSize:11,background:"#f59e0b",color:"#fff"}}, "📂 DATANORM hochladen")
+              , curUser&&curUser.role==="admin"&&React.createElement('button', { onClick: ()=>deleteSupplier(s.id), style: {...bdS,padding:"5px 12px",fontSize:11,color:"#ef4444",borderColor:"#ef4444"}}, "🗑️ Löschen")
+            )
+            // DATANORM Upload UI for this supplier
+            , dnUploadSupp&&dnUploadSupp.id===s.id&&React.createElement('div', { style: {marginTop:10,padding:12,borderRadius:8,background:_dark?"rgba(34,197,94,.08)":"rgba(34,197,94,.05)",border:"1px solid rgba(34,197,94,.3)"}}
+              , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6}}, "📂 DATANORM Import für ",s.name)
+              , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, "DATANORM-Datei (.001, .dat) mit A/B-Records hochladen. Artikel werden automatisch durch EP-Filter (57 Produktlinien) gefiltert.")
+              , React.createElement('input', { type: "file", ref: suppFileRef, accept: ".001,.dat,.txt,.csv,*", style: {display:"none"}, onChange: e=>{const f=_optionalChain([e,'access',_=>_.target,'access',_2=>_2.files,'optionalAccess',_3=>_3[0]]);if(f)handleDnUpload(f,s.id);}})
+              , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center"}}
+                , React.createElement('button', { onClick: ()=>_optionalChain([suppFileRef,'access',_=>_.current,'optionalAccess',_2=>_2.click,'call',_3=>_3()]), style: {...bpS,padding:"6px 14px",fontSize:12}}, "📁 Datei wählen")
+                , React.createElement('button', { onClick: ()=>{setDnUploadSupp(null);setDnUploadStatus("");}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "Schließen")
+              )
+              , dnUploadStatus&&React.createElement('div', { style: {marginTop:8}}
+                , dnUploadProgress>0&&dnUploadProgress<100&&React.createElement('div', { style: {height:6,borderRadius:3,background:V.bd,overflow:"hidden",marginBottom:4}}, React.createElement('div', { style: {height:"100%",width:dnUploadProgress+"%",background:"linear-gradient(90deg,#22c55e,#059669)",borderRadius:3,transition:"width .3s"}}))
+                , React.createElement('div', { style: {fontSize:11,fontWeight:600,color:dnUploadStatus.startsWith("❌")?"#ef4444":dnUploadStatus.startsWith("✅")?"#22c55e":V.dm}}, dnUploadStatus)
+              )
+            )
+          );
+        })
+
+        // Info-Box
+        , React.createElement('div', { style: {...CC(),marginTop:14,background:_dark?"rgba(59,130,246,.06)":"rgba(59,130,246,.04)",border:"1px solid rgba(59,130,246,.2)"}}
+          , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:6}}, "ℹ️ Wie funktioniert der Händler-Import?")
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Zugangsdaten, Gewerk)", React.createElement('br',{}), "2. DATANORM-Datei vom Händler hochladen (A/B-Records mit Artikelstamm)", React.createElement('br',{}), "3. EP-Auto-Filter matcht automatisch die 57 relevanten Produktlinien", React.createElement('br',{}), "4. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "5. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
         )
       ))
 
@@ -8525,6 +8720,76 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const [orderDetail,setOrderDetail]=_react.useState.call(void 0, null);
   const [lagerKommentar,setLagerKommentar]=_react.useState.call(void 0, "");
   const [orderFilter,setOrderFilter]=_react.useState.call(void 0, "offen");
+  // ═══ Leo Bestellbearbeitung (KlarPris-style) ═══
+  const [pvOrder,setPvOrder]=_react.useState.call(void 0, null);// order being prepared
+  const [pvPositionen,setPvPositionen]=_react.useState.call(void 0, []);// editable positions
+  const [pvLieferort,setPvLieferort]=_react.useState.call(void 0, "firma");// firma|baustelle
+  const [pvAnsprechpartner,setPvAnsprechpartner]=_react.useState.call(void 0, "leo");// leo|monteur
+  const FIRMA_ADR="Marktplatz 17, 3470 Kirchberg am Wagram";
+  const baustelleAdr=p?(p.strasse?p.strasse+", ":"")+(p.plz?p.plz+" ":"")+(p.ort||""):"";
+  // Helper: calculate effective EK incl. skonto + jahresbonus
+  const effEk=(ek,suppId)=>{
+    if(!ek||ek<=0)return 0;
+    const s=suppMap[suppId];if(!s)return ek;
+    return ek*(1-(s.skonto||0)/100)*(1-(s.jahresbonus||0)/100);
+  };
+  // Helper: find matching supplier_articles across all suppliers for a given article
+  const findCrossSupplierMatches=(pos)=>{
+    if(!suppArticles||suppArticles.length===0)return [];
+    const matches=[];
+    // Match by artNr across different suppliers
+    if(pos.artNr){
+      const byArtNr=suppArticles.filter(sa=>sa.art_nr===pos.artNr);
+      byArtNr.forEach(sa=>{if(!matches.find(m=>m.supplier_id===sa.supplier_id&&m.art_nr===sa.art_nr))matches.push(sa);});
+    }
+    // Match by normalized name (first 3 significant words)
+    const normName=(s)=>(s||"").toLowerCase().replace(/[^a-zäöüß0-9\s]/g,"").split(/\s+/).filter(w=>w.length>2).slice(0,4).join(" ");
+    const posNorm=normName(pos.name);
+    if(posNorm.length>6){
+      const byName=suppArticles.filter(sa=>{
+        if(matches.find(m=>m.supplier_id===sa.supplier_id&&m.art_nr===sa.art_nr))return false;
+        const saNorm=normName(sa.bezeichnung+(sa.langtext?" "+sa.langtext:""));
+        return saNorm.includes(posNorm)||posNorm.includes(saNorm);
+      });
+      byName.forEach(sa=>matches.push(sa));
+    }
+    return matches;
+  };
+  // Open Preisvergleich for an order
+  const openPV=(ord)=>{
+    const pos=(ord.positionen||[]).map((p2,i)=>({...p2,idx:i,removed:false,originalMenge:p2.menge}));
+    // Enrich with cross-supplier matches
+    pos.forEach(p2=>{
+      const crossMatches=findCrossSupplierMatches(p2);
+      // Group by supplier
+      const bySup={};
+      crossMatches.forEach(sa=>{
+        const sid=sa.supplier_id;
+        if(!bySup[sid])bySup[sid]={suppId:sid,name:suppMap[sid]?suppMap[sid].name:"?",artNr:sa.art_nr,ek:parseFloat(sa.ek_preis)||0,lp:parseFloat(sa.listenpreis)||0};
+      });
+      p2.supplierPrices=bySup;
+    });
+    setPvPositionen(pos);
+    setPvOrder(ord);
+    setPvLieferort("firma");
+    setPvAnsprechpartner("leo");
+  };
+  // Get all unique supplier IDs from PV data
+  const pvSupplierIds=_react.useMemo.call(void 0, ()=>{
+    const ids=new Set();
+    pvPositionen.forEach(p2=>{if(p2.supplierPrices)Object.keys(p2.supplierPrices).forEach(id=>ids.add(id));});
+    return [...ids];
+  },[pvPositionen]);
+  // Find best supplier per article
+  const bestSupplier=(pos)=>{
+    if(!pos.supplierPrices)return null;
+    let best=null,bestEff=Infinity;
+    Object.entries(pos.supplierPrices).forEach(([sid,sp])=>{
+      const eff=effEk(sp.ek,sid);
+      if(eff>0&&eff<bestEff){bestEff=eff;best=sid;}
+    });
+    return best;
+  };
   const cartKey="matCart_"+p.id;
   // DATANORM import state
   const [dnArticles,setDnArticles]=_react.useState.call(void 0, []);// parsed DATANORM articles
@@ -8540,29 +8805,51 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const fileRef=_react.useRef.call(void 0, null);
 
   // Load saved catalogs from Supabase
+  const [suppArticles,setSuppArticles]=_react.useState.call(void 0, []);
+  const [suppMap,setSuppMap]=_react.useState.call(void 0, {});// {suppId: {name,gewerk}}
+  const showEk=canDo("view_ek_price",curUser);
   _react.useEffect.call(void 0, ()=>{
     (async()=>{try{
       const cats=await _sbGet("material_catalogs","order=system.asc");
       if(cats&&cats.length>0){
         const parsed=cats.map(c=>({...c,cats:_jp(c.cats)||[]}));
         setSavedCatalogs(parsed);
-        // Merge into MAT_KATALOG
         MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...parsed.map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}))];
+      }
+      // Load supplier configs for name mapping
+      const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse&active=eq.true").catch(()=>[]);
+      const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||""};});
+      setSuppMap(sm);
+      // Load supplier articles (EP-filtered, limited)
+      const sa=await _sbGet("supplier_articles","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
+      if(sa&&sa.length>0){
+        setSuppArticles(sa);
+        // Build dynamic catalogs from supplier_articles grouped by ep_system
+        const bySystem=new Map();
+        for(const a of sa){
+          const sys=a.ep_system||"Sonstige";
+          if(!bySystem.has(sys))bySystem.set(sys,{items:[],gewerk:a.ep_gewerk||"allgemein"});
+          bySystem.get(sys).items.push(a);
+        }
+        // Create catalog entries
+        const dynCats=[];
+        for(const [sys,data] of bySystem){
+          const suppNames=new Set();
+          data.items.forEach(a=>{if(sm[a.supplier_id])suppNames.add(sm[a.supplier_id].name);});
+          const suppLabel=suppNames.size>0?" ("+[...suppNames].join(", ")+")":"";
+          // Group items that have dimensions vs without
+          const items=data.items.map((a,i)=>({id:"sa_"+a.id,artNr:a.art_nr,name:a.bezeichnung+(a.langtext?" "+a.langtext:""),einheit:a.mengeneinheit||"Stk",ek:a.ek_preis,lp:a.listenpreis,suppId:a.supplier_id,avail:[]}));
+          dynCats.push({id:"supp_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),system:sys+suppLabel,gewerk:data.gewerk,isSupplier:true,cats:[{id:"supp_cat_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),label:sys+" ("+items.length+" Art.)",dims:[],items:items}]});
+        }
+        if(dynCats.length>0)MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...dynCats];
       }
     }catch(_){}})();
   },[]);
 
   // Determine which catalogs apply to this project's gewerk
-  const projGewerk=(p.gewerk||"").toLowerCase();
-  const activeCatalogs=MAT_KATALOG.filter(k=>{
-    if(projGewerk.includes("elektro")||projGewerk.includes("blitz")||projGewerk.includes("beleucht"))return k.gewerk==="elektro";
-    if(projGewerk.includes("sanitär")||projGewerk.includes("install")||projGewerk.includes("mepla"))return k.gewerk==="sanitaer";
-    if(projGewerk.includes("heiz"))return k.gewerk==="heizung";
-    if(projGewerk.includes("klima")||projGewerk.includes("lüft"))return k.gewerk==="klima";
-    return true;// show all if no clear match
-  });
-  // Fallback: if nothing matched, show all
-  const catalogs=activeCatalogs.length>0?activeCatalogs:MAT_KATALOG;
+  // FIX: Show ALL catalogs always — Gewerk filter was too restrictive
+  // (e.g. "Elektro komplett" hid Mepla even though Sanitär hours were booked)
+  const catalogs=MAT_KATALOG;
 
   // Load cart from localStorage on mount
   _react.useEffect.call(void 0, ()=>{
@@ -8602,11 +8889,11 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           if(cat.dims&&cat.dims.length>0){
             cat.dims.forEach((dim,di)=>{
               const k=itemKey(cat.id,item.id,di);
-              if(cart[k]>0)positionen.push({artNr:item.artNr||"",name:item.name,dim:dim,menge:cart[k],einheit:item.einheit,katalog:kat.system,kategorie:cat.label});
+              if(cart[k]>0)positionen.push({artNr:item.artNr||"",name:item.name,dim:dim,menge:cart[k],einheit:item.einheit,katalog:kat.system,kategorie:cat.label,haendler:item.suppId&&suppMap[item.suppId]?suppMap[item.suppId].name:""});
             });
           }else{
             const k=itemKey(cat.id,item.id);
-            if(cart[k]>0)positionen.push({artNr:item.artNr||"",name:item.name,dim:"",menge:cart[k],einheit:item.einheit,katalog:kat.system,kategorie:cat.label});
+            if(cart[k]>0)positionen.push({artNr:item.artNr||"",name:item.name,dim:"",menge:cart[k],einheit:item.einheit,katalog:kat.system,kategorie:cat.label,haendler:item.suppId&&suppMap[item.suppId]?suppMap[item.suppId].name:""});
           }
         });
       });
@@ -8698,7 +8985,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               , hasDims&&!isMob&&React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:hasDims?Math.max(400,160+cat.dims.length*54):400}}
                 , React.createElement('tbody', null, catItems.map(item=>(
                   React.createElement('tr', { key: item.id, style: {borderBottom:"1px solid "+V.bd}}
-                    , React.createElement('td', { style: {padding:"8px 12px",fontSize:12,color:V.tx,whiteSpace:"nowrap",minWidth:150}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr))
+                    , React.createElement('td', { style: {padding:"8px 12px",fontSize:12,color:V.tx,whiteSpace:"nowrap",minWidth:150}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:9,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
                       return React.createElement('td', { key: di, style: {padding:"4px 3px",textAlign:"center",minWidth:48}}
@@ -8710,7 +8997,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               )
               , hasDims&&isMob&&catItems.map(item=>(
                 React.createElement('div', { key: item.id, style: {padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('div', { style: {fontSize:12,fontWeight:600,color:V.tx,marginBottom:6}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontWeight:400,fontFamily:mono}}, item.artNr))
+                  , React.createElement('div', { style: {fontSize:12,fontWeight:600,color:V.tx,marginBottom:6}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontWeight:400,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:9,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
                   , React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:6}}
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
@@ -8726,7 +9013,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               , !hasDims&&catItems.map(item=>{
                 const k=itemKey(cat.id,item.id);const val=cart[k]||"";
                 return React.createElement('div', { key: item.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('span', { style: {flex:1,fontSize:12,color:V.tx}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr))
+                  , React.createElement('span', { style: {flex:1,fontSize:12,color:V.tx}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:9,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
                   , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", placeholder: "0", value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?56:50,textAlign:"center",fontSize:13,padding:isMob?"6px 4px":"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:isMob?36:0} })
                   , React.createElement('span', { style: {fontSize:10,color:V.dm,minWidth:24}}, item.einheit)
                 );
@@ -8782,7 +9069,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               ))
               , React.createElement('tbody', null, pos.map((p2,i)=>(
                 React.createElement('tr', { key: i, style: {borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('td', { style: {padding:"4px 8px",color:V.tx}}, p2.name, p2.kategorie&&p2.kategorie!=="Sonstiges"?React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6}}, p2.kategorie):"")
+                  , React.createElement('td', { style: {padding:"4px 8px",color:V.tx}}, p2.name, p2.kategorie&&p2.kategorie!=="Sonstiges"?React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6}}, p2.kategorie):"", p2.haendler&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, p2.haendler))
                   , React.createElement('td', { style: {padding:"4px 8px",textAlign:"center",color:V.dm}}, p2.dim||"—")
                   , React.createElement('td', { style: {padding:"4px 8px",textAlign:"center",fontWeight:700,color:V.ac}}, p2.menge)
                   , React.createElement('td', { style: {padding:"4px 8px",color:V.dm,fontFamily:mono,fontSize:10}}, p2.artNr||"—")
@@ -8829,7 +9116,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               ))
               , React.createElement('tbody', null, pos.map((p2,i)=>(
                 React.createElement('tr', { key: i, style: {borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('td', { style: {padding:"4px 8px",color:V.tx}}, p2.name)
+                  , React.createElement('td', { style: {padding:"4px 8px",color:V.tx}}, p2.name, p2.haendler&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, p2.haendler))
                   , React.createElement('td', { style: {padding:"4px 8px",textAlign:"center",color:V.dm}}, p2.dim||"—")
                   , React.createElement('td', { style: {padding:"4px 8px",textAlign:"center",fontWeight:700,color:V.ac}}, p2.menge)
                   , React.createElement('td', { style: {padding:"4px 8px",color:V.dm,fontFamily:mono,fontSize:10}}, p2.artNr||"—")
@@ -8844,6 +9131,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               )
               , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
                 , nextStatus&&React.createElement('button', { onClick: ()=>updateStatus(ord,nextStatus), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:MAT_STATUS[nextStatus].c,color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, MAT_STATUS[nextStatus].i, " ", MAT_STATUS[nextStatus].l)
+                , showEk&&suppArticles.length>0&&React.createElement('button', { onClick: ()=>openPV(ord), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "📊 Bestellung vorbereiten")
                 , (ord.status==="in_bearbeitung"||ord.status==="offen")&&React.createElement('button', { onClick: ()=>updateStatus(ord,"bestellt"), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"#8b5cf6",color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "🛒 Bestellt")
                 , React.createElement('button', { onClick: ()=>updateStatus(ord,"erledigt"), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"#059669",color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "✅ Erledigt")
                 , React.createElement('button', { onClick: ()=>updateStatus(ord,"storniert"), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"1px solid #6b7280",background:"transparent",color:"#6b7280",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "❌ Storno")
@@ -8853,6 +9141,195 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           )
         );
       })
+    );
+  };
+
+  // ═══ Render: Preisvergleich / Bestellung vorbereiten (KlarPris-style) ═══
+  const renderPreisvergleich=()=>{
+    if(!pvOrder)return null;
+    const activePos=pvPositionen.filter(p2=>!p2.removed);
+    const monteurName=pvOrder.created_by||pvOrder.createdBy||"";
+    // Group active positions by best supplier
+    const grouped={};
+    activePos.forEach(p2=>{
+      const best=bestSupplier(p2);
+      const key=best||"_manual";
+      if(!grouped[key])grouped[key]={items:[],total:0,effTotal:0};
+      grouped[key].items.push(p2);
+      if(best&&p2.supplierPrices[best]){
+        const ek=p2.supplierPrices[best].ek||0;
+        const eff=effEk(ek,best);
+        grouped[key].total+=ek*p2.menge;
+        grouped[key].effTotal+=eff*p2.menge;
+      }
+    });
+    const totalEff=Object.values(grouped).reduce((s,g)=>s+g.effTotal,0);
+    const totalBrutto=Object.values(grouped).reduce((s,g)=>s+g.total,0);
+    const lieferAdr=pvLieferort==="firma"?FIRMA_ADR:baustelleAdr;
+    const kontaktPerson=pvAnsprechpartner==="leo"?"Leo Pinger (Lagerleitung)":monteurName;
+    const kontaktTel=pvAnsprechpartner==="leo"?"+43 2279 2361":"";
+    return React.createElement('div', { style: {position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9999,background:_dark?"rgba(0,0,0,.92)":"rgba(0,0,0,.6)",display:"flex",justifyContent:"center",alignItems:isMob?"flex-end":"center",padding:isMob?0:20}}
+      , React.createElement('div', { style: {background:V.bg,borderRadius:isMob?"16px 16px 0 0":16,width:"100%",maxWidth:1100,maxHeight:isMob?"95vh":"90vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 25px 60px rgba(0,0,0,.4)"}}
+        // Header
+        , React.createElement('div', { style: {padding:"16px 20px",borderBottom:"2px solid "+V.bd,background:_dark?"rgba(245,158,11,.08)":"rgba(245,158,11,.04)",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}
+          , React.createElement('div', { style: {fontSize:20,fontWeight:800}}, "📊 EK-Preisvergleich")
+          , React.createElement('div', { style: {flex:1,fontSize:12,color:V.dm}}, pvOrder.datum," · ",monteurName," · ",activePos.length," / ",pvPositionen.length," Positionen")
+          , React.createElement('button', { onClick: ()=>setPvOrder(null), style: {background:"transparent",border:"none",fontSize:22,cursor:"pointer",color:V.dm,fontFamily:"inherit",padding:"4px 8px"}}, "✕")
+        )
+        // Scrollable body
+        , React.createElement('div', { style: {flex:1,overflowY:"auto",padding:isMob?"12px":"16px 20px"}}
+          // ═══ Lieferung + Ansprechpartner ═══
+          , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:12,marginBottom:16}}
+            , React.createElement('div', { style: {...CC(),border:"1px solid "+V.bd}}
+              , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8}}, "📍 Lieferadresse")
+              , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:8}}
+                , React.createElement('button', { onClick: ()=>setPvLieferort("firma"), style: {padding:"6px 14px",borderRadius:8,border:"1.5px solid "+(pvLieferort==="firma"?"#009640":V.bd),background:pvLieferort==="firma"?"rgba(0,150,64,.1)":"transparent",color:pvLieferort==="firma"?"#009640":V.dm,fontSize:12,fontWeight:pvLieferort==="firma"?700:400,cursor:"pointer",fontFamily:"inherit"}}, "🏢 Firma")
+                , React.createElement('button', { onClick: ()=>setPvLieferort("baustelle"), style: {padding:"6px 14px",borderRadius:8,border:"1.5px solid "+(pvLieferort==="baustelle"?"#3b82f6":V.bd),background:pvLieferort==="baustelle"?"rgba(59,130,246,.1)":"transparent",color:pvLieferort==="baustelle"?"#3b82f6":V.dm,fontSize:12,fontWeight:pvLieferort==="baustelle"?700:400,cursor:"pointer",fontFamily:"inherit"}}, "🏗 Baustelle")
+              )
+              , React.createElement('div', { style: {fontSize:12,color:V.tx,padding:"8px 12px",borderRadius:6,background:_dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.03)"}}
+                , pvLieferort==="firma"?React.createElement('span', null, "EP Kolar, ",FIRMA_ADR):React.createElement('span', null, p.name, baustelleAdr?React.createElement('span', null, " — ",baustelleAdr):React.createElement('span', { style: {color:"#ef4444"}}, " (Keine Adresse hinterlegt!)"))
+              )
+            )
+            , React.createElement('div', { style: {...CC(),border:"1px solid "+V.bd}}
+              , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8}}, "👤 Ansprechpartner für Lieferant")
+              , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:8}}
+                , React.createElement('button', { onClick: ()=>setPvAnsprechpartner("leo"), style: {padding:"6px 14px",borderRadius:8,border:"1.5px solid "+(pvAnsprechpartner==="leo"?"#009640":V.bd),background:pvAnsprechpartner==="leo"?"rgba(0,150,64,.1)":"transparent",color:pvAnsprechpartner==="leo"?"#009640":V.dm,fontSize:12,fontWeight:pvAnsprechpartner==="leo"?700:400,cursor:"pointer",fontFamily:"inherit"}}, "📦 Leo (Lager)")
+                , React.createElement('button', { onClick: ()=>setPvAnsprechpartner("monteur"), style: {padding:"6px 14px",borderRadius:8,border:"1.5px solid "+(pvAnsprechpartner==="monteur"?"#3b82f6":V.bd),background:pvAnsprechpartner==="monteur"?"rgba(59,130,246,.1)":"transparent",color:pvAnsprechpartner==="monteur"?"#3b82f6":V.dm,fontSize:12,fontWeight:pvAnsprechpartner==="monteur"?700:400,cursor:"pointer",fontFamily:"inherit"}}, "🔧 Monteur ("+monteurName+")")
+              )
+              , React.createElement('div', { style: {fontSize:12,color:V.tx,padding:"8px 12px",borderRadius:6,background:_dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.03)"}}, kontaktPerson, kontaktTel?React.createElement('span', { style: {marginLeft:8,color:V.dm}}, "📞 "+kontaktTel):"")
+            )
+          )
+          // ═══ Artikel-Tabelle mit Preisvergleich ═══
+          , React.createElement('div', { style: {fontSize:14,fontWeight:800,marginBottom:8}}, "💰 Artikel × Händler — Preisvergleich")
+          , pvSupplierIds.length===0&&React.createElement('div', { style: {padding:16,color:V.dm,fontSize:12,background:_dark?"rgba(245,158,11,.06)":"#fffbeb",borderRadius:8,marginBottom:12}}, "⚠ Keine Händler-Preise gefunden. DATANORM-Daten für Ihre Händler hochladen um EK-Preise zu vergleichen.")
+          , React.createElement('div', { style: {overflowX:"auto",marginBottom:16}}
+            , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:Math.max(600,300+pvSupplierIds.length*120)}}
+              , React.createElement('thead', null
+                , React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(255,255,255,.03)":"rgba(0,0,0,.02)"}}
+                  , React.createElement('th', { style: {textAlign:"left",padding:"8px 10px",fontSize:11,color:V.dm,fontWeight:700,minWidth:30}}, "")
+                  , React.createElement('th', { style: {textAlign:"left",padding:"8px 10px",fontSize:11,color:V.dm,fontWeight:700,minWidth:180}}, "Artikel")
+                  , React.createElement('th', { style: {textAlign:"center",padding:"8px 6px",fontSize:11,color:V.dm,fontWeight:700,width:60}}, "Menge")
+                  , pvSupplierIds.map(sid=>{
+                    const s=suppMap[sid];if(!s)return null;
+                    const hasKond=(s.skonto>0||s.jahresbonus>0);
+                    return React.createElement('th', { key: sid, style: {textAlign:"center",padding:"8px 6px",fontSize:11,color:V.dm,fontWeight:700,minWidth:110,borderLeft:"1px solid "+V.bd}}
+                      , React.createElement('div', { style: {fontWeight:800,color:V.tx,fontSize:12}}, s.name)
+                      , hasKond&&React.createElement('div', { style: {fontSize:9,color:"#f59e0b",fontWeight:500,marginTop:2}}, s.skonto>0?_n(s.skonto,1)+"% Sk":"", s.skonto>0&&s.jahresbonus>0?" + ":"", s.jahresbonus>0?_n(s.jahresbonus,1)+"% JB":"")
+                    );
+                  })
+                  , React.createElement('th', { style: {textAlign:"center",padding:"8px 6px",fontSize:11,color:"#22c55e",fontWeight:700,minWidth:90,borderLeft:"2px solid "+V.bd}}, "✅ Bester")
+                )
+              )
+              , React.createElement('tbody', null
+                , pvPositionen.map((pos,idx)=>{
+                  const best=bestSupplier(pos);
+                  const isRemoved=pos.removed;
+                  return React.createElement('tr', { key: idx, style: {borderBottom:"1px solid "+V.bd,opacity:isRemoved?.35:1,background:isRemoved?(_dark?"rgba(239,68,68,.05)":"rgba(239,68,68,.03)"):"transparent"}}
+                    // Remove/restore toggle
+                    , React.createElement('td', { style: {padding:"6px 6px",textAlign:"center"}}
+                      , React.createElement('button', { onClick: ()=>{setPvPositionen(prev=>prev.map((p2,i)=>i===idx?{...p2,removed:!p2.removed}:p2));}, style: {background:"transparent",border:"none",cursor:"pointer",fontSize:14,padding:0,color:isRemoved?"#22c55e":"#ef4444"}}, isRemoved?"↩":"✕")
+                    )
+                    // Article name
+                    , React.createElement('td', { style: {padding:"6px 10px",color:isRemoved?V.dm:V.tx}}
+                      , React.createElement('div', { style: {fontWeight:600,fontSize:12,textDecoration:isRemoved?"line-through":"none"}}, pos.name)
+                      , pos.dim&&React.createElement('span', { style: {fontSize:10,color:V.dm,marginRight:6}}, pos.dim)
+                      , pos.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,fontFamily:mono}}, pos.artNr)
+                      , pos.haendler&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, pos.haendler)
+                    )
+                    // Editable menge
+                    , React.createElement('td', { style: {padding:"6px 6px",textAlign:"center"}}
+                      , !isRemoved?React.createElement('input', { type: "number", inputMode: "decimal", min: "1", value: pos.menge, onChange: e=>{const v=parseInt(e.target.value)||1;setPvPositionen(prev=>prev.map((p2,i)=>i===idx?{...p2,menge:v}:p2));}, style: {width:52,textAlign:"center",fontSize:12,padding:"4px 2px",borderRadius:6,border:"1px solid "+V.bd,background:"transparent",fontWeight:700,color:V.tx,fontFamily:"inherit"}}):React.createElement('span', { style: {fontSize:11,color:V.dm,textDecoration:"line-through"}}, pos.menge)
+                    )
+                    // Per-supplier EK cells
+                    , pvSupplierIds.map(sid=>{
+                      const sp=pos.supplierPrices?pos.supplierPrices[sid]:null;
+                      const isBest=sid===best;
+                      const ek=sp?sp.ek:0;
+                      const eff=ek>0?effEk(ek,sid):0;
+                      return React.createElement('td', { key: sid, style: {padding:"6px 6px",textAlign:"center",borderLeft:"1px solid "+V.bd,background:isBest&&!isRemoved?(_dark?"rgba(34,197,94,.08)":"rgba(34,197,94,.04)"):"transparent"}}
+                        , ek>0?React.createElement('div', null
+                          , React.createElement('div', { style: {fontSize:11,fontWeight:isBest?800:400,color:isBest?"#22c55e":V.tx}}, "€ "+_n(ek,2))
+                          , eff!==ek&&React.createElement('div', { style: {fontSize:9,color:isBest?"#16a34a":"#f59e0b",fontWeight:600}}, "eff. €"+_n(eff,2))
+                        ):React.createElement('span', { style: {fontSize:10,color:V.dm}}, "—")
+                      );
+                    })
+                    // Best supplier summary
+                    , React.createElement('td', { style: {padding:"6px 8px",textAlign:"center",borderLeft:"2px solid "+V.bd,fontWeight:700}}
+                      , best&&!isRemoved?React.createElement('div', null
+                        , React.createElement('div', { style: {fontSize:11,color:"#22c55e",fontWeight:800}}, suppMap[best]?suppMap[best].name:"?")
+                        , React.createElement('div', { style: {fontSize:10,color:"#16a34a"}}, "€"+_n(effEk(pos.supplierPrices[best].ek,best)*pos.menge,2))
+                      ):React.createElement('span', { style: {fontSize:10,color:V.dm}}, isRemoved?"entfernt":"—")
+                    )
+                  );
+                })
+                // Totals row
+                , React.createElement('tr', { style: {borderTop:"3px solid "+V.bd,background:_dark?"rgba(34,197,94,.06)":"rgba(34,197,94,.03)"}}
+                  , React.createElement('td', { colSpan: 2, style: {padding:"10px 10px",fontWeight:800,fontSize:13,color:V.tx}}, "SUMME ("+activePos.length+" Pos.)")
+                  , React.createElement('td', { style: {padding:"10px 6px",textAlign:"center",fontWeight:700,fontSize:12,color:V.tx}}, activePos.reduce((s,p2)=>s+p2.menge,0))
+                  , pvSupplierIds.map(sid=>{
+                    const suppTotal=activePos.reduce((s,p2)=>{
+                      const sp=p2.supplierPrices?p2.supplierPrices[sid]:null;
+                      return s+(sp?effEk(sp.ek,sid)*p2.menge:0);
+                    },0);
+                    return React.createElement('td', { key: sid, style: {padding:"10px 6px",textAlign:"center",borderLeft:"1px solid "+V.bd,fontSize:11,fontWeight:600,color:suppTotal>0?V.tx:V.dm}}, suppTotal>0?"€"+_n(suppTotal,2):"—");
+                  })
+                  , React.createElement('td', { style: {padding:"10px 8px",textAlign:"center",borderLeft:"2px solid "+V.bd,fontWeight:800,fontSize:14,color:"#22c55e"}}, "€"+_n(totalEff,2), totalBrutto>totalEff&&React.createElement('div', { style: {fontSize:9,color:"#16a34a",fontWeight:500}}, "(-€"+_n(totalBrutto-totalEff,2)," durch Konditionen)"))
+                )
+              )
+            )
+          )
+          // ═══ Zusammenfassung nach Händler ═══
+          , React.createElement('div', { style: {fontSize:14,fontWeight:800,marginBottom:8}}, "📋 Bestellübersicht nach Händler")
+          , Object.entries(grouped).map(([key,grp])=>{
+            const sName=key==="_manual"?"Manuell / kein Händler":(suppMap[key]?suppMap[key].name:"?");
+            const sInfo=suppMap[key]||{};
+            return React.createElement('div', { key: key, style: {...CC(),marginBottom:8,border:"1px solid "+(key==="_manual"?"#6b7280":"#22c55e")+"44"}}
+              , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}
+                , React.createElement('span', { style: {fontSize:16}}, key==="_manual"?"📝":"🏪")
+                , React.createElement('span', { style: {fontSize:14,fontWeight:800,color:V.tx}}, sName)
+                , React.createElement('span', { style: {fontSize:12,color:V.dm}}, grp.items.length+" Positionen")
+                , grp.effTotal>0&&React.createElement('span', { style: {marginLeft:"auto",fontSize:15,fontWeight:800,color:"#22c55e"}}, "€"+_n(grp.effTotal,2))
+                , sInfo.zk&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, sInfo.zk)
+              )
+              , React.createElement('div', { style: {fontSize:11,color:V.dm}}
+                , grp.items.map((it,i)=>React.createElement('div', { key: i, style: {display:"flex",gap:8,padding:"3px 0",borderBottom:i<grp.items.length-1?"1px solid "+V.bd:"none"}}
+                  , React.createElement('span', { style: {flex:1}}, it.name, it.dim?" ("+it.dim+")":"")
+                  , React.createElement('span', { style: {fontWeight:600,minWidth:40,textAlign:"right"}}, it.menge+"x")
+                  , it.supplierPrices&&it.supplierPrices[key]?React.createElement('span', { style: {fontWeight:600,color:"#22c55e",minWidth:70,textAlign:"right"}}, "€"+_n(effEk(it.supplierPrices[key].ek,key)*it.menge,2)):React.createElement('span', { style: {minWidth:70}})
+                ))
+              )
+            );
+          })
+        )
+        // Footer
+        , React.createElement('div', { style: {padding:"14px 20px",borderTop:"2px solid "+V.bd,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",background:_dark?"rgba(0,0,0,.3)":"rgba(0,0,0,.02)"}}
+          , React.createElement('div', { style: {flex:1}}
+            , React.createElement('div', { style: {fontSize:11,color:V.dm}}, pvLieferort==="firma"?"🏢 Lieferung an Firma":"🏗 Lieferung auf Baustelle: "+(_optionalChain([p, 'optionalAccess', _pvf => _pvf.name])||""))
+            , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "👤 AP: "+kontaktPerson)
+          )
+          , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#22c55e",marginRight:12}}, "€"+_n(totalEff,2))
+          , React.createElement('button', { onClick: ()=>{setPvOrder(null);}, style: {...bdS,padding:"8px 16px",fontSize:12}}, "Schließen")
+          , React.createElement('button', { onClick: async()=>{
+              // Save supplier orders grouped by best supplier
+              const ordersToCreate=[];
+              Object.entries(grouped).forEach(([key,grp])=>{
+                if(key==="_manual")return;
+                const items=grp.items.map(it=>({art_nr:it.artNr||"",bezeichnung:it.name,dim:it.dim||"",menge:it.menge,einheit:it.einheit||"",ek_preis:it.supplierPrices&&it.supplierPrices[key]?it.supplierPrices[key].ek:0,eff_ek:it.supplierPrices&&it.supplierPrices[key]?effEk(it.supplierPrices[key].ek,key):0}));
+                ordersToCreate.push({id:uid(),supplier_id:key,material_order_id:pvOrder.id,status:"vorbereitet",order_items:items,total:grp.total,effektiver_total:grp.effTotal,bestellt_von:curUser?curUser.name:"",lieferort:pvLieferort,lieferadresse:lieferAdr,ansprechpartner:kontaktPerson,ansprechpartner_tel:kontaktTel,projekt_id:p.id});
+              });
+              if(ordersToCreate.length===0){window.__toast&&window.__toast("Keine Händler-Zuordnung möglich","error");return;}
+              try{
+                for(const so of ordersToCreate){
+                  await SQ.push({url:"/api/supplier-orders",method:"POST",body:so});
+                }
+                await updateStatus(pvOrder,"bestellt");
+                if(window.__doSync)window.__doSync();
+                window.__toast&&window.__toast("✅ "+ordersToCreate.length+" Bestellungen vorbereitet","success");
+                setPvOrder(null);
+              }catch(e){window.__toast&&window.__toast("❌ "+e.message,"error");}
+            }, style: {padding:"8px 20px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}, "✅ Bestellungen anlegen ("+Object.keys(grouped).filter(k=>k!=="_manual").length+" Händler)")
+        )
+      )
     );
   };
 
@@ -9059,6 +9536,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     , tab==="verlauf"&&renderVerlauf()
     , tab==="lager"&&renderLager()
     , tab==="katalog"&&renderKatalog()
+    , pvOrder&&renderPreisvergleich()
   );
 }
 
