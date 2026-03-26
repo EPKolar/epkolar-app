@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.55';
+  var SW_VER='epkolar-v3.5.56';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -973,7 +973,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.55-supabase";
+const APP_VERSION="3.5.56-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -7771,6 +7771,7 @@ const MATERIAL_UNITS=[
 const MAT_STATUS={angefordert:{l:"Angefordert",i:"📝",c:"#3b82f6"},in_bearbeitung:{l:"In Bearbeitung",i:"👀",c:"#f59e0b"},bereitgestellt:{l:"Bereitgestellt",i:"📦",c:"#22c55e"},bestellt:{l:"Bestellt",i:"🛒",c:"#8b5cf6"},erledigt:{l:"Erledigt",i:"✅",c:"#059669"},storniert:{l:"Storniert",i:"❌",c:"#6b7280"},
   /* back-compat */ offen:{l:"Offen",i:"🔵",c:"#3b82f6"},geliefert:{l:"Geliefert",i:"🟢",c:"#22c55e"}};
 const MAT_PRIO={dringend:{l:"Dringend",i:"🔴",c:"#ef4444"},normal:{l:"Normal",i:"🟡",c:"#f59e0b"},niedrig:{l:"Kann warten",i:"⚪",c:"#6b7280"}};
+const SUPP_ORD_STATUS={vorbereitet:{l:"Vorbereitet",i:"📋",c:"#f59e0b"},bestellt:{l:"Bestellt",i:"🛒",c:"#8b5cf6"},geliefert:{l:"Geliefert",i:"📦",c:"#22c55e"},storniert:{l:"Storniert",i:"❌",c:"#6b7280"}};
 /* ═══ DATANORM Parser (v4 standard + v4 simplified + v5) ═══ */
 function _parseDatanorm(text,version){
   const lines=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim());
@@ -9055,7 +9056,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   // Load saved catalogs from Supabase
   const [suppArticles,setSuppArticles]=_react.useState.call(void 0, []);
-  const [suppMap,setSuppMap]=_react.useState.call(void 0, {});// {suppId: {name,gewerk}}
+  const [suppMap,setSuppMap]=_react.useState.call(void 0, {});// {suppId: {name,gewerk,base_url,unternehmen_id,...}}
+  const [suppOrders,setSuppOrders]=_react.useState.call(void 0, []);// supplier_orders from Supabase
+  const [suppOrdDetail,setSuppOrdDetail]=_react.useState.call(void 0, null);// expanded supplier order id
   const showEk=canDo("view_ek_price",curUser);
   _react.useEffect.call(void 0, ()=>{
     (async()=>{try{
@@ -9066,8 +9069,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...parsed.map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}))];
       }
       // Load supplier configs for name mapping
-      const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse&active=eq.true").catch(()=>[]);
-      const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||""};});
+      const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse,base_url,unternehmen_id,shk_url,ids_shop_url,schnittstelle&active=eq.true").catch(()=>[]);
+      const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||"",baseUrl:s.base_url||"",uid:s.unternehmen_id||"",shkUrl:s.shk_url||"",idsShopUrl:s.ids_shop_url||"",iface:s.schnittstelle||""};});
       setSuppMap(sm);
       // Load supplier articles (EP-filtered, limited)
       const sa=await _sbGet("supplier_articles","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
@@ -9119,6 +9122,15 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     setLoading(false);
   },[p.id]);
   _react.useEffect.call(void 0, ()=>{loadOrders();},[loadOrders]);
+  // Load supplier_orders for this project
+  const loadSuppOrders=_react.useCallback.call(void 0, async()=>{
+    if(!showEk)return;
+    try{
+      const so=await _sbGet("supplier_orders","projekt_id=eq."+encodeURIComponent(p.id)+"&order=created_at.desc");
+      if(so)setSuppOrders(so.map(o=>({...o,order_items:_jp(o.order_items)||[]})));
+    }catch(_){}
+  },[p.id,showEk]);
+  _react.useEffect.call(void 0, ()=>{loadSuppOrders();},[loadSuppOrders]);
 
   // Cart helpers
   const cartCount=Object.values(cart).filter(v=>v>0).length;
@@ -9564,7 +9576,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               Object.entries(grouped).forEach(([key,grp])=>{
                 if(key==="_manual")return;
                 const items=grp.items.map(it=>({art_nr:it.artNr||"",bezeichnung:it.name,dim:it.dim||"",menge:it.menge,einheit:it.einheit||"",ek_preis:it.supplierPrices&&it.supplierPrices[key]?it.supplierPrices[key].ek:0,eff_ek:it.supplierPrices&&it.supplierPrices[key]?effEk(it.supplierPrices[key].ek,key):0}));
-                ordersToCreate.push({id:uid(),supplier_id:key,material_order_id:pvOrder.id,status:"vorbereitet",order_items:items,total:grp.total,effektiver_total:grp.effTotal,bestellt_von:curUser?curUser.name:"",lieferort:pvLieferort,lieferadresse:lieferAdr,ansprechpartner:kontaktPerson,ansprechpartner_tel:kontaktTel,projekt_id:p.id});
+                ordersToCreate.push({id:crypto.randomUUID(),supplier_id:key,material_order_id:pvOrder.id,status:"vorbereitet",order_items:items,total:grp.total,effektiver_total:grp.effTotal,bestellt_von:curUser?curUser.name:"",lieferort:pvLieferort,lieferadresse:lieferAdr,ansprechpartner:kontaktPerson,ansprechpartner_tel:kontaktTel,projekt_id:p.id});
               });
               if(ordersToCreate.length===0){window.__toast&&window.__toast("Keine Händler-Zuordnung möglich","error");return;}
               try{
@@ -9575,9 +9587,151 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                 if(window.__doSync)window.__doSync();
                 window.__toast&&window.__toast("✅ "+ordersToCreate.length+" Bestellungen vorbereitet","success");
                 setPvOrder(null);
+                loadSuppOrders();
+                setTab("bestellungen");
               }catch(e){window.__toast&&window.__toast("❌ "+e.message,"error");}
             }, style: {padding:"8px 20px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}, "✅ Bestellungen anlegen ("+Object.keys(grouped).filter(k=>k!=="_manual").length+" Händler)")
         )
+      )
+    );
+  };
+
+  // ═══ Render: Händler-Bestellungen (Leo/Admin) ═══
+  const [suppOrdFilter,setSuppOrdFilter]=_react.useState.call(void 0, "offen");
+  const updateSuppOrdStatus=async(so,newStatus)=>{
+    try{
+      await SQ.push({url:"/api/supplier-orders/"+so.id,method:"PUT",body:{status:newStatus}});
+      setSuppOrders(prev=>prev.map(x=>x.id===so.id?{...x,status:newStatus}:x));
+      if(window.__doSync)window.__doSync();
+      window.__toast&&window.__toast("Status → "+SUPP_ORD_STATUS[newStatus].l,"success");
+    }catch(e){window.__toast&&window.__toast("❌ "+e.message,"error");}
+  };
+  const deleteSuppOrd=async(id)=>{
+    if(!confirm("Händler-Bestellung wirklich löschen?"))return;
+    try{await SQ.push({url:"/api/supplier-orders/"+id,method:"DELETE",body:{}});setSuppOrders(prev=>prev.filter(x=>x.id!==id));
+    if(window.__doSync)window.__doSync();window.__toast&&window.__toast("Gelöscht","success");}catch(e){window.__toast&&window.__toast("Fehler","error");}
+  };
+  // Build IDS deep-link URL for a supplier
+  const buildShopLink=(suppId,artNr)=>{
+    const s=suppMap[suppId];if(!s)return null;
+    // IDS Connect 2.5: deep-link to article page in shop
+    if(s.baseUrl&&artNr){
+      // Standard IDS article deep-link pattern
+      return s.baseUrl+(s.baseUrl.endsWith("/")?"":"/")+"artikel/"+encodeURIComponent(artNr);
+    }
+    // Fallback: just open shop homepage
+    if(s.baseUrl)return s.baseUrl;
+    if(s.idsShopUrl)return s.idsShopUrl;
+    return null;
+  };
+  const buildShopHome=(suppId)=>{
+    const s=suppMap[suppId];if(!s)return null;
+    return s.baseUrl||s.idsShopUrl||null;
+  };
+  const renderSupplierOrders=()=>{
+    const filtered=suppOrdFilter==="offen"?suppOrders.filter(o=>o.status==="vorbereitet"):suppOrdFilter==="bestellt"?suppOrders.filter(o=>o.status==="bestellt"):suppOrdFilter==="erledigt"?suppOrders.filter(o=>o.status==="geliefert"||o.status==="storniert"):suppOrders;
+    // Group by supplier
+    const bySupp={};
+    filtered.forEach(so=>{
+      const key=so.supplier_id||"_unknown";
+      if(!bySupp[key])bySupp[key]={orders:[],name:suppMap[key]?suppMap[key].name:"Unbekannt"};
+      bySupp[key].orders.push(so);
+    });
+    const suppBadge=(st)=>{const s=SUPP_ORD_STATUS[st]||SUPP_ORD_STATUS.vorbereitet;return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:s.c+"18",color:s.c}}, s.i, " ", s.l);};
+    return React.createElement('div', null
+      // Filter buttons
+      , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}
+        , [{id:"offen",l:"Vorbereitet",cnt:suppOrders.filter(o=>o.status==="vorbereitet").length},{id:"bestellt",l:"Bestellt",cnt:suppOrders.filter(o=>o.status==="bestellt").length},{id:"erledigt",l:"Erledigt",cnt:0},{id:"alle",l:"Alle",cnt:suppOrders.length}].map(f=>(React.createElement('button', { key: f.id, onClick: ()=>setSuppOrdFilter(f.id), style: {padding:isMob?"6px 14px":"4px 12px",borderRadius:14,border:"1.5px solid "+(suppOrdFilter===f.id?V.ac:V.bd),background:suppOrdFilter===f.id?V.ac+"18":"transparent",color:suppOrdFilter===f.id?V.ac:V.dm,fontSize:12,fontWeight:suppOrdFilter===f.id?700:400,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, f.l, f.cnt>0&&React.createElement('span', { style: {marginLeft:4,fontSize:10,fontWeight:700}}, f.cnt))))
+      )
+      , filtered.length===0&&React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, React.createElement('div', { style: {fontSize:48,marginBottom:8}}, "🏪"), suppOrdFilter==="offen"?"Keine vorbereiteten Bestellungen. Über 📊 Bestellung vorbereiten im Lager-Tab erstellen.":"Keine Einträge.")
+      // Grouped by supplier
+      , Object.entries(bySupp).map(([suppId,grp])=>{
+        const sInfo=suppMap[suppId]||{};
+        const shopUrl=buildShopHome(suppId);
+        const hasKond=(sInfo.skonto>0||sInfo.jahresbonus>0);
+        return React.createElement('div', { key: suppId, style: {marginBottom:16}}
+          // Supplier header
+          , React.createElement('div', { style: {...CC(),borderLeft:"4px solid "+(sInfo.gewerk==="shk"?"#009640":"#3b82f6"),marginBottom:0,borderRadius:"8px 8px 0 0",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}
+            , React.createElement('span', { style: {fontSize:18}}, "🏪")
+            , React.createElement('span', { style: {fontSize:16,fontWeight:800,color:V.tx}}, grp.name)
+            , React.createElement('span', { style: {fontSize:11,color:V.dm}}, grp.orders.length, " Bestellung", grp.orders.length!==1?"en":"")
+            , sInfo.iface&&React.createElement('span', { style: {padding:"2px 8px",borderRadius:8,fontSize:9,fontWeight:700,background:sInfo.iface==="shk_connect"?"#22c55e18":sInfo.iface==="ids"?"#3b82f618":"#6b728018",color:sInfo.iface==="shk_connect"?"#22c55e":sInfo.iface==="ids"?"#3b82f6":"#6b7280",textTransform:"uppercase"}}, sInfo.iface.replace("_"," "))
+            , hasKond&&React.createElement('span', { style: {fontSize:10,color:"#f59e0b"}}, sInfo.skonto>0?_n(sInfo.skonto,1)+"% Sk":"", sInfo.skonto>0&&sInfo.jahresbonus>0?" + ":"", sInfo.jahresbonus>0?_n(sInfo.jahresbonus,1)+"% JB":"")
+            , shopUrl&&React.createElement('a', { href: shopUrl, target: "_blank", rel: "noopener", style: {marginLeft:"auto",padding:"4px 10px",borderRadius:6,border:"1px solid "+V.bd,fontSize:11,fontWeight:600,color:V.ac,textDecoration:"none",display:"flex",alignItems:"center",gap:4}}, "🌐 Webshop")
+          )
+          // Orders for this supplier
+          , grp.orders.map(so=>{
+            const items=so.order_items||[];
+            const isOpen=suppOrdDetail===so.id;
+            const total=parseFloat(so.effektiver_total)||0;
+            const dat=so.created_at?new Date(so.created_at).toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit"}):"—";
+            return React.createElement('div', { key: so.id, style: {...CC(),marginTop:0,borderTop:"1px solid "+V.bd,borderRadius:0}}
+              , React.createElement('div', { onClick: ()=>setSuppOrdDetail(isOpen?null:so.id), style: {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",cursor:"pointer"}}
+                , React.createElement('span', { style: {fontSize:12,fontWeight:600,color:V.dm}}, dat)
+                , suppBadge(so.status)
+                , React.createElement('span', { style: {fontSize:12,color:V.tx,fontWeight:600}}, items.length, " Pos.")
+                , total>0&&React.createElement('span', { style: {fontSize:13,fontWeight:800,color:"#22c55e"}}, "€"+_n(total,2))
+                , so.lieferort&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, so.lieferort==="firma"?"🏢 Firma":"🏗 Baustelle")
+                , so.bestellt_von&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, "von: "+so.bestellt_von)
+                , React.createElement('span', { style: {marginLeft:"auto",fontSize:11,color:V.dm,transform:isOpen?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}, "▼")
+              )
+              , isOpen&&React.createElement('div', { style: {marginTop:10,borderTop:"1px solid "+V.bd,paddingTop:8}, onClick: e=>e.stopPropagation()}
+                // Delivery info
+                , React.createElement('div', { style: {display:"flex",gap:12,marginBottom:10,flexWrap:"wrap",fontSize:11,color:V.dm}}
+                  , so.lieferadresse&&React.createElement('span', null, "📍 ", so.lieferadresse)
+                  , so.ansprechpartner&&React.createElement('span', null, "👤 ", so.ansprechpartner)
+                  , so.ansprechpartner_tel&&React.createElement('span', null, "📞 ", so.ansprechpartner_tel)
+                )
+                // Items table
+                , React.createElement('div', { style: {overflowX:"auto"}}
+                , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:400}}
+                  , React.createElement('thead', null, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd}}
+                    , React.createElement('th', { style: {textAlign:"left",padding:"4px 8px",color:V.dm,fontWeight:600}}, "Artikel")
+                    , React.createElement('th', { style: {textAlign:"left",padding:"4px 8px",color:V.dm,fontWeight:600,width:70}}, "Art.Nr.")
+                    , React.createElement('th', { style: {textAlign:"center",padding:"4px 8px",color:V.dm,fontWeight:600,width:50}}, "Menge")
+                    , showEk&&React.createElement('th', { style: {textAlign:"right",padding:"4px 8px",color:V.dm,fontWeight:600,width:70}}, "EK")
+                    , showEk&&React.createElement('th', { style: {textAlign:"right",padding:"4px 8px",color:V.dm,fontWeight:600,width:70}}, "Eff. EK")
+                    , React.createElement('th', { style: {textAlign:"center",padding:"4px 8px",color:V.dm,fontWeight:600,width:50}}, "Shop")
+                  ))
+                  , React.createElement('tbody', null, items.map((it,i)=>{
+                    const shopLink=buildShopLink(suppId,it.art_nr);
+                    return React.createElement('tr', { key: i, style: {borderBottom:"1px solid "+V.bd}}
+                      , React.createElement('td', { style: {padding:"4px 8px",color:V.tx}}, it.bezeichnung, it.dim&&React.createElement('span', { style: {fontSize:10,color:V.dm,marginLeft:4}}, "("+it.dim+")"))
+                      , React.createElement('td', { style: {padding:"4px 8px",color:V.dm,fontFamily:mono,fontSize:10}}, it.art_nr||"—")
+                      , React.createElement('td', { style: {padding:"4px 8px",textAlign:"center",fontWeight:700,color:V.ac}}, it.menge, it.einheit?React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:2}}, it.einheit):"")
+                      , showEk&&React.createElement('td', { style: {padding:"4px 8px",textAlign:"right",fontSize:11,color:V.dm}}, it.ek_preis>0?"€"+_n(it.ek_preis,2):"—")
+                      , showEk&&React.createElement('td', { style: {padding:"4px 8px",textAlign:"right",fontSize:11,fontWeight:600,color:"#22c55e"}}, it.eff_ek>0?"€"+_n(it.eff_ek,2):"—")
+                      , React.createElement('td', { style: {padding:"4px 8px",textAlign:"center"}}, shopLink?React.createElement('a', { href: shopLink, target: "_blank", rel: "noopener", style: {fontSize:10,color:V.ac,textDecoration:"none",fontWeight:600}}, "🔗"):React.createElement('span', { style: {fontSize:10,color:V.dm}}, "—"))
+                    );
+                  }))
+                  // Total row
+                  , showEk&&React.createElement('tfoot', null, React.createElement('tr', { style: {borderTop:"2px solid "+V.bd}}
+                    , React.createElement('td', { colSpan: 3, style: {padding:"6px 8px",fontWeight:800,fontSize:12}}, "SUMME")
+                    , React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontWeight:600,fontSize:11,color:V.dm}}, "€"+_n(parseFloat(so.total)||0,2))
+                    , React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontWeight:800,fontSize:12,color:"#22c55e"}}, "€"+_n(total,2))
+                    , React.createElement('td', null)
+                  ))
+                ))
+                // Actions
+                , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",marginTop:10,paddingTop:8,borderTop:"1px solid "+V.bd}}
+                  , so.status==="vorbereitet"&&shopUrl&&React.createElement('a', { href: shopUrl, target: "_blank", rel: "noopener", style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"linear-gradient(135deg,#3b82f6,#2563eb)",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4,minHeight:isMob?36:0}}, "🌐 Im Webshop bestellen")
+                  , so.status==="vorbereitet"&&React.createElement('button', { onClick: ()=>updateSuppOrdStatus(so,"bestellt"), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"#8b5cf6",color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "🛒 Als bestellt markieren")
+                  , so.status==="bestellt"&&React.createElement('button', { onClick: ()=>updateSuppOrdStatus(so,"geliefert"), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"#22c55e",color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "📦 Geliefert")
+                  , (so.status==="vorbereitet"||so.status==="bestellt")&&React.createElement('button', { onClick: ()=>updateSuppOrdStatus(so,"storniert"), style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"1px solid #6b7280",background:"transparent",color:"#6b7280",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "❌ Storno")
+                  , React.createElement('button', { onClick: ()=>deleteSuppOrd(so.id), style: {...bdS,padding:"4px 10px",fontSize:10,marginLeft:"auto"}}, "🗑")
+                )
+              )
+            );
+          })
+        );
+      })
+      // Summary
+      , suppOrders.length>0&&React.createElement('div', { style: {marginTop:16,padding:"12px 16px",borderRadius:8,background:_dark?"rgba(34,197,94,.06)":"rgba(34,197,94,.03)",border:"1px solid "+V.bd,display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}
+        , React.createElement('span', { style: {fontSize:12,fontWeight:700,color:V.tx}}, "📊 Gesamt: ", suppOrders.length, " Händler-Bestellungen")
+        , React.createElement('span', { style: {fontSize:12,color:V.dm}}, "Vorbereitet: ", suppOrders.filter(o=>o.status==="vorbereitet").length)
+        , React.createElement('span', { style: {fontSize:12,color:"#8b5cf6"}}, "Bestellt: ", suppOrders.filter(o=>o.status==="bestellt").length)
+        , React.createElement('span', { style: {fontSize:12,color:"#22c55e"}}, "Geliefert: ", suppOrders.filter(o=>o.status==="geliefert").length)
+        , showEk&&React.createElement('span', { style: {marginLeft:"auto",fontSize:15,fontWeight:800,color:"#22c55e"}}, "€"+_n(suppOrders.filter(o=>o.status!=="storniert").reduce((s,o)=>s+(parseFloat(o.effektiver_total)||0),0),2))
       )
     );
   };
@@ -9770,6 +9924,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   const tabs=[{id:"warenkorb",l:"🛒 Warenkorb",badge:cartCount},{id:"verlauf",l:"📋 Verlauf",badge:0}];
   if(isLager)tabs.push({id:"lager",l:"📦 Lager",badge:orders.filter(o=>o.status==="angefordert"||o.status==="in_bearbeitung"||o.status==="offen").length});
+  if(showEk)tabs.push({id:"bestellungen",l:"🏪 Bestellungen",badge:suppOrders.filter(o=>o.status==="vorbereitet").length});
   if(isAdmin||isLager)tabs.push({id:"katalog",l:"⚙ Katalog",badge:0});
 
   return React.createElement('div', { style: {padding:isMob?10:18,maxWidth:900,margin:"0 auto"} }
@@ -9784,6 +9939,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     , tab==="warenkorb"&&renderWarenkorb()
     , tab==="verlauf"&&renderVerlauf()
     , tab==="lager"&&renderLager()
+    , tab==="bestellungen"&&renderSupplierOrders()
     , tab==="katalog"&&renderKatalog()
     , pvOrder&&renderPreisvergleich()
   );
