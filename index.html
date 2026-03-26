@@ -514,13 +514,15 @@ function _mapDocFromServer(d){
     kundeFreigabe:d.kunde_freigabe||0,isImage:/\.(jpg|jpeg|png|gif|webp)$/i.test(d.file_name||"")};
 }
 async function _sbGet(table,filter){
-  const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&limit=5000";
+  const sel=filter&&filter.includes("select=")?"":"select=*&";
+  const url=SB_REST+"/"+table+"?"+sel+(filter||"")+"&limit=5000";
   const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
 async function _sbGetOrder(table,order,filter){
-  const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&order="+order+"&limit=5000";
+  const sel=filter&&filter.includes("select=")?"":"select=*&";
+  const url=SB_REST+"/"+table+"?"+sel+(filter||"")+"&order="+order+"&limit=5000";
   const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
@@ -555,7 +557,8 @@ async function _sbGetUsersSafe(filter){
 }
 // Anon-only read (no JWT, avoids 401 on expired tokens for public-read tables)
 async function _sbGetAnon(table,filter){
-  const url=SB_REST+"/"+table+"?select=*"+(filter?"&"+filter:"")+"&limit=5000";
+  const sel=filter&&filter.includes("select=")?"":"select=*&";
+  const url=SB_REST+"/"+table+"?"+sel+(filter||"")+"&limit=5000";
   try{const r=await fetch(url,{headers:{"apikey":SUPABASE_KEY,"Range":"0-4999"}});if(!r.ok)return[];return r.json();}catch(_){return[];}
 }
 
@@ -2821,8 +2824,9 @@ function LoginScreen({onLogin,onPortal,projects}){
     const heartbeat=async()=>{
       if(!navigator.onLine){setSyncStatus(p=>({...p,serverOk:false}));return;}
       try{
-        const r=await fetch(SB_REST.replace("/rest/v1","/rest/v1/"),{method:"HEAD",headers:_sbH(),signal:AbortSignal.timeout(5000)});
-        if(active){setLastHeartbeat(Date.now());setSyncStatus(p=>({...p,serverOk:true,connected:true}));}
+        const r=await fetch(SB_REST+"/workers?select=id&limit=1",{method:"GET",headers:_sbH(),signal:AbortSignal.timeout(5000)});
+        if(active&&r.ok){setLastHeartbeat(Date.now());setSyncStatus(p=>({...p,serverOk:true,connected:true}));}
+        else if(active){setSyncStatus(p=>({...p,serverOk:false}));}
       }catch(e){
         if(active)setSyncStatus(p=>({...p,serverOk:false}));
       }
