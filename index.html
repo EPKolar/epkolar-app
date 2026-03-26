@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.53';
+  var SW_VER='epkolar-v3.5.54';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -305,15 +305,26 @@ async function _sbAuthLogin(email,password){
   return r.json();
 }
 async function _sbAuthRefresh(){
-  if(!_authRefreshToken)return;
-  const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})});
-  if(!r.ok){_authToken=null;_authRefreshToken=null;return null;}
-  const d=await r.json();_storeAuth(d);return d;
+  if(!_authRefreshToken){return _silentReAuth();}
+  try{
+    const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})});
+    if(!r.ok){console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");return _silentReAuth();}
+    const d=await r.json();_storeAuth(d);return d;
+  }catch(e){console.warn("[Auth] Refresh error:",e);return _silentReAuth();}
+}
+async function _silentReAuth(){
+  try{const c=JSON.parse(localStorage.getItem("epkolar_gc")||"null");
+  if(!c||!c.e||!c.p)return null;
+  const email=atob(c.e);const pw=atob(c.p);
+  const r=await fetch(_SB_AUTH+"/token?grant_type=password",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password:pw})});
+  if(!r.ok){console.warn("[Auth] Silent re-auth failed ("+r.status+")");_authToken=null;_authRefreshToken=null;return null;}
+  const d=await r.json();_storeAuth(d);console.log("[Auth] Silent re-auth OK");return d;
+  }catch(e){_authToken=null;_authRefreshToken=null;return null;}
 }
 async function _sbAuthLogout(){
   if(_authToken)try{await fetch(_SB_AUTH+"/logout",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_authToken}});}catch(_){}
   _authToken=null;_authRefreshToken=null;if(_authRefreshTimer)clearTimeout(_authRefreshTimer);_authRefreshTimer=null;
-  try{localStorage.removeItem("epkolar_auth");}catch(_){}
+  try{localStorage.removeItem("epkolar_auth");localStorage.removeItem("epkolar_gc");}catch(_){}
 }
 function _storeAuth(d){
   _authToken=d.access_token;_authRefreshToken=d.refresh_token;
@@ -323,10 +334,11 @@ function _storeAuth(d){
 }
 function _restoreAuth(){
   try{const s=JSON.parse(localStorage.getItem("epkolar_auth")||"null");
-  if(!s||!s.at)return false;
+  if(!s||!s.at){_silentReAuth();return false;}
   if(s.exp>Date.now()){_authToken=s.at;_authRefreshToken=s.rt;_authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max(s.exp-Date.now()-60000,5000));return true;}
   if(s.rt){_authRefreshToken=s.rt;_sbAuthRefresh();return true;}
-  }catch(_){}return false;
+  _silentReAuth();
+  }catch(_){_silentReAuth();}return false;
 }
 _restoreAuth();
 // Auth error detection: 401/403 from RLS → attempt refresh once, then prompt re-login
@@ -336,9 +348,7 @@ function _onAuthFail(){if(_authFailShown)return;_authFailShown=true;if(window.__
 async function _authRetry(fn){
   const r=await fn();
   if(_isAuthErr(r.status)){
-    if(_authRefreshToken){
-      try{const ref=await _sbAuthRefresh();if(ref&&_authToken)return fn();}catch(_){}
-    }
+    try{const ref=await _sbAuthRefresh();if(ref&&_authToken)return fn();}catch(_){}
     _onAuthFail();
   }
   return r;
@@ -900,7 +910,7 @@ window.API = (function() {
       const email=user.email||(u+"@epkolar.local");
       // Try GoTrue auth first
       let gotrue=false;
-      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;}catch(authErr){
+      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;try{localStorage.setItem("epkolar_gc",JSON.stringify({e:btoa(email),p:btoa(p)}));}catch(_){}}catch(authErr){
         // Fallback: bcrypt (transition period until all users migrated)
         let valid=false;
         try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("bcrypt:",e);}
@@ -908,10 +918,10 @@ window.API = (function() {
         // bcrypt OK → try to auto-create GoTrue account for seamless RLS access
         try{
           const signUp=await fetch(_SB_AUTH+"/signup",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password:p,data:{role:user.role,name:user.name}})});
-          if(signUp.ok){const sd=await signUp.json();if(sd.access_token){_storeAuth(sd);gotrue=true;}}
+          if(signUp.ok){const sd=await signUp.json();if(sd.access_token){_storeAuth(sd);gotrue=true;try{localStorage.setItem("epkolar_gc",JSON.stringify({e:btoa(email),p:btoa(p)}));}catch(_){}}}
           else{// signup failed (maybe exists), try login again with different email format
             const altEmail=u+"@epkolar.local";
-            if(altEmail!==email){try{const authData2=await _sbAuthLogin(altEmail,p);_storeAuth(authData2);gotrue=true;}catch(_){}}
+            if(altEmail!==email){try{const authData2=await _sbAuthLogin(altEmail,p);_storeAuth(authData2);gotrue=true;try{localStorage.setItem("epkolar_gc",JSON.stringify({e:btoa(altEmail),p:btoa(p)}));}catch(_){}}catch(_){}}
           }
         }catch(_){}
         if(!gotrue)setTimeout(()=>{if(window.__toast)window.__toast("⚠️ Eingeschränkter Modus — GoTrue-Login fehlgeschlagen. Schreibzugriff ggf. eingeschränkt.","warn");},2000);
@@ -961,7 +971,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.53-supabase";
+const APP_VERSION="3.5.54-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
