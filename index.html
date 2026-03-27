@@ -10,7 +10,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.56';
+  var SW_VER='epkolar-v3.5.59';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -973,7 +973,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.56-supabase";
+const APP_VERSION="3.5.59-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -5028,7 +5028,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   };
   const saveSupplier=async(data)=>{
     const isNew=!data.id;
-    const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",username:data.username||"",password:data.password||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28};
+    const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",username:data.username||"",password:data.password||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28,datanorm_url:data.datanorm_url||""};
     try{
       if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:uid(),...body}});}
       else{await SQ.push({url:"/api/supplier-configs/"+data.id,method:"PUT",body:body});}
@@ -5049,9 +5049,12 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(!file||!suppId)return;
     setDnUploadStatus("Datei lesen...");setDnUploadProgress(10);
     try{
-      const text=await file.text();
+      // Read as Latin-1 first (DATANORM standard), fallback to UTF-8
+      const readAs=(enc)=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsText(file,enc);});
+      let text=await readAs("ISO-8859-1");
       setDnUploadStatus("DATANORM parsen...");setDnUploadProgress(20);
-      const articles=_parseDatanorm(text,0);
+      let articles=_parseDatanorm(text,0);
+      if((!articles||articles.length===0)){text=await readAs("UTF-8");articles=_parseDatanorm(text,0);}
       if(!articles||articles.length===0){setDnUploadStatus("❌ Keine Artikel gefunden (A-Records fehlen?)");setDnUploadProgress(0);return;}
       setDnUploadStatus("EP-Filter ("+articles.length+" Artikel)...");setDnUploadProgress(40);
       const autoMap=_epAutoMatch(articles);
@@ -5065,7 +5068,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           if(autoMap.has(grp.id)&&autoMap.get(grp.id).has(art.artNr)){epSys=grp.system;epGew=grp.gewerk;break;}
         }
         if(!epSys)continue;// skip unmatched
-        rows.push({id:uid(),supplier_id:suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew});
+        rows.push({id:uid(),supplier_id:suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew,listenpreis:art.preis||0,ek_preis:art.preis||0,rabatt_gruppe:art.rabGrp||""});
       }
       // Batch upsert via direct Supabase REST (SQ too slow for bulk)
       const BATCH=200;
@@ -5511,6 +5514,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "IDS Shop-URL"), React.createElement('input', { value: suppEdit.base_url||"", onChange: e=>setSuppEdit(prev=>({...prev,base_url:e.target.value})), style: II(), placeholder: "https://shop.holter.at/..."} ))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Sync-Intervall"), React.createElement('select', { value: suppEdit.sync_interval||"weekly", onChange: e=>setSuppEdit(prev=>({...prev,sync_interval:e.target.value})), style: II()}, React.createElement('option', { value: "daily"}, "Täglich"), React.createElement('option', { value: "weekly"}, "Wöchentlich"), React.createElement('option', { value: "monthly"}, "Monatlich"), React.createElement('option', { value: "manual"}, "Nur manuell")))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "DATANORM-Intervall (Tage)"), React.createElement('input', { type: "number", inputMode: "decimal", min: "1", max: "365", value: suppEdit.datanorm_intervall_tage||28, onChange: e=>setSuppEdit(prev=>({...prev,datanorm_intervall_tage:e.target.value})), style: II(), placeholder: "28"} ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "DATANORM Download-URL"), React.createElement('input', { value: suppEdit.datanorm_url||"", onChange: e=>setSuppEdit(prev=>({...prev,datanorm_url:e.target.value})), style: II(), placeholder: "https://online.holter.at/HO/PREIWA/..."} ))
             )
             , (suppEdit.interface_type==="shk_connect"||suppEdit.interface_type==="ids")&&suppEdit.kunde_nr&&React.createElement('div', { style: {marginTop:10,padding:"8px 10px",borderRadius:6,background:_dark?"rgba(34,197,94,.08)":"rgba(34,197,94,.04)",border:"1px solid rgba(34,197,94,.2)",fontSize:11,color:"#22c55e",fontWeight:600}}, "✅ IDS-Zugangsdaten konfiguriert — KdNr: "+suppEdit.kunde_nr+", User: "+suppEdit.username+(suppEdit.unternehmen_id?" · UID: "+suppEdit.unternehmen_id:""))
           )
@@ -5547,6 +5551,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                   , s.unternehmen_id&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:10,fontWeight:600,background:"rgba(14,165,233,.15)",color:"#0ea5e9"}}, "UID: "+s.unternehmen_id)
                   , (s.skonto_prozent>0||s.jahresbonus_prozent>0)&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:10,fontWeight:600,background:"rgba(245,158,11,.15)",color:"#f59e0b"}}, (s.skonto_prozent>0?_n(s.skonto_prozent,1)+"% Sk":""), (s.skonto_prozent>0&&s.jahresbonus_prozent>0?" + ":""), (s.jahresbonus_prozent>0?_n(s.jahresbonus_prozent,1)+"% JB":""))
                   , s.zahlungskonditionen&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, s.zahlungskonditionen)
+                  , s.datanorm_url&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:10,fontWeight:600,background:"rgba(5,150,105,.15)",color:"#059669"}}, "📥 DATANORM-URL")
                 )
               )
               , React.createElement('div', { style: {textAlign:"right",minWidth:100}}
@@ -5561,12 +5566,14 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
             , React.createElement('div', { style: {display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}
               , React.createElement('button', { onClick: ()=>{setSuppEdit({...s});setSuppNew(false);}, style: {...bpS,padding:"5px 12px",fontSize:11}}, "✏️ Bearbeiten")
               , React.createElement('button', { onClick: ()=>{setDnUploadSupp(s);setDnUploadStatus("");setDnUploadProgress(0);}, style: {...bpS,padding:"5px 12px",fontSize:11,background:"#f59e0b",color:"#fff"}}, "📂 DATANORM hochladen")
+              , s.datanorm_url&&React.createElement('button', { onClick: ()=>window.open(s.datanorm_url,"_blank"), style: {...bpS,padding:"5px 12px",fontSize:11,background:"#059669",color:"#fff"}}, "⬇ DATANORM herunterladen")
               , curUser&&curUser.role==="admin"&&React.createElement('button', { onClick: ()=>deleteSupplier(s.id), style: {...bdS,padding:"5px 12px",fontSize:11,color:"#ef4444",borderColor:"#ef4444"}}, "🗑️ Löschen")
             )
             // DATANORM Upload UI for this supplier
             , dnUploadSupp&&dnUploadSupp.id===s.id&&React.createElement('div', { style: {marginTop:10,padding:12,borderRadius:8,background:_dark?"rgba(34,197,94,.08)":"rgba(34,197,94,.05)",border:"1px solid rgba(34,197,94,.3)"}}
               , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6}}, "📂 DATANORM Import für ",s.name)
-              , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, "DATANORM-Datei (.001, .dat) mit A/B-Records hochladen. Artikel werden automatisch durch EP-Filter (57 Produktlinien) gefiltert.")
+              , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, "DATANORM-Datei (.001, .dat) mit A/B-Records hochladen. Artikel werden automatisch durch EP-Filter (77 Produktlinien) gefiltert.")
+              , s.datanorm_url&&React.createElement('div', { style: {fontSize:11,color:"#059669",marginBottom:8,padding:"6px 10px",borderRadius:6,background:_dark?"rgba(5,150,105,.08)":"rgba(5,150,105,.05)",border:"1px solid rgba(5,150,105,.2)"}}, "💡 DATANORM-URL verfügbar: ", React.createElement('a', { href: s.datanorm_url, target: "_blank", rel: "noopener", style: {color:"#059669",textDecoration:"underline",wordBreak:"break-all"}}, s.datanorm_url.replace(/https?:\/\//,"").substring(0,60)), " — Datei herunterladen, dann hier hochladen.")
               , React.createElement('input', { type: "file", ref: suppFileRef, accept: ".001,.dat,.txt,.csv,*", style: {display:"none"}, onChange: e=>{const f=_optionalChain([e,'access',_=>_.target,'access',_2=>_2.files,'optionalAccess',_3=>_3[0]]);if(f)handleDnUpload(f,s.id);}})
               , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center"}}
                 , React.createElement('button', { onClick: ()=>_optionalChain([suppFileRef,'access',_=>_.current,'optionalAccess',_2=>_2.click,'call',_3=>_3()]), style: {...bpS,padding:"6px 14px",fontSize:12}}, "📁 Datei wählen")
@@ -5583,7 +5590,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         // Info-Box
         , React.createElement('div', { style: {...CC(),marginTop:14,background:_dark?"rgba(59,130,246,.06)":"rgba(59,130,246,.04)",border:"1px solid rgba(59,130,246,.2)"}}
           , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:6}}, "ℹ️ Wie funktioniert der Händler-Import?")
-          , React.createElement('div', { style: {fontSize:11,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Gewerk, Schnittstelle wählen)", React.createElement('br',{}), "2. IDS/SHK-Connect Zugangsdaten eintragen (aus OFFA-Registrierung)", React.createElement('br',{}), "3. DATANORM-Datei hochladen ODER automatisch über SHK-Connect laden", React.createElement('br',{}), "4. EP-Auto-Filter matcht automatisch die 57 relevanten Produktlinien", React.createElement('br',{}), "5. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "6. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Gewerk, Schnittstelle wählen)", React.createElement('br',{}), "2. IDS/SHK-Connect Zugangsdaten eintragen (aus OFFA-Registrierung)", React.createElement('br',{}), "3. DATANORM-Datei hochladen ODER automatisch über SHK-Connect laden", React.createElement('br',{}), "4. EP-Auto-Filter matcht automatisch die 77 relevanten Produktlinien", React.createElement('br',{}), "5. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "6. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
         )
       ))
 
@@ -7773,7 +7780,17 @@ const MAT_STATUS={angefordert:{l:"Angefordert",i:"📝",c:"#3b82f6"},in_bearbeit
 const MAT_PRIO={dringend:{l:"Dringend",i:"🔴",c:"#ef4444"},normal:{l:"Normal",i:"🟡",c:"#f59e0b"},niedrig:{l:"Kann warten",i:"⚪",c:"#6b7280"}};
 const SUPP_ORD_STATUS={vorbereitet:{l:"Vorbereitet",i:"📋",c:"#f59e0b"},bestellt:{l:"Bestellt",i:"🛒",c:"#8b5cf6"},geliefert:{l:"Geliefert",i:"📦",c:"#22c55e"},storniert:{l:"Storniert",i:"❌",c:"#6b7280"}};
 /* ═══ DATANORM Parser (v4 standard + v4 simplified + v5) ═══ */
+function _fixCp850(t){
+  // CP850 German chars misread as Windows-1252 by TextDecoder('iso-8859-1')
+  // Byte→Win1252→CP850: 0x84→„(U+201E)→ä, 0x94→"(U+201D)→ö, 0x81→(U+0081)→ü
+  // 0x8E→Ž(U+017D)→Ä, 0x99→™(U+2122)→Ö, 0x9A→š(U+0161)→Ü, 0xE1→á→ß
+  return t.replace(/\u201E/g,'ä').replace(/\u201D/g,'ö').replace(/\u0081/g,'ü')
+    .replace(/\u017D/g,'Ä').replace(/\u2122/g,'Ö').replace(/\u0161/g,'Ü')
+    .replace(/\u0084/g,'ä').replace(/\u0094/g,'ö').replace(/\u008E/g,'Ä').replace(/\u0099/g,'Ö').replace(/\u009A/g,'Ü');
+}
 function _parseDatanorm(text,version){
+  // Detect CP850: if text has „(U+201E) or "(U+201D) or U+0081 where Umlauts expected, fix encoding
+  if(/\u201E|\u201D|\u0081/.test(text))text=_fixCp850(text);
   const lines=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim());
   // fmt: "v4ext" = standard DATANORM 4 with Änderungskz (Holter/SHT/Richter)
   //      "v5"    = DATANORM 5 (empty Textschlüssel at p[2])
@@ -7802,25 +7819,45 @@ function _parseDatanorm(text,version){
     }
   }
   if(!fmt)fmt="v4ext";// default to standard
+  // First pass: collect P-records for v5 price lookup
+  const pPrices={};// artNr → {preis, pe}
+  if(fmt==="v5"){
+    for(const line of lines){
+      const parts=line.split(";");
+      const sa=(parts[0]||"").trim().toUpperCase();
+      if(sa!=="P"||parts.length<5)continue;
+      const pArt=(parts[1]||"").trim();
+      // V5 P-record: P;ArtNr;Preistyp;Preis;PE;RabGrp;...
+      const pPreis=parseFloat((parts[3]||"0").replace(",","."))||0;
+      const pPe=parseInt(parts[4])||1;
+      if(pArt&&pPreis>0)pPrices[pArt]={preis:pPreis,pe:pPe,rabGrp:(parts[5]||"").trim()};
+    }
+  }
   const articles=[];
   for(const line of lines){
     const parts=line.split(";");
     if(parts.length<4)continue;
     const satzart=(parts[0]||"").trim().toUpperCase();
     if(satzart!=="A")continue;
-    let artNr="",kt1="",kt2="",me="";
+    let artNr="",kt1="",kt2="",me="",preis=0,pe=1,rabGrp="";
     if(fmt==="v4ext"){
-      // Standard DATANORM 4: A;Äkz;ArtNr;WG;Kurztext1;Kurztext2;PE;?;ME;Preis;...
+      // Standard DATANORM 4: A;Äkz;ArtNr;WG;Kurztext1;Kurztext2;PE;?;ME;Preis;RabGrp;...
       artNr=(parts[2]||"").trim();
       kt1=(parts[4]||"").trim();
       kt2=(parts[5]||"").trim();
+      pe=parseInt(parts[6])||1;
       me=(parts[8]||"").trim();
+      preis=parseFloat((parts[9]||"0").replace(",","."))||0;
+      rabGrp=(parts[10]||"").trim();
     }else if(fmt==="v5"){
       // DATANORM 5: A;ArtNr;;Kurztext1;Kurztext2;;ME;...
       artNr=(parts[1]||"").trim();
       kt1=(parts[3]||"").trim();
       kt2=(parts[4]||"").trim();
       me=(parts[6]||"").trim();
+      // V5 prices from P-records
+      const pp=pPrices[artNr];
+      if(pp){preis=pp.preis;pe=pp.pe;rabGrp=pp.rabGrp||"";}
     }else{
       // Simplified v4: A;ArtNr;Kurztext1;Kurztext2;ME;...
       artNr=(parts[1]||"").trim();
@@ -7830,7 +7867,9 @@ function _parseDatanorm(text,version){
     }
     if(!artNr||!kt1)continue;
     const name=(kt1+(kt2?" "+kt2:"")).trim();
-    articles.push({artNr,name,kt1,kt2,me:me||"Stk"});
+    // Price: DATANORM stores in cents → divide by 100, then by PE for unit price
+    const unitPreis=preis>0?(preis/100)/(pe||1):0;
+    articles.push({artNr,name,kt1,kt2,me:me||"Stk",preis:unitPreis,rabGrp});
   }
   articles.detVer=fmt;
   return articles;
@@ -8208,7 +8247,28 @@ const EP_AUTO_FILTER=[
   {id:"fbh",label:"Fußbodenheizung (Multitherm)",kw:["multitherm","multiroll","pe-rt","randdämm","tackern","wärmerückstrahl","polo-gen plt"],system:"Fußbodenheizung",gewerk:"heizung"},
   {id:"sikla",label:"Sikla Befestigung",kw:["ratio s ","ratio ls ","blockset pbs","block pb ","dämmelement sde","montagesatz mos","verbinder cn ","doppelhalterplatte","universalhalter uni","gewindestab gst","stockschraube bscr","isolierband isob"],system:"Sikla Befestigung",gewerk:"allgemein"},
   {id:"grohe",label:"Grohe/Hansgrohe",kw:["grohe","hansgrohe","hg axor","hg exafill","hg flexaplus","hg verlängerungsset","hg gewindehülsen","hg ablaufgarnitur","hg quattro","hg up-absperr"],system:"Grohe/Hansgrohe",gewerk:"sanitaer"},
-  {id:"kugelhahn",label:"Kugelhähne/Absperrarmaturen",kw:["kugelhahn","motorkugelhahn","rückschlagv","schmutzfänger","membran-sicherheitsventil","sicherheitsset","manometer "],system:"Absperrarmaturen",gewerk:"allgemein"}
+  {id:"kugelhahn",label:"Kugelhähne/Absperrarmaturen",kw:["kugelhahn","motorkugelhahn","rückschlagv","schmutzfänger","membran-sicherheitsventil","sicherheitsset","manometer "],system:"Absperrarmaturen",gewerk:"allgemein"},
+  /* ═══ Allgemeine SHK/Heizung-Gruppen ═══ */
+  {id:"sanitaerarmaturen",label:"Sanitärarmaturen (allgemein)",kw:["einhebelmischer","thermostatarmatur","waschtischarmatur","küchenarmatur","brausearmatur","mischbatterie","brauseset","brausestange","handbrause","kopfbrause","duscharmatur"],system:"Sanitärarmaturen",gewerk:"sanitaer"},
+  {id:"heizkessel",label:"Heizkessel/Brenner",kw:["heizkessel","brenner","brennwert"],system:"Heizkessel",gewerk:"heizung"},
+  {id:"waermepumpe",label:"Wärmepumpe",kw:["wärmepumpe","luft-wasser","sole-wasser"],system:"Wärmepumpe",gewerk:"heizung"},
+  {id:"heizkoerper",label:"Heizkörper/Radiator",kw:["heizkörper","radiator","plattenheizkörper"],system:"Heizkörper",gewerk:"heizung"},
+  {id:"heizregelung",label:"Heizungsregelung",kw:["heizungsregelung","raumthermostat","stellantrieb"],system:"Heizungsregelung",gewerk:"heizung"},
+  {id:"heizrohre",label:"Heizungsrohre",kw:["heizungsrohr","stahlrohr schwarz","schwarzrohr"],system:"Heizungsrohre",gewerk:"heizung"},
+  {id:"solarthermie",label:"Solarthermie",kw:["solarthermie","solar kollektor","solarstation"],system:"Solarthermie",gewerk:"heizung"},
+  {id:"kupferrohr",label:"Kupferrohr/Fitting",kw:["kupfer fitting","sanha","kupferrohr weich","kupferrohr hart"],system:"Kupferrohr",gewerk:"sanitaer"},
+  {id:"trinkwasser",label:"Trinkwasseraufbereitung",kw:["trinkwasserfilter","enthärtungsanlage","druckminderer"],system:"Trinkwasser",gewerk:"sanitaer"},
+  {id:"schmutzwasser",label:"Schmutzwasserpumpe/Hebeanlage",kw:["schmutzwasser","tauchpumpe","hebeanlage"],system:"Schmutzwasser",gewerk:"sanitaer"},
+  {id:"gasinstall",label:"Gas-Installation",kw:["gas-kugelhahn","gasschlauch","gaszähler"],system:"Gas-Installation",gewerk:"sanitaer"},
+  {id:"kleinmat",label:"Kleinmaterial SHK",kw:["verschraubung ig","doppelnippel ag","reduziernippel","fitting stopfen","edelstahl-wellrohr"],system:"Kleinmaterial SHK",gewerk:"sanitaer"},
+  {id:"dichtmat",label:"Dichtmaterial",kw:["hanf ","dichtband","loctite","teflonband"],system:"Dichtmaterial",gewerk:"sanitaer"},
+  {id:"befestshk",label:"Befestigung SHK",kw:["rohrschelle","schallschutz","montageschiene"],system:"Befestigung SHK",gewerk:"allgemein"},
+  {id:"werkzeugshk",label:"Werkzeug SHK",kw:["presszange","pressbacke","rohrzange"],system:"Werkzeug SHK",gewerk:"allgemein"},
+  {id:"arbeitsschutz",label:"Arbeitsschutz",kw:["handschuh","schutzbrille","gehörschutz"],system:"Arbeitsschutz",gewerk:"allgemein"},
+  {id:"zaehler",label:"Zähler/Verteiler",kw:["zählerkasten","verteiler ap","verteiler up","zählertafel"],system:"Zähler/Verteiler",gewerk:"elektro"},
+  {id:"smarthome",label:"Smart Home",kw:["smartmeter","smart home","knx "],system:"Smart Home",gewerk:"elektro"},
+  {id:"schrauben",label:"Schrauben/Dübel",kw:["schraube","dübel","fischer","anker"],system:"Schrauben/Dübel",gewerk:"allgemein"},
+  {id:"silikon",label:"Silikon/Kleber",kw:["silikon","acryl","kleber","montagekleber"],system:"Silikon/Kleber",gewerk:"allgemein"}
 
 ];
 /* Auto-Match: returns Map<groupId, Set<artNr>> */
@@ -9015,7 +9075,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       const bySup={};
       crossMatches.forEach(sa=>{
         const sid=sa.supplier_id;
-        if(!bySup[sid])bySup[sid]={suppId:sid,name:suppMap[sid]?suppMap[sid].name:"?",artNr:sa.art_nr,ek:parseFloat(sa.ek_preis)||0,lp:parseFloat(sa.listenpreis)||0};
+        if(!bySup[sid])bySup[sid]={suppId:sid,name:suppMap[sid]?suppMap[sid].name:"?",artNr:sa.art_nr,ek:parseFloat(sa.ek_preis)||parseFloat(sa.listenpreis)||0,lp:parseFloat(sa.listenpreis)||0};
       });
       p2.supplierPrices=bySup;
     });
@@ -9069,11 +9129,11 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...parsed.map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}))];
       }
       // Load supplier configs for name mapping
-      const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse,base_url,unternehmen_id,shk_url,ids_shop_url,schnittstelle&active=eq.true").catch(()=>[]);
-      const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||"",baseUrl:s.base_url||"",uid:s.unternehmen_id||"",shkUrl:s.shk_url||"",idsShopUrl:s.ids_shop_url||"",iface:s.schnittstelle||""};});
+      const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse,base_url,unternehmen_id,shk_url,ids_shop_url,interface_type&active=eq.true").catch(()=>[]);
+      const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||"",baseUrl:s.base_url||"",uid:s.unternehmen_id||"",shkUrl:s.shk_url||"",idsShopUrl:s.ids_shop_url||"",iface:s.interface_type||""};});
       setSuppMap(sm);
       // Load supplier articles (EP-filtered, limited)
-      const sa=await _sbGet("supplier_articles","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
+      const sa=await _sbGet("supplier_articles","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
       if(sa&&sa.length>0){
         setSuppArticles(sa);
         // Build dynamic catalogs from supplier_articles grouped by ep_system
