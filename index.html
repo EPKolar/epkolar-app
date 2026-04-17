@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.101';
+  var SW_VER='epkolar-v3.5.102';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -599,6 +599,8 @@ async function _authRetry(fn){
   }
   return r;
 }
+// v3.5.102 Timeout-Helper: schützt gegen hängende Requests bei schlechter Mobile-Verbindung
+function _fT(init,ms){try{if(!("AbortSignal" in window)||!AbortSignal.timeout)return init||{};const sig=AbortSignal.timeout(ms||30000);return {...(init||{}),signal:(init&&init.signal)||sig};}catch(_){return init||{};}}
 // Safe user columns (excludes password_hash for non-auth reads)
 const _USER_SAFE_COLS="id,name,username,email,role,active,monteur_id,permissions,perms_override,last_login,login_count,locked,created_at,updated_at,auth_user_id";
 // SB_HDR replaced by dynamic _sbWH() — see auth section above
@@ -773,7 +775,7 @@ async function _sbGet(table,filter){
   const hasSelect=filter&&filter.includes("select=");
   const parts=[hasSelect?"":"select=*",filter||"","limit=5000"].filter(Boolean);
   const url=SB_REST+"/"+table+"?"+parts.join("&");
-  const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
+  const r=await _authRetry(()=>fetch(url,_fT({headers:_sbRH()})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
@@ -781,27 +783,27 @@ async function _sbGetOrder(table,order,filter){
   const hasSelect=filter&&filter.includes("select=");
   const parts=[hasSelect?"":"select=*",filter||"","order="+order,"limit=5000"].filter(Boolean);
   const url=SB_REST+"/"+table+"?"+parts.join("&");
-  const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
+  const r=await _authRetry(()=>fetch(url,_fT({headers:_sbRH()})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
 async function _sbPost(table,data){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation"),body:JSON.stringify(data)}));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH("return=representation"),body:JSON.stringify(data)})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbUpsert(table,data){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,{method:"POST",headers:_sbWH("return=representation,resolution=merge-duplicates"),body:JSON.stringify(data)}));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH("return=representation,resolution=merge-duplicates"),body:JSON.stringify(data)})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbPatch(table,id,data){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)}));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbDelete(table,id){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:_sbH()}));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),_fT({method:"DELETE",headers:_sbH()})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();throw new Error("Auth:"+r.status);}const e=await r.text();throw new Error(e);}
   return{ok:1};
 }
@@ -809,7 +811,7 @@ async function _sbDelete(table,id){
 // Safe user reads (excludes password_hash)
 async function _sbGetUsersSafe(filter){
   const url=SB_REST+"/users?select="+_USER_SAFE_COLS+(filter?"&"+filter:"")+"&limit=5000";
-  const r=await _authRetry(()=>fetch(url,{headers:_sbRH()}));
+  const r=await _authRetry(()=>fetch(url,_fT({headers:_sbRH()})));
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail();return[];}const e=await r.text();throw new Error(e);}
   return r.json();
 }
@@ -1217,7 +1219,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.101-supabase";
+const APP_VERSION="3.5.102-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
