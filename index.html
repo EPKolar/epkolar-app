@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.99';
+  var SW_VER='epkolar-v3.5.100';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -446,22 +446,8 @@ window._dedupeGet=async(key,fn)=>{
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// v3.5.73 — Global Error-Handler (Block 2.3)
-// ═══════════════════════════════════════════════════════════════════
-window.onerror=function(msg,src,line,col,err){
-  console.error('[GLOBAL ERROR]',msg,src,line,col);
-  try{
-    const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
-    if(_authToken&&navigator.onLine){
-      fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({msg:String(msg).substring(0,500),src,line,col})})}).catch(()=>{});
-    }
-  }catch(_){}
-  if(String(msg).includes('Cannot read')||String(msg).includes('is not a function')){
-    window._showToast&&window._showToast('App-Fehler erkannt. Bitte Seite neu laden.','error',8000);
-  }
-  return false;
-};
-window.onunhandledrejection=function(e){console.error('[UNHANDLED PROMISE]',e.reason);};
+// v3.5.100 — Globaler Error-Handler wird unten (bei APP_VERSION) registriert;
+// dort vereinigt: Debug-Overlay + activity_log Telemetrie + User-Toast.
 
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.73 — Comprehensive Test-Suite (Block 11.1)
@@ -1231,13 +1217,44 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.99-supabase";
+const APP_VERSION="3.5.100-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
+// v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
 window.onerror=function(msg,src,line,col,err){
-  window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack:_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')])});
+  const stack=_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')]);
+  window.__EP_ERRORS.push({msg:String(msg),src,line,col,stack,ts:Date.now()});
+  if(window.__EP_ERRORS.length>50)window.__EP_ERRORS.splice(0,window.__EP_ERRORS.length-50);// cap RAM
+  console.error('[GLOBAL ERROR]',msg,src,line,col,stack);
+  // Debug-Overlay nur wenn Element vorhanden
   const d=document.getElementById('ep-error-display');
   if(d) d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0000;color:#ff6666;padding:12px;font-size:11px;font-family:monospace;max-height:40vh;overflow:auto;border-bottom:2px solid #ff0000"><b>EP Kolar v'+APP_VERSION+' — Fehler:</b><br>'+String(msg)+'<br>Zeile: '+line+'<br>'+(_optionalChain([err, 'optionalAccess', _9 => _9.stack])||'')+'<br><button onclick="this.parentElement.parentElement.remove()" style="margin-top:6px;padding:4px 12px;background:#ff4444;color:#fff;border:none;border-radius:4px;cursor:pointer">Schließen</button></div>';
+  // Telemetrie an activity_log — nur wenn Auth + Online
+  try{
+    const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
+    if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:String(msg).substring(0,500),src:String(src||'').substring(0,200),line,col,stack:(stack||'').substring(0,800)})})}).catch(()=>{});
+    }
+  }catch(_){}
+  // User-Toast bei bekannten Fehlermustern
+  const ms=String(msg);
+  if(ms.includes('Cannot read')||ms.includes('is not a function')||ms.includes('undefined')){
+    try{window._showToast&&window._showToast('App-Fehler erkannt. Bitte Seite neu laden.','error',8000);}catch(_){}
+  }
+  return false;
+};
+// Unhandled Promise Rejection — auch in activity_log loggen
+window.onunhandledrejection=function(e){
+  const reason=e.reason;const rMsg=(reason&&(reason.message||String(reason)))||'unknown';
+  console.error('[UNHANDLED PROMISE]',reason);
+  window.__EP_ERRORS.push({msg:'PROMISE: '+rMsg,stack:(reason&&reason.stack)||'',ts:Date.now()});
+  if(window.__EP_ERRORS.length>50)window.__EP_ERRORS.splice(0,window.__EP_ERRORS.length-50);
+  try{
+    const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
+    if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'promise_rejection',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:rMsg.substring(0,500),stack:String((reason&&reason.stack)||'').substring(0,800)})})}).catch(()=>{});
+    }
+  }catch(_){}
 };
 
 // ═══════════ AUTO CACHE CLEAR ═══════════
@@ -15076,8 +15093,47 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 }
 
 var App=exports.default||window.App;
+// v3.5.100 — React Error-Boundary: fängt Render-Crashes statt White-Screen
+class EpkErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={err:null,info:null};}
+  static getDerivedStateFromError(err){return {err};}
+  componentDidCatch(err,info){
+    console.error('[REACT ERROR BOUNDARY]',err,info);
+    try{window.__EP_ERRORS&&window.__EP_ERRORS.push({msg:'REACT: '+(err&&err.message||String(err)),stack:(err&&err.stack||'')+'\n'+(info&&info.componentStack||''),ts:Date.now()});}catch(_){}
+    try{
+      const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
+      if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
+        fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'react_error',entity_type:'system',entity_id:'boundary',details:JSON.stringify({ver:APP_VERSION,msg:String((err&&err.message)||err).substring(0,500),stack:String((err&&err.stack)||'').substring(0,800),componentStack:String((info&&info.componentStack)||'').substring(0,800)})})}).catch(()=>{});
+      }
+    }catch(_){}
+    this.setState({info});
+  }
+  reset=()=>{this.setState({err:null,info:null});};
+  reload=()=>{try{location.reload();}catch(_){}};
+  render(){
+    if(this.state.err){
+      const msg=(this.state.err&&this.state.err.message)||String(this.state.err);
+      return React.createElement('div',{style:{minHeight:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'#0f0f0f',color:'#e5e5e5',fontFamily:'system-ui,-apple-system,sans-serif'}},
+        React.createElement('div',{style:{maxWidth:520,width:'100%',background:'#1a1a1a',border:'1px solid #3a3a3a',borderRadius:12,padding:24,boxShadow:'0 8px 32px rgba(0,0,0,.4)'}},
+          React.createElement('div',{style:{fontSize:40,marginBottom:8}},'⚠️'),
+          React.createElement('div',{style:{fontSize:20,fontWeight:700,marginBottom:8}},'App-Fehler aufgetreten'),
+          React.createElement('div',{style:{fontSize:13,color:'#a0a0a0',marginBottom:16}},'Version '+APP_VERSION+' · '+msg),
+          React.createElement('details',{style:{fontSize:11,color:'#888',marginBottom:16,fontFamily:'monospace'}},
+            React.createElement('summary',{style:{cursor:'pointer'}},'Technische Details'),
+            React.createElement('pre',{style:{whiteSpace:'pre-wrap',wordBreak:'break-word',margin:'8px 0 0',maxHeight:200,overflow:'auto'}},String((this.state.err&&this.state.err.stack)||'')+'\n'+String((this.state.info&&this.state.info.componentStack)||''))
+          ),
+          React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+            React.createElement('button',{onClick:this.reset,style:{flex:'1 1 120px',padding:'10px 16px',borderRadius:8,border:'1px solid #3a3a3a',background:'#2a2a2a',color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',minHeight:44}},'↻ Erneut versuchen'),
+            React.createElement('button',{onClick:this.reload,style:{flex:'1 1 120px',padding:'10px 16px',borderRadius:8,border:'none',background:'#009640',color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',minHeight:44}},'🔄 App neu laden')
+          )
+        )
+      );
+    }
+    return this.props.children;
+  }
+}
 var root=ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(App));
+root.render(React.createElement(EpkErrorBoundary,null,React.createElement(App)));
 /* Remove boot indicator once React has rendered */
 try{var _bi=document.getElementById('ep-boot-indicator');if(_bi)_bi.remove();}catch(e){}
 
