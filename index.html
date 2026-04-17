@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.115';
+  var SW_VER='epkolar-v3.5.116';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1238,7 +1238,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.115-supabase";
+const APP_VERSION="3.5.116-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -2044,6 +2044,18 @@ const buildExportFilename=(docType,projNr,date,seq,ext="pdf")=>{
   const pn=(projNr||"KEIN-PROJ").replace(/[^a-zA-Z0-9]/g,"_");
   return `${m.prefix}_${pn}_${d}_${s}.${ext}`;
 };
+// v3.5.116: Download-Helper — anker an DOM appendieren + verzögerte Cleanup
+// (verhindert Download-Abbruch in iOS Safari + Firefox)
+function _dl(blob,filename){
+  try{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=filename;a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{try{a.remove();}catch(_){}URL.revokeObjectURL(url);},2000);
+  }catch(e){console.warn('Download failed:',e);try{window._showToast&&window._showToast('Download fehlgeschlagen: '+(e.message||e),'error');}catch(_){}}
+}
 // Build server path: Z:\Projekte\{ProjNr}_{ProjName}\{Folder}\{Sub}\
 const buildExportPath=(docType,projNr,projName)=>{
   const m=DOC_EXPORT_MAP[docType];if(!m)return "";
@@ -2209,7 +2221,7 @@ ${sumCol>=0?'<tr style="height:26px;">'+headers.map((_,ci)=>{
 <tr><td colspan="${nc}" style="background:#009640;padding:2px;border:none;font-size:1px;line-height:1px;">&nbsp;</td></tr>
 </table>
 </body></html>`;
-  const blob=new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+  _dl(new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"}),filename);
   _optionalChain([window, 'access', _15 => _15.__toast, 'optionalCall', _16 => _16("📊 Excel exportiert: "+filename)]);
 };
 
@@ -5174,7 +5186,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;
     a.download="BWB_"+(proj.nr||proj.name).replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df_-]/g,"_")+".xls";
-    a.click();URL.revokeObjectURL(url);
+    document.body.appendChild(a);a.click();setTimeout(()=>{try{a.remove();}catch(_){}URL.revokeObjectURL(url);},2000);
     _optionalChain([window, 'access', _bex9 => _bex9.__toast, 'optionalCall', _bex10 => _bex10("\ud83d\udcca "+a.download+" heruntergeladen")]);
   };
 
@@ -7317,7 +7329,7 @@ function VExport({p,entries,forms,monteure,ww,curUser}){
     if(rg.length){lines.push("","  Regieberichte:");rg.forEach((r,i)=>{lines.push("  #"+String(i+1).padStart(3,"0")+" "+r.art+" — "+fdt(r.datum)+" — "+(r.arbeit||"").substring(0,60));lines.push("    → "+buildExportPath("regie",p.nr,p.name)+buildExportFilename("regie",p.nr,r.datum,i+1));});}
     if(mg.length){lines.push("","  Mängelliste:");mg.forEach(m=>{const w=(monteure||MONT).find(x=>x.id===m.worker);lines.push("  ["+m.status.toUpperCase()+"] "+m.name+" — "+m.ebene+" — "+(_optionalChain([w, 'optionalAccess', _314 => _314.n])||"")+" — Frist: "+fdt(m.frist));});}
     lines.push("","╔══════════════════════════════════════════════════════════════════════════════╗","║  Andreas Kolar & Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram    ║","║  Tel: +43 2279 2361 · office@ep-kolar.at · www.ep-kolar.at                  ║","║  FN 042490k, LG St. Pölten · UID: ATU20296908 · Gerichtsstand: Tulln        ║","║  Es gelten die AGB der Andreas Kolar & Sohn GesmbH                      ║","╚══════════════════════════════════════════════════════════════════════════════╝");
-    const blob=new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    _dl(new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"}),fname);
   };
   const genCsv=()=>{
     const fname=buildExportFilename("arbeitsschein",p.nr,td2(),1,"xls");
@@ -9514,7 +9526,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
       txt+="\nErstellt von: "+(e.erstelltVon||"—")+"\n\n";
     });
     txt+=CI_F;
-    const blob=new Blob([txt],{type:"text/plain;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="Bautagebuch_"+p.nr+"_"+td2()+".txt";a.click();URL.revokeObjectURL(a.href);
+    _dl(new Blob([txt],{type:"text/plain;charset=utf-8"}),"Bautagebuch_"+p.nr+"_"+td2()+".txt");
   };
 
   // XLS Export
@@ -10878,7 +10890,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const hdr=["═══════════════════════════════════════════════════════════════════════════════════════════════","  WOCHENPLANUNG — Andreas Kolar & Sohn GesmbH","  Kalenderwoche:  KW "+kw+" / "+yr,"  Zeitraum:       "+dateFmt(0)+" – "+dateFmt(5),"  Export:         "+new Date().toLocaleDateString("de-AT",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}),"═══════════════════════════════════════════════════════════════════════════════════════════════","","Nr.  BVH / Baustelle               Mo          Di          Mi          Do          Fr          Sa          Fahrzeuge           Bemerkung","─".repeat(140),""];
     activeRows.forEach((r,i)=>{const fzAll=new Set();DSHORT.forEach(d=>(_optionalChain([r, 'access', _495 => _495.z, 'optionalAccess', _496 => _496[d], 'optionalAccess', _496b => _496b.fz])||[]).forEach(f=>fzAll.add(f)));const fzStr=[...fzAll].map(id=>{const f=(fahrzeuge||[]).find(x=>x.id===id);return f?f.kennzeichen:"";}).filter(Boolean).join(", ");hdr.push(String(i+1).padEnd(5)+r.bvh.padEnd(30)+DSHORT.map(d=>cellText(_optionalChain([r, 'access', _495c => _495c.z, 'optionalAccess', _496c => _496c[d]])).padEnd(12)).join("")+fzStr.padEnd(20)+(r.bem||""));});
     hdr.push("","═══════════════════════════════════════════════════════════════════════════════════════════════","",activeRows.length+" Einträge · Export: "+new Date().toLocaleDateString("de-AT",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}),"","╔══════════════════════════════════════════════════════════════════════════════╗","║  Andreas Kolar & Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram    ║","║  Tel: +43 2279 2361 · office@ep-kolar.at · www.ep-kolar.at                  ║","║  FN 042490k, LG St. Pölten · UID: ATU20296908 · Gerichtsstand: Tulln        ║","╚══════════════════════════════════════════════════════════════════════════════╝");
-    const blob=new Blob([hdr.join("\n")],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="Wochenplanung_KW"+kw+"_"+yr+".txt";a.click();URL.revokeObjectURL(url);
+    _dl(new Blob([hdr.join("\n")],{type:"text/plain;charset=utf-8"}),"Wochenplanung_KW"+kw+"_"+yr+".txt");
   };
   const exportXls=()=>{
     const activeRows=rows.filter(r=>(r.bvh||"").trim());
@@ -11291,7 +11303,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     names.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=(ks.stunden||192.5)+(ks.vorjahr||0)-ys.urlaubStdGen;const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;if(total===0)return;
       lines.push("──── "+m+" ────");lines.push("  Kontingent: "+_n(((ks.stunden||192.5)+(ks.vorjahr||0)),1)+"h ("+(ks.stunden||192.5)+"h + "+(ks.vorjahr||0)+"h Vorjahr) · Verbraucht: "+_n(ys.urlaubStdGen,1)+"h · Rest: "+_n(rest,1)+"h");lines.push("  Urlaub: "+ys.urlaub+"T ("+_n(ys.urlaubStd,1)+"h) · Krankenstand: "+ys.krankenstand+"T ("+_n(ys.krankenstandStd,1)+"h) · ZA: "+ys.zeitausgleich+"T");lines.push("");});
     lines.push("═══════════════════════════════════════════════","  Export: "+new Date().toLocaleDateString("de-AT",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}),"═══════════════════════════════════════════════","","╔══════════════════════════════════════════════════════════════════════════════╗","║  Andreas Kolar & Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram    ║","║  Tel: +43 2279 2361 · office@ep-kolar.at · www.ep-kolar.at                  ║","║  FN 042490k, LG St. Pölten · UID: ATU20296908 · Gerichtsstand: Tulln        ║","╚══════════════════════════════════════════════════════════════════════════════╝");
-    const blob=new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="Abwesenheit_"+yr+".txt";a.click();URL.revokeObjectURL(url);
+    _dl(new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"}),"Abwesenheit_"+yr+".txt");
   };
   // Server export
   const exportToServer=()=>{if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _570 => _570.getToken, 'call', _571 => _571()])){API.exportPersonal({year:yr}).catch(()=>{});}};
@@ -13297,7 +13309,7 @@ ${dayRows}
 <tr><td colspan="4" style="${bdrN}"></td></tr>
 </table>
 </body></html>`;
-    const blob=new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="Stundenbestaetigung_Woche_"+wName.replace(/\s+/g,"_")+"_KW"+kw+"_"+yr+".xls";a.click();URL.revokeObjectURL(url);
+    _dl(new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"}),"Stundenbestaetigung_Woche_"+wName.replace(/\s+/g,"_")+"_KW"+kw+"_"+yr+".xls");
     if(window.__toast)window.__toast("📊 Wochen-Stundenbestätigung exportiert");
   };
 
@@ -13367,7 +13379,7 @@ ${entryRows}
 </table>
 </body></html>`;
     const fname="Stundenbestaetigung_Tag_"+wName.replace(/\s+/g,"_")+"_"+FULL_DAYS[dayIdx]+"_KW"+kw+"_"+yr+".xls";
-    const blob=new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    _dl(new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"}),fname);
     if(window.__toast)window.__toast("📊 Tages-Stundenbestätigung "+FULL_DAYS[dayIdx]+" exportiert");
   };
 
@@ -13452,7 +13464,7 @@ ${dayRowsHtml}
 </table>
 </body></html>`;
     const fname="Bauwochenbericht_"+projName.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g,"_").slice(0,30)+"_KW"+kw+"_"+yr+".xls";
-    const blob=new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    _dl(new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"}),fname);
     if(window.__toast)window.__toast("📊 Bauwochenbericht "+projName+" KW"+kw+" exportiert");
   };
 
@@ -13476,7 +13488,7 @@ ${dayRowsHtml}
       lines.push("");
     });
     lines.push("─".repeat(90),"WOCHENSUMME: "+_n(weekTotal,1)+"h","","═".repeat(90),"","╔══════════════════════════════════════════════════════════════════════════════╗","║  Andreas Kolar & Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram    ║","║  Tel: +43 2279 2361 · office@ep-kolar.at · www.ep-kolar.at                  ║","║  FN 042490k, LG St. Pölten · UID: ATU20296908 · Gerichtsstand: Tulln        ║","╚══════════════════════════════════════════════════════════════════════════════╝");
-    const blob=new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="Zeiterfassung_"+wName+"_KW"+kw+"_"+yr+".txt";a.click();URL.revokeObjectURL(url);
+    _dl(new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"}),"Zeiterfassung_"+wName+"_KW"+kw+"_"+yr+".txt");
   };
 
   // All workers overview export
