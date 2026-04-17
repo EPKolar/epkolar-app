@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.5.100
-const CACHE_NAME = "epkolar-v3.5.100";
+// EP Kolar Service Worker v3.5.101
+const CACHE_NAME = "epkolar-v3.5.101";
 const ASSETS = [
   './',
   './index.html'

@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.100';
+  var SW_VER='epkolar-v3.5.101';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1217,7 +1217,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.100-supabase";
+const APP_VERSION="3.5.101-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -1304,7 +1304,19 @@ function _asDeepLink(nummer){
 // ═══════════ OFFLINE DB (IndexedDB) ═══════════
 const DB_NAME="epkolar_offline";const DB_VER=6;
 const STORES=["entries","forms","abs","absApprovals","files","planData","werkzeuge","arbeitsscheine","monteure","syncQueue","meta","projects","monteurProjekte","photoQueue","fahrzeuge"];
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=e=>{const db=e.target.result;STORES.forEach(s=>{if(db.objectStoreNames.contains(s)){db.deleteObjectStore(s);}db.createObjectStore(s);});};r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error);});}
+// v3.5.101 Perf: DB-Handle cachen — vorher wurde pro ODB.get/set/... eine neue Connection geöffnet
+let _dbHandle=null, _dbPromise=null;
+function openDB(){
+  if(_dbHandle)return Promise.resolve(_dbHandle);
+  if(_dbPromise)return _dbPromise;
+  _dbPromise=new Promise((res,rej)=>{
+    const r=indexedDB.open(DB_NAME,DB_VER);
+    r.onupgradeneeded=e=>{const db=e.target.result;STORES.forEach(s=>{if(db.objectStoreNames.contains(s)){db.deleteObjectStore(s);}db.createObjectStore(s);});};
+    r.onsuccess=e=>{_dbHandle=e.target.result;_dbPromise=null;_dbHandle.onclose=()=>{_dbHandle=null;};_dbHandle.onversionchange=()=>{try{_dbHandle.close();}catch(_){}_dbHandle=null;};res(_dbHandle);};
+    r.onerror=e=>{_dbPromise=null;rej(e.target.error);};
+  });
+  return _dbPromise;
+}
 const ODB={
   async get(store,key){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readonly");const r=tx.objectStore(store).get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
   async set(store,key,val){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).put(val,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
@@ -1335,20 +1347,26 @@ const PhotoQ={
   async update(id,updates){try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.map(x=>x.id===id?{...x,...updates}:x));}catch(e){}},
   async count(){try{const q=await ODB.load("photoQueue")||[];return q.filter(x=>x.status==="pending"||x.status==="error").length;}catch(e){return 0;}},
   async clear(){try{await ODB.save("photoQueue",[]);}catch(e){}},
+  _flushing:false,// v3.5.101: Concurrency-Guard gegen doppeltes Hochladen
   async flush(){
     if(!navigator.onLine)return{ok:0,fail:0};
-    const q=await PhotoQ.getAll();const pending=q.filter(x=>x.status==="pending"||x.status==="error");
+    if(PhotoQ._flushing)return{ok:0,fail:0,skipped:true};// schon aktiv
+    PhotoQ._flushing=true;
     let ok=0,fail=0;
-    for(const ph of pending){
-      try{
-        await PhotoQ.update(ph.id,{status:"uploading"});
-        // Upload to Supabase Storage, then save URL in DB (no Base64 in DB)
-        const storagePath=_storagePath("photos",ph.projectId,ph.name||"photo.jpg");
-        const publicUrl=await _sbUploadFile(storagePath,ph.dataUrl);
-        await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
-        await PhotoQ.remove(ph.id);ok++;
-      }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;break;}
-    }
+    try{
+      const q=await PhotoQ.getAll();
+      // Max-Retry-Guard: Fotos mit retries>=10 werden übersprungen (dauerhaft-Fehler)
+      const pending=q.filter(x=>(x.status==="pending"||x.status==="error")&&(x.retries||0)<10);
+      for(const ph of pending){
+        try{
+          await PhotoQ.update(ph.id,{status:"uploading"});
+          const storagePath=_storagePath("photos",ph.projectId,ph.name||"photo.jpg");
+          const publicUrl=await _sbUploadFile(storagePath,ph.dataUrl);
+          await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
+          await PhotoQ.remove(ph.id);ok++;
+        }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;break;}
+      }
+    }finally{PhotoQ._flushing=false;}
     return{ok,fail};
   }
 };
