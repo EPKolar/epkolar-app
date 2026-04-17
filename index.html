@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.86';
+  var SW_VER='epkolar-v3.5.87';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1231,7 +1231,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.86-supabase";
+const APP_VERSION="3.5.87-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -12573,6 +12573,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
   const [loading,setLoading]=_react.useState.call(void 0, true);
   const [showForm,setShowForm]=_react.useState.call(void 0, false);
   const [form,setForm]=_react.useState.call(void 0, {von:'',bis:'',art:'urlaub',kommentar:''});
+  const [sending,setSending]=_react.useState.call(void 0, false);
   const isAdmin=curUser.role==='admin'||curUser.role==='projektleiter'||curUser.role==='buero';
   const load=async()=>{
     setLoading(true);
@@ -12584,17 +12585,20 @@ function UrlaubsantragPanel({curUser,monteure,users}){
   };
   _react.useEffect.call(void 0, ()=>{load();},[]);
   const beantragen=async()=>{
+    if(sending)return; // v3.5.87: Doppel-Submit-Schutz
     if(!form.von||!form.bis){window._showToast?.('Von- und Bis-Datum erforderlich','warning');return;}
     if(form.bis<form.von){window._showToast?.('Bis-Datum muss ≥ Von-Datum sein','warning');return;}
     if(!curUser.monteurId){window._showToast?.('Keine monteurId — Admin kontaktieren','error');return;}
+    setSending(true);
     try{
       const item={id:crypto.randomUUID(),worker_id:curUser.monteurId,von:form.von,bis:form.bis,art:form.art,status:'beantragt',kommentar:form.kommentar||null};
       const created=await _api.post('urlaubsantraege',item);
       setAntraege(prev=>[created,...prev]);
       setShowForm(false);setForm({von:'',bis:'',art:'urlaub',kommentar:''});
       window._showToast?.('Antrag gestellt — wartet auf Genehmigung','success');window._haptic.success();
-      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:crypto.randomUUID(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+curUser.name,body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(_){}
+      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:crypto.randomUUID(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+(curUser.name||curUser.username||'?'),body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(_){}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
+    finally{setSending(false);}
   };
   const entscheiden=async(id,status)=>{
     const grund=status==='abgelehnt'?(prompt('Grund für Ablehnung (optional):')||''):'';
@@ -12621,7 +12625,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'Art'),React.createElement('select',{value:form.art,onChange:e=>setForm(p=>({...p,art:e.target.value})),style:II()},[['urlaub','🏖 Urlaub'],['krankenstand','🤒 Krankenstand'],['zeitausgleich','⏱ Zeitausgleich'],['pflege','👶 Pflegefreistellung'],['sonder','📌 Sonderurlaub']].map(function(pair){return React.createElement('option',{key:pair[0],value:pair[0]},pair[1]);})))
       )
       ,React.createElement('div',{style:{marginBottom:8}},React.createElement('label',{style:LL()},'Kommentar (optional)'),React.createElement('textarea',{value:form.kommentar,onChange:e=>setForm(p=>({...p,kommentar:e.target.value})),rows:2,placeholder:'Hinweis an Büro…',style:{...II(),resize:'vertical',minHeight:50}}))
-      ,React.createElement('button',{onClick:beantragen,style:bpS},'📤 Antrag senden')
+      ,React.createElement('button',{onClick:beantragen,disabled:sending,style:{...bpS,opacity:sending?.6:1}},sending?'⏳ Sende…':'📤 Antrag senden')
     )
     ,antraege.length===0
       ?React.createElement('div',{style:{textAlign:'center',padding:20,color:V.dm,fontSize:12}},'Noch keine Anträge.')
@@ -12753,6 +12757,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
   const [loading,setLoading]=_react.useState.call(void 0, true);
   const [month,setMonth]=_react.useState.call(void 0, new Date().toISOString().slice(0,7));
   const [showForm,setShowForm]=_react.useState.call(void 0, false);
+  const [saving,setSaving]=_react.useState.call(void 0, false);
   const [form,setForm]=_react.useState.call(void 0, {datum:new Date().toISOString().slice(0,10),fahrzeug_id:'',zweck:'Dienstfahrt',km_start:'',km_ende:'',projekt_id:'',kraftstoff_liter:'',kraftstoff_preis_liter:''});
   const load=async()=>{
     setLoading(true);
@@ -12771,6 +12776,8 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
     const kms=parseInt(form.km_start),kme=parseInt(form.km_ende);
     if(kme<=kms){window._showToast?.('KM Ende muss > Start sein','warning');return;}
     if(!form.zweck){window._showToast?.('Zweck erforderlich','warning');return;}
+    if(saving)return; // v3.5.87: Doppel-Submit-Schutz
+    setSaving(true);
     try{
       const item={id:crypto.randomUUID(),worker_id:workerId,fahrzeug_id:form.fahrzeug_id,datum:form.datum,zweck:form.zweck,km_start:kms,km_ende:kme,projekt_id:form.projekt_id||null,kraftstoff_liter:form.kraftstoff_liter?parseFloat(form.kraftstoff_liter):null,kraftstoff_preis_liter:form.kraftstoff_preis_liter?parseFloat(form.kraftstoff_preis_liter):null};
       const created=await _api.post('fahrtenbuch',item);
@@ -12780,6 +12787,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
       window._showToast?.('Fahrt gespeichert','success');
       window._haptic.success();
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
+    finally{setSaving(false);}
   };
   const del=async(id)=>{
     if(!confirm('Fahrt wirklich löschen?'))return;
@@ -12818,7 +12826,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'Liter (opt.)'),React.createElement('input',{type:'number',step:0.1,value:form.kraftstoff_liter,onChange:e=>setForm(p=>({...p,kraftstoff_liter:e.target.value})),style:II()}))
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'€/L (opt.)'),React.createElement('input',{type:'number',step:0.001,value:form.kraftstoff_preis_liter,onChange:e=>setForm(p=>({...p,kraftstoff_preis_liter:e.target.value})),style:II()}))
       )
-      ,React.createElement('button',{onClick:save,style:bpS},'💾 Speichern')
+      ,React.createElement('button',{onClick:save,disabled:saving,style:{...bpS,opacity:saving?.6:1}},saving?'⏳ …':'💾 Speichern')
     )
     ,loading?React.createElement('div',{style:{color:V.dm,fontSize:12,padding:12}},'Lade…'):
       entries.length===0
