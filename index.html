@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.98';
+  var SW_VER='epkolar-v3.5.99';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1231,7 +1231,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.98-supabase";
+const APP_VERSION="3.5.99-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4059,6 +4059,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const asStreamRef=_react.useRef.call(void 0, null);
   // v3.5.69 F-B: Swipe-Status-Wechsel auf Mobile (eigene AS only)
   const _swipeRef=_react.useRef.call(void 0, {id:null,x0:0,y0:0,swiping:false});
+  const _lastSwipeAt=_react.useRef.call(void 0, 0);
   const _swipeStart=(as,e)=>{const t=e.touches&&e.touches[0];if(!t||e.touches.length!==1)return;_swipeRef.current={id:as.id,x0:t.clientX,y0:t.clientY,t0:Date.now(),swiping:true};};
   const _swipeEnd=(as,e)=>{const s=_swipeRef.current;if(!s.swiping||s.id!==as.id)return;const t=(e.changedTouches&&e.changedTouches[0])||null;if(!t){_swipeRef.current.swiping=false;return;}
     const dx=t.clientX-s.x0, dy=t.clientY-s.y0, dt=Date.now()-(s.t0||0);
@@ -4070,10 +4071,12 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const newStatus=dx<0?"erledigt":"in_bearbeitung";
     if(as.scheinstatus===newStatus)return;
     try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}
-    try{e.stopPropagation();}catch(_){}
+    try{e.preventDefault();e.stopPropagation();}catch(_){}
+    _lastSwipeAt.current=Date.now();// block folgenden Tap-Click (v3.5.99)
     updAs(as.id,{scheinstatus:newStatus});
     _optionalChain([window, 'access', _swt1 => _swt1.__toast, 'optionalCall', _swt2 => _swt2((dx<0?"✅ Als erledigt markiert":"🔧 In Bearbeitung"))]);
   };
+  const _openEditGuarded=(a)=>{if(Date.now()-_lastSwipeAt.current<500)return;openEdit(a);};
   const asScanTimerRef=_react.useRef.call(void 0, null);
   const asLookupNummer=(code)=>{
     // Extract nummer: accept raw "S075270" or deep link URL with ?as=S075270
@@ -4637,15 +4640,15 @@ function sharePdf(){
             ))
             , React.createElement('tbody', {}, sorted.map(a=>{const st=AS_STATUS[a.scheinstatus]||AS_STATUS.aufgenommen;const art=AS_ART[a.scheinart];const pri=AS_PRIO[a.prioritaet];const isSt=a.scheinstatus==="storniert";
               return (React.createElement('tr', { key: a.id, onTouchStart: e=>_swipeStart(a,e), onTouchEnd: e=>_swipeEnd(a,e), style: {borderBottom:"1px solid "+V.bd,background:isSt?"rgba(239,68,68,.03)":"transparent"}}
-                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#4ade80",fontWeight:600,cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.nummer, a.juprowa_id&&React.createElement('span',{style:{fontSize:8,color:"#06b6d4",marginLeft:3,verticalAlign:"super"}},"⟳"), a.push_pending&&React.createElement('span',{style:{fontSize:8,color:"#f59e0b",marginLeft:2,verticalAlign:"super"}},"↑"))
-                , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}, onClick: ()=>openEdit(a)}, (a.arbeitsanweisungen||"").split("\n")[0])
+                , React.createElement('td', { style: {...tdSt(),fontFamily:mono,color:"#4ade80",fontWeight:600,cursor:"pointer"}, onClick: ()=>_openEditGuarded(a)}, a.nummer, a.juprowa_id&&React.createElement('span',{style:{fontSize:8,color:"#06b6d4",marginLeft:3,verticalAlign:"super"}},"⟳"), a.push_pending&&React.createElement('span',{style:{fontSize:8,color:"#f59e0b",marginLeft:2,verticalAlign:"super"}},"↑"))
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}, onClick: ()=>_openEditGuarded(a)}, (a.arbeitsanweisungen||"").split("\n")[0])
                 , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:12}}, fdt(a.aufgenommen))
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('input', { type: "date", value: a.terminVorschlag||"", onChange: e=>updAs(a.id,{terminVorschlag:e.target.value}), style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:a.terminVorschlag?V.tx:V.mt,fontSize:11,padding:"2px 3px",width:110,fontFamily:mono}, onClick: e=>e.stopPropagation()}))
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('input', { type: "date", value: a.terminBestaetigt||"", onChange: e=>updAs(a.id,{terminBestaetigt:e.target.value}), style: {background:"transparent",border:"1px solid "+(a.terminBestaetigt?"#22c55e":V.bd),borderRadius:4,color:a.terminBestaetigt?"#22c55e":V.mt,fontWeight:a.terminBestaetigt?600:400,fontSize:11,padding:"2px 3px",width:110,fontFamily:mono}, onClick: e=>e.stopPropagation()}))
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { value: a.scheinstatus, onChange: e=>{e.stopPropagation();updAs(a.id,{scheinstatus:e.target.value});}, style: {background:"transparent",border:"1px solid "+st.c,borderRadius:4,color:st.c,fontSize:10,padding:"2px 3px",fontWeight:600,cursor:"pointer",colorScheme:_dark?"dark":"light"}, onClick: e=>e.stopPropagation()}, Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i+" "+v.l))))
                 , React.createElement('td', { style: {...tdSt(),fontSize:12,padding:2}}, isAdmin?React.createElement('select', { value: a.sachbearbeiter||"", onChange: e=>{e.stopPropagation();updAs(a.id,{sachbearbeiter:e.target.value});}, style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:V.tx,fontSize:10,padding:"2px 3px",cursor:"pointer",maxWidth:80,colorScheme:_dark?"dark":"light"}, onClick: e=>e.stopPropagation()}, React.createElement('option', { value: ""}, "—"), SACHBEARBEITER.map(s=>React.createElement('option', { key: s, value: s}, s))):a.sachbearbeiter||"—")
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { value: a.monteur||"", onChange: e=>{e.stopPropagation();updAs(a.id,{monteur:e.target.value});}, style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:V.tx,fontSize:11,padding:"2px 3px",cursor:"pointer",maxWidth:90,colorScheme:_dark?"dark":"light"}, onClick: e=>e.stopPropagation()}, React.createElement('option', { value: ""}, "—"), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))))
-                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500,cursor:"pointer"}, onClick: ()=>openEdit(a)}, a.kundName)
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500,cursor:"pointer"}, onClick: ()=>_openEditGuarded(a)}, a.kundName)
                 , React.createElement('td', { style: {...tdSt(),fontFamily:"'SF Mono','Cascadia Code','Fira Code',monospace",fontSize:12,fontWeight:600,color:V.ac,letterSpacing:".3px"}}, a.projektnr)
                 , React.createElement('td', { style: {...tdSt(),textAlign:"center",padding:"4px 2px"}}, React.createElement('div', { style: {display:"flex",gap:3,justifyContent:"center",flexWrap:"nowrap"}}
                   , React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(a);}, style: {background:"#3b82f6",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "Bearbeiten"}, "✏️")
@@ -4724,7 +4727,7 @@ function sharePdf(){
                 });
                 return React.createElement('div', { key: di, style: {borderRight:di<6?"1px solid "+V.grid:"none",borderBottom:"1px solid "+V.grid,padding:"1px 2px",minHeight:48,background:today?"rgba(139,92,246,.04)":we?V.weBg:"transparent",verticalAlign:"top"}}
                   , hourAs.map(a=>{const st=AS_STATUS[a.scheinstatus];const dur=parseFloat(a.dauer)||1;const mntName=_optionalChain([monteure, 'access', _wmnt1 => _wmnt1.find, 'call', _wmnt2 => _wmnt2(m=>m.id===a.monteur), 'optionalAccess', _wmnt3 => _wmnt3.n])||"?";
-                    return React.createElement('div', { key: a.id, onClick: ()=>openEdit(a), title: a.nummer+" — "+(a.kundName||"?")+"\n👷 "+mntName+" · "+(_optionalChain([st, 'optionalAccess', _wt1 => _wt1.l])||a.scheinstatus)+"\n📅 "+(a.terminBestaetigt||"")+(a.terminZeit?" "+a.terminZeit:"")+"\n📝 "+(a.arbeitsanweisungen||"").substring(0,100), style: {fontSize:10,padding:"3px 5px",borderRadius:4,background:(_optionalChain([st, 'optionalAccess', _179b => _179b.c])||"#666")+"22",color:_optionalChain([st, 'optionalAccess', _180b => _180b.c])||"#666",marginBottom:2,cursor:"pointer",borderLeft:"3px solid "+(_optionalChain([st, 'optionalAccess', _181 => _181.c])||"#666"),minHeight:Math.max(22,dur*40),overflow:"hidden"}}
+                    return React.createElement('div', { key: a.id, onClick: ()=>_openEditGuarded(a), title: a.nummer+" — "+(a.kundName||"?")+"\n👷 "+mntName+" · "+(_optionalChain([st, 'optionalAccess', _wt1 => _wt1.l])||a.scheinstatus)+"\n📅 "+(a.terminBestaetigt||"")+(a.terminZeit?" "+a.terminZeit:"")+"\n📝 "+(a.arbeitsanweisungen||"").substring(0,100), style: {fontSize:10,padding:"3px 5px",borderRadius:4,background:(_optionalChain([st, 'optionalAccess', _179b => _179b.c])||"#666")+"22",color:_optionalChain([st, 'optionalAccess', _180b => _180b.c])||"#666",marginBottom:2,cursor:"pointer",borderLeft:"3px solid "+(_optionalChain([st, 'optionalAccess', _181 => _181.c])||"#666"),minHeight:Math.max(22,dur*40),overflow:"hidden"}}
                       , React.createElement('div', { style: {fontWeight:700,fontSize:10}}, (a.nummer||"").slice(-4), " ", a.terminZeit||"", a.dauer?(" · "+a.dauer+"h"):"")
                       , React.createElement('div', { style: {fontSize:9,opacity:.8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.kundName||(a.arbeitsanweisungen||"").substring(0,25))
                     );
@@ -4750,7 +4753,7 @@ function sharePdf(){
                   , React.createElement('div', { style: {flex:1,display:"flex",flexDirection:"column",gap:4,padding:"3px 0"}}
                     , hourAs.map(a=>{const st=AS_STATUS[a.scheinstatus];
                       const dur=parseFloat(a.dauer)||1;
-                      return React.createElement('div', { key: a.id, onClick: ()=>openEdit(a), style: {padding:"8px 12px",borderRadius:8,background:(_optionalChain([st, 'optionalAccess', _179c => _179c.c])||"#666")+"18",borderLeft:"4px solid "+(_optionalChain([st, 'optionalAccess', _180c => _180c.c])||"#666"),cursor:"pointer"}}
+                      return React.createElement('div', { key: a.id, onClick: ()=>_openEditGuarded(a), style: {padding:"8px 12px",borderRadius:8,background:(_optionalChain([st, 'optionalAccess', _179c => _179c.c])||"#666")+"18",borderLeft:"4px solid "+(_optionalChain([st, 'optionalAccess', _180c => _180c.c])||"#666"),cursor:"pointer"}}
                         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}
                           , React.createElement('span', { style: {fontWeight:700,fontSize:13,color:_optionalChain([st, 'optionalAccess', _181c => _181c.c])||"#666"}}, a.nummer)
                           , React.createElement(Badge, { text: _optionalChain([st, 'optionalAccess', _182 => _182.l])||a.scheinstatus, color: _optionalChain([st, 'optionalAccess', _183 => _183.c])||"#666"} )
