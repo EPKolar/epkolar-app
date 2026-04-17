@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.80';
+  var SW_VER='epkolar-v3.5.81';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1231,7 +1231,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.80-supabase";
+const APP_VERSION="3.5.81-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -3523,6 +3523,8 @@ function LoginScreen({onLogin,onPortal,projects}){
 
   const _allTabs=[
     {l:"Home",i:"🏠",c:"#f59e0b",perm:"_home",g:0},
+    /* v3.5.81 Block 7: Chef-Dashboard nur für Admin/GF */
+    {l:"Chef",i:"👑",c:"#eab308",perm:"_chef",g:0},
     {l:"Projekte",i:"🏗️",c:V.ac,perm:"projekte",g:1},
     {l:"Arbeitsscheine",i:"📋",c:"#f97316",perm:"arbeitsscheine",g:1},
     {l:"Planung",i:"📅",c:"#3b82f6",perm:"wochenplanung",g:2},
@@ -3539,6 +3541,7 @@ function LoginScreen({onLogin,onPortal,projects}){
   ];
   const tabs=_allTabs.filter(t=>{
     if(t.perm==="_home")return true;
+    if(t.perm==="_chef")return curUser.role==="admin";
     if(t.perm==="_settings")return !(curUser.role==="monteur"||curUser.role==="helfer");
     if(t.perm.startsWith("_"))return true;
     return hasPerm(curUser,t.perm)||(t.perm==="admin"&&canDo("admin_panel",curUser));
@@ -3838,6 +3841,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           , moreOpen&&React.createElement('div', { onClick: ()=>setMoreOpen(false), style: {position:"fixed",inset:0,zIndex:85,background:"transparent"}})
           , React.createElement('div', { className: "main-pad", ...mainSwipe}
             , _optionalChain([tabs, 'access', _85 => _85[safeKat], 'optionalAccess', _86 => _86.perm])==="_home" && React.createElement(HomeView, { curUser: curUser, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, abs: abs, absApprovals: absApprovals, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, monteure: monteure, users: users, ww: ww, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}, onOpenP: setOpenP, monteurProjekte: monteurProjekte, planData: planData, forms: forms, wpHistory: wpHistory} )
+            , _optionalChain([tabs, 'access', _85c => _85c[safeKat], 'optionalAccess', _86c => _86c.perm])==="_chef" && React.createElement(ChefDashboard, { curUser: curUser, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, monteure: monteure, fahrzeuge: fahrzeuge, ww: ww, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}, onOpenP: setOpenP} )
             , _optionalChain([tabs, 'access', _87 => _87[safeKat], 'optionalAccess', _88 => _88.perm])==="projekte" && React.createElement(ProjList, { onOpen: setOpenP, entries: entries, ww: ww, projects: projects, setProjects: setProjects, curUser: curUser, monteurProjekte: monteurProjekte} )
             , _optionalChain([tabs, 'access', _89 => _89[safeKat], 'optionalAccess', _90 => _90.perm])==="arbeitsscheine" && hasPerm(curUser,"arbeitsscheine") && React.createElement(ArbeitsscheinView, { arbeitsscheine: arbeitsscheine, setArbeitsscheine: setArbeitsscheine, monteure: monteure, ww: ww, curUser: curUser, pushNotif: pushNotif, users: users} )
             , _optionalChain([tabs, 'access', _91 => _91[safeKat], 'optionalAccess', _92 => _92.perm])==="wochenplanung" && React.createElement(WeekPlan, { ww: ww, curUser: curUser, wpHistory: wpHistory, setWpHistory: setWpHistory, monteure: monteure, projects: projects, fahrzeuge: fahrzeuge} )
@@ -12550,6 +12554,186 @@ function WorkerKompetenzenPanel({workerId,curUser,editable}){
           )
         );
       })
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.80 Block 3: UrlaubsantragPanel
+// ═══════════════════════════════════════════════════════════════════
+function UrlaubsantragPanel({curUser,monteure,users}){
+  const [antraege,setAntraege]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [showForm,setShowForm]=_react.useState.call(void 0, false);
+  const [form,setForm]=_react.useState.call(void 0, {von:'',bis:'',art:'urlaub',kommentar:''});
+  const isAdmin=curUser.role==='admin'||curUser.role==='projektleiter'||curUser.role==='buero';
+  const load=async()=>{
+    setLoading(true);
+    try{
+      const q=isAdmin?'order=created_at.desc&limit=100':'worker_id=eq.'+encodeURIComponent(curUser.monteurId||'')+'&order=created_at.desc';
+      const d=await _api.get('urlaubsantraege',q);setAntraege(d||[]);
+    }catch(e){window._showToast?.('Anträge laden: '+e.message,'error');}
+    setLoading(false);
+  };
+  _react.useEffect.call(void 0, ()=>{load();},[]);
+  const beantragen=async()=>{
+    if(!form.von||!form.bis){window._showToast?.('Von- und Bis-Datum erforderlich','warning');return;}
+    if(form.bis<form.von){window._showToast?.('Bis-Datum muss ≥ Von-Datum sein','warning');return;}
+    if(!curUser.monteurId){window._showToast?.('Keine monteurId — Admin kontaktieren','error');return;}
+    try{
+      const item={id:crypto.randomUUID(),worker_id:curUser.monteurId,von:form.von,bis:form.bis,art:form.art,status:'beantragt',kommentar:form.kommentar||null};
+      const created=await _api.post('urlaubsantraege',item);
+      setAntraege(prev=>[created,...prev]);
+      setShowForm(false);setForm({von:'',bis:'',art:'urlaub',kommentar:''});
+      window._showToast?.('Antrag gestellt — wartet auf Genehmigung','success');window._haptic.success();
+      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:crypto.randomUUID(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+curUser.name,body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(_){}
+    }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
+  };
+  const entscheiden=async(id,status)=>{
+    const grund=status==='abgelehnt'?(prompt('Grund für Ablehnung (optional):')||''):'';
+    try{
+      await _api.patch('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:curUser.name,bescheid_at:new Date().toISOString()});
+      setAntraege(prev=>prev.map(a=>a.id===id?{...a,status,bescheid:grund,bescheid_von:curUser.name,bescheid_at:new Date().toISOString()}:a));
+      window._showToast?.(status==='genehmigt'?'✅ Genehmigt':'❌ Abgelehnt','success');window._haptic.success();
+      const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:crypto.randomUUID(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(_){}}}
+    }catch(e){window._showToast?.('Fehler: '+e.message,'error');}
+  };
+  const del=async(id)=>{if(!confirm('Antrag löschen?'))return;try{await _api.delete('urlaubsantraege',id);setAntraege(prev=>prev.filter(a=>a.id!==id));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}};
+  if(loading)return React.createElement('div',{style:{padding:12,color:V.dm}},'Lade Anträge…');
+  const STAT_C={beantragt:'#eab308',genehmigt:'#22c55e',abgelehnt:'#ef4444'};
+  const STAT_I={beantragt:'⏳',genehmigt:'✅',abgelehnt:'❌'};
+  return React.createElement('div',{style:{padding:12}}
+    ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}
+      ,React.createElement('div',{style:{fontWeight:700,fontSize:14}},'🏖️ Urlaubs-/Abwesenheitsanträge')
+      ,!isAdmin&&React.createElement('button',{onClick:()=>setShowForm(!showForm),style:showForm?bdS:bpS},showForm?'✕ Abbrechen':'+ Antrag stellen')
+    )
+    ,showForm&&!isAdmin&&React.createElement('div',{style:{...CC(),marginBottom:12}}
+      ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Von'),React.createElement('input',{type:'date',value:form.von,onChange:e=>setForm(p=>({...p,von:e.target.value})),style:II()}))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Bis'),React.createElement('input',{type:'date',value:form.bis,onChange:e=>setForm(p=>({...p,bis:e.target.value})),style:II()}))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Art'),React.createElement('select',{value:form.art,onChange:e=>setForm(p=>({...p,art:e.target.value})),style:II()},[['urlaub','🏖 Urlaub'],['krankenstand','🤒 Krankenstand'],['zeitausgleich','⏱ Zeitausgleich'],['pflege','👶 Pflegefreistellung'],['sonder','📌 Sonderurlaub']].map(function(pair){return React.createElement('option',{key:pair[0],value:pair[0]},pair[1]);})))
+      )
+      ,React.createElement('div',{style:{marginBottom:8}},React.createElement('label',{style:LL()},'Kommentar (optional)'),React.createElement('textarea',{value:form.kommentar,onChange:e=>setForm(p=>({...p,kommentar:e.target.value})),rows:2,placeholder:'Hinweis an Büro…',style:{...II(),resize:'vertical',minHeight:50}}))
+      ,React.createElement('button',{onClick:beantragen,style:bpS},'📤 Antrag senden')
+    )
+    ,antraege.length===0
+      ?React.createElement('div',{style:{textAlign:'center',padding:20,color:V.dm,fontSize:12}},'Noch keine Anträge.')
+      :React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:6}}
+        ,antraege.map(a=>{
+          const w=(monteure||[]).find(m=>m.id===a.worker_id);
+          const wName=w?(w.vorname?w.vorname+' ':'')+w.n:a.worker_id;
+          return React.createElement('div',{key:a.id,style:{...CC(),padding:10,display:'flex',gap:8,alignItems:'center',borderLeft:'4px solid '+(STAT_C[a.status]||'#666')}}
+            ,React.createElement('span',{style:{fontSize:18}},STAT_I[a.status]||'•')
+            ,React.createElement('div',{style:{flex:1,minWidth:0}}
+              ,React.createElement('div',{style:{fontSize:13,fontWeight:700}},wName+' · '+a.art)
+              ,React.createElement('div',{style:{fontSize:12,color:V.dm}},window._fmtDate?.(a.von)+' — '+window._fmtDate?.(a.bis)+' · '+Math.max(1,Math.round((new Date(a.bis)-new Date(a.von))/86400000)+1)+' Tag(e)')
+              ,a.kommentar&&React.createElement('div',{style:{fontSize:11,color:V.dm,marginTop:2,fontStyle:'italic'}},'„'+a.kommentar+'"')
+              ,a.bescheid_von&&React.createElement('div',{style:{fontSize:11,color:STAT_C[a.status],marginTop:2,fontWeight:600}},STAT_I[a.status]+' '+a.status+' von '+a.bescheid_von+(a.bescheid?' — '+a.bescheid:''))
+            )
+            ,a.status==='beantragt'&&isAdmin&&React.createElement('div',{style:{display:'flex',gap:4}}
+              ,React.createElement('button',{onClick:()=>entscheiden(a.id,'genehmigt'),style:{...bgS,padding:'4px 10px',fontSize:11}},'✅ OK')
+              ,React.createElement('button',{onClick:()=>entscheiden(a.id,'abgelehnt'),style:{...bdS,padding:'4px 10px',fontSize:11}},'❌')
+            )
+            ,(isAdmin||a.worker_id===curUser.monteurId)&&a.status==='beantragt'&&React.createElement('button',{onClick:()=>del(a.id),title:'Löschen',style:{background:'none',border:'none',color:V.dm,cursor:'pointer',fontSize:14,padding:'2px 4px'}},'🗑')
+          );
+        })
+      )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.81 Block 7: Chef-Dashboard (Admin-only)
+// ═══════════════════════════════════════════════════════════════════
+function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeuge,ww,onNav,onOpenP}){
+  const isMob=ww<700;
+  const _td=new Date().toISOString().slice(0,10);
+  const _weekStart=(function(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return d.toISOString().slice(0,10);})();
+  const aktivProj=projects.filter(p=>p.status==='aktiv').length;
+  const offeneAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)).length;
+  const heuteAS=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;
+  const ueberfaellige=arbeitsscheine.filter(a=>{const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_td&&!AS_GRP_FERTIG.includes(a.scheinstatus);}).length;
+  const activeWorkers=new Set(entries.filter(e=>(e.datum||e.date)===_td).map(e=>e.worker||e.w||e.worker_id)).size;
+  const totalWorkers=monteure.filter(m=>m.r!=='Backoffice'&&m.r!=='Verkauf/Buchhaltung').length;
+  const loadByWorker=monteure.filter(m=>m.r!=='Backoffice'&&m.r!=='Verkauf/Buchhaltung').map(m=>{
+    const h=entries.filter(e=>(e.worker||e.w||e.worker_id)===m.id&&(e.datum||e.date)>=_weekStart).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
+    const pct=Math.round(h/40*100);
+    const c=pct<70?'#22c55e':pct<90?'#eab308':pct<=100?'#f97316':'#ef4444';
+    return {id:m.id,name:(m.vorname?m.vorname+' ':'')+m.n,hours:h,pct,color:c};
+  }).sort((a,b)=>b.hours-a.hours);
+  const aktivProjListe=projects.filter(p=>p.status==='aktiv').map(p=>{
+    const asCount=arbeitsscheine.filter(a=>a.projektnr===p.nr).length;
+    const asOpen=arbeitsscheine.filter(a=>a.projektnr===p.nr&&AS_GRP_OFFEN.includes(a.scheinstatus)).length;
+    const usedH=entries.filter(e=>e.p===p.id||e.pid===p.id||e.project_id===p.id).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
+    const budget=parseFloat(p.betrag)||0;
+    const costEst=usedH*85;
+    const budgetPct=budget>0?Math.round(costEst/budget*100):0;
+    const amp=budgetPct>100?'🔴':budgetPct>80?'🟡':'🟢';
+    return {id:p.id,nr:p.nr,name:p.name,kunde:p.kunde,amp,asOpen,asCount,budgetPct,p};
+  });
+  const topOver=arbeitsscheine.filter(a=>{const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_td&&!AS_GRP_FERTIG.includes(a.scheinstatus);}).sort((a,b)=>(a.terminBestaetigt||a.terminVorschlag||'').localeCompare(b.terminBestaetigt||b.terminVorschlag||'')).slice(0,8);
+  return React.createElement('div',{style:{padding:isMob?12:16}}
+    ,React.createElement('div',{style:{marginBottom:14}}
+      ,React.createElement('h2',{style:{fontSize:isMob?20:24,fontWeight:800,margin:0}},'👑 Chef-Übersicht')
+      ,React.createElement('div',{style:{fontSize:12,color:V.dm,marginTop:2}},'Live-Status für die Geschäftsführung · '+new Date().toLocaleDateString('de-AT',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}))
+    )
+    ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:isMob?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:14}}
+      ,[
+        {l:'Aktive Projekte',v:aktivProj,sub:projects.length+' gesamt',color:V.ac,click:function(){onNav('projekte');}},
+        {l:'Offene AS',v:offeneAS,sub:arbeitsscheine.length+' gesamt',color:'#f97316',click:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');}},
+        {l:'Monteure heute',v:activeWorkers+'/'+totalWorkers,sub:'aktiv (ZE)',color:'#a855f7',click:function(){onNav('mitarbeiter');}},
+        {l:'Heutige AS',v:heuteAS,sub:_td,color:'#3b82f6',click:function(){onNav('arbeitsscheine');}},
+        {l:'Überfällig',v:ueberfaellige,sub:ueberfaellige>0?'🔴 kritisch':'alle OK',color:ueberfaellige>0?'#ef4444':'#22c55e',click:function(){onNav('arbeitsscheine');}}
+      ].map(function(k,i){return React.createElement('div',{key:i,onClick:k.click,style:{...CC(),padding:isMob?'10px':'12px',borderLeft:'4px solid '+k.color,cursor:'pointer'}}
+        ,React.createElement('div',{style:{fontSize:10,color:V.dm,fontWeight:600,textTransform:'uppercase',letterSpacing:.5}},k.l)
+        ,React.createElement('div',{style:{fontSize:isMob?22:26,fontWeight:800,color:k.color,fontFamily:mono,marginTop:4}},k.v)
+        ,React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:2}},k.sub)
+      );})
+    )
+    ,loadByWorker.length>0&&React.createElement('div',{style:{...CC(),marginBottom:14}}
+      ,React.createElement('div',{style:{fontSize:14,fontWeight:700,marginBottom:10}},'👥 Auslastung diese Woche (Basis 40h)')
+      ,loadByWorker.map(function(w){return React.createElement('div',{key:w.id,style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}}
+        ,React.createElement('div',{style:{width:120,fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},w.name)
+        ,React.createElement('div',{style:{flex:1,height:14,background:V.bd,borderRadius:7,overflow:'hidden',position:'relative'}}
+          ,React.createElement('div',{style:{height:'100%',width:Math.min(100,w.pct)+'%',background:w.color,transition:'width .4s ease'}})
+        )
+        ,React.createElement('div',{style:{minWidth:80,textAlign:'right',fontSize:11,fontFamily:mono,color:w.color,fontWeight:700}},w.hours.toFixed(1)+'h / 40h')
+      );})
+    )
+    ,aktivProjListe.length>0&&React.createElement('div',{style:{...CC(),marginBottom:14,padding:0,overflow:'hidden'}}
+      ,React.createElement('div',{style:{fontSize:14,fontWeight:700,padding:'10px 14px',borderBottom:'1px solid '+V.bd}},'🏗️ Projekt-Ampeln')
+      ,React.createElement('div',{style:{overflowX:'auto'}}
+        ,React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:600}}
+          ,React.createElement('thead',{},React.createElement('tr',{style:{background:V.cd}}
+            ,React.createElement('th',{style:{padding:'6px 10px',textAlign:'center',color:V.dm,fontSize:10,width:40}},'Status')
+            ,React.createElement('th',{style:{padding:'6px 10px',textAlign:'left',color:V.dm,fontSize:10}},'Nr/Name')
+            ,React.createElement('th',{style:{padding:'6px 10px',textAlign:'left',color:V.dm,fontSize:10}},'Kunde')
+            ,React.createElement('th',{style:{padding:'6px 10px',textAlign:'right',color:V.dm,fontSize:10}},'AS offen/ges.')
+            ,React.createElement('th',{style:{padding:'6px 10px',textAlign:'right',color:V.dm,fontSize:10}},'Budget %')
+          ))
+          ,React.createElement('tbody',{},aktivProjListe.map(function(p){return React.createElement('tr',{key:p.id,onClick:function(){onOpenP(p.p);},style:{borderTop:'1px solid '+V.bd,cursor:'pointer'}}
+            ,React.createElement('td',{style:{padding:'6px 10px',textAlign:'center',fontSize:16}},p.amp)
+            ,React.createElement('td',{style:{padding:'6px 10px',fontWeight:600}},p.nr||'—')
+            ,React.createElement('td',{style:{padding:'6px 10px',color:V.dm}},(p.name||'—')+(p.kunde?(' · '+p.kunde):''))
+            ,React.createElement('td',{style:{padding:'6px 10px',textAlign:'right',fontFamily:mono}},p.asOpen+'/'+p.asCount)
+            ,React.createElement('td',{style:{padding:'6px 10px',textAlign:'right',fontFamily:mono,color:p.budgetPct>100?'#ef4444':p.budgetPct>80?'#f97316':V.dm}},p.budgetPct+'%')
+          );}))
+        )
+      )
+    )
+    ,topOver.length>0&&React.createElement('div',{style:{...CC()}}
+      ,React.createElement('div',{style:{fontSize:14,fontWeight:700,marginBottom:10,color:'#ef4444'}},'🔴 Kritisch überfällige AS ('+topOver.length+')')
+      ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:4}}
+        ,topOver.map(function(a){
+          const w=monteure.find(function(m){return m.id===a.monteur;});
+          const tage=Math.floor((Date.now()-new Date(a.terminBestaetigt||a.terminVorschlag).getTime())/86400000);
+          return React.createElement('div',{key:a.id,onClick:function(){window.__asFilter='alle';onNav('arbeitsscheine');},style:{display:'flex',gap:8,padding:'6px 10px',background:V.cd,borderRadius:6,border:'1px solid '+V.bd,fontSize:12,cursor:'pointer',alignItems:'center'}}
+            ,React.createElement('span',{style:{fontFamily:mono,color:'#f97316',minWidth:70}},a.nummer||'—')
+            ,React.createElement('span',{style:{flex:1,fontWeight:600}},a.kundName||'—')
+            ,React.createElement('span',{style:{fontSize:11,color:V.dm}},w?w.n:'kein Monteur')
+            ,React.createElement('span',{style:{fontFamily:mono,fontWeight:700,color:'#ef4444'}},tage+'d ÜBERFÄLLIG')
+          );
+        })
+      )
     )
   );
 }
