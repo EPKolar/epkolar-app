@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.107';
+  var SW_VER='epkolar-v3.5.108';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1219,7 +1219,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.107-supabase";
+const APP_VERSION="3.5.108-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -2035,13 +2035,15 @@ const buildExportPath=(docType,projNr,projName)=>{
 
 // ═══════════ HELPERS ═══════════
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-const td2=()=>new Date().toISOString().split("T")[0];
+// v3.5.108 TZ-Fix: Alle Y-M-D-Strings aus lokalen Date-Komponenten statt toISOString (das UTC war → off-by-1 near Midnight CET/CEST)
+const _ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const td2=()=>_ymd(new Date());
 const _fdtC={};const fdt=d=>{if(!d)return"";if(_fdtC[d])return _fdtC[d];const r=new Date(d+"T00:00:00").toLocaleDateString("de-AT");_fdtC[d]=r;return r;};
 const fd=d=>{const dt=new Date(d+"T00:00:00");return ["So","Mo","Di","Mi","Do","Fr","Sa"][dt.getDay()]+" "+String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0");};
-const dk=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const dk=_ymd;
 const fmt$=n=>n?n.toLocaleString("de-AT",{style:"currency",currency:"EUR"}):"—";
 const isoW=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w=new Date(d.getFullYear(),0,4);return 1+Math.round(((d-w)/864e5-3+(w.getDay()+6)%7)/7);};
-const kwD=(y,k)=>{const j=new Date(y,0,4),dw=j.getDay()||7,m=new Date(j);m.setDate(j.getDate()-dw+1+(k-1)*7);const o=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);o.push(d.toISOString().split("T")[0]);}return o;};
+const kwD=(y,k)=>{const j=new Date(y,0,4),dw=j.getDay()||7,m=new Date(j);m.setDate(j.getDate()-dw+1+(k-1)*7);const o=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);o.push(_ymd(d));}return o;};
 const weeksOf=(y,m)=>{const ws=[];const LX=new Date(y,m+1,0);let c=new Date(y,m,1);c.setDate(c.getDate()-((c.getDay()+6)%7));while(c<=LX||c.getDay()!==1){const w=[];for(let i=0;i<7;i++){w.push(new Date(c));c.setDate(c.getDate()+1);}ws.push(w);if(c>LX&&c.getDay()===1)break;}return ws;};
 const isWE=d=>d.getDay()===0||d.getDay()===6;
 const mono="'Courier New',monospace";
@@ -6156,7 +6158,8 @@ function TimerBanner({curUser,projects,setEntries}){
   const onStop=()=>{
     const r=window._epkTimer.stop();
     if(!r||!r.hours){setState(null);return;}
-    const entry={id:(crypto.randomUUID?crypto.randomUUID():Date.now()+""),p:r.projectId,pid:r.projectId,w:curUser.monteurId||"",worker:curUser.monteurId||"",date:new Date().toISOString().split("T")[0],datum:new Date().toISOString().split("T")[0],hours:r.hours,stunden:r.hours,task:r.task||"Timer",taetigkeit:r.task||"Timer",gw:proj&&proj.type||"elektro"};
+    const _tdNow=td2();
+    const entry={id:(crypto.randomUUID?crypto.randomUUID():Date.now()+""),p:r.projectId,pid:r.projectId,w:curUser.monteurId||"",worker:curUser.monteurId||"",date:_tdNow,datum:_tdNow,hours:r.hours,stunden:r.hours,task:r.task||"Timer",taetigkeit:r.task||"Timer",gw:proj&&proj.type||"elektro"};
     setEntries(prev=>[entry,...prev]);
     try{SQ.push({url:"/api/entries",method:"POST",body:{id:entry.id,project_id:entry.p,worker_id:entry.w,date:entry.date,hours:entry.hours,taetigkeit:entry.task,gewerk:entry.gw}});}catch(_){}
     window._epkVibrate("save");
@@ -6186,7 +6189,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     if(!API.getToken())return;
     setLiveKpis(prev=>({...prev,loading:true}));
     try{
-      const weekStart=(()=>{const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return d.toISOString().split("T")[0];})();
+      const weekStart=(()=>{const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return _ymd(d);})();
       const [matOpen,matAll,btWeek,btAll,actLog]=await Promise.all([
         _sbGet("material_orders","select=id&status=in.(angefordert,in_bearbeitung,offen)").catch(()=>[]),
         _sbGet("material_orders","select=id,status").catch(()=>[]),
@@ -6276,11 +6279,11 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const offeneAS=asStats.offen;
   const dringendeAS=asStats.dringend;
   const _td=td2();
-  const _weekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1));const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(x.toISOString().split("T")[0]);}return s;})();
+  const _weekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1));const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(_ymd(x));}return s;})();
   let todayH=0,weekH=0;
   entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(dt===_td)todayH+=h;if(_weekDates.has(dt))weekH+=h;});
   // Last week hours for trend
-  const _lastWeekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-7);const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(x.toISOString().split("T")[0]);}return s;})();
+  const _lastWeekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-7);const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(_ymd(x));}return s;})();
   let lastWeekH=0;
   entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(_lastWeekDates.has(dt))lastWeekH+=h;});
   const weekTrend=lastWeekH>0?((weekH-lastWeekH)/lastWeekH*100):0;
@@ -6794,7 +6797,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
       , dv('charts')&&(()=>{
         // Weekly hours: this week vs last week
         const dayLabels=["Mo","Di","Mi","Do","Fr","Sa","So"];
-        const getWeekDates=(offset)=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-(offset*7));return Array.from({length:7},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return x.toISOString().split("T")[0];});};
+        const getWeekDates=(offset)=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-(offset*7));return Array.from({length:7},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return _ymd(x);});};
         const thisW=getWeekDates(0),lastW=getWeekDates(1);
         const thisWH=thisW.map(d=>entries.filter(e=>(e.datum||e.date)===d).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0));
         const lastWH=lastW.map(d=>entries.filter(e=>(e.datum||e.date)===d).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0));
@@ -12929,7 +12932,7 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
   const fzSchaeden=(fahrzeuge||[]).filter(f=>(f.schaeden||[]).length>0).map(f=>({l:f.kennzeichen,v:(f.schaeden||[]).filter(s=>s.status==="offen").length,c:"#ef4444"}));
   const totalTankKosten=(fahrzeuge||[]).reduce((s,f)=>s+(f.tankLog||[]).reduce((s2,t)=>s2+(t.preis||0),0),0);
   // ── Data: Zeiterfassung letzte 7 Tage (aus entries)
-  const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const ds=d.toISOString().split("T")[0];return {l:["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()],v:entries.filter(e=>(e.datum||e.date)===ds).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0),c:"#3b82f6"};});
+  const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const ds=_ymd(d);return {l:["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()],v:entries.filter(e=>(e.datum||e.date)===ds).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0),c:"#3b82f6"};});
 
   const totalWert=werkzeuge.reduce((s,w)=>s+(w.wert||0),0);
 
@@ -14924,7 +14927,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
               , scannedWz.status==="kalibrierung"&&(React.createElement('div', {}
                 , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:8}}, "Kalibrierung fällig" )
-                , React.createElement('button', { onClick: ()=>{const nd=new Date();nd.setMonth(nd.getMonth()+6);setWerkzeuge(p=>p.map(w=>w.id===scannedWz.id?{...w,letzteKalib:td2(),naechsteKalib:nd.toISOString().split("T")[0],status:"verfuegbar"}:w));setScannedWz(p=>({...p,status:"verfuegbar",letzteKalib:td2()}));setScanMsg("✅ Kalibriert & verfügbar");}, style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "📏 Als kalibriert markieren"   )
+                , React.createElement('button', { onClick: ()=>{const nd=new Date();nd.setMonth(nd.getMonth()+6);setWerkzeuge(p=>p.map(w=>w.id===scannedWz.id?{...w,letzteKalib:td2(),naechsteKalib:_ymd(nd),status:"verfuegbar"}:w));setScannedWz(p=>({...p,status:"verfuegbar",letzteKalib:td2()}));setScanMsg("✅ Kalibriert & verfügbar");}, style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "📏 Als kalibriert markieren"   )
               ))
 
               , !["verfuegbar","ausgegeben","reparatur","kalibrierung"].includes(scannedWz.status)&&(React.createElement('div', {}
