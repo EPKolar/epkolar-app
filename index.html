@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.74';
+  var SW_VER='epkolar-v3.5.75';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1207,7 +1207,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.74-supabase";
+const APP_VERSION="3.5.75-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -4099,10 +4099,16 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const openNew=()=>{setForm(defAs());setEditId(null);setSub("form");};
   const openEdit=a=>{setForm({...a});setEditId(a.id);setSub("form");};
   // v3.5.74 Block 1: Vorlage-Bus — wird getriggert wenn User auf "+ Verwenden" klickt
+  // v3.5.75 Bug-Fix: Start fresh (defAs()), dann nur Vorlagen-Felder überschreiben — vorherige form-Daten nicht durchlassen
   _react.useEffect.call(void 0, ()=>{
     if(!window._vorlagenBus)return;
     return window._vorlagenBus.subscribe(v=>{
-      setForm(p=>({...defAs(),...p,scheinart:v.scheinart||p.scheinart,arbeitsanweisungen:v.arbeitsanweisungen||p.arbeitsanweisungen,prioritaet:v.prioritaet||p.prioritaet,dauer:String(v.geschaetzte_dauer||p.dauer||'')}));
+      const fresh={...defAs()};
+      if(v.scheinart)fresh.scheinart=v.scheinart;
+      if(v.arbeitsanweisungen)fresh.arbeitsanweisungen=v.arbeitsanweisungen;
+      if(v.prioritaet)fresh.prioritaet=v.prioritaet;
+      if(v.geschaetzte_dauer)fresh.dauer=String(v.geschaetzte_dauer);
+      setForm(fresh);
       setEditId(null);
       setSub("form");
     });
@@ -4514,7 +4520,7 @@ function sharePdf(){
         , React.createElement(Kpi, { label: "Fertig (alle)" , value: stats.fertig, sub: "erledigt+abgerechnet" , color: "#22c55e", onClick: ()=>{setFilterStatus("fertig");setSub("liste");}} )
       )
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
-        , [{id:"liste",i:"📋",l:"Liste"},{id:"qrscan",i:"📷",l:"QR Scan"},{id:"kalender",i:"📅",l:"Kalender"},{id:"vorlagen",i:"📋",l:"Vorlagen"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="qrscan")asStartScan();else{asStopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+        , [{id:"liste",i:"📋",l:"Liste"},{id:"qrscan",i:"📷",l:"QR Scan"},{id:"kalender",i:"📅",l:"Kalender"},{id:"vorlagen",i:"📑",l:"Vorlagen"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="qrscan")asStartScan();else{asStopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
       )
 
       /* ═══ QR SCAN ═══ */
@@ -12266,8 +12272,8 @@ function ASVorlagenPanel({curUser}){
       ,React.createElement('div',{style:{fontWeight:700,marginBottom:10,fontSize:14}},'Neue Vorlage')
       ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'Name *'),React.createElement('input',{value:form.name,onChange:e=>setForm(p=>({...p,name:e.target.value})),placeholder:'z.B. Gastherme Störung',style:II()}))
-        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Scheinart'),React.createElement('select',{value:form.scheinart,onChange:e=>setForm(p=>({...p,scheinart:e.target.value})),style:II()},['stoerung','montage','reparatur','lieferung','mangelbehebung','garantie','wartung','regie'].map(v=>React.createElement('option',{key:v,value:v},v))))
-        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Priorität'),React.createElement('select',{value:form.prioritaet,onChange:e=>setForm(p=>({...p,prioritaet:e.target.value})),style:II()},['keine','normal','hoch','sehr_hoch','fixtermin'].map(v=>React.createElement('option',{key:v,value:v},v))))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Scheinart'),React.createElement('select',{value:form.scheinart,onChange:e=>setForm(p=>({...p,scheinart:e.target.value})),style:II()},Object.entries(AS_ART).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l))))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Priorität'),React.createElement('select',{value:form.prioritaet,onChange:e=>setForm(p=>({...p,prioritaet:e.target.value})),style:II()},Object.entries(AS_PRIO).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l))))
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'Gesch. Dauer (h)'),React.createElement('input',{type:'number',min:0,step:0.5,value:form.geschaetzte_dauer,onChange:e=>setForm(p=>({...p,geschaetzte_dauer:parseFloat(e.target.value)||0})),style:II()}))
       )
       ,React.createElement('div',{style:{marginBottom:10}}
