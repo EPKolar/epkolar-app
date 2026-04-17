@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.110';
+  var SW_VER='epkolar-v3.5.111';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1219,7 +1219,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.110-supabase";
+const APP_VERSION="3.5.111-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -2035,6 +2035,14 @@ const buildExportPath=(docType,projNr,projName)=>{
 
 // ═══════════ HELPERS ═══════════
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// v3.5.111: Safe UUID mit Fallback (iOS <15.4 hat kein crypto.randomUUID)
+const _uuid=()=>{try{if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();}catch(_){}
+  // RFC4122 v4 Fallback via getRandomValues (iOS 14+) oder Math.random
+  const rnd=(n)=>{try{if(crypto&&crypto.getRandomValues){const a=new Uint8Array(n);crypto.getRandomValues(a);return a;}}catch(_){}const a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=Math.floor(Math.random()*256);return a;};
+  const b=rnd(16);b[6]=(b[6]&0x0f)|0x40;b[8]=(b[8]&0x3f)|0x80;
+  const hex=[...b].map(x=>x.toString(16).padStart(2,'0')).join('');
+  return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+};
 // v3.5.108 TZ-Fix: Alle Y-M-D-Strings aus lokalen Date-Komponenten statt toISOString (das UTC war → off-by-1 near Midnight CET/CEST)
 const _ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const td2=()=>_ymd(new Date());
@@ -6159,7 +6167,7 @@ function TimerBanner({curUser,projects,setEntries}){
     const r=window._epkTimer.stop();
     if(!r||!r.hours){setState(null);return;}
     const _tdNow=td2();
-    const entry={id:(crypto.randomUUID?crypto.randomUUID():Date.now()+""),p:r.projectId,pid:r.projectId,w:curUser.monteurId||"",worker:curUser.monteurId||"",date:_tdNow,datum:_tdNow,hours:r.hours,stunden:r.hours,task:r.task||"Timer",taetigkeit:r.task||"Timer",gw:proj&&proj.type||"elektro"};
+    const entry={id:_uuid(),p:r.projectId,pid:r.projectId,w:curUser.monteurId||"",worker:curUser.monteurId||"",date:_tdNow,datum:_tdNow,hours:r.hours,stunden:r.hours,task:r.task||"Timer",taetigkeit:r.task||"Timer",gw:proj&&proj.type||"elektro"};
     setEntries(prev=>[entry,...prev]);
     try{SQ.push({url:"/api/entries",method:"POST",body:{id:entry.id,project_id:entry.p,worker_id:entry.w,date:entry.date,hours:entry.hours,taetigkeit:entry.task,gewerk:entry.gw}});}catch(_){}
     window._epkVibrate("save");
@@ -10284,7 +10292,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               Object.entries(grouped).forEach(([key,grp])=>{
                 if(key==="_manual")return;
                 const items=grp.items.map(it=>({art_nr:it.artNr||"",bezeichnung:it.name,dim:it.dim||"",menge:it.menge,einheit:it.einheit||"",ek_preis:it.supplierPrices&&it.supplierPrices[key]?it.supplierPrices[key].ek:0,eff_ek:it.supplierPrices&&it.supplierPrices[key]?effEk(it.supplierPrices[key].ek,key):0}));
-                ordersToCreate.push({id:crypto.randomUUID(),supplier_id:key,material_order_id:pvOrder.id,status:"vorbereitet",order_items:items,total:grp.total,effektiver_total:grp.effTotal,bestellt_von:curUser?(curUser.name||curUser.username||""):"",lieferort:pvLieferort,lieferadresse:lieferAdr,ansprechpartner:kontaktPerson,ansprechpartner_tel:kontaktTel,projekt_id:p.id});
+                ordersToCreate.push({id:_uuid(),supplier_id:key,material_order_id:pvOrder.id,status:"vorbereitet",order_items:items,total:grp.total,effektiver_total:grp.effTotal,bestellt_von:curUser?(curUser.name||curUser.username||""):"",lieferort:pvLieferort,lieferadresse:lieferAdr,ansprechpartner:kontaktPerson,ansprechpartner_tel:kontaktTel,projekt_id:p.id});
               });
               if(ordersToCreate.length===0){window.__toast&&window.__toast("Keine Händler-Zuordnung möglich","error");return;}
               try{
@@ -12358,7 +12366,7 @@ function ASVorlagenPanel({curUser}){
   const save=async()=>{
     if(!form.name.trim()){window._showToast?.('Name erforderlich','warning');return;}
     try{
-      const created=await _api.post('as_vorlagen',{...form,id:crypto.randomUUID(),created_by:curUser.name||curUser.username||""});
+      const created=await _api.post('as_vorlagen',{...form,id:_uuid(),created_by:curUser.name||curUser.username||""});
       setVorlagen(prev=>[created,...prev].sort((a,b)=>(a.name||'').localeCompare(b.name||'')));
       setShowForm(false);
       setForm({name:'',scheinart:'stoerung',arbeitsanweisungen:'',geschaetzte_dauer:0,prioritaet:'normal'});
@@ -12428,7 +12436,7 @@ function ASChecklistPanel({asId,curUser,editable}){
   },[asId]);
   const add=async()=>{
     const text=newText.trim();if(!text)return;
-    const item={id:crypto.randomUUID(),as_id:asId,text,erledigt:false,sort_order:items.length};
+    const item={id:_uuid(),as_id:asId,text,erledigt:false,sort_order:items.length};
     try{await _api.post('as_checklist',item);setItems(prev=>[...prev,item]);setNewText('');inputRef.current?.focus();window._haptic.tap();}
     catch(e){window._showToast?.('Hinzufügen fehlgeschlagen: '+e.message,'error');}
   };
@@ -12504,13 +12512,13 @@ function ASKommentarePanel({asId,curUser,monteure,users}){
     // Notif an Ziel-User
     const tgtUser=(users||[]).find(u=>u.monteurId===w.id||u.monteur_id===w.id);
     if(tgtUser&&tgtUser.id!==curUser.id){
-      try{await _api.post('notifications',{id:crypto.randomUUID(),user_id:tgtUser.id,type:'as_status',title:(curUser.name||curUser.username||"?")+' hat dich erwähnt',body:'Kommentar zu AS #'+asId,read:0,link:'arbeitsscheine'});}catch(_){}
+      try{await _api.post('notifications',{id:_uuid(),user_id:tgtUser.id,type:'as_status',title:(curUser.name||curUser.username||"?")+' hat dich erwähnt',body:'Kommentar zu AS #'+asId,read:0,link:'arbeitsscheine'});}catch(_){}
     }
   };
   const send=async()=>{
     const t=text.trim();if(!t||sending)return;
     setSending(true);
-    const k={id:crypto.randomUUID(),as_id:asId,text:t,autor_id:curUser.id,created_at:new Date().toISOString()};
+    const k={id:_uuid(),as_id:asId,text:t,autor_id:curUser.id,created_at:new Date().toISOString()};
     try{await _api.post('as_kommentare',k);setKommentare(prev=>[...prev,{...k,autor_name:curUser.name||curUser.username||""}]);setText('');window._haptic.success();}
     catch(e){window._showToast?.('Senden fehlgeschlagen: '+e.message,'error');window._haptic.error();}
     setSending(false);
@@ -12587,7 +12595,7 @@ function WorkerKompetenzenPanel({workerId,curUser,editable}){
   const toggle=async(key)=>{
     const existing=komps.find(k=>k.kompetenz===key);
     if(existing){if(!confirm('Kompetenz entfernen?'))return;try{await _api.delete('worker_kompetenzen',existing.id);setKomps(prev=>prev.filter(k=>k.kompetenz!==key));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}}
-    else{try{const neu=await _api.post('worker_kompetenzen',{id:crypto.randomUUID(),worker_id:workerId,kompetenz:key,level:1});setKomps(prev=>[...prev,neu]);window._haptic.success();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}}
+    else{try{const neu=await _api.post('worker_kompetenzen',{id:_uuid(),worker_id:workerId,kompetenz:key,level:1});setKomps(prev=>[...prev,neu]);window._haptic.success();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}}
   };
   const setLevel=async(key,level)=>{
     const ex=komps.find(k=>k.kompetenz===key);if(!ex)return;
@@ -12645,12 +12653,12 @@ function UrlaubsantragPanel({curUser,monteure,users}){
     if(!curUser.monteurId){window._showToast?.('Keine monteurId — Admin kontaktieren','error');return;}
     setSending(true);
     try{
-      const item={id:crypto.randomUUID(),worker_id:curUser.monteurId,von:form.von,bis:form.bis,art:form.art,status:'beantragt',kommentar:form.kommentar||null};
+      const item={id:_uuid(),worker_id:curUser.monteurId,von:form.von,bis:form.bis,art:form.art,status:'beantragt',kommentar:form.kommentar||null};
       const created=await _api.post('urlaubsantraege',item);
       setAntraege(prev=>[created,...prev]);
       setShowForm(false);setForm({von:'',bis:'',art:'urlaub',kommentar:''});
       window._showToast?.('Antrag gestellt — wartet auf Genehmigung','success');window._haptic.success();
-      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:crypto.randomUUID(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+(curUser.name||curUser.username||'?'),body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(_){}
+      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:_uuid(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+(curUser.name||curUser.username||'?'),body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(_){}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
     finally{setSending(false);}
   };
@@ -12661,7 +12669,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
       await _api.patch('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()});
       setAntraege(prev=>prev.map(a=>a.id===id?{...a,status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()}:a));
       window._showToast?.(status==='genehmigt'?'✅ Genehmigt':'❌ Abgelehnt','success');window._haptic.success();
-      const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:crypto.randomUUID(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(_){}}}
+      const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(_){}}}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
   const del=async(id)=>{if(!confirm('Antrag löschen?'))return;try{await _api.delete('urlaubsantraege',id);setAntraege(prev=>prev.filter(a=>a.id!==id));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}};
@@ -12837,7 +12845,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
     if(saving)return; // v3.5.87: Doppel-Submit-Schutz
     setSaving(true);
     try{
-      const item={id:crypto.randomUUID(),worker_id:workerId,fahrzeug_id:form.fahrzeug_id,datum:form.datum,zweck:form.zweck,km_start:kms,km_ende:kme,projekt_id:form.projekt_id||null,kraftstoff_liter:form.kraftstoff_liter?parseFloat(form.kraftstoff_liter):null,kraftstoff_preis_liter:form.kraftstoff_preis_liter?parseFloat(form.kraftstoff_preis_liter):null};
+      const item={id:_uuid(),worker_id:workerId,fahrzeug_id:form.fahrzeug_id,datum:form.datum,zweck:form.zweck,km_start:kms,km_ende:kme,projekt_id:form.projekt_id||null,kraftstoff_liter:form.kraftstoff_liter?parseFloat(form.kraftstoff_liter):null,kraftstoff_preis_liter:form.kraftstoff_preis_liter?parseFloat(form.kraftstoff_preis_liter):null};
       const created=await _api.post('fahrtenbuch',item);
       setEntries(prev=>[created,...prev]);
       setShowForm(false);
