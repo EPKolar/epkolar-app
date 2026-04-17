@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.106';
+  var SW_VER='epkolar-v3.5.107';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -918,17 +918,17 @@ async function _translateAndExec(url,method,body){
       // We need the user_id — it's not in the body, so we mark all unread as read
       const uid=body&&body.user_id;
       if(uid){
-        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})}));
+        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
       }else{
         // fallback: mark all as read (will be filtered later by user context)
-        await _authRetry(()=>fetch(SB_REST+"/notifications?read=eq.0",{method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})}));
+        await _authRetry(()=>fetch(SB_REST+"/notifications?read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
       }
       return{ok:1};
     }
     if(idOrSub==="clear"&&method==="POST"){
       const uid=body&&body.user_id;
       if(uid){
-        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),{method:"DELETE",headers:_sbH()}));
+        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),_fT({method:"DELETE",headers:_sbH()})));
       }
       return{ok:1};
     }
@@ -1045,7 +1045,7 @@ async function _translateAndExec(url,method,body){
   // Worker-projects: PUT/POST with worker_id as sub
   if(resource==="worker-projects"&&idOrSub&&(method==="PUT"||method==="POST")){
     // Delete all existing assignments for this worker
-    try{await _authRetry(()=>fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),{method:"DELETE",headers:_sbH()}));}catch(e){}
+    try{await _authRetry(()=>fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),_fT({method:"DELETE",headers:_sbH()})));}catch(e){}
     // Insert individual rows for each project
     const projects=body.projects||[];
     if(projects.length){
@@ -1219,7 +1219,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.106-supabase";
+const APP_VERSION="3.5.107-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -1235,7 +1235,7 @@ window.onerror=function(msg,src,line,col,err){
   try{
     const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
     if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
-      fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:String(msg).substring(0,500),src:String(src||'').substring(0,200),line,col,stack:(stack||'').substring(0,800)})})}).catch(()=>{});
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:String(msg).substring(0,500),src:String(src||'').substring(0,200),line,col,stack:(stack||'').substring(0,800)})})},10000)).catch(()=>{});
     }
   }catch(_){}
   // User-Toast bei bekannten Fehlermustern
@@ -1254,7 +1254,7 @@ window.onunhandledrejection=function(e){
   try{
     const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
     if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
-      fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'promise_rejection',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:rMsg.substring(0,500),stack:String((reason&&reason.stack)||'').substring(0,800)})})}).catch(()=>{});
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'promise_rejection',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:rMsg.substring(0,500),stack:String((reason&&reason.stack)||'').substring(0,800)})})},10000)).catch(()=>{});
     }
   }catch(_){}
 };
@@ -5392,7 +5392,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(nf.password.length<4){alert("Passwort muss mindestens 4 Zeichen haben");return;}
     if(users.find(u=>u.username===nf.username)){alert("Benutzername bereits vergeben");return;}
     const nid=uid();const email=nf.email||(nf.username+"@epkolar.local");setUsers(prev=>[...prev,{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,active:true,monteurId:nf.monteurId||null,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:nf.username,password:nf.password,name:nf.name,email:email,role:nf.role,monteurId:nf.monteurId||null,active:1,locked:0}});
-    try{await _authRetry(()=>fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbH(),body:JSON.stringify({p_email:email,p_password:nf.password})}));}catch(e){}
+    try{await _authRetry(()=>fetch(SB_REST+"/rpc/admin_reset_password",_fT({method:"POST",headers:_sbH(),body:JSON.stringify({p_email:email,p_password:nf.password})})));}catch(e){}
     _optionalChain([window, 'access', _189 => _189.__toast, 'optionalCall', _190 => _190("✅ Benutzer angelegt")]);setNf({username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});setShowNew(false);
   };
   const toggleActive=(id)=>{const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:!(_optionalChain([nu, 'optionalAccess', _191 => _191.active]))}});_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
@@ -12313,7 +12313,7 @@ function SystemConfigPanel({curUser}){
     try{
       // v3.5.83 Bug-Fix: system_config PK=key, _api.patch hartkodiert id=eq. → raw fetch mit key=eq.
       await window._ensureAuth?.();
-      const r=await fetch(SUPABASE_URL+"/rest/v1/system_config?key=eq."+encodeURIComponent(key),{method:'PATCH',headers:{..._sbH(),'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify({value:value,updated_at:new Date().toISOString(),updated_by:curUser.name||curUser.username||'unknown'})});
+      const r=await fetch(SUPABASE_URL+"/rest/v1/system_config?key=eq."+encodeURIComponent(key),_fT({method:'PATCH',headers:{..._sbH(),'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify({value:value,updated_at:new Date().toISOString(),updated_by:curUser.name||curUser.username||'unknown'})}));
       if(!r.ok){const t=await r.text();throw new Error("HTTP "+r.status+": "+t.substring(0,150));}
       window._showToast?.(key+' gespeichert','success');
       window._haptic.success();
