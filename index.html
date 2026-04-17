@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.112';
+  var SW_VER='epkolar-v3.5.113';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -544,8 +544,16 @@ function _sbRH(){return _sbH({"Range":"0-4999"});}
 function _sbWH(prefer){return _sbH({"Content-Type":"application/json","Prefer":prefer||"return=representation"});}
 
 async function _sbAuthLogin(email,password){
-  const r=await fetch(_SB_AUTH+"/token?grant_type=password",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password})});
-  if(!r.ok){const e=await r.text();throw new Error("Auth: "+r.status+" "+e);}
+  const r=await fetch(_SB_AUTH+"/token?grant_type=password",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password})},15000));
+  if(!r.ok){
+    let body="";try{body=await r.text();}catch(_){}
+    let parsed=null;try{parsed=JSON.parse(body);}catch(_){}
+    // v3.5.113: Bessere Fehler-Message — GoTrue's "error_code"+"msg" extrahieren statt rohen 500er-HTML zu werfen
+    const msg=(parsed&&(parsed.error_description||parsed.msg||parsed.message||parsed.error))||body.slice(0,200)||"unknown";
+    const err=new Error("Auth "+r.status+": "+msg);
+    err.status=r.status;err.code=parsed&&parsed.error_code;err.body=body;
+    throw err;
+  }
   return r.json();
 }
 // v3.5.112: Flight-Promise-Guard — verhindert parallele Refresh-Races, die
@@ -1227,7 +1235,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.112-supabase";
+const APP_VERSION="3.5.113-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
