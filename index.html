@@ -4,13 +4,15 @@
 <meta name="apple-mobile-web-app-title" content="EP Kolar">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
+<!-- v3.5.73 Block 8.1: Content Security Policy (XSS-Schutz) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://jiggujpruejkaomgxarp.supabase.co; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://jiggujpruejkaomgxarp.supabase.co; connect-src 'self' https://jiggujpruejkaomgxarp.supabase.co wss://jiggujpruejkaomgxarp.supabase.co https://api.open-meteo.com; font-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:;">
 <title>EP: Kolar &amp; Sohn — Baustellenmanagement</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23009640'/><text x='50' y='65' font-size='48' font-weight='bold' fill='white' text-anchor='middle' font-family='sans-serif'>EP</text></svg>">
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.72';
+  var SW_VER='epkolar-v3.5.74';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -295,7 +297,7 @@ const SB_REST=SUPABASE_URL+"/rest/v1";
 let _authToken=null,_authRefreshToken=null,_authRefreshTimer=null;
 const _SB_AUTH=SUPABASE_URL+"/auth/v1";
 
-// v3.5.71 Block 13e: Haptic-Feedback-Helper (Pattern-based)
+// v3.5.71 Block 13e + v3.5.74 Block 6: Haptic-Feedback Pattern-based
 window._epkVibrate=function(kind){
   try{if(!navigator.vibrate)return;
     if(kind==="save")navigator.vibrate(40);
@@ -305,6 +307,15 @@ window._epkVibrate=function(kind){
     else if(kind==="tap")navigator.vibrate(20);
     else navigator.vibrate(50);
   }catch(_){}
+};
+// v3.5.74 Block 6: Erweiterte Haptic-API (name-based)
+window._haptic={
+  success:function(){try{navigator.vibrate&&navigator.vibrate([50]);}catch(_){}},
+  error:function(){try{navigator.vibrate&&navigator.vibrate([100,50,100,50,100]);}catch(_){}},
+  warning:function(){try{navigator.vibrate&&navigator.vibrate([200]);}catch(_){}},
+  tap:function(){try{navigator.vibrate&&navigator.vibrate([15]);}catch(_){}},
+  confirm:function(){try{navigator.vibrate&&navigator.vibrate([50,50,100]);}catch(_){}},
+  tick:function(){try{navigator.vibrate&&navigator.vibrate([10]);}catch(_){}}
 };
 // v3.5.71 Block 8a: Timer-State (localStorage-persistent)
 window._epkTimer={
@@ -329,6 +340,176 @@ window._checkIntegrity=async function(){
   try{const mo=await _sbGet("material_orders","select=id,project_id");const bad=(mo||[]).filter(a=>!a.project_id).length;log("Material-Orders-project_id",bad===0,bad+" ohne project_id");}catch(e){log("Material",false,e.message);}
   try{const as=await _sbGet("arbeitsscheine","select=nummer");const n=(as||[]).map(a=>a.nummer).filter(Boolean);const dup=n.filter((x,i,a)=>a.indexOf(x)!==i);log("AS-Duplikat-Nummern",dup.length===0,dup.length+" Duplikate");}catch(e){log("AS-Duplikate",false,e.message);}
   console.table(r);return r;
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — App-Konstanten (Block 10.4)
+// ═══════════════════════════════════════════════════════════════════
+const APP_LIMITS=Object.freeze({
+  MAX_FILE_MB:10, MAX_UPLOAD_WIDTH:1920, UPLOAD_QUALITY:0.85,
+  SEARCH_DEBOUNCE_MS:150, SYNC_INTERVAL_MS:30000, TOKEN_REFRESH_BUFFER_S:300,
+  MAX_NOTIFICATIONS_DISPLAY:50, VIRTUAL_LIST_ITEM_HEIGHT:64,
+  TOAST_DURATION_MS:3000, MAX_RETRY_COUNT:5, RATE_LIMIT_DEFAULT:10
+});
+const ROLLE=Object.freeze({ADMIN:'admin', MONTEUR:'monteur', PL:'projektleiter', BUERO:'buero', HELFER:'helfer', OBERMONTEUR:'obermonteur', TECHNIKER:'techniker'});
+const SCHEINSTATUS_C=Object.freeze({AUFGENOMMEN:'aufgenommen', FREIGEGEBEN:'freigegeben', IN_BEARBEITUNG:'in_bearbeitung', AUFGESCHOBEN:'aufgeschoben', ERLEDIGT:'erledigt', ABGERECHNET:'abgerechnet', BAR_BEZAHLT:'bar_bezahlt', STORNIERT:'storniert'});
+const SCHEINART_C=Object.freeze({STOERUNG:'stoerung', LIEFERUNG:'lieferung', REPARATUR:'reparatur', MONTAGE:'montage', MANGEL:'mangelbehebung', GARANTIE:'garantie'});
+window.APP_LIMITS=APP_LIMITS;window.ROLLE=ROLLE;
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Enhanced Toast (Block 2.1)
+// ═══════════════════════════════════════════════════════════════════
+const _toastQ=[];let _toastActive=false;
+window._showToast=function(msg,type,duration){
+  _toastQ.push({msg,type:type||'info',duration:duration||APP_LIMITS.TOAST_DURATION_MS});
+  if(!_toastActive)_processToastQueue();
+};
+function _processToastQueue(){
+  if(_toastQ.length===0){_toastActive=false;return;}
+  _toastActive=true;
+  const {msg,type,duration}=_toastQ.shift();
+  const colors={success:'#22c55e',error:'#ef4444',warning:'#f97316',warn:'#f97316',info:'#3b82f6'};
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:'+(colors[type]||colors.info)+';color:#fff;padding:10px 20px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:90vw;text-align:center;transition:opacity 0.3s;';
+  el.textContent=msg;document.body.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>{el.remove();_processToastQueue();},300);},duration);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — _api Layer (Block 2.1) — Verwendet bestehende _sbH/_sbAuthRefresh
+// ═══════════════════════════════════════════════════════════════════
+const _api={
+  async get(table,query,opts){
+    const url=SUPABASE_URL+"/rest/v1/"+table+(query?"?"+query:"");
+    const r=await _authRetry(()=>fetch(url,{headers:_sbH()}));
+    if(!r.ok){const txt=await r.text();throw new Error("GET "+table+" "+r.status+": "+txt.substring(0,200));}
+    return r.json();
+  },
+  async post(table,data){
+    const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table,{method:'POST',headers:_sbWH("return=representation"),body:JSON.stringify(data)}));
+    if(!r.ok){const txt=await r.text();throw new Error("POST "+table+" "+r.status+": "+txt.substring(0,200));}
+    const d=await r.json();return Array.isArray(d)?d[0]:d;
+  },
+  async patch(table,id,data){
+    const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table+"?id=eq."+encodeURIComponent(id),{method:'PATCH',headers:_sbWH("return=representation"),body:JSON.stringify(data)}));
+    if(!r.ok){const txt=await r.text();throw new Error("PATCH "+table+" "+r.status+": "+txt.substring(0,200));}
+    const d=await r.json();return Array.isArray(d)?d[0]:d;
+  },
+  async delete(table,id){
+    const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table+"?id=eq."+encodeURIComponent(id),{method:'DELETE',headers:_sbH()}));
+    if(!r.ok){const txt=await r.text();throw new Error("DELETE "+table+" "+r.status+": "+txt.substring(0,200));}
+    return true;
+  }
+};
+window._api=_api;
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Format-Helpers (Block 2.1)
+// ═══════════════════════════════════════════════════════════════════
+window._fmtDate=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();};
+window._fmtDatetime=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return window._fmtDate(d)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
+window._fmtRelative=(d)=>{if(!d)return '—';const diff=(Date.now()-new Date(d).getTime())/1000;if(isNaN(diff))return '—';if(diff<60)return 'gerade eben';if(diff<3600)return 'vor '+Math.floor(diff/60)+' Min';if(diff<86400)return 'vor '+Math.floor(diff/3600)+' Std';if(diff<604800)return 'vor '+Math.floor(diff/86400)+' Tagen';return window._fmtDate(d);};
+window._fmtEur=(n)=>isNaN(parseFloat(n))?'—':'€ '+parseFloat(n).toLocaleString('de-AT',{minimumFractionDigits:2,maximumFractionDigits:2});
+window._fmtH=(h)=>isNaN(parseFloat(h))?'—':parseFloat(h).toFixed(1)+'h';
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Data-Masking (Block 8.3)
+// ═══════════════════════════════════════════════════════════════════
+window._maskPhone=(phone,isAdmin)=>{if(!phone)return '—';if(isAdmin)return phone;return String(phone).replace(/\d(?=\d{4})/g,'•');};
+window._maskSVNR=(svnr,isAdmin)=>{if(!svnr)return '—';if(isAdmin)return svnr;return '•••• •••••';};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Rate-Limiter (Block 8.2)
+// ═══════════════════════════════════════════════════════════════════
+const _rateLimiter=new Map();
+window._rateLimit=(key,maxPerMin)=>{
+  const max=maxPerMin||APP_LIMITS.RATE_LIMIT_DEFAULT;
+  const now=Date.now();
+  const calls=(_rateLimiter.get(key)||[]).filter(t=>now-t<60000);
+  if(calls.length>=max)throw new Error('Rate limit: '+key+' — max '+max+'/min');
+  calls.push(now);_rateLimiter.set(key,calls);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Request-Dedup (Block 9.2)
+// ═══════════════════════════════════════════════════════════════════
+const _pendingRequests=new Map();
+window._dedupeGet=async(key,fn)=>{
+  if(_pendingRequests.has(key))return _pendingRequests.get(key);
+  const p=fn();_pendingRequests.set(key,p);
+  try{const r=await p;_pendingRequests.delete(key);return r;}
+  catch(e){_pendingRequests.delete(key);throw e;}
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Global Error-Handler (Block 2.3)
+// ═══════════════════════════════════════════════════════════════════
+window.onerror=function(msg,src,line,col,err){
+  console.error('[GLOBAL ERROR]',msg,src,line,col);
+  try{
+    const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
+    if(_authToken&&navigator.onLine){
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({msg:String(msg).substring(0,500),src,line,col})})}).catch(()=>{});
+    }
+  }catch(_){}
+  if(String(msg).includes('Cannot read')||String(msg).includes('is not a function')){
+    window._showToast&&window._showToast('App-Fehler erkannt. Bitte Seite neu laden.','error',8000);
+  }
+  return false;
+};
+window.onunhandledrejection=function(e){console.error('[UNHANDLED PROMISE]',e.reason);};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Comprehensive Test-Suite (Block 11.1)
+// ═══════════════════════════════════════════════════════════════════
+window._runAllTests=async function(){
+  console.log('=== EPKolar Test Suite v3.5.73 ===');
+  let passed=0,failed=0;const results=[];
+  const t=async(name,fn)=>{try{const r=await fn();if(r){passed++;results.push({test:name,pass:true});console.log('✅ '+name);}else{failed++;results.push({test:name,pass:false,err:'returned false'});console.warn('❌ '+name);}}catch(e){failed++;results.push({test:name,pass:false,err:e.message});console.error('❌ '+name+': '+e.message);}};
+
+  // Auth
+  await t('epkolar_gc vorhanden',()=>!!localStorage.getItem('epkolar_gc'));
+  await t('epkolar_user vorhanden',()=>!!localStorage.getItem('epkolar_user'));
+  await t('JWT nicht abgelaufen',()=>{const tok=_authToken;if(!tok)return false;return JSON.parse(atob(tok.split('.')[1])).exp>Date.now()/1000;});
+
+  // API
+  await t('Supabase erreichbar',async()=>{const r=await fetch(SUPABASE_URL+"/rest/v1/users?limit=1",{headers:_sbH()});return r.ok;});
+  await t('9 Workers in DB',async()=>{const d=await _api.get('workers','select=id');return d.length>=9;});
+  await t('Riedmann verknüpft',async()=>{const d=await _api.get('users','username=eq.riedmann&select=auth_user_id');return !!(d[0]&&d[0].auth_user_id);});
+  await t('Holter Artikel ≥ 25000',async()=>{const r=await fetch(SUPABASE_URL+"/rest/v1/supplier_articles?select=id&limit=1",{headers:{..._sbH(),'Prefer':'count=exact'}});const cr=r.headers.get('content-range');return cr&&parseInt(cr.split('/')[1]||0)>=25000;});
+  await t('Storage-Bucket erreichbar',async()=>{const r=await fetch(SUPABASE_URL+"/storage/v1/bucket/epkolar-files",{headers:_sbH()});return r.ok||r.status===404;});
+
+  // Neue Tabellen (optional — kann fehlen wenn SQL-Migration nicht ausgeführt)
+  await t('Tabelle system_config (v3.5.73)',async()=>{try{const r=await fetch(SUPABASE_URL+"/rest/v1/system_config?limit=1",{headers:_sbH()});return r.ok;}catch(_){return false;}});
+  await t('Tabelle as_vorlagen (v3.5.73)',async()=>{try{const r=await fetch(SUPABASE_URL+"/rest/v1/as_vorlagen?limit=1",{headers:_sbH()});return r.ok;}catch(_){return false;}});
+
+  // Helpers
+  await t('APP_VERSION definiert',()=>typeof APP_VERSION!=='undefined');
+  await t('_showToast definiert',()=>typeof window._showToast==='function');
+  await t('_api.get definiert',()=>typeof _api.get==='function');
+  await t('_fmtDate funktioniert',()=>window._fmtDate('2026-04-17')==='17.04.2026');
+  await t('_fmtEur funktioniert',()=>window._fmtEur(1234.5).includes('1.234'));
+
+  console.log('\n=== '+passed+' PASS, '+failed+' FAIL ===');
+  console.table(results);
+  window._showToast('Tests: '+passed+'/'+(passed+failed)+(failed===0?' ✅':' ⚠'),failed===0?'success':'warning',5000);
+  return {passed,failed,results};
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.73 — Performance-Messung (Block 11.2)
+// ═══════════════════════════════════════════════════════════════════
+window._measurePerf=async function(){
+  const m={};let t;
+  try{t=performance.now();await _api.get('workers','select=id');m.workers_ms=Math.round(performance.now()-t);}catch(_){m.workers_ms=-1;}
+  try{t=performance.now();await _api.get('arbeitsscheine','select=id,scheinstatus&limit=50');m.as50_ms=Math.round(performance.now()-t);}catch(_){m.as50_ms=-1;}
+  try{t=performance.now();await _api.get('supplier_articles','select=id,bezeichnung&limit=50');m.articles_ms=Math.round(performance.now()-t);}catch(_){m.articles_ms=-1;}
+  try{t=performance.now();await _api.get('notifications','select=id&limit=20');m.notif_ms=Math.round(performance.now()-t);}catch(_){m.notif_ms=-1;}
+  console.table(m);
+  const valid=Object.values(m).filter(v=>v>0);
+  const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:-1;
+  window._showToast('Ø API-Zeit: '+Math.round(avg)+'ms',avg<500?'success':'warning',4000);
+  return m;
 };
 
 // v3.5.70 Block 5a: B-001 Fix — proaktiver Auto-Refresh bei anon-JWT
@@ -1026,7 +1207,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.72-supabase";
+const APP_VERSION="3.5.74-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -3630,7 +3811,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           , React.createElement('div', { className: "main-pad", ...mainSwipe}
             , _optionalChain([tabs, 'access', _85 => _85[safeKat], 'optionalAccess', _86 => _86.perm])==="_home" && React.createElement(HomeView, { curUser: curUser, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, abs: abs, absApprovals: absApprovals, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, monteure: monteure, users: users, ww: ww, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}, onOpenP: setOpenP, monteurProjekte: monteurProjekte, planData: planData, forms: forms, wpHistory: wpHistory} )
             , _optionalChain([tabs, 'access', _87 => _87[safeKat], 'optionalAccess', _88 => _88.perm])==="projekte" && React.createElement(ProjList, { onOpen: setOpenP, entries: entries, ww: ww, projects: projects, setProjects: setProjects, curUser: curUser, monteurProjekte: monteurProjekte} )
-            , _optionalChain([tabs, 'access', _89 => _89[safeKat], 'optionalAccess', _90 => _90.perm])==="arbeitsscheine" && hasPerm(curUser,"arbeitsscheine") && React.createElement(ArbeitsscheinView, { arbeitsscheine: arbeitsscheine, setArbeitsscheine: setArbeitsscheine, monteure: monteure, ww: ww, curUser: curUser, pushNotif: pushNotif} )
+            , _optionalChain([tabs, 'access', _89 => _89[safeKat], 'optionalAccess', _90 => _90.perm])==="arbeitsscheine" && hasPerm(curUser,"arbeitsscheine") && React.createElement(ArbeitsscheinView, { arbeitsscheine: arbeitsscheine, setArbeitsscheine: setArbeitsscheine, monteure: monteure, ww: ww, curUser: curUser, pushNotif: pushNotif, users: users} )
             , _optionalChain([tabs, 'access', _91 => _91[safeKat], 'optionalAccess', _92 => _92.perm])==="wochenplanung" && React.createElement(WeekPlan, { ww: ww, curUser: curUser, wpHistory: wpHistory, setWpHistory: setWpHistory, monteure: monteure, projects: projects, fahrzeuge: fahrzeuge} )
             , _optionalChain([tabs, 'access', _91b => _91b[safeKat], 'optionalAccess', _92b => _92b.perm])==="zeiterfassung" && hasPerm(curUser,"zeiterfassung") && React.createElement(ZeiterfassungView, { curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, setEntries: setEntries, ww: ww} )
             , _optionalChain([tabs, 'access', _93 => _93[safeKat], 'optionalAccess', _94 => _94.perm])==="urlaub" && React.createElement(AbsView, { abs: abs, setAbs: setAbs, approvals: absApprovals, setApprovals: setAbsApprovals, files: mFiles, setFiles: setMFiles, ww: ww, curUser: curUser, pushNotif: pushNotif, monteure: monteure} )
@@ -3751,12 +3932,12 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
               , React.createElement('span', { style: {color:V.dm}}, "Name"), isAdmin?React.createElement('input', { value: selM.n, onChange: e=>updMonteur(selM.id,"n",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "Nachname"} ):React.createElement('span', { style: {fontWeight:600}}, selM.n)
               , React.createElement('span', { style: {color:V.dm}}, "Vorname"), isAdmin?React.createElement('input', { value: selM.vorname||"", onChange: e=>updMonteur(selM.id,"vorname",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "Vorname"} ):React.createElement('span', { style: {fontWeight:600}}, selM.vorname||"—")
               , React.createElement('span', { style: {color:V.dm}}, "Rolle"), isAdmin?React.createElement('select', { value: selM.r, onChange: e=>updMonteur(selM.id,"r",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}}, ["Geschäftsführer","Projektleiter","Störungstechniker","Techniker","Obermonteur","Monteur","Helfer","Lehrling","Praktikant","Lagerleitung","Backoffice","Verkauf/Buchhaltung"].map(r=>React.createElement('option', { key: r}, r))):React.createElement('span', {}, selM.r)
-              , React.createElement('span', { style: {color:V.dm}}, "Telefon"), isAdmin?React.createElement('input', { value: selM.tel||"", onChange: e=>updMonteur(selM.id,"tel",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "0664..."} ):React.createElement('span', {}, selM.tel||"—")
+              , React.createElement('span', { style: {color:V.dm}}, "Telefon"), isAdmin?React.createElement('input', { value: selM.tel||"", onChange: e=>updMonteur(selM.id,"tel",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "0664..."} ):React.createElement('span', {}, window._maskPhone?window._maskPhone(selM.tel,isAdmin):(selM.tel||"—"))
               , React.createElement('span', { style: {color:V.dm}}, "E-Mail"), isAdmin?React.createElement('input', { value: selM.email||"", onChange: e=>updMonteur(selM.id,"email",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "name@ep-kolar.at"} ):React.createElement('span', {}, selM.email||"—")
               , React.createElement('span', { style: {color:V.dm,alignSelf:"start",paddingTop:4}}, "Führerschein"), isAdmin?React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:3}}, FS_KLASSEN.map(k=>{const has=(selM.fs||"").split(",").map(x=>x.trim()).includes(k);return React.createElement('label', { key: k, style: {display:"inline-flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:has?"rgba(59,130,246,.15)":"transparent",border:"1px solid "+(has?"#3b82f6":V.bd),cursor:"pointer",fontSize:11,fontWeight:has?700:400,transition:"all .15s"}}, React.createElement('input', { type: "checkbox", checked: has, onChange: ()=>{const cur=(selM.fs||"").split(",").map(x=>x.trim()).filter(Boolean);const nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];updMonteur(selM.id,"fs",nxt.join(","));}, style: {accentColor:"#3b82f6",width:13,height:13}} ), k);})):React.createElement('span', {}, selM.fs?(React.createElement('span', { style: {display:"inline-flex",gap:3,flexWrap:"wrap"}}, (selM.fs||"").split(",").map(k=>React.createElement('span', { key: k.trim(), style: {padding:"2px 6px",borderRadius:4,background:"rgba(59,130,246,.12)",color:"#3b82f6",fontSize:11,fontWeight:700}}, k.trim())))):"—")
               , React.createElement('span', { style: {color:V.dm}}, "FS-Nr."), isAdmin?React.createElement('input', { value: selM.fsNr||"", onChange: e=>updMonteur(selM.id,"fsNr",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "z.B. 4491"} ):React.createElement('span', {}, selM.fsNr||"—")
-              , React.createElement('span', { style: {color:V.dm}}, "SV-Nr."), isAdmin?React.createElement('input', { value: selM.svnr||"", onChange: e=>updMonteur(selM.id,"svnr",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "1234 010185"} ):React.createElement('span', {}, selM.svnr||"—")
-              , React.createElement('span', { style: {color:V.dm}}, "Reisepass-Nr."), isAdmin?React.createElement('input', { value: selM.reisepass||"", onChange: e=>updMonteur(selM.id,"reisepass",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "P 1234567"} ):React.createElement('span', {}, selM.reisepass||"—")
+              , React.createElement('span', { style: {color:V.dm}}, "SV-Nr."), isAdmin?React.createElement('input', { value: selM.svnr||"", onChange: e=>updMonteur(selM.id,"svnr",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "1234 010185"} ):React.createElement('span', {style:{fontFamily:mono}}, window._maskSVNR?window._maskSVNR(selM.svnr,isAdmin):(selM.svnr||"—"))
+              , React.createElement('span', { style: {color:V.dm}}, "Reisepass-Nr."), isAdmin?React.createElement('input', { value: selM.reisepass||"", onChange: e=>updMonteur(selM.id,"reisepass",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "P 1234567"} ):React.createElement('span', {}, isAdmin?(selM.reisepass||"—"):(selM.reisepass?"•••••••":"—"))
               , React.createElement('span', { style: {color:V.dm}}, "Geburtsdatum"), isAdmin?React.createElement('input', { type: "date", value: selM.gebDat||"", onChange: e=>updMonteur(selM.id,"gebDat",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}} ):React.createElement('span', {}, selM.gebDat?fdt(selM.gebDat):"—")
               , React.createElement('span', { style: {color:V.dm}}, "Eintritt"), isAdmin?React.createElement('input', { type: "date", value: selM.eintritt||"", onChange: e=>updMonteur(selM.id,"eintritt",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}} ):React.createElement('span', {}, selM.eintritt?fdt(selM.eintritt):"—")
               , React.createElement('span', { style: {color:V.dm}}, "Austritt"), isAdmin?React.createElement('input', { type: "date", value: selM.austritt||"", onChange: e=>updMonteur(selM.id,"austritt",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}} ):React.createElement('span', { style: {color:selM.austritt?"#ef4444":V.dm}}, selM.austritt?fdt(selM.austritt):"aktiv")
@@ -3772,6 +3953,8 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
               ));
             })
             , isAdmin&&(React.createElement('div', { style: {display:"flex",gap:6,marginTop:14,paddingTop:14,borderTop:"1px solid "+V.bd}}, React.createElement('button', { onClick: ()=>{if(confirm("⚠️ Mitarbeiter \""+selM.n+(selM.vorname?" "+selM.vorname:"")+"\" wirklich LÖSCHEN?\n\nAlle Zuweisungen und Daten gehen verloren!"))delMonteur(selM.id);}, style: {...bdS,width:"100%"}}, "🗑️ Mitarbeiter löschen" )))
+            /* v3.5.74 Block 5: Kompetenzen */
+            , React.createElement(WorkerKompetenzenPanel, {workerId: selM.id, curUser: curUser, editable: isAdmin})
           )) : (React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "👈"), React.createElement('div', { style: {fontSize:13}}, "Mitarbeiter auswählen" )))
         )
       )
@@ -3780,7 +3963,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
 }
 
 // ═══════════ ARBEITSSCHEIN-VERWALTUNG (OFFA-Stil) ═══════════
-function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif}){
+function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif,users}){
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const canSync=curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero";
   const [jupSyncing,setJupSyncing]=_react.useState.call(void 0, false);
@@ -3889,6 +4072,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const defAs=()=>({nummer:nextNr(),kundNr:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:curUser.name.split(" ").pop().toUpperCase(),monteur:curUser.monteurId||(monteure[0]||{}).id||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:td2(),aufgZeit:new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}),bearbeitetVon:curUser.name.split(" ").pop().toUpperCase(),arbeitsanweisungen:"",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:"",telefon:"",arbeitsort:""});
   const [form,setForm]=_react.useState.call(void 0, defAs());
 
+  // v3.5.74 Block 8: Schnell-Filter-Chip-State
+  const [quickFilter,setQuickFilter]=_react.useState.call(void 0, "");
+  const _todayStr=new Date().toISOString().slice(0,10);
   const filtered=arbeitsscheine.filter(a=>{
     if(isMonteurRole&&!isAdmin&&a.monteur!==curUser.monteurId) return false;
     if(filterStatus!=="alle"&&!(filterStatus==="offen_bearb"?AS_GRP_OFFEN.includes(a.scheinstatus):filterStatus==="fertig"?AS_GRP_FERTIG.includes(a.scheinstatus):a.scheinstatus===filterStatus)) return false;
@@ -3896,6 +4082,14 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     if(filterMonteur!=="alle"&&a.monteur!==filterMonteur) return false;
     if(filterSB!=="alle"&&a.sachbearbeiter!==filterSB) return false;
     if(search){const s=search.toLowerCase();if(!((a.nummer||"")+(a.kundName||"")+(a.arbeitsanweisungen||"")+(a.projektnr||"")).toLowerCase().includes(s)) return false;}
+    // v3.5.74 Block 8: Quick-Filter
+    if(quickFilter==="offen"&&!AS_GRP_OFFEN.includes(a.scheinstatus)) return false;
+    if(quickFilter==="inarbeit"&&a.scheinstatus!=="in_bearbeitung") return false;
+    if(quickFilter==="erledigt"&&!AS_GRP_FERTIG.includes(a.scheinstatus)) return false;
+    if(quickFilter==="meine"&&a.monteur!==curUser.monteurId) return false;
+    if(quickFilter==="heute"&&(a.terminBestaetigt||a.terminVorschlag||"")!==_todayStr) return false;
+    if(quickFilter==="ueberfaellig"){const t=a.terminBestaetigt||a.terminVorschlag;if(!t||t>=_todayStr||AS_GRP_FERTIG.includes(a.scheinstatus)) return false;}
+    if(quickFilter==="keinmonteur"&&a.monteur) return false;
     return true;
   });
   const toggleSort=(col)=>{if(sortCol===col)setSortDir(prev=>prev==="asc"?"desc":"asc");else{setSortCol(col);setSortDir(col==="nummer"||col==="aufgenommen"||col==="terminVorschlag"||col==="terminBestaetigt"?"desc":"asc");}};
@@ -3904,6 +4098,15 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
 
   const openNew=()=>{setForm(defAs());setEditId(null);setSub("form");};
   const openEdit=a=>{setForm({...a});setEditId(a.id);setSub("form");};
+  // v3.5.74 Block 1: Vorlage-Bus — wird getriggert wenn User auf "+ Verwenden" klickt
+  _react.useEffect.call(void 0, ()=>{
+    if(!window._vorlagenBus)return;
+    return window._vorlagenBus.subscribe(v=>{
+      setForm(p=>({...defAs(),...p,scheinart:v.scheinart||p.scheinart,arbeitsanweisungen:v.arbeitsanweisungen||p.arbeitsanweisungen,prioritaet:v.prioritaet||p.prioritaet,dauer:String(v.geschaetzte_dauer||p.dauer||'')}));
+      setEditId(null);
+      setSub("form");
+    });
+  },[]);
   const saveAs=()=>{if(!form.kundName&&!form.arbeitsanweisungen) return;
     // v3.5.71 Block 4b: Duplikat-Warnung bei neuem AS (gleicher Kunde + Termin ±3 Tage)
     if(!editId&&form.kundName&&form.terminBestaetigt){
@@ -4311,7 +4514,7 @@ function sharePdf(){
         , React.createElement(Kpi, { label: "Fertig (alle)" , value: stats.fertig, sub: "erledigt+abgerechnet" , color: "#22c55e", onClick: ()=>{setFilterStatus("fertig");setSub("liste");}} )
       )
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
-        , [{id:"liste",i:"📋",l:"Liste"},{id:"qrscan",i:"📷",l:"QR Scan"},{id:"kalender",i:"📅",l:"Kalender"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="qrscan")asStartScan();else{asStopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+        , [{id:"liste",i:"📋",l:"Liste"},{id:"qrscan",i:"📷",l:"QR Scan"},{id:"kalender",i:"📅",l:"Kalender"},{id:"vorlagen",i:"📋",l:"Vorlagen"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="qrscan")asStartScan();else{asStopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
       )
 
       /* ═══ QR SCAN ═══ */
@@ -4353,6 +4556,22 @@ function sharePdf(){
       ))
 
       , sub==="liste"&&(React.createElement('div', {}
+        /* v3.5.74 Block 8: Schnell-Filter-Chips */
+        , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}
+          , [
+              {key:"",label:"Alle"},
+              {key:"offen",label:"🟡 Offen"},
+              {key:"inarbeit",label:"🔧 In Arbeit"},
+              {key:"erledigt",label:"✅ Erledigt"},
+              {key:"meine",label:"👤 Meine"},
+              {key:"heute",label:"📅 Heute"},
+              {key:"ueberfaellig",label:"🔴 Überfällig"},
+              {key:"keinmonteur",label:"⚠️ Kein Monteur"}
+            ].map(chip=>{
+              const act=quickFilter===chip.key;
+              return React.createElement('button', {key:chip.key||"all",onClick:()=>setQuickFilter(chip.key), style: {flexShrink:0,padding:"5px 12px",borderRadius:16,border:"1px solid "+(act?V.ac:V.bd),background:act?V.ac+"22":V.cd,color:act?V.ac:V.dm,fontSize:11,fontWeight:act?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, chip.label);
+            })
+        )
         , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}
           , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "🔍 Suche Nr, Kunde, Arbeit..."    , style: {...II(),width:"auto",flex:1,minWidth:150,fontSize:12}, className: "mob-full"} )
           , React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "alle"}, "Alle Status" ), React.createElement('option', { value: "offen_bearb"}, "— Offen (alle) —" ), React.createElement('option', { value: "fertig"}, "— Fertig (alle) —" ), Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i+" "+v.l)))
@@ -4559,6 +4778,9 @@ function sharePdf(){
         , React.createElement('div', { style: {marginTop:10,fontSize:11,color:V.dm}}, "🆕 = Neuer Schein · 🔄 = Bestehender wird aktualisiert (gleiche Nummer)")
       ))
 
+      /* v3.5.74 Block 1: AS-Vorlagen Sub-Tab */
+      , sub==="vorlagen"&&React.createElement(ASVorlagenPanel, {curUser: curUser})
+
       , sub==="form"&&(React.createElement('div', {}
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}
           , React.createElement('div', { style: {fontSize:16,fontWeight:800}}, editId?"✏️ Schein bearbeiten":"📋 Neuer Arbeitsschein", " " , React.createElement('span', { style: {color:"#f97316",fontFamily:mono}}, form.nummer), form.juprowa_id&&React.createElement('span', {style:{fontSize:10,color:"#06b6d4",marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"🔗 Juprowa #",form.juprowa_id, form.juprowa_sync_at&&React.createElement('span',{style:{color:V.dm,marginLeft:4}},"Sync: ",form.juprowa_sync_at.split("T")[0])), form.push_pending&&React.createElement('span',{style:{fontSize:10,color:"#f59e0b",marginLeft:8,fontWeight:600,verticalAlign:"middle"}},"⬆ Push ausstehend"), form.last_push_at&&!form.push_pending&&React.createElement('span',{style:{fontSize:10,color:"#22c55e",marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"✓ Gepusht: ",form.last_push_at.split("T")[0]), form.push_error&&React.createElement('span',{style:{fontSize:10,color:"#ef4444",marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"❌ ",form.push_error.substring(0,40)))
@@ -4648,6 +4870,16 @@ function sharePdf(){
               , React.createElement('button', { onClick: ()=>{saveAs();setTimeout(()=>genAsPdf(form),200);}, style: {...bgS,flex:1}}, "✅ Speichern & PDF erstellen"    )
               , React.createElement('button', { onClick: ()=>genAsPdf(form), style: {...beS}}, "📄 Vorschau" )
             )
+          ))
+          /* v3.5.74 Block 2: Checkliste (editId only) */
+          , editId&&(React.createElement('div', { style: CC()}
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:4}}, "✅ Checkliste" )
+            , React.createElement(ASChecklistPanel, {asId: editId, curUser: curUser, editable: true})
+          ))
+          /* v3.5.74 Block 3: Kommentare (editId only) */
+          , editId&&(React.createElement('div', { style: CC()}
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:4}}, "💬 Kommentare" )
+            , React.createElement(ASKommentarePanel, {asId: editId, curUser: curUser, monteure: monteure, users: users})
           ))
         )
       ))
@@ -11906,6 +12138,8 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
       )
       /* v3.5.72 Block 17a Integrity UI (admin only) */
       , curUser.role==="admin"&&React.createElement(SmokeTestPanel, {})
+      /* v3.5.74 Block 4: System-Config (admin only) */
+      , curUser.role==="admin"&&React.createElement(SystemConfigPanel, {curUser: curUser})
     )
   );
 }
@@ -11927,6 +12161,342 @@ function SmokeTestPanel(){
     )
   );
 }
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.74 — Block 7: Lazy-Image mit IntersectionObserver
+// ═══════════════════════════════════════════════════════════════════
+function LazyImg({src,alt,style,fallback}){
+  const [visible,setVisible]=_react.useState.call(void 0, false);
+  const [error,setError]=_react.useState.call(void 0, false);
+  const ref=_react.useRef.call(void 0, null);
+  _react.useEffect.call(void 0, ()=>{
+    if(!ref.current||!('IntersectionObserver' in window)){setVisible(true);return;}
+    const obs=new IntersectionObserver(([e])=>{if(e.isIntersecting){setVisible(true);obs.disconnect();}},{threshold:0.1,rootMargin:'100px'});
+    obs.observe(ref.current);
+    return()=>obs.disconnect();
+  },[]);
+  const bg=V.cd;
+  return React.createElement('div',{ref,style:{background:bg,overflow:'hidden',...(style||{})}},
+    visible&&!error
+      ?React.createElement('img',{src:src,alt:alt||'',style:{width:'100%',height:'100%',objectFit:'cover',display:'block'},onError:()=>setError(true),loading:'lazy'})
+      :error
+        ?React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',fontSize:24,color:V.dm}},fallback||'🖼️')
+        :React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:V.dm,fontSize:11}},'⏳')
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.74 — Block 4: System-Config-Panel (admin only, im Einstellungs-Tab)
+// ═══════════════════════════════════════════════════════════════════
+function SystemConfigPanel({curUser}){
+  const [cfg,setCfg]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [saving,setSaving]=_react.useState.call(void 0, {});
+  _react.useEffect.call(void 0, ()=>{
+    (async()=>{
+      try{const d=await _api.get('system_config','select=*&order=key.asc');setCfg(d||[]);}
+      catch(e){window._showToast?.('System-Config laden fehlgeschlagen: '+e.message,'error');}
+      setLoading(false);
+    })();
+  },[]);
+  const save=async(key,value)=>{
+    setSaving(p=>({...p,[key]:true}));
+    try{
+      await _api.patch('system_config',key,{value:value,updated_at:new Date().toISOString(),updated_by:curUser.name});
+      window._showToast?.(key+' gespeichert','success');
+      window._haptic.success();
+    }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
+    setSaving(p=>({...p,[key]:false}));
+  };
+  if(curUser.role!=='admin')return null;
+  if(loading)return React.createElement('div',{style:{padding:20,color:V.dm}},'Lade System-Konfiguration…');
+  return React.createElement('div',{style:CC()}
+    ,React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:4}},'⚙️ System-Konfiguration')
+    ,React.createElement('div',{style:{fontSize:11,color:V.dm,marginBottom:12}},'Globale Einstellungen (nur Admin)')
+    ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:8}},cfg.map(row=>
+      React.createElement('div',{key:row.key,style:{display:'flex',gap:8,alignItems:'center',padding:'8px 10px',background:V.bg,borderRadius:6,border:'1px solid '+V.bd}}
+        ,React.createElement('div',{style:{flex:1,minWidth:0}}
+          ,React.createElement('div',{style:{fontWeight:700,fontSize:12,fontFamily:mono,color:V.ac}},row.key)
+          ,row.description&&React.createElement('div',{style:{fontSize:11,color:V.dm,marginTop:2}},row.description)
+          ,row.updated_by&&React.createElement('div',{style:{fontSize:10,color:V.mt,marginTop:2}},'✏ '+row.updated_by+' · '+window._fmtDatetime?.(row.updated_at))
+        )
+        ,React.createElement('input',{defaultValue:row.value||'',onBlur:e=>{if(e.target.value!==row.value){save(row.key,e.target.value);setCfg(p=>p.map(r=>r.key===row.key?{...r,value:e.target.value}:r));}},style:{...II(),width:130,fontSize:12,padding:'6px 10px',textAlign:'right'}})
+        ,saving[row.key]&&React.createElement('span',{style:{fontSize:11,color:V.dm}},'⏳')
+      )
+    ))
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.74 — Block 1: AS-Vorlagen-Panel + vorlagenFill-Bus
+// ═══════════════════════════════════════════════════════════════════
+window._vorlagenBus={listeners:[],subscribe:function(fn){this.listeners.push(fn);return()=>{this.listeners=this.listeners.filter(x=>x!==fn);};},fire:function(v){this.listeners.forEach(fn=>{try{fn(v);}catch(_){}})}};
+function ASVorlagenPanel({curUser}){
+  const [vorlagen,setVorlagen]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [showForm,setShowForm]=_react.useState.call(void 0, false);
+  const [form,setForm]=_react.useState.call(void 0, {name:'',scheinart:'stoerung',arbeitsanweisungen:'',geschaetzte_dauer:0,prioritaet:'normal'});
+  const isAdmin=curUser.role==='admin'||curUser.role==='projektleiter';
+  _react.useEffect.call(void 0, ()=>{
+    (async()=>{try{const d=await _api.get('as_vorlagen','order=name.asc');setVorlagen(d||[]);}catch(e){window._showToast?.('Vorlagen laden: '+e.message,'error');}setLoading(false);})();
+  },[]);
+  const save=async()=>{
+    if(!form.name.trim()){window._showToast?.('Name erforderlich','warning');return;}
+    try{
+      const created=await _api.post('as_vorlagen',{...form,id:crypto.randomUUID(),created_by:curUser.name});
+      setVorlagen(prev=>[created,...prev].sort((a,b)=>(a.name||'').localeCompare(b.name||'')));
+      setShowForm(false);
+      setForm({name:'',scheinart:'stoerung',arbeitsanweisungen:'',geschaetzte_dauer:0,prioritaet:'normal'});
+      window._showToast?.('Vorlage gespeichert','success');
+      window._haptic.success();
+    }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
+  };
+  const del=async(id)=>{
+    if(!confirm('Vorlage wirklich löschen?'))return;
+    try{await _api.delete('as_vorlagen',id);setVorlagen(prev=>prev.filter(v=>v.id!==id));window._showToast?.('Vorlage gelöscht','success');window._haptic.confirm();}
+    catch(e){window._showToast?.('Fehler: '+e.message,'error');}
+  };
+  const apply=(v)=>{window._vorlagenBus.fire(v);window._showToast?.('Vorlage "'+v.name+'" wird beim nächsten AS-Neu verwendet','success');};
+  if(loading)return React.createElement('div',{style:{padding:20,color:V.dm}},'Lade Vorlagen…');
+  return React.createElement('div',{style:{padding:12}}
+    ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}
+      ,React.createElement('h2',{style:{fontSize:window.innerWidth<600?18:22,fontWeight:800,margin:0}},'📋 AS-Vorlagen')
+      ,isAdmin&&React.createElement('button',{onClick:()=>setShowForm(!showForm),style:showForm?bdS:bpS},showForm?'✕ Abbrechen':'+ Neue Vorlage')
+    )
+    ,showForm&&React.createElement('div',{style:{...CC(),marginBottom:14}}
+      ,React.createElement('div',{style:{fontWeight:700,marginBottom:10,fontSize:14}},'Neue Vorlage')
+      ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Name *'),React.createElement('input',{value:form.name,onChange:e=>setForm(p=>({...p,name:e.target.value})),placeholder:'z.B. Gastherme Störung',style:II()}))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Scheinart'),React.createElement('select',{value:form.scheinart,onChange:e=>setForm(p=>({...p,scheinart:e.target.value})),style:II()},['stoerung','montage','reparatur','lieferung','mangelbehebung','garantie','wartung','regie'].map(v=>React.createElement('option',{key:v,value:v},v))))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Priorität'),React.createElement('select',{value:form.prioritaet,onChange:e=>setForm(p=>({...p,prioritaet:e.target.value})),style:II()},['keine','normal','hoch','sehr_hoch','fixtermin'].map(v=>React.createElement('option',{key:v,value:v},v))))
+        ,React.createElement('div',{},React.createElement('label',{style:LL()},'Gesch. Dauer (h)'),React.createElement('input',{type:'number',min:0,step:0.5,value:form.geschaetzte_dauer,onChange:e=>setForm(p=>({...p,geschaetzte_dauer:parseFloat(e.target.value)||0})),style:II()}))
+      )
+      ,React.createElement('div',{style:{marginBottom:10}}
+        ,React.createElement('label',{style:LL()},'Arbeitsanweisungen')
+        ,React.createElement('textarea',{value:form.arbeitsanweisungen,onChange:e=>setForm(p=>({...p,arbeitsanweisungen:e.target.value})),rows:3,placeholder:'Standard-Anweisungen...',style:{...II(),resize:'vertical',minHeight:60}})
+      )
+      ,React.createElement('button',{onClick:save,style:bpS},'💾 Vorlage speichern')
+    )
+    ,vorlagen.length===0
+      ?React.createElement('div',{style:{textAlign:'center',padding:30,color:V.dm}},React.createElement('div',{style:{fontSize:48,marginBottom:8}},'📋'),React.createElement('div',{style:{fontSize:14,fontWeight:600,marginBottom:4}},'Noch keine Vorlagen'),React.createElement('div',{style:{fontSize:12}},'Erstelle Vorlagen für wiederkehrende Arbeitsscheine.'))
+      :React.createElement('div',{style:{display:'grid',gap:8}}
+        ,vorlagen.map(v=>React.createElement('div',{key:v.id,style:{...CC(),padding:12,display:'flex',gap:10,alignItems:'flex-start'}}
+          ,React.createElement('div',{style:{flex:1,minWidth:0}}
+            ,React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:4}},v.name)
+            ,React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:4}}
+              ,React.createElement('span',{style:{background:V.ac+'22',color:V.ac,padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700}},v.scheinart||'—')
+              ,React.createElement('span',{style:{background:V.bd,color:V.dm,padding:'1px 7px',borderRadius:10,fontSize:10}},v.prioritaet||'normal')
+              ,v.geschaetzte_dauer>0&&React.createElement('span',{style:{background:V.bd,color:V.dm,padding:'1px 7px',borderRadius:10,fontSize:10}},'⏱ '+v.geschaetzte_dauer+'h')
+            )
+            ,v.arbeitsanweisungen&&React.createElement('div',{style:{fontSize:11,color:V.dm,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:500}},v.arbeitsanweisungen)
+            ,v.created_by&&React.createElement('div',{style:{fontSize:10,color:V.mt,marginTop:3}},'von '+v.created_by+' · '+window._fmtRelative?.(v.created_at))
+          )
+          ,React.createElement('div',{style:{display:'flex',gap:6,flexShrink:0}}
+            ,React.createElement('button',{onClick:()=>apply(v),title:'Als neuen AS verwenden',style:{...bpS,padding:'5px 10px',fontSize:11}},'+ Verwenden')
+            ,isAdmin&&React.createElement('button',{onClick:()=>del(v.id),title:'Löschen',style:{...bdS,padding:'5px 10px',fontSize:11}},'🗑')
+          )
+        ))
+      )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.74 — Block 2: AS-Checkliste-Panel (pro AS)
+// ═══════════════════════════════════════════════════════════════════
+function ASChecklistPanel({asId,curUser,editable}){
+  const [items,setItems]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [newText,setNewText]=_react.useState.call(void 0, '');
+  const inputRef=_react.useRef.call(void 0, null);
+  _react.useEffect.call(void 0, ()=>{
+    (async()=>{try{const d=await _api.get('as_checklist','as_id=eq.'+encodeURIComponent(asId)+'&order=sort_order.asc,created_at.asc');setItems(d||[]);}catch(e){window._showToast?.('Checkliste laden: '+e.message,'error');}setLoading(false);})();
+  },[asId]);
+  const add=async()=>{
+    const text=newText.trim();if(!text)return;
+    const item={id:crypto.randomUUID(),as_id:asId,text,erledigt:false,sort_order:items.length};
+    try{await _api.post('as_checklist',item);setItems(prev=>[...prev,item]);setNewText('');inputRef.current?.focus();window._haptic.tap();}
+    catch(e){window._showToast?.('Hinzufügen fehlgeschlagen: '+e.message,'error');}
+  };
+  const toggle=async(item)=>{
+    const upd={erledigt:!item.erledigt,erledigt_von:!item.erledigt?curUser.name:null,erledigt_at:!item.erledigt?new Date().toISOString():null};
+    try{await _api.patch('as_checklist',item.id,upd);setItems(prev=>prev.map(i=>i.id===item.id?{...i,...upd}:i));window._haptic.tick();}
+    catch(e){window._showToast?.('Aktualisieren fehlgeschlagen: '+e.message,'error');}
+  };
+  const del=async(id)=>{
+    try{await _api.delete('as_checklist',id);setItems(prev=>prev.filter(i=>i.id!==id));window._haptic.confirm();}
+    catch(e){window._showToast?.('Löschen fehlgeschlagen: '+e.message,'error');}
+  };
+  if(loading)return React.createElement('div',{style:{padding:12,color:V.dm,fontSize:12}},'Lade Checkliste…');
+  const done=items.filter(i=>i.erledigt).length;
+  const total=items.length;
+  const pct=total>0?Math.round(done/total*100):0;
+  return React.createElement('div',{style:{padding:12}}
+    ,total>0&&React.createElement('div',{style:{marginBottom:12}}
+      ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,color:V.dm,marginBottom:4}}
+        ,React.createElement('span',{},done+' von '+total+' erledigt')
+        ,React.createElement('span',{style:{fontWeight:700,color:pct===100?'#22c55e':V.ac}},pct+'%')
+      )
+      ,React.createElement('div',{style:{height:5,background:V.bd,borderRadius:3,overflow:'hidden'}}
+        ,React.createElement('div',{style:{height:'100%',width:pct+'%',background:pct===100?'#22c55e':V.ac,transition:'width .4s ease'}})
+      )
+    )
+    ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:5,marginBottom:10}}
+      ,items.map(item=>React.createElement('div',{key:item.id,style:{display:'flex',alignItems:'center',gap:8,padding:'7px 9px',background:item.erledigt?V.ac+'15':V.cd,borderRadius:6,border:'1px solid '+(item.erledigt?V.ac+'55':V.bd),opacity:item.erledigt?.8:1}}
+        ,React.createElement('div',{onClick:editable?()=>toggle(item):null,style:{width:18,height:18,borderRadius:4,flexShrink:0,cursor:editable?'pointer':'default',border:'2px solid '+(item.erledigt?V.ac:V.dm),background:item.erledigt?V.ac:'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}
+          ,item.erledigt&&React.createElement('span',{style:{color:'#fff',fontSize:11,fontWeight:800}},'✓')
+        )
+        ,React.createElement('div',{style:{flex:1}}
+          ,React.createElement('div',{style:{fontSize:13,textDecoration:item.erledigt?'line-through':'none',color:item.erledigt?V.dm:V.tx}},item.text)
+          ,item.erledigt&&item.erledigt_von&&React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:1}},'✓ '+item.erledigt_von+' · '+window._fmtRelative?.(item.erledigt_at))
+        )
+        ,editable&&React.createElement('button',{onClick:()=>del(item.id),style:{background:'none',border:'none',color:V.dm,cursor:'pointer',fontSize:14,padding:'2px 4px',opacity:.5}},'×')
+      ))
+    )
+    ,editable&&React.createElement('div',{style:{display:'flex',gap:6}}
+      ,React.createElement('input',{ref:inputRef,value:newText,onChange:e=>setNewText(e.target.value),onKeyDown:e=>{if(e.key==='Enter')add();},placeholder:'Neuer Punkt… (Enter)',style:{...II(),flex:1,fontSize:13}})
+      ,React.createElement('button',{onClick:add,style:{...bpS,padding:'7px 13px'}},'+')
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.74 — Block 3: AS-Kommentare-Panel (@Mentions)
+// ═══════════════════════════════════════════════════════════════════
+function ASKommentarePanel({asId,curUser,monteure,users}){
+  const [kommentare,setKommentare]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [text,setText]=_react.useState.call(void 0, '');
+  const [sending,setSending]=_react.useState.call(void 0, false);
+  const [showMentions,setShowMentions]=_react.useState.call(void 0, false);
+  const [mentionFilter,setMentionFilter]=_react.useState.call(void 0, '');
+  const textRef=_react.useRef.call(void 0, null);
+  _react.useEffect.call(void 0, ()=>{
+    (async()=>{try{const d=await _api.get('as_kommentare','as_id=eq.'+encodeURIComponent(asId)+'&order=created_at.asc');setKommentare(d||[]);}catch(e){window._showToast?.('Kommentare laden: '+e.message,'error');}setLoading(false);})();
+  },[asId]);
+  const handleChange=(e)=>{
+    const val=e.target.value;setText(val);
+    const atIdx=val.lastIndexOf('@');
+    if(atIdx>=0){
+      const afterAt=val.substring(atIdx+1);
+      if(!afterAt.includes(' ')&&afterAt.length<20){setMentionFilter(afterAt.toLowerCase());setShowMentions(true);return;}
+    }
+    setShowMentions(false);
+  };
+  const insertMention=async(w)=>{
+    const atIdx=text.lastIndexOf('@');
+    const newText=text.substring(0,atIdx)+'@'+w.n+' ';
+    setText(newText);setShowMentions(false);textRef.current?.focus();
+    // Notif an Ziel-User
+    const tgtUser=(users||[]).find(u=>u.monteurId===w.id||u.monteur_id===w.id);
+    if(tgtUser&&tgtUser.id!==curUser.id){
+      try{await _api.post('notifications',{id:crypto.randomUUID(),user_id:tgtUser.id,type:'as_status',title:curUser.name+' hat dich erwähnt',body:'Kommentar zu AS #'+asId,read:0,link:'arbeitsscheine'});}catch(_){}
+    }
+  };
+  const send=async()=>{
+    const t=text.trim();if(!t||sending)return;
+    setSending(true);
+    const k={id:crypto.randomUUID(),as_id:asId,text:t,autor_id:curUser.id,created_at:new Date().toISOString()};
+    try{await _api.post('as_kommentare',k);setKommentare(prev=>[...prev,{...k,autor_name:curUser.name}]);setText('');window._haptic.success();}
+    catch(e){window._showToast?.('Senden fehlgeschlagen: '+e.message,'error');window._haptic.error();}
+    setSending(false);
+  };
+  const del=async(id)=>{
+    if(!confirm('Kommentar löschen?'))return;
+    try{await _api.delete('as_kommentare',id);setKommentare(prev=>prev.filter(k=>k.id!==id));window._haptic.confirm();}
+    catch(e){window._showToast?.('Löschen fehlgeschlagen: '+e.message,'error');}
+  };
+  if(loading)return React.createElement('div',{style:{padding:12,color:V.dm,fontSize:12}},'Lade Kommentare…');
+  const fieldMA=(monteure||[]).filter(m=>(m.n||'').toLowerCase().includes(mentionFilter));
+  return React.createElement('div',{style:{padding:12}}
+    ,kommentare.length===0
+      ?React.createElement('div',{style:{textAlign:'center',padding:20,color:V.dm,fontSize:12}},'Noch keine Kommentare.')
+      :React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}
+        ,kommentare.map(k=>{
+          const isOwn=k.autor_id===curUser.id;
+          const userObj=(users||[]).find(u=>u.id===k.autor_id);
+          const name=userObj?userObj.name:(k.autor_name||k.autor_id);
+          const initials=(name||'?').substring(0,2).toUpperCase();
+          return React.createElement('div',{key:k.id,style:{display:'flex',gap:8,alignItems:'flex-start'}}
+            ,React.createElement('div',{style:{width:30,height:30,borderRadius:'50%',background:V.ac+'55',color:V.ac,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}},initials)
+            ,React.createElement('div',{style:{flex:1,minWidth:0}}
+              ,React.createElement('div',{style:{display:'flex',gap:6,alignItems:'baseline',marginBottom:3}}
+                ,React.createElement('span',{style:{fontWeight:700,fontSize:12}},name)
+                ,React.createElement('span',{style:{fontSize:10,color:V.dm}},window._fmtRelative?.(k.created_at)||k.created_at?.substring(0,10))
+              )
+              ,React.createElement('div',{style:{background:V.cd,borderRadius:8,padding:'7px 10px',fontSize:13,lineHeight:1.45,whiteSpace:'pre-wrap',wordBreak:'break-word'}}
+                ,k.text.split(/(@\w+)/g).map((part,i)=>part.startsWith('@')?React.createElement('strong',{key:i,style:{color:V.ac}},part):part)
+              )
+              ,isOwn&&React.createElement('button',{onClick:()=>del(k.id),style:{background:'none',border:'none',color:V.dm,fontSize:10,cursor:'pointer',padding:'2px 0',marginTop:2}},'🗑 Löschen')
+            )
+          );
+        })
+      )
+    ,React.createElement('div',{style:{position:'relative'}}
+      ,showMentions&&fieldMA.length>0&&React.createElement('div',{style:{position:'absolute',bottom:'100%',left:0,right:0,background:V.sb,border:'1px solid '+V.bd,borderRadius:6,maxHeight:150,overflowY:'auto',zIndex:100,boxShadow:'0 4px 12px rgba(0,0,0,.3)',marginBottom:4}}
+        ,fieldMA.slice(0,6).map(w=>React.createElement('div',{key:w.id,onClick:()=>insertMention(w),style:{padding:'7px 10px',cursor:'pointer',fontSize:12,display:'flex',gap:8,alignItems:'center'}}
+          ,React.createElement('span',{style:{fontSize:16}},'👷')
+          ,React.createElement('span',{},(w.vorname?w.vorname+' ':'')+w.n)
+        ))
+      )
+      ,React.createElement('div',{style:{display:'flex',gap:6}}
+        ,React.createElement('textarea',{ref:textRef,value:text,onChange:handleChange,onKeyDown:e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();if(e.key==='Escape')setShowMentions(false);},placeholder:'Kommentar… (@Name = Mention, Ctrl+Enter = Senden)',rows:2,style:{...II(),flex:1,fontSize:13,resize:'vertical',minHeight:50}})
+        ,React.createElement('button',{onClick:send,disabled:sending||!text.trim(),style:{...bpS,alignSelf:'flex-end',opacity:sending||!text.trim()?.5:1}},sending?'…':'Senden')
+      )
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.74 — Block 5: Worker-Kompetenzen-Panel
+// ═══════════════════════════════════════════════════════════════════
+const KOMPETENZEN_DEFS=[
+  {key:'elektro',label:'Elektroinstallation',icon:'⚡'},
+  {key:'sanitaer',label:'Sanitär',icon:'🚿'},
+  {key:'heizung',label:'Heizungsanlagen',icon:'🔥'},
+  {key:'gas',label:'Gasanlagen',icon:'🔵'},
+  {key:'klima',label:'Klima/Lüftung',icon:'❄️'},
+  {key:'solar',label:'Solar/PV',icon:'☀️'},
+  {key:'schwachstrom',label:'Schwachstrom/EDV',icon:'📡'},
+  {key:'wasserleitung',label:'Wasserleitung',icon:'💧'},
+  {key:'erdgas',label:'Erdgas-Konzession',icon:'🏭'},
+  {key:'knx',label:'KNX-Programmierung',icon:'🧠'},
+];
+function WorkerKompetenzenPanel({workerId,curUser,editable}){
+  const [komps,setKomps]=_react.useState.call(void 0, []);
+  const [loading,setLoading]=_react.useState.call(void 0, true);
+  const load=async()=>{try{const d=await _api.get('worker_kompetenzen','worker_id=eq.'+encodeURIComponent(workerId));setKomps(d||[]);}catch(e){window._showToast?.('Kompetenzen laden: '+e.message,'error');}setLoading(false);};
+  _react.useEffect.call(void 0, ()=>{load();},[workerId]);
+  const toggle=async(key)=>{
+    const existing=komps.find(k=>k.kompetenz===key);
+    if(existing){if(!confirm('Kompetenz entfernen?'))return;try{await _api.delete('worker_kompetenzen',existing.id);setKomps(prev=>prev.filter(k=>k.kompetenz!==key));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}}
+    else{try{const neu=await _api.post('worker_kompetenzen',{id:crypto.randomUUID(),worker_id:workerId,kompetenz:key,level:1});setKomps(prev=>[...prev,neu]);window._haptic.success();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}}
+  };
+  const setLevel=async(key,level)=>{
+    const ex=komps.find(k=>k.kompetenz===key);if(!ex)return;
+    try{await _api.patch('worker_kompetenzen',ex.id,{level});setKomps(prev=>prev.map(k=>k.kompetenz===key?{...k,level}:k));window._haptic.tap();}
+    catch(e){window._showToast?.('Fehler: '+e.message,'error');}
+  };
+  if(loading)return React.createElement('div',{style:{padding:12,color:V.dm,fontSize:12}},'Lade…');
+  return React.createElement('div',{style:{padding:12}}
+    ,React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:10}},'🎓 Kompetenzen & Qualifikationen')
+    ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}
+      ,KOMPETENZEN_DEFS.map(({key,label,icon})=>{
+        const ex=komps.find(k=>k.kompetenz===key);
+        const has=!!ex;
+        return React.createElement('div',{key,onClick:editable?()=>toggle(key):null,style:{background:has?V.ac+'18':V.cd,border:'2px solid '+(has?V.ac:V.bd),borderRadius:8,padding:10,cursor:editable?'pointer':'default',transition:'all .2s'}}
+          ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}
+            ,React.createElement('span',{style:{fontSize:20}},icon)
+            ,has&&React.createElement('span',{style:{color:V.ac,fontWeight:700,fontSize:14}},'✓')
+          )
+          ,React.createElement('div',{style:{fontSize:12,fontWeight:600}},label)
+          ,has&&React.createElement('div',{style:{display:'flex',gap:1,marginTop:4}}
+            ,[1,2,3].map(lvl=>React.createElement('span',{key:lvl,onClick:editable?e=>{e.stopPropagation();setLevel(key,lvl);}:null,style:{fontSize:12,cursor:editable?'pointer':'default',opacity:ex.level>=lvl?1:.3}},'⭐'))
+          )
+        );
+      })
+    )
+  );
+}
+
 function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkzeuge,fahrzeuge,chartCfg,setChartCfg,ww,curUser,projects}){
   const isMob=ww<600;
   const gc=(key,def)=>_nullishCoalesce(chartCfg[key], () => (def));

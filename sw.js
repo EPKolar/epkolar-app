@@ -1,22 +1,19 @@
-// EP Kolar Service Worker v3.5.72
-const CACHE_NAME = 'epkolar-v3.5.72';
+// EP Kolar Service Worker v3.5.74
+const CACHE_NAME = 'epkolar-v3.5.74';
 const ASSETS = [
   './',
   './index.html'
 ];
 
-// Install: Pre-cache essential assets — do NOT skipWaiting automatically
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
-  // Notify all clients that update is available
   self.clients.matchAll().then(clients => {
     clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
   });
 });
 
-// Activate: Clean old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -25,21 +22,10 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: Network-first with cache fallback
 self.addEventListener('fetch', event => {
   const url = event.request.url;
-
-  // Skip non-http(s) schemes (chrome-extension://, blob://, data://, etc.)
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return;
-  }
-
-  // Skip Supabase API + Storage calls — never cache REST/Storage data
-  if (url.includes('supabase.co')) {
-    return;
-  }
-
-  // Skip external CDN — let browser handle caching via headers
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+  if (url.includes('supabase.co')) return;
   if (url.includes('cdnjs.cloudflare.com')) {
     event.respondWith(
       caches.match(event.request).then(cached => {
@@ -55,8 +41,6 @@ self.addEventListener('fetch', event => {
     );
     return;
   }
-
-  // App shell: Network first, cache fallback
   event.respondWith(
     fetch(event.request).then(response => {
       if (response && response.ok && event.request.method === 'GET') {
@@ -70,14 +54,10 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Message handler for skip-waiting
 self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// Background sync support
 self.addEventListener('sync', event => {
   if (event.tag === 'epkolar-sync') {
     event.waitUntil(
