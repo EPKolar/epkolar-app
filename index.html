@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.75';
+  var SW_VER='epkolar-v3.5.76';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -380,22 +380,26 @@ function _processToastQueue(){
 // ═══════════════════════════════════════════════════════════════════
 const _api={
   async get(table,query,opts){
+    await window._ensureAuth?.();
     const url=SUPABASE_URL+"/rest/v1/"+table+(query?"?"+query:"");
     const r=await _authRetry(()=>fetch(url,{headers:_sbH()}));
     if(!r.ok){const txt=await r.text();throw new Error("GET "+table+" "+r.status+": "+txt.substring(0,200));}
     return r.json();
   },
   async post(table,data){
+    await window._ensureAuth?.();
     const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table,{method:'POST',headers:_sbWH("return=representation"),body:JSON.stringify(data)}));
     if(!r.ok){const txt=await r.text();throw new Error("POST "+table+" "+r.status+": "+txt.substring(0,200));}
     const d=await r.json();return Array.isArray(d)?d[0]:d;
   },
   async patch(table,id,data){
+    await window._ensureAuth?.();
     const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table+"?id=eq."+encodeURIComponent(id),{method:'PATCH',headers:_sbWH("return=representation"),body:JSON.stringify(data)}));
     if(!r.ok){const txt=await r.text();throw new Error("PATCH "+table+" "+r.status+": "+txt.substring(0,200));}
     const d=await r.json();return Array.isArray(d)?d[0]:d;
   },
   async delete(table,id){
+    await window._ensureAuth?.();
     const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table+"?id=eq."+encodeURIComponent(id),{method:'DELETE',headers:_sbH()}));
     if(!r.ok){const txt=await r.text();throw new Error("DELETE "+table+" "+r.status+": "+txt.substring(0,200));}
     return true;
@@ -512,6 +516,26 @@ window._measurePerf=async function(){
   return m;
 };
 
+// v3.5.76 Block 1: B-001 FINAL — _ensureAuth() vor jedem kritischen DB-Call
+// Garantiert dass _authToken gültig & nicht anon ist; refreshen bei Bedarf
+window._ensureAuth=async function(){
+  const tok=window._authToken||_authToken;
+  if(!tok){try{await _sbAuthRefresh();}catch(_){}return !!_authToken;}
+  try{
+    const parts=tok.split('.');
+    if(parts.length!==3)throw new Error('malformed');
+    const payload=JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    const now=Math.floor(Date.now()/1000);
+    if(payload.role==='anon'||(payload.exp&&payload.exp<now+300)){
+      try{await _sbAuthRefresh();}catch(_){}
+    }
+    return !!_authToken;
+  }catch(e){
+    console.warn('[B-001] Token parse failed, triggering refresh:',e.message);
+    try{await _sbAuthRefresh();}catch(_){}
+    return !!_authToken;
+  }
+};
 // v3.5.70 Block 5a: B-001 Fix — proaktiver Auto-Refresh bei anon-JWT
 let _sbHLastRefreshAt=0;
 function _sbH(extra){
@@ -1207,7 +1231,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.75-supabase";
+const APP_VERSION="3.5.76-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
