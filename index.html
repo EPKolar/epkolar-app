@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.77';
+  var SW_VER='epkolar-v3.5.78';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1231,7 +1231,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.77-supabase";
+const APP_VERSION="3.5.78-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 window.onerror=function(msg,src,line,col,err){
@@ -3552,6 +3552,8 @@ function LoginScreen({onLogin,onPortal,projects}){
   return (
     React.createElement('div', { style: {minHeight:"100vh",background:V.bg,color:V.tx,fontFamily:"system-ui,-apple-system,sans-serif",fontSize:15,lineHeight:1.5}}
       , React.createElement('style', {}, GCSS())
+      /* v3.5.78 Block 11: Offline-Banner + SyncQueue-Count */
+      , React.createElement(OfflineBanner, { pendingCount: pendingCount, syncStatus: syncStatus} )
       /* v3.5.72 Block 8a: Timer Banner (sichtbar auf allen Seiten wenn Timer läuft) */
       , React.createElement(TimerBanner, { curUser: curUser, projects: projects, setEntries: setEntries} )
       /* ═══ GLOBAL SEARCH OVERLAY ═══ */
@@ -6066,6 +6068,25 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   );
 }
 // ═══════════ PROJECT LIST — TILE CARDS + STATUS FILTER ═══════════
+// v3.5.78 Block 11: Offline-Banner + pending SQ-Count
+function OfflineBanner({pendingCount,syncStatus}){
+  const [online,setOnline]=_react.useState.call(void 0, navigator.onLine);
+  _react.useEffect.call(void 0, ()=>{
+    const up=()=>setOnline(true);const down=()=>setOnline(false);
+    window.addEventListener('online',up);window.addEventListener('offline',down);
+    return()=>{window.removeEventListener('online',up);window.removeEventListener('offline',down);};
+  },[]);
+  if(online&&!(pendingCount>0))return null;
+  const syncing=syncStatus&&syncStatus.syncing;
+  return React.createElement('div', { style: {position:"sticky",top:0,zIndex:149,background:online?(syncing?"#3b82f6":"#f97316"):"#ef4444",color:"#fff",padding:"6px 14px",display:"flex",alignItems:"center",gap:10,fontSize:12,fontWeight:600,boxShadow:"0 2px 6px rgba(0,0,0,.2)"}}
+    , React.createElement('span', { style: {fontSize:14}}, online?(syncing?"🔄":"📶"):"📡")
+    , React.createElement('span', { style: {flex:1}},
+        !online?"Offline — Änderungen werden lokal gespeichert und später synchronisiert":
+        syncing?("Synchronisiere "+pendingCount+" ausstehende Änderungen…"):
+        ("📤 "+pendingCount+" Änderung"+(pendingCount!==1?"en":"")+" warten auf Sync"))
+    , online&&pendingCount>0&&!syncing&&React.createElement('button', { onClick: ()=>{window.__doSync&&window.__doSync();}, style: {padding:"3px 10px",borderRadius:4,border:"1px solid rgba(255,255,255,.4)",background:"rgba(255,255,255,.2)",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}, "🔄 Jetzt sync")
+  );
+}
 // v3.5.72 Block 8a: Timer-Banner — sichtbar auf allen Seiten wenn Timer läuft
 function TimerBanner({curUser,projects,setEntries}){
   const [state,setState]=_react.useState.call(void 0, ()=>window._epkTimer.get());
