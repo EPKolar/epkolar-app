@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.111';
+  var SW_VER='epkolar-v3.5.112';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -548,13 +548,21 @@ async function _sbAuthLogin(email,password){
   if(!r.ok){const e=await r.text();throw new Error("Auth: "+r.status+" "+e);}
   return r.json();
 }
+// v3.5.112: Flight-Promise-Guard — verhindert parallele Refresh-Races, die
+// mit Supabase-Refresh-Token-Rotation sonst zum Logout führen.
+let _authRefreshInflight=null;
 async function _sbAuthRefresh(){
-  if(!_authRefreshToken){return _silentReAuth();}
-  try{
-    const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})});
-    if(!r.ok){console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");return _silentReAuth();}
-    const d=await r.json();_storeAuth(d);return d;
-  }catch(e){console.warn("[Auth] Refresh error:",e);return _silentReAuth();}
+  if(_authRefreshInflight)return _authRefreshInflight;
+  _authRefreshInflight=(async()=>{
+    try{
+      if(!_authRefreshToken){return await _silentReAuth();}
+      const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})});
+      if(!r.ok){console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");return await _silentReAuth();}
+      const d=await r.json();_storeAuth(d);return d;
+    }catch(e){console.warn("[Auth] Refresh error:",e);return await _silentReAuth();}
+    finally{setTimeout(()=>{_authRefreshInflight=null;},50);}
+  })();
+  return _authRefreshInflight;
 }
 async function _silentReAuth(){
   try{const c=JSON.parse(localStorage.getItem("epkolar_gc")||"null");
@@ -1219,7 +1227,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.111-supabase";
+const APP_VERSION="3.5.112-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
