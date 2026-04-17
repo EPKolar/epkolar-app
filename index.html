@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.108';
+  var SW_VER='epkolar-v3.5.109';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -977,7 +977,7 @@ async function _translateAndExec(url,method,body){
           if(d.kmStand||d.km_stand){
             const km=parseInt(d.kmStand||d.km_stand)||0;
             const kl=JSON.parse(fz[0].km_log||'[]');
-            kl.push({km:km,date:new Date().toISOString().slice(0,10)});
+            kl.push({km:km,date:_ymd(new Date())});
             patch.km_stand=km;
             patch.km_log=JSON.stringify(kl);
           }
@@ -994,7 +994,7 @@ async function _translateAndExec(url,method,body){
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
           const kl=JSON.parse(fz[0].km_log||'[]');
-          kl.push({km:km,date:new Date().toISOString().slice(0,10)});
+          kl.push({km:km,date:_ymd(new Date())});
           await _sbPatch("fahrzeuge",idOrSub,{km_stand:km,km_log:JSON.stringify(kl),updated_at:new Date().toISOString()});
         }
       }catch(e){console.warn("KM update:",e);}
@@ -1219,7 +1219,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.108-supabase";
+const APP_VERSION="3.5.109-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -3079,7 +3079,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           }
           // ═══ SCHEMA VERSION CHECK ═══
           if(curUser.role==="admin"){try{const _sc=await fetch(SB_REST+"/bautagebuch?select=id&limit=1",{headers:_sbRH()});if(!_sc.ok)throw new Error(_sc.status);}catch(e){_optionalChain([window, 'access', _schk1 => _schk1.__toast, 'optionalCall', _schk2 => _schk2("⚠️ DB-Schema veraltet — SQL-Migration ausführen! (setup_bautagebuch.sql + fix_schema_v3.3.5.sql)","warn")]);}}
-          setSyncStatus(p=>({...p,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));
+          setSyncStatus(p=>({...p,lastSync:(()=>{const d=new Date();return _ymd(d)+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");})()}));
           // Flush pending queue
           const cnt=await SQ.count();
           if(cnt>0) doSync();
@@ -3307,7 +3307,7 @@ function LoginScreen({onLogin,onPortal,projects}){
         }
         const cnt=await SQ.count();
         setPendingCount(cnt);
-        setSyncStatus(p=>({...p,syncing:false,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));
+        setSyncStatus(p=>({...p,syncing:false,lastSync:(()=>{const d=new Date();return _ymd(d)+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");})()}));
         if(queue.length>0&&cnt<queue.length){const synced=queue.length-cnt;_optionalChain([window, 'access', _56 => _56.__toast, 'optionalCall', _57 => _57("🔄 "+synced+" Änderung"+(synced>1?"en":"")+" synchronisiert")]);}
         refreshPendingDetail();
         // Offline-Fotos hochladen
@@ -3531,7 +3531,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     const shouldSync=syncMode==="always"||(syncMode==="auto"&&syncStatus.isWifi);
     if(shouldSync&&syncStatus.connected&&syncStatus.serverOk){
       setSyncStatus(p=>({...p,syncing:true}));
-      setTimeout(()=>{setSyncStatus(p=>({...p,syncing:false,lastSync:new Date().toISOString().slice(0,16).replace("T"," ")}));},1200);
+      setTimeout(()=>{setSyncStatus(p=>({...p,syncing:false,lastSync:(()=>{const d=new Date();return _ymd(d)+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");})()}));},1200);
     }
     // Daily calibration check
     const lastCalibCheck=localStorage.getItem("epk_calib_check")||"";
@@ -4150,7 +4150,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
 
   // v3.5.74 Block 8: Schnell-Filter-Chip-State
   const [quickFilter,setQuickFilter]=_react.useState.call(void 0, "");
-  const _todayStr=new Date().toISOString().slice(0,10);
+  const _todayStr=_ymd(new Date());
   const filtered=arbeitsscheine.filter(a=>{
     if(isMonteurRole&&!isAdmin&&a.monteur!==curUser.monteurId) return false;
     if(filterStatus!=="alle"&&!(filterStatus==="offen_bearb"?AS_GRP_OFFEN.includes(a.scheinstatus):filterStatus==="fertig"?AS_GRP_FERTIG.includes(a.scheinstatus):a.scheinstatus===filterStatus)) return false;
@@ -7375,7 +7375,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   const kwMon=_react.useMemo.call(void 0, ()=>{const d=new Date(yr,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(calKw-1)*7);return d;},[calKw,yr]);
   const dayDate=(off)=>{const dt=new Date(kwMon);dt.setDate(kwMon.getDate()+off);return dt;};
   const dateFmt=(off)=>{const dt=dayDate(off);return String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0")+".";};
-  const isoDate=(off)=>{const dt=dayDate(off);return dt.toISOString().slice(0,10);};
+  const isoDate=(off)=>_ymd(dayDate(off));
   const DAYS=["Mo","Di","Mi","Do","Fr","Sa"];
   const isToday=(off)=>{const dt=dayDate(off);return dt.toDateString()===new Date().toDateString();};
 
@@ -7515,7 +7515,7 @@ function VBer({p,entries,kw,setKw,yr,curUser}){
   const pe=entries.filter(e=>(e.p===pid||e.pid===pid));
   const getISO=(y,w)=>{const d=new Date(y,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(w-1)*7);return d;};
   const wStart=getISO(yr,kw);const days=Array.from({length:7},(_,i)=>{const d=new Date(wStart);d.setDate(d.getDate()+i);return d;});
-  const dayStr=d=>d.toISOString().slice(0,10);
+  const dayStr=d=>_ymd(d);
   const totalH=pe.reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
   return (
     React.createElement('div', { className: "fade-in"}
@@ -12706,8 +12706,8 @@ function UrlaubsantragPanel({curUser,monteure,users}){
 // ═══════════════════════════════════════════════════════════════════
 function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeuge,ww,onNav,onOpenP}){
   const isMob=ww<700;
-  const _td=new Date().toISOString().slice(0,10);
-  const _weekStart=(function(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return d.toISOString().slice(0,10);})();
+  const _td=_ymd(new Date());
+  const _weekStart=(function(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return _ymd(d);})();
   const aktivProj=projects.filter(p=>p.status==='aktiv').length;
   const offeneAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)).length;
   const heuteAS=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;
@@ -12804,15 +12804,15 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
 function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
   const [entries,setEntries]=_react.useState.call(void 0, []);
   const [loading,setLoading]=_react.useState.call(void 0, true);
-  const [month,setMonth]=_react.useState.call(void 0, new Date().toISOString().slice(0,7));
+  const [month,setMonth]=_react.useState.call(void 0, _ymd(new Date()).slice(0,7));
   const [showForm,setShowForm]=_react.useState.call(void 0, false);
   const [saving,setSaving]=_react.useState.call(void 0, false);
-  const [form,setForm]=_react.useState.call(void 0, {datum:new Date().toISOString().slice(0,10),fahrzeug_id:'',zweck:'Dienstfahrt',km_start:'',km_ende:'',projekt_id:'',kraftstoff_liter:'',kraftstoff_preis_liter:''});
+  const [form,setForm]=_react.useState.call(void 0, {datum:_ymd(new Date()),fahrzeug_id:'',zweck:'Dienstfahrt',km_start:'',km_ende:'',projekt_id:'',kraftstoff_liter:'',kraftstoff_preis_liter:''});
   const load=async()=>{
     setLoading(true);
     try{
       const from=month+'-01';
-      const to=new Date(new Date(from).getTime()+32*86400000).toISOString().slice(0,10);
+      const to=_ymd(new Date(new Date(from).getTime()+32*86400000));
       const d=await _api.get('fahrtenbuch','worker_id=eq.'+encodeURIComponent(workerId)+'&datum=gte.'+from+'&datum=lt.'+to+'&order=datum.desc');
       setEntries(d||[]);
     }catch(e){window._showToast?.('Fahrtenbuch laden: '+e.message,'error');}
@@ -12832,7 +12832,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
       const created=await _api.post('fahrtenbuch',item);
       setEntries(prev=>[created,...prev]);
       setShowForm(false);
-      setForm({datum:new Date().toISOString().slice(0,10),fahrzeug_id:'',zweck:'Dienstfahrt',km_start:'',km_ende:'',projekt_id:'',kraftstoff_liter:'',kraftstoff_preis_liter:''});
+      setForm({datum:_ymd(new Date()),fahrzeug_id:'',zweck:'Dienstfahrt',km_start:'',km_ende:'',projekt_id:'',kraftstoff_liter:'',kraftstoff_preis_liter:''});
       window._showToast?.('Fahrt gespeichert','success');
       window._haptic.success();
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
@@ -13050,7 +13050,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const kwMon=_react.useMemo.call(void 0, ()=>{const d=new Date(yr,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(kw-1)*7);return d;},[kw,yr]);
   const dayDate=(off)=>{const dt=new Date(kwMon);dt.setDate(kwMon.getDate()+off);return dt;};
   const dateFmt=(off)=>{const dt=dayDate(off);return String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0")+".";};
-  const isoDate=(off)=>{const dt=dayDate(off);return dt.toISOString().slice(0,10);};
+  const isoDate=(off)=>_ymd(dayDate(off));
   const DAYS=["Mo","Di","Mi","Do","Fr","Sa"];
   const isToday=(off)=>{const dt=dayDate(off);const t=new Date();return dt.toDateString()===t.toDateString();};
 
