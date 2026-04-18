@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.144';
+  var SW_VER='epkolar-v3.5.145';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -484,6 +484,21 @@ window._runAllTests=async function(){
   await t('_api.get definiert',()=>typeof _api.get==='function');
   await t('_fmtDate funktioniert',()=>window._fmtDate('2026-04-17')==='17.04.2026');
   await t('_fmtEur funktioniert',()=>window._fmtEur(1234.5).includes('1.234'));
+
+  // v3.5.145: Regression-Tests für CRITICAL-Bugs dieser Session
+  await t('TC-T _ymd lokal CET (Jan 4)',()=>_ymd(new Date(2026,0,4))==='2026-01-04');
+  await t('TC-T _ymd lokal CEST (Juli)',()=>_ymd(new Date(2026,6,15))==='2026-07-15');
+  await t('TC-T kwD KW16 Mo',()=>kwD(2026,16)[0]==='2026-04-13');
+  await t('TC-J SUPABASE_KEY ist JWT',()=>_isJwtShape(SUPABASE_KEY)===true);
+  await t('TC-J "supabase-session" abgelehnt',()=>_isJwtShape('supabase-session')===false);
+  await t('TC-J null abgelehnt',()=>_isJwtShape(null)===false);
+  await t('TC-U _uuid matches v4-Regex',()=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(_uuid()));
+  await t('TC-M SQ 50 parallel-push (Mutex)',async()=>{await SQ.clear();await Promise.all(Array.from({length:50},(_,i)=>SQ.push({url:'/api/ztest'+i,method:'POST'})));const q=await SQ.getAll();await SQ.clear();return q.length===50;});
+  await t('TC-F _fT hat AbortSignal',()=>{const i=_fT({method:'GET'},1000);return !!i.signal;});
+  await t('TC-X _dl ist Funktion',()=>typeof _dl==='function');
+  await t('TC-R ErrorBoundary geladen',()=>typeof EpkErrorBoundary==='function');
+  await t('TC-S window.SB_REST exposed',()=>window.SB_REST===SUPABASE_URL+'/rest/v1');
+  await t('TC-S window._sbH === _sbH (kein Arrow-Wrapper)',()=>window._sbH===_sbH);
 
   console.log('\n=== '+passed+' PASS, '+failed+' FAIL ===');
   console.table(results);
@@ -1255,7 +1270,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.144-supabase";
+const APP_VERSION="3.5.145-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
