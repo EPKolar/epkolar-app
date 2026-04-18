@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.139';
+  var SW_VER='epkolar-v3.5.140';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1252,7 +1252,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.139-supabase";
+const APP_VERSION="3.5.140-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -1367,11 +1367,12 @@ const ODB={
 const SQ={
   _timer:null,
   _batchDelay:1500,
-  _pushMutex:Promise.resolve(),
-  // v3.5.139: Serialisierter Push — vorher verlor parallel push() den Wettlauf (Read-Modify-Write Race):
-  //   A: load q → [1,2]; B: load q → [1,2]; A: push 3, save; B: push 4, save → item 3 VERLOREN
+  _mutex:Promise.resolve(),
+  // v3.5.140: Shared Mutex für ALLE read-modify-write-Operationen — nicht nur push,
+  // auch remove/removeMany teilen sich den Wettlauf-Raum mit push.
+  _serial(fn){SQ._mutex=SQ._mutex.then(fn).catch(()=>{});return SQ._mutex;},
   async push(action){
-    SQ._pushMutex=SQ._pushMutex.then(async()=>{
+    return SQ._serial(async()=>{
       try{
         const q=await ODB.load("syncQueue")||[];
         q.push({...action,id:Date.now()+"_"+Math.random().toString(36).slice(2),ts:new Date().toISOString()});
@@ -1380,22 +1381,22 @@ const SQ={
         SQ._timer=setTimeout(()=>{if(navigator.onLine&&window.__doSync)window.__doSync();},SQ._batchDelay);
       }catch(e){}
     });
-    return SQ._pushMutex;
   },
   async getAll(){try{return await ODB.load("syncQueue")||[];}catch(e){return [];}},
-  async clear(){try{await ODB.save("syncQueue",[]);}catch(e){}},
-  async remove(id){try{const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>x.id!==id));}catch(e){}},
-  async removeMany(ids){try{const idSet=new Set(ids);const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>!idSet.has(x.id)));}catch(e){}},
+  async clear(){return SQ._serial(async()=>{try{await ODB.save("syncQueue",[]);}catch(e){}});},
+  async remove(id){return SQ._serial(async()=>{try{const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>x.id!==id));}catch(e){}});},
+  async removeMany(ids){return SQ._serial(async()=>{try{const idSet=new Set(ids);const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>!idSet.has(x.id)));}catch(e){}});},
   async count(){try{const q=await ODB.load("syncQueue")||[];return q.length;}catch(e){return 0;}}
 };
 
 // ═══════════ PHOTO QUEUE: Offline-Fotosync ═══════════
 // Fotos werden lokal in IndexedDB gespeichert und bei Verbindung automatisch hochgeladen
 const PhotoQ={
-  _addMutex:Promise.resolve(),
-  // v3.5.139: Serialisierter Add — gleicher Lost-Update-Race wie SQ.push (paralleler Foto-Capture hätte Bilder verloren)
+  _mutex:Promise.resolve(),
+  // v3.5.140: Shared Mutex für ALLE read-modify-write: add, remove, update, clear — nicht mehr nur add.
+  _serial(fn){PhotoQ._mutex=PhotoQ._mutex.then(fn).catch(()=>{});return PhotoQ._mutex;},
   async add(photo){
-    PhotoQ._addMutex=PhotoQ._addMutex.then(async()=>{
+    return PhotoQ._serial(async()=>{
       try{
         const q=await ODB.load("photoQueue")||[];
         q.push({...photo,id:photo.id||Date.now()+"_"+Math.random().toString(36).slice(2),queuedAt:new Date().toISOString(),status:"pending",retries:0});
@@ -1403,13 +1404,12 @@ const PhotoQ={
         return true;
       }catch(e){return false;}
     });
-    return PhotoQ._addMutex;
   },
   async getAll(){try{return await ODB.load("photoQueue")||[];}catch(e){return [];}},
-  async remove(id){try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.filter(x=>x.id!==id));}catch(e){}},
-  async update(id,updates){try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.map(x=>x.id===id?{...x,...updates}:x));}catch(e){}},
+  async remove(id){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.filter(x=>x.id!==id));}catch(e){}});},
+  async update(id,updates){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.map(x=>x.id===id?{...x,...updates}:x));}catch(e){}});},
   async count(){try{const q=await ODB.load("photoQueue")||[];return q.filter(x=>x.status==="pending"||x.status==="error").length;}catch(e){return 0;}},
-  async clear(){try{await ODB.save("photoQueue",[]);}catch(e){}},
+  async clear(){return PhotoQ._serial(async()=>{try{await ODB.save("photoQueue",[]);}catch(e){}});},
   _flushing:false,// v3.5.101: Concurrency-Guard gegen doppeltes Hochladen
   async flush(){
     if(!navigator.onLine)return{ok:0,fail:0};
