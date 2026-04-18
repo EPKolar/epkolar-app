@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.141';
+  var SW_VER='epkolar-v3.5.142';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -595,12 +595,15 @@ async function _sbAuthLogout(){
   try{localStorage.removeItem("epkolar_auth");localStorage.removeItem("epkolar_gc");localStorage.removeItem("epkolar_token");localStorage.removeItem("epkolar_refresh");}catch(_){}
 }
 function _storeAuth(d){
-  _authToken=d.access_token;_authRefreshToken=d.refresh_token;
+  // v3.5.142: Guard gegen broken GoTrue-Responses. Wenn access_token kein JWT-Shape hat → ignorieren, kein Anstoß von Downstream-Ketten mit Garbage.
+  if(!d||!d.access_token||!_isJwtShape(d.access_token)){console.warn('[Auth] _storeAuth abgelehnt — access_token hat keine JWT-Shape:',d);return;}
+  _authToken=d.access_token;_authRefreshToken=d.refresh_token||null;
   try{localStorage.setItem("epkolar_auth",JSON.stringify({at:d.access_token,rt:d.refresh_token,exp:Date.now()+(d.expires_in*1000)}));}catch(_){}
-  // v3.5.124: zusätzlich separate Keys für Smoke-Tests (epkolar_token = JWT, epkolar_refresh = Refresh-Token)
-  try{if(d.access_token)localStorage.setItem("epkolar_token",d.access_token);if(d.refresh_token)localStorage.setItem("epkolar_refresh",d.refresh_token);}catch(_){}
+  try{localStorage.setItem("epkolar_token",d.access_token);if(d.refresh_token)localStorage.setItem("epkolar_refresh",d.refresh_token);}catch(_){}
   if(_authRefreshTimer)clearTimeout(_authRefreshTimer);
-  _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max((d.expires_in-60)*1000,30000));
+  // v3.5.142: expires_in fallback auf 3600s wenn fehlt — verhindert NaN-Timer oder sofortigen Refresh
+  const expSec=(typeof d.expires_in==='number'&&d.expires_in>0)?d.expires_in:3600;
+  _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max((expSec-60)*1000,30000));
 }
 // v3.5.137: JWT-Shape-Validator — verhindert "Expected 3 parts in JWT; got 1" bei Legacy-Storage
 function _isJwtShape(t){return typeof t==='string'&&t.split('.').length===3&&t.length>20;}
@@ -1252,7 +1255,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.141-supabase";
+const APP_VERSION="3.5.142-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
