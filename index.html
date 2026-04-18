@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.151';
+  var SW_VER='epkolar-v3.5.152';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1270,7 +1270,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.151-supabase";
+const APP_VERSION="3.5.152-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2540,9 +2540,10 @@ function SignaturePad({label,value,onChange,width=300,height=150}){
   const [drawing,setDrawing]=_react.useState.call(void 0, false);
   const [hasStrokes,setHasStrokes]=_react.useState.call(void 0, !!value);
   const lastPt=_react.useRef.call(void 0, null);
-  const getPos=(e)=>{const r=canvasRef.current.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*(canvasRef.current.width/r.width),y:(t.clientY-r.top)*(canvasRef.current.height/r.height)};};
-  const startDraw=(e)=>{e.preventDefault();setDrawing(true);lastPt.current=getPos(e);};
-  const draw=(e)=>{if(!drawing)return;e.preventDefault();const ctx=canvasRef.current.getContext("2d");const pt=getPos(e);ctx.beginPath();ctx.moveTo(lastPt.current.x,lastPt.current.y);ctx.lineTo(pt.x,pt.y);ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();lastPt.current=pt;setHasStrokes(true);};
+  // v3.5.152: e.touches ist truthy bei leerem TouchList (touchEnd hat touches=[]) → crash bei .clientX. Fix: length-check.
+  const getPos=(e)=>{const r=canvasRef.current.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:e;if(!t||typeof t.clientX!=='number')return null;return{x:(t.clientX-r.left)*(canvasRef.current.width/r.width),y:(t.clientY-r.top)*(canvasRef.current.height/r.height)};};
+  const startDraw=(e)=>{e.preventDefault();const pos=getPos(e);if(!pos)return;setDrawing(true);lastPt.current=pos;};
+  const draw=(e)=>{if(!drawing)return;e.preventDefault();const pt=getPos(e);if(!pt||!lastPt.current)return;const ctx=canvasRef.current.getContext("2d");ctx.beginPath();ctx.moveTo(lastPt.current.x,lastPt.current.y);ctx.lineTo(pt.x,pt.y);ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();lastPt.current=pt;setHasStrokes(true);};
   const endDraw=()=>{if(!drawing)return;setDrawing(false);lastPt.current=null;if(canvasRef.current&&hasStrokes){onChange(canvasRef.current.toDataURL("image/png"));}};
   const clear=()=>{const ctx=canvasRef.current.getContext("2d");ctx.clearRect(0,0,canvasRef.current.width,canvasRef.current.height);setHasStrokes(false);onChange("");};
   _react.useEffect.call(void 0, ()=>{if(value&&canvasRef.current){const img=new Image();img.onload=()=>{const ctx=canvasRef.current.getContext("2d");ctx.clearRect(0,0,canvasRef.current.width,canvasRef.current.height);ctx.drawImage(img,0,0);setHasStrokes(true);};img.src=value;}},[]);
