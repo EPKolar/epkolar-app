@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.143';
+  var SW_VER='epkolar-v3.5.144';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1255,7 +1255,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.143-supabase";
+const APP_VERSION="3.5.144-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -11899,7 +11899,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
   const druckAnsicht=(z)=>{
     const w=window.open("","_blank","width=800,height=1000");
     if(!w)return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Monatsabrechnung ${z.mitarbeiterName} - ${MONATE[z.monat]} ${z.jahr}</title>
+    // v3.5.144: XSS-Schutz auf z.mitarbeiterName (user-input DB-Feld) im Print-Title
+    const _e=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Monatsabrechnung ${_e(z.mitarbeiterName)} - ${MONATE[z.monat]||""} ${z.jahr||""}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{font-family:Arial,sans-serif;padding:20px;color:#1a1a1a}
@@ -11933,9 +11935,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     </div>
     <div class="title">Monatsabrechnung — ${MONATE[z.monat]} ${z.jahr}</div>
     <div class="meta">
-      <div><b>Mitarbeiter:</b> ${z.mitarbeiterName}</div>
-      <div><b>Zeitraum:</b> ${MONATE[z.monat]} ${z.jahr}</div>
-      <div><b>Hochgeladen von:</b> ${z.hochgeladenVon}</div>
+      <div><b>Mitarbeiter:</b> ${_e(z.mitarbeiterName)}</div>
+      <div><b>Zeitraum:</b> ${MONATE[z.monat]||""} ${z.jahr||""}</div>
+      <div><b>Hochgeladen von:</b> ${_e(z.hochgeladenVon)}</div>
       <div><b>Hochgeladen am:</b> ${new Date(z.hochgeladenAm).toLocaleDateString("de-AT")}</div>
       <div><b>Status:</b> <span class="status ${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</span></div>
       ${z.freigegebenAm?`<div><b>Freigegeben am:</b> ${new Date(z.freigegebenAm).toLocaleDateString("de-AT")}</div>`:"<div></div>"}
@@ -11947,7 +11949,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
         <div class="sig-box">
           <div class="label">Unterschrift Mitarbeiter</div>
           <div class="line">${z.unterschrift?`<img src="${z.unterschrift}" alt="Unterschrift">`:""}</div>
-          <div class="name">${z.mitarbeiterName}</div>
+          <div class="name">${_e(z.mitarbeiterName)}</div>
         </div>
         <div class="sig-box">
           <div class="label">Datum der Freigabe</div>
@@ -11967,7 +11969,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     if(!mz.length){alert("Keine Zettel für "+MONATE[selMonat]+" "+selJahr);return;}
     const w=window.open("","_blank","width=900,height=1000");
     if(!w)return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Monatsübersicht ${MONATE[selMonat]} ${selJahr}</title>
+    // v3.5.144: XSS-Schutz für alle user-input Felder im Print-HTML
+    const _e=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Monatsübersicht ${MONATE[selMonat]||""} ${selJahr||""}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{font-family:Arial,sans-serif;padding:30px;color:#1a1a1a}
@@ -12003,8 +12007,8 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
       <tbody>${mz.sort((a,b)=>(a.mitarbeiterName||"").localeCompare(b.mitarbeiterName||"")).map((z,i)=>{const me=getMonthEntries(z.mitarbeiterId,z.monat,z.jahr);const epH=sumHours(me);const fH=z.finkStunden||0;const diff=fH?epH-fH:0;return`
         <tr>
           <td>${i+1}</td>
-          <td><b>${z.mitarbeiterName}</b></td>
-          <td>${z.dateiName}</td>
+          <td><b>${_e(z.mitarbeiterName)}</b></td>
+          <td>${_e(z.dateiName)}</td>
           <td>${new Date(z.hochgeladenAm).toLocaleDateString("de-AT")}</td>
           <td class="${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</td>
           <td><b>${_n(epH,1)}h</b></td>
