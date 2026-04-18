@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.155';
+  var SW_VER='epkolar-v3.5.156';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1270,7 +1270,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.155-supabase";
+const APP_VERSION="3.5.156-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -1377,6 +1377,9 @@ function openDB(){
     // v3.5.133: Non-destruktive Migration — nur NEUE Stores anlegen, existierende nicht löschen.
     // Vorher: jeder DB_VER-Bump löschte alle Stores inkl. unsynced syncQueue → offline-User verloren pending Changes.
     r.onupgradeneeded=e=>{const db=e.target.result;STORES.forEach(s=>{if(!db.objectStoreNames.contains(s))db.createObjectStore(s);});};
+    // v3.5.156: onblocked handler — tritt auf wenn andere Tabs die DB mit älterer Version offen haben.
+    // Ohne handler blockiert openDB() ewig. Mit handler: User bekommt Hinweis andere Tabs zu schließen.
+    r.onblocked=()=>{console.warn("[ODB] Upgrade blocked — andere Tabs offen mit alter DB_VER");try{window._showToast&&window._showToast("⚠ App in anderem Tab offen — bitte dort neu laden oder Tab schließen","warn",10000);}catch(_){}_dbPromise=null;rej(new Error("DB blocked by other tab"));};
     r.onsuccess=e=>{_dbHandle=e.target.result;_dbPromise=null;_dbHandle.onclose=()=>{_dbHandle=null;};_dbHandle.onversionchange=()=>{try{_dbHandle.close();}catch(_){}_dbHandle=null;};res(_dbHandle);};
     r.onerror=e=>{_dbPromise=null;rej(e.target.error);};
   });
