@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.130';
+  var SW_VER='epkolar-v3.5.131';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1213,9 +1213,13 @@ window.API = (function() {
       if(!users||!users.length)throw new Error("User not found");
       let valid=false;try{valid=dcodeIO.bcrypt.compareSync(oldPw,users[0].password_hash);}catch(e){}
       if(!valid)throw new Error("Falsches Passwort");
-      await _sbPatch("users",_user.id,{password_hash:dcodeIO.bcrypt.hashSync(newPw,10)});
+      // v3.5.131: bcrypt-Library-Check (nicht geladen → Passwort-Change würde mit TypeError crashen statt sauberer Fehlermeldung)
+      let _newHash;
+      try{_newHash=dcodeIO.bcrypt.hashSync(newPw,10);}
+      catch(e){throw new Error("bcrypt-Bibliothek nicht geladen — Passwort-Änderung fehlgeschlagen");}
+      await _sbPatch("users",_user.id,{password_hash:_newHash});
       // Also update GoTrue password if authenticated
-      if(_authToken){try{await fetch(_SB_AUTH+"/user",{method:"PUT",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify({password:newPw})});}catch(_){}}
+      if(_authToken){try{await fetch(_SB_AUTH+"/user",_fT({method:"PUT",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify({password:newPw})},15000));}catch(_){}}
       return{ok:1};
     },
     // Data access (read-only — all writes go through SQ.push → _translateAndExec)
@@ -1242,7 +1246,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.130-supabase";
+const APP_VERSION="3.5.131-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
