@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.150';
+  var SW_VER='epkolar-v3.5.151';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1270,9 +1270,23 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.150-supabase";
+const APP_VERSION="3.5.151-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
+// v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
+window.__EP_LASTERR_TS=0;window.__EP_ERR_COUNT=0;
+function _epkLogErrorThrottled(body){
+  const now=Date.now();
+  // Max 1 POST pro 2s, plus cap 20 Posts pro Session
+  if(now-window.__EP_LASTERR_TS<2000)return;
+  if(window.__EP_ERR_COUNT>=20)return;
+  window.__EP_LASTERR_TS=now;window.__EP_ERR_COUNT++;
+  try{
+    if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify(body)},10000)).catch(()=>{});
+    }
+  }catch(_){}
+}
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
 window.onerror=function(msg,src,line,col,err){
   const stack=_optionalChain([err, 'optionalAccess', _2 => _2.stack, 'optionalAccess', _3 => _3.split, 'call', _4 => _4('\n'), 'access', _5 => _5.slice, 'call', _6 => _6(0,3), 'access', _7 => _7.join, 'call', _8 => _8('\n')]);
@@ -1282,12 +1296,10 @@ window.onerror=function(msg,src,line,col,err){
   // Debug-Overlay nur wenn Element vorhanden
   const d=document.getElementById('ep-error-display');
   if(d) d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0000;color:#ff6666;padding:12px;font-size:11px;font-family:monospace;max-height:40vh;overflow:auto;border-bottom:2px solid #ff0000"><b>EP Kolar v'+APP_VERSION+' — Fehler:</b><br>'+String(msg)+'<br>Zeile: '+line+'<br>'+(_optionalChain([err, 'optionalAccess', _9 => _9.stack])||'')+'<br><button onclick="this.parentElement.parentElement.remove()" style="margin-top:6px;padding:4px 12px;background:#ff4444;color:#fff;border:none;border-radius:4px;cursor:pointer">Schließen</button></div>';
-  // Telemetrie an activity_log — nur wenn Auth + Online
+  // v3.5.151: Throttled Telemetrie (max 1/2s, cap 20 pro Session) — verhindert activity_log-DoS bei Render-Crash-Loop
   try{
     const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
-    if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
-      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:String(msg).substring(0,500),src:String(src||'').substring(0,200),line,col,stack:(stack||'').substring(0,800)})})},10000)).catch(()=>{});
-    }
+    _epkLogErrorThrottled({user_id:(u&&u.id)||'unknown',action:'js_error',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:String(msg).substring(0,500),src:String(src||'').substring(0,200),line,col,stack:(stack||'').substring(0,800)})});
   }catch(_){}
   // User-Toast bei bekannten Fehlermustern
   const ms=String(msg);
@@ -1304,9 +1316,7 @@ window.onunhandledrejection=function(e){
   if(window.__EP_ERRORS.length>50)window.__EP_ERRORS.splice(0,window.__EP_ERRORS.length-50);
   try{
     const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
-    if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
-      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'promise_rejection',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:rMsg.substring(0,500),stack:String((reason&&reason.stack)||'').substring(0,800)})})},10000)).catch(()=>{});
-    }
+    _epkLogErrorThrottled({user_id:(u&&u.id)||'unknown',action:'promise_rejection',entity_type:'system',entity_id:'global',details:JSON.stringify({ver:APP_VERSION,msg:rMsg.substring(0,500),stack:String((reason&&reason.stack)||'').substring(0,800)})});
   }catch(_){}
 };
 
