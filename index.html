@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.140';
+  var SW_VER='epkolar-v3.5.141';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1252,7 +1252,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.140-supabase";
+const APP_VERSION="3.5.141-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -3394,7 +3394,8 @@ function LoginScreen({onLogin,onPortal,projects}){
           const removeIds=[...okIds,...skipIds];
           if(removeIds.length>0) await SQ.removeMany(removeIds);
           // Update retry counts for items that failed but aren't skipped yet
-          if(fail>0&&skipIds.length===0){const q=await SQ.getAll();const updated=q.map(x=>{const orig=queue.find(o=>o.id===x.id);return orig&&orig._retries?{...x,_retries:orig._retries}:x;});await ODB.save("syncQueue",updated);}
+          // v3.5.141: Retry-Count-Update via SQ-Mutex — vorher konnte gleichzeitiger SQ.push die Updates ueberschreiben
+          if(fail>0&&skipIds.length===0){await SQ._serial(async()=>{const q=await ODB.load("syncQueue")||[];const updated=q.map(x=>{const orig=queue.find(o=>o.id===x.id);return orig&&orig._retries?{...x,_retries:orig._retries}:x;});await ODB.save("syncQueue",updated);});}
         }
         const cnt=await SQ.count();
         setPendingCount(cnt);
