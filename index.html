@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.123';
+  var SW_VER='epkolar-v3.5.124';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -587,11 +587,14 @@ async function _silentReAuth(){
 async function _sbAuthLogout(){
   if(_authToken)try{await fetch(_SB_AUTH+"/logout",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_authToken}},10000));}catch(_){}
   _authToken=null;_authRefreshToken=null;if(_authRefreshTimer)clearTimeout(_authRefreshTimer);_authRefreshTimer=null;
-  try{localStorage.removeItem("epkolar_auth");localStorage.removeItem("epkolar_gc");}catch(_){}
+  // v3.5.124: zusätzlich epkolar_token/epkolar_refresh entfernen (separate Keys für Smoke-Tests + klareres Debug-Bild)
+  try{localStorage.removeItem("epkolar_auth");localStorage.removeItem("epkolar_gc");localStorage.removeItem("epkolar_token");localStorage.removeItem("epkolar_refresh");}catch(_){}
 }
 function _storeAuth(d){
   _authToken=d.access_token;_authRefreshToken=d.refresh_token;
   try{localStorage.setItem("epkolar_auth",JSON.stringify({at:d.access_token,rt:d.refresh_token,exp:Date.now()+(d.expires_in*1000)}));}catch(_){}
+  // v3.5.124: zusätzlich separate Keys für Smoke-Tests (epkolar_token = JWT, epkolar_refresh = Refresh-Token)
+  try{if(d.access_token)localStorage.setItem("epkolar_token",d.access_token);if(d.refresh_token)localStorage.setItem("epkolar_refresh",d.refresh_token);}catch(_){}
   if(_authRefreshTimer)clearTimeout(_authRefreshTimer);
   _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max((d.expires_in-60)*1000,30000));
 }
@@ -1199,7 +1202,8 @@ window.API = (function() {
       const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:email,permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
       _user=userData;
-      try{localStorage.setItem('epkolar_user',JSON.stringify(userData));localStorage.setItem('epkolar_token','supabase-session');}catch(e){}
+      // v3.5.124: epkolar_token = echter JWT (nicht mehr placeholder 'supabase-session'), epkolar_refresh separat — _storeAuth setzt diese schon bei GoTrue-Login; hier nur bei bcrypt-fallback als Kennzeichen dass bcrypt-Login war
+      try{localStorage.setItem('epkolar_user',JSON.stringify(userData));if(_authToken)localStorage.setItem('epkolar_token',_authToken);else localStorage.setItem('epkolar_token','bcrypt-fallback');}catch(e){}
       return{token:'supabase-session',user:userData};
     },
     me: async function() { if(_user)return{user:_user};throw new Error("Nicht angemeldet"); },
@@ -1238,7 +1242,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.123-supabase";
+const APP_VERSION="3.5.124-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
