@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.146';
+  var SW_VER='epkolar-v3.5.147';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1270,7 +1270,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.146-supabase";
+const APP_VERSION="3.5.147-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -13964,7 +13964,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   // Load Service-Termine for selected vehicle
   _react.useEffect.call(void 0, ()=>{
     if(!sel)return;setFzTermine([]);
-    if(typeof API!=="undefined"&&API.getFzTermine){API.getFzTermine(sel).then(d=>setFzTermine((d||[]).map(t=>({id:t.id,typ:t.typ||"Service",beschreibung:t.beschreibung||"",datum:t.datum||"",erledigt:parseInt(t.erledigt)||0})))).catch(()=>{});}
+    // v3.5.147: Mount-Guard + sel-Wechsel-Guard — vorher kam bei schnellem Wechsel Race (alter Fetch returnte nach neuem sel → falsches Fahrzeug zeigte Termine des Vorgängers)
+    let active=true;
+    if(typeof API!=="undefined"&&API.getFzTermine){API.getFzTermine(sel).then(d=>{if(active)setFzTermine((d||[]).map(t=>({id:t.id,typ:t.typ||"Service",beschreibung:t.beschreibung||"",datum:t.datum||"",erledigt:parseInt(t.erledigt)||0})));}).catch(()=>{});}
+    return ()=>{active=false;};
   },[sel]);
   const addTermin=()=>{if(!terminForm.datum)return;const t={...terminForm,id:uid(),fahrzeug_id:sel};setFzTermine(p=>[t,...p]);SQ.push({url:"/api/fz-termine/"+sel,method:"POST",body:t});setShowAddTermin(false);setTerminForm({typ:"Service",beschreibung:"",datum:td2(),erledigt:0});_optionalChain([window, 'access', _fzt1 => _fzt1.__toast, 'optionalCall', _fzt2 => _fzt2("📅 Service-Termin angelegt")]);};
   const delTermin=(tid)=>{if(!isVAdmin)return;if(!confirm("Termin wirklich löschen?"))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
