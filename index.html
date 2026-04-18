@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.142';
+  var SW_VER='epkolar-v3.5.143';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1255,7 +1255,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.142-supabase";
+const APP_VERSION="3.5.143-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -3026,12 +3026,14 @@ function LoginScreen({onLogin,onPortal,projects}){
           if(nw){nw.addEventListener("statechange",()=>{if(nw.state==="installed"&&navigator.serviceWorker.controller)setSwUpdate(true);});}
         });
       }).catch(()=>{});
-      navigator.serviceWorker.addEventListener("message",e=>{
+      // v3.5.143: Listener als benannte Variable → kann in cleanup entfernt werden (war leak: remount → 2x, 3x doSync)
+      var _swMsgHandler=e=>{
         if(_optionalChain([e, 'access', _21 => _21.data, 'optionalAccess', _22 => _22.type])==="SW_UPDATED")setSwUpdate(true);
         if(_optionalChain([e, 'access', _23 => _23.data, 'optionalAccess', _24 => _24.type])==="SYNC_TRIGGER")doSync();
-      });
+      };
+      navigator.serviceWorker.addEventListener("message",_swMsgHandler);
     }
-    return ()=>{window.removeEventListener("beforeinstallprompt",onBip);if(swUpdateTimer.current)clearInterval(swUpdateTimer.current);};
+    return ()=>{window.removeEventListener("beforeinstallprompt",onBip);if(swUpdateTimer.current)clearInterval(swUpdateTimer.current);try{if(typeof _swMsgHandler!=='undefined')navigator.serviceWorker.removeEventListener("message",_swMsgHandler);}catch(_){}};
   },[]);
   const doInstall=async()=>{try{if(!installPrompt)return;installPrompt.prompt();const r=await installPrompt.userChoice;if(r.outcome==="accepted")_optionalChain([window, 'access', _25 => _25.__toast, 'optionalCall', _26 => _26("✅ App installiert!")]);setShowInstallBanner(false);setInstallPrompt(null);}catch(e){console.warn("Install:",e);}};
   const dismissInstall=()=>{setShowInstallBanner(false);localStorage.setItem("epk_install_dismissed","1");};
