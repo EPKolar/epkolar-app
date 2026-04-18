@@ -1,24 +1,28 @@
-// EP Kolar Service Worker v3.5.137
-const CACHE_NAME = "epkolar-v3.5.137";
+// EP Kolar Service Worker v3.5.138
+const CACHE_NAME = "epkolar-v3.5.138";
 const ASSETS = [
   './',
   './index.html'
 ];
 
 self.addEventListener('install', event => {
+  // v3.5.138: matchAll({includeUncontrolled:true}) — während install hat SW KEINE controlled clients
+  // → vorheriger Code erreichte nie einen Client mit SW_UPDATED
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
-  });
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    ).then(() => self.clients.claim()).then(() => {
+      // Jetzt sind wir controlled → alle Clients benachrichtigen
+      return self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
+        clients.forEach(client => client.postMessage({ type: 'SW_UPDATED', ver: CACHE_NAME }));
+      });
+    })
   );
 });
 
