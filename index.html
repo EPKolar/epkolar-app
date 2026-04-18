@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.118';
+  var SW_VER='epkolar-v3.5.119';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -1238,7 +1238,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.118-supabase";
+const APP_VERSION="3.5.119-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.100 Unified Error-Handler — kombiniert Debug-Overlay + activity_log Telemetrie + User-Toast
@@ -4747,7 +4747,17 @@ function sharePdf(){
             , qrImg?React.createElement('img', { src: qrImg, style: {width:200,height:200,borderRadius:8,border:"2px solid "+V.bd}, alt: "QR"} ):React.createElement('div', { style: {color:"#ef4444",fontSize:13}}, "QR-Bibliothek nicht geladen")
             , React.createElement('div', { style: {marginTop:12,fontSize:10,color:V.dm,wordBreak:"break-all"}}, qrUrl)
             , React.createElement('div', { style: {display:"flex",gap:8,justifyContent:"center",marginTop:16}}
-              , React.createElement('button', { onClick: ()=>{navigator.clipboard.writeText(qrUrl).then(()=>_optionalChain([window,'access',_qc1=>_qc1.__toast,'optionalCall',_qc2=>_qc2("📋 Link kopiert")])).catch(()=>{});}, style: bpS}, "📋 Link kopieren" )
+              , React.createElement('button', { onClick: ()=>{
+                  // v3.5.119: navigator.clipboard existiert nicht auf non-HTTPS / older browsers
+                  if(navigator.clipboard&&navigator.clipboard.writeText){
+                    navigator.clipboard.writeText(qrUrl).then(()=>_optionalChain([window,'access',_qc1=>_qc1.__toast,'optionalCall',_qc2=>_qc2("📋 Link kopiert")])).catch(()=>{
+                      _optionalChain([window,'access',_qc3=>_qc3.__toast,'optionalCall',_qc4=>_qc4("⚠ Kopieren fehlgeschlagen","warn")]);
+                    });
+                  }else{
+                    // Fallback: textarea + execCommand (legacy, aber funktioniert auf HTTP/älteren Browsern)
+                    try{const ta=document.createElement('textarea');ta.value=qrUrl;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();_optionalChain([window,'access',_qc5=>_qc5.__toast,'optionalCall',_qc6=>_qc6(ok?"📋 Link kopiert (Fallback)":"⚠ Clipboard nicht verfügbar",ok?"success":"warn")]);}catch(_){_optionalChain([window,'access',_qc7=>_qc7.__toast,'optionalCall',_qc8=>_qc8("⚠ Clipboard nicht verfügbar — Link manuell markieren","warn")]);}
+                  }
+                }, style: bpS}, "📋 Link kopieren" )
               , React.createElement('button', { onClick: ()=>genAsPdf(qrAs), style: {...bpS,background:"linear-gradient(135deg,#22c55e,#16a34a)"}}, "📄 PDF mit QR" )
               , React.createElement('button', { onClick: ()=>setAsShowQR(null), style: {...bpS,background:"linear-gradient(135deg,#6b7280,#4b5563)"}}, "Schließen" )
             )
