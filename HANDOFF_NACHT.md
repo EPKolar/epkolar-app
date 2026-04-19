@@ -55,3 +55,13 @@
   4 Listener konsistent, auch bei async-race (unmount während sw.js-register Promise).
 - Rest: App-Level useEffects mit [] deps mounten/unmounten eh nur 1x, Leaks dort
   nicht beobachtbar in Produktion.
+### Block 7 · v3.5.192 · ✅ SyncQueue Race-Audit
+- **Findung**: doSync (Line 3596) bereits sehr robust:
+  - Reentrancy-Guard via `window._epkSyncInflight` (v3.5.138)
+  - Auth-preflight refresh wenn token anon/expired (v3.5.70 Block 5b)
+  - Peek-based Iteration: Snapshot aus SQ.getAll(), removeMany(okIds+skipIds) am Ende
+  - Max 5 Retries, dann Move zu syncQueueFailed (v3.5.70)
+  - Retry-Count-Updates serialisiert via SQ._serial (v3.5.141)
+  - Break-on-auth/network-error gegen Server-Spam
+- **Added**: v3.5.192 `window._syncSkipCount` Diagnose-Counter — wenn User 10x ohne _authToken skipped wird, zeigt Toast + console.warn. Hilft "Sync hängt fest"-Cases zu diagnostizieren.
+- Keine weiteren Races entdeckt. SyncQueue audit-clean.
