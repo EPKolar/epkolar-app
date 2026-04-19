@@ -73,3 +73,10 @@
 - Existierendes `sql/DEPLOY_sync_supplier_v3.md` ist aktuell (v3.5.197 geschrieben, Content gültig)
 - **Ehrlich**: keine neue Doku wenn nichts Neues bekannt ist. Plan wollte Code-Review der 223-Zeilen-Function, aber ohne Source-Access unmöglich.
 - Sebastians offener Task bleibt: Source aus Supabase-Dashboard exportieren + ins Repo committen unter `supabase/functions/sync_supplier/`
+
+### Block 11 · v3.7.12 · ✅ Testkonzept v4.4 DELTA
+- `sql/Testkonzept_EPKolar_v4_4_DELTA.md`
+- +Session 16 (8 Tests T-160..167 v3.8.0 Regression)
+- +Session 17 (5 Tests T-170..174 WhatsApp-Preflight)
+- +Session 18 (3 Tests T-180..182 Perf-Regression)
+- 16 neue Tests, Total ≈ 170 in 18 Sessions
