@@ -17,3 +17,7 @@
 
 ## Blocks
 
+### Block 1 · v3.7.2 · ✅ M-2 photos RLS Diagnose+Fix-SQL
+- `sql/PHOTOS_RLS_AUDIT.sql`: 5 Diagnose-Queries (Policies, RLS-Flag, Schema, Counts) + Entscheidungsmatrix A-E
+- `sql/PHOTOS_RLS_FIX.sql`: 3 Varianten (A=Policy fehlt, B=Policy zu offen, C=nur Matrix-Doku) mit vollen CREATE POLICY Blöcken für SELECT-Staff / SELECT-Field-Self / INSERT / UPDATE / DELETE
+- Sebastian führt Audit → entscheidet → Fix → Verify via `_rlsAudit()`
