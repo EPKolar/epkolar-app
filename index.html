@@ -1632,7 +1632,14 @@ async function _translateAndExec(url,method,body){
   // Worker-projects: PUT/POST with worker_id as sub
   if(resource==="worker-projects"&&idOrSub&&(method==="PUT"||method==="POST")){
     // Delete all existing assignments for this worker
-    try{await _authRetry(()=>fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),_fT({method:"DELETE",headers:_sbH()})));}catch(e){}
+    // v3.8.9 Bug-Hunt Iter-9: Silent-catch → observability. Wenn DELETE fehlschlägt,
+    // bleiben alte Assignments bestehen; UPSERT fügt nur hinzu → stale/duplicate assignments.
+    let _delOk=true;
+    try{
+      const _r=await _authRetry(()=>fetch(SB_REST+"/worker_projects?worker_id=eq."+encodeURIComponent(idOrSub),_fT({method:"DELETE",headers:_sbH()})));
+      if(!_r||!_r.ok){_delOk=false;console.error('[worker-projects] DELETE failed:',_r&&_r.status,await (_r&&_r.text().catch(()=>''))||'');}
+    }catch(e){_delOk=false;console.error('[worker-projects] DELETE threw:',e&&e.message||e);}
+    if(!_delOk){throw new Error('worker-projects: Alte Zuweisungen konnten nicht entfernt werden — Upsert abgebrochen um Duplikate zu vermeiden.');}
     // Insert individual rows for each project
     const projects=body.projects||[];
     if(projects.length){
@@ -1825,7 +1832,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.8-supabase";
+const APP_VERSION="3.8.9-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
