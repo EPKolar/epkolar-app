@@ -26,3 +26,7 @@
 - Jeder Branch: `console.error('[B020-X]', context)` + Message-Suffix `[B20-X]` in Error-Message oder Toast
 - **Critical change**: B20-E (eingeschränkter Modus) loggt jetzt explizit in console.error MIT Kontext (username, email, gotrueErr) + Toast-Zeit auf 6s erhöht. War vorher silent-ish.
 - Keine Verhaltens-Änderung der Happy-Paths. Nur Diagnose-Labels.
+### Block 2 · v3.5.181 · ✅ Thundering-Herd + S8 Self-Test
+- **Findung**: Singleton-Refresh-Promise war bereits seit v3.5.112 implementiert via `_authRefreshInflight` (line 584). Keine neue Dedup-Logik nötig — die Architektur ist korrekt.
+- **Delivery**: `window._s8_107c()` Self-Test hinzugefügt. Korruptiert _authToken, triggert 5 parallele _sbGet, misst Dauer + zählt Recovery. Sebastian prüft im Network-Tab ob genau 1 /auth/v1/token?grant_type=refresh_token Request fliegt.
+- **Comment-Refresh**: `_authRetry` Kommentar aktualisiert um die Thundering-Herd-Semantik explizit zu dokumentieren.
