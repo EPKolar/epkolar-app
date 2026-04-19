@@ -48,3 +48,8 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - `window._s8_107c` Self-Test existiert seit v3.5.181 (Line 817)
 - 5 parallele 401 → 1 Refresh-Request (via inflight-promise dedup)
 - Keine neuen Code-Änderungen. Re-verify nach Block 1 B-020 Flow (B20-H throw statt degraded mode ändert nichts am Refresh-Path).
+
+### Block 3 · v3.6.5 · ✅ B-022 Sweep verify (bereits v3.5.182-188)
+- 146/146 setState-Spread → functional update abgeschlossen im 8h-Run
+- `node sql/_b022_sweep.js` → 0 candidates · keine setX({...x,...}) mit matching setter-var mehr
+- Keine neuen Änderungen.
