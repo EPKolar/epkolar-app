@@ -92,3 +92,10 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - `window._log(level,component,...args)` Helper
 - `window._setLogLevel('debug')` Runtime-Switch
 - Migration der 69 existierenden console-Calls bleibt schrittweise.
+
+### Block 10 · v3.6.12 · ✅ Permission-Matrix (sql/PERMISSION_MATRIX_v3.7.md)
+- Tab-Visibility-Matrix für alle 8 Rollen × 15 Tabs
+- Action-Matrix gruppiert (Projekte / AS / FZ+WZ / Material / Zeit+Formulare / Mängel+BT / User-Mgmt / Export+Audit)
+- RLS-Scope aus B-007 Policies (Monteur-Isolation via current_monteur_id())
+- Keine Abweichungen zum SOLL-Stand
+- Audit-Queries für Sebastian (Browser Console + Supabase SQL-Editor)
