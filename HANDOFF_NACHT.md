@@ -47,3 +47,11 @@
 - Ergebnis-Persistenz: `localStorage['s8_last_run']` (JSON)
 - Console.table + Toast mit PASS/FAIL-Count
 - Sebastian: als admin + monteur + büro einzeln ausführen, Ergebnisse vergleichen
+### Block 6 · v3.5.191 · ✅ Memory-Leak-Audit: SW-Install-Effect gehärtet
+- Audit: 2 Kandidaten, 1 false-positive (delete window.__toast IST cleanup)
+- Realer Fix: PWA Install-useEffect hatte 2 Listener-Leaks (reg.updatefound + nw.statechange)
+  — beide gehören zu R-2 aus TODO_MORGEN.md Overnight-Findings
+- Fix: Named handlers + tracked refs + Unmount-Guard (_mounted). Cleanup entfernt alle
+  4 Listener konsistent, auch bei async-race (unmount während sw.js-register Promise).
+- Rest: App-Level useEffects mit [] deps mounten/unmounten eh nur 1x, Leaks dort
+  nicht beobachtbar in Produktion.
