@@ -1210,9 +1210,12 @@ async function _sbUploadFile(path,dataUrl){
   if(!blob)throw new Error("Invalid dataUrl");
   // v3.5.159: 60s Timeout — vorher hing _sbUploadFile bei stalled network unendlich,
   // was PhotoQ._flushing=true dauerhaft blockierte (alle weiteren flushes blockiert).
-  const r=await fetch(SB_STORAGE+"/object/"+SB_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({
+  // v3.8.14 Bug-Hunt Iter-15: _authRetry-Wrap — vorher 401 bei abgelaufenem Token
+  // → PhotoQ marked als error, nächster flush wieder 401 bis zufällig ein _sb*-Call
+  // den Refresh triggerte. Jetzt silent re-auth + retry wie bei allen _sb*-Calls.
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({
     method:"POST",headers:_sbH({"Content-Type":blob.type,"x-upsert":"true"}),body:blob
-  },60000));
+  },60000)));
   if(!r.ok){const txt=await r.text();throw new Error("Storage upload failed: "+r.status+" "+txt);}
   return SUPABASE_URL+"/storage/v1/object/public/"+SB_BUCKET+"/"+path;
 }
@@ -1843,7 +1846,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.14-supabase";
+const APP_VERSION="3.8.15-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
