@@ -77,3 +77,7 @@
 - window._log exposed zum Usage aus Module, window._setLogLevel zum Runtime-Switch
 - Bestehende 69 console.log/warn/error Callsites **nicht** automatisch migriert — zu groß für sicheren Sweep. Migration wird schrittweise bei jeder Modul-Berührung erfolgen.
 - 0 `alert(` Callsites in Codebase — historisch bereits migriert.
+### Block 10 · v3.5.195 · ✅ Perf-Audit (nur Doku)
+- `sql/PERF_v3.6.md` mit 5 Kategorien Empfehlungen (React.memo, useMemo, useCallback, IndexedDB, SyncQueue)
+- **Keine Code-Änderungen** — React.memo ohne Props-Stabilisierung kontraproduktiv, Stale-Closure-Risk durch useCallback-Deps
+- Sebastians Entscheidung: anwenden nur bei konkreten User-Reports zu Perf-Issues, nicht präventiv
