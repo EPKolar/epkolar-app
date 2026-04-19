@@ -95,3 +95,8 @@
   - Tagged mit eindeutigem Prefix [S8-107c]/[GLOBAL ERROR]/[UNHANDLED PROMISE] — mein Scan-Regex missed
 - **Ehrlich**: 0 verirrte console.log gefunden, die nicht diagnostischen Zweck haben. Kein Cleanup nötig.
 - Kein Code-Change, nur Version-Bump + HANDOFF-Eintrag.
+
+### Block 14 · v3.7.15 · ✅ _a11yCheck() Scanner
+- Scannt DOM: img ohne alt, Icon-Only-Buttons ohne aria-label, Inputs ohne `<label for>`/aria-label/placeholder
+- Output: console.table grouped + sample + total-count
+- Kein Auto-Fix — Finding-List für Sebastian
