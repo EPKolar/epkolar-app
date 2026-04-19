@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.175';
+  var SW_VER='epkolar-v3.5.176';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -493,7 +493,7 @@ window._runAllTests=async function(){
   await t('TC-J "supabase-session" abgelehnt',()=>_isJwtShape('supabase-session')===false);
   await t('TC-J null abgelehnt',()=>_isJwtShape(null)===false);
   await t('TC-U _uuid matches v4-Regex',()=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(_uuid()));
-  // v3.5.175: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
+  // v3.5.176: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
   await t('TC-M SQ 50 parallel-push (Mutex)',async()=>{const _backup=await SQ.getAll();try{await SQ.clear();await Promise.all(Array.from({length:50},(_,i)=>SQ.push({url:'/api/ztest'+i,method:'POST'})));const q=await SQ.getAll();return q.length===50;}finally{await ODB.save('syncQueue',_backup||[]);}});
   await t('TC-F _fT hat AbortSignal',()=>{const i=_fT({method:'GET'},1000);return !!i.signal;});
   await t('TC-X _dl ist Funktion',()=>typeof _dl==='function');
@@ -1278,7 +1278,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.175-supabase";
+const APP_VERSION="3.5.176-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -4344,7 +4344,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
         if(dup&&!confirm("⚠️ Möglicher Duplikat-AS:\n\n"+dup.nummer+" — "+dup.kundName+"\nTermin: "+dup.terminBestaetigt+"\nStatus: "+dup.scheinstatus+"\n\nTrotzdem speichern?"))return;
       }
     }
-    // v3.5.175 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
+    // v3.5.176 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
     const _shouldAutoClose=form.sigMA&&form.sigMA.length>100&&form.sigKunde&&form.sigKunde.length>100&&(!form.scheinstatus||AS_GRP_OFFEN.includes(form.scheinstatus));
     const _finalForm=_shouldAutoClose?{...form,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:form;
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
@@ -5884,6 +5884,20 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 , React.createElement('option', { value: "30"}, "30 Tage" )
                 , React.createElement('option', { value: "90"}, "90 Tage" )
               )
+              /* v3.5.176 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
+              , React.createElement('button', { onClick: ()=>{
+                  const _cf=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+                  const _hdrs=["Zeit","Benutzer","Aktion","Entity-Typ","Entity-ID","Details"];
+                  const _rows=(activity||[]).map(a=>{
+                    const u=users.find(x=>x.id===a.user_id||x.username===a.user_id);
+                    const uN=u?(u.name||u.username||a.user_id):a.user_id||"?";
+                    const det=typeof a.details==="string"?a.details:JSON.stringify(a.details||{});
+                    return [new Date(a.created_at).toISOString(),uN,ACT_LABELS[a.action]||a.action||"",ENT_LABELS[a.entity_type]||a.entity_type||"",a.entity_id||"",det];
+                  });
+                  const _csv="\uFEFF"+[_hdrs,..._rows].map(r=>r.map(_cf).join(";")).join("\r\n");
+                  _dl(new Blob([_csv],{type:"text/csv;charset=utf-8"}),"audit_log_"+_ymd(new Date())+".csv");
+                  _optionalChain([window, 'access', _csv1 => _csv1.__toast, 'optionalCall', _csv2 => _csv2("📥 "+_rows.length+" Zeilen exportiert")]);
+                }, style: {...bsS(),padding:"4px 10px",fontSize:11}, title: "CSV-Export der aktuell geladenen Zeilen"}, "📥 CSV")
             )
           )
           , activity.length===0?React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm,fontSize:12}}, "Keine Aktivitäten gefunden"  ):(
