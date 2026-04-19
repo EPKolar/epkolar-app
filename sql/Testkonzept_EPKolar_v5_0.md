@@ -140,3 +140,113 @@ Siehe `_runAllTests()` Erweiterung in v3.5.145 (nächste Iter 10):
 - `_test_sq_mutex` — TC-M-01 automatisiert
 - `_test_idb_nondestructive` — TC-I-01 (semi-auto)
 - `_test_timeout` — _fT AbortSignal fires
+
+---
+
+# v5.1 Merge · Session 19 + Nacht-2 + v3.8.19 (2026-04-19)
+
+Dieser Abschnitt merged die Delta aus `Testkonzept_EPKolar_v4_4_DELTA.md` (Session 16/17/18)
+und ergänzt die neuen Test-Anforderungen aus Session 19 + Nacht-2-Messung.
+
+## TC-B: Business-Entscheidungen (Session 19)
+
+### TC-B-021 · Photos Cross-User-Sichtbarkeit (Status Quo)
+**Entscheidung**: Nicht fixen. Photos-RLS bleibt permissiv.
+**Referenz**: `B021_DECISION_19042026_NACHT2.md`
+**Nicht-Ziel**: Kein Test erwartet Cross-User-Isolation in photos.
+**Ziel**: `uploaded_by` korrekt gesetzt (v3.8.12 captureAndQueue fix) → testbar.
+
+### TC-B-020 · Login-Regression 4/9 User
+**Stand**: 4 User testbar in CC-Scope (admin, schober, riedmann, lindhuber),
+5 nie-eingeloggte paschinger/barger/cracana/pinger/schmid = Sebastian-Aufgabe OOF.
+**Test**: `SMOKE_LOG_v3.8.18.md` Abschnitt 4.
+
+## TC-C: Chef-Seite v2 (v3.8.19 Block C)
+
+### TC-C-01 · Sorgenkind-Widget rendert
+**Voraussetzung**: admin-Login, Chef-Tab sichtbar.
+**Test**: Chef-Seite scrollen. Zwischen "Projekt-Ampeln" und "Kritisch überfällige AS"
+erscheint gelbes "🚨 Handlungsbedarf"-Widget mit 5 Indikatoren.
+**Pass**: Widget sichtbar mit ≥1 Indikator (wenn Prod-Daten Sorgenkinder haben).
+
+### TC-C-02 · Trend-Pfeile an 3 KPI-Kacheln
+**Test**: Chef-Seite KPI-Grid inspizieren.
+**Pass**: Offene AS, Heutige AS, Überfällig zeigen ↑/↓ + Delta. Aktive Projekte + Monteure heute ohne Pfeil.
+
+### TC-C-03 · Nächste-Woche-Preview am Ende
+**Test**: Chef-Seite ganz nach unten scrollen.
+**Pass**: Blaues "📅 Nächste Woche"-Widget mit Geplante AS / Abwesend (Namen) / Fahrzeuge fällig.
+
+### TC-C-04 · Permissions Chef-only
+**Test**: monteur-Login → Chef-Tab NICHT sichtbar. buero-Login → Chef-Tab NICHT sichtbar.
+**Pass**: perm='_chef' nur für role='admin' (Line 4375).
+
+## TC-S: Self-Test-Baseline (v3.8.18)
+
+### TC-S-01 · _selfTest({mode:'quick'}) grün
+**Test**: admin-Login → Console `await window._selfTest({mode:'quick'})`.
+**Pass**: `summary.failed === 0`.
+
+### TC-S-02 · _b017check leak-free
+**Test**: `window._b017check()`.
+**Pass**: `summary.leaked === 0` (admin-Debug-Helper sind nicht mehr auf window nach Logout).
+
+### TC-S-03 · _s8Suite auth-flow
+**Test**: `await window._s8Suite()`.
+**Pass**: T-B020/T-107c/T-B021 alle grün, _selfTest mit echter role statt 'none'.
+
+## TC-M-UX: Mobile Touch-Targets (v3.8.19 Block E)
+
+### TC-M-UX-01 · 44px Minimum auf touch-Geräten
+**Test**: DevTools Device-Emulation iPhone 12 → `await window._selfTest()`.
+**Pass**: `results.mobile.tooSmallTouch < 5` (von 14 in Baseline).
+
+### TC-M-UX-02 · CSS Global-Rule greift
+**Test**: DevTools → Computed Styles auf beliebigem Button → `min-height: 44px`, `min-width: 44px`.
+**Pass**: Beide Properties applied bei Viewport <768px oder pointer:coarse.
+
+## TC-D: DB-Integrität (v3.8.19 Block A + B)
+
+### TC-D-01 · BASELINE_FIX_v3.8 deployed
+**Test**: Supabase SQL-Editor → `BASELINE_FIX_VERIFY_v3.8.sql` laufen lassen.
+**Pass**: 8 Rows, alle `applied=TRUE`.
+
+### TC-D-02 · 12 Orphan-Arbeitsscheine resolved
+**Test**: Sebastian führt Details-Query aus `B_12_ORPHANS_ANALYSIS.md` aus + wählt Aktion pro Row.
+**Pass**: Nach Aktion: `remaining_orphans = 0`.
+
+### TC-D-03 · Keine neuen Dupes seit UNIQUE-Deploy
+**Test**: `SELECT email, count(*) FROM users GROUP BY email HAVING count(*)>1;` — leer.
+**Pass**: Leere Result-Menge. Analog für `arbeitsscheine.juprowa_id`.
+
+## TC-CL: Cross-User-Cleanup (v3.8.19 nachgewiesen)
+
+### TC-CL-01 · Logout cleart SQ + PhotoQ + ODB-Stores
+**Test**: `SMOKE_LOG_v3.8.18.md` Abschnitt 3.
+**Pass**: alle 4 Sub-Checks grün.
+
+### TC-CL-02 · localStorage user-prefs cleart
+**Test**: User A Login → `localStorage.setItem('epkolar_default_sb','GÜNTHER')` → Logout → User B Login → `localStorage.getItem('epkolar_default_sb')` === null.
+**Pass**: Key gelöscht. Analog für `epk_autonotif_cd`, `epk_dash_vis`.
+
+---
+
+## Reality-Check · Was tatsächlich gelaufen ist (ehrlich, 2026-04-19 22:xx)
+
+| Kategorie | Status |
+|---|---|
+| TC-M (Mutex) | ❓ nie gemessen seit v3.5.145-Plan — wurde `_runAllTests()` je erweitert? TBD Sebastian. |
+| TC-T (Timezone) | ❓ same |
+| TC-J (JWT-Shape) | ✅ implizit durch B-017 Tests + `_s8Suite` v3.6.7 |
+| TC-I (IDB non-destructive) | ✅ v3.5.133 geprüft, v3.8.16 DB_VER Bump hat nix zerstört |
+| TC-B-021 | ✅ Status Quo per Business-Entscheidung, kein weiterer Test |
+| TC-B-020 | 🟡 4/9 User testbar (CC), 5 Sebastian-OOF |
+| TC-C (Chef v2) | ✅ Code-deployed v3.8.19, visuelles Prüfen Sebastian-TODO |
+| TC-S (Self-Test) | ✅ Nacht-2 grün |
+| TC-M-UX | 🟡 CSS deployed, iPhone-Verify Sebastian-TODO |
+| TC-D (DB-Integrität) | 🟡 SQL bereit, Deploy+Verify Sebastian-TODO |
+| TC-CL (Cross-User) | ✅ Code-verified, Browser-Test Sebastian-TODO |
+
+**Zusammenfassung**: Code-Level-Qualität hoch (✅ oder 🟡 Code-bereit), operationelle
+Tests überwiegend Sebastian-Browser-Tasks. Kein bekannter ❌.
+

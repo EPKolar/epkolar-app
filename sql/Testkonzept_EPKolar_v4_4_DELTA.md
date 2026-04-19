@@ -1,3 +1,7 @@
+> **SUPERSEDED 2026-04-19 v3.8.19 Block I**: Dieser DELTA ist in
+> `Testkonzept_EPKolar_v5_0.md` (v5.1-Merge-Sektion) integriert. Diese Datei
+> wird nur zu Historien-Zwecken behalten.
+
 # Testkonzept EPKolar v4.4 — DELTA gegenüber v4.3/v5.0
 
 Nur das Neue. Basis `sql/Testkonzept_EPKolar_v5_0.md` bleibt gültig (die v4.x/v5.x-Namen sind historisch vermischt, inhaltlich konsistent).
