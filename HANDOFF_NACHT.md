@@ -128,3 +128,13 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - Scannt auf horizontal-overflow Elemente (scrollWidth > clientWidth)
 - Ausgabe: Sample-Tables + Viewport-Info
 - Sebastian: als Monteur auf iPhone/Android laufen lassen, erhebt hit-list für quick-fixes
+
+### Block 15 · v3.6.17 · ✅ Bug-Hunt Walkthrough BUG_HUNT.md
+- 3 Scans: .then ohne .catch (27 Hits, alle Boot/SW-low-risk), JSON.parse ohne try (13 Hits, meist false-positive durch Scan-Grenze), hardcoded Dates (0)
+- 4 Manual Findings:
+  - M-1 P2: _isJwtShape try/catch-Härtung (5 min-fix)
+  - M-2 P1: photos-Tabelle RLS prüfen (2 min SQL-Check)
+  - M-3 P3: _authRefreshInflight 50ms-race hypothetisch
+  - M-4 P2: epkolar_gc localStorage-Passwort — Secure-UX-Trade-off
+- Prio-Liste für Sebastian: M-2 zuerst, dann M-1, Rest Backlog
+- **Kein Code-Change** in diesem Block, nur Doku.
