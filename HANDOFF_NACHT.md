@@ -42,3 +42,8 @@
 - Non-Admin: PASS wenn gar nichts exposed
 - Direkt nach _runAllTests-Block eingesetzt (Line ~510)
 - Sebastian: `window._b017check()` als admin + monteur laufen lassen, beide PASS erwartet
+### Block 5 · v3.5.190 · ✅ Session 8 Test-Runner window._s8Suite()
+- 8 automatisierbare Tests: T-101 JWT persist · T-106 _authRetry · T-106b _sbAuthRefresh · T-107a _s8_107c · T-110 Monteur-RLS · T-111 Admin-RLS · T-112 _sbGet Result · T-117 _b017check
+- Ergebnis-Persistenz: `localStorage['s8_last_run']` (JSON)
+- Console.table + Toast mit PASS/FAIL-Count
+- Sebastian: als admin + monteur + büro einzeln ausführen, Ergebnisse vergleichen

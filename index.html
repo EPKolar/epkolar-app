@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.189';
+  var SW_VER='epkolar-v3.5.190';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -290,7 +290,7 @@ var require=function(m){if(m==='react')return React;if(m==='react-dom')return Re
 // Alle Calls gehen direkt an Supabase PostgREST
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL="https://jiggujpruejkaomgxarp.supabase.co";
-// v3.5.189 B-017: SUPABASE_URL/SB_REST/SUPABASE_KEY nicht mehr auf window — bleiben Closure-gebunden.
+// v3.5.190 B-017: SUPABASE_URL/SB_REST/SUPABASE_KEY nicht mehr auf window — bleiben Closure-gebunden.
 // _sbH, _sbAuthLogin, _sbAuthRefresh, _silentReAuth werden admin-gated in App.onLogin exposed.
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ2d1anBydWVqa2FvbWd4YXJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1OTU2NjUsImV4cCI6MjA4OTE3MTY2NX0.RXcu1ri8tK38ApdHWxs0Hl9h1FJQCHGm429QHrS2RMc";
 const SB_REST=SUPABASE_URL+"/rest/v1";
@@ -492,12 +492,12 @@ window._runAllTests=async function(){
   await t('TC-J "supabase-session" abgelehnt',()=>_isJwtShape('supabase-session')===false);
   await t('TC-J null abgelehnt',()=>_isJwtShape(null)===false);
   await t('TC-U _uuid matches v4-Regex',()=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(_uuid()));
-  // v3.5.189: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
+  // v3.5.190: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
   await t('TC-M SQ 50 parallel-push (Mutex)',async()=>{const _backup=await SQ.getAll();try{await SQ.clear();await Promise.all(Array.from({length:50},(_,i)=>SQ.push({url:'/api/ztest'+i,method:'POST'})));const q=await SQ.getAll();return q.length===50;}finally{await ODB.save('syncQueue',_backup||[]);}});
   await t('TC-F _fT hat AbortSignal',()=>{const i=_fT({method:'GET'},1000);return !!i.signal;});
   await t('TC-X _dl ist Funktion',()=>typeof _dl==='function');
   await t('TC-R ErrorBoundary geladen',()=>typeof EpkErrorBoundary==='function');
-  // v3.5.189 B-017: SB_REST nicht mehr auf window (Closure-only), _sbH nur nach Admin-Login exposed
+  // v3.5.190 B-017: SB_REST nicht mehr auf window (Closure-only), _sbH nur nach Admin-Login exposed
   await t('TC-S SB_REST nicht auf window (closure-private)',()=>typeof window.SB_REST==='undefined');
   await t('TC-S _sbH identity (admin-exposed oder closure)',()=>(typeof window._sbH==='undefined'||window._sbH===_sbH));
 
@@ -508,7 +508,102 @@ window._runAllTests=async function(){
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// v3.5.189 BLOCK 4 — B-017 Gegencheck: Role-basiertes Exposure-Audit
+// v3.5.190 BLOCK 5 — Session 8 Test-Runner: automatisierbare Tests T-101..T-117
+// Usage: await window._s8Suite()
+// Ergebnis: Konsole + localStorage['s8_last_run'] (JSON Summary)
+// ═══════════════════════════════════════════════════════════════════
+window._s8Suite=async function(){
+  const tests=[];
+  const add=(id,name,fn)=>tests.push({id,name,fn});
+
+  add('T-101','JWT-Token Persistence',async()=>{
+    const key=Object.keys(localStorage).find(k=>k==='epkolar_auth'||(k.includes('supabase')&&k.includes('auth')));
+    if(!key)return{pass:false,msg:'kein auth-key in localStorage'};
+    try{const obj=JSON.parse(localStorage.getItem(key));const tok=obj&&(obj.at||obj.access_token);return{pass:!!tok,msg:tok?'token present ('+tok.substring(0,20)+'...)':'kein access_token'};}catch(e){return{pass:false,msg:'parse-fail: '+e.message};}
+  });
+
+  add('T-106','_authRetry ist Funktion',async()=>{
+    const t=typeof _authRetry;
+    return{pass:t==='function',msg:'typeof _authRetry = '+t};
+  });
+
+  add('T-106b','_sbAuthRefresh ist Funktion',async()=>{
+    const t=typeof _sbAuthRefresh;
+    return{pass:t==='function',msg:'typeof _sbAuthRefresh = '+t};
+  });
+
+  add('T-107a','window._s8_107c Thundering-Herd-Test-Helper da',async()=>{
+    const t=typeof window._s8_107c;
+    return{pass:t==='function',msg:'typeof window._s8_107c = '+t};
+  });
+
+  add('T-110','Monteur sieht nur eigene AS',async()=>{
+    const role=(typeof _user!=='undefined'&&_user&&_user.role)||'none';
+    if(role!=='monteur')return{pass:null,msg:'skip: rolle='+role+' (nicht monteur)'};
+    const mid=_user&&_user.monteurId;
+    if(!mid)return{pass:null,msg:'skip: kein monteurId'};
+    try{
+      const r=await _sbGet('arbeitsscheine','select=id,monteur&limit=200');
+      const all=Array.isArray(r)?r:[];
+      const own=all.filter(a=>a.monteur===mid).length;
+      const foreign=all.length-own;
+      return{pass:foreign===0,msg:'Monteur sah '+all.length+' AS, davon '+own+' eigen + '+foreign+' fremd (0 erwartet)'};
+    }catch(e){return{pass:false,msg:'fetch-fail: '+(e&&e.message||e)};}
+  });
+
+  add('T-111','Admin sieht viele AS',async()=>{
+    const role=(typeof _user!=='undefined'&&_user&&_user.role)||'none';
+    if(role!=='admin')return{pass:null,msg:'skip: rolle='+role+' (nicht admin)'};
+    try{
+      const r=await _sbGet('arbeitsscheine','select=id&limit=200');
+      const n=Array.isArray(r)?r.length:0;
+      return{pass:n>=20,msg:'Admin sah '+n+' AS (>=20 erwartet bei echter DB)'};
+    }catch(e){return{pass:false,msg:'fetch-fail: '+(e&&e.message||e)};}
+  });
+
+  add('T-112','_sbGet liefert Array oder null',async()=>{
+    try{
+      const r=await _sbGet('workers','limit=1');
+      return{pass:(r===null||Array.isArray(r)),msg:'result: '+(Array.isArray(r)?'Array['+r.length+']':typeof r)};
+    }catch(e){return{pass:false,msg:'fetch-fail: '+(e&&e.message||e)};}
+  });
+
+  add('T-117','_b017check liefert PASS',async()=>{
+    if(typeof window._b017check!=='function')return{pass:false,msg:'_b017check fehlt'};
+    const r=window._b017check();
+    return{pass:!!r&&String(r.verdict||'').startsWith('PASS'),msg:r&&r.verdict||'?'};
+  });
+
+  const results=[];
+  for(const t of tests){
+    try{
+      const r=await t.fn();
+      results.push({id:t.id,name:t.name,pass:r.pass,msg:r.msg});
+    }catch(e){
+      results.push({id:t.id,name:t.name,pass:false,msg:'exception: '+(e&&e.message||e)});
+    }
+  }
+
+  const summary={
+    timestamp:new Date().toISOString(),
+    role:(typeof _user!=='undefined'&&_user&&_user.role)||'none',
+    user:(typeof _user!=='undefined'&&_user&&_user.name)||'?',
+    total:results.length,
+    passed:results.filter(r=>r.pass===true).length,
+    failed:results.filter(r=>r.pass===false).length,
+    skipped:results.filter(r=>r.pass===null).length,
+    results
+  };
+
+  try{localStorage.setItem('s8_last_run',JSON.stringify(summary));}catch(_){}
+  console.table(results.map(r=>({id:r.id,name:r.name.substring(0,40),pass:r.pass,msg:(r.msg||'').substring(0,60)})));
+  console.log('[S8] role='+summary.role+' · '+summary.passed+'/'+summary.total+' passed, '+summary.failed+' failed, '+summary.skipped+' skipped');
+  if(window._showToast)window._showToast('S8: '+summary.passed+'/'+summary.total+(summary.failed===0?' ✅':' ⚠ ('+summary.failed+' failed)'),summary.failed===0?'success':'warning',5000);
+  return summary;
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// v3.5.190 BLOCK 4 — B-017 Gegencheck: Role-basiertes Exposure-Audit
 // Usage: window._b017check()  — als Admin UND als Monteur ausführen, beide PASS erwartet.
 // Admin: Helpers da, KEINE credentials. Monteur: nichts da.
 // ═══════════════════════════════════════════════════════════════════
@@ -673,7 +768,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 let _authFailShown=false;
 function _isAuthErr(status){return status===401||status===403;}
 function _onAuthFail(){if(_authFailShown)return;_authFailShown=true;if(window.__toast)window.__toast("⚠️ Sitzung abgelaufen — bitte neu anmelden","warn");setTimeout(()=>{_authFailShown=false;},10000);}
-// v3.5.189 B-021 + Thundering-Herd: Silent-Re-Auth bei 401/403 vollständig.
+// v3.5.190 B-021 + Thundering-Herd: Silent-Re-Auth bei 401/403 vollständig.
 // Singleton-Refresh-Promise ist bereits in _sbAuthRefresh (line 584) via _authRefreshInflight
 // implementiert — 5 parallele _authRetry-Calls lösen exakt 1 refresh aus, alle 5 warten
 // auf dasselbe Promise. Hier: nach Retry 2nd-round-401 erkennen, dann _onAuthFail feuern.
@@ -693,7 +788,7 @@ async function _authRetry(fn){
   }
   return r;
 }
-// v3.5.189 BLOCK 2: Session 8 T-107c Thundering-Herd Self-Test
+// v3.5.190 BLOCK 2: Session 8 T-107c Thundering-Herd Self-Test
 // Usage: await window._s8_107c()  — simuliert 5 parallele 401 durch Token-Korruption.
 // Erwartung: genau 1 Request an /auth/v1/token?grant_type=refresh_token im Network-Tab,
 // alle 5 Requests recovern via Retry (oder zeigen 401 wenn refresh-token auch tot).
@@ -1275,7 +1370,7 @@ window.API = (function() {
     login: async function(u, p) {
       // Use RPC to bypass RLS (anon can't read users table directly)
       // v3.5.160: 15s Timeout — ohne hing Login-Button unendlich bei stalled network
-      // v3.5.189 B-020: Jeder Fail-Pfad kriegt unterscheidbaren B20-X Error-Code in console.error
+      // v3.5.190 B-020: Jeder Fail-Pfad kriegt unterscheidbaren B20-X Error-Code in console.error
       //   + Error-Message-Prefix, damit beim nächsten Silent-Fail sofort sichtbar ist welcher Branch greift.
       const rpcRes=await fetch(SB_REST+"/rpc/login_lookup",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({p_username:u})},15000));
       if(!rpcRes.ok){console.error('[B020-A] login_lookup HTTP-Fail',{status:rpcRes.status,username:u});throw new Error("Server nicht erreichbar [B20-A]");}
@@ -1353,7 +1448,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.189-supabase";
+const APP_VERSION="3.5.190-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -3667,7 +3762,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
 
-  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);/* v3.5.189 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
+  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);/* v3.5.190 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
 
   // ═══════════ HISTORY API — Browser-Zurück-Button Support ═══════════
   const _skipPush=_react.useRef.call(void 0, 0);// counter: >0 means skip N pushes
@@ -3778,7 +3873,7 @@ function LoginScreen({onLogin,onPortal,projects}){
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.5.189 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.5.190 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const _allTabs=[
@@ -4419,7 +4514,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
         if(dup&&!confirm("⚠️ Möglicher Duplikat-AS:\n\n"+dup.nummer+" — "+dup.kundName+"\nTermin: "+dup.terminBestaetigt+"\nStatus: "+dup.scheinstatus+"\n\nTrotzdem speichern?"))return;
       }
     }
-    // v3.5.189 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
+    // v3.5.190 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
     const _shouldAutoClose=form.sigMA&&form.sigMA.length>100&&form.sigKunde&&form.sigKunde.length>100&&(!form.scheinstatus||AS_GRP_OFFEN.includes(form.scheinstatus));
     const _finalForm=_shouldAutoClose?{...form,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:form;
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
@@ -5959,7 +6054,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 , React.createElement('option', { value: "30"}, "30 Tage" )
                 , React.createElement('option', { value: "90"}, "90 Tage" )
               )
-              /* v3.5.189 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
+              /* v3.5.190 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
               , React.createElement('button', { onClick: ()=>{
                   const _cf=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
                   const _hdrs=["Zeit","Benutzer","Aktion","Entity-Typ","Entity-ID","Details"];
