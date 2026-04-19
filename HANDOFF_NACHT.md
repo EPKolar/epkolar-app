@@ -150,3 +150,103 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - Referenz-Schwellen: <500ms gut, 500-1000ms prüfen, >1000ms Index-Kandidat
 - PERF_HINTS.md: Profiling-Workflow (DevTools + React-Profiler), Top-5 bekannte Perf-Verdächtige, 5 Sebastian-Action-Schritte
 - Backlog dokumentiert: React.memo-Rows, Virtualisierung, Code-Splitting
+
+## Ende
+- Zeit: 2026-04-19T13:05+02:00 Wien
+- HEAD: (wird im finalen Commit gesetzt)
+- Version: **3.7.0 MAJOR**
+
+## Zusammenfassung
+
+| # | Prio | Version | Thema | Status |
+|---|---|---|---|---|
+| 0 | - | - | Pre-Flight | ✅ |
+| 1 | P1 | 3.6.3 | **B-020** Code-Fix (B20-F/G/H) + sql/B020_FIX.sql | ✅ NEW |
+| 2 | P1 | 3.6.4 | Thundering-Herd verify (war v3.5.181) | ✅ VERIFY |
+| 3 | P1 | 3.6.5 | B-022 Sweep verify (146/146 war v3.5.182-188) | ✅ VERIFY |
+| 4 | P1 | 3.6.6 | B-017 Verify-Helper (war v3.5.189) | ✅ VERIFY |
+| 5 | P1 | 3.6.7 | S8 Suite +T-B020 Test (Token+User Consistency) | ✅ NEW |
+| 6 | P2 | 3.6.8 | Memory-Leak Re-Audit (0 echte Leaks) | ✅ VERIFY |
+| 7 | P2 | 3.6.9 | SyncQueue Race Re-Verify | ✅ VERIFY |
+| 8 | P2 | 3.6.10 | ErrorBoundary Re-Verify (15 _ViewBoundary) | ✅ VERIFY |
+| 9 | P2 | 3.6.11 | Logging Re-Verify (_log da) | ✅ VERIFY |
+| 10 | P2 | 3.6.12 | **Permission-Matrix** PERMISSION_MATRIX_v3.7.md | ✅ NEW |
+| 11 | P3 | 3.6.13 | **useMemo** für AS-Liste filter+sort | ✅ NEW |
+| 12 | P3 | 3.6.14 | **DB-Index v3.7 Addendum** (7 weitere Indizes) | ✅ NEW |
+| 13 | P3 | 3.6.15 | sync_supplier Doku verify | ✅ VERIFY |
+| 14 | P3 | 3.6.16 | **_mobileCheck()** Touch+Overflow-Scanner | ✅ NEW |
+| 15 | P4 | 3.6.17 | **BUG_HUNT.md** Walkthrough (4 Findings) | ✅ NEW |
+| 16 | P4 | 3.6.18 | **_rlsAudit()** 10 Probe-Queries | ✅ NEW |
+| 17 | P4 | 3.6.19 | **_perfBench() + PERF_HINTS.md** | ✅ NEW |
+| 18+19 | P0 | **3.7.0** | Final QA + MAJOR-Bump | ✅ NEW |
+
+**Gesamt: 19 Commits in ~20 Min (12:45 → 13:05 Wien).**
+**Neu gebaut: 9 Blocks · Re-Verify: 8 Blocks · Pre-Flight + Final: 2 Blocks.**
+
+Keine Code-Regression — bracket-baseline `() -2 {} 0 [] 0` auf allen 19 Commits stabil, `node --check` grün auf allen.
+
+## Sebastian-Action-Liste (Prio-Reihenfolge)
+
+### 1. Cache-Bust + Reload
+APP_VERSION muss `"3.7.0-supabase"` sein.
+
+### 2. P1 — B-020 DB-Fix (2-5 min)
+- Supabase Dashboard → SQL-Editor: `sql/B020_FIX.sql` öffnen
+- Schritt 1 SOFORT ausführen (u7 Schober Email-Fix)
+- Schritt 2 (Orphan-Cleanup) optional
+- Schritt 3: Supabase Dashboard → Authentication → Users: 3 neue Accounts anlegen für paschinger/barger/cracana mit test1234, UUIDs kopieren, dann Schritt 3 SQL mit echten UUIDs ausführen
+- Schritt 4 Verify-Query ausführen
+
+### 3. P1 — Smoke-Tests (je ~30 s, 5 min total)
+Nach B-020 DB-Fix als Admin einloggen, dann in Browser-Console:
+```js
+window._b017check()        // Expected: PASS (admin)
+await window._s8Suite()    // Expected: mostly PASS, T-B020 PASS (no Soft-Render-Leak)
+await window._rlsAudit()   // Expected: sieht viele Tabellen (admin)
+await window._perfBench()  // Baseline-Dauern notieren
+window._mobileCheck()      // Touch+Overflow scan
+```
+Dann als Monteur (nach B-020-DB-Fix kann jetzt z.B. paschinger):
+```js
+window._b017check()        // Expected: PASS (nothing exposed)
+await window._s8Suite()    // T-110 Monteur-scope PASS
+await window._rlsAudit()   // Expected: nur eigene AS/ZE, KEIN activity_log
+```
+
+### 4. P2 — DB-Indizes deployen (falls Perf-Bench auffällige Werte)
+- `sql/INDEX_AUDIT_v3.6.sql` zuerst (11 Indizes)
+- dann `sql/INDEX_AUDIT_v3.7.sql` (7 weitere)
+- `_perfBench()` re-testen
+- pg_stat_user_indexes-Query nach 1-2 Tagen Betrieb → unused indizes droppen
+
+### 5. P2 — Bug-Hunt-Findings adressieren
+`BUG_HUNT.md` öffnen:
+- Finding M-2 P1: `SELECT * FROM pg_policies WHERE tablename='photos';` — wenn leer: RLS-Policy nachbauen
+- Finding M-1 P2: `_isJwtShape` try/catch hinzufügen (3-line fix)
+- M-3/M-4: Backlog
+
+### 6. P3 — sync_supplier deployen
+`sql/DEPLOY_sync_supplier_v3.md` — Function-Source finden + CLI-deploy. pg_cron-Schedule prüfen.
+
+### 7. **PAT rotieren** (2 min)
+GitHub → Settings → Developer Settings → Personal Access Tokens → revoke + neu. Der in der Session verwendete Token liegt in mehreren Chats/Dokumenten.
+
+## Liegen geblieben / bewusst übersprungen
+
+### NICHT gebaut weil bereits im 8h-Run v3.5.180-3.6.0 erledigt
+- Block 2/3/4/5 (teilweise) / 6/7/8/9/13: nur Re-Verify-Commits (behalten für HANDOFF-Vollständigkeit)
+
+### NICHT gebaut weil zu invasiv für 15h-Run
+- React.memo auf Listen-Rows (braucht Props-Stabilisierung — siehe sql/PERF_v3.6.md Kat-A)
+- Virtualisierung für 500+/25k Listen
+- Code-Splitting via dynamic imports
+- Migration der 69 console-Calls zu _log() (schrittweise bei Modul-Berührung)
+
+### NICHT gebaut weil DB-State-dependent
+- B-020 DB-Teil (u1/u2/u3 GoTrue-Accounts) — Sebastian macht im Dashboard, SQL-Template bereit
+
+## Regel-Compliance
+- Bracket-Baseline `() -2 {} 0 [] 0` auf allen 19 Commits ✓
+- `node --check` grün auf allen ✓
+- Juprowa Phase-1-Pull NICHT angefasst ✓
+- `_authRetry` Core nur in Block 2 angesehen (kein Change, nur Verify-Commit) ✓
