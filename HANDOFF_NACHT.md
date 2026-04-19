@@ -138,3 +138,9 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
   - M-4 P2: epkolar_gc localStorage-Passwort — Secure-UX-Trade-off
 - Prio-Liste für Sebastian: M-2 zuerst, dann M-1, Rest Backlog
 - **Kein Code-Change** in diesem Block, nur Doku.
+
+### Block 16 · v3.6.18 · ✅ RLS-Audit window._rlsAudit()
+- 10 Probe-Queries gegen users/arbeitsscheine/time_entries/notifications/supplier_articles/supplier_configs/activity_log/absences/fahrtenbuch/photos
+- Zeigt count + sampleKeys oder err pro Tabelle je nach aktueller Rolle
+- Erwartungs-Doku im Console-Output (was Admin/PL/Monteur jeweils sehen soll)
+- Sebastian: als admin + monteur + büro einzeln ausführen, Tabellen vergleichen
