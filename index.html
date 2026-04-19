@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.178';
+  var SW_VER='epkolar-v3.5.179';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -290,7 +290,7 @@ var require=function(m){if(m==='react')return React;if(m==='react-dom')return Re
 // Alle Calls gehen direkt an Supabase PostgREST
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL="https://jiggujpruejkaomgxarp.supabase.co";
-// v3.5.178 B-017: SUPABASE_URL/SB_REST/SUPABASE_KEY nicht mehr auf window — bleiben Closure-gebunden.
+// v3.5.179 B-017: SUPABASE_URL/SB_REST/SUPABASE_KEY nicht mehr auf window — bleiben Closure-gebunden.
 // _sbH, _sbAuthLogin, _sbAuthRefresh, _silentReAuth werden admin-gated in App.onLogin exposed.
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ2d1anBydWVqa2FvbWd4YXJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1OTU2NjUsImV4cCI6MjA4OTE3MTY2NX0.RXcu1ri8tK38ApdHWxs0Hl9h1FJQCHGm429QHrS2RMc";
 const SB_REST=SUPABASE_URL+"/rest/v1";
@@ -492,12 +492,12 @@ window._runAllTests=async function(){
   await t('TC-J "supabase-session" abgelehnt',()=>_isJwtShape('supabase-session')===false);
   await t('TC-J null abgelehnt',()=>_isJwtShape(null)===false);
   await t('TC-U _uuid matches v4-Regex',()=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(_uuid()));
-  // v3.5.178: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
+  // v3.5.179: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
   await t('TC-M SQ 50 parallel-push (Mutex)',async()=>{const _backup=await SQ.getAll();try{await SQ.clear();await Promise.all(Array.from({length:50},(_,i)=>SQ.push({url:'/api/ztest'+i,method:'POST'})));const q=await SQ.getAll();return q.length===50;}finally{await ODB.save('syncQueue',_backup||[]);}});
   await t('TC-F _fT hat AbortSignal',()=>{const i=_fT({method:'GET'},1000);return !!i.signal;});
   await t('TC-X _dl ist Funktion',()=>typeof _dl==='function');
   await t('TC-R ErrorBoundary geladen',()=>typeof EpkErrorBoundary==='function');
-  // v3.5.178 B-017: SB_REST nicht mehr auf window (Closure-only), _sbH nur nach Admin-Login exposed
+  // v3.5.179 B-017: SB_REST nicht mehr auf window (Closure-only), _sbH nur nach Admin-Login exposed
   await t('TC-S SB_REST nicht auf window (closure-private)',()=>typeof window.SB_REST==='undefined');
   await t('TC-S _sbH identity (admin-exposed oder closure)',()=>(typeof window._sbH==='undefined'||window._sbH===_sbH));
 
@@ -638,7 +638,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 let _authFailShown=false;
 function _isAuthErr(status){return status===401||status===403;}
 function _onAuthFail(){if(_authFailShown)return;_authFailShown=true;if(window.__toast)window.__toast("⚠️ Sitzung abgelaufen — bitte neu anmelden","warn");setTimeout(()=>{_authFailShown=false;},10000);}
-// v3.5.178 B-021: Silent-Re-Auth bei 401/403 — komplett. Thundering-Herd via _authRefreshInflight
+// v3.5.179 B-021: Silent-Re-Auth bei 401/403 — komplett. Thundering-Herd via _authRefreshInflight
 // im _sbAuthRefresh (line 584) bereits abgesichert. Hier: nach Retry auch 2nd-round-401
 // erkennen und dann _onAuthFail feuern (vorher: 2nd-round-401 silently weitergegeben).
 async function _authRetry(fn){
@@ -1289,7 +1289,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.178-supabase";
+const APP_VERSION="3.5.179-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -3603,7 +3603,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
 
-  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);/* v3.5.178 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
+  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);/* v3.5.179 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
 
   // ═══════════ HISTORY API — Browser-Zurück-Button Support ═══════════
   const _skipPush=_react.useRef.call(void 0, 0);// counter: >0 means skip N pushes
@@ -3714,7 +3714,7 @@ function LoginScreen({onLogin,onPortal,projects}){
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.5.178 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.5.179 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const _allTabs=[
@@ -4355,7 +4355,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
         if(dup&&!confirm("⚠️ Möglicher Duplikat-AS:\n\n"+dup.nummer+" — "+dup.kundName+"\nTermin: "+dup.terminBestaetigt+"\nStatus: "+dup.scheinstatus+"\n\nTrotzdem speichern?"))return;
       }
     }
-    // v3.5.178 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
+    // v3.5.179 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
     const _shouldAutoClose=form.sigMA&&form.sigMA.length>100&&form.sigKunde&&form.sigKunde.length>100&&(!form.scheinstatus||AS_GRP_OFFEN.includes(form.scheinstatus));
     const _finalForm=_shouldAutoClose?{...form,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:form;
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
@@ -5053,8 +5053,8 @@ function sharePdf(){
             , React.createElement('div', { style: CC()}
               , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:10}}, "Termin")
               , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Bestätigt"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminBestaetigt, onChange: e=>setForm({...form,terminBestaetigt:e.target.value}), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminZeit||"", onChange: e=>setForm({...form,terminZeit:e.target.value}), style: {...II(),width:90}, placeholder: "Uhrzeit"} )))
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorschlag"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminVorschlag, onChange: e=>setForm({...form,terminVorschlag:e.target.value}), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminVorschlagZeit||"", onChange: e=>setForm({...form,terminVorschlagZeit:e.target.value}), style: {...II(),width:90}} )))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Bestätigt"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminBestaetigt, onChange: e=>setForm(p=>({...p,terminBestaetigt:e.target.value})), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminZeit||"", onChange: e=>setForm(p=>({...p,terminZeit:e.target.value})), style: {...II(),width:90}, placeholder: "Uhrzeit"} )))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorschlag"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminVorschlag, onChange: e=>setForm(p=>({...p,terminVorschlag:e.target.value})), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminVorschlagZeit||"", onChange: e=>setForm(p=>({...p,terminVorschlagZeit:e.target.value})), style: {...II(),width:90}} )))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Dauer (Std.)" ), React.createElement('input', { value: form.dauer, onChange: e=>setForm({...form,dauer:e.target.value}), type:"number", inputMode:"decimal", step:"any", min:"0", style: II(), placeholder: "z.B. 3" } ))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur"), React.createElement('select', { value: form.monteur, onChange: e=>setForm({...form,monteur:e.target.value}), style: II()}, monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))))
               )
@@ -5895,7 +5895,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 , React.createElement('option', { value: "30"}, "30 Tage" )
                 , React.createElement('option', { value: "90"}, "90 Tage" )
               )
-              /* v3.5.178 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
+              /* v3.5.179 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
               , React.createElement('button', { onClick: ()=>{
                   const _cf=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
                   const _hdrs=["Zeit","Benutzer","Aktion","Entity-Typ","Entity-ID","Details"];
@@ -11614,7 +11614,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               ));}))))
             )
 
-            , editEntry&&(React.createElement('div', { style: {...CC(),marginTop:10,border:"2px solid #3b82f6",background:_dark?"rgba(59,130,246,.08)":"rgba(59,130,246,.04)"}}, React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:"#3b82f6"}}, "✏️ ",editEntry.worker," — ",fdt(dk(editEntry.day))), React.createElement('button', { onClick: ()=>setEditEntry(null), style: {background:"none",border:"none",color:V.dm,fontSize:16,cursor:"pointer"}}, "✕")), React.createElement('div', { style: {display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}, React.createElement('div', {}, React.createElement('label', { style: {fontSize:10,color:V.dm,display:"block",marginBottom:2}}, "Typ"), React.createElement('select', { value: editEntry.type, onChange: e=>setEditEntry({...editEntry,type:e.target.value}), style: {...II(),fontSize:12,padding:"5px 8px",minWidth:140}}, Object.entries(AT_T).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i," ",v.l)))), React.createElement('div', {}, React.createElement('label', { style: {fontSize:10,color:V.dm,display:"block",marginBottom:2}}, "Stunden"), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", min: "0", max: "12", value: editEntry.hours, onChange: e=>setEditEntry({...editEntry,hours:parseFloat(e.target.value)||0}), style: {...II(),fontSize:12,padding:"5px 8px",width:70,textAlign:"center"}})), React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('label', { style: {fontSize:10,color:V.dm,display:"block",marginBottom:2}}, "Notiz"), React.createElement('input', { type: "text", value: editEntry.note, onChange: e=>setEditEntry({...editEntry,note:e.target.value}), placeholder: "optional...", style: {...II(),fontSize:12,padding:"5px 8px",width:"100%"}})), React.createElement('button', { onClick: ()=>updateEntry(editEntry.key,{type:editEntry.type,hours:editEntry.hours,note:editEntry.note}), style: {...bpS,padding:"6px 14px",fontSize:12,background:"#3b82f6",border:"none",color:"#fff",borderRadius:8,fontWeight:700}}, "💾 Speichern"), React.createElement('button', { onClick: ()=>{delEntry(editEntry.worker,editEntry.day);setEditEntry(null);}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "🗑️ Löschen"))))
+            , editEntry&&(React.createElement('div', { style: {...CC(),marginTop:10,border:"2px solid #3b82f6",background:_dark?"rgba(59,130,246,.08)":"rgba(59,130,246,.04)"}}, React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:"#3b82f6"}}, "✏️ ",editEntry.worker," — ",fdt(dk(editEntry.day))), React.createElement('button', { onClick: ()=>setEditEntry(null), style: {background:"none",border:"none",color:V.dm,fontSize:16,cursor:"pointer"}}, "✕")), React.createElement('div', { style: {display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}, React.createElement('div', {}, React.createElement('label', { style: {fontSize:10,color:V.dm,display:"block",marginBottom:2}}, "Typ"), React.createElement('select', { value: editEntry.type, onChange: e=>setEditEntry(p=>({...p,type:e.target.value})), style: {...II(),fontSize:12,padding:"5px 8px",minWidth:140}}, Object.entries(AT_T).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i," ",v.l)))), React.createElement('div', {}, React.createElement('label', { style: {fontSize:10,color:V.dm,display:"block",marginBottom:2}}, "Stunden"), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", min: "0", max: "12", value: editEntry.hours, onChange: e=>setEditEntry(p=>({...p,hours:parseFloat(e.target.value)||0})), style: {...II(),fontSize:12,padding:"5px 8px",width:70,textAlign:"center"}})), React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('label', { style: {fontSize:10,color:V.dm,display:"block",marginBottom:2}}, "Notiz"), React.createElement('input', { type: "text", value: editEntry.note, onChange: e=>setEditEntry(p=>({...p,note:e.target.value})), placeholder: "optional...", style: {...II(),fontSize:12,padding:"5px 8px",width:"100%"}})), React.createElement('button', { onClick: ()=>updateEntry(editEntry.key,{type:editEntry.type,hours:editEntry.hours,note:editEntry.note}), style: {...bpS,padding:"6px 14px",fontSize:12,background:"#3b82f6",border:"none",color:"#fff",borderRadius:8,fontWeight:700}}, "💾 Speichern"), React.createElement('button', { onClick: ()=>{delEntry(editEntry.worker,editEntry.day);setEditEntry(null);}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "🗑️ Löschen"))))
 
             , monthEntries.length>0 && (
               React.createElement('div', { style: {...CC(),marginTop:14}}
