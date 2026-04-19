@@ -100,3 +100,8 @@
 - Scannt DOM: img ohne alt, Icon-Only-Buttons ohne aria-label, Inputs ohne `<label for>`/aria-label/placeholder
 - Output: console.table grouped + sample + total-count
 - Kein Auto-Fix — Finding-List für Sebastian
+
+### Block 15 · v3.7.16 · ✅ _syncDiag() IndexedDB-Helper
+- Nutzt high-level SQ.getAll + ODB.load('syncQueueFailed') (nicht raw IDB wie Plan vorschlug — sauberer)
+- Output: summary (total/failedArchive/highRetryCount) + byStatus + byAge-Buckets + HighRetries-Sample + FailedArchive-Sample
+- Hilft Sebastian "Sync hängt fest"-Reports zu diagnostizieren
