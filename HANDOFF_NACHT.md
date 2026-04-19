@@ -53,3 +53,9 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - 146/146 setState-Spread → functional update abgeschlossen im 8h-Run
 - `node sql/_b022_sweep.js` → 0 candidates · keine setX({...x,...}) mit matching setter-var mehr
 - Keine neuen Änderungen.
+
+### Block 4 · v3.6.6 · ✅ B-017 Verify-Helper (bereits v3.5.189)
+- `window._b017check()` in Line 632 — PASS/FAIL verdict je nach Rolle
+- Admin: PASS wenn Helpers exposed UND credentials nicht exposed
+- Non-Admin: PASS wenn nichts exposed
+- Keine neuen Änderungen.
