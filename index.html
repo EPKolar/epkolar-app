@@ -6387,14 +6387,14 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         const pct=60+Math.round((i/rows.length)*35);
         setDnUploadProgress(pct);
         setDnUploadStatus("Speichere "+(i+batch.length)+"/"+rows.length+"...");
-        const hdr=_authToken?{..._sbWH(),"Prefer":"resolution=merge-duplicates"}:{apikey:SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"};
         // v3.5.126: Timeout auf bulk-upsert (60s, da 200-Row-Batch etwas länger dauern darf) + Error-Check
-        const _bResp=await fetch(SB_REST+"/supplier_articles",_fT({method:"POST",headers:hdr,body:JSON.stringify(batch)},60000));
+        // v3.8.20 Iter-20: _authRetry-Wrap — vorher konnte Token während 125+ Batches (25k Artikel)
+        // ablaufen, 401 warf ohne silent-refresh → kompletter Import-Restart nötig.
+        const _bResp=await _authRetry(()=>{const hdr=_authToken?{..._sbWH(),"Prefer":"resolution=merge-duplicates"}:{apikey:SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"};return fetch(SB_REST+"/supplier_articles",_fT({method:"POST",headers:hdr,body:JSON.stringify(batch)},60000));});
         if(!_bResp.ok){const _et=await _bResp.text().catch(()=>"");throw new Error("Batch-Upsert fehlgeschlagen ("+_bResp.status+"): "+_et.slice(0,150));}
       }
-      // Update supplier last_sync
-      const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};
-      await fetch(SB_REST+"/supplier_configs?id=eq."+suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})}));
+      // Update supplier last_sync (v3.8.20 Iter-20: auch hier _authRetry)
+      await _authRetry(()=>{const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};return fetch(SB_REST+"/supplier_configs?id=eq."+suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})}));});
       setDnUploadStatus("✅ "+rows.length+" Artikel importiert ("+articles.detVer+")");setDnUploadProgress(100);
       setTimeout(fetchSuppliers,500);
     }catch(e){setDnUploadStatus("❌ Fehler: "+e.message);setDnUploadProgress(0);}
