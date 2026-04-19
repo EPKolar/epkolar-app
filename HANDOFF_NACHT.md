@@ -42,3 +42,9 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
   - u1/u2/u3: brauchen neue GoTrue-Accounts via Supabase Dashboard, SQL ist Template
   - Final-Verify-Query zeigt bad_empty/no_auth_link/auth_missing-Flags
 - **Sebastians Action**: sql/B020_FIX.sql Schritt 1 direkt ausführen, Schritt 3 nach Dashboard-User-Anlage mit UUIDs füllen.
+
+### Block 2 · v3.6.4 · ✅ Thundering-Herd verify (bereits v3.5.181)
+- `_authRefreshInflight` Singleton-Promise-Guard existiert seit v3.5.112 (Line 736)
+- `window._s8_107c` Self-Test existiert seit v3.5.181 (Line 817)
+- 5 parallele 401 → 1 Refresh-Request (via inflight-promise dedup)
+- Keine neuen Code-Änderungen. Re-verify nach Block 1 B-020 Flow (B20-H throw statt degraded mode ändert nichts am Refresh-Path).
