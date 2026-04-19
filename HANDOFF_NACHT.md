@@ -105,3 +105,16 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - Jetzt `_react.useMemo.call(void 0, ..., [deps])` → nur recompute bei echten Änderungen
 - Deps: arbeitsscheine, filters, sortCol/Dir, monteure, curUser
 - Weitere React.memo auf Row-Components nicht applied (EntryRow ist inner-function, benötigt Props-Stabilisierung zuerst — nicht sicher genug für 1h-Block)
+
+### Block 12 · v3.6.14 · ✅ DB-Index v3.7 Addendum (sql/INDEX_AUDIT_v3.7.sql)
+- v3.6 SQL (11 Indizes) existiert schon — nicht dupliziert
+- v3.7 Addendum: 7 zusätzliche Indizes:
+  - ix_as_termin_offen (Partial, WHERE scheinstatus IN offen-group)
+  - ix_te_project_datum
+  - ix_fb_worker_datum (fahrtenbuch)
+  - ix_kommentare_as_created
+  - ix_photos_entity (entity_type+entity_id+taken_at)
+  - ix_wp_worker / ix_wp_project
+  - ix_defects_project_status
+- Plus Monitoring-SQL (pg_stat_user_indexes mit UNUSED-Detection)
+- Sebastian: v3.6 SQL zuerst, dann v3.7
