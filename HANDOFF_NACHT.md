@@ -65,3 +65,9 @@
   - Break-on-auth/network-error gegen Server-Spam
 - **Added**: v3.5.192 `window._syncSkipCount` Diagnose-Counter — wenn User 10x ohne _authToken skipped wird, zeigt Toast + console.warn. Hilft "Sync hängt fest"-Cases zu diagnostizieren.
 - Keine weiteren Races entdeckt. SyncQueue audit-clean.
+### Block 8 · v3.5.193 · ✅ ViewBoundary für 15 Hauptviews
+- Neue `_ViewBoundary` class (Line ~3155, vor App()) — leichtgewichtig inline
+- 15 Tab-Views alle gewrappt via `sql/_wrap_viewboundaries.js` automatisiert
+- Crash in einem Tab → nur dieser Tab zeigt inline Error-UI mit Retry/Reload, andere Tabs bleiben navigierbar
+- Logs zu console.error + window.__EP_ERRORS + fire-and-forget activity_log
+- Top-level EpkErrorBoundary bleibt als Last-Resort
