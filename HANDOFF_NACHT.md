@@ -144,3 +144,9 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - Zeigt count + sampleKeys oder err pro Tabelle je nach aktueller Rolle
 - Erwartungs-Doku im Console-Output (was Admin/PL/Monteur jeweils sehen soll)
 - Sebastian: als admin + monteur + büro einzeln ausführen, Tabellen vergleichen
+
+### Block 17 · v3.6.19 · ✅ Perf-Profiling window._perfBench() + sql/PERF_HINTS.md
+- 9 typische DB-Queries mit ms-Dauer-Messung
+- Referenz-Schwellen: <500ms gut, 500-1000ms prüfen, >1000ms Index-Kandidat
+- PERF_HINTS.md: Profiling-Workflow (DevTools + React-Profiler), Top-5 bekannte Perf-Verdächtige, 5 Sebastian-Action-Schritte
+- Backlog dokumentiert: React.memo-Rows, Virtualisierung, Code-Splitting
