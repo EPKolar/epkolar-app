@@ -33,3 +33,8 @@
 - Full-mode ruft perfBench → mobileCheck → b017check → rlsAudit → s8Suite
 - Console.group + Console.table + Toast + localStorage['selftest_last_run']
 - `sql/SELFTEST_USAGE.md` mit Usage, Regression-Workflow, Rollen-Matrix, Troubleshooting
+
+### Block 4 · v3.7.5 · ✅ Index-Effekt-Verify SQL-Suite
+- `sql/INDEX_EFFECT_v3.8.sql`: 12 EXPLAIN ANALYZE Queries für alle v3.6+v3.7 Indizes (AS/TE/Notif/Activity/SA-FTS/FB/Komm/Photos) + pg_stat_user_indexes Monitor
+- `sql/INDEX_EFFECT_v3.8_RESULTS.md`: Template zum Ausfüllen, Vor-/Nach-Vergleich, Verdict-Matrix (EFFECTIVE/MARGINAL/INEFFECTIVE)
+- Sebastian: vorher + nachher durchlaufen, Zahlen in Results-MD kopieren
