@@ -1,12 +1,12 @@
-// EP Kolar Service Worker v3.5.195
-const CACHE_NAME = "epkolar-v3.5.195";
+// EP Kolar Service Worker v3.5.196
+const CACHE_NAME = "epkolar-v3.5.196";
 const ASSETS = [
   './',
   './index.html'
 ];
 
 self.addEventListener('install', event => {
-  // v3.5.195: matchAll({includeUncontrolled:true}) — während install hat SW KEINE controlled clients
+  // v3.5.196: matchAll({includeUncontrolled:true}) — während install hat SW KEINE controlled clients
   // → vorheriger Code erreichte nie einen Client mit SW_UPDATED
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))

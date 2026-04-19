@@ -81,3 +81,9 @@
 - `sql/PERF_v3.6.md` mit 5 Kategorien Empfehlungen (React.memo, useMemo, useCallback, IndexedDB, SyncQueue)
 - **Keine Code-Änderungen** — React.memo ohne Props-Stabilisierung kontraproduktiv, Stale-Closure-Risk durch useCallback-Deps
 - Sebastians Entscheidung: anwenden nur bei konkreten User-Reports zu Perf-Issues, nicht präventiv
+### Block 11 · v3.5.196 · ✅ DB-Index-Vorschläge (SQL-File)
+- `sql/INDEX_AUDIT_v3.6.sql` mit 11 Index-Vorschlägen (alle CREATE INDEX CONCURRENTLY IF NOT EXISTS)
+- Tabellen: arbeitsscheine, time_entries, notifications, activity_log, supplier_articles (GIN FTS), absences, material_orders, bautagebuch
+- **Sebastian führt manuell im Supabase SQL-Editor aus** (nicht autom. gedeployt)
+- ANALYZE-Statements am Ende
+- Optionales Monitoring-SQL am Ende (Index-Usage nach 1 Tag Betrieb)
