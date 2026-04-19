@@ -99,3 +99,9 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - RLS-Scope aus B-007 Policies (Monteur-Isolation via current_monteur_id())
 - Keine Abweichungen zum SOLL-Stand
 - Audit-Queries für Sebastian (Browser Console + Supabase SQL-Editor)
+
+### Block 11 · v3.6.13 · ✅ Perf: useMemo für AS-Liste filter+sort
+- `filtered` und `sorted` in AS-Liste waren O(n) + O(n log n) pro Render (auch bei unrelated setState)
+- Jetzt `_react.useMemo.call(void 0, ..., [deps])` → nur recompute bei echten Änderungen
+- Deps: arbeitsscheine, filters, sortCol/Dir, monteure, curUser
+- Weitere React.memo auf Row-Components nicht applied (EntryRow ist inner-function, benötigt Props-Stabilisierung zuerst — nicht sicher genug für 1h-Block)
