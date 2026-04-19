@@ -80,3 +80,9 @@
 - +Session 17 (5 Tests T-170..174 WhatsApp-Preflight)
 - +Session 18 (3 Tests T-180..182 Perf-Regression)
 - 16 neue Tests, Total ≈ 170 in 18 Sessions
+
+### Block 12 · v3.7.13 · ⚠ React-Profiling — skip (ehrlich)
+- Plan sagt "nur wenn Fixes applied". Ohne Live-React-Profiler-Session mit Sebastian kein valider Hot-Spot bekannt.
+- Kandidaten-Liste bereits in `sql/PERF_v3.6.md` und `sql/PERF_HINTS.md` dokumentiert (AS-Liste, Supplier-Articles, Chef-Dashboard).
+- Plan-Regel: "Nur commit wenn Code-Änderung" — aktuell keine, also nur Version-Bump für Numerierungs-Konsistenz.
+- **Ehrlich**: v3.6.13 hat bereits useMemo für AS-Liste geliefert. Nächste Perf-Iteration braucht Sebastian-Profiler-Record.
