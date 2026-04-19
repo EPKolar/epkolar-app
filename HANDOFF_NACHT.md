@@ -73,3 +73,12 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
   - L4591: _vorlagenBus.subscribe() → return direkt die unsubscribe-Fn
 - Balance: setInterval/clearInterval 8/9 · setTimeout/clearTimeout 53/15 (one-shots ok) · addEventListener/removeEventListener 16/15 (1 intentional module-level visibilitychange)
 - Keine neuen Änderungen.
+
+### Block 7 · v3.6.9 · ✅ SyncQueue Race verify (bereits hardened)
+- `window._epkSyncInflight` Reentrancy-Guard (v3.5.138)
+- Peek-based iteration (Snapshot aus SQ.getAll() + removeMany am Ende)
+- Max 5 Retries → syncQueueFailed (v3.5.70)
+- Retry-Count-Updates via SQ._serial (v3.5.141)
+- Shared Mutex für push/remove (v3.5.139/140)
+- _syncSkipCount Diagnose (v3.5.192)
+- Keine neuen Änderungen.
