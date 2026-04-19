@@ -122,3 +122,9 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 ### Block 13 · v3.6.15 · ✅ sync_supplier Doku (bereits v3.5.197)
 - `sql/DEPLOY_sync_supplier_v3.md` existiert
 - Function-Source nicht im Repo — Sebastian lokalisiert (Dashboard / separates Repo)
+
+### Block 14 · v3.6.16 · ✅ Mobile-UX Self-Test window._mobileCheck()
+- Scannt DOM auf Touch-Targets <44px (WCAG 2.5.5, iOS HIG)
+- Scannt auf horizontal-overflow Elemente (scrollWidth > clientWidth)
+- Ausgabe: Sample-Tables + Viewport-Info
+- Sebastian: als Monteur auf iPhone/Android laufen lassen, erhebt hit-list für quick-fixes
