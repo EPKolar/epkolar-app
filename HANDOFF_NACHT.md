@@ -118,3 +118,7 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
   - ix_defects_project_status
 - Plus Monitoring-SQL (pg_stat_user_indexes mit UNUSED-Detection)
 - Sebastian: v3.6 SQL zuerst, dann v3.7
+
+### Block 13 · v3.6.15 · ✅ sync_supplier Doku (bereits v3.5.197)
+- `sql/DEPLOY_sync_supplier_v3.md` existiert
+- Function-Source nicht im Repo — Sebastian lokalisiert (Dashboard / separates Repo)
