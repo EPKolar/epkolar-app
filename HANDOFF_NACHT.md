@@ -36,3 +36,9 @@
 - Safety-Match: nur Stellen wo setter-Name exakt zu State-Var passt (setForm ↔ form, setNf ↔ nf, etc)
 - Nach Chunk 7: `Found 0 candidates` — restfrei
 - Bracket-Baseline + syntax-check nach jedem Chunk grün
+### Block 4 · v3.5.189 · ✅ B-017 Gegencheck window._b017check()
+- Self-Test-Helper prüft ob window-Exposures je nach Rolle korrekt sind
+- Admin: PASS wenn Helper-Funktionen da UND keine Credentials exposed
+- Non-Admin: PASS wenn gar nichts exposed
+- Direkt nach _runAllTests-Block eingesetzt (Line ~510)
+- Sebastian: `window._b017check()` als admin + monteur laufen lassen, beide PASS erwartet
