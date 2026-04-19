@@ -87,3 +87,12 @@
 - **Sebastian führt manuell im Supabase SQL-Editor aus** (nicht autom. gedeployt)
 - ANALYZE-Statements am Ende
 - Optionales Monitoring-SQL am Ende (Index-Usage nach 1 Tag Betrieb)
+### Block 12 · v3.5.197 · ✅ sync_supplier Deploy-Doku (Code-Source nicht im Repo)
+- **Finding**: `supabase/functions/sync_supplier/` existiert NICHT im epkolar-app Repo
+- Function ist entweder nur im Supabase-Dashboard oder in separatem Repo
+- `sql/DEPLOY_sync_supplier_v3.md` mit:
+  - Code-Review-Checkliste (8 Punkte)
+  - Deploy-Commands (CLI)
+  - pg_cron Schedule + Monitoring SQL
+  - 4 Offene-Punkte für Sebastian (Source-Lokalisierung, Versionierung, Schedule-Check)
+- **Sebastian**: Function-Source finden + ggf. ins Repo unter `supabase/functions/sync_supplier/` committen (Versionierung)
