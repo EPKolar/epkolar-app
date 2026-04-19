@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.174';
+  var SW_VER='epkolar-v3.5.175';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -493,7 +493,7 @@ window._runAllTests=async function(){
   await t('TC-J "supabase-session" abgelehnt',()=>_isJwtShape('supabase-session')===false);
   await t('TC-J null abgelehnt',()=>_isJwtShape(null)===false);
   await t('TC-U _uuid matches v4-Regex',()=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(_uuid()));
-  // v3.5.174: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
+  // v3.5.175: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
   await t('TC-M SQ 50 parallel-push (Mutex)',async()=>{const _backup=await SQ.getAll();try{await SQ.clear();await Promise.all(Array.from({length:50},(_,i)=>SQ.push({url:'/api/ztest'+i,method:'POST'})));const q=await SQ.getAll();return q.length===50;}finally{await ODB.save('syncQueue',_backup||[]);}});
   await t('TC-F _fT hat AbortSignal',()=>{const i=_fT({method:'GET'},1000);return !!i.signal;});
   await t('TC-X _dl ist Funktion',()=>typeof _dl==='function');
@@ -1278,7 +1278,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.174-supabase";
+const APP_VERSION="3.5.175-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -4344,10 +4344,13 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
         if(dup&&!confirm("⚠️ Möglicher Duplikat-AS:\n\n"+dup.nummer+" — "+dup.kundName+"\nTermin: "+dup.terminBestaetigt+"\nStatus: "+dup.scheinstatus+"\n\nTrotzdem speichern?"))return;
       }
     }
-    const _isPush=editId&&form.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>form[k]!==undefined);
-    if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...form,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",form.nummer+" — "+form.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
-    else{setArbeitsscheine(prev=>[{...form,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",form.nummer+" — "+(form.kundName||_optionalChain([form, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
-    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{...form,push_pending:true,local_updated_at:new Date().toISOString()}:form});if(editId&&form.juprowa_id)_juprowaMarkEdited(editId,form);try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(editId?"✅ Schein aktualisiert":"✅ Schein angelegt")]);setSub("liste");setEditId(null);};
+    // v3.5.175 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
+    const _shouldAutoClose=form.sigMA&&form.sigMA.length>100&&form.sigKunde&&form.sigKunde.length>100&&(!form.scheinstatus||AS_GRP_OFFEN.includes(form.scheinstatus));
+    const _finalForm=_shouldAutoClose?{...form,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:form;
+    const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
+    if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
+    else{setArbeitsscheine(prev=>[{..._finalForm,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",_finalForm.nummer+" — "+(_finalForm.kundName||_optionalChain([_finalForm, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
+    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?"✓ AS automatisch abgeschlossen":(editId?"✅ Schein aktualisiert":"✅ Schein angelegt"))]);setSub("liste");setEditId(null);};
   const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});};
