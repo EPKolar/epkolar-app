@@ -30,3 +30,9 @@
 - **Findung**: Singleton-Refresh-Promise war bereits seit v3.5.112 implementiert via `_authRefreshInflight` (line 584). Keine neue Dedup-Logik nötig — die Architektur ist korrekt.
 - **Delivery**: `window._s8_107c()` Self-Test hinzugefügt. Korruptiert _authToken, triggert 5 parallele _sbGet, misst Dauer + zählt Recovery. Sebastian prüft im Network-Tab ob genau 1 /auth/v1/token?grant_type=refresh_token Request fliegt.
 - **Comment-Refresh**: `_authRetry` Kommentar aktualisiert um die Thundering-Herd-Semantik explizit zu dokumentieren.
+### Block 3 · v3.5.182..188 · ✅ B-022 Full-Sweep (146/146)
+- 146 `setX({...x,...})` Patterns → `setX(p=>({...p,...}))` in 7 Chunks à 20-21 hits
+- Dedizierter Sweep-Script `sql/_b022_sweep.js` (string-aware brace-matching)
+- Safety-Match: nur Stellen wo setter-Name exakt zu State-Var passt (setForm ↔ form, setNf ↔ nf, etc)
+- Nach Chunk 7: `Found 0 candidates` — restfrei
+- Bracket-Baseline + syntax-check nach jedem Chunk grün
