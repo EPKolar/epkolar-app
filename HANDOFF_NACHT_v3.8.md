@@ -21,3 +21,9 @@
 - `sql/PHOTOS_RLS_AUDIT.sql`: 5 Diagnose-Queries (Policies, RLS-Flag, Schema, Counts) + Entscheidungsmatrix A-E
 - `sql/PHOTOS_RLS_FIX.sql`: 3 Varianten (A=Policy fehlt, B=Policy zu offen, C=nur Matrix-Doku) mit vollen CREATE POLICY Blöcken für SELECT-Staff / SELECT-Field-Self / INSERT / UPDATE / DELETE
 - Sebastian führt Audit → entscheidet → Fix → Verify via `_rlsAudit()`
+
+### Block 2 · v3.7.3 · ✅ BUG_HUNT M-1/M-3/M-4 closed
+- **M-1 NOT A BUG**: _isJwtShape hat keine atob/JSON.parse. Die einzige atob+parse-Stelle (window._ensureAuth Line 796) ist bereits try/catch-gewrappt.
+- **M-3 RE-INVESTIGATE**: _authRefreshInflight 50ms-race — analysiert als harmlos (rapid-fire 401 wollen KEIN sofortiges 2. Refresh). Messung kommt via Block 7 _thunderTest.
+- **M-4 KNOWN-TRADE-OFF**: epkolar_gc Password base64 — UX-Entscheidung (Monteure-Offline-PWA), Sebastian entscheidet Migration.
+- Nur BUG_HUNT.md Doku-Update, **keine Code-Änderungen** (ehrliche Entscheidung).
