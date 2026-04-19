@@ -14,7 +14,7 @@ durch Paste-Mechanismus truncated — CC arbeitet prose-basiert + Baseline-Konte
 | Block | Status | Commit | Notiz |
 |---|---|---|---|
 | 0 Pre-Flight | ✅ | v3.8.19-wip pre-flight | Baseline clean, Plan gespeichert, HANDOFF init |
-| A Baseline-Fixes | ⏳ | | 4 idempotente Fixes aus Baseline-Befunden |
+| A Baseline-Fixes | ✅ | v3.8.19-wip BASELINE_FIX_v3.8 | 4 Fixes: users.email UNIQUE, arbeitsscheine.juprowa_id UNIQUE, 3 CHECK-Constraints (scheinstatus/prioritaet/role), 3 NOT NULL (photos.project_id, time_entries.worker_id, time_entries.project_id). **Sebastian muss BASELINE_FIX_v3.8.sql manuell im Supabase SQL-Editor ausführen**, danach VERIFY-Query (8 TRUE erwartet). |
 | B 12 Orphan-AS | ⏳ | | Query + Kategorisierung + Empfehlung |
 | C Chef-Seite v2 | ⏳ | | Sorgenkind + Trend-Pfeile + Nächste-Woche |
 | D | ⏳ | | Plan-Chunk ausstehend |
