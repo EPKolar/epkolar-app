@@ -96,3 +96,72 @@
   - pg_cron Schedule + Monitoring SQL
   - 4 Offene-Punkte für Sebastian (Source-Lokalisierung, Versionierung, Schedule-Check)
 - **Sebastian**: Function-Source finden + ggf. ins Repo unter `supabase/functions/sync_supplier/` committen (Versionierung)
+
+## Ende
+- Zeit: 2026-04-19T12:15+02:00 Wien
+- HEAD: (siehe final-commit)
+- Version: **3.6.0 MAJOR**
+
+## Zusammenfassung
+
+| Block | Prio | Version | Kurzbeschreibung | Status |
+|---|---|---|---|---|
+| 0 | - | - | Pre-Flight (Sync, Baseline, Login-Grep) | ✅ |
+| 1 | P1 | 3.5.180 | B-020 defensive fix · 5 Error-Codes B20-A..E | ✅ |
+| 2 | P1 | 3.5.181 | Thundering-Herd verified + window._s8_107c Self-Test | ✅ |
+| 3 | P1 | 3.5.182-188 | B-022 Full-Sweep · 146/146 setState-Spreads → functional | ✅ |
+| 4 | P1 | 3.5.189 | B-017 Gegencheck window._b017check() | ✅ |
+| 5 | P1 | 3.5.190 | Session 8 Test-Runner window._s8Suite() · 8 Tests | ✅ |
+| 6 | P2 | 3.5.191 | Memory-Leak-Audit · PWA-Install-useEffect geh. (R-2 closed) | ✅ |
+| 7 | P2 | 3.5.192 | SyncQueue-Audit · _syncSkipCount Diagnose | ✅ |
+| 8 | P2 | 3.5.193 | _ViewBoundary für 15 Hauptviews · Per-Tab-Crash-Isolation | ✅ |
+| 9 | P2 | 3.5.194 | _log(level,component,...) Helper · window._log + _setLogLevel | ✅ |
+| 10 | P3 | 3.5.195 | Perf-Audit (Doku only, sql/PERF_v3.6.md) | ✅ |
+| 11 | P3 | 3.5.196 | DB-Index-Vorschläge sql/INDEX_AUDIT_v3.6.sql (manueller Deploy) | ✅ |
+| 12 | P3 | 3.5.197 | sync_supplier Deploy-Doku (Source nicht im Repo) | ✅ |
+| 13 | P0 | **3.6.0** | Final QA + MAJOR-Bump | ✅ |
+
+## Laufzeit: ~22 Min (11:53 → 12:15 Wien)
+
+## Für Sebastian morgen früh (oder jetzt):
+
+### 1. Cache-Bust + Hard-Reload
+- APP_VERSION muss `"3.6.0-supabase"` sein
+
+### 2. Als **admin** (guenther) testen
+```js
+// in Browser-Console
+window._b017check()     // erwartet: PASS (admin has helpers, no credentials)
+await window._s8Suite() // erwartet: 5-8 PASS, 0 FAIL, evtl. 1-2 SKIP
+```
+
+### 3. Als **monteur** (schober oder paschinger) testen
+```js
+window._b017check()     // erwartet: PASS (nothing exposed)
+await window._s8Suite() // T-110 sollte PASS liefern (nur eigene AS sichtbar)
+```
+
+### 4. Als **büro** (schober) testen
+- `window._s8Suite()` — T-110 + T-111 skipped, Rest PASS
+
+### 5. Thundering-Herd-Test (als Admin)
+```js
+await window._s8_107c()
+// Network-Tab: EXAKT 1 POST /auth/v1/token?grant_type=refresh_token erwartet
+```
+
+### 6. SQL-Files manuell ausführen
+- `sql/INDEX_AUDIT_v3.6.sql` (im Supabase SQL-Editor, Output prüfen)
+- `sql/DEPLOY_sync_supplier_v3.md` durchlesen, 4 offene Punkte klären
+
+### 7. PAT rotieren
+GitHub → Settings → Developer Settings → Personal Access Tokens → revoke + neu. 2 min.
+
+## Liegen geblieben / bewusst übersprungen
+
+- **B-020 Root-Cause-Fix**: Nur defensive Error-Codes ergänzt. Wenn User wieder silent-fail hat → [B20-X] in Console eindeutig identifiziert → dann gezielter Fix möglich. Browser-Artefakte stehen immer noch aus.
+- **~69 `console.log/warn/error` → `_log()` Migration**: Infrastruktur steht, Migration schrittweise bei Modul-Touches.
+- **React.memo für Listen-Zeilen**: Doku in PERF_v3.6.md, keine Anwendung (zu riskant ohne Props-Stabilisierung).
+- **sync_supplier Function-Source**: Nicht im Repo gefunden. Sebastian lokalisiert + committet.
+
+## Regel: Bracket-Baseline blieb `() -2, {} 0, [] 0` bei allen 20 Commits. `node --check` grün bei allen.
