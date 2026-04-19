@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.5.181';
+  var SW_VER='epkolar-v3.5.182';
   try{
     var stored=localStorage.getItem('epk_sw_ver');
     if(stored!==SW_VER){
@@ -290,7 +290,7 @@ var require=function(m){if(m==='react')return React;if(m==='react-dom')return Re
 // Alle Calls gehen direkt an Supabase PostgREST
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL="https://jiggujpruejkaomgxarp.supabase.co";
-// v3.5.181 B-017: SUPABASE_URL/SB_REST/SUPABASE_KEY nicht mehr auf window — bleiben Closure-gebunden.
+// v3.5.182 B-017: SUPABASE_URL/SB_REST/SUPABASE_KEY nicht mehr auf window — bleiben Closure-gebunden.
 // _sbH, _sbAuthLogin, _sbAuthRefresh, _silentReAuth werden admin-gated in App.onLogin exposed.
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ2d1anBydWVqa2FvbWd4YXJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1OTU2NjUsImV4cCI6MjA4OTE3MTY2NX0.RXcu1ri8tK38ApdHWxs0Hl9h1FJQCHGm429QHrS2RMc";
 const SB_REST=SUPABASE_URL+"/rest/v1";
@@ -492,12 +492,12 @@ window._runAllTests=async function(){
   await t('TC-J "supabase-session" abgelehnt',()=>_isJwtShape('supabase-session')===false);
   await t('TC-J null abgelehnt',()=>_isJwtShape(null)===false);
   await t('TC-U _uuid matches v4-Regex',()=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(_uuid()));
-  // v3.5.181: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
+  // v3.5.182: Backup+Restore live syncQueue — vorher zerstörte TC-M pending offline-Changes wenn User _runAllTests() manuell aus Console auslöste
   await t('TC-M SQ 50 parallel-push (Mutex)',async()=>{const _backup=await SQ.getAll();try{await SQ.clear();await Promise.all(Array.from({length:50},(_,i)=>SQ.push({url:'/api/ztest'+i,method:'POST'})));const q=await SQ.getAll();return q.length===50;}finally{await ODB.save('syncQueue',_backup||[]);}});
   await t('TC-F _fT hat AbortSignal',()=>{const i=_fT({method:'GET'},1000);return !!i.signal;});
   await t('TC-X _dl ist Funktion',()=>typeof _dl==='function');
   await t('TC-R ErrorBoundary geladen',()=>typeof EpkErrorBoundary==='function');
-  // v3.5.181 B-017: SB_REST nicht mehr auf window (Closure-only), _sbH nur nach Admin-Login exposed
+  // v3.5.182 B-017: SB_REST nicht mehr auf window (Closure-only), _sbH nur nach Admin-Login exposed
   await t('TC-S SB_REST nicht auf window (closure-private)',()=>typeof window.SB_REST==='undefined');
   await t('TC-S _sbH identity (admin-exposed oder closure)',()=>(typeof window._sbH==='undefined'||window._sbH===_sbH));
 
@@ -638,7 +638,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 let _authFailShown=false;
 function _isAuthErr(status){return status===401||status===403;}
 function _onAuthFail(){if(_authFailShown)return;_authFailShown=true;if(window.__toast)window.__toast("⚠️ Sitzung abgelaufen — bitte neu anmelden","warn");setTimeout(()=>{_authFailShown=false;},10000);}
-// v3.5.181 B-021 + Thundering-Herd: Silent-Re-Auth bei 401/403 vollständig.
+// v3.5.182 B-021 + Thundering-Herd: Silent-Re-Auth bei 401/403 vollständig.
 // Singleton-Refresh-Promise ist bereits in _sbAuthRefresh (line 584) via _authRefreshInflight
 // implementiert — 5 parallele _authRetry-Calls lösen exakt 1 refresh aus, alle 5 warten
 // auf dasselbe Promise. Hier: nach Retry 2nd-round-401 erkennen, dann _onAuthFail feuern.
@@ -658,7 +658,7 @@ async function _authRetry(fn){
   }
   return r;
 }
-// v3.5.181 BLOCK 2: Session 8 T-107c Thundering-Herd Self-Test
+// v3.5.182 BLOCK 2: Session 8 T-107c Thundering-Herd Self-Test
 // Usage: await window._s8_107c()  — simuliert 5 parallele 401 durch Token-Korruption.
 // Erwartung: genau 1 Request an /auth/v1/token?grant_type=refresh_token im Network-Tab,
 // alle 5 Requests recovern via Retry (oder zeigen 401 wenn refresh-token auch tot).
@@ -1240,7 +1240,7 @@ window.API = (function() {
     login: async function(u, p) {
       // Use RPC to bypass RLS (anon can't read users table directly)
       // v3.5.160: 15s Timeout — ohne hing Login-Button unendlich bei stalled network
-      // v3.5.181 B-020: Jeder Fail-Pfad kriegt unterscheidbaren B20-X Error-Code in console.error
+      // v3.5.182 B-020: Jeder Fail-Pfad kriegt unterscheidbaren B20-X Error-Code in console.error
       //   + Error-Message-Prefix, damit beim nächsten Silent-Fail sofort sichtbar ist welcher Branch greift.
       const rpcRes=await fetch(SB_REST+"/rpc/login_lookup",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({p_username:u})},15000));
       if(!rpcRes.ok){console.error('[B020-A] login_lookup HTTP-Fail',{status:rpcRes.status,username:u});throw new Error("Server nicht erreichbar [B20-A]");}
@@ -1318,7 +1318,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.5.181-supabase";
+const APP_VERSION="3.5.182-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2821,9 +2821,9 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
           /* Neuer Mangel Formular */
           , newMangel&&(React.createElement('div', { style: {...CC(),border:"2px solid #009640",marginBottom:16}}
             , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "📸 Neuen Mangel melden"   )
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Was ist der Mangel? *"  ), React.createElement('input', { value: newMangel.name, onChange: e=>setNewMangel({...newMangel,name:e.target.value}), style: II(), placeholder: "z.B. Steckdose in Küche defekt"} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wo genau? (Raum, Etage)"   ), React.createElement('input', { value: newMangel.ort||"", onChange: e=>setNewMangel({...newMangel,ort:e.target.value}), style: II(), placeholder: "z.B. Erdgeschoss, Küche links"} ))
-            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Genauere Beschreibung" ), React.createElement('textarea', { value: newMangel.beschreibung||"", onChange: e=>setNewMangel({...newMangel,beschreibung:e.target.value}), rows: 3, style: {...II(),resize:"vertical"}, placeholder: "Was genau ist das Problem?"} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Was ist der Mangel? *"  ), React.createElement('input', { value: newMangel.name, onChange: e=>setNewMangel(p=>({...p,name:e.target.value})), style: II(), placeholder: "z.B. Steckdose in Küche defekt"} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wo genau? (Raum, Etage)"   ), React.createElement('input', { value: newMangel.ort||"", onChange: e=>setNewMangel(p=>({...p,ort:e.target.value})), style: II(), placeholder: "z.B. Erdgeschoss, Küche links"} ))
+            , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Genauere Beschreibung" ), React.createElement('textarea', { value: newMangel.beschreibung||"", onChange: e=>setNewMangel(p=>({...p,beschreibung:e.target.value})), rows: 3, style: {...II(),resize:"vertical"}, placeholder: "Was genau ist das Problem?"} ))
             , React.createElement('div', { style: {marginBottom:10}}, React.createElement('span', { style: LL()}, "Fotos (empfohlen)" ), React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:8,border:"2px dashed "+V.bd,cursor:"pointer",fontSize:12,color:V.dm}}, "📷 Foto aufnehmen / auswählen"   , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const files=[...(e.target.files||[])];files.forEach(file=>{compressPhoto(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewMangel(m=>({...m,photos:[...(m.photos||[]),{thumb,full:ph.dataUrl}]}))));});}} ))
               , (newMangel.photos||[]).length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}, (newMangel.photos||[]).map((ph,i)=>(React.createElement('div', { key: i, style: {width:64,height:64,borderRadius:6,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: ph.thumb||ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { onClick: ()=>setNewMangel(m=>({...m,photos:m.photos.filter((_,j)=>j!==i)})), style: {position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,border:"none",background:"rgba(0,0,0,.6)",color:"#fff",fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")))))
             )
@@ -3632,7 +3632,7 @@ function LoginScreen({onLogin,onPortal,projects}){
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
 
-  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);/* v3.5.181 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
+  const logout=async()=>{const cnt=await SQ.count();if(cnt>0&&!confirm("⚠️ "+cnt+" ungespeicherte Änderung"+(cnt>1?"en":"")+" werden verworfen. Trotzdem abmelden?"))return;_sbAuthLogout();API.setToken(null);/* v3.5.182 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
 
   // ═══════════ HISTORY API — Browser-Zurück-Button Support ═══════════
   const _skipPush=_react.useRef.call(void 0, 0);// counter: >0 means skip N pushes
@@ -3743,7 +3743,7 @@ function LoginScreen({onLogin,onPortal,projects}){
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.5.181 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.5.182 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const _allTabs=[
@@ -4152,18 +4152,18 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
       , showNew&&isAdmin&&(React.createElement('div', { className: "fade-in", style: CC()}
         , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "👤 Neuen Mitarbeiter anlegen"   )
         , React.createElement('div', { className: "form-grid-4", style: {marginBottom:12}}
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Name *" ), React.createElement('input', { value: nf.n, onChange: e=>setNf({...nf,n:e.target.value}), style: II(), placeholder: "Nachname"} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorname"), React.createElement('input', { value: nf.vorname||"", onChange: e=>setNf({...nf,vorname:e.target.value}), style: II(), placeholder: "Vorname"} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Rolle"), React.createElement('select', { value: nf.r, onChange: e=>setNf({...nf,r:e.target.value}), style: II()}, ["Geschäftsführer","Projektleiter","Störungstechniker","Techniker","Obermonteur","Monteur","Helfer","Lehrling","Praktikant","Lagerleitung","Backoffice","Verkauf/Buchhaltung"].map(r=>React.createElement('option', { key: r}, r))))
-          , React.createElement('div', { style: {gridColumn:"span 4"}}, React.createElement('label', { style: LL()}, "Führerscheinklassen"), React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}, FS_KLASSEN.map(k=>React.createElement('label', { key: k, style: {display:"inline-flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:6,background:(nf.fs||"").split(",").map(x=>x.trim()).includes(k)?"rgba(59,130,246,.15)":"transparent",border:"1px solid "+(nf.fs||"").split(",").map(x=>x.trim()).includes(k)?"#3b82f6":V.bd,cursor:"pointer",fontSize:11,fontWeight:(nf.fs||"").split(",").map(x=>x.trim()).includes(k)?700:400,transition:"all .15s"}}, React.createElement('input', { type: "checkbox", checked: (nf.fs||"").split(",").map(x=>x.trim()).includes(k), onChange: ()=>{const cur=(nf.fs||"").split(",").map(x=>x.trim()).filter(Boolean);const nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];setNf({...nf,fs:nxt.join(",")});}, style: {accentColor:"#3b82f6",width:14,height:14}} ), k))))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Telefon"), React.createElement('input', { value: nf.tel||"", onChange: e=>setNf({...nf,tel:e.target.value}), style: II(), placeholder: "0664..."} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "E-Mail"), React.createElement('input', { value: nf.email||"", onChange: e=>setNf({...nf,email:e.target.value}), style: II(), placeholder: "name@ep-kolar.at"} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Geburtsdatum"), React.createElement('input', { type: "date", value: nf.gebDat||"", onChange: e=>setNf({...nf,gebDat:e.target.value}), style: II()} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Führerschein-Nr."), React.createElement('input', { value: nf.fsNr||"", onChange: e=>setNf({...nf,fsNr:e.target.value}), style: II(), placeholder: "z.B. 4491"} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "SV-Nr."), React.createElement('input', { value: nf.svnr||"", onChange: e=>setNf({...nf,svnr:e.target.value}), style: II(), placeholder: "1234 010185"} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Reisepass-Nr."), React.createElement('input', { value: nf.reisepass||"", onChange: e=>setNf({...nf,reisepass:e.target.value}), style: II(), placeholder: "P 1234567"} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Eintrittsdatum"), React.createElement('input', { type: "date", value: nf.eintritt||"", onChange: e=>setNf({...nf,eintritt:e.target.value}), style: II()} ))
-          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Austrittsdatum"), React.createElement('input', { type: "date", value: nf.austritt||"", onChange: e=>setNf({...nf,austritt:e.target.value}), style: II()} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Name *" ), React.createElement('input', { value: nf.n, onChange: e=>setNf(p=>({...p,n:e.target.value})), style: II(), placeholder: "Nachname"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorname"), React.createElement('input', { value: nf.vorname||"", onChange: e=>setNf(p=>({...p,vorname:e.target.value})), style: II(), placeholder: "Vorname"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Rolle"), React.createElement('select', { value: nf.r, onChange: e=>setNf(p=>({...p,r:e.target.value})), style: II()}, ["Geschäftsführer","Projektleiter","Störungstechniker","Techniker","Obermonteur","Monteur","Helfer","Lehrling","Praktikant","Lagerleitung","Backoffice","Verkauf/Buchhaltung"].map(r=>React.createElement('option', { key: r}, r))))
+          , React.createElement('div', { style: {gridColumn:"span 4"}}, React.createElement('label', { style: LL()}, "Führerscheinklassen"), React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}, FS_KLASSEN.map(k=>React.createElement('label', { key: k, style: {display:"inline-flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:6,background:(nf.fs||"").split(",").map(x=>x.trim()).includes(k)?"rgba(59,130,246,.15)":"transparent",border:"1px solid "+(nf.fs||"").split(",").map(x=>x.trim()).includes(k)?"#3b82f6":V.bd,cursor:"pointer",fontSize:11,fontWeight:(nf.fs||"").split(",").map(x=>x.trim()).includes(k)?700:400,transition:"all .15s"}}, React.createElement('input', { type: "checkbox", checked: (nf.fs||"").split(",").map(x=>x.trim()).includes(k), onChange: ()=>{const cur=(nf.fs||"").split(",").map(x=>x.trim()).filter(Boolean);const nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];setNf(p=>({...p,fs:nxt.join(",")}));}, style: {accentColor:"#3b82f6",width:14,height:14}} ), k))))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Telefon"), React.createElement('input', { value: nf.tel||"", onChange: e=>setNf(p=>({...p,tel:e.target.value})), style: II(), placeholder: "0664..."} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "E-Mail"), React.createElement('input', { value: nf.email||"", onChange: e=>setNf(p=>({...p,email:e.target.value})), style: II(), placeholder: "name@ep-kolar.at"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Geburtsdatum"), React.createElement('input', { type: "date", value: nf.gebDat||"", onChange: e=>setNf(p=>({...p,gebDat:e.target.value})), style: II()} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Führerschein-Nr."), React.createElement('input', { value: nf.fsNr||"", onChange: e=>setNf(p=>({...p,fsNr:e.target.value})), style: II(), placeholder: "z.B. 4491"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "SV-Nr."), React.createElement('input', { value: nf.svnr||"", onChange: e=>setNf(p=>({...p,svnr:e.target.value})), style: II(), placeholder: "1234 010185"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Reisepass-Nr."), React.createElement('input', { value: nf.reisepass||"", onChange: e=>setNf(p=>({...p,reisepass:e.target.value})), style: II(), placeholder: "P 1234567"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Eintrittsdatum"), React.createElement('input', { type: "date", value: nf.eintritt||"", onChange: e=>setNf(p=>({...p,eintritt:e.target.value})), style: II()} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Austrittsdatum"), React.createElement('input', { type: "date", value: nf.austritt||"", onChange: e=>setNf(p=>({...p,austritt:e.target.value})), style: II()} ))
         )
         , React.createElement('button', { onClick: addMonteur, style: bpS}, "✅ Anlegen" )
       ))
@@ -4384,7 +4384,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
         if(dup&&!confirm("⚠️ Möglicher Duplikat-AS:\n\n"+dup.nummer+" — "+dup.kundName+"\nTermin: "+dup.terminBestaetigt+"\nStatus: "+dup.scheinstatus+"\n\nTrotzdem speichern?"))return;
       }
     }
-    // v3.5.181 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
+    // v3.5.182 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
     const _shouldAutoClose=form.sigMA&&form.sigMA.length>100&&form.sigKunde&&form.sigKunde.length>100&&(!form.scheinstatus||AS_GRP_OFFEN.includes(form.scheinstatus));
     const _finalForm=_shouldAutoClose?{...form,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:form;
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
@@ -5071,12 +5071,12 @@ function sharePdf(){
           , React.createElement('div', {}
             , React.createElement('div', { style: CC()}
               , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:10}}, "GF-Kunde / Arbeitsort"  )
-              , React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Kunden-Nr."), React.createElement('input', { value: form.kundNr, onChange: e=>setForm({...form,kundNr:e.target.value}), style: II()} ))
-              , React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Kundenname *" ), React.createElement('input', { value: form.kundName, onChange: e=>setForm({...form,kundName:e.target.value}), style: II()} ))
-              , React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Straße"), React.createElement('input', { value: form.kundStr, onChange: e=>setForm({...form,kundStr:e.target.value}), style: II()} ))
+              , React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Kunden-Nr."), React.createElement('input', { value: form.kundNr, onChange: e=>setForm(p=>({...p,kundNr:e.target.value})), style: II()} ))
+              , React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Kundenname *" ), React.createElement('input', { value: form.kundName, onChange: e=>setForm(p=>({...p,kundName:e.target.value})), style: II()} ))
+              , React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Straße"), React.createElement('input', { value: form.kundStr, onChange: e=>setForm(p=>({...p,kundStr:e.target.value})), style: II()} ))
               , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"80px 1fr",gap:6}}
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "PLZ"), React.createElement('input', { value: form.kundPlz, onChange: e=>setForm({...form,kundPlz:e.target.value}), style: II()} ))
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ort"), React.createElement('input', { value: form.kundOrt, onChange: e=>setForm({...form,kundOrt:e.target.value}), style: II()} ))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "PLZ"), React.createElement('input', { value: form.kundPlz, onChange: e=>setForm(p=>({...p,kundPlz:e.target.value})), style: II()} ))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ort"), React.createElement('input', { value: form.kundOrt, onChange: e=>setForm(p=>({...p,kundOrt:e.target.value})), style: II()} ))
               )
             )
             , React.createElement('div', { style: CC()}
@@ -5084,7 +5084,7 @@ function sharePdf(){
               , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Bestätigt"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminBestaetigt, onChange: e=>setForm(p=>({...p,terminBestaetigt:e.target.value})), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminZeit||"", onChange: e=>setForm(p=>({...p,terminZeit:e.target.value})), style: {...II(),width:90}, placeholder: "Uhrzeit"} )))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorschlag"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminVorschlag, onChange: e=>setForm(p=>({...p,terminVorschlag:e.target.value})), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminVorschlagZeit||"", onChange: e=>setForm(p=>({...p,terminVorschlagZeit:e.target.value})), style: {...II(),width:90}} )))
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Dauer (Std.)" ), React.createElement('input', { value: form.dauer, onChange: e=>setForm({...form,dauer:e.target.value}), type:"number", inputMode:"decimal", step:"any", min:"0", style: II(), placeholder: "z.B. 3" } ))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Dauer (Std.)" ), React.createElement('input', { value: form.dauer, onChange: e=>setForm(p=>({...p,dauer:e.target.value})), type:"number", inputMode:"decimal", step:"any", min:"0", style: II(), placeholder: "z.B. 3" } ))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur"), React.createElement('select', { value: form.monteur, onChange: e=>setForm({...form,monteur:e.target.value}), style: II()}, monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))))
               )
             )
@@ -5924,7 +5924,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 , React.createElement('option', { value: "30"}, "30 Tage" )
                 , React.createElement('option', { value: "90"}, "90 Tage" )
               )
-              /* v3.5.181 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
+              /* v3.5.182 BLOCK 13+: CSV-Export der aktuell sichtbaren Activity-Zeilen */
               , React.createElement('button', { onClick: ()=>{
                   const _cf=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
                   const _hdrs=["Zeit","Benutzer","Aktion","Entity-Typ","Entity-ID","Details"];
