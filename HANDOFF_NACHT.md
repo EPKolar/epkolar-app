@@ -71,3 +71,9 @@
 - Crash in einem Tab → nur dieser Tab zeigt inline Error-UI mit Retry/Reload, andere Tabs bleiben navigierbar
 - Logs zu console.error + window.__EP_ERRORS + fire-and-forget activity_log
 - Top-level EpkErrorBoundary bleibt als Last-Resort
+### Block 9 · v3.5.194 · ✅ Logging-Helper _log(level, component, ...args)
+- Level-gated Logging-Helper: debug<info<warn<error
+- Level-Control via `localStorage.setItem('log_level','debug')` (default 'info')
+- window._log exposed zum Usage aus Module, window._setLogLevel zum Runtime-Switch
+- Bestehende 69 console.log/warn/error Callsites **nicht** automatisch migriert — zu groß für sicheren Sweep. Migration wird schrittweise bei jeder Modul-Berührung erfolgen.
+- 0 `alert(` Callsites in Codebase — historisch bereits migriert.
