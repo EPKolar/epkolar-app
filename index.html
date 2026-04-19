@@ -435,6 +435,11 @@ function _log(level,component){
 window._log=_log;
 window._setLogLevel=function(lvl){if(_LOG_LEVELS[lvl]===undefined)return console.warn('[log] unknown level:',lvl);try{localStorage.setItem('log_level',lvl);}catch(_){}_LOG_THRESHOLD=_LOG_LEVELS[lvl];console.log('[log] threshold set to',lvl);};
 
+// v3.8.12 Bug-Hunt Iter-13: Helper für aktuell eingeloggten User aus localStorage.
+// Ersetzt das kaputte `typeof _user!=='undefined'`-Pattern (`_user` ist API-IIFE-local).
+// Früher waren 9 Stellen (Self-Tests + ViewBoundary-Activity-Log) betroffen → Rolle 'none', user_id 'unknown'.
+window._curUser=function(){try{return JSON.parse(localStorage.getItem('epkolar_user')||'null');}catch(_){return null;}};
+
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.73 — Format-Helpers (Block 2.1)
 // ═══════════════════════════════════════════════════════════════════
@@ -565,7 +570,7 @@ window._mobileCheck=function(){
 // Ergebnis: console.table mit erwartetem Scope pro Rolle.
 // ═══════════════════════════════════════════════════════════════════
 window._rlsAudit=async function(){
-  const role=(typeof _user!=='undefined'&&_user&&_user.role)||'none';
+  const role=(window._curUser()&&window._curUser().role)||'none';
   console.log('[RLS] Testing as role:',role);
   const probes=[
     {desc:'users (should: self only for non-staff)',           url:'users','select':'id,username,email&limit=20'},
@@ -675,7 +680,7 @@ window._selfTest=async function(opts){
     passed:Object.keys(results).length-failed.length,
     failed:failed.length,
     failedNames:failed,
-    role:((typeof _user!=='undefined'&&_user&&_user.role)||'none')
+    role:((window._curUser()&&window._curUser().role)||'none')
   };
   try{localStorage.setItem('selftest_last_run',JSON.stringify({summary,results}));}catch(_){}
   console.group('%c[SelfTest] v'+summary.version+' · mode='+mode+' · '+totalMs+'ms · role='+summary.role,'font-weight:bold;color:'+(failed.length?'#c33':'#292'));
@@ -898,7 +903,7 @@ window._s8Suite=async function(){
   });
 
   add('T-110','Monteur sieht nur eigene AS',async()=>{
-    const role=(typeof _user!=='undefined'&&_user&&_user.role)||'none';
+    const role=(window._curUser()&&window._curUser().role)||'none';
     if(role!=='monteur')return{pass:null,msg:'skip: rolle='+role+' (nicht monteur)'};
     const mid=_user&&_user.monteurId;
     if(!mid)return{pass:null,msg:'skip: kein monteurId'};
@@ -912,7 +917,7 @@ window._s8Suite=async function(){
   });
 
   add('T-111','Admin sieht viele AS',async()=>{
-    const role=(typeof _user!=='undefined'&&_user&&_user.role)||'none';
+    const role=(window._curUser()&&window._curUser().role)||'none';
     if(role!=='admin')return{pass:null,msg:'skip: rolle='+role+' (nicht admin)'};
     try{
       const r=await _sbGet('arbeitsscheine','select=id&limit=200');
@@ -937,7 +942,7 @@ window._s8Suite=async function(){
   // v3.8.7 BLOCK 5: Auth-State-Konsistenz nach B-020-Fix. Token ↔ _user müssen beide da ODER beide fehlen.
   add('T-B020','Token+User Konsistenz (Soft-Render-Schutz)',async()=>{
     const hasToken=typeof _authToken!=='undefined'&&!!_authToken&&_authToken.length>100;
-    const hasUser=typeof _user!=='undefined'&&!!_user&&!!_user.id;
+    const hasUser=!!window._curUser()&&!!window._curUser().id;
     const consistent=hasToken===hasUser;
     return{pass:consistent,msg:'token='+hasToken+' user='+hasUser+' consistent='+consistent+(consistent?'':' — WARNUNG: curUser gesetzt OHNE _authToken deutet auf Soft-Render-Leak (B-020)')};
   });
@@ -954,8 +959,8 @@ window._s8Suite=async function(){
 
   const summary={
     timestamp:new Date().toISOString(),
-    role:(typeof _user!=='undefined'&&_user&&_user.role)||'none',
-    user:(typeof _user!=='undefined'&&_user&&_user.name)||'?',
+    role:(window._curUser()&&window._curUser().role)||'none',
+    user:(window._curUser()&&window._curUser().name)||'?',
     total:results.length,
     passed:results.filter(r=>r.pass===true).length,
     failed:results.filter(r=>r.pass===false).length,
@@ -978,7 +983,7 @@ window._s8Suite=async function(){
 window._b017check=function(){
   const res={
     timestamp:new Date().toISOString(),
-    role:(typeof _user!=='undefined'&&_user&&_user.role)||'none',
+    role:(window._curUser()&&window._curUser().role)||'none',
     exposures:{
       _sbH:typeof window._sbH,
       _sbAuthLogin:typeof window._sbAuthLogin,
@@ -1832,7 +1837,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.12-supabase";
+const APP_VERSION="3.8.13-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -3552,7 +3557,7 @@ class _ViewBoundary extends React.Component{
     console.error('[ViewBoundary:'+this.props.name+']',err,info);
     try{window.__EP_ERRORS&&window.__EP_ERRORS.push({msg:'VIEW:'+this.props.name+' '+(err&&err.message||String(err)),stack:(err&&err.stack||'')+'\n'+(info&&info.componentStack||''),ts:Date.now()});}catch(_){}
     try{if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
-      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(typeof _user!=='undefined'&&_user&&_user.id)||'unknown',action:'view_boundary',entity_type:'system',entity_id:this.props.name||'view',details:JSON.stringify({ver:APP_VERSION,msg:String((err&&err.message)||err).substring(0,500),stack:String((err&&err.stack)||'').substring(0,400)})})},10000)).catch(()=>{});
+      fetch(SUPABASE_URL+"/rest/v1/activity_log",_fT({method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(window._curUser()&&window._curUser().id)||'unknown',action:'view_boundary',entity_type:'system',entity_id:this.props.name||'view',details:JSON.stringify({ver:APP_VERSION,msg:String((err&&err.message)||err).substring(0,500),stack:String((err&&err.stack)||'').substring(0,400)})})},10000)).catch(()=>{});
     }}catch(_){}
   }
   render(){
