@@ -1544,10 +1544,13 @@ async function _translateAndExec(url,method,body){
       await _sbPost("fz_schaeden",mapped);
     }else{
       // Serviceheft — read-modify-write
+      /* v3.8.14 Bug-Hunt Iter-14: defensive JSON.parse mit Fallback — vorher blockte
+         ein einziger korrupter Legacy-Row alle weiteren serviceheft-Einträge (Parse-Error
+         im try/catch swallowt, Push nie erreicht). Jetzt: bei Parse-Fail [] + ERROR-Log. */
       try{
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
-          const sv=JSON.parse(fz[0].serviceheft||'[]');
+          let sv=[];try{sv=JSON.parse(fz[0].serviceheft||'[]');if(!Array.isArray(sv))sv=[];}catch(pe){console.error("[fahrzeuge] serviceheft-JSON korrupt für id",idOrSub,"— starte neu. Raw:",String(fz[0].serviceheft||'').substring(0,200));sv=[];}
           sv.push(body);
           await _sbPatch("fahrzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
         }
@@ -1563,12 +1566,13 @@ async function _translateAndExec(url,method,body){
       try{
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
-          const tl=JSON.parse(fz[0].tank_log||'[]');
+          /* v3.8.14 Bug-Hunt Iter-14: defensive parse tank_log + km_log */
+          let tl=[];try{tl=JSON.parse(fz[0].tank_log||'[]');if(!Array.isArray(tl))tl=[];}catch(pe){console.error("[fahrzeuge] tank_log-JSON korrupt für id",idOrSub,"— starte neu.");tl=[];}
           tl.push(d.tankLog_add||d.tank_log_add);
           const patch={tank_log:JSON.stringify(tl),updated_at:new Date().toISOString()};
           if(d.kmStand||d.km_stand){
             const km=parseInt(d.kmStand||d.km_stand)||0;
-            const kl=JSON.parse(fz[0].km_log||'[]');
+            let kl=[];try{kl=JSON.parse(fz[0].km_log||'[]');if(!Array.isArray(kl))kl=[];}catch(pe){console.error("[fahrzeuge] km_log-JSON korrupt für id",idOrSub,"— starte neu.");kl=[];}
             kl.push({km:km,date:_ymd(new Date())});
             patch.km_stand=km;
             patch.km_log=JSON.stringify(kl);
@@ -1585,7 +1589,8 @@ async function _translateAndExec(url,method,body){
         if(km<0){delete d.kmStand;delete d.km_stand;return{ok:1};}
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
-          const kl=JSON.parse(fz[0].km_log||'[]');
+          /* v3.8.14 Bug-Hunt Iter-14: defensive parse km_log */
+          let kl=[];try{kl=JSON.parse(fz[0].km_log||'[]');if(!Array.isArray(kl))kl=[];}catch(pe){console.error("[fahrzeuge] km_log-JSON korrupt für id",idOrSub,"— starte neu.");kl=[];}
           kl.push({km:km,date:_ymd(new Date())});
           await _sbPatch("fahrzeuge",idOrSub,{km_stand:km,km_log:JSON.stringify(kl),updated_at:new Date().toISOString()});
         }
@@ -1602,7 +1607,8 @@ async function _translateAndExec(url,method,body){
     try{
       const wz=await _sbGet("werkzeuge","id=eq."+encodeURIComponent(idOrSub));
       if(wz&&wz[0]){
-        const sv=JSON.parse(wz[0].serviceheft||'[]');
+        /* v3.8.14 Bug-Hunt Iter-14: defensive parse WZ serviceheft */
+        let sv=[];try{sv=JSON.parse(wz[0].serviceheft||'[]');if(!Array.isArray(sv))sv=[];}catch(pe){console.error("[werkzeuge] serviceheft-JSON korrupt für id",idOrSub,"— starte neu. Raw:",String(wz[0].serviceheft||'').substring(0,200));sv=[];}
         sv.push(body);
         await _sbPatch("werkzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
       }
@@ -1837,7 +1843,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.13-supabase";
+const APP_VERSION="3.8.14-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
