@@ -86,3 +86,12 @@
 - Kandidaten-Liste bereits in `sql/PERF_v3.6.md` und `sql/PERF_HINTS.md` dokumentiert (AS-Liste, Supplier-Articles, Chef-Dashboard).
 - Plan-Regel: "Nur commit wenn Code-Änderung" — aktuell keine, also nur Version-Bump für Numerierungs-Konsistenz.
 - **Ehrlich**: v3.6.13 hat bereits useMemo für AS-Liste geliefert. Nächste Perf-Iteration braucht Sebastian-Profiler-Record.
+
+### Block 13 · v3.7.14 · ⚠ Logging-Cleanup — NOTHING TO REMOVE (ehrlich)
+- Audit: 27 console.log / 40 console.warn / 14 console.error
+- Manual review der untagged-samples:
+  - Smoke-Test-Header (Line 330/339/482/526/484) — by-design
+  - catch-handler mit Kontext ("PW-Reset notification", "Tank/KM update") — wichtig für Debugging
+  - Tagged mit eindeutigem Prefix [S8-107c]/[GLOBAL ERROR]/[UNHANDLED PROMISE] — mein Scan-Regex missed
+- **Ehrlich**: 0 verirrte console.log gefunden, die nicht diagnostischen Zweck haben. Kein Cleanup nötig.
+- Kein Code-Change, nur Version-Bump + HANDOFF-Eintrag.
