@@ -64,3 +64,12 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - `window._s8Suite()` existiert seit v3.5.190
 - Neu: T-B020 Test — prüft Auth-Token ↔ _user Konsistenz (Soft-Render-Leak-Detection aus Block 1)
 - Jetzt 9 automatisierbare Tests: T-101/106/106b/107a/110/111/112/117/B020
+
+### Block 6 · v3.6.8 · ✅ Memory-Leak Re-Audit
+- Scan: useEffect mit setInterval/addEventListener/subscribe ohne cleanup → 0 echte Leaks
+  - 3 Kandidaten alle false-positive (cleanup vorhanden, nur außerhalb 30-Zeilen-Scan-Fenster)
+  - L3298: bereits v3.5.191 gehärtet (PWA Install)
+  - L3898: popstate-Listener mit removeEventListener in return
+  - L4591: _vorlagenBus.subscribe() → return direkt die unsubscribe-Fn
+- Balance: setInterval/clearInterval 8/9 · setTimeout/clearTimeout 53/15 (one-shots ok) · addEventListener/removeEventListener 16/15 (1 intentional module-level visibilitychange)
+- Keine neuen Änderungen.
