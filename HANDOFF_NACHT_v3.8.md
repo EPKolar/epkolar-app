@@ -27,3 +27,9 @@
 - **M-3 RE-INVESTIGATE**: _authRefreshInflight 50ms-race — analysiert als harmlos (rapid-fire 401 wollen KEIN sofortiges 2. Refresh). Messung kommt via Block 7 _thunderTest.
 - **M-4 KNOWN-TRADE-OFF**: epkolar_gc Password base64 — UX-Entscheidung (Monteure-Offline-PWA), Sebastian entscheidet Migration.
 - Nur BUG_HUNT.md Doku-Update, **keine Code-Änderungen** (ehrliche Entscheidung).
+
+### Block 3 · v3.7.4 · ✅ _selfTest() Orchestrator
+- `window._selfTest({mode:'full'|'quick'|'security'})` fährt alle 5 Helper sequentiell
+- Full-mode ruft perfBench → mobileCheck → b017check → rlsAudit → s8Suite
+- Console.group + Console.table + Toast + localStorage['selftest_last_run']
+- `sql/SELFTEST_USAGE.md` mit Usage, Regression-Workflow, Rollen-Matrix, Troubleshooting
