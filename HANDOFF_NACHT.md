@@ -87,3 +87,8 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - `_ViewBoundary` class + 15 Hauptviews wrapped
 - Top-level `EpkErrorBoundary` als Last-Resort
 - Keine neuen Änderungen.
+
+### Block 9 · v3.6.11 · ✅ Logging verify (bereits v3.5.194)
+- `window._log(level,component,...args)` Helper
+- `window._setLogLevel('debug')` Runtime-Switch
+- Migration der 69 existierenden console-Calls bleibt schrittweise.
