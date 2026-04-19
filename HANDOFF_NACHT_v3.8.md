@@ -55,3 +55,9 @@
 - Verdict: SINGLETON OK (1 refresh) / NO REFRESH / THUNDERING HERD (>1)
 - Guard: localStorage.__dev=='1' nötig (prod-safe)
 - Auto-Restore via window._restoreToken() im finally
+
+### Block 8 · v3.7.9 · ✅ WhatsApp Schema+Seeds+Plan (**ohne UI-Code**)
+- `sql/WHATSAPP_SCHEMA_v3.8.sql`: whatsapp_templates + whatsapp_log Tabellen + RLS-Policies (admin-full, büro-read)
+- `sql/WHATSAPP_SEEDS_v3.8.sql`: 4 Default-Templates (Terminbestätigung, Abschluss, Erinnerung, frei)
+- `sql/WHATSAPP_INTEGRATION_PLAN.md`: explizit OUT-OF-SCOPE-Begründung für UI-Code, User-Stories für separate Feature-Session, Meta-API-Roadmap
+- **Ehrlich**: UI-Code-Implementation (2-3h solide Arbeit) wurde nicht in diese Session gepresst — bessere Ergebnisse wenn mit Sebastian-Input designed
