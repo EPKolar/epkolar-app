@@ -38,3 +38,8 @@
 - `sql/INDEX_EFFECT_v3.8.sql`: 12 EXPLAIN ANALYZE Queries für alle v3.6+v3.7 Indizes (AS/TE/Notif/Activity/SA-FTS/FB/Komm/Photos) + pg_stat_user_indexes Monitor
 - `sql/INDEX_EFFECT_v3.8_RESULTS.md`: Template zum Ausfüllen, Vor-/Nach-Vergleich, Verdict-Matrix (EFFECTIVE/MARGINAL/INEFFECTIVE)
 - Sebastian: vorher + nachher durchlaufen, Zahlen in Results-MD kopieren
+
+### Block 5 · v3.7.6 · ✅ RLS-Matrix-Reconcile Template
+- `sql/RLS_SNAPSHOT_v3.8.sql`: 5 Diagnose-Queries (Policies, rls_enabled, missing policy, rls disabled, helper-Functions)
+- `sql/RLS_RECONCILE_v3.8.md`: 5 Status-Kategorien, Reconcile-Tabelle pro Table × Rolle × Command, Fix-Strategie je Gap-Typ
+- Kein RLS_FIX_v3.8.sql erstellt — wird von Sebastian nach Snapshot-Review befüllt (ehrliche Entscheidung, keine Fix-SQL ohne echte Gap-Analyse)
