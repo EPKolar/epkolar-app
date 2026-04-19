@@ -67,3 +67,9 @@
 - **Risiko**: Blinde Patches an Buttons/Icons ohne konkrete Hit-List → potenzielle Regressions (falsche Elemente bekommen Padding, Layout bricht).
 - **Delivery**: Version-Bump + HANDOFF-Eintrag, **keine Code-Änderungen**. Scanner `_mobileCheck()` ist seit v3.6.16 live — Sebastian liefert nach Live-Run im iPhone-Simulator/echtem Gerät die Hit-List, dann fokussierter Patch.
 - Plan-Konformität: P1 Touch-Target <32px blockierend — wenn Liste da, in nächster Session Block-Fix.
+
+### Block 10 · v3.7.11 · ⚠ sync_supplier Doku bleibt (Source noch nicht im Repo)
+- Function-Source `supabase/functions/sync_supplier/` existiert weiterhin NICHT im Repo
+- Existierendes `sql/DEPLOY_sync_supplier_v3.md` ist aktuell (v3.5.197 geschrieben, Content gültig)
+- **Ehrlich**: keine neue Doku wenn nichts Neues bekannt ist. Plan wollte Code-Review der 223-Zeilen-Function, aber ohne Source-Access unmöglich.
+- Sebastians offener Task bleibt: Source aus Supabase-Dashboard exportieren + ins Repo committen unter `supabase/functions/sync_supplier/`
