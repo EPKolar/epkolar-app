@@ -61,3 +61,9 @@
 - `sql/WHATSAPP_SEEDS_v3.8.sql`: 4 Default-Templates (Terminbestätigung, Abschluss, Erinnerung, frei)
 - `sql/WHATSAPP_INTEGRATION_PLAN.md`: explizit OUT-OF-SCOPE-Begründung für UI-Code, User-Stories für separate Feature-Session, Meta-API-Roadmap
 - **Ehrlich**: UI-Code-Implementation (2-3h solide Arbeit) wurde nicht in diese Session gepresst — bessere Ergebnisse wenn mit Sebastian-Input designed
+
+### Block 9 · v3.7.10 · ⚠ Mobile P1 Touch-Targets (NICHT GEPATCHT — ehrlich)
+- **Ehrlichkeits-Regel angewendet**: Plan verlangt Touch-Target <44px Patches, aber CC hat keinen Live-Run von `_mobileCheck()` mit aktuellen Findings.
+- **Risiko**: Blinde Patches an Buttons/Icons ohne konkrete Hit-List → potenzielle Regressions (falsche Elemente bekommen Padding, Layout bricht).
+- **Delivery**: Version-Bump + HANDOFF-Eintrag, **keine Code-Änderungen**. Scanner `_mobileCheck()` ist seit v3.6.16 live — Sebastian liefert nach Live-Run im iPhone-Simulator/echtem Gerät die Hit-List, dann fokussierter Patch.
+- Plan-Konformität: P1 Touch-Target <32px blockierend — wenn Liste da, in nächster Session Block-Fix.
