@@ -82,3 +82,8 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - Shared Mutex für push/remove (v3.5.139/140)
 - _syncSkipCount Diagnose (v3.5.192)
 - Keine neuen Änderungen.
+
+### Block 8 · v3.6.10 · ✅ ErrorBoundary verify (bereits v3.5.193)
+- `_ViewBoundary` class + 15 Hauptviews wrapped
+- Top-level `EpkErrorBoundary` als Last-Resort
+- Keine neuen Änderungen.
