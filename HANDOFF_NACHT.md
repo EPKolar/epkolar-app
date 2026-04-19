@@ -59,3 +59,8 @@ Ehrlichkeitsregel: Diese Blocks werden re-verifiziert + dokumentiert statt dupli
 - Admin: PASS wenn Helpers exposed UND credentials nicht exposed
 - Non-Admin: PASS wenn nichts exposed
 - Keine neuen Änderungen.
+
+### Block 5 · v3.6.7 · ✅ S8 Runner + T-B020 ergänzt
+- `window._s8Suite()` existiert seit v3.5.190
+- Neu: T-B020 Test — prüft Auth-Token ↔ _user Konsistenz (Soft-Render-Leak-Detection aus Block 1)
+- Jetzt 9 automatisierbare Tests: T-101/106/106b/107a/110/111/112/117/B020
