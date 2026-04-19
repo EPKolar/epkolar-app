@@ -43,3 +43,8 @@
 - `sql/RLS_SNAPSHOT_v3.8.sql`: 5 Diagnose-Queries (Policies, rls_enabled, missing policy, rls disabled, helper-Functions)
 - `sql/RLS_RECONCILE_v3.8.md`: 5 Status-Kategorien, Reconcile-Tabelle pro Table × Rolle × Command, Fix-Strategie je Gap-Typ
 - Kein RLS_FIX_v3.8.sql erstellt — wird von Sebastian nach Snapshot-Review befüllt (ehrliche Entscheidung, keine Fix-SQL ohne echte Gap-Analyse)
+
+### Block 6 · v3.7.7 · ✅ B-020 Final-Verify + _forceExpireToken Dev-Helper
+- `window._forceExpireToken()` + `window._restoreToken()` mit Guard `localStorage.__dev==='1'`
+- `sql/B020_VERIFY_v3.8.md`: Login-Regression-Checkliste (9+1 User), Error-Code-Assertions B20-A..H, Token-Refresh-Test-Prozedur (Option A warten / Option B force)
+- B-020 DB-Teil bleibt CLOSED (9×OK vor Run, nicht neu validiert per User-Bitte)
