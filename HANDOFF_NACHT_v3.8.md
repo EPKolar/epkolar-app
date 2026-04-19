@@ -48,3 +48,10 @@
 - `window._forceExpireToken()` + `window._restoreToken()` mit Guard `localStorage.__dev==='1'`
 - `sql/B020_VERIFY_v3.8.md`: Login-Regression-Checkliste (9+1 User), Error-Code-Assertions B20-A..H, Token-Refresh-Test-Prozedur (Option A warten / Option B force)
 - B-020 DB-Teil bleibt CLOSED (9×OK vor Run, nicht neu validiert per User-Bitte)
+
+### Block 7 · v3.7.8 · ✅ _thunderTest() Last-Test Helper
+- Temporärer fetch-Interceptor zählt /auth/v1/token?grant_type=refresh_token Calls
+- Simuliert n=20 parallele _sbGet-Requests nach Force-Expire
+- Verdict: SINGLETON OK (1 refresh) / NO REFRESH / THUNDERING HERD (>1)
+- Guard: localStorage.__dev=='1' nötig (prod-safe)
+- Auto-Restore via window._restoreToken() im finally
