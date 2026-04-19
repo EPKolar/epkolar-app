@@ -1,69 +1,69 @@
-# TODO MORGEN — Stand 18.04.2026 ~01:30
+# TODO Morgen — nach Overnight-Session 18./19.04.2026
 
-App live: **v3.5.116** (`18b2d6a`). Overnight-Bug-Hunt-Iteration 1 (Wakeup um 01:27) hat keine zusätzlichen low-risk-Bugs gefunden, die einen weiteren Push rechtfertigen. Kein false-positive Push gemacht.
+## ✅ Gefixt in dieser Session (v3.5.163 → v3.5.174)
 
-## 🔴 Kritisch — DEINE Aufgabe (5 Min Kaffee-Tasse)
+12 Commits, alle mit Bracket-Baseline () -2 {} 0 [] 0 + node --check + GH-Pages-Verify.
 
-1. **Auth-500-Fix bei info@/office@**:
-   - SQL-Editor öffnen → `/sql/AUTH_DEBUG_QUERIES.sql` (im Repo) → **Query B** ausführen
-   - Wenn `_null=TRUE` Spalten → "FIX B" SQL drunter ausführen
-   - Hard-Reload App → Console: `await window._sbAuthLogin('info@ep-kolar.at','test1234')`
-   - **Wegen v3.5.113 zeigt der Fehler jetzt die echte GoTrue-Message**
-   - Erwartung: Token-Object zurückgegeben statt 500-Error
+Siehe `sql/OVERNIGHT_LOG.md` oder `git log 05d078f..HEAD --oneline`.
 
-2. **Falls FIX B nicht reicht**:
-   - Query A (RLS forced auf auth.*)
-   - Query C (Custom-Trigger auf auth.users)
-   - Postgres-Logs im Dashboard → Filter `level=error` während Login-Versuch
+## 🟡 Bewusst nicht gefixt (Aufwand/Nutzen-Abwägung)
 
-## 🟡 Code-Verbesserungen, die ich gesehen aber nicht gefixt hab
+### R-1 · Non-functional setState (153 Stellen)
+Pattern: `setForm({...form, field: v})` statt `setForm(prev=>({...prev, field: v}))`.
+Stale-closure-Risiko nur bei rapid-fire Events (z.B. 2 Key-Presses <16ms).
+Refactor wäre eigenes Projekt — nicht in 1-Fix-pro-Commit Regime machbar.
+**Empfehlung**: gezielt nur bei beobachteten Stale-Updates, nicht flächendeckend.
 
-### Vorhanden, aber nicht refactored (regression-risk zu hoch ohne Tests)
-- **52× `setForm({...form,...})`** vs. nur 9× `setForm(prev=>{...prev,...})`. Stale-Closure-Risiko in async callbacks (z.B. SystemConfigPanel save). Erst migrieren wenn ein konkreter Bug auftaucht.
-- **0× `aria-label`** auf 500 `<button>`s. Accessibility-Tooling fehlt. Wenn EU-Barrierefreiheit später wichtig: bulk-add via Code-Mod.
-- **38× `setX` Calls in DOM ohne Mount-Guard** (außer den 3 die ich in v3.5.110 gefixt hab). Niedrig-priorität — nur 3 Panels haben tatsächlich das setState-after-unmount-Problem in Praxis.
+### R-2 · PWA Install-useEffect Listener-Leaks (2 Stellen)
+`reg.addEventListener("updatefound", ...)` und `nw.addEventListener("statechange", ...)`
+ohne cleanup. In Produktion harmlos (App-Komponente mit `[]` deps → mount-once).
+**Empfehlung**: Bei React StrictMode Double-Mount-Aktivierung ggf. explizit cleanup.
 
-### Bewusst ungefixt (Forbidden Zone per CLAUDE.md)
-- Juprowa Phase-1-Pull-Code (`_juprowaSync`, `_juprowaPull`) — auch wenn dort fetch ohne Timeout ist
-- `_juprowaPushAll` — könnte concurrency-guard kriegen, aber riskant
+### R-3 · Warenkorb-Print-HTML: p.nr/p.name unescaped in <title>/<h2>
+`renderWarenkorb` (Zeile 10152) interpoliert Projekt-Nr/-Name ohne HTML-Escape.
+Internes Staff-Feature, Print-Popup — low threat model.
+**Empfehlung**: Bei nächster Berührung `_e()` analog zu v3.5.144/157/158 einziehen.
 
-### Geringe ROI (skip außer auf User-Wunsch)
-- Mehr `try/catch` um swallowed errors (21 leere `.catch()`, 26 leere `try{...}catch(_){}`)  → könnten zu activity_log loggen, aber meist sind das defensive Guards
-- `setTimeout(fetchSuppliers, 500)` Pattern in 3 Stellen (Supplier-Liste) → könnte mit Promise.all + sofortigem refresh ersetzt werden
-- Mobile a11y: `data-no-swipe` ist nur an 1 Stelle — andere Tabellen mit horizontal-scroll könnten auch davon profitieren
+### R-4 · Weather-API-Fetch @ 15316 (Error-Boundary activity_log POST)
+Kein `_fT` Timeout. Aber bereits in äußerem try/catch, Fallback via Error-Boundary-UI.
+Konsistent-Machen wäre nice-to-have.
 
-## ✅ Diese Nacht (3 Sessions, v3.5.108→116, alle gepusht)
+### R-5 · Diagnose-fetches @ 332,335,471-479 (Smoke-Test + Startup-Log)
+Kein `_fT` Timeout. Sind Test-/Log-Pfade, blocking UI ist unmöglich
+weil async. Bewusst so belassen.
 
-| Ver | Stichwort |
-|---|---|
-| 108 | **CRITICAL TZ-Fix** — `kwD()` und 8 weitere Y-M-D-Builders waren in CET/CEST off-by-1-day (UTC ISO-Cut) |
-| 109 | TZ-Fix Runde 2 — 13 weitere Stellen (Timer-date, isoDate, dayStr, weekStart, Fahrtenbuch-from-to, lastSync) |
-| 110 | Mount-Guards in 3 Panels gegen setState-after-unmount |
-| 111 | iOS <15.4 Crash-Fix — `_uuid()` Fallback statt `crypto.randomUUID()` |
-| 112 | Auth-Refresh Flight-Promise-Guard — keine Logout-Kaskaden mehr |
-| 113 | `_sbAuthLogin` Error-Parsing — echte GoTrue-Messages statt rohem Status-Text |
-| 114 | Auth-Endpoints alle mit `_fT`-Timeout |
-| 115 | `window.SUPABASE_URL/_KEY/_sbH/_sbAuthLogin` exposed für Console-Smoke-Tests |
-| 116 | iOS Safari Download-Fix — `_dl()` Helper (anker zu DOM, +2s revoke) |
+### R-6 · iframe/img src `z.datei` (FinkZeit Print) nicht _e()-escaped
+Attribut-Injection theoretisch möglich wenn datei URL `"`-Zeichen enthält.
+In der Praxis FileReader-Data-URLs → immer `data:mime;base64,...` Format.
+**Empfehlung**: Bei nächstem FinkZeit-Touch als v3.5.144-Pendant nachziehen.
 
-## 📋 Deferred Blocks (aus CC_OVERNIGHT_v3575.md)
+## 🟢 Audit-Ergebnis: Negative Scans (keine Funde)
 
-| Block | Titel | Wann |
+| Scan | Treffer | Kommentar |
 |---|---|---|
-| 4 | Fahrzeug-Buchungs-Kalender | Sobald 1-2h Zeit |
-| 5 | Projekt-Gantt | optional |
-| 6 | ZE-Kalender-Wochenansicht | optional |
-| 8 | AS-Signature-Close-Flow | **Schnell-Win** (SignaturePad existiert bereits) |
-| 9 | AS-PDF v2 (jsPDF statt HTML) | wenn Print-PDFs gebraucht |
-| 12 | SW Cache-Bust Auto | riskant — derzeit manuell ok |
-| 13 | Audit-Log UI | Schnell-Win (activity_log wird bereits gefüllt) |
-| 14 | Web-Push | braucht VAPID + Server — 1 Woche Aufwand |
-| 15 | Mobile iOS-Quirks Final Pass | echte Geräte nötig |
-| 16 | Perf-Benchmark + Indizes | 1h |
-| 17 | v3.6.0 Final-QS + Deploy | nach 8/13 |
+| reduce() ohne initial value | 0 | |
+| .match()[N] ohne null-guard | 0 | |
+| .files[0].X ohne optional-chain | 0 | |
+| dangerouslySetInnerHTML misuse | 0 | einzige Nutzung genBarcodeSVG bereits XSS-hardened v3.5.120 |
+| setInterval/clearInterval unbalance | 0 | |
+| toISOString().split('T')[0] | 0 | alle v3.5.108/109 auf _ymd(d) migriert |
+| crypto.randomUUID() direkt | 0 | alle via _uuid() mit iOS-Fallback v3.5.111 |
+| Unprotected ODB.save | 0 | |
+| onClick: async ohne try/catch | 0 | |
+| javascript: href | 0 | |
+| throw in .map/.filter/.reduce | 0 | |
 
-**Empfehlung**: Block 8 (AS-Signature) oder Block 13 (Audit-UI) als nächstes — beides 1-2h, beides isolierte Komponenten ohne RLS-Komplikation.
+## 🔵 Deferred Blocks (unverändert aus prev Handoff)
 
-## 🤖 Wakeup-Status
+| Block | Titel | Aufwand |
+|---|---|---|
+| 4 | Fahrzeug-Buchungs-Kalender (mit Konflikt-Logik) | 2-3h |
+| 5 | Projekt-Gantt (SVG + Drag&Drop) | 2h |
+| 6 | ZE-Kalender-Wochenansicht | 2h |
+| 8 | AS-Signature-Close-Flow | 1-2h |
+| 9 | AS-PDF v2 (jsPDF statt HTML) | 2h |
+| 13 | Audit-Log-UI | 1-2h |
+| 14 | Web-Push (VAPID + Server) | 1 Woche |
+| 17 | v3.6.0 Final-QS + Deploy | abhängt |
 
-Nächster geplanter Wakeup: nicht gesetzt (war in dieser Iteration: bei keiner Findung dokumentieren statt forced-pushen). Wenn du willst dass die Loop weiterläuft, einfach `weiter` schreiben oder `/loop 30min "fix bugs and push"`.
+**Empfehlung**: Block 8 oder 13 als nächstes — beide Schnell-Wins.
