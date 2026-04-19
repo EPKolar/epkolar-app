@@ -16,7 +16,7 @@ durch Paste-Mechanismus truncated — CC arbeitet prose-basiert + Baseline-Konte
 | 0 Pre-Flight | ✅ | v3.8.19-wip pre-flight | Baseline clean, Plan gespeichert, HANDOFF init |
 | A Baseline-Fixes | ✅ | v3.8.19-wip BASELINE_FIX_v3.8 | 4 Fixes: users.email UNIQUE, arbeitsscheine.juprowa_id UNIQUE, 3 CHECK-Constraints (scheinstatus/prioritaet/role), 3 NOT NULL (photos.project_id, time_entries.worker_id, time_entries.project_id). **Sebastian muss BASELINE_FIX_v3.8.sql manuell im Supabase SQL-Editor ausführen**, danach VERIFY-Query (8 TRUE erwartet). |
 | B 12 Orphan-AS | ✅ | v3.8.19-wip 12-orphan-arbeitsscheine analysis | sql/B_12_ORPHANS_ANALYSIS.md mit Details-Query + Kategorisierungs-Matrix (4 Kategorien: EMPTY_STRING / WORKER_ID_PATTERN / JUPROWA_CODE / UNKNOWN) + 4 Staging-SQLs. **Sebastian führt Query aus, entscheidet Aktion per Row**, resolved-SQL dann in eigenem Commit. |
-| C Chef-Seite v2 | ⏳ | | Sorgenkind + Trend-Pfeile + Nächste-Woche |
+| C Chef-Seite v2 | ✅ | v3.8.19-wip feat(chef): v2 | **C.2 Sorgenkind-Widget** (5 Indikatoren: AS ohne Monteur / AS ohne Termin / Juprowa Push-Stau / Projekte ohne Aktivität 14d / Monatsabrechnung offen) eingefügt zwischen Projekt-Ampeln und Überfällig-Liste. **C.3 Trend-Pfeile** (↑/↓ + Delta vs Vorwoche) an 3 KPIs: Offene AS / Heutige AS / Überfällig — Offene+Überfällig invertiert (↑=rot). Aktive Projekte + Monteure heute ohne Trend. **C.4 Nächste-Woche-Preview** am Ende: Geplante AS / Abwesend (Namen) / Fahrzeuge fällig 14d. Async: finkzeit + absences via useEffect. `abs` prop zu ChefDashboard-Aufrufer hinzugefügt. |
 | D | ⏳ | | Plan-Chunk ausstehend |
 | E | ⏳ | | Plan-Chunk ausstehend |
 | F | ⏳ | | Plan-Chunk ausstehend |

@@ -4672,7 +4672,7 @@ class _ViewBoundary extends React.Component{
           , moreOpen&&React.createElement('div', { onClick: ()=>setMoreOpen(false), style: {position:"fixed",inset:0,zIndex:85,background:"transparent"}})
           , React.createElement('div', { className: "main-pad", ...mainSwipe}
             , _optionalChain([tabs, 'access', _85 => _85[safeKat], 'optionalAccess', _86 => _86.perm])==="_home" && React.createElement(_ViewBoundary,{name:"_home"},React.createElement(HomeView, { curUser: curUser, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, abs: abs, absApprovals: absApprovals, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, monteure: monteure, users: users, ww: ww, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}, onOpenP: setOpenP, monteurProjekte: monteurProjekte, planData: planData, forms: forms, wpHistory: wpHistory} ))
-            , _optionalChain([tabs, 'access', _85c => _85c[safeKat], 'optionalAccess', _86c => _86c.perm])==="_chef" && React.createElement(_ViewBoundary,{name:"_chef"},React.createElement(ChefDashboard, { curUser: curUser, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, monteure: monteure, fahrzeuge: fahrzeuge, ww: ww, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}, onOpenP: setOpenP} ))
+            , _optionalChain([tabs, 'access', _85c => _85c[safeKat], 'optionalAccess', _86c => _86c.perm])==="_chef" && React.createElement(_ViewBoundary,{name:"_chef"},React.createElement(ChefDashboard, { curUser: curUser, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, monteure: monteure, fahrzeuge: fahrzeuge, abs: abs, ww: ww, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}, onOpenP: setOpenP} ))
             , _optionalChain([tabs, 'access', _87 => _87[safeKat], 'optionalAccess', _88 => _88.perm])==="projekte" && React.createElement(_ViewBoundary,{name:"projekte"},React.createElement(ProjList, { onOpen: setOpenP, entries: entries, ww: ww, projects: projects, setProjects: setProjects, curUser: curUser, monteurProjekte: monteurProjekte} ))
             , _optionalChain([tabs, 'access', _89 => _89[safeKat], 'optionalAccess', _90 => _90.perm])==="arbeitsscheine" && hasPerm(curUser,"arbeitsscheine") && React.createElement(_ViewBoundary,{name:"arbeitsscheine"},React.createElement(ArbeitsscheinView, { arbeitsscheine: arbeitsscheine, setArbeitsscheine: setArbeitsscheine, monteure: monteure, ww: ww, curUser: curUser, pushNotif: pushNotif, users: users} ))
             , _optionalChain([tabs, 'access', _91 => _91[safeKat], 'optionalAccess', _92 => _92.perm])==="wochenplanung" && React.createElement(_ViewBoundary,{name:"wochenplanung"},React.createElement(WeekPlan, { ww: ww, curUser: curUser, wpHistory: wpHistory, setWpHistory: setWpHistory, monteure: monteure, projects: projects, fahrzeuge: fahrzeuge} ))
@@ -13579,14 +13579,29 @@ function UrlaubsantragPanel({curUser,monteure,users}){
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.81 Block 7: Chef-Dashboard (Admin-only)
 // ═══════════════════════════════════════════════════════════════════
-function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeuge,ww,onNav,onOpenP}){
+function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeuge,abs,ww,onNav,onOpenP}){
   const isMob=ww<700;
   const _td=_ymd(new Date());
   const _weekStart=(function(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));return _ymd(d);})();
+  /* v3.8.19 Chef v2 · C.3 Trend-Helper: "vor 7 Tagen"-Stichtag */
+  const _weekAgo=(function(){const d=new Date();d.setDate(d.getDate()-7);return _ymd(d);})();
+  /* v3.8.19 Chef v2 · C.4 Nächste-Woche-Range */
+  const _nextMonStart=(function(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()+(8-day));return _ymd(d);})();
+  const _nextMonEnd=(function(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()+(14-day));return _ymd(d);})();
+  const _in14d=(function(){const d=new Date();d.setDate(d.getDate()+14);return _ymd(d);})();
   const aktivProj=projects.filter(p=>p.status==='aktiv').length;
   const offeneAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)).length;
   const heuteAS=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;
   const ueberfaellige=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_td;}).length;
+  /* v3.8.19 Chef v2 · C.3 Trend-Berechnung (Vorwoche-Snapshot client-side).
+     Heuristik: "Schein war vor 7 Tagen offen" = created_at < _weekAgo UND (abschlossen_am leer ODER abschlossen_am > _weekAgo).
+     Abschluss-Datum steht nicht konsistent in jedem Schema — wir nehmen last_updated als Approximation wenn vorhanden. */
+  const _wasOpenWeekAgo=(a)=>{const created=(a.created_at||a.createdAt||'').slice(0,10);if(created>=_weekAgo)return false;const done=(a.abschluss_datum||a.abschlussDatum||'').slice(0,10);if(done&&done<_weekAgo)return false;return AS_GRP_OFFEN.includes(a.scheinstatus)||(a.scheinstatus==='abgeschlossen'&&done>=_weekAgo);};
+  const offeneAS_vor7d=arbeitsscheine.filter(_wasOpenWeekAgo).length;
+  const ueberfaellige_vor7d=arbeitsscheine.filter(a=>{if(!_wasOpenWeekAgo(a))return false;const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_weekAgo;}).length;
+  const heuteAS_vor7d=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_weekAgo)).length;
+  const _delta=(cur,prev)=>cur-prev;
+  const _trendArrow=(delta,invertColors)=>{if(delta===0)return{icon:'→',color:'#71717a'};const up=delta>0;const bad=invertColors?!up:up;return{icon:up?'↑':'↓',color:bad?'#ef4444':'#22c55e'};};
   const activeWorkers=new Set(entries.filter(e=>(e.datum||e.date)===_td).map(e=>e.worker||e.w||e.worker_id).filter(Boolean)).size;
   const totalWorkers=monteure.filter(m=>m.r!=='Backoffice'&&m.r!=='Verkauf/Buchhaltung').length;
   const loadByWorker=monteure.filter(m=>m.r!=='Backoffice'&&m.r!=='Verkauf/Buchhaltung').map(m=>{
@@ -13606,22 +13621,82 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     return {id:p.id,nr:p.nr,name:p.name,kunde:p.kunde,amp,asOpen,asCount,budgetPct,p};
   });
   const topOver=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_td;}).sort((a,b)=>(a.terminBestaetigt||a.terminVorschlag||'').localeCompare(b.terminBestaetigt||b.terminVorschlag||'')).slice(0,8);
+  /* v3.8.19 Chef v2 · C.2 Sorgenkind-Widget: 5 Handlungsbedarf-Indikatoren.
+     1-3 + 4 sind sync aus props berechnet, 5 (Monatsabrechnung) via _sbGet async. */
+  const asOhneMonteur=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(!a.monteur||String(a.monteur).trim()==='')).length;
+  const asOhneTermin=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&!a.terminBestaetigt&&!a.terminVorschlag).length;
+  const asPushStau=arbeitsscheine.filter(a=>a.push_pending===true||a.push_pending==='true').length;
+  /* Projekt ohne Aktivität >14 Tage: max(entries.datum) für jedes aktive Projekt + projects.status='aktiv' */
+  const _14dAgo=(function(){const d=new Date();d.setDate(d.getDate()-14);return _ymd(d);})();
+  const projLastActivity={};
+  entries.forEach(e=>{const pid=e.p||e.pid||e.project_id;const dt=(e.datum||e.date||'').slice(0,10);if(!pid||!dt)return;if(!projLastActivity[pid]||dt>projLastActivity[pid])projLastActivity[pid]=dt;});
+  const projStill=projects.filter(p=>p.status==='aktiv').filter(p=>{const last=projLastActivity[p.id]||'';return !last||last<_14dAgo;}).map(p=>p.name||p.nr||p.id).slice(0,10);
+  /* v3.8.19 Chef v2 · async: Monatsabrechnung + absences (Abwesend nächste Woche) */
+  const [finkOpen,setFinkOpen]=_react.useState.call(void 0, null);
+  const [nextWeekAbs,setNextWeekAbs]=_react.useState.call(void 0, null);
+  _react.useEffect.call(void 0, ()=>{
+    let alive=true;
+    (async()=>{
+      try{
+        const yr=new Date().getFullYear();
+        const rows=await _sbGet('finkzeit','jahr=eq.'+yr+'&status=neq.genehmigt&select=worker_id,monat,status').catch(()=>[]);
+        if(!alive)return;
+        const names=(rows||[]).map(r=>{const m=monteure.find(w=>w.id===r.worker_id);return m?((m.vorname?m.vorname+' ':'')+m.n):r.worker_id;});
+        setFinkOpen(names);
+      }catch(_){if(alive)setFinkOpen([]);}
+    })();
+    return()=>{alive=false;};
+  },[]);
+  /* C.4 Abwesend nächste Woche: aus abs-State (Key=worker_id, Value={entries:[{von,bis,typ}]}) */
+  _react.useEffect.call(void 0, ()=>{
+    try{
+      if(!abs||typeof abs!=='object'){setNextWeekAbs([]);return;}
+      const hits=[];
+      Object.keys(abs).forEach(wid=>{
+        const arr=Array.isArray(abs[wid])?abs[wid]:(abs[wid]&&Array.isArray(abs[wid].entries)?abs[wid].entries:[]);
+        arr.forEach(e=>{
+          const von=(e.von||e.from||e.start||'').slice(0,10);
+          const bis=(e.bis||e.to||e.end||von).slice(0,10);
+          if(!von)return;
+          /* Overlap next-week range (nextMonStart..nextMonEnd, halbopen) */
+          if(bis>=_nextMonStart&&von<_nextMonEnd){
+            const m=monteure.find(w=>w.id===wid);
+            const name=m?((m.vorname?m.vorname+' ':'')+m.n):wid;
+            if(!hits.find(h=>h.name===name))hits.push({name,typ:e.typ||e.art||'Abwesend'});
+          }
+        });
+      });
+      setNextWeekAbs(hits);
+    }catch(_){setNextWeekAbs([]);}
+  },[abs]);
+  /* C.4 Geplante AS nächste Woche: Termin im Bereich nextMon..nextMon+7 (halbopen) */
+  const asNextWeek=arbeitsscheine.filter(a=>{const t=(a.terminBestaetigt||a.terminVorschlag||'').slice(0,10);return t>=_nextMonStart&&t<_nextMonEnd;}).length;
+  /* C.4 Fahrzeuge mit Service/Pickerl fällig in 14 Tagen (Aggregate-Count, keine Detail-Liste) */
+  const fzFaellig=fahrzeuge.filter(f=>{const ns=(f.next_service||f.nextService||'').slice(0,10);const pk=(f.pickerl_faellig_am||f.pickerlFaelligAm||'').slice(0,10);return (ns&&ns<=_in14d&&ns>=_td)||(pk&&pk<=_in14d&&pk>=_td);}).length;
+  /* Sorgenkind-Total für Widget-Header */
+  const sorgenTotal=asOhneMonteur+asOhneTermin+asPushStau+projStill.length+(finkOpen?finkOpen.length:0);
   return React.createElement('div',{style:{padding:isMob?12:16}}
     ,React.createElement('div',{style:{marginBottom:14}}
       ,React.createElement('h2',{style:{fontSize:isMob?20:24,fontWeight:800,margin:0}},'👑 Chef-Übersicht')
       ,React.createElement('div',{style:{fontSize:12,color:V.dm,marginTop:2}},'Live-Status für die Geschäftsführung · '+new Date().toLocaleDateString('de-AT',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}))
     )
     ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:isMob?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:14}}
+      /* v3.8.19 Chef v2 · C.3 Trend-Pfeile an 3 von 5 Kacheln (Offene AS, Heutige AS, Überfällig) */
       ,[
         {l:'Aktive Projekte',v:aktivProj,sub:projects.length+' gesamt',color:V.ac,click:function(){onNav('projekte');}},
-        {l:'Offene AS',v:offeneAS,sub:arbeitsscheine.length+' gesamt',color:'#f97316',click:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');}},
+        {l:'Offene AS',v:offeneAS,sub:arbeitsscheine.length+' gesamt',color:'#f97316',click:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');},trend:{delta:_delta(offeneAS,offeneAS_vor7d),invert:true}},
         {l:'Monteure heute',v:activeWorkers+'/'+totalWorkers,sub:'aktiv (ZE)',color:'#a855f7',click:function(){onNav('mitarbeiter');}},
-        {l:'Heutige AS',v:heuteAS,sub:_td,color:'#3b82f6',click:function(){onNav('arbeitsscheine');}},
-        {l:'Überfällig',v:ueberfaellige,sub:ueberfaellige>0?'🔴 kritisch':'alle OK',color:ueberfaellige>0?'#ef4444':'#22c55e',click:function(){onNav('arbeitsscheine');}}
-      ].map(function(k,i){return React.createElement('div',{key:i,onClick:k.click,style:{...CC(),padding:isMob?'10px':'12px',borderLeft:'4px solid '+k.color,cursor:'pointer'}}
+        {l:'Heutige AS',v:heuteAS,sub:_td,color:'#3b82f6',click:function(){onNav('arbeitsscheine');},trend:{delta:_delta(heuteAS,heuteAS_vor7d),invert:false}},
+        {l:'Überfällig',v:ueberfaellige,sub:ueberfaellige>0?'🔴 kritisch':'alle OK',color:ueberfaellige>0?'#ef4444':'#22c55e',click:function(){onNav('arbeitsscheine');},trend:{delta:_delta(ueberfaellige,ueberfaellige_vor7d),invert:true}}
+      ].map(function(k,i){
+        const tr=k.trend?_trendArrow(k.trend.delta,k.trend.invert):null;
+        return React.createElement('div',{key:i,onClick:k.click,style:{...CC(),padding:isMob?'10px':'12px',borderLeft:'4px solid '+k.color,cursor:'pointer'}}
         ,React.createElement('div',{style:{fontSize:10,color:V.dm,fontWeight:600,textTransform:'uppercase',letterSpacing:.5}},k.l)
-        ,React.createElement('div',{style:{fontSize:isMob?22:26,fontWeight:800,color:k.color,fontFamily:mono,marginTop:4}},k.v)
-        ,React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:2}},k.sub)
+        ,React.createElement('div',{style:{fontSize:isMob?22:26,fontWeight:800,color:k.color,fontFamily:mono,marginTop:4,display:'flex',alignItems:'baseline',gap:6}}
+          ,k.v
+          ,tr&&React.createElement('span',{style:{fontSize:14,color:tr.color,fontWeight:700}},tr.icon+(k.trend.delta!==0?(' '+(k.trend.delta>0?'+':'')+k.trend.delta):''))
+        )
+        ,React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:2}},k.sub+(tr?' · vs. Vorwoche':''))
       );})
     )
     ,loadByWorker.length>0&&React.createElement('div',{style:{...CC(),marginBottom:14}}
@@ -13655,6 +13730,34 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
         )
       )
     )
+    /* v3.8.19 Chef v2 · C.2 Sorgenkind-Widget — zwischen Projekt-Ampeln und Überfällig-Liste */
+    ,sorgenTotal>0&&React.createElement('div',{style:{...CC(),marginBottom:14,borderLeft:'4px solid #eab308'}}
+      ,React.createElement('div',{style:{fontSize:14,fontWeight:700,marginBottom:10,color:'#eab308'}},'🚨 Handlungsbedarf ('+sorgenTotal+')')
+      ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(2,1fr)',gap:10,fontSize:12}}
+        ,asOhneMonteur>0&&React.createElement('div',{onClick:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');},style:{cursor:'pointer',padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'AS ohne Monteur: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:'#f97316',fontFamily:mono}},asOhneMonteur)
+        )
+        ,asOhneTermin>0&&React.createElement('div',{onClick:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');},style:{cursor:'pointer',padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'AS ohne Termin: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:'#f97316',fontFamily:mono}},asOhneTermin)
+        )
+        ,asPushStau>0&&React.createElement('div',{onClick:function(){window.__asFilter='push_pending';onNav('arbeitsscheine');},style:{cursor:'pointer',padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'Juprowa Push-Stau: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:'#ef4444',fontFamily:mono}},asPushStau)
+        )
+        ,projStill.length>0&&React.createElement('div',{style:{padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'Projekte ohne Aktivität >14 Tage: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:'#f97316'}},projStill.length)
+          ,React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:2}},projStill.slice(0,5).join(', ')+(projStill.length>5?' +'+(projStill.length-5):''))
+        )
+        ,finkOpen&&finkOpen.length>0&&React.createElement('div',{onClick:function(){onNav('stunden');},style:{cursor:'pointer',padding:'6px 10px',background:V.cd,borderRadius:6,gridColumn:isMob?'auto':'1 / -1'}}
+          ,React.createElement('span',{style:{color:V.dm}},'Monatsabrechnung nicht freigegeben: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:'#f97316'}},finkOpen.length)
+          ,React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:2}},finkOpen.slice(0,6).join(', ')+(finkOpen.length>6?' +'+(finkOpen.length-6):''))
+        )
+      )
+    )
     ,topOver.length>0&&React.createElement('div',{style:{...CC()}}
       ,React.createElement('div',{style:{fontSize:14,fontWeight:700,marginBottom:10,color:'#ef4444'}},'🔴 Kritisch überfällige AS ('+topOver.length+')')
       ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:4}}
@@ -13668,6 +13771,25 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
             ,React.createElement('span',{style:{fontFamily:mono,fontWeight:700,color:'#ef4444'}},tage+'d ÜBERFÄLLIG')
           );
         })
+      )
+    )
+    /* v3.8.19 Chef v2 · C.4 Nächste-Woche-Preview — immer rendern (Aggregat-Counts, keine Detail-Listen außer Abwesend) */
+    ,React.createElement('div',{style:{...CC(),marginTop:14,borderLeft:'4px solid #3b82f6'}}
+      ,React.createElement('div',{style:{fontSize:14,fontWeight:700,marginBottom:10,color:'#3b82f6'}},'📅 Nächste Woche ('+_nextMonStart+' – '+_nextMonEnd+')')
+      ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(3,1fr)',gap:10,fontSize:12}}
+        ,React.createElement('div',{style:{padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'Geplante AS: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:V.ac,fontFamily:mono}},asNextWeek)
+        )
+        ,React.createElement('div',{style:{padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'Abwesend: ')
+          ,React.createElement('span',{style:{fontWeight:700,color:nextWeekAbs&&nextWeekAbs.length>0?'#f97316':V.dm,fontFamily:mono}},nextWeekAbs?nextWeekAbs.length:'…')
+          ,nextWeekAbs&&nextWeekAbs.length>0&&React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:2}},nextWeekAbs.slice(0,6).map(function(a){return a.name+' ('+a.typ+')';}).join(', ')+(nextWeekAbs.length>6?' +'+(nextWeekAbs.length-6):''))
+        )
+        ,React.createElement('div',{style:{padding:'6px 10px',background:V.cd,borderRadius:6}}
+          ,React.createElement('span',{style:{color:V.dm}},'Fahrzeuge fällig (14 Tage): ')
+          ,React.createElement('span',{style:{fontWeight:700,color:fzFaellig>0?'#f97316':V.dm,fontFamily:mono}},fzFaellig)
+        )
       )
     )
   );
