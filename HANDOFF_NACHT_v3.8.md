@@ -105,3 +105,8 @@
 - Nutzt high-level SQ.getAll + ODB.load('syncQueueFailed') (nicht raw IDB wie Plan vorschlug — sauberer)
 - Output: summary (total/failedArchive/highRetryCount) + byStatus + byAge-Buckets + HighRetries-Sample + FailedArchive-Sample
 - Hilft Sebastian "Sync hängt fest"-Reports zu diagnostizieren
+
+### Block 16 · v3.7.17 · ✅ BUG_HUNT Round 2 auf v3.8-Diff
+- 7 Findings in BUG_HUNT_v3.8.md, 0 echte P1
+- R2-03 **RE-INVESTIGATE**: _forceExpireToken könnte wirkungslos sein wenn _authToken schon im JS-Memory (closure). → _thunderTest-Lauf beim nächsten Mal mit Sebastian klärt das.
+- Rest P3/Cosmetic, 0 neue Code-Änderungen.
