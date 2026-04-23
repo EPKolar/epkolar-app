@@ -16,7 +16,7 @@
 | `epkolar_auth` | 🔴 | `{at, rt, exp}` (access + refresh Token + Ablauf) | ✅ | v3.8.10 Logout-Flow räumt auf |
 | `epkolar_token` | 🔴 | JWT (Duplikat zu epkolar_auth.at) | ✅ | Legacy, könnte konsolidiert werden |
 | `epkolar_refresh` | 🔴 | refresh_token (Duplikat) | ✅ | Legacy |
-| `epkolar_gc` | 🔴 | `{e:btoa(email), p:btoa(password)}` — **base64 credentials** | ❌ (bleibt!) | "Guardian Cookie" für Auto-ReAuth. v3.8.4 Iter-4 entfernt zwar `offlinePwHash` + `lastUser`, aber `epkolar_gc` war NICHT in der Liste! |
+| `epkolar_gc` | 🟢 (v3.8.35 eliminiert) | ~~`{e:btoa(email), p:btoa(password)}` — base64 credentials~~ | ✅ (v3.8.34 defensive + v3.8.35 write-source entfernt) | **v3.8.35 CLOSED:** Key wird nicht mehr geschrieben. `_silentReAuth` gestubbed. Siehe `CODE_DEBT.md` L1. |
 | `epkolar_auth_backup_preforce` | 🔴 | Token-Backup vor `_forceExpireToken()` | dev-only | Wird durch `_restoreToken()` gecleant |
 | `epkolar_user` | 🟡 | Voller User-Objekt (id, role, name, email, monteurId) | ✅ | PII, aber notwendig für Offline |
 | `epk_timer` | 🟡 | Laufender Timer `{running, startAt, projectId, task, owner}` | ✅ via Confirm | v3.8.7 Iter-3 warnt vor Logout mit laufendem Timer |

@@ -50,11 +50,19 @@ durch Block-A-D-Audits + Session-Reviews entdeckt.
 
 ## Larger (1-2 h)
 
-### L1 · `epkolar_gc` PBKDF2-Migration
-- **Motivation:** base64 ist reversibel = Klartext
-- **Plan:** Analog `_OFFPW` (v3.8.33 Iter-19c) mit Salt + 100k Iter PBKDF2
-- **Aufwand:** Migration + Grace-Period (Legacy-Verify beim nächsten Login)
-- **Prio:** P2
+### ~~L1 · `epkolar_gc` PBKDF2-Migration~~ — **CLOSED v3.8.35, anders gelöst**
+- **Ursprüngliche Annahme** (falsch): Analog `_OFFPW` auf PBKDF2 hashen.
+- **Korrektur bei Umsetzung:** Nicht durchführbar. `epkolar_gc` wurde gelesen und
+  als Plaintext an GoTrue `/token?grant_type=password` gesendet (im `_silentReAuth`).
+  Ein Hash hätte nicht funktioniert — GoTrue braucht Plaintext.
+- **Tatsächliche Lösung (v3.8.35):** Silent-Re-Auth via Password-Cache komplett
+  eliminiert. `epkolar_gc` wird nicht mehr geschrieben (L1829/L1840 gestrippt).
+  `_silentReAuth` stubbed → returns null. Fallback ist der `refresh_token` im
+  `epkolar_auth`, der 7 Tage Default-Lifetime hat. Bei echter Ablauf: User
+  loggt sich neu ein — normale Web-UX.
+- **Regression-Guard:** `tests/test_security.py::test_no_epkolar_gc_setitem`.
+- **UX-Impact:** Marginal. User, die inaktiv länger als 7 Tage sind, werden zum
+  Neu-Login geschoben. Aktive Daily-User: unmerklich.
 
 ### L2 · 4 `_authRetry`-Gaps (siehe `_authretry_gaps.md`)
 - L6366 juprowa_update_passport (P2 Admin-Write)

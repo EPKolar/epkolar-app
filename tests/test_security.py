@@ -49,3 +49,14 @@ def test_offline_pw_is_not_plain_base64_write(index_html):
     # Regression guard for v3.8.33: make sure we no longer write btoa(user+":"+pw)
     legacy = re.search(r'offlinePwHash",\s*btoa\s*\(', index_html)
     assert not legacy, "Legacy plain-btoa write to offlinePwHash detected (must use _OFFPW.create)"
+
+
+def test_no_epkolar_gc_setitem(index_html):
+    # Regression guard for v3.8.35: epkolar_gc Plaintext-PW-Cache wurde eliminiert.
+    # Nur removeItem-Calls (defensive Cleanup) sind erlaubt, kein setItem mehr.
+    legacy = re.search(r'localStorage\.setItem\s*\(\s*["\']epkolar_gc', index_html)
+    assert not legacy, (
+        "localStorage.setItem('epkolar_gc', ...) reappeared — base64 credentials "
+        "cache was explicitly removed in v3.8.35 (P2 Security). Use refresh_token-based "
+        "re-auth instead of password-cache."
+    )

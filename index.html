@@ -537,7 +537,8 @@ window._runAllTests=async function(){
   const t=async(name,fn)=>{try{const r=await fn();if(r){passed++;results.push({test:name,pass:true});console.log('✅ '+name);}else{failed++;results.push({test:name,pass:false,err:'returned false'});console.warn('❌ '+name);}}catch(e){failed++;results.push({test:name,pass:false,err:e.message});console.error('❌ '+name+': '+e.message);}};
 
   // Auth
-  await t('epkolar_gc vorhanden',()=>!!localStorage.getItem('epkolar_gc'));
+  // v3.8.35: epkolar_gc Check entfernt — Key wird nicht mehr geschrieben (Plaintext-PW-Cache aus Sicherheitsgründen eliminiert).
+  await t('epkolar_gc NICHT vorhanden',()=>!localStorage.getItem('epkolar_gc'));
   await t('epkolar_user vorhanden',()=>!!localStorage.getItem('epkolar_user'));
   await t('JWT nicht abgelaufen',()=>{const tok=_authToken;if(!tok)return false;return JSON.parse(atob(tok.split('.')[1])).exp>Date.now()/1000;});
 
@@ -1145,13 +1146,14 @@ async function _sbAuthRefresh(){
   return _authRefreshInflight;
 }
 async function _silentReAuth(){
-  try{const c=JSON.parse(localStorage.getItem("epkolar_gc")||"null");
-  if(!c||!c.e||!c.p)return null;
-  const email=atob(c.e);const pw=atob(c.p);
-  const r=await fetch(_SB_AUTH+"/token?grant_type=password",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password:pw})},15000));
-  if(!r.ok){console.warn("[Auth] Silent re-auth failed ("+r.status+")");_authToken=null;_authRefreshToken=null;return null;}
-  const d=await r.json();_storeAuth(d);dlog("[Auth] Silent re-auth OK");return d;
-  }catch(e){_authToken=null;_authRefreshToken=null;return null;}
+  // v3.8.35: Silent re-auth via cached plaintext-password (epkolar_gc = {e:btoa,p:btoa})
+  // wurde komplett entfernt. base64 ist reversibel → effektiv Klartext-PW in localStorage.
+  // Fallback war "App loggt sich automatisch wieder ein wenn refresh_token stirbt"; der
+  // refresh_token hat 7 Tage Default-Lifetime, der überbrückt die meisten realen
+  // Szenarien. Bei echtem Ablauf: User loggt sich neu ein — das ist normale Web-UX.
+  console.warn("[Auth] Silent re-auth not available (epkolar_gc removed v3.8.35) — user re-login required");
+  _authToken=null;_authRefreshToken=null;
+  return null;
 }
 async function _sbAuthLogout(){
   if(_authToken&&_isJwtShape(_authToken))try{await fetch(_SB_AUTH+"/logout",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_authToken}},10000));}catch(_){}
@@ -1826,7 +1828,7 @@ window.API = (function() {
       // Try GoTrue auth first
       let gotrue=false;
       let _gotrueErr=null;
-      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;try{localStorage.setItem("epkolar_gc",JSON.stringify({e:btoa(email),p:btoa(p)}));}catch(_){}}catch(authErr){
+      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;/* v3.8.35: epkolar_gc-Cache entfernt (base64-reversible, siehe _silentReAuth-Kommentar) */}catch(authErr){
         _gotrueErr=authErr;
         // Fallback: bcrypt (transition period until all users migrated)
         let valid=false;
@@ -1837,7 +1839,7 @@ window.API = (function() {
         // kein silent-degraded-Mode (ehemalig B20-E).
         try{
           const signUp=await fetch(_SB_AUTH+"/signup",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password:p,data:{role:user.role,name:user.name}})},15000));
-          if(signUp.ok){const sd=await signUp.json();if(sd.access_token){_storeAuth(sd);gotrue=true;try{localStorage.setItem("epkolar_gc",JSON.stringify({e:btoa(email),p:btoa(p)}));}catch(_){}}}
+          if(signUp.ok){const sd=await signUp.json();if(sd.access_token){_storeAuth(sd);gotrue=true;/* v3.8.35: epkolar_gc-Cache entfernt */}}
         }catch(_){}
         if(!gotrue){console.error('[B020-G] bcrypt OK aber GoTrue-Auth+Signup beide fehlgeschlagen — Admin muss GoTrue-Account anlegen',{username:u,email,gotrueErr:_gotrueErr&&_gotrueErr.message});throw new Error("Anmeldung unvollständig — Admin muss GoTrue-Account anlegen [B20-G]");}
       }
@@ -1913,7 +1915,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.34-supabase";
+const APP_VERSION="3.8.35-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
