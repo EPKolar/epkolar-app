@@ -1844,8 +1844,8 @@ window.API = (function() {
       // v3.8.7 BLOCK 1 B-020: Belt-and-braces — nach ALLEN Auth-Pfaden MUSS _authToken gesetzt sein.
       // Falls durch race/edge nicht → HARTE Abweisung statt Dashboard-Render mit anon-Key.
       if(!_authToken){console.error('[B020-H] _authToken null nach Auth-Flow',{username:u,email,gotrueFlag:gotrue});throw new Error("Anmeldung fehlgeschlagen — bitte erneut versuchen [B20-H]");}
-      if(_authToken){try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){}}
-      if(_authToken){try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""});}catch(e){}}
+      if(_authToken){try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){console.warn('[LOGIN-STAMP]',e&&e.message||e);}}
+      if(_authToken){try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""});}catch(e){console.warn('[LOGIN-AUDIT]',e&&e.message||e);}}
       let perms=[];try{perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];}catch(e){perms=[];}
       const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:email,permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
@@ -1906,7 +1906,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.28-supabase";
+const APP_VERSION="3.8.29-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2510,7 +2510,8 @@ async function _juprowaPush(scheinId){
     try{const _u=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost('activity_log',{user_id:_optionalChain([_u,'optionalAccess',_=>_.id])||'system',action:'juprowa_push',details:JSON.stringify({nummer:schein.nummer,juprowa_id:schein.juprowa_id,result:result.substring(0,500)})});}catch(e){}
     return{ok:true,nummer:schein.nummer,result};
   }catch(e){
-    await _sbPatch('arbeitsscheine',scheinId,{push_error:e.message}).catch(()=>{});
+    await _sbPatch('arbeitsscheine',scheinId,{push_error:e.message}).catch(pe=>console.warn('[JP-PUSH-ERR-WRITE]',scheinId,pe&&pe.message||pe));
+    console.error('[JP-PUSH]',scheinId,e&&e.message||e);
     return{error:e.message};
   }
 }
@@ -2536,7 +2537,7 @@ function _juprowaMarkEdited(scheinId,updates){
   const hasPushField=Object.keys(updates).some(k=>pushKeys.includes(k));
   if(hasPushField){
     const extra={local_updated_at:new Date().toISOString(),push_pending:true};
-    _sbPatch('arbeitsscheine',scheinId,extra).catch(()=>{});
+    _sbPatch('arbeitsscheine',scheinId,extra).catch(e=>console.warn('[AS-MARK-PENDING]',scheinId,e&&e.message||e));
   }
 }
 
@@ -3664,6 +3665,9 @@ class _ViewBoundary extends React.Component{
   const [appLoading,setAppLoading]=_react.useState.call(void 0, true);
   const [kat,setKat]=_react.useState.call(void 0, 0);
   const [moreOpen,setMoreOpen]=_react.useState.call(void 0, false);
+  // v3.8.29 Last-Sync-Tick: forciert 30s-Re-Render für die "⏱ vor X Min"-Anzeige im Top-Bar
+  const [_lsTick,_setLsTick]=_react.useState.call(void 0, 0);
+  _react.useEffect.call(void 0, ()=>{const iv=setInterval(()=>_setLsTick(t=>t+1),30000);return ()=>clearInterval(iv);},[]);
   const [openP,setOpenP]=_react.useState.call(void 0, null);
   const [projects,setProjects]=_react.useState.call(void 0, INIT_PROJECTS);
   const [entries,setEntries]=_react.useState.call(void 0, []);
@@ -4694,6 +4698,8 @@ class _ViewBoundary extends React.Component{
             , React.createElement('div', { className: "tab-bar", style: {padding:isMob?"0 8px":"0 20px",flex:1,alignItems:"center"}}
               , (ww>=1200?tabs:mainTabs).map((c,mi)=>{const ri=tabs.indexOf(c);const arr=ww>=1200?tabs:mainTabs;const prevG=mi>0?arr[mi-1].g:-1;const showSep=mi>0&&c.g!==prevG;return React.createElement(_react.Fragment, { key: ri}, showSep&&React.createElement('span', { style: {width:1,height:24,background:V.bd,margin:"0 4px",flexShrink:0,opacity:.6}}), React.createElement('button', { onClick: ()=>{setKat(ri);setMoreOpen(false);}, style: {padding:"11px 16px",border:"none",background:"transparent",color:safeKat===ri?c.c:V.dm,fontSize:13,fontWeight:safeKat===ri?700:500,borderBottom:"3px solid "+(safeKat===ri?c.c:"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, c.i, " " , c.l));})
             )
+            /* v3.8.29 Last-Sync-Indikator: zeigt wann zuletzt Juprowa-Pull lief. Tick via _lsTick */
+            , (()=>{const ts=typeof window!=="undefined"&&window._lastJuprowaSyncAt;if(!ts)return null;const mins=Math.max(0,Math.floor((Date.now()-ts)/60000));const txt=mins<1?"gerade eben":mins===1?"vor 1 Min":"vor "+mins+" Min";return React.createElement('span', { style: {fontSize:10,color:V.dm,padding:"0 10px",whiteSpace:"nowrap",flexShrink:0,fontStyle:"italic"}, title: "Letzter automatischer Juprowa-Sync"+(navigator.onLine?"":" · offline")}, "⏱ ", txt, !navigator.onLine&&" · offline");})()
             , ww<1200&&React.createElement('div', { style: {position:"relative",zIndex:95,flexShrink:0,paddingRight:isMob?8:20}}
               , React.createElement('span', { style: {width:1,height:24,background:V.bd,margin:"0 4px",flexShrink:0,opacity:.6,display:"inline-block",verticalAlign:"middle"}})
               , React.createElement('button', { onClick: ()=>setMoreOpen(!moreOpen), style: {padding:"11px 16px",border:"none",background:"transparent",color:moreActive?"#71717a":V.dm,fontSize:13,fontWeight:moreActive?700:500,borderBottom:"3px solid "+(moreActive?"#71717a":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, "⚙️ Mehr ", moreOpen?"▴":"▾")
