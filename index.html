@@ -1859,6 +1859,13 @@ window.API = (function() {
       if(!_user)throw new Error("Nicht angemeldet");
       const users=await _sbGet("users","id=eq."+encodeURIComponent(_user.id));
       if(!users||!users.length)throw new Error("User not found");
+      // v3.8.33 Bug-Hunt Iter-19: GoTrue-only Accounts haben kein password_hash → bcrypt.compareSync
+      // würde silent throwen → Fehlermeldung "Falsches Passwort" obwohl Altes korrekt wäre.
+      // Explizite Diagnose statt irreführender Message.
+      if(!users[0].password_hash){
+        console.error('[changePassword] Kein lokales password_hash für User',_user.id,'— GoTrue-only Account, Admin-Reset nötig');
+        throw new Error("Dieser Account hat keinen lokalen Passwort-Hash — bitte Admin um Passwort-Reset bitten");
+      }
       let valid=false;try{valid=dcodeIO.bcrypt.compareSync(oldPw,users[0].password_hash);}catch(e){}
       if(!valid)throw new Error("Falsches Passwort");
       // v3.5.131: bcrypt-Library-Check (nicht geladen → Passwort-Change würde mit TypeError crashen statt sauberer Fehlermeldung)
@@ -1906,7 +1913,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.32-supabase";
+const APP_VERSION="3.8.33-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2033,6 +2040,37 @@ const ODB={
   async clear(store){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
   async save(store,data){try{await ODB.set(store,"data",data);}catch(e){}},
   async load(store){try{return await ODB.get(store,"data");}catch(e){return undefined;}}
+};
+// v3.8.33 Bug-Hunt Iter-19c: Offline-PW-Hash von reversiblem base64 auf PBKDF2-SHA256 umgestellt (M-4 Security-P2).
+// Altes Schema btoa(user+":"+pw) war effektiv Klartext-PW im IDB (reversibel).
+// Legacy-Format wird bei Offline-Verify weiterhin akzeptiert → beim nächsten Online-Login
+// wird automatisch mit dem neuen Format re-gespeichert (Grace-Migration, keine User-Aktion nötig).
+const _OFFPW={
+  async _derive(user,pw,saltHex){
+    const _u=(user||"").toLowerCase().trim();
+    const _enc=new TextEncoder();
+    const _km=await crypto.subtle.importKey("raw",_enc.encode(_u+":"+(pw||"")),{name:"PBKDF2"},false,["deriveBits"]);
+    const _saltBytes=new Uint8Array((saltHex||"").match(/.{2}/g).map(h=>parseInt(h,16)));
+    const _bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt:_saltBytes,iterations:100000,hash:"SHA-256"},_km,256);
+    const _b=new Uint8Array(_bits);
+    let _s="";for(const _v of _b)_s+=_v.toString(16).padStart(2,"0");
+    return _s;
+  },
+  async create(user,pw){
+    const _salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,"0")).join("");
+    const _hash=await _OFFPW._derive(user,pw,_salt);
+    return{v:1,algo:"PBKDF2-SHA256",iter:100000,salt:_salt,hash:_hash};
+  },
+  async verify(user,pw,stored){
+    if(!stored)return false;
+    if(typeof stored==="object"&&stored.v===1&&stored.algo==="PBKDF2-SHA256"&&stored.salt&&stored.hash){
+      try{const _h=await _OFFPW._derive(user,pw,stored.salt);return _h===stored.hash;}catch(e){return false;}
+    }
+    if(typeof stored==="string"){
+      return stored===btoa((user||"").toLowerCase().trim()+":"+(pw||""));
+    }
+    return false;
+  }
 };
 // Sync-Queue: speichert Änderungen offline, flusht bei Verbindung — MIT BATCHING
 const SQ={
@@ -3544,7 +3582,8 @@ function LoginScreen({onLogin,onPortal,projects}){
       // Server login (no demoUsers fallback — removed for security)
       const data=await API.login(user,pw);
       API.setToken(data.token);
-      try{await ODB.set("meta","lastUser",data.user);await ODB.set("meta","offlinePwHash",btoa(user.toLowerCase().trim()+":"+pw));}catch(e){}
+      // v3.8.33 Iter-19c: Offline-PW jetzt PBKDF2 statt base64-Klartext.
+      try{await ODB.set("meta","lastUser",data.user);const _off=await _OFFPW.create(user,pw);await ODB.set("meta","offlinePwHash",_off);}catch(e){console.error('[login] offlinePwHash create failed:',e&&e.message||e);}
       onLogin(data.user);
     }catch(e){
       // Offline fallback: check cached credentials
@@ -3552,10 +3591,11 @@ function LoginScreen({onLogin,onPortal,projects}){
         try{
           const cached=await ODB.get("meta","offlinePwHash");
           const lastUser=await ODB.get("meta","lastUser");
-          if(cached&&lastUser&&cached===btoa(user.toLowerCase().trim()+":"+pw)){
+          // v3.8.33 Iter-19c: _OFFPW.verify akzeptiert beides — neuen PBKDF2-Wrapper UND legacy base64.
+          if(cached&&lastUser&&await _OFFPW.verify(user,pw,cached)){
             setErr("");onLogin(lastUser);setLoading(false);return;
           }
-        }catch(ex){}
+        }catch(ex){console.error('[login-offline] verify threw:',ex&&ex.message||ex);}
         setErr("Offline — Kein gespeicherter Login für diesen Benutzer");
       } else {
         setErr(e.message||"Login fehlgeschlagen");
