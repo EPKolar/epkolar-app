@@ -41,7 +41,7 @@ Status der Features und Backlog. Keine Release-Dates — nur Prio + Zustand.
 
 ### Schema + SQL Ops
 
-- ⏳ **PHOTOS_RLS deployen** (3 Varianten in `sql/PHOTOS_RLS_*.sql`, Wahl siehe `sql/PHOTOS_RLS_AUDIT.sql`) — oder Status-Quo bestätigen
+- ⏳ **PHOTOS_RLS deployen** (2 Files in `_archiv/sql/PHOTOS_RLS_*.sql`: AUDIT + FIX, Status-Quo seit 19.04 bestätigt laut `_archiv/sql/README.md` "B-021 Status Quo") — oder Migration-Variante aktivieren
 - ⏳ **RLS-Reconcile v3.8** (`sql/RLS_RECONCILE_v3.8.md` + `sql/RLS_SNAPSHOT_v3.8.sql`) — Soll/Ist-Vergleich laufen lassen
 - ⏳ **Index-Deploy** falls Perf-Bedarf (aktuell <130 ms → konservativ skippen)
 - ⏳ **sync_supplier Edge-Function-Source** ins Repo (aktuell nur im Dashboard)

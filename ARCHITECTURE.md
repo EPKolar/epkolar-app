@@ -142,7 +142,7 @@ Dokumentiert in `sql/SELFTEST_USAGE.md`.
 ## TODOs / Unklarheiten
 
 - **sync_supplier Edge-Function-Source** ist nicht im Repo, nur der Deploy-Runbook. Siehe `sql/DEPLOY_sync_supplier_v3.md`. Source liegt laut HANDOFF im Supabase-Dashboard.
-- **B_12_ORPHANS Ghost-Rows** gefixt (23.04 Migration). Follow-up-Regression-Check siehe `sql/B_12_ORPHANS_ANALYSIS.md`.
+- **B_12_ORPHANS Ghost-Rows** gefixt (23.04 Migration). Follow-up-Regression-Check siehe `_archiv/sql/B_12_ORPHANS_ANALYSIS.md` (archiviert nach Fix).
 - **Feature-12 WhatsApp**: Schema + Seeds ready, UI-Preview in `preview/`, Integration in index.html pending (2-3h eigene Session).
 - **_mapBody TEXT_JSON_FIELDS-Whitelist** ist L1312 — warum diese 6 Felder (`perms_override`, `tank_log`, `km_log`, `tags`, `config`, `order_items`) und nicht andere? TODO klären.
 

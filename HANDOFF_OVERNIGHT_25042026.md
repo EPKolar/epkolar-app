@@ -11,7 +11,7 @@
 
 Alle vier Arbeitsblöcke (A Hygiene+Tests · B WA UI Preview · C SQL-Housekeeping+Doku ·
 D Statische Analyse+Security) abgearbeitet. Block E (dieses Handoff) + Push
-schließen die Session. **17 Commits** (inkl. 4 Status-Files + 1 Handoff), **keine**
+schließen die Session. **19 Commits** (14 Arbeit + 4 Status-Files + 1 Handoff), **keine**
 App-Version-Bumps (App bleibt v3.8.33), **1 Code-Fix** in index.html (`_n()` bei
 `w.hours.toFixed(1)`), sonst reine Docs/Tests/Preview.
 
