@@ -1906,7 +1906,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.23-supabase";
+const APP_VERSION="3.8.25-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2315,10 +2315,10 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
   try{
     // 1. Fetch Juprowa data via RPC (with _authRetry for auto token refresh)
     const res=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_fetch_worksheets",{method:"POST",headers:_sbWH(),body:"{}"}));
-    if(!res.ok){_juprowaSyncing=false;return{error:"RPC-Fehler: "+res.status};}
+    if(!res.ok){return{error:"RPC-Fehler: "+res.status};}
     const data=await res.json();
-    if(data&&data.error){_juprowaSyncing=false;return data;}
-    if(!Array.isArray(data)){_juprowaSyncing=false;return{error:"Unerwartetes Format"};}
+    if(data&&data.error){return data;}
+    if(!Array.isArray(data)){return{error:"Unerwartetes Format"};}
 
     // 2. Fetch FRESH arbeitsscheine from DB via _sbGet (has _authRetry for auto token refresh)
     let dbScheine=[];
@@ -2387,12 +2387,12 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     const result={total:data.length,added,updated,skipped};
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔄 Juprowa: "+added+" neu, "+updated+" aktualisiert, "+skipped+" unverändert")]);
     try{const _u=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost("activity_log",{user_id:_optionalChain([_u,'optionalAccess',_=>_.id])||"system",action:"juprowa_pull",details:JSON.stringify(result)});}catch(e){}
-    _juprowaSyncing=false;
     return result;
   }catch(e){
-    _juprowaSyncing=false;
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa Sync Fehler: "+e.message,"error")]);
     return{error:e.message};
+  }finally{
+    _juprowaSyncing=false;
   }
 }
 
@@ -5042,11 +5042,13 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     }
     // v3.8.7 BLOCK 8: Auto-Close nach Doppel-Signatur — wenn beide Unterschriften (sigMA+sigKunde als dataUrl > 100 Zeichen) UND scheinstatus noch in 'offen'-Gruppe, dann auto → 'erledigt' + abschlussDatum=heute. Edge-Cases: bereits-fertig (kein re-close), storniert (kein auto-close), offline (SQ handled).
     const _shouldAutoClose=form.sigMA&&form.sigMA.length>100&&form.sigKunde&&form.sigKunde.length>100&&(!form.scheinstatus||AS_GRP_OFFEN.includes(form.scheinstatus));
+    // v3.8.25 Monteur-Spaß: rotierende Success-Emojis. Auto-Close = Celebration-Set.
+    const _se=(_shouldAutoClose?["🏆","🎉","🎊","⭐","💫"]:["✅","🎉","✨","🚀","💫","🔥"])[Math.floor(Math.random()*(_shouldAutoClose?5:6))];
     const _finalForm=_shouldAutoClose?{...form,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:form;
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
     if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
     else{setArbeitsscheine(prev=>[{..._finalForm,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",_finalForm.nummer+" — "+(_finalForm.kundName||_optionalChain([_finalForm, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
-    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.23 Instant-Push: sofort nach Save pushen statt auf 5-Min-Timer zu warten */try{if(typeof _juprowaPushAll==="function")_juprowaPushAll().catch(()=>{});}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?"✓ AS automatisch abgeschlossen":(editId?"✅ Schein aktualisiert":"✅ Schein angelegt"))]);setSub("liste");setEditId(null);};
+    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.23 Instant-Push: sofort nach Save pushen statt auf 5-Min-Timer zu warten */try{if(typeof _juprowaPushAll==="function")_juprowaPushAll().catch(()=>{});}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
   const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});};
