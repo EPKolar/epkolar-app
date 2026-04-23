@@ -16,6 +16,7 @@ Aktive SQL-Scripts, Node-Helper und Referenz-Docs für die EPKolar-App.
 | `_b022_sweep.js` | Stale-Closure-Pattern-Detection (useEffect-Deps-Audit aus B-022). |
 | `_wrap_viewboundaries.js` | Automatisches `<ViewBoundary>`-Wrapping für Top-Level-Render-Calls. |
 | `sql-runner.mjs` | Node-`pg`-Runner für SQL-Files. `.env` mit `SUPABASE_DB_URL=postgres://...` erforderlich. |
+| `_check_version.js` | Verifiziert `APP_VERSION` (index.html) ↔ `CACHE_NAME` + Header-Kommentar (sw.js). Exit 1 bei Mismatch. Pre-Push-Hook-tauglich. |
 
 ## Offene Deploy-SQLs (Sebastian führt manuell aus)
 

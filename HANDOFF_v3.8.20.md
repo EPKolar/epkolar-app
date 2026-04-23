@@ -7,6 +7,33 @@
 
 ---
 
+## 🆕 Update 2026-04-23 Abend · LIVE-STAND
+
+Seit v3.8.20 wurden folgende "v3.8.21-Kandidaten" aus diesem Handoff abgearbeitet:
+
+| Punkt | Status | Ref |
+|---|---|---|
+| Iter-23 AS-Filter L5009 (`!t` → `!_hasTermin(t)`) | ✅ **DONE v3.8.21** | `fc381ae` |
+| `${z.dateiName}` FinkZeit-Footer L12765 `_e()`-wrap | ✅ **DONE v3.8.21** | `fc381ae` |
+| Audit-UI Filter-Dropdown (5 → 17 Optionen + Entity-Filter) | ✅ **DONE v3.8.22** | `41e50ae` |
+| Block 8 AS-Signature-Close-Flow | ✅ bereits in v3.8.7 umgesetzt (TODO war stale) | — |
+| Block 13 Audit-Log-UI | ✅ bereits in v3.8.7 umgesetzt (TODO war stale) | — |
+| Feature 12 WhatsApp UI | 🔵 blockiert auf Sebastian (Schema+Seeds-Deploy) | — |
+| AS-PDF v2 (jsPDF statt HTML) | 🔵 deferred v3.8.23+ | — |
+
+**Aufräumen 2026-04-23 Abend** (`7034ecf` + `e776e76`):
+- 38 historische Files (Handoffs, Baselines, closed-Bug-Artefakte, superseded Docs) nach `_archiv/` bzw. `_archiv/sql/`
+- Neue `.gitignore` (.env, node_modules, OS-/Editor-Kram, `CC_COMMAND_*_AUTO.md`)
+- Neue `README.md` (Root) + `_archiv/README.md` + `sql/README.md` neu geschrieben
+
+**Neuer Helper** (`sql/_check_version.js`): verifiziert dass `APP_VERSION` (index.html) und `CACHE_NAME` + Header-Kommentar (sw.js) synchron sind. Exit 1 bei Mismatch — tauglich für pre-push Hook.
+
+**Aktueller HEAD**: siehe `git log -1` (während OFFA-Sync-Parallel-Session in Bewegung).
+
+Sebastians Action-Items aus der "Offen"-Liste unten sind **weiterhin offen** — v3.8.21+22 waren pure Frontend-Fixes ohne DB-Touch.
+
+---
+
 ## Block-Status-Tabelle
 
 | Block | Thema | Status | Commit | Notiz |
