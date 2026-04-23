@@ -1233,6 +1233,8 @@ try{window._s8_107c=async function(){
 };}catch(_){}
 // v3.5.102 Timeout-Helper: schützt gegen hängende Requests bei schlechter Mobile-Verbindung
 function _fT(init,ms){try{if(!("AbortSignal" in window)||!AbortSignal.timeout)return init||{};const sig=AbortSignal.timeout(ms||30000);return {...(init||{}),signal:(init&&init.signal)||sig};}catch(_){return init||{};}}
+// v3.8.20 Iter-23: Sentinel-Date-Guard gegen termin_vorschlag='0001-01-01'
+const _hasTermin = t => !!(t && t > '1900-01-01');
 // Safe user columns (excludes password_hash for non-auth reads)
 const _USER_SAFE_COLS="id,name,username,email,role,active,monteur_id,permissions,perms_override,last_login,login_count,locked,created_at,updated_at,auth_user_id";
 // SB_HDR replaced by dynamic _sbWH() — see auth section above
@@ -13642,13 +13644,13 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   const aktivProj=projects.filter(p=>p.status==='aktiv').length;
   const offeneAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)).length;
   const heuteAS=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;
-  const ueberfaellige=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_td;}).length;
+  const ueberfaellige=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return _hasTermin(t)&&t<_td;}).length;
   /* v3.8.19 Chef v2 · C.3 Trend-Berechnung (Vorwoche-Snapshot client-side).
      Heuristik: "Schein war vor 7 Tagen offen" = created_at < _weekAgo UND (abschlossen_am leer ODER abschlossen_am > _weekAgo).
      Abschluss-Datum steht nicht konsistent in jedem Schema — wir nehmen last_updated als Approximation wenn vorhanden. */
   const _wasOpenWeekAgo=(a)=>{const created=(a.created_at||a.createdAt||'').slice(0,10);if(created>=_weekAgo)return false;const done=(a.abschluss_datum||a.abschlussDatum||'').slice(0,10);if(done&&done<_weekAgo)return false;return AS_GRP_OFFEN.includes(a.scheinstatus)||(a.scheinstatus==='abgeschlossen'&&done>=_weekAgo);};
   const offeneAS_vor7d=arbeitsscheine.filter(_wasOpenWeekAgo).length;
-  const ueberfaellige_vor7d=arbeitsscheine.filter(a=>{if(!_wasOpenWeekAgo(a))return false;const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_weekAgo;}).length;
+  const ueberfaellige_vor7d=arbeitsscheine.filter(a=>{if(!_wasOpenWeekAgo(a))return false;const t=a.terminBestaetigt||a.terminVorschlag;return _hasTermin(t)&&t<_weekAgo;}).length;
   const heuteAS_vor7d=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_weekAgo)).length;
   const _delta=(cur,prev)=>cur-prev;
   const _trendArrow=(delta,invertColors)=>{if(delta===0)return{icon:'→',color:'#71717a'};const up=delta>0;const bad=invertColors?!up:up;return{icon:up?'↑':'↓',color:bad?'#ef4444':'#22c55e'};};
@@ -13670,7 +13672,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     const amp=budgetPct>100?'🔴':budgetPct>80?'🟡':'🟢';
     return {id:p.id,nr:p.nr,name:p.name,kunde:p.kunde,amp,asOpen,asCount,budgetPct,p};
   });
-  const topOver=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return t&&t<_td;}).sort((a,b)=>(a.terminBestaetigt||a.terminVorschlag||'').localeCompare(b.terminBestaetigt||b.terminVorschlag||'')).slice(0,8);
+  const topOver=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return _hasTermin(t)&&t<_td;}).sort((a,b)=>(a.terminBestaetigt||a.terminVorschlag||'').localeCompare(b.terminBestaetigt||b.terminVorschlag||'')).slice(0,8);
   /* v3.8.19 Chef v2 · C.2 Sorgenkind-Widget: 5 Handlungsbedarf-Indikatoren.
      1-3 + 4 sind sync aus props berechnet, 5 (Monatsabrechnung) via _sbGet async. */
   const asOhneMonteur=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(!a.monteur||String(a.monteur).trim()==='')).length;
