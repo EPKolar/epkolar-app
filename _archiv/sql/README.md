@@ -2,6 +2,12 @@
 
 Alles hier ist **nicht mehr aktiv**. Bleibt als Referenz/Audit-Trail.
 
+## ⚠ Nicht löschen
+
+Die Artefakte hier sind Audit-Beweis (B-006/7/17/20/21/22 Close-Outs, Post-Mortems,
+Session-Handoffs). Löschen entfernt Context zur Nachvollziehbarkeit. Wiederherstellung
+per `git mv _archiv/sql/<file> sql/` — Git-History bleibt via `git log --follow` erhalten.
+
 ## Post-Mortem 23.04.2026
 
 - `BASELINE_FIX_v3.8_BUGGY_constraints_dropped_23042026.sql` — hatte
