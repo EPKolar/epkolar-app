@@ -64,12 +64,13 @@ durch Block-A-D-Audits + Session-Reviews entdeckt.
 - **UX-Impact:** Marginal. User, die inaktiv länger als 7 Tage sind, werden zum
   Neu-Login geschoben. Aktive Daily-User: unmerklich.
 
-### L2 · 4 `_authRetry`-Gaps (siehe `_authretry_gaps.md`)
-- L6366 juprowa_update_passport (P2 Admin-Write)
-- L6365 juprowa_get_config (P2 UX)
-- L3954 bautagebuch-schema-check (P3)
-- L4031 workers-sync-probe (P3)
-- **Aufwand:** 15 min pro Site + Testing
+### ~~L2 · 4 `_authRetry`-Gaps~~ — **CLOSED v3.8.36**
+- ~~L6366 juprowa_update_passport (P2 Admin-Write)~~ → wrapped
+- ~~L6365 juprowa_get_config (P2 UX)~~ → wrapped
+- ~~L3954 bautagebuch-schema-check (P3)~~ → wrapped
+- ~~L4031 workers-sync-probe (P3)~~ → wrapped
+- **Umsetzung:** Jeweils `_authRetry(()=>fetch(...))`-Wrap. Keine funktionale Änderung
+  beim Happy-Path, nur Token-Refresh-Pfad wird aktiv bei 401. Siehe v3.8.36-Commit.
 
 ### L3 · `_mapBody TEXT_JSON_FIELDS` dokumentieren
 - **Wo:** L1312

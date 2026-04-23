@@ -26,11 +26,11 @@
 | 1812 | 🟡 | `POST /rpc/login_lookup` | pre-auth (kein Token vorhanden) |
 | 2355 | ✅ | `POST /rpc/juprowa_fetch_worksheets` | |
 | 2528 | ✅ | `POST /rpc/juprowa_push_worksheet` | |
-| 3954 | 🔴 | `GET /bautagebuch?limit=1` | Admin-Schema-Check on mount; silent fail möglich. **P3** |
-| 4031 | 🔴 | `GET /workers?limit=1` | Sync-Probe vor Full-Sync; AbortSignal 5s; silent bei 401. **P3** |
+| 3954 | ✅ *(v3.8.36)* | `GET /bautagebuch?limit=1` | Admin-Schema-Check on mount, wrapped (L2-P3 CLOSED) |
+| 4031 | ✅ *(v3.8.36)* | `GET /workers?limit=1` | Heartbeat-Probe AbortSignal 5s, wrapped (L2-P3 CLOSED) |
 | 6319 | ✅ | `POST /rpc/admin_reset_password` | createUser-Pfad |
-| 6365 | 🔴 | `POST /rpc/juprowa_get_config` | Admin-UI Config-Load; bei 401 Endlos-Loading schon via Toast gefixt (v3.8.20), aber Auto-Retry wäre sauberer. **P2** |
-| 6366 | 🔴 | `POST /rpc/juprowa_update_passport` | **Admin-Write**, unretried; 401 → Toast "Fehler: 401" ohne Retry. **P2** |
+| ~~6365~~ | ~~🔴~~ → ✅ | `POST /rpc/juprowa_get_config` | **v3.8.36 wrapped** (L2-P2 CLOSED) |
+| ~~6366~~ | ~~🔴~~ → ✅ | `POST /rpc/juprowa_update_passport` | **v3.8.36 wrapped** (L2-P2 CLOSED, Admin-Write Passport-Rotation) |
 | 6450 | ✅ | `POST /supplier_articles` | Bulk-Upload (60s timeout) |
 | 6454 | ✅ | `PATCH /supplier_configs` | last_sync Update |
 | 6588 | ✅ | `POST /rpc/admin_reset_password` | Reset-Button in Admin-UI |
@@ -49,15 +49,18 @@
 
 ## Zusammenfassung
 
-- **Wrapped:** 13/21 SB_REST (62 %). Wesentliche Write-Pfade (`_sbPost/_sbPatch/_sbDel/_sbPostUpsert/Notifications/worker_projects`) sind alle wrapped.
-- **Intentional:** 8 (pre-auth, Debug, Auth-Endpoints).
-- **Gaps:** 4 — alle **Priorität P2/P3**, keine Silent-Leaks, sondern Graceful-Degradation-Lücken.
+- **Wrapped (v3.8.36):** 17/21 SB_REST (81 %). Alle 4 echten Gaps gefixt.
+- **Intentional:** 4 (pre-auth login_lookup, Debug, User-probe-Button).
+- **Gaps:** 0 (alle L2-Items in v3.8.36 closed).
 
-## Aktion-Kandidaten (NICHT automatisch gefixt per R6/A2-Regel)
+## L2 CLOSED (v3.8.36)
 
-1. **L6366 juprowa_update_passport** (P2) — Admin-Write-Retry ergänzen wie L6588-Pattern.
-2. **L6365 juprowa_get_config** (P2) — selbes Pattern.
-3. **L3954 bautagebuch-schema-check** (P3) — admin-only, seltener Fall, Toast statt silent.
-4. **L4031 workers-sync-probe** (P3) — Wrap oder akzeptieren als "best effort".
+Alle 4 ursprünglichen Kandidaten gefixt mit einfachem `_authRetry(()=>fetch(...))` Wrap:
 
-Sebastian entscheidet Priorisierung.
+- L3954 `bautagebuch-schema-check` → wrapped
+- L4031 `workers-heartbeat-probe` → wrapped
+- L6365 `juprowa_get_config` → wrapped
+- L6366 `juprowa_update_passport` → wrapped (Admin-Write)
+
+Kein funktionaler Regress: `_authRetry` ruft `fn()` auf, bei 401 einmal Refresh + Retry,
+bei Erfolg gleich durch. Keine neue Logik, nur der Token-Refresh-Pfad wird aktiv.
