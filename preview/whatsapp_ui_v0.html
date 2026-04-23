@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WA UI Preview v0 · EP Kolar</title>
+<style>
+  :root{
+    --ep:#009640;--bg:#0f1117;--sb:#161922;--cd:#1c1f2e;--bd:#363b50;
+    --tx:#f0f0f2;--dm:#b4bcc8;--mt:#8b93a0;--ok:#22c55e;--warn:#f59e0b;
+    --err:#ef4444;--info:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:14px}
+  .shell{max-width:1100px;margin:0 auto;padding:20px}
+  .hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--sb);border-radius:8px;margin-bottom:18px}
+  .hdr h1{margin:0;font-size:18px;font-weight:700}
+  .hdr .badge{background:var(--ep);color:#fff;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700}
+  .hdr .sub{color:var(--dm);font-size:12px;margin-top:2px}
+  .role-switch{display:flex;gap:4px;align-items:center;font-size:11px;color:var(--dm)}
+  .role-switch select{background:var(--cd);color:var(--tx);border:1px solid var(--bd);border-radius:4px;padding:4px 6px}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--bd);padding-bottom:0}
+  .tab{padding:10px 14px;cursor:pointer;border:none;background:transparent;color:var(--dm);font-size:13px;border-bottom:2px solid transparent}
+  .tab.active{color:var(--ep);border-bottom-color:var(--ep);font-weight:700}
+  .card{background:var(--cd);border:1px solid var(--bd);border-radius:8px;padding:16px;margin-bottom:14px}
+  .card h2{margin:0 0 10px 0;font-size:15px;font-weight:700}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--bd)}
+  th{color:var(--dm);font-weight:600;font-size:11px;background:var(--sb)}
+  tr:hover td{background:rgba(255,255,255,.03)}
+  .status{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+  .status.sent{background:rgba(34,197,94,.15);color:var(--ok)}
+  .status.queued{background:rgba(245,158,11,.15);color:var(--warn)}
+  .status.failed{background:rgba(239,68,68,.15);color:var(--err)}
+  .status.simulated{background:rgba(59,130,246,.15);color:var(--info)}
+  .status.delivered{background:rgba(34,197,94,.15);color:var(--ok)}
+  .status.read{background:rgba(34,197,94,.25);color:var(--ok);font-weight:700}
+  input,textarea,select{background:var(--cd);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;width:100%}
+  input[readonly]{opacity:.6;cursor:not-allowed}
+  textarea{font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;min-height:80px}
+  label{display:block;margin-bottom:4px;color:var(--dm);font-size:11px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
+  .btn{background:var(--ep);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600}
+  .btn.secondary{background:var(--bd);color:var(--tx)}
+  .btn.small{padding:4px 10px;font-size:11px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-box{background:var(--sb);border:1px solid var(--bd);border-radius:10px;padding:20px;max-width:600px;width:100%;max-height:90vh;overflow:auto}
+  .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;background:var(--bd);color:var(--tx);margin:0 4px 4px 0}
+  .banner{padding:10px 14px;border-radius:6px;background:rgba(59,130,246,.1);border:1px solid var(--info);color:var(--info);font-size:12px;margin-bottom:14px}
+  .muted{color:var(--mt);font-size:11px}
+  .empty{padding:30px;text-align:center;color:var(--dm);font-size:13px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="hdr">
+    <div>
+      <h1>📱 WhatsApp UI <span class="badge">Preview v0</span></h1>
+      <div class="sub">Standalone Mock · keine DB · keine Meta-API · gegen Schema v3.8</div>
+    </div>
+    <div class="role-switch">
+      <span>Rolle:</span>
+      <select id="role-select"></select>
+    </div>
+  </div>
+  <div id="root"></div>
+</div>
+
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+/* ===================================================================== */
+/*  WhatsApp UI Preview v0 · EP Kolar                                    */
+/*  Standalone mock. Keine Supabase-Calls. Mock-Data-only.               */
+/*  Design-Tokens kopiert aus index.html THEMES.dark + V.* Getter.       */
+/* ===================================================================== */
+const e = React.createElement;
+const {useState, useMemo, useEffect} = React;
+
+// ── Mock Fixtures (gegen Schema v3.8 · WHATSAPP_SCHEMA_v3.8.sql) ──
+const MOCK_TEMPLATES = [
+  {id:"t1", name:"termin_bestaetigung", event:"appointment_confirm", language:"de",
+    body:"Guten Tag {{kunde_name}}, Ihr Termin am {{datum}} um {{zeit}} Uhr wird bestätigt. Monteur: {{monteur}}. Bei Fragen: +43 2279 2361.",
+    placeholders:["kunde_name","datum","zeit","monteur"], auto_send:true, active:true,
+    created_at:"2026-04-20T10:00:00Z", updated_at:"2026-04-23T14:30:00Z"},
+  {id:"t2", name:"arbeit_erledigt", event:"completion", language:"de",
+    body:"Hallo {{kunde_name}}, Ihre Arbeit an {{objekt}} ist abgeschlossen. AS #{{as_nummer}} · Details per Mail. Danke!",
+    placeholders:["kunde_name","objekt","as_nummer"], auto_send:false, active:true,
+    created_at:"2026-04-20T10:15:00Z", updated_at:"2026-04-20T10:15:00Z"},
+  {id:"t3", name:"rueckfrage_manuell", event:"manual", language:"de",
+    body:"Sehr geehrte/r {{kunde_name}}, wir haben eine Rückfrage zu Ihrem Auftrag: {{text}}. Bitte kurz antworten, danke.",
+    placeholders:["kunde_name","text"], auto_send:false, active:true,
+    created_at:"2026-04-21T09:00:00Z", updated_at:"2026-04-21T09:00:00Z"}
+];
+
+const MOCK_LOG = [
+  {id:"l1", template_id:"t1", sent_to:"+43 664 1234567", sent_at:"2026-04-23T15:22:14Z",
+    status:"simulated", rendered_body:"Guten Tag Familie Huber, Ihr Termin am 24.04. um 08:00 Uhr...",
+    arbeitsschein_id:"AS-2026-0421", projekt_id:"P-2024-018", error:null, meta_message_id:null},
+  {id:"l2", template_id:"t2", sent_to:"+43 676 9876543", sent_at:"2026-04-23T14:10:02Z",
+    status:"simulated", rendered_body:"Hallo Frau Mayer, Ihre Arbeit an Heizung Gutermannplatz ist abgeschlossen...",
+    arbeitsschein_id:"AS-2026-0418", projekt_id:"P-2024-017", error:null, meta_message_id:null},
+  {id:"l3", template_id:"t1", sent_to:"+43 650 5551212", sent_at:"2026-04-23T12:04:50Z",
+    status:"failed", rendered_body:"Guten Tag Hr. Schneider, Ihr Termin am 24.04. um 10:30 Uhr...",
+    arbeitsschein_id:"AS-2026-0420", projekt_id:"P-2024-019", error:"simulated: opt-out (Mock)", meta_message_id:null},
+  {id:"l4", template_id:"t3", sent_to:"+43 680 4321111", sent_at:"2026-04-22T17:45:30Z",
+    status:"simulated", rendered_body:"Sehr geehrter Herr Bauer, wir haben eine Rückfrage zu Ihrem Auftrag...",
+    arbeitsschein_id:null, projekt_id:"P-2024-015", error:null, meta_message_id:null},
+  {id:"l5", template_id:"t2", sent_to:"+43 699 7654321", sent_at:"2026-04-22T10:30:00Z",
+    status:"simulated", rendered_body:"Hallo Familie Kovac, Ihre Arbeit an Sanitär Mustergasse 5 ist abgeschlossen...",
+    arbeitsschein_id:"AS-2026-0415", projekt_id:"P-2024-014", error:null, meta_message_id:null}
+];
+
+const ROLES = [
+  {id:"admin", label:"Admin (voll)"},
+  {id:"buero", label:"Büro (read-templates, read-log)"},
+  {id:"projektleiter", label:"Projektleiter (read-log)"},
+  {id:"monteur", label:"Monteur (kein Zugriff)"}
+];
+
+// ── RLS-Mock: was darf diese Rolle? ──
+function perm(role){
+  return {
+    templates_read:  role==="admin"||role==="buero"||role==="projektleiter",
+    templates_write: role==="admin",
+    log_read:        role==="admin"||role==="buero"||role==="projektleiter",
+    log_write:       role==="admin"||role==="buero",
+    admin_settings:  role==="admin"
+  };
+}
+
+// ── App-Root mit Tabs ──
+function App(){
+  const [role,setRole] = useState("admin");
+  const [tab,setTab] = useState("templates");
+  const [templates,setTemplates] = useState(MOCK_TEMPLATES);
+  const [log,setLog] = useState(MOCK_LOG);
+  const p = perm(role);
+
+  // Role-switch wire (vanilla DOM dropdown outside root)
+  useEffect(()=>{
+    const sel = document.getElementById("role-select");
+    sel.innerHTML = "";
+    ROLES.forEach(r=>{
+      const o = document.createElement("option");
+      o.value = r.id; o.textContent = r.label; sel.appendChild(o);
+    });
+    sel.value = role;
+    sel.onchange = x=>setRole(x.target.value);
+  },[role]);
+
+  // If current tab disabled by new role, reset
+  useEffect(()=>{
+    if(tab==="templates" && !p.templates_read) setTab(p.log_read?"log":"settings");
+    if(tab==="log"       && !p.log_read)       setTab(p.templates_read?"templates":"settings");
+    if(tab==="settings"  && !p.admin_settings) setTab(p.templates_read?"templates":(p.log_read?"log":"templates"));
+  },[role,tab,p.templates_read,p.log_read,p.admin_settings]);
+
+  if(!p.templates_read && !p.log_read && !p.admin_settings){
+    return e("div",{className:"card empty"}, "🔒 Diese Rolle hat keinen Zugriff auf WhatsApp-Features.");
+  }
+
+  return e("div",{},
+    e("div",{className:"tabs"},
+      p.templates_read && e("button",{className:"tab"+(tab==="templates"?" active":""),onClick:()=>setTab("templates")}, "📝 Templates"),
+      p.log_read       && e("button",{className:"tab"+(tab==="log"      ?" active":""),onClick:()=>setTab("log")},       "📜 Send-Log"),
+      p.admin_settings && e("button",{className:"tab"+(tab==="settings" ?" active":""),onClick:()=>setTab("settings")},  "⚙️ Admin")
+    ),
+    tab==="templates" && p.templates_read && e(TemplatesView,{templates,setTemplates,canWrite:p.templates_write,log,setLog}),
+    tab==="log"       && p.log_read       && e(LogView,{log,templates,role}),
+    tab==="settings"  && p.admin_settings && e(SettingsView,{templates,setTemplates})
+  );
+}
+
+// ── Template-Editor (B2) ──
+function TemplatesView({templates,setTemplates,canWrite,log,setLog}){
+  const [editId,setEditId] = useState(null);
+  const [showNew,setShowNew] = useState(false);
+
+  const edit = editId? templates.find(t=>t.id===editId) : null;
+
+  function toggleActive(id){
+    if(!canWrite)return;
+    setTemplates(ts=>ts.map(t=>t.id===id?{...t,active:!t.active,updated_at:new Date().toISOString()}:t));
+  }
+
+  function save(updated){
+    setTemplates(ts=>ts.map(t=>t.id===updated.id?{...updated,updated_at:new Date().toISOString()}:t));
+    setEditId(null);
+  }
+  function create(newT){
+    const id = "t"+(templates.length+1);
+    setTemplates(ts=>[...ts,{...newT,id,created_at:new Date().toISOString(),updated_at:new Date().toISOString()}]);
+    setShowNew(false);
+  }
+  function simulate(t){
+    // B5-Preview Simulation: fake the auto_send render
+    const rendered = t.body.replace(/\{\{(\w+)\}\}/g, (m,k)=>"["+k+"]");
+    const entry = {
+      id:"l"+(log.length+1+Math.floor(Math.random()*1000)),
+      template_id:t.id,
+      sent_to:"+43 999 SIMULATED",
+      sent_at:new Date().toISOString(),
+      status:"simulated",
+      rendered_body:rendered,
+      arbeitsschein_id:null, projekt_id:null, error:null, meta_message_id:null
+    };
+    setLog(l=>[entry,...l]);
+  }
+
+  return e("div",{},
+    e("div",{className:"card"},
+      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+        e("h2",{}, "Templates (" + templates.length + ")"),
+        canWrite && e("button",{className:"btn",onClick:()=>setShowNew(true)}, "+ Neues Template")
+      ),
+      templates.length===0 ? e("div",{className:"empty"}, "Keine Templates.") :
+      e("table",{},
+        e("thead",{}, e("tr",{},
+          e("th",{}, "Name"),
+          e("th",{}, "Event"),
+          e("th",{}, "Auto"),
+          e("th",{}, "Active"),
+          e("th",{}, "Updated"),
+          e("th",{style:{textAlign:"right"}}, "")
+        )),
+        e("tbody",{}, templates.map(t=>e("tr",{key:t.id},
+          e("td",{style:{fontFamily:"monospace"}}, t.name),
+          e("td",{}, t.event),
+          e("td",{}, t.auto_send ? "✅" : "—"),
+          e("td",{},
+            canWrite
+              ? e("button",{className:"btn small secondary",onClick:()=>toggleActive(t.id)}, t.active?"aktiv":"inaktiv")
+              : (t.active?"✓":"✗")
+          ),
+          e("td",{className:"muted"}, new Date(t.updated_at).toLocaleString("de-AT")),
+          e("td",{style:{textAlign:"right"}},
+            e("button",{className:"btn small secondary",onClick:()=>setEditId(t.id),style:{marginRight:4}}, canWrite?"Edit":"View"),
+            canWrite && e("button",{className:"btn small",onClick:()=>simulate(t)}, "📤 Simulieren")
+          )
+        )))
+      )
+    ),
+    edit && e(EditModal,{template:edit,onSave:save,onCancel:()=>setEditId(null),readonly:!canWrite}),
+    showNew && e(EditModal,{template:{id:"",name:"",event:"manual",language:"de",body:"",placeholders:[],auto_send:false,active:true},isNew:true,onSave:create,onCancel:()=>setShowNew(false),readonly:!canWrite})
+  );
+}
+
+function EditModal({template,onSave,onCancel,isNew,readonly}){
+  const [f,setF] = useState(template);
+  const placeholders = useMemo(()=>{
+    const matches = [...(f.body||"").matchAll(/\{\{(\w+)\}\}/g)].map(m=>m[1]);
+    return Array.from(new Set(matches));
+  },[f.body]);
+
+  function save(){
+    if(!f.name || !f.body){alert("Name und Body pflicht");return;}
+    onSave({...f, placeholders});
+  }
+
+  return e("div",{className:"modal",onClick:onCancel},
+    e("div",{className:"modal-box",onClick:ev=>ev.stopPropagation()},
+      e("h2",{}, isNew?"Neues Template":("Template: "+f.name)),
+      e("div",{className:"row"},
+        e("div",{},
+          e("label",{}, "Name (eindeutig, nicht änderbar)"),
+          e("input",{value:f.name,readOnly:!isNew||readonly,onChange:ev=>setF({...f,name:ev.target.value})})
+        ),
+        e("div",{},
+          e("label",{}, "Event"),
+          e("select",{value:f.event,disabled:readonly,onChange:ev=>setF({...f,event:ev.target.value})},
+            e("option",{value:"appointment_confirm"}, "appointment_confirm"),
+            e("option",{value:"completion"}, "completion"),
+            e("option",{value:"reminder"}, "reminder"),
+            e("option",{value:"manual"}, "manual")
+          )
+        )
+      ),
+      e("div",{className:"row"},
+        e("div",{},
+          e("label",{}, "Sprache"),
+          e("select",{value:f.language,disabled:readonly,onChange:ev=>setF({...f,language:ev.target.value})},
+            e("option",{value:"de"}, "de"),
+            e("option",{value:"en"}, "en")
+          )
+        ),
+        e("div",{style:{alignSelf:"end"}},
+          e("label",{style:{display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer"}},
+            e("input",{type:"checkbox",checked:f.auto_send,disabled:readonly,style:{width:"auto"},onChange:ev=>setF({...f,auto_send:ev.target.checked})}),
+            e("span",{}, "Auto-Send aktiv")
+          )
+        )
+      ),
+      e("label",{}, "Body (Placeholders: " + "{{name}}" + ")"),
+      e("textarea",{value:f.body,readOnly:readonly,onChange:ev=>setF({...f,body:ev.target.value})}),
+      e("div",{style:{marginTop:8,marginBottom:12}},
+        e("span",{className:"muted"}, "Erkannte Placeholders: "),
+        placeholders.length===0 ? e("span",{className:"muted"}, "—") :
+          placeholders.map(p=>e("span",{key:p,className:"pill"}, "{{"+p+"}}"))
+      ),
+      e("div",{style:{display:"flex",justifyContent:"flex-end",gap:6}},
+        e("button",{className:"btn secondary",onClick:onCancel}, "Schließen"),
+        !readonly && e("button",{className:"btn",onClick:save}, isNew?"Anlegen":"Speichern")
+      )
+    )
+  );
+}
+
+// ── Send-Log-Viewer (B3) ──
+function LogView({log,templates,role}){
+  const tMap = useMemo(()=>{const m={};templates.forEach(t=>m[t.id]=t);return m;},[templates]);
+  const visible = useMemo(()=>{
+    // PL sieht nur eigene PL-AS in Mock (hier: entries mit projekt_id!=null sortiert).
+    // Echte RLS macht das DB-seitig, hier Demo.
+    if(role==="projektleiter") return log.filter(x=>x.projekt_id);
+    return log;
+  },[log,role]);
+
+  return e("div",{className:"card"},
+    e("h2",{}, "Send-Log"),
+    e("div",{className:"muted",style:{marginBottom:10}},
+      "Zeilen: " + visible.length + (role==="projektleiter"?" (RLS-Mock: nur eigene PL-AS)":"")
+    ),
+    visible.length===0 ? e("div",{className:"empty"}, "Kein Log-Eintrag.") :
+    e("table",{},
+      e("thead",{}, e("tr",{},
+        e("th",{}, "Timestamp"),
+        e("th",{}, "Template"),
+        e("th",{}, "An"),
+        e("th",{}, "Status"),
+        e("th",{}, "AS"),
+        e("th",{}, "Body-Preview"),
+        e("th",{}, "Fehler")
+      )),
+      e("tbody",{}, visible.map(x=>e("tr",{key:x.id},
+        e("td",{className:"muted"}, new Date(x.sent_at).toLocaleString("de-AT")),
+        e("td",{style:{fontFamily:"monospace",fontSize:11}}, tMap[x.template_id]?tMap[x.template_id].name:"(deleted)"),
+        e("td",{style:{fontFamily:"monospace",fontSize:11}}, x.sent_to),
+        e("td",{}, e("span",{className:"status "+x.status}, x.status)),
+        e("td",{className:"muted",style:{fontSize:11}}, x.arbeitsschein_id||"—"),
+        e("td",{style:{maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},title:x.rendered_body}, x.rendered_body),
+        e("td",{style:{color:"var(--err)",fontSize:11}}, x.error||"")
+      )))
+    )
+  );
+}
+
+// ── Admin-Panel (B4) ──
+function SettingsView({templates,setTemplates}){
+  const used = 47; // mocked quota usage
+  const quota = 1000;
+  return e("div",{},
+    e("div",{className:"card"},
+      e("h2",{}, "Meta Business Cloud API"),
+      e("div",{className:"row"},
+        e("div",{},
+          e("label",{}, "Access Token"),
+          e("input",{readOnly:true,value:"(set via Edge Function env · nicht im Client)",title:"Wird in Edge Function 'whatsapp_send' gehalten"})
+        ),
+        e("div",{},
+          e("label",{}, "Business-Telefonnummer"),
+          e("input",{readOnly:true,value:"+43 2279 2361 (Placeholder)"})
+        )
+      ),
+      e("div",{className:"banner"},
+        "⚠️ Dies ist eine Preview. Meta-API-Integration wird in Feature-Phase 2 gebaut. ",
+        "Alle bisherigen Sends stehen auf status='simulated' (siehe Log)."
+      )
+    ),
+    e("div",{className:"card"},
+      e("h2",{}, "Kontingent (Mock)"),
+      e("div",{style:{fontSize:13,marginBottom:6}}, used + " / " + quota + " Nachrichten diesen Monat"),
+      e("div",{style:{height:8,background:"var(--bd)",borderRadius:4,overflow:"hidden"}},
+        e("div",{style:{height:"100%",width:(100*used/quota)+"%",background:"var(--ep)"}})
+      ),
+      e("div",{className:"muted",style:{marginTop:6}},
+        "Meta 'Free Tier' = 1000 Nachrichten/Monat (service conversations). Darüber: ~0,005-0,009 USD/Nachricht."
+      )
+    ),
+    e("div",{className:"card"},
+      e("h2",{}, "Auto-Send pro Template"),
+      e("table",{},
+        e("thead",{}, e("tr",{},e("th",{},"Template"),e("th",{},"Event"),e("th",{},"Auto-Send"))),
+        e("tbody",{}, templates.map(t=>e("tr",{key:t.id},
+          e("td",{style:{fontFamily:"monospace"}}, t.name),
+          e("td",{}, t.event),
+          e("td",{},
+            e("button",{className:"btn small secondary",onClick:()=>setTemplates(ts=>ts.map(x=>x.id===t.id?{...x,auto_send:!x.auto_send}:x))},
+              t.auto_send?"An":"Aus"
+            )
+          )
+        )))
+      )
+    )
+  );
+}
+
+// ── Mount ──
+ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+</script>
+</body>
+</html>
