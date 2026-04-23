@@ -7,7 +7,7 @@
 -- ── whatsapp_templates: Nachrichten-Vorlagen ──
 CREATE TABLE IF NOT EXISTS public.whatsapp_templates (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name         text NOT NULL,
+  name         text NOT NULL UNIQUE,
   event        text NOT NULL,  -- 'appointment_confirm' | 'completion' | 'manual' | ...
   language     text NOT NULL DEFAULT 'de',
   body         text NOT NULL,
@@ -60,6 +60,16 @@ CREATE POLICY wl_admin_buero ON public.whatsapp_log
   FOR ALL TO authenticated
   USING      (EXISTS (SELECT 1 FROM public.users WHERE auth_user_id=auth.uid() AND role IN ('admin','buero')))
   WITH CHECK (EXISTS (SELECT 1 FROM public.users WHERE auth_user_id=auth.uid() AND role IN ('admin','buero')));
+
+-- v3.8-Audit 24.04: PL darf Log lesen (Rückfrage-Kontext Kunde "keine WhatsApp bekommen")
+-- SELECT-only, kein Write. Monteur-Rolle bleibt weiterhin komplett ausgesperrt.
+DROP POLICY IF EXISTS wl_pl_read ON public.whatsapp_log;
+CREATE POLICY wl_pl_read ON public.whatsapp_log
+  FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.users
+    WHERE auth_user_id = auth.uid() AND role = 'projektleiter'
+  ));
 
 -- ── Verify ──
 SELECT tablename, rowsecurity AS rls, (
