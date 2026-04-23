@@ -1906,7 +1906,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.27-supabase";
+const APP_VERSION="3.8.28-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2387,6 +2387,8 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     const result={total:data.length,added,updated,skipped};
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔄 Juprowa: "+added+" neu, "+updated+" aktualisiert, "+skipped+" unverändert")]);
     try{const _u=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost("activity_log",{user_id:_optionalChain([_u,'optionalAccess',_=>_.id])||"system",action:"juprowa_pull",details:JSON.stringify(result)});}catch(e){}
+    // v3.8.28 Last-Sync-Infrastruktur: Window-Var für App-weite Indikatoren
+    try{window._lastJuprowaSyncAt=Date.now();}catch(_){}
     return result;
   }catch(e){
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa Sync Fehler: "+e.message,"error")]);
@@ -3106,6 +3108,8 @@ input,select,textarea{font-size:16px !important;-webkit-appearance:none;border-r
 @media(max-width:600px){.mob-shell-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:${V.sb};border-top:2px solid ${V.bd};z-index:80;padding:2px 0 calc(2px + env(safe-area-inset-bottom,0px));justify-content:space-around;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .fade-in{animation:fadeIn .3s ease-out}
+.ep-spin{display:inline-block;width:28px;height:28px;border:3px solid #00964022;border-top-color:#009640;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle}
+.ep-spin-sm{display:inline-block;width:14px;height:14px;border:2px solid #00964022;border-top-color:#009640;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle}
 table tbody tr{transition:background .12s}
 table tbody tr[style*="cursor"]{touch-action:manipulation}table tbody tr:hover{background:${_dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.03)"} !important}
 table tbody tr:nth-child(even){background:${_dark?"rgba(255,255,255,.015)":"rgba(0,0,0,.015)"}}
@@ -3119,9 +3123,11 @@ table thead th{position:sticky;top:0;z-index:1}
 `;
 
 // ═══════════ SMALL COMPONENTS ═══════════
-function Kpi({label,value,sub,color,onClick}){
+function Kpi({label,value,sub,color,onClick,i}){
+  // v3.8.28 fade-in mit optionalem stagger: Kpi-Kacheln sanft einblenden, mit i={index} auch versetzt
+  const _delay=typeof i==="number"?(i*40)+"ms":"0ms";
   return (
-    React.createElement('div', { onClick: onClick, style: {...CC(),position:"relative",overflow:"hidden",cursor:onClick?"pointer":"default",transition:"transform .15s",":hover":{transform:"scale(1.02)"}}, onMouseEnter: onClick?e=>{e.currentTarget.style.transform="scale(1.02)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,.2)";}:undefined, onMouseLeave: onClick?e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}:undefined}
+    React.createElement('div', { onClick: onClick, style: {...CC(),position:"relative",overflow:"hidden",cursor:onClick?"pointer":"default",transition:"transform .15s",animation:"fadeIn .35s ease-out both",animationDelay:_delay,":hover":{transform:"scale(1.02)"}}, onMouseEnter: onClick?e=>{e.currentTarget.style.transform="scale(1.02)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,.2)";}:undefined, onMouseLeave: onClick?e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}:undefined}
       , React.createElement('div', { style: {position:"absolute",top:0,left:0,right:0,height:3,background:color}} )
       , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:".05em",marginBottom:4}}, label)
       , React.createElement('div', { style: {fontFamily:mono,fontSize:24,fontWeight:800}}, value)
@@ -3353,7 +3359,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
 
       , React.createElement('div', { style: {padding:16,maxWidth:960,margin:"0 auto"}}
 
-        , portalLoading&&React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "⏳"), "Daten werden geladen..."  )
+        , portalLoading&&React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { className: "ep-spin", style: {marginBottom:12}} ), "Daten werden geladen..."  )
 
         /* ════════ ÜBERSICHT ════════ */
         , !portalLoading&&tab==="uebersicht"&&(React.createElement('div', {}
@@ -4799,7 +4805,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
             {label:"Büro",roles:["Backoffice","Verkauf/Buchhaltung"],color:"#6366f1",sub:"Office"},
             {label:"Helfer",roles:["Helfer","Lehrling","Praktikant"],color:"#14b8a6",sub:"inkl. Lehrlinge"},
           ];
-          return roleGroups.map(g=>{const c=monteure.filter(m=>g.roles.includes(m.r)).length;return React.createElement(Kpi, { key: g.label, label: g.label, value: c, sub: g.sub, color: g.color});});
+          return roleGroups.map((g,idx)=>{const c=monteure.filter(m=>g.roles.includes(m.r)).length;return React.createElement(Kpi, { key: g.label, label: g.label, value: c, sub: g.sub, color: g.color, i: idx+1});});
         })()
         , React.createElement(Kpi, { label: "Projekte aktiv" , value: projects.filter(p=>p.status==="aktiv").length, sub: "zuweisbar", color: V.ac} )
       )
@@ -5048,7 +5054,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
     if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
     else{setArbeitsscheine(prev=>[{..._finalForm,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",_finalForm.nummer+" — "+(_finalForm.kundName||_optionalChain([_finalForm, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
-    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.23 Instant-Push: sofort nach Save pushen statt auf 5-Min-Timer zu warten */try{if(typeof _juprowaPushAll==="function")_juprowaPushAll().catch(()=>{});}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
+    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.23 Instant-Push: sofort nach Save pushen statt auf 5-Min-Timer zu warten. v3.8.28: Silent-Catch durch Observability ersetzt (Agent-Audit Fund L.5051). */try{if(typeof _juprowaPushAll==="function")_juprowaPushAll().then(r=>{if(r&&r.failed>0)console.warn('[JPUSH-ASYNC]',r.failed+'/'+r.total+' failed after save');}).catch(e=>console.error('[JPUSH-ASYNC]',e&&e.message||e));}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
   const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});};
@@ -5439,7 +5445,7 @@ function sharePdf(){
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
         , React.createElement(Kpi, { label: "Gesamt", value: stats.total, sub: "Arbeitsscheine", color: "#f97316", onClick: ()=>{setFilterStatus("alle");setSub("liste");}} )
         , React.createElement(Kpi, { label: "Offen (alle)" , value: stats.offen, sub: "zu erledigen" , color: "#eab308", onClick: ()=>{setFilterStatus("offen_bearb");setSub("liste");}} )
-        , Object.entries(AS_STATUS).map(([k,v])=>React.createElement(Kpi, { key: k, label: v.i+" "+v.l, value: stats[k]||0, sub: v.grp, color: v.c, onClick: ()=>{setFilterStatus(k);setSub("liste");}} ))
+        , Object.entries(AS_STATUS).map(([k,v],idx)=>React.createElement(Kpi, { key: k, label: v.i+" "+v.l, value: stats[k]||0, sub: v.grp, color: v.c, i: idx+1, onClick: ()=>{setFilterStatus(k);setSub("liste");}} ))
         , React.createElement(Kpi, { label: "Fertig (alle)" , value: stats.fertig, sub: "erledigt+abgerechnet" , color: "#22c55e", onClick: ()=>{setFilterStatus("fertig");setSub("liste");}} )
       )
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
@@ -7198,6 +7204,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   // Greeting
   const hour=now.getHours();
   const greet=hour<10?"Guten Morgen":hour<14?"Mahlzeit":hour<18?"Guten Nachmittag":"Guten Abend";
+  // v3.8.28 Motto: kurze Tageszeit-abhängige Ermutigung unter dem Greeting
+  const motto=hour<10?"Starte gut in den Tag 🌅":hour<14?"Stärk dich gut 🍽️":hour<18?"Guter Fortschritt 💪":"Feierabend winkt 🌙";
   const firstName=(()=>{const mid=_optionalChain([curUser, 'optionalAccess', _245 => _245.monteurId])||_optionalChain([curUser, 'optionalAccess', _245b => _245b.monteur_id]);const mon=mid&&monteure.find(m=>m.id===mid);if(mon&&mon.vorname)return mon.vorname;const nm=(_optionalChain([curUser, 'optionalAccess', _246 => _246.name])||"").trim();const parts=nm.split(" ");return parts[0]||(_optionalChain([curUser, 'optionalAccess', _246b => _246b.username])||"User");})();
   const dayNames=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
   const moNames=["Jänner","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -7275,6 +7283,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', {}
             , React.createElement('div', { style: {fontSize:isMob?13:14,color:V.dm,marginBottom:2}}, dateStr)
             , React.createElement('div', { style: {fontSize:isMob?22:28,fontWeight:800,marginBottom:4}}, greet, ", " , React.createElement('span', { style: {color:V.ac}}, firstName), " " , seasonEmoji)
+            , React.createElement('div', { style: {fontSize:12,color:V.mt,marginBottom:4,fontStyle:"italic"}}, motto)
             , React.createElement('div', { style: {fontSize:13,color:V.dm}}, _optionalChain([ROLES, 'access', _247 => _247[_optionalChain([curUser, 'optionalAccess', _248 => _248.role])], 'optionalAccess', _249 => _249.i]), " " , _optionalChain([ROLES, 'access', _250 => _250[_optionalChain([curUser, 'optionalAccess', _251 => _251.role])], 'optionalAccess', _252 => _252.l]), " · "  , React.createElement('span', { style: {fontFamily:mono}}, timeStr))
           )
           , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}
