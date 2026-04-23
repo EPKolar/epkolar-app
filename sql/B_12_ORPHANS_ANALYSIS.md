@@ -4,6 +4,27 @@
 **Status**: DECISION PENDING (Sebastian muss Query ausführen + Kategorisierung entscheiden)
 **Datenbasis**: Nacht-2-Baseline-Messung 19.04.2026 — 12 Rows identifiziert
 
+---
+
+## Stand 2026-04-23 (Claude-Chat-Live-Check)
+
+Nach Ausführung in Supabase SQL-Editor:
+
+| Metric | Count |
+|---|---|
+| null_count (monteur IS NULL) | 0 |
+| empty_string_count (monteur = '') | **11** |
+| orphan_with_value_count | 0 |
+| total_as_count | 61 |
+
+**Ergebnis**: Nur Kategorie A (EMPTY_STRING) relevant. Keine Worker-ID-Ghosts, keine Juprowa-Code-Ghosts, keine Unknown-Strings.
+
+**Empfohlene Action**: (a) — 11 Rows betroffen (nicht 12 — Baseline-Drift um 1 Row seit 19.04, unkritisch).
+
+**Status**: ⏳ pending — Sebastian führt UPDATE-SQL aus (siehe Action (a) unten).
+
+---
+
 CC kann die Query nicht selbst gegen Supabase ausführen (keine DB-Rechte).
 Dieses Dokument enthält:
 1. Die Details-Query
@@ -28,7 +49,7 @@ SELECT
     ELSE '[UNKNOWN:' || a.monteur || ']'
   END AS kategorie,
   a.scheinstatus,
-  a.kunde_name,
+  a.kund_name,
   a.created_at,
   a.juprowa_id
 FROM public.arbeitsscheine a
@@ -72,6 +93,18 @@ Nach Output-Review fällt jede der 12 Rows in eine dieser 4 Kategorien:
 
 ### Action (a) · Empty-String → NULL (safe)
 
+**Live-verifiziert 2026-04-23**: genau **11 Rows** erwartet. Ausführbare Version:
+
+```sql
+-- Claude-Chat-Live-Check 2026-04-23
+BEGIN;
+UPDATE public.arbeitsscheine SET monteur = NULL WHERE monteur = '';
+-- Verify vor COMMIT:
+SELECT COUNT(*) FROM public.arbeitsscheine WHERE monteur = '';    -- erwarte 0
+SELECT COUNT(*) FROM public.arbeitsscheine WHERE monteur IS NULL; -- erwarte 11
+COMMIT;
+```
+
 ```sql
 -- Nur wenn Step 1 zeigt: alle 12 sind EMPTY_STRING
 BEGIN;
@@ -82,6 +115,8 @@ WHERE monteur = '';
 -- SELECT count(*) FROM public.arbeitsscheine WHERE monteur = '';  -- muss 0 sein
 COMMIT;
 ```
+
+> **⚠ N/A am 2026-04-23** — Live-Check ergab 0 Rows in dieser Kategorie. Section bleibt als historische Referenz erhalten, ist aktuell aber nicht ausführbar.
 
 ### Action (b) · Ex-Worker wiederanlegen als aktiv=false
 
@@ -100,6 +135,8 @@ COMMIT;
 
 Pro Ex-Worker 1× Insert. Name aus historischem Kontext (ggf. aus `activity_log` extrahierbar: `SELECT DISTINCT user_id, details FROM activity_log WHERE details LIKE '%w4%' LIMIT 5;`).
 
+> **⚠ N/A am 2026-04-23** — Live-Check ergab 0 Rows in dieser Kategorie. Section bleibt als historische Referenz erhalten, ist aktuell aber nicht ausführbar.
+
 ### Action (c) · Juprowa-Code ohne worker-Match
 
 ```sql
@@ -113,6 +150,8 @@ Pro Ex-Worker 1× Insert. Name aus historischem Kontext (ggf. aus `activity_log`
 
 -- Kein Staging-SQL — Frontend-Action.
 ```
+
+> **⚠ N/A am 2026-04-23** — Live-Check ergab 0 Rows in dieser Kategorie. Section bleibt als historische Referenz erhalten, ist aktuell aber nicht ausführbar.
 
 ### Action (d) · Gemischt oder UNKNOWN-Text
 
