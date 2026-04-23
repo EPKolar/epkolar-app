@@ -60,10 +60,23 @@ In der Praxis FileReader-Data-URLs → immer `data:mime;base64,...` Format.
 | 4 | Fahrzeug-Buchungs-Kalender (mit Konflikt-Logik) | 2-3h |
 | 5 | Projekt-Gantt (SVG + Drag&Drop) | 2h |
 | 6 | ZE-Kalender-Wochenansicht | 2h |
-| 8 | AS-Signature-Close-Flow | 1-2h |
+| 8 | AS-Signature-Close-Flow | ✅ **DONE v3.8.7** (L5043 `_shouldAutoClose`) |
 | 9 | AS-PDF v2 (jsPDF statt HTML) | 2h |
-| 13 | Audit-Log-UI | 1-2h |
+| 13 | Audit-Log-UI | ✅ **DONE v3.8.7 + v3.8.22** (Admin→Aktivität, Filter erweitert) |
 | 14 | Web-Push (VAPID + Server) | 1 Woche |
 | 17 | v3.6.0 Final-QS + Deploy | abhängt |
 
 **Empfehlung**: Block 8 oder 13 als nächstes — beide Schnell-Wins.
+
+---
+
+## Update 2026-04-23 (v3.8.22)
+
+Block 8 und Block 13 waren **bereits in v3.8.7 umgesetzt** (Bug-Hunt-Loop), aber nie hier als DONE markiert. Heute in v3.8.22 nur die echten Lücken geschlossen:
+
+- **Audit-UI Filter-Dropdown** (L6583) war auf 5 Optionen beschränkt obwohl ACT_LABELS 20+ Action-Typen kennt. Erweitert auf 17 sinnvolle Gruppen inkl. `juprowa` (Pull+Push gemeinsam), `upload` (Foto+FinkZeit), `export` (3 Export-Typen).
+- **Entity-Type-Filter** neu hinzugefügt — rendert `ENT_LABELS` als `<option>`-Liste, neuer Filter-Key `actFilter.entity`, server-seitig via `entity_type=eq.X`.
+
+Block 8 hat keinen echten Gap (Auto-Close funktioniert, Edge-Cases abgedeckt).
+
+Verbleibende Deferred: Block 4/5/6/9/14/17.
