@@ -284,6 +284,10 @@ html { overscroll-behavior-y: contain; }
 <script>
 /* ═══ CDN CHECK + BOOT WATCHDOG ═══ */
 (function(){
+  // v3.8.37 QW3: HTML-Escape fuer Error-Messages im Boot-Indicator (P3 XSS-Haertung).
+  // window.__EP_ERRORS-Entries kommen aus window.onerror (L~1938) und enthalten evtl.
+  // HTML-aehnlichen Inhalt; ohne Escape wuerden sie via innerHTML gerendert.
+  var _xe=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   if(typeof React==="undefined"||typeof ReactDOM==="undefined"){
     document.getElementById("ep-boot-indicator").innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ Ladefehler</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:320px">React/ReactDOM konnte nicht geladen werden.<br>Bitte Internet prüfen und Seite neu laden.</div><button onclick="if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Cache leeren &amp; Neu laden</button><div style="font-size:9px;color:#555;margin-top:8px">React: '+(typeof React)+' | ReactDOM: '+(typeof ReactDOM)+'</div>';
     throw new Error("CDN not loaded");
@@ -304,7 +308,7 @@ html { overscroll-behavior-y: contain; }
         setTimeout(function(){location.reload(true)},1500);
       }else{
         sessionStorage.removeItem("epk_boot_retry");
-        boot.innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ App startet nicht</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:340px">Die App konnte nicht initialisiert werden.<br>Errors: '+(window.__EP_ERRORS||[]).map(function(e){return e.msg}).join("; ")+'</div><button onclick="localStorage.clear();sessionStorage.clear();if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});indexedDB.databases().then(function(d){d.forEach(function(x){indexedDB.deleteDatabase(x.name)})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Alles zurücksetzen &amp; Neu laden</button>';
+        boot.innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ App startet nicht</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:340px">Die App konnte nicht initialisiert werden.<br>Errors: '+(window.__EP_ERRORS||[]).map(function(e){return _xe(e.msg);}).join("; ")+'</div><button onclick="localStorage.clear();sessionStorage.clear();if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});indexedDB.databases().then(function(d){d.forEach(function(x){indexedDB.deleteDatabase(x.name)})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Alles zurücksetzen &amp; Neu laden</button>';
       }
     }else{sessionStorage.removeItem("epk_boot_retry");}
   },8000);
@@ -1310,7 +1314,13 @@ function _mapBody(obj){
     artikelNr:'artikel_nr',preisEinheit:'preis_einheit',bautagebuchId:'bautagebuch_id',bestelltAm:'bestellt_am',geliefertAm:'geliefert_am',bestelltVon:'bestellt_von',kommentarLager:'kommentar_lager',
     kat:'kategorie',anschaffung:'kaufdatum',letzteKalib:'letzte_kalib',naechsteKalib:'naechste_kalib',zustandBewertung:'zustand_bewertung'};
   const out={};
-  // Fields stored as text that contain JSON (must be pre-stringified)
+  // Fields stored as text that contain JSON (must be pre-stringified).
+  // v3.8.37 L3-Doku: Diese Spalten sind in Postgres als TEXT deklariert (nicht jsonb),
+  // enthalten aber JSON-Strukturen. Client muss vor POST/PATCH JSON.stringify() aufrufen.
+  // Quelle: Legacy-Schema aus v2.x-Phase, vor breiter jsonb-Adoption.
+  // Regel fuer neue Features: bevorzugt jsonb-Spalten in Supabase -> kein Eintrag hier.
+  // Wann hier ergaenzen? Wenn eine bestehende TEXT-Spalte strukturierte Objekte aufnimmt
+  // und Umschaltung auf jsonb zu riskant ist (Migration + Policy-Rewrite + Legacy-Reads).
   const TEXT_JSON_FIELDS=['perms_override','tank_log','km_log','tags','config','order_items'];
   for(const[k,v]of Object.entries(obj)){
     if(k==='password')continue;
@@ -1915,7 +1925,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.36-supabase";
+const APP_VERSION="3.8.37-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -1940,7 +1950,9 @@ window.onerror=function(msg,src,line,col,err){
   console.error('[GLOBAL ERROR]',msg,src,line,col,stack);
   // Debug-Overlay nur wenn Element vorhanden
   const d=document.getElementById('ep-error-display');
-  if(d) d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0000;color:#ff6666;padding:12px;font-size:11px;font-family:monospace;max-height:40vh;overflow:auto;border-bottom:2px solid #ff0000"><b>EP Kolar v'+APP_VERSION+' — Fehler:</b><br>'+String(msg)+'<br>Zeile: '+line+'<br>'+(_optionalChain([err, 'optionalAccess', _9 => _9.stack])||'')+'<br><button onclick="this.parentElement.parentElement.remove()" style="margin-top:6px;padding:4px 12px;background:#ff4444;color:#fff;border:none;border-radius:4px;cursor:pointer">Schließen</button></div>';
+  // v3.8.37 QW3: XSS-Haertung. msg + err.stack koennen Markup enthalten; inline-escape.
+  const _xe1=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if(d) d.innerHTML='<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0000;color:#ff6666;padding:12px;font-size:11px;font-family:monospace;max-height:40vh;overflow:auto;border-bottom:2px solid #ff0000"><b>EP Kolar v'+APP_VERSION+' — Fehler:</b><br>'+_xe1(msg)+'<br>Zeile: '+line+'<br>'+_xe1(_optionalChain([err, 'optionalAccess', _9 => _9.stack])||'')+'<br><button onclick="this.parentElement.parentElement.remove()" style="margin-top:6px;padding:4px 12px;background:#ff4444;color:#fff;border:none;border-radius:4px;cursor:pointer">Schließen</button></div>';
   // v3.5.151: Throttled Telemetrie (max 1/2s, cap 20 pro Session) — verhindert activity_log-DoS bei Render-Crash-Loop
   try{
     const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
@@ -2705,34 +2717,17 @@ function genBescheinigung(fahrer,gebDat,fsNr,seitDat,vonDat,vonUhr,bisDat,bisUhr
   w.document.close();
   setTimeout(()=>w.print(),500);
 }
-const INIT_AS=[
-  {id:"as1",nummer:"S075275",kundNr:"206115",kundName:"GEROCRET",kundStr:"Wienerstraße 143",kundPlz:"3425",kundOrt:"Langenlebarn",projektnr:"PA242215",scheinstatus:"in_bearbeitung",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"SCHOBER",monteur:"w2",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-02-18",aufgZeit:"11:26",bearbeitetVon:"SCHOBER",arbeitsanweisungen:"Störung Schaltschrank (eine Maschine in der Halle funktioniert nicht).\n02272 6413031 (Thomas Puxbaum)",durchgefuehrte:"",notizen:"",kontakt:"Thomas Puxbaum 02272 6413031",stoerungsmelder:""},
-  {id:"as2",nummer:"S075274",kundNr:"",kundName:"Agrarhandel Schneider GesmbH",kundStr:"",kundPlz:"",kundOrt:"Absberg",projektnr:"PA242214",scheinstatus:"in_bearbeitung",scheinart:"stoerung",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"SCHOBER",monteur:"w2",terminBestaetigt:"2026-02-20",terminZeit:"09:00",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-02-18",aufgZeit:"10:00",bearbeitetVon:"SCHOBER",arbeitsanweisungen:"Erhält ca. Mitte März neue Steuerung in Absberg (Niederspannung)",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as3",nummer:"S075273",kundNr:"",kundName:"Gudrun Schmid",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"PA242212",scheinstatus:"in_bearbeitung",scheinart:"stoerung",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"ZAUNER",monteur:"w3",terminBestaetigt:"2026-02-19",terminZeit:"08:30",terminVorschlag:"",terminVorschlagZeit:"",dauer:"2",aufgenommen:"2026-02-18",aufgZeit:"09:30",bearbeitetVon:"ZAUNER",arbeitsanweisungen:"Störung Geschirrspüler Siemens E15",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as4",nummer:"S075272",kundNr:"",kundName:"Marktgemeinde Fels am Wagram",kundStr:"Schloßstraße 4",kundPlz:"",kundOrt:"Fels",projektnr:"PA242203",scheinstatus:"in_bearbeitung",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"ZAUNER",monteur:"w1",terminBestaetigt:"2026-02-19",terminZeit:"07:00",terminVorschlag:"",terminVorschlagZeit:"",dauer:"3",aufgenommen:"2026-02-17",aufgZeit:"14:00",bearbeitetVon:"ZAUNER",arbeitsanweisungen:"Fels // Schloßstraße 4",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as5",nummer:"S075271",kundNr:"",kundName:"Autohaus Klug GesmbH",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"PA242202",scheinstatus:"in_bearbeitung",scheinart:"stoerung",prioritaet:"hoch",verrechnung:"verrechenbar",sachbearbeiter:"SCHOBER",monteur:"w2",terminBestaetigt:"2026-02-20",terminZeit:"09:00",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-02-17",aufgZeit:"08:00",bearbeitetVon:"SCHOBER",arbeitsanweisungen:"FI fällt im Espresso, dadurch kein Strom in der Waschstraße",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as6",nummer:"S075270",kundNr:"",kundName:"Marktgemeinde Kirchberg am Wagram",kundStr:"",kundPlz:"",kundOrt:"Wagram",projektnr:"PA242201",scheinstatus:"in_bearbeitung",scheinart:"wartung",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"ZAUNER",monteur:"w1",terminBestaetigt:"2026-02-21",terminZeit:"08:00",terminVorschlag:"",terminVorschlagZeit:"",dauer:"4",aufgenommen:"2026-02-16",aufgZeit:"07:30",bearbeitetVon:"ZAUNER",arbeitsanweisungen:"Wagramhalle",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as7",nummer:"S075269",kundNr:"",kundName:"Marktgemeinde Kirchberg am Wagram",kundStr:"",kundPlz:"",kundOrt:"Mallon",projektnr:"PA242155",scheinstatus:"in_bearbeitung",scheinart:"stoerung",prioritaet:"normal",verrechnung:"verrechenbar",sachbearbeiter:"ZAUNER",monteur:"w1",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-02-05",aufgZeit:"09:00",bearbeitetVon:"ZAUNER",arbeitsanweisungen:"In Mallon bei der Kapelle ist eine Straßenlaterne kaputt",durchgefuehrte:"",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as8",nummer:"S075267",kundNr:"",kundName:"Janiceck",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"PA242135",scheinstatus:"abgerechnet",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"ZAUNER",monteur:"w3",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-01-30",aufgZeit:"09:00",bearbeitetVon:"ZAUNER",arbeitsanweisungen:"WP Anschluß",durchgefuehrte:"WP angeschlossen und in Betrieb genommen.",notizen:"",kontakt:"",stoerungsmelder:""},
-  {id:"as9",nummer:"S075265",kundNr:"",kundName:"Heinz Kameryt",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"PA242125",scheinstatus:"storniert",scheinart:"stoerung",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"ZAUNER",monteur:"w1",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-01-22",aufgZeit:"10:00",bearbeitetVon:"ZAUNER",arbeitsanweisungen:"Backrohr Störung",durchgefuehrte:"",notizen:"Storniert: Kunde hat selber repariert",kontakt:"",stoerungsmelder:""},
-  {id:"as10",nummer:"S075260",kundNr:"",kundName:"Helga Beisl",kundStr:"",kundPlz:"",kundOrt:"",projektnr:"PA242085",scheinstatus:"abgerechnet",scheinart:"reparatur",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:"SCHOBER",monteur:"w2",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:"2026-01-08",aufgZeit:"08:00",bearbeitetVon:"SCHOBER",arbeitsanweisungen:"SAT-Störung (2 FS)",durchgefuehrte:"SAT-Kabel erneuert, F-Stecker getauscht.",notizen:"",kontakt:"",stoerungsmelder:""},
-];
+// v3.8.37 L4-LÖSCHUNG (Block-D Dead-Code-Audit): INIT_AS entfernt.
+// 10 Seed-Records mit echten Kundennamen + Telefon-Nummern aus v2.x Bootstrap-Phase.
+// Nie referenziert — rein dead. DSGVO-Risiko im Working-Tree beseitigt; Git-History
+// zeigt noch die alten Versionen (Rewrite wäre destructive-push, nicht in Scope).
+// Neue Install-Seeds via INIT_PROJECTS (L~2218) + MONT-Migration (L~3947).
 
 // ═══════════ WERKZEUGE (HILTI ON!Track Style) ═══════════
 const WZ_STATUS={verfuegbar:{l:"Verfügbar",c:"#22c55e",i:"✅"},ausgegeben:{l:"Ausgegeben",c:"#f97316",i:"📤"},reparatur:{l:"In Reparatur",c:"#ef4444",i:"🔧"},kalibrierung:{l:"Kalibrierung fällig",c:"#eab308",i:"📏"},verloren:{l:"Verloren/Defekt",c:"#71717a",i:"❌"},stillgelegt:{l:"Stillgelegt",c:"#94a3b8",i:"⏸️"}};
 const WZ_KAT={elektro:{l:"Elektrowerkzeug",i:"⚡",c:"#3b82f6"},mess:{l:"Messgeräte",i:"📏",c:"#22c55e"},hand:{l:"Handwerkzeug",i:"🔨",c:"#f97316"},maschine:{l:"Maschinen",i:"⚙️",c:"#8b5cf6"},sicherheit:{l:"Sicherheit/PSA",i:"🦺",c:"#ef4444"},verbrauch:{l:"Verbrauchsmaterial",i:"📦",c:"#71717a"},kabel:{l:"Kabelwerkzeug",i:"🔌",c:"#0ea5e9"},leiter:{l:"Leiter/Gerüst",i:"🪜",c:"#a855f7"},sonstiges:{l:"Sonstiges",i:"📎",c:"#6b7280"}};
-const INIT_WZ=[
-  {id:"wz1",name:"Hilti TE 30-A36",kat:"elektro",seriennr:"HLT-2024-0891",inventarnr:"EK-E001",status:"ausgegeben",zugewiesen:"w1",projekt:"p4",standort:"Baustelle DR.-GSCHMEIDLERSTR",letzteKalib:"2025-09-15",naechsteKalib:"2026-03-15",anschaffung:"2023-06-20",wert:2890,notizen:"36V Akku-Bohrhammer",zustandBewertung:4},
-  {id:"wz2",name:"Fluke 1664 FC",kat:"mess",seriennr:"FLK-87234",inventarnr:"EK-M001",status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager",letzteKalib:"2025-11-10",naechsteKalib:"2026-05-10",anschaffung:"2022-03-01",wert:4200,notizen:"Installationstester, jährlich kalibrieren",zustandBewertung:5},
-  {id:"wz3",name:"Hilti PM 4-M",kat:"mess",seriennr:"HLT-2023-1234",inventarnr:"EK-M002",status:"ausgegeben",zugewiesen:"w3",projekt:"p1",standort:"Baustelle PEZZ",letzteKalib:"2025-08-20",naechsteKalib:"2026-02-20",anschaffung:"2023-01-15",wert:890,notizen:"Multilinienlaser",zustandBewertung:4},
-  {id:"wz4",name:"Makita DHP 487",kat:"elektro",seriennr:"MAK-91827",inventarnr:"EK-E002",status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager",letzteKalib:"",naechsteKalib:"",anschaffung:"2024-02-10",wert:230,notizen:"18V Akku-Schlagbohrschrauber",zustandBewertung:3},
-  {id:"wz5",name:"Benning DUSPOL expert",kat:"mess",seriennr:"BEN-44521",inventarnr:"EK-M003",status:"ausgegeben",zugewiesen:"w2",projekt:"p2",standort:"Baustelle Eder",letzteKalib:"2025-12-01",naechsteKalib:"2026-06-01",anschaffung:"2021-09-10",wert:320,notizen:"Zweipoliger Spannungsprüfer",zustandBewertung:5},
-  {id:"wz6",name:"Hilti TE 500-AVR",kat:"maschine",seriennr:"HLT-2022-5567",inventarnr:"EK-MA001",status:"reparatur",zugewiesen:"",projekt:"",standort:"Hilti Service Center",letzteKalib:"",naechsteKalib:"",anschaffung:"2022-11-01",wert:1890,notizen:"Meißelhammer, Kohlebürsten tauschen",zustandBewertung:2},
-  {id:"wz7",name:"Knipex Werkzeugkoffer Elektro",kat:"hand",seriennr:"",inventarnr:"EK-H001",status:"ausgegeben",zugewiesen:"w1",projekt:"p4",standort:"Baustelle",letzteKalib:"",naechsteKalib:"",anschaffung:"2024-01-15",wert:450,notizen:"VDE Werkzeugset 13-teilig",zustandBewertung:5},
-  {id:"wz8",name:"Hilti GX 3",kat:"maschine",seriennr:"HLT-2024-7890",inventarnr:"EK-MA002",status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager",letzteKalib:"2025-06-01",naechsteKalib:"2026-06-01",anschaffung:"2024-05-01",wert:3200,notizen:"Akku-Bolzensetzgerät",zustandBewertung:5},
-  {id:"wz9",name:"Dräger X-am 5600",kat:"sicherheit",seriennr:"DRG-11234",inventarnr:"EK-S001",status:"kalibrierung",zugewiesen:"",projekt:"",standort:"Lager",letzteKalib:"2025-06-15",naechsteKalib:"2026-02-15",anschaffung:"2023-04-01",wert:2100,notizen:"Gasmessgerät, halbjährlich kalibrieren!",zustandBewertung:4},
-  {id:"wz10",name:"Flex LBE 17-11 125",kat:"maschine",seriennr:"FLX-55678",inventarnr:"EK-MA003",status:"ausgegeben",zugewiesen:"w4",projekt:"p4",standort:"Baustelle",letzteKalib:"",naechsteKalib:"",anschaffung:"2023-08-01",wert:320,notizen:"Winkelschleifer 125mm",zustandBewertung:3},
-];
+// v3.8.37 L4-LÖSCHUNG: INIT_WZ entfernt. 10 Seed-Werkzeuge (Hilti/Fluke/Makita/...)
+// aus der Bootstrap-Phase, nie referenziert.
 
 // ═══════════ CHART CONFIG ═══════════
 const CHART_TYPES={bar:{l:"Balken",i:"📊"},pie:{l:"Torte",i:"🥧"},donut:{l:"Ring",i:"🍩"},line:{l:"Linie",i:"📈"},hbar:{l:"Horizontal",i:"📶"}};
@@ -13289,28 +13284,9 @@ function SmokeTestPanel(){
     )
   );
 }
-// ═══════════════════════════════════════════════════════════════════
-// v3.5.74 — Block 7: Lazy-Image mit IntersectionObserver
-// ═══════════════════════════════════════════════════════════════════
-function LazyImg({src,alt,style,fallback}){
-  const [visible,setVisible]=_react.useState.call(void 0, false);
-  const [error,setError]=_react.useState.call(void 0, false);
-  const ref=_react.useRef.call(void 0, null);
-  _react.useEffect.call(void 0, ()=>{
-    if(!ref.current||!('IntersectionObserver' in window)){setVisible(true);return;}
-    const obs=new IntersectionObserver(([e])=>{if(e.isIntersecting){setVisible(true);obs.disconnect();}},{threshold:0.1,rootMargin:'100px'});
-    obs.observe(ref.current);
-    return()=>obs.disconnect();
-  },[]);
-  const bg=V.cd;
-  return React.createElement('div',{ref,style:{background:bg,overflow:'hidden',...(style||{})}},
-    visible&&!error
-      ?React.createElement('img',{src:src,alt:alt||'',style:{width:'100%',height:'100%',objectFit:'cover',display:'block'},onError:()=>setError(true),loading:'lazy'})
-      :error
-        ?React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',fontSize:24,color:V.dm}},fallback||'🖼️')
-        :React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:V.dm,fontSize:11}},'⏳')
-  );
-}
+// v3.8.37 L4-LÖSCHUNG: LazyImg-Component entfernt.
+// v3.5.74 Block 7 IntersectionObserver-basiertes Lazy-Image-Wrapper, nie importiert —
+// native loading="lazy" auf <img> wird stattdessen an passenden Stellen verwendet.
 
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.74 — Block 4: System-Config-Panel (admin only, im Einstellungs-Tab)

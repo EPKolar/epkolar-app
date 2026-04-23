@@ -31,11 +31,10 @@ durch Block-A-D-Audits + Session-Reviews entdeckt.
 - **Fix:** `localStorage.removeItem('epkolar_juprowa_wmap')` in Cleanup-Liste
 - **Prio:** P3
 
-### QW3 · Error-Overlay textContent statt innerHTML
-- **Wo:** L307, L1941
-- **Problem:** `innerHTML = static + String(msg)` rendert HTML wenn msg manipulierbar
-- **Fix:** Message-Teil via `createElement('div')` + `.textContent`
-- **Prio:** P3 (siehe XSS_AUDIT.md)
+### ~~QW3 · Error-Overlay textContent statt innerHTML~~ — **CLOSED v3.8.37**
+- L307 (Boot-Indicator): HTML-Escape-Helper `_xe` im IIFE-Top definiert, `e.msg` gewrappt.
+- L1941 (onerror-Overlay): Lokaler `_xe1` Escape-Helper für `msg` + `err.stack`.
+- APP_VERSION + line bleiben raw (sind static/int, kein XSS-Risiko).
 
 ### QW4 · Doppelte Token-Keys konsolidieren
 - **Wo:** `epkolar_auth`, `epkolar_token`, `epkolar_refresh`
@@ -72,16 +71,21 @@ durch Block-A-D-Audits + Session-Reviews entdeckt.
 - **Umsetzung:** Jeweils `_authRetry(()=>fetch(...))`-Wrap. Keine funktionale Änderung
   beim Happy-Path, nur Token-Refresh-Pfad wird aktiv bei 401. Siehe v3.8.36-Commit.
 
-### L3 · `_mapBody TEXT_JSON_FIELDS` dokumentieren
-- **Wo:** L1312
-- **Problem:** Whitelist `['perms_override','tank_log','km_log','tags','config','order_items']` ohne Erklärung
-- **Fix:** Inline-Comment mit Herkunft + Regel "wann ist ein Feld TEXT_JSON vs. echtes JSONB"
-- **Prio:** P3
+### ~~L3 · `_mapBody TEXT_JSON_FIELDS` dokumentieren~~ — **CLOSED v3.8.37**
+- Inline-Kommentar bei L1317-1322 mit Herkunft (v2.x Legacy-Schema, TEXT statt jsonb),
+  Regel für neue Features (bevorzugt jsonb → kein Eintrag nötig), und Wann-ergänzen-
+  Kriterium (bestehende TEXT-Spalte mit neuen Objekt-Daten, Migration zu riskant).
 
-### L4 · 7 Dead-Code-Kandidaten aufräumen (siehe `DEAD_CODE_CANDIDATES.md`)
-- ESKALATION_RULES, INIT_AS, INIT_WZ, LazyImg, MATERIAL_UNITS, SCHEINART_C, SCHEINSTATUS_C
-- **Aufwand:** jeweils kurz verifizieren (manuell), dann löschen oder mit Kommentar markieren
-- **Prio:** P3
+### ~~L4 · 7 Dead-Code-Kandidaten aufräumen~~ — **PARTIAL CLOSED v3.8.37**
+- ✅ **Gelöscht:** `INIT_AS` (10 Real-Kundendaten, DSGVO-Risk), `INIT_WZ` (10 Seed-Werkzeuge),
+  `LazyImg` (unused React-Component).
+- 🟡 **Behalten ohne Kommentar:** `SCHEINART_C`, `SCHEINSTATUS_C`, `MATERIAL_UNITS`,
+  `ESKALATION_RULES`. Reserviert für zukünftige Typ-Sicherheit / Dropdown-Wiring /
+  Auto-Eskalation-Feature. Im Code sichtbar bleiben sie als Dokumentations-Artefakte
+  valider Enum-Werte.
+- Working-Tree clean von PII, Git-History nicht umgeschrieben (R2 verbietet
+  destructive push). DSGVO-Empfehlung für Sebastian: bei Bedarf separates
+  `git filter-repo`-Szenario besprechen.
 
 ### L5 · canDo `isField`-Granularität
 - **Wo:** L3009-3010
