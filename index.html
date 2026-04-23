@@ -1906,7 +1906,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.25-supabase";
+const APP_VERSION="3.8.26-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -10797,13 +10797,18 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   // v3.5.69: Multi-Word-Suche (AND), Token-Split, Mindestlänge 2
   const matTokens=matQuery.trim().toLowerCase().split(/\s+/).filter(t=>t.length>=2);
   const renderWarenkorb=()=>{
+    // v3.8.26 Gewerk-Filter aus Profil: 'elektro' zeigt elektro+allgemein, 'installateur' zeigt sanitaer+heizung+klima+allgemein, 'beide' zeigt alles
+    const _gp=(typeof localStorage!=="undefined"&&localStorage.getItem("epk_user_gewerk"))||"beide";
+    const _kataAllowed=(g)=>{if(_gp==="beide")return true;if(!g||g==="allgemein")return true;if(_gp==="elektro")return g==="elektro";if(_gp==="installateur")return g==="sanitaer"||g==="heizung"||g==="klima";return true;};
+    const _filteredCatalogs=catalogs.filter(k=>_kataAllowed(k.gewerk));
     return React.createElement('div', null
-      , React.createElement('div', { style: {marginBottom:10,display:"flex",gap:8,alignItems:"center"}}
-        , React.createElement('input', { type: "search", value: matQuery, onChange: e=>setMatQuery(e.target.value), placeholder: "🔍 Artikel suchen (z.B. \"grohe unterputz\")" , style: {...II(),flex:1,fontSize:13,minHeight:isMob?42:36} })
+      , React.createElement('div', { style: {marginBottom:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}
+        , React.createElement('input', { type: "search", value: matQuery, onChange: e=>setMatQuery(e.target.value), placeholder: "🔍 Artikel suchen (z.B. \"grohe unterputz\")" , style: {...II(),flex:1,fontSize:13,minHeight:isMob?42:36,minWidth:180} })
         , matQuery&&React.createElement('button', { onClick: ()=>setMatQuery(""), style: {...bsS(),padding:"6px 10px",fontSize:11,minHeight:isMob?42:36}}, "✕")
+        , _gp!=="beide"&&React.createElement('span', { style: {fontSize:10,color:V.dm,padding:"4px 8px",border:"1px solid "+V.bd,borderRadius:6,whiteSpace:"nowrap"}, title: "Gewerk-Filter aktiv · Einstellungen → Mein Profil"}, _gp==="elektro"?"⚡ Elektriker":"🚿 Installateur", " · ", _filteredCatalogs.length, "/", catalogs.length, " Kataloge")
       )
-      , catalogs.length===0&&React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Keine Kataloge für Gewerk \"", p.gewerk||"(leer)", "\" verfügbar. Bitte Projekt-Gewerk setzen oder Admin kontaktieren.")
-      , catalogs.map(kat=>{
+      , _filteredCatalogs.length===0&&React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Keine Kataloge für Gewerk \"", p.gewerk||"(leer)", "\" verfügbar. Bitte Projekt-Gewerk setzen oder Admin kontaktieren.")
+      , _filteredCatalogs.map(kat=>{
         const sysOpen=expandedSystems[kat.id]===true;// default CLOSED
         const mc=MATERIAL_CATS[kat.gewerk]||{c:"#71717a",i:"📦"};
         // Count total items in cart for this system
@@ -13117,6 +13122,9 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
   const [newPw2,setNewPw2]=_react.useState.call(void 0, "");
   const [pwMsg,setPwMsg]=_react.useState.call(void 0, "");
   const [pwOk,setPwOk]=_react.useState.call(void 0, false);
+  // v3.8.26 Gewerk-Profil: steuert Filter in renderWarenkorb (nur eigenes Gewerk zeigen)
+  const [gewerkPref,setGewerkPref]=_react.useState.call(void 0, (typeof localStorage!=="undefined"&&localStorage.getItem("epk_user_gewerk"))||"beide");
+  const _setGewerk=v=>{setGewerkPref(v);try{localStorage.setItem("epk_user_gewerk",v);}catch(_){}_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔧 Gewerk gespeichert — Material-Bestellung zeigt jetzt nur relevante Kataloge")]);};
   const doTest=async()=>{try{const r=await fetch(SB_REST+"/users?select=id&limit=1",{headers:_sbRH()});setTestOk(r.ok);}catch(e){setTestOk(false);}};
   const doChangePw=async()=>{
     setPwMsg("");setPwOk(false);
@@ -13140,7 +13148,15 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
           , React.createElement('span', { style: {color:V.dm,fontWeight:600}}, "Rolle:")
           , React.createElement('span', {}, _optionalChain([ROLES, 'access', _vv3 => _vv3[curUser.role], 'optionalAccess', _vv4 => _vv4.i])||"", " ", _optionalChain([ROLES, 'access', _vv5 => _vv5[curUser.role], 'optionalAccess', _vv6 => _vv6.l])||curUser.role)
           , curUser.email&&React.createElement(_react.Fragment, null, React.createElement('span', { style: {color:V.dm,fontWeight:600}}, "E-Mail:"), React.createElement('span', {}, curUser.email))
+          /* v3.8.26 Gewerk-Profil */
+          , React.createElement('span', { style: {color:V.dm,fontWeight:600}}, "Gewerk:")
+          , React.createElement('select', { value: gewerkPref, onChange: e=>_setGewerk(e.target.value), style: {...II(),padding:"6px 10px",fontSize:13,maxWidth:260}, title: "Bestimmt welche Katalog-Gruppen in der Material-Bestellung angezeigt werden"}
+            , React.createElement('option', { value: "beide"}, "⚡🚿 Beide (alles anzeigen)")
+            , React.createElement('option', { value: "elektro"}, "⚡ Elektriker")
+            , React.createElement('option', { value: "installateur"}, "🚿🔥❄️ Installateur")
+          )
         )
+        , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:8,lineHeight:1.5}}, "Gewerk-Einstellung filtert die Material-Bestellung: Elektriker sieht Elektro + Allgemein, Installateur sieht Sanitär/Heizung/Klima + Allgemein."  )
       )
       /* Passwort ändern */
       , React.createElement('div', { style: CC()}
