@@ -1282,6 +1282,23 @@ function _storagePath(category,projectId,fileName){
   return "misc/"+ts+"_"+safe(fileName);
 }
 
+// v3.8.44 Bug-Hunt-Top-2 (S2.1): Defensive JSON.parse-Helper.
+// 51 JSON.parse-Aufrufe im File. Die meisten sind bereits in try/catch oder
+// haben ||"{}"||"null"||"[]"-Fallback. Neuer Helper für künftige Call-Sites,
+// damit Pattern einheitlich bleibt.
+//
+// Verhalten:
+//  - null/undefined/leerer String → returns fallback
+//  - Parse-Fehler → returns fallback (kein throw)
+//  - Erfolg → returns parsed value
+//
+// Migration der 51 bestehenden Sites NICHT in dieser Session (Risiko subtiler
+// Logging-Verluste). Sebastian-Empfehlung: schrittweise pro Section migrieren
+// wenn betroffene Code-Bereiche sowieso angefasst werden.
+function _safeJsonParse(s,fallback){
+  if(s==null||s==="")return fallback;
+  try{return JSON.parse(s);}catch(_){return fallback;}
+}
 // ═══ camelCase → snake_case field mapper ═══
 function _toSnake(s){return s.replace(/[A-Z]/g,m=>'_'+m.toLowerCase());}
 function _mapBody(obj){
@@ -3994,7 +4011,7 @@ class _ViewBoundary extends React.Component{
           try{
             const wps=await API.getWeekplans();
             if(_optionalChain([wps, 'optionalAccess', _49w1 => _49w1.length])){
-              const wpH={};wps.forEach(wp=>{try{wpH[wp.week]=JSON.parse(wp.data||'[]');}catch(e){}});
+              const wpH={};wps.forEach(wp=>{wpH[wp.week]=_safeJsonParse(wp.data,[]);});
               if(Object.keys(wpH).length){setWpHistory(prev=>({...prev,...wpH}));ODB.save("meta",wpH);}
             }
           }catch(e){console.warn("Weekplans laden:",e);}
@@ -6744,7 +6761,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           React.createElement('div', { style: {maxHeight:400,overflowY:"auto"}}
             , activity.slice(0,200).map((a,i)=>{
               const dt=new Date(a.created_at);
-              const det=typeof a.details==="string"?(()=>{try{return JSON.parse(a.details||"{}");}catch(e){return {};}})():a.details||{};
+              const det=typeof a.details==="string"?_safeJsonParse(a.details,{}):a.details||{};
               const aName=(()=>{const u=users.find(x=>x.id===a.user_id||x.username===a.user_id);return u?(u.name||u.username||a.user_id):a.user_id||"?";})();
               return (React.createElement('div', { key: a.id||i, style: {display:"flex",gap:10,padding:"8px 0",borderBottom:"1px solid "+V.bd,fontSize:12,alignItems:"flex-start"}}
                 , React.createElement('div', { style: {width:48,flexShrink:0,textAlign:"right",color:V.dm,fontSize:11,lineHeight:1.4}}
@@ -6921,7 +6938,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               const d=log.created_at?new Date(log.created_at):new Date();
               const isPull=log.action==="juprowa_pull";
               const isPush=log.action==="juprowa_push";
-              const det=(()=>{try{return JSON.parse(log.details||"{}")}catch(e){return{}}})();
+              const det=_safeJsonParse(log.details,{});
               const userName=(users||[]).find(u=>u.id===log.user_id);
               return React.createElement('div', {key:log.id||i,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderBottom:"1px solid "+V.bd+"44",fontSize:12}},
                 React.createElement('span', {style:{fontSize:14,flexShrink:0}}, isPull?"🔽":isPush?"📤":"🔄"),
@@ -7265,7 +7282,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
       let diffWarn=0;
       allYear.forEach(d=>{
         try{
-          const extra=JSON.parse(d.data||"{}");
+          const extra=_safeJsonParse(d.data,{});
           if(extra.finkStunden>0&&!extra.abgeglichen){
             const prefix=d.jahr+"-"+(d.monat+1<10?"0":"")+(d.monat+1);
             const epH=entries.filter(e=>{const wid=e.worker||e.w||"";const dt=e.datum||e.date||"";return wid===d.worker_id&&dt.startsWith(prefix);}).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
@@ -12782,7 +12799,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     (async()=>{try{
       if(API.getToken()){
         const data=await _sbGet("finkzeit","jahr=eq."+selJahr).catch(()=>[]);
-        if(_optionalChain([data, 'optionalAccess', _606 => _606.length])){const mapped=data.map(d=>{const extra=(()=>{try{return JSON.parse(d.data||"{}")}catch(e){return{}}})();return{id:d.id,mitarbeiterId:d.worker_id,mitarbeiterName:((_m)=>_m?(_m.name||_m.n||d.worker_id):d.worker_id)(allMA.find(m=>m.id===d.worker_id)),monat:d.monat,jahr:d.jahr,dateiName:"FinkZeit_"+d.monat+"_"+d.jahr+".pdf",dateiTyp:"application/pdf",datei:d.pdf_data||"",hochgeladenVon:d.notiz||"",hochgeladenAm:d.uploaded_at||new Date().toISOString(),status:d.status==="genehmigt"?"freigegeben":d.status,freigegebenAm:d.approved_at||null,unterschrift:d.signatur||null,finkStunden:extra.finkStunden||0,abgeglichen:extra.abgeglichen||false};});setZettel(prev=>{const merged=[...prev];mapped.forEach(m=>{if(!merged.find(z=>z.mitarbeiterId===m.mitarbeiterId&&z.monat===m.monat&&z.jahr===m.jahr))merged.push(m);});return merged;});}
+        if(_optionalChain([data, 'optionalAccess', _606 => _606.length])){const mapped=data.map(d=>{const extra=_safeJsonParse(d.data,{});return{id:d.id,mitarbeiterId:d.worker_id,mitarbeiterName:((_m)=>_m?(_m.name||_m.n||d.worker_id):d.worker_id)(allMA.find(m=>m.id===d.worker_id)),monat:d.monat,jahr:d.jahr,dateiName:"FinkZeit_"+d.monat+"_"+d.jahr+".pdf",dateiTyp:"application/pdf",datei:d.pdf_data||"",hochgeladenVon:d.notiz||"",hochgeladenAm:d.uploaded_at||new Date().toISOString(),status:d.status==="genehmigt"?"freigegeben":d.status,freigegebenAm:d.approved_at||null,unterschrift:d.signatur||null,finkStunden:extra.finkStunden||0,abgeglichen:extra.abgeglichen||false};});setZettel(prev=>{const merged=[...prev];mapped.forEach(m=>{if(!merged.find(z=>z.mitarbeiterId===m.mitarbeiterId&&z.monat===m.monat&&z.jahr===m.jahr))merged.push(m);});return merged;});}
       }
       const z=await ODB.get("stundenzettel","all");if(_optionalChain([z, 'optionalAccess', _607 => _607.length]))setZettel(prev=>prev.length?prev:z);
     }catch(e){try{const z=await ODB.get("stundenzettel","all");if(z)setZettel(z);}catch(ex){}}})();
