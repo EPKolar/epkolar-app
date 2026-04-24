@@ -4282,38 +4282,50 @@ class _ViewBoundary extends React.Component{
     }
   };
   // ═══ AUTO-NOTIFICATIONS & ESKALATION ═══
+  // v3.8.49 Perf-Fix: Vorher hatte _checkAutoNotifs `[curUser,arbeitsscheine,fahrzeuge,users,pushNotif]`
+  // als useCallback-Deps — JEDE AS/FZ/User-Mutation erzeugte eine neue Callback-Identität,
+  // was den useEffect unten re-firete → clearTimeout+clearInterval+Neu-Setup bei jedem
+  // AS-Edit. Bei 20 AS-Bulk-Edits = 20× Timer-Reset. Dazu feuerte der 5s-Timeout jedes
+  // Mal frisch → unnötige Extra-_checkAutoNotifs-Läufe + localStorage-Reads.
+  // Fix: State über Refs einlesen, useCallback-Deps auf [curUser] reduzieren. Callback-
+  // Identität stabil, Timer wird nur noch bei Login/Logout ge-setup/cleared.
   const _autoNotifCooldown=_react.useRef.call(void 0, {});
+  const _asRef=_react.useRef.call(void 0, arbeitsscheine);_asRef.current=arbeitsscheine;
+  const _fzRef=_react.useRef.call(void 0, fahrzeuge);_fzRef.current=fahrzeuge;
+  const _usRef=_react.useRef.call(void 0, users);_usRef.current=users;
+  const _pnRef=_react.useRef.call(void 0, pushNotif);_pnRef.current=pushNotif;
   const _checkAutoNotifs=_react.useCallback.call(void 0, ()=>{
     if(!curUser||curUser.role!=="admin"&&curUser.role!=="projektleiter")return;
+    const _arbeitsscheine=_asRef.current;const _fahrzeuge=_fzRef.current;const _users=_usRef.current;const _pushNotif=_pnRef.current;
     const cd=_autoNotifCooldown.current;const now=Date.now();
     Object.assign(cd,_safeJsonParse(localStorage.getItem("epk_autonotif_cd"),{}));
     const fire=(key,type,title,body,targets)=>{
       if(cd[key]&&(now-cd[key])<14400000)return; // 4h cooldown per key
       cd[key]=now;
       try{localStorage.setItem("epk_autonotif_cd",JSON.stringify(cd));}catch(e){}
-      pushNotif(type,title,body,targets);
+      _pushNotif(type,title,body,targets);
     };
     // 1. Dringende AS unbearbeitet >24h → Eskalation
-    arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.prioritaet==="hoch"||a.prioritaet==="dringend")).forEach(a=>{
+    _arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.prioritaet==="hoch"||a.prioritaet==="dringend")).forEach(a=>{
       const aufg=new Date(a.aufgenommen+" "+(a.aufgZeit||"08:00")).getTime();
       const hAlt=Math.floor((now-aufg)/TIME_HOUR);
-      if(hAlt>=24){const admins=users.filter(u=>u.role==="admin").map(u=>u.id);fire("as_esk_"+a.id,"as_eskalation","🔺 Eskalation: "+a.kundName,(a.nummer||"")+" — dringend, seit "+hAlt+"h unbearbeitet",admins);}
+      if(hAlt>=24){const admins=_users.filter(u=>u.role==="admin").map(u=>u.id);fire("as_esk_"+a.id,"as_eskalation","🔺 Eskalation: "+a.kundName,(a.nummer||"")+" — dringend, seit "+hAlt+"h unbearbeitet",admins);}
     });
     // 2. Material-Bestellungen "angefordert" >8h → Eskalation an Admin
     (async()=>{try{
       const openMat=await _sbGet("material_orders","status=eq.angefordert").catch(()=>[]);
       (openMat||[]).forEach(o=>{
         const created=new Date(o.created_at).getTime();const hAlt=Math.floor((now-created)/TIME_HOUR);
-        if(hAlt>=8){const admins=users.filter(u=>u.role==="admin").map(u=>u.id);fire("mat_esk_"+o.id,"material_eskalation","🔺 Material wartet: "+(o.name||"Bestellung"),"seit "+hAlt+"h nicht bearbeitet",admins);}
+        if(hAlt>=8){const admins=_users.filter(u=>u.role==="admin").map(u=>u.id);fire("mat_esk_"+o.id,"material_eskalation","🔺 Material wartet: "+(o.name||"Bestellung"),"seit "+hAlt+"h nicht bearbeitet",admins);}
       });
     }catch(e){}})();
     // 3. Fahrzeug-Fristen <7 Tage → Warn-Notification
-    const _fleetU=users.filter(u=>u.role==="admin"||u.username==="pinger").map(u=>u.id);
-    (fahrzeuge||[]).forEach(f=>{
+    const _fleetU=_users.filter(u=>u.role==="admin"||u.username==="pinger").map(u=>u.id);
+    (_fahrzeuge||[]).forEach(f=>{
       if(f.pickerl){const diff=Math.ceil((new Date(f.pickerl)-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+f.kennzeichen,diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
       if(f.naechstService){const diff=Math.ceil((new Date(f.naechstService)-now)/TIME_DAY);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+f.kennzeichen,"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
     });
-  },[curUser,arbeitsscheine,fahrzeuge,users,pushNotif]);
+  },[curUser]);
   _react.useEffect.call(void 0, ()=>{if(!curUser)return;const t=setTimeout(_checkAutoNotifs,5000);const iv=setInterval(_checkAutoNotifs,300000);return()=>{clearTimeout(t);clearInterval(iv);};},[_checkAutoNotifs]);
   window.__pushNotif=pushNotif;
   // Request browser notification permission
