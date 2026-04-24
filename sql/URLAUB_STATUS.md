@@ -82,3 +82,24 @@ Tägliches Exit-Protokoll gemäß H13.
 - **Empfehlung Sebastian:** Branch `safe merge` — Tests-only, +49 Tests Coverage, keine Logik-Änderung. Per Plan explizit Merge-erlaubt.
 
 ---
+
+## Tag 5 · 02.05.2026 · Dead-Code Cleanup
+
+- **Branch:** `urlaub/20260502-dead-code` (gepusht, kein autonomer merge)
+- **Commits:** 5 (`80f88c0` pre-doc · `5a6a0c3` SCHEINART_C · `aaa3a22` SCHEINSTATUS_C · `ba68fb7` ESKALATION_RULES · `4a5f5a0` MATERIAL_UNITS)
+- **Geändert:**
+  - `sql/URLAUB_DEAD_REMOVED.md` neu (Pre-Doc mit Triple-Grep-Verifikation jedes Kandidaten).
+  - `index.html`: 4 ungenutzte Konstanten entfernt:
+    - `SCHEINART_C` (L403, Frozen-Enum 6 Keys)
+    - `SCHEINSTATUS_C` (L402, Frozen-Enum 8 Keys)
+    - `ESKALATION_RULES` (L2820-2823, Stub für Auto-Escalation)
+    - `MATERIAL_UNITS` (L9403-9406, Units-Array)
+  - Netto: ~14 Zeilen weg, durch je einen kurzen Kommentar-Marker ersetzt (Audit-Trail).
+- **pytest:** 101/101 (kein Test-Impact, kein Test referenziert die gelöschten Konstanten).
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über alle 4 Löschungen).
+- **Sleep-Prevention:** KeepAwake aktiv.
+- **Findings/Skip:** Triple-Grep zeigte 0 externe Treffer pro Kandidat (kein `window.X`, kein Property-Access, kein Template-String). Keine Test-Breaks. INIT_AS/INIT_WZ/LazyImg waren bereits in v3.8.37 entfernt — DEAD_CODE_CANDIDATES_v2.md jetzt vollständig abgearbeitet.
+- **Status:** **GREEN**
+- **Empfehlung Sebastian:** Branch `safe merge` — Brackets stabil, Tests grün, klar dokumentierte Löschungen mit Triple-Grep-Begründung pro Kandidat.
+
+---
