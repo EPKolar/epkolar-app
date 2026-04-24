@@ -1925,7 +1925,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.40-supabase";
+const APP_VERSION="3.8.41-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2521,14 +2521,21 @@ function _juprowaReversMap(schein){
   json.AK_PRIOR=JUPROWA_PRIO_REV[schein.prioritaet]||'0';
   // Status reverse
   if(schein.scheinstatus&&JUPROWA_STATUS_REV[schein.scheinstatus]!=null)json.AK_AUFSTATUS=JUPROWA_STATUS_REV[schein.scheinstatus];
-  // v3.8.40 fix(juprowa): Adress-Felder inkl. Länderkürzel (LKZ) mitschicken.
-  // Vorher sendete _juprowaReversMap nur 9 Arbeits-Felder — Juprowa interpretierte
-  // nicht-gesendete Adress-Felder als "leer setzen" (OFFA-Log: "Länderkürzel von
-  // 'A' auf '' geändert" bei jedem Sync). Feldname "LKZ" verifiziert aus echter
-  // juprowa_raw-Response (S075295, juprowa_id=5085210) via Chrome-MCP.
-  // Kein separates RE_ADR_*-Datenmodell lokal → Rechnungsadresse spiegelt Einsatz.
-  // Titel-Felder (AK_BAUADR_TITEL, RE_ADR_TITEL) bewusst weggelassen, damit
-  // Juprowa-Bestand nicht überschrieben wird (Pull-Only-Felder).
+  // v3.8.40 + v3.8.41 fix(juprowa): Adress-Felder mitschicken damit Juprowa
+  // nicht-gesendete Felder nicht als "leer setzen" interpretiert.
+  // Feldname "LKZ" verifiziert aus juprowa_raw (S075295, juprowa_id=5085210)
+  // via Chrome-MCP. Titel-Felder (AK_BAUADR_TITEL, RE_ADR_TITEL) bewusst
+  // weggelassen — Pull-Only, würden Juprowa-Bestand überschreiben.
+  //
+  // EINSATZORT (AK_BAUADR_*): Monteur darf via App editieren → aus kundStr/
+  // Plz/Ort/Name, LKZ hardcoded "A" (EP Kolar operiert nur in AT).
+  //
+  // v3.8.41 POLICY (Sebastian 2026-04-24): Rechnungsadresse (RE_ADR_*) und
+  // Kundennummer (AK_BAUADR_NUMMER) dürfen NUR OFFA-seitig geändert werden.
+  // Monteur hat in der App keinen Zugriff darauf. Wir reichen diese Felder
+  // aus juprowa_raw (letzter Pull) durch — NICHT aus kundStr etc. — damit
+  // der Bestand konservativ echoed wird und der Juprowa→OFFA-Roundtrip nicht
+  // unsere App-Seite über die OFFA-Seite drüberschreibt.
   const _kStr=schein.kundStr||"";
   const _kPlz=schein.kundPlz||"";
   const _kOrt=schein.kundOrt||"";
@@ -2538,11 +2545,20 @@ function _juprowaReversMap(schein){
   json.AK_BAUADR_ORT=_juprowaSanitize(_kOrt);
   json.AK_BAUADR_LKZ="A";
   json.AK_BAUADR_NAM1=_juprowaSanitize(_kNam);
-  json.RE_ADR_STR=_juprowaSanitize(_kStr);
-  json.RE_ADR_PLZ=_juprowaSanitize(_kPlz);
-  json.RE_ADR_ORT=_juprowaSanitize(_kOrt);
-  json.RE_ADR_LKZ="A";
-  json.RE_ADR_NAM1=_juprowaSanitize(_kNam);
+  const _raw=(schein.juprowa_raw&&typeof schein.juprowa_raw==='object')?schein.juprowa_raw:null;
+  if(_raw){
+    if(_raw.RE_ADR_STR!=null)       json.RE_ADR_STR      =_juprowaSanitize(String(_raw.RE_ADR_STR||""));
+    if(_raw.RE_ADR_PLZ!=null)       json.RE_ADR_PLZ      =_juprowaSanitize(String(_raw.RE_ADR_PLZ||""));
+    if(_raw.RE_ADR_ORT!=null)       json.RE_ADR_ORT      =_juprowaSanitize(String(_raw.RE_ADR_ORT||""));
+    if(_raw.RE_ADR_LKZ!=null)       json.RE_ADR_LKZ      =String(_raw.RE_ADR_LKZ||"A");
+    if(_raw.RE_ADR_NAM1!=null)      json.RE_ADR_NAM1     =_juprowaSanitize(String(_raw.RE_ADR_NAM1||""));
+    if(_raw.AK_BAUADR_NUMMER!=null) json.AK_BAUADR_NUMMER=_raw.AK_BAUADR_NUMMER;
+  }
+  // Edge-Case: kein juprowa_raw vorhanden (seltener Legacy-Fall). Dann werden
+  // RE_ADR_* + AK_BAUADR_NUMMER nicht gesendet → Juprowa könnte sie leer
+  // setzen. Akzeptiert, weil: (1) normale Scheine kommen via Pull + haben
+  // juprowa_raw gefüllt; (2) die Alternative (hartes Echo aus kundName/Nr)
+  // würde Sebastian-Policy "OFFA-only Editierbarkeit" verletzen.
   return json;
 }
 
