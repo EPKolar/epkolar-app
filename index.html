@@ -1925,7 +1925,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.41-supabase";
+const APP_VERSION="3.8.42-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -2441,6 +2441,9 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     try{const _u=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost("activity_log",{user_id:_optionalChain([_u,'optionalAccess',_=>_.id])||"system",action:"juprowa_pull",details:JSON.stringify(result)});}catch(e){}
     // v3.8.28 Last-Sync-Infrastruktur: Window-Var für App-weite Indikatoren
     try{window._lastJuprowaSyncAt=Date.now();}catch(_){}
+    // v3.8.42 Auto-Drain: nach Pull offene Push-Queue bis zu 10 Scheine abarbeiten.
+    // Fire-and-forget wäre ok, aber awaiting gibt besseres Log-Zeitverhältnis.
+    try{const _dr=await _juprowaDrainPending(10);if(_dr&&(_dr.drained>0||_dr.failed>0))console.log('[JP-DRAIN]',_dr);}catch(e){console.warn('[JP-DRAIN-EXC]',e&&e.message||e);}
     return result;
   }catch(e){
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa Sync Fehler: "+e.message,"error")]);
@@ -2455,8 +2458,8 @@ function _juprowaStartAutoSync(setArbeitsscheine){
   _juprowaSyncTimer=setInterval(async()=>{
     if(navigator.onLine&&_authToken&&!_juprowaSyncing){
       await _juprowaSync(null,setArbeitsscheine,true);
-      // Phase 2: Auto-push pending items after pull
-      try{await _juprowaPushAll();}catch(e){}
+      // v3.8.42: _juprowaSync draint jetzt intern (siehe _juprowaDrainPending).
+      // Der _juprowaPushAll-Aufruf hier war Legacy mit 4-Min-Timeout-Risiko — entfernt.
     }
   },300000);
 }
@@ -2617,6 +2620,25 @@ async function _juprowaPushAll(){
     if(r.ok)ok++;else fail++;
   }
   return{ok:true,pushed:ok,failed:fail,total:rows.length};
+}
+
+// v3.8.42: Drain pending push-queue in bounded batches. Ersetzt _juprowaPushAll
+// als Auto-Sync-Safety-Net (pushAll hing bei grosser Queue, 4-Min-Timeout).
+// Limit 10 bleibt innerhalb Sync-Runtime; aufeinanderfolgende Cycles draincasten
+// progressiv. Fehler landen in Console, kein Toast (silent background drain).
+async function _juprowaDrainPending(maxBatch){
+  const _mb=(typeof maxBatch==='number'&&maxBatch>0)?maxBatch:10;
+  if(!navigator.onLine)return{drained:0,skipped:'offline'};
+  let pending;
+  try{pending=await _sbGet('arbeitsscheine','push_pending=eq.true&juprowa_id=not.is.null&select=id&limit='+_mb);}
+  catch(e){return{drained:0,error:e&&e.message||String(e)};}
+  if(!Array.isArray(pending)||pending.length===0)return{drained:0,batch:0};
+  let ok=0,fail=0;
+  for(const row of pending){
+    try{const r=await _juprowaPush(row.id);if(r&&r.ok)ok++;else fail++;}
+    catch(e){fail++;}
+  }
+  return{drained:ok,failed:fail,batch:pending.length};
 }
 
 // Mark a schein as locally edited (sets push_pending)
@@ -5136,11 +5158,11 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
     if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
     else{setArbeitsscheine(prev=>[{..._finalForm,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",_finalForm.nummer+" — "+(_finalForm.kundName||_optionalChain([_finalForm, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
-    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.23 Instant-Push: sofort nach Save pushen statt auf 5-Min-Timer zu warten. v3.8.28: Silent-Catch durch Observability ersetzt (Agent-Audit Fund L.5051). */try{if(typeof _juprowaPushAll==="function")_juprowaPushAll().then(r=>{if(r&&r.failed>0)console.warn('[JPUSH-ASYNC]',r.failed+'/'+r.total+' failed after save');}).catch(e=>console.error('[JPUSH-ASYNC]',e&&e.message||e));}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
-  const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
+    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.42 Auto-Push: _juprowaPushAll hing (4-Min-Timeout, Chrome-MCP-Capture 24.04). Ersetzt durch _juprowaPush(editId) single-id fire-and-forget. Nur online + Juprowa-gebunden. */try{if(editId&&_finalForm.juprowa_id&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(editId).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',editId,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',editId,e&&e.message||e));}}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
+  const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});/* v3.8.42 Auto-Push */try{if(isJup&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(_){}if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
-  const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});};
-  const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);};
+  const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(_){}};
+  const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(_){}};
 
   const exportOffa=(statusFilter)=>{setShowExportPicker(false);if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(e=>console.warn('[EXPORT-OFFA]',e&&e.message||e));}
     const hdrs=["Nr","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
