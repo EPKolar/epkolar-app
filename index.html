@@ -6521,13 +6521,20 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   _react.useEffect.call(void 0, ()=>{if(adminTab==="aktivitaet")fetchActivity();},[adminTab,actFilter]);
 
   // ═══ USER MANAGEMENT (existing) ═══
+  /* v3.8.49 Bug-Fix: Double-Submit-Guard via Ref. Rapid 2× "✅ Anlegen"-Klick während
+     async admin_reset_password läuft erzeugte 2 User-Rows mit gleichem username aber
+     verschiedenen UUIDs, gefolgt von 2× admin_reset_password-RPCs. uniq-Constraint auf
+     username schlug erst beim Server fehl nach Client-Toast "angelegt". */
+  const _creatingUser=_react.useRef.call(void 0, false);
   const createUser=async()=>{
+    if(_creatingUser.current)return;
     if(!nf.username||!nf.password||!nf.name) return;
     if(nf.password.length<4){alert("Passwort muss mindestens 4 Zeichen haben");return;}
     // v3.8.7 B-020 Konsistenz: createUser darf keine fake @epkolar.local-Emails mehr erzeugen.
     // Das war genau die Inkonsistenz die B20-F ausgelöst hatte (alte User mit email=''/fake).
     if(!nf.email||!nf.email.trim()||nf.email.indexOf('@')<2){alert("Gültige E-Mail-Adresse erforderlich (für Auth-Login)");return;}
     if(users.find(u=>u.username===nf.username)){alert("Benutzername bereits vergeben");return;}
+    _creatingUser.current=true;
     const nid=uid();const email=nf.email.trim();setUsers(prev=>[...prev,{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,active:true,monteurId:nf.monteurId||null,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:nf.username,password:nf.password,name:nf.name,email:email,role:nf.role,monteurId:nf.monteurId||null,active:1,locked:0}});
     /* v3.8.7 Bug-Hunt Iter-7: admin_reset_password silent-catch durch observability ersetzt.
        Vorher: RPC failt → Admin bekommt "✅ angelegt" Toast, User kann sich aber nie einloggen. */
@@ -6542,6 +6549,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       _optionalChain([window, 'access', _189 => _189.__toast, 'optionalCall', _190 => _190("✅ Benutzer angelegt")]);
     }
     setNf({username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});setShowNew(false);
+    _creatingUser.current=false;
   };
   /* v3.8.49 Defense-in-Depth: Admin-Guards in User-Mgmt-Handlern. AdminPanel ist zwar
      UI-route-gated, aber Handler-Referenzen via React-DevTools/Cache/Event-Replay nach
