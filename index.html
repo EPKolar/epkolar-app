@@ -10334,6 +10334,10 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const addDoc=(file)=>{
     const isImg=_optionalChain([file, 'access', _436 => _436.type, 'optionalAccess', _437 => _437.startsWith, 'call', _438 => _438("image/")]);
     const reader=new FileReader();
+    /* v3.8.49 Bug-Fix: onerror-Handler fehlte — bei Quota-Exhausted oder Permission-
+       Fail (große Datei + Privacy-Mode) wurde reader.onload nie aufgerufen, kein Toast,
+       kein Error. User sah "Hochladen"-Dialog offen, nichts passierte. */
+    reader.onerror=()=>{if(window.__toast)window.__toast("❌ Datei konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};
     reader.onload=ev=>{
       const doc={id:uid(),name:upName||file.name,filename:file.name,cat:upCat,folderId:upFolder||curFolder||"",note:upNote,size:file.size,mime:file.type||"application/octet-stream",dataUrl:ev.target.result,uploadedBy:_optionalChain([curUser, 'optionalAccess', _439 => _439.name])||"",uploadedAt:td2(),isImage:isImg};
       setDocs(prev=>[doc,...prev]);
@@ -12979,6 +12983,8 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     if(!files.length||!selMA)return;
     files.forEach(file=>{
       const reader=new FileReader();
+      /* v3.8.49 Bug-Fix: onerror fehlte — Stundenzettel-PDF wurde bei Lese-Fail silent gedroppt. */
+      reader.onerror=()=>{if(window.__toast)window.__toast("❌ FinkZeit-PDF konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};
       reader.onload=(ev)=>{
         const newEntry={id:Date.now()+"_"+Math.random().toString(36).slice(2,6),mitarbeiterId:selMA,mitarbeiterName:((_m)=>_m?(_m.name||_m.n||selMA):selMA)(allMA.find(m=>m.id===selMA)),monat:selMonat,jahr:selJahr,dateiName:file.name,dateiTyp:file.type,datei:ev.target.result,hochgeladenVon:curUser.name||curUser.username||"",hochgeladenAm:new Date().toISOString(),status:"hochgeladen",freigegebenAm:null,unterschrift:null};
         saveZettel([...zettel,newEntry]);
