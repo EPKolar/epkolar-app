@@ -10616,8 +10616,13 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const defForm={datum:td2(),wetter:"sonnig",temperatur:"",anwesende:[],taetigkeiten:"",besonderheiten:"",material:""};
   const [form,setForm]=_react.useState.call(void 0, {...defForm});
   const [btPhotos,setBtPhotos]=_react.useState.call(void 0, []);
+  // v3.8.49 Bug-Fix: Photo-Upload bei Neu-Entry verknüpfte photos mit "bt_<ts>"-eid,
+  // aber saveEntry nutzte uid() → Photos orphaned (entity_id zeigte auf nicht-existente
+  // bautagebuch-Row). Fix: stabiler draftId-Ref von startNewEntry bis saveEntry, als
+  // entity_id beim Photo-Upload UND als entry.id beim Speichern.
+  const _btDraftId=_react.useRef.call(void 0, null);
   _react.useEffect.call(void 0, ()=>{if(!editing||editing==="new"){setBtPhotos([]);return;}let a=true;(async()=>{try{if(API.getToken()){const r=await _sbGet("photos","entity_type=eq.bautagebuch&entity_id=eq."+encodeURIComponent(editing));if(a&&r)setBtPhotos(r);}}catch(_){}})();return()=>{a=false;};},[editing]);
-  const startNewEntry=()=>{const d=td2();const workers=getWorkersForDay(d);const tasks=getTasksForDay(d);setForm({...defForm,anwesende:workers,taetigkeiten:tasks});setEditing("new");autoFillWeather(d);};
+  const startNewEntry=()=>{const d=td2();const workers=getWorkersForDay(d);const tasks=getTasksForDay(d);setForm({...defForm,anwesende:workers,taetigkeiten:tasks});_btDraftId.current=uid();setEditing("new");autoFillWeather(d);};
 
   // Load from Supabase + ODB
   _react.useEffect.call(void 0, ()=>{
@@ -10644,7 +10649,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const saveEntry=()=>{
     if(!form.datum||!form.taetigkeiten.trim())return;
     const isNew=editing==="new";
-    const entry={id:isNew?uid():editing,pid:p.id,datum:form.datum,wetter:form.wetter,temperatur:form.temperatur,anwesende:form.anwesende,taetigkeiten:form.taetigkeiten.trim(),besonderheiten:form.besonderheiten.trim(),material:form.material.trim(),erstelltVon:isNew?(curUser.name||curUser.username||""):btEntries.find(x=>x.id===editing)?.erstelltVon||curUser.name||curUser.username||"",createdAt:isNew?td2():btEntries.find(x=>x.id===editing)?.createdAt||td2()};
+    const entry={id:isNew?(_btDraftId.current||uid()):editing,pid:p.id,datum:form.datum,wetter:form.wetter,temperatur:form.temperatur,anwesende:form.anwesende,taetigkeiten:form.taetigkeiten.trim(),besonderheiten:form.besonderheiten.trim(),material:form.material.trim(),erstelltVon:isNew?(curUser.name||curUser.username||""):btEntries.find(x=>x.id===editing)?.erstelltVon||curUser.name||curUser.username||"",createdAt:isNew?td2():btEntries.find(x=>x.id===editing)?.createdAt||td2()};
     if(isNew){
       persist([entry,...btEntries]);
       SQ.push({url:"/api/bautagebuch",method:"POST",body:{id:entry.id,project_id:p.id,datum:entry.datum,wetter:entry.wetter,temperatur:entry.temperatur?parseFloat(entry.temperatur)||0:null,anwesende:JSON.stringify(entry.anwesende),taetigkeiten:entry.taetigkeiten,besonderheiten:entry.besonderheiten,material:entry.material,erstellt_von:entry.erstelltVon}});
@@ -10652,7 +10657,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
       persist(btEntries.map(x=>x.id===editing?entry:x));
       SQ.push({url:"/api/bautagebuch/"+editing,method:"PUT",body:{datum:entry.datum,wetter:entry.wetter,temperatur:entry.temperatur?parseFloat(entry.temperatur)||0:null,anwesende:JSON.stringify(entry.anwesende),taetigkeiten:entry.taetigkeiten,besonderheiten:entry.besonderheiten,material:entry.material}});
     }
-    setEditing(null);setForm({...defForm});
+    setEditing(null);setForm({...defForm});_btDraftId.current=null;
     _optionalChain([window, 'access', _bt1 => _bt1.__toast, 'optionalCall', _bt2 => _bt2(isNew?"📋 Eintrag gespeichert":"✏️ Eintrag aktualisiert")]);
   };
 
@@ -10746,7 +10751,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
           , React.createElement('label', { style: LL()}, "📷 Fotos", btPhotos.length>0&&React.createElement('span', { style: {fontWeight:400,color:V.dm,marginLeft:4}}, "(", btPhotos.length, ")"))
           , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}
             , btPhotos.map((ph,i)=>React.createElement('div', { key: ph.id||i, style: {width:56,height:56,borderRadius:6,overflow:"hidden",border:"1px solid "+V.bd}}, React.createElement('img', { src: ph.file_path||ph.data_url||ph.dataUrl||"", style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} )))
-            , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:V.dm}, title: "Foto hinzufügen"}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;const eid=editing==="new"?"bt_"+Date.now():editing;Array.from(fls).forEach(f=>{captureAndQueue(f,"bautagebuch",eid,p.id,"Bautagebuch").then(entry=>{if(entry)setBtPhotos(prev=>[...prev,{id:entry.id,file_path:entry.dataUrl,data_url:entry.dataUrl}]);if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});try{e.target.value="";}catch(_){}}} ), "📷")
+            , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:V.dm}, title: "Foto hinzufügen"}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;/* v3.8.49 Bug-Fix: stabile draftId verwenden (nicht "bt_"+Date.now()) damit photos mit späterem saveEntry.id matchen — vorher: photos orphaned nach save weil eid != entry.id. */const eid=editing==="new"?(_btDraftId.current||(_btDraftId.current=uid())):editing;Array.from(fls).forEach(f=>{captureAndQueue(f,"bautagebuch",eid,p.id,"Bautagebuch").then(entry=>{if(entry)setBtPhotos(prev=>[...prev,{id:entry.id,file_path:entry.dataUrl,data_url:entry.dataUrl}]);if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});try{e.target.value="";}catch(_){}}} ), "📷")
           )
         )
         , React.createElement('div', { style: {display:"flex",gap:8}}
