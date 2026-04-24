@@ -31,3 +31,20 @@ Tägliches Exit-Protokoll gemäß H13.
 - **Status:** **GREEN**
 
 ---
+
+## Tag 2 · 29.04.2026 · A11Y htmlFor PILOT
+
+- **Branch:** `urlaub/20260429-a11y-pilot` (gepusht, NICHT auf main gemerged)
+- **Commits:** `7a4f3fc` (batch1) · `2067f9a` (batch2) · `6f1dbfa` (batch3) · `87273e1` (batch4) · `08d7560` (test)
+- **Geändert:** 20 `<label>` + zugehörige `<input>`/`<select>` mit `htmlFor`/`id` versehen
+  - LoginScreen (2): `lbl_login_user`, `lbl_login_pw`
+  - MitarbeiterNew-Form (11): `lbl_monteurNew_*` (name/vorname/rolle/telefon/email/gebDat/fsNr/svnr/reisepass/eintritt/austritt)
+  - asForm (7): `lbl_asForm_*` (kundNr/kundName/kundStr/kundPlz/kundOrt/terminBest/dauer)
+- **pytest:** 101 → **108** (+7 Regression-Guards in `tests/test_a11y_labels_pilot.py`)
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über alle 4 Batches)
+- **Sleep-Prevention:** KeepAwake aktiv (PID 22056)
+- **Findings/Skip:** Bei "Bestätigt"-Label nur Date-Input (1 von 2 Inputs) gebunden — Time-Input kein eigenes Label, akzeptiertes Pilot-Limit. Multi-Input-Felder generell aufwendiger, separat behandeln.
+- **Status:** **GREEN**
+- **Empfehlung Sebastian:** Branch `safe merge` — pure Property-Adds, keine Logik-Änderung, Tests grün.
+
+---
