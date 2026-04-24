@@ -4469,8 +4469,16 @@ class _ViewBoundary extends React.Component{
   const pollTimer=_react.useRef.call(void 0, null);
   const POLL_INTERVAL=60000; // 60 Sekunden
 
+  // v3.8.49 Perf-Fix: Refs für projects/monteure/pushNotif damit useCallback-Identität
+  // stabil bleibt. Sonst reinitialisierte jede Project/Monteur-Mutation das setInterval.
+  const _pollProjectsRef=_react.useRef.call(void 0, projects);_pollProjectsRef.current=projects;
+  const _pollMonteureRef=_react.useRef.call(void 0, monteure);_pollMonteureRef.current=monteure;
+  const _pollPushNotifRef=_react.useRef.call(void 0, pushNotif);_pollPushNotifRef.current=pushNotif;
   const pollForChanges=_react.useCallback.call(void 0, async()=>{
     if(!curUser||!navigator.onLine||!API.getToken())return;
+    const _projects=_pollProjectsRef.current;
+    const _monteure=_pollMonteureRef.current;
+    const _pushNotif=_pollPushNotifRef.current;
     try{
       // Fetch fresh defects
       const freshDef=await API.getDefects({}).catch(()=>null);
@@ -4480,17 +4488,17 @@ class _ViewBoundary extends React.Component{
         // Detect new Kunden-Mängel
         freshDef.forEach(d=>{
           if(!snap.defectIds.has(d.id)&&(d.created_by==="Kunde"||d.created_by==="kunde")){
-            const pName=_optionalChain([projects, 'access', _poll1 => _poll1.find, 'call', _poll2 => _poll2(p=>p.id===(d.project_id||d.projectId)), 'optionalAccess', _poll3 => _poll3.name])||"Projekt";
-            pushNotif("kunde_mangel","🚨 Kunde meldet Mangel",d.title+" — "+pName);
+            const pName=_optionalChain([_projects, 'access', _poll1 => _poll1.find, 'call', _poll2 => _poll2(p=>p.id===(d.project_id||d.projectId)), 'optionalAccess', _poll3 => _poll3.name])||"Projekt";
+            _pushNotif("kunde_mangel","🚨 Kunde meldet Mangel",d.title+" — "+pName);
           }
         });
         // Detect status changes on existing defects
         Object.keys(snap.defectStatuses).forEach(did=>{
           if(freshMap[did]&&freshMap[did].status!==snap.defectStatuses[did]){
             const d=freshMap[did];
-            const pName=_optionalChain([projects, 'access', _poll4 => _poll4.find, 'call', _poll5 => _poll5(p=>p.id===d.projectId), 'optionalAccess', _poll6 => _poll6.name])||"";
+            const pName=_optionalChain([_projects, 'access', _poll4 => _poll4.find, 'call', _poll5 => _poll5(p=>p.id===d.projectId), 'optionalAccess', _poll6 => _poll6.name])||"";
             const stLabel=d.status==="behoben"?"✅ Behoben":d.status==="in_bearbeitung"?"🔧 In Bearbeitung":d.status==="abgelehnt"?"❌ Abgelehnt":d.status;
-            pushNotif("defect_status","Mangel-Status: "+stLabel,(d.title||"Mangel")+(pName?" — "+pName:""));
+            _pushNotif("defect_status","Mangel-Status: "+stLabel,(d.title||"Mangel")+(pName?" — "+pName:""));
           }
         });
         // Update snapshot
@@ -4505,31 +4513,23 @@ class _ViewBoundary extends React.Component{
       const freshAbs=await API.getAbsences().catch(()=>null);
       if(freshAbs&&freshAbs.length){
         const snap=lastSnapshot.current;
-        // v3.8.49 Bug-Fix: DOPPEL-BUG gefixt.
-        // (a) a.workerId ist undefined — Supabase liefert snake_case a.worker_id. Vorher
-        //     ergab key="undefined_"+fromDate → Set enthielt nur "undefined_X" statt echter IDs.
-        // (b) Key-Format-Mismatch: snap.absenceKeys wurde aus abs-State mit NAME_date-Format
-        //     seed initialisiert (L4093 wn+"_"+fromD), pollForChanges nutzte workerId_from.
-        //     → Auf JEDEM ersten Poll nach App-Start feuerte "🤒 Krankmeldung"-Notification
-        //     für ALLE bestehenden Krankenstand-Rows (Toast-Spam).
-        // Fix: gleiches Name+Date-Key-Format wie in der Initial-Seed-Logik bei L4093.
         const _absKey=(a)=>{
           const wid=a.worker_id||a.workerId||"";
-          const wn=_optionalChain([monteure, 'access', _ak1 => _ak1.find, 'call', _ak2 => _ak2(m=>m.id===wid), 'optionalAccess', _ak3 => _ak3.n])||a.worker_name||wid;
+          const wn=_optionalChain([_monteure, 'access', _ak1 => _ak1.find, 'call', _ak2 => _ak2(m=>m.id===wid), 'optionalAccess', _ak3 => _ak3.n])||a.worker_name||wid;
           const fromD=a.from_date||a.from||"";
           return {k:wn+"_"+fromD,wn,fromD};
         };
         freshAbs.forEach(a=>{
           const {k,wn}=_absKey(a);
           if(!snap.absenceKeys.has(k)&&a.type==="krankenstand"){
-            pushNotif("absence_sick","🤒 Krankmeldung",wn+" hat sich krankgemeldet");
+            _pushNotif("absence_sick","🤒 Krankmeldung",wn+" hat sich krankgemeldet");
           }
         });
         const newAbsKeys=new Set();freshAbs.forEach(a=>{newAbsKeys.add(_absKey(a).k);});
         lastSnapshot.current={...lastSnapshot.current,absenceKeys:newAbsKeys};
       }
     }catch(e){console.warn("Poll error:",e);}
-  },[curUser,projects,monteure]);
+  },[curUser]);
 
   // Initialize snapshot from current data + start polling
   _react.useEffect.call(void 0, ()=>{
@@ -16041,6 +16041,13 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const [sub,setSub]=_react.useState.call(void 0, "liste");const [search,setSearch]=_react.useState.call(void 0, "");const [filtSt,setFiltSt]=_react.useState.call(void 0, "");const [filtKat,setFiltKat]=_react.useState.call(void 0, "");
   const [editId,setEditId]=_react.useState.call(void 0, null);const [form,setForm]=_react.useState.call(void 0, {});
   const [wzServiceSel,setWzServiceSel]=_react.useState.call(void 0, "");
+  // v3.8.49 Bug-Fix: Service-Heft inline-Edits (Datum/Art/Kosten/Werkstatt/Beschreibung/
+  // Befund-Upload/Rechnung-Upload) mutierten nur werkzeuge-State, hatten KEIN SQ.push.
+  // Admin-Edits gingen nach Reload verloren — insb. Befund/Rechnung-Uploads (Inventar-
+  // Dokumentation verschwand). Fix: wzRef + debounced PUT auf /api/werkzeuge/:id mit
+  // serviceheft-Array. PATCH im _translateAndExec serialisiert serviceheft in DB.
+  const _wzRef=_react.useRef.call(void 0, werkzeuge);_wzRef.current=werkzeuge;
+  const _pushWzSh=(wzId)=>{debounce("wzsh_"+wzId,()=>{const wz=_wzRef.current.find(w=>w.id===wzId);if(wz)SQ.push({url:"/api/werkzeuge/"+wzId,method:"PUT",body:{serviceheft:wz.serviceheft||[]}});},1200);};
   // Werkzeug Photos
   const [wzPhotos,setWzPhotos]=_react.useState.call(void 0, []);const wzPhotoRef=_react.useRef.call(void 0, null);
   _react.useEffect.call(void 0, ()=>{
@@ -16392,14 +16399,14 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
                 , React.createElement('div', { style: {flex:1}}
                   , isAdmin?(React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:4}}
-                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}} ))
-                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Kalibrierung"), React.createElement('option', {}, "UVV-Prüfung"), React.createElement('option', {}, "Ersatzteil"), React.createElement('option', {}, "Sonstiges")))
-                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.01", value: s.kosten||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:parseFloat(e.target.value)||0}:x)}:w)), style: {...II(),fontSize:11,padding:4}} ))
-                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt/Firma"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Hilti Service"} ))
-                    , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)}:w)), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"} ))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:11,padding:4}} ))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Kalibrierung"), React.createElement('option', {}, "UVV-Prüfung"), React.createElement('option', {}, "Ersatzteil"), React.createElement('option', {}, "Sonstiges")))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", step: "0.01", value: s.kosten||"", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:parseFloat(e.target.value)||0}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:11,padding:4}} ))
+                    , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt/Firma"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Hilti Service"} ))
+                    , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"} ))
                     , React.createElement('div', { style: {gridColumn:"span 2",display:"flex",gap:8,flexWrap:"wrap"}}
-                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.befund, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.befund,"Befund")} ), React.createElement('span', { onClick: ()=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)}:w)), style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:ev.target.result}:x)}:w));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
-                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "🧾 Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.rechnung, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.rechnung,"Rechnung")} ), React.createElement('span', { onClick: ()=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)}:w)), style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:ev.target.result}:x)}:w));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.befund, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.befund,"Befund")} ), React.createElement('span', { onClick: ()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)}:w));_pushWzSh(wzServiceSel);}, style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:ev.target.result}:x)}:w));_pushWzSh(wzServiceSel);};reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "🧾 Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.rechnung, style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.rechnung,"Rechnung")} ), React.createElement('span', { onClick: ()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)}:w));_pushWzSh(wzServiceSel);}, style: {cursor:"pointer",fontSize:9,color:"#ef4444"}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:ev.target.result}:x)}:w));_pushWzSh(wzServiceSel);};reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
                     )
                   )):(React.createElement('div', {}
                     , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, s.art, ": " , s.beschreibung)
