@@ -11048,9 +11048,15 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const itemKey=(catId,itemId,dimIdx)=>catId+"__"+itemId+"__"+(dimIdx!==undefined?dimIdx:"x");
 
   // Send cart to Lager
+  /* v3.8.49 Bug-Fix: Double-Submit-Guard via Ref. setSending(true) ist async (React-
+     Batching), zwischen Click und Re-Render kann zweiter Click durch. Duplikat-
+     Material-Bestellung = Duplikat-Lieferung = doppelte Kosten. */
+  const _sendingOrder=_react.useRef.call(void 0, false);
   const sendOrder=async()=>{
+    if(_sendingOrder.current)return;
     if(cartCount===0&&!freitext.trim()){window.__toast&&window.__toast("Warenkorb ist leer","error");return;}
     if(!confirm("Material-Anforderung absenden? ("+cartCount+" Positionen)"))return;
+    _sendingOrder.current=true;
     setSending(true);
     const positionen=[];
     catalogs.forEach(kat=>{
@@ -11084,6 +11090,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       setTab("verlauf");
     }catch(e){window.__toast&&window.__toast("Fehler: "+e.message,"error");}
     setSending(false);
+    _sendingOrder.current=false;
   };
 
   // Lager: update order status
