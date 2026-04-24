@@ -3488,6 +3488,9 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   const KUNDE_ST={gemeldet:{l:"Gemeldet",c:"#f97316",i:"📩",desc:"Wird geprüft"},angenommen:{l:"Angenommen",c:"#3b82f6",i:"✅",desc:"Wird bearbeitet"},abgelehnt:{l:"Abgelehnt",c:"#71717a",i:"❌",desc:"Kein Mangel"},in_bearbeitung:{l:"In Bearbeitung",c:"#eab308",i:"🔧",desc:"Techniker arbeitet daran"},behoben:{l:"Behoben",c:"#22c55e",i:"✔️",desc:"Bitte Abnahme bestätigen"},abgenommen:{l:"Abgenommen",c:"#22c55e",i:"🏁",desc:"Abgeschlossen"}};
 
   const submitMangel=()=>{if(!_optionalChain([newMangel, 'optionalAccess', _17 => _17.name]))return;
+    /* v3.8.49 Bug-Fix: Length-Limits gegen DB-overflow/UI-breakage bei Kunden-Malice/Fehlern. */
+    if((newMangel.name||"").trim().length<3){if(window.__toast)window.__toast("⚠️ Titel muss mind. 3 Zeichen haben","warn");return;}
+    if((newMangel.name||"").length>200||(newMangel.beschreibung||"").length>5000){if(window.__toast)window.__toast("⚠️ Text zu lang (max 200/5000 Zeichen)","warn");return;}
     const fullPhotos=(newMangel.photos||[]).map(ph=>ph.full||ph);
     const thumbPhotos=(newMangel.photos||[]).map(ph=>ph.thumb||ph);
     const mid=uid();
@@ -8588,7 +8591,9 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
 
   const addEntry=()=>{
     if(!addDay)return;
-    const h=addHours;if(h<=0){if(window.__toast)window.__toast("⚠️ Stunden müssen > 0 sein");return;}
+    /* v3.8.49 Bug-Fix: Range-Validation für Stunden 0<h<=24. Vorher akzeptierte h=25 oder
+       h=NaN, resultierend in falschem Payroll-Output und FinkZeit-Abgleich-Blindflug. */
+    const h=addHours;if(!(h>0&&h<=24)||isNaN(h)){if(window.__toast)window.__toast("⚠️ Stunden müssen 0<h≤24 sein (nicht "+addHours+")","error");return;}
     const e={id:uid(),pid,p:pid,gw:sg,datum:addDay,date:addDay,von:addVon,bis:addBis,pause:addPause,stunden:Math.round(h*100)/100,hours:Math.round(h*100)/100,taetigkeit:addTaetigkeit,task:addTaetigkeit,bemerkung:addBemerkung,worker:addWorker,w:addWorker};
     setEntries(prev=>[...prev,e]);
     SQ.push({url:"/api/entries",method:"POST",body:{id:e.id,worker_id:e.worker,project_id:pid,date:e.datum,hours:e.stunden,taetigkeit:e.taetigkeit,gewerk:e.gw,von:e.von,bis:e.bis,pause:e.pause,bemerkung:e.bemerkung}});
