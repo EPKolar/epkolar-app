@@ -367,8 +367,8 @@ window._epkTimer={
   /* v3.8.7 Bug-Hunt Iter-3: Timer speichert monteurId des Start-Users, verhindert dass
      User B nach Logout+Login-as-B den laufenden Timer von User A stoppt und auf sich bucht. */
   start:function(projectId,task,ownerMonteurId){const t={running:true,startAt:Date.now(),projectId:projectId||"",task:task||"",owner:ownerMonteurId||""};try{localStorage.setItem("epk_timer",JSON.stringify(t));}catch(_){}window._epkVibrate("save");return t;},
-  stop:function(){try{const s=JSON.parse(localStorage.getItem("epk_timer")||"null");localStorage.removeItem("epk_timer");if(s&&s.running){const hours=Math.max(0,(Date.now()-s.startAt)/TIME_HOUR);return{...s,hours:Math.round(hours*100)/100,endAt:Date.now()};}}catch(_){}return null;},
-  get:function(){try{return JSON.parse(localStorage.getItem("epk_timer")||"null");}catch(_){return null;}}
+  stop:function(){const s=_safeJsonParse(localStorage.getItem("epk_timer"),null);try{localStorage.removeItem("epk_timer");}catch(_){}if(s&&s.running){const hours=Math.max(0,(Date.now()-s.startAt)/TIME_HOUR);return{...s,hours:Math.round(hours*100)/100,endAt:Date.now()};}return null;},
+  get:function(){return _safeJsonParse(localStorage.getItem("epk_timer"),null);}
 };
 // v3.5.71 Block 17a: Smoke-Tests + Integrity-Check (window-level, DevTools-callable)
 window._runSmokeTests=async function(){
@@ -1130,7 +1130,7 @@ async function _sbAuthLogin(email,password){
   const r=await fetch(_SB_AUTH+"/token?grant_type=password",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password})},15000));
   if(!r.ok){
     let body="";try{body=await r.text();}catch(_){}
-    let parsed=null;try{parsed=JSON.parse(body);}catch(_){}
+    let parsed=_safeJsonParse(body,null);
     // v3.5.113: Bessere Fehler-Message — GoTrue's "error_code"+"msg" extrahieren statt rohen 500er-HTML zu werfen
     const msg=(parsed&&(parsed.error_description||parsed.msg||parsed.message||parsed.error))||body.slice(0,200)||"unknown";
     const err=new Error("Auth "+r.status+": "+msg);
@@ -3426,7 +3426,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   // Load photos from server for customer defects
   // v3.5.148: Mount-guard + early-exit — bei neuem Mangel oder Unmount verhindert race von parallelen fetch-loops + setState-after-unmount
   _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;let active=true;(async()=>{const pm={};for(const m of maengel){if(!active)return;try{const ph=await API.getPhotos("defect",m.id);if(!active)return;if(ph&&ph.length)pm[m.id]=ph.map(x=>x.file_path||x.data_url).filter(Boolean);}catch(e){}}if(active&&Object.keys(pm).length)setDefectPhotos(pm);})();return ()=>{active=false;};},[maengel.length]);
-  const getDefectPhotos=(m)=>{const raw=m.photos||[];const arr=typeof raw==="string"?(()=>{try{return JSON.parse(raw)}catch(e){return[]}})():Array.isArray(raw)?raw:[];const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
+  const getDefectPhotos=(m)=>{const raw=m.photos||[];const arr=typeof raw==="string"?_safeJsonParse(raw,[]):Array.isArray(raw)?raw:[];const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
   const sc=(ST_CFG||{})[p.status]||(ST_CFG||{}).aktiv||{l:"Aktiv",c:"#22c55e",bg:"#22c55e18",i:"🟢"};
   const docs=(forms.kundenDocs||[]).filter(d=>d.pid===p.id);
   const offeneMaengel=kundeMaengel.filter(m=>m.kundeStatus!=="abgenommen"&&m.kundeStatus!=="abgelehnt").length;
@@ -3988,7 +3988,7 @@ class _ViewBoundary extends React.Component{
           if(_optionalChain([ent, 'optionalAccess', _40 => _40.length])) setEntries(ent.map(x=>{const dt=(x.date||"").split("T")[0];const h=parseFloat(x.hours)||0;const wid=x.w||x.worker_id||"";const pid=x.p||x.project_id||"";return{id:x.id,p:pid,pid:pid,w:wid,worker:wid,date:dt,datum:dt,hours:h,stunden:h,task:x.taetigkeit||x.task||"",taetigkeit:x.taetigkeit||x.task||"",gw:x.gw||x.gewerk||"elektro",von:x.von||"",bis:x.bis||"",pause:parseFloat(x.pause)||0,bemerkung:x.bemerkung||"",arbeitsschein_id:x.arbeitsschein_id||""};}));
           if(_optionalChain([frm, 'optionalAccess', _41 => _41.length])){
             const grouped={regie:[],sf:[],dh:[],ah:[],maengel:[],abnahme:[],checklisten:[]};
-            frm.forEach(f=>{const t=f.form_type||"regie";const fd=typeof f.data==='string'?(()=>{try{return JSON.parse(f.data)}catch(e){return{}}})():f.data||{};if(grouped[t])grouped[t].push({id:f.id,pid:f.project_id,...fd});});
+            frm.forEach(f=>{const t=f.form_type||"regie";const fd=typeof f.data==='string'?_safeJsonParse(f.data,{}):f.data||{};if(grouped[t])grouped[t].push({id:f.id,pid:f.project_id,...fd});});
             setForms(prev=>({...prev,...grouped}));
           }
           if(_optionalChain([def, 'optionalAccess', _42 => _42.length])){
@@ -4192,7 +4192,7 @@ class _ViewBoundary extends React.Component{
   const _checkAutoNotifs=_react.useCallback.call(void 0, ()=>{
     if(!curUser||curUser.role!=="admin"&&curUser.role!=="projektleiter")return;
     const cd=_autoNotifCooldown.current;const now=Date.now();
-    try{const saved=JSON.parse(localStorage.getItem("epk_autonotif_cd")||"{}");Object.assign(cd,saved);}catch(e){}
+    Object.assign(cd,_safeJsonParse(localStorage.getItem("epk_autonotif_cd"),{}));
     const fire=(key,type,title,body,targets)=>{
       if(cd[key]&&(now-cd[key])<14400000)return; // 4h cooldown per key
       cd[key]=now;
@@ -7274,7 +7274,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   _react.useEffect.call(void 0, ()=>{_fetchLiveKpis();const t=setInterval(_fetchLiveKpis,120000);return()=>clearInterval(t);},[_fetchLiveKpis]);
   // ═══ DASHBOARD VISIBILITY ═══
   const DASH_SECS=[{k:"wetter",l:"🌤️ Wetter"},{k:"meineWoche",l:"📅 Meine Woche"},{k:"baustellen",l:"🏗️ Meine Baustellen"},{k:"fahrzeug",l:"🚐 Mein Fahrzeug"},{k:"kpis",l:"📊 Kennzahlen"},{k:"schnell",l:"⚡ Schnellzugriff"},{k:"charts",l:"📈 Diagramme"}];
-  const [dashVis,setDashVis]=_react.useState.call(void 0, ()=>{try{return JSON.parse(localStorage.getItem("epk_dash_vis")||"null")||{};}catch(e){return {};}});
+  const [dashVis,setDashVis]=_react.useState.call(void 0, ()=>_safeJsonParse(localStorage.getItem("epk_dash_vis"),{})||{});
   const [showDashCfg,setShowDashCfg]=_react.useState.call(void 0, false);
   const dv=(k)=>dashVis[k]!==false;
   const toggleDv=(k)=>{setDashVis(prev=>{const n={...prev,[k]:!(prev[k]!==false)};try{localStorage.setItem("epk_dash_vis",JSON.stringify(n));}catch(e){}return n;});};
@@ -7310,7 +7310,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   // Fallback: Kirchberg am Wagram, 3470 (EP Kolar Firmensitz)
   const FALLBACK_LAT=48.4542,FALLBACK_LON=15.8553;
   const fetchWeatherData=(lat,lon)=>{
-    const cKey="epk_weather";try{const c=JSON.parse(sessionStorage.getItem(cKey)||"null");if(c&&c.ts>(Date.now()-900000)){setWeather(c.d);return;}}catch(e){}
+    const cKey="epk_weather";const c=_safeJsonParse(sessionStorage.getItem(cKey),null);if(c&&c.ts>(Date.now()-900000)){setWeather(c.d);return;}
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=Europe%2FVienna&forecast_days=7&daily=temperature_2m_max,temperature_2m_min,weather_code`,_fT({},10000))
       .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){}}else setWeatherErr(true);}).catch(()=>setWeatherErr(true));
   };
@@ -14983,7 +14983,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const schadRef=_react.useRef.call(void 0, null);
   // Favorites (persisted per user in localStorage)
   const favKey="epk_favFz_"+(_optionalChain([curUser, 'optionalAccess', _622 => _622.username])||"x");
-  const [favFz,setFavFz]=_react.useState.call(void 0, ()=>{try{return JSON.parse(localStorage.getItem(favKey))||[];}catch(e){return [];}});
+  const [favFz,setFavFz]=_react.useState.call(void 0, ()=>_safeJsonParse(localStorage.getItem(favKey),[])||[]);
   const toggleFav=(fid)=>{setFavFz(p=>{const next=p.includes(fid)?p.filter(x=>x!==fid):[...p,fid];try{localStorage.setItem(favKey,JSON.stringify(next));}catch(e){}return next;});};
   const isFav=(fid)=>favFz.includes(fid);
   const myFzId=_optionalChain([fahrzeuge, 'access', _623 => _623.find, 'call', _624 => _624(f=>f.fahrer===_optionalChain([curUser, 'optionalAccess', _625 => _625.monteurId])), 'optionalAccess', _626 => _626.id])||null;
