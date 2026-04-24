@@ -10276,7 +10276,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const fr=_react.useRef.call(void 0, null);
   const isMob=ww<600;
 
-  _react.useEffect.call(void 0, ()=>{
+  _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{try{
       if(API.getToken()){
         try{
@@ -10284,6 +10284,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
           _sbGet("project_documents","project_id=eq."+encodeURIComponent(p.id)),
           _sbGet("project_folders","project_id=eq."+encodeURIComponent(p.id))
         ]);
+        if(!a)return;
         if(_optionalChain([docsData, 'optionalAccess', _420 => _420.length]))setDocs(docsData.map(_mapDocFromServer));
         if(_optionalChain([foldersData, 'optionalAccess', _427 => _427.length])){
           setFolders(foldersData.map(f=>({id:f.id,name:f.name,color:f.color,parentId:f.parent_id||"",createdAt:_optionalChain([f, 'access', _428 => _428.created_at, 'optionalAccess', _429 => _429.split, 'call', _430 => _430("T"), 'access', _431 => _431[0]])})));
@@ -10291,12 +10292,13 @@ function VDoku({p,ww,curUser,forms,setForms}){
         }
         }catch(e){console.warn("Docs laden:",e);}
       }
-      const d=await ODB.load("docs_"+p.id);if(_optionalChain([d, 'optionalAccess', _432 => _432.length])&&!docs.length)setDocs(d);
-      const f=await ODB.load("folders_"+p.id);if(_optionalChain([f, 'optionalAccess', _433 => _433.length])&&!folders.length){setFolders(f);const ex={};f.forEach(x=>{ex[x.id]=true;});setExpanded(ex);}
+      const d=await ODB.load("docs_"+p.id);if(a&&_optionalChain([d, 'optionalAccess', _432 => _432.length])&&!docs.length)setDocs(d);
+      const f=await ODB.load("folders_"+p.id);if(a&&_optionalChain([f, 'optionalAccess', _433 => _433.length])&&!folders.length){setFolders(f);const ex={};f.forEach(x=>{ex[x.id]=true;});setExpanded(ex);}
     }catch(e){
-      ODB.load("docs_"+p.id).then(d=>{if(_optionalChain([d, 'optionalAccess', _434 => _434.length]))setDocs(d);}).catch(e=>console.warn('[ODB-DOCS]',p.id,e&&e.message||e));
-      ODB.load("folders_"+p.id).then(d=>{if(_optionalChain([d, 'optionalAccess', _435 => _435.length]))setFolders(d);}).catch(e=>console.warn('[ODB-FOLDERS]',p.id,e&&e.message||e));
+      ODB.load("docs_"+p.id).then(d=>{if(a&&_optionalChain([d, 'optionalAccess', _434 => _434.length]))setDocs(d);}).catch(e=>console.warn('[ODB-DOCS]',p.id,e&&e.message||e));
+      ODB.load("folders_"+p.id).then(d=>{if(a&&_optionalChain([d, 'optionalAccess', _435 => _435.length]))setFolders(d);}).catch(e=>console.warn('[ODB-FOLDERS]',p.id,e&&e.message||e));
     }})();
+    return()=>{a=false;};
   },[p.id]);
   _react.useEffect.call(void 0, ()=>{ODB.save("docs_"+p.id,docs);},[docs,p.id]);
   _react.useEffect.call(void 0, ()=>{ODB.save("folders_"+p.id,folders);},[folders,p.id]);
@@ -10625,11 +10627,12 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const startNewEntry=()=>{const d=td2();const workers=getWorkersForDay(d);const tasks=getTasksForDay(d);setForm({...defForm,anwesende:workers,taetigkeiten:tasks});_btDraftId.current=uid();setEditing("new");autoFillWeather(d);};
 
   // Load from Supabase + ODB
-  _react.useEffect.call(void 0, ()=>{
+  _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{
       try{
         if(API.getToken()){
           const data=await _sbGet("bautagebuch","project_id=eq."+encodeURIComponent(p.id)).catch(()=>null);
+          if(!a)return;
           if(data&&data.length){
             const mapped=data.map(d=>({id:d.id,pid:d.project_id,datum:d.datum||(d.created_at||"").split("T")[0],wetter:d.wetter||"",temperatur:d.temperatur||"",anwesende:_jp(d.anwesende),taetigkeiten:d.taetigkeiten||"",besonderheiten:d.besonderheiten||"",material:d.material||"",erstelltVon:d.erstellt_von||"",createdAt:(d.created_at||"").split("T")[0]}));
             setBtEntries(mapped);setLoading(false);
@@ -10638,9 +10641,11 @@ function VBautag({p,curUser,monteure,ww,entries}){
         }
       }catch(e){}
       const cached=await ODB.load("bt_"+p.id);
+      if(!a)return;
       if(cached&&cached.length)setBtEntries(cached);
       setLoading(false);
     })();
+    return()=>{a=false;};
   },[p.id]);
 
   // Save helper
@@ -12956,14 +12961,16 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     debounce("abgl_"+zid,()=>SQ.push({url:"/api/finkzeit/"+zid,method:"PUT",body:{data:JSON.stringify({abgeglichen:val})}}),500);
   };
 
-  _react.useEffect.call(void 0, ()=>{
+  _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{try{
       if(API.getToken()){
         const data=await _sbGet("finkzeit","jahr=eq."+selJahr).catch(()=>[]);
+        if(!a)return;
         if(_optionalChain([data, 'optionalAccess', _606 => _606.length])){const mapped=data.map(d=>{const extra=_safeJsonParse(d.data,{});return{id:d.id,mitarbeiterId:d.worker_id,mitarbeiterName:((_m)=>_m?(_m.name||_m.n||d.worker_id):d.worker_id)(allMA.find(m=>m.id===d.worker_id)),monat:d.monat,jahr:d.jahr,dateiName:"FinkZeit_"+d.monat+"_"+d.jahr+".pdf",dateiTyp:"application/pdf",datei:d.pdf_data||"",hochgeladenVon:d.notiz||"",hochgeladenAm:d.uploaded_at||new Date().toISOString(),status:d.status==="genehmigt"?"freigegeben":d.status,freigegebenAm:d.approved_at||null,unterschrift:d.signatur||null,finkStunden:extra.finkStunden||0,abgeglichen:extra.abgeglichen||false};});setZettel(prev=>{const merged=[...prev];mapped.forEach(m=>{if(!merged.find(z=>z.mitarbeiterId===m.mitarbeiterId&&z.monat===m.monat&&z.jahr===m.jahr))merged.push(m);});return merged;});}
       }
-      const z=await ODB.get("stundenzettel","all");if(_optionalChain([z, 'optionalAccess', _607 => _607.length]))setZettel(prev=>prev.length?prev:z);
-    }catch(e){try{const z=await ODB.get("stundenzettel","all");if(z)setZettel(z);}catch(ex){}}})();
+      const z=await ODB.get("stundenzettel","all");if(a&&_optionalChain([z, 'optionalAccess', _607 => _607.length]))setZettel(prev=>prev.length?prev:z);
+    }catch(e){try{const z=await ODB.get("stundenzettel","all");if(a&&z)setZettel(z);}catch(ex){}}})();
+    return()=>{a=false;};
   },[selJahr]);
   const saveZettel=(newZ)=>{setZettel(newZ);try{ODB.set("stundenzettel","all",newZ);}catch(e){}};
 
