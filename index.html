@@ -1139,18 +1139,35 @@ async function _sbAuthLogin(email,password){
   }
   return r.json();
 }
+// v3.8.47: Ring-Buffer-Telemetrie für Auth-Events (ohne Token-Inhalte).
+// Zugriff: window.__authLog in DevTools zeigt letzte 100 Events.
+window.__authLog=window.__authLog||[];
+function _authLog(ev,meta){try{window.__authLog.push({ts:Date.now(),ev,...(meta||{})});if(window.__authLog.length>100)window.__authLog.shift();}catch(_){}}
 // v3.5.112: Flight-Promise-Guard — verhindert parallele Refresh-Races, die
 // mit Supabase-Refresh-Token-Rotation sonst zum Logout führen.
 let _authRefreshInflight=null;
 async function _sbAuthRefresh(){
   if(_authRefreshInflight)return _authRefreshInflight;
   _authRefreshInflight=(async()=>{
+    const _t0=Date.now();
     try{
-      if(!_authRefreshToken){return await _silentReAuth();}
+      if(!_authRefreshToken){_authLog('refresh_skip',{reason:'no_rt'});return await _silentReAuth();}
+      _authLog('refresh_attempt',{});
       const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})},15000));
-      if(!r.ok){console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");return await _silentReAuth();}
-      const d=await r.json();_storeAuth(d);return d;
-    }catch(e){console.warn("[Auth] Refresh error:",e&&e.message||e);return await _silentReAuth();}
+      if(!r.ok){console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");_authLog('refresh_fail',{status:r.status,ms:Date.now()-_t0});return await _silentReAuth();}
+      const d=await r.json();_storeAuth(d);
+      let _expDelta=null;try{_expDelta=JSON.parse(atob(d.access_token.split('.')[1])).exp*1000-Date.now();}catch(_){}
+      _authLog('refresh_ok',{exp_delta_ms:_expDelta,ms:Date.now()-_t0});
+      return d;
+    }catch(e){
+      // v3.8.47 G1-Fix: Netzwerk-/Timeout-Fehler NUKEN _authRefreshToken NICHT.
+      // Der Token ist auf Supabase-Seite weiterhin gültig; ein späterer Versuch kann
+      // erfolgreich sein. _silentReAuth würde stattdessen _authToken+_authRefreshToken
+      // permanent auf null setzen → App bis zum Reload in "cannot refresh"-State.
+      console.warn("[Auth] Refresh network error (token kept):",e&&e.message||e);
+      _authLog('refresh_fail',{status:'network',msg:(e&&e.message||String(e)).substring(0,80),ms:Date.now()-_t0});
+      return null;
+    }
     finally{setTimeout(()=>{_authRefreshInflight=null;},50);}
   })();
   return _authRefreshInflight;
