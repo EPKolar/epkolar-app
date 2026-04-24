@@ -3881,7 +3881,30 @@ class _ViewBoundary extends React.Component{
       if(u.role==="monteur"||u.role==="helfer"||u.role==="techniker"||u.role==="obermonteur"){p[u.id].absence_approval=true;p[u.id].as_new=true;p[u.id].tool_checkout=true;p[u.id].kunde_mangel=true;}
     });return p;
   });
-  _react.useEffect.call(void 0, ()=>{ODB.get("meta","notifPrefs").then(saved=>{if(saved&&Object.keys(saved).length){setNotifPrefs(prev=>{const merged={...prev};Object.keys(saved).forEach(uid=>{if(merged[uid])merged[uid]={...merged[uid],...saved[uid]};});return merged;});}}).catch(e=>console.warn('[NOTIF-PREFS]',e&&e.message||e));},[]);
+  // v3.8.49 Bug-Fix: ODB-Merge darf saved-prefs NICHT droppen wenn merged[uid] noch fehlt
+  // (z.B. nach Neu-User oder ODB-race wo initial-prefs nicht alle User enthielten). Der
+  // bisherige Guard `if(merged[uid])` verwarf stillschweigend persistierte Prefs für User,
+  // die beim Initial-Render noch nicht in users standen.
+  _react.useEffect.call(void 0, ()=>{ODB.get("meta","notifPrefs").then(saved=>{if(saved&&Object.keys(saved).length){setNotifPrefs(prev=>{const merged={...prev};Object.keys(saved).forEach(uid=>{merged[uid]={...(merged[uid]||{}),...saved[uid]};});return merged;});}}).catch(e=>console.warn('[NOTIF-PREFS]',e&&e.message||e));},[]);
+  // v3.8.49 Bug-Fix: Backfill-Defaults für User ohne notifPrefs-Eintrag. Der useState-
+  // Initializer lief gegen INIT_USERS (8 hardcoded); jeder später via setUsers(fresh) vom
+  // Server nachgeladene User OHNE INIT_USERS-Match (z.B. neu angelegte User) hatte kein
+  // notifPrefs[u.id] → pushNotif filterte sie stillschweigend aus → keine default-
+  // Notifications, bis Admin manuell im AdminPanel toggelte.
+  _react.useEffect.call(void 0, ()=>{
+    if(!users||!users.length)return;
+    setNotifPrefs(prev=>{
+      let changed=false;const next={...prev};
+      users.forEach(u=>{
+        if(next[u.id])return;
+        const p={};
+        Object.keys(NOTIF_TYPES).forEach(t=>{p[t]=u.role==="admin"||u.role==="projektleiter"||u.role==="buero";});
+        if(u.role==="monteur"||u.role==="helfer"||u.role==="techniker"||u.role==="obermonteur"){p.absence_approval=true;p.as_new=true;p.tool_checkout=true;p.kunde_mangel=true;}
+        next[u.id]=p;changed=true;
+      });
+      return changed?next:prev;
+    });
+  },[users]);
   _react.useEffect.call(void 0, ()=>{if(curUser&&Object.keys(notifPrefs).length) debounce("odb_nprefs",()=>ODB.set("meta","notifPrefs",notifPrefs),1000);},[notifPrefs]);
   const [showNotifPanel,setShowNotifPanel]=_react.useState.call(void 0, false);
   const [notifFilter,setNotifFilter]=_react.useState.call(void 0, "alle");
