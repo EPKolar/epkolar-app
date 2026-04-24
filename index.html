@@ -4445,7 +4445,9 @@ class _ViewBoundary extends React.Component{
       if(navigator.onLine&&API.getToken()){
         try{
           const srvNotifs=await API.request("GET","/api/notifications");
-          if(srvNotifs&&srvNotifs.length){
+          /* v3.8.49: Array.isArray-Guard. Vorher crashte srvNotifs.map() wenn der Server
+             ein Objekt statt Array zurückgibt (z.B. Fehler-Envelope oder single-row-Response). */
+          if(Array.isArray(srvNotifs)&&srvNotifs.length){
             const srvMapped=srvNotifs.map(n=>({id:n.id,type:n.type||"system",title:n.title||"",body:n.body||"",time:n.created_at||new Date().toISOString(),read:!!n.read,user:n.user_id||curUser.id,link:n.link||""}));
             setNotifications(prev=>{
               const ids=new Set(prev.map(n=>n.id));
@@ -6535,10 +6537,15 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     }
     setNf({username:"",password:"",name:"",email:"",role:"monteur",monteurId:""});setShowNew(false);
   };
-  const toggleActive=(id)=>{const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:!(_optionalChain([nu, 'optionalAccess', _191 => _191.active]))}});_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
-  const toggleLock=(id)=>{const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,locked:!u.locked}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{locked:!(_optionalChain([nu, 'optionalAccess', _195 => _195.locked]))}});_optionalChain([window, 'access', _196 => _196.__toast, 'optionalCall', _197 => _197(_optionalChain([nu, 'optionalAccess', _198 => _198.locked])?"🔓 Entsperrt":"🔒 Gesperrt")]);};
-  const setRole=(id,role)=>{setUsers(prev=>prev.map(u=>u.id===id?{...u,role,permsOverride:null}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{role,permsOverride:null}});_optionalChain([window, 'access', _199 => _199.__toast, 'optionalCall', _200 => _200("✅ Rolle geändert — Berechtigungen zurückgesetzt")]);};
+  /* v3.8.49 Defense-in-Depth: Admin-Guards in User-Mgmt-Handlern. AdminPanel ist zwar
+     UI-route-gated, aber Handler-Referenzen via React-DevTools/Cache/Event-Replay nach
+     Role-Downgrade möglich. delUser hatte den Guard bereits (L6552). RLS schützt
+     Server-seitig, aber Client-tampering-Versuche werden nicht mehr gesendet. */
+  const toggleActive=(id)=>{if(curUser.role!=="admin")return;const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:!(_optionalChain([nu, 'optionalAccess', _191 => _191.active]))}});_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
+  const toggleLock=(id)=>{if(curUser.role!=="admin")return;const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,locked:!u.locked}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{locked:!(_optionalChain([nu, 'optionalAccess', _195 => _195.locked]))}});_optionalChain([window, 'access', _196 => _196.__toast, 'optionalCall', _197 => _197(_optionalChain([nu, 'optionalAccess', _198 => _198.locked])?"🔓 Entsperrt":"🔒 Gesperrt")]);};
+  const setRole=(id,role)=>{if(curUser.role!=="admin")return;setUsers(prev=>prev.map(u=>u.id===id?{...u,role,permsOverride:null}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{role,permsOverride:null}});_optionalChain([window, 'access', _199 => _199.__toast, 'optionalCall', _200 => _200("✅ Rolle geändert — Berechtigungen zurückgesetzt")]);};
   const togglePermOverride=(id,mod)=>{
+    if(curUser.role!=="admin")return;
     setUsers(prev=>prev.map(u=>{
       if(u.id!==id) return u;
       const ov={...(u.permsOverride||{})};
@@ -15210,9 +15217,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     if(typeof API!=="undefined"&&API.getFzTermine){API.getFzTermine(sel).then(d=>{if(active)setFzTermine((d||[]).map(t=>({id:t.id,typ:t.typ||"Service",beschreibung:t.beschreibung||"",datum:t.datum||"",erledigt:parseInt(t.erledigt)||0})));}).catch(e=>console.warn('[FZ-TERMINE]',e&&e.message||e));}
     return ()=>{active=false;};
   },[sel]);
-  const addTermin=()=>{if(!terminForm.datum)return;const t={...terminForm,id:uid(),fahrzeug_id:sel};setFzTermine(p=>[t,...p]);SQ.push({url:"/api/fz-termine/"+sel,method:"POST",body:t});setShowAddTermin(false);setTerminForm({typ:"Service",beschreibung:"",datum:td2(),erledigt:0});_optionalChain([window, 'access', _fzt1 => _fzt1.__toast, 'optionalCall', _fzt2 => _fzt2("📅 Service-Termin angelegt")]);};
+  /* v3.8.49 Defense-in-Depth: addTermin + togTermin hatten keinen isVAdmin-Guard (nur
+     delTermin). FahrzeugView ist für monteure sichtbar um eigene km einzutragen, aber
+     Service-Termine sind Admin/PL-only (siehe UI-Button-Sichtbarkeit). */
+  const addTermin=()=>{if(!isVAdmin)return;if(!terminForm.datum)return;const t={...terminForm,id:uid(),fahrzeug_id:sel};setFzTermine(p=>[t,...p]);SQ.push({url:"/api/fz-termine/"+sel,method:"POST",body:t});setShowAddTermin(false);setTerminForm({typ:"Service",beschreibung:"",datum:td2(),erledigt:0});_optionalChain([window, 'access', _fzt1 => _fzt1.__toast, 'optionalCall', _fzt2 => _fzt2("📅 Service-Termin angelegt")]);};
   const delTermin=(tid)=>{if(!isVAdmin)return;if(!confirm("Termin wirklich löschen?"))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
-  const togTermin=(tid)=>{const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
+  const togTermin=(tid)=>{if(!isVAdmin)return;const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
 
   const upd=(id,fn)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:updated});return updated;}return f;}));};
   const del=(id)=>{if(!isVAdmin)return;if(!confirm("Fahrzeug wirklich löschen?"))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
