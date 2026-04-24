@@ -119,6 +119,22 @@ Tägliches Exit-Protokoll gemäß H13.
 
 ---
 
+## S7.2 Modal-Helper Session · 24.04.2026 · v3.8.46
+
+- **Branch:** main (direkt, Sebastian-autorisiert)
+- **Commits:** `8cf460f` Helper · `d7f1a50` 3 Pilot-Migrationen · `4f428ab` Tests · `ab6f7bd` v3.8.46 Bump
+- **pytest:** 203 → **211** (+8 neue `test_confirm_modal.py`)
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über 4 Commits)
+- **Deliverables:**
+  - `window._confirmModal(message, opts) → Promise<boolean>` mit ESC/Enter/Backdrop-Cancel, theme-aware, danger-Variant
+  - 3 Pilot-Migrationen: `delMonteur` (L4955), `deletePlan` (L9392), `deleteTicket` (L9402) → async + `await _confirmModal(..., {variant:"danger"})`
+- **Placement:** Vanilla-DOM-Singleton (gegen React-useState), weniger invasiv, keine State-Injection
+- **Remaining:** ~35 weitere `confirm()`-Sites (pro Code-Touch-Sweep migrierbar, kein Big-Bang)
+- **Status:** **GREEN**
+- **Handoff:** `HANDOFF_v3846.md`
+
+---
+
 ## Bug-Hunt-Fix Batch 2 · 24.04.2026 · v3.8.45
 
 - **Branch:** main (direkt, Sebastian-autorisiert)
