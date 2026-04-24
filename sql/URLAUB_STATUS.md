@@ -119,6 +119,20 @@ Tägliches Exit-Protokoll gemäß H13.
 
 ---
 
+## Bug-Hunt-Fix Batch 2 · 24.04.2026 · v3.8.45
+
+- **Branch:** main (direkt, Sebastian-autorisiert)
+- **Commits:** `4d2c550` S3.4 · `37e1135` S3.5 · `1343f31` S2.1-Batch2 · `82ce580` v3.8.45 Bump
+- **pytest:** 203 → **203** (kein Test-Delta — Helper-Tests decken erweiterte Nutzung)
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über 5 Edits + Bump)
+- **Fixes:** S3.4 (Guard verifiziert + Audit-Kommentar), S3.5 (Guard verifiziert + Audit-Kommentar), S2.1 Batch 2 (+9 Sites: timer/body/defects/forms/notifs/dash/weather/favs)
+- **Skipped:** S7.2 (_confirmModal: 1.5h+, UX-fragiler, separate Session-Empfehlung)
+- **Status:** **GREEN**
+- **Handoff:** `HANDOFF_v3845.md`
+- **Kumulativ S2.1:** 14 von 51 JSON.parse-Sites migriert (5 in v3.8.44 + 9 in v3.8.45)
+
+---
+
 ## Bug-Hunt-Fix Session · 24.04.2026 · v3.8.44
 
 - **Branch:** main (direkt, Sebastian-autorisiert)
