@@ -8167,8 +8167,13 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
   const totalBetrag=fil.reduce((s,p)=>s+(parseFloat(p.betrag)||0),0);
   const totalH=fil.reduce((s,p)=>s+entries.filter(x=>x.p===p.id).reduce((ss,x)=>ss+(parseFloat(x.hours)||0),0),0);
 
+  /* v3.8.49 Bug-Fix: Double-Submit-Guard. Ohne Guard erzeugte schneller 2× Klick auf
+     "Speichern" bei Neu-Projekt 2 Project-Rows (verschiedene Date.now()-IDs). */
+  const _savingProject=_react.useRef.call(void 0, false);
   const saveProject=()=>{
+    if(_savingProject.current)return;
     if(!form.name) return;
+    _savingProject.current=true;
     if(editP){
       setProjects(prev=>prev.map(p=>p.id===editP?{...form,id:editP}:p));
       SQ.push({url:"/api/projects/"+editP,method:"PUT",body:form});
@@ -8178,6 +8183,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
       SQ.push({url:"/api/projects",method:"POST",body:{...form,id}});
     }
     _optionalChain([window, 'access', _292 => _292.__toast, 'optionalCall', _293 => _293(editP?"✅ Projekt aktualisiert":"✅ Projekt angelegt")]);setForm(emptyProj);setEditP(null);setShowNew(false);
+    _savingProject.current=false;
   };
   const archiveP=id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!confirm("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
   const deleteP=id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!confirm("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!"))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
