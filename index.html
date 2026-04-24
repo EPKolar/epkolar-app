@@ -3985,6 +3985,23 @@ class _ViewBoundary extends React.Component{
             _fixAdminName(u);
             if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid2=u.monteurId||u.monteur_id;const _w2=MONT.find(m=>m.id===_mid2);if(_w2)u.rolle=_w2.r;}
             setCurUser(u);setAppLoading(false);return;}}catch(ex){}
+          // v3.8.47 G3-Fix: Fallback auf localStorage.epkolar_user wenn ODB.get
+          // keinen lastUser liefert (z.B. transienter IDB-Fehler, Store leer) aber
+          // _authToken noch valide ist. Verhindert unnötigen Session-Verlust und
+          // matcht Sebastians Symptom "_authToken valid, curUser null, 3× 401".
+          if(_authToken&&_isJwtShape(_authToken)){
+            try{
+              const _p=JSON.parse(atob(_authToken.split('.')[1]));
+              if(_p.exp&&_p.exp*1000>Date.now()+60000){
+                const _lsU=_safeJsonParse(localStorage.getItem('epkolar_user'),null);
+                if(_lsU&&_lsU.id){
+                  if(typeof _authLog==='function')_authLog('curuser_ls_recover',{reason:(e&&e.message||'api_me_fail').substring(0,40)});
+                  _fixAdminName(_lsU);
+                  setCurUser(_lsU);setAppLoading(false);return;
+                }
+              }
+            }catch(_){}
+          }
           API.setToken(null);
         }
       }
