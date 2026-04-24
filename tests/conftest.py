@@ -100,6 +100,26 @@ def fn_juprowa_sanitize(index_html):
     return fn
 
 
+@pytest.fixture(scope="session")
+def fn_juprowa_reverse_map(index_html):
+    """Extract _juprowaReversMap + needed dependencies as runnable JS bundle.
+
+    Depends on: _juprowaSanitize, _juprowaWorkerToCode, JUPROWA_PRIO_REV,
+    JUPROWA_STATUS_REV. For test harness we stub the globals and inline
+    _juprowaSanitize (we already extract it).
+    """
+    sanitize = _extract_fn(index_html, "_juprowaSanitize")
+    reverse_map = _extract_fn(index_html, "_juprowaReversMap")
+    assert sanitize and reverse_map
+    stubs = (
+        "const JUPROWA_PRIO_REV={keine:'0',niedrig:'1',normal:'2',hoch:'3'};\n"
+        "const JUPROWA_STATUS_REV={aufgenommen:'1',in_bearbeitung:'2',"
+        "erledigt:'3',abgerechnet:'4',storniert:'5'};\n"
+        "function _juprowaWorkerToCode(id){return null;}\n"
+    )
+    return stubs + sanitize + "\n" + reverse_map
+
+
 def run_node_snippet(node_exe, snippet):
     """Run a JS snippet in Node and return stdout stripped.
 
