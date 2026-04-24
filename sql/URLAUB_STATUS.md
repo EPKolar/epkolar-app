@@ -119,6 +119,19 @@ Tägliches Exit-Protokoll gemäß H13.
 
 ---
 
+## Bug-Hunt-Fix Session · 24.04.2026 · v3.8.44
+
+- **Branch:** main (direkt, Sebastian-autorisiert)
+- **Commits:** `b80610c` S2.1 · `5ad9b04` S2.4 · `caec859` S1.3 · `d1eadf2` S2.2 · `b910ce2` S3.3 · `af555fd` v3.8.44 Bump
+- **pytest:** 184 → **203** (+19: +10 `_safeJsonParse`, +9 `TIME_*`)
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über alle 5 Code-Fixes + Bump)
+- **Fixes:** S2.1 (partial 5/51 Migration), S2.4 (SpeechRec Length-Guard), S1.3 (TIME_*-Konstanten + 22 Magic-Numbers migriert), S2.2 (Kommentar), S3.3 (Kommentar)
+- **Skipped:** S2.3 (H1-Zone `_parseOffaPdf`), S3.4 / S3.5 (Tiefen-Inspektion nötig)
+- **Status:** **GREEN**
+- **Handoff:** `HANDOFF_v3844.md`
+
+---
+
 ## ✓ WEEK CLOSED · 03.05.2026
 
 Alle 6 Arbeits-Tage GREEN. Detaillierter Handoff in `HANDOFF_URLAUB_20260503.md`.
