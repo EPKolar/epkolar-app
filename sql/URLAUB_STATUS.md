@@ -103,3 +103,24 @@ Tägliches Exit-Protokoll gemäß H13.
 - **Empfehlung Sebastian:** Branch `safe merge` — Brackets stabil, Tests grün, klar dokumentierte Löschungen mit Triple-Grep-Begründung pro Kandidat.
 
 ---
+
+## Tag 6 · 03.05.2026 · Integration-Tests + Final-Handoff
+
+- **Branch:** main (HANDOFF + tests/test_integration_smoke.py per H9 erlaubt)
+- **Commits:** dieses Status-Update + `tests/test_integration_smoke.py` + `HANDOFF_URLAUB_20260503.md`
+- **pytest:** 101 → **119** (+18 Integration-Smoke-Tests in 7 Sektionen: Boot, React+SW, Inline-Script-node-check pro Block, Critical-Helpers, v3.8.41-Acceptance, v3.8.42-Acceptance, Repo-Layout, Version-Sanity)
+- **Brackets:** `() -2 {} 0 [] 0` (kein index.html-Touch außer aus früheren Tag-Branches die nicht gemerged wurden)
+- **Sleep-Prevention:** **CLEANUP DURCHGEFÜHRT**:
+  - `powercfg -change -standby-timeout-ac 30` ✅
+  - `powercfg -change -monitor-timeout-ac 15` ✅
+  - KeepAwake-Prozess: war bereits beendet (vermutlich mit Terminal-Wechsel der Woche)
+- **Findings:** Erste Integration-Test-Iteration entdeckte 1 Pattern-Mismatch (React-CDN-URL `cdnjs.cloudflare.com` statt `unpkg.com`) — sofort gefixt, kein Test-Break im finalen Run.
+- **Status:** **WEEK CLOSED**
+
+---
+
+## ✓ WEEK CLOSED · 03.05.2026
+
+Alle 6 Arbeits-Tage GREEN. Detaillierter Handoff in `HANDOFF_URLAUB_20260503.md`.
+Sebastian ab So 04.05 zurück erwartet — bis dahin keine weitere Aktivität.
+
