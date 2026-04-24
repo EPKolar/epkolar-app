@@ -5044,7 +5044,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   const updMonteur=(id,f,v)=>{setMonteure(prev=>prev.map(m=>m.id===id?{...m,[f]:v}:m));const k=id+"_"+f;if(_wmTimer.current[k])clearTimeout(_wmTimer.current[k]);_wmTimer.current[k]=setTimeout(()=>{const apiField=f==="n"?"name":f==="r"?"role":f==="tel"?"phone":f;SQ.push({url:"/api/workers/"+id,method:"PUT",body:{[apiField]:v}});delete _wmTimer.current[k];},800);};
   const addMonteur=()=>{if(!nf.n)return;const id=uid();setMonteure(prev=>[...prev,{id,n:nf.n,vorname:nf.vorname||"",r:nf.r,tel:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}]);setMonteurProjekte(p=>({...p,[id]:[]}));SQ.push({url:"/api/workers",method:"POST",body:{id,name:nf.n,vorname:nf.vorname||"",role:nf.r,phone:nf.tel||"",email:nf.email||"",fs:nf.fs||"",gebDat:nf.gebDat||"",fsNr:nf.fsNr||"",svnr:nf.svnr||"",reisepass:nf.reisepass||"",eintritt:nf.eintritt||"",austritt:nf.austritt||""}});_optionalChain([window, 'access', _109 => _109.__toast, 'optionalCall', _110 => _110("✅ Mitarbeiter angelegt")]);setNf({n:"",vorname:"",r:"Techniker",tel:"",email:"",fs:"",gebDat:"",fsNr:"",svnr:"",reisepass:"",eintritt:"",austritt:""});setShowNew(false);};
   const delMonteur=async id=>{if(!isAdmin)return;if(!await _confirmModal("Mitarbeiter wirklich löschen?",{variant:"danger"}))return;setMonteure(prev=>prev.filter(m=>m.id!==id));SQ.push({url:"/api/workers/"+id,method:"DELETE"});setMonteurProjekte(prev=>{const mp={...prev};delete mp[id];return mp;});if(sel===id)setSel(null);};
-  const toggleProj=(mid,pid)=>{const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte(prev=>({...prev,[mid]:nxt}));SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
+  const toggleProj=(mid,pid)=>{/* v3.8.49 Defense-in-Depth: Worker-Projekt-Zuweisungen Admin-only. */if(!isAdmin)return;const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte(prev=>({...prev,[mid]:nxt}));SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
 
   const selM=monteure.find(m=>m.id===sel);
 
@@ -6625,6 +6625,8 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}
   };
   const deleteSupplier=async(id)=>{
+    /* v3.8.49 Defense-in-Depth: Admin-only (Händler-Löschung cascaded artikel). */
+    if(curUser.role!=="admin")return;
     if(!confirm("Händler und ALLE zugehörigen Artikel löschen?"))return;
     try{await SQ.push({url:"/api/supplier-configs/"+id,method:"DELETE",body:{}});if(window.__doSync)window.__doSync();
     _optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ Gelöscht","success")]);setTimeout(fetchSuppliers,500);
