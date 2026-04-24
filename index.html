@@ -11990,7 +11990,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const m={};DSHORT.forEach(d=>{const s=new Set();rows.forEach(r=>{(_optionalChain([r, 'access', _477 => _477.z, 'optionalAccess', _478 => _478[d], 'optionalAccess', _479 => _479.ma])||[]).forEach(id=>s.add(id));});m[d]=s.size;});return m;
   },[rows]);
 
-  const switchKw=(newKw)=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);setSelCells(null);};
+  const switchKw=(newKw)=>{/* v3.8.49 Bug-Fix: Pending Auto-Save VOR KW-Wechsel flushen — vorher verwarf switchKw den 800ms-Debounce-Timer via clearTimeout ohne saveWeek auszuführen → Edits der aktuellen KW gingen auf dem Server verloren, blieben nur im lokalen wpHistory. Nach Reload alte Daten. */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveWeek();}setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);setSelCells(null);};
 
   const toggleMA=(rowId,day,maId)=>{
     setRows(prev=>prev.map(r=>{
@@ -12062,6 +12062,17 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const saveWeek=()=>{setSaving(true);setWpHistory(h=>({...h,[kw]:rows}));SQ.push({url:"/api/weekplans",method:"POST",body:{kw,year:yr,rows}});setTimeout(()=>{setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);},400);};
   // Auto-save on rows change (debounced 800ms, skip initial load)
   _react.useEffect.call(void 0, ()=>{if(wpInitRef.current){wpInitRef.current=false;return;}if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);wpSaveTimer.current=setTimeout(()=>saveWeek(),800);return()=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);};},[rows]);
+  // v3.8.49 Bug-Fix: beforeunload-Handler flusht pending 800ms-Debounce wenn User
+  // Tab/Window schließt oder reloadet. Vorher: Edits die <800ms vor close waren → verloren.
+  // Refs für rows/kw/yr damit Listener stabil bleibt (empty-deps-useEffect).
+  const _wpRowsRef=_react.useRef.call(void 0, rows);_wpRowsRef.current=rows;
+  const _wpKwRef=_react.useRef.call(void 0, kw);_wpKwRef.current=kw;
+  const _wpYrRef=_react.useRef.call(void 0, yr);_wpYrRef.current=yr;
+  _react.useEffect.call(void 0, ()=>{
+    const flush=()=>{if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{SQ.push({url:"/api/weekplans",method:"POST",body:{kw:_wpKwRef.current,year:_wpYrRef.current,rows:_wpRowsRef.current}});}catch(_){}}};
+    window.addEventListener("beforeunload",flush);
+    return()=>{window.removeEventListener("beforeunload",flush);flush();};
+  },[]);
 
   const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:pn||name,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:pn||name,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
   const clearRow=(id)=>setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));
