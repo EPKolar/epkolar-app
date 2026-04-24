@@ -10915,9 +10915,10 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const [suppOrders,setSuppOrders]=_react.useState.call(void 0, []);// supplier_orders from Supabase
   const [suppOrdDetail,setSuppOrdDetail]=_react.useState.call(void 0, null);// expanded supplier order id
   const showEk=canDo("view_ek_price",curUser);
-  _react.useEffect.call(void 0, ()=>{
+  _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{try{
       const cats=await _sbGet("material_catalogs","order=system.asc");
+      if(!a)return;
       if(cats&&cats.length>0){
         const parsed=cats.map(c=>({...c,cats:_jp(c.cats)||[]}));
         setSavedCatalogs(parsed);
@@ -10925,10 +10926,12 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       }
       // Load supplier configs for name mapping
       const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse,base_url,unternehmen_id,shk_url,ids_shop_url,interface_type&active=eq.true").catch(()=>[]);
+      if(!a)return;
       const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||"",baseUrl:s.base_url||"",uid:s.unternehmen_id||"",shkUrl:s.shk_url||"",idsShopUrl:s.ids_shop_url||"",iface:s.interface_type||""};});
       setSuppMap(sm);
       // Load supplier articles (EP-filtered, limited)
       const sa=await _sbGet("supplier_articles","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
+      if(!a)return;
       if(sa&&sa.length>0){
         setSuppArticles(sa);
         // Build dynamic catalogs from supplier_articles grouped by ep_system
@@ -10951,6 +10954,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         if(dynCats.length>0)MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...dynCats];
       }
     }catch(_){}})();
+    return()=>{a=false;};
   },[]);
 
   // Determine which catalogs apply to this project's gewerk
@@ -12405,14 +12409,16 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 
   // Kontingent save to ODB
   _react.useEffect.call(void 0, ()=>{ODB.save("urlaubskontingent",kontingent);},[kontingent]);
-  _react.useEffect.call(void 0, ()=>{
+  _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{try{
       if(API.getToken()){
         const data=await _sbGet("urlaubskontingent","jahr=eq."+yr).catch(()=>[]);
+        if(!a)return;
         if(_optionalChain([data, 'optionalAccess', _534 => _534.length])){const kMap={};data.forEach(k=>{const mon=monteure.find(m=>m.id===k.worker_id);const key=mon?mon.n:k.worker_id;kMap[key]={stunden:parseFloat(k.stunden)||192.5,vorjahr:parseFloat(k.vorjahr)||0,woche:parseFloat(k.woche)||38.5,ueberstunden:parseFloat(k.ueberstunden)||0,urlaub:parseInt(k.urlaub)||25};});setKontingent(prev=>({...prev,...kMap}));}
       }
-      ODB.load("urlaubskontingent").then(k=>{if(k&&Object.keys(k).length)setKontingent(prev=>{const merged={...prev};Object.entries(k).forEach(([key,val])=>{if(!merged[key])merged[key]=val;});return merged;});}).catch(e=>console.warn('[ODB-URLAUB]',e&&e.message||e));
-    }catch(e){ODB.load("urlaubskontingent").then(k=>{if(k&&Object.keys(k).length)setKontingent(prev=>({...prev,...k}));}).catch(e2=>console.warn('[ODB-URLAUB-FB]',e2&&e2.message||e2));}})();
+      ODB.load("urlaubskontingent").then(k=>{if(a&&k&&Object.keys(k).length)setKontingent(prev=>{const merged={...prev};Object.entries(k).forEach(([key,val])=>{if(!merged[key])merged[key]=val;});return merged;});}).catch(e=>console.warn('[ODB-URLAUB]',e&&e.message||e));
+    }catch(e){ODB.load("urlaubskontingent").then(k=>{if(a&&k&&Object.keys(k).length)setKontingent(prev=>({...prev,...k}));}).catch(e2=>console.warn('[ODB-URLAUB-FB]',e2&&e2.message||e2));}})();
+    return()=>{a=false;};
   },[yr]);
 
   const stdVonTag=d=>{const dow=d.getDay();return dow>=1&&dow<=4?8.5:dow===5?4.5:0;};
@@ -13526,12 +13532,13 @@ function SystemConfigPanel({curUser}){
   const [cfg,setCfg]=_react.useState.call(void 0, []);
   const [loading,setLoading]=_react.useState.call(void 0, true);
   const [saving,setSaving]=_react.useState.call(void 0, {});
-  _react.useEffect.call(void 0, ()=>{
+  _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{
-      try{const d=await _api.get('system_config','select=*&order=key.asc');setCfg(d||[]);}
+      try{const d=await _api.get('system_config','select=*&order=key.asc');if(a)setCfg(d||[]);}
       catch(e){window._showToast?.('System-Config laden fehlgeschlagen: '+e.message,'error');}
-      setLoading(false);
+      if(a)setLoading(false);
     })();
+    return()=>{a=false;};
   },[]);
   const save=async(key,value)=>{
     setSaving(p=>({...p,[key]:true}));
@@ -13575,8 +13582,9 @@ function ASVorlagenPanel({curUser}){
   const [showForm,setShowForm]=_react.useState.call(void 0, false);
   const [form,setForm]=_react.useState.call(void 0, {name:'',scheinart:'stoerung',arbeitsanweisungen:'',geschaetzte_dauer:0,prioritaet:'normal'});
   const isAdmin=curUser.role==='admin'||curUser.role==='projektleiter';
-  _react.useEffect.call(void 0, ()=>{
-    (async()=>{try{const d=await _api.get('as_vorlagen','order=name.asc');setVorlagen(d||[]);}catch(e){window._showToast?.('Vorlagen laden: '+e.message,'error');}setLoading(false);})();
+  _react.useEffect.call(void 0, ()=>{let a=true;
+    (async()=>{try{const d=await _api.get('as_vorlagen','order=name.asc');if(a)setVorlagen(d||[]);}catch(e){window._showToast?.('Vorlagen laden: '+e.message,'error');}if(a)setLoading(false);})();
+    return()=>{a=false;};
   },[]);
   const save=async()=>{
     if(!(form.name||"").trim()){window._showToast?.('Name erforderlich','warning');return;}
@@ -13646,8 +13654,9 @@ function ASChecklistPanel({asId,curUser,editable}){
   const [loading,setLoading]=_react.useState.call(void 0, true);
   const [newText,setNewText]=_react.useState.call(void 0, '');
   const inputRef=_react.useRef.call(void 0, null);
-  _react.useEffect.call(void 0, ()=>{
-    (async()=>{try{const d=await _api.get('as_checklist','as_id=eq.'+encodeURIComponent(asId)+'&order=sort_order.asc,created_at.asc');setItems(d||[]);}catch(e){window._showToast?.('Checkliste laden: '+e.message,'error');}setLoading(false);})();
+  _react.useEffect.call(void 0, ()=>{let a=true;
+    (async()=>{try{const d=await _api.get('as_checklist','as_id=eq.'+encodeURIComponent(asId)+'&order=sort_order.asc,created_at.asc');if(a)setItems(d||[]);}catch(e){window._showToast?.('Checkliste laden: '+e.message,'error');}if(a)setLoading(false);})();
+    return()=>{a=false;};
   },[asId]);
   const add=async()=>{
     const text=newText.trim();if(!text)return;
@@ -13708,8 +13717,9 @@ function ASKommentarePanel({asId,curUser,monteure,users}){
   const [showMentions,setShowMentions]=_react.useState.call(void 0, false);
   const [mentionFilter,setMentionFilter]=_react.useState.call(void 0, '');
   const textRef=_react.useRef.call(void 0, null);
-  _react.useEffect.call(void 0, ()=>{
-    (async()=>{try{const d=await _api.get('as_kommentare','as_id=eq.'+encodeURIComponent(asId)+'&order=created_at.asc');setKommentare(d||[]);}catch(e){window._showToast?.('Kommentare laden: '+e.message,'error');}setLoading(false);})();
+  _react.useEffect.call(void 0, ()=>{let a=true;
+    (async()=>{try{const d=await _api.get('as_kommentare','as_id=eq.'+encodeURIComponent(asId)+'&order=created_at.asc');if(a)setKommentare(d||[]);}catch(e){window._showToast?.('Kommentare laden: '+e.message,'error');}if(a)setLoading(false);})();
+    return()=>{a=false;};
   },[asId]);
   const handleChange=(e)=>{
     const val=e.target.value;setText(val);
