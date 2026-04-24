@@ -367,7 +367,7 @@ window._epkTimer={
   /* v3.8.7 Bug-Hunt Iter-3: Timer speichert monteurId des Start-Users, verhindert dass
      User B nach Logout+Login-as-B den laufenden Timer von User A stoppt und auf sich bucht. */
   start:function(projectId,task,ownerMonteurId){const t={running:true,startAt:Date.now(),projectId:projectId||"",task:task||"",owner:ownerMonteurId||""};try{localStorage.setItem("epk_timer",JSON.stringify(t));}catch(_){}window._epkVibrate("save");return t;},
-  stop:function(){try{const s=JSON.parse(localStorage.getItem("epk_timer")||"null");localStorage.removeItem("epk_timer");if(s&&s.running){const hours=Math.max(0,(Date.now()-s.startAt)/3600000);return{...s,hours:Math.round(hours*100)/100,endAt:Date.now()};}}catch(_){}return null;},
+  stop:function(){try{const s=JSON.parse(localStorage.getItem("epk_timer")||"null");localStorage.removeItem("epk_timer");if(s&&s.running){const hours=Math.max(0,(Date.now()-s.startAt)/TIME_HOUR);return{...s,hours:Math.round(hours*100)/100,endAt:Date.now()};}}catch(_){}return null;},
   get:function(){try{return JSON.parse(localStorage.getItem("epk_timer")||"null");}catch(_){return null;}}
 };
 // v3.5.71 Block 17a: Smoke-Tests + Integrity-Check (window-level, DevTools-callable)
@@ -492,6 +492,13 @@ window._curUser=function(){try{return JSON.parse(localStorage.getItem('epkolar_u
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.73 — Format-Helpers (Block 2.1)
 // ═══════════════════════════════════════════════════════════════════
+// v3.8.44 S1.3 Bug-Hunt: TIME-Konstanten statt Magic-Numbers.
+// Sekunden-Werte für _fmtRelative, Millisekunden für Date-Math.
+const TIME_SECOND=1000;
+const TIME_MINUTE=60*TIME_SECOND;
+const TIME_HOUR=60*TIME_MINUTE;
+const TIME_DAY=24*TIME_HOUR;
+const TIME_WEEK=7*TIME_DAY;
 window._fmtDate=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();};
 window._fmtDatetime=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return window._fmtDate(d)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
 window._fmtRelative=(d)=>{if(!d)return '—';const diff=(Date.now()-new Date(d).getTime())/1000;if(isNaN(diff))return '—';if(diff<60)return 'gerade eben';if(diff<3600)return 'vor '+Math.floor(diff/60)+' Min';if(diff<86400)return 'vor '+Math.floor(diff/3600)+' Std';if(diff<604800)return 'vor '+Math.floor(diff/86400)+' Tagen';return window._fmtDate(d);};
@@ -4192,22 +4199,22 @@ class _ViewBoundary extends React.Component{
     // 1. Dringende AS unbearbeitet >24h → Eskalation
     arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.prioritaet==="hoch"||a.prioritaet==="dringend")).forEach(a=>{
       const aufg=new Date(a.aufgenommen+" "+(a.aufgZeit||"08:00")).getTime();
-      const hAlt=Math.floor((now-aufg)/3600000);
+      const hAlt=Math.floor((now-aufg)/TIME_HOUR);
       if(hAlt>=24){const admins=users.filter(u=>u.role==="admin").map(u=>u.id);fire("as_esk_"+a.id,"as_eskalation","🔺 Eskalation: "+a.kundName,(a.nummer||"")+" — dringend, seit "+hAlt+"h unbearbeitet",admins);}
     });
     // 2. Material-Bestellungen "angefordert" >8h → Eskalation an Admin
     (async()=>{try{
       const openMat=await _sbGet("material_orders","status=eq.angefordert").catch(()=>[]);
       (openMat||[]).forEach(o=>{
-        const created=new Date(o.created_at).getTime();const hAlt=Math.floor((now-created)/3600000);
+        const created=new Date(o.created_at).getTime();const hAlt=Math.floor((now-created)/TIME_HOUR);
         if(hAlt>=8){const admins=users.filter(u=>u.role==="admin").map(u=>u.id);fire("mat_esk_"+o.id,"material_eskalation","🔺 Material wartet: "+(o.name||"Bestellung"),"seit "+hAlt+"h nicht bearbeitet",admins);}
       });
     }catch(e){}})();
     // 3. Fahrzeug-Fristen <7 Tage → Warn-Notification
     const _fleetU=users.filter(u=>u.role==="admin"||u.username==="pinger").map(u=>u.id);
     (fahrzeuge||[]).forEach(f=>{
-      if(f.pickerl){const diff=Math.ceil((new Date(f.pickerl)-now)/86400000);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+f.kennzeichen,diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
-      if(f.naechstService){const diff=Math.ceil((new Date(f.naechstService)-now)/86400000);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+f.kennzeichen,"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
+      if(f.pickerl){const diff=Math.ceil((new Date(f.pickerl)-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+f.kennzeichen,diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
+      if(f.naechstService){const diff=Math.ceil((new Date(f.naechstService)-now)/TIME_DAY);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+f.kennzeichen,"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
     });
   },[curUser,arbeitsscheine,fahrzeuge,users,pushNotif]);
   _react.useEffect.call(void 0, ()=>{if(!curUser)return;const t=setTimeout(_checkAutoNotifs,5000);const iv=setInterval(_checkAutoNotifs,300000);return()=>{clearTimeout(t);clearInterval(iv);};},[_checkAutoNotifs]);
@@ -5164,7 +5171,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     if(!editId&&form.kundName&&form.terminBestaetigt){
       const ft=new Date(form.terminBestaetigt).getTime();
       if(!isNaN(ft)){
-        const dup=arbeitsscheine.find(a=>a.id!==form.id&&(a.kundName||"").toLowerCase()===(form.kundName||"").toLowerCase()&&a.terminBestaetigt&&Math.abs(new Date(a.terminBestaetigt).getTime()-ft)<=3*86400000);
+        const dup=arbeitsscheine.find(a=>a.id!==form.id&&(a.kundName||"").toLowerCase()===(form.kundName||"").toLowerCase()&&a.terminBestaetigt&&Math.abs(new Date(a.terminBestaetigt).getTime()-ft)<=3*TIME_DAY);
         if(dup&&!confirm("⚠️ Möglicher Duplikat-AS:\n\n"+dup.nummer+" — "+dup.kundName+"\nTermin: "+dup.terminBestaetigt+"\nStatus: "+dup.scheinstatus+"\n\nTrotzdem speichern?"))return;
       }
     }
@@ -5490,7 +5497,7 @@ function sharePdf(){
     else if(calView==="woche"){const d=new Date(calDate);d.setDate(d.getDate()+dir*7);setCalDate(d);setCalMo(d.getMonth());setCalYr(d.getFullYear());}
     else{const d=new Date(calDate);d.setDate(d.getDate()+dir);setCalDate(d);setCalMo(d.getMonth());setCalYr(d.getFullYear());}
   };
-  const calTitle=calView==="monat"?MO_DE[calMo]+" "+calYr:calView==="woche"?("KW "+Math.ceil(((calWeekDays[3]-new Date(calWeekDays[3].getFullYear(),0,4))/86400000+new Date(calWeekDays[3].getFullYear(),0,4).getDay()+5)/7)+" · "+calWeekDays[0].getDate()+"."+(calWeekDays[0].getMonth()+1)+". – "+calWeekDays[6].getDate()+"."+(calWeekDays[6].getMonth()+1)+"."+calWeekDays[6].getFullYear()):calDate.getDate()+". "+MO_DE[calDate.getMonth()]+" "+calDate.getFullYear();
+  const calTitle=calView==="monat"?MO_DE[calMo]+" "+calYr:calView==="woche"?("KW "+Math.ceil(((calWeekDays[3]-new Date(calWeekDays[3].getFullYear(),0,4))/TIME_DAY+new Date(calWeekDays[3].getFullYear(),0,4).getDay()+5)/7)+" · "+calWeekDays[0].getDate()+"."+(calWeekDays[0].getMonth()+1)+". – "+calWeekDays[6].getDate()+"."+(calWeekDays[6].getMonth()+1)+"."+calWeekDays[6].getFullYear()):calDate.getDate()+". "+MO_DE[calDate.getMonth()]+" "+calDate.getFullYear();
   const gotoToday=()=>{const t=new Date();setCalDate(t);setCalMo(t.getMonth());setCalYr(t.getFullYear());};
 
   return (
@@ -7210,8 +7217,8 @@ function TimerBanner({curUser,projects,setEntries}){
   // Owner-Mismatch: nicht anzeigen (Cleanup läuft via Effect oben)
   if(state.owner&&curUser&&curUser.monteurId&&state.owner!==curUser.monteurId)return null;
   const elapsed=Date.now()-state.startAt;
-  const h=Math.floor(elapsed/3600000);
-  const m=Math.floor((elapsed%3600000)/60000);
+  const h=Math.floor(elapsed/TIME_HOUR);
+  const m=Math.floor((elapsed%TIME_HOUR)/60000);
   const s=Math.floor((elapsed%60000)/1000);
   const proj=projects.find(p=>p.id===state.projectId);
   const onStop=()=>{
@@ -7357,7 +7364,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _isFleetAdmin=isAdmin||_optionalChain([curUser, 'optionalAccess', _ffa => _ffa.username])==="pinger";
   const _myMonteurId=_optionalChain([curUser, 'optionalAccess', _ffa2 => _ffa2.monteurId])||"";
   const _alertFz=_isFleetAdmin?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMonteurId);
-  const pickerFaellig=_alertFz.filter(f=>{if(!f.pickerl)return false;const d=new Date(f.pickerl);const diff=(d-new Date())/(86400000);return diff<30&&diff>-365;});
+  const pickerFaellig=_alertFz.filter(f=>{if(!f.pickerl)return false;const d=new Date(f.pickerl);const diff=(d-new Date())/(TIME_DAY);return diff<30&&diff>-365;});
   pickerFaellig.forEach(f=>alerts.push({type:"warning",icon:"📋",text:`${f.kennzeichen}: Pickerl läuft ${new Date(f.pickerl)<new Date()?"ABGELAUFEN":"bald ab"} (${fdt(f.pickerl)})`,color:"#f97316",go:()=>onNav("fahrzeuge")}));
   const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService)<=new Date());
   serviceFaellig.forEach(f=>alerts.push({type:"warning",icon:"🔧",text:`${f.kennzeichen}: Service überfällig (${fdt(f.naechstService)})`,color:"#ef4444",go:()=>onNav("fahrzeuge")}));
@@ -7788,13 +7795,13 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             const items=[];
             // Vehicle deadlines
             (fahrzeuge||[]).forEach(f=>{
-              if(f.pickerl){const d=new Date(f.pickerl);const diff=Math.ceil((d-new Date())/86400000);if(diff>-60&&diff<90)items.push({date:f.pickerl,icon:"📋",text:`Pickerl ${f.kennzeichen}`,sub:diff<0?"ABGELAUFEN":diff+"T",urgent:diff<14,color:diff<0?"#ef4444":diff<30?"#f97316":"#22c55e"});}
-              if(f.naechstService){const d=new Date(f.naechstService);const diff=Math.ceil((d-new Date())/86400000);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"🔧",text:`Service ${f.kennzeichen}`,sub:diff<0?"ÜBERFÄLLIG":diff+"T",urgent:diff<7,color:diff<0?"#ef4444":diff<14?"#f97316":"#22c55e"});}
-              (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum)-new Date())/86400000);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"🔧":t.art==="pickerl"?"📋":t.art==="reifen"?"🔄":"📌",text:`${t.beschreibung}`,sub:f.kennzeichen+" · "+fdt(t.datum),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
+              if(f.pickerl){const d=new Date(f.pickerl);const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-60&&diff<90)items.push({date:f.pickerl,icon:"📋",text:`Pickerl ${f.kennzeichen}`,sub:diff<0?"ABGELAUFEN":diff+"T",urgent:diff<14,color:diff<0?"#ef4444":diff<30?"#f97316":"#22c55e"});}
+              if(f.naechstService){const d=new Date(f.naechstService);const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"🔧",text:`Service ${f.kennzeichen}`,sub:diff<0?"ÜBERFÄLLIG":diff+"T",urgent:diff<7,color:diff<0?"#ef4444":diff<14?"#f97316":"#22c55e"});}
+              (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum)-new Date())/TIME_DAY);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"🔧":t.art==="pickerl"?"📋":t.art==="reifen"?"🔄":"📌",text:`${t.beschreibung}`,sub:f.kennzeichen+" · "+fdt(t.datum),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
             });
             // Confirmed Arbeitsschein termine
             arbeitsscheine.filter(a=>a.terminBestaetigt&&AS_GRP_OFFEN.includes(a.scheinstatus)).forEach(a=>{
-              const diff=Math.ceil((new Date(a.terminBestaetigt)-new Date())/86400000);
+              const diff=Math.ceil((new Date(a.terminBestaetigt)-new Date())/TIME_DAY);
               if(diff>=-1&&diff<14){const w=(monteure||MONT).find(m=>m.id===a.monteur);items.push({date:a.terminBestaetigt,icon:"📋",text:a.kundName||a.nummer,sub:(_optionalChain([w, 'optionalAccess', _280 => _280.n])||"")+" · "+fdt(a.terminBestaetigt)+(a.terminZeit?" "+a.terminZeit:""),urgent:diff<=0,color:diff<=0?"#f97316":"#8b5cf6"});}
             });
             items.sort((a,b)=>(a.date||"").localeCompare(b.date||""));
@@ -10843,7 +10850,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   // v3.5.71 Block 3c: Mengen-Vorschläge aus Orders-History (letzte 30 Tage, letzte Menge je artNr)
   const lastQtyByArtNr=_react.useMemo.call(void 0, ()=>{
-    const cutoff=Date.now()-30*86400000;
+    const cutoff=Date.now()-30*TIME_DAY;
     const out={};
     (orders||[]).forEach(ord=>{
       const t=new Date(ord.datum||ord.created_at||0).getTime();
@@ -12622,7 +12629,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         const days=[];for(let i=0;i<WEEKS*7;i++){const d=new Date(startMon);d.setDate(startMon.getDate()+i);days.push(d);}
         const dayW=isMob?22:28;const nameW=isMob?60:90;
         const todayStr=dk(new Date());
-        const kwOf=d=>{const t2=new Date(d);t2.setDate(t2.getDate()-((d.getDay()+6)%7)+3);const jan4=new Date(t2.getFullYear(),0,4);return 1+Math.round(((t2-jan4)/86400000-(t2.getDay()+6)%7+3)/7);};
+        const kwOf=d=>{const t2=new Date(d);t2.setDate(t2.getDate()-((d.getDay()+6)%7)+3);const jan4=new Date(t2.getFullYear(),0,4);return 1+Math.round(((t2-jan4)/TIME_DAY-(t2.getDay()+6)%7+3)/7);};
         const weekBounds=[];for(let w=0;w<WEEKS;w++){const d=days[w*7];weekBounds.push({start:w*7,label:"KW"+kwOf(d),mo:MO_DE[d.getMonth()].slice(0,3)});}
         return React.createElement('div', {}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
@@ -13760,7 +13767,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
             ,React.createElement('span',{style:{fontSize:18}},STAT_I[a.status]||'•')
             ,React.createElement('div',{style:{flex:1,minWidth:0}}
               ,React.createElement('div',{style:{fontSize:13,fontWeight:700}},wName+' · '+a.art)
-              ,React.createElement('div',{style:{fontSize:12,color:V.dm}},window._fmtDate?.(a.von)+' — '+window._fmtDate?.(a.bis)+' · '+Math.max(1,Math.round((new Date(a.bis)-new Date(a.von))/86400000)+1)+' Tag(e)')
+              ,React.createElement('div',{style:{fontSize:12,color:V.dm}},window._fmtDate?.(a.von)+' — '+window._fmtDate?.(a.bis)+' · '+Math.max(1,Math.round((new Date(a.bis)-new Date(a.von))/TIME_DAY)+1)+' Tag(e)')
               ,a.kommentar&&React.createElement('div',{style:{fontSize:11,color:V.dm,marginTop:2,fontStyle:'italic'}},'„'+a.kommentar+'"')
               ,a.bescheid_von&&React.createElement('div',{style:{fontSize:11,color:STAT_C[a.status],marginTop:2,fontWeight:600}},STAT_I[a.status]+' '+a.status+' von '+a.bescheid_von+(a.bescheid?' — '+a.bescheid:''))
             )
@@ -13962,7 +13969,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
       ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:4}}
         ,topOver.map(function(a){
           const w=monteure.find(function(m){return m.id===a.monteur;});
-          const tage=Math.floor((Date.now()-new Date(a.terminBestaetigt||a.terminVorschlag).getTime())/86400000);
+          const tage=Math.floor((Date.now()-new Date(a.terminBestaetigt||a.terminVorschlag).getTime())/TIME_DAY);
           return React.createElement('div',{key:a.id,onClick:function(){window.__asFilter='alle';onNav('arbeitsscheine');},style:{display:'flex',gap:8,padding:'6px 10px',background:V.cd,borderRadius:6,border:'1px solid '+V.bd,fontSize:12,cursor:'pointer',alignItems:'center'}}
             ,React.createElement('span',{style:{fontFamily:mono,color:'#f97316',minWidth:70}},a.nummer||'—')
             ,React.createElement('span',{style:{flex:1,fontWeight:600}},a.kundName||'—')
@@ -14011,7 +14018,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
     setLoading(true);
     try{
       const from=month+'-01';
-      const to=_ymd(new Date(new Date(from).getTime()+32*86400000));
+      const to=_ymd(new Date(new Date(from).getTime()+32*TIME_DAY));
       const d=await _api.get('fahrtenbuch','worker_id=eq.'+encodeURIComponent(workerId)+'&datum=gte.'+from+'&datum=lt.'+to+'&order=datum.desc');
       if(_mnt.current)setEntries(d||[]);
     }catch(e){if(_mnt.current)window._showToast?.('Fahrtenbuch laden: '+e.message,'error');}
@@ -15507,7 +15514,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , visibleFz.map(f=>{
           const fahrer=(monteure||MONT).find(m=>m.id===f.fahrer);
           const pickerlOk=f.pickerl&&new Date(f.pickerl)>new Date();
-          const pickerlWarn=f.pickerl&&!pickerlOk||(f.pickerl&&(new Date(f.pickerl)-new Date())/(86400000)<30);
+          const pickerlWarn=f.pickerl&&!pickerlOk||(f.pickerl&&(new Date(f.pickerl)-new Date())/(TIME_DAY)<30);
           const serviceWarn=f.naechstService&&new Date(f.naechstService)<=new Date();
           const offSch=(f.schaeden||[]).filter(s=>s.status==="offen").length;
           const isMine=f.id===myFzId;
@@ -15678,7 +15685,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             /* Letzte Bescheinigungen - immer sichtbar */
             , beschHistory.length>0&&React.createElement('div', { style: {marginTop:8,marginBottom:showBesch?10:0}}
               , React.createElement('div', { style: {fontSize:11,fontWeight:600,color:V.dm,marginBottom:4}}, "📄 Letzte Bescheinigungen (" , beschHistory.length, ")")
-              , beschHistory.slice(0,5).map((bh,i)=>{const GRUND_MAP={"krank":"Krankheit","urlaub":"Urlaub","ruhe":"Ruhe","ausgenommen":"Ausg. FZ","andere":"And. Tätigkeit","verfuegung":"Verfügung"};const tage=Math.floor((new Date()-new Date(bh.bisDat))/(86400000));const tageText=tage<=0?"läuft noch":tage===1?"gestern":tage+" Tage her";const tageColor=tage<=0?"#22c55e":tage<=14?"#eab308":tage<=30?"#f97316":"#ef4444";return React.createElement('div', { key: bh.id||i, style: {display:"flex",alignItems:"center",gap:8,padding:"5px 8px",fontSize:11,borderBottom:"1px solid "+V.bd,cursor:"pointer"}, onClick: ()=>{const m=monteure.find(x=>x.n===bh.fahrer);setBeschForm({fahrer:bh.fahrer,gebDat:m&&m.gebDat||"",fsNr:m&&m.fsNr||"",seitDat:m&&m.eintritt||"",vonDat:"",vonUhr:"00:00",bisDat:"",bisUhr:"24:00",grund:bh.grund||"andere",ort:bh.ort||"Kirchberg"});if(!showBesch)setShowBesch(true);}}
+              , beschHistory.slice(0,5).map((bh,i)=>{const GRUND_MAP={"krank":"Krankheit","urlaub":"Urlaub","ruhe":"Ruhe","ausgenommen":"Ausg. FZ","andere":"And. Tätigkeit","verfuegung":"Verfügung"};const tage=Math.floor((new Date()-new Date(bh.bisDat))/(TIME_DAY));const tageText=tage<=0?"läuft noch":tage===1?"gestern":tage+" Tage her";const tageColor=tage<=0?"#22c55e":tage<=14?"#eab308":tage<=30?"#f97316":"#ef4444";return React.createElement('div', { key: bh.id||i, style: {display:"flex",alignItems:"center",gap:8,padding:"5px 8px",fontSize:11,borderBottom:"1px solid "+V.bd,cursor:"pointer"}, onClick: ()=>{const m=monteure.find(x=>x.n===bh.fahrer);setBeschForm({fahrer:bh.fahrer,gebDat:m&&m.gebDat||"",fsNr:m&&m.fsNr||"",seitDat:m&&m.eintritt||"",vonDat:"",vonUhr:"00:00",bisDat:"",bisUhr:"24:00",grund:bh.grund||"andere",ort:bh.ort||"Kirchberg"});if(!showBesch)setShowBesch(true);}}
                 , React.createElement('span', { style: {fontWeight:600,minWidth:70}}, bh.fahrer)
                 , React.createElement('span', { style: {color:V.dm}}, fdt(bh.vonDat), " ", bh.vonUhr!=="00:00"?bh.vonUhr:"", " → " , fdt(bh.bisDat), " ", bh.bisUhr!=="24:00"?bh.bisUhr:"")
                 , React.createElement('span', { style: {padding:"1px 6px",borderRadius:4,background:"rgba(139,92,246,.1)",color:"#8b5cf6",fontSize:9,fontWeight:600}}, GRUND_MAP[bh.grund]||bh.grund)
@@ -15784,7 +15791,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
           , fzTermine.length===0&&!showAddTermin&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:16}}, "Keine Service-Termine vorhanden")
           , [...fzTermine].sort((a,b)=>(a.datum||"").localeCompare(b.datum||"")).map(t=>{
-            const d=t.datum?new Date(t.datum):null;const diff=d?Math.ceil((d-new Date())/86400000):null;
+            const d=t.datum?new Date(t.datum):null;const diff=d?Math.ceil((d-new Date())/TIME_DAY):null;
             const urgent=diff!==null&&diff<0;const soon=diff!==null&&diff>=0&&diff<14;
             const color=t.erledigt?"#22c55e":urgent?"#ef4444":soon?"#f97316":"#3b82f6";
             return React.createElement('div', { key: t.id, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid "+color,opacity:t.erledigt?0.6:1}}
