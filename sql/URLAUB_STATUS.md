@@ -119,6 +119,17 @@ Tägliches Exit-Protokoll gemäß H13.
 
 ---
 
+## CSP-Hotfix · 24.04.2026 · v3.8.48
+
+- **Branch:** main
+- **Commits:** `2f89600` CSP-Fix + Tests · `<bump>` Version-Bump
+- **pytest:** 227 → **230** (+3 in `tests/test_csp_manifest_src.py`)
+- **Brackets:** `() -2 {} 0 [] 0` stabil
+- **Fix:** `manifest-src 'self' blob:;` nach `worker-src`-Direktive ergänzt. Vorher: PWA-Install-Flow warf CSP-Violation weil `default-src` kein `blob:` erlaubt.
+- **Status:** **GREEN**
+
+---
+
 ## Auth-Deep-Dive + Gap-Fix · 24.04.2026 · v3.8.47
 
 - **Branch:** main (Sebastian-autorisierte H1-Auth-Zone-Session)
