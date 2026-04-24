@@ -119,19 +119,25 @@ Tägliches Exit-Protokoll gemäß H13.
 
 ---
 
-## Auth-Hardening ABORT (Phase 0) · 24.04.2026 · v3.8.47 nicht gebumpt
+## Auth-Deep-Dive + Gap-Fix · 24.04.2026 · v3.8.47
 
 - **Branch:** main (Sebastian-autorisierte H1-Auth-Zone-Session)
-- **HEAD:** `73b0c86` (v3.8.46 unverändert, KEIN Code-Change)
-- **pytest:** 211 → **211** (keine Tests geschrieben/geändert)
-- **Brackets:** `() -2 {} 0 [] 0` (unverändert, kein Edit)
-- **Grund:** Phase 0 Inventory zeigte dass 6 von 7 Plan-Annahmen falsch waren — Architektur bereits vollständig (`_sbAuthRefresh` Singleton, `_authRefreshTimer` 60s-vor-exp, visibility-Handler 120s, `_authRetry` 401-Retry, `epkolar_refresh` wird indirekt genutzt, `_silentReAuth`-Stub ist absichtliche v3.8.35-Sicherheitsentscheidung)
-- **Per H8 STOPP:** ABBRUCH-BEDINGUNG "fundamental andere Architektur" getroffen
-- **Deliverables:** `sql/AUTH_INVENTORY_20260424.md` (~220 Zeilen) + `HANDOFF_v3847_ABORT.md` (Empfehlungen Option A/B/C)
-- **Wirklich fehlend (additive, nicht kritisch):** (1) `online`-Event-Auth-Refresh, (2) Backup-`setInterval`-Watchdog, (3) `__authLog`-Telemetrie. Alle optional, keiner kritisch.
-- **Status:** **GREEN** (Inventar-Doku committed, keine Regression möglich)
-- **Handoff:** `HANDOFF_v3847_ABORT.md`
-- **Sebastian-Entscheidung ausstehend:** Option A (Mini-Additiv <30min) | Option B (Full-Plan mit korrekter Baseline) | Option C (No-Op, existing architecture reicht)
+- **Baseline:** `4e5f6fb` (v3.8.46 + Abort-Inventory aus Vorher-Session)
+- **End-State:** `cd797dc` · tag `v3.8.47` · `v3.8.46-pre-auth-refresh` Rollback-Tag
+- **Commits:** `072c67a` G1+__authLog · `76e6a4b` G2 · `254fde8` G3 · `72c0f1f` Tests · `cd797dc` Bump
+- **pytest:** 211 → **227** (+16 in `tests/test_auth_v3847.py`)
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über alle 5 Commits)
+- **Vorgeschichte:** Vorherige Session hatte Phase-0-Inventar gemacht und ABORT ausgelöst weil Plan-Annahmen falsch waren. Diese Session fokussierte auf Bug-Fix statt Neubau.
+- **Root-Cause curUser=null-Hauptspur:** G3 — Auto-Login-catch killed Session wenn ODB.get("lastUser") leer war, obwohl _authToken valide + localStorage.epkolar_user existierte.
+- **Fixes:**
+  - **G1** (`072c67a`): `_sbAuthRefresh` outer catch unterscheidet Netzwerk-Fehler (tokens preserved) vs. 4xx (_silentReAuth) — vorher zerstörte single Network-Blip den Refresh-Mechanismus bis Reload
+  - **G2** (`76e6a4b`): `onOnline`-Handler ruft `_sbAuthRefresh()` vor Sync-Flush — verhindert 3× 401-Spam nach Offline-Periode
+  - **G3** (`254fde8`): Auto-Login-catch hat jetzt 3. Fallback auf `localStorage.epkolar_user` wenn ODB-Miss + Token noch 60s+ valide — matcht Sebastians curUser=null-Symptom
+  - **__authLog** (in G1): Ring-Buffer 100 Events ohne Token-Inhalte für DevTools-Debug
+- **Skipped:** Prompt()-Migration L6711 (natives prompt() im Admin-PW-Reset blockt JS-Thread, Hauptverdächtiger für race). Migration erfordert ~80 LOC Promise-Input-Modal → separate Session nach Urlaub.
+- **Rollback:** `git reset --hard v3.8.46-pre-auth-refresh && git push -f origin main`
+- **Status:** **GREEN** (227/227 pytest, brackets stabil, 5 Commits + Tag gepusht)
+- **Handoff:** `HANDOFF_v3847.md` (ABORT-File in Folge-Commit entfernt)
 
 ---
 
