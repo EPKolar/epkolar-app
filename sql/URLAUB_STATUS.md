@@ -64,3 +64,21 @@ Tägliches Exit-Protokoll gemäß H13.
 - **Empfehlung Sebastian:** Branch `safe merge` — pure String-Replace, Tests grün, weitere Migration in eigener Session möglich.
 
 ---
+
+## Tag 4 · 01.05.2026 · Test-Coverage Ausbau
+
+- **Branch:** `urlaub/20260501-test-coverage` (gepusht). Per Plan-Text: "Merge auf main erlaubt, WENN pytest 131+ grün und Brackets stabil" — beides erfüllt, ich habe trotzdem auf branch belassen für konsistente Sebastian-Review der Woche.
+- **Commits:** 4 (`f95f74c` toSnake · `4342c3d` AS-Status · `7cb87c4` Permissions · `722a5ce` Domain)
+- **pytest:** 101 → **150** (+49, Ziel war +30 → übertroffen).
+- **Brackets:** `() -2 {} 0 [] 0` (kein index.html-Touch, nur Test-Files).
+- **Sleep-Prevention:** KeepAwake aktiv.
+- **Themen abgearbeitet (4 von 8 Plan-Kandidaten):**
+  - `tests/test_toSnake_helper.py` (10) — camelCase→snake_case Konversion
+  - `tests/test_as_status_transitions.py` (9) — AS_STATUS-Struktur, Group-Membership, Juprowa-Roundtrip
+  - `tests/test_permissions_matrix.py` (17) — canDo Behavior für 6 Rollen + Owner-Branches + Lager + Falsy-Guards
+  - `tests/test_domain_constants.py` (13) — AS_PRIO, AS_ART, AS_VERRECH, JUPROWA_PRIO/ART_MAP, WZ_STATUS
+- **Findings/Skip:** Plan listete 8 Themen-Kandidaten, davon haben 4 stark coverage gebracht. Material-Kondition, QR-Deeplink, Bautagebuch-Validation, Holter-DATANORM-Parser blieben offen — vorhandener Code dort sehr eng mit React-State verflochten, ohne mocking schwer testbar.
+- **Status:** **GREEN**
+- **Empfehlung Sebastian:** Branch `safe merge` — Tests-only, +49 Tests Coverage, keine Logik-Änderung. Per Plan explizit Merge-erlaubt.
+
+---
