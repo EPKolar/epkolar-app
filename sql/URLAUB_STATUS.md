@@ -48,3 +48,19 @@ Tägliches Exit-Protokoll gemäß H13.
 - **Empfehlung Sebastian:** Branch `safe merge` — pure Property-Adds, keine Logik-Änderung, Tests grün.
 
 ---
+
+## Tag 3 · 30.04.2026 · COLORS-Konstanten Refactor
+
+- **Branch:** `urlaub/20260430-colors-refactor` (gepusht, NICHT auf main gemerged)
+- **Commits:** 7 (`8f19976` batch1 → `393bd9c` test). 50 Replacements + COLORS-Const + Tests.
+- **Geändert:**
+  - Neue `const COLORS={EP_GREEN, SUCCESS, ERROR, WARNING, INFO, NEUTRAL}` direkt nach EP_GREEN-Konstante (L2191).
+  - 5 Batches Hex→COLORS.* Replacement: 10× `color:#22c55e→SUCCESS`, 10× `color:#ef4444→ERROR`, 10× `color:#f97316→WARNING`, 10× `color:#3b82f6→INFO`, 8× `background:#22c55e→SUCCESS`, 2× `background:#ef4444→ERROR` = **50 total**.
+- **pytest:** 101 → **110** (+9 neue COLORS-Regression-Guards in `tests/test_colors_constants.py`).
+- **Brackets:** `() -2 {} 0 [] 0` (stabil über alle 5 Batches + Compensate).
+- **Sleep-Prevention:** KeepAwake aktiv.
+- **Findings/Skip:** Batch 5 (background-SUCCESS) hatte nur 8 Treffer statt 10 — kompensiert mit 2× background-ERROR. Hex-Werte im File noch >600 Vorkommen offen (nur Top-50 migriert). Inline-CSS in `<style>`-Blöcken nicht angefasst (HTML, nicht JS-Object).
+- **Status:** **GREEN**
+- **Empfehlung Sebastian:** Branch `safe merge` — pure String-Replace, Tests grün, weitere Migration in eigener Session möglich.
+
+---
