@@ -12886,12 +12886,21 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
   const allEntries=entries||[];
 
   /* Hilfsfunktionen: Zeiteinträge für einen Monteur im Monat */
+  /* v3.8.49 Bug-Fix: Stundenzettel.mitarbeiterId kann users.id (u1..) ODER workers.id (w1..)
+     sein, je nachdem was Admin im Dropdown gewählt hat (siehe allMA-Merge L12885).
+     time_entries.worker_id referenziert aber immer workers.id. Vorher: workerId===wid
+     Direktvergleich → Zettel für User "u1" matchte KEINE Zeit-Entries (die haben worker="w1"),
+     Zeitabgleich zeigte fälschlich 0h EPKolar vs FinkZeit-Stunden = großer Δ → rot-rote
+     Fehl-Warnung obwohl Daten OK. Jetzt resolve user→monteurId bevor match. */
   const getMonthEntries=(workerId,monat,jahr)=>{
     const prefix=jahr+"-"+(monat+1<10?"0":"")+(monat+1);
+    const u=(users||[]).find(x=>x.id===workerId);
+    const monteurId=u?(u.monteurId||u.monteur_id||""):"";
     return allEntries.filter(e=>{
       const wid=e.worker||e.w||"";
       const dt=e.datum||e.date||"";
-      return wid===workerId && dt.startsWith(prefix);
+      if(!dt.startsWith(prefix))return false;
+      return wid===workerId||(monteurId&&wid===monteurId);
     });
   };
   const sumHours=(arr)=>arr.reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
