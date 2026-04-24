@@ -119,6 +119,22 @@ Tägliches Exit-Protokoll gemäß H13.
 
 ---
 
+## Auth-Hardening ABORT (Phase 0) · 24.04.2026 · v3.8.47 nicht gebumpt
+
+- **Branch:** main (Sebastian-autorisierte H1-Auth-Zone-Session)
+- **HEAD:** `73b0c86` (v3.8.46 unverändert, KEIN Code-Change)
+- **pytest:** 211 → **211** (keine Tests geschrieben/geändert)
+- **Brackets:** `() -2 {} 0 [] 0` (unverändert, kein Edit)
+- **Grund:** Phase 0 Inventory zeigte dass 6 von 7 Plan-Annahmen falsch waren — Architektur bereits vollständig (`_sbAuthRefresh` Singleton, `_authRefreshTimer` 60s-vor-exp, visibility-Handler 120s, `_authRetry` 401-Retry, `epkolar_refresh` wird indirekt genutzt, `_silentReAuth`-Stub ist absichtliche v3.8.35-Sicherheitsentscheidung)
+- **Per H8 STOPP:** ABBRUCH-BEDINGUNG "fundamental andere Architektur" getroffen
+- **Deliverables:** `sql/AUTH_INVENTORY_20260424.md` (~220 Zeilen) + `HANDOFF_v3847_ABORT.md` (Empfehlungen Option A/B/C)
+- **Wirklich fehlend (additive, nicht kritisch):** (1) `online`-Event-Auth-Refresh, (2) Backup-`setInterval`-Watchdog, (3) `__authLog`-Telemetrie. Alle optional, keiner kritisch.
+- **Status:** **GREEN** (Inventar-Doku committed, keine Regression möglich)
+- **Handoff:** `HANDOFF_v3847_ABORT.md`
+- **Sebastian-Entscheidung ausstehend:** Option A (Mini-Additiv <30min) | Option B (Full-Plan mit korrekter Baseline) | Option C (No-Op, existing architecture reicht)
+
+---
+
 ## S7.2 Modal-Helper Session · 24.04.2026 · v3.8.46
 
 - **Branch:** main (direkt, Sebastian-autorisiert)
