@@ -4493,14 +4493,27 @@ class _ViewBoundary extends React.Component{
       const freshAbs=await API.getAbsences().catch(()=>null);
       if(freshAbs&&freshAbs.length){
         const snap=lastSnapshot.current;
+        // v3.8.49 Bug-Fix: DOPPEL-BUG gefixt.
+        // (a) a.workerId ist undefined — Supabase liefert snake_case a.worker_id. Vorher
+        //     ergab key="undefined_"+fromDate → Set enthielt nur "undefined_X" statt echter IDs.
+        // (b) Key-Format-Mismatch: snap.absenceKeys wurde aus abs-State mit NAME_date-Format
+        //     seed initialisiert (L4093 wn+"_"+fromD), pollForChanges nutzte workerId_from.
+        //     → Auf JEDEM ersten Poll nach App-Start feuerte "🤒 Krankmeldung"-Notification
+        //     für ALLE bestehenden Krankenstand-Rows (Toast-Spam).
+        // Fix: gleiches Name+Date-Key-Format wie in der Initial-Seed-Logik bei L4093.
+        const _absKey=(a)=>{
+          const wid=a.worker_id||a.workerId||"";
+          const wn=_optionalChain([monteure, 'access', _ak1 => _ak1.find, 'call', _ak2 => _ak2(m=>m.id===wid), 'optionalAccess', _ak3 => _ak3.n])||a.worker_name||wid;
+          const fromD=a.from_date||a.from||"";
+          return {k:wn+"_"+fromD,wn,fromD};
+        };
         freshAbs.forEach(a=>{
-          const k=a.workerId+"_"+a.from;
+          const {k,wn}=_absKey(a);
           if(!snap.absenceKeys.has(k)&&a.type==="krankenstand"){
-            const wName=_optionalChain([monteure, 'access', _poll7 => _poll7.find, 'call', _poll8 => _poll8(m=>m.id===a.workerId), 'optionalAccess', _poll9 => _poll9.n])||a.workerId;
-            pushNotif("absence_sick","🤒 Krankmeldung",wName+" hat sich krankgemeldet");
+            pushNotif("absence_sick","🤒 Krankmeldung",wn+" hat sich krankgemeldet");
           }
         });
-        const newAbsKeys=new Set();freshAbs.forEach(a=>{newAbsKeys.add(a.workerId+"_"+a.from);});
+        const newAbsKeys=new Set();freshAbs.forEach(a=>{newAbsKeys.add(_absKey(a).k);});
         lastSnapshot.current={...lastSnapshot.current,absenceKeys:newAbsKeys};
       }
     }catch(e){console.warn("Poll error:",e);}
