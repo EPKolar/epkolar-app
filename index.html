@@ -16566,6 +16566,11 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const [wzServiceSel,setWzServiceSel]=_react.useState.call(void 0, "");
   // v3.8.60 Phase 4.1: Werkzeug-Filter-Chips (Alle/Verfügbar/Ausgegeben/Kalibrierung/Defekt)
   const [werkStatusFilter,setWerkStatusFilter]=_react.useState.call(void 0, 'alle');
+  // v3.8.60 Phase 4.2: Multi-Select Bulk-Edit (Status/Monteur/Standort)
+  const [selectedIds,setSelectedIds]=_react.useState.call(void 0, []);
+  const [bulkMode,setBulkMode]=_react.useState.call(void 0, null); // 'status'|'monteur'|'standort'|null
+  const _toggleSelect=(id)=>setSelectedIds(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  const _clearSelection=()=>{setSelectedIds([]);setBulkMode(null);};
   // v3.8.49 Bug-Fix: Service-Heft inline-Edits (Datum/Art/Kosten/Werkstatt/Beschreibung/
   // Befund-Upload/Rechnung-Upload) mutierten nur werkzeuge-State, hatten KEIN SQ.push.
   // Admin-Edits gingen nach Reload verloren — insb. Befund/Rechnung-Uploads (Inventar-
@@ -16643,6 +16648,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     if(search){const s=search.toLowerCase();return (w.name+w.seriennr+w.inventarnr+w.notizen+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
     return true;
   });
+  // v3.8.60 Phase 4.2: SelectAll-Helper (depends on filtered)
+  const _selectAll=()=>setSelectedIds(s=>s.length===filtered.length?[]:filtered.map(w=>w.id));
   // v3.8.57 Block 2.3: Sortier-Pfeile für Werkzeug-Liste
   const [sortCol,setSortCol]=_react.useState.call(void 0, "inventarnr");
   const [sortDir,setSortDir]=_react.useState.call(void 0, "asc");
@@ -16908,12 +16915,76 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('select', { value: filtKat, onChange: e=>setFiltKat(e.target.value), style: {...II(),width:"auto",minWidth:100,fontSize:12}}, React.createElement('option', { value: ""}, "Alle Kategorien" ), Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))
       )
       , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, filtered.length, " von "  , werkzeuge.length, " Geräte" )
+      /* v3.8.60 Phase 4.2: Bulk-Action-Bar (sichtbar wenn selectedIds.length > 0) */
+      , selectedIds.length>0&&React.createElement('div', { style: {display:"flex",gap:8,marginBottom:8,padding:"10px 14px",background:V.ac+"22",borderRadius:8,alignItems:"center",flexWrap:"wrap"}}
+        , React.createElement('span', { style: {fontWeight:600,color:V.ac,fontSize:13}}, selectedIds.length+" ausgewählt")
+        , React.createElement('button', { onClick: ()=>setBulkMode('status'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Status…")
+        , React.createElement('button', { onClick: ()=>setBulkMode('monteur'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Ausgeben…")
+        , React.createElement('button', { onClick: ()=>setBulkMode('standort'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Standort…")
+        , React.createElement('button', { onClick: _clearSelection, style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Aufheben")
+      )
+      /* v3.8.60 Phase 4.2: Bulk-Modal — Status ändern */
+      , selectedIds.length>0&&bulkMode==='status'&&React.createElement('div', { style: {padding:10,background:V.cd,borderRadius:8,marginBottom:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",border:"1px solid "+V.bd}}
+        , React.createElement('span', { style: {fontWeight:600,fontSize:13}}, "Neuer Status: ")
+        , React.createElement('select', { id: "_bulkStatusSel", style: {...II(),width:"auto",minWidth:160,fontSize:12}}, Object.keys(WZ_STATUS).map(k=>React.createElement('option', { value: k, key: k}, WZ_STATUS[k].i+" "+WZ_STATUS[k].l)))
+        , React.createElement('button', { onClick: async()=>{
+            const sel=document.getElementById('_bulkStatusSel');const newStatus=sel?sel.value:null;if(!newStatus)return;
+            try{
+              const ts=new Date().toISOString();
+              await Promise.all(selectedIds.map(id=>_sbPatch('werkzeuge',id,{status:newStatus,updated_at:ts})));
+              setWerkzeuge(prev=>prev.map(w=>selectedIds.includes(w.id)?{...w,status:newStatus}:w));
+              if(window.__toast)window.__toast(selectedIds.length+" Werkzeuge aktualisiert","success");
+              _clearSelection();
+            }catch(e){console.warn('[bulk-status]',e&&e.message||e);if(window.__toast)window.__toast("Fehler bei Bulk-Update: "+(e.message||e),"error");}
+          }, style: bpS}, "Anwenden")
+        , React.createElement('button', { onClick: ()=>setBulkMode(null), style: bsS()}, "Abbrechen")
+      )
+      /* v3.8.60 Phase 4.2: Bulk-Modal — An Monteur ausgeben */
+      , selectedIds.length>0&&bulkMode==='monteur'&&React.createElement('div', { style: {padding:10,background:V.cd,borderRadius:8,marginBottom:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",border:"1px solid "+V.bd}}
+        , React.createElement('span', { style: {fontWeight:600,fontSize:13}}, "An Monteur ausgeben: ")
+        , React.createElement('select', { id: "_bulkMonteurSel", style: {...II(),width:"auto",minWidth:160,fontSize:12}}
+          , React.createElement('option', { value: ""}, "— Lager (zurücknehmen) —")
+          , monteure.map(m=>React.createElement('option', { value: m.id, key: m.id}, m.n))
+        )
+        , React.createElement('button', { onClick: async()=>{
+            const sel=document.getElementById('_bulkMonteurSel');const monId=sel?sel.value:"";
+            try{
+              const ts=new Date().toISOString();
+              const patch=monId?{zugewiesen:monId,status:"ausgegeben",standort:"Baustelle",updated_at:ts}:{zugewiesen:"",status:"verfuegbar",standort:"Lager",updated_at:ts};
+              await Promise.all(selectedIds.map(id=>_sbPatch('werkzeuge',id,patch)));
+              setWerkzeuge(prev=>prev.map(w=>selectedIds.includes(w.id)?{...w,...patch}:w));
+              if(window.__toast)window.__toast(selectedIds.length+" Werkzeuge "+(monId?"ausgegeben":"zurückgenommen"),"success");
+              _clearSelection();
+            }catch(e){console.warn('[bulk-monteur]',e&&e.message||e);if(window.__toast)window.__toast("Fehler bei Bulk-Update: "+(e.message||e),"error");}
+          }, style: bpS}, "Anwenden")
+        , React.createElement('button', { onClick: ()=>setBulkMode(null), style: bsS()}, "Abbrechen")
+      )
+      /* v3.8.60 Phase 4.2: Bulk-Modal — Standort ändern */
+      , selectedIds.length>0&&bulkMode==='standort'&&React.createElement('div', { style: {padding:10,background:V.cd,borderRadius:8,marginBottom:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",border:"1px solid "+V.bd}}
+        , React.createElement('span', { style: {fontWeight:600,fontSize:13}}, "Neuer Standort: ")
+        , React.createElement('input', { id: "_bulkStandortInp", type: "text", placeholder: "z.B. Lager, Baustelle Mödling…", style: {...II(),width:"auto",minWidth:200,fontSize:12}})
+        , React.createElement('button', { onClick: async()=>{
+            const inp=document.getElementById('_bulkStandortInp');const newStandort=inp?(inp.value||"").trim():"";if(!newStandort){if(window.__toast)window.__toast("Standort darf nicht leer sein","error");return;}
+            try{
+              const ts=new Date().toISOString();
+              await Promise.all(selectedIds.map(id=>_sbPatch('werkzeuge',id,{standort:newStandort,updated_at:ts})));
+              setWerkzeuge(prev=>prev.map(w=>selectedIds.includes(w.id)?{...w,standort:newStandort}:w));
+              if(window.__toast)window.__toast(selectedIds.length+" Werkzeuge aktualisiert","success");
+              _clearSelection();
+            }catch(e){console.warn('[bulk-standort]',e&&e.message||e);if(window.__toast)window.__toast("Fehler bei Bulk-Update: "+(e.message||e),"error");}
+          }, style: bpS}, "Anwenden")
+        , React.createElement('button', { onClick: ()=>setBulkMode(null), style: bsS()}, "Abbrechen")
+      )
       , !filtered.length&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:40,marginBottom:10}}, "🔧"), "Keine Werkzeuge gefunden"  )
       , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { className: "scroll-x"}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:800}}
-          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}, [{l:"Inventar",c:"inventarnr"},{l:"Gerät/Werkzeug",c:"name"},{l:"Kategorie",c:"kat"},{l:"Status",c:"status"},{l:"Zugewiesen",c:"zugewiesen"},{l:"Standort",c:"standort"},{l:"Wert €",c:"wert"},{l:"Zustand",c:"zustandBewertung"},{l:"",c:null}].map((h,i)=>(React.createElement('th', { key: i, onClick: h.c?()=>toggleSort(h.c):undefined, style: {...thS(),textAlign:i===7?"center":"left",cursor:h.c?"pointer":"default",userSelect:"none"}}, h.l, h.c?sortArrow(h.c):"")))))
+          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}
+            , React.createElement('th', { style: {...thS(),width:32,textAlign:"center",cursor:"pointer",userSelect:"none"}, title: "Alle auswählen"}, React.createElement('input', { type: "checkbox", checked: selectedIds.length===filtered.length&&filtered.length>0, onChange: _selectAll, style: {cursor:"pointer",width:16,height:16}}))
+            , [{l:"Inventar",c:"inventarnr"},{l:"Gerät/Werkzeug",c:"name"},{l:"Kategorie",c:"kat"},{l:"Status",c:"status"},{l:"Zugewiesen",c:"zugewiesen"},{l:"Standort",c:"standort"},{l:"Wert €",c:"wert"},{l:"Zustand",c:"zustandBewertung"},{l:"",c:null}].map((h,i)=>(React.createElement('th', { key: i, onClick: h.c?()=>toggleSort(h.c):undefined, style: {...thS(),textAlign:i===7?"center":"left",cursor:h.c?"pointer":"default",userSelect:"none"}}, h.l, h.c?sortArrow(h.c):"")))
+          ))
           , React.createElement('tbody', {}, sorted.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=w.naechsteKalib&&w.naechsteKalib<=td2();
-            return (React.createElement('tr', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {borderBottom:"1px solid "+V.bd,cursor:isAdmin?"pointer":"default",background:kalFaellig?"rgba(239,68,68,.03)":"transparent"}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=kalFaellig?"rgba(239,68,68,.03)":"transparent"}
+            return (React.createElement('tr', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {borderBottom:"1px solid "+V.bd,cursor:isAdmin?"pointer":"default",background:selectedIds.includes(w.id)?"rgba(217,119,6,.10)":(kalFaellig?"rgba(239,68,68,.03)":"transparent")}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=selectedIds.includes(w.id)?"rgba(217,119,6,.10)":(kalFaellig?"rgba(239,68,68,.03)":"transparent")}
+              , React.createElement('td', { style: {...tdSt(),width:32,textAlign:"center"}, onClick: e=>e.stopPropagation()}, React.createElement('input', { type: "checkbox", checked: selectedIds.includes(w.id), onChange: ()=>_toggleSelect(w.id), style: {cursor:"pointer",width:16,height:16}}))
               , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:isMob?11:13,fontWeight:600}}, w.inventarnr)
               , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {fontWeight:600}}, w.name), React.createElement('div', { style: {fontSize:isMob?10:12,color:V.dm}}, w.seriennr))
               , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {fontSize:isMob?11:13}}, _optionalChain([kat, 'optionalAccess', _813 => _813.i]), " " , _optionalChain([kat, 'optionalAccess', _814 => _814.l])))
