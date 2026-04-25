@@ -5018,7 +5018,7 @@ class _ViewBoundary extends React.Component{
             , React.createElement('div', { style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
               , React.createElement('div', { style: {fontWeight:700,fontSize:14}}, "📷 Foto-Warteschlange" , React.createElement('span', { style: {fontSize:11,color:V.dm,fontWeight:400,marginLeft:6}}, photoQItems.length, " Foto", photoQItems.length!==1?"s":""))
               , React.createElement('div', { style: {display:"flex",gap:4}}
-                , React.createElement('label', { style: {...bpS,fontSize:11,padding:"4px 10px",cursor:"pointer"}}, "📷 Aufnehmen", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"allgemein","schnellfoto","","Schnellfoto").then(()=>refreshPhotoQ());});try{e.target.value="";}catch(_){}}} ))
+                , React.createElement('label', { style: {...bpS,fontSize:11,padding:"4px 10px",cursor:"pointer"}}, "📷 Aufnehmen", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"allgemein","schnellfoto","","Schnellfoto").then(()=>refreshPhotoQ());});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
                 , photoQItems.length>0&&React.createElement('button', { onClick: ()=>{PhotoQ.flush().then(r=>{if(r.ok>0)_optionalChain([window, 'access', _pq1 => _pq1.__toast, 'optionalCall', _pq2 => _pq2("📷 "+r.ok+" Foto"+(r.ok>1?"s":"")+" hochgeladen")]);refreshPhotoQ();});}, style: {...bsS(),fontSize:11,padding:"4px 10px"}}, "🔄 Jetzt senden")
                 , React.createElement('button', { onClick: ()=>setShowPhotoQ(false), style: {border:"none",background:"transparent",cursor:"pointer",fontSize:18,color:V.dm,padding:"0 4px"}}, "✕")
               )
@@ -5354,8 +5354,8 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     if(!isField||as.monteur!==curUser.monteurId)return;
     const newStatus=dx<0?"erledigt":"in_bearbeitung";
     if(as.scheinstatus===newStatus)return;
-    try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}
-    try{e.preventDefault();e.stopPropagation();}catch(_){}
+    try{window._epkVibrate&&window._epkVibrate("save");}catch(e){console.warn('[silent-dom]',e&&e.message||e);}
+    try{e.preventDefault();e.stopPropagation();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}
     _lastSwipeAt.current=Date.now();// block folgenden Tap-Click (v3.5.99)
     updAs(as.id,{scheinstatus:newStatus});
     _optionalChain([window, 'access', _swt1 => _swt1.__toast, 'optionalCall', _swt2 => _swt2((dx<0?"✅ Als erledigt markiert":"🔧 In Bearbeitung"))]);
@@ -5365,7 +5365,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const asLookupNummer=(code)=>{
     // Extract nummer: accept raw "S075270" or deep link URL with ?as=S075270
     let nr=code.trim();
-    try{const u=new URL(nr);const p=u.searchParams.get("as");if(p)nr=p;}catch(e){}
+    try{const u=new URL(nr);const p=u.searchParams.get("as");if(p)nr=p;}catch(e){console.warn('[silent-url]',e&&e.message||e);}
     return arbeitsscheine.find(a=>(a.nummer||"").toUpperCase()===nr.toUpperCase());
   };
   const asHandleScan=(code)=>{
@@ -5453,11 +5453,11 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
     if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
     else{setArbeitsscheine(prev=>[{..._finalForm,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",_finalForm.nummer+" — "+(_finalForm.kundName||_optionalChain([_finalForm, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
-    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.42 Auto-Push: _juprowaPushAll hing (4-Min-Timeout, Chrome-MCP-Capture 24.04). Ersetzt durch _juprowaPush(editId) single-id fire-and-forget. Nur online + Juprowa-gebunden. */try{if(editId&&_finalForm.juprowa_id&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(editId).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',editId,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',editId,e&&e.message||e));}}catch(_){}try{window._epkVibrate&&window._epkVibrate("save");}catch(_){}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
-  const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});/* v3.8.42 Auto-Push */try{if(isJup&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(_){}if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
+    SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.42 Auto-Push: _juprowaPushAll hing (4-Min-Timeout, Chrome-MCP-Capture 24.04). Ersetzt durch _juprowaPush(editId) single-id fire-and-forget. Nur online + Juprowa-gebunden. */try{if(editId&&_finalForm.juprowa_id&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(editId).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',editId,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',editId,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}try{window._epkVibrate&&window._epkVibrate("save");}catch(e){console.warn('[silent-dom]',e&&e.message||e);}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);};
+  const storno=id=>{if(!confirm("Arbeitsschein wirklich stornieren?"))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});/* v3.8.42 Auto-Push */try{if(isJup&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=id=>{if(!isAdmin)return;if(!confirm("Arbeitsschein endgültig löschen?"))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
-  const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(_){}};
-  const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(_){}};
+  const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}};
+  const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}};
 
   const exportOffa=(statusFilter)=>{setShowExportPicker(false);if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(e=>console.warn('[EXPORT-OFFA]',e&&e.message||e));}
     const hdrs=["Nr","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
@@ -6316,7 +6316,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     w.document.write(el.innerHTML);
     w.document.write('</body></html>');
     w.document.close();
-    setTimeout(()=>{try{w.print();}catch(_){}},300);
+    setTimeout(()=>{try{w.print();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}},300);
   };
 
   // === EXCEL GENERATOR (uses editTaet + filters) ===
@@ -6414,7 +6414,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;
     a.download="BWB_"+(proj.nr||proj.name).replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df_-]/g,"_")+".xls";
-    document.body.appendChild(a);a.click();setTimeout(()=>{try{a.remove();}catch(_){}URL.revokeObjectURL(url);},2000);
+    document.body.appendChild(a);a.click();setTimeout(()=>{try{a.remove();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}URL.revokeObjectURL(url);},2000);
     _optionalChain([window, 'access', _bex9 => _bex9.__toast, 'optionalCall', _bex10 => _bex10("\ud83d\udcca "+a.download+" heruntergeladen")]);
   };
 
@@ -7481,13 +7481,13 @@ function TimerBanner({curUser,projects,setEntries}){
     // v3.8.7 Iter-5: Legacy-Timer (pre-v3.8.3, ohne owner-Feld) werden defensiv gecleaned.
     // Nur Neu-gestartete Timer haben owner → alles ohne owner ist verdächtig.
     if(!state.owner){
-      try{localStorage.removeItem('epk_timer');}catch(_){}
+      try{localStorage.removeItem('epk_timer');}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
       setState(null);
       console.warn('[TimerBanner] Legacy-Timer ohne owner-Feld gelöscht (pre-v3.8.3)');
       return;
     }
     if(curUser&&curUser.monteurId&&state.owner!==curUser.monteurId){
-      try{localStorage.removeItem('epk_timer');}catch(_){}
+      try{localStorage.removeItem('epk_timer');}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
       setState(null);
       console.warn('[TimerBanner] Timer-Owner-Mismatch: gelöscht (lief für '+state.owner+', jetzt '+curUser.monteurId+')');
     }
@@ -7512,7 +7512,7 @@ function TimerBanner({curUser,projects,setEntries}){
     const _tdNow=td2();
     const entry={id:_uuid(),p:r.projectId,pid:r.projectId,w:curUser.monteurId||"",worker:curUser.monteurId||"",date:_tdNow,datum:_tdNow,hours:r.hours,stunden:r.hours,task:r.task||"Timer",taetigkeit:r.task||"Timer",gw:proj&&proj.type||"elektro"};
     setEntries(prev=>[entry,...prev]);
-    try{SQ.push({url:"/api/entries",method:"POST",body:{id:entry.id,project_id:entry.p,worker_id:entry.w,date:entry.date,hours:entry.hours,taetigkeit:entry.task,gewerk:entry.gw}});}catch(_){}
+    try{SQ.push({url:"/api/entries",method:"POST",body:{id:entry.id,project_id:entry.p,worker_id:entry.w,date:entry.date,hours:entry.hours,taetigkeit:entry.task,gewerk:entry.gw}});}catch(e){console.warn('[silent-io]',e&&e.message||e);}
     window._epkVibrate("save");
     window.__toast&&window.__toast("⏱️ "+r.hours+"h gebucht auf "+(proj?proj.name:r.projectId),"success");
     setState(null);
@@ -7564,7 +7564,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const [dashVis,setDashVis]=_react.useState.call(void 0, ()=>_safeJsonParse(localStorage.getItem("epk_dash_vis"),{})||{});
   const [showDashCfg,setShowDashCfg]=_react.useState.call(void 0, false);
   const dv=(k)=>dashVis[k]!==false;
-  const toggleDv=(k)=>{setDashVis(prev=>{const n={...prev,[k]:!(prev[k]!==false)};try{localStorage.setItem("epk_dash_vis",JSON.stringify(n));}catch(e){}return n;});};
+  const toggleDv=(k)=>{setDashVis(prev=>{const n={...prev,[k]:!(prev[k]!==false)};try{localStorage.setItem("epk_dash_vis",JSON.stringify(n));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}return n;});};
   _react.useEffect.call(void 0, ()=>{const t=setInterval(()=>setNow(new Date()),60000);return ()=>clearInterval(t);},[]);
 
   /* FinkZeit-Stats für Dashboard */
@@ -7588,7 +7588,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             const diff=Math.abs(epH-extra.finkStunden);
             if(diff>1)diffWarn++;
           }
-        }catch(e){}
+        }catch(e){console.warn('[silent-json]',e&&e.message||e);}
       });
       const _MONATE=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
       const _pendingByMonth={};
@@ -7601,7 +7601,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
       const pendingDetails=Object.keys(_pendingByMonth).sort().reverse().map(k=>({label:_pendingByMonth[k].label,workers:_pendingByMonth[k].workers}));
       const stats={total:allYear.length,offen:allYear.filter(d=>d.status!=="genehmigt").length,freigegeben:allYear.filter(d=>d.status==="genehmigt").length,abgeglichen:allYear.filter(d=>{try{return JSON.parse(d.data||"{}").abgeglichen;}catch(e){return false;}}).length,diffWarn,pendingDetails};
       if(active)setFinkStats(stats);
-    }catch(e){}})();
+    }catch(e){console.warn('[silent-async]',e&&e.message||e);}})();
     return ()=>{active=false;};
   },[entries.length]);
 
@@ -7614,7 +7614,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const fetchWeatherData=(lat,lon)=>{
     const cKey="epk_weather";const c=_safeJsonParse(sessionStorage.getItem(cKey),null);if(c&&c.ts>(Date.now()-900000)){if(_weatherMountedRef.current)setWeather(c.d);return;}
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=Europe%2FVienna&forecast_days=7&daily=temperature_2m_max,temperature_2m_min,weather_code`,_fT({},10000))
-      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(!_weatherMountedRef.current)return;if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){}}else setWeatherErr(true);}).catch(()=>{if(_weatherMountedRef.current)setWeatherErr(true);});
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(!_weatherMountedRef.current)return;if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){console.warn('[silent-ss]',e&&e.message||e);}}else setWeatherErr(true);}).catch(()=>{if(_weatherMountedRef.current)setWeatherErr(true);});
   };
   _react.useEffect.call(void 0, ()=>{
     let done=false;
@@ -7845,9 +7845,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             window._epkTimer.start(proj.id,task||"",curUser&&curUser.monteurId||"");
             window.__toast&&window.__toast("⏱️ Timer gestartet: "+proj.name,"success");
           }, style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#3b82f6,#1d4ed8)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(59,130,246,.25)"}}, "▶ Timer starten")
-          , topProjects.length>0&&React.createElement('button', { onClick: ()=>{onOpenP(topProjects[0]);setTimeout(()=>{try{const ev=new CustomEvent("epk_open_material");window.dispatchEvent(ev);}catch(_){}},300);}, style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(245,158,11,.25)"}}, "📦 Material anfordern")
+          , topProjects.length>0&&React.createElement('button', { onClick: ()=>{onOpenP(topProjects[0]);setTimeout(()=>{try{const ev=new CustomEvent("epk_open_material");window.dispatchEvent(ev);}catch(e){console.warn('[silent-dom]',e&&e.message||e);}},300);}, style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(245,158,11,.25)"}}, "📦 Material anfordern")
           , React.createElement('label', { style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#22c55e,#15803d)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(34,197,94,.25)"}}, "📷 Foto"
-            , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"baustelle","schnellfoto","","Schnellfoto Baustelle");});_optionalChain([window, 'access', _mtp1 => _mtp1.__toast, 'optionalCall', _mtp2 => _mtp2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(_){}}} )
+            , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"baustelle","schnellfoto","","Schnellfoto Baustelle");});_optionalChain([window, 'access', _mtp1 => _mtp1.__toast, 'optionalCall', _mtp2 => _mtp2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} )
           )
         )
       )
@@ -8079,7 +8079,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             {i:"🚐",l:"Fahrzeuge",nav:"fahrzeuge",c:"#0ea5e9"},
             {i:"📊",l:"Auswertungen",nav:"auswertungen",c:"#a855f7"},
           ].filter(a=>hasPerm(curUser,a.nav)).map(a=>(React.createElement('button', { key: a.nav, onClick: ()=>onNav(a.nav), style: {padding:isMob?"8px 12px":"10px 16px",borderRadius:10,border:"2px solid "+a.c+"33",background:a.c+"11",color:a.c,fontSize:isMob?11:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:44,transition:"all .15s"}}, a.i, " " , a.l)))
-          , React.createElement('label', { style: {padding:isMob?"8px 12px":"10px 16px",borderRadius:10,border:"2px solid #f9731633",background:"#f9731611",color:"#f97316",fontSize:isMob?11:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:44,transition:"all .15s"}}, "📷 Foto aufnehmen" , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"baustelle","schnellfoto","","Schnellfoto Baustelle");});_optionalChain([window, 'access', _qa1 => _qa1.__toast, 'optionalCall', _qa2 => _qa2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(_){}}} ))
+          , React.createElement('label', { style: {padding:isMob?"8px 12px":"10px 16px",borderRadius:10,border:"2px solid #f9731633",background:"#f9731611",color:"#f97316",fontSize:isMob?11:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:44,transition:"all .15s"}}, "📷 Foto aufnehmen" , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"baustelle","schnellfoto","","Schnellfoto Baustelle");});_optionalChain([window, 'access', _qa1 => _qa1.__toast, 'optionalCall', _qa2 => _qa2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
         )
       )
 
@@ -8561,7 +8561,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,entries,setEntries,forms,se
               , (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))
             )
             , !isMob && (React.createElement('span', { style: {fontSize:12,color:V.dm,fontFamily:mono}}, "KW " , kw))
-            , React.createElement('label', { style: {padding:"4px 8px",borderRadius:6,border:"1px solid "+V.bd,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",color:V.dm,transition:"all .15s"}, title: "Schnellfoto"}, "📷", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"schnellfoto","foto_"+Date.now(),p.id,"Schnellfoto").then(()=>{if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});_optionalChain([window, 'access', _shf1 => _shf1.__toast, 'optionalCall', _shf2 => _shf2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" aufgenommen")]);try{e.target.value="";}catch(_){}}} ))
+            , React.createElement('label', { style: {padding:"4px 8px",borderRadius:6,border:"1px solid "+V.bd,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",color:V.dm,transition:"all .15s"}, title: "Schnellfoto"}, "📷", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"schnellfoto","foto_"+Date.now(),p.id,"Schnellfoto").then(()=>{if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});_optionalChain([window, 'access', _shf1 => _shf1.__toast, 'optionalCall', _shf2 => _shf2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" aufgenommen")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
           )
         )
         , React.createElement('div', { className: "tab-bar", style: {padding:"0 "+(isMob?"4px":"12px"),borderBottom:"1px solid "+V.bd,background:V.sb,display:"flex",gap:0,overflowX:"auto",flexShrink:0,WebkitOverflowScrolling:"touch"}},
@@ -8607,7 +8607,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView}){
   const [matKpi,setMatKpi]=_react.useState.call(void 0, {items:0,cost:0,openOrders:0});
   _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{if(API.getToken()){const r=await _sbGetOrder("photos","taken_at.desc","project_id=eq."+encodeURIComponent(p.id)+"&limit=4");if(a&&r)setRecentPhotos(r.slice(0,4));}}catch(e){console.warn('[silent-await]',e&&e.message||e);}})();return()=>{a=false;};},[p.id]);
   // v3.5.104: _sbGet statt _sbGetAnon — nach RLS B-006 liefert anon 0 Rows
-  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{if(API.getToken()){const [mi,mo]=await Promise.all([_sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)),_sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=in.(angefordert,in_bearbeitung,offen)")]);if(a){setMatKpi({items:(mi||[]).length,cost:0,openOrders:(mo||[]).length});}}}catch(_){}})();return()=>{a=false;};},[p.id]);
+  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{if(API.getToken()){const [mi,mo]=await Promise.all([_sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)),_sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=in.(angefordert,in_bearbeitung,offen)")]);if(a){setMatKpi({items:(mi||[]).length,cost:0,openOrders:(mo||[]).length});}}}catch(e){console.warn('[silent-async]',e&&e.message||e);}})();return()=>{a=false;};},[p.id]);
   const _phUrl=ph=>ph.file_path||ph.fileUrl||ph.file_url||ph.data_url||ph.dataUrl||"";
   return (
     React.createElement('div', {}
@@ -9337,7 +9337,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
           if(photos&&photos.length){
             photoMap[did]=photos.map(ph=>({id:ph.id,src:ph.file_path||ph.data_url,name:ph.name,date:ph.taken_at||ph.uploaded_at}));
           }
-        }catch(e){}
+        }catch(e){console.warn('[silent-async]',e&&e.message||e);}
       }
       if(Object.keys(photoMap).length)setDefectPhotos(prev=>({...prev,...photoMap}));
     };
@@ -9520,7 +9520,7 @@ function PlanViewer({plan,tickets,layers,onPlanClick,onTicketClick,selectedTicke
           if(typeof url==="string"&&url.startsWith("blob:"))URL.revokeObjectURL(url);
         });
         _pdfBlobCache.current={};
-      }catch(e){}
+      }catch(e){console.warn('[silent-dom]',e&&e.message||e);}
     };
   },[]);
   const _pdfBlobUrlForPlan=(p)=>{
@@ -9664,8 +9664,8 @@ function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww,monteure,isAdm
             , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6,color:V.dm}}, "📷 Fotos ("  , (ticket.photos||[]).length, ")")
             , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
               , (ticket.photos||[]).map((ph,i)=>(React.createElement('div', { key: i, style: {width:56,height:56,borderRadius:6,background:V.bg,border:"1px solid "+V.bd,overflow:"hidden",position:"relative"}}, ph.dataUrl&&React.createElement('img', { src: ph.dataUrl, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { onClick: ()=>{const photos=[...(ticket.photos||[])];photos.splice(i,1);onUpdate({...ticket,photos});}, style: {position:"absolute",top:-3,right:-3,width:14,height:14,borderRadius:"50%",background:"#ef4444",color:"#fff",border:"none",fontSize:7,cursor:"pointer",lineHeight:"14px"}}, "✕"))))
-              , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",color:V.dm}, title: "Foto wählen" }, "+", React.createElement('input', { type: "file", accept: "image/*", multiple: true, style: {display:"none"}, onChange: e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)onUpdate({...ticket,photos:[...(ticket.photos||[]),{name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]});});try{e.target.value="";}catch(_){}}} ))
-              , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,cursor:"pointer",color:V.dm}, title: "Kamera"}, "📷", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)onUpdate({...ticket,photos:[...(ticket.photos||[]),{name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]});});try{e.target.value="";}catch(_){}}} ))
+              , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",color:V.dm}, title: "Foto wählen" }, "+", React.createElement('input', { type: "file", accept: "image/*", multiple: true, style: {display:"none"}, onChange: e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)onUpdate({...ticket,photos:[...(ticket.photos||[]),{name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]});});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
+              , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,cursor:"pointer",color:V.dm}, title: "Kamera"}, "📷", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)onUpdate({...ticket,photos:[...(ticket.photos||[]),{name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]});});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
             )
           )
           , React.createElement('div', { style: {marginBottom:14}}
@@ -9935,7 +9935,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const handleDragLeave=e=>{e.preventDefault();setDropActive(false);};
   const planTickets=allTickets.filter(t=>t.planId===(_optionalChain([selPlan, 'optionalAccess', _378 => _378.id])||""));
   const filteredTickets=planTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;});
-  const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{const isPdf=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf");if(isPdf){const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Plan-PDF konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ev.target.result,width:1200,height:850,isPdf:true,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:new Date().toISOString()};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ev.target.result,width:1200,height:850,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");};reader.readAsDataURL(file);}else{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ph.dataUrl,width:ph.width,height:ph.height,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");}).catch(e=>{console.error('[PLAN-UPLOAD]',file.name,e&&e.message||e);window.__toast&&window.__toast("❌ Plan-Upload fehlgeschlagen: "+file.name,"error");});}});try{e.target.value="";}catch(_){}};
+  const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{const isPdf=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf");if(isPdf){const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Plan-PDF konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ev.target.result,width:1200,height:850,isPdf:true,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:new Date().toISOString()};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ev.target.result,width:1200,height:850,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");};reader.readAsDataURL(file);}else{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ph.dataUrl,width:ph.width,height:ph.height,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");}).catch(e=>{console.error('[PLAN-UPLOAD]',file.name,e&&e.message||e);window.__toast&&window.__toast("❌ Plan-Upload fehlgeschlagen: "+file.name,"error");});}});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
   const deletePlan=async id=>{if(!isAdmin)return;if(!await _confirmModal("Plan und alle zugehörigen Tickets löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
   const isPlanFreigegeben=(planId)=>!!(forms.kundenDocs||[]).find(kd=>kd.id==="plan_"+planId);
   const togglePlanFreigabe=(pl)=>{
@@ -10609,7 +10609,7 @@ function VFotos({p,curUser,monteure,ww}){
         }
       });
     });
-    try{e.target.value="";}catch(_){}
+    try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}
   };
   // Lightbox nav
   const lbPhoto=lbIdx>=0&&lbIdx<filtered.length?filtered[lbIdx]:null;
@@ -10813,7 +10813,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
     };
     reader.readAsDataURL(file);
   };
-  const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(_){}};
+  const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
   const delDoc=id=>{if(!isAdmin)return;if(!confirm("Dokument wirklich löschen?"))return;setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
   const openDoc=d=>{_openFileUrl(d.dataUrl||d.fileUrl,d.fileName||d.name);};
   const moveDoc=(docId,folderId)=>{setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"PUT",body:{folder_id:folderId}});};
