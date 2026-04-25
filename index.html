@@ -9689,6 +9689,8 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
   const canvasRef = _react.useRef.call(void 0, null);
   const containerRef = _react.useRef.call(void 0, null);
   const panStartRef = _react.useRef.call(void 0, null);
+  const pointersRef = _react.useRef.call(void 0, new Map());
+  const lastPinchDistRef = _react.useRef.call(void 0, null);
   const isPdf = (plan && plan.dataUrl || "").startsWith("data:application/pdf") || (plan && plan.dataUrl || "").startsWith("blob:") || (plan && /\.pdf$/i.test(plan.filename || ""));
 
   _react.useEffect.call(void 0, () => {
@@ -9722,18 +9724,43 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
   }, [plan && plan.id, pageNum, scale, isPdf]);
 
   const handlePointerDown = (e) => {
+    pointersRef.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if(pointersRef.current.size === 2) {
+      const pts = Array.from(pointersRef.current.values());
+      lastPinchDistRef.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      setIsPanning(false);
+      panStartRef.current = null;
+      return;
+    }
     if(pinMode) return;
     panStartRef.current = {x: e.clientX - pan.x, y: e.clientY - pan.y};
     setIsPanning(true);
     e.preventDefault();
   };
   const handlePointerMove = (e) => {
+    if(pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    }
+    if(pointersRef.current.size === 2) {
+      const pts = Array.from(pointersRef.current.values());
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if(lastPinchDistRef.current) {
+        const ratio = dist / lastPinchDistRef.current;
+        setScale(s => Math.max(0.5, Math.min(4, s * ratio)));
+      }
+      lastPinchDistRef.current = dist;
+      return;
+    }
     if(!isPanning || !panStartRef.current) return;
     setPan({x: e.clientX - panStartRef.current.x, y: e.clientY - panStartRef.current.y});
   };
-  const handlePointerUp = () => {
-    setIsPanning(false);
-    panStartRef.current = null;
+  const handlePointerUp = (e) => {
+    if(e && e.pointerId != null) pointersRef.current.delete(e.pointerId);
+    if(pointersRef.current.size < 2) lastPinchDistRef.current = null;
+    if(pointersRef.current.size === 0) {
+      setIsPanning(false);
+      panStartRef.current = null;
+    }
   };
 
   const handleCanvasClick = (e) => {
