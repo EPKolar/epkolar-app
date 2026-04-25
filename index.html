@@ -1333,6 +1333,34 @@ function _safeJsonParse(s,fallback){
   if(s==null||s==="")return fallback;
   try{return JSON.parse(s);}catch(_){return fallback;}
 }
+// v3.8.54: localStorage Quota-Monitor. Bei iOS Safari liegt das Limit oft bei 5MB,
+// bei Chrome/Edge bei 10MB. Wenn 80% erreicht: Warn-Toast für User.
+function _checkLocalStorageQuota(){
+  try{
+    let total=0;
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      const val=localStorage.getItem(key)||"";
+      total+=key.length+val.length;
+    }
+    const mb=total/(1024*1024);
+    const limit=5; // konservativ iOS-orientiert
+    const pct=Math.round((mb/limit)*100);
+    if(pct>=80&&typeof window.__toast==='function'){
+      const lastWarn=parseInt(sessionStorage.getItem('lsQuotaWarn')||'0');
+      if(Date.now()-lastWarn>TIME_HOUR){ // max 1x pro Stunde
+        window.__toast('💾 Speicher fast voll ('+pct+'%) — Cache leeren empfohlen','warn',8000);
+        try{sessionStorage.setItem('lsQuotaWarn',String(Date.now()));}catch(_){}
+      }
+    }
+    return {totalMB:mb,pct,limit};
+  }catch(e){
+    console.warn('[lsQuota]',e&&e.message||e);
+    return null;
+  }
+}
+// Run check every 5 min
+setInterval(_checkLocalStorageQuota,300000);
 // ═══ camelCase → snake_case field mapper ═══
 function _toSnake(s){return s.replace(/[A-Z]/g,m=>'_'+m.toLowerCase());}
 function _mapBody(obj){
