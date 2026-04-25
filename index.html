@@ -550,7 +550,7 @@ window._runAllTests=async function(){
   // v3.8.35: epkolar_gc Check entfernt — Key wird nicht mehr geschrieben (Plaintext-PW-Cache aus Sicherheitsgründen eliminiert).
   await t('epkolar_gc NICHT vorhanden',()=>!localStorage.getItem('epkolar_gc'));
   await t('epkolar_user vorhanden',()=>!!localStorage.getItem('epkolar_user'));
-  await t('JWT nicht abgelaufen',()=>{const tok=_authToken;if(!tok)return false;return JSON.parse(atob(tok.split('.')[1])).exp>Date.now()/1000;});
+  await t('JWT nicht abgelaufen',()=>{const tok=_authToken;if(!tok)return false;return _safeJsonParse(atob(tok.split('.')[1]),{}).exp>Date.now()/1000;});
 
   // API
   await t('Supabase erreichbar',async()=>{const r=await fetch(SUPABASE_URL+"/rest/v1/users?limit=1",{headers:_sbH()});return r.ok;});
@@ -9050,9 +9050,9 @@ function SavedList({label,saved,loadEntry,deleteEntry,labelFn,onPrint}){
 function useEditable(forms,setForms,key,pid,defData){
   const saved=(forms[key]||[]).filter(f=>f.pid===pid);
   const [editIdx,setEditIdx]=_react.useState.call(void 0, null);
-  const [data,setData]=_react.useState.call(void 0, ()=>JSON.parse(JSON.stringify(defData)));
-  const load=i=>{setData(JSON.parse(JSON.stringify(saved[i])));setEditIdx(i);};
-  const clear=()=>{setData(JSON.parse(JSON.stringify(defData)));setEditIdx(null);};
+  const [data,setData]=_react.useState.call(void 0, ()=>_safeJsonParse(JSON.stringify(defData),{}));
+  const load=i=>{setData(_safeJsonParse(JSON.stringify(saved[i]),{}));setEditIdx(i);};
+  const clear=()=>{setData(_safeJsonParse(JSON.stringify(defData),{}));setEditIdx(null);};
   const save=()=>{const all=[...(forms[key]||[])];const entry={...data,pid:pid,savedAt:new Date().toLocaleDateString("de-AT")};if(editIdx!==null){const gi=all.indexOf(saved[editIdx]);if(gi>-1){all[gi]=entry;SQ.push({url:"/api/forms/"+entry.id,method:"PUT",body:{form_type:key,project_id:pid,data:entry}});}}else{entry.id=entry.id||uid();all.push(entry);SQ.push({url:"/api/forms",method:"POST",body:{id:entry.id,form_type:key,project_id:pid,data:entry}});}setForms(prev=>({...prev,[key]:all}));_optionalChain([window, 'access', _352 => _352.__toast, 'optionalCall', _353 => _353("✅ Formular gespeichert")]);clear();};
   const del=i=>{if(!confirm("Eintrag wirklich löschen?"))return;const all=[...(forms[key]||[])];const gi=all.indexOf(saved[i]);if(gi>-1){if(_optionalChain([saved, 'access', _354 => _354[i], 'optionalAccess', _355 => _355.id]))SQ.push({url:"/api/forms/"+saved[i].id,method:"DELETE"});all.splice(gi,1);}setForms(prev=>({...prev,[key]:all}));if(editIdx===i)clear();};
   return {saved,editIdx,data,setData,load,clear,save,del};
@@ -9090,9 +9090,9 @@ function FRegie({p,forms,setForms}){
   const saved=(forms.regie||[]).filter(f=>f.pid===p.id);
   const [editIdx,setEditIdx]=_react.useState.call(void 0, null);
   const defD={art:"Regie",datum:td2(),ebene:"EG",planpos:"",arbeit:"",personal:[{name:"",stunden:"",fahrzeit:"",bemerkung:""}],material:[{name:"",stueck:"",artikelNr:"",bemerkung:""}],folge:false};
-  const [d,setD]=_react.useState.call(void 0, ()=>JSON.parse(JSON.stringify(defD)));
-  const loadE=i=>{setD(JSON.parse(JSON.stringify(saved[i])));setEditIdx(i);};
-  const clearF=()=>{setD(JSON.parse(JSON.stringify(defD)));setEditIdx(null);};
+  const [d,setD]=_react.useState.call(void 0, ()=>_safeJsonParse(JSON.stringify(defD),{}));
+  const loadE=i=>{setD(_safeJsonParse(JSON.stringify(saved[i]),{}));setEditIdx(i);};
+  const clearF=()=>{setD(_safeJsonParse(JSON.stringify(defD),{}));setEditIdx(null);};
   const saveE=()=>{const all=[...(forms.regie||[])];const entry={...d,pid:p.id,nr:String(saved.length+1).padStart(3,"0")};if(editIdx!==null){const gi=all.indexOf(saved[editIdx]);if(gi>-1){all[gi]=entry;if(entry.id)SQ.push({url:"/api/forms/"+entry.id,method:"PUT",body:{form_type:"regie",project_id:p.id,data:entry}});}}else{entry.id=entry.id||uid();all.push(entry);SQ.push({url:"/api/forms",method:"POST",body:{id:entry.id,form_type:"regie",project_id:p.id,data:entry}});}setForms(prev=>({...prev,regie:all}));_optionalChain([window, 'access', _356 => _356.__toast, 'optionalCall', _357 => _357("✅ Regiebericht gespeichert")]);clearF();};
   const delE=i=>{if(!confirm("Regie-Eintrag wirklich löschen?"))return;const all=[...(forms.regie||[])];const gi=all.indexOf(saved[i]);if(gi>-1){if(_optionalChain([saved, 'access', _358 => _358[i], 'optionalAccess', _359 => _359.id]))SQ.push({url:"/api/forms/"+saved[i].id,method:"DELETE"});all.splice(gi,1);}setForms(prev=>({...prev,regie:all}));_optionalChain([window, 'access', _360 => _360.__toast, 'optionalCall', _361 => _361("🗑️ Eintrag gelöscht")]);if(editIdx===i)clearF();};
   const uP=(i,f,v)=>{const a=[...d.personal];a[i]={...a[i],[f]:v};setD(p=>({...p,personal:a}));};
