@@ -1178,8 +1178,18 @@ async function _silentReAuth(){
   // Fallback war "App loggt sich automatisch wieder ein wenn refresh_token stirbt"; der
   // refresh_token hat 7 Tage Default-Lifetime, der überbrückt die meisten realen
   // Szenarien. Bei echtem Ablauf: User loggt sich neu ein — das ist normale Web-UX.
+  // v3.8.52 Fix: Force-Toast+Reload damit App nicht im stillen broken-State
+  // weiterläuft. Bug-Symptom 25.04: Bei refresh_token-Rotation+400 sperrt RLS
+  // alle Reads auf 0 rows, App zeigt cached IndexedDB-State, User sieht "OFFA-
+  // Sync hängt" / "Daten weg", obwohl in Wahrheit nur Auth abgelaufen ist.
   console.warn("[Auth] Silent re-auth not available (epkolar_gc removed v3.8.35) — user re-login required");
   _authToken=null;_authRefreshToken=null;
+  try{
+    if(typeof window.__toast==='function')window.__toast('🔒 Sitzung abgelaufen — bitte erneut anmelden','warn',8000);
+    try{localStorage.removeItem("epkolar_auth");localStorage.removeItem("epkolar_token");localStorage.removeItem("epkolar_refresh");localStorage.removeItem("epkolar_user");}catch(_){}
+    if(_authRefreshTimer){clearTimeout(_authRefreshTimer);_authRefreshTimer=null;}
+    setTimeout(()=>{try{location.reload();}catch(_){}},2000);
+  }catch(_){}
   return null;
 }
 async function _sbAuthLogout(){
