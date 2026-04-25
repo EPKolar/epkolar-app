@@ -1968,7 +1968,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.49-supabase";
+const APP_VERSION="3.8.50-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -4651,19 +4651,12 @@ class _ViewBoundary extends React.Component{
 
   const mainSwipe=useSwipe(()=>setKat(k=>k+1),()=>setKat(k=>Math.max(k-1,0)));
   _react.useEffect.call(void 0, ()=>{const h=e=>{if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();setShowSearch(true);}};window.addEventListener("keydown",h);return ()=>window.removeEventListener("keydown",h);},[]);
-  if(appLoading) return (
-    React.createElement('div', { style: {minHeight:"100dvh",background:V.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}
-      , React.createElement('style', {}, GCSS())
-      , React.createElement('img', { src: LOGO_MD, alt: "EP Kolar" , style: {height:60,borderRadius:6}} )
-      , React.createElement('div', { style: {fontSize:15,fontWeight:600,color:V.tx}}, "EP: Kolar & Sohn"   )
-      , React.createElement('div', { style: {fontSize:12,color:V.dm}}, "Wird geladen..." )
-      , React.createElement('div', { style: {width:40,height:40,border:"3px solid "+V.bd,borderTopColor:V.ac,borderRadius:"50%",animation:"spin .8s linear infinite"}} )
-      , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
-    )
-  );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
-  if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
-
+  /* v3.8.50 Hotfix #310: tab/permission computation MUST run on every render
+     (incl. during appLoading or LoginScreen) so the useEffect below stays at
+     a stable hook-position. Previously _allTabs / tabs / safeKat lived AFTER
+     the appLoading + !curUser early-returns, which made the useEffect at the
+     end conditional on the auth state and triggered React #310 the moment
+     auth-refresh failed (curUser became null mid-session). */
   const _allTabs=[
     {l:"Home",i:"🏠",c:"#f59e0b",perm:"_home",g:0},
     /* v3.5.81 Block 7: Chef-Dashboard nur für Admin/GF */
@@ -4682,19 +4675,28 @@ class _ViewBoundary extends React.Component{
     {l:"Büro-Export",i:"📋",c:"#6366f1",perm:"bueroexport",g:4},
     {l:"Admin",i:"⚙️",c:"#ef4444",perm:"admin",g:4},
   ];
-  const tabs=_allTabs.filter(t=>{
+  const tabs=curUser?_allTabs.filter(t=>{
     if(t.perm==="_home")return true;
     if(t.perm==="_chef")return curUser.role==="admin";
     if(t.perm==="_settings")return !(curUser.role==="monteur"||curUser.role==="helfer");
     if(t.perm.startsWith("_"))return true;
     return hasPerm(curUser,t.perm)||(t.perm==="admin"&&canDo("admin_panel",curUser));
-  });
-  /* v3.8.49 Bug-Fix: setKat darf NICHT direkt im Render-Body aufgerufen werden
-     (React-Warning "Cannot update component while rendering"). Stattdessen in
-     useEffect verlagern, safeKat rendert weiterhin konsistent via Math.min. */
+  }):[];
   const safeKat=tabs.length>0?Math.min(kat,tabs.length-1):0;
   _react.useEffect.call(void 0, ()=>{if(tabs.length>0&&kat>=tabs.length)setKat(tabs.length-1);},[tabs.length,kat]);
-  // Deep-link tab nav moved BEFORE early returns (was here — caused #310)
+  if(appLoading) return (
+    React.createElement('div', { style: {minHeight:"100dvh",background:V.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}
+      , React.createElement('style', {}, GCSS())
+      , React.createElement('img', { src: LOGO_MD, alt: "EP Kolar" , style: {height:60,borderRadius:6}} )
+      , React.createElement('div', { style: {fontSize:15,fontWeight:600,color:V.tx}}, "EP: Kolar & Sohn"   )
+      , React.createElement('div', { style: {fontSize:12,color:V.dm}}, "Wird geladen..." )
+      , React.createElement('div', { style: {width:40,height:40,border:"3px solid "+V.bd,borderTopColor:V.ac,borderRadius:"50%",animation:"spin .8s linear infinite"}} )
+      , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
+    )
+  );
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(_){}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
+
   const mainTabs=tabs.filter(t=>t.g<4);
   const moreTabs=tabs.filter(t=>t.g>=4);
   const moreActive=moreTabs.some((_,mi)=>{const ri=tabs.indexOf(moreTabs[mi]);return ri===safeKat;});
