@@ -4570,14 +4570,17 @@ class _ViewBoundary extends React.Component{
   _react.useEffect.call(void 0, ()=>{
     if(!curUser||notifLoaded.current)return;
     notifLoaded.current=true;
+    let active=true;
     (async()=>{
       // First load local cache
       const saved=await ODB.load("notifications");
+      if(!active)return;
       if(saved&&saved.length)setNotifications(saved);
       // Then fetch from server to merge
       if(navigator.onLine&&API.getToken()){
         try{
           const srvNotifs=await API.request("GET","/api/notifications");
+          if(!active)return;
           /* v3.8.49: Array.isArray-Guard. Vorher crashte srvNotifs.map() wenn der Server
              ein Objekt statt Array zurückgibt (z.B. Fehler-Envelope oder single-row-Response). */
           if(Array.isArray(srvNotifs)&&srvNotifs.length){
@@ -4592,6 +4595,7 @@ class _ViewBoundary extends React.Component{
         }catch(e){console.warn("Notification fetch:",e);}
       }
     })();
+    return ()=>{active=false;};
   },[curUser]);
 
   // Tab title badge
