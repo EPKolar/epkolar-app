@@ -1613,7 +1613,7 @@ async function _translateAndExec(url,method,body){
       const username=body&&body.username||"Unbekannt";
       const notifs=admins.map(a=>({id:Date.now()+"_pwr_"+a.id,user_id:a.id,type:"system",title:"🔑 Passwort-Reset Anfrage",body:"Benutzer '"+username+"' hat eine Passwort-Zurücksetzung angefordert.",link:"",read:0,created_at:new Date().toISOString()}));
       if(notifs.length)await _sbUpsert("notifications",notifs);
-    }catch(e){console.warn("PW-Reset notification:",e);}
+    }catch(e){console.warn("[api] PW-Reset notification:",e);}
     return{ok:1};
   }
   if(resource==="export")return{ok:1}; // exports are client-side
@@ -1695,7 +1695,7 @@ async function _translateAndExec(url,method,body){
           sv.push(body);
           await _sbPatch("fahrzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
         }
-      }catch(e){console.warn("Serviceheft update:",e);}
+      }catch(e){console.warn("[api] Serviceheft update:",e);}
     }
     return{ok:1};
   }
@@ -1720,7 +1720,7 @@ async function _translateAndExec(url,method,body){
           }
           await _sbPatch("fahrzeuge",idOrSub,patch);
         }
-      }catch(e){console.warn("Tank/KM update:",e);}
+      }catch(e){console.warn("[api] Tank/KM update:",e);}
       delete d.tankLog_add;delete d.tank_log_add;delete d.kmStand;delete d.km_stand;
       if(Object.keys(d).length===0)return{ok:1};
     }
@@ -1735,7 +1735,7 @@ async function _translateAndExec(url,method,body){
           kl.push({km:km,date:_ymd(new Date())});
           await _sbPatch("fahrzeuge",idOrSub,{km_stand:km,km_log:JSON.stringify(kl),updated_at:new Date().toISOString()});
         }
-      }catch(e){console.warn("KM update:",e);}
+      }catch(e){console.warn("[api] KM update:",e);}
       delete d.kmStand;delete d.km_stand;
       if(Object.keys(d).length===0)return{ok:1};
     }
@@ -1753,7 +1753,7 @@ async function _translateAndExec(url,method,body){
         sv.push(body);
         await _sbPatch("werkzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
       }
-    }catch(e){console.warn("WZ serviceheft:",e);}
+    }catch(e){console.warn("[api] WZ serviceheft:",e);}
     return{ok:1};
   }
 
@@ -1840,7 +1840,7 @@ async function _translateAndExec(url,method,body){
 
   // ─── Generic CRUD ───
   const entry=ROUTE_MAP[resource];
-  if(!entry){console.warn("Unknown route:",url);return{ok:1};}
+  if(!entry){console.warn("[api] Unknown route:",url);return{ok:1};}
   const table=entry[1];
   const mapped=_mapBody(body||{});
 
@@ -1854,19 +1854,19 @@ async function _translateAndExec(url,method,body){
       const publicUrl=await _sbUploadFile(storagePath,mapped.file_data);
       mapped.file_url=publicUrl;
       delete mapped.file_data; // Don't store base64 in DB
-    }catch(storageErr){console.warn("Storage upload failed, keeping file_data in DB:",storageErr);}
+    }catch(storageErr){console.warn("[api] Storage upload failed, keeping file_data in DB:",storageErr);}
   }
 
   if(method==="POST"){
     await _sbPost(table,mapped);
   }else if(method==="PUT"||method==="PATCH"){
-    if(!idOrSub){console.warn("PUT without ID:",url);return{ok:1};}
+    if(!idOrSub){console.warn("[api] PUT without ID:",url);return{ok:1};}
     // Remove id from patch body
     const patchData={...mapped};delete patchData.id;
     patchData.updated_at=new Date().toISOString();
     await _sbPatch(table,idOrSub,patchData);
   }else if(method==="DELETE"){
-    if(!idOrSub){console.warn("DELETE without ID:",url);return{ok:1};}
+    if(!idOrSub){console.warn("[api] DELETE without ID:",url);return{ok:1};}
     await _sbDelete(table,idOrSub);
   }
   return{ok:1};
@@ -1920,7 +1920,7 @@ window.API = (function() {
         _gotrueErr=authErr;
         // Fallback: bcrypt (transition period until all users migrated)
         let valid=false;
-        try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("bcrypt:",e);}
+        try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("[api-auth] bcrypt:",e);}
         if(!valid){console.error('[B020-D] bcrypt+GoTrue both failed',{username:u,email,gotrueErr:authErr&&authErr.message,hashPresent:!!user.password_hash});throw new Error("Falsches Passwort [B20-D]");}
         // v3.8.7 BLOCK 1: bcrypt OK → One-Time-Migration via GoTrue signup. Bei Fail: HARTE Abweisung,
         // kein altEmail-Retry (war Security-Smell bei u+"@epkolar.local" als fake-domain),
@@ -3049,7 +3049,7 @@ function _dl(blob,filename){
     document.body.appendChild(a);
     a.click();
     setTimeout(()=>{try{a.remove();}catch(e){console.warn('[silent-toast]',e&&e.message||e);}URL.revokeObjectURL(url);},2000);
-  }catch(e){console.warn('Download failed:',e);try{window._showToast&&window._showToast('Download fehlgeschlagen: '+(e.message||e),'error');}catch(e){console.warn('[silent-toast]',e&&e.message||e);}}
+  }catch(e){console.warn('[download] failed:',e);try{window._showToast&&window._showToast('Download fehlgeschlagen: '+(e.message||e),'error');}catch(e){console.warn('[silent-toast]',e&&e.message||e);}}
 }
 // Build server path: Z:\Projekte\{ProjNr}_{ProjName}\{Folder}\{Sub}\
 const buildExportPath=(docType,projNr,projName)=>{
@@ -3451,7 +3451,7 @@ function useSpeech(onResult){
     const rec=new SpeechRec();
     rec.lang="de-AT";rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;
     rec.onresult=e=>{/* v3.8.44 S2.4 Length-Guard: Race bei Speech-Cancel kann leere results liefern */if(!e||!e.results||!e.results.length)return;const last=e.results[e.results.length-1];if(!last||!last[0]||last[0].transcript==null)return;const t=last[0].transcript;if(onResult.current)onResult.current(t);};
-    rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted")console.warn("Speech error:",e.error);setListening(false);};
+    rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted")console.warn("[speech] error:",e.error);setListening(false);};
     rec.onend=()=>setListening(false);
     recRef.current=rec;rec.start();setListening(true);
   };
@@ -3599,7 +3599,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
       const chkl=await _sbGet("checklists","project_id=eq."+encodeURIComponent(p.id)).catch(()=>[]);
       if(!active)return;
       if(chkl&&chkl.length){setForms(prev=>({...prev,checklisten:chkl.map(c=>({id:c.id,pid:c.project_id,name:c.name,items:_jp(c.items),date:(c.created_at||"").split("T")[0],status:c.status||"offen"}))}));}
-    }catch(e){console.warn("Portal data load:",e);}
+    }catch(e){console.warn("[kundenportal] data load:",e);}
     if(active)setPortalLoading(false);
     })();
     // Setup SQ sync for portal (mangel submissions)
@@ -4114,7 +4114,7 @@ class _ViewBoundary extends React.Component{
       try{if(_newWorkerRef&&_stateChangeHandler)_newWorkerRef.removeEventListener("statechange",_stateChangeHandler);}catch(e){console.warn('[silent-sw]',e&&e.message||e);}
     };
   },[]);
-  const doInstall=async()=>{try{if(!installPrompt)return;installPrompt.prompt();const r=await installPrompt.userChoice;if(r.outcome==="accepted")_optionalChain([window, 'access', _25 => _25.__toast, 'optionalCall', _26 => _26("✅ App installiert!")]);setShowInstallBanner(false);setInstallPrompt(null);}catch(e){console.warn("Install:",e);}};
+  const doInstall=async()=>{try{if(!installPrompt)return;installPrompt.prompt();const r=await installPrompt.userChoice;if(r.outcome==="accepted")_optionalChain([window, 'access', _25 => _25.__toast, 'optionalCall', _26 => _26("✅ App installiert!")]);setShowInstallBanner(false);setInstallPrompt(null);}catch(e){console.warn("[app] Install:",e);}};
   const dismissInstall=()=>{setShowInstallBanner(false);try{localStorage.setItem("epk_install_dismissed","1");}catch(e){console.warn('[localStorage]',e&&e.message||e);}};
   const doSwUpdate=async()=>{if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});await window._forceCacheClear(true);};
   const ww=useW();
@@ -4190,7 +4190,7 @@ class _ViewBoundary extends React.Component{
         if(_optionalChain([prjC, 'optionalAccess', _37 => _37.length])) setProjects(prjC);
         if(mpC&&Object.keys(mpC).length) setMonteurProjekte(mpC);
         if(_optionalChain([fzC, 'optionalAccess', _37b => _37b.length])) setFahrzeuge(fzC);
-      }catch(e){console.warn("Offline-Daten laden fehlgeschlagen:",e);}
+      }catch(e){console.warn("[app] Offline-Daten laden fehlgeschlagen:",e);}
 
       // 2) Then fetch fresh data from server (if online)
       if(navigator.onLine&&API.getToken()){
@@ -4243,7 +4243,7 @@ class _ViewBoundary extends React.Component{
             setForms(prev=>({...prev,checklisten:chkl.map(c=>({id:c.id,pid:c.project_id,name:c.name,items:_jp(c.items),date:(c.created_at||"").split("T")[0],status:c.status||"offen"}))}));
           }
           // Admin: load users
-          if(curUser.role==="admin"){try{const u=await API.getUsers();if(_optionalChain([u, 'optionalAccess', _49 => _49.length]))setUsers(u.map(_mapUser));}catch(e){console.warn("User-Liste laden:",e);}}
+          if(curUser.role==="admin"){try{const u=await API.getUsers();if(_optionalChain([u, 'optionalAccess', _49 => _49.length]))setUsers(u.map(_mapUser));}catch(e){console.warn("[app] User-Liste laden:",e);}}
           // Load Weekplans from Supabase → wpHistory
           try{
             const wps=await API.getWeekplans();
@@ -4251,14 +4251,14 @@ class _ViewBoundary extends React.Component{
               const wpH={};wps.forEach(wp=>{wpH[wp.week]=_safeJsonParse(wp.data,[]);});
               if(Object.keys(wpH).length){setWpHistory(prev=>({...prev,...wpH}));ODB.save("meta",wpH);}
             }
-          }catch(e){console.warn("Weekplans laden:",e);}
+          }catch(e){console.warn("[app] Weekplans laden:",e);}
           // ═══ FIRST-TIME SEEDING: Wenn Supabase leer, INIT-Daten hochladen ═══
           if(!_optionalChain([prj, 'optionalAccess', _49s1 => _49s1.length])&&curUser.role==="admin"&&_authToken){
-            for(const p of INIT_PROJECTS){try{await _sbUpsert("projects",_mapBody(p));}catch(e){console.warn("Seed project:",e);}}
+            for(const p of INIT_PROJECTS){try{await _sbUpsert("projects",_mapBody(p));}catch(e){console.warn("[app] Seed project:",e);}}
             setProjects(INIT_PROJECTS);_optionalChain([window, 'access', _49s2 => _49s2.__toast, 'optionalCall', _49s3 => _49s3("🌱 "+INIT_PROJECTS.length+" Projekte initialisiert")]);
           }
           if(!_optionalChain([wk, 'optionalAccess', _49s4 => _49s4.length])&&curUser.role==="admin"&&_authToken){
-            for(const m of MONT){try{await _sbUpsert("workers",_mapBody({id:m.id,name:m.n,vorname:m.vorname,role:m.r,phone:"",email:"",fs:m.fs,geb_dat:m.gebDat,fs_nr:m.fsNr,svnr:m.svnr||"",eintritt:m.eintritt,austritt:m.austritt,active:1}));}catch(e){console.warn("Seed worker:",e);}}
+            for(const m of MONT){try{await _sbUpsert("workers",_mapBody({id:m.id,name:m.n,vorname:m.vorname,role:m.r,phone:"",email:"",fs:m.fs,geb_dat:m.gebDat,fs_nr:m.fsNr,svnr:m.svnr||"",eintritt:m.eintritt,austritt:m.austritt,active:1}));}catch(e){console.warn("[app] Seed worker:",e);}}
             _optionalChain([window, 'access', _49s5 => _49s5.__toast, 'optionalCall', _49s6 => _49s6("🌱 "+MONT.length+" Mitarbeiter initialisiert")]);
           }
           // ═══ SCHEMA VERSION CHECK ═══
@@ -4269,7 +4269,7 @@ class _ViewBoundary extends React.Component{
           const cnt=await SQ.count();
           if(cnt>0) doSync();
           else setPendingCount(0);
-        }catch(e){console.warn("Initial sync fehlgeschlagen:",e);}
+        }catch(e){console.warn("[app] Initial sync fehlgeschlagen:",e);}
       } else {
         const cnt=await SQ.count();
         setPendingCount(cnt);
@@ -4506,7 +4506,7 @@ class _ViewBoundary extends React.Component{
               const retries=(item._retries||0)+1;
               if(retries>=5){
                 skipIds.push(item.id);
-                console.warn("SQ: dropping item after 5 fails:",item.url,e.message);
+                console.warn("[sq] dropping item after 5 fails:",item.url,e.message);
                 try{const failed=await ODB.load("syncQueueFailed")||[];failed.push({...item,failedAt:new Date().toISOString(),lastError:e.message});await ODB.save("syncQueueFailed",failed.slice(-50));}catch(e){console.warn('[silent-await]',e&&e.message||e);}
                 _optionalChain([window, 'access', _sqf1 => _sqf1.__toast, 'optionalCall', _sqf2 => _sqf2("⚠ Sync fehlgeschlagen nach 5 Versuchen: "+(item.url||"").split("/").pop(),"warn")]);
               }
@@ -4550,7 +4550,7 @@ class _ViewBoundary extends React.Component{
       refreshPendingDetail();
       if(cnt>0) setTimeout(doSync,2000); // auto-flush after 2s
       // Also flush photo queue
-      setTimeout(async()=>{try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _pf1 => _pf1.__toast, 'optionalCall', _pf2 => _pf2("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(e){console.warn("PhotoQ flush:",e);}},3000);
+      setTimeout(async()=>{try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _pf1 => _pf1.__toast, 'optionalCall', _pf2 => _pf2("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(e){console.warn("[app] PhotoQ flush:",e);}},3000);
     };
     const onOffline=()=>{setSyncStatus(p=>({...p,connected:false,serverOk:false}));_optionalChain([window, 'access', _63 => _63.__toast, 'optionalCall', _64 => _64("📵 Offline — Änderungen werden lokal gespeichert","warn")]);refreshPendingDetail();};
     window.addEventListener("online",onOnline);
@@ -4592,7 +4592,7 @@ class _ViewBoundary extends React.Component{
               return merged;
             });
           }
-        }catch(e){console.warn("Notification fetch:",e);}
+        }catch(e){console.warn("[app] Notification fetch:",e);}
       }
     })();
     return ()=>{active=false;};
@@ -4667,7 +4667,7 @@ class _ViewBoundary extends React.Component{
         const newAbsKeys=new Set();freshAbs.forEach(a=>{newAbsKeys.add(_absKey(a).k);});
         lastSnapshot.current={...lastSnapshot.current,absenceKeys:newAbsKeys};
       }
-    }catch(e){console.warn("Poll error:",e);}
+    }catch(e){console.warn("[app] Poll error:",e);}
   },[curUser]);
 
   // Initialize snapshot from current data + start polling
@@ -5743,7 +5743,7 @@ function sharePdf(){
       finalText=fin.trim();
       setVoiceText((fin+interim).trim());
     };
-    rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted")console.warn("Voice:",e.error);};
+    rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted")console.warn("[voice] error:",e.error);};
     rec.onend=()=>{setVoiceListening(false);if(finalText)setVoiceParsed(parseVoice(finalText));};
     voiceRecRef.current=rec;rec.start();setVoiceListening(true);
   };
@@ -6639,7 +6639,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       ]);
       setStats({users,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifications:notifs});
       setLogins(logRows);
-    }catch(e){console.warn("Admin-Stats laden:",e);_optionalChain([window, 'access', _187 => _187.__toast, 'optionalCall', _188 => _188("⚠️ Statistiken konnten nicht geladen werden","warn")]);}
+    }catch(e){console.warn("[adminpanel] Stats laden:",e);_optionalChain([window, 'access', _187 => _187.__toast, 'optionalCall', _188 => _188("⚠️ Statistiken konnten nicht geladen werden","warn")]);}
     setLoadingStats(false);
   };
   const fetchActivity=async()=>{
@@ -9365,7 +9365,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
       // Queue for server upload
       await captureAndQueue(file,"defect",defectId,p.id,"Mangel-Foto");
       _optionalChain([window, 'access', _phu1 => _phu1.__toast, 'optionalCall', _phu2 => _phu2("📷 Foto hinzugefügt")]);
-    }catch(e){console.warn("Photo upload:",e);}
+    }catch(e){console.warn("[vmang] Photo upload:",e);}
   };
   const add=()=>{if(!name)return;const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:worker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full}))};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:newPhotos.map(ph=>ph.thumb),zugewiesen:worker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||""}});
     // Queue photos for server upload
@@ -10756,7 +10756,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
           setFolders(foldersData.map(f=>({id:f.id,name:f.name,color:f.color,parentId:f.parent_id||"",createdAt:_optionalChain([f, 'access', _428 => _428.created_at, 'optionalAccess', _429 => _429.split, 'call', _430 => _430("T"), 'access', _431 => _431[0]])})));
           const ex={};foldersData.forEach(f=>{ex[f.id]=true;});setExpanded(ex);
         }
-        }catch(e){console.warn("Docs laden:",e);}
+        }catch(e){console.warn("[vdoku] Docs laden:",e);}
       }
       const d=await ODB.load("docs_"+p.id);if(a&&_optionalChain([d, 'optionalAccess', _432 => _432.length])&&!docs.length)setDocs(d);
       const f=await ODB.load("folders_"+p.id);if(a&&_optionalChain([f, 'optionalAccess', _433 => _433.length])&&!folders.length){setFolders(f);const ex={};f.forEach(x=>{ex[x.id]=true;});setExpanded(ex);}
