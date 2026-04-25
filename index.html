@@ -16585,6 +16585,24 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     if(search){const s=search.toLowerCase();return (w.name+w.seriennr+w.inventarnr+w.notizen+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
     return true;
   });
+  // v3.8.57 Block 2.3: Sortier-Pfeile für Werkzeug-Liste
+  const [sortCol,setSortCol]=_react.useState.call(void 0, "inventarnr");
+  const [sortDir,setSortDir]=_react.useState.call(void 0, "asc");
+  const toggleSort=(col)=>{if(sortCol===col)setSortDir(prev=>prev==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
+  const sortArrow=(col)=>sortCol===col?(sortDir==="asc"?" ▲":" ▼"):" ↕";
+  const sorted=_react.useMemo.call(void 0, ()=>{
+    const list=(filtered||[]).slice();
+    return list.sort((a,b)=>{
+      let av,bv;
+      if(sortCol==="kat"){av=(_optionalChain([WZ_KAT, 'access', _wsk1 => _wsk1[a.kat], 'optionalAccess', _wsk2 => _wsk2.l])||"").toString();bv=(_optionalChain([WZ_KAT, 'access', _wsk3 => _wsk3[b.kat], 'optionalAccess', _wsk4 => _wsk4.l])||"").toString();}
+      else if(sortCol==="status"){av=(_optionalChain([WZ_STATUS, 'access', _wss1 => _wss1[a.status], 'optionalAccess', _wss2 => _wss2.l])||"").toString();bv=(_optionalChain([WZ_STATUS, 'access', _wss3 => _wss3[b.status], 'optionalAccess', _wss4 => _wss4.l])||"").toString();}
+      else if(sortCol==="zugewiesen"){av=(_optionalChain([monteure, 'access', _wsz1 => _wsz1.find, 'call', _wsz2 => _wsz2(m=>m.id===a.zugewiesen), 'optionalAccess', _wsz3 => _wsz3.n])||"").toString();bv=(_optionalChain([monteure, 'access', _wsz4 => _wsz4.find, 'call', _wsz5 => _wsz5(m=>m.id===b.zugewiesen), 'optionalAccess', _wsz6 => _wsz6.n])||"").toString();}
+      else if(sortCol==="wert"||sortCol==="zustandBewertung"){const an=Number(a[sortCol])||0;const bn=Number(b[sortCol])||0;return sortDir==="asc"?an-bn:bn-an;}
+      else{av=(a[sortCol]||"").toString();bv=(b[sortCol]||"").toString();}
+      const cmp=av.toLowerCase().localeCompare(bv.toLowerCase(),"de",{numeric:true});
+      return sortDir==="asc"?cmp:-cmp;
+    });
+  },[filtered,sortCol,sortDir,monteure]);
 
   const defWz=()=>({id:uid(),name:"",kat:"elektro",seriennr:"",inventarnr:"",status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager",letzteKalib:"",naechsteKalib:"",anschaffung:td2(),wert:0,notizen:"",zustandBewertung:5});
   const openNew=()=>{setForm(defWz());setEditId(null);setSub("form");};
@@ -16822,15 +16840,15 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , !filtered.length&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:40,marginBottom:10}}, "🔧"), "Keine Werkzeuge gefunden"  )
       , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { className: "scroll-x"}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:800}}
-          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}, ["Inventar","Gerät/Werkzeug","Kategorie","Status","Zugewiesen","Standort","Wert €","Zustand",""].map((h,i)=>(React.createElement('th', { key: i, style: {...thS(),textAlign:i===7?"center":"left"}}, h)))))
-          , React.createElement('tbody', {}, filtered.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=w.naechsteKalib&&w.naechsteKalib<=td2();
+          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}, [{l:"Inventar",c:"inventarnr"},{l:"Gerät/Werkzeug",c:"name"},{l:"Kategorie",c:"kat"},{l:"Status",c:"status"},{l:"Zugewiesen",c:"zugewiesen"},{l:"Standort",c:"standort"},{l:"Wert €",c:"wert"},{l:"Zustand",c:"zustandBewertung"},{l:"",c:null}].map((h,i)=>(React.createElement('th', { key: i, onClick: h.c?()=>toggleSort(h.c):undefined, style: {...thS(),textAlign:i===7?"center":"left",cursor:h.c?"pointer":"default",userSelect:"none"}}, h.l, h.c?sortArrow(h.c):"")))))
+          , React.createElement('tbody', {}, sorted.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=w.naechsteKalib&&w.naechsteKalib<=td2();
             return (React.createElement('tr', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {borderBottom:"1px solid "+V.bd,cursor:isAdmin?"pointer":"default",background:kalFaellig?"rgba(239,68,68,.03)":"transparent"}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=kalFaellig?"rgba(239,68,68,.03)":"transparent"}
-              , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:11,fontWeight:600}}, w.inventarnr)
-              , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {fontWeight:600}}, w.name), React.createElement('div', { style: {fontSize:10,color:V.dm}}, w.seriennr))
-              , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {fontSize:11}}, _optionalChain([kat, 'optionalAccess', _813 => _813.i]), " " , _optionalChain([kat, 'optionalAccess', _814 => _814.l])))
+              , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:isMob?11:13,fontWeight:600}}, w.inventarnr)
+              , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {fontWeight:600}}, w.name), React.createElement('div', { style: {fontSize:isMob?10:12,color:V.dm}}, w.seriennr))
+              , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {fontSize:isMob?11:13}}, _optionalChain([kat, 'optionalAccess', _813 => _813.i]), " " , _optionalChain([kat, 'optionalAccess', _814 => _814.l])))
               , React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([st, 'optionalAccess', _815 => _815.i])+" "+_optionalChain([st, 'optionalAccess', _816 => _816.l]), color: _optionalChain([st, 'optionalAccess', _817 => _817.c])}))
               , React.createElement('td', { style: tdSt()}, mont?mont.n:React.createElement('span', { style: {color:V.dm}}, "—"))
-              , React.createElement('td', { style: {...tdSt(),fontSize:11}}, w.standort)
+              , React.createElement('td', { style: {...tdSt(),fontSize:isMob?11:13}}, w.standort)
               , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontWeight:600}}, w.wert.toLocaleString("de"))
               , React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, React.createElement(Stars, { val: w.zustandBewertung}))
               , React.createElement('td', { style: tdSt()}, isAdmin&&(React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(w);}, style: {...bsS(),padding:"3px 8px",fontSize:10}}, "✏️")))
