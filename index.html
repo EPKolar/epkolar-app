@@ -7430,7 +7430,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const [now,setNow]=_react.useState.call(void 0, new Date());
   const [weather,setWeather]=_react.useState.call(void 0, null);
   const [weatherErr,setWeatherErr]=_react.useState.call(void 0, false);
-  const [finkStats,setFinkStats]=_react.useState.call(void 0, {total:0,offen:0,freigegeben:0,abgeglichen:0,diffWarn:0});
+  const [finkStats,setFinkStats]=_react.useState.call(void 0, {total:0,offen:0,freigegeben:0,abgeglichen:0,diffWarn:0,pendingDetails:[]});
+  const [alertsExpanded,setAlertsExpanded]=_react.useState.call(void 0, null);
   // ═══ LIVE KPIs ═══
   const [liveKpis,setLiveKpis]=_react.useState.call(void 0, {matOpen:0,matTotal:0,btWeek:0,btTotal:0,actToday:0,loading:false});
   const [lastRefresh,setLastRefresh]=_react.useState.call(void 0, null);
@@ -7481,7 +7482,16 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           }
         }catch(e){}
       });
-      const stats={total:allYear.length,offen:allYear.filter(d=>d.status!=="genehmigt").length,freigegeben:allYear.filter(d=>d.status==="genehmigt").length,abgeglichen:allYear.filter(d=>{try{return JSON.parse(d.data||"{}").abgeglichen;}catch(e){return false;}}).length,diffWarn};
+      const _MONATE=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+      const _pendingByMonth={};
+      allYear.filter(d=>d.status!=="genehmigt").forEach(d=>{
+        const key=d.jahr+"-"+String(d.monat+1).padStart(2,"0");
+        const wname=((m)=>m?(m.name||m.n||d.worker_id):d.worker_id)(monteure.find(m=>m.id===d.worker_id));
+        if(!_pendingByMonth[key])_pendingByMonth[key]={label:_MONATE[d.monat]+" "+d.jahr,workers:[]};
+        if(_pendingByMonth[key].workers.indexOf(wname)<0)_pendingByMonth[key].workers.push(wname);
+      });
+      const pendingDetails=Object.keys(_pendingByMonth).sort().reverse().map(k=>({label:_pendingByMonth[k].label,workers:_pendingByMonth[k].workers}));
+      const stats={total:allYear.length,offen:allYear.filter(d=>d.status!=="genehmigt").length,freigegeben:allYear.filter(d=>d.status==="genehmigt").length,abgeglichen:allYear.filter(d=>{try{return JSON.parse(d.data||"{}").abgeglichen;}catch(e){return false;}}).length,diffWarn,pendingDetails};
       setFinkStats(stats);
     }catch(e){}})();
   },[entries.length]);
@@ -7548,14 +7558,23 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _myMonteurId=_optionalChain([curUser, 'optionalAccess', _ffa2 => _ffa2.monteurId])||"";
   const _alertFz=_isFleetAdmin?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMonteurId);
   const pickerFaellig=_alertFz.filter(f=>{if(!f.pickerl)return false;const d=new Date(f.pickerl);const diff=(d-new Date())/(TIME_DAY);return diff<30&&diff>-365;});
-  pickerFaellig.forEach(f=>alerts.push({type:"warning",icon:"📋",text:`${f.kennzeichen}: Pickerl läuft ${new Date(f.pickerl)<new Date()?"ABGELAUFEN":"bald ab"} (${fdt(f.pickerl)})`,color:"#f97316",go:()=>onNav("fahrzeuge")}));
+  if(pickerFaellig.length>0){
+    const abgelaufen=pickerFaellig.filter(f=>new Date(f.pickerl)<new Date()).length;
+    const text=abgelaufen>0?`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${abgelaufen} abgelaufen / ${pickerFaellig.length-abgelaufen} bald fällig`:`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl bald fällig`;
+    alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?"#ef4444":"#f97316",go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>`${f.kennzeichen} (${fdt(f.pickerl)})`)});
+  }
   const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService)<=new Date());
-  serviceFaellig.forEach(f=>alerts.push({type:"warning",icon:"🔧",text:`${f.kennzeichen}: Service überfällig (${fdt(f.naechstService)})`,color:"#ef4444",go:()=>onNav("fahrzeuge")}));
+  if(serviceFaellig.length>0){
+    alerts.push({type:"warning",icon:"🔧",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,color:"#ef4444",go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>`${f.kennzeichen} (${fdt(f.naechstService)})`)});
+  }
   const offeneSchaeden=(fahrzeuge||[]).reduce((s,f)=>s+(f.schaeden||[]).filter(x=>x.status==="offen").length,0);
   if(offeneSchaeden>0)alerts.push({type:"info",icon:"⚠️",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,color:"#ef4444",go:()=>onNav("fahrzeuge")});
   if(pendingAbs>0&&isAdmin)alerts.push({type:"info",icon:"📨",text:`${pendingAbs} ${pendingAbs===1?"Abwesenheitsantrag wartet":"Abwesenheitsanträge warten"} auf Genehmigung`,color:"#eab308",go:()=>onNav("urlaub")});
   if(dringendeAS>0)alerts.push({type:"urgent",icon:"🔴",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,color:"#ef4444",go:()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}});
-  if(finkStats.offen>0&&isAdmin)alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben (${now.getFullYear()})`,color:"#8b5cf6",go:()=>onNav("stunden")});
+  if(finkStats.offen>0&&isAdmin){
+    const _details=(finkStats.pendingDetails||[]).map(p=>`${p.label} — ${p.workers.join(", ")}`);
+    alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben`,color:"#8b5cf6",go:()=>onNav("stunden"),details:_details});
+  }
   if(finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316",go:()=>onNav("stunden")});
   const jupLinked=arbeitsscheine.filter(a=>a.juprowa_id).length;
 
@@ -7640,11 +7659,17 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
       /* ═══ ALERTS ═══ */
       , alerts.length>0&&(React.createElement('div', { style: {marginBottom:14}}
-        , alerts.map((a,i)=>(React.createElement('div', { key: i, onClick: a.go||null, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:a.color+"11",border:"1px solid "+a.color+"33",borderRadius:8,marginBottom:4,fontSize:12,color:a.color,fontWeight:600,cursor:a.go?"pointer":"default",transition:"background .15s"}, onMouseEnter: a.go?e=>{e.currentTarget.style.background=a.color+"22";}:null, onMouseLeave: a.go?e=>{e.currentTarget.style.background=a.color+"11";}:null}
-          , React.createElement('span', { style: {fontSize:16}}, a.icon)
-          , React.createElement('span', { style: {flex:1}}, a.text)
-          , a.go&&React.createElement('span', { style: {fontSize:14,opacity:.6}}, "→")
-        )))
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:`repeat(auto-fit,minmax(${isMob?"140px":"180px"},1fr))`,gap:8,marginBottom:alertsExpanded!==null?8:0}}
+          , alerts.map((a,i)=>(React.createElement('div', { key: i, onClick: ()=>{ if(a.details&&a.details.length){ setAlertsExpanded(prev=>prev===i?null:i); }else if(a.go){ a.go(); } }, style: {display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:a.color+"11",border:"1px solid "+a.color+"33",borderRadius:8,fontSize:12,color:a.color,fontWeight:600,cursor:(a.go||a.details)?"pointer":"default",minHeight:48}}
+            , React.createElement('span', { style: {fontSize:18}}, a.icon)
+            , React.createElement('span', { style: {flex:1,lineHeight:1.3}}, a.text)
+            , (a.details&&a.details.length)?React.createElement('span', { style: {fontSize:12,opacity:.6,transform:alertsExpanded===i?"rotate(180deg)":"rotate(0)",transition:"transform .15s"}}, "▼"):a.go?React.createElement('span', { style: {fontSize:14,opacity:.6}}, "→"):null
+          )))
+        )
+        , alertsExpanded!==null&&alerts[alertsExpanded]&&alerts[alertsExpanded].details&&React.createElement('div', { style: {background:alerts[alertsExpanded].color+"08",border:"1px solid "+alerts[alertsExpanded].color+"22",borderRadius:8,padding:"10px 14px",fontSize:12,color:alerts[alertsExpanded].color,marginTop:4}}
+          , alerts[alertsExpanded].details.map((d,j)=>(React.createElement('div', { key: j, style: {padding:"3px 0",lineHeight:1.4}}, "• "+d)))
+          , alerts[alertsExpanded].go&&React.createElement('div', { onClick: alerts[alertsExpanded].go, style: {marginTop:8,fontSize:11,opacity:.8,cursor:"pointer",textDecoration:"underline"}}, "→ Zur Detail-Ansicht")
+        )
       ))
 
       /* v3.5.69 F-A+F-D ═══ MEIN TAG (nur Monteur-Rollen, Touch-optimiert) ═══ */
