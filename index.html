@@ -7572,10 +7572,12 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
   // KPIs — single pass über arbeitsscheine
   const aktivP=projects.filter(p=>p.status==="aktiv").length;
-  const asStats=arbeitsscheine.reduce((s,a)=>{if(AS_GRP_OFFEN.includes(a.scheinstatus))s.offen++;if(a.prioritaet==="hoch"||a.prioritaet==="dringend")s.dringend++;return s;},{offen:0,dringend:0});
+  const asStats=arbeitsscheine.reduce((s,a)=>{if(AS_GRP_OFFEN.includes(a.scheinstatus))s.offen++;return s;},{offen:0});
   const offeneAS=asStats.offen;
-  const dringendeAS=asStats.dringend;
   const _td=td2();
+  const _todayStr=_td;
+  const _weekAgo=(()=>{const d=new Date();d.setDate(d.getDate()-7);return _ymd(d);})();
+  const dringendeAS=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const prio=String(a.prioritaet||"").toLowerCase();if(prio==="hoch"||prio==="dringend")return true;const tb=a.terminBestaetigt||a.termin_bestaetigt||"";if(tb&&tb<_todayStr)return true;const auf=a.aufgenommen||"";if(auf&&auf<_weekAgo)return true;return false;}).length;
   const _weekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1));const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(_ymd(x));}return s;})();
   let todayH=0,weekH=0;
   entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(dt===_td)todayH+=h;if(_weekDates.has(dt))weekH+=h;});
