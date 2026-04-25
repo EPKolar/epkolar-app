@@ -7604,20 +7604,23 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   // Weather fetch (open-meteo, no API key needed) — cached 15min
   // Fallback: Kirchberg am Wagram, 3470 (EP Kolar Firmensitz)
   const FALLBACK_LAT=48.4542,FALLBACK_LON=15.8553;
+  // v3.8.57+ Bug-Hunt: Mounted-Ref gegen setState-after-unmount in Weather-fetch-Promise + Geolocation-Callbacks.
+  const _weatherMountedRef=_react.useRef.call(void 0, true);
+  _react.useEffect.call(void 0, ()=>{_weatherMountedRef.current=true;return ()=>{_weatherMountedRef.current=false;};},[]);
   const fetchWeatherData=(lat,lon)=>{
-    const cKey="epk_weather";const c=_safeJsonParse(sessionStorage.getItem(cKey),null);if(c&&c.ts>(Date.now()-900000)){setWeather(c.d);return;}
+    const cKey="epk_weather";const c=_safeJsonParse(sessionStorage.getItem(cKey),null);if(c&&c.ts>(Date.now()-900000)){if(_weatherMountedRef.current)setWeather(c.d);return;}
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=Europe%2FVienna&forecast_days=7&daily=temperature_2m_max,temperature_2m_min,weather_code`,_fT({},10000))
-      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){}}else setWeatherErr(true);}).catch(()=>setWeatherErr(true));
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(!_weatherMountedRef.current)return;if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){}}else setWeatherErr(true);}).catch(()=>{if(_weatherMountedRef.current)setWeatherErr(true);});
   };
   _react.useEffect.call(void 0, ()=>{
     let done=false;
     // Try geolocation first
     if(navigator.geolocation){
-      const geoTimeout=setTimeout(()=>{if(!done){done=true;fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);}},4000);
+      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);}},4000);
       navigator.geolocation.getCurrentPosition(pos=>{
-        if(!done){done=true;clearTimeout(geoTimeout);fetchWeatherData(pos.coords.latitude.toFixed(2),pos.coords.longitude.toFixed(2));}
+        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);fetchWeatherData(pos.coords.latitude.toFixed(2),pos.coords.longitude.toFixed(2));}
       },()=>{
-        if(!done){done=true;clearTimeout(geoTimeout);fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);}
+        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);}
       },{timeout:3000,maximumAge:600000});
     }else{
       // No geolocation API → use fallback
