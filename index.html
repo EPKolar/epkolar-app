@@ -11112,7 +11112,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
             ODB.save("bt_"+p.id,mapped);return;
           }
         }
-      }catch(e){}
+      }catch(e){console.warn('[silent-odb]',e&&e.message||e);}
       const cached=await ODB.load("bt_"+p.id);
       if(!a)return;
       if(cached&&cached.length)setBtEntries(cached);
@@ -11229,7 +11229,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
           , React.createElement('label', { style: LL()}, "📷 Fotos", btPhotos.length>0&&React.createElement('span', { style: {fontWeight:400,color:V.dm,marginLeft:4}}, "(", btPhotos.length, ")"))
           , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}
             , btPhotos.map((ph,i)=>React.createElement('div', { key: ph.id||i, style: {width:56,height:56,borderRadius:6,overflow:"hidden",border:"1px solid "+V.bd}}, React.createElement('img', { src: ph.file_path||ph.data_url||ph.dataUrl||"", style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} )))
-            , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:V.dm}, title: "Foto hinzufügen"}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;/* v3.8.49 Bug-Fix: stabile draftId verwenden (nicht "bt_"+Date.now()) damit photos mit späterem saveEntry.id matchen — vorher: photos orphaned nach save weil eid != entry.id. */const eid=editing==="new"?(_btDraftId.current||(_btDraftId.current=uid())):editing;Array.from(fls).forEach(f=>{captureAndQueue(f,"bautagebuch",eid,p.id,"Bautagebuch").then(entry=>{if(entry)setBtPhotos(prev=>[...prev,{id:entry.id,file_path:entry.dataUrl,data_url:entry.dataUrl}]);if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});try{e.target.value="";}catch(_){}}} ), "📷")
+            , React.createElement('label', { style: {width:56,height:56,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:V.dm}, title: "Foto hinzufügen"}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;/* v3.8.49 Bug-Fix: stabile draftId verwenden (nicht "bt_"+Date.now()) damit photos mit späterem saveEntry.id matchen — vorher: photos orphaned nach save weil eid != entry.id. */const eid=editing==="new"?(_btDraftId.current||(_btDraftId.current=uid())):editing;Array.from(fls).forEach(f=>{captureAndQueue(f,"bautagebuch",eid,p.id,"Bautagebuch").then(entry=>{if(entry)setBtPhotos(prev=>[...prev,{id:entry.id,file_path:entry.dataUrl,data_url:entry.dataUrl}]);if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();});});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ), "📷")
           )
         )
         , React.createElement('div', { style: {display:"flex",gap:8}}
@@ -11431,7 +11431,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         }
         if(dynCats.length>0)MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...dynCats];
       }
-    }catch(_){}})();
+    }catch(e){console.warn('[silent-async]',e&&e.message||e);}})();
     return()=>{a=false;};
   },[]);
 
@@ -11442,11 +11442,11 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   // Load cart from localStorage on mount
   _react.useEffect.call(void 0, ()=>{
-    try{const saved=localStorage.getItem(cartKey);if(saved){const parsed=_jp(saved);if(parsed&&typeof parsed==="object")setCart(parsed);}}catch(_){}
+    try{const saved=localStorage.getItem(cartKey);if(saved){const parsed=_jp(saved);if(parsed&&typeof parsed==="object")setCart(parsed);}}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
   },[]);
   // Persist cart to localStorage on change
   _react.useEffect.call(void 0, ()=>{
-    try{localStorage.setItem(cartKey,JSON.stringify(cart));}catch(_){}
+    try{localStorage.setItem(cartKey,JSON.stringify(cart));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
   },[cart]);
 
   // Load orders from Supabase
@@ -11455,7 +11455,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     try{
       const mo=await _sbGet("material_orders","project_id=eq."+encodeURIComponent(p.id)+"&order=created_at.desc");
       if(mo)setOrders(mo.map(o=>({...o,positionen:_jp(o.positionen)||[],kommentar_lager:o.kommentar_lager||""})));
-    }catch(_){}
+    }catch(e){console.warn('[silent-async]',e&&e.message||e);}
     setLoading(false);
   },[p.id]);
   _react.useEffect.call(void 0, ()=>{loadOrders();},[loadOrders]);
@@ -11521,7 +11521,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       await SQ.push({url:"/api/material-orders",method:"POST",body:payload});
       setOrders(prev=>[{...payload,positionen:positionen,kommentar_lager:""},...prev]);
       clearCart();
-      try{localStorage.removeItem(cartKey);}catch(_){}
+      try{localStorage.removeItem(cartKey);}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
       if(window.__doSync)window.__doSync();
       if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
       window.__toast&&window.__toast("Anforderung gesendet ("+positionen.length+" Pos.)","success");
@@ -12276,14 +12276,14 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                   try{await SQ.push({url:"/api/material-catalogs/"+existing.id,method:"PUT",body:{id:existing.id,system:existing.system,gewerk:grp.gewerk,cats:updCats}});
                     setSavedCatalogs(prev=>prev.map(c=>c.id===existing.id?{...c,cats:updCats}:c));
                     imported+=selArts.length;
-                  }catch(_){}
+                  }catch(e){console.warn('[silent-async]',e&&e.message||e);}
                 }else{
                   const sysId="sys_"+Date.now()+"_"+grp.id;
                   const payload={id:sysId,system:grp.system,gewerk:grp.gewerk,cats:[newCat]};
                   try{await SQ.push({url:"/api/material-catalogs",method:"POST",body:payload});
                     setSavedCatalogs(prev=>[...prev,{...payload}]);
                     imported+=selArts.length;
-                  }catch(_){}
+                  }catch(e){console.warn('[silent-async]',e&&e.message||e);}
                 }
                 await new Promise(r=>setTimeout(r,50));// stagger SQ
               }
@@ -12545,7 +12545,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const _wpKwRef=_react.useRef.call(void 0, kw);_wpKwRef.current=kw;
   const _wpYrRef=_react.useRef.call(void 0, yr);_wpYrRef.current=yr;
   _react.useEffect.call(void 0, ()=>{
-    const flush=()=>{if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{SQ.push({url:"/api/weekplans",method:"POST",body:{kw:_wpKwRef.current,year:_wpYrRef.current,rows:_wpRowsRef.current}});}catch(_){}}};
+    const flush=()=>{if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{SQ.push({url:"/api/weekplans",method:"POST",body:{kw:_wpKwRef.current,year:_wpYrRef.current,rows:_wpRowsRef.current}});}catch(e){console.warn('[silent-sq]',e&&e.message||e);}}};
     window.addEventListener("beforeunload",flush);
     return()=>{window.removeEventListener("beforeunload",flush);flush();};
   },[]);
@@ -12944,7 +12944,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   // Resturlaub
   const resturlaub=m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);return (ks.stunden||192.5)+(ks.vorjahr||0)-ys.urlaubStdGen;};
 
-  const hUp=e=>{const fls=_optionalChain([e, 'access', _551 => _551.target, 'optionalAccess', _552 => _552.files])||_optionalChain([e, 'access', _553 => _553.dataTransfer, 'optionalAccess', _554 => _554.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{if(f.type.startsWith("image/")){compressPhoto(f,2400,0.88).then(ph=>{const fileId=uid();setFiles(p=>({...p,[sel]:[...(p[sel]||[]),{id:fileId,name:ph.name,size:ph.compressedSize,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]}));SQ.push({url:"/api/absence-files",method:"POST",body:{id:fileId,worker_name:sel,file_name:ph.name,file_data:ph.dataUrl,file_size:ph.compressedSize}});}).catch(e=>{console.error('[ABS-FILE-UPLOAD]',f.name,e&&e.message||e);window.__toast&&window.__toast("❌ AU-Upload fehlgeschlagen: "+f.name,"error");});}else{const r=new FileReader();r.onerror=()=>{if(window.__toast)window.__toast("❌ AU-Datei konnte nicht gelesen werden ("+(f.name||"?")+")","error",6000);};r.onload=ev=>{const fileId=uid();setFiles(p=>({...p,[sel]:[...(p[sel]||[]),{id:fileId,name:f.name,size:f.size,dataUrl:ev.target.result}]}));SQ.push({url:"/api/absence-files",method:"POST",body:{id:fileId,worker_name:sel,file_name:f.name,file_data:ev.target.result,file_size:f.size}});};r.readAsDataURL(f);}});_optionalChain([window, 'access', _555 => _555.__toast, 'optionalCall', _556 => _556("📎 Datei hochgeladen")]);try{e.target.value="";}catch(_){}};
+  const hUp=e=>{const fls=_optionalChain([e, 'access', _551 => _551.target, 'optionalAccess', _552 => _552.files])||_optionalChain([e, 'access', _553 => _553.dataTransfer, 'optionalAccess', _554 => _554.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{if(f.type.startsWith("image/")){compressPhoto(f,2400,0.88).then(ph=>{const fileId=uid();setFiles(p=>({...p,[sel]:[...(p[sel]||[]),{id:fileId,name:ph.name,size:ph.compressedSize,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]}));SQ.push({url:"/api/absence-files",method:"POST",body:{id:fileId,worker_name:sel,file_name:ph.name,file_data:ph.dataUrl,file_size:ph.compressedSize}});}).catch(e=>{console.error('[ABS-FILE-UPLOAD]',f.name,e&&e.message||e);window.__toast&&window.__toast("❌ AU-Upload fehlgeschlagen: "+f.name,"error");});}else{const r=new FileReader();r.onerror=()=>{if(window.__toast)window.__toast("❌ AU-Datei konnte nicht gelesen werden ("+(f.name||"?")+")","error",6000);};r.onload=ev=>{const fileId=uid();setFiles(p=>({...p,[sel]:[...(p[sel]||[]),{id:fileId,name:f.name,size:f.size,dataUrl:ev.target.result}]}));SQ.push({url:"/api/absence-files",method:"POST",body:{id:fileId,worker_name:sel,file_name:f.name,file_data:ev.target.result,file_size:f.size}});};r.readAsDataURL(f);}});_optionalChain([window, 'access', _555 => _555.__toast, 'optionalCall', _556 => _556("📎 Datei hochgeladen")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
 
   const approve=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt")]);};
   const reject=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"abgelehnt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _561 => _561.name])}});_optionalChain([window, 'access', _562 => _562.__toast, 'optionalCall', _563 => _563("❌ Antrag abgelehnt")]);_optionalChain([pushNotif, 'optionalCall', _564 => _564("absence_approval","❌ Antrag abgelehnt",m+": "+fdt(dk(d))+" abgelehnt")]);};
@@ -13463,7 +13463,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     }catch(e){try{const z=await ODB.get("stundenzettel","all");if(a&&z)setZettel(z);}catch(e){console.warn('[silent-await]',e&&e.message||e);}}})();
     return()=>{a=false;};
   },[selJahr]);
-  const saveZettel=(newZ)=>{setZettel(newZ);try{ODB.set("stundenzettel","all",newZ);}catch(e){}};
+  const saveZettel=(newZ)=>{setZettel(newZ);try{ODB.set("stundenzettel","all",newZ);}catch(e){console.warn('[silent-odb]',e&&e.message||e);}};
 
   const handleUpload=(e)=>{
     const files=Array.from(e.target.files||[]);
@@ -13914,7 +13914,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
   const [pwOk,setPwOk]=_react.useState.call(void 0, false);
   // v3.8.26 Gewerk-Profil: steuert Filter in renderWarenkorb (nur eigenes Gewerk zeigen)
   const [gewerkPref,setGewerkPref]=_react.useState.call(void 0, (typeof localStorage!=="undefined"&&localStorage.getItem("epk_user_gewerk"))||"beide");
-  const _setGewerk=v=>{setGewerkPref(v);try{localStorage.setItem("epk_user_gewerk",v);}catch(_){}_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔧 Gewerk gespeichert — Material-Bestellung zeigt jetzt nur relevante Kataloge")]);};
+  const _setGewerk=v=>{setGewerkPref(v);try{localStorage.setItem("epk_user_gewerk",v);}catch(e){console.warn('[silent-ls]',e&&e.message||e);}_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔧 Gewerk gespeichert — Material-Bestellung zeigt jetzt nur relevante Kataloge")]);};
   const doTest=async()=>{try{const r=await fetch(SB_REST+"/users?select=id&limit=1",{headers:_sbRH()});setTestOk(r.ok);}catch(e){setTestOk(false);}};
   const doChangePw=async()=>{
     setPwMsg("");setPwOk(false);
@@ -13994,7 +13994,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
         , React.createElement('div', { style: {fontSize:13,color:V.dm}}, "Version: " , APP_VERSION)
         , React.createElement('div', { style: {fontSize:13,color:V.dm}}, "Schema: v", SCHEMA_VER, " · Datenbank: Supabase + IndexedDB (Offline)"    )
         , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:6,lineHeight:1.6}}, "Updates: index.html + sw.js auf GitHub Pages pushen. Bei Schema-Änderungen zuerst SQL auf Supabase ausführen. Offline-Daten (SyncQueue, Fotos) bleiben bei Updates erhalten.")
-        , React.createElement('button', { onClick: ()=>{if(confirm("Alle lokalen Daten löschen?")){try{indexedDB.deleteDatabase("epkolar_offline");}catch(e){}setTimeout(()=>location.reload(),500);}}, style: {...bdS,marginTop:10,padding:"8px 16px",fontSize:12}}, "🗑️ Lokale Daten löschen"   )
+        , React.createElement('button', { onClick: ()=>{if(confirm("Alle lokalen Daten löschen?")){try{indexedDB.deleteDatabase("epkolar_offline");}catch(e){console.warn('[silent-idb]',e&&e.message||e);}setTimeout(()=>location.reload(),500);}}, style: {...bdS,marginTop:10,padding:"8px 16px",fontSize:12}}, "🗑️ Lokale Daten löschen"   )
       )
       /* v3.5.72 Block 17a Integrity UI (admin only) */
       , curUser.role==="admin"&&React.createElement(SmokeTestPanel, {})
@@ -14075,7 +14075,7 @@ function SystemConfigPanel({curUser}){
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.74 — Block 1: AS-Vorlagen-Panel + vorlagenFill-Bus
 // ═══════════════════════════════════════════════════════════════════
-window._vorlagenBus={listeners:[],subscribe:function(fn){this.listeners.push(fn);return()=>{this.listeners=this.listeners.filter(x=>x!==fn);};},fire:function(v){this.listeners.forEach(fn=>{try{fn(v);}catch(_){}})}};
+window._vorlagenBus={listeners:[],subscribe:function(fn){this.listeners.push(fn);return()=>{this.listeners=this.listeners.filter(x=>x!==fn);};},fire:function(v){this.listeners.forEach(fn=>{try{fn(v);}catch(e){console.warn('[silent-bus]',e&&e.message||e);}})}};
 function ASVorlagenPanel({curUser}){
   const [vorlagen,setVorlagen]=_react.useState.call(void 0, []);
   const [loading,setLoading]=_react.useState.call(void 0, true);
@@ -14237,7 +14237,7 @@ function ASKommentarePanel({asId,curUser,monteure,users}){
     // Notif an Ziel-User
     const tgtUser=(users||[]).find(u=>u.monteurId===w.id||u.monteur_id===w.id);
     if(tgtUser&&tgtUser.id!==curUser.id){
-      try{await _api.post('notifications',{id:_uuid(),user_id:tgtUser.id,type:'as_status',title:(curUser.name||curUser.username||"?")+' hat dich erwähnt',body:'Kommentar zu AS #'+asId,read:0,link:'arbeitsscheine'});}catch(_){}
+      try{await _api.post('notifications',{id:_uuid(),user_id:tgtUser.id,type:'as_status',title:(curUser.name||curUser.username||"?")+' hat dich erwähnt',body:'Kommentar zu AS #'+asId,read:0,link:'arbeitsscheine'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}
     }
   };
   const send=async()=>{
@@ -14383,7 +14383,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
       setAntraege(prev=>[created,...prev]);
       setShowForm(false);setForm({von:'',bis:'',art:'urlaub',kommentar:''});
       window._showToast?.('Antrag gestellt — wartet auf Genehmigung','success');window._haptic.success();
-      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:_uuid(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+(curUser.name||curUser.username||'?'),body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(_){}
+      try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:_uuid(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+(curUser.name||curUser.username||'?'),body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(e){console.warn('[silent-notif]',e&&e.message||e);}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
     finally{setSending(false);}
   };
@@ -14394,7 +14394,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
       await _api.patch('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()});
       setAntraege(prev=>prev.map(a=>a.id===id?{...a,status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()}:a));
       window._showToast?.(status==='genehmigt'?'✅ Genehmigt':'❌ Abgelehnt','success');window._haptic.success();
-      const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(_){}}}
+      const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
   const del=async(id)=>{if(!confirm('Antrag löschen?'))return;try{await _api.delete('urlaubsantraege',id);setAntraege(prev=>prev.filter(a=>a.id!==id));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}};
@@ -15631,7 +15631,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   // Favorites (persisted per user in localStorage)
   const favKey="epk_favFz_"+(_optionalChain([curUser, 'optionalAccess', _622 => _622.username])||"x");
   const [favFz,setFavFz]=_react.useState.call(void 0, ()=>_safeJsonParse(localStorage.getItem(favKey),[])||[]);
-  const toggleFav=(fid)=>{setFavFz(p=>{const next=p.includes(fid)?p.filter(x=>x!==fid):[...p,fid];try{localStorage.setItem(favKey,JSON.stringify(next));}catch(e){}return next;});};
+  const toggleFav=(fid)=>{setFavFz(p=>{const next=p.includes(fid)?p.filter(x=>x!==fid):[...p,fid];try{localStorage.setItem(favKey,JSON.stringify(next));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}return next;});};
   const isFav=(fid)=>favFz.includes(fid);
   const myFzId=_optionalChain([fahrzeuge, 'access', _623 => _623.find, 'call', _624 => _624(f=>f.fahrer===_optionalChain([curUser, 'optionalAccess', _625 => _625.monteurId])), 'optionalAccess', _626 => _626.id])||null;
   // Sorted: my vehicle → favorites → rest (alphabetically by kennzeichen)
@@ -17036,17 +17036,17 @@ class EpkErrorBoundary extends React.Component{
   static getDerivedStateFromError(err){return {err};}
   componentDidCatch(err,info){
     console.error('[REACT ERROR BOUNDARY]',err,info);
-    try{window.__EP_ERRORS&&window.__EP_ERRORS.push({msg:'REACT: '+(err&&err.message||String(err)),stack:(err&&err.stack||'')+'\n'+(info&&info.componentStack||''),ts:Date.now()});}catch(_){}
+    try{window.__EP_ERRORS&&window.__EP_ERRORS.push({msg:'REACT: '+(err&&err.message||String(err)),stack:(err&&err.stack||'')+'\n'+(info&&info.componentStack||''),ts:Date.now()});}catch(e){console.warn('[silent-err]',e&&e.message||e);}
     try{
       const u=JSON.parse(localStorage.getItem('epkolar_user')||'null');
       if(typeof _authToken!=='undefined'&&_authToken&&navigator.onLine&&typeof _sbWH==='function'){
         fetch(SUPABASE_URL+"/rest/v1/activity_log",{method:'POST',headers:_sbWH(),body:JSON.stringify({user_id:(u&&u.id)||'unknown',action:'react_error',entity_type:'system',entity_id:'boundary',details:JSON.stringify({ver:APP_VERSION,msg:String((err&&err.message)||err).substring(0,500),stack:String((err&&err.stack)||'').substring(0,800),componentStack:String((info&&info.componentStack)||'').substring(0,800)})})}).catch(()=>{});
       }
-    }catch(_){}
+    }catch(e){console.warn('[silent-err]',e&&e.message||e);}
     this.setState({info});
   }
   reset=()=>{this.setState({err:null,info:null});};
-  reload=()=>{try{location.reload();}catch(_){}};
+  reload=()=>{try{location.reload();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
   render(){
     if(this.state.err){
       const msg=(this.state.err&&this.state.err.message)||String(this.state.err);
@@ -17072,7 +17072,7 @@ class EpkErrorBoundary extends React.Component{
 var root=ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(EpkErrorBoundary,null,React.createElement(App)));
 /* Remove boot indicator once React has rendered */
-try{var _bi=document.getElementById('ep-boot-indicator');if(_bi)_bi.remove();}catch(e){}
+try{var _bi=document.getElementById('ep-boot-indicator');if(_bi)_bi.remove();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}
 
 // ═══ MOBILE: Table overflow handled via CSS (no DOM manipulation to avoid React removeChild crashes) ═══
 
