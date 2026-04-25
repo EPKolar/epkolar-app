@@ -2780,11 +2780,12 @@ async function _planLoadPdf(planId, dataUrl) {
     const arr = new Uint8Array(bin.length);
     for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     buf = arr.buffer;
-  } else if(dataUrl.startsWith("blob:")) {
+  } else if(dataUrl.startsWith("blob:") || dataUrl.startsWith("http:") || dataUrl.startsWith("https:")) {
     const r = await fetch(dataUrl);
+    if(!r.ok) throw new Error("PDF fetch " + r.status + " " + (dataUrl.slice(0, 60)));
     buf = await r.arrayBuffer();
   } else {
-    throw new Error("Unsupported dataUrl scheme");
+    throw new Error("Unsupported dataUrl scheme: " + (dataUrl||"").slice(0, 30));
   }
   const pdf = await window.pdfjsLib.getDocument({data: buf}).promise;
   window._planPdfCache[planId] = {
@@ -9691,13 +9692,16 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
   const panStartRef = _react.useRef.call(void 0, null);
   const pointersRef = _react.useRef.call(void 0, new Map());
   const lastPinchDistRef = _react.useRef.call(void 0, null);
-  const isPdf = (plan && plan.dataUrl || "").startsWith("data:application/pdf") || (plan && plan.dataUrl || "").startsWith("blob:") || (plan && /\.pdf$/i.test(plan.filename || ""));
+  // v3.8.56 Fix: Plan-Schema heisst file_url (Storage-URL), Component erwartete dataUrl.
+  // Ein Resolver normalisiert: dataUrl > data_url > file_url > "".
+  const _planSrc = (plan && (plan.dataUrl || plan.data_url || plan.file_url)) || "";
+  const _isPdf = _planSrc.startsWith("data:application/pdf") || _planSrc.startsWith("blob:") || (plan && /\.pdf$/i.test(plan.filename || "")) || /\.pdf(\?|$)/i.test(_planSrc);
 
   _react.useEffect.call(void 0, () => {
     let active = true;
-    if(!plan || !isPdf || !plan.dataUrl) { setLoading(false); return; }
+    if(!plan || !_isPdf || !_planSrc) { setLoading(false); return; }
     setLoading(true);
-    _planLoadPdf(plan.id, plan.dataUrl).then(cache => {
+    _planLoadPdf(plan.id, _planSrc).then(cache => {
       if(!active) return;
       setPageCount(cache.pageCount);
       setPageNum(1);
@@ -9706,11 +9710,11 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       if(active) setLoading(false);
     });
     return () => { active = false; };
-  }, [plan && plan.id, plan && plan.dataUrl]);
+  }, [plan && plan.id, _planSrc]);
 
   _react.useEffect.call(void 0, () => {
     let active = true;
-    if(!plan || !isPdf || !canvasRef.current) return;
+    if(!plan || !_isPdf || !canvasRef.current) return;
     setLoading(true);
     _planRenderPage(plan.id, pageNum, canvasRef.current, scale).then(dims => {
       if(!active) return;
@@ -9721,7 +9725,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       if(active) setLoading(false);
     });
     return () => { active = false; };
-  }, [plan && plan.id, pageNum, scale, isPdf]);
+  }, [plan && plan.id, pageNum, scale, _isPdf]);
 
   const handlePointerDown = (e) => {
     pointersRef.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
@@ -9814,12 +9818,12 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
         React.createElement('div', {
           style: {transform: "translate(" + pan.x + "px, " + pan.y + "px)", position: "relative", display: "inline-block"}
         },
-          isPdf ? React.createElement('canvas', {
+          _isPdf ? React.createElement('canvas', {
             ref: canvasRef,
             onClick: handleCanvasClick,
             style: {display: "block", maxWidth: "none", boxShadow: "0 4px 16px rgba(0,0,0,.4)"}
           }) : (plan ? React.createElement('img', {
-            src: plan.dataUrl,
+            src: _planSrc,
             onClick: handleCanvasClick,
             style: {display: "block", boxShadow: "0 4px 16px rgba(0,0,0,.4)", maxWidth: "none"}
           }) : null),
@@ -9967,7 +9971,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
       ))
 
       , isMob&&selTicket&&subView==="viewer"&&(React.createElement('div', { style: {position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end"}}, React.createElement('div', { style: {width:"100%",maxHeight:"70vh",overflowY:"auto",borderRadius:"12px 12px 0 0",background:V.cd}}, React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>setSelTicket(null), ww: ww, monteure: monteure, isAdmin: isAdmin} ))))
-      , pendingPin&&React.createElement('div', { style: {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:V.bg,border:"1px solid "+V.bd,borderRadius:12,padding:"10px 16px",display:"flex",gap:10,zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,.4)"}}, React.createElement('span', { style: {color:V.tx,fontSize:13,padding:"8px 4px",alignSelf:"center"}}, "📍 Pin platziert" ), React.createElement('button', { onClick: confirmPendingPin, style: {background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}, "✓ Position bestätigen" ), React.createElement('button', { onClick: cancelPendingPin, style: {background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit"}}, "✗ Abbrechen" ))
+      , pendingPin?React.createElement('div', { style: {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:V.bg,border:"1px solid "+V.bd,borderRadius:12,padding:"10px 16px",display:"flex",gap:10,zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,.4)"}}, React.createElement('span', { style: {color:V.tx,fontSize:13,padding:"8px 4px",alignSelf:"center"}}, "📍 Pin platziert" ), React.createElement('button', { onClick: confirmPendingPin, style: {background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}, "✓ Position bestätigen" ), React.createElement('button', { onClick: cancelPendingPin, style: {background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit"}}, "✗ Abbrechen" )):null
     )
   );
 }
