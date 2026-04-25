@@ -2434,14 +2434,14 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     try{
       const dbRaw=await _sbGet("arbeitsscheine");
       if(Array.isArray(dbRaw))dbScheine=dbRaw.map(_mapArbeitsschein);
-    }catch(e){}
+    }catch(e){console.warn('[silent-await]',e&&e.message||e);}
 
     let added=0,updated=0,skipped=0;
     const now=new Date().toISOString();
     const newItems=[];
     // Fetch workers for auto-matching Monteur codes
     let _syncWorkers=[];
-    try{_syncWorkers=await _sbGet("workers");}catch(e){}
+    try{_syncWorkers=await _sbGet("workers");}catch(e){console.warn('[silent-await]',e&&e.message||e);}
     window.__juprowaUnmapped={};
     for(const jws of data){
       const mapped=_juprowaMapWorksheet(jws,_syncWorkers);
@@ -2476,12 +2476,12 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
         if(mapped.juprowa_raw)upd.juprowa_raw=mapped.juprowa_raw;
         const hasFieldChanges=Object.keys(upd).length>4;
         // Always PATCH: at minimum save juprowa_raw + juprowa_sync_at
-        try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){}
+        try{await _sbPatch("arbeitsscheine",existing.id,_mapBody(upd));}catch(e){console.warn('[silent-await]',e&&e.message||e);}
         if(hasFieldChanges){updated++;}else{skipped++;}
       }else{
         const newAs={...mapped,id:uid()};
         if(!newAs.sachbearbeiter){const dsb=_getDefaultSB();if(dsb)newAs.sachbearbeiter=dsb;}
-        try{await _sbPost("arbeitsscheine",_mapBody(newAs));}catch(e){}
+        try{await _sbPost("arbeitsscheine",_mapBody(newAs));}catch(e){console.warn('[silent-await]',e&&e.message||e);}
         newItems.push(newAs);
         added++;
       }
@@ -2491,7 +2491,7 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     try{
       const freshRaw=await _sbGet("arbeitsscheine");
       if(Array.isArray(freshRaw)&&freshRaw.length){const fresh=freshRaw.map(_mapArbeitsschein);setArbeitsscheine(fresh);}
-    }catch(e){}
+    }catch(e){console.warn('[silent-await]',e&&e.message||e);}
 
     const result={total:data.length,added,updated,skipped};
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔄 Juprowa: "+added+" neu, "+updated+" aktualisiert, "+skipped+" unverändert")]);
@@ -3447,7 +3447,7 @@ function PortalEntry({onPortal,projects}){
     setLoading(true);setErr("");
     // Try server first for fresh project list
     let allP=projects||[];
-    try{const fresh=await _sbGet("projects","portal_code=not.is.null&portal_code=neq.");if(fresh&&fresh.length)allP=[...projects,...fresh.map(_mapProject)].filter((v,i,a)=>a.findIndex(x=>x.id===v.id)===i);}catch(e){}
+    try{const fresh=await _sbGet("projects","portal_code=not.is.null&portal_code=neq.");if(fresh&&fresh.length)allP=[...projects,...fresh.map(_mapProject)].filter((v,i,a)=>a.findIndex(x=>x.id===v.id)===i);}catch(e){console.warn('[silent-await]',e&&e.message||e);}
     const p=allP.find(x=>x.portalCode&&x.portalCode.toUpperCase()===code.trim().toUpperCase());
     if(p){setErr("");onPortal(p);}else{setErr("Code ungültig oder Portal nicht aktiviert");}
     setLoading(false);
@@ -3516,7 +3516,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   },[p.id]);
   // Load photos from server for customer defects
   // v3.5.148: Mount-guard + early-exit — bei neuem Mangel oder Unmount verhindert race von parallelen fetch-loops + setState-after-unmount
-  _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;let active=true;(async()=>{const pm={};for(const m of maengel){if(!active)return;try{const ph=await API.getPhotos("defect",m.id);if(!active)return;if(ph&&ph.length)pm[m.id]=ph.map(x=>x.file_path||x.data_url).filter(Boolean);}catch(e){}}if(active&&Object.keys(pm).length)setDefectPhotos(pm);})();return ()=>{active=false;};},[maengel.length]);
+  _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;let active=true;(async()=>{const pm={};for(const m of maengel){if(!active)return;try{const ph=await API.getPhotos("defect",m.id);if(!active)return;if(ph&&ph.length)pm[m.id]=ph.map(x=>x.file_path||x.data_url).filter(Boolean);}catch(e){console.warn('[silent-await]',e&&e.message||e);}}if(active&&Object.keys(pm).length)setDefectPhotos(pm);})();return ()=>{active=false;};},[maengel.length]);
   const getDefectPhotos=(m)=>{const raw=m.photos||[];const arr=typeof raw==="string"?_safeJsonParse(raw,[]):Array.isArray(raw)?raw:[];const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
   const sc=(ST_CFG||{})[p.status]||(ST_CFG||{}).aktiv||{l:"Aktiv",c:"#22c55e",bg:"#22c55e18",i:"🟢"};
   const docs=(forms.kundenDocs||[]).filter(d=>d.pid===p.id);
@@ -4414,7 +4414,7 @@ class _ViewBoundary extends React.Component{
               if(retries>=5){
                 skipIds.push(item.id);
                 console.warn("SQ: dropping item after 5 fails:",item.url,e.message);
-                try{const failed=await ODB.load("syncQueueFailed")||[];failed.push({...item,failedAt:new Date().toISOString(),lastError:e.message});await ODB.save("syncQueueFailed",failed.slice(-50));}catch(_){}
+                try{const failed=await ODB.load("syncQueueFailed")||[];failed.push({...item,failedAt:new Date().toISOString(),lastError:e.message});await ODB.save("syncQueueFailed",failed.slice(-50));}catch(e){console.warn('[silent-await]',e&&e.message||e);}
                 _optionalChain([window, 'access', _sqf1 => _sqf1.__toast, 'optionalCall', _sqf2 => _sqf2("⚠ Sync fehlgeschlagen nach 5 Versuchen: "+(item.url||"").split("/").pop(),"warn")]);
               }
               else{item._retries=retries;}
@@ -4452,7 +4452,7 @@ class _ViewBoundary extends React.Component{
       // mit totem Token und bekommen 401s bevor _authRetry einen Refresh triggert.
       try{if(_authToken&&_authRefreshToken){_authLog('wake_online',{});await _sbAuthRefresh();}}catch(_){}
       // Register background sync
-      if(_optionalChain([swReg, 'access', _61 => _61.current, 'optionalAccess', _62 => _62.sync])) try{await swReg.current.sync.register("epkolar-sync");}catch(e){}
+      if(_optionalChain([swReg, 'access', _61 => _61.current, 'optionalAccess', _62 => _62.sync])) try{await swReg.current.sync.register("epkolar-sync");}catch(e){console.warn('[silent-await]',e&&e.message||e);}
       const cnt=await SQ.count();
       refreshPendingDetail();
       if(cnt>0) setTimeout(doSync,2000); // auto-flush after 2s
