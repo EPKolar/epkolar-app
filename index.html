@@ -3481,18 +3481,22 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
 
   // ═══ Portal: Load fresh data from Supabase ═══
   _react.useEffect.call(void 0, ()=>{
+    let active=true;
     (async()=>{try{
       // Load defects for this project
       const defs=await _sbGet("defects","project_id=eq."+encodeURIComponent(p.id)).catch(()=>[]);
+      if(!active)return;
       if(defs&&defs.length){setForms(prev=>({...prev,maengel:defs.map(_mapDefect)}));}
       // Load freed documents (kunde_freigabe=true)
       const docs=await _sbGet("project_documents","project_id=eq."+encodeURIComponent(p.id)+"&kunde_freigabe=eq.1").catch(()=>[]);
+      if(!active)return;
       if(docs&&docs.length){
         const kDocs=docs.map(d=>({id:d.id,pid:d.project_id,name:d.name||d.file_name,type:d.category||"pdf",date:(d.created_at||"").split("T")[0],size:"",dataUrl:d.file_data||"",filename:d.file_name,fileUrl:d.file_path||""}));
         setForms(prev=>({...prev,kundenDocs:[...(prev.kundenDocs||[]).filter(x=>x.pid!==p.id),...kDocs]}));
       }
       // Load freed plans
       const plans=await _sbGet("plans","project_id=eq."+encodeURIComponent(p.id)).catch(()=>[]);
+      if(!active)return;
       if(plans&&plans.length){
         const freedPlans=plans.filter(pl=>pl.kunde_freigabe);
         const pDocs=freedPlans.map(pl=>({id:"plan_"+pl.id,pid:p.id,name:"🗺️ "+(pl.name||"Plan"),type:"plan",date:(pl.created_at||"").split("T")[0],size:(pl.width||0)+"×"+(pl.height||0),dataUrl:pl.file_data||pl.file_path||""}));
@@ -3500,14 +3504,15 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
       }
       // Load checklists
       const chkl=await _sbGet("checklists","project_id=eq."+encodeURIComponent(p.id)).catch(()=>[]);
+      if(!active)return;
       if(chkl&&chkl.length){setForms(prev=>({...prev,checklisten:chkl.map(c=>({id:c.id,pid:c.project_id,name:c.name,items:_jp(c.items),date:(c.created_at||"").split("T")[0],status:c.status||"offen"}))}));}
     }catch(e){console.warn("Portal data load:",e);}
-    setPortalLoading(false);
+    if(active)setPortalLoading(false);
     })();
     // Setup SQ sync for portal (mangel submissions)
     const _portalSync=async()=>{const items=await SQ.getAll();if(!items.length)return;const done=[];for(const item of items){try{await _translateAndExec(item.url,item.method||"POST",item.body);done.push(item.id);}catch(e){break;}}if(done.length)await SQ.removeMany(done);};
     window.__doSync=_portalSync;
-    return()=>{delete window.__doSync;};
+    return()=>{active=false;delete window.__doSync;};
   },[p.id]);
   // Load photos from server for customer defects
   // v3.5.148: Mount-guard + early-exit — bei neuem Mangel oder Unmount verhindert race von parallelen fetch-loops + setState-after-unmount
@@ -7463,11 +7468,13 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
   /* FinkZeit-Stats für Dashboard */
   _react.useEffect.call(void 0, ()=>{
+    let active=true;
     (async()=>{try{
       if(!API.getToken())return;
       const yr=new Date().getFullYear();
       const mo=new Date().getMonth();
       const data=await _sbGet("finkzeit","jahr=eq."+yr).catch(()=>[]);
+      if(!active)return;
       if(!data||!data.length)return;
       const allYear=data;
       let diffWarn=0;
@@ -7492,8 +7499,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
       });
       const pendingDetails=Object.keys(_pendingByMonth).sort().reverse().map(k=>({label:_pendingByMonth[k].label,workers:_pendingByMonth[k].workers}));
       const stats={total:allYear.length,offen:allYear.filter(d=>d.status!=="genehmigt").length,freigegeben:allYear.filter(d=>d.status==="genehmigt").length,abgeglichen:allYear.filter(d=>{try{return JSON.parse(d.data||"{}").abgeglichen;}catch(e){return false;}}).length,diffWarn,pendingDetails};
-      setFinkStats(stats);
+      if(active)setFinkStats(stats);
     }catch(e){}})();
+    return ()=>{active=false;};
   },[entries.length]);
 
   // Weather fetch (open-meteo, no API key needed) — cached 15min
