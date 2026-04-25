@@ -9839,7 +9839,18 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
             const _yPct = t.yPct != null ? t.yPct : (pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0);
             return React.createElement('div', {
             key: t.id,
-            onClick: (e) => { e.stopPropagation(); if(onPinClick) onPinClick(t); },
+            onClick: (e) => {
+              e.stopPropagation();
+              // v3.8.57 B-033: Auto-migrate alte Pixel-Pins zu xPct/yPct beim Edit
+              if((t.xPct == null || t.yPct == null) && pageDims && pageDims.baseWidth && t.x != null && t.y != null) {
+                const _xPctMig = (t.x / pageDims.baseWidth) * 100;
+                const _yPctMig = (t.y / pageDims.baseHeight) * 100;
+                if(typeof _sbPatch === 'function') {
+                  _sbPatch('tickets', t.id, {xPct: _xPctMig, yPct: _yPctMig, page: t.page || 1}).catch(err => console.warn('[migrate-pin]', err && err.message || err));
+                }
+              }
+              if(onPinClick) onPinClick(t);
+            },
             style: {
               position: "absolute",
               left: _xPct + "%",
