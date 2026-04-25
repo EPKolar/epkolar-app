@@ -2762,6 +2762,70 @@ function _pdfDataUrlToBlobUrl(dataUrl){
     return null;
   }
 }
+// v3.8.55 Plan-Viewer-2.0: Multi-Page-PDF-System.
+// Loads PDF once, then renders pages on demand. Zoom is independent of render-DPI:
+// _planPdfCache stores: {plan_id: {pdfDoc, pageCount, currentPage, pages: {n: canvas}}}
+window._planPdfCache = window._planPdfCache || {};
+
+async function _planLoadPdf(planId, dataUrl) {
+  if(window._planPdfCache[planId] && window._planPdfCache[planId].pdfDoc) {
+    return window._planPdfCache[planId];
+  }
+  if(!window.pdfjsLib) throw new Error("pdfjsLib not loaded");
+  let buf;
+  if(dataUrl.startsWith("data:")) {
+    const commaIdx = dataUrl.indexOf(",");
+    const b64 = dataUrl.substring(commaIdx + 1);
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    buf = arr.buffer;
+  } else if(dataUrl.startsWith("blob:")) {
+    const r = await fetch(dataUrl);
+    buf = await r.arrayBuffer();
+  } else {
+    throw new Error("Unsupported dataUrl scheme");
+  }
+  const pdf = await window.pdfjsLib.getDocument({data: buf}).promise;
+  window._planPdfCache[planId] = {
+    pdfDoc: pdf,
+    pageCount: pdf.numPages,
+    pages: {}
+  };
+  return window._planPdfCache[planId];
+}
+
+async function _planRenderPage(planId, pageNum, canvas, scale) {
+  const cache = window._planPdfCache[planId];
+  if(!cache || !cache.pdfDoc) throw new Error("PDF not loaded");
+  const page = await cache.pdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({scale: scale || 1.5});
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({canvasContext: canvas.getContext("2d"), viewport}).promise;
+  return {width: viewport.width, height: viewport.height, baseWidth: page.getViewport({scale: 1}).width, baseHeight: page.getViewport({scale: 1}).height};
+}
+
+async function _planRenderThumbnail(planId, pageNum, canvas) {
+  const cache = window._planPdfCache[planId];
+  if(!cache || !cache.pdfDoc) return null;
+  const page = await cache.pdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({scale: 0.2});
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({canvasContext: canvas.getContext("2d"), viewport}).promise;
+  return {width: viewport.width, height: viewport.height};
+}
+
+function _planClearPdfCache(planId) {
+  try {
+    if(window._planPdfCache[planId]) {
+      try { window._planPdfCache[planId].pdfDoc.destroy(); } catch(e) { console.warn("[planClearPdfCache]", e && e.message || e); }
+      delete window._planPdfCache[planId];
+    }
+  } catch(e) { console.warn("[planClearPdfCache]", e && e.message || e); }
+}
+
 async function _parseOffaPdf(file){
   if(!window.pdfjsLib)throw new Error("PDF.js nicht geladen");
   const buf=await file.arrayBuffer();
