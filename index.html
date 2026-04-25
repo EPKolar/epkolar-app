@@ -2712,6 +2712,28 @@ function _juprowaMarkEdited(scheinId,updates){
 
 // ═══ OFFA PDF IMPORT PARSER ═══
 if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+// v3.8.53: Chrome blockt data:application/pdf-URLs in <embed>/<iframe> (Security).
+// Helper konvertiert data-URL → Blob → blob:-URL. Caller muss URL.revokeObjectURL
+// rufen sobald <embed> entfernt wird (sonst Memory-Leak).
+function _pdfDataUrlToBlobUrl(dataUrl){
+  if(!dataUrl||typeof dataUrl!=="string")return null;
+  if(dataUrl.startsWith("blob:"))return dataUrl;
+  if(!dataUrl.startsWith("data:application/pdf"))return dataUrl;
+  try{
+    const commaIdx=dataUrl.indexOf(",");
+    if(commaIdx<0)return null;
+    const b64=dataUrl.substring(commaIdx+1);
+    const bin=atob(b64);
+    const len=bin.length;
+    const arr=new Uint8Array(len);
+    for(let i=0;i<len;i++)arr[i]=bin.charCodeAt(i);
+    const blob=new Blob([arr],{type:"application/pdf"});
+    return URL.createObjectURL(blob);
+  }catch(e){
+    console.warn("[PDF] _pdfDataUrlToBlobUrl conversion failed:",e&&e.message||e);
+    return null;
+  }
+}
 async function _parseOffaPdf(file){
   if(!window.pdfjsLib)throw new Error("PDF.js nicht geladen");
   const buf=await file.arrayBuffer();
@@ -9349,6 +9371,27 @@ function PlanViewer({plan,tickets,layers,onPlanClick,onTicketClick,selectedTicke
   const [lastTouchDist,setLastTouchDist]=_react.useState.call(void 0, null);
   const imgRef=_react.useRef.call(void 0, null);
   const containerRef=_react.useRef.call(void 0, null);
+  // v3.8.53: Blob-URL Cache für PDF-Pläne (id → blob:-URL). Wird bei Unmount freigegeben.
+  const _pdfBlobCache=_react.useRef.call(void 0, {});
+  _react.useEffect.call(void 0, ()=>{
+    return ()=>{
+      try{
+        const cache=_pdfBlobCache.current||{};
+        Object.values(cache).forEach(url=>{
+          if(typeof url==="string"&&url.startsWith("blob:"))URL.revokeObjectURL(url);
+        });
+        _pdfBlobCache.current={};
+      }catch(e){}
+    };
+  },[]);
+  const _pdfBlobUrlForPlan=(p)=>{
+    if(!p||!p.dataUrl)return null;
+    const cache=_pdfBlobCache.current;
+    if(cache[p.id])return cache[p.id];
+    const u=_pdfDataUrlToBlobUrl(p.dataUrl);
+    if(u)cache[p.id]=u;
+    return u||p.dataUrl;
+  };
   const visibleLayers=layers.filter(l=>l.visible).map(l=>l.id);
   const visibleTickets=tickets.filter(t=>visibleLayers.includes(t.layer));
 
@@ -9417,7 +9460,7 @@ function PlanViewer({plan,tickets,layers,onPlanClick,onTicketClick,selectedTicke
       , plan ? (
         React.createElement('div', { style: {transform:`scale(${zoom}) translate(${offset.x/zoom}px,${offset.y/zoom}px)`,transformOrigin:"center center",transition:dragging?"none":"transform .1s",width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}
           , React.createElement('div', { style: {position:"relative",display:"inline-block"}}
-            , (plan.isPdf||(_optionalChain([plan, 'access', _pv1 => _pv1.dataUrl, 'optionalAccess', _pv2 => _pv2.startsWith, 'call', _pv3 => _pv3("data:application/pdf")]))) ? React.createElement('div', { ref: imgRef, style: {width:plan.width||1200,height:plan.height||850,maxWidth:"100%",maxHeight:"70vh",position:"relative",pointerEvents:"all"}}, React.createElement('embed', { src: plan.dataUrl, type: "application/pdf", style: {width:"100%",height:"100%",border:"none",borderRadius:4}} ), React.createElement('div', { onClick: handlePlanClick, onTouchEnd: onPlanClick?handlePlanTap:undefined, style: {position:"absolute",top:0,left:0,right:0,bottom:0,cursor:onPlanClick?"crosshair":"default",zIndex:onPlanClick?5:0}} )) : React.createElement('img', { ref: imgRef, src: plan.dataUrl, alt: plan.name, onClick: handlePlanClick, onTouchEnd: onPlanClick?handlePlanTap:undefined, style: {maxWidth:"100%",maxHeight:"70vh",display:"block",userSelect:"none",pointerEvents:"all"}, draggable: false} )
+            , (plan.isPdf||(_optionalChain([plan, 'access', _pv1 => _pv1.dataUrl, 'optionalAccess', _pv2 => _pv2.startsWith, 'call', _pv3 => _pv3("data:application/pdf")]))) ? React.createElement('div', { ref: imgRef, style: {width:plan.width||1200,height:plan.height||850,maxWidth:"100%",maxHeight:"70vh",position:"relative",pointerEvents:"all"}}, React.createElement('embed', { src: _pdfBlobUrlForPlan(plan), type: "application/pdf", style: {width:"100%",height:"100%",border:"none",borderRadius:4}} ), React.createElement('div', { onClick: handlePlanClick, onTouchEnd: onPlanClick?handlePlanTap:undefined, style: {position:"absolute",top:0,left:0,right:0,bottom:0,cursor:onPlanClick?"crosshair":"default",zIndex:onPlanClick?5:0}} )) : React.createElement('img', { ref: imgRef, src: plan.dataUrl, alt: plan.name, onClick: handlePlanClick, onTouchEnd: onPlanClick?handlePlanTap:undefined, style: {maxWidth:"100%",maxHeight:"70vh",display:"block",userSelect:"none",pointerEvents:"all"}, draggable: false} )
             , visibleTickets.map(t=>(React.createElement(PlanPin, { key: t.id, ticket: t, onClick: onTicketClick, selected: _optionalChain([selectedTicket, 'optionalAccess', _368 => _368.id])===t.id} )))
           )
         )
