@@ -1,3 +1,11 @@
+-- DEPRECATED v3.8.59: tickets-Schema bleibt bei x/y (Pixel). NICHT AUSFÜHREN.
+-- Begründung: DB-Schema-Verifikation 25.04.2026 18:00 (Sebastian) zeigt keine xPct/yPct/page-Spalten in tickets.
+-- Migration würde leere Spalten erzeugen + die Auto-Migration in v3.8.57 hat silent gefailt.
+-- Phase 1 v3.8.59 hat den Auto-Migration-Code entfernt. Component konvertiert beim Render.
+-- Alternativer Weg für Multi-Page-Support: B034_tickets_page_column.sql (nur "page"-Spalte).
+
+-- ORIGINAL CONTENT (NICHT AUSFÜHREN):
+
 -- B-033 Pixel→%-Migration für tickets-Tabelle
 -- Datum: 25.04.2026
 -- Annahme: tickets-Tabelle hat x, y, plan_id Spalten.

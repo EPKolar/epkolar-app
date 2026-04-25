@@ -9785,15 +9785,19 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
     const rect = target.getBoundingClientRect();
     const xBase = ((e.clientX - rect.left) / rect.width) * 100;
     const yBase = ((e.clientY - rect.top) / rect.height) * 100;
-    if(onPlanClick) onPlanClick({xPct: xBase, yPct: yBase, page: pageNum});
+    // v3.8.59 Schema-Reality: tickets-DB hat Pixel x/y. Konvertiere xPct/yPct → Pixel via pageDims.
+    const xPixel = pageDims && pageDims.baseWidth ? Math.round((xBase/100) * pageDims.baseWidth) : 0;
+    const yPixel = pageDims && pageDims.baseHeight ? Math.round((yBase/100) * pageDims.baseHeight) : 0;
+    if(onPlanClick) onPlanClick({xPct: xBase, yPct: yBase, x: xPixel, y: yPixel, page: pageNum});
   };
 
-  // v3.8.57 B-032: Tickets mit xPct ODER (alten) Pixel-x akzeptieren; plan_id snake-case fallback.
+  // v3.8.59 Schema-Reality: tickets-Tabelle hat NUR x/y (Pixel), kein xPct/yPct/page (DB-verifiziert 25.04 18:00).
+  // Render konvertiert beim Display zu Prozent. Pin-Place konvertiert vor Server-Push zu Pixel.
   const ticketsOnPage = (tickets || []).filter(t => {
     const planMatch = t.planId === (plan && plan.id) || t.plan_id === (plan && plan.id);
     if(!planMatch) return false;
     if((t.page || 1) !== pageNum) return false;
-    return (t.xPct != null && t.yPct != null) || (t.x != null && t.y != null);
+    return t.x != null && t.y != null;
   });
 
   return React.createElement('div', {
@@ -9845,23 +9849,12 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
             style: {display: "block", boxShadow: "0 4px 16px rgba(0,0,0,.4)", maxWidth: "none"}
           }) : null),
           showTickets ? ticketsOnPage.map((t, i) => {
-            // v3.8.57 B-032: % first, sonst Pixel→% via pageDims (legacy Pre-PlanRadar tickets).
-            const _xPct = t.xPct != null ? t.xPct : (pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0);
-            const _yPct = t.yPct != null ? t.yPct : (pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0);
+            // v3.8.59 Schema-Reality: tickets sind Pixel (x,y); Render konvertiert zu % via pageDims.
+            const _xPct = pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0;
+            const _yPct = pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0;
             return React.createElement('div', {
             key: t.id,
-            onClick: (e) => {
-              e.stopPropagation();
-              // v3.8.57 B-033: Auto-migrate alte Pixel-Pins zu xPct/yPct beim Edit
-              if((t.xPct == null || t.yPct == null) && pageDims && pageDims.baseWidth && t.x != null && t.y != null) {
-                const _xPctMig = (t.x / pageDims.baseWidth) * 100;
-                const _yPctMig = (t.y / pageDims.baseHeight) * 100;
-                if(typeof _sbPatch === 'function') {
-                  _sbPatch('tickets', t.id, {xPct: _xPctMig, yPct: _yPctMig, page: t.page || 1}).catch(err => console.warn('[migrate-pin]', err && err.message || err));
-                }
-              }
-              if(onPinClick) onPinClick(t);
-            },
+            onClick: (e) => { e.stopPropagation(); if(onPinClick) onPinClick(t); },
             style: {
               position: "absolute",
               left: _xPct + "%",
@@ -9952,8 +9945,8 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     if(isFrei){setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==key)}));SQ.push({url:"/api/plans/"+pl.id,method:"PUT",body:{kunde_freigabe:0}});_optionalChain([window, 'access', _plf1 => _plf1.__toast, 'optionalCall', _plf2 => _plf2("🔒 Plan-Freigabe zurückgezogen")]);}
     else{const kDoc={id:key,pid:p.id,name:"🗺️ "+pl.name,type:"plan",date:pl.uploadedAt||td2(),size:pl.width+"×"+pl.height,dataUrl:pl.dataUrl};setForms(f=>({...f,kundenDocs:[...(f.kundenDocs||[]),kDoc]}));SQ.push({url:"/api/plans/"+pl.id,method:"PUT",body:{kunde_freigabe:1}});_optionalChain([window, 'access', _plf3 => _plf3.__toast, 'optionalCall', _plf4 => _plf4("📤 Plan für Kundenportal freigegeben")]);}
   };
-  const handlePlanClick=(pos)=>{if(!placing||!selPlan||!selPlan.id)return;/* v3.8.55 PlanRadar: pos = {xPct, yPct, page}. Set preview-pin first; user must confirm. */setPendingPin({xPct:(pos&&pos.xPct)||0,yPct:(pos&&pos.yPct)||0,page:(pos&&pos.page)||1});};
-  const confirmPendingPin=()=>{if(!pendingPin||!selPlan||!selPlan.id){setPendingPin(null);return;}const xPct=pendingPin.xPct;const yPct=pendingPin.yPct;const page=pendingPin.page;setNewTicket({xPct,yPct,page,x:xPct,y:yPct,planId:selPlan.id,pid:p.id,type:"mangel",title:"",description:"",status:"offen",priority:"mittel",assignee:"",layer:_optionalChain([layers, 'access', _384 => _384[0], 'optionalAccess', _385 => _385.id])||"l1",dueDate:"",photos:[],comments:[]});setPendingPin(null);setPlacing(false);setSideMode("create");};
+  const handlePlanClick=(pos)=>{if(!placing||!selPlan||!selPlan.id)return;/* v3.8.59 Schema-Reality: pos = {xPct, yPct, x, y, page}. xPct/yPct nur fuer Vorschau-Pin-Position; x/y = DB-canonical Pixel. */setPendingPin({xPct:(pos&&pos.xPct)||0,yPct:(pos&&pos.yPct)||0,x:(pos&&pos.x)||0,y:(pos&&pos.y)||0,page:(pos&&pos.page)||1});};
+  const confirmPendingPin=()=>{if(!pendingPin||!selPlan||!selPlan.id){setPendingPin(null);return;}/* v3.8.59 Schema-Reality: setNewTicket nutzt Pixel x/y (DB-canonical). xPct/yPct nicht in DB-Spalten. */setNewTicket({x:pendingPin.x||0,y:pendingPin.y||0,page:pendingPin.page||1,planId:selPlan.id,pid:p.id,type:"mangel",title:"",description:"",status:"offen",priority:"mittel",assignee:"",layer:_optionalChain([layers, 'access', _384 => _384[0], 'optionalAccess', _385 => _385.id])||"l1",dueDate:"",photos:[],comments:[]});setPendingPin(null);setPlacing(false);setSideMode("create");};
   const cancelPendingPin=()=>{setPendingPin(null);};
   const createTicket=()=>{if(!_optionalChain([newTicket, 'optionalAccess', _386 => _386.title]))return;const ticket={...newTicket,id:uid(),createdAt:td2(),updatedAt:td2(),progress:0};setPlanData(prev=>({...prev,tickets:[...prev.tickets,ticket]}));SQ.push({url:"/api/tickets",method:"POST",body:{id:ticket.id,plan_id:_optionalChain([selPlan, 'optionalAccess', _387 => _387.id]),project_id:p.id,x:ticket.x||0,y:ticket.y||0,title:ticket.title,description:ticket.description||"",status:"offen",priority:ticket.priority||"normal",layer:ticket.layer||"maengel",assignee:ticket.assignee||"",photos:[]}});if(ticket.type==="mangel"){setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),{id:ticket.id,pid:p.id,name:ticket.title,ebene:_optionalChain([layers, 'access', _388 => _388.find, 'call', _389 => _389(l=>l.id===ticket.layer), 'optionalAccess', _390 => _390.name])||"",worker:ticket.assignee,frist:ticket.dueDate||td2(),prio:ticket.priority==="kritisch"||ticket.priority==="hoch"?"hoch":ticket.priority,status:"offen",date:td2(),fromPlan:true}]}));SQ.push({url:"/api/defects",method:"POST",body:{id:ticket.id,projectId:p.id,title:ticket.title,description:ticket.description||"",status:"offen",prio:ticket.priority||"normal",images:[]}});}setNewTicket(null);setSideMode("tickets");setSelTicket(ticket);};
   const updateTicket=u=>{setPlanData(prev=>({...prev,tickets:prev.tickets.map(t=>t.id===u.id?u:t)}));setSelTicket(u);/* v3.8.49 Bug-Fix: progress-Feld fehlte im Server-Body — UI-Range-Slider (0-100%) änderte nur lokalen State, nach Reload war Fortschritt wieder alt. Auch updatedAt mitschicken für Audit. */SQ.push({url:"/api/tickets/"+u.id,method:"PUT",body:{title:u.title,description:u.description||"",status:u.status,priority:u.priority||"normal",assignee:u.assignee||"",photos:u.photos||[],progress:u.progress||0,updated_at:u.updatedAt||new Date().toISOString().slice(0,10)}});};
