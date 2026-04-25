@@ -9777,7 +9777,13 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
     if(onPlanClick) onPlanClick({xPct: xBase, yPct: yBase, page: pageNum});
   };
 
-  const ticketsOnPage = (tickets || []).filter(t => t.planId === (plan && plan.id) && (t.page || 1) === pageNum && (t.xPct != null));
+  // v3.8.57 B-032: Tickets mit xPct ODER (alten) Pixel-x akzeptieren; plan_id snake-case fallback.
+  const ticketsOnPage = (tickets || []).filter(t => {
+    const planMatch = t.planId === (plan && plan.id) || t.plan_id === (plan && plan.id);
+    if(!planMatch) return false;
+    if((t.page || 1) !== pageNum) return false;
+    return (t.xPct != null && t.yPct != null) || (t.x != null && t.y != null);
+  });
 
   return React.createElement('div', {
     ref: containerRef,
@@ -9827,13 +9833,17 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
             onClick: handleCanvasClick,
             style: {display: "block", boxShadow: "0 4px 16px rgba(0,0,0,.4)", maxWidth: "none"}
           }) : null),
-          showTickets ? ticketsOnPage.map((t, i) => React.createElement('div', {
+          showTickets ? ticketsOnPage.map((t, i) => {
+            // v3.8.57 B-032: % first, sonst Pixel→% via pageDims (legacy Pre-PlanRadar tickets).
+            const _xPct = t.xPct != null ? t.xPct : (pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0);
+            const _yPct = t.yPct != null ? t.yPct : (pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0);
+            return React.createElement('div', {
             key: t.id,
             onClick: (e) => { e.stopPropagation(); if(onPinClick) onPinClick(t); },
             style: {
               position: "absolute",
-              left: (t.xPct || 0) + "%",
-              top: (t.yPct || 0) + "%",
+              left: _xPct + "%",
+              top: _yPct + "%",
               width: 28,
               height: 36,
               background: t.color || "#ef4444",
@@ -9850,7 +9860,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
               transform: "translate(-50%, -100%) rotate(-45deg)",
               zIndex: 20
             }
-          }, React.createElement('span', {style: {transform: "rotate(45deg)", lineHeight: 1}}, (i + 1)))) : null,
+          }, React.createElement('span', {style: {transform: "rotate(45deg)", lineHeight: 1}}, (i + 1))); }) : null,
           pendingPin && pendingPin.page === pageNum ? React.createElement('div', {
             style: {
               position: "absolute",
@@ -9897,6 +9907,14 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");const [zoom,setZoom]=_react.useState.call(void 0, 1);const [placing,setPlacing]=_react.useState.call(void 0, false);const [newTicket,setNewTicket]=_react.useState.call(void 0, null);const [filterType,setFilterType]=_react.useState.call(void 0, "alle");const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");const [filterLayer,setFilterLayer]=_react.useState.call(void 0, "alle");const [showSidebar,setShowSidebar]=_react.useState.call(void 0, true);const [sideMode,setSideMode]=_react.useState.call(void 0, "tickets");const fileRef=_react.useRef.call(void 0, null);const isMob=ww<600;const isTab=ww<768;
   const [dropActive,setDropActive]=_react.useState.call(void 0, false);
   const [pendingPin,setPendingPin]=_react.useState.call(void 0, null);
+  // v3.8.57 B-032: Orphan-Toast wenn Tickets ohne Plan-Position existieren (legacy pre-PlanRadar).
+  _react.useEffect.call(void 0, ()=>{
+    if(!allTickets||!selPlan)return;
+    const orphan=allTickets.filter(t=>(t.planId===selPlan.id||t.plan_id===selPlan.id)&&t.xPct==null&&t.yPct==null&&t.x==null&&t.y==null);
+    if(orphan.length>0&&typeof window.__toast==='function'){
+      window.__toast("⚠ "+orphan.length+" Ticket"+(orphan.length>1?"s":"")+" ohne Plan-Position — in der Sidebar weiterhin sichtbar","info",6000);
+    }
+  },[selPlan&&selPlan.id, allTickets&&allTickets.length]);
   const handleDrop=e=>{e.preventDefault();e.stopPropagation();setDropActive(false);const files=_optionalChain([e, 'access', _375 => _375.dataTransfer, 'optionalAccess', _376 => _376.files]);if(_optionalChain([files, 'optionalAccess', _377 => _377.length])){const fakeEvt={target:{files,value:""}};handleUpload(fakeEvt);}};
   const handleDragOver=e=>{e.preventDefault();e.stopPropagation();setDropActive(true);};
   const handleDragLeave=e=>{e.preventDefault();setDropActive(false);};
