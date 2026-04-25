@@ -2036,11 +2036,11 @@ window._forceCacheClear=async function(silent){
   try{
     const regs=await navigator.serviceWorker.getRegistrations();
     for(const r of regs)await r.unregister();
-  }catch(_){}
+  }catch(e){console.warn('[silent-await]',e&&e.message||e);}
   try{
     const keys=await caches.keys();
     for(const k of keys)await caches.delete(k);
-  }catch(_){}
+  }catch(e){console.warn('[silent-await]',e&&e.message||e);}
   if(!silent&&window.__toast)window.__toast("🧹 Cache gelöscht — App wird neu geladen…");
   setTimeout(()=>{window.location.href=window.location.pathname+"?cc="+Date.now();},500);
 };
@@ -2105,7 +2105,7 @@ const ODB={
   async del(store,key){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
   async getAll(store){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readonly");const r=tx.objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
   async clear(store){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
-  async save(store,data){try{await ODB.set(store,"data",data);}catch(e){}},
+  async save(store,data){try{await ODB.set(store,"data",data);}catch(e){console.warn('[silent-await]',e&&e.message||e);}},
   async load(store){try{return await ODB.get(store,"data");}catch(e){return undefined;}}
 };
 // v3.8.33 Bug-Hunt Iter-19c: Offline-PW-Hash von reversiblem base64 auf PBKDF2-SHA256 umgestellt (M-4 Security-P2).
@@ -2155,13 +2155,13 @@ const SQ={
         await ODB.save("syncQueue",q);
         if(SQ._timer)clearTimeout(SQ._timer);
         SQ._timer=setTimeout(()=>{if(navigator.onLine&&window.__doSync)window.__doSync();},SQ._batchDelay);
-      }catch(e){}
+      }catch(e){console.warn('[silent-await]',e&&e.message||e);}
     });
   },
   async getAll(){try{return await ODB.load("syncQueue")||[];}catch(e){return [];}},
-  async clear(){return SQ._serial(async()=>{try{await ODB.save("syncQueue",[]);}catch(e){}});},
-  async remove(id){return SQ._serial(async()=>{try{const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>x.id!==id));}catch(e){}});},
-  async removeMany(ids){return SQ._serial(async()=>{try{const idSet=new Set(ids);const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>!idSet.has(x.id)));}catch(e){}});},
+  async clear(){return SQ._serial(async()=>{try{await ODB.save("syncQueue",[]);}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
+  async remove(id){return SQ._serial(async()=>{try{const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>x.id!==id));}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
+  async removeMany(ids){return SQ._serial(async()=>{try{const idSet=new Set(ids);const q=await ODB.load("syncQueue")||[];await ODB.save("syncQueue",q.filter(x=>!idSet.has(x.id)));}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
   async count(){try{const q=await ODB.load("syncQueue")||[];return q.length;}catch(e){return 0;}}
 };
 
@@ -2182,10 +2182,10 @@ const PhotoQ={
     });
   },
   async getAll(){try{return await ODB.load("photoQueue")||[];}catch(e){return [];}},
-  async remove(id){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.filter(x=>x.id!==id));}catch(e){}});},
-  async update(id,updates){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.map(x=>x.id===id?{...x,...updates}:x));}catch(e){}});},
+  async remove(id){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.filter(x=>x.id!==id));}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
+  async update(id,updates){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.map(x=>x.id===id?{...x,...updates}:x));}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
   async count(){try{const q=await ODB.load("photoQueue")||[];return q.filter(x=>x.status==="pending"||x.status==="error").length;}catch(e){return 0;}},
-  async clear(){return PhotoQ._serial(async()=>{try{await ODB.save("photoQueue",[]);}catch(e){}});},
+  async clear(){return PhotoQ._serial(async()=>{try{await ODB.save("photoQueue",[]);}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
   _flushing:false,// v3.5.101: Concurrency-Guard gegen doppeltes Hochladen
   async flush(){
     if(!navigator.onLine)return{ok:0,fail:0};
