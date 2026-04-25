@@ -16564,6 +16564,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const [sub,setSub]=_react.useState.call(void 0, "liste");const [search,setSearch]=_react.useState.call(void 0, "");const [filtSt,setFiltSt]=_react.useState.call(void 0, "");const [filtKat,setFiltKat]=_react.useState.call(void 0, "");
   const [editId,setEditId]=_react.useState.call(void 0, null);const [form,setForm]=_react.useState.call(void 0, {});
   const [wzServiceSel,setWzServiceSel]=_react.useState.call(void 0, "");
+  // v3.8.60 Phase 4.1: Werkzeug-Filter-Chips (Alle/Verfügbar/Ausgegeben/Kalibrierung/Defekt)
+  const [werkStatusFilter,setWerkStatusFilter]=_react.useState.call(void 0, 'alle');
   // v3.8.49 Bug-Fix: Service-Heft inline-Edits (Datum/Art/Kosten/Werkstatt/Beschreibung/
   // Befund-Upload/Rechnung-Upload) mutierten nur werkzeuge-State, hatten KEIN SQ.push.
   // Admin-Edits gingen nach Reload verloren — insb. Befund/Rechnung-Uploads (Inventar-
@@ -16611,8 +16613,31 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   // Role-based pre-filter: Monteur sees only assigned tools, Lagerleiter+Admin see all
   const isWzAdmin=isAdmin||_optionalChain([curUser, 'optionalAccess', _wza => _wza.username])==="pinger";
   const _wzPool=isWzAdmin?werkzeuge:werkzeuge.filter(w=>w.zugewiesen===(_optionalChain([curUser, 'optionalAccess', _wzm => _wzm.monteurId])||"__none__"));
+  // v3.8.60 Phase 4.1: Chip-Filter-Predicate (Verfügbar/Ausgegeben/Kalibrierung fällig/Defekt)
+  // NB: WZ_STATUS-key für "Defekt" ist 'verloren' (Label: "Verloren/Defekt"). DB-Convention beibehalten.
+  const _matchesChip=(w)=>{
+    if(werkStatusFilter==='alle')return true;
+    if(werkStatusFilter==='verfuegbar')return w.status==='verfuegbar';
+    if(werkStatusFilter==='ausgegeben')return w.status==='ausgegeben';
+    if(werkStatusFilter==='verloren')return w.status==='verloren';
+    if(werkStatusFilter==='kalib_faellig'){const d=w.naechsteKalib;return !!d&&d<=td2();}
+    return true;
+  };
+  // v3.8.60 Phase 4.1: Counter pro Chip (memoized — werkzeuge kann groß werden)
+  const _chipCounts=_react.useMemo.call(void 0, ()=>{
+    const today=td2();
+    const cnt={alle:_wzPool.length,verfuegbar:0,ausgegeben:0,kalib_faellig:0,verloren:0};
+    for(const w of _wzPool){
+      if(w.status==='verfuegbar')cnt.verfuegbar++;
+      if(w.status==='ausgegeben')cnt.ausgegeben++;
+      if(w.status==='verloren')cnt.verloren++;
+      if(w.naechsteKalib&&w.naechsteKalib<=today)cnt.kalib_faellig++;
+    }
+    return cnt;
+  },[_wzPool]);
   // Filter
   const filtered=_wzPool.filter(w=>{
+    if(!_matchesChip(w))return false;
     if(filtSt&&w.status!==filtSt)return false;
     if(filtKat&&w.kat!==filtKat)return false;
     if(search){const s=search.toLowerCase();return (w.name+w.seriennr+w.inventarnr+w.notizen+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
@@ -16864,6 +16889,19 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
     /* ═══ LISTE ═══ */
     , sub==="liste"&&(React.createElement('div', {}
+      /* v3.8.60 Phase 4.1: Filter-Chips (Alle/Verfügbar/Ausgegeben/Kalibrierung fällig/Defekt) */
+      , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}
+        , [
+            {key:'alle',label:'Alle'},
+            {key:'verfuegbar',label:'✅ Verfügbar'},
+            {key:'ausgegeben',label:'📤 Ausgegeben'},
+            {key:'kalib_faellig',label:'⚠️ Kalibrierung fällig'},
+            {key:'verloren',label:'❌ Defekt'}
+          ].map(chip=>{
+            const act=werkStatusFilter===chip.key;const cnt=_chipCounts[chip.key]||0;
+            return React.createElement('button', {key:chip.key,onClick:()=>setWerkStatusFilter(chip.key), style: {flexShrink:0,padding:"5px 12px",borderRadius:16,border:"1px solid "+(act?V.ac:V.bd),background:act?V.ac+"22":V.cd,color:act?V.ac:V.dm,fontSize:11,fontWeight:act?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, chip.label+" ("+cnt+")");
+          })
+      )
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}
         , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "🔍 Name, Seriennr, Inventar..."   , style: {...II(),width:"auto",flex:1,minWidth:150,fontSize:12}, className: "mob-full"} )
         , React.createElement('select', { value: filtSt, onChange: e=>setFiltSt(e.target.value), style: {...II(),width:"auto",minWidth:100,fontSize:12}}, React.createElement('option', { value: ""}, "Alle Status" ), Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))
