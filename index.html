@@ -7600,7 +7600,10 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
       const _pendingByMonth={};
       allYear.filter(d=>d.status!=="genehmigt").forEach(d=>{
         const key=d.jahr+"-"+String(d.monat+1).padStart(2,"0");
-        const wname=((m)=>m?(m.name||m.n||d.worker_id):d.worker_id)(monteure.find(m=>m.id===d.worker_id));
+        /* v3.8.63 Bug-B: finkzeit.worker_id ist users-PK (u1-u9), Lookup primaer in users + Fallback in monteure (w1-w9). Ohne Match: anonymisierter Display statt rohes "u1". */
+        const _u=(users||[]).find(x=>x.id===d.worker_id);
+        const _m=monteure.find(x=>x.id===d.worker_id);
+        const wname=(_u&&(_u.name||_u.username||_u.email))||(_m&&(_m.name||_m.n))||("MA "+d.worker_id);
         if(!_pendingByMonth[key])_pendingByMonth[key]={label:_MONATE[d.monat]+" "+d.jahr,workers:[]};
         if(_pendingByMonth[key].workers.indexOf(wname)<0)_pendingByMonth[key].workers.push(wname);
       });
@@ -12089,7 +12092,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                 , React.createElement('span', { style: {fontSize:12,color:V.tx,fontWeight:600}}, items.length, " Pos.")
                 , total>0&&React.createElement('span', { style: {fontSize:13,fontWeight:800,color:"#22c55e"}}, "€"+_n(total,2))
                 , so.lieferort&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, so.lieferort==="firma"?"🏢 Firma":"🏗 Baustelle")
-                , so.bestellt_von&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, "von: "+so.bestellt_von)
+                , so.bestellt_von&&React.createElement('span', { style: {fontSize:10,color:V.dm}}, "von: "+(((window._allUsers||[]).find(u=>u.id===so.bestellt_von)||{}).name||so.bestellt_von))
                 , React.createElement('span', { style: {marginLeft:"auto",fontSize:11,color:V.dm,transform:isOpen?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}, "▼")
               )
               , isOpen&&React.createElement('div', { style: {marginTop:10,borderTop:"1px solid "+V.bd,paddingTop:8}, onClick: e=>e.stopPropagation()}
