@@ -2809,11 +2809,15 @@ async function _planLoadPdf(planId, dataUrl) {
 async function _planRenderPage(planId, pageNum, canvas, scale) {
   const cache = window._planPdfCache[planId];
   if(!cache || !cache.pdfDoc) throw new Error("PDF not loaded");
+  /* v3.8.64 Bug-5: Cancel vorheriger render-task auf gleichem Canvas. React-Re-Render trigger triggers parallel render() → "Cannot use the same canvas during multiple render() operations". */
+  if(canvas._epkRenderTask){try{canvas._epkRenderTask.cancel();}catch(e){console.warn('[silent-pdf-cancel]',e&&e.message||e);}canvas._epkRenderTask=null;}
   const page = await cache.pdfDoc.getPage(pageNum);
   const viewport = page.getViewport({scale: scale || 1.5});
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({canvasContext: canvas.getContext("2d"), viewport}).promise;
+  const task = page.render({canvasContext: canvas.getContext("2d"), viewport});
+  canvas._epkRenderTask = task;
+  try { await task.promise; } finally { if(canvas._epkRenderTask===task) canvas._epkRenderTask=null; }
   return {width: viewport.width, height: viewport.height, baseWidth: page.getViewport({scale: 1}).width, baseHeight: page.getViewport({scale: 1}).height};
 }
 
