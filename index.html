@@ -2131,12 +2131,16 @@ function openDB(){
   });
   return _dbPromise;
 }
+// v3.8.63 Bug-D: graceful-degradation wenn store fehlt (alte DB-Version + neuer Code, oder Code referenziert unbekannten store).
+// Vorher: transaction() throw "object stores was not found" → silent-await Error in Console.
+// Jetzt: warn + no-op (return undefined / empty / nothing).
+function _odbHasStore(db,store){return db&&db.objectStoreNames&&db.objectStoreNames.contains(store);}
 const ODB={
-  async get(store,key){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readonly");const r=tx.objectStore(store).get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
-  async set(store,key,val){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).put(val,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
-  async del(store,key){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
-  async getAll(store){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readonly");const r=tx.objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
-  async clear(store){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
+  async get(store,key){const db=await openDB();if(!_odbHasStore(db,store)){console.warn('[ODB.get] Store missing:',store);return undefined;}return new Promise((res,rej)=>{const tx=db.transaction(store,"readonly");const r=tx.objectStore(store).get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
+  async set(store,key,val){const db=await openDB();if(!_odbHasStore(db,store)){console.warn('[ODB.set] Store missing:',store);return;}return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).put(val,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
+  async del(store,key){const db=await openDB();if(!_odbHasStore(db,store)){console.warn('[ODB.del] Store missing:',store);return;}return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
+  async getAll(store){const db=await openDB();if(!_odbHasStore(db,store)){console.warn('[ODB.getAll] Store missing:',store);return [];}return new Promise((res,rej)=>{const tx=db.transaction(store,"readonly");const r=tx.objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
+  async clear(store){const db=await openDB();if(!_odbHasStore(db,store)){console.warn('[ODB.clear] Store missing:',store);return;}return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});},
   async save(store,data){try{await ODB.set(store,"data",data);}catch(e){console.warn('[silent-await]',e&&e.message||e);}},
   async load(store){try{return await ODB.get(store,"data");}catch(e){return undefined;}}
 };
