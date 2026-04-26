@@ -4063,7 +4063,8 @@ class _ViewBoundary extends React.Component{
   const [installPrompt,setInstallPrompt]=_react.useState.call(void 0, null);
   const [showInstallBanner,setShowInstallBanner]=_react.useState.call(void 0, false);
   const [showIOSBanner,setShowIOSBanner]=_react.useState.call(void 0, ()=>_isIOS&&!_isStandalone&&!localStorage.getItem("epk_ios_dismissed"));
-  const [swUpdate,setSwUpdate]=_react.useState.call(void 0, false);
+  /* v3.8.63 Bug-A: Initial-State checkt localStorage. Banner nur wenn echtes Update wartet (stored-Wert existiert UND mismatched). Bei Match oder fehlendem Wert: false. */
+  const [swUpdate,setSwUpdate]=_react.useState.call(void 0, ()=>{try{const stored=localStorage.getItem('epk_sw_ver');return !!(stored&&window.SW_VER&&stored!==window.SW_VER);}catch(e){return false;}});
   const swReg=_react.useRef.call(void 0, null);
   const swUpdateTimer=_react.useRef.call(void 0, null);
   // Toast notifications
@@ -4095,7 +4096,8 @@ class _ViewBoundary extends React.Component{
           const nw=reg.installing;
           if(nw){
             _newWorkerRef=nw;
-            _stateChangeHandler=()=>{if(nw.state==="installed"&&navigator.serviceWorker.controller)setSwUpdate(true);};
+            /* v3.8.63 Bug-A: nur Banner wenn echte neue Version (localStorage-mismatch), nicht bei jedem SW-Re-Register. */
+            _stateChangeHandler=()=>{if(nw.state==="installed"&&navigator.serviceWorker.controller){try{const _stored=localStorage.getItem('epk_sw_ver');if(_stored&&window.SW_VER&&_stored===window.SW_VER)return;}catch(e){}setSwUpdate(true);}};
             nw.addEventListener("statechange",_stateChangeHandler);
           }
         };
@@ -4103,7 +4105,7 @@ class _ViewBoundary extends React.Component{
       }).catch(e=>console.warn('[SW-REG-SETUP]',e&&e.message||e));
       // v3.5.143: Listener als benannte Variable → kann in cleanup entfernt werden (war leak: remount → 2x, 3x doSync)
       var _swMsgHandler=e=>{
-        if(_optionalChain([e, 'access', _21 => _21.data, 'optionalAccess', _22 => _22.type])==="SW_UPDATED")setSwUpdate(true);
+        if(_optionalChain([e, 'access', _21 => _21.data, 'optionalAccess', _22 => _22.type])==="SW_UPDATED"){try{const _stored=localStorage.getItem('epk_sw_ver');if(_stored&&window.SW_VER&&_stored===window.SW_VER){return;}}catch(e2){}setSwUpdate(true);}
         if(_optionalChain([e, 'access', _23 => _23.data, 'optionalAccess', _24 => _24.type])==="SYNC_TRIGGER")doSync();
       };
       navigator.serviceWorker.addEventListener("message",_swMsgHandler);
