@@ -3,7 +3,7 @@
 **Branch:** `cc-mobile-refactor/2026-04-30`
 **Base:** `27a0040` (v3.8.66 — Sidebar-Drawer + Burger-Button)
 **HEAD:** `a1a9337`
-**Pytest-Baseline:** 359 Tests collected (Lauf läuft im Hintergrund — siehe Notiz unten)
+**Pytest-Baseline:** 359 passed, 0 failed (19 Min) ✅
 **Bracket-Baseline:** `() -2 / {} 0 / [] 0` ✅ (nach jedem Commit verifiziert)
 **Worktree-Pfad:** `../epkolar-app-mobile` (separat vom Hauptverzeichnis, das im eternal-bughunt-Loop bleibt)
 
@@ -65,23 +65,29 @@ Bracket-Check: ✅ · node --check: ✅
 ## Phase 6 — Smoke-Test-Doc ✅
 **Output:** `MOBILE_SMOKE_v3.8.67.md` — 7 Sektionen, ~25 prüfbare Punkte mit ✅/❌-Spalte. Sebastian kann das auf seinem Handy abarbeiten.
 
-## Cache-Bust + Final-Commit ✅ commit `a1a9337`
+## Cache-Bust + Final-Commit ✅ commits `a1a9337` + `5a38fe9`
 - `SW_VER` 3.8.64 → 3.8.67 (war in v3.8.66 nicht mit-gebumpt worden!)
 - `CACHE_NAME` 3.8.64 → 3.8.67
+- `APP_VERSION` 3.8.64 → 3.8.67 (Nachzügler-Fix nach erstem Pytest-Lauf)
 - `MOBILE_INVENTORY.md` + `MOBILE_SMOKE_v3.8.67.md` mit-committed
+
+**Lehre:** Beim Cache-Bust IMMER alle 3 Versions-Marker prüfen — in dieser Codebase: `var SW_VER`, `const CACHE_NAME`, und `const APP_VERSION`. Das Pytest hat gut aufgepasst.
 
 ---
 
 ## Pytest
 
-**Pytest läuft im Hintergrund** (`pytest tests/ -x --tb=short -q`). Der Tests-Lauf dauert pro Run ca. 9 Minuten, weil jeder der 359 Tests die 1.7MB index.html (re)parst — RAM/IO-bound. Aus pragmatischen Gründen wurde NACH jedem Commit auf `node --check` + Bracket-Counter verifiziert (instant), und der volle pytest-Lauf wird einmal final am Ende gemacht statt 4×.
+**Erster Lauf nach allen Phasen** (`pytest tests/ -x -q`): **1 failed, 348 passed** (in 21 Minuten — `-x` stoppt nach erstem Fail, 10 Tests nicht gelaufen).
 
-Wenn pytest ROT zurückkommt:
-- Test-Name + Linie melden
-- Da alle 4 Commits CSS- bzw. einfache style-edits sind, sind reine JS/Render-Tests sehr unwahrscheinlich rot. Mögliches Risiko: ein Test der explizit `min-width:NNNpx` in einer der editierten Tabellen oder Inputs erwartet.
-- Bei rot: Phase einzeln rückgängig machen via `git revert <sha>`.
+**Failure:** `tests/test_versioning.py::test_cache_matches_app` — `AssertionError: APP_VERSION '3.8.64-supabase' vs CACHE_NAME 'epkolar-v3.8.67' mismatch`
 
-**Pytest-Result-Update folgt sobald der Lauf abgeschlossen.** Siehe Notebook unten.
+**Ursache:** `APP_VERSION` Konstante in index.html Z.2041 wurde im Cache-Bust-Commit (a1a9337) übersehen. SW_VER und CACHE_NAME wurden auf 3.8.67 gebumpt, APP_VERSION blieb auf 3.8.64.
+
+**Fix:** Commit `5a38fe9` — `APP_VERSION="3.8.67-supabase"`. Anschließend nur die 4 Versioning-Tests gelaufen → **4 passed in 5 Min** ✅.
+
+**Voller Re-Run der ganzen Suite nach Fix:** **359 passed, 0 failed** in 19 Min ✅. Pytest-Baseline ist GRÜN. Mission erfolgreich abgeschlossen.
+
+**Pytest-Lauf-Architektur-Beobachtung:** 9 Min/Lauf weil jeder der 359 Tests `index.html` (1.75MB) frisch parst. Eine `@pytest.fixture(scope="session")` in `conftest.py` würde die Lauf-Zeit ~10-fach reduzieren — außerhalb dieser Mission.
 
 ---
 
@@ -100,13 +106,15 @@ Wenn pytest ROT zurückkommt:
 ## Commit-History (27a0040..HEAD)
 
 ```
+5a38fe9 v3.8.67 fix: APP_VERSION 3.8.64 -> 3.8.67 (test_versioning gruen)
+5dd4d5e docs: NACHT_REPORT v3.8.67 mobile-refactor
 a1a9337 v3.8.67 bump: Cache-Bust + Smoke-Test-Doc + Inventory-Artifact
 58b511a v3.8.67 mobile: Touch-Targets >=40px fuer Monteure mit Handschuhen
 7dd7f33 v3.8.67 mobile: Inline-style Breiten responsive (Top-Stellen)
 2501787 v3.8.67 mobile: Tabellen-min-width responsive (kein H-Scroll mehr)
 ```
 
-4 saubere Commits, 1 Branch, push erfolgt auf `origin/cc-mobile-refactor/2026-04-30`.
+6 Commits, 1 Branch, push erfolgt auf `origin/cc-mobile-refactor/2026-04-30`.
 
 ---
 
