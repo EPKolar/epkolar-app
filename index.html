@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.5';
+  var SW_VER='epkolar-v3.9.6';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -384,6 +384,16 @@ html { overscroll-behavior-y: contain; }
     min-height: 44px;
     display: inline-flex;
     align-items: center;
+  }
+}
+
+/* v3.9.6 S14-3: prefers-reduced-motion respect (a11y WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -2112,7 +2122,7 @@ window.API = (function() {
     getProjects: function() { return _sbGet("projects"); },
     getWorkers: function() { return _sbGetOrder("workers","name.asc"); },
     getEntries: function() { return _sbGetOrder("time_entries","date.desc"); },
-    getEntriesForWorker: function(wId,from,to) { return _sbGet("time_entries","worker_id=eq."+encodeURIComponent(wId)+"&date=gte."+from+"&date=lte."+to+"&order=date.asc"); },
+    getEntriesForWorker: function(wId,from,to) { /* v3.9.6 S14-6: date-range end-before-start guard */ if(from&&to&&from>to){console.warn("[date-range] from>to swapped:",from,to);var _t=from;from=to;to=_t;} return _sbGet("time_entries","worker_id=eq."+encodeURIComponent(wId)+"&date=gte."+from+"&date=lte."+to+"&order=date.asc"); },
     getForms: function() { return _sbGet("forms"); },
     getDefects: function() { return _sbGet("defects"); },
     getAbsences: function() { return _sbGet("absences"); },
@@ -2131,7 +2141,11 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.5-supabase";
+const APP_VERSION="3.9.6-supabase";
+// v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
+// (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
+// Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
+const _scrollLock={count:0,acquire(){if(this.count===0)document.body.style.overflow="hidden";this.count++;},release(){this.count=Math.max(0,this.count-1);if(this.count===0)document.body.style.overflow="";}};
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
