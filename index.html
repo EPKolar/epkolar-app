@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.8.93';
+  var SW_VER='epkolar-v3.8.95';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2189,7 +2189,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.93-supabase";
+const APP_VERSION="3.8.95-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -5388,6 +5388,19 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   const toggleProj=(mid,pid)=>{/* v3.8.49 Defense-in-Depth: Worker-Projekt-Zuweisungen Admin-only. */if(!isAdmin)return;const cur=monteurProjekte[mid]||[];const nxt=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];setMonteurProjekte(prev=>({...prev,[mid]:nxt}));SQ.push({url:"/api/worker-projects/"+mid,method:"PUT",body:{projects:nxt}});};
 
   const selM=monteure.find(m=>m.id===sel);
+  // v3.8.94 Sprint-9 F1: roleKpis useMemo — vermeidet 5x monteure.filter() pro render.
+  const _roleKpis=_react.useMemo.call(void 0, ()=>{
+    const roleGroups=[
+      {label:"Monteure",roles:["Monteur","Obermonteur"],color:COLORS.SUCCESS,sub:"inkl. Obermonteure"},
+      {label:"Techniker",roles:["Techniker","Störungstechniker"],color:COLORS.INFO,sub:"Fachkräfte"},
+      {label:"Leitung",roles:["Geschäftsführer","Projektleiter","Lagerleitung"],color:COLORS.WARNING,sub:"GF/PL/Lager"},
+      {label:"Büro",roles:["Backoffice","Verkauf/Buchhaltung"],color:"#6366f1",sub:"Office"},
+      {label:"Helfer",roles:["Helfer","Lehrling","Praktikant"],color:"#14b8a6",sub:"inkl. Lehrlinge"},
+    ];
+    return roleGroups.map(g=>{const c=monteure.filter(m=>g.roles.includes(m.r)).length;return {...g,c};});
+  },[monteure]);
+  // v3.8.94 Sprint-9 F1: activeProjectsCount useMemo — vermeidet projects.filter pro render.
+  const _activeProjectsCount=_react.useMemo.call(void 0, ()=>projects.filter(p=>p.status==="aktiv").length,[projects]);
 
   return (
     React.createElement('div', {}
@@ -5397,18 +5410,8 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
       )
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
         , React.createElement(Kpi, { label: "Mitarbeiter", value: monteure.length, sub: "gesamt", color: "#06b6d4", i: 0} )
-        , (()=>{
-          // Dynamic role KPIs — group by worker role, show all that have count>0
-          const roleGroups=[
-            {label:"Monteure",roles:["Monteur","Obermonteur"],color:COLORS.SUCCESS,sub:"inkl. Obermonteure"},
-            {label:"Techniker",roles:["Techniker","Störungstechniker"],color:COLORS.INFO,sub:"Fachkräfte"},
-            {label:"Leitung",roles:["Geschäftsführer","Projektleiter","Lagerleitung"],color:COLORS.WARNING,sub:"GF/PL/Lager"},
-            {label:"Büro",roles:["Backoffice","Verkauf/Buchhaltung"],color:"#6366f1",sub:"Office"},
-            {label:"Helfer",roles:["Helfer","Lehrling","Praktikant"],color:"#14b8a6",sub:"inkl. Lehrlinge"},
-          ];
-          return roleGroups.map((g,idx)=>{const c=monteure.filter(m=>g.roles.includes(m.r)).length;return React.createElement(Kpi, { key: g.label, label: g.label, value: c, sub: g.sub, color: g.color, i: idx+1});});
-        })()
-        , React.createElement(Kpi, { label: "Projekte aktiv" , value: projects.filter(p=>p.status==="aktiv").length, sub: "zuweisbar", color: V.ac, i: 6} )
+        , _roleKpis.map((g,idx)=>React.createElement(Kpi, { key: g.label, label: g.label, value: g.c, sub: g.sub, color: g.color, i: idx+1}))
+        , React.createElement(Kpi, { label: "Projekte aktiv" , value: _activeProjectsCount, sub: "zuweisbar", color: V.ac, i: 6} )
       )
       , showNew&&isAdmin&&(React.createElement('div', { className: "fade-in", style: CC()}
         , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "👤 Neuen Mitarbeiter anlegen"   )
@@ -10785,8 +10788,8 @@ function VFotos({p,curUser,monteure,ww}){
     }finally{if(active)setLoading(false);}})();
     return()=>{active=false;};
   },[p.id]);
-  // Filtered
-  const filtered=filter==="alle"?photos:photos.filter(ph=>(ph.entity_type||ph.entityType)===filter);
+  // Filtered — v3.8.95 Sprint-9 F3: useMemo-Wrap (re-render perf)
+  const filtered=_react.useMemo.call(void 0, ()=>filter==="alle"?photos:photos.filter(ph=>(ph.entity_type||ph.entityType)===filter),[photos,filter]);
   // KPIs
   const now=new Date();const weekAgo=new Date(now);weekAgo.setDate(weekAgo.getDate()-7);
   const thisWeek=photos.filter(ph=>{const d=new Date(ph.taken_at||ph.takenAt||ph.created_at);return d>=weekAgo;}).length;
@@ -10834,6 +10837,8 @@ function VFotos({p,curUser,monteure,ww}){
     const h=e=>{if(e.key==="Escape")setLbIdx(-1);if(e.key==="ArrowLeft")lbPrev();if(e.key==="ArrowRight")lbNext();};
     window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);
   },[lbIdx,filtered.length]);
+  // v3.8.95 Sprint-9 F3: visible Foto-Categories useMemo-Wrap (re-render perf)
+  const _visibleCats=_react.useMemo.call(void 0, ()=>FOTO_CATS.filter(c=>c.id==="alle"||photos.some(ph=>(ph.entity_type||ph.entityType)===c.id)),[photos]);
   // Render
   if(loading)return React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Fotos werden geladen...");
   return (
@@ -10856,7 +10861,7 @@ function VFotos({p,curUser,monteure,ww}){
         , React.createElement('div', { style: {...CC(),padding:12,textAlign:"center",margin:0}}, React.createElement('div', { style: {fontSize:22,fontWeight:800,color:"#22c55e"}}, gpsCount), React.createElement('div', { style: {fontSize:11,color:V.dm}}, "GPS-markiert"))
       )
       , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:14}}
-        , FOTO_CATS.filter(c=>c.id==="alle"||photos.some(ph=>(ph.entity_type||ph.entityType)===c.id)).map(c=>(
+        , _visibleCats.map(c=>(
           React.createElement('button', { key: c.id, onClick: ()=>setFilter(c.id), style: {padding:"5px 12px",borderRadius:20,border:"1px solid "+(filter===c.id?c.c:V.bd),background:filter===c.id?c.c+"18":"transparent",color:filter===c.id?c.c:V.dm,fontSize:11,fontWeight:filter===c.id?700:400,cursor:"pointer",fontFamily:"inherit"}}, c.i, " " , c.l)
         ))
         , React.createElement('div', { style: {marginLeft:"auto",display:"flex",gap:0,border:"1px solid "+V.bd,borderRadius:6,overflow:"hidden"}}
@@ -13651,7 +13656,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
       return wid===workerId||(monteurId&&wid===monteurId);
     });
   };
-  const sumHours=(arr)=>arr.reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
+  const sumHours=_react.useCallback.call(void 0, (arr)=>arr.reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0),[]);
   const getProjectName=(pid)=>{const p=(projects||[]).find(x=>x.id===pid);return p?(p.nr?p.nr+" ":"")+(p.name||""):"—";};
 
   /* FinkZeit-Stunden im Zettel speichern */
@@ -13716,8 +13721,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     _optionalChain([window, 'access', _612 => _612.__toast, 'optionalCall', _613 => _613("🗑️ Monatszettel gelöscht")]);
   };
 
-  const meineZettel=canUpload?zettel:zettel.filter(z=>z.mitarbeiterId===curUser.id);
-  const filtered=meineZettel.filter(z=>{
+  // v3.8.95 Sprint-9 F5: meineZettel + filtered useMemo-Wraps (re-render perf)
+  const meineZettel=_react.useMemo.call(void 0, ()=>canUpload?zettel:zettel.filter(z=>z.mitarbeiterId===curUser.id),[zettel,canUpload,curUser.id]);
+  const filtered=_react.useMemo.call(void 0, ()=>meineZettel.filter(z=>{
     if(selMonat!==-1&&z.monat!==selMonat)return false;
     if(selJahr&&z.jahr!==selJahr)return false;
     if(canUpload&&selMA&&z.mitarbeiterId!==selMA)return false;
@@ -13725,7 +13731,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     if(finkStatusFilter==="freigegeben"&&z.status!=="freigegeben")return false;
     if(finkStatusFilter==="abgeglichen"&&!z.abgeglichen)return false;
     return true;
-  });
+  }),[meineZettel,selMonat,selJahr,canUpload,selMA,finkStatusFilter]);
 
   const statusColor=(s)=>s==="freigegeben"?"#22c55e":"#f97316";
   const statusIcon=(s)=>s==="freigegeben"?"✅":"⏳";
