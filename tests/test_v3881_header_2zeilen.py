@@ -47,15 +47,18 @@ def test_mq600_header_flex_direction_column():
     )
 
 
-def test_mq600_header_logo_height_26px():
-    """v3.8.81: `header img[alt="EP Kolar"] { height: 26px !important; }` in @media(max-width:600px)."""
+def test_mq600_header_logo_height_compact():
+    """v3.8.81+v3.8.83: `header img[alt="EP Kolar"] { height: 24px !important; }` in @media(max-width:600px).
+
+    v3.8.81 setzte 26px. v3.8.83 vereinheitlichte auf 24px (Cross-Breakpoint-Konsistenz mit 380er-Stufe).
+    """
     text = INDEX.read_text(encoding='utf-8')
     block = _extract_mq_block(text, 600)
     assert block
     assert re.search(
-        r'header\s+img\[alt="EP Kolar"\]\s*\{[^}]*height:\s*26px\s*!important',
+        r'header\s+img\[alt="EP Kolar"\]\s*\{[^}]*height:\s*24px\s*!important',
         block,
     ), (
-        'v3.8.81 Header-2-Zeilen: `header img[alt="EP Kolar"] { height: 26px !important; }` '
-        'muss in @media(max-width:600px) existieren (Logo 32→26px für vertikalen Sparplatz).'
+        'v3.8.83 Logo-Height: `header img[alt="EP Kolar"] { height: 24px !important; }` '
+        'muss in @media(max-width:600px) existieren (Konsistenz mit 380er-Stufe, beide 24px).'
     )
