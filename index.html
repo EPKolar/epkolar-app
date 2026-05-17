@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.8.98';
+  var SW_VER='epkolar-v3.8.99';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -522,6 +522,12 @@ let _authToken=null,_authRefreshToken=null,_authRefreshTimer=null;
 const _SB_AUTH=SUPABASE_URL+"/auth/v1";
 
 // v3.5.71 Block 13e + v3.5.74 Block 6: Haptic-Feedback Pattern-based
+// v3.8.99 Sprint-10 S10-1: silent-fail consolidation via _safeVibrate
+let _vibrateUnavailable = false;
+const _safeVibrate = (pattern) => {
+  if(_vibrateUnavailable || !navigator.vibrate) return;
+  try{ navigator.vibrate(pattern); }catch(e){ _vibrateUnavailable=true; console.warn('[haptic-disabled]', e&&e.message||e); }
+};
 window._epkVibrate=function(kind){
   try{if(!navigator.vibrate)return;
     if(kind==="save")navigator.vibrate(40);
@@ -534,12 +540,12 @@ window._epkVibrate=function(kind){
 };
 // v3.5.74 Block 6: Erweiterte Haptic-API (name-based)
 window._haptic={
-  success:function(){try{navigator.vibrate&&navigator.vibrate([50]);}catch(e){console.warn('[silent-haptic]',e&&e.message||e);}},
-  error:function(){try{navigator.vibrate&&navigator.vibrate([100,50,100,50,100]);}catch(e){console.warn('[silent-haptic]',e&&e.message||e);}},
-  warning:function(){try{navigator.vibrate&&navigator.vibrate([200]);}catch(e){console.warn('[silent-haptic]',e&&e.message||e);}},
-  tap:function(){try{navigator.vibrate&&navigator.vibrate([15]);}catch(e){console.warn('[silent-haptic]',e&&e.message||e);}},
-  confirm:function(){try{navigator.vibrate&&navigator.vibrate([50,50,100]);}catch(e){console.warn('[silent-haptic]',e&&e.message||e);}},
-  tick:function(){try{navigator.vibrate&&navigator.vibrate([10]);}catch(e){console.warn('[silent-haptic]',e&&e.message||e);}}
+  success:function(){_safeVibrate([50]);},
+  error:function(){_safeVibrate([100,50,100,50,100]);},
+  warning:function(){_safeVibrate([200]);},
+  tap:function(){_safeVibrate([15]);},
+  confirm:function(){_safeVibrate([50,50,100]);},
+  tick:function(){_safeVibrate([10]);}
 };
 // v3.5.71 Block 8a: Timer-State (localStorage-persistent)
 window._epkTimer={
@@ -2189,7 +2195,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.98-supabase";
+const APP_VERSION="3.8.99-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
