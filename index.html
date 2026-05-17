@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.8.74';
+  var SW_VER='epkolar-v3.8.75';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2062,7 +2062,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.74-supabase";
+const APP_VERSION="3.8.75-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -7690,34 +7690,38 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   // v3.8.57+ Bug-Hunt: Mounted-Ref gegen setState-after-unmount in Weather-fetch-Promise + Geolocation-Callbacks.
   const _weatherMountedRef=_react.useRef.call(void 0, true);
   _react.useEffect.call(void 0, ()=>{_weatherMountedRef.current=true;return ()=>{_weatherMountedRef.current=false;};},[]);
-  const fetchWeatherData=(lat,lon)=>{
+  const fetchWeatherData=(lat,lon,signal)=>{
     // v3.8.72 Hunt B-013: Cache-Key inkl. coords gerundet auf ~10km Granularität — sonst zeigt
     // alte Daten wenn User Region wechselt. Wir runden auf 1 Dezimal (1° = ~111km, also ~11km).
     const _cLat=Math.round((Number(lat)||0)*10)/10,_cLon=Math.round((Number(lon)||0)*10)/10;
     const cKey=`epk_weather_${_cLat}_${_cLon}`;const c=_safeJsonParse(sessionStorage.getItem(cKey),null);if(c&&c.ts>(Date.now()-900000)){if(_weatherMountedRef.current)setWeather(c.d);return;}
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=Europe%2FVienna&forecast_days=7&daily=temperature_2m_max,temperature_2m_min,weather_code`,_fT({},10000))
-      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(!_weatherMountedRef.current)return;if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){console.warn('[silent-ss]',e&&e.message||e);}}else setWeatherErr(true);}).catch(()=>{if(_weatherMountedRef.current)setWeatherErr(true);});
+    // v3.8.75 Hunt B-019: AbortController-Signal an fetch — Cleanup-Abort wenn HomeView unmountet während Geo+Fetch laufen.
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=Europe%2FVienna&forecast_days=7&daily=temperature_2m_max,temperature_2m_min,weather_code`,_fT({signal},10000))
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(d=>{if(!_weatherMountedRef.current)return;if(d&&d.daily){setWeather(d);try{sessionStorage.setItem(cKey,JSON.stringify({d,ts:Date.now()}));}catch(e){console.warn('[silent-ss]',e&&e.message||e);}}else setWeatherErr(true);}).catch((err)=>{if(err&&err.name==="AbortError")return;if(_weatherMountedRef.current)setWeatherErr(true);});
   };
   _react.useEffect.call(void 0, ()=>{
     let done=false;
+    // v3.8.75 Hunt B-019: AbortController für In-Flight-Cleanup
+    const _wCtrl=new AbortController();const _sig=_wCtrl.signal;
     // v3.8.71 Hunt B-018: Geo-Position aus sessionStorage cachen (30min) — iOS-Re-Prompt
     // bei jeder HomeView-Mount vermeiden. Auch wenn user "deny" → cached, kein neuer Prompt.
     const _geoC=_safeJsonParse(sessionStorage.getItem("epk_geo"),null);
     if(_geoC&&_geoC.ts>(Date.now()-1800000)){
-      done=true;fetchWeatherData(_geoC.lat,_geoC.lon);return;
+      done=true;fetchWeatherData(_geoC.lat,_geoC.lon,_sig);return ()=>_wCtrl.abort();
     }
     // Try geolocation first
     if(navigator.geolocation){
-      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);}},4000);
+      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}},4000);
       navigator.geolocation.getCurrentPosition(pos=>{
-        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);const _lat=pos.coords.latitude.toFixed(2),_lon=pos.coords.longitude.toFixed(2);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:_lat,lon:_lon,ts:Date.now()}));}catch(e){}fetchWeatherData(_lat,_lon);}
+        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);const _lat=pos.coords.latitude.toFixed(2),_lon=pos.coords.longitude.toFixed(2);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:_lat,lon:_lon,ts:Date.now()}));}catch(e){}fetchWeatherData(_lat,_lon,_sig);}
       },()=>{
-        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);}
+        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}
       },{timeout:3000,maximumAge:600000});
     }else{
       // No geolocation API → use fallback
-      done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON);
+      done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);
     }
+    return ()=>_wCtrl.abort();
   },[]);
 
   const WMO={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",51:"🌦️",53:"🌧️",55:"🌧️",56:"🌨️",57:"🌨️",61:"🌧️",63:"🌧️",65:"🌧️💧",66:"🌨️",67:"🌨️",71:"🌨️",73:"❄️",75:"❄️❄️",77:"🌨️",80:"🌦️",81:"🌧️",82:"⛈️",85:"🌨️",86:"❄️",95:"⛈️",96:"⛈️🌨️",99:"⛈️🌨️"};
@@ -8029,6 +8033,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
                 )
               );
             })
+            , myProjects.length>8 && React.createElement('div', { onClick: ()=>onNav("projekte"), style: {gridColumn:"1/-1",textAlign:"center",fontSize:12,color:V.dm,padding:"8px 12px",cursor:"pointer",fontStyle:"italic",borderRadius:8,border:"1px dashed "+V.bd}, title: "Alle Projekte anzeigen"}, "… und "+(myProjects.length-8)+" weitere Projekte — alle anzeigen")
           )
         );
       })()
