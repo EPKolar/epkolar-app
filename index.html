@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.1';
+  var SW_VER='epkolar-v3.9.4';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2198,7 +2198,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.1-supabase";
+const APP_VERSION="3.9.4-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -6935,7 +6935,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     }));
     const uu=users.find(x=>x.id===id);const newOv={...(_optionalChain([uu, 'optionalAccess', _205 => _205.permsOverride])||{})};const rh=_optionalChain([ROLES, 'access', _206 => _206[_optionalChain([uu, 'optionalAccess', _207 => _207.role])], 'optionalAccess', _208 => _208.modules, 'access', _209 => _209.includes, 'call', _210 => _210(mod)]);if(newOv[mod]===undefined){newOv[mod]=!rh;}else{delete newOv[mod];}SQ.push({url:"/api/users/"+id,method:"PUT",body:{permsOverride:Object.keys(newOv).length?newOv:null}});
   };
-  const delUser=(id)=>{if(curUser.role!=="admin")return;if(id===curUser.id) return;if(!confirm("Benutzer wirklich löschen?"))return;setUsers(prev=>prev.filter(u=>u.id!==id));SQ.push({url:"/api/users/"+id,method:"DELETE"});_optionalChain([window, 'access', _211 => _211.__toast, 'optionalCall', _212 => _212("🗑️ Benutzer gelöscht")]);if(sel===id) setSel(null);};
+  const delUser=async(id)=>{if(curUser.role!=="admin")return;if(id===curUser.id) return;if(!await _confirmModal("Benutzer wirklich löschen?",{variant:"danger"}))return;setUsers(prev=>prev.filter(u=>u.id!==id));SQ.push({url:"/api/users/"+id,method:"DELETE"});_optionalChain([window, 'access', _211 => _211.__toast, 'optionalCall', _212 => _212("🗑️ Benutzer gelöscht")]);if(sel===id) setSel(null);};
 
   const selU=users.find(u=>u.id===sel);
 
@@ -7869,12 +7869,22 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     if(_geoC&&_geoC.ts>(Date.now()-1800000)){
       done=true;fetchWeatherData(_geoC.lat,_geoC.lon,_sig);return ()=>_wCtrl.abort();
     }
+    // v3.9.2 S12-5: In-Flight-Lock — verhindert Doppel-getCurrentPosition bei schnellen Re-Mounts
+    // (HomeView Strict-Mode / Tab-Switch). Stale lock >10s wird ignoriert (Permission-Prompt hängt manchmal).
+    const _geoInflight=sessionStorage.getItem("epk_geo_inflight");
+    if(_geoInflight&&(Date.now()-parseInt(_geoInflight,10))<10000){
+      done=true;fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);return ()=>_wCtrl.abort();
+    }
+    const _clearInflight=()=>{try{sessionStorage.removeItem("epk_geo_inflight");}catch(e){}};
     // Try geolocation first
     if(navigator.geolocation){
-      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}},4000);
+      try{sessionStorage.setItem("epk_geo_inflight",String(Date.now()));}catch(e){}
+      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;_clearInflight();try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}},4000);
       navigator.geolocation.getCurrentPosition(pos=>{
+        _clearInflight();
         if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);const _lat=pos.coords.latitude.toFixed(2),_lon=pos.coords.longitude.toFixed(2);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:_lat,lon:_lon,ts:Date.now()}));}catch(e){}fetchWeatherData(_lat,_lon,_sig);}
       },()=>{
+        _clearInflight();
         if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}
       },{timeout:3000,maximumAge:600000});
     }else{
@@ -8593,8 +8603,8 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
     _optionalChain([window, 'access', _292 => _292.__toast, 'optionalCall', _293 => _293(editP?"✅ Projekt aktualisiert":"✅ Projekt angelegt")]);setForm(emptyProj);setEditP(null);setShowNew(false);
     _savingProject.current=false;
   };
-  const archiveP=id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!confirm("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
-  const deleteP=id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!confirm("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!"))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
+  const archiveP=async id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!await _confirmModal("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
+  const deleteP=async id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!await _confirmModal("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!",{variant:"danger"}))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
   const editProject=p=>{setForm({nr:p.nr||"",name:p.name||"",kunde:p.kunde||"",ort:p.ort||"",plz:p.plz||"",strasse:p.strasse||"",ansprechpartner:p.ansprechpartner||"",telefon:p.telefon||"",emailKunde:p.emailKunde||p.email_kunde||"",status:p.status||"aktiv",type:p.type||"elektro",kundenNr:p.kundenNr||"",matchcode:p.matchcode||"",betrag:p.betrag||0,start:p.start||"",ende:p.ende||"",gewerk:p.gewerk||"",fortschritt:p.fortschritt||0,portalCode:p.portalCode||""});setEditP(p.id);setShowNew(true);};
 
   return (
@@ -9023,7 +9033,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
     if(window.__toast)window.__toast("✅ "+_n(h,1)+"h gespeichert");
     setAddDay(null);setAddTaetigkeit("");setAddBemerkung("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddPause(1);
   };
-  const delEntry=(id)=>{if(!_canDelZ)return;if(!confirm("Zeiteintrag wirklich löschen?"))return;SQ.push({url:"/api/entries/"+id,method:"DELETE"});setEntries(prev=>prev.filter(x=>x.id!==id));if(window.__toast)window.__toast("🗑️ Eintrag gelöscht");};
+  const delEntry=async(id)=>{if(!_canDelZ)return;if(!await _confirmModal("Zeiteintrag wirklich löschen?",{variant:"danger"}))return;SQ.push({url:"/api/entries/"+id,method:"DELETE"});setEntries(prev=>prev.filter(x=>x.id!==id));if(window.__toast)window.__toast("🗑️ Eintrag gelöscht");};
 
   const totalH=pe.reduce((s,e)=>s+(e.stunden||e.hours||0),0);
   const byWorker={};pe.forEach(e=>{const wid=e.worker||e.w||"?";byWorker[wid]=(byWorker[wid]||0)+(e.stunden||e.hours||0);});
@@ -15935,7 +15945,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
      delTermin). FahrzeugView ist für monteure sichtbar um eigene km einzutragen, aber
      Service-Termine sind Admin/PL-only (siehe UI-Button-Sichtbarkeit). */
   const addTermin=()=>{if(!isVAdmin)return;if(!terminForm.datum)return;const t={...terminForm,id:uid(),fahrzeug_id:sel};setFzTermine(p=>[t,...p]);SQ.push({url:"/api/fz-termine/"+sel,method:"POST",body:t});setShowAddTermin(false);setTerminForm({typ:"Service",beschreibung:"",datum:td2(),erledigt:0});_optionalChain([window, 'access', _fzt1 => _fzt1.__toast, 'optionalCall', _fzt2 => _fzt2("📅 Service-Termin angelegt")]);};
-  const delTermin=(tid)=>{if(!isVAdmin)return;if(!confirm("Termin wirklich löschen?"))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
+  const delTermin=async(tid)=>{if(!isVAdmin)return;if(!await _confirmModal("Termin wirklich löschen?",{variant:"danger"}))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
   const togTermin=(tid)=>{if(!isVAdmin)return;const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
 
   const upd=(id,fn)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:updated});return updated;}return f;}));};
