@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.8.99';
+  var SW_VER='epkolar-v3.9.0';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -347,7 +347,10 @@ html { overscroll-behavior-y: contain; }
 /* Modal-Content: clamp-basiert für ALLE Breiten */
 @media (max-width: 600px) {
   [style*="position:fixed"][style*="zIndex:1001"],
-  [style*="position:fixed"][style*="zIndex:1000"] { width: 100vw !important; max-width: 100vw !important; }
+  [style*="position:fixed"][style*="zIndex:1000"],
+  [style*="position:fixed"][style*="zIndex:1500"],
+  [style*="position:fixed"][style*="zIndex:1501"],
+  [style*="position:fixed"][style*="zIndex:2000"] { width: 100vw !important; max-width: 100vw !important; }
 }
 
 /* ═══ v3.8.79 TOPBAR-MOBILE-HIDE Sebastian-Report "header zu breit, pwa super mobile schlecht" ═══
@@ -2195,7 +2198,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.8.99-supabase";
+const APP_VERSION="3.9.0-supabase";
 const SCHEMA_VER=6; // Increment when SQL migrations are needed. Must match Supabase.
 window.__EP_ERRORS=[];
 // v3.5.151: Error-Log-Throttle gegen activity_log-DoS bei Render-Crash-Loop (60fps × POST = 60/sec Server-Load)
@@ -3771,6 +3774,7 @@ function PortalEntry({onPortal,projects}){
 function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   const [tab,setTab]=_react.useState.call(void 0, "uebersicht");
   const [newMangel,setNewMangel]=_react.useState.call(void 0, null);
+  const [submittingMangel,setSubmittingMangel]=_react.useState.call(void 0, false);
   const [selMangel,setSelMangel]=_react.useState.call(void 0, null);
   const [portalLoading,setPortalLoading]=_react.useState.call(void 0, true);
   const maengel=(forms.maengel||[]).filter(m=>m.pid===p.id);
@@ -3823,25 +3827,35 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
 
   const KUNDE_ST={gemeldet:{l:"Gemeldet",c:"#f97316",i:"📩",desc:"Wird geprüft"},angenommen:{l:"Angenommen",c:"#3b82f6",i:"✅",desc:"Wird bearbeitet"},abgelehnt:{l:"Abgelehnt",c:"#71717a",i:"❌",desc:"Kein Mangel"},in_bearbeitung:{l:"In Bearbeitung",c:"#eab308",i:"🔧",desc:"Techniker arbeitet daran"},behoben:{l:"Behoben",c:"#22c55e",i:"✔️",desc:"Bitte Abnahme bestätigen"},abgenommen:{l:"Abgenommen",c:"#22c55e",i:"🏁",desc:"Abgeschlossen"}};
 
-  const submitMangel=()=>{if(!_optionalChain([newMangel, 'optionalAccess', _17 => _17.name]))return;
+  const submitMangel=()=>{
+    /* Sprint-11 N6: Double-click prevention via submitting-state guard. */
+    if(submittingMangel)return;
+    if(!_optionalChain([newMangel, 'optionalAccess', _17 => _17.name]))return;
     /* v3.8.49 Bug-Fix: Length-Limits gegen DB-overflow/UI-breakage bei Kunden-Malice/Fehlern. */
     if((newMangel.name||"").trim().length<3){if(window.__toast)window.__toast("⚠️ Titel muss mind. 3 Zeichen haben","warn");return;}
     if((newMangel.name||"").length>200||(newMangel.beschreibung||"").length>5000){if(window.__toast)window.__toast("⚠️ Text zu lang (max 200/5000 Zeichen)","warn");return;}
-    const fullPhotos=(newMangel.photos||[]).map(ph=>ph.full||ph);
-    const thumbPhotos=(newMangel.photos||[]).map(ph=>ph.thumb||ph);
-    const mid=uid();
-    const m={id:mid,pid:p.id,name:newMangel.name,beschreibung:newMangel.beschreibung||"",ort:newMangel.ort||"",status:"offen",kundeStatus:"gemeldet",prio:"normal",date:td2(),melder:"Kunde",photos:fullPhotos,reviewNote:"",zugewiesen:""};
-    setForms(f=>({...f,maengel:[...(f.maengel||[]),{...m,photos:thumbPhotos}]}));
-    SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:m.name,description:m.beschreibung,status:"offen",prio:"normal",created_by:"Kunde",images:thumbPhotos,melder:"Kunde",kunde_status:"gemeldet",ort:m.ort}});
-    // Queue full photos for server upload via PhotoQ
-    fullPhotos.forEach((dataUrl,i)=>{
-      if(dataUrl&&dataUrl.startsWith("data:image")){
-        PhotoQ.add({entityType:"defect",entityId:mid,projectId:p.id,context:"Kunde-Mangelmeldung",name:"foto_"+(i+1)+".jpg",dataUrl:dataUrl,takenAt:new Date().toISOString()});
-      }
-    });
-    if(fullPhotos.length>0&&navigator.onLine){setTimeout(()=>PhotoQ.flush().then(r=>{if(r.ok>0&&window.__toast)window.__toast("📷 "+r.ok+" Foto"+(r.ok>1?"s":"")+" hochgeladen");if(window.__updatePhotoCount)window.__updatePhotoCount();}),500);}
-    _optionalChain([window, 'access', _17b => _17b.__toast, 'optionalCall', _17c => _17c("📩 Mangel gemeldet — wird geprüft")]);
-    setNewMangel(null);};
+    setSubmittingMangel(true);
+    try{
+      const fullPhotos=(newMangel.photos||[]).map(ph=>ph.full||ph);
+      const thumbPhotos=(newMangel.photos||[]).map(ph=>ph.thumb||ph);
+      const mid=uid();
+      const m={id:mid,pid:p.id,name:newMangel.name,beschreibung:newMangel.beschreibung||"",ort:newMangel.ort||"",status:"offen",kundeStatus:"gemeldet",prio:"normal",date:td2(),melder:"Kunde",photos:fullPhotos,reviewNote:"",zugewiesen:""};
+      setForms(f=>({...f,maengel:[...(f.maengel||[]),{...m,photos:thumbPhotos}]}));
+      SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:m.name,description:m.beschreibung,status:"offen",prio:"normal",created_by:"Kunde",images:thumbPhotos,melder:"Kunde",kunde_status:"gemeldet",ort:m.ort}});
+      // Queue full photos for server upload via PhotoQ
+      fullPhotos.forEach((dataUrl,i)=>{
+        if(dataUrl&&dataUrl.startsWith("data:image")){
+          PhotoQ.add({entityType:"defect",entityId:mid,projectId:p.id,context:"Kunde-Mangelmeldung",name:"foto_"+(i+1)+".jpg",dataUrl:dataUrl,takenAt:new Date().toISOString()});
+        }
+      });
+      if(fullPhotos.length>0&&navigator.onLine){setTimeout(()=>PhotoQ.flush().then(r=>{if(r.ok>0&&window.__toast)window.__toast("📷 "+r.ok+" Foto"+(r.ok>1?"s":"")+" hochgeladen");if(window.__updatePhotoCount)window.__updatePhotoCount();}),500);}
+      _optionalChain([window, 'access', _17b => _17b.__toast, 'optionalCall', _17c => _17c("📩 Mangel gemeldet — wird geprüft")]);
+      setNewMangel(null);
+    }catch(err){
+      if(window.__toast)window.__toast("⚠️ Fehler beim Speichern","warn");
+    }finally{
+      setSubmittingMangel(false);
+    }};
 
   const kundeAbnahme=(id)=>{
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"abgenommen",status:"behoben"}:m)}));
@@ -3947,7 +3961,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
             , React.createElement('div', { style: {marginBottom:10}}, React.createElement('span', { style: LL()}, "Fotos (empfohlen)" ), React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:8,border:"2px dashed "+V.bd,cursor:"pointer",fontSize:12,color:V.dm}}, "📷 Foto aufnehmen / auswählen"   , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const files=[...(e.target.files||[])];files.forEach(file=>{compressPhoto(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewMangel(m=>({...m,photos:[...(m.photos||[]),{thumb,full:ph.dataUrl}]}))));});}} ))
               , (newMangel.photos||[]).length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}, (newMangel.photos||[]).map((ph,i)=>(React.createElement('div', { key: i, style: {width:64,height:64,borderRadius:6,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: ph.thumb||ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { onClick: ()=>setNewMangel(m=>({...m,photos:m.photos.filter((_,j)=>j!==i)})), style: {position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,border:"none",background:"rgba(0,0,0,.6)",color:"#fff",fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")))))
             )
-            , React.createElement('div', { style: {display:"flex",gap:8}}, React.createElement('button', { onClick: submitMangel, style: {padding:"10px 24px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}, "📤 Mangel absenden"  ), React.createElement('button', { onClick: ()=>setNewMangel(null), style: bsS()}, "Abbrechen"))
+            , React.createElement('div', { style: {display:"flex",gap:8}}, React.createElement('button', { onClick: submitMangel, disabled: submittingMangel, style: {padding:"10px 24px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontSize:13,fontWeight:700,cursor:submittingMangel?"wait":"pointer",fontFamily:"inherit",opacity:submittingMangel?0.6:1}}, submittingMangel?"⏳ Wird gesendet…":"📤 Mangel absenden"  ), React.createElement('button', { onClick: ()=>setNewMangel(null), disabled: submittingMangel, style: {...bsS(),opacity:submittingMangel?0.6:1}}, "Abbrechen"))
           ))
 
           /* Status-Übersicht */
@@ -5220,9 +5234,9 @@ class _ViewBoundary extends React.Component{
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('span', {}, "📡"), " Polling: Alle 60s auf Änderungen prüfen"    )
             )
           ))
-          , showNotifPanel&&React.createElement('div', { onClick: ()=>setShowNotifPanel(false), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowNotifPanel(false);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:199}} )
+          , showNotifPanel&&React.createElement('div', { onClick: ()=>setShowNotifPanel(false), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowNotifPanel(false);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:200}} )
           /* ═══ PHOTO QUEUE PANEL ═══ */
-          , showPhotoQ&&React.createElement('div', { onClick: ()=>setShowPhotoQ(false), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowPhotoQ(false);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:299}} )
+          , showPhotoQ&&React.createElement('div', { onClick: ()=>setShowPhotoQ(false), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowPhotoQ(false);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:300}} )
           , showPhotoQ&&(React.createElement('div', { onClick: e=>e.stopPropagation(), style: {position:"fixed",top:56,right:isMob?8:80,width:isMob?"calc(100% - 16px)":420,maxHeight:"70vh",background:V.sb,borderRadius:12,border:"1px solid "+V.bd,zIndex:300,display:"flex",flexDirection:"column",boxShadow:"0 8px 32px rgba(0,0,0,.4)",animation:"slideIn .2s ease-out",overflow:"hidden"}}
             , React.createElement('div', { style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
               , React.createElement('div', { style: {fontWeight:700,fontSize:14}}, "📷 Foto-Warteschlange" , React.createElement('span', { style: {fontSize:11,color:V.dm,fontWeight:400,marginLeft:6}}, photoQItems.length, " Foto", photoQItems.length!==1?"s":""))
@@ -5996,8 +6010,8 @@ function sharePdf(){
 
       /* ═══ Sprach-Schnellerfassung Modal ═══ */
       , showVoice&&(React.createElement(React.Fragment, null
-        , React.createElement('div', { onClick: ()=>{voiceStop();setShowVoice(false);}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1000,backdropFilter:"blur(4px)"}} )
-        , React.createElement('div', { style: {position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:isMob?"95vw":520,maxHeight:"90vh",overflow:"auto",background:V.bg,borderRadius:16,boxShadow:"0 20px 60px rgba(0,0,0,.4)",zIndex:1001,padding:isMob?16:24}}
+        , React.createElement('div', { onClick: ()=>{voiceStop();setShowVoice(false);}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1500,backdropFilter:"blur(4px)"}} )
+        , React.createElement('div', { style: {position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:isMob?"95vw":520,maxHeight:"90vh",overflow:"auto",background:V.bg,borderRadius:16,boxShadow:"0 20px 60px rgba(0,0,0,.4)",zIndex:1501,padding:isMob?16:24}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}
             , React.createElement('h3', { style: {margin:0,fontSize:18,fontWeight:800}}, "🎤 Sprach-Schnellerfassung" )
             , React.createElement('button', { onClick: ()=>{voiceStop();setShowVoice(false);}, style: {border:"none",background:"transparent",fontSize:20,cursor:"pointer",color:V.dm,padding:4}}, "✕")
@@ -9698,7 +9712,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
         ));})));
       })
       /* ── Lightbox Overlay ── */
-      , lightbox&&React.createElement('div', { onClick: ()=>setLightbox(null), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLightbox(null);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",cursor:"zoom-out"}}
+      , lightbox&&React.createElement('div', { onClick: ()=>setLightbox(null), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLightbox(null);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",cursor:"zoom-out"}}
         , React.createElement('div', { style: {position:"absolute",top:16,right:16,display:"flex",gap:8}}
           , React.createElement('a', { href: lightbox.src, download: (lightbox.title||"foto")+".jpg", onClick: e=>e.stopPropagation(), style: {padding:"6px 14px",borderRadius:6,background:"rgba(255,255,255,.15)",color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",cursor:"pointer"}}, "📥 Download" )
           , React.createElement('button', { onClick: ()=>setLightbox(null), style: {padding:"6px 14px",borderRadius:6,background:"rgba(255,255,255,.15)",color:"#fff",fontSize:16,border:"none",cursor:"pointer"}}, "✕")
