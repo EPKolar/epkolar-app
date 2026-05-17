@@ -12,7 +12,8 @@ def test_AS_GRP_OFFEN_includes_underscore_variant():
 
 def test_dringend_filter_uses_priority_or_termin():
     text = INDEX.read_text(encoding='utf-8')
-    m = re.search(r'const dringendeAS\s*=\s*arbeitsscheine\.filter\(([\s\S]{0,800}?)\)\.length', text)
+    # v3.8.70: dringendeAS wurde in useMemo-Wrap gepackt — Regex akzeptiert beide Formen
+    m = re.search(r'const dringendeAS\s*=\s*(?:_react\.useMemo\.call\(void 0,\s*\(\)\s*=>\s*)?arbeitsscheine\.filter\(([\s\S]{0,800}?)\)\.length', text)
     assert m
     body = m.group(1)
     assert 'prioritaet' in body or 'prio' in body.lower(), 'Dringend-Filter muss Prio prüfen'
