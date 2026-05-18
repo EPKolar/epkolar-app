@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.15';
+  var SW_VER='epkolar-v3.9.16';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -422,17 +422,17 @@ html { overscroll-behavior-y: contain; }
     var root=document.getElementById("root");
     var boot=document.getElementById("ep-boot-indicator");
     if(root&&!root.firstChild&&boot){
-      var retries=parseInt(sessionStorage.getItem("epk_boot_retry")||"0");
+      var retries=0;try{retries=parseInt(sessionStorage.getItem("epk_boot_retry")||"0");}catch(e){console.warn('[boot-watchdog]',e&&e.message||e);}
       if(retries<2){
         /* Auto-heal: nuke caches and reload */
-        sessionStorage.setItem("epk_boot_retry",String(retries+1));
-        localStorage.removeItem("epk_sw_ver");
+        try{sessionStorage.setItem("epk_boot_retry",String(retries+1));}catch(e){console.warn('[boot-watchdog]',e&&e.message||e);}
+        try{localStorage.removeItem("epk_sw_ver");}catch(e){console.warn('[boot-watchdog]',e&&e.message||e);}
         if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});
         if('caches' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
         boot.innerHTML='<div style="font-size:14px;color:#f97316;margin-bottom:8px">🔄 Cache wird repariert...</div><div style="font-size:11px;color:#999">Automatischer Neustart (Versuch '+(retries+1)+'/2)</div>';
         setTimeout(function(){location.reload(true)},1500);
       }else{
-        sessionStorage.removeItem("epk_boot_retry");
+        try{sessionStorage.removeItem("epk_boot_retry");}catch(e){console.warn('[boot-watchdog]',e&&e.message||e);}
         boot.innerHTML='<div style="font-size:16px;font-weight:bold;color:#ff6666;margin-bottom:8px">⚠️ App startet nicht</div><div style="font-size:12px;color:#ccc;text-align:center;max-width:340px">Die App konnte nicht initialisiert werden.<br>Errors: '+(window.__EP_ERRORS||[]).map(function(e){return _xe(e.msg);}).join("; ")+'</div><button onclick="localStorage.clear();sessionStorage.clear();if(\'caches\' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});if(\'serviceWorker\' in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});indexedDB.databases().then(function(d){d.forEach(function(x){indexedDB.deleteDatabase(x.name)})});setTimeout(function(){location.reload(true)},500)" style="margin-top:12px;padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 Alles zurücksetzen &amp; Neu laden</button>';
       }
     }else{sessionStorage.removeItem("epk_boot_retry");}
@@ -2161,7 +2161,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.15-supabase";
+const APP_VERSION="3.9.16-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -4272,7 +4272,7 @@ class _ViewBoundary extends React.Component{
   // ═══ PWA: Install Prompt + SW Update ═══
   _react.useEffect.call(void 0, ()=>{
     // Install prompt
-    const onBip=(e)=>{e.preventDefault();setInstallPrompt(e);const dismissed=localStorage.getItem("epk_install_dismissed");if(!dismissed)setShowInstallBanner(true);};
+    const onBip=(e)=>{e.preventDefault();setInstallPrompt(e);let dismissed=null;try{dismissed=localStorage.getItem("epk_install_dismissed");}catch(_e){console.warn('[silent-ls]',_e&&_e.message||_e);}if(!dismissed)setShowInstallBanner(true);};
     window.addEventListener("beforeinstallprompt",onBip);
     // Check if already installed
     if(_isStandalone)setShowInstallBanner(false);
@@ -4976,7 +4976,7 @@ class _ViewBoundary extends React.Component{
       setTimeout(()=>{setSyncStatus(p=>({...p,syncing:false,lastSync:(()=>{const d=new Date();return _ymd(d)+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");})()}));},1200);
     }
     // Daily calibration check
-    const lastCalibCheck=localStorage.getItem("epk_calib_check")||"";
+    let lastCalibCheck="";try{lastCalibCheck=localStorage.getItem("epk_calib_check")||"";}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
     const today=td2();
     if(lastCalibCheck!==today&&(curUser.role==="admin"||curUser.role==="projektleiter")){
       try{localStorage.setItem("epk_calib_check",today);}catch(e){console.warn('[localStorage]',e&&e.message||e);}
@@ -7859,17 +7859,17 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     // Try geolocation first
     if(navigator.geolocation){
       try{sessionStorage.setItem("epk_geo_inflight",String(Date.now()));}catch(e){}
-      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;_clearInflight();try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}},4000);
+      const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;_clearInflight();try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){console.warn('[geo-cache]',e&&e.message||e);}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}},4000);
       navigator.geolocation.getCurrentPosition(pos=>{
         _clearInflight();
-        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);const _lat=pos.coords.latitude.toFixed(2),_lon=pos.coords.longitude.toFixed(2);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:_lat,lon:_lon,ts:Date.now()}));}catch(e){}fetchWeatherData(_lat,_lon,_sig);}
+        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);const _lat=pos.coords.latitude.toFixed(2),_lon=pos.coords.longitude.toFixed(2);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:_lat,lon:_lon,ts:Date.now()}));}catch(e){console.warn('[geo-cache]',e&&e.message||e);}fetchWeatherData(_lat,_lon,_sig);}
       },()=>{
         _clearInflight();
-        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}
+        if(!done&&_weatherMountedRef.current){done=true;clearTimeout(geoTimeout);try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){console.warn('[geo-cache]',e&&e.message||e);}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}
       },{timeout:3000,maximumAge:600000});
     }else{
       // No geolocation API → use fallback
-      done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);
+      done=true;try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){console.warn('[geo-cache]',e&&e.message||e);}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);
     }
     return ()=>_wCtrl.abort();
   },[]);
@@ -11317,7 +11317,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
         const avg=tMax!==null&&tMin!==null?Math.round((tMax+tMin)/2):"";
         setForm(prev=>({...prev,wetter:_wmoToWetter(d.daily.weather_code[0]),temperatur:String(avg)}));
       }
-    }).catch(()=>{});
+    }).catch(e=>console.warn('[wetter-fetch]',e&&e.message||e));
   };
 
   const defForm={datum:td2(),wetter:"sonnig",temperatur:"",anwesende:[],taetigkeiten:"",besonderheiten:"",material:""};
