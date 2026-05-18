@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.25';
+  var SW_VER='epkolar-v3.9.26';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.25-supabase";
+const APP_VERSION="3.9.26-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -9118,6 +9118,9 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
 
   const addEntry=()=>{
     if(!addDay)return;
+    /* v3.9.26 P2 (Fix-E): Defense-in-Depth — Field-User darf Zeit nur für sich selbst buchen.
+       UI-Select ist disabled+forced, dies ist Backend-Defense gegen DevTools-Bypass. */
+    if(_vzIsField&&addWorker!==_vzMid){_optionalChain([window,'access',_g326a=>_g326a.__toast,'optionalCall',_g326b=>_g326b("⚠️ Keine Berechtigung — Monteure können Zeit nur für sich selbst buchen","warn")]);return;}
     /* v3.8.49 Bug-Fix: Range-Validation für Stunden 0<h<=24. Vorher akzeptierte h=25 oder
        h=NaN, resultierend in falschem Payroll-Output und FinkZeit-Abgleich-Blindflug. */
     const h=addHours;if(!(h>0&&h<=24)||isNaN(h)){if(window.__toast)window.__toast("⚠️ Stunden müssen 0<h≤24 sein (nicht "+addHours+")","error");return;}
@@ -9162,7 +9165,9 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
         React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",background:"rgba(16,185,129,.1)",borderRadius:6,marginBottom:12,fontSize:13,fontWeight:600,color:"#10b981"}},"📅 "+dayLabel),
         React.createElement('div',{style:{marginBottom:10}},
           React.createElement('label',{style:LL()},"Monteur"),
-          React.createElement('select',{value:addWorker,onChange:e=>setAddWorker(e.target.value),style:{...II(),fontSize:13}},allWorkers.map(w=>React.createElement('option',{key:w.id,value:w.id},w.n)))
+          /* v3.9.26 P2 (Fix-E): Field-User Worker-Select disabled + forced auf eigene mid. Admin/PL frei. */
+          React.createElement('select',{value:_vzIsField?_vzMid:addWorker,onChange:e=>{if(_vzIsField)return;setAddWorker(e.target.value);},disabled:!!_vzIsField,style:{...II(),fontSize:13,opacity:_vzIsField?.6:1,cursor:_vzIsField?"not-allowed":"pointer"}},allWorkers.map(w=>React.createElement('option',{key:w.id,value:w.id},w.n))),
+          _vzIsField&&React.createElement('div',{style:{fontSize:11,color:V.dm,marginTop:4,fontStyle:"italic"}},"🔒 Du buchst Zeit nur für dich selbst")
         ),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}},
           React.createElement('div',{},React.createElement('label',{style:LL()},"Von"),React.createElement('input',{type:"time",value:addVon,onChange:e=>{setAddVon(e.target.value);if(e.target.value&&addBis){const d=((new Date("2000-01-01T"+addBis)-new Date("2000-01-01T"+e.target.value))/36e5)-addPause;if(d>0)setAddHours(Math.round(d*2)/2);}},style:{...II(),fontSize:13}})),
@@ -9564,6 +9569,16 @@ function VCheck({p,forms,setForms,ww,curUser}){
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
   const [customName,setCustomName]=_react.useState.call(void 0, "");
   const [customItems,setCustomItems]=_react.useState.call(void 0, "");
+  /* v3.9.26 P2: VCheck.del owner-Gate — Field-User darf nur eigene Checklisten löschen.
+     Admin/PL bleiben voller Zugriff. Match auf c.by===curUser.name||username (case-insensitive). */
+  const _vcIsAdmin=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter");
+  const _vcIsField=curUser&&!_vcIsAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
+  const _vcMyName=String((curUser&&(curUser.name||curUser.username))||"").trim().toLowerCase();
+  const _vcIsMineCl=(c)=>{
+    if(!_vcIsField)return true;
+    const _by=String(c&&c.by||"").trim().toLowerCase();
+    return!!(_by&&_vcMyName&&_by===_vcMyName);
+  };
 
   const createFromTemplate=(tpl)=>{
     const cl={id:uid(),pid:p.id,name:tpl.name||"",date:td2(),by:(_optionalChain([curUser, 'optionalAccess', _362 => _362.name])||_optionalChain([curUser, 'optionalAccess', _362b => _362b.username])||""),items:(tpl.items||[]).map(t=>({text:t,done:false,photo:"",note:""})),sigMA:"",sigKunde:"",status:"offen"};
@@ -9580,7 +9595,14 @@ function VCheck({p,forms,setForms,ww,curUser}){
     setSel(cl.id);setShowNew(false);setCustomName("");setCustomItems("");
   };
   const update=(id,fn)=>{setForms(f=>({...f,checklisten:(f.checklisten||[]).map(c=>c.id===id?fn(c):c)}));};
-  const del=(id)=>{setForms(f=>({...f,checklisten:(f.checklisten||[]).filter(c=>c.id!==id)}));if(sel===id)setSel(null);};
+  const del=(id)=>{
+    /* v3.9.26 P2: Field-User darf nur eigene Checklisten löschen. Admin/PL ungebremst. */
+    if(_vcIsField){
+      const _cl=cls.find(c=>c.id===id);
+      if(!_cl||!_vcIsMineCl(_cl)){_optionalChain([window,'access',_g326e=>_g326e.__toast,'optionalCall',_g326f=>_g326f("⚠️ Keine Berechtigung — Monteure können nur eigene Checklisten löschen","warn")]);return;}
+    }
+    setForms(f=>({...f,checklisten:(f.checklisten||[]).filter(c=>c.id!==id)}));if(sel===id)setSel(null);
+  };
   const selCl=cls.find(c=>c.id===sel);
   const doneCount=selCl?(selCl.items||[]).filter(i=>i.done).length:0;
   const totalCount=selCl?(selCl.items||[]).length:0;
@@ -9620,7 +9642,7 @@ function VCheck({p,forms,setForms,ww,curUser}){
                 , React.createElement('div', { style: {fontSize:16,fontWeight:800,color:pc===100?"#22c55e":V.ac}}, pc, "%")
                 , React.createElement('div', { style: {height:4,borderRadius:2,background:V.bg,overflow:"hidden",marginTop:2}}, React.createElement('div', { style: {height:"100%",width:pc+"%",borderRadius:2,background:pc===100?"#22c55e":"#f97316"}} ))
               )
-              , React.createElement('button', { onClick: e=>{e.stopPropagation();del(c.id);}, style: {...bdS,padding:"4px 8px",fontSize:10}}, "🗑️")
+              , (_vcIsAdmin||_vcIsMineCl(c))&&React.createElement('button', { onClick: e=>{e.stopPropagation();del(c.id);}, style: {...bdS,padding:"4px 8px",fontSize:10}}, "🗑️")
             ));
           })
         )
@@ -11554,6 +11576,12 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const saveEntry=()=>{
     if(!form.datum||!form.taetigkeiten.trim())return;
     const isNew=editing==="new";
+    /* v3.9.26 P2: Backend-Defense — Field-User darf bei Edit nur eigene Berichte updaten.
+       v3.9.25 hat UI-Gate (Edit-Pencil hidden) gemacht; dies ist Defense gegen DevTools-Bypass. */
+    if(!isNew&&editing){
+      const _orig=btEntries.find(x=>x.id===editing);
+      if(_orig&&!_vbIsMineBt(_orig)){_optionalChain([window,'access',_g326c=>_g326c.__toast,'optionalCall',_g326d=>_g326d("⚠️ Keine Berechtigung — Monteure können nur eigene Bautagesberichte editieren","warn")]);return;}
+    }
     const entry={id:isNew?(_btDraftId.current||uid()):editing,pid:p.id,datum:form.datum,wetter:form.wetter,temperatur:form.temperatur,anwesende:form.anwesende,taetigkeiten:form.taetigkeiten.trim(),besonderheiten:form.besonderheiten.trim(),material:form.material.trim(),erstelltVon:isNew?(curUser.name||curUser.username||""):btEntries.find(x=>x.id===editing)?.erstelltVon||curUser.name||curUser.username||"",createdAt:isNew?td2():btEntries.find(x=>x.id===editing)?.createdAt||td2()};
     if(isNew){
       persist([entry,...btEntries]);
