@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.9';
+  var SW_VER='epkolar-v3.9.10';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2141,7 +2141,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.9-supabase";
+const APP_VERSION="3.9.10-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -10993,15 +10993,16 @@ function VDoku({p,ww,curUser,forms,setForms}){
     SQ.push({url:"/api/project-folders/"+editFolderId,method:"PUT",body:{name:editFolderName.trim()}});
     setEditFolderId(null);setEditFolderName("");
   };
-  const delFolder=(id)=>{
+  const delFolder=async(id)=>{
     // v3.8.45 S3.4 — Guard verifiziert: isAdmin reicht (strenger als canDo("folder_delete")
     // = isA||isPL||isB; Admin-only ist bewusst restriktiver, da Folder rekursiv mit
     // Unterordnern + Datei-Reassignment löscht. Audit-Trail zudem in SQ.push pro fid).
+    // v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal.
     if(!isAdmin)return;
     const childIds=[];const collectChildren=(pid)=>{folders.forEach(f=>{if(f.parentId===pid){childIds.push(f.id);collectChildren(f.id);}});};
     collectChildren(id);
     const allIds=[id,...childIds];
-    if(!confirm("Ordner"+(childIds.length?" und "+childIds.length+" Unterordner":"")+" löschen? Dateien werden in 'Ohne Ordner' verschoben."))return;
+    if(!await _confirmModal("Ordner"+(childIds.length?" und "+childIds.length+" Unterordner":"")+" löschen? Dateien werden in 'Ohne Ordner' verschoben.",{variant:"danger"}))return;
     setDocs(prev=>prev.map(d=>allIds.includes(d.folderId)?{...d,folderId:""}:d));
     setFolders(prev=>prev.filter(f=>!allIds.includes(f.id)));
     allIds.forEach(fid=>SQ.push({url:"/api/project-folders/"+fid,method:"DELETE"}));
@@ -11350,9 +11351,10 @@ function VBautag({p,curUser,monteure,ww,entries}){
     _optionalChain([window, 'access', _bt1 => _bt1.__toast, 'optionalCall', _bt2 => _bt2(isNew?"📋 Eintrag gespeichert":"✏️ Eintrag aktualisiert")]);
   };
 
-  const delEntry=id=>{
+  const delEntry=async id=>{
+    /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
     if(!isAdmin)return;
-    if(!confirm("Bautagebuch-Eintrag wirklich löschen?"))return;
+    if(!await _confirmModal("Bautagebuch-Eintrag wirklich löschen?",{variant:"danger"}))return;
     persist(btEntries.filter(x=>x.id!==id));
     SQ.push({url:"/api/bautagebuch/"+id,method:"DELETE",body:{}});
     if(editing===id){setEditing(null);setForm({...defForm});}
@@ -11705,7 +11707,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const sendOrder=async()=>{
     if(_sendingOrder.current)return;
     if(cartCount===0&&!freitext.trim()){window.__toast&&window.__toast("Warenkorb ist leer","error");return;}
-    if(!confirm("Material-Anforderung absenden? ("+cartCount+" Positionen)"))return;
+    /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
+    if(!await _confirmModal("Material-Anforderung absenden? ("+cartCount+" Positionen)"))return;
     _sendingOrder.current=true;
     setSending(true);
     const positionen=[];
@@ -11756,8 +11759,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     }catch(e){window.__toast&&window.__toast("Fehler: "+e.message,"error");}
   };
   const deleteOrder=async(id)=>{
+    /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
     if(!canDo("material_delete",curUser))return;
-    if(!confirm("Anforderung wirklich löschen?"))return;
+    if(!await _confirmModal("Anforderung wirklich löschen?",{variant:"danger"}))return;
     try{await SQ.push({url:"/api/material-orders/"+id,method:"DELETE",body:{}});setOrders(prev=>prev.filter(x=>x.id!==id));if(window.__doSync)window.__doSync();
     if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
     window.__toast&&window.__toast("Gelöscht","success");}catch(e){window.__toast&&window.__toast("Fehler","error");}
@@ -11903,7 +11907,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           if(w){w.document.write(html);w.document.close();}
           else window.__toast?.("Popup blockiert — bitte erlauben","warn");
         }, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "🖨 Drucken")
-        , cartCount>0&&React.createElement('button', { onClick: ()=>{if(confirm("Warenkorb leeren?"))clearCart();}, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "Leeren")
+        , cartCount>0&&React.createElement('button', { onClick: async()=>{/* v3.9.10 Modal-Migration Round-3 */ if(await _confirmModal("Warenkorb leeren?",{variant:"danger"}))clearCart();}, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "Leeren")
         , React.createElement('button', { onClick: sendOrder, disabled: sending||cartCount===0&&!freitext.trim(), style: {padding:isMob?"8px 20px":"8px 18px",borderRadius:8,border:"none",background:cartCount>0||freitext.trim()?"#009640":"#555",color:"#fff",fontWeight:700,fontSize:isMob?14:13,cursor:cartCount>0||freitext.trim()?"pointer":"not-allowed",opacity:sending?.6:1,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:isMob?42:0}}, sending?"⏳ Sende...":"📦 Ans Lager senden", cartCount>0&&React.createElement('span', { style: {padding:"2px 7px",borderRadius:10,background:"rgba(255,255,255,.25)",fontSize:11,fontWeight:700}}, cartCount))
       )
     );
@@ -12228,7 +12232,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     }catch(e){window.__toast&&window.__toast("❌ "+e.message,"error");}
   };
   const deleteSuppOrd=async(id)=>{
-    if(!confirm("Händler-Bestellung wirklich löschen?"))return;
+    /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
+    if(!await _confirmModal("Händler-Bestellung wirklich löschen?",{variant:"danger"}))return;
     try{await SQ.push({url:"/api/supplier-orders/"+id,method:"DELETE",body:{}});setSuppOrders(prev=>prev.filter(x=>x.id!==id));
     if(window.__doSync)window.__doSync();window.__toast&&window.__toast("Gelöscht","success");}catch(e){window.__toast&&window.__toast("Fehler","error");}
   };
@@ -12418,7 +12423,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       setDnSelected(new Set());setDnCatName("");
     };
     const deleteCatalog=async(catId)=>{
-      if(!confirm("Katalog wirklich löschen?"))return;
+      /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
+      if(!await _confirmModal("Katalog wirklich löschen?",{variant:"danger"}))return;
       try{await SQ.push({url:"/api/material-catalogs/"+catId,method:"DELETE",body:{}});
         setSavedCatalogs(prev=>prev.filter(c=>c.id!==catId));
         MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...savedCatalogs.filter(c=>c.id!==catId).map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}))];
@@ -13162,7 +13168,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const approve=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt")]);};
   const reject=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"abgelehnt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _561 => _561.name])}});_optionalChain([window, 'access', _562 => _562.__toast, 'optionalCall', _563 => _563("❌ Antrag abgelehnt")]);_optionalChain([pushNotif, 'optionalCall', _564 => _564("absence_approval","❌ Antrag abgelehnt",m+": "+fdt(dk(d))+" abgelehnt")]);};
   const getApproval=(m,d)=>approvals[m+"_"+dk(d)]||"ausstehend";
-  const delEntry=(m,d)=>{if(!isAdmin)return;if(!confirm("Abwesenheit wirklich löschen?"))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
+  const delEntry=async(m,d)=>{/* v3.9.10 Modal-Migration Round-3 */ if(!isAdmin)return;if(!await _confirmModal("Abwesenheit wirklich löschen?",{variant:"danger"}))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
   const updateEntry=(key,changes)=>{setAbs(p=>{const c={...p};if(c[key])c[key]={...c[key],...changes};return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(key),method:"PUT",body:changes});setEditEntry(null);_optionalChain([window, 'access', _565a => _565a.__toast, 'optionalCall', _565b => _565b("✏️ Eintrag aktualisiert")]);};
   const bulkApprove=()=>{allEntries.filter(e=>e.approval==="ausstehend").forEach(e=>{setApprovals(p=>({...p,[e.key]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(e.key),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565c => _565c.name])}});});_optionalChain([window, 'access', _565d => _565d.__toast, 'optionalCall', _565e => _565e("✅ Alle genehmigt")]);};
 
@@ -13705,9 +13711,10 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     setSigZettel(null);setSigData(null);
   };
 
-  const loeschen=(z)=>{
+  const loeschen=async(z)=>{
+    /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
     if(!canUpload)return;
-    if(!confirm("Monatszettel für "+z.mitarbeiterName+" ("+MONATE[z.monat]+" "+z.jahr+") wirklich löschen?"))return;
+    if(!await _confirmModal("Monatszettel für "+z.mitarbeiterName+" ("+MONATE[z.monat]+" "+z.jahr+") wirklich löschen?",{variant:"danger"}))return;
     saveZettel(zettel.filter(x=>x.id!==z.id));
     SQ.push({url:"/api/finkzeit/"+z.id,method:"DELETE"});
     _optionalChain([window, 'access', _612 => _612.__toast, 'optionalCall', _613 => _613("🗑️ Monatszettel gelöscht")]);
@@ -14106,7 +14113,7 @@ function PhotoSyncStatus(){
     , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}}
       , React.createElement('button', { onClick: ()=>{PhotoQ.flush().then(r=>{_optionalChain([window, 'access', _ps1 => _ps1.__toast, 'optionalCall', _ps2 => _ps2(r.ok>0?"📷 "+r.ok+" hochgeladen":"Keine ausstehenden Fotos")]);refresh();if(window.__updatePhotoCount)window.__updatePhotoCount();});}, style: {...bpS,padding:"8px 16px",fontSize:12}}, "🔄 Jetzt synchronisieren"  )
       , errors>0&&React.createElement('button', { onClick: async()=>{try{await Promise.all(items.filter(x=>x.status==="error").map(x=>PhotoQ.update(x.id,{status:"pending",retries:0})));}catch(e){console.warn('[silent-await]',e&&e.message||e);}refresh();}, style: {...bsS(),padding:"8px 16px",fontSize:12}}, "🔁 Fehler erneut versuchen"  )
-      , items.length>0&&React.createElement('button', { onClick: ()=>{if(confirm("Alle "+items.length+" Fotos aus der Warteschlange löschen? Dies kann nicht rückgängig gemacht werden."))PhotoQ.clear().then(()=>{refresh();if(window.__updatePhotoCount)window.__updatePhotoCount();});}, style: {...bdS,padding:"8px 16px",fontSize:12}}, "🗑️ Queue leeren"  )
+      , items.length>0&&React.createElement('button', { onClick: async()=>{/* v3.9.10 Modal-Migration Round-3 */ if(await _confirmModal("Alle "+items.length+" Fotos aus der Warteschlange löschen? Dies kann nicht rückgängig gemacht werden.",{variant:"danger"}))PhotoQ.clear().then(()=>{refresh();if(window.__updatePhotoCount)window.__updatePhotoCount();});}, style: {...bdS,padding:"8px 16px",fontSize:12}}, "🗑️ Queue leeren"  )
     )
     , items.length>0&&React.createElement('div', { style: {marginTop:12,maxHeight:200,overflowY:"auto"}}
       , items.map(ph=>(React.createElement('div', { key: ph.id, style: {display:"flex",gap:8,padding:"6px 0",borderBottom:"1px solid "+V.bd,alignItems:"center",fontSize:11}}

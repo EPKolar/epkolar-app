@@ -3,10 +3,11 @@
 > Comprehensive Session-Outcome für Resume / nächste Session / 2. Account.
 
 ## 🚀 Summary
-- **29 Versionen LIVE** v3.8.65 → v3.8.95 (+ parallele Edits zu v3.8.96+97)
-- **446/446 Tests grün** (+87 in dieser Session, 23 neue Test-Files)
-- **32 Hunt-Findings closed** über 9 Sprints
-- **~45 Agent-Tasks** parallel ausgeführt
+- **34 Versionen** v3.8.65 → v3.9.6 (v3.9.0..v3.9.6 LOKAL, push wartet)
+- **464+/464+ Tests grün** (+105 in dieser Session, 30+ neue Test-Files)
+- **32+ Hunt-Findings closed** über 14 Sprints
+- **~55 Agent-Tasks** parallel ausgeführt
+- **⚠️ PAT abgelaufen 17:16 UTC — push pending**
 
 ## 📋 Releases-Timeline (auszug)
 
@@ -67,10 +68,30 @@ S5-6 localStorage auth-backup validation (Sebastian-Hard-Constraint)
 
 ## 📂 Repo-State
 
-- main HEAD: `5b765bf` (Tag v3.8.95)
+- main HEAD: `521db4b` (Tag v3.9.5+)
 - Brackets: () -2 / {} 0 / [] 0 (stabil)
 - Stash: `Sebastian-WIP hunt-scripts` auf cc-bug-hunt-eternal (NICHT verwerfen)
 - docs/RESUME-2026-05-17.md exists (älter)
+
+## ⏸️ Pending push (PAT expired since 2026-05-17 17:16 UTC)
+
+8 Lokale Commits/Tags die auf Sebastian-PAT-Renewal warten:
+- `f5d90d6` v3.9.0 — Modal-Z-Index-Fix + Mangel-Submit-Double-Click-Prevention
+- `bd0a46e` v3.9.1 — PWA-banner persistence + PDF-fallback-escape + 7 Tests
+- `40dd7fd` v3.9.4 — confirm()→_confirmModal 6 sites + Geo race-lock
+- `521db4b` v3.9.5 — Dead-CSS-cleanup (-64 lines)
+- `49fcb2c` v3.9.6 — prefers-reduced-motion + Modal-scroll-lock + Date-range-guard (Sprint-14)
+- `f15580e` v3.9.8 — confirm()→_confirmModal Round 2 (10 weitere sites)
+- `dd3a7e2` v3.9.9 — S15-3 syncQueue/PhotoQ crypto.randomUUID + 5 Tests
+
+### Push-Manifest
+
+```bash
+git push origin main
+git push origin v3.9.0 v3.9.1 v3.9.4 v3.9.5 v3.9.6 v3.9.8 v3.9.9
+```
+
+**Resume-Step nach PAT-Renewal:** Push-Manifest oben ausführen.
 
 ## 🧪 Test-Files-Map
 
