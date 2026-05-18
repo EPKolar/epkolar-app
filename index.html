@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.21';
+  var SW_VER='epkolar-v3.9.22';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.21-supabase";
+const APP_VERSION="3.9.22-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -11671,6 +11671,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   };
   // Open Preisvergleich for an order
   const openPV=(ord)=>{
+    /* v3.9.22 F-12: Early-Guard wenn Anforderung ohne Positionen — leere PV-Tabelle vermeiden. */
+    if(!ord||!Array.isArray(ord.positionen)||ord.positionen.length===0){window.__toast&&window.__toast("Anforderung enthält keine Positionen","warn");return;}
     const pos=(ord.positionen||[]).map((p2,i)=>({...p2,idx:i,removed:false,originalMenge:p2.menge}));
     // Enrich with cross-supplier matches
     pos.forEach(p2=>{
@@ -11781,13 +11783,17 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   },[cart]);
 
   // Load orders from Supabase
+  // v3.9.22 F-1+F-8: unmount-guard via ref + Toast on initial load failure
+  const _vmMountRef=_react.useRef.call(void 0, true);
+  _react.useEffect.call(void 0, ()=>{_vmMountRef.current=true;return()=>{_vmMountRef.current=false;};},[]);
   const loadOrders=_react.useCallback.call(void 0, async()=>{
     setLoading(true);
     try{
       const mo=await _sbGet("material_orders","project_id=eq."+encodeURIComponent(p.id)+"&order=created_at.desc");
+      if(!_vmMountRef.current)return;
       if(mo)setOrders(mo.map(o=>({...o,positionen:_jp(o.positionen)||[],kommentar_lager:o.kommentar_lager||""})));
-    }catch(e){console.warn('[silent-async]',e&&e.message||e);}
-    setLoading(false);
+    }catch(e){console.warn('[silent-async]',e&&e.message||e);if(_vmMountRef.current&&window.__toast)window.__toast("Anforderungen konnten nicht geladen werden","warn");}
+    if(_vmMountRef.current)setLoading(false);
   },[p.id]);
   _react.useEffect.call(void 0, ()=>{loadOrders();},[loadOrders]);
   // Load supplier_orders for this project
@@ -11795,8 +11801,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     if(!showEk)return;
     try{
       const so=await _sbGet("supplier_orders","projekt_id=eq."+encodeURIComponent(p.id)+"&order=created_at.desc");
+      if(!_vmMountRef.current)return;
       if(so)setSuppOrders(so.map(o=>({...o,order_items:_jp(o.order_items)||[]})));
-    }catch(e){console.warn('[silent-await]',e&&e.message||e);}
+    }catch(e){console.warn('[silent-await]',e&&e.message||e);if(_vmMountRef.current&&window.__toast)window.__toast("Bestellungen konnten nicht geladen werden","warn");}
   },[p.id,showEk]);
   _react.useEffect.call(void 0, ()=>{loadSuppOrders();},[loadSuppOrders]);
 
@@ -11878,7 +11885,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   };
   const deleteOrder=async(id)=>{
     /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
-    if(!canDo("material_delete",curUser))return;
+    /* v3.9.22 F-3: silent return → Toast warning. */
+    if(!canDo("material_delete",curUser)){window.__toast&&window.__toast("Keine Berechtigung zum Löschen","warn");return;}
     if(!await _confirmModal("Anforderung wirklich löschen?",{variant:"danger"}))return;
     try{await SQ.push({url:"/api/material-orders/"+id,method:"DELETE",body:{}});setOrders(prev=>prev.filter(x=>x.id!==id));if(window.__doSync)window.__doSync();
     if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
@@ -12346,11 +12354,15 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       await SQ.push({url:"/api/supplier-orders/"+so.id,method:"PUT",body:{status:newStatus}});
       setSuppOrders(prev=>prev.map(x=>x.id===so.id?{...x,status:newStatus}:x));
       if(window.__doSync)window.__doSync();
-      window.__toast&&window.__toast("Status → "+SUPP_ORD_STATUS[newStatus].l,"success");
+      /* v3.9.22 F-9: Safe-fallback wenn SUPP_ORD_STATUS[newStatus] undefined. */
+      const _stLbl=(SUPP_ORD_STATUS[newStatus]&&SUPP_ORD_STATUS[newStatus].l)||newStatus;
+      window.__toast&&window.__toast("Status → "+_stLbl,"success");
     }catch(e){window.__toast&&window.__toast("❌ "+e.message,"error");}
   };
   const deleteSuppOrd=async(id)=>{
     /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
+    /* v3.9.22 F-10: role-Gate analog deleteOrder (material_delete). */
+    if(!canDo("material_delete",curUser)){window.__toast&&window.__toast("Keine Berechtigung zum Löschen","warn");return;}
     if(!await _confirmModal("Händler-Bestellung wirklich löschen?",{variant:"danger"}))return;
     try{await SQ.push({url:"/api/supplier-orders/"+id,method:"DELETE",body:{}});setSuppOrders(prev=>prev.filter(x=>x.id!==id));
     if(window.__doSync)window.__doSync();window.__toast&&window.__toast("Gelöscht","success");}catch(e){window.__toast&&window.__toast("Fehler","error");}
@@ -12497,6 +12509,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           }else if(encoding==="ISO-8859-1"){tryParse("UTF-8");}
           else{window.__toast&&window.__toast("Keine Artikel gefunden. Format prüfen.","error");}
         };
+        /* v3.9.22 F-4: onerror-Handler — sonst silent hang bei permission/korrupt. */
+        r2.onerror=()=>{window.__toast&&window.__toast("Datei konnte nicht gelesen werden ("+encoding+")","error");};
         r2.readAsText(file,encoding);
       };
       tryParse("ISO-8859-1");// Start with Latin-1 (most DATANORM files)
@@ -12597,7 +12611,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           , React.createElement('button', { onClick: async()=>{
               const groups=EP_AUTO_FILTER.filter(g=>dnAutoEnabled.has(g.id)&&dnAutoGroups.has(g.id));
               if(groups.length===0)return;
-              if(!confirm(groups.length+" Produktlinien mit "+Array.from(dnAutoEnabled).reduce((s,gid)=>{const h=dnAutoGroups.get(gid);return s+(h?h.size:0);},0)+" Artikeln importieren?"))return;
+              /* v3.9.22 F-2: native confirm → _confirmModal (Modal-Migration Round-3 v3.9.10). */
+              if(!await _confirmModal(groups.length+" Produktlinien mit "+Array.from(dnAutoEnabled).reduce((s,gid)=>{const h=dnAutoGroups.get(gid);return s+(h?h.size:0);},0)+" Artikeln importieren?"))return;
               let imported=0;
               for(const grp of groups){
                 const artNrs=dnAutoGroups.get(grp.id);
