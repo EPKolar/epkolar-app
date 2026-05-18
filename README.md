@@ -68,6 +68,44 @@ werden stale-while-revalidate gecached.
 - `_e(s)` HTML-Entity-Escape-Helper für Print-Popup-Templates.
 - `_fT(init, ms)` Fetch-Timeout-Wrapper (AbortSignal-basiert).
 
+## Aktuelle Version
+
+**v3.9.14** (2026-05-18) — HEAD `41ff59f` LIVE.
+
+## Dev-Quickstart
+
+```bash
+# Lokaler Test-Server:
+python -m http.server 8765 --bind 127.0.0.1
+
+# Tests laufen:
+python -m pytest tests/ -q
+# Erwartet: 500 passed
+
+# Brackets-Sanity:
+python scripts/_bracket_check.py index.html
+# Erwartet: () -1 / {} 0 / [] 0
+```
+
+## Hard-Constraints (DO NOT TOUCH)
+
+- Auth-Funktionen: `_silentReAuth`, `_sbAuthRefresh`, `_sbRH`, `_sbWH`, `_sbH`, `_storeAuth`
+- OFFA push/sync code
+- Juprowa-code
+- `_optionalChain` (Build-output)
+
+## Docs
+
+- `docs/SESSION-WRAP-2026-05-17.md` — letzter Session-Outcome
+- `docs/RESUME-2026-05-17.md` — Resume-Procedure
+- `MOBILE_INVENTORY.md` — Mobile-Issue-Inventar
+- `MOBILE_SMOKE_v3.8.67.md` — Mobile-Test-Checkliste
+
+## Tests
+
+500 Tests in `tests/` (source-code-pattern-assertion-Style, kein React-Render).
+Stil: `tests/test_dringend_filter.py`.
+
 ## Kontakt
 
 - Firma: **EP: Kolar & Sohn GesmbH** — Marktplatz 17, 3470 Kirchberg am Wagram — Tel +43 2279 2361
