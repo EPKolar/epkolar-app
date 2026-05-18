@@ -3,11 +3,10 @@
 > Comprehensive Session-Outcome für Resume / nächste Session / 2. Account.
 
 ## 🚀 Summary
-- **38+ Versionen** v3.8.65 → v3.9.12 (v3.9.0..v3.9.12 LOKAL, push wartet)
-- **490+/490+ Tests grün** (+105 in dieser Session, 30+ neue Test-Files)
-- **40+ Hunt-Findings closed** über 16 Sprints
+- **39 Versionen** v3.8.65 → v3.9.14 (alle LIVE, **Push komplett 2026-05-18 ~07:44 UTC**)
+- **500/500 Tests grün** (+115 in dieser Session, 30+ neue Test-Files)
+- **40+ Hunt-Findings closed** über 17 Sprints
 - **~55 Agent-Tasks** parallel ausgeführt
-- **⚠️ 11 commits aufgestaut bei v3.9.12 — PAT-Renewal kritisch für Live-Test**
 
 ## 📋 Releases-Timeline (auszug)
 
@@ -62,40 +61,34 @@ S5-6 localStorage auth-backup validation (Sebastian-Hard-Constraint)
 
 ## 🔴 SEBASTIAN-ACTIONS
 
-1. **HEUTE 17:16 UTC = 19:16 Wien:** GitHub PAT renewen!
-2. 4× urlaub/* remote branches löschen
-3. Phone-Test v3.8.95 (Header + Tiles + Tables)
+(keine offenen Push-Actions — PAT-Renewal + Stale-Branch-Cleanup am 2026-05-18 ~07:44 UTC erledigt)
+
+1. Phone-Test v3.8.95 (Header + Tiles + Tables)
 
 ## 📂 Repo-State
 
-- main HEAD: `26e3400` (Tag v3.9.12)
+- main HEAD: `88a681d` (Tag v3.9.14)
 - Brackets: () -2 / {} 0 / [] 0 (stabil — Drift ist Stripper-Regex-ARTIFACT bei `'[...]'` strings, NICHT code-bug; Stripper-Fix deferred)
 - Stash: `Sebastian-WIP hunt-scripts` auf cc-bug-hunt-eternal (NICHT verwerfen)
 - docs/RESUME-2026-05-17.md exists (älter)
 
-## ⏸️ Pending push (PAT expired since 2026-05-17 17:16 UTC)
+## ✅ Push komplett (2026-05-18 ~07:44 UTC)
 
-**11 Lokale Commits/Tags die auf Sebastian-PAT-Renewal warten:**
-- `f5d90d6` v3.9.0 — Modal-Z-Index-Fix + Mangel-Submit-Double-Click-Prevention
-- `bd0a46e` v3.9.1 — PWA-banner persistence + PDF-fallback-escape + 7 Tests
-- `40dd7fd` v3.9.4 — confirm()→_confirmModal 6 sites + Geo race-lock
-- `521db4b` v3.9.5 — Dead-CSS-cleanup (-64 lines)
-- `49fcb2c` v3.9.6 — prefers-reduced-motion + Modal-scroll-lock + Date-range-guard (Sprint-14)
-- `f15580e` v3.9.8 — confirm()→_confirmModal Round 2 (10 weitere sites)
-- `dd3a7e2` v3.9.9 — S15-3 syncQueue/PhotoQ crypto.randomUUID + 5 Tests
-- v3.9.10 — confirm()→Modal Round 3 (10 sites) + UUID-Tests
-- v3.9.11 — confirm()→Modal Round 4 (7 sites) + 6 Tests Round-3 (verbleibende 7 sites = Auth/Juprowa DO NOT TOUCH)
-- v3.9.12 — S15-4 AbortSignal.timeout-Fallback für iOS Safari <15 / alte Chrome
-- HEAD: `26e3400`
+- Sebastian renewed PAT via cmdkey + planung@ep-kolar.at Identity (Fine-grained PAT github_pat_*)
+- 11 Commits gepusht: `f5d90d6` → `88a681d`
+- 11 Tags gepusht: v3.9.0/1/4/5/6/8/9/10/11/12/13/14
+- 4 urlaub/* stale branches gelöscht
 
-### Push-Manifest
+### Live-Verify-Output
 
-```bash
-git push origin main
-git push origin v3.9.0 v3.9.1 v3.9.4 v3.9.5 v3.9.6 v3.9.8 v3.9.9 v3.9.10 v3.9.11 v3.9.12
+```
+HTTP/2 200
+content-type: text/plain; charset=utf-8
+url: https://raw.githubusercontent.com/EPKolar/epkolar-app/main/index.html
+commit-sha: 88a681d
 ```
 
-**Resume-Step nach PAT-Renewal:** Push-Manifest oben ausführen.
+**Deployment-Hinweis:** **GitHub-Hosting** (nicht Vercel).
 
 ## 🧪 Test-Files-Map
 
@@ -109,13 +102,12 @@ git push origin v3.9.0 v3.9.1 v3.9.4 v3.9.5 v3.9.6 v3.9.8 v3.9.9 v3.9.10 v3.9.11
 ## 📋 Resume-Procedure
 
 1. `cd "//SRVDC02/Projekte/05_Claude/02_Baumanagment & Zeiterfassungs - APP/03_Repos/epkolar-app"`
-2. **Sebastian-PAT-Renewal first** (siehe oben) → dann Push-Manifest ausführen (11 commits + 10 tags)
-3. `git status` → Erwartet: clean working tree, HEAD `26e3400` Tag v3.9.12
-4. `python -m pytest tests/ -q` → Erwartet: 490+ passed
-5. `python scripts/_bracket_check.py index.html` → Erwartet: `() -2 / {} 0 / [] 0` (ARTIFACT-Drift OK)
-6. Untracked Docs (NACHT_REPORT_v3.8.5x.md, CHANGELOG_*.md) ignorieren — Sebastian-WIP
-7. Confirm-Migration komplett: verbleibende 7 `confirm()`-Sites alle in Auth/Juprowa/OFFA Hard-Constraint-Bereichen — NICHT anfassen
-8. Pending Code-Sweeps: S15-5 (localStorage schema) + S15-6 (Touch-Swipe 400ms) — P4 deferred
+2. `git pull origin main` → Erwartet: already-up-to-date, HEAD `88a681d` Tag v3.9.14
+3. `python -m pytest tests/ -q` → Erwartet: 500 passed
+4. `python scripts/_bracket_check.py index.html` → Erwartet: `() -2 / {} 0 / [] 0` (ARTIFACT-Drift OK)
+5. Untracked Docs (NACHT_REPORT_v3.8.5x.md, CHANGELOG_*.md) ignorieren — Sebastian-WIP
+6. Confirm-Migration komplett: verbleibende 7 `confirm()`-Sites alle in Auth/Juprowa/OFFA Hard-Constraint-Bereichen — NICHT anfassen
+7. Pending Code-Sweeps: S15-5 (localStorage schema) + S15-6 (Touch-Swipe 400ms) — P4 deferred
 
 ## 🔐 Hard-Constraints (DO NOT TOUCH)
 - _silentReAuth, _sbAuthRefresh, _sbRH, _sbWH, _sbH, _storeAuth
