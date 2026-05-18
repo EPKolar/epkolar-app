@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.10';
+  var SW_VER='epkolar-v3.9.11';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2141,7 +2141,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.10-supabase";
+const APP_VERSION="3.9.11-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -15223,11 +15223,12 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
 
   // Delete an entry
   const _canDelEntry=isAdmin||(curUser.role==="monteur"&&selWorker===curUser.monteurId);
-  const deleteEntry=(iso,entryIdx)=>{
+  const deleteEntry=async(iso,entryIdx)=>{
     if(!_canDelEntry)return;
     const entry=(dayEntries[iso]||[])[entryIdx];
     if(!entry)return;
-    if(!confirm("Zeiteintrag wirklich löschen?"))return;
+    /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
+    if(!await _confirmModal("Zeiteintrag wirklich löschen?",{variant:"danger"}))return;
     if(entry.id)SQ.push({url:"/api/entries/"+entry.id,method:"DELETE",body:{}});
     // Also remove from global entries
     if(entry.id)setEntries(prev=>prev.filter(x=>x.id!==entry.id));
@@ -15916,15 +15917,17 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const togTermin=(tid)=>{if(!isVAdmin)return;const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
 
   const upd=(id,fn)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:updated});return updated;}return f;}));};
-  const del=(id)=>{if(!isVAdmin)return;if(!confirm("Fahrzeug wirklich löschen?"))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
+  /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
+  const del=async(id)=>{if(!isVAdmin)return;if(!await _confirmModal("Fahrzeug wirklich löschen?",{variant:"danger"}))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
 
-  const addKm=(fzId)=>{
+  /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
+  const addKm=async(fzId)=>{
     if(!kmVal)return;
     const km=parseInt(String(kmVal).replace(/[^\d-]/g,""),10);
     if(isNaN(km)){_optionalChain([window, 'access', _kmn1 => _kmn1.__toast, 'optionalCall', _kmn2 => _kmn2("❌ km-Stand muss eine Zahl sein")]);return;}
     if(km<0){_optionalChain([window, 'access', _km1 => _km1.__toast, 'optionalCall', _km2 => _km2("❌ km-Stand kann nicht negativ sein")]);return;}
     const cur=fahrzeuge.find(f=>f.id===fzId);
-    if(cur&&km<(cur.kmStand||0)){if(!confirm("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+((cur.kmStand||0)).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
+    if(cur&&km<(cur.kmStand||0)){if(!await _confirmModal("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+((cur.kmStand||0)).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
     upd(fzId,f=>{
       f.kmLog=[{km,datum:td2(),note:kmNote,by:_optionalChain([curUser, 'optionalAccess', _631 => _631.name])||""},...(f.kmLog||[])];
       f.kmStand=km;
@@ -16055,9 +16058,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const [qTankL,setQTankL]=_react.useState.call(void 0, "");const [qTankP,setQTankP]=_react.useState.call(void 0, "");const [qTankKm,setQTankKm]=_react.useState.call(void 0, "");const [qTankDat,setQTankDat]=_react.useState.call(void 0, td2());
   const [qSchadTxt,setQSchadTxt]=_react.useState.call(void 0, "");
   // Quick-action handlers
-  const qDoKm=()=>{if(!qKm||!fzScannedItem)return;const fid=fzScannedItem.id;const km=parseInt(qKm);
+  /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
+  const qDoKm=async()=>{if(!qKm||!fzScannedItem)return;const fid=fzScannedItem.id;const km=parseInt(qKm);
     if(km<0){_optionalChain([window, 'access', _qkm1 => _qkm1.__toast, 'optionalCall', _qkm2 => _qkm2("❌ km-Stand kann nicht negativ sein")]);return;}
-    if(km<(fzScannedItem.kmStand||0)){if(!confirm("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+(fzScannedItem.kmStand||0).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
+    if(km<(fzScannedItem.kmStand||0)){if(!await _confirmModal("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+(fzScannedItem.kmStand||0).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
     const log={id:uid(),km,datum:td2(),notiz:qKmNote};
     setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,kmStand:km,kmLog:[log,...(f.kmLog||[])]}:f));
     SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{kmStand:km}});
@@ -16824,7 +16828,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     e.target.value="";
   };
   const delWzPhoto=async(ph)=>{
-    if(!isVAdmin)return;if(!confirm("Foto wirklich löschen?"))return;
+    /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
+    if(!isVAdmin)return;if(!await _confirmModal("Foto wirklich löschen?",{variant:"danger"}))return;
     try{await _sbDelete("photos",ph.id);setWzPhotos(prev=>prev.filter(x=>x.id!==ph.id));_optionalChain([window, 'access', _wzp1 => _wzp1.__toast, 'optionalCall', _wzp2 => _wzp2("Foto gelöscht")]);}catch(e){_optionalChain([window, 'access', _wzp3 => _wzp3.__toast, 'optionalCall', _wzp4 => _wzp4("Fehler beim Löschen","error")]);}
   };
   // QR Scan
@@ -16902,7 +16907,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     else{setWerkzeuge(p=>[{...form},...p]);SQ.push({url:"/api/werkzeuge",method:"POST",body:form});_optionalChain([window, 'access', _754 => _754.__toast, 'optionalCall', _755 => _755("✅ Werkzeug angelegt — Inventar-Nr: "+form.inventarnr)]);}
     setSub("liste");setEditId(null);
   };
-  const del=id=>{if(!isAdmin)return;if(confirm("Werkzeug wirklich löschen?")){setWerkzeuge(p=>p.filter(w=>w.id!==id));SQ.push({url:"/api/werkzeuge/"+id,method:"DELETE"});_optionalChain([window, 'access', _756 => _756.__toast, 'optionalCall', _757 => _757("🗑️ Werkzeug gelöscht")]);setSub("liste");}};
+  /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
+  const del=async id=>{if(!isAdmin)return;if(await _confirmModal("Werkzeug wirklich löschen?",{variant:"danger"})){setWerkzeuge(p=>p.filter(w=>w.id!==id));SQ.push({url:"/api/werkzeuge/"+id,method:"DELETE"});_optionalChain([window, 'access', _756 => _756.__toast, 'optionalCall', _757 => _757("🗑️ Werkzeug gelöscht")]);setSub("liste");}};
   const checkout=(id,monteurId,projektId)=>{const w=werkzeuge.find(x=>x.id===id);setWerkzeuge(p=>p.map(w=>w.id===id?{...w,status:"ausgegeben",zugewiesen:monteurId,projekt:projektId||"",standort:"Baustelle"}:w));SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:{status:"ausgegeben",zugewiesen:monteurId,projekt:projektId||"",standort:"Baustelle"}});_optionalChain([window, 'access', _758 => _758.__toast, 'optionalCall', _759 => _759("📤 Werkzeug ausgegeben")]);_optionalChain([pushNotif, 'optionalCall', _760 => _760("tool_checkout","📤 Werkzeug ausgegeben",(_optionalChain([w, 'optionalAccess', _761 => _761.name])||"Gerät")+" → "+_optionalChain([monteure, 'access', _762 => _762.find, 'call', _763 => _763(m=>m.id===monteurId), 'optionalAccess', _764 => _764.n]))]);};
   const checkin=id=>{const w=werkzeuge.find(x=>x.id===id);setWerkzeuge(p=>p.map(w=>w.id===id?{...w,status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}:w));SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:{status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"}});_optionalChain([window, 'access', _765 => _765.__toast, 'optionalCall', _766 => _766("📥 Werkzeug zurück im Lager")]);_optionalChain([pushNotif, 'optionalCall', _767 => _767("tool_checkout","📥 Werkzeug zurück",(_optionalChain([w, 'optionalAccess', _768 => _768.name])||"Gerät")+" zurück ins Lager")]);};
 
@@ -17286,7 +17292,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                     , React.createElement('div', { style: {fontSize:12,color:V.dm}}, fdt(s.datum), s.werkstatt?" · "+s.werkstatt:"", s.kosten?" · "+_n(s.kosten,2)+" €":"")
                   ))
                 )
-                , isAdmin&&React.createElement('button', { onClick: ()=>{if(!confirm("Service-Eintrag löschen?"))return;const wz=werkzeuge.find(w=>w.id===wzServiceSel);const entry=_optionalChain([wz, 'optionalAccess', _999 => _999.serviceheft, 'optionalAccess', _999b => _999b[i]]);setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).filter((_,j)=>j!==i)}:w));if(entry&&entry.id)SQ.push({url:"/api/wz-service/"+entry.id,method:"DELETE"});}, style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+                , isAdmin&&React.createElement('button', { onClick: async()=>{/* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */ if(!await _confirmModal("Service-Eintrag löschen?",{variant:"danger"}))return;const wz=werkzeuge.find(w=>w.id===wzServiceSel);const entry=_optionalChain([wz, 'optionalAccess', _999 => _999.serviceheft, 'optionalAccess', _999b => _999b[i]]);setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).filter((_,j)=>j!==i)}:w));if(entry&&entry.id)SQ.push({url:"/api/wz-service/"+entry.id,method:"DELETE"});}, style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
               )
             )))
             , sh.length>0&&(()=>{const total=sh.reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginTop:6}}, "💰 Servicekosten gesamt: "   , _n(total,2), " €" ):null;})()
