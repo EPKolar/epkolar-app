@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.30';
+  var SW_VER='epkolar-v3.9.31';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.30-supabase";
+const APP_VERSION="3.9.31-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -14465,17 +14465,24 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
   const [newPw2,setNewPw2]=_react.useState.call(void 0, "");
   const [pwMsg,setPwMsg]=_react.useState.call(void 0, "");
   const [pwOk,setPwOk]=_react.useState.call(void 0, false);
+  /* v3.9.31 Free-Hunt V-4/V-5: busy-states für doTest + doChangePw (Spam-Klick verhindern) */
+  const [testBusy,setTestBusy]=_react.useState.call(void 0, false);
+  const [pwBusy,setPwBusy]=_react.useState.call(void 0, false);
   // v3.8.26 Gewerk-Profil: steuert Filter in renderWarenkorb (nur eigenes Gewerk zeigen)
   const [gewerkPref,setGewerkPref]=_react.useState.call(void 0, (typeof localStorage!=="undefined"&&localStorage.getItem("epk_user_gewerk"))||"beide");
   const _setGewerk=v=>{setGewerkPref(v);try{localStorage.setItem("epk_user_gewerk",v);}catch(e){console.warn('[silent-ls]',e&&e.message||e);}_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("🔧 Gewerk gespeichert — Material-Bestellung zeigt jetzt nur relevante Kataloge")]);};
-  const doTest=async()=>{try{const r=await fetch(SB_REST+"/users?select=id&limit=1",{headers:_sbRH()});setTestOk(r.ok);}catch(e){setTestOk(false);}};
+  /* v3.9.31 Free-Hunt V-4: _ensureAuth() vor doTest damit abgelaufene Session nicht fälschlich "nicht erreichbar" zeigt. V-5: busy-state. */
+  const doTest=async()=>{if(testBusy)return;setTestBusy(true);try{await (window._ensureAuth&&window._ensureAuth());const r=await fetch(SB_REST+"/users?select=id&limit=1",{headers:_sbRH()});setTestOk(r.ok);}catch(e){setTestOk(false);}finally{setTestBusy(false);}};
   const doChangePw=async()=>{
+    if(pwBusy)return;
     setPwMsg("");setPwOk(false);
     if(!oldPw||!newPw){setPwMsg("Altes und neues Passwort eingeben");return;}
     if(newPw.length<4){setPwMsg("Mindestens 4 Zeichen");return;}
     if(newPw!==newPw2){setPwMsg("Passwörter stimmen nicht überein");return;}
+    setPwBusy(true);
     try{const _cpRes=await API.changePassword(oldPw,newPw);setPwOk(true);setOldPw("");setNewPw("");setNewPw2("");/* v3.8.17 Iter-18: GoTrue-Sync-Ergebnis surfacen. v3.8.49 Bug-Fix: auch gotrue===null (nicht versucht, kein _authToken) warnen — vorher false-positive "✅ Passwort geändert" wenn GoTrue-Sync komplett übersprungen wurde. */if(_cpRes&&_cpRes.gotrue!==true){const _det=_cpRes.gotrue===false?"fehlgeschlagen":"nicht versucht (keine aktive Session — bitte neu einloggen)";setPwMsg("⚠️ Lokal geändert, GoTrue-Sync "+_det+" — nächster Online-Login könnte altes Passwort verlangen. Console prüfen.");_optionalChain([window, 'access', _vv1 => _vv1.__toast, 'optionalCall', _vv2 => _vv2("⚠️ PW lokal OK, GoTrue-Sync "+_det,"warn",10000)]);}else{setPwMsg("✅ Passwort geändert");_optionalChain([window, 'access', _vv1a => _vv1a.__toast, 'optionalCall', _vv2a => _vv2a("🔑 Passwort geändert")]);}}
     catch(e){setPwMsg("❌ "+(e.message||"Fehler"));}
+    finally{setPwBusy(false);}
   };
   return (
     React.createElement('div', { className: "fade-in", style: {maxWidth:700,margin:"0 auto"}}
@@ -14508,7 +14515,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
           , React.createElement('input', { type: "password", value: oldPw, onChange: e=>setOldPw(e.target.value), placeholder: "Altes Passwort", style: {...II(),fontSize:13,padding:"8px 12px"}})
           , React.createElement('input', { type: "password", value: newPw, onChange: e=>setNewPw(e.target.value), placeholder: "Neues Passwort", style: {...II(),fontSize:13,padding:"8px 12px"}})
           , React.createElement('input', { type: "password", value: newPw2, onChange: e=>setNewPw2(e.target.value), placeholder: "Neues Passwort wiederholen", onKeyDown: e=>{if(e.key==="Enter")doChangePw();}, style: {...II(),fontSize:13,padding:"8px 12px"}})
-          , React.createElement('button', { onClick: doChangePw, style: {...bgS,padding:"8px 16px",fontSize:13}}, "💾 Passwort ändern" )
+          , React.createElement('button', { onClick: doChangePw, disabled: pwBusy, style: {...bgS,padding:"8px 16px",fontSize:13,opacity:pwBusy?.6:1}}, pwBusy?"⏳ …":"💾 Passwort ändern" )
           , pwMsg&&React.createElement('div', { style: {fontSize:13,color:pwOk?"#22c55e":"#ef4444",fontWeight:600}}, pwMsg)
         )
       )
@@ -14517,7 +14524,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
         , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "☁️ Supabase-Verbindung" )
         , React.createElement('div', { style: {marginBottom:10}}, React.createElement('label', { style: LL()}, "Supabase URL"), React.createElement('input', { value: srvUrl, readOnly: true, style: {...II(),opacity:.7}} ))
         , React.createElement('div', { style: {display:"flex",gap:8}}
-          , React.createElement('button', { onClick: doTest, style: {...bsS(),padding:"8px 16px"}}, "🔍 Verbindung testen"  )
+          , React.createElement('button', { onClick: doTest, disabled: testBusy, style: {...bsS(),padding:"8px 16px",opacity:testBusy?.6:1}}, testBusy?"⏳ Teste …":"🔍 Verbindung testen"  )
         )
         , testOk!==null&&React.createElement('div', { style: {marginTop:8,fontSize:13,color:testOk?"#22c55e":"#ef4444"}}, testOk?"✅ Supabase-Verbindung erfolgreich":"❌ Supabase nicht erreichbar")
       )
@@ -14547,7 +14554,8 @@ function VerbindungView({ww,curUser,isDark,toggleTheme}){
         , React.createElement('div', { style: {fontSize:13,color:V.dm}}, "Version: " , APP_VERSION)
         , React.createElement('div', { style: {fontSize:13,color:V.dm}}, "Schema: v", SCHEMA_VER, " · Datenbank: Supabase + IndexedDB (Offline)"    )
         , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:6,lineHeight:1.6}}, "Updates: index.html + sw.js auf GitHub Pages pushen. Bei Schema-Änderungen zuerst SQL auf Supabase ausführen. Offline-Daten (SyncQueue, Fotos) bleiben bei Updates erhalten.")
-        , React.createElement('button', { onClick: ()=>{if(confirm("Alle lokalen Daten löschen?")){try{indexedDB.deleteDatabase("epkolar_offline");}catch(e){console.warn('[silent-idb]',e&&e.message||e);}setTimeout(()=>location.reload(),500);}}, style: {...bdS,marginTop:10,padding:"8px 16px",fontSize:12}}, "🗑️ Lokale Daten löschen"   )
+        /* v3.9.31 Free-Hunt V-1: native confirm → _confirmModal (konsistent mit Round-4 Modal-Migration v3.9.11) */
+        , React.createElement('button', { onClick: async()=>{if(!await _confirmModal("Alle lokalen Daten löschen? Offline-Queue, Foto-Cache und IndexedDB-Caches gehen verloren.",{variant:"danger",title:"Lokale Daten löschen"}))return;try{indexedDB.deleteDatabase("epkolar_offline");}catch(e){console.warn('[silent-idb]',e&&e.message||e);}setTimeout(()=>location.reload(),500);}, style: {...bdS,marginTop:10,padding:"8px 16px",fontSize:12}}, "🗑️ Lokale Daten löschen"   )
       )
       /* v3.5.72 Block 17a Integrity UI (admin only) */
       , curUser.role==="admin"&&React.createElement(SmokeTestPanel, {})
@@ -15423,13 +15431,15 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
   // ── Data: Arbeitsscheine pro Monteur — v3.8.76 Sprint-2 F-6 useMemo
   const asMont=_react.useMemo.call(void 0, ()=>monteure.map(m=>({l:m.n,v:arbeitsscheine.filter(a=>a.monteur===m.id).length,c:"#f97316"})),[monteure,arbeitsscheine]);
   // ── Data: Projekte Status — v3.8.76 Sprint-2 F-8 useMemo
-  const prjStatus=_react.useMemo.call(void 0, ()=>[{l:"Aktiv",v:projects.filter(p=>p.status==="aktiv").length,c:"#22c55e"},{l:"Abgeschlossen",v:projects.filter(p=>p.status==="abgeschlossen").length,c:"#3b82f6"},{l:"Archiviert",v:projects.filter(p=>p.status==="archiv").length,c:"#71717a"}],[projects]);
+  // v3.9.31 Free-Hunt A-11: KPI-Mismatch wenn p.status unbekannt (z.B. null oder "pausiert") — Donut zeigte weniger als KPI projects.length. Sonstige-Bucket fängt das ab.
+  const prjStatus=_react.useMemo.call(void 0, ()=>{const known=new Set(["aktiv","abgeschlossen","archiv"]);const other=projects.filter(p=>!known.has(p.status)).length;const base=[{l:"Aktiv",v:projects.filter(p=>p.status==="aktiv").length,c:"#22c55e"},{l:"Abgeschlossen",v:projects.filter(p=>p.status==="abgeschlossen").length,c:"#3b82f6"},{l:"Archiviert",v:projects.filter(p=>p.status==="archiv").length,c:"#71717a"}];if(other>0)base.push({l:"Sonstige",v:other,c:"#a1a1aa"});return base;},[projects]);
   // ── Data: Projekte Fortschritt — v3.8.76 Sprint-2 F-9 useMemo
   const prjFort=_react.useMemo.call(void 0, ()=>projects.filter(p=>p.status==="aktiv").map(p=>({l:p.kurz||(p.name||"").slice(0,12),v:p.fortschritt||0,c:p.fortschritt>70?"#22c55e":p.fortschritt>40?"#f97316":"#ef4444"})),[projects]);
   // ── Data: Abwesenheit nach Typ — v3.8.76 Sprint-2 F-10 useMemo
   const absTyp=_react.useMemo.call(void 0, ()=>Object.entries(AT_T).map(([k,v])=>({l:v.l,v:Object.values(abs).filter(a=>a.type===k).length,c:v.c})),[abs]);
   // ── Data: Abwesenheit nach Person — v3.8.74 Hunt B-023 useMemo
-  const absPerName=_react.useMemo.call(void 0, ()=>monteure.map(m=>{let cnt=0;Object.entries(abs).forEach(([key])=>{if(key.startsWith(m.n+"_"))cnt++;});return {l:m.n,v:cnt,c:AT_T.urlaub.c};}),[monteure,abs]);
+  // v3.9.31 Free-Hunt A-1: startsWith(m.n+"_") litt unter Namens-Präfix-Kollision (z.B. "Max" matchte "Maximilian_2026-…"). Strikter Vergleich via ID-Prefix wenn vorhanden, sonst exakter Token-Split-Match.
+  const absPerName=_react.useMemo.call(void 0, ()=>monteure.map(m=>{let cnt=0;const idPrefix=(m.id||"")+"_";const namePrefix=(m.n||"")+"_";Object.entries(abs).forEach(([key])=>{if(idPrefix&&key.startsWith(idPrefix)){cnt++;return;}/* Fallback Name: Split bei "_" und exakter Token-Vergleich gegen ersten Teil */const tok=String(key).split("_")[0];if(tok===m.n)cnt++;});return {l:m.n,v:cnt,c:AT_T.urlaub.c};}),[monteure,abs]);
   // ── Data: Werkzeuge nach Status
   const wzStatus=_react.useMemo.call(void 0, ()=>Object.entries(WZ_STATUS).map(([k,v])=>({l:v.l,v:werkzeuge.filter(w=>w.status===k).length,c:v.c})),[werkzeuge]);
   // ── Data: Werkzeuge nach Kategorie — v3.8.76 Sprint-2 F-7 useMemo
@@ -15437,11 +15447,13 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
   // ── Data: Werkzeuge Wert pro Kategorie — v3.8.74 Hunt B-023 useMemo
   const wzWert=_react.useMemo.call(void 0, ()=>Object.entries(WZ_KAT).map(([k,v])=>({l:v.l,v:Math.round(werkzeuge.filter(w=>w.kat===k).reduce((s,w)=>s+(w.wert||0),0)),c:v.c})),[werkzeuge]);
   // ── Data: Fahrzeuge — v3.8.74 Hunt B-023 useMemo
-  const fzTankProFz=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").map(f=>({l:f.kennzeichen,v:Math.round((f.tankLog||[]).reduce((s,t)=>s+(t.preis||0),0)),c:"#0ea5e9"})),[fahrzeuge]);
+  // v3.9.31 Free-Hunt A-2: Leeres Kennzeichen → "(ohne KZ)"-Fallback statt leerer Label im Chart
+  const _fzLbl=(f)=>(f&&f.kennzeichen)?f.kennzeichen:"(ohne KZ)";
+  const fzTankProFz=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").map(f=>({l:_fzLbl(f),v:Math.round((f.tankLog||[]).reduce((s,t)=>s+(t.preis||0),0)),c:"#0ea5e9"})),[fahrzeuge]);
   // v3.8.76 Sprint-2 F-2/F-3/F-4: 3 weitere Fahrzeug-Aggregates mit useMemo
-  const fzLiterProFz=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").map(f=>({l:f.kennzeichen,v:Math.round((f.tankLog||[]).reduce((s,t)=>s+(t.liter||0),0)),c:"#f97316"})),[fahrzeuge]);
-  const fzKm=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt"&&f.kmStand>0).map(f=>({l:f.kennzeichen,v:f.kmStand,c:"#22c55e"})),[fahrzeuge]);
-  const fzSchaeden=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>(f.schaeden||[]).length>0).map(f=>({l:f.kennzeichen,v:(f.schaeden||[]).filter(s=>s.status==="offen").length,c:"#ef4444"})),[fahrzeuge]);
+  const fzLiterProFz=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").map(f=>({l:_fzLbl(f),v:Math.round((f.tankLog||[]).reduce((s,t)=>s+(t.liter||0),0)),c:"#f97316"})),[fahrzeuge]);
+  const fzKm=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt"&&f.kmStand>0).map(f=>({l:_fzLbl(f),v:f.kmStand,c:"#22c55e"})),[fahrzeuge]);
+  const fzSchaeden=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>(f.schaeden||[]).length>0).map(f=>({l:_fzLbl(f),v:(f.schaeden||[]).filter(s=>s.status==="offen").length,c:"#ef4444"})),[fahrzeuge]);
   const totalTankKosten=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).reduce((s,f)=>s+(f.tankLog||[]).reduce((s2,t)=>s2+(t.preis||0),0),0),[fahrzeuge]);
   // ── Data: Zeiterfassung letzte 7 Tage (aus entries) — v3.8.74 Hunt B-023 useMemo
   const last7=_react.useMemo.call(void 0, ()=>Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const ds=_ymd(d);return {l:["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()],v:entries.filter(e=>(e.datum||e.date)===ds).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0),c:"#3b82f6"};}),[entries]);
