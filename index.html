@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.12';
+  var SW_VER='epkolar-v3.9.14';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -24,12 +24,12 @@
       if('serviceWorker' in navigator){
         navigator.serviceWorker.getRegistrations().then(function(regs){
           regs.forEach(function(r){r.unregister();});
-        });
+        }).catch(function(e){console.warn('[SW-cleanup]',e&&e.message||e);});
       }
       if('caches' in window){
         caches.keys().then(function(names){
           names.forEach(function(n){caches.delete(n);});
-        });
+        }).catch(function(e){console.warn('[caches-cleanup]',e&&e.message||e);});
       }
       try{localStorage.setItem('epk_sw_ver',SW_VER);}catch(e){console.warn('[localStorage]',e&&e.message||e);}
       /* If this was a stale-cache load, force reload to get fresh HTML */
@@ -758,8 +758,11 @@ window._mobileCheck=function(){
 // Ergebnis: console.table mit erwartetem Scope pro Rolle.
 // ═══════════════════════════════════════════════════════════════════
 window._rlsAudit=async function(){
+  // v3.9.14 S16-1 (P4): Debug-Gate — RLS-Audit ist Dev-Tool, in Prod still.
+  // Aktivieren via: window.__epkDebug=true  ODER  localStorage.__dev='1'
+  const _rlsDbg=!!(window.__epkDebug)||(typeof localStorage!=="undefined"&&(function(){try{return localStorage.getItem("__dev")==="1";}catch(e){return false;}})());
   const role=(window._curUser()&&window._curUser().role)||'none';
-  console.log('[RLS] Testing as role:',role);
+  if(_rlsDbg)console.log('[RLS] Testing as role:',role);
   const probes=[
     {desc:'users (should: self only for non-staff)',           url:'users','select':'id,username,email&limit=20'},
     {desc:'arbeitsscheine (monteur: only own)',                url:'arbeitsscheine','select':'id,monteur&limit=200'},
@@ -783,12 +786,14 @@ window._rlsAudit=async function(){
       results.push({desc:p.desc,table:p.url,count:0,sampleKeys:'',err:(e&&e.message||String(e)).substring(0,100)});
     }
   }
-  console.table(results);
-  console.log('[RLS] Erwartungen:');
-  console.log('  admin/buero: sieht alle Tabellen');
-  console.log('  projektleiter: alles außer ek_preis (nur Admin/PL/Lagerleitung)');
-  console.log('  monteur: nur eigene (arbeitsscheine.monteur=self, time_entries.worker_id=self, ...), KEIN activity_log, KEIN supplier_configs');
-  console.log('  Wenn Monteur full users-Liste sieht → RLS-LEAK!');
+  if(_rlsDbg){
+    console.table(results);
+    console.log('[RLS] Erwartungen:');
+    console.log('  admin/buero: sieht alle Tabellen');
+    console.log('  projektleiter: alles außer ek_preis (nur Admin/PL/Lagerleitung)');
+    console.log('  monteur: nur eigene (arbeitsscheine.monteur=self, time_entries.worker_id=self, ...), KEIN activity_log, KEIN supplier_configs');
+    console.log('  Wenn Monteur full users-Liste sieht → RLS-LEAK!');
+  }
   return{role,results};
 };
 
@@ -1482,6 +1487,7 @@ function _safeJsonParse(s,fallback){
 }
 // v3.8.54: localStorage Quota-Monitor. Bei iOS Safari liegt das Limit oft bei 5MB,
 // bei Chrome/Edge bei 10MB. Wenn 80% erreicht: Warn-Toast für User.
+const LS_QUOTA_CHECK_INTERVAL_MS = 300000; // 5min — v3.9.14 S16-2 (P4): Magic-Number → Konstante
 function _checkLocalStorageQuota(){
   try{
     let total=0;
@@ -1507,7 +1513,7 @@ function _checkLocalStorageQuota(){
   }
 }
 // Run check every 5 min — S5-1 (P3): Timer-ID + beforeunload cleanup
-let _lsQuotaTimer=setInterval(_checkLocalStorageQuota,300000);
+let _lsQuotaTimer=setInterval(_checkLocalStorageQuota,LS_QUOTA_CHECK_INTERVAL_MS);
 try{window.addEventListener("beforeunload",()=>{if(_lsQuotaTimer){clearInterval(_lsQuotaTimer);_lsQuotaTimer=null;}});}catch(e){console.warn('[lsQuota-beforeunload]',e&&e.message||e);}
 // ═══ camelCase → snake_case field mapper ═══
 function _toSnake(s){return s.replace(/[A-Z]/g,m=>'_'+m.toLowerCase());}
@@ -2155,7 +2161,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.12-supabase";
+const APP_VERSION="3.9.14-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
