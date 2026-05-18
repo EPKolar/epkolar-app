@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.17';
+  var SW_VER='epkolar-v3.9.18';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -630,6 +630,9 @@ const TIME_MINUTE=60*TIME_SECOND;
 const TIME_HOUR=60*TIME_MINUTE;
 const TIME_DAY=24*TIME_HOUR;
 const TIME_WEEK=7*TIME_DAY;
+/* v3.9.18 B-014: zentraler Pickerl/Frist-Status. Returns 'ok'|'warn'|'overdue'|null.
+   warnDays default 30 (überall genutzte Schwelle). Pure function, kein State. */
+window._pickerlStatus=(datum,warnDays)=>{if(!datum)return null;const w=(warnDays==null)?30:warnDays;const d=new Date(datum);if(isNaN(d))return null;const diff=(d-new Date())/TIME_DAY;if(diff<0)return 'overdue';if(diff<w)return 'warn';return 'ok';};
 window._fmtDate=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();};
 window._fmtDatetime=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return window._fmtDate(d)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
 window._fmtRelative=(d)=>{if(!d)return '—';const diff=(Date.now()-new Date(d).getTime())/1000;if(isNaN(diff))return '—';if(diff<60)return 'gerade eben';if(diff<3600)return 'vor '+Math.floor(diff/60)+' Min';if(diff<86400)return 'vor '+Math.floor(diff/3600)+' Std';if(diff<604800)return 'vor '+Math.floor(diff/86400)+' Tagen';return window._fmtDate(d);};
@@ -2161,7 +2164,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.17-supabase";
+const APP_VERSION="3.9.18-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -7915,9 +7918,10 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _isFleetAdmin=isAdmin||_optionalChain([curUser, 'optionalAccess', _ffa => _ffa.isVAdmin])===true;
   const _myMonteurId=_optionalChain([curUser, 'optionalAccess', _ffa2 => _ffa2.monteurId])||"";
   const _alertFz=_isFleetAdmin?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMonteurId);
-  const pickerFaellig=_alertFz.filter(f=>{if(!f.pickerl)return false;const d=new Date(f.pickerl);const diff=(d-new Date())/(TIME_DAY);return diff<30&&diff>-365;});
+  /* v3.9.18 B-014: zentraler Helper _pickerlStatus + 365d-Tail-Filter beibehalten. */
+  const pickerFaellig=_alertFz.filter(f=>{const st=window._pickerlStatus(f.pickerl);if(!st||st==='ok')return false;const d=new Date(f.pickerl);return (d-new Date())/TIME_DAY>-365;});
   if(pickerFaellig.length>0){
-    const abgelaufen=pickerFaellig.filter(f=>new Date(f.pickerl)<new Date()).length;
+    const abgelaufen=pickerFaellig.filter(f=>window._pickerlStatus(f.pickerl)==='overdue').length;
     const text=abgelaufen>0?`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${abgelaufen} abgelaufen / ${pickerFaellig.length-abgelaufen} bald fällig`:`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl bald fällig`;
     alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?"#ef4444":"#f97316",go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>`${f.kennzeichen} (${fdt(f.pickerl)})`)});
   }
@@ -16112,7 +16116,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   // KPIs
   const aktiv=fahrzeuge.filter(f=>f.status!=="stillgelegt").length;
   const offeneSchaeden=_react.useMemo.call(void 0, ()=>fahrzeuge.reduce((s,f)=>s+(f.schaeden||[]).filter(x=>x.status==="offen").length,0),[fahrzeuge]);
-  const pickerFaellig=fahrzeuge.filter(f=>{if(!f.pickerl)return false;const d=new Date(f.pickerl);const now=new Date();const diff=(d-now)/(1000*60*60*24);return diff<30&&diff>-365;}).length;
+  /* v3.9.18 B-014: zentraler Helper _pickerlStatus + 365d-Tail-Filter beibehalten. */
+  const pickerFaellig=fahrzeuge.filter(f=>{const st=window._pickerlStatus(f.pickerl);if(!st||st==='ok')return false;const d=new Date(f.pickerl);return (d-new Date())/TIME_DAY>-365;}).length;
   const serviceFaellig=fahrzeuge.filter(f=>{if(!f.naechstService)return false;const d=new Date(f.naechstService);return d<=new Date();}).length;
 
   // ═══ FZ QR SCANNER ═══
@@ -16474,8 +16479,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       , !sel&&!batchMode&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:view==="kacheln"?(isMob?"repeat(2,1fr)":"repeat(auto-fill,minmax(220px,1fr))"):(isMob?"1fr":"repeat(auto-fill,minmax(320px,1fr))"),gap:view==="kacheln"?8:10}}
         , visibleFz.map(f=>{
           const fahrer=(monteure||MONT).find(m=>m.id===f.fahrer);
-          const pickerlOk=f.pickerl&&new Date(f.pickerl)>new Date();
-          const pickerlWarn=f.pickerl&&!pickerlOk||(f.pickerl&&(new Date(f.pickerl)-new Date())/(TIME_DAY)<30);
+          /* v3.9.18 B-014: zentraler Helper _pickerlStatus statt inline-Date-Compare. */
+          const _pkSt=window._pickerlStatus(f.pickerl);
+          const pickerlOk=_pkSt==='ok';
+          const pickerlWarn=_pkSt==='warn'||_pkSt==='overdue';
           const serviceWarn=f.naechstService&&new Date(f.naechstService)<=new Date();
           const offSch=(f.schaeden||[]).filter(s=>s.status==="offen").length;
           const isMine=f.id===myFzId;
@@ -17275,7 +17282,33 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('button', { onClick: ()=>setBulkMode(null), style: bsS()}, "Abbrechen")
       )
       , !filtered.length&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:40,marginBottom:10}}, "🔧"), "Keine Werkzeuge gefunden"  )
-      , React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { className: "scroll-x"}
+      /* v3.9.18 3.3: Mobile-Card-Layout <768px statt Tabelle. Sort als Dropdown. Bulk-Checkbox bleibt nur Desktop. */
+      , (ww<768)&&filtered.length>0&&React.createElement('div', { style: {display:"flex",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}
+        , React.createElement('span', { style: {fontSize:11,color:V.dm}}, "Sortieren:")
+        , React.createElement('select', { value: sortCol, onChange: e=>{const v=e.target.value;if(v===sortCol)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(v);setSortDir("asc");}}, style: {...II(),width:"auto",fontSize:12,minHeight:36}}
+          , [{l:"Inventar",c:"inventarnr"},{l:"Bezeichnung",c:"name"},{l:"Standort",c:"standort"},{l:"Status",c:"status"},{l:"Letzte Wartung",c:"letzteKalib"}].map(o=>React.createElement('option', { key: o.c, value: o.c}, o.l))
+        )
+        , React.createElement('button', { onClick: ()=>setSortDir(d=>d==="asc"?"desc":"asc"), style: {...bsS(),padding:"4px 10px",fontSize:12,minHeight:36}, title: "Richtung wechseln"}, sortDir==="asc"?"▲":"▼")
+      )
+      , (ww<768)&&filtered.length>0&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr",gap:8}}
+        , sorted.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=w.naechsteKalib&&w.naechsteKalib<=td2();const lastMaint=w.letzteKalib||(_optionalChain([w, 'access', _wsh => _wsh.serviceheft, 'optionalAccess', _wsh2 => _wsh2[0], 'optionalAccess', _wsh3 => _wsh3.datum]))||"—";
+          return React.createElement('div', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {...CC(),padding:"10px 12px",cursor:isAdmin?"pointer":"default",borderLeft:"3px solid "+(_optionalChain([st, 'optionalAccess', _stc => _stc.c])||V.bd),background:kalFaellig?"rgba(239,68,68,.04)":undefined}}
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}
+              , React.createElement('div', { style: {flex:1,minWidth:0}}
+                , React.createElement('div', { style: {fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis"}}, _optionalChain([kat, 'optionalAccess', _kati => _kati.i])||"📎"," ",w.name)
+                , React.createElement('div', { style: {fontFamily:mono,fontSize:11,color:V.dm,marginTop:2}}, w.inventarnr)
+              )
+              , React.createElement(Badge, { text: (_optionalChain([st, 'optionalAccess', _sti => _sti.i])||"")+" "+(_optionalChain([st, 'optionalAccess', _stl => _stl.l])||"—"), color: _optionalChain([st, 'optionalAccess', _stc2 => _stc2.c])||V.bd})
+            )
+            , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:11,color:V.dm}}
+              , React.createElement('div', null, "📍 ", React.createElement('strong', { style: {color:V.tx}}, w.standort||"—"))
+              , React.createElement('div', null, "🔧 ", React.createElement('strong', { style: {color:V.tx}}, lastMaint!=="—"?fdt(lastMaint):"—"))
+              , mont&&React.createElement('div', { style: {gridColumn:"1 / -1"}}, "👤 ", React.createElement('strong', { style: {color:V.ac}}, mont.n))
+            )
+          );
+        })
+      )
+      , (ww>=768)&&React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { className: "scroll-x"}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:800}}
           , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}
             , React.createElement('th', { style: {...thS(),width:32,textAlign:"center",cursor:"pointer",userSelect:"none"}, title: "Alle auswählen"}, React.createElement('input', { type: "checkbox", checked: selectedIds.length===filtered.length&&filtered.length>0, onChange: _selectAll, style: {cursor:"pointer",width:16,height:16}}))
