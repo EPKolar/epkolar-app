@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.22';
+  var SW_VER='epkolar-v3.9.23';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.22-supabase";
+const APP_VERSION="3.9.23-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -7987,13 +7987,20 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
   // KPIs — single pass über arbeitsscheine
   const aktivP=projects.filter(p=>p.status==="aktiv").length;
-  const asStats=_react.useMemo.call(void 0, ()=>arbeitsscheine.reduce((s,a)=>{if(AS_GRP_OFFEN.includes(a.scheinstatus))s.offen++;return s;},{offen:0}),[arbeitsscheine]);
+  /* v3.9.23 KRITISCH Monteur-Permission: Field-User (monteur/helfer/techniker/obermonteur)
+     sehen NUR EIGENE AS auf dem Dashboard (offeneAS / dringendeAS / jupLinked / alerts).
+     Admin/Projektleiter/Büro sehen weiterhin alles. Filter via curUser.monteurId === a.monteur. */
+  const _hvIsField=curUser&&!isAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
+  const _hvMid=(curUser&&curUser.monteurId)||"";
+  const _visibleAS=_react.useMemo.call(void 0, ()=>_hvIsField?arbeitsscheine.filter(a=>a.monteur===_hvMid):arbeitsscheine,[arbeitsscheine,_hvIsField,_hvMid]);
+  const asStats=_react.useMemo.call(void 0, ()=>_visibleAS.reduce((s,a)=>{if(AS_GRP_OFFEN.includes(a.scheinstatus))s.offen++;return s;},{offen:0}),[_visibleAS]);
   const offeneAS=asStats.offen;
   const _td=td2();
   const _todayStr=_td;
   const _weekAgo=_react.useMemo.call(void 0, ()=>{const d=new Date();d.setDate(d.getDate()-7);return _ymd(d);},[_td]);
   // v3.8.70 Hunt B-001/B-005: dringendeAS useMemo statt jeden 60s-Tick re-filtern (~O(n) AS-Filter)
-  const dringendeAS=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const prio=String(a.prioritaet||"").toLowerCase();if(prio==="hoch"||prio==="dringend")return true;const tb=a.terminBestaetigt||a.termin_bestaetigt||"";if(tb&&tb<_todayStr)return true;const auf=a.aufgenommen||"";if(auf&&auf<_weekAgo)return true;return false;}).length,[arbeitsscheine,_todayStr,_weekAgo]);
+  // v3.9.23 KRITISCH: _visibleAS statt arbeitsscheine — Monteur sieht nur EIGENE.
+  const dringendeAS=_react.useMemo.call(void 0, ()=>_visibleAS.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const prio=String(a.prioritaet||"").toLowerCase();if(prio==="hoch"||prio==="dringend")return true;const tb=a.terminBestaetigt||a.termin_bestaetigt||"";if(tb&&tb<_todayStr)return true;const auf=a.aufgenommen||"";if(auf&&auf<_weekAgo)return true;return false;}).length,[_visibleAS,_todayStr,_weekAgo]);
   // v3.8.70: _weekDates ref-stabil (sonst useMemo-Deps oben kaputt — neue Set jedes Render)
   const _weekDates=_react.useMemo.call(void 0, ()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1));const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(_ymd(x));}return s;},[_td]);
   let todayH=0,weekH=0;
@@ -8032,7 +8039,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben`,color:"#8b5cf6",go:()=>onNav("stunden"),details:_details});
   }
   if(finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316",go:()=>onNav("stunden")});
-  const jupLinked=arbeitsscheine.filter(a=>a.juprowa_id).length;
+  /* v3.9.23 KRITISCH Monteur-Permission: jupLinked aus _visibleAS (gefiltert für Monteure). */
+  const jupLinked=_visibleAS.filter(a=>a.juprowa_id).length;
 
   // Recent activity (last 5 entries)
 
@@ -9639,7 +9647,14 @@ function VCheck({p,forms,setForms,ww,curUser}){
 function VMang({p,forms,setForms,curUser,monteure,ww}){
   const isAdmin=_optionalChain([curUser, 'optionalAccess', _vmg1 => _vmg1.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _vmg2 => _vmg2.role])==="projektleiter";
   const isMob=(ww||999)<600;
-  const ms=(forms.maengel||[]).filter(m=>m.pid===p.id);
+  /* v3.9.23 KRITISCH Monteur-Permission: Mängel-Liste pro Projekt — Monteur sieht NUR
+     EIGENE Mängel (worker===monteurId ODER zugewiesen===monteurId ODER assignee===monteurId).
+     Kundenmeldungen (melder==="Kunde") sind sichtbar für alle, da Triage/Review-Flow.
+     Admin/PL/Büro sehen alles. */
+  const _vmIsField=curUser&&!isAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
+  const _vmMid=(curUser&&curUser.monteurId)||"";
+  const _msRaw=(forms.maengel||[]).filter(m=>m.pid===p.id);
+  const ms=_vmIsField?_msRaw.filter(m=>m.worker===_vmMid||m.zugewiesen===_vmMid||m.assignee===_vmMid||m.melder==="Kunde"):_msRaw;
   const kundenMeldungen=ms.filter(m=>m.melder==="Kunde");
   const neueMeldungen=kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet");
   const [name,setName]=_react.useState.call(void 0, "");const [ebene,setEbene]=_react.useState.call(void 0, "EG");const [worker,setWorker]=_react.useState.call(void 0, (monteure[0]||{}).id||"");const [frist,setFrist]=_react.useState.call(void 0, td2());const [prio,setPrio]=_react.useState.call(void 0, "mittel");
@@ -10245,7 +10260,12 @@ function PlanThumbnail({planId, pageNum, active, onClick}) {
 
 function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
-  const plans=planData.plans.filter(pl=>pl.pid===p.id);const allTickets=planData.tickets.filter(t=>t.pid===p.id);const layers=planData.layers;
+  /* v3.9.23 KRITISCH Monteur-Permission: Plan-Tickets — Monteur sieht NUR EIGENE Tickets
+     (assignee===monteurId). Pins auf dem Plan + Sidebar-Liste + Tabelle nutzen alle allTickets.
+     Admin/PL/Büro sehen alles. */
+  const _vpIsField=curUser&&!isAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
+  const _vpMid=(curUser&&curUser.monteurId)||"";
+  const plans=planData.plans.filter(pl=>pl.pid===p.id);const _allTicketsRaw=planData.tickets.filter(t=>t.pid===p.id);const allTickets=_vpIsField?_allTicketsRaw.filter(t=>t.assignee===_vpMid):_allTicketsRaw;const layers=planData.layers;
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");const [zoom,setZoom]=_react.useState.call(void 0, 1);const [placing,setPlacing]=_react.useState.call(void 0, false);const [newTicket,setNewTicket]=_react.useState.call(void 0, null);const [filterType,setFilterType]=_react.useState.call(void 0, "alle");const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");const [filterLayer,setFilterLayer]=_react.useState.call(void 0, "alle");const [showSidebar,setShowSidebar]=_react.useState.call(void 0, true);const [sideMode,setSideMode]=_react.useState.call(void 0, "tickets");const fileRef=_react.useRef.call(void 0, null);const isMob=ww<600;const isTab=ww<768;
   const [dropActive,setDropActive]=_react.useState.call(void 0, false);
   const [pendingPin,setPendingPin]=_react.useState.call(void 0, null);
