@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.23';
+  var SW_VER='epkolar-v3.9.24';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.23-supabase";
+const APP_VERSION="3.9.24-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -5711,6 +5711,10 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     });
   },[]);
   const saveAs=()=>{if(!form.kundName&&!form.arbeitsanweisungen) return;
+    /* v3.9.24 KRITISCH Monteur-Permission: Monteur darf NUR für sich selbst Arbeitsscheine anlegen.
+       Defense-in-Depth: UI-Select ist disabled+forced (siehe form-render unten), aber falls jemand
+       per DevTools/React-State manuell setzt → hier bail-out + Toast. */
+    if(isMonteurRole&&!isAdmin&&form.monteur!==curUser.monteurId){_optionalChain([window,'access',_g324a=>_g324a.__toast,'optionalCall',_g324b=>_g324b("⚠️ Keine Berechtigung — Monteure können nur eigene Arbeitsscheine anlegen","warn")]);return;}
     // v3.5.71 Block 4b: Duplikat-Warnung bei neuem AS (gleicher Kunde + Termin ±3 Tage)
     if(!editId&&form.kundName&&form.terminBestaetigt){
       const ft=new Date(form.terminBestaetigt).getTime();
@@ -6441,7 +6445,7 @@ function sharePdf(){
                 , React.createElement('div', {}, React.createElement('label', { htmlFor:"lbl_asForm_terminBest", style: LL()}, "Bestätigt"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { id:"lbl_asForm_terminBest", type: "date", value: form.terminBestaetigt, onChange: e=>setForm(p=>({...p,terminBestaetigt:e.target.value})), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminZeit||"", onChange: e=>setForm(p=>({...p,terminZeit:e.target.value})), style: {...II(),width:isMob?"100%":90}, placeholder: "Uhrzeit"} )))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorschlag"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminVorschlag, onChange: e=>setForm(p=>({...p,terminVorschlag:e.target.value})), style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminVorschlagZeit||"", onChange: e=>setForm(p=>({...p,terminVorschlagZeit:e.target.value})), style: {...II(),width:isMob?"100%":90}} )))
                 , React.createElement('div', {}, React.createElement('label', { htmlFor:"lbl_asForm_dauer", style: LL()}, "Dauer (Std.)" ), React.createElement('input', { id:"lbl_asForm_dauer", value: form.dauer, onChange: e=>setForm(p=>({...p,dauer:e.target.value})), type:"number", inputMode:"decimal", step:"any", min:"0", style: II(), placeholder: "z.B. 3" } ))
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur"), React.createElement('select', { value: form.monteur, onChange: e=>setForm(p=>({...p,monteur:e.target.value})), style: II()}, monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur"), React.createElement('select', { value: form.monteur, onChange: e=>{if(isMonteurRole&&!isAdmin)return;setForm(p=>({...p,monteur:e.target.value}));}, disabled: isMonteurRole&&!isAdmin, title: isMonteurRole&&!isAdmin?"Monteure legen Arbeitsscheine nur für sich selbst an":"", style: {...II(),opacity:(isMonteurRole&&!isAdmin)?0.7:1,cursor:(isMonteurRole&&!isAdmin)?"not-allowed":"pointer"}}, monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))), isMonteurRole&&!isAdmin&&React.createElement('div', { style: {fontSize:10,color:V.dm,marginTop:2,fontStyle:"italic"}}, "🔒 Du legst nur für dich selbst an"))
               )
             )
           )
@@ -9706,7 +9710,13 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
       _optionalChain([window, 'access', _phu1 => _phu1.__toast, 'optionalCall', _phu2 => _phu2("📷 Foto hinzugefügt")]);
     }catch(e){console.warn("[vmang] Photo upload:",e);}
   };
-  const add=()=>{if(!name)return;const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:worker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full}))};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:newPhotos.map(ph=>ph.thumb),zugewiesen:worker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||""}});
+  const add=()=>{if(!name)return;
+    /* v3.9.24 KRITISCH Monteur-Permission: Mangel-Anlegen forced auf eigenen monteurId.
+       UI-Select ist disabled für Monteur (siehe form-render unten); Defense-in-Depth hier. */
+    const _isMonteurAdd=_vmIsField&&!isAdmin;
+    const _effWorker=_isMonteurAdd?(_vmMid||worker):worker;
+    if(_isMonteurAdd&&_effWorker!==_vmMid){_optionalChain([window,'access',_g324c=>_g324c.__toast,'optionalCall',_g324d=>_g324d("⚠️ Keine Berechtigung — Monteure können Mängel nur sich selbst zuweisen","warn")]);return;}
+    const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:_effWorker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full}))};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:newPhotos.map(ph=>ph.thumb),zugewiesen:_effWorker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||""}});
     // Queue photos for server upload
     newPhotos.forEach(ph=>{if(ph.file)captureAndQueue(ph.file,"defect",mid,p.id,"Mangel-Foto");});
     setName("");setNewPhotos([]);};
@@ -9790,7 +9800,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
         , React.createElement('div', { className: "form-grid-4", style: {gridTemplateColumns:isMob?"1fr 1fr":"2fr 1fr 1fr 1fr 1fr auto",alignItems:"end"}}
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Mangel 🎤" ), React.createElement(SpeechWrap, { value: name, onChange: v=>setName(v)}, React.createElement('input', { value: name, onChange: e=>setName(e.target.value), style: II()} )))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Ebene"), React.createElement('input', { value: ebene, onChange: e=>setEbene(e.target.value), style: II()} ))
-          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantw."), React.createElement('select', { value: worker, onChange: e=>setWorker(e.target.value), style: II()}, (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantw."), React.createElement('select', { value: (_vmIsField&&!isAdmin)?(_vmMid||worker):worker, onChange: e=>{if(_vmIsField&&!isAdmin)return;setWorker(e.target.value);}, disabled: _vmIsField&&!isAdmin, title: (_vmIsField&&!isAdmin)?"Monteure weisen Mängel nur sich selbst zu":"", style: {...II(),opacity:(_vmIsField&&!isAdmin)?0.7:1,cursor:(_vmIsField&&!isAdmin)?"not-allowed":"pointer"}}, (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: frist, onChange: e=>setFrist(e.target.value), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Prio"), React.createElement('select', { value: prio, onChange: e=>setPrio(e.target.value), style: II()}, React.createElement('option', {}, "mittel"), React.createElement('option', {}, "hoch"), React.createElement('option', {}, "niedrig")))
           , React.createElement('button', { onClick: add, style: bpS}, "+")
@@ -10295,7 +10305,13 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const handlePlanClick=(pos)=>{if(!placing||!selPlan||!selPlan.id)return;/* v3.8.59 Schema-Reality: pos = {xPct, yPct, x, y, page}. xPct/yPct nur fuer Vorschau-Pin-Position; x/y = DB-canonical Pixel. */setPendingPin({xPct:(pos&&pos.xPct)||0,yPct:(pos&&pos.yPct)||0,x:(pos&&pos.x)||0,y:(pos&&pos.y)||0,page:(pos&&pos.page)||1});};
   const confirmPendingPin=()=>{if(!pendingPin||!selPlan||!selPlan.id){setPendingPin(null);return;}/* v3.8.59 Schema-Reality: setNewTicket nutzt Pixel x/y (DB-canonical). xPct/yPct nicht in DB-Spalten. */setNewTicket({x:pendingPin.x||0,y:pendingPin.y||0,page:pendingPin.page||1,planId:selPlan.id,pid:p.id,type:"mangel",title:"",description:"",status:"offen",priority:"mittel",assignee:"",layer:_optionalChain([layers, 'access', _384 => _384[0], 'optionalAccess', _385 => _385.id])||"l1",dueDate:"",photos:[],comments:[]});setPendingPin(null);setPlacing(false);setSideMode("create");};
   const cancelPendingPin=()=>{setPendingPin(null);};
-  const createTicket=()=>{if(!_optionalChain([newTicket, 'optionalAccess', _386 => _386.title]))return;const ticket={...newTicket,id:uid(),createdAt:td2(),updatedAt:td2(),progress:0};setPlanData(prev=>({...prev,tickets:[...prev.tickets,ticket]}));SQ.push({url:"/api/tickets",method:"POST",body:{id:ticket.id,plan_id:_optionalChain([selPlan, 'optionalAccess', _387 => _387.id]),project_id:p.id,x:ticket.x||0,y:ticket.y||0,page:ticket.page||1,title:ticket.title,description:ticket.description||"",status:"offen",priority:ticket.priority||"normal",layer:ticket.layer||"maengel",assignee:ticket.assignee||"",photos:[]}});if(ticket.type==="mangel"){setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),{id:ticket.id,pid:p.id,name:ticket.title,ebene:_optionalChain([layers, 'access', _388 => _388.find, 'call', _389 => _389(l=>l.id===ticket.layer), 'optionalAccess', _390 => _390.name])||"",worker:ticket.assignee,frist:ticket.dueDate||td2(),prio:ticket.priority==="kritisch"||ticket.priority==="hoch"?"hoch":ticket.priority,status:"offen",date:td2(),fromPlan:true}]}));SQ.push({url:"/api/defects",method:"POST",body:{id:ticket.id,projectId:p.id,title:ticket.title,description:ticket.description||"",status:"offen",prio:ticket.priority||"normal",images:[]}});}setNewTicket(null);setSideMode("tickets");setSelTicket(ticket);};
+  const createTicket=()=>{if(!_optionalChain([newTicket, 'optionalAccess', _386 => _386.title]))return;
+    /* v3.9.24 KRITISCH Monteur-Permission: Plan-Tickets — Monteur kann nur sich selbst zuweisen.
+       Defense-in-Depth zur disabled-UI unten. */
+    const _isMtTicket=_vpIsField&&!isAdmin;
+    const _ticketAssignee=_isMtTicket?_vpMid:(newTicket.assignee||"");
+    if(_isMtTicket&&_ticketAssignee!==_vpMid){_optionalChain([window,'access',_g324e=>_g324e.__toast,'optionalCall',_g324f=>_g324f("⚠️ Keine Berechtigung — Monteure können Tickets nur sich selbst zuweisen","warn")]);return;}
+    const ticket={...newTicket,assignee:_ticketAssignee,id:uid(),createdAt:td2(),updatedAt:td2(),progress:0};setPlanData(prev=>({...prev,tickets:[...prev.tickets,ticket]}));SQ.push({url:"/api/tickets",method:"POST",body:{id:ticket.id,plan_id:_optionalChain([selPlan, 'optionalAccess', _387 => _387.id]),project_id:p.id,x:ticket.x||0,y:ticket.y||0,page:ticket.page||1,title:ticket.title,description:ticket.description||"",status:"offen",priority:ticket.priority||"normal",layer:ticket.layer||"maengel",assignee:ticket.assignee||"",photos:[]}});if(ticket.type==="mangel"){setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),{id:ticket.id,pid:p.id,name:ticket.title,ebene:_optionalChain([layers, 'access', _388 => _388.find, 'call', _389 => _389(l=>l.id===ticket.layer), 'optionalAccess', _390 => _390.name])||"",worker:ticket.assignee,frist:ticket.dueDate||td2(),prio:ticket.priority==="kritisch"||ticket.priority==="hoch"?"hoch":ticket.priority,status:"offen",date:td2(),fromPlan:true}]}));SQ.push({url:"/api/defects",method:"POST",body:{id:ticket.id,projectId:p.id,title:ticket.title,description:ticket.description||"",status:"offen",prio:ticket.priority||"normal",images:[]}});}setNewTicket(null);setSideMode("tickets");setSelTicket(ticket);};
   const updateTicket=u=>{setPlanData(prev=>({...prev,tickets:prev.tickets.map(t=>t.id===u.id?u:t)}));setSelTicket(u);/* v3.8.49 Bug-Fix: progress-Feld fehlte im Server-Body — UI-Range-Slider (0-100%) änderte nur lokalen State, nach Reload war Fortschritt wieder alt. Auch updatedAt mitschicken für Audit. */SQ.push({url:"/api/tickets/"+u.id,method:"PUT",body:{title:u.title,description:u.description||"",status:u.status,priority:u.priority||"normal",assignee:u.assignee||"",photos:u.photos||[],progress:u.progress||0,updated_at:u.updatedAt||td2()/* v3.9.17 B-007 TZ-drift: toISOString().slice(0,10) drifted +1d für late-Wien-evening updates → _ymd via td2() */}});};
   const deleteTicket=async id=>{if(!isAdmin)return;if(!await _confirmModal("Ticket wirklich löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,tickets:prev.tickets.filter(t=>t.id!==id)}));SQ.push({url:"/api/tickets/"+id,method:"DELETE"});setSelTicket(null);setSideMode("tickets");};
   const toggleLayer=id=>setPlanData(prev=>({...prev,layers:prev.layers.map(l=>l.id===id?{...l,visible:!l.visible}:l)}));
@@ -10323,7 +10339,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
           , React.createElement('div', { style: {display:"flex",gap:2,marginBottom:8}}, [{id:"tickets",l:"🎫 Tickets"},{id:"detail",l:"📋 Detail"}].map(t=>(React.createElement('button', { key: t.id, onClick: ()=>setSideMode(t.id), style: {flex:1,padding:"6px 8px",border:"none",background:sideMode===t.id?"rgba(249,115,22,.1)":"transparent",color:sideMode===t.id?V.ac:V.dm,fontSize:11,fontWeight:sideMode===t.id?700:400,cursor:"pointer",fontFamily:"inherit",borderRadius:6}}, t.l))))
           , sideMode==="tickets"&&(React.createElement('div', {}, React.createElement('div', { style: {display:"flex",gap:4,marginBottom:8}}, React.createElement('select', { value: filterType, onChange: e=>setFilterType(e.target.value), style: {...II(),fontSize:10,padding:"4px 6px",flex:1}}, React.createElement('option', { value: "alle"}, "Alle Typen" ), Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l)))), React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),fontSize:10,padding:"4px 6px",flex:1}}, React.createElement('option', { value: "alle"}, "Alle Status" ), Object.entries(TICKET_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l))))), React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:6}}, filteredTickets.length, " Tickets" ), React.createElement('div', { style: {maxHeight:500,overflowY:"auto"}}, filteredTickets.map(t=>(React.createElement(TicketListItem, { key: t.id, ticket: t, layers: layers, monteure: monteure, onClick: t=>{setSelTicket(t);setSideMode("detail");}, selected: _optionalChain([selTicket, 'optionalAccess', _401 => _401.id])===t.id} ))), !filteredTickets.length&&React.createElement('div', { style: {padding:20,textAlign:"center",color:V.dm,fontSize:12}}, "Keine Tickets" ))))
           , sideMode==="detail"&&selTicket&&(React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>{setSelTicket(null);setSideMode("tickets");}, ww: ww, monteure: monteure, isAdmin: isAdmin} ))
-          , sideMode==="create"&&newTicket&&(React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, "📌 Neues Ticket"  ), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Titel * 🎤"  ), React.createElement(SpeechWrap, { value: newTicket.title, onChange: v=>setNewTicket(p=>({...p,title:v}))}, React.createElement('input', { value: newTicket.title, onChange: e=>setNewTicket(p=>({...p,title:e.target.value})), style: II(), placeholder: "z.B. Steckdose fehlt"  , autoFocus: true} ))), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Beschreibung 🎤" ), React.createElement(SpeechWrap, { value: newTicket.description, onChange: v=>setNewTicket(p=>({...p,description:v}))}, React.createElement('textarea', { value: newTicket.description, onChange: e=>setNewTicket(p=>({...p,description:e.target.value})), rows: 2, style: {...II(),resize:"vertical"}} ))), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}, React.createElement('div', {}, React.createElement('label', { style: LL()}, "Typ"), React.createElement('select', { value: newTicket.type, onChange: e=>setNewTicket(p=>({...p,type:e.target.value})), style: II()}, Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Priorität"), React.createElement('select', { value: newTicket.priority, onChange: e=>setNewTicket(p=>({...p,priority:e.target.value})), style: II()}, Object.entries(TICKET_PRIO).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ebene"), React.createElement('select', { value: newTicket.layer, onChange: e=>setNewTicket(p=>({...p,layer:e.target.value})), style: II()}, layers.map(l=>(React.createElement('option', { key: l.id, value: l.id}, l.icon, " " , l.name))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: newTicket.assignee, onChange: e=>setNewTicket(p=>({...p,assignee:e.target.value})), style: II()}, React.createElement('option', { value: ""}, "—"), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))), React.createElement('div', { style: {marginBottom:8}}, React.createElement('label', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: newTicket.dueDate, onChange: e=>setNewTicket(p=>({...p,dueDate:e.target.value})), style: II()} )), React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: createTicket, style: bpS}, "✅ Erstellen" ), React.createElement('button', { onClick: ()=>{setNewTicket(null);setSideMode("tickets");}, style: bsS()}, "Abbrechen"))))
+          , sideMode==="create"&&newTicket&&(React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, "📌 Neues Ticket"  ), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Titel * 🎤"  ), React.createElement(SpeechWrap, { value: newTicket.title, onChange: v=>setNewTicket(p=>({...p,title:v}))}, React.createElement('input', { value: newTicket.title, onChange: e=>setNewTicket(p=>({...p,title:e.target.value})), style: II(), placeholder: "z.B. Steckdose fehlt"  , autoFocus: true} ))), React.createElement('div', { style: {marginBottom:6}}, React.createElement('label', { style: LL()}, "Beschreibung 🎤" ), React.createElement(SpeechWrap, { value: newTicket.description, onChange: v=>setNewTicket(p=>({...p,description:v}))}, React.createElement('textarea', { value: newTicket.description, onChange: e=>setNewTicket(p=>({...p,description:e.target.value})), rows: 2, style: {...II(),resize:"vertical"}} ))), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}, React.createElement('div', {}, React.createElement('label', { style: LL()}, "Typ"), React.createElement('select', { value: newTicket.type, onChange: e=>setNewTicket(p=>({...p,type:e.target.value})), style: II()}, Object.entries(TICKET_TYPES).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Priorität"), React.createElement('select', { value: newTicket.priority, onChange: e=>setNewTicket(p=>({...p,priority:e.target.value})), style: II()}, Object.entries(TICKET_PRIO).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.i, " " , v.l))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ebene"), React.createElement('select', { value: newTicket.layer, onChange: e=>setNewTicket(p=>({...p,layer:e.target.value})), style: II()}, layers.map(l=>(React.createElement('option', { key: l.id, value: l.id}, l.icon, " " , l.name))))), React.createElement('div', {}, React.createElement('label', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: (_vpIsField&&!isAdmin)?(_vpMid||newTicket.assignee):newTicket.assignee, onChange: e=>{if(_vpIsField&&!isAdmin)return;setNewTicket(p=>({...p,assignee:e.target.value}));}, disabled: _vpIsField&&!isAdmin, title: (_vpIsField&&!isAdmin)?"Monteure weisen Tickets nur sich selbst zu":"", style: {...II(),opacity:(_vpIsField&&!isAdmin)?0.7:1,cursor:(_vpIsField&&!isAdmin)?"not-allowed":"pointer"}}, React.createElement('option', { value: ""}, "—"), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))), React.createElement('div', { style: {marginBottom:8}}, React.createElement('label', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: newTicket.dueDate, onChange: e=>setNewTicket(p=>({...p,dueDate:e.target.value})), style: II()} )), React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: createTicket, style: bpS}, "✅ Erstellen" ), React.createElement('button', { onClick: ()=>{setNewTicket(null);setSideMode("tickets");}, style: bsS()}, "Abbrechen"))))
           , sideMode==="detail"&&!selTicket&&(React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm,fontSize:12}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "👈"), "Ticket auswählen" ))
         ))
       ))
@@ -11071,6 +11087,11 @@ const DOC_CATS=[
 ];
 function VDoku({p,ww,curUser,forms,setForms}){
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
+  /* v3.9.24 KRITISCH Monteur-Permission: Dokumentexplorer Read-Only für Monteur/Helfer/Techniker/Obermonteur.
+     Erhalten: View (👁️), Open (PDF/Bild), Download (💾). Gesperrt: Upload, Delete, Rename, Move, Folder-Ops,
+     Kundenportal-Freigabe. Buero/Admin/PL behalten volle Rechte. */
+  const _vdIsField=curUser&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
+  const _canEditDoc=!_vdIsField; // = admin/projektleiter/buero/sonst (alle nicht-field-Rollen)
   const [docs,setDocs]=_react.useState.call(void 0, []);
   const [folders,setFolders]=_react.useState.call(void 0, []);
   const [curFolder,setCurFolder]=_react.useState.call(void 0, null);
@@ -11119,6 +11140,8 @@ function VDoku({p,ww,curUser,forms,setForms}){
   _react.useEffect.call(void 0, ()=>{ODB.save("folders_"+p.id,folders);},[folders,p.id]);
 
   const addFolder=(parentId)=>{
+    /* v3.9.24 Monteur read-only */
+    if(!_canEditDoc){_optionalChain([window,'access',_g324g=>_g324g.__toast,'optionalCall',_g324h=>_g324h("🔒 Nur Lesezugriff für Monteure","warn")]);return;}
     const name=(parentId?newSubName:newFolderName).trim();if(!name)return;
     const f={id:uid(),name,color:DOC_CATS[Math.floor(Math.random()*DOC_CATS.length)].c,parentId:parentId||"",createdAt:td2()};
     setFolders(prev=>[...prev,f]);SQ.push({url:"/api/project-folders",method:"POST",body:{id:f.id,project_id:p.id,name:f.name,color:f.color,parent_id:f.parentId||null}});
@@ -11126,6 +11149,8 @@ function VDoku({p,ww,curUser,forms,setForms}){
     else{setNewFolderName("");setShowNewFolder(false);}
   };
   const renameFolder=()=>{
+    /* v3.9.24 Monteur read-only */
+    if(!_canEditDoc){_optionalChain([window,'access',_g324i=>_g324i.__toast,'optionalCall',_g324j=>_g324j("🔒 Nur Lesezugriff für Monteure","warn")]);return;}
     if(!editFolderName.trim())return;
     setFolders(prev=>prev.map(f=>f.id===editFolderId?{...f,name:editFolderName.trim()}:f));
     SQ.push({url:"/api/project-folders/"+editFolderId,method:"PUT",body:{name:editFolderName.trim()}});
@@ -11148,6 +11173,8 @@ function VDoku({p,ww,curUser,forms,setForms}){
   };
 
   const addDoc=(file)=>{
+    /* v3.9.24 Monteur read-only — Upload gesperrt */
+    if(!_canEditDoc){_optionalChain([window,'access',_g324k=>_g324k.__toast,'optionalCall',_g324l=>_g324l("🔒 Nur Lesezugriff für Monteure","warn")]);return;}
     const isImg=_optionalChain([file, 'access', _436 => _436.type, 'optionalAccess', _437 => _437.startsWith, 'call', _438 => _438("image/")]);
     const reader=new FileReader();
     /* v3.8.49 Bug-Fix: onerror-Handler fehlte — bei Quota-Exhausted oder Permission-
@@ -11166,7 +11193,11 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
   const delDoc=async id=>{if(!isAdmin)return;if(!await _confirmModal("Dokument wirklich löschen?",{variant:"danger"}))return;setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
   const openDoc=d=>{_openFileUrl(d.dataUrl||d.fileUrl,d.fileName||d.name);};
-  const moveDoc=(docId,folderId)=>{setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"PUT",body:{folder_id:folderId}});};
+  const moveDoc=(docId,folderId)=>{
+    /* v3.9.24 Monteur read-only — Move gesperrt */
+    if(!_canEditDoc){_optionalChain([window,'access',_g324m=>_g324m.__toast,'optionalCall',_g324n=>_g324n("🔒 Nur Lesezugriff für Monteure","warn")]);return;}
+    setDocs(prev=>prev.map(d=>d.id===docId?{...d,folderId}:d));SQ.push({url:"/api/project-documents/"+docId,method:"PUT",body:{folder_id:folderId}});
+  };
 
   const toggleKundeFreigabe=(d)=>{
     /* v3.8.49 Defense-in-Depth: Kundenportal-Freigabe ist Admin/PL-only (Dokumente für
@@ -11235,7 +11266,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
           ,
           directCount>0&&React.createElement('span', {style:{fontSize:10,color:V.dm,fontFamily:mono,flexShrink:0}}, directCount)
         ),
-        isAdmin&&editFolderId!==folder.id&&React.createElement('div', {style:{display:"flex",gap:0,opacity:.5,flexShrink:0},className:"tree-actions",onClick:e=>e.stopPropagation()},
+        _canEditDoc&&editFolderId!==folder.id&&React.createElement('div', {style:{display:"flex",gap:0,opacity:.5,flexShrink:0},className:"tree-actions",onClick:e=>e.stopPropagation()},
           React.createElement('button', {onClick:()=>{setNewSubIn(folder.id);setNewSubName("");setExpanded(prev=>({...prev,[folder.id]:true}));},style:{border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:10,padding:"2px 4px"},title:"Unterordner erstellen"},"＋"),
           React.createElement('button', {onClick:()=>{setEditFolderId(folder.id);setEditFolderName(folder.name);},style:{border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:10,padding:"2px 4px"},title:"Umbenennen"},"✏️"),
           React.createElement('button', {onClick:()=>delFolder(folder.id),style:{border:"none",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:10,padding:"2px 4px"},title:"Löschen"},"✕")
@@ -11267,7 +11298,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const treePanel=React.createElement('div', {style:{width:isMob?"100%":treeW,minWidth:isMob?"auto":200,flexShrink:0,borderRight:isMob?"none":"1px solid "+V.bd,paddingRight:isMob?0:10,marginBottom:isMob?10:0,maxHeight:isMob?"none":"70vh",overflowY:"auto"}},
     React.createElement('div', {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
       React.createElement('div', {style:{fontSize:12,fontWeight:700,color:V.dm,textTransform:"uppercase",letterSpacing:.5}},"Ordner"),
-      isAdmin&&React.createElement('button', {onClick:()=>setShowNewFolder(!showNewFolder),style:{border:"none",background:"transparent",color:V.ac,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:700}}, showNewFolder?"✕":"+ Neu")
+      _canEditDoc&&React.createElement('button', {onClick:()=>setShowNewFolder(!showNewFolder),style:{border:"none",background:"transparent",color:V.ac,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:700}}, showNewFolder?"✕":"+ Neu")
     ),
     showNewFolder&&React.createElement('div', {style:{display:"flex",gap:2,alignItems:"center",marginBottom:6}},
       React.createElement('span', {style:{fontSize:13}},"📁"),
@@ -11299,7 +11330,8 @@ function VDoku({p,ww,curUser,forms,setForms}){
         , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:0}}, "Fotos & Dateien hochladen, durchsuchen und herunterladen." )
         , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center"}}
           , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "🔍 Suchen..." , style: {...II(),width:"auto",maxWidth:isMob?120:200,fontSize:12}} )
-          , canDo("doc_upload",curUser)&&React.createElement('button', { onClick: ()=>setShowUp(!showUp), style: bpS}, showUp?"✕":"📤 Hochladen")
+          , _canEditDoc&&canDo("doc_upload",curUser)&&React.createElement('button', { onClick: ()=>setShowUp(!showUp), style: bpS}, showUp?"✕":"📤 Hochladen")
+          , !_canEditDoc&&React.createElement('span', { style: {padding:"3px 10px",borderRadius:12,background:V.bd+"44",color:V.dm,fontSize:10,fontWeight:600}, title: "Monteure haben Lesezugriff: View, Open, Download"}, "🔒 Nur Lesezugriff" )
           , freigegebenCount>0&&React.createElement('span', { style: {padding:"3px 10px",borderRadius:12,background:"#009640",color:"#fff",fontSize:10,fontWeight:700}}, "🔗 " , freigegebenCount, " für Kundenportal" )
         )
       )
@@ -11343,11 +11375,16 @@ function VDoku({p,ww,curUser,forms,setForms}){
           ))
 
           /* Empty state with drop zone */
-          , !fil.length&&!showUp&&(React.createElement('div', { onDrop: e=>{e.preventDefault();handleUpload({target:{files:_optionalChain([e, 'access', _454 => _454.dataTransfer, 'optionalAccess', _455 => _455.files]),value:""}});}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;}, style: {border:"2px dashed "+V.bd,borderRadius:10,padding:40,textAlign:"center",cursor:"pointer",transition:"border-color .2s"}, onClick: ()=>setShowUp(true)}
+          , !fil.length&&!showUp&&_canEditDoc&&(React.createElement('div', { onDrop: e=>{e.preventDefault();handleUpload({target:{files:_optionalChain([e, 'access', _454 => _454.dataTransfer, 'optionalAccess', _455 => _455.files]),value:""}});}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;}, style: {border:"2px dashed "+V.bd,borderRadius:10,padding:40,textAlign:"center",cursor:"pointer",transition:"border-color .2s"}, onClick: ()=>setShowUp(true)}
             , React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "📁")
             , React.createElement('div', { style: {fontSize:14,fontWeight:600,color:"#a1a1aa"}}, curFolder&&curFolder!=="__none"?"Ordner leer":"Noch keine Dokumente")
             , React.createElement('div', { style: {fontSize:12,color:V.mt,marginTop:4}}, "Baubesprechungsprotokolle, Datenblätter, Schaltpläne etc. hier ablegen"     )
             , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:8}}, "📤 Klicken oder Dateien hierher ziehen"     )
+          ))
+          , !fil.length&&!_canEditDoc&&(React.createElement('div', { style: {border:"2px dashed "+V.bd,borderRadius:10,padding:40,textAlign:"center"}}
+            , React.createElement('div', { style: {fontSize:32,marginBottom:8}}, "🔒")
+            , React.createElement('div', { style: {fontSize:14,fontWeight:600,color:"#a1a1aa"}}, "Keine Dokumente verfügbar"  )
+            , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:8}}, "Du hast Lesezugriff (View, Open, Download)"     )
           ))
 
           /* File grid */
@@ -11366,9 +11403,9 @@ function VDoku({p,ww,curUser,forms,setForms}){
                 , React.createElement('div', { style: {display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}, onClick: e=>e.stopPropagation()}
                   , React.createElement('button', { onClick: ()=>openDoc(d), style: {...bsS(),padding:"3px 8px",fontSize:10}}, "👁️")
                   , React.createElement('button', { onClick: ()=>{if(d.dataUrl){const a=document.createElement("a");a.href=d.dataUrl;a.download=d.filename||d.name;a.click();}}, style: {...beS,padding:"3px 8px",fontSize:10}}, "💾")
-                  , React.createElement('select', { value: d.folderId||"", onChange: e=>moveDoc(d.id,e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"2px 4px"}}, React.createElement('option', { value: ""}, "— Ordner —"  ), allFolderOpts.map(f=>(React.createElement('option', { key: f.id, value: f.id}, f.label))))
+                  , _canEditDoc&&React.createElement('select', { value: d.folderId||"", onChange: e=>moveDoc(d.id,e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"2px 4px"}}, React.createElement('option', { value: ""}, "— Ordner —"  ), allFolderOpts.map(f=>(React.createElement('option', { key: f.id, value: f.id}, f.label))))
                   , isAdmin&&React.createElement('button', { onClick: async ()=>{if(await _confirmModal("Löschen?",{variant:"danger"}))delDoc(d.id);}, style: {...bdS,padding:"3px 8px",fontSize:10}}, "🗑️")
-                  , React.createElement('button', { onClick: ()=>toggleKundeFreigabe(d), style: {padding:"3px 8px",borderRadius:6,border:isDocFreigegeben(d.id)?"1px solid #009640":"1px solid "+V.bd,background:isDocFreigegeben(d.id)?"#00964018":"transparent",color:isDocFreigegeben(d.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}, title: isDocFreigegeben(d.id)?"Freigabe zurückziehen":"Für Kundenportal freigeben"}, isDocFreigegeben(d.id)?"🔗 Freigegeben":"📤 Freigeben")
+                  , _canEditDoc&&React.createElement('button', { onClick: ()=>toggleKundeFreigabe(d), style: {padding:"3px 8px",borderRadius:6,border:isDocFreigegeben(d.id)?"1px solid #009640":"1px solid "+V.bd,background:isDocFreigegeben(d.id)?"#00964018":"transparent",color:isDocFreigegeben(d.id)?"#009640":V.dm,cursor:"pointer",fontWeight:600,fontSize:10,fontFamily:"inherit"}, title: isDocFreigegeben(d.id)?"Freigabe zurückziehen":"Für Kundenportal freigeben"}, isDocFreigegeben(d.id)?"🔗 Freigegeben":"📤 Freigeben")
                 )
                 , isDocFreigegeben(d.id)&&React.createElement('div', { style: {position:"absolute",top:8,right:8,padding:"2px 8px",borderRadius:10,background:"#009640",color:"#fff",fontSize:9,fontWeight:700}}, "🔗 Kundenportal" )
               ));
