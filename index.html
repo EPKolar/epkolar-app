@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.26';
+  var SW_VER='epkolar-v3.9.27';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.26-supabase";
+const APP_VERSION="3.9.27-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -6320,7 +6320,8 @@ function sharePdf(){
                 const dayAs=getAsDay(day);
                 const hourAs=dayAs.filter(a=>{
                   if(!a.terminBestaetigt&&!a.aufgenommen)return h===8;
-                  const tStr=a.terminZeit||"08:00";const tH=parseInt(tStr.split(":")[0])||8;
+                  /* v3.9.27 K-F2: 00:00-Termine (tH=0) wurden fälschlich in 08:00-Bucket gebucht — Number.isFinite-Guard statt ||8 */
+                  const tStr=a.terminZeit||"08:00";const _tH=parseInt(tStr.split(":")[0]);const tH=Number.isFinite(_tH)?_tH:8;
                   return tH===h;
                 });
                 return React.createElement('div', { key: di, style: {borderRight:di<6?"1px solid "+V.grid:"none",borderBottom:"1px solid "+V.grid,padding:"1px 2px",minHeight:48,background:today?"rgba(139,92,246,.04)":we?V.weBg:"transparent",verticalAlign:"top"}}
@@ -6345,7 +6346,8 @@ function sharePdf(){
             /* Timeline */
             , React.createElement('div', { style: {position:"relative"}}
               , HOURS.map(h=>{
-                const hourAs=dayAs.filter(a=>{const tStr=a.terminZeit||"08:00";const tH=parseInt(tStr.split(":")[0])||8;return tH===h;});
+                /* v3.9.27 K-F2: 00:00-Termine (tH=0) wurden fälschlich in 08:00-Bucket gebucht — Number.isFinite-Guard statt ||8 */
+                const hourAs=dayAs.filter(a=>{const tStr=a.terminZeit||"08:00";const _tH=parseInt(tStr.split(":")[0]);const tH=Number.isFinite(_tH)?_tH:8;return tH===h;});
                 return React.createElement('div', { key: h, style: {display:"flex",gap:8,minHeight:hourAs.length>0?"auto":36,borderBottom:"1px solid "+V.grid,alignItems:"flex-start"}}
                   , React.createElement('div', { style: {width:50,fontSize:11,color:V.dm,fontFamily:mono,padding:"4px 0",textAlign:"right",flexShrink:0}}, String(h).padStart(2,"0"), ":00")
                   , React.createElement('div', { style: {flex:1,display:"flex",flexDirection:"column",gap:4,padding:"3px 0"}}
@@ -13449,14 +13451,16 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   // Export
   const exportAbsCsv=()=>{
     const hdrs=["Nr","Mitarbeiter","Datum","Typ","Status","Stunden","Kontingent h","Verbraucht h","Rest h"];const csvRows=[];let nr=0;
-    names.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=(ks.stunden||192.5)+(ks.vorjahr||0)-ys.urlaubStdGen;const total=(ks.stunden||192.5)+(ks.vorjahr||0);
-      Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");nr++;csvRows.push([nr,m,dateStr,_optionalChain([AT_T, 'access', _568 => _568[v.type], 'optionalAccess', _569 => _569.l])||v.type,approvals[key]||"ausstehend",v.hours||stdTag(m),_n(total,1),_n(ys.urlaubStdGen,1),_n(rest,1)]);}});});
+    /* v3.9.27 A-F1: Export-Rest jetzt konsistent mit resturlaub() — zieht genehmigt + ausstehend ab. */
+    names.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=resturlaub(m);const verbraucht=(ys.urlaubStdGen||0)+(ys.urlaubStdAusstehend||0);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
+      Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");nr++;csvRows.push([nr,m,dateStr,_optionalChain([AT_T, 'access', _568 => _568[v.type], 'optionalAccess', _569 => _569.l])||v.type,approvals[key]||"ausstehend",v.hours||stdTag(m),_n(total,1),_n(verbraucht,1),_n(rest,1)]);}});});
     genXls("🏖️ Abwesenheit — "+yr,"Andreas Kolar & Sohn GesmbH · "+names.length+" Mitarbeiter",hdrs,csvRows,"Abwesenheit_"+yr+".xls",{colWidths:[35,110,75,90,75,55,65,65,55],leftCols:[0,1,2,3],boldCols:[1],statusMap:{"Urlaub":"#3b82f6","Krankenstand":"#ef4444","Zeitausgleich":"#a855f7","Pflegefreistellung":"#f97316","genehmigt":"#22c55e","abgelehnt":"#ef4444","ausstehend":"#eab308"}});
   };
   const exportAbsTxt=()=>{
     const lines=["═══════════════════════════════════════════════","  ABWESENHEITSÜBERSICHT "+yr+" — Andreas Kolar & Sohn GesmbH","═══════════════════════════════════════════════",""];
-    names.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=(ks.stunden||192.5)+(ks.vorjahr||0)-ys.urlaubStdGen;const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;if(total===0)return;
-      lines.push("──── "+m+" ────");lines.push("  Kontingent: "+_n(((ks.stunden||192.5)+(ks.vorjahr||0)),1)+"h ("+(ks.stunden||192.5)+"h + "+(ks.vorjahr||0)+"h Vorjahr) · Verbraucht: "+_n(ys.urlaubStdGen,1)+"h · Rest: "+_n(rest,1)+"h");lines.push("  Urlaub: "+ys.urlaub+"T ("+_n(ys.urlaubStd,1)+"h) · Krankenstand: "+ys.krankenstand+"T ("+_n(ys.krankenstandStd,1)+"h) · ZA: "+ys.zeitausgleich+"T");lines.push("");});
+    /* v3.9.27 A-F1: Export-Rest jetzt konsistent mit resturlaub() — zieht genehmigt + ausstehend ab. Verbraucht-Anzeige zeigt beide separat. */
+    names.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=resturlaub(m);const verbraucht=(ys.urlaubStdGen||0)+(ys.urlaubStdAusstehend||0);const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;if(total===0)return;
+      lines.push("──── "+m+" ────");lines.push("  Kontingent: "+_n(((ks.stunden||192.5)+(ks.vorjahr||0)),1)+"h ("+(ks.stunden||192.5)+"h + "+(ks.vorjahr||0)+"h Vorjahr) · Verbraucht: "+_n(verbraucht,1)+"h ("+_n(ys.urlaubStdGen,1)+"h genehmigt + "+_n(ys.urlaubStdAusstehend||0,1)+"h ausstehend) · Rest: "+_n(rest,1)+"h");lines.push("  Urlaub: "+ys.urlaub+"T ("+_n(ys.urlaubStd,1)+"h) · Krankenstand: "+ys.krankenstand+"T ("+_n(ys.krankenstandStd,1)+"h) · ZA: "+ys.zeitausgleich+"T");lines.push("");});
     lines.push("═══════════════════════════════════════════════","  Export: "+new Date().toLocaleDateString("de-AT",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}),"═══════════════════════════════════════════════","","╔══════════════════════════════════════════════════════════════════════════════╗","║  Andreas Kolar & Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram    ║","║  Tel: +43 2279 2361 · office@ep-kolar.at · www.ep-kolar.at                  ║","║  FN 042490k, LG St. Pölten · UID: ATU20296908 · Gerichtsstand: Tulln        ║","╚══════════════════════════════════════════════════════════════════════════════╝");
     _dl(new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"}),"Abwesenheit_"+yr+".txt");
   };
@@ -13602,7 +13606,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
             , React.createElement('th', { style: {...thS(),fontSize:10}}, "Anspruch h" )
             , React.createElement('th', { style: {...thS(),fontSize:10}}, "Vorjahr h" )
             , React.createElement('th', { style: {...thS(),fontSize:10}}, "Gesamt h" )
-            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#3b82f6"}, title: "Urlaubs-Stunden gesamt (genehmigt + ausstehend). Nur genehmigte werden vom Resturlaub abgezogen."}, "Urlaub" )
+            , React.createElement('th', { style: {...thS(),fontSize:10,color:"#3b82f6"}, title: "Urlaubs-Stunden gesamt (genehmigt + ausstehend). Beide werden vom Resturlaub abgezogen — nur Abgelehnte ignoriert."}, "Urlaub" )
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#ef4444"}}, "Krank")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#a855f7"}}, "ZA")
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f97316"}}, "Sonder")
