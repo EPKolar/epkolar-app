@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.14';
+  var SW_VER='epkolar-v3.9.15';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2161,7 +2161,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.14-supabase";
+const APP_VERSION="3.9.15-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -13238,6 +13238,73 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     ));
   };
 
+  // ═══ v3.9.15 Layout-Refactor: 3 Sidebar-Karten als View-Level-Block ═══
+  // Aus dem Kalender-Tab herausgezogen — sichtbar auf allen 4 Tabs.
+  // Card-Design aufgeräumt (Mini-KPIs + Stat-Liste + Null-"-", Drop-Zone-only, einheitlicher Button-Stack).
+  const _renderUrlaubBoxGuenther = () => {
+    const ys = yearSt(sel);
+    const rest = resturlaub(sel);
+    const krank = ys.krankenstand || 0;
+    const sonderH = ys.sonderStdGes || 0;
+    const pflegeH = ys.pflegeStdGes || 0;
+    const urlaubH = ys.urlaubStd || 0;
+    const zaH = ys.zeitausgleichStd || 0;
+    const urlaubTg = ys.urlaub || 0;
+    const zaTg = ys.zeitausgleich || 0;
+    const _row = (icon, label, valH, tg, color) => React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 4px",fontSize:12,borderTop:"1px solid rgba(255,255,255,.04)"}}
+      , React.createElement('span', null, icon+" "+label)
+      , valH>0
+          ? React.createElement('span', { style: {fontFamily:mono} }, React.createElement('span', { style: {color:color,fontWeight:700}}, _n(valH,1)+"h"), tg>0?React.createElement('span', { style: {color:V.dm,fontSize:11,marginLeft:6}}, tg+" Tg"):null)
+          : React.createElement('span', { style: {color:V.dm} }, "—")
+    );
+    return React.createElement('div', { style: CC() }
+      , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10} }
+        , React.createElement('div', { style: {fontSize:13,fontWeight:700} }, "🎯 "+sel)
+        , React.createElement('div', { style: {fontSize:11,color:V.dm} }, String(yr))
+      )
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10} }
+        , React.createElement('div', { style: {background:"rgba(110,168,255,.10)",borderRadius:8,padding:10,textAlign:"center"} }
+          , React.createElement('div', { style: {fontSize:18,fontWeight:700,color:"#6ea8ff",fontFamily:mono} }, (typeof rest==="number"?_n(rest,0):rest)+"h")
+          , React.createElement('div', { style: {fontSize:10,color:V.dm,textTransform:"uppercase",marginTop:2,letterSpacing:.5} }, "Resturlaub")
+        )
+        , React.createElement('div', { style: {background:"rgba(255,107,107,.10)",borderRadius:8,padding:10,textAlign:"center"} }
+          , React.createElement('div', { style: {fontSize:18,fontWeight:700,color:"#ff6b6b",fontFamily:mono} }, krank)
+          , React.createElement('div', { style: {fontSize:10,color:V.dm,textTransform:"uppercase",marginTop:2,letterSpacing:.5} }, "Krank")
+        )
+      )
+      , React.createElement('div', { style: {display:"flex",flexDirection:"column"} }
+        , _row("🏖️", "Urlaub", urlaubH, urlaubTg, "#6ea8ff")
+        , _row("⏰", "ZA", zaH, zaTg, "#a855f7")
+        , _row("🌿", "Sonderurlaub", sonderH, 0, "#f97316")
+        , _row("🩺", "Pflegefrei", pflegeH, 0, "#f97316")
+      )
+    );
+  };
+
+  const _renderUrlaubBoxKrankmeldung = () => {
+    return React.createElement('div', { style: {...CC(),borderColor:"rgba(255,107,107,.20)",background:"rgba(255,107,107,.04)"} }
+      , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:"#ff6b6b",marginBottom:10} }, "📎 Krankmeldung / AU")
+      , React.createElement('div', { onClick: ()=>_optionalChain([fr, 'access', _au1 => _au1.current, 'optionalAccess', _au2 => _au2.click, 'call', _au3 => _au3()]), onDrop: e=>{e.preventDefault();hUp(e);}, onDragOver: e=>e.preventDefault(), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();_optionalChain([fr, 'access', _au4 => _au4.current, 'optionalAccess', _au5 => _au5.click, 'call', _au6 => _au6()]);}}, style: {border:"1.5px dashed rgba(255,107,107,.35)",borderRadius:10,padding:"18px 12px",textAlign:"center",cursor:"pointer"} }
+        , React.createElement('div', { style: {fontSize:22,marginBottom:4} }, "⬆️")
+        , React.createElement('div', { style: {color:V.dm,fontSize:13} }, "Datei oder Foto hochladen")
+        , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4} }, "PDF, JPG, PNG · ziehen oder klicken")
+      )
+      , React.createElement('input', { ref: fr, type: "file", multiple: true, accept: "image/*,.pdf", style: {display:"none"}, onChange: hUp })
+    );
+  };
+
+  const _renderUrlaubBoxExport = () => {
+    const _btn = (handler, color, bg, border, icon, text) => React.createElement('button', { onClick: handler, style: {width:"100%",padding:"9px 12px",borderRadius:8,fontSize:12,fontWeight:500,display:"flex",alignItems:"center",gap:8,cursor:"pointer",border:"1px solid "+border,background:bg,color:color,fontFamily:"inherit",minHeight:40} }, icon+"  "+text);
+    return React.createElement('div', { style: CC() }
+      , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:10} }, "📥 Export")
+      , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6} }
+        , _btn(exportAbsCsv, "#6ee7a8", "rgba(110,231,168,.10)", "rgba(110,231,168,.30)", "📊", "Excel")
+        , _btn(exportAbsTxt, V.tx, "rgba(255,255,255,.04)", V.bd, "📄", "TXT")
+        , _btn(exportToServer, V.tx, "rgba(255,255,255,.04)", V.bd, "🖥️", "Server (SRVDC02)")
+      )
+    );
+  };
+
   return (
     React.createElement('div', { ...absSwipe}
       , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
@@ -13330,6 +13397,13 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         , React.createElement(Kpi, { label: "Krank "+sel, value: yearSt(sel).krankenstand, sub: yr+" gesamt", color: "#ef4444", i: 3} )
       )
 
+      /* ═══ v3.9.15 View-Level-Block: 3 Karten (Günther/Krankmeldung/Export) sichtbar auf ALLEN Tabs ═══ */
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:window.innerWidth<768?"1fr":"1fr 1fr 1fr",gap:12,marginBottom:14}}
+        , _renderUrlaubBoxGuenther()
+        , _renderUrlaubBoxKrankmeldung()
+        , _renderUrlaubBoxExport()
+      )
+
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
         , [
           {id:"kalender",i:"📅",l:"Kalender"},
@@ -13343,7 +13417,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , (isAdmin?names:names.filter(m=>m===myMonteurName)).map(m=>{const s=st(m);const a=sel===m;const ys=yearSt(m);const rest=resturlaub(m);const mp=allEntries.filter(e=>e.name===m&&e.approval==="ausstehend").length;return (React.createElement('button', { key: m, onClick: ()=>setSel(m), style: {padding:isMob?"6px 10px":"8px 14px",borderRadius:8,border:a?"2px solid #22c55e":"2px solid "+V.bd,background:a?"rgba(34,197,94,.1)":"transparent",color:a?"#22c55e":V.tx,cursor:"pointer",fontWeight:600,fontSize:isMob?10:12,fontFamily:"inherit",position:"relative",minHeight:44}}, m, React.createElement('span', { style: {display:"block",fontSize:9,opacity:.85,fontFamily:mono}}, resturlaub(m).toFixed?_n(resturlaub(m),0):resturlaub(m), "h Rest · "   , ys.krankenstand, "K"), mp>0&&React.createElement('span', { style: {position:"absolute",top:-4,right:-4,background:"#eab308",color:"#000",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}, mp)));})
         )
 
-        , React.createElement('div', { className: "abs-layout"}
+        , React.createElement('div', {}
           , React.createElement('div', {}
             , React.createElement('div', { style: {marginBottom:12}}
               , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap",alignItems:"center",marginBottom:6}}
@@ -13405,32 +13479,6 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
             )
 
             , !isMob&&isAdmin&&(React.createElement('div', { style: {marginTop:14}}, React.createElement('div', { style: {fontSize:10,fontWeight:700,color:V.dm,fontFamily:mono,marginBottom:6}}, "ALLE — "  , MO_DE[mo]), names.map(m=>(React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:"75px 1fr",gap:3,marginBottom:2,alignItems:"center"}}, React.createElement('div', { style: {fontSize:10,color:sel===m?"#22c55e":V.dm,fontWeight:sel===m?700:400}}, m), React.createElement('div', { style: {display:"flex",gap:1}}, Array.from({length:dim},(_,i)=>{const d=new Date(yr,mo,i+1);const ab=ga(m,d);const at2=ab?AT_T[ab.type]:null;return (React.createElement('div', { key: i, style: {flex:1,height:9,borderRadius:1,background:at2?at2.c:isWE(d)?V.weBg:V.empty}} ));})))))))
-          )
-
-          , React.createElement('div', {}
-            , React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8}}, "🎯 " , sel, " — "  , yr)
-              , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}
-                , React.createElement('div', { style: {background:_dark?"rgba(59,130,246,.08)":"rgba(59,130,246,.04)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}, React.createElement('div', { style: {fontSize:20,fontWeight:800,color:"#3b82f6"}}, resturlaub(sel).toFixed?_n(resturlaub(sel),1)+"h":resturlaub(sel)), React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Resturlaub"))
-                , React.createElement('div', { style: {background:_dark?"rgba(239,68,68,.08)":"rgba(239,68,68,.04)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}, React.createElement('div', { style: {fontSize:20,fontWeight:800,color:"#ef4444"}}, yearSt(sel).krankenstand), React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Krankentage"))
-              )
-              , (()=>{const ys=yearSt(sel);return AT_KATS.map(kat=>{const types=Object.entries(AT_T).filter(([k,v])=>v.kat===kat.id);const hasData=types.some(([k])=>ys[k]>0);if(!hasData)return null;return (React.createElement('div', { key: kat.id, style: {marginBottom:6}}, React.createElement('div', { style: {fontSize:10,fontWeight:700,color:V.dm,marginBottom:2}}, kat.l), types.filter(([k])=>ys[k]>0).map(([k,v])=>(React.createElement('div', { key: k, style: {display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid "+V.bd}}, React.createElement('span', { style: {fontSize:10,color:V.dm}}, v.i, " " , v.l), React.createElement('span', { style: {fontFamily:mono,fontSize:12,fontWeight:700,color:v.c}}, _n((ys[k+"Std"]||0),1), "h " , React.createElement('span', { style: {fontSize:8,color:V.dm}}, "(", ys[k], " Tg)" )))))));});})()
-              , React.createElement('div', { style: {marginTop:6,padding:"6px 0",borderTop:"2px solid "+V.bd}}
-                , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",fontSize:11}}, React.createElement('span', { style: {fontWeight:700}}, "Sonderurlaub gesamt" ), React.createElement('span', { style: {fontFamily:mono,fontWeight:700,color:"#f97316"}}, _n((yearSt(sel).sonderStdGes||0),1), "h"))
-                , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",fontSize:11,marginTop:2}}, React.createElement('span', { style: {fontWeight:700}}, "Pflegefrei gesamt" ), React.createElement('span', { style: {fontFamily:mono,fontWeight:700,color:"#f97316"}}, _n((yearSt(sel).pflegeStdGes||0),1), "h"))
-              )
-            )
-            , React.createElement('div', { style: {...CC(),borderColor:"rgba(239,68,68,.15)",background:"rgba(239,68,68,.03)"}}
-              , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:"#ef4444"}}, "📎 Krankmeldungen / AU"   ), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('button', { onClick: ()=>_optionalChain([fr, 'access', _591 => _591.current, 'optionalAccess', _592 => _592.click, 'call', _593 => _593()]), style: {...bdS,padding:"5px 10px",fontSize:10}}, "📁 Datei" ), React.createElement('button', { onClick: ()=>{const ci=document.getElementById("cam_"+sel);_optionalChain([ci, 'optionalAccess', _594 => _594.click, 'call', _595 => _595()]);}, style: {...bdS,padding:"5px 10px",fontSize:10}}, "📷 Foto" )), React.createElement('input', { ref: fr, type: "file", multiple: true, accept: "image/*,.pdf", style: {display:"none"}, onChange: hUp} ), React.createElement('input', { id: "cam_"+sel, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: hUp} ))
-              , (files[sel]||[]).length===0?(React.createElement('div', { onClick: ()=>_optionalChain([fr, 'access', _596 => _596.current, 'optionalAccess', _597 => _597.click, 'call', _598 => _598()]), style: {border:"2px dashed rgba(239,68,68,.12)",borderRadius:8,padding:"18px 10px",textAlign:"center",cursor:"pointer",fontSize:11,color:V.dm}}, "📎 AU / Krankmeldung hochladen"    , React.createElement('br', {}), React.createElement('span', { style: {fontSize:10}}, "Fotos + PDF"  ))):(React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:5}}, (files[sel]||[]).map((f,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:6,background:V.bg,borderRadius:5,padding:"5px 7px",fontSize:11}}, f.dataUrl&&_optionalChain([f, 'access', _599 => _599.name, 'optionalAccess', _600 => _600.match, 'call', _601 => _601(/\.(jpg|jpeg|png|gif|webp)$/i)])?React.createElement('img', { src: f.dataUrl, style: {width:36,height:36,objectFit:"cover",borderRadius:4,flexShrink:0}, alt: "", onClick: ()=>_openFileUrl(f.dataUrl,f.name)} ):React.createElement('div', { style: {width:36,height:36,borderRadius:4,background:V.cd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,cursor:"pointer"}, onClick: ()=>_openFileUrl(f.dataUrl,f.name)}, "📄"), React.createElement('div', { style: {flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}, f.name, " " , React.createElement('span', { style: {color:V.dm}}, "(", _n(((f.size||0)/1024),0), "KB)")), React.createElement('button', { onClick: ()=>{const fObj=(files[sel]||[])[i];if(_optionalChain([fObj, 'optionalAccess', _602 => _602.id]))SQ.push({url:"/api/absence-files/"+fObj.id,method:"DELETE"});setFiles(p=>({...p,[sel]:p[sel].filter((_,j)=>j!==i)}));}, style: {...bdS,padding:"1px 4px",fontSize:9}}, "✕"))))))
-            )
-            , React.createElement('div', { style: CC()}
-              , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:10}}, "📥 Export" )
-              , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}
-                , React.createElement('button', { onClick: exportAbsCsv, style: {...xBtn("xls"),width:"100%",justifyContent:"center"}}, "📊 Excel Export"  )
-                , React.createElement('button', { onClick: exportAbsTxt, style: {...xBtn("txt"),width:"100%",justifyContent:"center"}}, "📄 TXT Export"  )
-                , React.createElement('button', { onClick: exportToServer, style: {...xBtn("server"),width:"100%",justifyContent:"center"}}, "📤 Server-Export (SRVDC02)"  )
-              )
-            )
           )
         )
       ))
