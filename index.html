@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.34';
+  var SW_VER='epkolar-v3.9.35';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.34-supabase";
+const APP_VERSION="3.9.35-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -4831,7 +4831,7 @@ class _ViewBoundary extends React.Component{
   const myNotifs=curUser?notifications.filter(n=>n.user===curUser.id):[];
   const unreadCount=myNotifs.filter(n=>!n.read).length;
   const eskCount=myNotifs.filter(n=>!n.read&&((n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick")).length;
-  const markRead=id=>{setNotifications(p=>{const upd=p.map(n=>n.id===id?{...n,read:true}:n);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"PUT",body:{read:1}});};
+  const markRead=id=>{/* v3.9.35 N-1: Skip SQ-Push wenn already-read — vermeidet redundante PUT-Requests bei wiederholten markRead-Klicks (z.B. Notif-Click + Tab-Switch). */let wasUnread=false;setNotifications(p=>{const upd=p.map(n=>{if(n.id===id){if(!n.read)wasUnread=true;return {...n,read:true};}return n;});ODB.save("notifications",upd);return upd;});if(wasUnread)SQ.push({url:"/api/notifications/"+id,method:"PUT",body:{read:1}});};
   const markAllRead=()=>{setNotifications(p=>{const upd=p.map(n=>n.user===_optionalChain([curUser, 'optionalAccess', _65 => _65.id])?{...n,read:true}:n);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/read-all",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65 => _65.id])}});};
   const deleteNotif=id=>{setNotifications(p=>{const upd=p.filter(n=>n.id!==id);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"DELETE"});};
 
@@ -5261,7 +5261,7 @@ class _ViewBoundary extends React.Component{
                 if(notifCat!=="alle"){filtered=filtered.filter(n=>{const nt=NOTIF_TYPES[n.type];const cat=nt?nt.cat:"";if(notifCat==="system")return cat==="system"||n.type==="deadline_fz";return cat===notifCat;});}
                 return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":"Keine Benachrichtigungen" )):(
                 filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");const ago=Math.floor((Date.now()-new Date(n.time||0).getTime())/60000);const agoStr=ago<60?ago+"min":ago<1440?Math.floor(ago/60)+"h":Math.floor(ago/1440)+"d";
-                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
+                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.35 N-2: Toast-Hint wenn Link-Ziel nicht im Tab-Set (z.B. Monteur ohne Berechtigung für link-target) — vorher silent-no-op. */if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
                     , React.createElement('span', { style: {fontSize:20,flexShrink:0}}, _optionalChain([nt, 'optionalAccess', _83 => _83.i])||"🔔")
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
                       , React.createElement('div', { style: {fontSize:12,fontWeight:n.read?400:700,color:n.read?V.dm:V.tx}}, n.title)
@@ -13086,9 +13086,9 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     return()=>{window.removeEventListener("beforeunload",flush);flush();};
   },[]);
 
-  const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:pn||name,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:pn||name,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
+  const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;/* v3.9.35 W-3: Wenn projId gesetzt aber Projekt im projects-Array fehlt (race/stale), pn fällt auf name zurück (kann "" sein) → leere bvh-Row. Skip statt leere Zeile. */const _finalBvh=(pn||name||"").trim();if(!_finalBvh)return;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:_finalBvh,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:_finalBvh,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
   const clearRow=(id)=>setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));
-  const delRow=(id)=>{setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));};
+  const delRow=(id)=>{/* v3.9.35 W-1/W-6: clear cellPick + selCells + dragRef wenn die gelöschte Zeile aktiv war — sonst stale popup/drag-state auf nicht-existenter rowId. */setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));if(_optionalChain([cellPick, 'optionalAccess', _wpDel1 => _wpDel1.rowId])===id)setCellPick(null);if(_optionalChain([selCells, 'optionalAccess', _wpDel2 => _wpDel2.rowId])===id)setSelCells(null);if(dragRef.current&&dragRef.current.rowId===id){dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};}};
   const moveRow=(id,dir)=>{setRows(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const ni=idx+dir;if(ni<0||ni>=prev.length)return prev;const nr=[...prev];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];return nr;});};
   const copyWeek=(srcKw)=>{const src=wpHistory[srcKw];if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){alert("KW "+srcKw+" hat keine Einträge");return;}setRows(padWpRows(src.map(r=>({...r,id:Date.now()+Math.random(),z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
 
