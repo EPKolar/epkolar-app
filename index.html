@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.35';
+  var SW_VER='epkolar-v3.9.36';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.35-supabase";
+const APP_VERSION="3.9.36-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -11959,14 +11959,16 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   // (e.g. "Elektro komplett" hid Mepla even though Sanitär hours were booked)
   const catalogs=MAT_KATALOG;
 
-  // Load cart from localStorage on mount
+  // v3.9.36 Sprint-21 F-15: Load cart from localStorage — depends on cartKey, sodass
+  // bei Project-Wechsel im selben Mount-Cycle der korrekte Cart geladen wird (statt stale).
+  // Fallback: leer wenn kein saved-cart für aktuelles Projekt.
   _react.useEffect.call(void 0, ()=>{
-    try{const saved=localStorage.getItem(cartKey);if(saved){const parsed=_jp(saved);if(parsed&&typeof parsed==="object")setCart(parsed);}}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
-  },[]);
+    try{const saved=localStorage.getItem(cartKey);if(saved){const parsed=_jp(saved);if(parsed&&typeof parsed==="object"){setCart(parsed);return;}}setCart({});}catch(e){console.warn('[silent-ls]',e&&e.message||e);setCart({});}
+  },[cartKey]);
   // Persist cart to localStorage on change
   _react.useEffect.call(void 0, ()=>{
     try{localStorage.setItem(cartKey,JSON.stringify(cart));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
-  },[cart]);
+  },[cart,cartKey]);
 
   // Load orders from Supabase
   // v3.9.22 F-1+F-8: unmount-guard via ref + Toast on initial load failure
