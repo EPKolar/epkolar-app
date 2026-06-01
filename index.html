@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.37';
+  var SW_VER='epkolar-v3.9.38';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.37-supabase";
+const APP_VERSION="3.9.38-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -2762,7 +2762,22 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
     try{window._lastJuprowaSyncAt=Date.now();}catch(e){console.warn('[silent-sync]',e&&e.message||e);}
     // v3.8.42 Auto-Drain: nach Pull offene Push-Queue bis zu 10 Scheine abarbeiten.
     // Fire-and-forget wäre ok, aber awaiting gibt besseres Log-Zeitverhältnis.
-    try{const _dr=await _juprowaDrainPending(10);if(_dr&&(_dr.drained>0||_dr.failed>0))console.log('[JP-DRAIN]',_dr);}catch(e){console.warn('[JP-DRAIN-EXC]',e&&e.message||e);}
+    try{
+      const _dr=await _juprowaDrainPending(10);
+      if(_dr&&(_dr.drained>0||_dr.failed>0))console.log('[JP-DRAIN]',_dr);
+      // v3.9.38 FIX: Nach Drain frischen Server-State pullen, sonst UI zeigt
+      // push_pending=true obwohl Server schon push_pending=false → orange Sync-Button bleibt.
+      // Live-reproduziert auf S075295 (2026-06-01) via Chrome MCP.
+      if(_dr&&_dr.drained>0){
+        try{
+          const freshRaw2=await _sbGet("arbeitsscheine");
+          if(Array.isArray(freshRaw2)&&freshRaw2.length){
+            const fresh2=freshRaw2.map(_mapArbeitsschein);
+            setArbeitsscheine(fresh2);
+          }
+        }catch(e2){console.warn('[JP-DRAIN-REFRESH]',e2&&e2.message||e2);}
+      }
+    }catch(e){console.warn('[JP-DRAIN-EXC]',e&&e.message||e);}
     return result;
   }catch(e){
     if(!silent)_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa Sync Fehler: "+e.message,"error")]);
