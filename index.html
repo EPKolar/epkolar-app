@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.52';
+  var SW_VER='epkolar-v3.9.53';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1869,18 +1869,24 @@ async function _translateAndExec(url,method,body){
       // Bulk update: set read=1 for all user notifications
       // We need the user_id — it's not in the body, so we mark all unread as read
       const uid=body&&body.user_id;
+      /* v3.9.53 N-RLS: Response-Status checken (vorher silent fail bei RLS-Denial → Riedmann-Bug:
+         "als gelesen" wurde nie persistiert weil UPDATE-Policy auf notifications fehlte). */
+      let _nResp;
       if(uid){
-        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
+        _nResp=await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid)+"&read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
       }else{
         // fallback: mark all as read (will be filtered later by user context)
-        await _authRetry(()=>fetch(SB_REST+"/notifications?read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
+        _nResp=await _authRetry(()=>fetch(SB_REST+"/notifications?read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
       }
+      if(_nResp&&!_nResp.ok){const _et=await _nResp.text().catch(()=>"");console.warn("[api] notifications read-all PATCH failed",_nResp.status,_et.slice(0,200));return{ok:0,err:"read-all:"+_nResp.status};}
       return{ok:1};
     }
     if(idOrSub==="clear"&&method==="POST"){
       const uid=body&&body.user_id;
       if(uid){
-        await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),_fT({method:"DELETE",headers:_sbH()})));
+        /* v3.9.53 N-RLS: Response-Status checken. */
+        const _cResp=await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),_fT({method:"DELETE",headers:_sbH()})));
+        if(_cResp&&!_cResp.ok){const _et=await _cResp.text().catch(()=>"");console.warn("[api] notifications clear DELETE failed",_cResp.status,_et.slice(0,200));return{ok:0,err:"clear:"+_cResp.status};}
       }
       return{ok:1};
     }
