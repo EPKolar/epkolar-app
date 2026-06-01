@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.53';
+  var SW_VER='epkolar-v3.9.54';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -776,7 +776,8 @@ window._rlsAudit=async function(){
     {desc:'arbeitsscheine (monteur: only own)',                url:'arbeitsscheine','select':'id,monteur&limit=200'},
     {desc:'time_entries (monteur: only own)',                  url:'time_entries','select':'id,worker_id,hours&limit=200'},
     {desc:'notifications (self only)',                         url:'notifications','select':'id,user_id&limit=50'},
-    {desc:'supplier_articles (all roles see; EK-Preis nur Admin/PL/Lager)',url:'supplier_articles','select':'id,bezeichnung,ek_preis&limit=10'},
+    /* v3.9.54 B-006: Diagnostic-SELECT auf safe-view umgestellt — Basistabelle RLS-geschützt (nur EK-Rollen). Monteur sieht View mit ek_preis=NULL. */
+    {desc:'supplier_articles_safe (alle Rollen; ek_preis NULL für Monteur)',url:'supplier_articles_safe','select':'id,bezeichnung,ek_preis&limit=10'},
     {desc:'supplier_configs (admin-only)',                     url:'supplier_configs','select':'id,name&limit=10'},
     {desc:'activity_log (admin-only)',                         url:'activity_log','select':'id,action&limit=10'},
     {desc:'absences (monteur: only own)',                      url:'absences','select':'id,worker_id&limit=100'},
@@ -7176,7 +7177,8 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       // Article counts
       const counts={};
       for(const s of (rows||[])){
-        try{const a=await _sbGet("supplier_articles","select=id&supplier_id=eq."+s.id);counts[s.id]=(a||[]).length;}catch(_){counts[s.id]=0;}
+        /* v3.9.54 B-006: count via safe-view (Monteur darf supplier_articles nicht mehr direkt selecten). */
+        try{const a=await _sbGet("supplier_articles_safe","select=id&supplier_id=eq."+s.id);counts[s.id]=(a||[]).length;}catch(_){counts[s.id]=0;}
       }
       setSuppArticleCount(counts);
     }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Händler laden: "+e.message,"error")]);}
@@ -12128,7 +12130,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       const sm={};(scfg||[]).forEach(s=>{sm[s.id]={name:s.name,gewerk:s.gewerk,skonto:parseFloat(s.skonto_prozent)||0,jahresbonus:parseFloat(s.jahresbonus_prozent)||0,zk:s.zahlungskonditionen||"",firmaAdr:s.firma_adresse||"",baseUrl:s.base_url||"",uid:s.unternehmen_id||"",shkUrl:s.shk_url||"",idsShopUrl:s.ids_shop_url||"",iface:s.interface_type||""};});
       setSuppMap(sm);
       // Load supplier articles (EP-filtered, limited)
-      const sa=await _sbGet("supplier_articles","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
+      /* v3.9.54 B-006: Production-SELECT für Material-Katalog auf safe-view — ek_preis kommt für Monteur als NULL,
+         showEk=canDo("view_ek_price") gated bereits die UI; serverseitige Maskierung schließt die Lücke gegen REST-Direct-Calls. */
+      const sa=await _sbGet("supplier_articles_safe","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
       if(!a)return;
       if(sa&&sa.length>0){
         setSuppArticles(sa);
