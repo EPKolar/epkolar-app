@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.47';
+  var SW_VER='epkolar-v3.9.48';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.47-supabase";
+const APP_VERSION="3.9.48-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -2484,6 +2484,8 @@ async function captureAndQueue(file,entityType,entityId,projectId,context){
     // v3.5.146: PhotoQ.add returns false bei QuotaExceededError (IndexedDB voll) — User informieren statt silent-fail
     if(added===false){
       try{window._showToast&&window._showToast("⚠ Speicher voll — Foto konnte nicht lokal gespeichert werden. Bitte Internet-Verbindung prüfen und warten bis vorhandene Fotos synchronisiert sind.","error",8000);}catch(e){console.warn('[silent-toast]',e&&e.message||e);}
+      /* v3.9.48 S33-3 F9: bei IDB-voll auch LS-Quota-Check sofort triggern (statt 5min-Intervall warten) — User könnte auch LS voll haben. sessionStorage-Reset für Re-Warn. */
+      try{sessionStorage.removeItem('lsQuotaWarn');if(typeof _checkLocalStorageQuota==='function')_checkLocalStorageQuota();}catch(e){console.warn('[silent-quota]',e&&e.message||e);}
       return null;
     }
     // Sofort hochladen wenn online
@@ -4414,7 +4416,7 @@ class _ViewBoundary extends React.Component{
   },[]);
   const doInstall=async()=>{try{if(!installPrompt)return;installPrompt.prompt();const r=await installPrompt.userChoice;if(r.outcome==="accepted")_optionalChain([window, 'access', _25 => _25.__toast, 'optionalCall', _26 => _26("✅ App installiert!")]);setShowInstallBanner(false);setInstallPrompt(null);}catch(e){console.warn("[app] Install:",e);}};
   const dismissInstall=()=>{setShowInstallBanner(false);try{localStorage.setItem("epk_install_dismissed","1");}catch(e){console.warn('[localStorage]',e&&e.message||e);}};
-  const doSwUpdate=async()=>{/* v3.8.62 Bug-1: Banner sofort ausblenden (UX). _forceCacheClear macht reload nach ~500ms — bis dahin sah Banner persistent aus. */setSwUpdate(false);if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});await window._forceCacheClear(true);};
+  const doSwUpdate=async()=>{/* v3.8.62 Bug-1: Banner sofort ausblenden (UX). _forceCacheClear macht reload nach ~500ms — bis dahin sah Banner persistent aus. */setSwUpdate(false);/* v3.9.48 S33-2 F7: postMessage in try/catch — waiting-Worker konnte von anderer Tab inaktiviert werden → InvalidStateError blockierte _forceCacheClear-Aufruf → User-Reload schlug fehl. */try{if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});}catch(e){console.warn('[doSwUpdate]',e&&e.message||e);}await window._forceCacheClear(true);};
   const ww=useW();
   const isMob=ww<600;
 
@@ -5029,6 +5031,8 @@ class _ViewBoundary extends React.Component{
         return;
       }
       if(s.projId&&s.projView&&openP){
+        /* v3.9.48 S33-1 F3b: Guard openP.id===s.projId — Forward-Button quer durch Stack könnte sonst auf falsches Projekt projView setzen wenn User dazwischen anderes Projekt geöffnet hat. */
+        if(openP.id!==s.projId)return;
         // Navigate within project sub-views
         if(_projViewRef.current&&_projViewRef.current.set){
           _projViewRef.current.set(s.projView);
@@ -5037,9 +5041,9 @@ class _ViewBoundary extends React.Component{
       }
       if(s.projId&&!openP){
         // Re-open project (forward button) — find project by id
-        _skipPush.current=1;
+        /* v3.9.48 S33-1 F3: _skipPush nur dekrement-vorab wenn Projekt wirklich findbar. Vorher: pr nicht gefunden (z.B. nach Sync-Reload) → _skipPush=1 verbraucht aber kein setOpenP → nächster pushState wurde übersprungen → Stack-Drift. */
         const pr=projects.find(p=>p.id===s.projId);
-        if(pr){setOpenP(pr);_lastOpenP.current=pr;}
+        if(pr){_skipPush.current=1;setOpenP(pr);_lastOpenP.current=pr;}
         return;
       }
       if(!s.projId){
@@ -9440,7 +9444,8 @@ td{padding:5px 8px;border:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}
 .ftr{margin-top:20px;border-top:1px solid #ddd;padding-top:8px;font-size:9px;color:#999;text-align:center}
 .badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600}
 .badge-ok{background:#dcfce7;color:#16a34a}.badge-warn{background:#fef3c7;color:#d97706}.badge-err{background:#fee2e2;color:#dc2626}
-@media print{body{padding:15px 20px}@page{margin:12mm 10mm}}`;
+/* v3.9.48 S33-4 F13b: Tabellen-Header auf jeder Druckseite + Zeilen nicht splitten — Regiebericht-Druck war bei langen Personal/Material-Listen Header-frei auf Folgeseiten. */
+@media print{body{padding:15px 20px}@page{margin:12mm 10mm}thead{display:table-header-group}tr{page-break-inside:avoid}.work,.note,.ftr{page-break-inside:avoid}}`;
 
   let body="";
 
@@ -12345,7 +12350,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           }));
           if(freitext.trim())items.push({name:freitext.trim(),dim:"",menge:"",einheit:"",artNr:"",katalog:"Freitext"});
           const rows=items.map(i=>`<tr><td>${_e(i.artNr||"")}</td><td>${_e(i.name||"")}</td><td>${_e(i.dim||"")}</td><td style="text-align:right;font-weight:700">${_e(i.menge)}</td><td>${_e(i.einheit||"")}</td><td style="font-size:10px;color:#666">${_e(i.katalog||"")}</td></tr>`).join("");
-          const html=`<!doctype html><html><head><meta charset="utf-8"><title>Warenkorb ${_e((p.nr||p.name||"").replace(/"/g,""))}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{border-bottom:3px solid #009640;padding-bottom:8px;color:#009640;margin:0 0 4px}h2{margin:0 0 16px;color:#444;font-size:14px;font-weight:normal}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#009640;color:#fff;padding:8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#f7f8fa}.meta{font-size:11px;color:#666;margin-bottom:20px}.footer{margin-top:30px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:10px}.sig{margin-top:40px;display:flex;gap:40px;font-size:11px}.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}@media print{body{padding:0}}</style></head><body><h1>🛒 Material-Warenkorb</h1><h2>${_e(p.name||"")} ${p.nr?("· "+_e(p.nr)):""}</h2><div class="meta"><b>Erstellt:</b> ${new Date().toLocaleString("de-AT")} · <b>Monteur:</b> ${_e(curUser?.name||"")} · <b>Positionen:</b> ${items.length}</div><table><thead><tr><th>Art.Nr.</th><th>Bezeichnung</th><th>Dim.</th><th style="text-align:right">Menge</th><th>Einheit</th><th>Katalog</th></tr></thead><tbody>${rows}</tbody></table><div class="sig"><div>Monteur / Datum</div><div>Lager / Datum</div></div><div class="footer">EP: Kolar & Sohn GesmbH · Marktplatz 17, 3470 Kirchberg am Wagram · Tel +43 2279 2361</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`;
+          const html=`<!doctype html><html><head><meta charset="utf-8"><title>Warenkorb ${_e((p.nr||p.name||"").replace(/"/g,""))}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{border-bottom:3px solid #009640;padding-bottom:8px;color:#009640;margin:0 0 4px}h2{margin:0 0 16px;color:#444;font-size:14px;font-weight:normal}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#009640;color:#fff;padding:8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#f7f8fa}.meta{font-size:11px;color:#666;margin-bottom:20px}.footer{margin-top:30px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:10px}.sig{margin-top:40px;display:flex;gap:40px;font-size:11px}.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}/* v3.9.48 S33-4 F12+F13: tr-page-break-inside:avoid (kein-Zeilen-Split) + thead display:table-header-group (Header auf jeder Druckseite). */@media print{body{padding:0}tr{page-break-inside:avoid}thead{display:table-header-group}.sig{page-break-inside:avoid}}</style></head><body><h1>🛒 Material-Warenkorb</h1><h2>${_e(p.name||"")} ${p.nr?("· "+_e(p.nr)):""}</h2><div class="meta"><b>Erstellt:</b> ${new Date().toLocaleString("de-AT")} · <b>Monteur:</b> ${_e(curUser?.name||"")} · <b>Positionen:</b> ${items.length}</div><table><thead><tr><th>Art.Nr.</th><th>Bezeichnung</th><th>Dim.</th><th style="text-align:right">Menge</th><th>Einheit</th><th>Katalog</th></tr></thead><tbody>${rows}</tbody></table><div class="sig"><div>Monteur / Datum</div><div>Lager / Datum</div></div><div class="footer">EP: Kolar & Sohn GesmbH · Marktplatz 17, 3470 Kirchberg am Wagram · Tel +43 2279 2361</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`;
           const w=window.open("","_blank","width=900,height=1000");
           if(w){w.document.write(html);w.document.close();}
           else window.__toast?.("Popup blockiert — bitte erlauben","warn");

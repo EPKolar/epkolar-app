@@ -165,3 +165,52 @@ Im Worktree-Root liegen:
 - Source-Diff via `git log --oneline 27a0040..HEAD`
 
 ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die Branch ist gepusht.
+
+---
+
+## SPRINT 33 — v3.9.48
+
+**Scope:** Browser-History + SW-Update-Banner + Storage-Quota + Print-Layout
+**Pre-state:** bracket `() -2 / {} 0 / [] 0`, pytest 502/502, HEAD `06cdc25` (v3.9.47)
+**Post-state:** bracket identisch, pytest 502/502, node --check OK
+
+### Findings (12 total)
+
+**Sub-Task 33.1 Browser-History (4 Findings)**
+- F1 (P3): popstate `s.kat||0` ok — 0 fallback to 0 ist safe.
+- F2 (P3): popstate Initial-Entry-Handling ok (skipPush=2 covers openP+kat).
+- F3 (P2) **FIXED**: `s.projId && !openP` Pfad — `_skipPush.current=1` wurde gesetzt BEVOR projects.find() prüft; wenn Projekt nicht findbar (z.B. nach Sync-Reset) → skip-Decrement verbraucht → nächster echter pushState wurde übersprungen → History-Stack-Drift. Fix: skip nur setzen wenn pr gefunden.
+- F3b (P2) **FIXED**: `s.projId && s.projView && openP` — kein Guard auf `openP.id===s.projId` → Forward-Button durch Stack konnte projView des falschen Projekts setzen wenn User dazwischen Projekt gewechselt hat. Fix: early-return wenn IDs nicht matchen.
+
+**Sub-Task 33.2 SW-Update-Banner (3 Findings)**
+- F4 (P3): swUpdate Initial-State + statechange + SW_UPDATED-message-Handler haben alle 3 epk_sw_ver-Match-Guards (v3.8.63 Bug-A) — Banner-Persistenz ok.
+- F5 (P3): _forceCacheClear funktioniert auch offline (try/catch um getRegistrations/caches.keys, setTimeout fires unconditionally) — ok.
+- F7 (P2) **FIXED**: `swReg.current.waiting.postMessage({type:"SKIP_WAITING"})` ohne try/catch — wenn waiting-Worker von paralleler Tab inaktiviert wurde → InvalidStateError blockierte sync den await `_forceCacheClear` → User-Reload-Button schlug fehl. Fix: try/catch um postMessage, _forceCacheClear läuft auch wenn postMessage throw.
+
+**Sub-Task 33.3 Storage-Quota (3 Findings)**
+- F8 (P3): LS-Quota-Monitor läuft alle 5min (LS_QUOTA_CHECK_INTERVAL_MS) — ok.
+- F9 (P2) **FIXED**: PhotoQ.add IDB-voll-Fail zeigt Toast aber LS-Quota wird NICHT sofort gecheckt — User könnte auch LS-voll haben (parallele Symptome). Fix: bei IDB-voll sofort `_checkLocalStorageQuota()` triggern + sessionStorage `lsQuotaWarn` resetten (Re-Warn-Bypass).
+- F10 (P3): sessionStorage-Quota-Check existiert nicht (~5MB iOS) — DEFERRED (>15 LoC: neue Func + Aufrufer).
+
+**Sub-Task 33.4 Print-Layout (2 Findings)**
+- F12 (P2) **FIXED**: Mat-Cart-Print-HTML (L12348) `tr` ohne `page-break-inside:avoid` → Zeilen splitten zwischen Seiten. Plus `thead` ohne `display:table-header-group` → Header nur auf Seite 1. Fix: beide Regeln + `.sig{page-break-inside:avoid}` in @media print Block.
+- F13b (P2) **FIXED**: Regiebericht-Print (L9443) gleiche Issues — Header-frei auf Folgeseiten bei langen Personal/Material-Listen. Fix: `thead{display:table-header-group}` + `tr{page-break-inside:avoid}` + `.work,.note,.ftr{page-break-inside:avoid}`.
+
+### Tier-1 Fixes (5 / 12 Findings)
+
+1. **F3** popstate `s.projId && !openP` — `_skipPush` nur setzen wenn Projekt gefunden (L5040)
+2. **F3b** popstate `s.projId && s.projView && openP` — Guard `openP.id===s.projId` (L5033)
+3. **F7** doSwUpdate `postMessage` in try/catch (L4417)
+4. **F9** PhotoQ.add Quota-Fail — sofort LS-Quota-Check + Warn-Reset (L2488)
+5. **F12+F13b** Print-HTML — `tr{page-break-inside:avoid}` + `thead{display:table-header-group}` an 2 Stellen (L9443, L12348)
+
+### DEFERRED
+- F10 sessionStorage-Quota-Check — neue Funktion + 5min-Timer (>15 LoC, später Sprint).
+
+### Hard-Constraints
+- Brackets pre+post identisch ✅
+- node --check OK ✅
+- pytest 502/502 ✅
+- Keine NO-GO-Berührung (sw.js-Cache-Strategie unverändert; nur Version-Bump) ✅
+- Hooks nicht nach early-return ✅
+
