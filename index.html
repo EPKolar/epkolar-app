@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.45';
+  var SW_VER='epkolar-v3.9.46';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,7 +2226,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.45-supabase";
+const APP_VERSION="3.9.46-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -4225,7 +4225,9 @@ function LoginScreen({onLogin,onPortal,projects}){
 // Der globale EpkErrorBoundary (um App) bleibt als Last-Resort.
 // ═══════════════════════════════════════════════════════════════════
 class _ViewBoundary extends React.Component{
-  constructor(props){super(props);this.state={err:null};}
+  /* v3.9.46 SPRINT-31 F-VB-1: resetCount analog zu EpkErrorBoundary → vollstaendiger Children-Remount
+     beim "Neu versuchen". Vorher selbe Instanz → instant re-crash bei stale Refs. */
+  constructor(props){super(props);this.state={err:null,resetCount:0};}
   static getDerivedStateFromError(err){return {err};}
   componentDidCatch(err,info){
     console.error('[ViewBoundary:'+this.props.name+']',err,info);
@@ -4241,11 +4243,12 @@ class _ViewBoundary extends React.Component{
         React.createElement('div',{style:{fontSize:28,marginBottom:6}},'⚠️'),
         React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:6,color:'#ef4444'}},'Tab "'+(this.props.name||'?')+'" konnte nicht geladen werden'),
         React.createElement('div',{style:{fontSize:12,opacity:.7,marginBottom:12,fontFamily:'monospace',wordBreak:'break-word'}},msg),
-        React.createElement('button',{onClick:()=>this.setState({err:null}),style:{padding:'8px 16px',borderRadius:6,border:'1px solid rgba(239,68,68,.5)',background:'rgba(239,68,68,.15)',color:'#ef4444',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'↻ Neu versuchen'),
+        React.createElement('button',{onClick:()=>this.setState(s=>({err:null,resetCount:(s.resetCount||0)+1})),style:{padding:'8px 16px',borderRadius:6,border:'1px solid rgba(239,68,68,.5)',background:'rgba(239,68,68,.15)',color:'#ef4444',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'↻ Neu versuchen'),
         React.createElement('button',{onClick:()=>{try{location.reload();}catch(e){console.warn('[silent-log]',e&&e.message||e);}},style:{marginLeft:8,padding:'8px 16px',borderRadius:6,border:'none',background:'#009640',color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'🔄 App neu laden')
       );
     }
-    return this.props.children;
+    /* v3.9.46 SPRINT-31 F-VB-1: Children via key={resetCount} fuer Remount nach "Neu versuchen". */
+    return React.createElement(React.Fragment,{key:this.state.resetCount||0},this.props.children);
   }
 }
 
@@ -8317,10 +8320,15 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             const _mtMyIds=_mtMid?((monteurProjekte||{})[_mtMid]||[]):[];
             const _mtMyProj=_mtMyIds.length?projects.filter(p=>_mtMyIds.includes(p.id)&&p.status==="aktiv"):[];
             const _mtTarget=_mtMyProj[0]||topProjects[0];
-            return _mtTarget?React.createElement('button', { onClick: ()=>{onOpenP(_mtTarget);setTimeout(()=>{try{const ev=new CustomEvent("epk_open_material");window.dispatchEvent(ev);}catch(e){console.warn('[silent-dom]',e&&e.message||e);}},300);}, style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(245,158,11,.25)"}}, "📦 Material anfordern"):null;
+            /* v3.9.46 SPRINT-31 F-MA-1: CustomEvent epk_open_material hatte KEINEN Listener →
+               Click navigierte zwar zum Projekt, oeffnete aber NIE den Material-Tab. _initView nutzt
+               denselben Mechanismus wie Plan/Maengel/Docs-Buttons in MeineBaustellen-Card. */
+            return _mtTarget?React.createElement('button', { onClick: ()=>{onOpenP({..._mtTarget,_initView:"material"});}, style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(245,158,11,.25)"}}, "📦 Material anfordern"):null;
           })()
           , React.createElement('label', { style: {flex:"1 1 140px",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#22c55e,#15803d)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(34,197,94,.25)"}}, "📷 Foto"
-            , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;Array.from(fls).forEach(f=>{captureAndQueue(f,"baustelle","schnellfoto","","Schnellfoto Baustelle");});_optionalChain([window, 'access', _mtp1 => _mtp1.__toast, 'optionalCall', _mtp2 => _mtp2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} )
+            /* v3.9.46 SPRINT-31 F-FOTO-2/3: entityId "schnellfoto" war hardcoded → kollidierte bei
+               mehreren parallelen Fotos (queue-drift). Jetzt unique per Foto. Plus .catch fuer Toast-Fehler-Hinweis. */
+            , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;let _haOK=0,_haErr=0;Array.from(fls).forEach((f,_fi)=>{const _eid="schnellfoto_"+Date.now()+"_"+_fi;Promise.resolve(captureAndQueue(f,"baustelle",_eid,"","Schnellfoto Baustelle")).then(()=>{_haOK++;}).catch(_err=>{_haErr++;console.warn('[silent-foto]',_err&&_err.message||_err);if(window.__toast)window.__toast("⚠ Foto-Upload fehlgeschlagen","warn");});});_optionalChain([window, 'access', _mtp1 => _mtp1.__toast, 'optionalCall', _mtp2 => _mtp2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} )
           )
         )
       )
@@ -13125,7 +13133,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const m={};DSHORT.forEach(d=>{const s=new Set();rows.forEach(r=>{(_optionalChain([r, 'access', _477 => _477.z, 'optionalAccess', _478 => _478[d], 'optionalAccess', _479 => _479.ma])||[]).forEach(id=>s.add(id));});m[d]=s.size;});return m;
   },[rows]);
 
-  const switchKw=(newKw)=>{/* v3.8.49 Bug-Fix: Pending Auto-Save VOR KW-Wechsel flushen — vorher verwarf switchKw den 800ms-Debounce-Timer via clearTimeout ohne saveWeek auszuführen → Edits der aktuellen KW gingen auf dem Server verloren, blieben nur im lokalen wpHistory. Nach Reload alte Daten. */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveWeek();}setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);setSelCells(null);};
+  const switchKw=(newKw)=>{/* v3.8.49 Bug-Fix: Pending Auto-Save VOR KW-Wechsel flushen — vorher verwarf switchKw den 800ms-Debounce-Timer via clearTimeout ohne saveWeek auszuführen → Edits der aktuellen KW gingen auf dem Server verloren, blieben nur im lokalen wpHistory. Nach Reload alte Daten. */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveWeek();}setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);setSelCells(null);/* v3.9.46 SPRINT-31 F-DnD-1: dragRef beim KW-Wechsel resetten — vorher konnte aktive Drag-Auswahl der alten KW (rowId nicht mehr existent) als Stale-State weiterleben. */dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};};
 
   const toggleMA=(rowId,day,maId)=>{
     setRows(prev=>prev.map(r=>{
@@ -18037,7 +18045,10 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 var App=exports.default||window.App;
 // v3.5.100 — React Error-Boundary: fängt Render-Crashes statt White-Screen
 class EpkErrorBoundary extends React.Component{
-  constructor(props){super(props);this.state={err:null,info:null};}
+  /* v3.9.46 SPRINT-31 F-EB-1: reset() loeschte state.err, aber React rendete dieselben
+     Children-Instanzen mit potenziell wieder-crash-ausloesendem Stale-State → instant re-crash.
+     resetCount als key zwingt React zu vollem Remount nach reset(). */
+  constructor(props){super(props);this.state={err:null,info:null,resetCount:0};}
   static getDerivedStateFromError(err){return {err};}
   componentDidCatch(err,info){
     console.error('[REACT ERROR BOUNDARY]',err,info);
@@ -18050,7 +18061,7 @@ class EpkErrorBoundary extends React.Component{
     }catch(e){console.warn('[silent-err]',e&&e.message||e);}
     this.setState({info});
   }
-  reset=()=>{this.setState({err:null,info:null});};
+  reset=()=>{this.setState(s=>({err:null,info:null,resetCount:(s.resetCount||0)+1}));};
   reload=()=>{try{location.reload();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
   render(){
     if(this.state.err){
@@ -18071,7 +18082,9 @@ class EpkErrorBoundary extends React.Component{
         )
       );
     }
-    return this.props.children;
+    /* v3.9.46 SPRINT-31 F-EB-1: key={resetCount} → React remountet alle Children nach reset(),
+       sodass crash-ausloesender State (Refs/Closures) sicher verworfen wird. */
+    return React.createElement(React.Fragment,{key:this.state.resetCount||0},this.props.children);
   }
 }
 var root=ReactDOM.createRoot(document.getElementById('root'));
