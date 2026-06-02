@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.60';
+  var SW_VER='epkolar-v3.9.61';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2233,7 +2233,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.60-supabase";
+const APP_VERSION="3.9.61-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -8736,7 +8736,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           React.createElement('div', {}
             , legend&&React.createElement('div', { style: {display:"flex",gap:12,marginBottom:8,fontSize:11}}, legend.map((l,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,background:l.c}} ), React.createElement('span', { style: {color:V.dm}}, l.l)))))
             , React.createElement('div', { style: {display:"flex",alignItems:"flex-end",gap:isMob?2:4,height:barH}}
-              , data.map((v,i)=>{
+              /* v3.9.61 S40 F-1: empty-data guard inside .map — prevents crash on undefined data */
+              , (Array.isArray(data)?data:[]).map((v,i)=>{
                 const h=max>0?Math.max(v/max*(barH-20),v>0?3:0):0;
                 const h2=data2?Math.max((data2[i]||0)/max*(barH-20),data2[i]>0?3:0):0;
                 return (React.createElement('div', { key: i, style: {flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}
@@ -8759,7 +8760,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
               , React.createElement('span', { style: {fontSize:11,fontFamily:mono,color:V.dm}}, unit==="€"?_n(it.value,0)+" €":_n(it.value,1)+" L")
             )
             , React.createElement('div', { style: {height:6,background:V.bd,borderRadius:3}}
-              , React.createElement('div', { style: {height:"100%",borderRadius:3,background:it.color||A,width:Math.max(it.value/maxVal*100,2)+"%",transition:"width .3s"}} )
+              /* v3.9.61 S40 F-5: maxVal=0 → NaN → invalid CSS width. Guard against div-by-0. */
+              , React.createElement('div', { style: {height:"100%",borderRadius:3,background:it.color||A,width:Math.max((maxVal>0?it.value/maxVal*100:0),2)+"%",transition:"width .3s"}} )
             )
           ))))
         );
@@ -9978,7 +9980,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
       _optionalChain([window, 'access', _phu1 => _phu1.__toast, 'optionalCall', _phu2 => _phu2("📷 Foto hinzugefügt")]);
     }catch(e){console.warn("[vmang] Photo upload:",e);}
   };
-  const add=()=>{if(!name)return;
+  const add=()=>{if(!(name||"").trim())return;
     /* v3.9.24 KRITISCH Monteur-Permission: Mangel-Anlegen forced auf eigenen monteurId.
        UI-Select ist disabled für Monteur (siehe form-render unten); Defense-in-Depth hier. */
     const _isMonteurAdd=_vmIsField&&!isAdmin;
@@ -10008,7 +10010,8 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
   const reviewReject=(id)=>{
     /* v3.9.25 KRITISCH P1-Followup: Triage = Admin/PL-Task. Monteur darf NICHT review-rejecten. */
     if(!isAdmin){_optionalChain([window,'access',_g325i=>_g325i.__toast,'optionalCall',_g325j=>_g325j("⚠️ Triage von Kundenmeldungen ist Admin/PL-Task","warn")]);return;}
-    if(!reviewNote){alert("Bitte Begründung für Ablehnung eingeben!");return;}
+    /* v3.9.61 S40 F-2: whitespace-only reviewNote was accepted; trim required. */
+    if(!(reviewNote||"").trim()){alert("Bitte Begründung für Ablehnung eingeben!");return;}
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"abgelehnt",reviewNote:reviewNote}:m)}));
     SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:"abgelehnt",kunde_status:"abgelehnt",review_note:reviewNote}});
     _optionalChain([window, 'access', _366d => _366d.__toast, 'optionalCall', _366e => _366e("❌ Kundenmeldung abgelehnt")]);
@@ -10081,7 +10084,8 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantw."), React.createElement('select', { value: (_vmIsField&&!isAdmin)?(_vmMid||worker):worker, onChange: e=>{if(_vmIsField&&!isAdmin)return;setWorker(e.target.value);}, disabled: _vmIsField&&!isAdmin, title: (_vmIsField&&!isAdmin)?"Monteure weisen Mängel nur sich selbst zu":"", style: {...II(),opacity:(_vmIsField&&!isAdmin)?0.7:1,cursor:(_vmIsField&&!isAdmin)?"not-allowed":"pointer"}}, (monteure||MONT).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: frist, onChange: e=>setFrist(e.target.value), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Prio"), React.createElement('select', { value: prio, onChange: e=>setPrio(e.target.value), style: II()}, React.createElement('option', {}, "mittel"), React.createElement('option', {}, "hoch"), React.createElement('option', {}, "niedrig")))
-          , React.createElement('button', { onClick: add, style: bpS}, "+")
+          /* v3.9.61 S40 F-4: disabled-state when name empty (consistency mit AS-Form Sprint 27) */
+          , React.createElement('button', { onClick: add, disabled: !(name||"").trim(), style: {...bpS,opacity:(name||"").trim()?1:.5}}, "+")
         )
         , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",marginTop:6,flexWrap:"wrap"}}
           , React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:6,border:"2px dashed "+V.bd,cursor:"pointer",fontSize:11,color:V.dm}}, "📷 Foto"  , React.createElement('input', { ref: photoRef, type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{[...(e.target.files||[])].forEach(file=>{compressPhoto(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewPhotos(prev=>[...prev,{thumb,full:ph.dataUrl,file}])));});}} ))
@@ -15069,7 +15073,8 @@ function ASVorlagenPanel({curUser}){
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
   };
   const del=async(id)=>{
-    if(!confirm('Vorlage wirklich löschen?'))return;
+    /* v3.9.61 S40 F-7: native confirm → _confirmModal (consistency, EP-CI-Styling, Sprint 26+27 standard) */
+    if(!await _confirmModal('Vorlage wirklich löschen?',{variant:'danger'}))return;
     try{await _api.delete('as_vorlagen',id);setVorlagen(prev=>prev.filter(v=>v.id!==id));window._showToast?.('Vorlage gelöscht','success');window._haptic.confirm();}
     catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
@@ -15092,7 +15097,8 @@ function ASVorlagenPanel({curUser}){
         ,React.createElement('label',{style:LL()},'Arbeitsanweisungen')
         ,React.createElement('textarea',{value:form.arbeitsanweisungen,onChange:e=>setForm(p=>({...p,arbeitsanweisungen:e.target.value})),rows:3,placeholder:'Standard-Anweisungen...',style:{...II(),resize:'vertical',minHeight:60}})
       )
-      ,React.createElement('button',{onClick:save,style:bpS},'💾 Vorlage speichern')
+      /* v3.9.61 S40 F-6: disabled when name empty (consistency mit AS-Form Sprint 27) */
+      ,React.createElement('button',{onClick:save,disabled:!(form.name||"").trim(),style:{...bpS,opacity:(form.name||"").trim()?1:.5}},'💾 Vorlage speichern')
     )
     ,vorlagen.length===0
       ?React.createElement('div',{style:{textAlign:'center',padding:30,color:V.dm}},React.createElement('div',{style:{fontSize:48,marginBottom:8}},'📋'),React.createElement('div',{style:{fontSize:14,fontWeight:600,marginBottom:4}},'Noch keine Vorlagen'),React.createElement('div',{style:{fontSize:12}},'Erstelle Vorlagen für wiederkehrende Arbeitsscheine.'))
@@ -15220,7 +15226,8 @@ function ASKommentarePanel({asId,curUser,monteure,users}){
     setSending(false);
   };
   const del=async(id)=>{
-    if(!confirm('Kommentar löschen?'))return;
+    /* v3.9.61 S40 F-9: native confirm → _confirmModal */
+    if(!await _confirmModal('Kommentar löschen?',{variant:'danger'}))return;
     try{await _api.delete('as_kommentare',id);setKommentare(prev=>prev.filter(k=>k.id!==id));window._haptic.confirm();}
     catch(e){window._showToast?.('Löschen fehlgeschlagen: '+e.message,'error');}
   };
@@ -15368,7 +15375,8 @@ function UrlaubsantragPanel({curUser,monteure,users}){
       const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
-  const del=async(id)=>{if(!confirm('Antrag löschen?'))return;try{await _api.delete('urlaubsantraege',id);setAntraege(prev=>prev.filter(a=>a.id!==id));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}};
+  /* v3.9.61 S40 F-11: native confirm → _confirmModal */
+  const del=async(id)=>{if(!await _confirmModal('Antrag löschen?',{variant:'danger'}))return;try{await _api.delete('urlaubsantraege',id);setAntraege(prev=>prev.filter(a=>a.id!==id));window._haptic.confirm();}catch(e){window._showToast?.('Fehler: '+e.message,'error');}};
   if(loading)return React.createElement('div',{style:{padding:12,color:V.dm}},'Lade Anträge…');
   const STAT_C={beantragt:'#eab308',genehmigt:'#22c55e',abgelehnt:'#ef4444'};
   const STAT_I={beantragt:'⏳',genehmigt:'✅',abgelehnt:'❌'};
@@ -15685,7 +15693,8 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
     finally{setSaving(false);}
   };
   const del=async(id)=>{
-    if(!confirm('Fahrt wirklich löschen?'))return;
+    /* v3.9.61 S40 F-10: native confirm → _confirmModal */
+    if(!await _confirmModal('Fahrt wirklich löschen?',{variant:'danger'}))return;
     try{await _api.delete('fahrtenbuch',id);setEntries(prev=>prev.filter(x=>x.id!==id));window._haptic.confirm();}
     catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };

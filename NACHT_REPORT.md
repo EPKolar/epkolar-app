@@ -327,3 +327,44 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 - Hooks: Alle 5 neuen useMemo VOR den Component-Returns (kein after-early-return)
 - KEIN force-push · KEIN destructive
 - Version-Sync: index.html L15 (SW_VER) + L2236 (APP_VERSION) + sw.js L1+L2 alle auf v3.9.60
+
+## SPRINT 40 — v3.9.61 Deep-Sweep-weiter
+
+**Scope:** Charts/Modals/DnD/Forms/Print Untergeprüfte Bereiche
+**Pre-state:** bracket `() -1 / {} 0 / [] 0` · pytest 502/502 · HEAD `136f5e0`
+
+### Findings (12 — 9 fixed, 3 reported-not-fix)
+
+| ID | Kategorie | Stelle | Befund | Fix |
+|---|---|---|---|---|
+| F-1 | Robustness | BarChart L8735 | `data.map` crasht wenn `data` undefined | `(Array.isArray(data)?data:[]).map` defensive guard |
+| F-2 | Form-Validation | vmaengel reviewReject L10011 | `!reviewNote` — Whitespace-only akzeptiert | `!(reviewNote\|\|"").trim()` |
+| F-3 | Form-Validation | vmaengel add() L9981 | `!name` — Whitespace-only akzeptiert | `!(name\|\|"").trim()` |
+| F-4 | Form-Consistency | Mängel "+" Button L10084 | Kein `disabled`-Prop bei leerem Name (Sprint 27 AS-Form Consistency) | `disabled: !(name\|\|"").trim()` + opacity |
+| F-5 | Div-by-0 | HBarChart L8762 | `it.value/maxVal*100` → NaN wenn maxVal=0 → invalid CSS width | `(maxVal>0?it.value/maxVal*100:0)` |
+| F-6 | Form-Consistency | AS-Vorlagen save L15095 | Kein `disabled`-Prop bei leerem name | `disabled: !(form.name\|\|"").trim()` + opacity |
+| F-7 | Modal-Consistency | AS-Vorlagen del L15072 | Natives `confirm()` (Sprint 26+27 Standard war `_confirmModal`) | `await _confirmModal(...,{variant:'danger'})` |
+| F-9 | Modal-Consistency | as_kommentare del L15223 | Natives `confirm()` | `await _confirmModal(...)` |
+| F-10 | Modal-Consistency | fahrtenbuch del L15688 | Natives `confirm()` | `await _confirmModal(...)` |
+| F-11 | Modal-Consistency | urlaubsantraege del L15371 | Natives `confirm()` | `await _confirmModal(...)` |
+| F-8 | UX-Report | ChartBox L14224 | Bei `data=[]` zeigen Sub-Charts `null` → Titel+Toggle ohne Content (verwirrend) | NICHT-FIX (defer): braucht Empty-State im ChartBox-Wrapper, >20 LoC + visual-design-decision |
+| F-12 | Modal-Consistency | worker_kompetenzen toggle L15293 | Natives `confirm()` in async fn | NICHT-FIX (defer): mehrzeilige Refaktorierung in komplexer if/else-Kette, >20 LoC |
+| F-13 | Modal-Consistency | _epkTimer-Replace L8351 | Natives `confirm()` in **sync** event handler | NICHT-FIX (NO-GO sync→async): müsste den Handler komplett async machen |
+
+### Deferred / NO-GO
+
+- F-8 ChartBox-Empty-State — UX-Decision + >20 LoC, eigener Sprint
+- F-12 Kompetenz-Toggle — komplexer scope
+- F-13 Timer-Replace — sync→async refactor
+- Print-Header-Style-Vereinheitlichung (Visionen-Konzepte-Lösungen Hyphen vs En-Dash) — defer (cosmetic, multi-site)
+- Voice-Modal kein Escape-Handler — defer (zu nah am Voice-Engine-State)
+
+### Verify
+- `node --check` aller `<script>`-Blöcke: **exit 0**
+- Bracket-Snapshot: pre `() -1 / {} 0 / [] 0` = post **identisch**
+- pytest pre+post: **502/502 grün**
+- Hard-Constraints UNVERÄNDERT: `_silentReAuth/_authRetry/_ensureAuth/_mapBody/TEXT_JSON_FIELDS/SyncQueue/sw.js-Cache-Strategy/Juprowa/OFFA/_OFFPW.verify`
+- Berechnungs-Helpers nicht berührt
+- Hooks-Order intakt (keine post-early-return)
+- KEIN force-push · KEIN destructive
+- Version-Sync: index.html L15 + L2236 + sw.js L1+L2 alle **v3.9.61**
