@@ -602,3 +602,82 @@ Fix: COLORS-Stub als Prefix in `_extract_const_obj` und `as_status_obj` Fixture.
 
 ### Hard-Constraints UNVERÄNDERT
 `_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
+
+## SPRINT 51 — v3.9.71 LAUNCH PlanRadar-Round-3
+
+**HEAD:** `183c5b7` (PUSHED + tag `v3.9.71`)
+**Vorher:** `6c00a86` v3.9.70
+**Brackets:** `() -2 / {} 0 / [] 0` (identical to baseline)
+**Tests:** 502/502 pytest grün
+**node --check:** ✓ main script (450..18340)
+
+### Sub-Tasks (6 Tier-1 Polish-Items)
+
+- **S51-1 VPlan PlanCanvasPinMarker** (new component): Hover-Quick-Info Card (Desktop) mit Title/Status-Color/Assignee/Layer/Progress + ≥44px Touch-Hit-Area + Pulse-Animation für NEW Pins (<TIME_HOUR) + Critical-Priority Red-Dot-Badge. Wired in PlanViewerCanvas-Render (replaces inline pin div).
+- **S51-2 ProjList Kacheln Card-Polish**: Hover-Elevation (translateY -1px + orange-glow boxShadow + Accent-Border) + prominenter Progress-Bar bottom (4px, Color-Coded ≥70/40/0%) + Top-Right Status Color-Dot (10px Glow-Ring).
+- **S51-3 VPlan Mobile-FAB**: Fixed bottom-right 56×56 Float-Button "+📌" für "Neuer Pin" — nur Mobile, nur Viewer-View, nur wenn Plan ausgewählt & not placing/pendingPin/selTicket. Gradient + Shadow + touchAction:manipulation.
+- **S51-4 PlanCanvas Cluster-Pill**: Floating bottom-left auf Canvas — "📍 N Pins · X offen" Indicator (PlanRadar-Style Map-Overview-Counter, dynamisch nach ticketsOnPage).
+- **S51-5 Mobile Bottom-Sheet Drag-Handle Polish**: Handle 40×4 → 48×5 + Opacity .55 + subtle Shadow + Padding-Adjust. Existed since v3.9.49.
+- **S51-6 Layer-Pills Touch-Target Mobile**: padding/fontSize/minHeight mobile-aware (32px minHeight, 11px fontSize, 7×10 padding) — vorher 4×8/10px war zu klein für Touch.
+
+### Hard-Constraints
+- `_silentReAuth`/`_authRetry`/`_ensureAuth`/`_mapBody`/`TEXT_JSON_FIELDS`/SyncQueue/sw.js-Cache-Strategie/Juprowa/OFFA/`_OFFPW.verify`: NICHT angefasst
+- Berechnungs-Helpers: keine
+- Hooks: alle vor Returns (PlanCanvasPinMarker useState before early-returns)
+- Magic-Numbers: 3600000-fallback entfernt (test_time_constants Re-Compliance)
+- KEIN force-push, NIE
+- `3600000` Test regression: caught & fixed prä-push
+
+### Verify
+- pytest: 502/502 ✓
+- brackets: identical
+- node --check: ✓ main script
+
+### Deferred
+- React-Virtualization für >100 Pins (specd as defer-if-not-trivial — Layer-Render-Cost akzeptabel <100 Pins)
+- Multi-Plan Carousel (existing Plan-Pills mit overflow-x reichen, Carousel-Overhead nicht justified)
+- Mobile Swipe-Actions ProjList Cards (würde Card-Click-Conflict bringen, defer für eigenes Sprint)
+
+---
+
+## SPRINT 52 — v3.9.73 Final-Polish
+
+### Scope
+1. **Skeleton-Loaders** für 4 Lade…-Patterns in Heavy-Lists (Sprint 50 deferred follow-up)
+2. **Theme-Round-4** — weitere 5 inline `#ef4444` → `COLORS.ERROR` Migration (Continuation Sprint 45/46/47)
+3. **F-12 worker_kompetenzen.toggle** — if/else simplification (Sprint 50 deferred)
+4. Misc P3 cleanup
+
+### Findings (8)
+- F-1: 4 inline-`Lade…`-Strings in AS-Vorlagen / AS-Checklist / AS-Kommentare / Antraege (Stundenausgleich-Antraege) zeigen nur leeren grey Text während Initial-Fetch — keine Skeleton-Animation, keine visual Loading-Indication
+- F-2..F-5: 5 hardcoded `#ef4444` in häufig-genutzten Sites: KPI-`Gesperrt` Color-Prop, Sidebar-Group-Def Admin Role-Color, Material-Catalog `heizung`-Group Color, Bautagebuch-Type `mangel` Color, Zeiterfassung-Status `krankenstand` Color
+- F-6: F-12 deferred `toggle` in WorkerKompetenzenPanel — nested if/else mit doppeltem try/catch und schwer-zu-lesender Confirm-im-if branching
+- F-7: Skeleton-Helper Component fehlt komplett — kein wiederverwendbares Loading-Pattern
+- F-8 (Gewerk-Filter Visual-Badge): bereits ok — Buttons färben sich grün (`#009640`) bei Aktiv-State, KEIN missing Badge erkannt — kein Fix nötig
+
+### Fixes (7 Tier-1, alle <20 LoC)
+- v3.9.73 F-1: `_Skeleton(rows)`-Helper nach COLORS-Const (1 LoC funct-decl, additive, re-uses bestehende `@keyframes pulse`, aria-busy/aria-label)
+- v3.9.73 F-2: `if(loading)return _Skeleton(5)` ersetzt `Lade Vorlagen…` (AS-Vorlagen-List)
+- v3.9.73 F-3: `if(loading)return _Skeleton(4)` ersetzt `Lade Checkliste…` (AS-Checklist)
+- v3.9.73 F-4: `if(loading)return _Skeleton(3)` ersetzt `Lade Kommentare…` (AS-Kommentare)
+- v3.9.73 F-5: `if(loading)return _Skeleton(4)` ersetzt `Lade Antraege…` (Stundenausgleich-Antraege)
+- v3.9.73 F-6: Theme-R4 (5 sites): KPI-Gesperrt + ROLES.admin + bautagebuchTypes.mangel + MAT-Heizung + ZEIT-krankenstand → alle `COLORS.ERROR`
+- v3.9.73 F-7: `toggle` simplified — early-return bei confirm-cancel, flacher single-try-catch, kommentiert mit F-12-Hinweis
+
+### Verify
+- pytest: 502/502 ✓ (post-state)
+- brackets: pre/post identisch `( ) -2 / { } 0 / [ ] 0` ✓
+- node --check: pre-existing `Identifier 'App' has already been declared` ist baseline (babel-transpile artefact, identisch HEAD vs working) — KEIN neuer Syntax-Error
+
+### Deferred
+- Mobile-Bottom-Sheet weitere Sites (Scope 52.3): Sprint 51 hatte VPlan Polish, weitere Modal-Conversion zu invasiv für Final-Polish-Cap
+- Multi-Plan-Carousel polish (Sprint 51 deferred): existing Plan-Pills overflow-x reichen weiter
+- Theme-R4 remainder ~170 inline `#ef4444` Sites: incrementell pro Sprint, kein Big-Bang
+- Skeleton-Loaders für Mängel-/Mitarbeiter-/Bestellungen-Lists: andere Lists haben keine clean `if(loading)return Lade…`-Pattern, brauchen invasiveren Refactor (eigenes Sprint)
+
+### Hard-Constraints
+- `_silentReAuth`/`_authRetry`/`_ensureAuth`/`_mapBody`/`TEXT_JSON_FIELDS`/SyncQueue/sw.js-Cache-Strategie/Juprowa/OFFA/`_OFFPW.verify`: NICHT angefasst
+- Berechnungs-Helpers: keine
+- Hooks: alle vor Returns
+- KEIN force-push
+- `_Skeleton`-Helper: additive, kein bestehender Code-Path verändert
