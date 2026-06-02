@@ -214,3 +214,74 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 - Keine NO-GO-Berührung (sw.js-Cache-Strategie unverändert; nur Version-Bump) ✅
 - Hooks nicht nach early-return ✅
 
+
+## SPRINT 36 — v3.9.56 Visual-Polish-Round2
+
+**Commit:** `47b47d3` · **Tag:** `v3.9.56` · pushed origin/main
+**Pre+Post brackets:** `() -2 / {} 0 / [] 0` (unchanged, hinweis: dokumentierter baseline -1 stimmt nicht mehr, sebastian-action zum Audit)
+**Pre+Post pytest:** 502/502 grün
+**node --check** extracted main script: OK
+
+### 36.1 HomeView Polish (index.html L8216, L8268-8281, L8437)
+- **Greeting-Hero**: `className="fade-in"` + `boxShadow:0 4px 12px rgba(0,0,0,.04)` für gehobenen Look.
+- **Alerts-Cards** (L8271): Icon jetzt in 34×34px Background-Circle (`a.color+"1f"`) + Linear-Gradient-BG (`color11 → color06`) + hover-elevation (`translateY(-1px)` + colored shadow) + transition all .2s.
+- **Meine Baustellen-Cards** (L8437): hover-elevation (`translateY(-2px)` + `0 4px 12px rgba(0,0,0,.08)`-shadow), transition all .2s. onMouseLeave restored to CC()-baseline shadow.
+
+### 36.2 Sidebar/TopBar Polish (index.html L5410, L5418)
+- **Tab-Bar Hauptzeile**: Active-State jetzt Pill-style mit `background:c.c+"14"` + `borderRadius:8px 8px 0 0` (rounded top corners) + transition all .2s. Hover auf non-active: subtle background + color-shift zu V.tx.
+- **More-Dropdown Items**: Hover-background-feedback + transition `.15s`. Aktive Items behalten color-Indicator.
+
+### 36.3 Header (App-weit)
+- Kein dedizierter Header-Komponente neben TopBar gefunden — Sync/Notifications/Photo-Buttons werden bereits durch das bestehende V.* System gestylt. Polishing der TopBar (36.2) deckt den header-streifen ab. Status-Indicator-Banner (offline/serverOk) bereits gradient-based.
+
+### 36.4 LoginScreen Polish (index.html L4177-4199)
+- **Background**: radial-gradients (grün + cyan) für premium Atmosphere — `radial-gradient(circle at 20% 0%,rgba(0,150,64,.08),...)`.
+- **Logo**: in 6px-padded gradient-container mit `boxShadow:0 4px 12px rgba(0,150,64,.12)`, von 60→64px erhöht.
+- **H1**: 24→26px, `letterSpacing:-.01em` für premium typography.
+- **Card**: shadow `0 8px 24px rgba(0,0,0,.08)` + borderRadius 14.
+- **Inputs**: focus-states mit grün-Border + 3px focus-ring (`box-shadow: 0 0 0 3px rgba(0,150,64,.12)`).
+- **Submit-Button**: gradient-Schatten (`0 2px 8px rgba(0,150,64,.18)`), hover-translate + intensified shadow (`0 6px 16px rgba(0,150,64,.32)`), loading-Spinner statt ⏳-Emoji.
+
+### Hard-Constraints
+- Keine Berechnungs-Helpers berührt
+- Keine SyncQueue/sw.js-Cache-Strategie/_silentReAuth/OFFA/Juprowa Änderungen
+- KEINE Hooks nach early-return
+- Brackets pre==post
+- node --check ✓
+- pytest 502/502 ✓
+
+## SPRINT 37 — v3.9.57 Overnight-Hunt-Round1
+
+**Commit:** `2cfdafa` · **Tag:** `v3.9.57` (pushed to origin)
+**Pre-State:** HEAD `47b47d3` v3.9.56 · brackets `() -2 / {} 0 / [] 0` · pytest 502/502
+**Post-State:** HEAD `2cfdafa` v3.9.57 · brackets `() -2 / {} 0 / [] 0` (identisch) · pytest 502/502 · node --check ✓
+
+### Scope-Audit
+**37.1 Recent-Regression-Audit (v3.9.50-56):** 7 Versionen durchsucht — 6 actionable Findings.
+**37.2 Edge-Cases-Sweep:** Null-Deref/undefined-Array/Date/Number/Race — Helpers `_n`/`_fmtEur`/`_fmtH` bereits NaN/Infinity-guarded, captureAndQueue/PhotoQ.add bereits error-pathed.
+
+### Findings (6 / 6 fixed)
+| # | Tier | Bereich | Issue | Fix |
+|---|------|---------|-------|-----|
+| F1 | P1 | v3.9.56 Visual-Polish | onMouseLeave feuert NICHT auf Touch nach Tap → 5 Stellen stuck-hover (Alerts L8273, Project-Card L8439, LoginButton, TopBar mainTabs L5415, moreTabs L5423) | Globalen `_canHover` (matchMedia `(hover: hover)`) eingeführt L2520, alle 5 hover-Handler gated |
+| F2 | P2-a11y | v3.9.51 Urlaub-Button L8292 | nur `title` (kein aria-label) + padding 4×10 → ~26px Touch-Target | `aria-label="Urlaubsantrag stellen"` + padding 6×12 + `minHeight:36` |
+| F3 | P2-a11y | v3.9.52 Foto-Label L8362 | Icon-only label hatte nur `title:"Foto"` | `aria-label="Schnellfoto Baustelle aufnehmen"` + `aria-hidden` auf Icon-span |
+| F4 | P2-perf | v3.9.55 OfflineBanner useEffect deps L7902 | deps `[pendingCount]` → Interval-Reset bei JEDEM sync-Item-Change (im Burst >100x/min) | deps → `[]`; doc-Kommentar + silent-catch named `_e` |
+| F5 | P3-doc | v3.9.54 DATANORM-Schreibpfad L7248 | Base-Table `supplier_articles` ohne TODO/RLS-Doc | DOC-Kommentar zu RLS-Gating (Admin/PL/Lager INSERT-Policy) + UI-Gating-Note |
+| F6 | P2-edge | OfflineBanner catch L7898 | `catch(e){}` unbenannt + ohne Kommentar | renamed `_e` + Kommentar `silent: failed-counter ist best-effort` |
+
+### Verify
+- `node --check` über alle <script>-Blöcke: OK
+- Bracket-Sanity: pre `() -2 / {} 0 / [] 0` = post (identisch)
+- pytest pre+post: **502/502 grün**
+- Hard-Constraints: `_silentReAuth/_authRetry/_ensureAuth/_mapBody/TEXT_JSON_FIELDS/SyncQueue/sw.js-Cache-Strategy/Juprowa/OFFA/_OFFPW.verify` **UNVERÄNDERT**
+- Berechnungs-Helpers **NICHT angetastet**
+- Hooks: useEffect L7893 dep-change ist innerhalb desselben Hook-Body (vor early-return) → safe
+- KEIN force-push · KEIN destructive
+
+### Deferred (für Round-2+)
+- **TI-1/2 Timer-Modal-Refactor** (Sprint 31-flagged "20+ LoC") — Scope > Hunt-Round1, eigener Sprint
+- **EB-2/3 ErrorBoundary minor** (Sprint 31) — kein Repro-Pfad sichtbar in Recent-7
+- **WhatsApp-Test-Number hardcoded V-6** (Sprint 16) — nicht in Recent-7-Touch-Window
+- **DATANORM 100k+ Rows Performance** — Skalierungs-Thema, kein Bug
+- **Sebastian-Action SQL v3.9.53/54** — falls Riedmann-Bug oder EK-Preis-Mask noch nicht produktiv: SQL `sql/migrate_notifications_rls_v3953.sql` + `sql/migrate_supplier_articles_safe_v3954.sql` auf Supabase `jiggujpruejkaomgxarp` ausführen
