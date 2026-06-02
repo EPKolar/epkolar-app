@@ -368,3 +368,61 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 - Hooks-Order intakt (keine post-early-return)
 - KEIN force-push · KEIN destructive
 - Version-Sync: index.html L15 + L2236 + sw.js L1+L2 alle **v3.9.61**
+
+## SPRINT 41 — v3.9.62 A11Y+Touch
+- **HEAD:** `5559e43` (push ✓, tag v3.9.62 ✓)
+- **Findings:** 12 (10 A11Y + 2 Mobile/Touch CSS)
+- **Fixes A11Y (10):**
+  1. L8315 — "Meine AS heute" Tile → role/tabIndex/aria-label/onKeyDown
+  2. L8320 — "Meine Stunden KW" Tile → role/tabIndex/aria-label/onKeyDown
+  3. L8474 — "… weitere Projekte" CTA → role/tabIndex/aria-label/onKeyDown
+  4. L8297 — "→ Zur Detail-Ansicht" Alerts-Link → role/tabIndex/aria-label/onKeyDown
+  5. L8569 — "📝 Bautagebuch" Tile (isOps) → role/tabIndex/aria-label/onKeyDown
+  6. L12555 — Order-Detail Toggle → role/tabIndex/dynamic-aria-label/onKeyDown
+  7. L12871 — Supp-Order-Detail Toggle → role/tabIndex/dynamic-aria-label/onKeyDown
+  8. L14156 — Resturlaub-Monteur-Zeile → role/tabIndex/aria-label/onKeyDown
+  9. L11657 — Doc-Tree "Alle"-Root → role/tabIndex/aria-label/onKeyDown
+  10. L11665 — Doc-Tree "Ohne Ordner" → role/tabIndex/aria-label/onKeyDown
+  11. L5455 — moreOpen-Overlay → role/tabIndex/aria-label/onKeyDown(Escape)
+  12. L9060 — mobNav-Overlay → role/tabIndex/aria-label/onKeyDown(Enter/Space/Escape)
+  + L5453 iOS-Banner-Close-Button → aria-label/title (icon-only ✕)
+- **Fixes Mobile/Touch/Focus CSS (2):**
+  1. L82 static-CSS: NEW `[role="button"]:focus-visible` + `button:focus-visible` 2px outline mit accent-color (keyboard-focus indicator, ohne sichtbare Wirkung für Mouse-User dank :focus-visible)
+  2. L3651 dynamic-CSS GCSS: `button{...}` erweitert auf `button,[role="button"]{...}` für touch-action:manipulation + zusätzliche focus-visible rule
+- **Bracket-Baseline:** pre `-1/0/0` → post `-1/0/0` ✓
+- **pytest:** 502/502 grün
+- **node --check:** exit 0
+- **Hard-Constraints UNVERÄNDERT:** `_silentReAuth/_authRetry/_ensureAuth/_mapBody/TEXT_JSON_FIELDS/SyncQueue/sw.js-Cache-Strategy/Juprowa/OFFA/_OFFPW.verify`
+- **Deferred:** P2/P3 — viele weitere clickable divs (165+ noch `cursor:pointer` ohne role) bewusst gelassen (touch-action über CSS-Selektor `[style*="cursor: pointer"]` schon Sprint-22-baseline); Spans/Anchors mit onClick deferred bis dedizierte A11Y-Round-4
+- **Version-Sync:** index.html L15 (SW_VER) + L2239 (APP_VERSION) + sw.js L1+L2 alle **v3.9.62** ✓
+
+
+## SPRINT 42 — v3.9.63 A11Y-R4+Forms+Deferred
+
+**Pre/Post-State:** bracket `() -2 / {} 0 / [] 0` IDENTISCH · pytest 502/502 ✓ · node-check ✓
+**Findings:** 11 · **Fixes:** 11 · **Deferred:** 2 (>20 LoC, NO-GO)
+
+### 42.1 A11Y-Round-4 — span+onClick → role=button (8 Fixes)
+- **L9449** Zeit-Eintrag delEntry-✕ span: `role="button"`+`tabIndex:0`+`aria-label`+`onKeyDown` (Enter/Space)
+- **L11704+11707** Dokumente-Breadcrumb "📁 Alle" + Folder-Items: full a11y-pattern
+- **L13636** Edit-Row-Abbrechen ✕ span: full a11y-pattern
+- **L13647-13650** Move-Row ▲/▼ + Clear/Delete-Row 🗑/✕ (4 spans, Stundenzettel/Stundenliste): full a11y-pattern
+- **L16517** Kalender-deleteEntry ✕ span: full a11y-pattern
+
+### 42.2 Form-Round-2 — Pflichtfeld-Marker + Toast (3 Fixes)
+- **L11878 VBautag.saveEntry**: silent-return → `__toast("⚠️ Datum + Tätigkeiten sind Pflicht","warn")` — User-Feedback statt stillem No-Op
+- **L16800 addFz** (Fahrzeug anlegen): silent-return → `__toast("⚠️ Kennzeichen ist Pflicht","warn")`
+- **L9717 HeadFields** (SF/DH/AH/Abnahme via useEditable): visible `*`-Marker auf Datum + `aria-required="true"` (Validierung war schon da, jetzt sichtbar)
+
+### 42.3 Deferred-Cleanup — Re-Defer
+- **F-13 _epkTimer-Replace L8350**: prompt()-Kette für Projekt+Tätigkeit, async-Modal-Refactor wäre 40+ LoC mit Stack-Restore → DEFER (Risiko zu hoch)
+- **F-12 worker_kompetenzen-Toggle**: bewusst nicht angepackt (komplexer if/else, >20 LoC)
+
+### Versions-Sync
+- `index.html` L15 `SW_VER` v3.9.62 → v3.9.63
+- `index.html` L2239 `APP_VERSION` 3.9.62-supabase → 3.9.63-supabase
+- `sw.js` L1+L2 v3.9.62 → v3.9.63
+
+### Hard-Constraints UNVERÄNDERT
+`_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
+
