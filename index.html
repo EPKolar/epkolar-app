@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.75';
+  var SW_VER='epkolar-v3.9.76';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2262,7 +2262,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.75-supabase";
+const APP_VERSION="3.9.76-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -9755,8 +9755,9 @@ function VForm({p,forms,setForms,fTab,setFTab,ww}){
   const [search,setSearch]=_react.useState.call(void 0, "");
   const [showAll,setShowAll]=_react.useState.call(void 0, false);
 
-  const allForms=tabs.flatMap(t=>(forms[t.k]||[]).filter(f=>f.pid===p.id).map((f,i)=>({...f,_type:t.id,_icon:t.i,_label:t.l,_idx:i})));
-  const filtered=search?allForms.filter(f=>{const s=search.toLowerCase();return (f.arbeit||f.bv||f.bereich||"").toLowerCase().includes(s)||(f.datum||"").includes(s)||f._label.toLowerCase().includes(s);}):allForms;
+  /* v3.9.76 S55-1 useMemo: flatMap+filter+map über tabs × forms — bei jedem Render expensive */
+  const allForms=_react.useMemo.call(void 0, ()=>tabs.flatMap(t=>(forms[t.k]||[]).filter(f=>f.pid===p.id).map((f,i)=>({...f,_type:t.id,_icon:t.i,_label:t.l,_idx:i}))),[tabs,forms,p.id]);
+  const filtered=_react.useMemo.call(void 0, ()=>search?allForms.filter(f=>{const s=search.toLowerCase();return (f.arbeit||f.bv||f.bereich||"").toLowerCase().includes(s)||(f.datum||"").includes(s)||f._label.toLowerCase().includes(s);}):allForms,[allForms,search]);
 
   return (
     React.createElement('div', {}
@@ -10038,10 +10039,13 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
      Admin/PL/Büro sehen alles. */
   const _vmIsField=curUser&&!isAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
   const _vmMid=(curUser&&curUser.monteurId)||"";
-  const _msRaw=(forms.maengel||[]).filter(m=>m.pid===p.id);
-  const ms=_vmIsField?_msRaw.filter(m=>m.worker===_vmMid||m.zugewiesen===_vmMid||m.assignee===_vmMid||m.melder==="Kunde"):_msRaw;
-  const kundenMeldungen=ms.filter(m=>m.melder==="Kunde");
-  const neueMeldungen=kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet");
+  /* v3.9.76 S55-1 useMemo: 4-fach Filter über forms.maengel ohne Memo — bei jedem Render → O(n) × 4 */
+  const ms=_react.useMemo.call(void 0, ()=>{
+    const _msRaw=(forms.maengel||[]).filter(m=>m.pid===p.id);
+    return _vmIsField?_msRaw.filter(m=>m.worker===_vmMid||m.zugewiesen===_vmMid||m.assignee===_vmMid||m.melder==="Kunde"):_msRaw;
+  },[forms.maengel,p.id,_vmIsField,_vmMid]);
+  const kundenMeldungen=_react.useMemo.call(void 0, ()=>ms.filter(m=>m.melder==="Kunde"),[ms]);
+  const neueMeldungen=_react.useMemo.call(void 0, ()=>kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet"),[kundenMeldungen]);
   const [name,setName]=_react.useState.call(void 0, "");const [ebene,setEbene]=_react.useState.call(void 0, "EG");const [worker,setWorker]=_react.useState.call(void 0, (monteure[0]||{}).id||"");const [frist,setFrist]=_react.useState.call(void 0, td2());const [prio,setPrio]=_react.useState.call(void 0, "mittel");
   const [reviewId,setReviewId]=_react.useState.call(void 0, null);const [reviewNote,setReviewNote]=_react.useState.call(void 0, "");const [reviewWorker,setReviewWorker]=_react.useState.call(void 0, (monteure[0]||{}).id||"");
   const [lightbox,setLightbox]=_react.useState.call(void 0, null); // {src, title}
@@ -10760,7 +10764,13 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
      Admin/PL/Büro sehen alles. */
   const _vpIsField=curUser&&!isAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
   const _vpMid=(curUser&&curUser.monteurId)||"";
-  const plans=planData.plans.filter(pl=>pl.pid===p.id);const _allTicketsRaw=planData.tickets.filter(t=>t.pid===p.id);const allTickets=_vpIsField?_allTicketsRaw.filter(t=>t.assignee===_vpMid):_allTicketsRaw;const layers=planData.layers;
+  /* v3.9.76 S55-1 useMemo: 2× filter pro Render → bei planData-Updates O(n) × 2. _vpMid stable. */
+  const plans=_react.useMemo.call(void 0, ()=>planData.plans.filter(pl=>pl.pid===p.id),[planData.plans,p.id]);
+  const allTickets=_react.useMemo.call(void 0, ()=>{
+    const _raw=planData.tickets.filter(t=>t.pid===p.id);
+    return _vpIsField?_raw.filter(t=>t.assignee===_vpMid):_raw;
+  },[planData.tickets,p.id,_vpIsField,_vpMid]);
+  const layers=planData.layers;
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");const [zoom,setZoom]=_react.useState.call(void 0, 1);const [placing,setPlacing]=_react.useState.call(void 0, false);const [newTicket,setNewTicket]=_react.useState.call(void 0, null);const [filterType,setFilterType]=_react.useState.call(void 0, "alle");const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");const [filterLayer,setFilterLayer]=_react.useState.call(void 0, "alle");const [showSidebar,setShowSidebar]=_react.useState.call(void 0, true);const [sideMode,setSideMode]=_react.useState.call(void 0, "tickets");const fileRef=_react.useRef.call(void 0, null);const isMob=ww<600;const isTab=ww<768;
   const [dropActive,setDropActive]=_react.useState.call(void 0, false);
   const [pendingPin,setPendingPin]=_react.useState.call(void 0, null);
@@ -10775,8 +10785,9 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const handleDrop=e=>{e.preventDefault();e.stopPropagation();setDropActive(false);const files=_optionalChain([e, 'access', _375 => _375.dataTransfer, 'optionalAccess', _376 => _376.files]);if(_optionalChain([files, 'optionalAccess', _377 => _377.length])){const fakeEvt={target:{files,value:""}};handleUpload(fakeEvt);}};
   const handleDragOver=e=>{e.preventDefault();e.stopPropagation();setDropActive(true);};
   const handleDragLeave=e=>{e.preventDefault();setDropActive(false);};
-  const planTickets=allTickets.filter(t=>t.planId===(_optionalChain([selPlan, 'optionalAccess', _378 => _378.id])||""));
-  const filteredTickets=planTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;});
+  /* v3.9.76 S55-1 useMemo: filter-chain bei jedem State-Change (Filter-Dropdowns) → recompute */
+  const planTickets=_react.useMemo.call(void 0, ()=>allTickets.filter(t=>t.planId===(_optionalChain([selPlan, 'optionalAccess', _378 => _378.id])||"")),[allTickets,selPlan]);
+  const filteredTickets=_react.useMemo.call(void 0, ()=>planTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&t.layer!==filterLayer)return false;return true;}),[planTickets,filterType,filterStatus,filterLayer]);
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{const isPdf=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf");if(isPdf){const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Plan-PDF konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ev.target.result,width:1200,height:850,isPdf:true,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:new Date().toISOString()};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ev.target.result,width:1200,height:850,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");};reader.readAsDataURL(file);}else{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ph.dataUrl,width:ph.width,height:ph.height,uploaded_by:curUser.name}});setSelPlan(np);setSubView("viewer");}).catch(e=>{console.error('[PLAN-UPLOAD]',file.name,e&&e.message||e);window.__toast&&window.__toast("❌ Plan-Upload fehlgeschlagen: "+file.name,"error");});}});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
   const deletePlan=async id=>{if(!isAdmin)return;if(!await _confirmModal("Plan und alle zugehörigen Tickets löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
   const isPlanFreigegeben=(planId)=>!!(forms.kundenDocs||[]).find(kd=>kd.id==="plan_"+planId);
@@ -10807,7 +10818,8 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   // v3.8.44 S3.3: UI-only — layers werden aktuell NICHT in DB persistiert (kein SQ.push).
   // Falls künftig Persistenz hinzukommt: canDo("plan_delete", curUser)-Guard davor setzen.
   const deleteLayer=id=>setPlanData(prev=>({...prev,layers:prev.layers.filter(l=>l.id!==id)}));
-  const stats={total:allTickets.length,offen:allTickets.filter(t=>t.status==="offen").length,inBearb:allTickets.filter(t=>t.status==="in_bearbeitung").length,erledigt:allTickets.filter(t=>t.status==="erledigt"||t.status==="abgenommen").length};
+  /* v3.9.76 S55-1 useMemo: 3× filter pro Render */
+  const stats=_react.useMemo.call(void 0, ()=>({total:allTickets.length,offen:allTickets.filter(t=>t.status==="offen").length,inBearb:allTickets.filter(t=>t.status==="in_bearbeitung").length,erledigt:allTickets.filter(t=>t.status==="erledigt"||t.status==="abgenommen").length}),[allTickets]);
   const exportTickets=()=>{const hdrs=["Nr","Typ","Status","Fortschritt","Titel","Ebene","Verantwortlich","Frist"];const data=allTickets.map((t,i)=>{const tt=TICKET_TYPES[t.type];const ts=TICKET_STATUS[t.status];const l=layers.find(x=>x.id===t.layer);const w=(monteure||MONT).find(x=>x.id===t.assignee);return [i+1,_optionalChain([tt, 'optionalAccess', _391 => _391.l])||"",_optionalChain([ts, 'optionalAccess', _392 => _392.l])||"",(t.progress||0)+"%",t.title,_optionalChain([l, 'optionalAccess', _393 => _393.name])||"",_optionalChain([w, 'optionalAccess', _394 => _394.n])||"",t.dueDate?fdt(t.dueDate):""];});genXls("🗺️ Tickets — "+p.name,p.nr+" · Pläne & Mängel · "+allTickets.length+" Tickets",hdrs,data,p.nr+"_Tickets.xls",{colWidths:[35,75,85,60,200,95,95,75],leftCols:[0,1,4,5,6],boldCols:[4],statusMap:{"Offen":"#ef4444","In Bearbeitung":"#f97316","Erledigt":"#22c55e","Abgenommen":"#3b82f6","Abgeschlossen":"#6366f1","Storniert":"#71717a"}});};
   return (
     React.createElement('div', { onDrop: handleDrop, onDragOver: handleDragOver, onDragLeave: handleDragLeave, style: {position:"relative"}}
@@ -13916,13 +13928,16 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const updateEntry=(key,changes)=>{setAbs(p=>{const c={...p};if(c[key])c[key]={...c[key],...changes};return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(key),method:"PUT",body:changes});setEditEntry(null);_optionalChain([window, 'access', _565a => _565a.__toast, 'optionalCall', _565b => _565b("✏️ Eintrag aktualisiert")]);};
   const bulkApprove=()=>{allEntries.filter(e=>e.approval==="ausstehend").forEach(e=>{setApprovals(p=>({...p,[e.key]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(e.key),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565c => _565c.name])}});});_optionalChain([window, 'access', _565d => _565d.__toast, 'optionalCall', _565e => _565e("✅ Alle genehmigt")]);};
 
-  // All entries
-  const allEntries=[];
-  names.forEach(m=>{Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");const appr=approvals[key]||"ausstehend";allEntries.push({name:m,dateStr,type:v.type,by:v.by||"",date:v.date||"",approval:appr,key});}});});
-  allEntries.sort((a,b)=>(b.dateStr||"").localeCompare(a.dateStr||""));
-  const pendingCount=allEntries.filter(e=>e.approval==="ausstehend").length;
-  const pendingEntries=allEntries.filter(e=>e.approval==="ausstehend");
-  const approvedEntries=allEntries.filter(e=>e.approval==="genehmigt");
+  // All entries — v3.9.76 S55-1 useMemo: scan over abs+approvals+names ist O(n*m) — bei jedem Render → expensive
+  const allEntries=_react.useMemo.call(void 0, ()=>{
+    const out=[];
+    names.forEach(m=>{Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");const appr=approvals[key]||"ausstehend";out.push({name:m,dateStr,type:v.type,by:v.by||"",date:v.date||"",approval:appr,key});}});});
+    out.sort((a,b)=>(b.dateStr||"").localeCompare(a.dateStr||""));
+    return out;
+  },[names.join("|"),abs,approvals]);
+  const pendingEntries=_react.useMemo.call(void 0, ()=>allEntries.filter(e=>e.approval==="ausstehend"),[allEntries]);
+  const approvedEntries=_react.useMemo.call(void 0, ()=>allEntries.filter(e=>e.approval==="genehmigt"),[allEntries]);
+  const pendingCount=pendingEntries.length;
 
   const approveAll=m=>{const keys=pendingEntries.filter(e=>e.name===m).map(e=>e.key);setApprovals(p=>{const c={...p};keys.forEach(k=>{c[k]="genehmigt";});return c;});keys.forEach(k=>SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565 => _565.name])}}));_optionalChain([pushNotif, 'optionalCall', _566 => _566("absence_approval","✅ Alle genehmigt",m+": "+keys.length+" Anträge genehmigt")]);};
   const rejectAll=m=>{const keys=pendingEntries.filter(e=>e.name===m).map(e=>e.key);setApprovals(p=>{const c={...p};keys.forEach(k=>{c[k]="abgelehnt";});return c;});keys.forEach(k=>SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _567 => _567.name])}}));};
@@ -16829,7 +16844,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     });
   },[fahrzeuge,favFz,myFzId]);
   // Role-based filter: Monteur sees only own vehicle, Lagerleiter+Admin see all
-  const visibleFz=isVAdmin?sortedFz:sortedFz.filter(f=>f.fahrer===(_optionalChain([curUser, 'optionalAccess', _vfz => _vfz.monteurId])||"__none__"));
+  /* v3.9.76 S55-1 useMemo: filter über sortedFz pro Render */
+  const visibleFz=_react.useMemo.call(void 0, ()=>isVAdmin?sortedFz:sortedFz.filter(f=>f.fahrer===(_optionalChain([curUser, 'optionalAccess', _vfz => _vfz.monteurId])||"__none__")),[isVAdmin,sortedFz,curUser]);
   // QR Scanner
   const fzVideoRef=_react.useRef.call(void 0, null);const fzStreamRef=_react.useRef.call(void 0, null);const fzScanTimer=_react.useRef.call(void 0, null);
   const [fzScanning,setFzScanning]=_react.useState.call(void 0, false);const [fzScannedItem,setFzScannedItem]=_react.useState.call(void 0, null);const [fzScanMsg,setFzScanMsg]=_react.useState.call(void 0, "");const [fzManualCode,setFzManualCode]=_react.useState.call(void 0, "");const [fzScanMode,setFzScanMode]=_react.useState.call(void 0, false);
@@ -17842,14 +17858,14 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     }
     return cnt;
   },[_wzPool]);
-  // Filter
-  const filtered=_wzPool.filter(w=>{
+  // Filter — v3.9.76 S55-1 useMemo: filter über pool incl. monteure-find (.find pro Werkzeug → O(n*m)) — bei Search-Tastatur lag möglich
+  const filtered=_react.useMemo.call(void 0, ()=>_wzPool.filter(w=>{
     if(!_matchesChip(w))return false;
     if(filtSt&&w.status!==filtSt)return false;
     if(filtKat&&w.kat!==filtKat)return false;
     if(search){const s=search.toLowerCase();return (w.name+w.seriennr+w.inventarnr+w.notizen+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
     return true;
-  });
+  }),[_wzPool,_matchesChip,filtSt,filtKat,search,monteure]);
   // v3.8.60 Phase 4.2: SelectAll-Helper (depends on filtered)
   const _selectAll=()=>setSelectedIds(s=>s.length===filtered.length?[]:filtered.map(w=>w.id));
   // v3.8.57 Block 2.3: Sortier-Pfeile für Werkzeug-Liste
