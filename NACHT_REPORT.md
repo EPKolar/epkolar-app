@@ -427,6 +427,68 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 `_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
 
 
+## SPRINT 46 — v3.9.67 Theme-R2 + Border-Radius + Mobile-Tail + Misc
+
+**Datum:** 2026-06-02
+**Branch:** main
+**HEAD-Range:** (siehe Sprint-Commit unten)
+**Pre-State:** bracket `() -2 / {} 0 / [] 0` · pytest 502/502 · v3.9.66 PUSHED
+**Post-State:** bracket `() -2 / {} 0 / [] 0` (identisch) · pytest 502/502 · v3.9.67 ready
+
+### 46.1 Theme-Round-2 — 13 inline-#ef4444 Sites migriert (Top-visible)
+
+Verbleibende inline-Sites nach Sprint 45: 197. Top-10-Visible (+ 2 in audit-stripe + 1 NotifFilter-Badge-Cnt) → `COLORS.ERROR`.
+
+| Site | Funktion | Kontext |
+|---|---|---|
+| L3818 | PermDot Dot-Background | Berechtigungs-Indikator |
+| L3991 | KPI "Offene Mängel" Color | Auftrag-Detail Card |
+| L4269 | ErrorBoundary Tab-Title | "Tab konnte nicht geladen werden" |
+| L4271 | ErrorBoundary Retry-Button | Tab-Boundary Button-Color |
+| L5263 | Header Sync-Status Text | "Server ❌" / "Offline" Label |
+| L5300 | Sync-Panel Dot | Verbindungsstatus-Indicator |
+| L5314 | NotifFilter Badge-Background | Eskalation-Badge BG |
+| L5400 | Sync-Body Dot Large | Verbindungs-Indicator im Panel |
+| L5615 | Monteur-Assigned Label | "❌ Nicht" Color |
+| L7518 | Audit-Log Action-Stripe (2x) | login_failed + delete Markers |
+| L7561 | User-Table letzte-Anmeldung | daysAgo>7 Color |
+| L8001 | Stoppuhr Stop-Button | Background-Color für ⏹ Stopp |
+
+Pre-state `#ef4444` count: 197 → Post 184 (-13). `COLORS.ERROR` count: 28 → 41 (+13).
+
+### 46.2 Border-Radius (selektiv)
+
+NO-CHANGE — Audit ergab: keine Komplett-Mismatches in den 13 Migrations-Sites. Bulk-Standardisierung weiterhin deferred (Sprint 44 Rationale gilt).
+
+### 46.3 Mobile-Touch-Tail (1 Fix)
+
+- L5314 NotifFilter-Chips: padding `4px 10px` → `6px 12px`, neu `minHeight:36, touchAction:"manipulation"`. Filter-Buttons im Notif-Panel hatten ~24px Höhe → unter iOS-44-Min-Tap-Empfehlung. Jetzt 36+ erfüllt Touch-Comfort.
+
+### 46.4 Misc P3-Tail (2 Fixes)
+
+- **Voice-Multi-Sprach Sprint-32 F7** (L6113): `rec.lang="de-AT"` hardcoded → `navigator.language` Fallback wenn de-CH/de-DE/de-LI; sonst de-AT (AT-Default). Schweizer/DE-Kunden bekommen jetzt native Speech-Recognition-Quality.
+- **sessionStorage-Quota-Helper Sprint-33 F-10** (L1558): Additiver `_safeSessionSet(key,val)` Helper mit try/catch + Boolean-Return. Safari Private-Mode = 0-Quota → bisheriger `setItem`-Aufruf wirft QuotaExceededError silent. Helper kapselt für Caller-Branching (Boolean-Return ermöglicht Fallback-Strategien). Pure additiv, kein Caller-Site geändert.
+
+### Version-Sync
+- `index.html` L15 SW_VER `v3.9.66` → `v3.9.67`
+- `index.html` L2242 APP_VERSION `3.9.66-supabase` → `3.9.67-supabase`
+- `sw.js` L1+L2 v3.9.66 → v3.9.67
+
+### Verify
+- bracket pre: `() -2 / {} 0 / [] 0`
+- bracket post: `() -2 / {} 0 / [] 0` (identisch ✓)
+- node --check: exit 0 ✓
+- pytest: 502/502 grün ✓
+
+### Findings vs Fixes
+- 15 Findings identifiziert (13 Theme-Sites + 1 Mobile-Touch + 2 Misc-P3 = 16 total fixes)
+- Alle Tier-1 <15 LoC erfüllt
+- Keine Sebastian-Actions queued
+
+### Hard-Constraints UNVERÄNDERT
+`_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
+
+
 ---
 
 ## SPRINT 44 — v3.9.65 Polish+Micro+Deferred
