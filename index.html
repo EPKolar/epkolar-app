@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.69';
+  var SW_VER='epkolar-v3.9.70';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2239,7 +2239,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.69-supabase";
+const APP_VERSION="3.9.70-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -3743,7 +3743,7 @@ function useSpeech(onResult){
   const recRef=_react.useRef.call(void 0, null);
   const [listening,setListening]=_react.useState.call(void 0, false);
   const start=()=>{
-    if(!SpeechRec){alert("Spracherkennung wird von diesem Browser nicht unterstützt. Bitte Chrome verwenden.");return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!SpeechRec){_optionalChain([window,'access',_g70m=>_g70m.__toast,'optionalCall',_g70n=>_g70n("⚠️ Spracherkennung nicht unterstützt — bitte Chrome verwenden","warn",5000)]);return;}
     const rec=new SpeechRec();
     rec.lang="de-AT";rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;
     rec.onresult=e=>{/* v3.8.44 S2.4 Length-Guard: Race bei Speech-Cancel kann leere results liefern */if(!e||!e.results||!e.results.length)return;const last=e.results[e.results.length-1];if(!last||!last[0]||last[0].transcript==null)return;const t=last[0].transcript;if(onResult.current)onResult.current(t);};
@@ -4378,7 +4378,8 @@ class _ViewBoundary extends React.Component{
   const swUpdateTimer=_react.useRef.call(void 0, null);
   // Toast notifications
   const [toasts,setToasts]=_react.useState.call(void 0, []);
-  const addToast=_react.useCallback.call(void 0, (msg,type="success")=>{const id=Date.now()+"_"+Math.random().toString(36).slice(2,5);setToasts(p=>[...p.slice(-4),{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3200);},[]);
+  /* v3.9.70 SPRINT-50 F-1: addToast erweitert um (a) 3rd dur-Param (ms — viele Caller passten Timeout, wurde silently ignoriert) (b) Toleranz wenn dur in type-Slot landet (legacy-Bug-Sites wie 7418 mit __toast("...",10000)) (c) "info"-Type → blue (war im Renderer nicht abgebildet → fiel auf green=success zurück). Backward-compatible. */
+  const addToast=_react.useCallback.call(void 0, (msg,type="success",dur)=>{if(typeof type==='number'){dur=type;type="success";}const id=Date.now()+"_"+Math.random().toString(36).slice(2,5);setToasts(p=>[...p.slice(-4),{id,msg,type}]);const _ms=(typeof dur==='number'&&dur>500&&dur<30000)?dur:3200;setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),_ms);},[]);
   _react.useEffect.call(void 0, ()=>{window.__toast=addToast;return()=>{delete window.__toast;};},[addToast]);
 
   /* v3.9.41 Sprint-26 M-1..M-4: Global overlay-Panels (showSearch/showPhotoQ/showNotifPanel/showSyncPanel) hatten weder body-scroll-lock noch Escape-Key-Close → Hintergrund-Page scrollte unter Backdrop und User mussten zwingend X-Klick nutzen. Ref-counted _scrollLock + globaler keydown-Handler. */
@@ -5510,7 +5511,7 @@ class _ViewBoundary extends React.Component{
       )
       /* ═══ TOAST OVERLAY ═══ */
       , toasts.length>0&&(React.createElement('div', { style: {position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",zIndex:99999,display:"flex",flexDirection:"column",gap:8,alignItems:"center",pointerEvents:"none",width:"90%",maxWidth:400}}
-        , toasts.map(t=>(React.createElement('div', { key: t.id, style: {background:t.type==="error"?"#dc2626":t.type==="warn"?"#d97706":"#009640",color:"#fff",padding:"10px 20px",borderRadius:12,fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,.3)",animation:"toastIn .3s ease",textAlign:"center",width:"100%"}}, t.msg)))
+        , toasts.map(t=>(React.createElement('div', { key: t.id, style: {background:t.type==="error"?"#dc2626":t.type==="warn"?"#d97706":t.type==="info"?"#2563eb":"#009640",color:"#fff",padding:"10px 20px",borderRadius:12,fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,.3)",animation:"toastIn .3s ease",textAlign:"center",width:"100%"}}, t.msg)))
       ))
       , React.createElement('style', {}, `@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`)
     )
@@ -6111,7 +6112,7 @@ function sharePdf(){
   };
 
   const voiceStart=()=>{
-    if(!SpeechRec){alert("Spracherkennung nicht unterstützt. Bitte Chrome verwenden.");return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!SpeechRec){_optionalChain([window,'access',_g70o=>_g70o.__toast,'optionalCall',_g70p=>_g70p("⚠️ Spracherkennung nicht unterstützt — bitte Chrome verwenden","warn",5000)]);return;}
     setShowVoice(true);setVoiceText("");setVoiceParsed(null);
     const rec=new SpeechRec();
     /* v3.9.67 S46-Misc Sprint-32 F7: Voice-Multi-Sprach — navigator.language Fallback wenn de-CH/de-DE/de-LI; ansonsten de-AT (Default für AT-Markt). */
@@ -7120,11 +7121,11 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(curUser.role!=="admin")return;
     if(_creatingUser.current)return;
     if(!nf.username||!nf.password||!nf.name) return;
-    if(nf.password.length<4){alert("Passwort muss mindestens 4 Zeichen haben");return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast (UX-Konsistenz). */if(nf.password.length<4){_optionalChain([window,'access',_g70a=>_g70a.__toast,'optionalCall',_g70b=>_g70b("⚠️ Passwort muss mindestens 4 Zeichen haben","warn")]);return;}
     // v3.8.7 B-020 Konsistenz: createUser darf keine fake @epkolar.local-Emails mehr erzeugen.
     // Das war genau die Inkonsistenz die B20-F ausgelöst hatte (alte User mit email=''/fake).
-    if(!nf.email||!nf.email.trim()||nf.email.indexOf('@')<2){alert("Gültige E-Mail-Adresse erforderlich (für Auth-Login)");return;}
-    if(users.find(u=>u.username===nf.username)){alert("Benutzername bereits vergeben");return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!nf.email||!nf.email.trim()||nf.email.indexOf('@')<2){_optionalChain([window,'access',_g70c=>_g70c.__toast,'optionalCall',_g70d=>_g70d("⚠️ Gültige E-Mail-Adresse erforderlich (für Auth-Login)","warn")]);return;}
+    if(users.find(u=>u.username===nf.username)){_optionalChain([window,'access',_g70e=>_g70e.__toast,'optionalCall',_g70f=>_g70f("⚠️ Benutzername bereits vergeben","warn")]);return;}
     _creatingUser.current=true;
     const nid=uid();const email=nf.email.trim();setUsers(prev=>[...prev,{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,active:true,monteurId:nf.monteurId||null,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:nf.username,password:nf.password,name:nf.name,email:email,role:nf.role,monteurId:nf.monteurId||null,active:1,locked:0}});
     /* v3.8.7 Bug-Hunt Iter-7: admin_reset_password silent-catch durch observability ersetzt.
@@ -10039,7 +10040,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
     /* v3.9.25 KRITISCH P1-Followup: Triage = Admin/PL-Task. Monteur darf NICHT review-rejecten. */
     if(!isAdmin){_optionalChain([window,'access',_g325i=>_g325i.__toast,'optionalCall',_g325j=>_g325j("⚠️ Triage von Kundenmeldungen ist Admin/PL-Task","warn")]);return;}
     /* v3.9.61 S40 F-2: whitespace-only reviewNote was accepted; trim required. */
-    if(!(reviewNote||"").trim()){alert("Bitte Begründung für Ablehnung eingeben!");return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!(reviewNote||"").trim()){_optionalChain([window,'access',_g70g=>_g70g.__toast,'optionalCall',_g70h=>_g70h("⚠️ Bitte Begründung für Ablehnung eingeben","warn")]);return;}
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"abgelehnt",reviewNote:reviewNote}:m)}));
     SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:"abgelehnt",kunde_status:"abgelehnt",review_note:reviewNote}});
     _optionalChain([window, 'access', _366d => _366d.__toast, 'optionalCall', _366e => _366e("❌ Kundenmeldung abgelehnt")]);
@@ -13390,7 +13391,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const clearRow=(id)=>setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));
   const delRow=(id)=>{/* v3.9.35 W-1/W-6: clear cellPick + selCells + dragRef wenn die gelöschte Zeile aktiv war — sonst stale popup/drag-state auf nicht-existenter rowId. */setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));if(_optionalChain([cellPick, 'optionalAccess', _wpDel1 => _wpDel1.rowId])===id)setCellPick(null);if(_optionalChain([selCells, 'optionalAccess', _wpDel2 => _wpDel2.rowId])===id)setSelCells(null);if(dragRef.current&&dragRef.current.rowId===id){dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};}};
   const moveRow=(id,dir)=>{setRows(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const ni=idx+dir;if(ni<0||ni>=prev.length)return prev;const nr=[...prev];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];return nr;});};
-  const copyWeek=(srcKw)=>{const src=wpHistory[srcKw];if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){alert("KW "+srcKw+" hat keine Einträge");return;}setRows(padWpRows(src.map(r=>({...r,id:Date.now()+Math.random(),z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
+  const copyWeek=(srcKw)=>{const src=wpHistory[srcKw];if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){/* v3.9.70 SPRINT-50 F-2: alert → toast. */_optionalChain([window,'access',_g70i=>_g70i.__toast,'optionalCall',_g70j=>_g70j("ℹ KW "+srcKw+" hat keine Einträge","info")]);return;}setRows(padWpRows(src.map(r=>({...r,id:Date.now()+Math.random(),z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
 
   // Export helpers
   const cellText=(cell)=>{if(!cell)return"—";const names=(cell.ma||[]).map(id=>_optionalChain([monteure, 'access', _492 => _492.find, 'call', _493 => _493(m=>m.id===id), 'optionalAccess', _494 => _494.n])||"").filter(Boolean);const fzNames=(cell.fz||[]).map(id=>(fahrzeuge||[]).find(f=>f.id===id)).filter(Boolean).map(f=>f.kennzeichen);return [...names,...fzNames.map(k=>"["+k+"]")].join(" / ")||"—";};
@@ -17743,7 +17744,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const openNew=()=>{setForm(defWz());setEditId(null);setSub("form");};
   const openEdit=w=>{setForm({...w});setEditId(w.id);setSub("form");};
   const save=()=>{
-    if(!form.name){alert("Name ist Pflichtfeld!");return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!form.name){_optionalChain([window,'access',_g70k=>_g70k.__toast,'optionalCall',_g70l=>_g70l("⚠️ Name ist Pflichtfeld","warn")]);return;}
     // Auto-generate inventarnr if empty
     if(!form.inventarnr){const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;form.inventarnr="EK-"+prefix+String(next).padStart(3,"0");}
     if(editId){setWerkzeuge(p=>p.map(w=>w.id===editId?{...form}:w));SQ.push({url:"/api/werkzeuge/"+editId,method:"PUT",body:form});_optionalChain([window, 'access', _752 => _752.__toast, 'optionalCall', _753 => _753("✅ Werkzeug aktualisiert")]);}
