@@ -426,3 +426,46 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 ### Hard-Constraints UNVERÄNDERT
 `_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
 
+
+---
+
+## SPRINT 44 — v3.9.65 Polish+Micro+Deferred
+
+**Commit:** `d0321c6` — pushed `main` + tag `v3.9.65`
+**Pre-state:** HEAD `4f101e6` v3.9.64 | bracket `() -2 / {} 0 / [] 0` | pytest 502/502
+**Post-state:** HEAD `d0321c6` v3.9.65 | bracket `() -2 / {} 0 / [] 0` (identisch) | pytest 502/502 | node --check ALL_OK
+
+### Findings (12) / Fixes (10) / Deferred (2)
+
+**44.2 Micro-UX Tooltips (8 Fixes)**
+- F1 L17302-03: km-Modal `💾` Save + `✕` Close → +title+aria-label
+- F2 L10146: Bild-Lightbox `✕` Close → +title+aria-label
+- F3 L11427-30: Foto-Lightbox `📥`+`🗑️`+`✕` → 3× +title+aria-label
+- F4 L10325: Ticket-Card `✏️`/`✕` Edit-Toggle + Close → +dynamic-title+aria-label
+- F5 L6168: Voice-Modal `✕` Close → +title+aria-label
+- F6 L5335: Notification-Liste pro-Item `✕` Delete → +title+aria-label
+- F7 L9459: ZeiterfassungView delEntry-span → +title (aria-label hatte schon)
+- F8 (ChartBox-Toggle in 44.1 mit): Toggle-Switch → +dynamic-title+aria-label
+
+**44.1 Visual Micro-Polish (2 Fixes)**
+- F9 L9196: Dashboard "Stunden nach Gewerk" empty → `🛠 Keine Stunden erfasst` (Icon+Message statt nackt-p)
+- F10 L9204: Dashboard "Letzte Einträge" empty → `📝 Noch keine Einträge`
+
+**44.3 Remaining Deferred (2 Fixes)**
+- D1 doSync-Toast-Throttle (Sprint 30 deferred): N dropped-after-5-fails Items → vorher N `__toast` Calls per Sync-Run, jetzt 1 summarisierte mit Endpoint-Preview ("3 Sync-Einträge nach 5 Versuchen verworfen: time_entries, fotos +1 weitere"). Additiv, ändert keine SQ/Retry-Logik
+- D2 ChartBox Empty-State (Sprint 40 F-8): vorher renderte SvgBar/Pie/etc. blank-canvas wenn data leer → `_hasData`-Check + Empty-Card mit `📊 Keine Daten verfügbar`
+
+### Deferred (nicht ausgeführt)
+- 44.4 Source-Code-Hygiene: 196× `#ef4444` Audit (Sprint 5 hatte schon erste Welle COLORS.ERROR — bulk-refactor wäre >100-LoC-Risiko, deferred)
+- 44.3 Sprint 32 F7 search-Username-Field: bereits 31 `searchUsername`/`filter.*name` matches im File — vermutlich schon vorhanden, OK, kein Fix nötig
+- 44.4 Dead-comment Blocks >5 Zeilen: nur überprüft — alle gesichteten Blöcke sind historische Bug-Doku (v3.x.xx Fix-Begründungen), KEIN echtes Dead-Code, intakt lassen
+- 44.4 DEMO_FZ Constant: legitimer Fallback (API+IDB-Failure) — kein Production-Leak, nicht entfernen
+- Hover-State color-shift / Border-Radius-Vereinheitlichung: 572 verschiedene borderRadius-Values im File — Bulk-Refactor zu groß für 1 Sprint, deferred
+
+### Version-Sync
+- `index.html` L15 SW_VER `v3.9.64` → `v3.9.65`
+- `index.html` L2240 APP_VERSION `3.9.64-supabase` → `3.9.65-supabase` (Sprint 30+ Versioning-Test erforderte sync)
+- `sw.js` L1+L2 v3.9.64 → v3.9.65
+
+### Hard-Constraints UNVERÄNDERT
+`_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
