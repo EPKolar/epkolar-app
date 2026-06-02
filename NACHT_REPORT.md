@@ -469,3 +469,74 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 
 ### Hard-Constraints UNVERÄNDERT
 `_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order
+
+
+## SPRINT 45 — v3.9.66 Theme-Partial
+
+**Datum:** 2026-06-02
+**Branch:** main
+**HEAD-Range:** (siehe Sprint-Commit unten)
+**Pre-State:** bracket `() 16 / {} 1 / [] 0` · pytest 502/502 · v3.9.65 LIVE
+**Post-State:** bracket `() 16 / {} 1 / [] 0` (identisch) · pytest 502/502 · v3.9.66 ready
+
+### 45.1 Theme-Token Partial Migration (12 Maps, ~100+ Render-Sites indirekt)
+
+12 zentrale Color-Constant-Maps von Hex-Literal `"#ef4444"` auf benannte Konstante
+`COLORS.ERROR` migriert. Da alle 12 Maps single-source-of-truth für Status-Farben
+sind, profitieren ~100+ React.createElement-Sites (Status-Badges, Filter-Pills,
+Tabellen-Zellen, KPI-Cards, Print-Templates) automatisch — *zero downstream edits*.
+
+| Map (Line) | Entry → COLORS.ERROR | Domain |
+|---|---|---|
+| ROLES (2529) | `admin.c` | Rollen-Badge "Administrator" |
+| _ROLE_CLR_MAP (2539) | `"Geschäftsführer"` | Mitarbeiter-Liste Rollen-Badge |
+| TICKET_TYPES (2557) | `mangel.c` | Plan-Pin "Mangel" |
+| TICKET_STATUS (2558) | `offen.c` | Ticket-Filter + Inline-Select |
+| TICKET_PRIO (2559) | `kritisch.c` | Ticket-Priority-Pill |
+| AS_STATUS (2592) | `storniert.c` | AS-Liste + KPI + Tabelle + Kalender + Cart |
+| AS_PRIO (2599) | `dringend.c` | AS-Filter Dringend-Badge |
+| AS_VERRECH (2604) | `nicht_verrechenbar.c` | AS-Detail Verrechnungs-Pill |
+| WZ_STATUS (3232) | `reparatur.c` | Werkzeug-Liste/Filter/Bulk-Select |
+| WZ_KAT (3233) | `sicherheit.c` | Werkzeug-Kategorie-Badge |
+| MAT_PRIO (10749) | `dringend.c` | Material-Anforderung Prio-Badge |
+| STAT_C (15408) | `abgelehnt` | Urlaubsstatus-Renderer |
+
+Visual no-op (`COLORS.ERROR === "#ef4444"`). Etabliert Pattern für künftiges
+Theme-Switching: einmal `COLORS.ERROR` ändern → 12 Maps + ~100+ Sites folgen.
+
+### 45.2 Test-Harness Fix (2 Files)
+
+`tests/test_as_status_transitions.py` und `tests/test_domain_constants.py`
+extrahieren maps via `re.search` + `node --eval` aus index.html. Nach Migration
+referenzierten die Snippets `COLORS.ERROR` ohne COLORS-Definition → `ReferenceError`.
+Fix: COLORS-Stub als Prefix in `_extract_const_obj` und `as_status_obj` Fixture.
+
+- `test_as_status_transitions.py` Z14-25: COLORS-stub Prefix in `as_status_obj`
+- `test_domain_constants.py` Z11-22: COLORS-stub in `_extract_const_obj` Helper
+
+### 45.3 Doc-Update (README.md)
+
+- Aktuelle Version v3.9.14 → v3.9.66 (mit Sprint-44/45 Kontext)
+- Tests-Anzahl 500 → 502
+- Brackets-Baseline `() -1 / {} 0 / [] 0` → `() 16 / {} 1 / [] 0` (korrigiert auf real-gemessene Baseline ab v3.9.x)
+- Dev-Quickstart: pytest-Erwartung 500 → 502
+
+### 45.4 Deferred
+
+- ~184 remaining inline-`#ef4444` Sites (von 196 total minus 12 map-entries). Sebastian-Decision benötigt: lohnt bulk-replace? Map-centric Migration deckt jetzt ~95% UX-Surface ab.
+- Memoization-Gaps v3.9.50-65 added Components: keine neu identifizierten Hotspots im Sprint-Window
+- Dark-Mode-aware COLORS-Setter: Wenn Sebastian später `COLORS.ERROR = dark?ERROR_DARK:ERROR` setzen will, ist Migration ready
+
+### Version-Sync
+- `index.html` L15 SW_VER `v3.9.65` → `v3.9.66`
+- `index.html` L2240 APP_VERSION `3.9.65-supabase` → `3.9.66-supabase`
+- `sw.js` L1+L2 v3.9.65 → v3.9.66
+
+### Verify
+- bracket pre: `() 16 / {} 1 / [] 0`
+- bracket post: `() 16 / {} 1 / [] 0` (identisch ✓)
+- node --check: exit 0 ✓
+- pytest: 502/502 grün ✓
+
+### Hard-Constraints UNVERÄNDERT
+`_silentReAuth` · `_authRetry` · `_ensureAuth` · `_mapBody` · `TEXT_JSON_FIELDS` · `SyncQueue` · sw.js-Cache-Strategie · Juprowa · OFFA · `_OFFPW.verify` · Berechnungs-Helpers · Hook-Order

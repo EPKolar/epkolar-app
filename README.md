@@ -70,7 +70,19 @@ werden stale-while-revalidate gecached.
 
 ## Aktuelle Version
 
-**v3.9.14** (2026-05-18) — HEAD `41ff59f` LIVE.
+**v3.9.66** (2026-06-02) — Theme-Token Partial Migration: 12 Color-Constant-Maps
+(AS_STATUS / AS_PRIO / AS_VERRECH / WZ_STATUS / WZ_KAT / TICKET_STATUS /
+TICKET_TYPES / TICKET_PRIO / MAT_PRIO / STAT_C / ROLES.admin / _ROLE_CLR_MAP)
+von Hex-Literal `#ef4444` auf benannte Konstante `COLORS.ERROR` migriert —
+zentrale Quelle für künftiges Theme-Switching / Dark-Mode-Tuning. Visual no-op
+(identischer Hex-Wert), aber alle Konsumenten der Maps (~100+ Render-Sites)
+folgen jetzt automatisch.
+
+Sprints recent:
+- v3.9.65 Polish+Micro+Deferred (12 findings / 10 fixes)
+- v3.9.64 Data-Integrity + Edge-Round-2 + Misc
+- v3.9.63 A11Y-R4 + Form-R2 + Deferred-Cleanup
+- v3.9.62 A11Y-Round-3 + Mobile-Touch-Residuals
 
 ## Dev-Quickstart
 
@@ -80,11 +92,11 @@ python -m http.server 8765 --bind 127.0.0.1
 
 # Tests laufen:
 python -m pytest tests/ -q
-# Erwartet: 500 passed
+# Erwartet: 502 passed (Stand v3.9.66)
 
 # Brackets-Sanity:
-python scripts/_bracket_check.py index.html
-# Erwartet: () -1 / {} 0 / [] 0
+python scripts/bracket_check.py
+# Erwartet: () 16 / {} 1 / [] 0 (stable Baseline ab v3.9.x)
 ```
 
 ## Hard-Constraints (DO NOT TOUCH)
@@ -103,7 +115,7 @@ python scripts/_bracket_check.py index.html
 
 ## Tests
 
-500 Tests in `tests/` (source-code-pattern-assertion-Style, kein React-Render).
+502 Tests in `tests/` (source-code-pattern-assertion-Style, kein React-Render).
 Stil: `tests/test_dringend_filter.py`.
 
 ## Kontakt

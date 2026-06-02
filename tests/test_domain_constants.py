@@ -12,7 +12,14 @@ def _extract_const_obj(node_exe, index_html, name):
     pattern = r"const " + re.escape(name) + r"=\{[^;]+\};"
     m = re.search(pattern, index_html)
     assert m, f"const {name} not found"
-    snippet = m.group(0) + f";process.stdout.write(JSON.stringify({name}))"
+    # v3.9.66 Theme-Token Partial Migration: several maps reference COLORS.ERROR
+    # (AS_PRIO, AS_VERRECH, WZ_STATUS, ...). Inject a COLORS stub so node-eval
+    # of the isolated const-snippet still resolves.
+    colors_stub = (
+        'const COLORS={EP_GREEN:"#009640",SUCCESS:"#22c55e",ERROR:"#ef4444",'
+        'ERROR_DARK:"#ff6b6b",WARNING:"#f97316",INFO:"#3b82f6",NEUTRAL:"#71717a"};'
+    )
+    snippet = colors_stub + m.group(0) + f";process.stdout.write(JSON.stringify({name}))"
     return json.loads(run_node_snippet(node_exe, snippet))
 
 

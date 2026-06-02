@@ -10,10 +10,19 @@ from conftest import run_node_snippet
 
 @pytest.fixture(scope="session")
 def as_status_obj(node_exe, index_html):
-    """Eval AS_STATUS const-decl in Node and return as Python dict."""
+    """Eval AS_STATUS const-decl in Node and return as Python dict.
+
+    v3.9.66 Theme-Token Partial Migration: AS_STATUS.storniert.c now references
+    COLORS.ERROR — so we must extract the COLORS const too (or inject a stub).
+    We inject a stub so this test stays independent of COLORS-formatting changes.
+    """
     m = re.search(r"const AS_STATUS=\{[^;]+\};", index_html)
     assert m
-    snippet = m.group(0) + ";process.stdout.write(JSON.stringify(AS_STATUS))"
+    colors_stub = (
+        'const COLORS={EP_GREEN:"#009640",SUCCESS:"#22c55e",ERROR:"#ef4444",'
+        'ERROR_DARK:"#ff6b6b",WARNING:"#f97316",INFO:"#3b82f6",NEUTRAL:"#71717a"};'
+    )
+    snippet = colors_stub + m.group(0) + ";process.stdout.write(JSON.stringify(AS_STATUS))"
     return json.loads(run_node_snippet(node_exe, snippet))
 
 
