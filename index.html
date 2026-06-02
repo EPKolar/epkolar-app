@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.59';
+  var SW_VER='epkolar-v3.9.60';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2233,7 +2233,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.59-supabase";
+const APP_VERSION="3.9.60-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -5313,8 +5313,12 @@ class _ViewBoundary extends React.Component{
               , (()=>{
                 let filtered=notifFilter==="ungelesen"?myNotifs.filter(n=>!n.read):notifFilter==="eskalation"?myNotifs.filter(n=>(n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick"):myNotifs;
                 if(notifCat!=="alle"){filtered=filtered.filter(n=>{const nt=NOTIF_TYPES[n.type];const cat=nt?nt.cat:"";if(notifCat==="system")return cat==="system"||n.type==="deadline_fz";return cat===notifCat;});}
+                /* v3.9.60 Sprint-39 P3-cleanup (Sprint-35 Notif-sort-by-time): Defensive sort newest-first.
+                   pushNotif prepends bereits, aber ODB-restore + server-merge können Reihenfolge zerstören.
+                   time-Fallback auf created_at (lokal erstellte notifs verwenden created_at, server-mapped time). */
+                filtered=filtered.slice().sort((a,b)=>{const ta=new Date(a.time||a.created_at||0).getTime()||0;const tb=new Date(b.time||b.created_at||0).getTime()||0;return tb-ta;});
                 return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":"Keine Benachrichtigungen" )):(
-                filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");const ago=Math.floor((Date.now()-new Date(n.time||0).getTime())/60000);const agoStr=ago<60?ago+"min":ago<1440?Math.floor(ago/60)+"h":Math.floor(ago/1440)+"d";
+                filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");/* v3.9.60 Sprint-39 E-1: created_at-Fallback wenn time fehlt (lokal-erzeugte notifs hatten kein time → 'NaNmin' angezeigt). */const _nts=new Date(n.time||n.created_at||0).getTime()||0;const ago=_nts>0?Math.floor((Date.now()-_nts)/60000):0;const agoStr=ago<60?ago+"min":ago<1440?Math.floor(ago/60)+"h":Math.floor(ago/1440)+"d";
                   return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.35 N-2: Toast-Hint wenn Link-Ziel nicht im Tab-Set (z.B. Monteur ohne Berechtigung für link-target) — vorher silent-no-op. */if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
                     , React.createElement('span', { style: {fontSize:20,flexShrink:0}}, _optionalChain([nt, 'optionalAccess', _83 => _83.i])||"🔔")
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
@@ -6124,7 +6128,9 @@ function sharePdf(){
   };
   const voiceRetry=()=>{setVoiceText("");setVoiceParsed(null);voiceStart();};
   const calDays=weeksOf(calYr,calMo);
-  const calAs=arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;return a.monteur===calMonteur;});
+  /* v3.9.60 Sprint-39 F-4: useMemo — calAs ist Basis für getAsDay-Lookup im Render-Loop pro Tag.
+     Re-Filter über arbeitsscheine bei jeder Render-Iteration unnötig. */
+  const calAs=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;return a.monteur===calMonteur;}),[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]);
   const getAsDay=d=>{const ds=dk(d);return calAs.filter(a=>a.terminBestaetigt===ds||(!a.terminBestaetigt&&a.aufgenommen===ds));};
   // Week view helpers
   const getWeekDays=(d)=>{const mon=new Date(d);const dow=mon.getDay()||7;mon.setDate(mon.getDate()-(dow-1));return Array.from({length:7},(_,i)=>{const dd=new Date(mon);dd.setDate(mon.getDate()+i);return dd;});};
@@ -8197,7 +8203,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   // Recent activity (last 5 entries)
 
   // Active projects overview
-  const topProjects=projects.filter(p=>p.status==="aktiv").slice(0,5);
+  /* v3.9.60 Sprint-39 F-3: useMemo — filter+slice pro Render unnötig (60s-tick re-render). */
+  const topProjects=_react.useMemo.call(void 0, ()=>projects.filter(p=>p.status==="aktiv").slice(0,5),[projects]);
 
   // v3.5.69 F-A + F-D: "Mein Tag" + Monteur-KPIs
   const _myRole=_optionalChain([curUser, 'optionalAccess', _mt1 => _mt1.role])||"";
@@ -13751,8 +13758,13 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const approveAll=m=>{const keys=pendingEntries.filter(e=>e.name===m).map(e=>e.key);setApprovals(p=>{const c={...p};keys.forEach(k=>{c[k]="genehmigt";});return c;});keys.forEach(k=>SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565 => _565.name])}}));_optionalChain([pushNotif, 'optionalCall', _566 => _566("absence_approval","✅ Alle genehmigt",m+": "+keys.length+" Anträge genehmigt")]);};
   const rejectAll=m=>{const keys=pendingEntries.filter(e=>e.name===m).map(e=>e.key);setApprovals(p=>{const c={...p};keys.forEach(k=>{c[k]="abgelehnt";});return c;});keys.forEach(k=>SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _567 => _567.name])}}));};
 
-  const monthEntries=[];
-  for(let i=1;i<=dim;i++){const d=new Date(yr,mo,i);const entry=ga(sel,d);if(entry){monthEntries.push({day:d,type:entry.type,by:entry.by||"",hours:entry.hours||stdVonTag(d),note:entry.note||"",approval:getApproval(sel,d)});}}
+  /* v3.9.60 Sprint-39 F-5: useMemo — Loop über dim mit Date-Konstruktion + lookups bei jedem Render unnötig.
+     Deps: sel/yr/mo + abs+approvals (über ga/getApproval-Closure). dim aus yr,mo abgeleitet. */
+  const monthEntries=_react.useMemo.call(void 0, ()=>{
+    const out=[];
+    for(let i=1;i<=dim;i++){const d=new Date(yr,mo,i);const entry=ga(sel,d);if(entry){out.push({day:d,type:entry.type,by:entry.by||"",hours:entry.hours||stdVonTag(d),note:entry.note||"",approval:getApproval(sel,d)});}}
+    return out;
+  },[sel,yr,mo,dim,abs,approvals]);
 
   // Export
   const exportAbsCsv=()=>{
@@ -14408,7 +14420,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
       <div><b>Mitarbeiter:</b> ${_e(z.mitarbeiterName)}</div>
       <div><b>Zeitraum:</b> ${MONATE[z.monat]||""} ${z.jahr||""}</div>
       <div><b>Hochgeladen von:</b> ${_e(z.hochgeladenVon)}</div>
-      <div><b>Hochgeladen am:</b> ${new Date(z.hochgeladenAm).toLocaleDateString("de-AT")}</div>
+      <div><b>Hochgeladen am:</b> ${z.hochgeladenAm?new Date(z.hochgeladenAm).toLocaleDateString("de-AT"):"—"}</div>
       <div><b>Status:</b> <span class="status ${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</span></div>
       ${z.freigegebenAm?`<div><b>Freigegeben am:</b> ${new Date(z.freigegebenAm).toLocaleDateString("de-AT")}</div>`:"<div></div>"}
     </div>
@@ -14484,7 +14496,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
           <td>${i+1}</td>
           <td><b>${_e(z.mitarbeiterName)}</b></td>
           <td>${_e(z.dateiName)}</td>
-          <td>${new Date(z.hochgeladenAm).toLocaleDateString("de-AT")}</td>
+          <td>${z.hochgeladenAm?new Date(z.hochgeladenAm).toLocaleDateString("de-AT"):"—"}</td>
           <td class="${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</td>
           <td><b>${_n(epH,1)}h</b></td>
           <td>${fH>0?_n(fH,1)+"h":"—"}</td>
@@ -14580,7 +14592,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
             , React.createElement('div', { style: {flex:1}}
               , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, z.mitarbeiterName)
               , React.createElement('div', { style: {fontSize:13,color:V.dm}}, MONATE[z.monat], " " , z.jahr, " · "  , z.dateiName)
-              , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:2}}, "Hochgeladen von "  , z.hochgeladenVon, " am "  , new Date(z.hochgeladenAm).toLocaleDateString("de-AT"))
+              , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:2}}, "Hochgeladen von "  , z.hochgeladenVon, " am "  , z.hochgeladenAm?new Date(z.hochgeladenAm).toLocaleDateString("de-AT"):"—")
             )
             , React.createElement('div', { style: {textAlign:"right"}}
               , React.createElement('span', { style: {fontSize:12,fontWeight:700,color:statusColor(z.status),background:statusColor(z.status)+"18",padding:"3px 8px",borderRadius:4}}, statusIcon(z.status), " " , z.status==="freigegeben"?"Freigegeben":"Offen")
@@ -14753,7 +14765,7 @@ function PhotoSyncStatus(){
     , items.length>0&&React.createElement('div', { style: {marginTop:12,maxHeight:200,overflowY:"auto"}}
       , items.map(ph=>(React.createElement('div', { key: ph.id, style: {display:"flex",gap:8,padding:"6px 0",borderBottom:"1px solid "+V.bd,alignItems:"center",fontSize:11}}
         , React.createElement('img', { src: ph.dataUrl, style: {width:36,height:36,objectFit:"cover",borderRadius:4,flexShrink:0}, alt: ""} )
-        , React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, ph.context||ph.name), React.createElement('div', { style: {color:V.dm,fontSize:10}}, new Date(ph.takenAt).toLocaleString("de-AT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}), " · " , ph.entityType, ph.gpsLat?" · 📍":""))
+        , React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, ph.context||ph.name), React.createElement('div', { style: {color:V.dm,fontSize:10}}, ph.takenAt?new Date(ph.takenAt).toLocaleString("de-AT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—", " · " , ph.entityType, ph.gpsLat?" · 📍":""))
         , React.createElement('span', { style: {color:ph.status==="pending"?"#f97316":ph.status==="error"?"#ef4444":ph.status==="uploading"?"#3b82f6":"#22c55e",fontWeight:600,fontSize:10,flexShrink:0}}, ph.status==="pending"?"⏳":ph.status==="error"?"❌":ph.status==="uploading"?"🔄":"✅")
       )))
     )
@@ -14932,7 +14944,10 @@ function WhatsAppConfigPanel({curUser}){
     setBusy(true);setMsg("");
     try{
       _waResetCache();
-      const r=await _waSendMessage('as_status_abgeschlossen','+436641234567',['Test','AS-Test']);
+      /* v3.9.60 Sprint-39 P3-cleanup: Test-Phone NICHT mehr hardcoded — curUser.telefon zuerst,
+         dann Fallback Placeholder. Verhindert dass Test-Sends im Live-Mode an Fremd-Nummer gehen. */
+      const _testPhone=(curUser&&(curUser.telefon||curUser.phone||curUser.handy))||'+436641234567';
+      const r=await _waSendMessage('as_status_abgeschlossen',_testPhone,['Test','AS-Test']);
       if(r&&r.mock){setMsg("📱 Test im MOCK-Modus gesendet (kein Live-API-Call). Aktivieren + Token eintragen für echten Versand.");if(typeof window.__toast==='function')window.__toast("📱 WhatsApp MOCK-Send — siehe whatsapp_messages");}
       else if(r&&r.ok){setMsg("✅ Test gesendet");}
       else{setMsg("⚠️ "+((r&&r.error)||"Test fehlgeschlagen"));}
@@ -14953,7 +14968,7 @@ function WhatsAppConfigPanel({curUser}){
       , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Webhook Verify Token"), React.createElement('input', { value: webhookToken, onChange: e=>setWebhookToken(e.target.value), placeholder: "frei wählbar — muss mit Meta-Konsole übereinstimmen", style: {...II(),fontSize:13,padding:"8px 12px"}}))
       , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}
         , React.createElement('button', { onClick: save, disabled: busy, style: {...bgS,padding:"8px 16px",fontSize:13,opacity:busy?.6:1}}, busy?"⏳ …":"💾 Speichern")
-        , React.createElement('button', { onClick: test, disabled: busy, style: {...bsS(),padding:"8px 16px",fontSize:13,opacity:busy?.6:1}, title: "Sendet Test-Template as_status_abgeschlossen an +436641234567 (Mock-Mode wenn nicht aktiviert)"}, "📤 Test senden")
+        , React.createElement('button', { onClick: test, disabled: busy, style: {...bsS(),padding:"8px 16px",fontSize:13,opacity:busy?.6:1}, title: "Sendet Test-Template an deine hinterlegte Telefonnummer (curUser.telefon) — Fallback Placeholder. Mock-Mode wenn nicht aktiviert."}, "📤 Test senden")
       )
       , msg&&React.createElement('div', { style: {fontSize:12,color:msg.indexOf("✅")===0?"#22c55e":msg.indexOf("❌")===0?"#ef4444":V.dm,marginTop:4,lineHeight:1.5}}, msg)
     )
@@ -15496,9 +15511,11 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     }catch(_){setNextWeekAbs([]);}
   },[abs]);
   /* C.4 Geplante AS nächste Woche: Termin im Bereich nextMon..nextMon+7 (halbopen) */
-  const asNextWeek=arbeitsscheine.filter(a=>{const t=(a.terminBestaetigt||a.terminVorschlag||'').slice(0,10);return t>=_nextMonStart&&t<_nextMonEnd;}).length;
+  /* v3.9.60 Sprint-39 F-1: useMemo — filter über arbeitsscheine bei jedem Render unnötig. */
+  const asNextWeek=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{const t=(a.terminBestaetigt||a.terminVorschlag||'').slice(0,10);return t>=_nextMonStart&&t<_nextMonEnd;}).length,[arbeitsscheine,_nextMonStart,_nextMonEnd]);
   /* C.4 Fahrzeuge mit Service/Pickerl fällig in 14 Tagen (Aggregate-Count, keine Detail-Liste) */
-  const fzFaellig=fahrzeuge.filter(f=>{const ns=(f.next_service||f.nextService||'').slice(0,10);const pk=(f.pickerl_faellig_am||f.pickerlFaelligAm||'').slice(0,10);return (ns&&ns<=_in14d&&ns>=_td)||(pk&&pk<=_in14d&&pk>=_td);}).length;
+  /* v3.9.60 Sprint-39 F-2: useMemo — fahrzeuge-filter+Date-parse pro Render. */
+  const fzFaellig=_react.useMemo.call(void 0, ()=>fahrzeuge.filter(f=>{const ns=(f.next_service||f.nextService||'').slice(0,10);const pk=(f.pickerl_faellig_am||f.pickerlFaelligAm||'').slice(0,10);return (ns&&ns<=_in14d&&ns>=_td)||(pk&&pk<=_in14d&&pk>=_td);}).length,[fahrzeuge,_in14d,_td]);
   /* Sorgenkind-Total für Widget-Header */
   const sorgenTotal=asOhneMonteur+asOhneTermin+asPushStau+projStill.length+(finkOpen?finkOpen.length:0);
   return React.createElement('div',{style:{padding:isMob?12:16}}

@@ -285,3 +285,45 @@ ZIP-Erstellung: kann der User selbst (`tar` oder `7z` aus dem Verzeichnis), die 
 - **WhatsApp-Test-Number hardcoded V-6** (Sprint 16) — nicht in Recent-7-Touch-Window
 - **DATANORM 100k+ Rows Performance** — Skalierungs-Thema, kein Bug
 - **Sebastian-Action SQL v3.9.53/54** — falls Riedmann-Bug oder EK-Preis-Mask noch nicht produktiv: SQL `sql/migrate_notifications_rls_v3953.sql` + `sql/migrate_supplier_articles_safe_v3954.sql` auf Supabase `jiggujpruejkaomgxarp` ausführen
+
+## SPRINT 39 — v3.9.60 Perf-Continue+Edge+P3
+
+**Commit:** _(siehe Tag)_ · **Tag:** `v3.9.60` (pushed to origin)
+**Pre-State:** HEAD `c4fc11e` v3.9.59 · brackets `() 16 / {} 1 / [] 0` (Sprint-39-Snapshot, anderes Skript als Sprint-37) · pytest 502/502
+**Post-State:** HEAD _(neu)_ v3.9.60 · brackets `() 16 / {} 1 / [] 0` (identisch) · pytest 502/502 · node --check ✓
+
+### Scope
+**39.1 Performance-Continuation (Sprint-38 Follow-up):** 4 useMemo-Fixes — Sprint-38 hatte Rate-Limit gehabt, dieser Sprint reduziert restliche `arr.filter(...)`-Render-Body-Aufrufe in 3 Komponenten (ChefDashboard, HomeView, ArbeitsscheinView, AbsView).
+**39.2 Edge-Case-Batch:** 5 Date/Null-Defensive-Fixes (Notif-Panel Time-Fallback + Sort, 3× `new Date(z.hochgeladenAm)` ohne Guard, `ph.takenAt` ohne Guard).
+**39.3 Remaining P3-Cleanup:** WhatsApp-Test-Number (Sprint 16 V-6) ent-hardcoded, Notif-Sort-by-Time (Sprint 35) implementiert. **doSync-Toast-Throttle (Sprint 30 D1) NO-GO** wegen SyncQueue-Hard-Constraint. **F-7 Voice Multi-Sprach (Sprint 32) defer** (>20 LoC).
+
+### Findings (9 total / 8 fixed / 1 NO-GO)
+
+| # | Tier | Bereich | Issue | Fix |
+|---|------|---------|-------|-----|
+| F-1 | P2-perf | ChefDashboard `asNextWeek` L15506 | `arbeitsscheine.filter(...).length` ohne useMemo pro Render | useMemo deps `[arbeitsscheine,_nextMonStart,_nextMonEnd]` |
+| F-2 | P2-perf | ChefDashboard `fzFaellig` L15509 | `fahrzeuge.filter(...).length` mit Date-Parse pro Render | useMemo deps `[fahrzeuge,_in14d,_td]` |
+| F-3 | P2-perf | HomeView `topProjects` L8200 | `projects.filter(p=>aktiv).slice(0,5)` jeder 60s-Tick | useMemo deps `[projects]` |
+| F-4 | P2-perf | ArbeitsscheinView `calAs` L6131 | filter-Basis für `getAsDay`-Lookup im Render-Loop pro Tag | useMemo deps `[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]` |
+| F-5 | P2-perf | AbsView `monthEntries` L13755 | Loop über dim mit Date-Konstruktion + lookups pro Render | useMemo deps `[sel,yr,mo,dim,abs,approvals]` |
+| E-1 | P2-edge | Notif-Panel time-Fallback L5317 | `new Date(n.time\|\|0)` ohne `created_at`-Fallback → "NaNmin" für lokal-erzeugte notifs | `new Date(n.time\|\|n.created_at\|\|0).getTime()\|\|0` mit ago-Guard |
+| E-2 | P3-cleanup (Sprint 35) | Notif-Panel sort L5316 | Filtered-List nicht zeit-sortiert — ODB-restore + server-merge können Reihenfolge zerstören | `filtered.slice().sort((a,b)=>tb-ta)` mit time/created_at-Fallback |
+| E-3 | P2-edge | Stundenzettel-Print + Liste L14423/14499/14595 | `new Date(z.hochgeladenAm).toLocaleDateString()` ohne Null-Guard → "01.01.1970" / "Invalid Date" wenn `hochgeladenAm` null | Inline ternär `z.hochgeladenAm?...:"—"` × 3 |
+| E-4 | P2-edge | Photo-Queue Panel L14768 | `new Date(ph.takenAt).toLocaleString()` ohne Guard | Inline ternär `ph.takenAt?...:"—"` |
+| P3-1 | P3-cleanup (Sprint 16 V-6) | WhatsAppConfigPanel `test()` L14935 | Hardcoded `+436641234567` → Test-Sends gehen im Live-Mode an Fremd-Nummer | `(curUser&&(curUser.telefon\|\|curUser.phone\|\|curUser.handy))\|\|'+436641234567'` + Tooltip-Update |
+
+### Deferred / NO-GO
+
+- **doSync-Toast-Throttle (Sprint 30 D1)** — NO-GO: SyncQueue ist Hard-Constraint
+- **F-7 Voice Multi-Sprach (Sprint 32)** — defer: >20 LoC scope, eigener Sprint
+- **ChefDashboard KPI-Cluster L15412-15422 (single-pass useMemo)** — defer: berührt >5 Stellen, riskanter dep-Graph; bestehender Code ist O(n) pro filter aber jede einzelne ist günstig
+
+### Verify
+- `node --check` über alle <script>-Blöcke: exit 0
+- Bracket-Sanity (Sprint-39-Snapshot): pre `() 16 / {} 1 / [] 0` = post (identisch)
+- pytest pre+post: **502/502 grün**
+- Hard-Constraints: `_silentReAuth/_authRetry/_ensureAuth/_mapBody/TEXT_JSON_FIELDS/SyncQueue/sw.js-Cache-Strategy/Juprowa/OFFA/_OFFPW.verify` **UNVERÄNDERT**
+- Berechnungs-Helpers **NICHT angetastet**
+- Hooks: Alle 5 neuen useMemo VOR den Component-Returns (kein after-early-return)
+- KEIN force-push · KEIN destructive
+- Version-Sync: index.html L15 (SW_VER) + L2236 (APP_VERSION) + sw.js L1+L2 alle auf v3.9.60
