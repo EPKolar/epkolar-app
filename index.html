@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.73';
+  var SW_VER='epkolar-v3.9.74';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -3697,7 +3697,7 @@ input,select,textarea{font-size:16px !important;-webkit-appearance:none;border-r
 .top-tabs{display:flex}
 @media(max-width:600px){.top-tabs{display:none !important}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-@media print{body>*:not(#root){display:none}nav,.mob-nav,.header-row,button,.kpi-grid,.mob-shell-nav{display:none!important}#print-stz{position:fixed;left:0;top:0;width:100%;z-index:99999;background:#fff}#print-stz *{color:#000!important}}
+@media print{body>*:not(#root){display:none}nav,.mob-nav,.header-row,button,.kpi-grid,.mob-shell-nav{display:none!important}#print-stz{position:fixed;left:0;top:0;width:100%;z-index:99999;background:#fff}#print-stz *{color:#000!important}#print-stz thead{display:table-header-group}#print-stz tr,#print-stz .sig-row{page-break-inside:avoid}#print-stz tfoot{display:table-footer-group}@page{margin:12mm 10mm}}/* v3.9.74 Sprint-53.3 F-5: Stundenzettel-Print Header-Repeat + Row-Page-Break + @page-Margin. */
 .mob-shell-nav{display:none}
 @media(max-width:600px){.mob-shell-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:${V.sb};border-top:2px solid ${V.bd};z-index:80;padding:2px 0 calc(2px + env(safe-area-inset-bottom,0px));justify-content:space-around;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -3732,8 +3732,9 @@ function Kpi({label,value,sub,color,onClick,i}){
     React.createElement('div', { onClick: onClick, role: onClick?"button":undefined, tabIndex: onClick?0:undefined, onKeyDown: _onKey, 'aria-label': onClick?(label+": "+value+(sub?" — "+sub:"")):undefined, style: {...CC(),position:"relative",overflow:"hidden",cursor:onClick?"pointer":"default",transition:"transform .15s",animation:"fadeIn .35s ease-out both",animationDelay:_delay,":hover":{transform:"scale(1.02)"}}, onMouseEnter: onClick?e=>{e.currentTarget.style.transform="scale(1.02)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,.2)";}:undefined, onMouseLeave: onClick?e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}:undefined}
       , React.createElement('div', { style: {position:"absolute",top:0,left:0,right:0,height:3,background:color}} )
       , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:".05em",marginBottom:4}}, label)
-      , React.createElement('div', { style: {fontFamily:mono,fontSize:24,fontWeight:800}}, value)
-      , React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:2}}, sub)
+      /* v3.9.74 Sprint-53.1 F-4: NaN/null/undef -> "—" Em-Dash statt rohem "NaN"-Text. */
+      , React.createElement('div', { style: {fontFamily:mono,fontSize:24,fontWeight:800}}, (value==null||(typeof value==="number"&&!isFinite(value)))?"—":value)
+      , sub?React.createElement('div', { style: {fontSize:11,color:V.mt,marginTop:2}}, sub):null
     )
   );
 }
@@ -8764,13 +8765,16 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             , legend&&React.createElement('div', { style: {display:"flex",gap:12,marginBottom:8,fontSize:11}}, legend.map((l,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,background:l.c}} ), React.createElement('span', { style: {color:V.dm}}, l.l)))))
             , React.createElement('div', { style: {display:"flex",alignItems:"flex-end",gap:isMob?2:4,height:barH}}
               /* v3.9.61 S40 F-1: empty-data guard inside .map — prevents crash on undefined data */
-              , (Array.isArray(data)?data:[]).map((v,i)=>{
+              /* v3.9.74 Sprint-53.1 F-3: v defensiv coercen (string/undef -> 0). */
+              , (Array.isArray(data)?data:[]).map((_raw,i)=>{
+                const v=+_raw||0;
                 const h=max>0?Math.max(v/max*(barH-20),v>0?3:0):0;
-                const h2=data2?Math.max((data2[i]||0)/max*(barH-20),data2[i]>0?3:0):0;
+                const _d2=data2?(+data2[i]||0):0;
+                const h2=data2?Math.max(_d2/max*(barH-20),_d2>0?3:0):0;
                 return (React.createElement('div', { key: i, style: {flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}
                   , React.createElement('div', { style: {fontSize:9,fontFamily:mono,color:V.dm,fontWeight:600}}, v>0?(unit==="€"?Math.round(v)+"€":_n(v,1)):"")
                   , React.createElement('div', { style: {display:"flex",gap:1,alignItems:"flex-end",width:"100%",justifyContent:"center"}}
-                    , data2&&React.createElement('div', { style: {width:data2?"45%":"100%",height:h2,background:color2||"#94a3b8",borderRadius:"3px 3px 0 0",transition:"height .3s"}} )
+                    , data2&&React.createElement('div', { style: {width:"45%",height:h2,background:color2||"#94a3b8",borderRadius:"3px 3px 0 0",transition:"height .3s"}} )
                     , React.createElement('div', { style: {width:data2?"45%":"70%",height:h,background:color,borderRadius:"3px 3px 0 0",transition:"height .3s"}} )
                   )
                   , React.createElement('div', { style: {fontSize:isMob?9:10,color:V.dm,marginTop:2}}, labels[i])
@@ -14281,13 +14285,14 @@ function SvgHBar({data,width=300,height=0,color="#f97316"}){
   ));
 }
 function SvgPie({data,size=180,donut=false}){
-  if(!data||!data.length)return null;const total=data.reduce((s,d)=>s+(d.v||0),0);if(!total)return null;const cx=size/2,cy=size/2,r=size/2-10,ir=donut?r*0.55:0;let cum=0;
-  const slices=data.map(d=>{const pct=d.v/total;const a1=cum*Math.PI*2-Math.PI/2;cum+=pct;const a2=cum*Math.PI*2-Math.PI/2;const la=pct>0.5?1:0;
+  /* v3.9.74 Sprint-53.1 F-2: pct=d.v/total ohne ||0 -> wenn d.v=undefined -> NaN-pct -> NaN-Winkel -> SVG-Path broken. */
+  if(!data||!data.length)return null;const total=data.reduce((s,d)=>s+(+d.v||0),0);if(!total)return null;const cx=size/2,cy=size/2,r=size/2-10,ir=donut?r*0.55:0;let cum=0;
+  const slices=data.map(d=>{const _v=+d.v||0;const pct=_v/total;const a1=cum*Math.PI*2-Math.PI/2;cum+=pct;const a2=cum*Math.PI*2-Math.PI/2;const la=pct>0.5?1:0;
     const x1o=cx+r*Math.cos(a1),y1o=cy+r*Math.sin(a1),x2o=cx+r*Math.cos(a2),y2o=cy+r*Math.sin(a2);
     const x1i=cx+ir*Math.cos(a2),y1i=cy+ir*Math.sin(a2),x2i=cx+ir*Math.cos(a1),y2i=cy+ir*Math.sin(a1);
     let path;if(donut){path=`M${x1o},${y1o} A${r},${r} 0 ${la} 1 ${x2o},${y2o} L${x1i},${y1i} A${ir},${ir} 0 ${la} 0 ${x2i},${y2i} Z`;}
     else{path=`M${cx},${cy} L${x1o},${y1o} A${r},${r} 0 ${la} 1 ${x2o},${y2o} Z`;}
-    return {path,color:d.c||"#666",label:d.l,value:d.v,pct};
+    return {path,color:d.c||"#666",label:d.l,value:_v,pct};
   });
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${size+120} ${size}`, style: {display:"block"}}
     , slices.map((s,i)=>(React.createElement('path', { key: i, d: s.path, fill: s.color, opacity: .85, stroke: "#0f1117", strokeWidth: 1.5})))
@@ -14296,8 +14301,10 @@ function SvgPie({data,size=180,donut=false}){
   ));
 }
 function SvgLine({data,width=320,height=200,color="#f97316"}){
-  if(!data||data.length<2)return null;const mx=Math.max(...data.map(d=>d.v||0),1);const mn=Math.min(...data.map(d=>d.v),0);const range=mx-mn||1;const pad=30;const topPad=24;const pw=width-pad*2;const ph=height-topPad-30;
-  const pts=data.map((d,i)=>({x:pad+i*(pw/(data.length-1)),y:topPad+(1-(d.v-mn)/range)*ph}));
+  /* v3.9.74 Sprint-53.1 F-1: d.v Coerce defensiv — vorher mn=Math.min(d.v,0) ohne ||0,
+     bei undefined v -> NaN propagiert nach range -> NaN-Pfad -> SVG-render bricht. */
+  if(!data||data.length<2)return null;const mx=Math.max(...data.map(d=>+d.v||0),1);const mn=Math.min(...data.map(d=>+d.v||0),0);const range=mx-mn||1;const pad=30;const topPad=24;const pw=width-pad*2;const ph=height-topPad-30;
+  const pts=data.map((d,i)=>({x:pad+i*(pw/(data.length-1)),y:topPad+(1-((+d.v||0)-mn)/range)*ph}));
   const line=pts.map((p,i)=>(i===0?"M":"L")+p.x+","+p.y).join(" ");
   const area=line+` L${pts[pts.length-1].x},${topPad+ph} L${pts[0].x},${topPad+ph} Z`;
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${width} ${height}`, style: {display:"block"}}
