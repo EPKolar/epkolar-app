@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.67';
+  var SW_VER='epkolar-v3.9.68';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2239,7 +2239,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.67-supabase";
+const APP_VERSION="3.9.68-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -12373,14 +12373,25 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const matTokens=matQuery.trim().toLowerCase().split(/\s+/).filter(t=>t.length>=2);
   const renderWarenkorb=()=>{
     // v3.8.26 Gewerk-Filter aus Profil: 'elektro' zeigt elektro+allgemein, 'installateur' zeigt sanitaer+heizung+klima+allgemein, 'beide' zeigt alles
-    const _gp=(typeof localStorage!=="undefined"&&localStorage.getItem("epk_user_gewerk"))||"beide";
-    const _kataAllowed=(g)=>{if(_gp==="beide")return true;if(!g||g==="allgemein")return true;if(_gp==="elektro")return g==="elektro";if(_gp==="installateur")return g==="sanitaer"||g==="heizung"||g==="klima";return true;};
+    // v3.9.68 SPRINT-48: Auto-Detect Gewerk wenn epk_user_gewerk unset (Sebastian-Bug: Elektriker sah Sanitär/Heizung). Admin/Backoffice/Projektleiter → beide. Sonst Default 'elektro' (EP Kolar primär Elektro). curUser.gewerk override (DB-spalte, Sebastian-Action sql/migrate_user_gewerk_v3968.sql).
+    const _gpLS=(typeof localStorage!=="undefined"&&localStorage.getItem("epk_user_gewerk"))||null;
+    const _gpRole=curUser&&curUser.role;
+    const _gpAdminLike=_gpRole==="admin"||_gpRole==="projektleiter"||_gpRole==="buero";
+    const _gpFromUser=curUser&&typeof curUser.gewerk==="string"&&curUser.gewerk?curUser.gewerk:null;// DB-column override
+    let _gp;
+    if(_gpLS)_gp=_gpLS;// User-Override explicit set
+    else if(_gpFromUser)_gp=_gpFromUser;// DB-field if available
+    else if(_gpAdminLike)_gp="beide";// Admin/Buero/PL → see all
+    else _gp="elektro";// Monteur default → EP Kolar primary gewerk (auto-detected)
+    const _gpAuto=!_gpLS;// flag: true if not explicit user-choice
+    const _kataAllowed=(g)=>{if(_gp==="beide")return true;const _gl=(g||"").toLowerCase();if(!_gl||_gl==="allgemein")return true;if(_gp==="elektro")return _gl==="elektro";if(_gp==="installateur")return _gl==="sanitaer"||_gl==="heizung"||_gl==="klima";if(_gp==="sanitaer")return _gl==="sanitaer"||_gl==="heizung"||_gl==="klima";if(_gp==="heizung")return _gl==="heizung"||_gl==="sanitaer"||_gl==="klima";return true;};
     const _filteredCatalogs=catalogs.filter(k=>_kataAllowed(k.gewerk));
+    const _gpLabel=_gp==="elektro"?"⚡ Elektro":_gp==="installateur"?"🚿 Installateur":_gp==="sanitaer"?"🚿 Sanitär":_gp==="heizung"?"🔥 Heizung":"Alle Gewerke";
     return React.createElement('div', null
       , React.createElement('div', { style: {marginBottom:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}
         , React.createElement('input', { type: "search", value: matQuery, onChange: e=>setMatQuery(e.target.value), placeholder: "🔍 Artikel suchen (z.B. \"grohe unterputz\")" , style: {...II(),flex:1,fontSize:13,minHeight:isMob?42:36,minWidth:isMob?0:180} })
         , matQuery&&React.createElement('button', { onClick: ()=>setMatQuery(""), style: {...bsS(),padding:"6px 10px",fontSize:11,minHeight:isMob?42:36}}, "✕")
-        , _gp!=="beide"&&React.createElement('span', { style: {fontSize:10,color:V.dm,padding:"4px 8px",border:"1px solid "+V.bd,borderRadius:6,whiteSpace:"nowrap"}, title: "Gewerk-Filter aktiv · Einstellungen → Mein Profil"}, _gp==="elektro"?"⚡ Elektriker":"🚿 Installateur", " · ", _filteredCatalogs.length, "/", catalogs.length, " Kataloge")
+        , _gp!=="beide"&&React.createElement('span', { style: {fontSize:10,color:V.dm,padding:"4px 8px",border:"1px solid "+V.bd,borderRadius:6,whiteSpace:"nowrap"}, title: _gpAuto?"Gewerk auto-erkannt aus Rolle · Einstellungen → Mein Profil zum Ändern":"Gewerk-Filter aktiv · Einstellungen → Mein Profil"}, "🔧 Anzeige: ", _gpLabel, " · ", _filteredCatalogs.length, "/", catalogs.length, " Kataloge", _gpAuto&&" (auto)")
       )
       , _filteredCatalogs.length===0&&React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Keine Kataloge für Gewerk \"", p.gewerk||"(leer)", "\" verfügbar. Bitte Projekt-Gewerk setzen oder Admin kontaktieren.")
       , _filteredCatalogs.map(kat=>{
