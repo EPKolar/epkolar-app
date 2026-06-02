@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.74';
+  var SW_VER='epkolar-v3.9.75';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -545,21 +545,44 @@ window.APP_LIMITS=APP_LIMITS;window.ROLLE=ROLLE;
 // v3.5.73 — Enhanced Toast (Block 2.1)
 // ═══════════════════════════════════════════════════════════════════
 const _toastQ=[];let _toastActive=false;
+// v3.9.75 Sprint-54.5 FIX-1: Toast-Stack Mobile-Polish - multi-toast vertikal gestapelt,
+// Slide-in-Up Animation (subtler als opacity-only), Bottom-Nav-Offset 90px (statt 80px),
+// dismissible per Tap (Mobile-UX), role/aria-live fuer a11y. Queue-Cap aus v3.5.135 beibehalten.
+const _toastVisible=[];
 window._showToast=function(msg,type,duration){
   // v3.5.135: Toast-Queue Cap — vorher konnte Error-Cascade (1/sec) Queue unbegrenzt wachsen lassen
   if(_toastQ.length>=20){_toastQ.shift();}
   _toastQ.push({msg,type:type||'info',duration:duration||APP_LIMITS.TOAST_DURATION_MS});
   if(!_toastActive)_processToastQueue();
 };
+function _reflowToastStack(){
+  const baseBottom=90;const gap=8;let offset=baseBottom;
+  for(let i=_toastVisible.length-1;i>=0;i--){
+    const el=_toastVisible[i];if(!el||!el.isConnected)continue;
+    el.style.bottom=offset+'px';
+    offset+=(el.offsetHeight||44)+gap;
+  }
+}
+function _dismissToast(el){
+  if(!el||el._dismissed)return;el._dismissed=true;
+  el.style.opacity='0';el.style.transform='translateX(-50%) translateY(20px)';
+  setTimeout(()=>{const i=_toastVisible.indexOf(el);if(i>=0)_toastVisible.splice(i,1);el.remove();_reflowToastStack();},250);
+}
 function _processToastQueue(){
   if(_toastQ.length===0){_toastActive=false;return;}
   _toastActive=true;
   const {msg,type,duration}=_toastQ.shift();
   const colors={success:'#22c55e',error:'#ef4444',warning:'#f97316',warn:'#f97316',info:'#3b82f6'};
   const el=document.createElement('div');
-  el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:'+(colors[type]||colors.info)+';color:#fff;padding:10px 20px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:90vw;text-align:center;transition:opacity 0.3s;';
-  el.textContent=msg;document.body.appendChild(el);
-  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>{el.remove();_processToastQueue();},300);},duration);
+  el.setAttribute('role','status');el.setAttribute('aria-live','polite');
+  el.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:'+(colors[type]||colors.info)+';color:#fff;padding:10px 20px;border-radius:8px;z-index:99999;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:90vw;text-align:center;transition:opacity 0.3s, bottom 0.25s ease-out, transform 0.25s ease-out;animation:_epkToastIn .25s ease-out;cursor:pointer;';
+  el.textContent=msg;
+  el.addEventListener('click',()=>_dismissToast(el));
+  document.body.appendChild(el);
+  _toastVisible.push(el);_reflowToastStack();
+  const dequeueDelay=Math.min(450,duration/4);
+  setTimeout(()=>{_processToastQueue();},dequeueDelay);
+  setTimeout(()=>_dismissToast(el),duration);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2239,7 +2262,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.73-supabase";
+const APP_VERSION="3.9.75-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -3716,6 +3739,21 @@ table thead th{position:sticky;top:0;z-index:1}
 .epk-slide-in{animation:epkSlideIn .25s ease-out}
 @keyframes epkCountUp{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 .epk-count-up{animation:epkCountUp .4s ease-out}
+/* v3.9.75 Sprint-54.5 FIX-1: Toast slide-in-up Animation (single-source) */
+@keyframes _epkToastIn{from{opacity:0;transform:translateX(-50%) translateY(24px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+/* v3.9.75 Sprint-54.3 FIX-4: Modal fade-in + scale (subtle) — drop-in via class .epk-modal-in */
+@keyframes _epkModalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.epk-modal-in{animation:_epkModalIn .2s ease-out}
+/* v3.9.75 Sprint-54.2 FIX-5: Drawer/Sheet slide-up Animation (Mobile) */
+@keyframes _epkSheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.epk-sheet-up{animation:_epkSheetUp .28s cubic-bezier(.2,.85,.35,1)}
+/* v3.9.75 Sprint-54.1 FIX-2: Pull-to-Refresh Visual Indicator */
+.epk-ptr{position:fixed;top:env(safe-area-inset-top,0);left:50%;transform:translateX(-50%) translateY(-100%);background:${V.sb};border:1px solid ${V.bd};border-top:none;border-radius:0 0 12px 12px;padding:8px 14px;z-index:99998;font-size:12px;font-weight:600;color:${V.fg};box-shadow:0 4px 12px rgba(0,0,0,.2);transition:transform .2s ease-out;display:flex;align-items:center;gap:8px}
+.epk-ptr.active{transform:translateX(-50%) translateY(0)}
+/* v3.9.75 Sprint-54: respect prefers-reduced-motion (a11y) */
+@media(prefers-reduced-motion:reduce){
+  .fade-in,.epk-slide-in,.epk-count-up,.epk-modal-in,.epk-sheet-up,.shake{animation:none!important}
+}
 @media(max-width:600px){
   .mob-stack{flex-direction:column !important;align-items:stretch !important}
   .mob-full{width:100% !important;max-width:100% !important}
@@ -3791,6 +3829,46 @@ function useSwipe(onLeft,onRight){
   };
   return handlers;
 }
+// v3.9.75 Sprint-54.2 FIX-5: useSwipeDown — Modal/BottomSheet-Close per Swipe-Down (Mobile-UX).
+// Verwendung: const h=useSwipeDown(()=>setShow(false)); React.createElement('div',{...h, ...}, ...)
+// Trigger: vertical swipe >=80px, dy>|dx|*1.2, dt<500ms. Skip in input/textarea/canvas.
+function useSwipeDown(onDown){
+  const touch=_react.useRef.call(void 0, {x:0,y:0,t:0,ok:true});
+  return {
+    onTouchStart:e=>{if(e.touches.length!==1){touch.current.ok=false;return;}const t=e.touches[0];const el=e.target;
+      const skip=el.closest&&(el.closest("input,textarea,select,canvas,[data-no-swipe]"));
+      touch.current={x:t.clientX,y:t.clientY,t:Date.now(),ok:!skip};
+    },
+    onTouchEnd:e=>{if(!touch.current.ok)return;const t=e.changedTouches[0];const dx=t.clientX-touch.current.x;const dy=t.clientY-touch.current.y;const dt=Date.now()-touch.current.t;
+      if(dt>500||dy<80||Math.abs(dy)<Math.abs(dx)*1.2)return;
+      if(onDown)onDown();
+    }
+  };
+}
+window._epkUseSwipeDown=useSwipeDown;
+// v3.9.75 Sprint-54.1 FIX-2: Pull-to-Refresh Visual Indicator
+// API: window._epkPullRefresh.show(msg?) / hide() / setText(msg)
+// Wird vom App-Reload-Trigger (SW_UPDATED etc.) verwendet. Single-DOM-Node, idempotent.
+// XSS-safe: createElement + textContent (kein innerHTML).
+window._epkPullRefresh=(function(){
+  let el=null;let txt=null;
+  function ensure(){
+    if(el)return el;
+    el=document.createElement('div');
+    el.className='epk-ptr';
+    el.setAttribute('role','status');el.setAttribute('aria-live','polite');
+    const sp=document.createElement('span');sp.className='ep-spin-sm';sp.setAttribute('aria-hidden','true');
+    txt=document.createElement('span');txt.textContent='Aktualisiere…';
+    el.appendChild(sp);el.appendChild(txt);
+    document.body.appendChild(el);
+    return el;
+  }
+  return {
+    show(msg){const e=ensure();if(txt&&msg)txt.textContent=msg;requestAnimationFrame(()=>e.classList.add('active'));},
+    hide(){if(!el)return;el.classList.remove('active');},
+    setText(msg){ensure();if(txt)txt.textContent=msg;}
+  };
+})();
 // ═══════════ DIGITALE UNTERSCHRIFT ═══════════
 function SignaturePad({label,value,onChange,width=300,height=150}){
   const canvasRef=_react.useRef.call(void 0, null);
@@ -11409,7 +11487,7 @@ function VFotos({p,curUser,monteure,ww}){
   // v3.8.95 Sprint-9 F3: visible Foto-Categories useMemo-Wrap (re-render perf)
   const _visibleCats=_react.useMemo.call(void 0, ()=>FOTO_CATS.filter(c=>c.id==="alle"||photos.some(ph=>(ph.entity_type||ph.entityType)===c.id)),[photos]);
   // Render
-  if(loading)return React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Fotos werden geladen...");
+  if(loading)return _Skeleton(6); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
   return (
     React.createElement('div', { style: {maxWidth:1200,margin:"0 auto"}}
       , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}
@@ -12022,7 +12100,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const sorted=[...btEntries].sort((a,b)=>(b.datum||"").localeCompare(a.datum||""));
 
   // ─── RENDER ───
-  if(loading)return React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Bautagebuch wird geladen...");
+  if(loading)return _Skeleton(5); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
 
   // ─── FORM (create/edit) ───
   if(editing!==null){
@@ -13213,7 +13291,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     );
   };
 
-  if(loading)return React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Material wird geladen...");
+  if(loading)return _Skeleton(6); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
 
   const tabs=[{id:"warenkorb",l:"🛒 Warenkorb",badge:cartCount},{id:"verlauf",l:"📋 Verlauf",badge:0}];
   if(isLager)tabs.push({id:"lager",l:"📦 Lager",badge:orders.filter(o=>o.status==="angefordert"||o.status==="in_bearbeitung"||o.status==="offen").length});
@@ -15404,7 +15482,7 @@ function WorkerKompetenzenPanel({workerId,curUser,editable}){
     try{await _api.patch('worker_kompetenzen',ex.id,{level});setKomps(prev=>prev.map(k=>k.kompetenz===key?{...k,level}:k));window._haptic.tap();}
     catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
-  if(loading)return React.createElement('div',{style:{padding:12,color:V.dm,fontSize:12}},'Lade…');
+  if(loading)return _Skeleton(3); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
   return React.createElement('div',{style:{padding:12}}
     ,React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:10}},'🎓 Kompetenzen & Qualifikationen')
     ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}
