@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.64';
+  var SW_VER='epkolar-v3.9.65';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2237,7 +2237,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.64-supabase";
+const APP_VERSION="3.9.65-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -4817,6 +4817,8 @@ class _ViewBoundary extends React.Component{
         if(queue.length>0){
           let ok=0,fail=0;
           const okIds=[];const skipIds=[];
+          /* v3.9.65 Sprint 44.3 D1: Toast-Throttle für "5 Versuche fehlgeschlagen" — vorher konnte ein Run-mit-mehreren-Drops N Toasts feuern. Jetzt: 1 Toast pro Sync-Run, summarisiert. Additiv zu SQ, ändert keine Retry-Logik. */
+          let _dropToastShown=false;const _dropNames=[];
           for(const item of queue){
             try{
               await _translateAndExec(item.url,item.method||"POST",item.body);
@@ -4832,11 +4834,17 @@ class _ViewBoundary extends React.Component{
                 skipIds.push(item.id);
                 console.warn("[sq] dropping item after 5 fails:",item.url,e.message);
                 try{const failed=await ODB.load("syncQueueFailed")||[];failed.push({...item,failedAt:new Date().toISOString(),lastError:e.message});await ODB.save("syncQueueFailed",failed.slice(-50));}catch(e){console.warn('[silent-await]',e&&e.message||e);}
-                _optionalChain([window, 'access', _sqf1 => _sqf1.__toast, 'optionalCall', _sqf2 => _sqf2("⚠ Sync fehlgeschlagen nach 5 Versuchen: "+(item.url||"").split("/").pop(),"warn")]);
+                _dropNames.push((item.url||"").split("/").pop());
               }
               else{item._retries=retries;}
               fail++;
             }
+          }
+          /* v3.9.65 Sprint 44.3 D1: Summarized drop-toast — 1 message pro run, listet bis 3 Endpoints */
+          if(_dropNames.length>0&&!_dropToastShown){
+            _dropToastShown=true;
+            const _preview=_dropNames.slice(0,3).join(", ")+(_dropNames.length>3?(" +"+(_dropNames.length-3)+" weitere"):"");
+            _optionalChain([window, 'access', _sqf1 => _sqf1.__toast, 'optionalCall', _sqf2 => _sqf2("⚠ "+_dropNames.length+" Sync-Eintrag"+(_dropNames.length>1?"e":"")+" nach 5 Versuchen verworfen: "+_preview,"warn")]);
           }
           const removeIds=[...okIds,...skipIds];
           if(removeIds.length>0) await SQ.removeMany(removeIds);
@@ -5332,7 +5340,7 @@ class _ViewBoundary extends React.Component{
                       , React.createElement('div', { style: {fontSize:9,color:V.mt,marginTop:2}}, agoStr, " · "  , _optionalChain([nt, 'optionalAccess', _84 => _84.l]))
                     )
                     , !n.read&&React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:V.ac,flexShrink:0,marginTop:4}} )
-                    , React.createElement('button', { onClick: e=>{e.stopPropagation();deleteNotif(n.id);}, style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:12,padding:"2px",flexShrink:0}}, "✕")
+                    , React.createElement('button', { onClick: e=>{e.stopPropagation();deleteNotif(n.id);}, title: "Benachrichtigung löschen", 'aria-label': "Benachrichtigung löschen", style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:12,padding:"2px",flexShrink:0}}, "✕")
                   ));
                 })
               );})()
@@ -6165,7 +6173,7 @@ function sharePdf(){
         , React.createElement('div', { style: {position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:isMob?"95vw":520,maxHeight:"90vh",overflow:"auto",background:V.bg,borderRadius:16,boxShadow:"0 20px 60px rgba(0,0,0,.4)",zIndex:1501,padding:isMob?16:24}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}
             , React.createElement('h3', { style: {margin:0,fontSize:18,fontWeight:800}}, "🎤 Sprach-Schnellerfassung" )
-            , React.createElement('button', { onClick: ()=>{voiceStop();setShowVoice(false);}, style: {border:"none",background:"transparent",fontSize:20,cursor:"pointer",color:V.dm,padding:4}}, "✕")
+            , React.createElement('button', { onClick: ()=>{voiceStop();setShowVoice(false);}, title: "Schließen", 'aria-label': "Sprach-Schnellerfassung schließen", style: {border:"none",background:"transparent",fontSize:20,cursor:"pointer",color:V.dm,padding:4}}, "✕")
           )
 
           /* Mic Status */
@@ -9193,7 +9201,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
               , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",marginBottom:2}}, React.createElement('span', { style: {fontSize:12}}, _optionalChain([GW, 'access', _300 => _300[g], 'optionalAccess', _301 => _301.i]), " " , _optionalChain([GW, 'access', _302 => _302[g], 'optionalAccess', _303 => _303.l])), React.createElement('span', { style: {fontFamily:mono,fontSize:12,color:V.dm}}, _n(h,1), "h"))
               , React.createElement('div', { style: {height:5,background:V.bd,borderRadius:3}}, React.createElement('div', { style: {height:"100%",borderRadius:3,background:_optionalChain([GW, 'access', _304 => _304[g], 'optionalAccess', _305 => _305.c])||V.ac,width:(h/mxG*100)+"%"}} ))
             )
-          )) : (React.createElement('p', { style: {color:V.mt,fontSize:12}}, "Keine Daten" ))
+          )) : (React.createElement('div', { style: {color:V.mt,fontSize:12,textAlign:"center",padding:"16px 8px"}}, React.createElement('div', { style: {fontSize:24,marginBottom:4,opacity:.5}}, "🛠"), "Keine Stunden erfasst"))
         )
         , React.createElement('div', { style: CC()}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Letzte Einträge" )
@@ -9201,7 +9209,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
             const w=(monteure||MONT).find(y=>y.id===x.w);
             return (React.createElement(Row, { key: x.id}, React.createElement(Dot, { color: _optionalChain([GW, 'access', _306 => _306[x.gw], 'optionalAccess', _307 => _307.c])||V.ac} ), React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, _optionalChain([w, 'optionalAccess', _308 => _308.n]), " — "  , x.taetigkeit||x.task||""), React.createElement('div', { style: {fontSize:11,color:V.mt}}, fd(x.date))), React.createElement('div', { style: {fontFamily:mono,fontSize:13,fontWeight:700,color:V.ac}}, _n((parseFloat(x.hours||x.stunden)||0),2), "h")));
           })
-          , !pe.length&&(React.createElement('p', { style: {color:V.mt,fontSize:12}}, "Keine Einträge" ))
+          , !pe.length&&(React.createElement('div', { style: {color:V.mt,fontSize:12,textAlign:"center",padding:"16px 8px"}}, React.createElement('div', { style: {fontSize:24,marginBottom:4,opacity:.5}}, "📝"), "Noch keine Einträge"))
         )
       )
       /* ═══ LETZTE FOTOS ═══ */
@@ -9456,7 +9464,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
                 return React.createElement('div',{key:entry.id||eIdx,style:{background:_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)",border:"1px solid "+V.bd,borderRadius:6,padding:"6px 8px",borderLeft:"3px solid #009640"}},
                   React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                     React.createElement('span',{style:{fontSize:14,fontWeight:700,color:V.ac}},_n((entry.stunden||entry.hours||0),1),"h"),
-                    _canDelZ&&React.createElement('span',{onClick:function(){delEntry(entry.id);/* v3.9.7 Modal-Migration: outer native confirm removed — delEntry hat eigenen _confirmModal */},role:"button",tabIndex:0,"aria-label":"Eintrag löschen",onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();delEntry(entry.id);}},style:{cursor:"pointer",fontSize:11,color:"#ef4444",padding:"2px 4px"}},"✕")
+                    _canDelZ&&React.createElement('span',{onClick:function(){delEntry(entry.id);/* v3.9.7 Modal-Migration: outer native confirm removed — delEntry hat eigenen _confirmModal */},role:"button",tabIndex:0,"aria-label":"Eintrag löschen",title:"Eintrag löschen",onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();delEntry(entry.id);}},style:{cursor:"pointer",fontSize:11,color:"#ef4444",padding:"2px 4px"}},"✕")
                   ),
                   React.createElement('div',{style:{fontSize:12,color:V.dm}},(entry.von||""),"–",(entry.bis||"")," · ",(wk||{}).n||"?"),
                   React.createElement('div',{style:{fontSize:11,color:V.mt,marginTop:1}},React.createElement('span',{style:{display:"inline-block",padding:"1px 5px",borderRadius:3,fontSize:10,fontWeight:600,background:_ROLE_CLR((wk||{}).r)||"rgba(100,100,100,.15)",color:"#fff",marginRight:4}},(wk||{}).r||"?")),
@@ -10143,7 +10151,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww}){
       , lightbox&&React.createElement('div', { onClick: ()=>setLightbox(null), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLightbox(null);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",cursor:"zoom-out"}}
         , React.createElement('div', { style: {position:"absolute",top:16,right:16,display:"flex",gap:8}}
           , React.createElement('a', { href: lightbox.src, download: (lightbox.title||"foto")+".jpg", onClick: e=>e.stopPropagation(), style: {padding:"6px 14px",borderRadius:6,background:"rgba(255,255,255,.15)",color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",cursor:"pointer"}}, "📥 Download" )
-          , React.createElement('button', { onClick: ()=>setLightbox(null), style: {padding:"6px 14px",borderRadius:6,background:"rgba(255,255,255,.15)",color:"#fff",fontSize:16,border:"none",cursor:"pointer"}}, "✕")
+          , React.createElement('button', { onClick: ()=>setLightbox(null), title: "Schließen", 'aria-label': "Lightbox schließen", style: {padding:"6px 14px",borderRadius:6,background:"rgba(255,255,255,.15)",color:"#fff",fontSize:16,border:"none",cursor:"pointer"}}, "✕")
         )
         , React.createElement('img', { src: lightbox.src, style: {maxWidth:"90vw",maxHeight:"80vh",objectFit:"contain",borderRadius:8,boxShadow:"0 8px 40px rgba(0,0,0,.5)"}, alt: lightbox.title||""} )
         , React.createElement('div', { style: {color:"#fff",fontSize:13,fontWeight:600,marginTop:12,textAlign:"center"}}, lightbox.title)
@@ -10322,7 +10330,7 @@ function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww,monteure,isAdm
     React.createElement('div', { style: {background:V.cd,borderRadius:10,border:"1px solid "+V.bd,overflow:"hidden"}}
       , React.createElement('div', { style: {padding:"12px 16px",background:tt.c+"18",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
         , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}, React.createElement('span', { style: {fontSize:20}}, tt.i), React.createElement('div', {}, React.createElement('div', { style: {fontSize:14,fontWeight:700}}, ticket.title), React.createElement('div', { style: {fontSize:10,color:V.dm}}, "#", ticket.id.slice(-6), " · "  , tt.l, " · "  , fdt(ticket.createdAt))))
-        , React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('button', { onClick: ()=>setEditing(!editing), style: {...bsS(),padding:"4px 10px",fontSize:11}}, editing?"✕":"✏️"), React.createElement('button', { onClick: onClose, style: {...bsS(),padding:"4px 10px",fontSize:11}}, "✕"))
+        , React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('button', { onClick: ()=>setEditing(!editing), title: editing?"Bearbeiten abbrechen":"Bearbeiten", 'aria-label': editing?"Bearbeiten abbrechen":"Bearbeiten", style: {...bsS(),padding:"4px 10px",fontSize:11}}, editing?"✕":"✏️"), React.createElement('button', { onClick: onClose, title: "Schließen", 'aria-label': "Schließen", style: {...bsS(),padding:"4px 10px",fontSize:11}}, "✕"))
       )
       , React.createElement('div', { style: {padding:16}}
         , editing ? (React.createElement('div', {}
@@ -11424,10 +11432,10 @@ function VFotos({p,curUser,monteure,ww}){
             , React.createElement('button', { onClick: e=>{e.stopPropagation();lbPrev();}, style: {padding:"8px 16px",minHeight:40,minWidth:40,borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:16,fontFamily:"inherit"}}, "◀")
             , React.createElement('span', { style: {fontSize:11,color:"#a1a1aa",lineHeight:"36px"}}, lbIdx+1, " / " , filtered.length)
             , React.createElement('button', { onClick: e=>{e.stopPropagation();lbNext();}, style: {padding:"8px 16px",minHeight:40,minWidth:40,borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:16,fontFamily:"inherit"}}, "▶")
-            , React.createElement('a', { href: photoUrl(lbPhoto), download: lbPhoto.name||"foto.jpg", onClick: e=>e.stopPropagation(), style: {padding:"8px 14px",minHeight:40,minWidth:40,borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:12,fontFamily:"inherit",textDecoration:"none",lineHeight:"20px"}}, "📥")
-            , isAdmin&&React.createElement('button', { onClick: e=>{e.stopPropagation();delPhoto(lbPhoto);}, style: {padding:"8px 14px",minHeight:40,minWidth:40,borderRadius:6,border:"1px solid rgba(239,68,68,.4)",background:"rgba(239,68,68,.12)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}, "🗑️")
+            , React.createElement('a', { href: photoUrl(lbPhoto), download: lbPhoto.name||"foto.jpg", onClick: e=>e.stopPropagation(), title: "Foto herunterladen", 'aria-label': "Foto herunterladen", style: {padding:"8px 14px",minHeight:40,minWidth:40,borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:12,fontFamily:"inherit",textDecoration:"none",lineHeight:"20px"}}, "📥")
+            , isAdmin&&React.createElement('button', { onClick: e=>{e.stopPropagation();delPhoto(lbPhoto);}, title: "Foto löschen", 'aria-label': "Foto löschen", style: {padding:"8px 14px",minHeight:40,minWidth:40,borderRadius:6,border:"1px solid rgba(239,68,68,.4)",background:"rgba(239,68,68,.12)",color:"#ef4444",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}, "🗑️")
           )
-          , React.createElement('button', { onClick: ()=>setLbIdx(-1), style: {position:"absolute",top:-10,right:-10,width:32,height:32,borderRadius:16,border:"none",background:"rgba(255,255,255,.15)",color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")
+          , React.createElement('button', { onClick: ()=>setLbIdx(-1), title: "Schließen", 'aria-label': "Lightbox schließen", style: {position:"absolute",top:-10,right:-10,width:32,height:32,borderRadius:16,border:"none",background:"rgba(255,255,255,.15)",color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")
         )
       )
     )
@@ -14241,10 +14249,12 @@ function SvgLine({data,width=320,height=200,color="#f97316"}){
 }
 function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTypeChange,color="#f97316"}){
   const tp=chartType||defaultType;
+  /* v3.9.65 Sprint 44.3 F-8: Empty-State für ChartBox — vorher rendete SvgBar/Pie/etc. einfach leer + verwirrte User (Chart-Toggle steht ON aber Chart-Fläche bleibt blank). Jetzt: explizit "Keine Daten"-Hint, additiv zu den Sub-Charts. */
+  const _hasData=Array.isArray(data)&&data.length>0&&data.some(d=>(d&&typeof d==='object')?Object.values(d).some(v=>typeof v==='number'&&v>0):false);
   return (React.createElement('div', { style: {...CC(),opacity:visible?1:.5,transition:"opacity .3s"}}
     , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:visible?12:0,flexWrap:"wrap",gap:6}}
       , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
-        , React.createElement('button', { onClick: onToggle, style: {width:36,height:20,borderRadius:10,border:"none",background:visible?"#22c55e":"#2a2e3f",cursor:"pointer",position:"relative",transition:"background .2s"}}
+        , React.createElement('button', { onClick: onToggle, title: visible?"Diagramm ausblenden":"Diagramm einblenden", 'aria-label': visible?"Diagramm ausblenden":"Diagramm einblenden", style: {width:36,height:20,borderRadius:10,border:"none",background:visible?"#22c55e":"#2a2e3f",cursor:"pointer",position:"relative",transition:"background .2s"}}
           , React.createElement('div', { style: {width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:visible?18:2,transition:"left .2s"}} )
         )
         , React.createElement('span', { style: {fontSize:13,fontWeight:700}}, title)
@@ -14253,12 +14263,15 @@ function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTyp
         , Object.entries(CHART_TYPES).map(([k,v])=>(React.createElement('button', { key: k, onClick: ()=>onTypeChange(k), style: {padding:"3px 8px",borderRadius:5,border:tp===k?"1px solid "+color:"1px solid "+V.bd,background:tp===k?color+"18":"transparent",color:tp===k?color:V.dm,cursor:"pointer",fontSize:10,fontFamily:"inherit",minHeight:28}, title: v.l}, v.i)))
       ))
     )
-    , visible&&(React.createElement('div', {}
+    , visible&&(_hasData?React.createElement('div', {}
       , tp==="bar"&&React.createElement(SvgBar, { data: data, color: color})
       , tp==="hbar"&&React.createElement(SvgHBar, { data: data, color: color})
       , tp==="pie"&&React.createElement(SvgPie, { data: data})
       , tp==="donut"&&React.createElement(SvgPie, { data: data, donut: true})
       , tp==="line"&&React.createElement(SvgLine, { data: data, color: color})
+    ):React.createElement('div', { style: {padding:"24px 12px",textAlign:"center",color:V.mt,fontSize:12}}
+      , React.createElement('div', { style: {fontSize:32,marginBottom:6,opacity:.5}}, "📊")
+      , "Keine Daten verfügbar"
     ))
   ));
 }
@@ -17299,8 +17312,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: kmVal, onChange: e=>setKmVal(e.target.value), style: {...II(),fontFamily:"monospace",fontSize:16}, autoFocus: true} ))
             , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: LL()}, "Notiz"), React.createElement('input', { value: kmNote, onChange: e=>setKmNote(e.target.value), style: II(), placeholder: "z.B. Fahrt nach Wien"   } ))
-            , React.createElement('button', { onClick: ()=>addKm(sel), style: bpS}, "💾")
-            , React.createElement('button', { onClick: ()=>setShowKm(null), style: bsS()}, "✕")
+            , React.createElement('button', { onClick: ()=>addKm(sel), title: "km-Stand speichern", 'aria-label': "km-Stand speichern", style: bpS}, "💾")
+            , React.createElement('button', { onClick: ()=>setShowKm(null), title: "Schließen", 'aria-label': "Schließen", style: bsS()}, "✕")
           )
         ))
 
