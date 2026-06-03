@@ -33,10 +33,11 @@ COMMIT;
 -- ============================================================================
 -- ERWARTUNGSWERTE / VERIFY-VORLAGE (für Chat-Claude nach Forward-Migration)
 -- ============================================================================
--- hours-Formel: hours = ((to_date - from_date) + 1) * 7,7   (38,5h-Woche, ganztags)
---   1 Tag  → 7,7 h
---   2 Tage → 15,4 h
---   5 Tage → 38,5 h (volle Woche)
+-- hours-Logik (KANONISCH, Sebastian 2026-06-03): pro Tag Mo-Do 8,5h · Fr 4,5h · Sa/So 0 ·
+--   AT/NÖ-Feiertag 0. NICHT flat 7,7h/Tag.
+--   1 Mo-Do-Tag → 8,5h · 1 Fr → 4,5h · volle Mo-Fr-Woche → 38,5h.
+--   SOLL-Werte (Chat-Claude-verifiziert): w6 Günther Urlaub 90,0h / ZA 25,5h;
+--     w5 Schmid ZA 25,5h / Sonder 17h; w4 Pinger Urlaub 34h / Kranken 17h; w1 Paschinger Sonder 8,5h.
 -- Diese Query GENERIERT die Soll-Werte pro Eintrag zum Abgleich gegen die migrierten Ist-Werte:
 --
 --   SELECT id, worker_id, type, from_date, to_date,

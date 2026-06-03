@@ -1,7 +1,7 @@
-# HANDOFF v3.9.105 — 2026-06-03 (Autonomer CC-Sprint)
+# HANDOFF v3.9.106 — 2026-06-03 (Autonomer CC-Sprint)
 
 ## LIVE-STATE
-- **App-Version:** v3.9.105 (war v3.9.101 zu Sprint-Beginn) — https://epkolar.github.io/epkolar-app/
+- **App-Version:** v3.9.106 (war v3.9.101 zu Sprint-Beginn) — https://epkolar.github.io/epkolar-app/
 - **main HEAD:** gepusht (Commits 23f3fb2 → … auf `main`)
 - **Tests:** 589+ pytest grün · Bracket-Baseline `() -1 / {} 0 / [] 0`
 - **Backend:** Supabase `jiggujpruejkaomgxarp`
@@ -13,6 +13,7 @@
 | **v3.9.103** | **A2 absences hours-Bug** (aktiver Quota-Defekt): Kalender-Writer schreibt jetzt `hours:7.7,tage:1` (war 0). from_date/to_date kanonisch (Sebastian Option 1). |
 | **v3.9.104** | **A1 urlaub_edit** Permission: neuer Key in `PERMS_DESC` (auto-Checkbox), `AbsView.isAdmin` = admin/PL ODER `hasPerm('urlaub_edit')` → gated Bearbeiten/Genehmigen/Alle-MA-Sicht; ohne Recht read-only. Nicht an Rolle gekoppelt. |
 | **v3.9.105** | **A3 defects** Doppelfelder: Kanonisch `prio/images/zugewiesen/frist` per Code-Kommentar markiert (Reader via `_mapDefect` schon vereinheitligt). |
+| **v3.9.106** | **B-A Payroll-Fix** (Chat-Claude verifiziert): `stdVonTag` jetzt feiertag-aware (neuer `_isATFeiertag`, Easter-berechnet). Mo-Do 8,5 / Fr 4,5 / Sa-So+Feiertag 0. Behebt Urlaub 98,5→90,0h (Pfingstmontag 25.5 zählte fälschlich mit). absences-Writer schreibt `hours:stdVonTag(d)` statt flat 7,7. |
 | (edge) | **A4** `admin-create-user/index.ts`: call-breaking `created`-Spalte entfernt + `.or()`→`.eq()` + `vorname`. **B1** `supplier-sync/index.ts` (NEU): Creds server-seitig (service_role), Client liest username/password nie mehr. **Deploy = Sebastian.** |
 
 ## ✓ VERIFIZIERT (Agent-Audit, keine Regression)
@@ -30,9 +31,9 @@
 | C-rls | v3103–v3110 (8 RLS-Hardening) | **2 Fixes angewandt:** v3107 + v3110 hatten `CREATE POLICY IF NOT EXISTS` (KEIN gültiges PostgreSQL → Script-Abbruch) → auf `DROP IF EXISTS;CREATE` umgestellt. Apply-Reihenfolge wie HANDOFF v3.9.101. |
 | C3 | Edge-Functions | `npx supabase functions deploy admin-create-user` + `... deploy supplier-sync` (Projekt jiggujpruejkaomgxarp). Danach Client-Patch B-E (Z7321-ff auf Edge-Fn) — Code-Teil offen. |
 
-## ⚠️ FÜR SEBASTIAN ZU BESTÄTIGEN (payroll-sensibel)
-- **absences hours = 7,7h/Tag (flat) vs `stdVonTag(d)` (8,5/4,5/0 nach Wochentag)**: der Writer nutzt jetzt flat 7,7 (deine Entscheidung), die optimistische Lokal-State-Zeile nutzt `stdVonTag`. Bei Vollzeit-5-Tage identisch in Summe (38,5h), aber Einzeltag weicht ab. Klären ob Urlaub am Ø-Tagessatz (7,7) ODER Ist-Tagesstunden gebucht wird; ggf. Writer + Migration angleichen.
-- **C2 vor C1**: erst absences-Daten migrieren (C1), dann RLS (C2) — sonst rechnet/sichert ZA-Editing auf kaputten Daten.
+## ✅ GEKLÄRT (Payroll, Sebastian + Chat-Claude 2026-06-03)
+- **absences hours = `stdVonTag` KANONISCH**: Mo-Do 8,5h · Fr 4,5h · Sa/So 0 · AT/NÖ-Feiertag 0. NICHT flat 7,7. Writer (v3.9.106) + Migration C1 nutzen beide diese Logik inkl. Feiertags-Ausschluss. SOLL-Werte verifiziert (w6 Urlaub 90,0/ZA 25,5; w5 ZA 25,5/Sonder 17; w4 Urlaub 34/Kranken 17; w1 Sonder 8,5).
+- **Reihenfolge: C1 (Daten) VOR C2 (RLS)** — bestätigt.
 
 ## 📋 NOCH OFFEN (Code, nächste Session)
 - **ZA-Korrektur-Eingabefeld** im Urlaub-Bearbeiten-Modus (A1 Teil 4) — bewusst zurückgestellt bis C1-Migration live (sonst Korrektur auf hours=0-Daten).

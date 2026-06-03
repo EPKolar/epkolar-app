@@ -36,7 +36,10 @@ BEGIN;
 
 -- ---- 0) Snapshot für Rollback-Referenz -------------------------------------
 DROP TABLE IF EXISTS public._defects_snapshot_v3112;
-CREATE TABLE public._defects_snapshot_v3112 AS TABLE public.defects;
+-- NUR die geänderten Spalten sichern (nicht SELECT *) — reicht für den spaltenweisen Rollback,
+-- spart DB-Größe falls defects viele Zeilen / lange description-Texte hat.
+CREATE TABLE public._defects_snapshot_v3112 AS
+  SELECT id, prio, images, zugewiesen, frist FROM public.defects;
 
 -- ---- 1) prio  ← priority  (nur wo prio leer & priority existiert+befüllt) ---
 -- Column-existence-guarded: läuft NUR, wenn defects.priority im Live-Schema existiert.
