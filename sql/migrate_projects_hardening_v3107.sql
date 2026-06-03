@@ -31,7 +31,10 @@ BEGIN
 END $$;
 
 -- SELECT bleibt offen (authenticated darf alle Projekte sehen, App-Layer filtert)
-CREATE POLICY IF NOT EXISTS projects_select_authenticated
+-- FIX v3.9.105: "CREATE POLICY IF NOT EXISTS" ist KEIN gültiges PostgreSQL → Script brach ab.
+-- Ersetzt durch DROP IF EXISTS + CREATE (idempotent, re-runnable).
+DROP POLICY IF EXISTS projects_select_authenticated ON public.projects;
+CREATE POLICY projects_select_authenticated
   ON public.projects FOR SELECT TO authenticated
   USING (true);
 

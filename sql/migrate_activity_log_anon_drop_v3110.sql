@@ -25,7 +25,10 @@ FROM pg_policies WHERE schemaname='public' AND tablename='activity_log';
 DROP POLICY IF EXISTS activity_log_anon_insert ON public.activity_log;
 
 -- Defense-in-Depth: Ensure authenticated INSERT
-CREATE POLICY IF NOT EXISTS activity_log_insert_authenticated
+-- FIX v3.9.105: "CREATE POLICY IF NOT EXISTS" ist KEIN gültiges PostgreSQL → Script brach ab.
+-- Ersetzt durch DROP IF EXISTS + CREATE (idempotent, re-runnable).
+DROP POLICY IF EXISTS activity_log_insert_authenticated ON public.activity_log;
+CREATE POLICY activity_log_insert_authenticated
   ON public.activity_log FOR INSERT TO authenticated
   WITH CHECK (true);
 

@@ -19,13 +19,19 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.can_edit_urlaub()
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  -- WICHTIG: users.active ist INTEGER (1/0), users.locked evtl. int ODER bool →
+  -- typ-agnostische Guards (sonst "integer AND boolean" Fehler = Lockout für ALLE).
+  -- urlaub_edit kann in ZWEI Strukturen stehen: perms_override (Objekt {key:true})
+  -- ODER permissions (JSONB-Array ["urlaub_edit"]). Beide prüfen (Chat-Claude-Befund).
   SELECT EXISTS (
     SELECT 1 FROM public.users u
     WHERE u.auth_user_id = auth.uid()
-      AND u.active AND NOT u.locked
+      AND COALESCE(u.active, 1) = 1
+      AND COALESCE(u.locked::boolean, false) = false
       AND (
         u.role IN ('admin','projektleiter')
         OR COALESCE((u.perms_override->>'urlaub_edit')::boolean, false)
+        OR COALESCE(u.permissions ? 'urlaub_edit', false)
       )
   );
 $$;
