@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.83';
+  var SW_VER='epkolar-v3.9.84';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -661,6 +661,10 @@ const TIME_MINUTE=60*TIME_SECOND;
 const TIME_HOUR=60*TIME_MINUTE;
 const TIME_DAY=24*TIME_HOUR;
 const TIME_WEEK=7*TIME_DAY;
+const TIME_MONTH=30*TIME_DAY;
+/* v3.9.84 Sprint-63.1: Bytes-Konstanten (1024-base). Genutzt fuer File-Size-Anzeigen. */
+const BYTES_KB=1024;
+const BYTES_MB=1024*1024;
 /* v3.9.18 B-014: zentraler Pickerl/Frist-Status. Returns 'ok'|'warn'|'overdue'|null.
    warnDays default 30 (überall genutzte Schwelle). Pure function, kein State. */
 window._pickerlStatus=(datum,warnDays)=>{if(!datum)return null;const w=(warnDays==null)?30:warnDays;const d=new Date(datum);if(isNaN(d))return null;const diff=(d-new Date())/TIME_DAY;if(diff<0)return 'overdue';if(diff<w)return 'warn';return 'ok';};
@@ -1591,7 +1595,7 @@ function _checkLocalStorageQuota(){
       const val=localStorage.getItem(key)||"";
       total+=key.length+val.length;
     }
-    const mb=total/(1024*1024);
+    const mb=total/BYTES_MB;
     const limit=5; // konservativ iOS-orientiert
     const pct=Math.round((mb/limit)*100);
     if(pct>=80&&typeof window.__toast==='function'){
@@ -2262,7 +2266,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.83-supabase";
+const APP_VERSION="3.9.84-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -4065,7 +4069,8 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
       _optionalChain([window, 'access', _17b => _17b.__toast, 'optionalCall', _17c => _17c("📩 Mangel gemeldet — wird geprüft")]);
       setNewMangel(null);
     }catch(err){
-      if(window.__toast)window.__toast("⚠️ Fehler beim Speichern","warn");
+      console.warn("[mangel-save]",err&&err.message||err);
+      if(window.__toast)window.__toast("⚠️ Mangel konnte nicht gespeichert werden — bitte Internet-Verbindung prüfen","warn",6000);
     }finally{
       setSubmittingMangel(false);
     }};
@@ -5784,7 +5789,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   /* v3.9.82 Sprint-61.2: Filter-Persistence (localStorage) AS-Liste status/art/quick. */
   const _asFilterLoad=(k,d)=>{try{const v=localStorage.getItem("epk_as_"+k);return v||d;}catch(e){return d;}};
-  const _asFilterSave=(k,v)=>{try{localStorage.setItem("epk_as_"+k,v||"");}catch(e){}};
+  const _asFilterSave=(k,v)=>{try{localStorage.setItem("epk_as_"+k,v||"");}catch(e){console.warn("[silent-ls]",e&&e.message||e);}};
   const [filterStatus,setFilterStatus]=_react.useState.call(void 0, ()=>{const f=window.__asFilter;if(f){delete window.__asFilter;return f;}return _asFilterLoad("filterStatus","alle");});
   _react.useEffect.call(void 0, ()=>{if(window.__asFilter){setFilterStatus(window.__asFilter);setSub("liste");delete window.__asFilter;}},[]);
   _react.useEffect.call(void 0, ()=>{_asFilterSave("filterStatus",filterStatus);},[filterStatus]);
@@ -8282,10 +8287,10 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     if(_geoInflight&&(Date.now()-parseInt(_geoInflight,10))<10000){
       done=true;fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);return ()=>_wCtrl.abort();
     }
-    const _clearInflight=()=>{try{sessionStorage.removeItem("epk_geo_inflight");}catch(e){}};
+    const _clearInflight=()=>{try{sessionStorage.removeItem("epk_geo_inflight");}catch(e){console.warn("[silent-ss]",e&&e.message||e);}};
     // Try geolocation first
     if(navigator.geolocation){
-      try{sessionStorage.setItem("epk_geo_inflight",String(Date.now()));}catch(e){}
+      try{sessionStorage.setItem("epk_geo_inflight",String(Date.now()));}catch(e){console.warn("[silent-ss]",e&&e.message||e);}
       const geoTimeout=setTimeout(()=>{if(!done&&_weatherMountedRef.current){done=true;_clearInflight();try{sessionStorage.setItem("epk_geo",JSON.stringify({lat:FALLBACK_LAT,lon:FALLBACK_LON,ts:Date.now(),fallback:true}));}catch(e){console.warn('[geo-cache]',e&&e.message||e);}fetchWeatherData(FALLBACK_LAT,FALLBACK_LON,_sig);}},4000);
       navigator.geolocation.getCurrentPosition(pos=>{
         _clearInflight();
@@ -11537,7 +11542,7 @@ function VFotos({p,curUser,monteure,ww}){
       if(lbIdx>=0)setLbIdx(-1);
       if(window.__toast)window.__toast("Foto gelöscht");
       if(window.__refreshProjectPhotos)window.__refreshProjectPhotos();
-    }catch(e){if(window.__toast)window.__toast("Fehler beim Löschen");}
+    }catch(e){console.warn("[photo-del]",e&&e.message||e);if(window.__toast)window.__toast("❌ Foto konnte nicht gelöscht werden — bitte erneut versuchen","error",5000);}
   };
   // Capture
   const handleCapture=e=>{
@@ -11794,7 +11799,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
       _optionalChain([window, 'access', _kd3 => _kd3.__toast, 'optionalCall', _kd4 => _kd4("🔒 Freigabe zurückgezogen")]);
     }else{
       const catInfo=DOC_CATS.find(c=>c.id===d.cat)||{l:"Dokument"};
-      const kDoc={id:d.id,pid:p.id,name:d.name||d.filename,type:d.cat==="plaene"?"plan":d.cat==="angebot"?"angebot":_optionalChain([(d.mime||""), 'access', _kd5 => _kd5.includes, 'call', _kd6 => _kd6("pdf")])?"pdf":"doc",date:d.uploadedAt||td2(),size:d.size>1024*1024?(_n((d.size/1024/1024),1)+" MB"):d.size>0?(_n((d.size/1024),0)+" KB"):"",dataUrl:d.dataUrl,filename:d.filename};
+      const kDoc={id:d.id,pid:p.id,name:d.name||d.filename,type:d.cat==="plaene"?"plan":d.cat==="angebot"?"angebot":_optionalChain([(d.mime||""), 'access', _kd5 => _kd5.includes, 'call', _kd6 => _kd6("pdf")])?"pdf":"doc",date:d.uploadedAt||td2(),size:d.size>BYTES_MB?(_n((d.size/BYTES_MB),1)+" MB"):d.size>0?(_n((d.size/BYTES_KB),0)+" KB"):"",dataUrl:d.dataUrl,filename:d.filename};
       setForms(f=>({...f,kundenDocs:[...(f.kundenDocs||[]),kDoc]}));
       SQ.push({url:"/api/project-documents/"+d.id,method:"PUT",body:{kunde_freigabe:1}});
       _optionalChain([window, 'access', _kd7 => _kd7.__toast, 'optionalCall', _kd8 => _kd8("📤 Für Kundenportal freigegeben")]);
@@ -11977,7 +11982,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
 
           /* File grid */
           , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"repeat(auto-fill,minmax(280,1fr))",gap:8}}
-            , fil.map(d=>{const catInfo=DOC_CATS.find(c=>c.id===d.cat)||DOC_CATS[DOC_CATS.length-1];const ext=_optionalChain([(d.filename||""), 'access', _456 => _456.split, 'call', _457 => _457("."), 'access', _458 => _458.pop, 'call', _459 => _459(), 'optionalAccess', _460 => _460.toUpperCase, 'call', _461 => _461()])||"?";const sizeStr=d.size>1024*1024?(_n((d.size/1024/1024),1)+"MB"):d.size>0?(_n((d.size/1024),0)+"KB"):"";const docFolder=folders.find(f=>f.id===d.folderId);
+            , fil.map(d=>{const catInfo=DOC_CATS.find(c=>c.id===d.cat)||DOC_CATS[DOC_CATS.length-1];const ext=_optionalChain([(d.filename||""), 'access', _456 => _456.split, 'call', _457 => _457("."), 'access', _458 => _458.pop, 'call', _459 => _459(), 'optionalAccess', _460 => _460.toUpperCase, 'call', _461 => _461()])||"?";const sizeStr=d.size>BYTES_MB?(_n((d.size/BYTES_MB),1)+"MB"):d.size>0?(_n((d.size/BYTES_KB),0)+"KB"):"";const docFolder=folders.find(f=>f.id===d.folderId);
               return (React.createElement('div', { key: d.id, style: {...CC(),cursor:"pointer",position:"relative"}, onClick: ()=>openDoc(d)}
                 , React.createElement('div', { style: {display:"flex",gap:10,alignItems:"flex-start"}}
                   , d.isImage&&d.dataUrl?(React.createElement('img', { src: d.dataUrl, style: {width:48,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}, alt: ""} )):(React.createElement('div', { style: {width:48,height:48,borderRadius:6,background:catInfo.c+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, React.createElement('span', { style: {fontSize:10,fontWeight:800,color:catInfo.c}}, ext)))
@@ -12479,7 +12484,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   // v3.5.71 Block 3c: Mengen-Vorschläge aus Orders-History (letzte 30 Tage, letzte Menge je artNr)
   const lastQtyByArtNr=_react.useMemo.call(void 0, ()=>{
-    const cutoff=Date.now()-30*TIME_DAY;
+    const cutoff=Date.now()-TIME_MONTH;
     const out={};
     (orders||[]).forEach(ord=>{
       const t=new Date(ord.datum||ord.created_at||0).getTime();
@@ -15019,7 +15024,7 @@ function PhotoSyncStatus(){
         , React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Fehler")
       )
       , React.createElement('div', { style: {textAlign:"center",padding:"8px 4px",borderRadius:8}}
-        , React.createElement('div', { style: {fontSize:16,fontWeight:800,color:V.tx,fontFamily:mono}}, totalSize>1048576?_n((totalSize/1048576),1)+"MB":_n((totalSize/1024),0)+"KB")
+        , React.createElement('div', { style: {fontSize:16,fontWeight:800,color:V.tx,fontFamily:mono}}, totalSize>BYTES_MB?_n((totalSize/BYTES_MB),1)+"MB":_n((totalSize/BYTES_KB),0)+"KB")
         , React.createElement('div', { style: {fontSize:9,color:V.dm}}, "Speicher")
       )
     )
@@ -17901,7 +17906,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const delWzPhoto=async(ph)=>{
     /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
     if(!isVAdmin)return;if(!await _confirmModal("Foto wirklich löschen?",{variant:"danger"}))return;
-    try{await _sbDelete("photos",ph.id);setWzPhotos(prev=>prev.filter(x=>x.id!==ph.id));_optionalChain([window, 'access', _wzp1 => _wzp1.__toast, 'optionalCall', _wzp2 => _wzp2("Foto gelöscht")]);}catch(e){_optionalChain([window, 'access', _wzp3 => _wzp3.__toast, 'optionalCall', _wzp4 => _wzp4("Fehler beim Löschen","error")]);}
+    try{await _sbDelete("photos",ph.id);setWzPhotos(prev=>prev.filter(x=>x.id!==ph.id));_optionalChain([window, 'access', _wzp1 => _wzp1.__toast, 'optionalCall', _wzp2 => _wzp2("Foto gelöscht")]);}catch(e){_optionalChain([window, 'access', _wzp3 => _wzp3.__toast, 'optionalCall', _wzp4 => _wzp4("❌ Foto konnte nicht gelöscht werden — bitte erneut versuchen","error",5000)]);}
   };
   // QR Scan
   const videoRef=_react.useRef.call(void 0, null);const canvasRef=_react.useRef.call(void 0, null);const streamRef=_react.useRef.call(void 0, null);const scanTimer=_react.useRef.call(void 0, null);
@@ -17944,7 +17949,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     if(!_matchesChip(w))return false;
     if(filtSt&&w.status!==filtSt)return false;
     if(filtKat&&w.kat!==filtKat)return false;
-    if(search){const s=search.toLowerCase();return (w.name+w.seriennr+w.inventarnr+w.notizen+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
+    if(search){const s=search.toLowerCase();/* v3.9.84 Sprint-63.4: Defensive ||"" guards — verhindert "undefined" im Such-Token. */return ((w.name||"")+(w.seriennr||"")+(w.inventarnr||"")+(w.notizen||"")+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
     return true;
   }),[_wzPool,_matchesChip,filtSt,filtKat,search,monteure]);
   // v3.8.60 Phase 4.2: SelectAll-Helper (depends on filtered)
