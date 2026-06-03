@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.100';
+  var SW_VER='epkolar-v3.9.101';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2267,7 +2267,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.100-supabase";
+const APP_VERSION="3.9.101-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -8432,28 +8432,11 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   /* v3.9.60 Sprint-39 F-3: useMemo — filter+slice pro Render unnötig (60s-tick re-render). */
   const topProjects=_react.useMemo.call(void 0, ()=>projects.filter(p=>p.status==="aktiv").slice(0,5),[projects]);
 
-  // v3.5.69 F-A + F-D: "Mein Tag" + Monteur-KPIs
-  const _myRole=_optionalChain([curUser, 'optionalAccess', _mt1 => _mt1.role])||"";
-  // v3.9.99 Sebastian-Spec: Außendienst-Gruppe nur {monteur, techniker} — entfernt helfer + obermonteur
-  const _isMonteurView=_myRole==="monteur"||_myRole==="techniker";
-  const _myMid2=_optionalChain([curUser, 'optionalAccess', _mt2 => _mt2.monteurId])||"";
-  // v3.8.70 Hunt B-001/B-005: Monteur-Aggregates (myAsOpen + myAsToday + myNextAs + myHoursWeek + myTravelWeek) in ONE useMemo
-  // statt 5 separate Aggregates die jeden 60s-Tick re-filtern. Deps wirken nur tatsächlich beim Datenupdate.
-  const _myAgg=_react.useMemo.call(void 0, ()=>{
-    const myAsOpen=arbeitsscheine.filter(a=>a.monteur===_myMid2&&AS_GRP_OFFEN.includes(a.scheinstatus));
-    const myAsToday=myAsOpen.filter(a=>(a.termin||"").startsWith(_td));
-    const _up=myAsOpen.filter(a=>(a.termin||"")>=_td).sort((x,y)=>(x.termin||"").localeCompare(y.termin||""));
-    const myNextAs=_up[0]||null;
-    let myHoursWeek=0,myTravelWeek=0;
-    entries.forEach(e=>{
-      const wid=e.worker||e.w||""; if(wid!==_myMid2)return;
-      const dt=e.datum||e.date||""; const h=parseFloat(e.hours||e.stunden)||0;
-      if(_weekDates.has(dt)){myHoursWeek+=h;if(((e.task||e.taetigkeit||"").toLowerCase()==="anfahrt"))myTravelWeek+=h;}
-    });
-    return {myAsOpen,myAsToday,myNextAs,myHoursWeek,myTravelWeek};
-  },[arbeitsscheine,entries,_myMid2,_td,_weekDates]);
-  const {myAsOpen,myAsToday,myNextAs,myHoursWeek,myTravelWeek}=_myAgg;
-
+  // v3.9.101 Sprint-82 Sebastian-Variante-B: Mein-Tag-Kachel KOMPLETT entfernt für alle Rollen.
+  //   Vorher Sprint-79 v3.9.99: _isMonteurView Gate ({monteur,techniker}), _myAgg useMemo,
+  //   _myRole/_myMid2 Vars und destructured Aggregates (myAsOpen/myAsToday/myNextAs/
+  //   myHoursWeek/myTravelWeek) — alles entfernt. Timer-Start + Material-anfordern + KPIs
+  //   bleiben in Zeiterfassung / Material-Tabs erreichbar.
   // Season emoji
   const month=now.getMonth();
   const seasonEmoji=month>=2&&month<=4?"🔧":month>=5&&month<=7?"☀️":month>=8&&month<=10?"🍂":"❄️";
@@ -8524,93 +8507,6 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , _expA.go&&React.createElement('div', { onClick: _expA.go, role: "button", tabIndex: 0, "aria-label": "Zur Detail-Ansicht", onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();_expA.go();}}, style: {marginTop:8,fontSize:11,opacity:.8,cursor:"pointer",textDecoration:"underline"}}, "→ Zur Detail-Ansicht")
         );})()
       ))
-
-      /* v3.5.69 F-A+F-D ═══ MEIN TAG (nur Monteur-Rollen, Touch-optimiert) ═══ */
-      , _isMonteurView&&React.createElement('div', { style: {marginBottom:16,padding:isMob?"14px":"16px 20px",borderRadius:14,background:`linear-gradient(135deg,${V.ac}18,#3b82f618)`,border:"1.5px solid "+V.ac+"44"}}
-        , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,marginBottom:12}}
-          , React.createElement('span', { style: {fontSize:isMob?20:22}}, "📅")
-          , React.createElement('span', { style: {fontSize:isMob?16:18,fontWeight:800}}, "Mein Tag")
-          , React.createElement('span', { style: {marginLeft:"auto",fontSize:11,color:V.dm}}, dateStr.split(",")[0])
-          /* v3.9.51 BLOCK 2: Urlaubsantrag-Sekundär-Link top-right (statt KPI-Kachel). Max-1-Tap erhalten.
-             v3.9.57 Edge-Sweep: aria-label hinzu (vorher nur title) + minHeight 36px für robusteren Tap (vorher ~26px). */
-          , React.createElement('button', { onClick: ()=>onNav("urlaub"), title: "Urlaubsantrag", 'aria-label': "Urlaubsantrag stellen", style: {background:"none",border:"1px solid "+V.bd,borderRadius:8,padding:"6px 12px",fontSize:11,color:V.dm,cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",minHeight:36}}, "🏖️", React.createElement('span', { style: {fontSize:11}}, "Urlaub"))
-        )
-        /* v3.9.50 BLOCK 1: KPI-Grid 4→2 (AS heute + Stunden KW). Urlaub raus aus Grid (in Header verlinkt).
-           Nächster Termin als kleine Zeile unter KPIs — nur rendern wenn myNextAs vorhanden.
-           Border-Akzente reduziert (border-Color statt 4px borderLeft) für ruhigeren Look. */
-        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:myNextAs?6:12}}
-          , React.createElement('div', { onClick: ()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}, role: "button", tabIndex: 0, "aria-label": "Meine AS heute", onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.__asFilter="offen_bearb";onNav("arbeitsscheine");}}, style: {padding:isMob?"10px":"12px",borderRadius:10,background:V.cd,border:"1px solid "+V.bd,cursor:"pointer"}}
-            , React.createElement('div', { style: {fontSize:10,color:V.dm,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}, "Meine AS heute"  )
-            , React.createElement('div', { style: {fontSize:isMob?22:26,fontWeight:800,color:V.tx,fontFamily:mono}}, myAsToday.length)
-            , React.createElement('div', { style: {fontSize:10,color:V.dm}}, myAsOpen.length, " gesamt offen"  )
-          )
-          , React.createElement('div', { onClick: ()=>onNav("zeiterfassung"), role: "button", tabIndex: 0, "aria-label": "Meine Stunden KW", onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav("zeiterfassung");}}, style: {padding:isMob?"10px":"12px",borderRadius:10,background:V.cd,border:"1px solid "+V.bd,cursor:"pointer"}}
-            , React.createElement('div', { style: {fontSize:10,color:V.dm,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}, "Meine Stunden KW"  )
-            , React.createElement('div', { style: {fontSize:isMob?22:26,fontWeight:800,color:V.tx,fontFamily:mono}}, _n(myHoursWeek,1), "h")
-            , React.createElement('div', { style: {fontSize:10,color:V.dm}}, "🚗 Anfahrt: " , _n(myTravelWeek,1), "h")
-          )
-        )
-        /* v3.9.50 BLOCK 1: Nächster Termin nur als Textzeile, nur bei vorhandenem Termin */
-        , myNextAs&&React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:12,padding:"6px 10px",background:V.cd+"66",borderRadius:8,display:"flex",alignItems:"center",gap:8}}
-          , React.createElement('span', { style: {fontSize:14}}, "📅")
-          , React.createElement('span', { style: {fontWeight:600,color:V.tx}}, "Nächster Termin:")
-          , React.createElement('span', {}, fdt(myNextAs.termin))
-          , React.createElement('span', { style: {color:V.mt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0,flex:1}}, "· ", myNextAs.nummer, " ", myNextAs.kundName||"")
-        )
-        /* Heutige AS — Liste für Tap-Access (F-A) */
-        , myAsToday.length>0&&React.createElement('div', { style: {marginBottom:12}}
-          , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.dm,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}, "📋 Heute (" , myAsToday.length, ")")
-          , myAsToday.slice(0,5).map(a=>React.createElement('div', { key: a.id, className: "epk-tap", onClick: ()=>{window.__asOpenId=a.id;onNav("arbeitsscheine");}, style: {display:"flex",alignItems:"center",gap:8,padding:"10px 12px",marginBottom:4,borderRadius:8,background:V.sb,border:"1px solid "+V.bd,cursor:"pointer",minHeight:50}}
-            , React.createElement('span', { style: {fontSize:18}}, "📋")
-            , React.createElement('div', { style: {flex:1,minWidth:0}}
-              , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.nummer||"—", " · " , a.kundName||"?")
-              , React.createElement('div', { style: {fontSize:11,color:V.dm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.kundOrt||"", " · " , _optionalChain([AS_STATUS, 'access', _asts1 => _asts1[a.scheinstatus], 'optionalAccess', _asts2 => _asts2.l])||a.scheinstatus)
-            )
-            , React.createElement('span', { style: {fontSize:18,color:V.dm}}, "→")
-          ))
-        )
-        /* Touch-optimierte Quick-Actions (F-A) */
-        , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}}
-          , React.createElement('button', { onClick: async ()=>{
-            // v3.5.72 Block 8a: Timer-Start über Prompt
-            // v3.9.32 Sprint-17 H-1 CRITICAL Fix: _myProjIds war undefined in HomeView-Scope (nur in ProjList definiert).
-            // Click loeste ReferenceError -> ErrorBoundary-Reset. Jetzt lokal aus curUser.monteurId+monteurProjekte resolved.
-            if(window._epkTimer.get()){if(!confirm("Timer läuft bereits. Trotzdem ersetzen?"))return;}
-            const _zeMid=curUser&&curUser.monteurId||"";
-            const _myProjIdsLocal=_zeMid?((monteurProjekte||{})[_zeMid]||[]):[];
-            const myProj=_myProjIdsLocal && _myProjIdsLocal.length?projects.filter(p=>_myProjIdsLocal.includes(p.id)&&p.status==="aktiv"):projects.filter(p=>p.status==="aktiv");
-            if(myProj.length===0){window.__toast&&window.__toast("Kein Projekt zugewiesen","warn");return;}
-            const choice=prompt("Projekt für Timer (Nummer oder Teil des Namens):\n"+myProj.slice(0,10).map((p,i)=>(i+1)+". "+p.name+(p.nr?" ("+p.nr+")":"")).join("\n"));
-            if(!choice)return;
-            let proj;const nChoice=parseInt(choice);
-            if(!isNaN(nChoice)&&nChoice>=1&&nChoice<=myProj.length)proj=myProj[nChoice-1];
-            else proj=myProj.find(p=>(p.name||"").toLowerCase().includes(choice.toLowerCase())||(p.nr||"").toLowerCase().includes(choice.toLowerCase()));
-            if(!proj){window.__toast&&window.__toast("Projekt nicht gefunden","error");return;}
-            const task=prompt("Tätigkeit (z.B. Installation, Anfahrt):", "");
-            window._epkTimer.start(proj.id,task||"",curUser&&curUser.monteurId||"");
-            window.__toast&&window.__toast("⏱️ Timer gestartet: "+proj.name,"success");
-          }, style: {flex:"1 1 0",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#3b82f6,#1d4ed8)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(59,130,246,.25)"}}, "▶ Timer starten")
-          /* v3.9.32 Sprint-17 H-9 Fix: Material-Button nutzte topProjects[0] (globale Admin-Liste).
-             Fuer Monteur: bevorzuge zugewiesenes Projekt (monteurProjekte[monteurId]) bevor Fallback auf topProjects. */
-          , (()=>{
-            const _mtMid=curUser&&curUser.monteurId||"";
-            const _mtMyIds=_mtMid?((monteurProjekte||{})[_mtMid]||[]):[];
-            const _mtMyProj=_mtMyIds.length?projects.filter(p=>_mtMyIds.includes(p.id)&&p.status==="aktiv"):[];
-            const _mtTarget=_mtMyProj[0]||topProjects[0];
-            /* v3.9.46 SPRINT-31 F-MA-1: CustomEvent epk_open_material hatte KEINEN Listener →
-               Click navigierte zwar zum Projekt, oeffnete aber NIE den Material-Tab. _initView nutzt
-               denselben Mechanismus wie Plan/Maengel/Docs-Buttons in MeineBaustellen-Card. */
-            return _mtTarget?React.createElement('button', { onClick: ()=>{onOpenP({..._mtTarget,_initView:"material"});}, style: {flex:"1 1 0",padding:isMob?"14px 16px":"12px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:isMob?14:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 12px rgba(245,158,11,.25)"}}, "📦 Material anfordern"):null;
-          })()
-          /* v3.9.52 BLOCK 3: Foto als sekundärer Icon-Button — schmal, neutral, nicht-dominant. Timer/Material bleiben Primary.
-             v3.9.57 Edge-Sweep: aria-label hinzu (Icon-only Label hatte keinen accessible-name für Screen-Reader). */
-          , React.createElement('label', { title: "Foto", 'aria-label': "Schnellfoto Baustelle aufnehmen", style: {flex:"0 0 auto",padding:isMob?"14px":"12px 14px",borderRadius:12,border:"1px solid "+V.bd,background:V.cd,color:V.tx,fontSize:isMob?14:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:56,minWidth:56,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}, React.createElement('span', { 'aria-hidden': "true", style: {fontSize:isMob?20:18}}, "📷")
-            /* v3.9.46 SPRINT-31 F-FOTO-2/3: entityId "schnellfoto" war hardcoded → kollidierte bei
-               mehreren parallelen Fotos (queue-drift). Jetzt unique per Foto. Plus .catch fuer Toast-Fehler-Hinweis. */
-            , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const fls=e.target.files;if(!fls||!fls.length)return;let _haOK=0,_haErr=0;Array.from(fls).forEach((f,_fi)=>{const _eid="schnellfoto_"+Date.now()+"_"+_fi;Promise.resolve(captureAndQueue(f,"baustelle",_eid,"","Schnellfoto Baustelle")).then(()=>{_haOK++;}).catch(_err=>{_haErr++;console.warn('[silent-foto]',_err&&_err.message||_err);if(window.__toast)window.__toast("⚠ Foto-Upload fehlgeschlagen","warn");});});_optionalChain([window, 'access', _mtp1 => _mtp1.__toast, 'optionalCall', _mtp2 => _mtp2("📷 "+fls.length+" Foto"+(fls.length>1?"s":"")+" in Warteschlange")]);try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} )
-          )
-        )
-      )
 
       /* ═══ MEINE WOCHE — Wochenplanung für Feldarbeiter ═══ */
       , dv('meineWoche')&&(()=>{

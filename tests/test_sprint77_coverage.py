@@ -140,26 +140,37 @@ def test_pickerlstatus_handles_invalid_date(index_html):
 # -------------------- 77.2 Regression-Tests critical bugs --------------------
 
 
-def test_sprint17_h1_timer_button_uses_local_zeMid(index_html):
-    assert "_myProjIdsLocal" in index_html, \
-        "Sprint-17 H-1 regression: _myProjIdsLocal must exist in HomeView scope"
-    assert re.search(
-        r"const\s+_myProjIdsLocal\s*=\s*_zeMid\s*\?\s*\(\s*\(\s*monteurProjekte",
-        index_html,
-    ), "Sprint-17 H-1: _myProjIdsLocal must resolve from monteurProjekte[_zeMid]"
+# Sprint-82 v3.9.101 Sebastian-Variante-B: Mein-Tag-Kachel KOMPLETT entfernt für alle Rollen.
+# Die 4 vorherigen Sprint-17 H-1 + Sprint-32 H-9 Regressions-Tests assertierten Subjekte des
+# Timer-/Material-Buttons in der Mein-Tag-Kachel. Diese Kachel existiert nicht mehr; die Tests
+# werden nun zu Removal-Guards umgedreht. Funktionen bleiben in Zeiterfassung/Material-Tabs.
 
 
-def test_sprint17_h1_marker_comment(index_html):
-    assert "Sprint-17 H-1" in index_html, \
-        "Sprint-17 H-1 critical-fix comment must remain (regression marker)"
-    assert "_myProjIds war undefined" in index_html, \
-        "Sprint-17 H-1: bug-description must remain for future readers"
+def test_sprint82_mein_tag_kachel_removed(index_html):
+    """Sprint-82: Mein-Tag-Kachel KOMPLETT entfernt (Sebastian-Variante-B v3.9.101)."""
+    # Genaue JS-Identifier-Pattern (Kommentar-Erwähnungen im Marker erlaubt).
+    assert "const _isMonteurView=" not in index_html, \
+        "Sprint-82: _isMonteurView const-Deklaration muss entfernt sein"
+    assert "const _myAgg=" not in index_html, \
+        "Sprint-82: _myAgg useMemo-Deklaration muss entfernt sein"
+    assert "Sprint-82 Sebastian-Variante-B" in index_html, \
+        "Sprint-82: Marker-Kommentar muss bleiben (Regression-Anker)"
 
 
-def test_sprint32_material_button_uses_initView(index_html):
-    assert "_initView:\"material\"" in index_html, \
-        "Sprint-32 Material-Button must use _initView:'material'"
+def test_sprint82_mein_tag_timer_button_removed(index_html):
+    """Sprint-82: Timer-Button + _myProjIdsLocal nur in Mein-Tag-Kachel — beides raus."""
+    assert "_myProjIdsLocal" not in index_html, \
+        "Sprint-82: _myProjIdsLocal (war im Timer-onClick) muss entfernt sein"
+    assert "Timer läuft bereits. Trotzdem ersetzen?" not in index_html, \
+        "Sprint-82: Timer-Start-Confirm-Prompt muss entfernt sein"
 
+
+def test_sprint82_mein_tag_material_button_removed(index_html):
+    """Sprint-82: Material-Button + _mtMyProj nur in Mein-Tag-Kachel — beides raus."""
+    assert "_mtMyProj" not in index_html, \
+        "Sprint-82: _mtMyProj (war im Material-Button-onClick) muss entfernt sein"
+    assert "Material anfordern" not in index_html, \
+        "Sprint-82: Material-anfordern-Button-Label muss entfernt sein"
 
 def test_sprint32_initView_consumed_in_VProj(index_html):
     assert "p._initView" in index_html, \
@@ -167,12 +178,6 @@ def test_sprint32_initView_consumed_in_VProj(index_html):
     assert re.search(r"p\._initView\s*\|\|\s*\"dashboard\"", index_html), \
         "p._initView must fallback to 'dashboard'"
 
-
-def test_sprint32_h9_material_button_prefers_monteur_project(index_html):
-    assert "_mtMyProj" in index_html, \
-        "Sprint-32/H-9: _mtMyProj must exist (monteur's assigned projects)"
-    assert re.search(r"_mtMyProj\[0\]\s*\|\|\s*topProjects\[0\]", index_html), \
-        "Sprint-32/H-9: must prefer _mtMyProj[0] before topProjects[0]"
 
 
 def test_sprint38_sync_button_drain_refresh(index_html):
