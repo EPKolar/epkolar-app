@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.95';
+  var SW_VER='epkolar-v3.9.96';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2267,7 +2267,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.95-supabase";
+const APP_VERSION="3.9.96-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -7469,7 +7469,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         if(!_bResp.ok){const _et=await _bResp.text().catch(()=>"");throw new Error("Batch-Upsert fehlgeschlagen ("+_bResp.status+"): "+_et.slice(0,150));}
       }
       // Update supplier last_sync (v3.8.20 Iter-20: auch hier _authRetry)
-      await _authRetry(()=>{const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};return fetch(SB_REST+"/supplier_configs?id=eq."+suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})}));});
+      /* v3.9.96 Sprint-75 P2-Fix: Status-Check fuer supplier_configs last_sync PATCH. Vorher silent RLS-denial. */
+      const _scResp=await _authRetry(()=>{const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};return fetch(SB_REST+"/supplier_configs?id=eq."+suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})}));});
+      if(_scResp&&!_scResp.ok){const _scTxt=await _scResp.text().catch(()=>"");console.warn("[supplier_configs] last_sync PATCH failed",_scResp.status,_scTxt.slice(0,200));}
       setDnUploadStatus("✅ "+rows.length+" Artikel importiert ("+articles.detVer+")");setDnUploadProgress(100);
       setTimeout(fetchSuppliers,500);
     }catch(e){setDnUploadStatus("❌ Fehler: "+e.message);setDnUploadProgress(0);}
