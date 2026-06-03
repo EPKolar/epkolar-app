@@ -69,7 +69,8 @@ def test_logout_clears_refresh_timer(index_html):
 
 def test_store_auth_reschedules_timer(index_html):
     start = index_html.index("function _storeAuth(d)")
-    body = index_html[start:start + 1500]
+    # v3.9.107: Fenster vergrößert — _storeAuth bekam reauth-counter-reset + Konsistenz-Kommentare.
+    body = index_html[start:start + 2200]
     assert "if(_authRefreshTimer)clearTimeout(_authRefreshTimer)" in body, (
         "_storeAuth must clear old timer before scheduling new one"
     )

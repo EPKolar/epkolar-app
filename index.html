@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.106';
+  var SW_VER='epkolar-v3.9.107';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1459,6 +1459,7 @@ function _storeAuth(d){
   // v3.5.142: Guard gegen broken GoTrue-Responses. Wenn access_token kein JWT-Shape hat → ignorieren, kein Anstoß von Downstream-Ketten mit Garbage.
   if(!d||!d.access_token||!_isJwtShape(d.access_token)){console.warn('[Auth] _storeAuth abgelehnt — access_token hat keine JWT-Shape:',d);return;}
   _authToken=d.access_token;_authRefreshToken=d.refresh_token||null;
+  try{sessionStorage.removeItem("_silent_reauth_count");}catch(_){}/* v3.9.107 Hunt: Loop-Guard-Zähler bei erfolgreichem Login/Refresh zurücksetzen (sonst blockt nach 2 Reloads ein späterer echter Ablauf den Re-Login-Reload). */
   // v3.9.102 Storage-Konsistenz: rotierten refresh_token ZUERST schreiben (Quelle der Rotation-Race-
   // Härtung in _sbAuthRefresh), DANN das kombinierte epkolar_auth — keine Lücke wo der neue RT fehlt.
   try{localStorage.setItem("epkolar_token",d.access_token);if(d.refresh_token)localStorage.setItem("epkolar_refresh",d.refresh_token);}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
@@ -1492,7 +1493,7 @@ function _onAuthFail(){if(_authFailShown)return;_authFailShown=true;if(window.__
 // auf dasselbe Promise. Hier: nach Retry 2nd-round-401 erkennen, dann _onAuthFail feuern.
 async function _authRetry(fn){
   const r=await fn();
-  if(_isAuthErr(r.status)){
+  if(_isAuthErr(r.status)&&navigator.onLine!==false){/* v3.9.107 Hunt: offline NICHT als Auth-Fehler behandeln — der Offline-Guard in _sbAuthRefresh liefert truthy ohne Refresh, sonst feuerte _authRetry einen falschen "Sitzung abgelaufen"-Toast. */
     try{
       const ref=await _sbAuthRefresh();
       if(ref&&_authToken){
@@ -2296,7 +2297,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.106-supabase";
+const APP_VERSION="3.9.107-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -2775,7 +2776,7 @@ function _juprowaMapWorksheet(jws,workers){
     projektnr:jws.AK_PROJEKTNR||"",
     scheinstatus:stat,
     scheinart:artCode,
-    scheintyp:jws.AK_SCHEINTYP==="3"?"regie":"service",
+    scheintyp:String(jws.AK_SCHEINTYP)==="3"?"regie":"service",/* v3.9.107 Hunt: AK_SCHEINTYP kommt numerisch (wie AK_AUFART/AK_AUFSTATUS) → ohne String() war 3==="3" false → Regie fälschlich als Service (abrechnungsrelevant). */
     prioritaet:JUPROWA_PRIO_MAP[String(jws.AK_PRIOR)]||"keine",
     verrechnung:"verrechenbar",
     monteur:montId,
@@ -8805,9 +8806,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             const items=[];
             // Vehicle deadlines
             (fahrzeuge||[]).forEach(f=>{
-              if(f.pickerl){const d=new Date(f.pickerl);const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-60&&diff<90)items.push({date:f.pickerl,icon:"📋",text:`Pickerl ${f.kennzeichen}`,sub:diff<0?"ABGELAUFEN":diff+"T",urgent:diff<14,color:diff<0?COLORS.ERROR:diff<30?COLORS.WARNING:COLORS.SUCCESS});}
-              if(f.naechstService){const d=new Date(f.naechstService);const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"🔧",text:`Service ${f.kennzeichen}`,sub:diff<0?"ÜBERFÄLLIG":diff+"T",urgent:diff<7,color:diff<0?COLORS.ERROR:diff<14?COLORS.WARNING:COLORS.SUCCESS});}
-              (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum)-new Date())/TIME_DAY);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"🔧":t.art==="pickerl"?"📋":t.art==="reifen"?"🔄":"📌",text:`${t.beschreibung}`,sub:(f.kennzeichen||"Fzg")+" · "+fdt(t.datum),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
+              if(f.pickerl){const d=new Date(f.pickerl+"T00:00:00");const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-60&&diff<90)/* v3.9.107 Hunt: date-only lokal parsen (T00:00:00) statt UTC — sonst zeigte "heute" ab Nachmittag fälschlich ABGELAUFEN. */items.push({date:f.pickerl,icon:"📋",text:`Pickerl ${f.kennzeichen}`,sub:diff<0?"ABGELAUFEN":diff+"T",urgent:diff<14,color:diff<0?COLORS.ERROR:diff<30?COLORS.WARNING:COLORS.SUCCESS});}
+              if(f.naechstService){const d=new Date(f.naechstService+"T00:00:00");const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"🔧",text:`Service ${f.kennzeichen}`,sub:diff<0?"ÜBERFÄLLIG":diff+"T",urgent:diff<7,color:diff<0?COLORS.ERROR:diff<14?COLORS.WARNING:COLORS.SUCCESS});}
+              (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum+"T00:00:00")-new Date())/TIME_DAY);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"🔧":t.art==="pickerl"?"📋":t.art==="reifen"?"🔄":"📌",text:`${t.beschreibung}`,sub:(f.kennzeichen||"Fzg")+" · "+fdt(t.datum),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
             });
             // Confirmed Arbeitsschein termine
             arbeitsscheine.filter(a=>a.terminBestaetigt&&AS_GRP_OFFEN.includes(a.scheinstatus)).forEach(a=>{
@@ -13946,7 +13947,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const [editMode,setEditMode]=_react.useState.call(void 0, false);
   const [editEntry,setEditEntry]=_react.useState.call(void 0, null);
   const [subView,setSubView]=_react.useState.call(void 0, "kalender");
-  const absTabIds=["kalender","antraege","uebersicht","timeline"];
+  const absTabIds=isAdmin?["kalender","antraege","uebersicht","timeline"]:["kalender"];/* v3.9.107 Hunt: nur Admin/urlaub_edit erreicht antraege/uebersicht/timeline — sonst war "Übersicht" (alle MA-Salden) per Swipe für Monteure offen. */
   const absSwipe=useSwipe(
     ()=>{const i=absTabIds.indexOf(subView);if(i<absTabIds.length-1)setSubView(absTabIds[i+1]);},
     ()=>{const i=absTabIds.indexOf(subView);if(i>0)setSubView(absTabIds[i-1]);}
@@ -13984,10 +13985,9 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     const k=sel+"_"+dk(d);
     const isDelete=_optionalChain([abs, 'access', _535 => _535[k], 'optionalAccess', _536 => _536.type])===typ;
     setAbs(p=>{const c={...p};if(_optionalChain([c, 'access', _537 => _537[k], 'optionalAccess', _538 => _538.type])===typ){delete c[k];}else{c[k]={type:typ,date:td2(),by:_optionalChain([curUser, 'optionalAccess', _539 => _539.name])||"",hours:stdVonTag(d)};}return c;});
-    setApprovals(p=>({...p,[k]:"ausstehend"}));
-    if(isDelete){SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});}
+    if(isDelete){setApprovals(p=>{const _c={...p};delete _c[k];return _c;});/* v3.9.107 Hunt: beim Abwählen die Approval-Eintragung ENTFERNEN (vorher blieb sie als "ausstehend" hängen → Anträge-offen-Zähler zu hoch). */SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});}
     /* v3.9.100 Sprint-81.1 B5-Fix: worker_id muss wX (worker.id) sein, nicht NAME (sel). Lookup über monteure-Prop (.id+.n), Fallback auf sel falls nicht gefunden (Legacy-Kompat). id-Key bleibt NAME_DATE (localStorage-Kompat — Migration separat). */
-    else{const _selWorker=(monteure||[]).find(m=>m.n===sel||m.name===sel);const _workerId=(_selWorker&&_selWorker.id)||sel;/* v3.9.106 B-A: hours = stdVonTag(d) (Mo-Do 8,5 / Fr 4,5 / Sa-So+Feiertag 0) — NICHT flat 7,7 (Sebastian-Payroll-Bestätigung). tage = 1 nur an Werktagen. Vorher zählte 7,7 zu hoch/falsch je Einzeltag. Kanonisch from_date/to_date; von/bis+note DEPRECATED. */SQ.push({url:"/api/absences",method:"POST",body:{id:k,worker_id:_workerId,type:typ,from_date:dk(d),to_date:dk(d),note:"",hours:stdVonTag(d),tage:(stdVonTag(d)>0?1:0)}});}
+    else{setApprovals(p=>({...p,[k]:"ausstehend"}));const _selWorker=(monteure||[]).find(m=>m.n===sel||m.name===sel);const _workerId=(_selWorker&&_selWorker.id)||sel;/* v3.9.106 B-A: hours = stdVonTag(d) (Mo-Do 8,5 / Fr 4,5 / Sa-So+Feiertag 0) — NICHT flat 7,7 (Sebastian-Payroll-Bestätigung). tage = 1 nur an Werktagen. Vorher zählte 7,7 zu hoch/falsch je Einzeltag. Kanonisch from_date/to_date; von/bis+note DEPRECATED. */SQ.push({url:"/api/absences",method:"POST",body:{id:k,worker_id:_workerId,type:typ,from_date:dk(d),to_date:dk(d),note:"",hours:stdVonTag(d),tage:(stdVonTag(d)>0?1:0)}});}
     if(!isDelete){
       const typName=_optionalChain([AT_T, 'access', _540 => _540[typ], 'optionalAccess', _541 => _541.l])||typ;
       if(typ==="krankenstand"){_optionalChain([pushNotif, 'optionalCall', _542 => _542("absence_sick","🤒 Krankmeldung",sel+" hat sich krankgemeldet ("+fdt(dk(d))+")")]);}
@@ -14169,7 +14169,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , React.createElement('div', { style: {fontSize:13,fontWeight:700}}, "🎯 Urlaubskontingent "  , yr)
           , React.createElement('div', { style: {display:"flex",gap:4}}
             , React.createElement('button', { onClick: ()=>setKontExpanded(!kontExpanded), style: {...bsS(),padding:"3px 10px",fontSize:10}}, kontExpanded?"▲ Kompakt":"▼ Details")
-            , curUser.role==="admin"&&React.createElement('button', { onClick: ()=>{if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{/* v3.8.78 Hunt B-022: ID-Lookup ZUERST, Name-Fallback nur falls Legacy-Daten — verhindert Namens-Kollision (z.B. "Hans" matched "Hans Mueller") */const mon=monteure.find(m=>m.id===worker)||monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:ks.stunden||192.5,ueberstunden:ks.ueberstunden||0,urlaub:ks.urlaub||25}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:"3px 10px",fontSize:10}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
+            , isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{/* v3.8.78 Hunt B-022: ID-Lookup ZUERST, Name-Fallback nur falls Legacy-Daten — verhindert Namens-Kollision (z.B. "Hans" matched "Hans Mueller") */const mon=monteure.find(m=>m.id===worker)||monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:ks.stunden||192.5,ueberstunden:ks.ueberstunden||0,urlaub:ks.urlaub||25}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:"3px 10px",fontSize:10}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
           )
         )
         /* Compact card view (default) */
@@ -14350,7 +14350,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       ))
 
       /* ═══ ÜBERSICHT ═══ */
-      , subView==="uebersicht"&&(React.createElement('div', {}
+      , subView==="uebersicht"&&isAdmin&&(React.createElement('div', {}
         , React.createElement('div', { style: {...CC()}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:14}}, "📊 Jahresübersicht "  , yr)
           , names.map(m=>{const ys=yearSt(m);const rest=resturlaub(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;
@@ -17214,7 +17214,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
           , React.createElement('button', { onClick: ()=>{if(fzScanMode){fzStopScan();setFzScanMode(false);}else{setBatchMode(false);setFzScanMode(true);setSel(null);}}, style: fzScanMode?bdS:bsS()}, fzScanMode?"✕ Scanner":"📷 Scan")
           , React.createElement('button', { onClick: ()=>{if(batchMode){setBatchMode(false);}else openBatch();}, style: batchMode?{...bdS,borderColor:"#f97316",color:"#f97316"}:bsS()}, batchMode?"✕ Batch":"⛽ Batch")
-          , !sel&&!batchMode&&React.createElement('button', { onClick: ()=>printLabels(fahrzeuge.filter(f=>f.status!=="stillgelegt").map(f=>({name:((f.marke||"")+" "+(f.modell||"")).trim()||(f.kennzeichen||"—"),code:f.kennzeichen,kennzeichen:f.kennzeichen})),"Fahrzeug-Labels"), style: bsS()}, "🏷️ Labels" )
+          , !sel&&!batchMode&&React.createElement('button', { onClick: ()=>printLabels(visibleFz.filter(f=>f.status!=="stillgelegt").map(f=>({name:((f.marke||"")+" "+(f.modell||"")).trim()||(f.kennzeichen||"—"),code:f.kennzeichen,kennzeichen:f.kennzeichen})),"Fahrzeug-Labels")/* v3.9.107 Hunt: visibleFz statt fahrzeuge — Monteur druckte sonst Labels der GANZEN Flotte (eigene Sicht umgangen). */, style: bsS()}, "🏷️ Labels" )
           , !sel&&!batchMode&&isVAdmin&&React.createElement('button', { onClick: ()=>{const h=["Kennzeichen","Marke/Modell","Typ","Fahrer","Baujahr","km-Stand","Reifen","Wischer","Pickerl","Service","Versicherung","Status"];const r=fahrzeuge.map(f=>[f.kennzeichen,f.marke+" "+f.modell,f.typ,_optionalChain([(monteure||MONT), 'access', _685 => _685.find, 'call', _686 => _686(m=>m.id===f.fahrer), 'optionalAccess', _687 => _687.n])||"",f.baujahr||"",(f.kmStand||0).toLocaleString("de-AT"),f.reifen||"",f.scheibenwischer||"",f.pickerl?fdt(f.pickerl):"",f.naechstService?fdt(f.naechstService):"",f.versicherung||"",f.status]);genXls("🚗 Fuhrpark — Fahrzeugübersicht","Andreas Kolar & Sohn GesmbH · "+fahrzeuge.length+" Fahrzeuge",h,r,"Fuhrpark_"+td2()+".xls");}, style: xBtn("xls")}, "📊 Excel" )
           , sel&&React.createElement('button', { onClick: ()=>setSel(null), style: bsS()}, "← Zurück" )
           , isVAdmin&&!sel&&!batchMode&&React.createElement('button', { onClick: ()=>setShowAdd(!showAdd), style: bpS}, showAdd?"✕":"+ Fahrzeug")
