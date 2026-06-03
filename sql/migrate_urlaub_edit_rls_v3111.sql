@@ -1,5 +1,10 @@
 -- ============================================================================
--- C2 — urlaub_edit serverseitig (RLS) — Sebastian-Service-Role-Run
+-- ⛔ SUPERSEDED / NICHT AUSFÜHREN (2026-06-03) — durch LIVE-Trigger-Ansatz ersetzt.
+-- Chat-Claude hat urlaub_edit serverseitig via TRIGGER umgesetzt (siehe
+-- sql/security_triggers_LIVE_v3911.sql — bereits live). Diese policy-basierte Variante
+-- ist NICHT mehr nötig und wird NICHT angewandt. Bleibt nur als Referenz im Repo.
+-- ============================================================================
+-- C2 — urlaub_edit serverseitig (RLS) — [SUPERSEDED, Referenz]
 -- ============================================================================
 -- Koppelt das per-User-Recht 'urlaub_edit' (Client: users.perms_override->>'urlaub_edit')
 -- serverseitig, damit die Urlaub/ZA-Bearbeitung NICHT per direktem API-Call umgehbar ist.
