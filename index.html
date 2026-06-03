@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.82';
+  var SW_VER='epkolar-v3.9.83';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2262,7 +2262,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.82-supabase";
+const APP_VERSION="3.9.83-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -2545,6 +2545,49 @@ const COLORS={EP_GREEN:"#009640",SUCCESS:"#22c55e",ERROR:"#ef4444",ERROR_DARK:"#
 // v3.9.73 SPRINT-52: Simple Skeleton-Loader-Helper für Heavy-Lists. Drop-in für `loading?Lade…`-Patterns.
 // Renders N grey placeholder-rows mit pulse-animation (Re-uses bestehende @keyframes pulse aus globalCSS).
 function _Skeleton(rows){const n=rows||4;const bg=(typeof V!=='undefined'&&V&&V.cd)||'#27272a';return React.createElement('div',{style:{padding:12,display:'flex',flexDirection:'column',gap:8},'aria-busy':'true','aria-label':'Lade…'},Array.from({length:n}).map((_,i)=>React.createElement('div',{key:i,style:{height:48,borderRadius:8,background:bg,opacity:.55,animation:'pulse 1.2s ease-in-out infinite',animationDelay:(i*0.08)+'s'}})));}
+// v3.9.83 Sprint-62.2: Centralized relative-time helper.
+function _fmtTimeAgo(ts){
+  const t=typeof ts==='number'?ts:(new Date(ts||0).getTime()||0);
+  if(!t)return"–";
+  const now=Date.now();
+  const diff=now-t;
+  if(diff<0){
+    try{return new Date(t).toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"numeric"});}catch(_){return"–";}
+  }
+  const mins=Math.floor(diff/60000);
+  if(mins<1)return"gerade eben";
+  if(mins<60)return"vor "+mins+" min";
+  const hrs=Math.floor(mins/60);
+  if(hrs<24){
+    if(hrs<6)return"vor "+hrs+" Std.";
+    try{return"Heute, "+new Date(t).toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"});}catch(_){return"vor "+hrs+" Std.";}
+  }
+  const days=Math.floor(hrs/24);
+  if(days===1){
+    try{return"Gestern, "+new Date(t).toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"});}catch(_){return"vor 1 Tag";}
+  }
+  if(days<7){
+    try{const d=new Date(t);const wd=["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()];return wd+", "+d.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"});}catch(_){return"vor "+days+" Tagen";}
+  }
+  try{return new Date(t).toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"numeric"});}catch(_){return"vor "+days+" Tagen";}
+}
+window._fmtTimeAgo=_fmtTimeAgo;
+// v3.9.83 Sprint-62.2: Date-group label
+function _fmtDateGroup(ts){
+  const t=typeof ts==='number'?ts:(new Date(ts||0).getTime()||0);
+  if(!t)return"Unbekannt";
+  const now=new Date();
+  const d=new Date(t);
+  if(d.toDateString()===now.toDateString())return"Heute";
+  const y=new Date(now);y.setDate(y.getDate()-1);
+  if(d.toDateString()===y.toDateString())return"Gestern";
+  const diff=Date.now()-t;
+  const days=Math.floor(diff/TIME_DAY);
+  if(days<7)return"Diese Woche";
+  if(days<30)return"Diesen Monat";
+  return"Älter";
+}
+window._fmtDateGroup=_fmtDateGroup;
 const _isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Mac/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 const _isAndroid=/Android/.test(navigator.userAgent);
 const _isMobileDevice=_isIOS||_isAndroid||/Mobile/.test(navigator.userAgent);
@@ -5370,8 +5413,10 @@ class _ViewBoundary extends React.Component{
             )
           )
           /* ═══ NOTIFICATION PANEL ═══ */
-          , showNotifPanel&&(React.createElement('div', { style: {position:"fixed",top:0,right:0,bottom:0,width:isMob?"100%":380,background:V.sb,borderLeft:"1px solid "+V.bd,zIndex:200,display:"flex",flexDirection:"column",boxShadow:"-4px 0 20px rgba(0,0,0,.5)",animation:"slideIn .2s ease-out"}}
-            , React.createElement('style', {}, `@keyframes slideIn{from{transform:translateX(100%)}to{transform:none}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`)
+          , showNotifPanel&&(React.createElement('div', { style: {zIndex:200,position:"fixed",top:isMob?"15vh":0,right:0,bottom:0,width:isMob?"100%":380,background:V.sb,borderLeft:isMob?"none":"1px solid "+V.bd,borderTopLeftRadius:isMob?20:0,borderTopRightRadius:isMob?20:0,display:"flex",flexDirection:"column",boxShadow:isMob?"0 -4px 20px rgba(0,0,0,.5)":"-4px 0 20px rgba(0,0,0,.5)",animation:isMob?"slideUp .25s ease-out":"slideIn .2s ease-out"}}
+            , React.createElement('style', {}, `@keyframes slideIn{from{transform:translateX(100%)}to{transform:none}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`)
+            /* v3.9.83 Sprint-62.4: Mobile drag-handle bar (bottom-sheet UX). */
+            , isMob&&React.createElement('div', { ...(window._epkUseSwipeDown?window._epkUseSwipeDown(()=>setShowNotifPanel(false)):{}), style: {display:"flex",justifyContent:"center",padding:"8px 0 4px",cursor:"grab",touchAction:"pan-y"}, "aria-hidden": "true"}, React.createElement('div', { style: {width:44,height:5,borderRadius:3,background:V.dm,opacity:.5}}))
             , React.createElement('div', { style: {padding:"14px 16px",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
               , React.createElement('div', { style: {fontSize:15,fontWeight:800}}, "🔔 Benachrichtigungen" )
               , React.createElement('div', { style: {display:"flex",gap:6}}
@@ -5396,7 +5441,7 @@ class _ViewBoundary extends React.Component{
             , syncStatus.lastSync&&React.createElement('div', { style: {padding:"4px 16px",fontSize:9,color:V.dm,borderBottom:"1px solid "+V.bd}}, "Letzter Sync: "  , syncStatus.lastSync)
             /* Filter tabs */
             , React.createElement('div', { style: {display:"flex",padding:"6px 12px",gap:4,borderBottom:"1px solid "+V.bd,background:V.cd}}
-              , [{id:"alle",l:"Alle",cnt:myNotifs.length},{id:"ungelesen",l:"Ungelesen",cnt:myNotifs.filter(n=>!n.read).length},{id:"eskalation",l:"🔺 Dringend",cnt:myNotifs.filter(n=>(n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick").length}].map(f=>(
+              , [{id:"alle",l:"Alle",cnt:myNotifs.length},{id:"ungelesen",l:"Ungelesen",cnt:myNotifs.filter(n=>!n.read).length},{id:"eskalation",l:"🔺 Dringend",cnt:myNotifs.filter(n=>(n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick").length},/* v3.9.83 Sprint-62.1: Kunde-Filter-Pill (kunde_mangel / kunde_* types). */{id:"kunde",l:"👤 Kunde",cnt:myNotifs.filter(n=>(n.type||"").startsWith("kunde")).length}].map(f=>(
                 React.createElement('button', { key: f.id, onClick: ()=>setNotifFilter(f.id), style: {padding:"6px 12px",borderRadius:10,border:"1.5px solid "+(notifFilter===f.id?"#f97316":"transparent"),background:notifFilter===f.id?"rgba(249,115,22,.1)":"transparent",color:notifFilter===f.id?"#f97316":V.dm,fontSize:11,fontWeight:notifFilter===f.id?700:400,cursor:"pointer",fontFamily:"inherit",minHeight:36,touchAction:"manipulation"}}, f.l, f.cnt>0&&React.createElement('span', { style: {marginLeft:4,fontSize:9,fontWeight:700,background:f.id==="eskalation"?COLORS.ERROR:V.ac,color:"#fff",borderRadius:8,padding:"1px 5px"}}, f.cnt))
               ))
             )
@@ -5410,15 +5455,15 @@ class _ViewBoundary extends React.Component{
             /* Notification list */
             , React.createElement('div', { style: {flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}
               , (()=>{
-                let filtered=notifFilter==="ungelesen"?myNotifs.filter(n=>!n.read):notifFilter==="eskalation"?myNotifs.filter(n=>(n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick"):myNotifs;
+                let filtered=notifFilter==="ungelesen"?myNotifs.filter(n=>!n.read):notifFilter==="eskalation"?myNotifs.filter(n=>(n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick"):notifFilter==="kunde"?myNotifs.filter(n=>(n.type||"").startsWith("kunde")):myNotifs;
                 if(notifCat!=="alle"){filtered=filtered.filter(n=>{const nt=NOTIF_TYPES[n.type];const cat=nt?nt.cat:"";if(notifCat==="system")return cat==="system"||n.type==="deadline_fz";return cat===notifCat;});}
                 /* v3.9.60 Sprint-39 P3-cleanup (Sprint-35 Notif-sort-by-time): Defensive sort newest-first.
                    pushNotif prepends bereits, aber ODB-restore + server-merge können Reihenfolge zerstören.
                    time-Fallback auf created_at (lokal erstellte notifs verwenden created_at, server-mapped time). */
                 filtered=filtered.slice().sort((a,b)=>{const ta=new Date(a.time||a.created_at||0).getTime()||0;const tb=new Date(b.time||b.created_at||0).getTime()||0;return tb-ta;});
-                return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":"Keine Benachrichtigungen" )):(
-                filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");/* v3.9.60 Sprint-39 E-1: created_at-Fallback wenn time fehlt (lokal-erzeugte notifs hatten kein time → 'NaNmin' angezeigt). */const _nts=new Date(n.time||n.created_at||0).getTime()||0;const ago=_nts>0?Math.floor((Date.now()-_nts)/60000):0;const agoStr=ago<60?ago+"min":ago<1440?Math.floor(ago/60)+"h":Math.floor(ago/1440)+"d";
-                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.35 N-2: Toast-Hint wenn Link-Ziel nicht im Tab-Set (z.B. Monteur ohne Berechtigung für link-target) — vorher silent-no-op. */if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
+                return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":notifFilter==="kunde"?"Keine Kunden-Benachrichtigungen":notifFilter==="ungelesen"?"Alle gelesen 🎉":"Keine Benachrichtigungen" )):(
+                filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");/* v3.9.60 Sprint-39 E-1: created_at-Fallback wenn time fehlt (lokal-erzeugte notifs hatten kein time → 'NaNmin' angezeigt). */const _nts=new Date(n.time||n.created_at||0).getTime()||0;/* v3.9.83 Sprint-62.2: centralized _fmtTimeAgo ("Heute, 14:30" / "Gestern, 09:15" / "Mo, 14:00" / abs). */const agoStr=_fmtTimeAgo(_nts);
+                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.35 N-2: Toast-Hint wenn Link-Ziel nicht im Tab-Set (z.B. Monteur ohne Berechtigung für link-target) — vorher silent-no-op. */if(n.link){const ti=tabs.findIndex(t=>t.perm===n.link);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent",transition:"background .12s ease-out, border-left-color .12s ease-out"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
                     , React.createElement('span', { style: {fontSize:20,flexShrink:0}}, _optionalChain([nt, 'optionalAccess', _83 => _83.i])||"🔔")
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
                       , React.createElement('div', { style: {fontSize:12,fontWeight:n.read?400:700,color:n.read?V.dm:V.tx}}, n.title)
@@ -6405,6 +6450,8 @@ function sharePdf(){
           /* v3.9.82 Sprint-61.2: Reset-Filters-Button wenn min. 1 Filter aktiv. */
           , (()=>{const activeCount=(filterStatus!=="alle"?1:0)+(filterArt!=="alle"?1:0)+(filterMonteur!=="alle"?1:0)+(filterSB!=="alle"?1:0)+(quickFilter?1:0)+(search?1:0);if(activeCount===0)return null;return React.createElement('button', { onClick: ()=>{setFilterStatus("alle");setFilterArt("alle");setFilterMonteur("alle");setFilterSB("alle");setQuickFilter("");setSearch("");}, 'aria-label': activeCount+" aktive Filter zurücksetzen", title: "Alle Filter zurücksetzen", style: {padding:"6px 10px",borderRadius:6,border:"1px solid "+V.bd,background:V.ac+"15",color:V.ac,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, "↻ ", activeCount, " Filter");})()
         )
+        /* v3.9.83 Sprint-62.3: Active-Filter-Chips — pro Filter ein Chip + Tap-to-remove. */
+        , (()=>{const chips=[];if(search)chips.push({l:"Suche: \""+search+"\"",clr:()=>setSearch("")});if(filterStatus!=="alle"){const _l=filterStatus==="offen_bearb"?"Offen (alle)":filterStatus==="fertig"?"Fertig (alle)":(AS_STATUS[filterStatus]&&AS_STATUS[filterStatus].l)||filterStatus;chips.push({l:"Status: "+_l,clr:()=>setFilterStatus("alle")});}if(filterArt!=="alle"){const _l=(AS_ART[filterArt]&&AS_ART[filterArt].l)||filterArt;chips.push({l:"Art: "+_l,clr:()=>setFilterArt("alle")});}if(isAdmin&&filterMonteur!=="alle"){const _m=monteure.find(x=>x.id===filterMonteur);chips.push({l:"Monteur: "+(_m?_m.n:filterMonteur),clr:()=>setFilterMonteur("alle")});}if(isAdmin&&filterSB!=="alle")chips.push({l:"SB: "+filterSB,clr:()=>setFilterSB("alle")});if(quickFilter)chips.push({l:"Quick: "+quickFilter,clr:()=>setQuickFilter("")});if(chips.length===0)return null;return React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8},"aria-label":"Aktive Filter"},chips.map((c,i)=>React.createElement("button",{key:i,onClick:c.clr,"aria-label":"Filter entfernen: "+c.l,title:"Entfernen",style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:14,border:"1px solid "+V.ac+"66",background:V.ac+"18",color:V.ac,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}},c.l,React.createElement("span",{style:{marginLeft:2,fontSize:13,opacity:.7,fontWeight:400}},"✕"))));})()
         , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:6}}, sorted.length, " von "  , arbeitsscheine.length, " Arbeitsscheine"  , search&&React.createElement('span', { style: {marginLeft:8,color:V.ac,fontWeight:600}}, "• Suche: \"", search, "\""))
         /* v3.9.39 Sprint-24 24.1: Mobile-Sort-Dropdown (statt th-onClick) */
         , isMob&&React.createElement('div', { style: {display:"flex",gap:6,marginBottom:8,alignItems:"center"}}
