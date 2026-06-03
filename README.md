@@ -70,19 +70,20 @@ werden stale-while-revalidate gecached.
 
 ## Aktuelle Version
 
-**v3.9.66** (2026-06-02) — Theme-Token Partial Migration: 12 Color-Constant-Maps
-(AS_STATUS / AS_PRIO / AS_VERRECH / WZ_STATUS / WZ_KAT / TICKET_STATUS /
-TICKET_TYPES / TICKET_PRIO / MAT_PRIO / STAT_C / ROLES.admin / _ROLE_CLR_MAP)
-von Hex-Literal `#ef4444` auf benannte Konstante `COLORS.ERROR` migriert —
-zentrale Quelle für künftiges Theme-Switching / Dark-Mode-Tuning. Visual no-op
-(identischer Hex-Wert), aber alle Konsumenten der Maps (~100+ Render-Sites)
-folgen jetzt automatisch.
+**v3.9.86** (2026-06-03) — Sprint-65 Final-Sweep: Theme-Final-Push (~40 inline
+`#ef4444` → `COLORS.ERROR` Top-Visibility-Sites: Sync-Banner, Notif-Badge,
+Auswertung Push-Stau + Kritisch-AS, Maengel-Status-Map, Wetter T-max,
+Dashboard FinkStats/Pickerl/dringende-AS, Voice-Recognition-Button),
+Doc-Update README v3.9.86. 502/502 Tests grün, Brackets `() -1 / {} 0 / [] 0`.
 
-Sprints recent:
-- v3.9.65 Polish+Micro+Deferred (12 findings / 10 fixes)
-- v3.9.64 Data-Integrity + Edge-Round-2 + Misc
-- v3.9.63 A11Y-R4 + Form-R2 + Deferred-Cleanup
-- v3.9.62 A11Y-Round-3 + Mobile-Touch-Residuals
+Sprints recent (v3.9.79-86):
+- v3.9.86 Sprint-65 Final-Sweep + Cleanup + Theme-Final-Push (40 Theme-Migrations)
+- v3.9.85 Sprint-64 Mobile-Polish-Final + Touch-Optimization (10 fixes)
+- v3.9.84 Sprint-63 Code-Quality-R + Hardening-R (13 fixes)
+- v3.9.83 Sprint-62 NotifCenter-Polish + Date/Time-Refinement (6 fixes)
+- v3.9.82 Sprint-61 Search+Filter-Round + UX-Refinement (9 fixes)
+- v3.9.81 Sprint-60 Form-Validation-R3 + Tooltips-R2 + Confirm-Migrations (10 fixes)
+- v3.9.79-80 vorherige Sprint-Wellen
 
 ## Dev-Quickstart
 
@@ -92,11 +93,11 @@ python -m http.server 8765 --bind 127.0.0.1
 
 # Tests laufen:
 python -m pytest tests/ -q
-# Erwartet: 502 passed (Stand v3.9.66)
+# Erwartet: 502 passed (Stand v3.9.86)
 
-# Brackets-Sanity:
-python scripts/bracket_check.py
-# Erwartet: () 16 / {} 1 / [] 0 (stable Baseline ab v3.9.x)
+# Brackets-Sanity (stripper-Variante, ignoriert Strings/Kommentare):
+python scripts/_bracket_check.py index.html
+# Erwartet: () -1 / {} 0 / [] 0 (stable Baseline seit v3.9.12)
 ```
 
 ## Hard-Constraints (DO NOT TOUCH)
