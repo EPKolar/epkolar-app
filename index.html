@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.98';
+  var SW_VER='epkolar-v3.9.99';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2267,7 +2267,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.98-supabase";
+const APP_VERSION="3.9.99-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -3421,6 +3421,8 @@ const _uuid=()=>{try{if(typeof crypto!=='undefined'&&crypto.randomUUID)return cr
 // v3.5.108 TZ-Fix: Alle Y-M-D-Strings aus lokalen Date-Komponenten statt toISOString (das UTC war → off-by-1 near Midnight CET/CEST)
 const _ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const td2=()=>_ymd(new Date());
+// v3.9.99 Sebastian-Befund 298 statt ~4: '0000-00-00'/empty/'1970-01-01' sind truthy und lexikographisch <= today -> faelschlich ueberfaellig. Hardenes Date-Validation fuer Kalib-Comparisons.
+function _isValidKalibDate(s){if(!s||typeof s!=='string')return false;if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;if(s==='0000-00-00')return false;if(s<='1980-01-01')return false;return true;}
 const _fdtC={};const fdt=d=>{if(!d)return"";if(_fdtC[d])return _fdtC[d];const r=new Date(d+"T00:00:00").toLocaleDateString("de-AT");_fdtC[d]=r;return r;};
 const fd=d=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");if(isNaN(dt.getTime()))return"—";return ["So","Mo","Di","Mi","Do","Fr","Sa"][dt.getDay()]+" "+String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0");};
 const dk=_ymd;
@@ -4947,7 +4949,8 @@ class _ViewBoundary extends React.Component{
       });
     }catch(e){console.warn('[silent-notif]',e&&e.message||e);}})();
     // 3. Fahrzeug-Fristen <7 Tage → Warn-Notification
-    const _fleetU=_users.filter(u=>u.role==="admin"||u.username==="pinger").map(u=>u.id);
+    // v3.9.99 Sebastian-Spec: Führungs-Gruppe statt hardcoded pinger
+    const _fleetU=_users.filter(u=>u.role==="admin"||u.role==="projektleiter").map(u=>u.id);
     (_fahrzeuge||[]).forEach(f=>{
       if(f.pickerl&&/^\d{4}-\d{2}-\d{2}/.test(f.pickerl)){const diff=Math.ceil((new Date(f.pickerl)-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+(f.kennzeichen||f.id||"Fzg"),diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
       if(f.naechstService&&/^\d{4}-\d{2}-\d{2}/.test(f.naechstService)){const diff=Math.ceil((new Date(f.naechstService)-now)/TIME_DAY);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+(f.kennzeichen||f.id||"Fzg"),"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
@@ -5280,7 +5283,7 @@ class _ViewBoundary extends React.Component{
     const today=td2();
     if(lastCalibCheck!==today&&(curUser.role==="admin"||curUser.role==="projektleiter")){
       try{localStorage.setItem("epk_calib_check",today);}catch(e){console.warn('[localStorage]',e&&e.message||e);}
-      const overdue=werkzeuge.filter(w=>{if(!w.naechsteKalib)return false;return w.naechsteKalib<today;});
+      const overdue=werkzeuge.filter(w=>_isValidKalibDate(w.naechsteKalib)&&w.naechsteKalib<today);
       if(overdue.length>0){
         pushNotif("tool_kalib","📏 Kalibrierung überfällig",overdue.length+" Gerät"+(overdue.length>1?"e":"")+" mit überfälliger Kalibrierung: "+overdue.map(w=>w.name).slice(0,3).join(", ")+(overdue.length>3?" +"+( overdue.length-3)+" weitere":""),[curUser.id]);
       }
@@ -8431,7 +8434,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
   // v3.5.69 F-A + F-D: "Mein Tag" + Monteur-KPIs
   const _myRole=_optionalChain([curUser, 'optionalAccess', _mt1 => _mt1.role])||"";
-  const _isMonteurView=_myRole==="monteur"||_myRole==="helfer"||_myRole==="techniker"||_myRole==="obermonteur";
+  // v3.9.99 Sebastian-Spec: Außendienst-Gruppe nur {monteur, techniker} — entfernt helfer + obermonteur
+  const _isMonteurView=_myRole==="monteur"||_myRole==="techniker";
   const _myMid2=_optionalChain([curUser, 'optionalAccess', _mt2 => _mt2.monteurId])||"";
   // v3.8.70 Hunt B-001/B-005: Monteur-Aggregates (myAsOpen + myAsToday + myNextAs + myHoursWeek + myTravelWeek) in ONE useMemo
   // statt 5 separate Aggregates die jeden 60s-Tick re-filtern. Deps wirken nur tatsächlich beim Datenupdate.
@@ -16993,6 +16997,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   },[fahrzeuge,favFz,myFzId]);
   // Role-based filter: Monteur sees only own vehicle, Lagerleiter+Admin see all
   /* v3.9.80 S55-1 useMemo: filter über sortedFz pro Render */
+  /* v3.9.99 Sebastian-Spec Rollen-Semantik: Führung {admin,projektleiter}=alle, Außendienst {monteur,techniker}=own-only, Backoffice {buero}=alle (unverändert via isVAdmin oben). */
   const visibleFz=_react.useMemo.call(void 0, ()=>isVAdmin?sortedFz:sortedFz.filter(f=>f.fahrer===(_optionalChain([curUser, 'optionalAccess', _vfz => _vfz.monteurId])||"__none__")),[isVAdmin,sortedFz,curUser]);
   // QR Scanner
   const fzVideoRef=_react.useRef.call(void 0, null);const fzStreamRef=_react.useRef.call(void 0, null);const fzScanTimer=_react.useRef.call(void 0, null);
@@ -18004,7 +18009,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   // Stats
   const stCounts={};Object.keys(WZ_STATUS).forEach(k=>{stCounts[k]=werkzeuge.filter(w=>w.status===k).length;});
   const totalWert=_react.useMemo.call(void 0, ()=>werkzeuge.reduce((s,w)=>s+(w.wert||0),0),[werkzeuge]);
-  const kalibFaellig=werkzeuge.filter(w=>w.naechsteKalib&&w.naechsteKalib<=td2()).length;
+  const kalibFaellig=werkzeuge.filter(w=>_isValidKalibDate(w.naechsteKalib)&&w.naechsteKalib<=td2()).length;
 
 
   // Role-based pre-filter: Monteur sees only assigned tools, Lagerleiter+Admin see all
@@ -18029,7 +18034,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       if(w.status==='verfuegbar')cnt.verfuegbar++;
       if(w.status==='ausgegeben')cnt.ausgegeben++;
       if(w.status==='verloren')cnt.verloren++;
-      if(w.naechsteKalib&&w.naechsteKalib<=today)cnt.kalib_faellig++;
+      if(_isValidKalibDate(w.naechsteKalib)&&w.naechsteKalib<=today)cnt.kalib_faellig++;
     }
     return cnt;
   },[_wzPool]);
