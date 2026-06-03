@@ -1,7 +1,9 @@
-# HANDOFF v3.9.106 — 2026-06-03 (Autonomer CC-Sprint)
+# HANDOFF v3.9.108 — 2026-06-03 (Autonomer CC-Sprint + Bug-Hunt + SQL-Hardening live)
 
 ## LIVE-STATE
-- **App-Version:** v3.9.106 (war v3.9.101 zu Sprint-Beginn) — https://epkolar.github.io/epkolar-app/
+- **App-Version:** v3.9.108 (war v3.9.101 zu Sprint-Beginn) — https://epkolar.github.io/epkolar-app/
+- **MCP-Live-Smoke:** App bootet sauber, 0 Console-Errors, Login rendert. ✅ Schulungs-bereit.
+- **SQL-Hardening LIVE** (Chat-Claude, 2026-06-03): 5 Security-Trigger + C1 absences-Migration ausgeführt + verifiziert (8/8 Logins, 7 Tabs, Händler-Sync intakt).
 - **main HEAD:** gepusht (Commits 23f3fb2 → … auf `main`)
 - **Tests:** 589+ pytest grün · Bracket-Baseline `() -1 / {} 0 / [] 0`
 - **Backend:** Supabase `jiggujpruejkaomgxarp`
@@ -14,6 +16,8 @@
 | **v3.9.104** | **A1 urlaub_edit** Permission: neuer Key in `PERMS_DESC` (auto-Checkbox), `AbsView.isAdmin` = admin/PL ODER `hasPerm('urlaub_edit')` → gated Bearbeiten/Genehmigen/Alle-MA-Sicht; ohne Recht read-only. Nicht an Rolle gekoppelt. |
 | **v3.9.105** | **A3 defects** Doppelfelder: Kanonisch `prio/images/zugewiesen/frist` per Code-Kommentar markiert (Reader via `_mapDefect` schon vereinheitligt). |
 | **v3.9.106** | **B-A Payroll-Fix** (Chat-Claude verifiziert): `stdVonTag` jetzt feiertag-aware (neuer `_isATFeiertag`, Easter-berechnet). Mo-Do 8,5 / Fr 4,5 / Sa-So+Feiertag 0. Behebt Urlaub 98,5→90,0h (Pfingstmontag 25.5 zählte fälschlich mit). absences-Writer schreibt `hours:stdVonTag(d)` statt flat 7,7. |
+| **v3.9.107** | **Bug-Hunt Welle 1** (5 Finder-Agenten, adversarial verifiziert, 9 Bugs): JUPROWA scheintyp `String()` (Regie→Service), AbsView-Übersicht isAdmin-Gate (MA-Salden-Leak per Swipe), Fahrzeug-Labels→visibleFz, Kontingent-Save→isAdmin, Deadline-TZ (heute≠abgelaufen), _authRetry offline-Guard, reauth-counter-reset, tog-Delete Approval-Orphan. |
+| **v3.9.108** | **Urlaub-Toggle-Relabel** (Schulungs-Klarheit): 'urlaub'="Tab sehen", 'urlaub_edit'="Urlaub/Abwesenheit verwalten (bearbeiten+genehmigen)". `'urlaub'` ist Tab-Default JEDER Rolle → NICHT als Verwaltungs-Key nutzbar. + Live-Trigger-Doku. |
 | (edge) | **A4** `admin-create-user/index.ts`: call-breaking `created`-Spalte entfernt + `.or()`→`.eq()` + `vorname`. **B1** `supplier-sync/index.ts` (NEU): Creds server-seitig (service_role), Client liest username/password nie mehr. **Deploy = Sebastian.** |
 
 ## ✓ VERIFIZIERT (Agent-Audit, keine Regression)
