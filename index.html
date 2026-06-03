@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.92';
+  var SW_VER='epkolar-v3.9.93';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2266,7 +2266,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.92-supabase";
+const APP_VERSION="3.9.93-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -3832,6 +3832,10 @@ table thead th{position:sticky;top:0;z-index:1}
 .epk-spin-lg{width:32px;height:32px;border-width:3px}
 /* v3.9.87 Sprint-66.4: Polish - focus-visible consistent ring for keyboard a11y across buttons/inputs */
 button:focus-visible,a:focus-visible,[role="button"]:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid ${V.ac};outline-offset:2px}
+/* v3.9.93 Sprint-72.4 Polish: Subtle hover-effect auf Settings-Buttons & form inputs (transition only, kein layout-shift). */
+button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled){transition:filter .15s ease, box-shadow .15s ease}
+button:not(:disabled):hover{filter:brightness(1.08)}
+input:not(:disabled):hover,select:not(:disabled):hover,textarea:not(:disabled):hover{filter:brightness(1.04)}
 @media(max-width:600px){
   .mob-stack{flex-direction:column !important;align-items:stretch !important}
   .mob-full{width:100% !important;max-width:100% !important}
@@ -5465,7 +5469,8 @@ class _ViewBoundary extends React.Component{
             , React.createElement('div', { style: {padding:"8px 16px",borderBottom:"1px solid "+V.bd,display:"flex",alignItems:"center",justifyContent:"space-between",background:V.cd}}
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                 , React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:syncStatus.connected&&syncStatus.serverOk?"#22c55e":COLORS.ERROR}} )
-                , React.createElement('span', { style: {fontSize:11,color:V.dm}}, syncStatus.connected?(syncStatus.serverOk?(syncStatus.isWifi?"📶 WLAN verbunden":"📱 Mobilfunk"):"⚠️ Server nicht erreichbar"):"❌ Offline")
+                /* v3.9.93 Sprint-72.2 ARIA-Live: Sync-Status mit role=status + aria-live polite — Screen-Reader hoeren Connect/Disconnect-Wechsel. */
+                , React.createElement('span', { role: "status", "aria-live": "polite", style: {fontSize:11,color:V.dm}}, syncStatus.connected?(syncStatus.serverOk?(syncStatus.isWifi?"📶 WLAN verbunden":"📱 Mobilfunk"):"⚠️ Server nicht erreichbar"):"❌ Offline")
               )
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                 , React.createElement('select', { value: syncMode, onChange: e=>setSyncMode(e.target.value), style: {...II(),width:"auto",fontSize:10,padding:"3px 6px",minHeight:28,background:V.bg}}
@@ -5674,8 +5679,9 @@ class _ViewBoundary extends React.Component{
         )
       )
       /* ═══ TOAST OVERLAY ═══ */
-      , toasts.length>0&&(React.createElement('div', { style: {position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",zIndex:99999,display:"flex",flexDirection:"column",gap:8,alignItems:"center",pointerEvents:"none",width:"90%",maxWidth:400}}
-        , toasts.map(t=>(React.createElement('div', { key: t.id, style: {background:t.type==="error"?"#dc2626":t.type==="warn"?"#d97706":t.type==="info"?"#2563eb":"#009640",color:"#fff",padding:"10px 20px",borderRadius:12,fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,.3)",animation:"toastIn .3s ease",textAlign:"center",width:"100%"}}, t.msg)))
+      /* v3.9.93 Sprint-72.2 ARIA-Live: Toast-Overlay mit aria-live + role pro Toast (error/warn=alert, info/success=status). */
+      , toasts.length>0&&(React.createElement('div', { "aria-live": "polite", "aria-relevant": "additions", style: {position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",zIndex:99999,display:"flex",flexDirection:"column",gap:8,alignItems:"center",pointerEvents:"none",width:"90%",maxWidth:400}}
+        , toasts.map(t=>(React.createElement('div', { key: t.id, role: (t.type==="error"||t.type==="warn")?"alert":"status", style: {background:t.type==="error"?"#dc2626":t.type==="warn"?"#d97706":t.type==="info"?"#2563eb":"#009640",color:"#fff",padding:"10px 20px",borderRadius:12,fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,.3)",animation:"toastIn .3s ease",textAlign:"center",width:"100%"}}, t.msg)))
       ))
       , React.createElement('style', {}, `@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`)
     )
@@ -12587,6 +12593,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
      (b) Double-Click-Guard via Ref — fast double-click feuerte 2 PUT-Requests mit unterschiedl.
      Status-Transitions (race-condition). */
   _react.useEffect.call(void 0, ()=>{setLagerKommentar("");},[orderDetail]);
+  /* v3.9.93 Sprint-72.1 Keyboard-Shortcuts: Esc schliesst Preisvergleich-Overlay (pvOrder) und Order-Detail-Card. Hook NICHT nach early-return. */
+  _react.useEffect.call(void 0, ()=>{if(!pvOrder)return;const _h=e=>{if(e.key==="Escape"){e.preventDefault();setPvOrder(null);setPvPositionen([]);}};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[pvOrder]);
+  _react.useEffect.call(void 0, ()=>{if(!orderDetail||pvOrder)return;const _h=e=>{if(e.key==="Escape"){e.preventDefault();setOrderDetail(null);}};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[orderDetail,pvOrder]);
   const _statusLocked=_react.useRef.call(void 0, false);
   const updateStatus=async(ord,newStatus)=>{
     if(_statusLocked.current)return;
@@ -13317,7 +13326,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:10}}
         , React.createElement('input', { ref: fileRef, type: "file", accept: ".001,.002,.003,.dat,.csv,.txt", onChange: handleFile, style: {display:"none"} })
         , React.createElement('button', { onClick: ()=>fileRef.current&&fileRef.current.click(), style: {...bpS,fontSize:12,padding:isMob?"8px 14px":"5px 12px",minHeight:isMob?36:0}}, "📂 DATANORM Datei laden")
-        , React.createElement('select', { value: dnVersion, onChange: e=>setDnVersion(parseInt(e.target.value)), style: {...II(),fontSize:12,padding:"4px 8px",width:isMob?"100%":130}}, React.createElement('option', { value: 0}, "Auto-Erkennung"), React.createElement('option', { value: 4}, "DATANORM 4"), React.createElement('option', { value: 5}, "DATANORM 5"))
+        , React.createElement('select', { value: dnVersion, /* v3.9.93 Sprint-72.3 Defensive: parseInt(e.target.value, 10)||0 fuer dnVersion (vorher: NaN moeglich wenn locales/empty). */ onChange: e=>setDnVersion(parseInt(e.target.value,10)||0), style: {...II(),fontSize:12,padding:"4px 8px",width:isMob?"100%":130}}, React.createElement('option', { value: 0}, "Auto-Erkennung"), React.createElement('option', { value: 4}, "DATANORM 4"), React.createElement('option', { value: 5}, "DATANORM 5"))
         , dnArticles.length>0&&React.createElement('span', { style: {fontSize:12,color:V.ac,fontWeight:600}}, dnArticles.length, " Artikel geladen")
         , dnArticles.length>0&&React.createElement('button', { onClick: ()=>{const g=_epAutoMatch(dnArticles);setDnAutoGroups(g);const en=new Set();g.forEach((_,k)=>en.add(k));setDnAutoEnabled(en);setDnSelected(new Set());}, style: {padding:isMob?"8px 14px":"5px 12px",borderRadius:6,border:"none",background:"#f59e0b",color:"#000",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, "🔍 Auto-Auswahl (EP Kolar)")
       )
@@ -17952,6 +17961,9 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     (async()=>{try{const r=await _sbGet("photos","entity_type=eq.werkzeug&entity_id=eq."+encodeURIComponent(editId)+"&order=taken_at.desc");if(a&&r)setWzPhotos(r);}catch(_){if(a)setWzPhotos([]);}})();
     return()=>{a=false;};
   },[editId]);
+  /* v3.9.93 Sprint-72.1 Keyboard-Shortcuts: Esc schliesst Werkzeug-Form (sub===form) und Scan-Modus. Hook NICHT nach early-return. */
+  _react.useEffect.call(void 0, ()=>{if(sub!=="form")return;const _h=e=>{if(e.key==="Escape"){e.preventDefault();setSub("liste");setEditId(null);}};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[sub]);
+  _react.useEffect.call(void 0, ()=>{if(!scanning)return;const _h=e=>{if(e.key==="Escape"){e.preventDefault();setScanning(false);}};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[scanning]);
   const wzPhotoUrl=ph=>ph.file_path||ph.file_url||ph.data_url||ph.dataUrl||"";
   const uploadWzPhoto=e=>{
     const fls=e.target.files;if(!fls||!fls.length||!editId)return;
