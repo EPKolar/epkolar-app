@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.101';
+  var SW_VER='epkolar-v3.9.102';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1376,18 +1376,40 @@ async function _sbAuthLogin(email,password){
 // Zugriff: window.__authLog in DevTools zeigt letzte 100 Events.
 window.__authLog=window.__authLog||[];
 function _authLog(ev,meta){try{window.__authLog.push({ts:Date.now(),ev,...(meta||{})});if(window.__authLog.length>100)window.__authLog.shift();}catch(e){console.warn('[silent-log]',e&&e.message||e);}}
-// v3.5.112: Flight-Promise-Guard — verhindert parallele Refresh-Races, die
-// mit Supabase-Refresh-Token-Rotation sonst zum Logout führen.
+// v3.5.112: Flight-Promise-Guard (Single-Flight) — verhindert parallele Refresh-Races, die
+// mit Supabase-Refresh-Token-Rotation sonst zum Logout führen. Ein laufender Refresh teilt sein
+// Promise mit ALLEN weiteren Aufrufern → exakt 1 /token-Call pro Rotation.
 let _authRefreshInflight=null;
 async function _sbAuthRefresh(){
   if(_authRefreshInflight)return _authRefreshInflight;
+  // v3.9.102 Offline-Guard: bei navigator.onLine===false KEIN Refresh — Token behalten, nicht nuken.
+  // Der online-Listener stösst nach Reconnect genau 1 serialisierten Refresh an (Single-Flight oben).
+  if(typeof navigator!=='undefined'&&navigator.onLine===false){_authLog('refresh_skip',{reason:'offline'});return _authToken?{access_token:_authToken,refresh_token:_authRefreshToken}:null;}
   _authRefreshInflight=(async()=>{
     const _t0=Date.now();
     try{
-      if(!_authRefreshToken){_authLog('refresh_skip',{reason:'no_rt'});return await _silentReAuth();}
+      // v3.9.102 Rotation-Race: rotierten refresh_token bevorzugt aus Storage lesen (paralleler
+      // Tab/PWA-Context kann ihn bereits rotiert haben → _authRefreshToken im RAM tot). RT ist
+      // opak (kein JWT) → nur Längen-Guard, NICHT _isJwtShape (würde gültigen RT verwerfen).
+      let _rt=_authRefreshToken;
+      try{const _stored=localStorage.getItem("epkolar_refresh");if(_stored&&_stored.length>10)_rt=_stored;}catch(_){}
+      if(!_rt){_authLog('refresh_skip',{reason:'no_rt'});return await _silentReAuth();}
+      _authRefreshToken=_rt;
       _authLog('refresh_attempt',{});
-      const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_authRefreshToken})},15000));
-      if(!r.ok){console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");_authLog('refresh_fail',{status:r.status,ms:Date.now()-_t0});return await _silentReAuth();}
+      const r=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_rt})},15000));
+      if(!r.ok){
+        // v3.9.102 Rotation-Race-Härtung: 4xx auf Refresh ist NICHT sofort Logout. Storage evtl.
+        // inzwischen vom Parallel-Context rotiert → genau 1 Retry mit frischem Token aus Storage.
+        let _fresh=null;try{_fresh=localStorage.getItem("epkolar_refresh");}catch(_){}
+        if(_fresh&&_fresh!==_rt&&_fresh.length>10){
+          _authLog('refresh_retry',{status:r.status});
+          _authRefreshToken=_fresh;
+          const r2=await fetch(_SB_AUTH+"/token?grant_type=refresh_token",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_fresh})},15000));
+          if(r2.ok){const d2=await r2.json();_storeAuth(d2);let _ed=null;try{_ed=JSON.parse(atob(d2.access_token.split('.')[1])).exp*1000-Date.now();}catch(_){}_authLog('refresh_ok',{retry:1,exp_delta_ms:_ed,ms:Date.now()-_t0});return d2;}
+          _authLog('refresh_fail',{status:r2.status,retry:1,ms:Date.now()-_t0});
+        }
+        console.warn("[Auth] Refresh failed ("+r.status+"), attempting silent re-auth");_authLog('refresh_fail',{status:r.status,ms:Date.now()-_t0});return await _silentReAuth();
+      }
       const d=await r.json();_storeAuth(d);
       let _expDelta=null;try{_expDelta=JSON.parse(atob(d.access_token.split('.')[1])).exp*1000-Date.now();}catch(_){}
       _authLog('refresh_ok',{exp_delta_ms:_expDelta,ms:Date.now()-_t0});
@@ -1437,19 +1459,22 @@ function _storeAuth(d){
   // v3.5.142: Guard gegen broken GoTrue-Responses. Wenn access_token kein JWT-Shape hat → ignorieren, kein Anstoß von Downstream-Ketten mit Garbage.
   if(!d||!d.access_token||!_isJwtShape(d.access_token)){console.warn('[Auth] _storeAuth abgelehnt — access_token hat keine JWT-Shape:',d);return;}
   _authToken=d.access_token;_authRefreshToken=d.refresh_token||null;
-  try{localStorage.setItem("epkolar_auth",JSON.stringify({at:d.access_token,rt:d.refresh_token,exp:Date.now()+(d.expires_in*1000)}));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
+  // v3.9.102 Storage-Konsistenz: rotierten refresh_token ZUERST schreiben (Quelle der Rotation-Race-
+  // Härtung in _sbAuthRefresh), DANN das kombinierte epkolar_auth — keine Lücke wo der neue RT fehlt.
   try{localStorage.setItem("epkolar_token",d.access_token);if(d.refresh_token)localStorage.setItem("epkolar_refresh",d.refresh_token);}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
+  try{localStorage.setItem("epkolar_auth",JSON.stringify({at:d.access_token,rt:d.refresh_token,exp:Date.now()+(d.expires_in*1000)}));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
   if(_authRefreshTimer)clearTimeout(_authRefreshTimer);
   // v3.5.142: expires_in fallback auf 3600s wenn fehlt — verhindert NaN-Timer oder sofortigen Refresh
   const expSec=(typeof d.expires_in==='number'&&d.expires_in>0)?d.expires_in:3600;
-  _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max((expSec-60)*1000,30000));
+  // v3.9.102 Proaktiv bei ~80% Lifetime erneuern (statt exp-60s) — mehr Headroom vor Rotation/Ablauf.
+  _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max(Math.floor(expSec*0.8)*1000,30000));
 }
 // v3.5.137: JWT-Shape-Validator — verhindert "Expected 3 parts in JWT; got 1" bei Legacy-Storage
 function _isJwtShape(t){return typeof t==='string'&&t.split('.').length===3&&t.length>20;}
 function _restoreAuth(){
   try{const s=JSON.parse(localStorage.getItem("epkolar_auth")||"null");
   if(!s||!_isJwtShape(s.at)){_silentReAuth();return false;}
-  if(s.exp>Date.now()){_authToken=s.at;_authRefreshToken=s.rt;_authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max(s.exp-Date.now()-60000,5000));return true;}
+  if(s.exp>Date.now()){_authToken=s.at;_authRefreshToken=s.rt;/* v3.9.102: 10-Min-Headroom vor Ablauf (statt 60s) — proaktiver Refresh, weniger 401-getriebene Refreshes */_authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max(s.exp-Date.now()-600000,5000));return true;}
   if(s.rt){_authRefreshToken=s.rt;_sbAuthRefresh();return true;}
   _silentReAuth();
   }catch(_){_silentReAuth();}return false;
@@ -2267,7 +2292,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.101-supabase";
+const APP_VERSION="3.9.102-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -14442,6 +14467,7 @@ function SvgLine({data,width=320,height=200,color="#f97316"}){
   ));
 }
 function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTypeChange,color="#f97316"}){
+  const ww=useW();const isMob=ww<600;/* v3.9.102 P0-Crash-Fix: ChartBox nutzt isMob (Chart-Typ-Button-Padding), bekam es aber weder als Prop noch deklariert → "isMob is not defined" auf Tab Auswertungen. useW()-Hook wie projektweites Muster. */
   const tp=chartType||defaultType;
   /* v3.9.65 Sprint 44.3 F-8: Empty-State für ChartBox — vorher rendete SvgBar/Pie/etc. einfach leer + verwirrte User (Chart-Toggle steht ON aber Chart-Fläche bleibt blank). Jetzt: explizit "Keine Daten"-Hint, additiv zu den Sub-Charts. */
   const _hasData=Array.isArray(data)&&data.length>0&&data.some(d=>(d&&typeof d==='object')?Object.values(d).some(v=>typeof v==='number'&&v>0):false);
@@ -14473,6 +14499,7 @@ function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTyp
 // ═══════════ VERBINDUNG / EINSTELLUNGEN ═══════════
 // ═══════════ SOLL/IST + ÜBERSTUNDEN + MONATSABSCHLUSS ═══════════
 function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
+  const isMob=ww<600;/* v3.9.102 P0-Crash-Fix: isMob-Deklaration ging beim Mobile-Refactor verloren → "isMob is not defined" auf Tab Monatsabrechnung/stunden. Muster wie die 26 anderen const-isMob-Stellen (ww<600). */
   const MONATE=["Jänner","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   const now=new Date();
   const [zettel,setZettel]=_react.useState.call(void 0, []);
@@ -17876,6 +17903,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     (async()=>{try{const r=await _sbGet("photos","entity_type=eq.werkzeug&entity_id=eq."+encodeURIComponent(editId)+"&order=taken_at.desc");if(a&&r)setWzPhotos(r);}catch(_){if(a)setWzPhotos([]);}})();
     return()=>{a=false;};
   },[editId]);
+  /* v3.9.102 P0-Crash-Fix: scanning/scannedWz/scanMsg/manualCode VOR die Scan-Esc-Effekte gezogen — der useEffect mit dep [scanning] (unten) las den const vor seiner Initialisierung → TDZ "Cannot access 'scanning' before initialization" auf Tab Werkzeuge. */
+  const [scanning,setScanning]=_react.useState.call(void 0, false);const [scannedWz,setScannedWz]=_react.useState.call(void 0, null);const [scanMsg,setScanMsg]=_react.useState.call(void 0, "");const [manualCode,setManualCode]=_react.useState.call(void 0, "");
   /* v3.9.93 Sprint-72.1 Keyboard-Shortcuts: Esc schliesst Werkzeug-Form (sub===form) und Scan-Modus. Hook NICHT nach early-return. */
   _react.useEffect.call(void 0, ()=>{if(sub!=="form")return;const _h=e=>{if(e.key==="Escape"){e.preventDefault();setSub("liste");setEditId(null);}};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[sub]);
   _react.useEffect.call(void 0, ()=>{if(!scanning)return;const _h=e=>{if(e.key==="Escape"){e.preventDefault();setScanning(false);}};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[scanning]);
@@ -17902,7 +17931,6 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   };
   // QR Scan
   const videoRef=_react.useRef.call(void 0, null);const canvasRef=_react.useRef.call(void 0, null);const streamRef=_react.useRef.call(void 0, null);const scanTimer=_react.useRef.call(void 0, null);
-  const [scanning,setScanning]=_react.useState.call(void 0, false);const [scannedWz,setScannedWz]=_react.useState.call(void 0, null);const [scanMsg,setScanMsg]=_react.useState.call(void 0, "");const [manualCode,setManualCode]=_react.useState.call(void 0, "");
 
   // Stats
   const stCounts={};Object.keys(WZ_STATUS).forEach(k=>{stCounts[k]=werkzeuge.filter(w=>w.status===k).length;});

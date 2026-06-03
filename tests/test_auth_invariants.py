@@ -21,7 +21,9 @@ def test_auth_refresh_inflight_singleton_declared(index_html):
 
 def test_auth_refresh_inflight_used_as_guard(index_html):
     start = index_html.index("async function _sbAuthRefresh()")
-    body = index_html[start:start + 2500]
+    # v3.9.102: Fenster vergrößert — _sbAuthRefresh wuchs um Offline-Guard + 4xx-Rotation-Retry;
+    # der finally-Block (_authRefreshInflight=null) sitzt jetzt weiter hinten. Invariante unverändert.
+    body = index_html[start:start + 4500]
     assert "if(_authRefreshInflight)return _authRefreshInflight" in body, (
         "_sbAuthRefresh entry must early-return if an inflight promise exists"
     )
@@ -80,7 +82,8 @@ def test_store_auth_reschedules_timer(index_html):
 
 def test_store_auth_writes_three_keys(index_html):
     start = index_html.index("function _storeAuth(d)")
-    body = index_html[start:start + 800]
+    # v3.9.102: Fenster vergrößert — _storeAuth bekam Storage-Konsistenz-Kommentar + Reorder.
+    body = index_html[start:start + 1400]
     # All three storage keys must be written by _storeAuth
     assert 'localStorage.setItem("epkolar_auth"' in body, (
         "_storeAuth must write epkolar_auth blob"
