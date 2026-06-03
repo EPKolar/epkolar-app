@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.105';
+  var SW_VER='epkolar-v3.9.106';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2296,7 +2296,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.105-supabase";
+const APP_VERSION="3.9.106-supabase";
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -3604,6 +3604,31 @@ ${sumCol>=0?'<tr style="height:26px;">'+headers.map((_,ci)=>{
 };
 
 // permission check helper
+// v3.9.106 AT/NÖ-Feiertage (für Urlaub/ZA-Stundenberechnung — Feiertag = 0 Std).
+// Easter-berechnet (Meeus/Jones/Butcher) → korrekt für jedes Jahr, nicht nur 2026.
+function _easterSunday(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),
+    g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+    l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo-1,da);
+}
+function _isATFeiertag(d){
+  if(!(d instanceof Date)||isNaN(d))return false;
+  const y=d.getFullYear(),mm=d.getMonth()+1,dd=d.getDate();
+  // Fixe Feiertage (AT bundesweit + NÖ): Neujahr, Hl.3Könige, Staatsfeiertag,
+  // Mariä Himmelfahrt, Allerheiligen, Mariä Empfängnis, Christtag, Stefanitag.
+  const fixed=[[1,1],[1,6],[5,1],[8,15],[11,1],[12,8],[12,25],[12,26]];
+  for(let _f=0;_f<fixed.length;_f++){if(mm===fixed[_f][0]&&dd===fixed[_f][1])return true;}
+  // Bewegliche (Oster-basiert): Ostermontag(+1), Christi Himmelfahrt(+39),
+  // Pfingstmontag(+50), Fronleichnam(+60). (Karfreitag ist KEIN allg. AT-Feiertag.)
+  const es=_easterSunday(y),offs=[1,39,50,60];
+  for(let _o=0;_o<offs.length;_o++){
+    const t=new Date(es.getFullYear(),es.getMonth(),es.getDate()+offs[_o]);
+    if(t.getFullYear()===y&&t.getMonth()===d.getMonth()&&t.getDate()===dd)return true;
+  }
+  return false;
+}
 function hasPerm(user,mod){
   if(!user) return false;
   if(user.locked) return false;
@@ -13952,7 +13977,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     return()=>{a=false;};
   },[yr]);
 
-  const stdVonTag=d=>{const dow=d.getDay();return dow>=1&&dow<=4?8.5:dow===5?4.5:0;};
+  const stdVonTag=d=>{const dow=d.getDay();if(dow===0||dow===6||_isATFeiertag(d))return 0;/* v3.9.106: Sa/So + AT/NÖ-Feiertage = 0 Std (vorher zählte z.B. Pfingstmontag 25.5. als 8,5h Urlaub mit → Günther 98,5h statt 90,0h). Mo-Do 8,5h, Fr 4,5h. */return dow<=4?8.5:4.5;};
   const stdTag=(m,d)=>{if(d)return stdVonTag(d);return 7.7;};
 
   const tog=d=>{if(!isAdmin&&sel!==myMonteurName)return;
@@ -13962,7 +13987,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     setApprovals(p=>({...p,[k]:"ausstehend"}));
     if(isDelete){SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});}
     /* v3.9.100 Sprint-81.1 B5-Fix: worker_id muss wX (worker.id) sein, nicht NAME (sel). Lookup über monteure-Prop (.id+.n), Fallback auf sel falls nicht gefunden (Legacy-Kompat). id-Key bleibt NAME_DATE (localStorage-Kompat — Migration separat). */
-    else{const _selWorker=(monteure||[]).find(m=>m.n===sel||m.name===sel);const _workerId=(_selWorker&&_selWorker.id)||sel;/* v3.9.103 B-A: hours/tage MÜSSEN gesetzt werden (vorher nie → Kontingent-Abzug rechnete mit 0). Single-Day-Toggle = 1 Tag = 7,7h (38,5h-Woche). Kanonisch from_date/to_date; von/bis+note DEPRECATED (Sebastian 2026-06-03, nicht droppen bis Reader-Verify). */SQ.push({url:"/api/absences",method:"POST",body:{id:k,worker_id:_workerId,type:typ,from_date:dk(d),to_date:dk(d),note:"",hours:7.7,tage:1}});}
+    else{const _selWorker=(monteure||[]).find(m=>m.n===sel||m.name===sel);const _workerId=(_selWorker&&_selWorker.id)||sel;/* v3.9.106 B-A: hours = stdVonTag(d) (Mo-Do 8,5 / Fr 4,5 / Sa-So+Feiertag 0) — NICHT flat 7,7 (Sebastian-Payroll-Bestätigung). tage = 1 nur an Werktagen. Vorher zählte 7,7 zu hoch/falsch je Einzeltag. Kanonisch from_date/to_date; von/bis+note DEPRECATED. */SQ.push({url:"/api/absences",method:"POST",body:{id:k,worker_id:_workerId,type:typ,from_date:dk(d),to_date:dk(d),note:"",hours:stdVonTag(d),tage:(stdVonTag(d)>0?1:0)}});}
     if(!isDelete){
       const typName=_optionalChain([AT_T, 'access', _540 => _540[typ], 'optionalAccess', _541 => _541.l])||typ;
       if(typ==="krankenstand"){_optionalChain([pushNotif, 'optionalCall', _542 => _542("absence_sick","🤒 Krankmeldung",sel+" hat sich krankgemeldet ("+fdt(dk(d))+")")]);}
