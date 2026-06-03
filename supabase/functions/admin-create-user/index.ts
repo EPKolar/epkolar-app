@@ -205,19 +205,19 @@ serve(async (req: Request) => {
     ? String(b.monteurId).trim()
     : null;
 
-  // -- 4. Conflict pre-check (username + email, idempotent)
-  const { data: dupRows, error: dupErr } = await adminClient
-    .from("users")
-    .select("id, username, email")
-    .or(`username.eq.${username},email.eq.${email}`);
-  if (dupErr) {
-    return json(500, {
-      ok: false,
-      error: "internal",
-      details: "dup-check failed: " + (dupErr.message || ""),
-    });
+  // -- 4. Conflict pre-check (username + email) — zwei sichere .eq()-Lookups statt
+  //       .or() mit roher String-Interpolation (PostgREST-Filter-Injection via ,/) vermeiden).
+  const { data: dupUser, error: dupUErr } = await adminClient
+    .from("users").select("id").eq("username", username).maybeSingle();
+  if (dupUErr) {
+    return json(500, { ok: false, error: "internal", details: "dup-check(username) failed: " + (dupUErr.message || "") });
   }
-  if (dupRows && dupRows.length > 0) {
+  const { data: dupEmail, error: dupEErr } = await adminClient
+    .from("users").select("id").eq("email", email).maybeSingle();
+  if (dupEErr) {
+    return json(500, { ok: false, error: "internal", details: "dup-check(email) failed: " + (dupEErr.message || "") });
+  }
+  if (dupUser || dupEmail) {
     return json(409, {
       ok: false,
       error: "conflict",
@@ -254,7 +254,8 @@ serve(async (req: Request) => {
       .from("workers")
       .insert({
         id: newWorkerId,
-        name,
+        name,        // workers.name = "Nachname Vorname" (Client komponiert getrennte Felder)
+        vorname: "", // Tabelle hat separate vorname-Spalte — explizit leer statt silent default
         role,
         active: true,
       })
@@ -286,7 +287,8 @@ serve(async (req: Request) => {
     auth_user_id: authUuid,
     active: true,
     locked: false,
-    created: new Date().toISOString().slice(0, 10),
+    // v3.9.104 FIX: public.users hat KEINE 'created'-Spalte (nur created_at, DB-default) →
+    // der frühere created-Insert ließ jeden Call mit PGRST204 fehlschlagen (500). Entfernt.
   };
   const { data: userRow, error: insErr } = await adminClient
     .from("users")
