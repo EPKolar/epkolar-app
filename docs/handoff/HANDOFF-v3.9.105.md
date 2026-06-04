@@ -1,4 +1,20 @@
-# HANDOFF v3.9.108 — 2026-06-03 (Autonomer CC-Sprint + Bug-Hunt + SQL-Hardening live)
+# HANDOFF v3.9.126 — 2026-06-04 (Hunt-Marathon Wellen 1-5 + Sebastian-Regeln)
+
+## NEUESTER STAND (2026-06-04 Abend, alle gepusht + live-verifiziert)
+| Version | Inhalt |
+|---|---|
+| v3.9.115-119 | Mobile-Marathon: Projekt-Bottom-Nav alle 13 Icons erreichbar (waren abgeschnitten), Kpi-Schrift gestuft, Projekt-Header-Name 62→167px, Chef/Admin/Urlaub-Quetschungen |
+| v3.9.118 | 🔴 Mobile "fehlende Tabs": Mehr-Menü zeigt ALLE Tabs (Top-Leiste schnitt Arbeitsscheine/Zeiterfassung/Werkzeuge unsichtbar ab) |
+| v3.9.120 | Kunden-Nr aus OFFA sichtbar (Parser-Regex + commitImport + Karten/Tabellen-Anzeige) |
+| v3.9.121/122 | **AS-Status: ALLE Wechsel frei** (Sebastian — v3.8.92-Maschine blockte 39/56 inkl. abgerechnet→erledigt-Korrektur) |
+| v3.9.123 | **Glocke gefixt**: Backdrop lag über dem Panel (z-index-Gleichstand) und schluckte alle Klicks |
+| v3.9.124 | Welle 3: FS-Chips-Precedence-P1, WhatsApp-Doppelversand-Guard (Folge der Statusöffnung!), AS-Termin-TZ, Doppel-Tap-Guards, a11y, colorScheme zentral. Antimuster-Test (Backdrop==Panel) korrigiert |
+| v3.9.126 | Wellen 4+5: 🔒 **Monteur darf KEINE Scheine anlegen** (Sebastian-Regel, canDo+saveAs) · 🔴 Serviceheft-Duplikat-Doppelwrite · Projekt-Suche 150k-Iterationen→Lookup · AS-Dauer Komma-Fix · 11 de-AT-Format-Fixes · Empty-States Mängel/VDoku |
+
+**Suite: 653 pytest grün** · Bracket `() -1/{} 0/[] 0` · Known-Issue dokumentiert: Fahrzeug-Vollobjekt-PUT kann bei 2-Geräte-Parallelnutzung Sub-Arrays (kmLog/tankLog) clobbern — Architektur-Entscheidung Sebastian.
+
+---
+# (Archiv) HANDOFF v3.9.108 — 2026-06-03 (Autonomer CC-Sprint + Bug-Hunt + SQL-Hardening live)
 
 ## LIVE-STATE
 - **App-Version:** v3.9.108 (war v3.9.101 zu Sprint-Beginn) — https://epkolar.github.io/epkolar-app/
