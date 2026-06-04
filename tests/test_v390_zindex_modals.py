@@ -2,8 +2,10 @@
 
 Sicherstellt, dass Modal-Layer in korrekter Stacking-Order liegen:
 
-* **NotifPanel:** Backdrop `zIndex:200` == Panel `zIndex:200` (S11-N3).
-* **PhotoQ:** Backdrop `zIndex:300` == Panel `zIndex:300` (S11-N3).
+* **NotifPanel:** Panel `zIndex:200`, Backdrop `zIndex:199` (UNTER dem Panel — v3.9.123:
+  Gleichstand + Backdrop später im DOM legte den Backdrop ÜBER die Einträge und schluckte
+  alle Klicks; die alte ==-Invariante war das Antimuster).
+* **PhotoQ:** Panel `zIndex:300`, Backdrop `zIndex:299` (v3.9.124 defensiv).
 * **Voice-Modal:** Backdrop `zIndex:1500` + Panel `zIndex:1501` < Lightbox 2000
   (Lightbox-Priority, S11-N5).
 * **Lightbox:** `zIndex:2000` (Top-Layer, S11-N5).
@@ -15,7 +17,7 @@ INDEX = Path(__file__).parent.parent / 'index.html'
 
 
 def test_notif_backdrop_zindex_matches_panel():
-    """v3.9.0 S11-N3: NotifPanel-Backdrop muss zIndex>=200 haben (==Panel)."""
+    """v3.9.123: NotifPanel Panel=200, Backdrop=199 (Backdrop UNTER Panel)."""
     text = INDEX.read_text(encoding='utf-8')
     # Panel: position:fixed, ... zIndex:200, ... showNotifPanel-Render
     panel_matches = re.findall(
@@ -26,31 +28,29 @@ def test_notif_backdrop_zindex_matches_panel():
         'v3.9.0 S11-N3 Regression: NotifPanel mit zIndex:200 fehlt. '
         'Erwartet: `showNotifPanel&&React.createElement(...zIndex:200...)`.'
     )
-    # Backdrop: onClick=setShowNotifPanel(false) + zIndex:200 (>= panel)
+    # v3.9.123: Backdrop MUSS UNTER dem Panel liegen (199 < 200) — Gleichstand schluckte Klicks.
     backdrop_matches = re.findall(
-        r'setShowNotifPanel\(false\)[\s\S]{0,400}?zIndex:200',
+        r'setShowNotifPanel\(false\)[\s\S]{0,400}?zIndex:199',
         text,
     )
     assert len(backdrop_matches) >= 1, (
-        'v3.9.0 S11-N3 Regression: NotifPanel-Backdrop zIndex:200 fehlt. '
-        'Erwartet: Backdrop-Div mit onClick=setShowNotifPanel(false) '
-        'und zIndex:200 (>= Panel), sonst Click-Through-Bug. '
-        'Siehe Sprint 11 N3.'
+        'v3.9.123 Regression: NotifPanel-Backdrop muss zIndex:199 haben (UNTER dem Panel 200). '
+        'Backdrop==Panel + spaetere DOM-Position legte den Backdrop UEBER die Eintraege -> '
+        'alle Klicks wurden geschluckt (Sebastian-Bug 04.06.2026).'
     )
 
 
 def test_photoq_backdrop_zindex_matches_panel():
-    """v3.9.0 S11-N3: PhotoQ-Backdrop+Panel beide zIndex:300."""
+    """v3.9.124: PhotoQ Panel=300, Backdrop=299 (Backdrop UNTER Panel)."""
     text = INDEX.read_text(encoding='utf-8')
     # Backdrop: onClick=setShowPhotoQ(false) + zIndex:300
     backdrop_matches = re.findall(
-        r'setShowPhotoQ\(false\)[\s\S]{0,400}?zIndex:300',
+        r'setShowPhotoQ\(false\)[\s\S]{0,400}?zIndex:299',
         text,
     )
     assert len(backdrop_matches) >= 1, (
-        'v3.9.0 S11-N3 Regression: PhotoQ-Backdrop zIndex:300 fehlt. '
-        'Erwartet: Backdrop-Div mit onClick=setShowPhotoQ(false) '
-        'und zIndex:300 (== Panel). Sprint 11 N3.'
+        'v3.9.124 Regression: PhotoQ-Backdrop muss zIndex:299 haben (UNTER dem Panel 300, '
+        'defensiv gegen das Glocken-Antimuster).'
     )
     # Panel: showPhotoQ-Render + zIndex:300
     panel_matches = re.findall(
