@@ -63,7 +63,14 @@ def test_buero_cannot_form_create(node_exe, fn_canDo):
 
 # ----- Monteur -----
 def test_monteur_as_create(node_exe, fn_canDo):
-    assert _check(node_exe, fn_canDo, "as_create", {"role": "monteur"}) is True
+    # v3.9.125 Sebastian 04.06.2026: Monteur darf GAR KEINE Scheine anlegen (vorher True via isField)
+    assert _check(node_exe, fn_canDo, "as_create", {"role": "monteur"}) is False
+
+
+def test_obermonteur_as_create_still_allowed(node_exe, fn_canDo):
+    # Obermonteur/Techniker behalten as_create (nur Monteur/Helfer raus)
+    assert _check(node_exe, fn_canDo, "as_create", {"role": "obermonteur"}) is True
+    assert _check(node_exe, fn_canDo, "as_create", {"role": "techniker"}) is True
 
 
 def test_monteur_cannot_proj_create(node_exe, fn_canDo):
