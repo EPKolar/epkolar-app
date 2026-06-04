@@ -37,3 +37,22 @@ def test_project_header_name_min_width(index_html):
     assert 'gap:6,minWidth:isMob?230:0,flex:1}}' in index_html, (
         "Projekt-Header: linke Gruppe braucht minWidth 230 auf Mobile (Name war auf 62px gequetscht)"
     )
+
+
+def test_chef_kritisch_row_wraps(index_html):
+    # v3.9.117: Zeile wrappt — Kundenname wurde sonst @360 auf 28px gequetscht (ellipsis allein reichte nicht)
+    assert "cursor:'pointer',alignItems:'center',flexWrap:'wrap'}}" in index_html, (
+        "Chef kritisch-AS-Zeile muss flexWrap haben"
+    )
+
+
+def test_admin_subtabs_no_shrink(index_html):
+    # v3.9.117: Sub-Tab-Buttons dürfen nicht schrumpfen (Labels wurden geclippt statt Leiste zu scrollen)
+    assert 'whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",transition:"all .15s"}}, t.l)))' in index_html, (
+        "Admin-Sub-Tab-Buttons brauchen flexShrink:0"
+    )
+
+
+def test_urlaub_ma_pills_compact_mobile(index_html):
+    # v3.9.117: kompakteres Padding — Pills clippten 4px @360
+    assert 'padding:isMob?"5px 7px":"8px 14px"' in index_html, "Urlaub-MA-Pills mobile padding 5px 7px"
