@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.113';
+  var SW_VER='epkolar-v3.9.114';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,14 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.113-supabase";
+const APP_VERSION="3.9.114-supabase";
+/* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
+   FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
+   REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
+   Chef-Hinweis, Audit-Filter-Option und der Rechte-Toggle 'stunden' kommen vollständig zurück.
+   DB bleibt unberührt (finkzeit-Tabelle, pdf_data — kein Schema-Eingriff). hasPerm('stunden')
+   funktioniert unverändert (Key bleibt in PERMS_DESC/ROLES, nur der UI-Toggle ist ausgeblendet). */
+const FINKZEIT_ENABLED=false;
 // v3.9.6 S14-2: Modal scroll-lock helper (ref-counted). SKIP-with-doc: existing modals use ad-hoc inline overlays
 // (showSearch/showPhotoQ/showNotifPanel/showSyncPanel/lightbox/viewPdf/voice/etc.) without a central component.
 // Future modals: useEffect(()=>{_scrollLock.acquire();return()=>_scrollLock.release();},[]);
@@ -4856,7 +4863,7 @@ class _ViewBoundary extends React.Component{
       window.__asDeepLink=asNr;
       // Navigate to Arbeitsscheine tab
       // v3.5.150: Umbenennung _dl → _navIds um Kollision mit globalem _dl(blob,filename) Download-Helper (v3.5.116) zu vermeiden
-      const _navIds=["_home","projekte","arbeitsscheine","wochenplanung","zeiterfassung","urlaub","stunden","fahrzeuge","werkzeuge","mitarbeiter","auswertungen","_settings","bueroexport","admin"];
+      const _navIds=["_home","projekte","arbeitsscheine","wochenplanung","zeiterfassung","urlaub",...(FINKZEIT_ENABLED?["stunden"]:[]),"fahrzeuge","werkzeuge","mitarbeiter","auswertungen","_settings","bueroexport","admin"];/* FINKZEIT STANDBY */
       const vis=_navIds.filter(pm=>pm.startsWith("_")||hasPerm(curUser,pm));
       const idx=vis.indexOf("arbeitsscheine");
       if(idx>=0)setKat(idx);
@@ -5372,7 +5379,7 @@ class _ViewBoundary extends React.Component{
     {l:"Planung",i:"📅",c:"#3b82f6",perm:"wochenplanung",g:2},
     {l:"Zeiterfassung",i:"⏱️",c:"#10b981",perm:"zeiterfassung",g:2},
     {l:"Urlaub",i:"🏖️",c:"#22c55e",perm:"urlaub",g:2},
-    {l:"Monatsabrechnung",i:"📄",c:"#f97316",perm:"stunden",g:2},
+    ...(FINKZEIT_ENABLED?[{l:"Monatsabrechnung",i:"📄",c:"#f97316",perm:"stunden",g:2}]:[]),/* FINKZEIT STANDBY (04.06.2026) — Tab geparkt, reaktivierbar via FINKZEIT_ENABLED */
     {l:"Fahrzeuge",i:"🚐",c:"#0ea5e9",perm:"fahrzeuge",g:3},
     {l:"Werkzeuge",i:"🔧",c:"#d97706",perm:"werkzeuge",g:3},
     {l:"Mitarbeiter",i:"👷",c:"#06b6d4",perm:"mitarbeiter",g:4},
@@ -7666,7 +7673,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 )
                 , React.createElement('div', { style: {marginBottom:14}}
                   , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8}}, "Berechtigungen")
-                  , Object.entries(PERMS_DESC).map(([mod,desc])=>{
+                  , Object.entries(PERMS_DESC).filter(([_pdm])=>FINKZEIT_ENABLED||_pdm!=="stunden").map(([mod,desc])=>{/* FINKZEIT STANDBY: 'stunden'-Toggle (Monatsabrechnung) UI-ausgeblendet — Key bleibt, hasPerm unverändert */
                     const roleHas=_optionalChain([ROLES, 'access', _221 => _221[selU.role], 'optionalAccess', _222 => _222.modules, 'access', _223 => _223.includes, 'call', _224 => _224(mod)]);
                     const override=_optionalChain([selU, 'access', _225 => _225.permsOverride, 'optionalAccess', _226 => _226[mod]]);
                     const effective=override!==undefined?override:roleHas;
@@ -7742,8 +7749,8 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 , React.createElement('option', { value: "update"}, "Geändert (inkl. User)")
                 , React.createElement('option', { value: "delete"}, "Gelöscht (inkl. User)")
                 , React.createElement('option', { value: "change_password"}, "PW-Wechsel")
-                , React.createElement('option', { value: "upload"}, "Uploads (Foto + FinkZeit)")
-                , React.createElement('option', { value: "approve_finkzeit"}, "FinkZeit-Freigabe")
+                , React.createElement('option', { value: "upload"}, FINKZEIT_ENABLED?"Uploads (Foto + FinkZeit)":"Uploads (Foto)")
+                , FINKZEIT_ENABLED&&React.createElement('option', { value: "approve_finkzeit"}, "FinkZeit-Freigabe")/* FINKZEIT STANDBY */
                 , React.createElement('option', { value: "export"}, "Exports (OFFA/Personal/Projekt)")
                 , React.createElement('option', { value: "juprowa"}, "Juprowa-Sync (Pull+Push)")
                 , React.createElement('option', { value: "archive"}, "Archivierung")
@@ -8333,6 +8340,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   _react.useEffect.call(void 0, ()=>{
     let active=true;
     (async()=>{try{
+      if(!FINKZEIT_ENABLED)return;/* FINKZEIT STANDBY (04.06.2026) — kein finkzeit-Fetch, finkStats bleibt 0 → Card/Alerts still */
       if(!API.getToken())return;
       const yr=new Date().getFullYear();
       const mo=new Date().getMonth();
@@ -8483,11 +8491,11 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   if(offeneSchaeden>0)alerts.push({type:"info",icon:"⚠️",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,color:COLORS.ERROR,go:()=>onNav("fahrzeuge")});
   if(pendingAbs>0&&isAdmin)alerts.push({type:"info",icon:"📨",text:`${pendingAbs} ${pendingAbs===1?"Abwesenheitsantrag wartet":"Abwesenheitsanträge warten"} auf Genehmigung`,color:"#eab308",go:()=>onNav("urlaub")});
   if(dringendeAS>0)alerts.push({type:"urgent",icon:"🔴",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,color:COLORS.ERROR,go:()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}});
-  if(finkStats.offen>0&&isAdmin){
+  if(FINKZEIT_ENABLED&&finkStats.offen>0&&isAdmin){/* FINKZEIT STANDBY */
     const _details=(finkStats.pendingDetails||[]).map(p=>`${p.label} — ${p.workers.join(", ")}`);
     alerts.push({type:"info",icon:"📄",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben`,color:"#8b5cf6",go:()=>onNav("stunden"),details:_details});
   }
-  if(finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316",go:()=>onNav("stunden")});
+  if(FINKZEIT_ENABLED&&finkStats.diffWarn>0&&isAdmin)alerts.push({type:"warning",icon:"⚠️",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Stunden-Abweichung >1h — Abgleich prüfen`,color:"#f97316",go:()=>onNav("stunden")});
   /* v3.9.23 KRITISCH Monteur-Permission: jupLinked aus _visibleAS (gefiltert für Monteure). */
   const jupLinked=_visibleAS.filter(a=>a.juprowa_id).length;
 
@@ -8738,7 +8746,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#22c55e",fontFamily:mono}}, Object.keys(abs).length)
           , React.createElement('div', { style: {fontSize:11,color:pendingAbs>0?"#eab308":V.dm}}, pendingAbs>0?pendingAbs+" ausstehend":"Alle bearbeitet")
         )
-        , hasPerm(curUser,"stunden")&&React.createElement('div', { onClick: ()=>onNav("stunden"), role:"button", tabIndex:0, "aria-label":"Monatsabrechnung", onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav("stunden");}}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid "+(finkStats.diffWarn>0?COLORS.ERROR:finkStats.offen>0?COLORS.WARNING:"#8b5cf6"),transition:"transform .15s"}}
+        , FINKZEIT_ENABLED&&hasPerm(curUser,"stunden")&&React.createElement('div', { onClick: ()=>onNav("stunden"), role:"button", tabIndex:0, "aria-label":"Monatsabrechnung", onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav("stunden");}}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid "+(finkStats.diffWarn>0?COLORS.ERROR:finkStats.offen>0?COLORS.WARNING:"#8b5cf6"),transition:"transform .15s"}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Monatsabrechnung")
           , React.createElement('div', { style: {fontSize:isMob?20:24,fontWeight:800,color:finkStats.diffWarn>0?COLORS.ERROR:finkStats.offen>0?COLORS.WARNING:"#8b5cf6",fontFamily:mono}}, finkStats.abgeglichen, "/", finkStats.total)
           , React.createElement('div', { style: {fontSize:11,color:finkStats.diffWarn>0?COLORS.ERROR:finkStats.offen>0?COLORS.WARNING:V.dm}}, finkStats.diffWarn>0?finkStats.diffWarn+" Abweichung":finkStats.offen>0?finkStats.offen+" offen":"Alle abgeglichen")
@@ -14539,6 +14547,9 @@ function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTyp
 // ═══════════ VERBINDUNG / EINSTELLUNGEN ═══════════
 // ═══════════ SOLL/IST + ÜBERSTUNDEN + MONATSABSCHLUSS ═══════════
 function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
+  /* FINKZEIT STANDBY (04.06.2026) — komplette View geparkt: der Tab "Monatsabrechnung" ist hinter
+     FINKZEIT_ENABLED ausgeblendet, diese Komponente wird nicht mehr gerendert. Upload-/Freigabe-/
+     PDF-Handler (pdf_data) bleiben unverändert erhalten. Reaktivierbar via FINKZEIT_ENABLED=true. */
   const isMob=ww<600;/* v3.9.102 P0-Crash-Fix: isMob-Deklaration ging beim Mobile-Refactor verloren → "isMob is not defined" auf Tab Monatsabrechnung/stunden. Muster wie die 26 anderen const-isMob-Stellen (ww<600). */
   const MONATE=["Jänner","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
   const now=new Date();
@@ -15782,6 +15793,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     let alive=true;
     (async()=>{
       try{
+        if(!FINKZEIT_ENABLED){if(alive)setFinkOpen([]);return;}/* FINKZEIT STANDBY (04.06.2026) — Chef-Hinweis "Monatsabrechnung nicht freigegeben" geparkt */
         const yr=new Date().getFullYear();
         const rows=await _sbGet('finkzeit','jahr=eq.'+yr+'&status=neq.genehmigt&select=worker_id,monat,status').catch(()=>[]);
         if(!alive)return;
