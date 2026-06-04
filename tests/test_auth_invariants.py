@@ -99,7 +99,8 @@ def test_store_auth_writes_three_keys(index_html):
 
 def test_logout_removes_auth_storage_keys(index_html):
     start = index_html.index("async function _sbAuthLogout()")
-    body = index_html[start:start + 800]
+    # v3.9.112: Fenster vergrößert — _sbAuthLogout bekam Token-Kapselung + Kommentar.
+    body = index_html[start:start + 1200]
     for key in ("epkolar_auth", "epkolar_token", "epkolar_refresh", "epkolar_gc"):
         assert f'localStorage.removeItem("{key}")' in body, (
             f"_sbAuthLogout must remove {key}"
