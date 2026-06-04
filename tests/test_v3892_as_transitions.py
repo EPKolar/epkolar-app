@@ -27,14 +27,16 @@ def test_as_transitions_map_defined():
         )
 
 
-def test_as_transitions_final_states_empty():
+def test_as_transitions_all_free():
+    """v3.9.122 (Sebastian 04.06.2026): ALLE Wechsel frei — ersetzt den final-states-empty-Test.
+    Die v3.8.92-Maschine blockte 39/56 Übergänge inkl. Büro-Korrekturen (abgerechnet→erledigt etc.)."""
     text = INDEX.read_text(encoding='utf-8')
     m = re.search(r'const\s+AS_TRANSITIONS\s*=\s*\{([\s\S]*?)\}\s*;', text)
-    assert m, 'v3.8.92 AS-Trans-2 Regression: AS_TRANSITIONS Map nicht gefunden'
+    assert m, 'AS_TRANSITIONS Map nicht gefunden'
     body = m.group(1)
-    for final_state in ['abgerechnet', 'bar_bezahlt', 'storniert']:
-        assert re.search(re.escape(final_state) + r'\s*:\s*\[\s*\]', body), (
-            f'v3.8.92 AS-Trans-2 Regression: Endstate "{final_state}" muss leeres Array haben'
+    for key in AS_STATUS_KEYS:
+        assert re.search(re.escape(key) + r'\s*:\s*_AS_ALL_STATES', body), (
+            f'v3.9.122: "{key}" muss _AS_ALL_STATES referenzieren (alle Wechsel frei)'
         )
 
 
