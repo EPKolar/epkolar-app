@@ -27,8 +27,9 @@ def test_kpi_value_font_scales_with_length(index_html):
 
 
 def test_chef_kritisch_row_ellipsis(index_html):
-    assert "{flex:1,fontWeight:600,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},a.kundName||'—')" in index_html, (
-        "Chef kritisch-überfällig: kundName muss ellipsen (lief @360 aus der Kachel)"
+    # v3.9.118: minWidth 110 (nicht 0 — sonst schrumpfte der Name auf 28px statt zu wrappen)
+    assert "{flex:1,fontWeight:600,minWidth:110,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},a.kundName||'—')" in index_html, (
+        "Chef kritisch-überfällig: kundName muss ellipsen mit minWidth:110"
     )
 
 
@@ -56,3 +57,23 @@ def test_admin_subtabs_no_shrink(index_html):
 def test_urlaub_ma_pills_compact_mobile(index_html):
     # v3.9.117: kompakteres Padding — Pills clippten 4px @360
     assert 'padding:isMob?"5px 7px":"8px 14px"' in index_html, "Urlaub-MA-Pills mobile padding 5px 7px"
+
+
+def test_mobile_mehr_shows_all_tabs(index_html):
+    # v3.9.118 KERN-FIX: Auf Mobile zeigt "Mehr" ALLE Tabs — die Top-Leiste scrollt quer und
+    # schnitt Arbeitsscheine/Zeiterfassung/Werkzeuge unsichtbar ab → Tabs "fehlten".
+    assert "const moreTabs=isMob?tabs:tabs.filter(t=>t.g>=4);" in index_html, (
+        "moreTabs muss auf Mobile ALLE Tabs enthalten"
+    )
+    assert "const moreActive=tabs.filter(t=>t.g>=4).some(t=>tabs.indexOf(t)===safeKat);" in index_html, (
+        "moreActive bleibt auf g>=4 bezogen (sonst dauerhaft markiert)"
+    )
+    # beide Mehr-Dropdowns brauchen maxHeight+Scroll für 14 Einträge
+    assert index_html.count('overflowY:"auto"}}/* v3.9.118') == 2, "beide Mehr-Dropdowns brauchen maxHeight+scroll"
+
+
+def test_chef_kundname_min_width(index_html):
+    # v3.9.118: minWidth 110 statt 0 — mit 0 schrumpfte der Name auf 28px statt zu wrappen.
+    assert "{flex:1,fontWeight:600,minWidth:110,overflow:'hidden'" in index_html, (
+        "Chef kundName braucht minWidth:110 (sonst 28px-Quetschung)"
+    )
