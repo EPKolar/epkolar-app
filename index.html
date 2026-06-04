@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.119';
+  var SW_VER='epkolar-v3.9.120';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.119-supabase";
+const APP_VERSION="3.9.120-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3221,13 +3221,15 @@ async function _parseOffaPdf(file){
   // Split on duplicate (OFFA prints 2 copies per page)
   const parts=txt.split(/Arbeitsanweisung(?=S\d)/);
   const chunk=(parts.length>1?parts[1]:parts[0])||"";
-  const r={nummer:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",sachbearbeiter:"",projektnr:"",monteur:"",aufgenommen:"",telefon:"",arbeitsanweisungen:"",arbeitsort:""};
+  const r={nummer:"",kundNr:"",kundName:"",kundStr:"",kundPlz:"",kundOrt:"",sachbearbeiter:"",projektnr:"",monteur:"",aufgenommen:"",telefon:"",arbeitsanweisungen:"",arbeitsort:""};
   // Nummer
   const mNr=chunk.match(/^S(\d+)/);if(mNr)r.nummer="S"+mNr[1];
   // Sachbearbeiter: capture full name until Projektnr or newline
   const mSB=chunk.match(/Sachbearb\.?:\s*(.+?)(?=\s+Projektnr|\n|$)/);if(mSB)r.sachbearbeiter=mSB[1].trim().toUpperCase();
   // Projektnr
   const mPN=chunk.match(/Projektnr\.?:\s*(\S+)/);if(mPN)r.projektnr=mPN[1];
+  // v3.9.120 Kunden-Nr aus OFFA (tolerant: "Kunden-Nr.:", "Kd-Nr:", "Kdnr" ...). Fehlt das Feld im PDF → bleibt "" (kein Schaden; via JUPROWA kommt sie ohnehin als AK_BAUADR_NUMMER).
+  const mKd=chunk.match(/K(?:un)?d(?:en)?[-.\s]?Nr\.?\s*:?\s*([A-Z]?\d{3,})/i);if(mKd)r.kundNr=mKd[1];
   // Monteur: match exactly 2 name-words (Vorname Nachname), reject known non-names
   const mMoBlock=chunk.match(/Monteur:\s*([A-ZÄÖÜa-zäöüß][a-zäöüß]{2,}\s+[A-ZÄÖÜa-zäöüß][a-zäöüß]{2,})/);
   if(mMoBlock&&!/^Datum|^Die\s|^Arbeit|^Markt|^Gemeinde/i.test(mMoBlock[1]))r.monteur=mMoBlock[1].trim();
@@ -6131,8 +6133,8 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     toImport.forEach(r=>{
       const rawSB=r.sachbearbeiter||"";
       const mappedSB=rawSB in OFFA_SB_MAP?OFFA_SB_MAP[rawSB]:(JUPROWA_SB_MAP[rawSB]||rawSB);
-      const as={nummer:r.nummer,kundNr:"",kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:mappedSB,monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
-      if(r._exists&&r._existId){/* v3.9.111 Hunt: Re-Import darf NUR OFFA-Beschreibungsfelder mergen — NICHT scheinstatus/art/prio/verrechnung/notizen/termine/dauer clobbern (sonst wird ein erledigter Schein auf "aufgenommen" zurückgesetzt + Notizen/Termine gelöscht = Datenverlust). */const upd={...as};['scheinstatus','scheinart','prioritaet','verrechnung','notizen','bearbeitetVon','terminBestaetigt','terminZeit','terminVorschlag','terminVorschlagZeit','dauer','aufgZeit','durchgefuehrte','kontakt','stoerungsmelder','aufgenommen','kundNr'].forEach(_k=>delete upd[_k]);if(!r._monteurId)delete upd.monteur;setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...upd}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:upd});updated++;}
+      const as={nummer:r.nummer,kundNr:r.kundNr||""/* v3.9.120: aus OFFA-Parse statt hartkodiert leer */,kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:mappedSB,monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
+      if(r._exists&&r._existId){/* v3.9.111 Hunt: Re-Import darf NUR OFFA-Beschreibungsfelder mergen — NICHT scheinstatus/art/prio/verrechnung/notizen/termine/dauer clobbern (sonst wird ein erledigter Schein auf "aufgenommen" zurückgesetzt + Notizen/Termine gelöscht = Datenverlust). */const upd={...as};['scheinstatus','scheinart','prioritaet','verrechnung','notizen','bearbeitetVon','terminBestaetigt','terminZeit','terminVorschlag','terminVorschlagZeit','dauer','aufgZeit','durchgefuehrte','kontakt','stoerungsmelder','aufgenommen','kundNr'].forEach(_k=>delete upd[_k]);if(!r._monteurId)delete upd.monteur;if(r.kundNr)upd.kundNr=r.kundNr;/* v3.9.120: Kd-Nr beim Re-Import nur setzen wenn geparst — nie mit leer überschreiben */setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...upd}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:upd});updated++;}
       else{const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
     });
     _optionalChain([window, 'access', _imp1 => _imp1.__toast, 'optionalCall', _imp2 => _imp2(added+" neu, "+updated+" aktualisiert")]);setImportPreview([]);setSub("liste");};
@@ -6604,7 +6606,7 @@ function sharePdf(){
                 , React.createElement('span', { style: {fontFamily:mono,color:"#4ade80",fontWeight:700,fontSize:14,background:"rgba(74,222,128,.12)",padding:"2px 8px",borderRadius:6}}, a.nummer, a.juprowa_id&&React.createElement('span',{style:{fontSize:9,color:"#06b6d4",marginLeft:4}},"⟳"), a.push_pending&&React.createElement('span',{style:{fontSize:9,color:"#f59e0b",marginLeft:2}},"↑"))
                 , React.createElement('span', { style: {fontSize:10,padding:"2px 8px",borderRadius:6,background:st.c+"22",color:st.c,fontWeight:700}}, st.i, " ", st.l)
               )
-              , React.createElement('div', { style: {fontSize:13,fontWeight:600,color:V.tx,marginBottom:4,wordBreak:"break-word"}}, a.kundName||"—")
+              , React.createElement('div', { style: {fontSize:13,fontWeight:600,color:V.tx,marginBottom:4,wordBreak:"break-word"}}, a.kundName||"—", a.kundNr&&React.createElement('span', { style: {fontSize:11,fontWeight:400,color:V.dm,marginLeft:6}}, "· Kd-Nr ", a.kundNr))/* v3.9.120: Kunden-Nr (OFFA/JUPROWA) sichtbar in der AS-Karte */
               , a.arbeitsanweisungen&&React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}, (a.arbeitsanweisungen||"").split("\n")[0])
               , React.createElement('div', { style: {display:"flex",gap:10,fontSize:11,color:V.dm,marginBottom:6,flexWrap:"wrap"}}
                 , React.createElement('span', {}, "📅 ", a.aufgenommen?fdt(a.aufgenommen):"—")
@@ -6645,7 +6647,7 @@ function sharePdf(){
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { value: a.scheinstatus, onChange: e=>{e.stopPropagation();const _oldS=a.scheinstatus;const _newS=e.target.value;if(!_isLegalAsTransition(_oldS,_newS)){_optionalChain([window, 'access', _stg1 => _stg1.__toast, 'optionalCall', _stg2 => _stg2("⚠️ Ungültiger Status-Wechsel von "+_oldS+" → "+_newS,"warn")]);return;}updAs(a.id,{scheinstatus:_newS});}, style: {background:"transparent",border:"1px solid "+st.c,borderRadius:4,color:st.c,fontSize:10,padding:"2px 3px",fontWeight:600,cursor:"pointer",colorScheme:_dark?"dark":"light"}, onClick: e=>e.stopPropagation()}, Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.i+" "+v.l))))
                 , React.createElement('td', { style: {...tdSt(),fontSize:12,padding:2}}, isAdmin?React.createElement('select', { value: a.sachbearbeiter||"", onChange: e=>{e.stopPropagation();updAs(a.id,{sachbearbeiter:e.target.value});}, style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:V.tx,fontSize:10,padding:"2px 3px",cursor:"pointer",maxWidth:80,colorScheme:_dark?"dark":"light"}, onClick: e=>e.stopPropagation()}, React.createElement('option', { value: ""}, "—"), SACHBEARBEITER.map(s=>React.createElement('option', { key: s, value: s}, s))):a.sachbearbeiter||"—")
                 , React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { value: a.monteur||"", onChange: e=>{e.stopPropagation();updAs(a.id,{monteur:e.target.value});}, style: {background:"transparent",border:"1px solid "+V.bd,borderRadius:4,color:V.tx,fontSize:11,padding:"2px 3px",cursor:"pointer",maxWidth:90,colorScheme:_dark?"dark":"light"}, onClick: e=>e.stopPropagation()}, React.createElement('option', { value: ""}, "—"), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))))
-                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500,cursor:"pointer"}, onClick: ()=>_openEditGuarded(a)}, a.kundName)
+                , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:500,cursor:"pointer"}, onClick: ()=>_openEditGuarded(a)}, a.kundName, a.kundNr&&React.createElement('span', { style: {fontSize:10,fontWeight:400,color:V.dm,marginLeft:5}}, a.kundNr))/* v3.9.120: Kd-Nr auch in der Tabellen-Ansicht */
                 , React.createElement('td', { style: {...tdSt(),fontFamily:"'SF Mono','Cascadia Code','Fira Code',monospace",fontSize:12,fontWeight:600,color:V.ac,letterSpacing:".3px"}}, a.projektnr)
                 , React.createElement('td', { style: {...tdSt(),textAlign:"center",padding:"4px 2px"}}, React.createElement('div', { style: {display:"flex",gap:3,justifyContent:"center",flexWrap:"nowrap"}}
                   , React.createElement('button', { onClick: e=>{e.stopPropagation();openEdit(a);}, style: {background:"#3b82f6",color:"#fff",border:"none",borderRadius:4,padding:"4px 7px",fontSize:11,cursor:"pointer",fontWeight:600}, title: "Bearbeiten"}, "✏️")
