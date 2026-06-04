@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.126';
+  var SW_VER='epkolar-v3.9.127';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.126-supabase";
+const APP_VERSION="3.9.127-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -2444,6 +2444,11 @@ const ODB={
   async save(store,data){try{await ODB.set(store,"data",data);}catch(e){console.warn('[silent-await]',e&&e.message||e);}},
   async load(store){try{return await ODB.get(store,"data");}catch(e){return undefined;}}
 };
+/* v3.9.127 F6: user-scoped Daten-Stores (identisch zur Logout-Clear-Liste). Purge-on-Login bei User-Wechsel —
+   der Logout-BUTTON cleart zwar, aber nach Session-Ablauf/_silentReAuth-Fail landet man am Login OHNE Cleanup
+   → nächster User sah offline kurz die ODB-Caches des Vorgängers (Shared-Baustellen-Tablets!). */
+const _USER_SCOPED_ODB_STORES=["entries","forms","abs","absApprovals","files","planData","arbeitsscheine","werkzeuge","monteure","projects","monteurProjekte","fahrzeuge","notifications","stundenzettel","syncQueueFailed"];
+
 // v3.8.33 Bug-Hunt Iter-19c: Offline-PW-Hash von reversiblem base64 auf PBKDF2-SHA256 umgestellt (M-4 Security-P2).
 // Altes Schema btoa(user+":"+pw) war effektiv Klartext-PW im IDB (reversibel).
 // Legacy-Format wird bei Offline-Verify weiterhin akzeptiert → beim nächsten Online-Login
@@ -2717,7 +2722,7 @@ const _isLegalAsTransition=(from,to)=>from===to||(AS_TRANSITIONS[from]||[]).incl
 const AS_GRP_OFFEN=["aufgenommen","freigegeben","in_bearbeitung","aufgeschoben"];
 const AS_GRP_FERTIG=["erledigt","abgerechnet","bar_bezahlt"];
 const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},dringend:{l:"dringend",c:COLORS.ERROR}};
-const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"}};
+const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"},wartung:{l:"Wartung",i:"🔩"},regie:{l:"Regie",i:"📋"}};/* v3.9.127 F5: additiv — parseVoice setzte "wartung"/"regie", die nirgends definiert waren → "?"-Rendering; Statistik-Farbmapping existierte bereits */
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
 const JUPROWA_SB_MAP={'TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','MARTINA':'SCHOBER','LUCIA':'LINDHUBER'};
 const OFFA_SB_MAP={'MARTINA S':'SCHOBER','MARTINA':'SCHOBER','SUSANNE Z':'','SUSANNE':'','ING. SEBA':'GÜNTHER','ING. SEBASTIAN':'GÜNTHER','SEBASTIAN':'GÜNTHER','TECHNIK':'GÜNTHER','WOLFGANG':'SCHMID','WOLFGANG S':'SCHMID','LUCIA':'LINDHUBER','LUCIA L':'LINDHUBER'};
@@ -3477,6 +3482,7 @@ const fd=d=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");if(isNaN(dt.getT
 const dk=_ymd;
 const fmt$=n=>{const v=typeof n==="number"?n:parseFloat(n);return (isFinite(v)&&v!==0)?v.toLocaleString("de-AT",{style:"currency",currency:"EUR"}):(v===0?"€ 0,00":"—");};
 const isoW=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w=new Date(d.getFullYear(),0,4);return 1+Math.round(((d-w)/864e5-3+(w.getDay()+6)%7)/7);};
+const isoWY=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);return d.getFullYear();};/* v3.9.127 F2: ISO-Wochen-JAHR (Donnerstags-Regel) — 29.-31.12. gehört zu KW1 des Folgejahres */
 const kwD=(y,k)=>{const j=new Date(y,0,4),dw=j.getDay()||7,m=new Date(j);m.setDate(j.getDate()-dw+1+(k-1)*7);const o=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);o.push(_ymd(d));}return o;};
 const weeksOf=(y,m)=>{const ws=[];const LX=new Date(y,m+1,0);let c=new Date(y,m,1);c.setDate(c.getDate()-((c.getDay()+6)%7));while(c<=LX||c.getDay()!==1){const w=[];for(let i=0;i<7;i++){w.push(new Date(c));c.setDate(c.getDate()+1);}ws.push(w);if(c>LX&&c.getDay()===1)break;}return ws;};
 const isWE=d=>d.getDay()===0||d.getDay()===6;
@@ -5422,7 +5428,7 @@ class _ViewBoundary extends React.Component{
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: u=>{if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(e){console.warn('[silent-global]',e&&e.message||e);}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: async u=>{/* v3.9.127 F6: ODB-Purge bei User-Wechsel — Session-Ablauf umgeht den Logout-Cleanup */try{const _lu=localStorage.getItem('epk_last_login_uid');const _nu=String(u.id||u.username||'');if(_lu&&_nu&&_lu!==_nu){for(const _s of _USER_SCOPED_ODB_STORES){try{await ODB.del(_s,'data');}catch(_){}}}if(_nu)localStorage.setItem('epk_last_login_uid',_nu);}catch(_){}if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(e){console.warn('[silent-global]',e&&e.message||e);}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const mainTabs=tabs.filter(t=>t.g<4);
@@ -7359,7 +7365,8 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const fetchStats=async()=>{
     setLoadingStats(true);
     try{
-      const [users,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifs,logRows]=await Promise.all([
+      const _d30=new Date();_d30.setDate(_d30.getDate()-30);const _iso30=_d30.toISOString();
+      const [activeUsers,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifs,logRows,actRows]=await Promise.all([
         _sbGetUsersSafe("active=eq.1").then(r=>r.length).catch(()=>0),
         _sbGet("projects").then(r=>r.length).catch(()=>0),
         _sbGet("time_entries").then(r=>r.length).catch(()=>0),
@@ -7369,9 +7376,31 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         _sbGet("fahrzeuge").then(r=>r.length).catch(()=>0),
         _sbGet("werkzeuge").then(r=>r.length).catch(()=>0),
         _sbGet("notifications").then(r=>r.length).catch(()=>0),
-        _sbGetOrder("activity_log","created_at.desc","action=like.login*").then(r=>r.slice(0,200)).catch(()=>[])
+        _sbGetOrder("activity_log","created_at.desc","action=like.login*").then(r=>r.slice(0,200)).catch(()=>[]),
+        _sbGetOrder("activity_log","created_at.desc","created_at=gte."+encodeURIComponent(_iso30)).then(r=>r.slice(0,2000)).catch(()=>[])
       ]);
-      setStats({users,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifications:notifs});
+      /* v3.9.127: Statistik-Aggregate CLIENT-seitig aus activity_log (30 Tage, max 2000 Rows) — ersetzt das nie gebaute admin_stats-RPC. users (Prop) liefert Namen/Rollen. */
+      const _byU={},_byM={},_byA={},_byD={};
+      actRows.forEach(r=>{
+        if(r.user_id)_byU[r.user_id]=(_byU[r.user_id]||0)+1;
+        if(r.entity_type)_byM[r.entity_type]=(_byM[r.entity_type]||0)+1;
+        if(r.action)_byA[r.action]=(_byA[r.action]||0)+1;
+        const _dy=(r.created_at||"").substring(0,10);
+        if(_dy){const _e=_byD[_dy]||(_byD[_dy]={cnt:0,u:new Set()});_e.cnt++;if(r.user_id)_e.u.add(r.user_id);}
+      });
+      const _uName=id=>{const _u=(users||[]).find(x=>String(x.id)===String(id));return _u?(_u.name||_u.username||String(id)):String(id);};
+      const byUser=Object.entries(_byU).map(([user_id,cnt])=>({user_id,name:_uName(user_id),username:_uName(user_id),cnt})).sort((a,b)=>b.cnt-a.cnt);
+      const topModules=Object.entries(_byM).map(([entity_type,cnt])=>({entity_type,cnt})).sort((a,b)=>b.cnt-a.cnt).slice(0,8);
+      const byAction=Object.entries(_byA).map(([action,cnt])=>({action,cnt})).sort((a,b)=>b.cnt-a.cnt).slice(0,12);
+      const daily=Object.keys(_byD).sort().slice(-14).map(d=>({d,cnt:_byD[d].cnt,users:_byD[d].u.size}));
+      const _tn=new Date();const _ty=_tn.getFullYear()+"-"+String(_tn.getMonth()+1).padStart(2,"0")+"-"+String(_tn.getDate()).padStart(2,"0");
+      const today=(_byD[_ty]||{cnt:0}).cnt;
+      const logins30d=actRows.filter(r=>r.action==="login").length;
+      const failedLogins30d=actRows.filter(r=>r.action==="login_failed").length;
+      const _lastL={};logRows.forEach(r=>{if(r.action==="login"&&r.user_id&&!_lastL[r.user_id])_lastL[r.user_id]=r.created_at;});
+      const _totL={};actRows.forEach(r=>{if(r.action==="login"&&r.user_id)_totL[r.user_id]=(_totL[r.user_id]||0)+1;});
+      const userStatus=(users||[]).map(u=>({id:u.id,name:u.name,username:u.username,role:u.role,last_login:_lastL[u.id]||u.last_login||null,total_logins:_totL[u.id]||0}));
+      setStats({users:activeUsers,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifications:notifs,total:actRows.length,today,logins30d,failedLogins30d,userStatus,byUser,topModules,byAction,daily});
       setLogins(logRows);
     }catch(e){console.warn("[adminpanel] Stats laden:",e);_optionalChain([window, 'access', _187 => _187.__toast, 'optionalCall', _188 => _188("⚠️ Statistiken konnten nicht geladen werden","warn")]);}
     setLoadingStats(false);
@@ -7838,7 +7867,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
              aus einem geplanten admin_stats-RPC (noch nicht implementiert). Fallback verhindert NaN-/
              undefined-Render bis RPC geliefert wird. — TODO: admin_stats-RPC backend-seitig. */
           , React.createElement('div', { className: "kpi-grid", style: {marginBottom:16}}
-            , React.createElement(Kpi, { label: "Gesamt Vorgänge" , value: stats.total||"—", sub: "seit Start" , color: "#3b82f6", i: 0} )
+            , React.createElement(Kpi, { label: "Vorgänge (30T)" , value: stats.total||"—", sub: "letzte 30 Tage" , color: "#3b82f6", i: 0} )
             , React.createElement(Kpi, { label: "Heute", value: stats.today||"—", sub: "Aktionen heute" , color: "#22c55e", i: 1} )
             , React.createElement(Kpi, { label: "Logins (30T)" , value: stats.logins30d||"—", sub: "erfolgreiche Anmeldungen" , color: "#f97316", i: 2} )
             , React.createElement(Kpi, { label: "Fehlversuche", value: stats.failedLogins30d||"—", sub: "letzte 30 Tage"  , color: (stats.failedLogins30d||0)>10?COLORS.ERROR:COLORS.NEUTRAL, i: 3} )
@@ -8602,7 +8631,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         const r=_optionalChain([curUser, 'optionalAccess', _wpd0 => _wpd0.role])||"";
         const isFieldWorker=r==="monteur"||r==="obermonteur"||r==="techniker"||r==="helfer";
         if(!isFieldWorker)return null;
-        const curKw=isoW();const yr=new Date().getFullYear();
+        const curKw=isoW();const yr=isoWY();/* v3.9.127 F2 */
         const wpRows=(wpHistory||{})[curKw]||[];
         if(!wpRows.length)return null;
         const myId=_optionalChain([curUser, 'optionalAccess', _wpd1 => _wpd1.monteurId])||"";
@@ -12538,7 +12567,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   },[orders]);
   // Cart helpers
   const cartCount=Object.values(cart).filter(v=>v>0).length;
-  const setMenge=(key,val)=>{const n=parseInt(val)||0;setCart(prev=>{const c={...prev};if(n>0)c[key]=n;else delete c[key];return c;});};
+  const setMenge=(key,val)=>{const n=Math.max(0,parseFloat(String(val).replace(",","."))||0);/* v3.9.127 F7: Dezimal-Mengen (2,5m Kabel) + Komma-Norm — parseInt schnitt Nachkomma ab */setCart(prev=>{const c={...prev};if(n>0)c[key]=n;else delete c[key];return c;});};
   const clearCart=()=>{setCart({});setFreitext("");setPrio("normal");};
   const itemKey=(catId,itemId,dimIdx)=>catId+"__"+itemId+"__"+(dimIdx!==undefined?dimIdx:"x");
 
@@ -12711,7 +12740,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
                       return React.createElement('td', { key: di, style: {padding:"4px 3px",textAlign:"center",minWidth:48}}
-                        , avail?React.createElement('input', { type: "number", inputMode: "decimal", min: "0", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"·"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?36:42,textAlign:"center",fontSize:12,padding:"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx} }):null
+                        , avail?React.createElement('input', { type: "number", inputMode: "decimal", min: "0", step: "any", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"·"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?36:42,textAlign:"center",fontSize:12,padding:"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx} }):null
                       );
                     })
                   )
@@ -12726,7 +12755,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                       if(!avail)return null;
                       return React.createElement('div', { key: di, style: {display:"flex",alignItems:"center",gap:4}}
                         , React.createElement('span', { style: {fontSize:11,color:V.dm,minWidth:28}}, dim)
-                        , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"0"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:48,textAlign:"center",fontSize:13,padding:"6px 4px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:36} })
+                        , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", step: "any", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"0"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:48,textAlign:"center",fontSize:13,padding:"6px 4px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:36} })
                       );
                     })
                   )
@@ -12736,7 +12765,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                 const k=itemKey(cat.id,item.id);const val=cart[k]||"";
                 return React.createElement('div', { key: item.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
                   , React.createElement('span', { style: {flex:1,fontSize:12,color:V.tx}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:9,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:8,fontWeight:700,background:"#22c55e22",color:"#22c55e"}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:9,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
-                  , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"0"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?56:50,textAlign:"center",fontSize:13,padding:isMob?"6px 4px":"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:isMob?36:0} })
+                  , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", step: "any", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"0"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?56:50,textAlign:"center",fontSize:13,padding:isMob?"6px 4px":"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:isMob?36:0} })
                   , React.createElement('span', { style: {fontSize:10,color:V.dm,minWidth:24}}, item.einheit)
                 );
               })
@@ -12999,7 +13028,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                     )
                     // Editable menge
                     , React.createElement('td', { style: {padding:"6px 6px",textAlign:"center"}}
-                      , !isRemoved?React.createElement('input', { type: "number", inputMode: "decimal", min: "1", value: pos.menge, onChange: e=>{const v=parseInt(e.target.value)||1;setPvPositionen(prev=>prev.map((p2,i)=>i===idx?{...p2,menge:v}:p2));}, style: {width:52,textAlign:"center",fontSize:12,padding:"4px 2px",borderRadius:6,border:"1px solid "+V.bd,background:"transparent",fontWeight:700,color:V.tx,fontFamily:"inherit"}}):React.createElement('span', { style: {fontSize:11,color:V.dm,textDecoration:"line-through"}}, pos.menge)
+                      , !isRemoved?React.createElement('input', { type: "number", inputMode: "decimal", min: "0.01", step: "any", value: pos.menge, onChange: e=>{const v=Math.max(0.01,parseFloat(String(e.target.value).replace(",","."))||1);/* v3.9.127 F7 */setPvPositionen(prev=>prev.map((p2,i)=>i===idx?{...p2,menge:v}:p2));}, style: {width:52,textAlign:"center",fontSize:12,padding:"4px 2px",borderRadius:6,border:"1px solid "+V.bd,background:"transparent",fontWeight:700,color:V.tx,fontFamily:"inherit"}}):React.createElement('span', { style: {fontSize:11,color:V.dm,textDecoration:"line-through"}}, pos.menge)
                     )
                     // Per-supplier EK cells
                     , pvSupplierIds.map(sid=>{
@@ -13487,7 +13516,7 @@ const emptyWpRow=()=>({id:Date.now()+Math.random(),bvh:"",projId:"",bem:"",z:{Mo
 const padWpRows=(rws)=>{const r=[...(rws||[])];while(r.length<MIN_WP_ROWS)r.push(emptyWpRow());return r;};
 
 function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge}){
-  const curKw=isoW();const yr=new Date().getFullYear();
+  const curKw=isoW();const yr=isoWY();/* v3.9.127 F2 */
   // Migrate old string-format WP data to new {ma:[],fz:[]} format
   const migrateRow=(r)=>{
     if(!r||!r.z)return r;
@@ -16213,7 +16242,7 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
 function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,setEntries,ww}){
   const isMob=ww<700;const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const fieldMA=monteure.filter(m=>m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung");
-  const curKw=isoW();const yr=new Date().getFullYear();
+  const curKw=isoW();const yr=isoWY();/* v3.9.127 F2 */
   const [kw,setKw]=_react.useState.call(void 0, curKw);
   const [selWorker,setSelWorker]=_react.useState.call(void 0, curUser.monteurId||"");
   const [dayEntries,setDayEntries]=_react.useState.call(void 0, {});

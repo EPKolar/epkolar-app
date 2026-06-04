@@ -16,7 +16,21 @@ Werkzeuge/Mitarbeiter/Auswertungen/Einstellungen/Büro-Export/Admin) rendern **s
 | OFFA-Re-Import-Datenverlust, Server-Approval-Bridge | v3.9.111 |
 | Logout-Token-Fenster, Übernacht-von/bis (_wrapHrs) | v3.9.112 |
 
-## 🟡 FLAGGED — braucht Sebastian-Entscheidung / höheres Risiko (NICHT autonom gefixt)
+## 🟢 UPDATE 04.06. Nacht (v3.9.127): 4 der 7 flagged Funde GEFIXT, 1 als korrekt befunden
+- **F2 GEFIXT**: `isoWY()` (ISO-Wochen-Jahr, Donnerstags-Regel) an allen 3 KW-Views — Dez/Jan-Initialisierung korrekt. Node-getestet (29.12.2026→2027, 01.01.2027→2026). KW-Blätter-Rollover über Jahresgrenze bleibt offen (war vorher genauso).
+- **F5 GEFIXT**: AS_ART additiv um `wartung`+`regie` — parseVoice-Scheine rendern nicht mehr "?"; Statistik-Farbmapping existierte bereits.
+- **F6 GEFIXT**: Purge-on-Login bei User-Wechsel (`epk_last_login_uid` + `_USER_SCOPED_ODB_STORES`) — Session-Ablauf umgeht den Logout-Cleanup nicht mehr (Shared-Tablets).
+- **F7 GEFIXT**: Mengen dezimal + Komma-Norm (4 Inputs `step:any`).
+- **F3 NICHT gefixt — BEWUSST**: `ek=0` heißt bei DATANORM real "kein Preis gepflegt"; der vorgeschlagene null-Check würde 0-Preise zum "besten Lieferanten" machen. Aktuelles Verhalten ist korrekt.
+- **BONUS**: AdminPanel-Statistik-Tab jetzt GEFÜLLT — Aggregate (byUser/topModules/byAction/daily/userStatus) client-seitig aus activity_log (30 Tage); das geplante `admin_stats`-RPC entfällt ersatzlos.
+
+## 🟡 WEITER OFFEN — echte Sebastian-Entscheidungen (2)
+| # | Fund | Entscheidung nötig |
+|---|---|---|
+| F1 | DATANORM schreibt Listenpreis in `ek_preis` → EK-Vergleich listenpreis-basiert | Rabattgruppe→Rabattsatz-Tabelle je Händler pflegen? Oder ek_preis leer lassen? |
+| F4 | Fuzzy-Name-Match kann fremden Artikel-Preis zuordnen | Matching-Regel: Dimension/Einheit-Gleichheit verpflichtend? |
+
+## (Archiv) 🟡 FLAGGED — braucht Sebastian-Entscheidung / höheres Risiko (NICHT autonom gefixt)
 | # | Fund | Ort | Warum aufgeschoben | Vorschlag |
 |---|---|---|---|---|
 | F1 | **DATANORM schreibt Listenpreis in `ek_preis` UND `listenpreis`** → Cross-Supplier-EK-Vergleich ist listenpreis-basiert (Rabattgruppe nie aufgelöst) | `index.html:7517` | Business: braucht Rabattgruppe→Rabattsatz-Tabelle pro Händler | Beim Import EK = Listenpreis × (1−Rabatt) speichern, ODER ek_preis NULL lassen |

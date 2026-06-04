@@ -37,9 +37,11 @@ def test_as_prio_each_has_label_color(node_exe, index_html):
 
 
 # ----- AS_ART -----
-def test_as_art_has_7_types(node_exe, index_html):
+def test_as_art_has_9_types(node_exe, index_html):
+    # v3.9.127 F5: +wartung+regie (parseVoice setzte sie, Keys fehlten -> "?"-Rendering)
     obj = _extract_const_obj(node_exe, index_html, "AS_ART")
-    assert len(obj) == 7
+    assert len(obj) == 9
+    assert "wartung" in obj and "regie" in obj
 
 
 def test_as_art_kein_present(node_exe, index_html):
