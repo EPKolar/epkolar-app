@@ -33,6 +33,7 @@ def test_chef_kritisch_row_ellipsis(index_html):
 
 
 def test_project_header_name_min_width(index_html):
-    assert 'gap:6,minWidth:isMob?170:0,flex:1}}' in index_html, (
-        "Projekt-Header: linke Gruppe braucht minWidth 170 auf Mobile (Name war auf 62px gequetscht)"
+    # 230 (nicht 170): ◀36 + PA-Nr 70 + gaps ließen dem Namen bei 170 wieder nur 62px.
+    assert 'gap:6,minWidth:isMob?230:0,flex:1}}' in index_html, (
+        "Projekt-Header: linke Gruppe braucht minWidth 230 auf Mobile (Name war auf 62px gequetscht)"
     )
