@@ -7,5 +7,6 @@ def test_pin_writes_pct(index_html):
 
 
 def test_render_prefers_pct_with_fallback(index_html):
-    assert "const _xPct = (t.x_pct!=null)?Number(t.x_pct):(t.xPct!=null?Number(t.xPct):(pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0));" in index_html
-    assert "const _yPct = (t.y_pct!=null)?Number(t.y_pct):(t.yPct!=null?Number(t.yPct):(pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0));" in index_html
+    # v3.9.134: nx/ny kanonisch vorangestellt; x_pct bleibt Fallback in der Kette
+    assert "(t.x_pct!=null)?Number(t.x_pct):(t.xPct!=null?Number(t.xPct):(pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0))" in index_html
+    assert "(t.y_pct!=null)?Number(t.y_pct):(t.yPct!=null?Number(t.yPct):(pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0))" in index_html

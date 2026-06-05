@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.133';
+  var SW_VER='epkolar-v3.9.134';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.133-supabase";
+const APP_VERSION="3.9.134-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10663,7 +10663,7 @@ const TicketListItem = React.memo(function TicketListItem({ticket,layers,onClick
 
 /* v3.9.71 S51-1 PlanRadar-R3: Canvas-Pin-Marker mit Hover-Quick-Info-Card (Desktop), ≥44px hit-area (Mobile),
    Status-Color-Fill, Pulse-Animation für NEW (<TIME_HOUR). UI-only Wrapper — keine onClick-Logic-Änderung. */
-function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure}) {
+function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure, zoom}) {
   const [hov, setHov] = _react.useState.call(void 0, false);
   const ts = (TICKET_STATUS && TICKET_STATUS[ticket.status]) || (TICKET_STATUS && TICKET_STATUS.offen) || {c:COLORS.ERROR, l:"Offen"};
   const tt = (TICKET_TYPES && TICKET_TYPES[ticket.type]) || (TICKET_TYPES && TICKET_TYPES.info) || {i:"📌", l:""};
@@ -10676,7 +10676,7 @@ function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, laye
     onClick: (e) => { e.stopPropagation(); if(onClick) onClick(ticket); },
     onMouseEnter: () => setHov(true),
     onMouseLeave: () => setHov(false),
-    style: {position:"absolute", left:xPct+"%", top:yPct+"%", width:44, height:44, marginLeft:-22, marginTop:-44, cursor:"pointer", zIndex:isSelected?60:hov?50:20, display:"flex", alignItems:"flex-end", justifyContent:"center"}
+    style: {position:"absolute", left:xPct+"%", top:yPct+"%", width:44, height:44, marginLeft:-22, marginTop:-44, transform:"scale("+(1/(zoom||1))+")", transformOrigin:"50% 100%"/* v3.9.134 World-Container: scale(1/zoom) → Pin behält KONSTANTE Bildschirmgröße, wächst nicht mit dem Plan */, cursor:"pointer", zIndex:isSelected?60:hov?50:20, display:"flex", alignItems:"flex-end", justifyContent:"center"}
   },
     _isNew ? React.createElement('div', {style:{position:"absolute", left:"50%", bottom:6, width:34, height:34, marginLeft:-17, borderRadius:"50%", background:fillColor, opacity:.32, animation:"epkPinPulse 1.6s ease-out infinite", pointerEvents:"none"}}) : null,
     React.createElement('div', {style:{width:28, height:36, background:fillColor, borderRadius:"50% 50% 50% 0", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#fff", border:isSelected?"3px solid #fff":"2px solid rgba(0,0,0,.35)", boxShadow:isSelected?"0 0 12px "+fillColor:hov?"0 4px 12px rgba(0,0,0,.5)":"0 2px 8px rgba(0,0,0,.4)", transform:"rotate(-45deg)", transition:"box-shadow .18s ease"}},
@@ -10700,6 +10700,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
   const [pageCount, setPageCount] = _react.useState.call(void 0, 1);
   const [scale, setScale] = _react.useState.call(void 0, 1.5);
   const [pan, setPan] = _react.useState.call(void 0, {x: 0, y: 0});
+  const [zoom, setZoom] = _react.useState.call(void 0, 1);/* v3.9.134 World-Container: CSS-Zoom (GPU, instant) — entkoppelt vom pdf-Render-scale. Pins sind Kinder des transformierten world-div → GPU bewegt sie mit, KEIN Drift. */
   const [isPanning, setIsPanning] = _react.useState.call(void 0, false);
   const [showTickets, setShowTickets] = _react.useState.call(void 0, true);
   const [pageDims, setPageDims] = _react.useState.call(void 0, null);
@@ -10767,7 +10768,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       if(lastPinchDistRef.current) {
         const ratio = dist / lastPinchDistRef.current;
-        setScale(s => Math.max(0.5, Math.min(4, s * ratio)));
+        setZoom(z => Math.max(0.4, Math.min(6, z * ratio)));/* v3.9.134: Pinch ändert CSS-zoom, nicht den pdf-Render-scale */
       }
       lastPinchDistRef.current = dist;
       return;
@@ -10803,7 +10804,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
     const planMatch = t.planId === (plan && plan.id) || t.plan_id === (plan && plan.id);
     if(!planMatch) return false;
     if((t.page || 1) !== pageNum) return false;
-    return t.x != null && t.y != null;
+    return (t.nx != null && t.ny != null) || (t.x_pct != null && t.y_pct != null) || (t.x != null && t.y != null);/* v3.9.134: nx/ny ODER x_pct ODER Pixel — Pixel nicht mehr Pflicht */
   });
 
   return React.createElement('div', {
@@ -10825,10 +10826,10 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       React.createElement('div', {
         style: {position: "absolute", top: 8, right: 8, display: "flex", gap: 4, zIndex: 10, background: V.bg + "ee", padding: 4, borderRadius: 6, border: "1px solid " + V.bd}
       },
-        React.createElement('button', {onClick: () => setScale(s => Math.max(0.5, s - 0.25)), title: "Zoom raus", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "−"),
-        React.createElement('span', {style: {padding: "4px 8px", fontSize: 11, color: V.tx, minWidth: 50, textAlign: "center"}}, Math.round(scale * 100) + "%"),
-        React.createElement('button', {onClick: () => setScale(s => Math.min(4, s + 0.25)), title: "Zoom rein", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "+"),
-        React.createElement('button', {onClick: () => { setScale(1.5); setPan({x: 0, y: 0}); }, title: "Auf Bildschirmgroesse", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⊡"),
+        React.createElement('button', {onClick: () => setZoom(z => Math.max(0.4, z - 0.25)), title: "Zoom raus", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "−"),
+        React.createElement('span', {style: {padding: "4px 8px", fontSize: 11, color: V.tx, minWidth: 50, textAlign: "center"}}, Math.round(zoom * 100) + "%"),
+        React.createElement('button', {onClick: () => setZoom(z => Math.min(6, z + 0.25)), title: "Zoom rein", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "+"),
+        React.createElement('button', {onClick: () => { setZoom(1); setPan({x: 0, y: 0}); }, title: "Auf Bildschirmgroesse", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⊡"),
         React.createElement('button', {onClick: () => setShowTickets(s => !s), title: showTickets ? "Pins ausblenden" : "Pins einblenden", style: {padding: "4px 8px", background: showTickets ? V.ac : V.cd, color: showTickets ? "#fff" : V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "📍"),
         pageCount > 1 ? React.createElement('button', {onClick: () => setPageNum(p => Math.max(1, p-1)), disabled: pageNum<=1, title: "Vorherige Seite", style: {padding: "4px 8px", background: V.cd, color: pageNum<=1?V.dm:V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: pageNum<=1?"default":"pointer", fontFamily: "inherit", opacity: pageNum<=1?0.5:1}}, "◀") : null,
         pageCount > 1 ? React.createElement('span', {style: {padding: "4px 8px", fontSize: 11, color: V.tx, minWidth: 50, textAlign: "center"}}, pageNum + "/" + pageCount) : null,
@@ -10854,12 +10855,12 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
         style: {position: "absolute", inset: 0, cursor: pinMode ? "crosshair" : (isPanning ? "grabbing" : "grab"), display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto"}
       },
         React.createElement('div', {
-          style: {transform: "translate(" + pan.x + "px, " + pan.y + "px)", position: "relative", display: "inline-block"}
+          style: {transform: "translate(" + pan.x + "px, " + pan.y + "px) scale(" + zoom + ")", transformOrigin: "0 0", position: "relative", display: "inline-block", willChange: "transform"}/* v3.9.134 World-Container */
         },
           _isPdf ? React.createElement('canvas', {
             ref: canvasRef,
             onClick: handleCanvasClick,
-            style: {display: "block", maxWidth: "none", boxShadow: "0 4px 16px rgba(0,0,0,.4)"}
+            style: {display: "block", maxWidth: "none", boxShadow: "0 4px 16px rgba(0,0,0,.4)", width: (pageDims&&pageDims.baseWidth?pageDims.baseWidth+"px":"auto"), height: (pageDims&&pageDims.baseHeight?pageDims.baseHeight+"px":"auto")}/* v3.9.134: feste CSS-Größe; Bitmap @scale scharf, Zoom via world-div */
           }) : (plan ? React.createElement('img', {
             src: _planSrc,
             alt: (plan&&plan.name)||"Plan",
@@ -10868,8 +10869,8 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
           }) : null),
           showTickets ? ticketsOnPage.map((t, i) => {
             // v3.8.59 Schema-Reality: tickets sind Pixel (x,y); Render konvertiert zu % via pageDims.
-            const _xPct = (t.x_pct!=null)?Number(t.x_pct):(t.xPct!=null?Number(t.xPct):(pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0));/* v3.9.133 P3b: kanonisches %% bevorzugen (zoom-/seiten-unabhängig), Altdaten via Pixel/baseWidth */
-            const _yPct = (t.y_pct!=null)?Number(t.y_pct):(t.yPct!=null?Number(t.yPct):(pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0));
+            const _xPct = (t.nx!=null)?Number(t.nx)*100:((t.x_pct!=null)?Number(t.x_pct):(t.xPct!=null?Number(t.xPct):(pageDims && pageDims.baseWidth ? (t.x / pageDims.baseWidth * 100) : 0)));/* v3.9.134: nx/ny (0..1) kanonisch bevorzugen, dann x_pct/xPct, dann Pixel/baseWidth (Altdaten) */
+            const _yPct = (t.ny!=null)?Number(t.ny)*100:((t.y_pct!=null)?Number(t.y_pct):(t.yPct!=null?Number(t.yPct):(pageDims && pageDims.baseHeight ? (t.y / pageDims.baseHeight * 100) : 0)));
             /* v3.9.71 S51-1: PlanRadar-Match — Hover-Quick-Info Card + ≥44px Touch-Target + Status-Color-Fill + Pulse für NEW. */
             return React.createElement(PlanCanvasPinMarker, {
               key: t.id,
@@ -10878,6 +10879,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
               isSelected: !!(selectedTicket && selectedTicket.id === t.id),
               xPct: _xPct,
               yPct: _yPct,
+              zoom: zoom,
               onClick: onPinClick,
               layers: layers,
               monteure: monteure
@@ -10895,7 +10897,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
               opacity: 0.7,
               border: "3px dashed #fff",
               boxShadow: "0 4px 12px rgba(0,0,0,.5)",
-              transform: "translate(-50%, -100%) rotate(-45deg)",
+              transform: "translate(-50%, -100%) scale(" + (1/(zoom||1)) + ") rotate(-45deg)",/* v3.9.134: konstante Größe */
               zIndex: 25,
               pointerEvents: "none"
             }
@@ -10975,7 +10977,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     const _isMtTicket=_vpIsField&&!isAdmin;
     const _ticketAssignee=_isMtTicket?_vpMid:(newTicket.assignee||"");
     if(_isMtTicket&&_ticketAssignee!==_vpMid){_optionalChain([window,'access',_g324e=>_g324e.__toast,'optionalCall',_g324f=>_g324f("⚠️ Keine Berechtigung — Monteure können Tickets nur sich selbst zuweisen","warn")]);return;}
-    const ticket={...newTicket,assignee:_ticketAssignee,id:uid(),createdAt:td2(),updatedAt:td2(),progress:0};setPlanData(prev=>({...prev,tickets:[...prev.tickets,ticket]}));SQ.push({url:"/api/tickets",method:"POST",body:{id:ticket.id,plan_id:_optionalChain([selPlan, 'optionalAccess', _387 => _387.id]),project_id:p.id,x:ticket.x||0,y:ticket.y||0,x_pct:(ticket.xPct!=null?ticket.xPct:null),y_pct:(ticket.yPct!=null?ticket.yPct:null)/* v3.9.133 P3b: kanonisches %% persistieren */,page:ticket.page||1,title:ticket.title,description:ticket.description||"",status:"offen",priority:ticket.priority||"normal",layer:ticket.layer||"maengel",gewerk:ticket.gewerk||ticket.layer||"maengel"/* v3.9.132 P1b: gewerk kanonisch zusätzlich befüllen (layer deprecated, bleibt für Ebenen-Toggle-Kompat) */,assignee:ticket.assignee||"",photos:[]}});if(ticket.type==="mangel"){setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),{id:ticket.id,pid:p.id,name:ticket.title,ebene:_optionalChain([layers, 'access', _388 => _388.find, 'call', _389 => _389(l=>l.id===ticket.layer), 'optionalAccess', _390 => _390.name])||"",worker:ticket.assignee,frist:ticket.dueDate||td2(),prio:ticket.priority==="kritisch"||ticket.priority==="hoch"?"hoch":ticket.priority,status:"offen",date:td2(),fromPlan:true}]}));SQ.push({url:"/api/defects",method:"POST",body:{id:ticket.id,projectId:p.id,title:ticket.title,description:ticket.description||"",status:"offen",prio:ticket.priority||"normal",images:[]}});}setNewTicket(null);setSideMode("tickets");setSelTicket(ticket);};
+    const ticket={...newTicket,assignee:_ticketAssignee,id:uid(),createdAt:td2(),updatedAt:td2(),progress:0};setPlanData(prev=>({...prev,tickets:[...prev.tickets,ticket]}));SQ.push({url:"/api/tickets",method:"POST",body:{id:ticket.id,plan_id:_optionalChain([selPlan, 'optionalAccess', _387 => _387.id]),project_id:p.id,x:ticket.x||0,y:ticket.y||0,x_pct:(ticket.xPct!=null?ticket.xPct:null),y_pct:(ticket.yPct!=null?ticket.yPct:null),nx:(ticket.xPct!=null?ticket.xPct/100:null),ny:(ticket.yPct!=null?ticket.yPct/100:null)/* v3.9.134 World-Container: nx/ny ∈ 0..1 kanonisch (Brief), x_pct als Transition */,page:ticket.page||1,title:ticket.title,description:ticket.description||"",status:"offen",priority:ticket.priority||"normal",layer:ticket.layer||"maengel",gewerk:ticket.gewerk||ticket.layer||"maengel"/* v3.9.132 P1b: gewerk kanonisch zusätzlich befüllen (layer deprecated, bleibt für Ebenen-Toggle-Kompat) */,assignee:ticket.assignee||"",photos:[]}});if(ticket.type==="mangel"){setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),{id:ticket.id,pid:p.id,name:ticket.title,ebene:_optionalChain([layers, 'access', _388 => _388.find, 'call', _389 => _389(l=>l.id===ticket.layer), 'optionalAccess', _390 => _390.name])||"",worker:ticket.assignee,frist:ticket.dueDate||td2(),prio:ticket.priority==="kritisch"||ticket.priority==="hoch"?"hoch":ticket.priority,status:"offen",date:td2(),fromPlan:true}]}));SQ.push({url:"/api/defects",method:"POST",body:{id:ticket.id,projectId:p.id,title:ticket.title,description:ticket.description||"",status:"offen",prio:ticket.priority||"normal",images:[]}});}setNewTicket(null);setSideMode("tickets");setSelTicket(ticket);};
   const updateTicket=u=>{setPlanData(prev=>({...prev,tickets:prev.tickets.map(t=>t.id===u.id?u:t)}));setSelTicket(u);/* v3.8.49 Bug-Fix: progress-Feld fehlte im Server-Body — UI-Range-Slider (0-100%) änderte nur lokalen State, nach Reload war Fortschritt wieder alt. Auch updatedAt mitschicken für Audit. */SQ.push({url:"/api/tickets/"+u.id,method:"PUT",body:{title:u.title,description:u.description||"",status:u.status,priority:u.priority||"normal",assignee:u.assignee||"",photos:u.photos||[],progress:u.progress||0,updated_at:u.updatedAt||td2()/* v3.9.17 B-007 TZ-drift: toISOString().slice(0,10) drifted +1d für late-Wien-evening updates → _ymd via td2() */}});};
   const deleteTicket=async id=>{if(!isAdmin)return;if(!await _confirmModal("Ticket wirklich löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,tickets:prev.tickets.filter(t=>t.id!==id)}));SQ.push({url:"/api/tickets/"+id,method:"DELETE"});setSelTicket(null);setSideMode("tickets");};
   const toggleLayer=id=>setPlanData(prev=>({...prev,layers:prev.layers.map(l=>l.id===id?{...l,visible:!l.visible}:l)}));

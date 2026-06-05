@@ -10,9 +10,9 @@ def test_pinch_logic_uses_pointers_map():
 
 def test_pinch_clamps_scale():
     text = INDEX.read_text(encoding='utf-8')
-    # scale muss Math.max(0.5, Math.min(4, ...)) clamps haben
-    m = re.search(r'setScale\(s\s*=>\s*Math\.max\(([\d.]+),\s*Math\.min\(([\d.]+),\s*s\s*\*\s*ratio\)', text)
-    assert m, 'Pinch-Scale muss geclamp sein zwischen min und max'
+    # v3.9.134 World-Container: Pinch ändert CSS-zoom (clamp 0.4..6), nicht den pdf-Render-scale
+    m = re.search(r'setZoom\(z\s*=>\s*Math\.max\(([\d.]+),\s*Math\.min\(([\d.]+),\s*z\s*\*\s*ratio\)', text)
+    assert m, 'Pinch-Zoom muss geclamp sein zwischen min und max'
     minVal, maxVal = float(m.group(1)), float(m.group(2))
     assert minVal >= 0.1 and minVal <= 1.0
     assert maxVal >= 2.0 and maxVal <= 10.0
