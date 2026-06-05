@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.145';
+  var SW_VER='epkolar-v3.9.146';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.145-supabase";
+const APP_VERSION="3.9.146-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10855,6 +10855,38 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
     if((t.page || 1) !== pageNum) return false;
     return t.x != null && t.y != null;/* v3.9.136: x/y (%) Pflicht — eine Konvention, DB-konsistent */
   });
+  /* v3.9.146 Phase 4: Plan MIT Pin-Overlay als PNG exportieren — gerenderter PDF-Canvas + Pins an x/y(%)
+     auf ein Offscreen-Canvas, dann Download. Zwei-Stufen-Farben wie die Pins (Fill=Status, Rand=Zuweisung). */
+  const exportPlanImage = () => {
+    const src = canvasRef.current;
+    if(!src || !src.width || loadError) { if(window.__toast) window.__toast("Plan noch nicht geladen — bitte warten","info",2500); return; }
+    try {
+      const out = document.createElement('canvas');
+      out.width = src.width; out.height = src.height;
+      const ctx = out.getContext('2d');
+      ctx.drawImage(src, 0, 0);
+      const rad = Math.max(11, out.width * 0.011);
+      (ticketsOnPage || []).forEach((t, idx) => {
+        if(t.x == null || t.y == null) return;
+        const px = (Number(t.x)/100) * out.width;
+        const py = (Number(t.y)/100) * out.height;
+        const _hs = !!(t.status && TICKET_STATUS && TICKET_STATUS[t.status]);
+        const fill = t.color || (_hs ? TICKET_STATUS[t.status].c : "#ffffff");
+        const border = t.assignee ? "#22c55e" : "#9ca3af";
+        ctx.beginPath(); ctx.arc(px, py, rad, 0, 2*Math.PI);
+        ctx.fillStyle = fill; ctx.fill();
+        ctx.lineWidth = Math.max(2, rad*0.2); ctx.strokeStyle = border; ctx.stroke();
+        ctx.fillStyle = _hs ? "#ffffff" : "#111111"; ctx.font = "bold " + Math.round(rad*0.95) + "px sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(String(idx+1), px, py);
+      });
+      const a = document.createElement('a');
+      a.href = out.toDataURL('image/png');
+      a.download = (((plan && plan.name) || "plan").replace(/[^\w.-]+/g,"_")) + "_S" + pageNum + "_tickets.png";
+      a.click();
+      if(window.__toast) window.__toast("📥 Plan-Bild exportiert (" + (ticketsOnPage||[]).length + " Pins)","success",2500);
+    } catch(e){ console.warn("[PlanViewer] Export:", e && e.message || e); if(window.__toast) window.__toast("Export fehlgeschlagen: " + (e && e.message || e),"error",3000); }
+  };
 
   return React.createElement('div', {
     ref: containerRef,
@@ -10879,6 +10911,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
         React.createElement('span', {style: {padding: "4px 8px", fontSize: 11, color: V.tx, minWidth: 50, textAlign: "center"}}, Math.round(zoom * 100) + "%"),
         React.createElement('button', {onClick: () => _zoomCenter(0.25), title: "Zoom rein", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "+"),
         React.createElement('button', {onClick: () => { setZoom(1); setPan({x: 0, y: 0}); }, title: "Auf Bildschirmgroesse", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⊡"),
+        React.createElement('button', {onClick: exportPlanImage, title: "Plan mit Pins als Bild (PNG) exportieren", "aria-label": "Plan als Bild exportieren", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "📥"),/* v3.9.146 Phase 4: Plan-Bild-Export mit Pins */
         React.createElement('button', {onClick: () => setShowTickets(s => !s), title: showTickets ? "Pins ausblenden" : "Pins einblenden", style: {padding: "4px 8px", background: showTickets ? V.ac : V.cd, color: showTickets ? "#fff" : V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "📍"),
         pageCount > 1 ? React.createElement('button', {onClick: () => setPageNum(p => Math.max(1, p-1)), disabled: pageNum<=1, title: "Vorherige Seite", style: {padding: "4px 8px", background: V.cd, color: pageNum<=1?V.dm:V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: pageNum<=1?"default":"pointer", fontFamily: "inherit", opacity: pageNum<=1?0.5:1}}, "◀") : null,
         pageCount > 1 ? React.createElement('span', {style: {padding: "4px 8px", fontSize: 11, color: V.tx, minWidth: 50, textAlign: "center"}}, pageNum + "/" + pageCount) : null,
