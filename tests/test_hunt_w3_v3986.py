@@ -8,8 +8,9 @@ def test_fs_chips_border_parenthesized(index_html):
 
 
 def test_whatsapp_only_first_fertig_entry(index_html):
-    # P2: seit v3.9.122 (alle Wechsel frei) feuerte FERTIG→FERTIG-Korrektur die Abschluss-WhatsApp erneut
-    assert "AS_GRP_FERTIG.includes(updates.scheinstatus)&&!AS_GRP_FERTIG.includes(s.scheinstatus)" in index_html
+    # v3.9.152: Logik in _maybeNotifyAsDone — nur ERSTER FERTIG-Eintritt + Double-Fire-Guard (notified-Menge)
+    assert "if(!AS_GRP_FERTIG.includes(newStatus)||AS_GRP_FERTIG.includes(prevStatus))return;" in index_html
+    assert "if(_key&&_waNotifiedAs.has(_key))return;" in index_html
 
 
 def test_termin_dates_parsed_local(index_html):

@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.151';
+  var SW_VER='epkolar-v3.9.152';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.151-supabase";
+const APP_VERSION="3.9.152-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -2721,6 +2721,34 @@ const AS_TRANSITIONS={aufgenommen:_AS_ALL_STATES,freigegeben:_AS_ALL_STATES,in_b
 const _isLegalAsTransition=(from,to)=>from===to||(AS_TRANSITIONS[from]||[]).includes(to);
 const AS_GRP_OFFEN=["aufgenommen","freigegeben","in_bearbeitung","aufgeschoben"];
 const AS_GRP_FERTIG=["erledigt","abgerechnet","bar_bezahlt"];
+/* v3.9.152 (Agent-Fund): WhatsApp "Auftrag abgeschlossen" ZENTRAL — vorher nur in updAs (Inline-Dropdown/Swipe),
+   sodass Edit-Formular + Auto-Close NIE sendeten. Plus Double-Fire-Guard (Round-Trip erledigt→x→erledigt) via
+   persistierter notified-Menge + kundTel-Fallback (JUPROWA-Tickets haben Tel in kundTel statt telefon).
+   WhatsApp ist mockMode bis whatsapp_config gesetzt — Sebastian testet vor Go-Live. */
+const _waNotifiedAs=new Set();let _waNotifiedLoaded=false;
+async function _waEnsureNotified(){if(_waNotifiedLoaded)return;try{const a=await ODB.load("waNotifiedAs");(a||[]).forEach(id=>_waNotifiedAs.add(id));}catch(_e){}_waNotifiedLoaded=true;}
+function _maybeNotifyAsDone(asRec,prevStatus,newStatus,idFallback){
+  try{
+    if(!asRec||!newStatus||newStatus===prevStatus)return;
+    if(!AS_GRP_FERTIG.includes(newStatus)||AS_GRP_FERTIG.includes(prevStatus))return;/* nur ERSTER Eintritt in FERTIG */
+    const phone=(asRec.telefon||asRec.kundTel||"").trim();
+    if(!phone)return;
+    (async()=>{
+      try{
+        await _waLoadConfig();
+        if(!_waConfig.enabled)return;
+        const tpls=await _waLoadTemplates();
+        const tpl=(tpls||[]).find(t=>t&&t.enabled&&t.auto_trigger==='as_status_change');
+        if(!tpl)return;
+        await _waEnsureNotified();
+        const _key=asRec.id||idFallback;
+        if(_key&&_waNotifiedAs.has(_key))return;/* Double-Fire-Guard */
+        if(_key){_waNotifiedAs.add(_key);try{ODB.save("waNotifiedAs",[..._waNotifiedAs].slice(-2000));}catch(_e){}}
+        await _waSendMessage(tpl.name||'as_status_abgeschlossen',phone,[asRec.kundName||'Kunde',asRec.nummer||_key||'-']);
+      }catch(e){console.warn('[WA notify]',e&&e.message||e);}
+    })();
+  }catch(e){console.warn('[WA notify outer]',e&&e.message||e);}
+}
 const AS_PRIO={keine:{l:"keine",c:"#71717a"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},dringend:{l:"dringend",c:COLORS.ERROR}};
 const AS_ART={kein:{l:"kein",i:"—"},stoerung:{l:"Störung",i:"⚡"},lieferung:{l:"Lieferung",i:"📦"},reparatur:{l:"Reparatur",i:"🔧"},montage:{l:"Montage",i:"🏗️"},mangelbehebung:{l:"Mangelbehebung",i:"🔨"},garantie:{l:"Garantie",i:"🛡️"},wartung:{l:"Wartung",i:"🔩"},regie:{l:"Regie",i:"📋"}};/* v3.9.127 F5: additiv — parseVoice setzte "wartung"/"regie", die nirgends definiert waren → "?"-Rendering; Statistik-Farbmapping existierte bereits */
 const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};
@@ -6108,31 +6136,15 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const _normDauer=(form.dauer!==""&&form.dauer!=null)?String(form.dauer).replace(",","."):form.dauer;/* v3.9.125: Komma→Punkt (Tankbuch-Muster) — iOS-decimal-Tastatur kann "3,5" durchlassen, parseFloat("3,5")=3 hätte halbe Stunden verschluckt */
     const _finalForm=_shouldAutoClose?{...form,dauer:_normDauer,scheinstatus:"erledigt",abschlussDatum:form.abschlussDatum||_ymd(new Date())}:{...form,dauer:_normDauer};
     const _isPush=editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>_finalForm[k]!==undefined);
-    if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
+    if(editId){const _bv=(curUser.name||curUser.username||"").split(" ").pop().toUpperCase();setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{..._finalForm,bearbeitetVon:_bv,push_pending:_isPush?true:a.push_pending}:a));/* v3.9.152: WhatsApp-Abschluss auch beim Formular-Speichern/Auto-Close */const _prevAs=arbeitsscheine.find(a=>a.id===editId)||{};_maybeNotifyAsDone({..._prevAs,..._finalForm}, _prevAs.scheinstatus, _finalForm.scheinstatus, editId);_optionalChain([pushNotif, 'optionalCall', _111 => _111("as_status","Arbeitsschein geändert",_finalForm.nummer+" — "+_finalForm.kundName+" ("+(curUser.name||curUser.username||"?")+")")]);}
     else{setArbeitsscheine(prev=>[{..._finalForm,id:uid()},...prev]);_optionalChain([pushNotif, 'optionalCall', _112 => _112("as_new","Neuer Arbeitsschein",_finalForm.nummer+" — "+(_finalForm.kundName||_optionalChain([_finalForm, 'access', _113 => _113.arbeitsanweisungen, 'optionalAccess', _114 => _114.slice, 'call', _115 => _115(0,40)]))+" ("+(curUser.name||curUser.username||"?")+")")]);}
     SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_isPush?{..._finalForm,push_pending:true,local_updated_at:new Date().toISOString()}:_finalForm});if(editId&&_finalForm.juprowa_id)_juprowaMarkEdited(editId,_finalForm);/* v3.8.42 Auto-Push: _juprowaPushAll hing (4-Min-Timeout, Chrome-MCP-Capture 24.04). Ersetzt durch _juprowaPush(editId) single-id fire-and-forget. Nur online + Juprowa-gebunden. */try{if(editId&&_finalForm.juprowa_id&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(editId).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',editId,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',editId,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}try{window._epkVibrate&&window._epkVibrate("save");}catch(e){console.warn('[silent-dom]',e&&e.message||e);}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);/* v3.9.42 Sprint-27 F2 Tier-1: saveAs gibt _finalForm zurück — Caller (Speichern&PDF) bekommt auto-close-aware Form für genAsPdf statt stale `form`. */return _finalForm;};
   const storno=async id=>{/* v3.9.81 SPRINT-60 F-1: native confirm to _confirmModal (EP-CI-Styling, Sprint 40/44 standard). */ if(!await _confirmModal("Arbeitsschein wirklich stornieren?",{variant:"danger"}))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});if(isJup)_juprowaMarkEdited(id,{scheinstatus:"storniert"});/* v3.8.42 Auto-Push */try{if(isJup&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
   const deleteAs=async id=>{if(!isAdmin)return;if(!await _confirmModal("Arbeitsschein endgültig löschen?",{variant:"danger"}))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
   const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});if(pp)_juprowaMarkEdited(id,{terminBestaetigt:d});/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}};
   const updAs=(id,updates)=>{const s=arbeitsscheine.find(x=>x.id===id);const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});if(s&&s.juprowa_id)_juprowaMarkEdited(id,updates);/* v3.8.42 Auto-Push */try{if(pp&&navigator.onLine&&typeof _juprowaPush==="function"){_juprowaPush(id).then(r=>{if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',id,(r&&r.error)||'unknown');}).catch(e=>console.warn('[AUTOPUSH-EXC]',id,e&&e.message||e));}}catch(e){console.warn('[silent-async]',e&&e.message||e);}
-    /* v3.9.19 Feature 12: WhatsApp Auto-Trigger bei Status-Wechsel → erledigt (Mock-Mode fail-safe). */
-    try{
-      if(s&&updates&&updates.scheinstatus&&updates.scheinstatus!==s.scheinstatus&&AS_GRP_FERTIG.includes(updates.scheinstatus)&&!AS_GRP_FERTIG.includes(s.scheinstatus)){/* v3.9.124: nur beim ERSTEN Eintritt in FERTIG — seit v3.9.122 (alle Wechsel frei) löste z.B. erledigt→abgerechnet sonst ERNEUT die "Auftrag abgeschlossen"-WhatsApp an den Kunden aus */
-        const phone=(s.telefon||updates.telefon||"").trim();
-        if(phone){
-          (async()=>{
-            try{
-              await _waLoadConfig();
-              if(!_waConfig.enabled)return;
-              const tpls=await _waLoadTemplates();
-              const tpl=(tpls||[]).find(t=>t&&t.enabled&&t.auto_trigger==='as_status_change');
-              if(!tpl)return;
-              await _waSendMessage(tpl.name||'as_status_abgeschlossen',phone,[s.kundName||'Kunde',s.nummer||id||'-']);
-            }catch(e){console.warn('[WA auto-trigger]',e&&e.message||e);}
-          })();
-        }
-      }
-    }catch(e){console.warn('[WA auto-trigger outer]',e&&e.message||e);}
+    /* v3.9.152: WhatsApp-Abschluss zentral via _maybeNotifyAsDone (auch saveAs/Auto-Close, Double-Fire-Guard, kundTel) */
+    _maybeNotifyAsDone({...s,...updates}, s&&s.scheinstatus, updates&&updates.scheinstatus, id);
   };
 
   const exportOffa=(statusFilter)=>{setShowExportPicker(false);if(navigator.onLine&&_optionalChain([API, 'optionalAccess', _121 => _121.getToken, 'call', _122 => _122()])){API.exportOffa({}).catch(e=>console.warn('[EXPORT-OFFA]',e&&e.message||e));}
@@ -6939,7 +6951,7 @@ function sharePdf(){
                   try{
                     await _waLoadConfig();
                     if(!_waConfig.enabled){_optionalChain([window,'access',_wa1=>_wa1.__toast,'optionalCall',_wa2=>_wa2("📱 WhatsApp nicht konfiguriert (Einstellungen)","warn")]);return;}
-                    const phone=(form.telefon||"").trim();
+                    const phone=(form.telefon||form.kundTel||"").trim();/* v3.9.152: JUPROWA-Tel in kundTel */
                     if(!phone){_optionalChain([window,'access',_wa3=>_wa3.__toast,'optionalCall',_wa4=>_wa4("📱 Keine Telefonnummer am Schein hinterlegt","warn")]);return;}
                     const r=await _waSendMessage('as_status_abgeschlossen',phone,[form.kundName||'Kunde',form.nummer||form.id||'-']);
                     if(r&&r.mock){_optionalChain([window,'access',_wa5=>_wa5.__toast,'optionalCall',_wa6=>_wa6("📱 WhatsApp MOCK gesendet (Live-API noch nicht aktiv)")]);return;}

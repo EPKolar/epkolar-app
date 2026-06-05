@@ -45,7 +45,14 @@ Monteur erhält `tool_checkout` (default-prefs), aber hat keinen `werkzeuge`-Tab
 ### ✅ Gefixt
 - **P2 OFFA-Dedupe case-insensitiv** (commitImport): `a.nummer===parsed.nummer` → beidseitig `.toUpperCase()` (wie JUPROWA-Pfad). Sonst Duplikat-Insert bei lowercase-Altscheinen. *(v3.9.151)*
 
-### ⏳ OFFEN — WhatsApp-Abschluss-Notification (KUNDEN-AUSGEHEND, `_waSendMessage` sendet automatisch wenn `_waConfig.enabled`). NICHT blind geändert — Sebastian muss mit echter WA-Config testen.
+### ✅ GEFIXT v3.9.152 (mockMode-sicher — Sebastian muss vor Go-Live mit echter WA-Config + 1-2 Test-Tickets prüfen)
+Verifiziert: keine `whatsapp_config`-Zeile → `_waSendMessage` mockMode → kein Live-Kunden-Send. Daher Logik korrigiert (sendet nichts live):
+- 🔴→✅ **Double-Fire**: zentraler `_maybeNotifyAsDone` mit persistierter notified-Menge (`waNotifiedAs` ODB, cap 2000) → kein Duplikat bei erledigt→x→erledigt.
+- 🔴→✅ **Edit-Formular/Auto-Close sendet jetzt**: Helper aus updAs UND saveAs aufgerufen.
+- ✅ **Telefon**: `telefon||kundTel` in Helper + manuellem Senden-Button → JUPROWA-Tickets funktionieren.
+**Sebastian-Go-Live-Test ausstehend** (mockMode nicht real-getestet). Optional offen: DB-Spalte `wa_done_notified` für cross-device-Persistenz (aktuell per-device ODB).
+
+### ⏳ NOCH OFFEN (alte Notiz):
 
 **🔴 P1 Double-Fire bei Rück-Vor-Wechsel:** Seit „alle Wechsel frei" (v3.9.122) löst `erledigt→in_bearbeitung→erledigt` die „Auftrag abgeschlossen"-WhatsApp **erneut** aus (v3.9.124-Guard deckt nur FERTIG→FERTIG, nicht den Round-Trip). Kein persistiertes „bereits benachrichtigt"-Flag vorhanden → Kunde kann Duplikat-Nachricht bekommen.
 **Fix-Vorschlag:** AS-Feld `wa_done_notified=true` beim ersten Senden (DB-Spalte via Chat-Claude), Trigger `&& !s.wa_done_notified`; in updAs-Body + JUPROWA-Push aufnehmen. Interim ohne DB-Spalte: client-persistierte notified-AS-id-Menge in ODB.
