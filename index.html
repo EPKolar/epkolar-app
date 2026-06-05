@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.134';
+  var SW_VER='epkolar-v3.9.135';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.134-supabase";
+const APP_VERSION="3.9.135-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10671,7 +10671,12 @@ function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, laye
   const w = hov ? ((monteure || (typeof MONT !== "undefined" ? MONT : [])).find(x => x.id === ticket.assignee)) : null;
   const lyr = hov ? ((layers || []).find(l => l.id === (ticket.gewerk||ticket.layer))) : null;
   const _isNew = (() => { try { if(!ticket.createdAt) return false; const dt = new Date(ticket.createdAt + (ticket.createdAt.length === 10 ? "T12:00:00" : "")); return (Date.now() - dt.getTime()) < TIME_HOUR; } catch(e) { return false; } })();
-  const fillColor = ticket.color || ts.c || COLORS.ERROR;
+  /* v3.9.135 Phase 2 PlanRadar zweistufige Pin-Farben:
+     - Body-Fill = STATUS (TICKET_STATUS[status].c); kein/unbekannter Status → weiß.
+     - Border-Ring = ZUWEISUNG: offline/nicht-synchronisiert=orange, zugewiesen=grün, nicht zugewiesen=grau. */
+  const _hasStatus = !!(ticket.status && TICKET_STATUS && TICKET_STATUS[ticket.status]);
+  const fillColor = ticket.color || (_hasStatus ? ts.c : "#ffffff");
+  const _asgColor = (ticket.push_pending || ticket._offline) ? "#f97316" : (ticket.assignee ? "#22c55e" : "#9ca3af");
   return React.createElement('div', {
     onClick: (e) => { e.stopPropagation(); if(onClick) onClick(ticket); },
     onMouseEnter: () => setHov(true),
@@ -10679,8 +10684,8 @@ function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, laye
     style: {position:"absolute", left:xPct+"%", top:yPct+"%", width:44, height:44, marginLeft:-22, marginTop:-44, transform:"scale("+(1/(zoom||1))+")", transformOrigin:"50% 100%"/* v3.9.134 World-Container: scale(1/zoom) → Pin behält KONSTANTE Bildschirmgröße, wächst nicht mit dem Plan */, cursor:"pointer", zIndex:isSelected?60:hov?50:20, display:"flex", alignItems:"flex-end", justifyContent:"center"}
   },
     _isNew ? React.createElement('div', {style:{position:"absolute", left:"50%", bottom:6, width:34, height:34, marginLeft:-17, borderRadius:"50%", background:fillColor, opacity:.32, animation:"epkPinPulse 1.6s ease-out infinite", pointerEvents:"none"}}) : null,
-    React.createElement('div', {style:{width:28, height:36, background:fillColor, borderRadius:"50% 50% 50% 0", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#fff", border:isSelected?"3px solid #fff":"2px solid rgba(0,0,0,.35)", boxShadow:isSelected?"0 0 12px "+fillColor:hov?"0 4px 12px rgba(0,0,0,.5)":"0 2px 8px rgba(0,0,0,.4)", transform:"rotate(-45deg)", transition:"box-shadow .18s ease"}},
-      React.createElement('span', {style:{transform:"rotate(45deg)", lineHeight:1, pointerEvents:"none"}}, (idx + 1))
+    React.createElement('div', {style:{width:28, height:36, background:fillColor, borderRadius:"50% 50% 50% 0", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#fff", border:isSelected?"3px solid #fff":"3px solid "+_asgColor/* v3.9.135: Rand=Zuweisung */, boxShadow:isSelected?"0 0 12px "+_asgColor:hov?"0 4px 12px rgba(0,0,0,.5)":"0 2px 8px rgba(0,0,0,.4)", transform:"rotate(-45deg)", transition:"box-shadow .18s ease"}},
+      React.createElement('span', {style:{transform:"rotate(45deg)", lineHeight:1, pointerEvents:"none", color:_hasStatus?"#fff":"#111", textShadow:_hasStatus?"none":"none"}}, (idx + 1))
     ),
     tp && tp.l === "Kritisch" ? React.createElement('div', {style:{position:"absolute", top:4, right:6, width:10, height:10, borderRadius:"50%", background:COLORS.ERROR, border:"1.5px solid #fff", boxShadow:"0 0 4px rgba(239,68,68,.8)", pointerEvents:"none"}}) : null,
     hov && !isSelected ? React.createElement('div', {style:{position:"absolute", bottom:48, left:"50%", transform:"translateX(-50%)", background:V.cd, border:"1px solid "+V.bd, borderRadius:8, padding:"6px 10px", whiteSpace:"nowrap", fontSize:11, color:V.tx, boxShadow:"0 6px 18px rgba(0,0,0,.5)", pointerEvents:"none", maxWidth:260, zIndex:70}},
