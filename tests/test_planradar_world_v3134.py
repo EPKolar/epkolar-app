@@ -25,11 +25,12 @@ def test_canvas_fixed_css_size(index_html):
     assert 'width: (pageDims&&pageDims.baseWidth?pageDims.baseWidth+"px":"auto"), height: (pageDims&&pageDims.baseHeight?pageDims.baseHeight+"px":"auto")' in index_html
 
 
-def test_nx_ny_canonical(index_html):
-    # nx/ny ∈ 0..1 kanonisch (Brief): Writer persistiert, Render bevorzugt ×100
-    assert "nx:(ticket.xPct!=null?ticket.xPct/100:null),ny:(ticket.yPct!=null?ticket.yPct/100:null)" in index_html
-    assert "const _xPct = (t.nx!=null)?Number(t.nx)*100:" in index_html
-    assert "const _yPct = (t.ny!=null)?Number(t.ny)*100:" in index_html
+def test_xy_percent_canonical(index_html):
+    # v3.9.136 Chat-Claude live-DB: tickets.x/y SIND Prozent (0-100). Keine nx/x_pct-Spalten.
+    assert "const _xPct = (t.x!=null)?Number(t.x):0;" in index_html
+    assert "const _yPct = (t.y!=null)?Number(t.y):0;" in index_html
+    assert "x_pct:(ticket.xPct" not in index_html
+    assert "nx:(ticket.xPct" not in index_html
 
 
 def test_pin_constant_screen_size(index_html):
@@ -40,4 +41,4 @@ def test_pin_constant_screen_size(index_html):
 
 def test_pin_filter_not_pixel_only(index_html):
     # Pixel nicht mehr Pflicht: nx/ny ODER x_pct ODER Pixel
-    assert "return (t.nx != null && t.ny != null) || (t.x_pct != null && t.y_pct != null) || (t.x != null && t.y != null);" in index_html
+    assert "return t.x != null && t.y != null;/* v3.9.136" in index_html
