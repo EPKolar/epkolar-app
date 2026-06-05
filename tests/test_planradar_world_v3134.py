@@ -12,9 +12,10 @@ def test_world_div_transform(index_html):
 
 def test_pinch_and_buttons_use_css_zoom(index_html):
     # Pinch + Buttons ändern CSS-zoom, NICHT den pdf-Render-scale (kein async-Render-Drift)
-    assert "setZoom(z => Math.max(0.4, Math.min(6, z * ratio)));" in index_html
-    assert "setZoom(z => Math.max(0.4, z - 0.25))" in index_html
-    assert "setZoom(z => Math.min(6, z + 0.25))" in index_html
+    # v3.9.142: Pinch-Clamp im Fokuspunkt-setZoom, Buttons via _zoomCenter (Zentrum-fokussiert)
+    assert "const nz=Math.max(0.4,Math.min(6,z*ratio));" in index_html
+    assert "onClick: () => _zoomCenter(-0.25), title: \"Zoom raus\"" in index_html
+    assert "onClick: () => _zoomCenter(0.25), title: \"Zoom rein\"" in index_html
     # die alte pdf-rerender-zoom-Logik ist weg
     assert "setScale(s => Math.max(0.5, Math.min(4, s * ratio)));" not in index_html
     assert 'Math.round(zoom * 100) + "%"' in index_html
