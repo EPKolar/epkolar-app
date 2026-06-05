@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.141';
+  var SW_VER='epkolar-v3.9.142';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.141-supabase";
+const APP_VERSION="3.9.142-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10790,7 +10790,12 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       if(lastPinchDistRef.current) {
         const ratio = dist / lastPinchDistRef.current;
-        setZoom(z => Math.max(0.4, Math.min(6, z * ratio)));/* v3.9.134: Pinch ändert CSS-zoom, nicht den pdf-Render-scale */
+        /* v3.9.142 Phase 3 FOKUSPUNKT-ZOOM: Punkt unter den Fingern (Pinch-Midpoint) bleibt fix,
+           statt aus Ecke 0,0 zu springen. fx/fy = Midpoint im Viewport; pan kompensiert: panX=fx-(fx-panX)*r. */
+        const _mx=(pts[0].x+pts[1].x)/2, _my=(pts[0].y+pts[1].y)/2;
+        const _vr=viewportRef.current?viewportRef.current.getBoundingClientRect():null;
+        const _fx=_vr?(_mx-_vr.left):_mx, _fy=_vr?(_my-_vr.top):_my;
+        setZoom(z=>{const nz=Math.max(0.4,Math.min(6,z*ratio));const r=z>0?nz/z:1;setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r}));return nz;});
       }
       lastPinchDistRef.current = dist;
       return;
@@ -10836,6 +10841,12 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
 
   // v3.8.59 Schema-Reality: tickets-Tabelle hat NUR x/y (Pixel), kein xPct/yPct/page (DB-verifiziert 25.04 18:00).
   // Render konvertiert beim Display zu Prozent. Pin-Place konvertiert vor Server-Push zu Pixel.
+  /* v3.9.142 Phase 3: Button-Zoom um den Viewport-MITTELPUNKT (statt Ecke 0,0 → Plan springt nicht). */
+  const _zoomCenter = (delta) => {
+    const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
+    const _fx = _vr ? _vr.width/2 : 0, _fy = _vr ? _vr.height/2 : 0;
+    setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); const r = z>0?nz/z:1; setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r})); return nz; });
+  };
   const ticketsOnPage = (tickets || []).filter(t => {
     const planMatch = t.planId === (plan && plan.id) || t.plan_id === (plan && plan.id);
     if(!planMatch) return false;
@@ -10862,9 +10873,9 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       React.createElement('div', {
         style: {position: "absolute", top: 8, right: 8, display: "flex", gap: 4, zIndex: 10, background: V.bg + "ee", padding: 4, borderRadius: 6, border: "1px solid " + V.bd}
       },
-        React.createElement('button', {onClick: () => setZoom(z => Math.max(0.4, z - 0.25)), title: "Zoom raus", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "−"),
+        React.createElement('button', {onClick: () => _zoomCenter(-0.25), title: "Zoom raus", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "−"),
         React.createElement('span', {style: {padding: "4px 8px", fontSize: 11, color: V.tx, minWidth: 50, textAlign: "center"}}, Math.round(zoom * 100) + "%"),
-        React.createElement('button', {onClick: () => setZoom(z => Math.min(6, z + 0.25)), title: "Zoom rein", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "+"),
+        React.createElement('button', {onClick: () => _zoomCenter(0.25), title: "Zoom rein", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "+"),
         React.createElement('button', {onClick: () => { setZoom(1); setPan({x: 0, y: 0}); }, title: "Auf Bildschirmgroesse", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⊡"),
         React.createElement('button', {onClick: () => setShowTickets(s => !s), title: showTickets ? "Pins ausblenden" : "Pins einblenden", style: {padding: "4px 8px", background: showTickets ? V.ac : V.cd, color: showTickets ? "#fff" : V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "📍"),
         pageCount > 1 ? React.createElement('button', {onClick: () => setPageNum(p => Math.max(1, p-1)), disabled: pageNum<=1, title: "Vorherige Seite", style: {padding: "4px 8px", background: V.cd, color: pageNum<=1?V.dm:V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: pageNum<=1?"default":"pointer", fontFamily: "inherit", opacity: pageNum<=1?0.5:1}}, "◀") : null,
@@ -11021,18 +11032,18 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const _vpMid=(curUser&&curUser.monteurId)||"";
   /* v3.9.80 S55-1 useMemo: 2× filter pro Render → bei planData-Updates O(n) × 2. _vpMid stable. */
   const plans=_react.useMemo.call(void 0, ()=>planData.plans.filter(pl=>pl.pid===p.id),[planData.plans,p.id]);
-  /* v3.9.139 FIX "Plan-Viewer leer / geht gar nix": Auto-Select des ersten Plans, wenn Pläne existieren
-     aber keiner (mehr) ausgewählt ist. Vorher blieb selPlan=null → PlanViewerCanvas bekam plan=null →
-     leerer schwarzer Viewer (kein Canvas, PDF nie geladen). Sebastian live-bestätigt. */
-  _react.useEffect.call(void 0, ()=>{
-    if(plans && plans.length && (!selPlan || !plans.find(pl=>pl.id===selPlan.id))) setSelPlan(plans[0]);
-  },[plans, selPlan]);
   const allTickets=_react.useMemo.call(void 0, ()=>{
     const _raw=planData.tickets.filter(t=>t.pid===p.id);
     return _vpIsField?_raw.filter(t=>t.assignee===_vpMid):_raw;
   },[planData.tickets,p.id,_vpIsField,_vpMid]);
   const layers=planData.layers;
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");
+  /* v3.9.142 FIX TDZ: Auto-Select-Effekt MUSS nach der selPlan/plans-Deklaration stehen (vorher VOR
+     der const-Deklaration → "Cannot access selPlan before initialization" → VPlan-Crash = der echte
+     "geht gar nix"). Auto-Select erster Plan wenn keiner gewählt → PlanViewerCanvas bekommt plan. */
+  _react.useEffect.call(void 0, ()=>{
+    if(plans && plans.length && (!selPlan || !plans.find(pl=>pl.id===selPlan.id))) setSelPlan(plans[0]);
+  },[plans, selPlan]);
   /* v3.9.137 Tier: Ticket-IDs im Sync-Queue (noch nicht synchronisiert) → orange Pin-Rand. Periodisch + bei planData-Change. */
   const [_pendingTicketIds,_setPendingTicketIds]=_react.useState.call(void 0, ()=>new Set());
   _react.useEffect.call(void 0, ()=>{let _act=true;const _refresh=async()=>{try{const _q=(typeof SQ!=="undefined"&&SQ.getAll)?await SQ.getAll():[];if(!_act)return;const _ids=new Set();(_q||[]).forEach(it=>{if(!it||!it.url||it.url.indexOf("/api/tickets")<0)return;const _id=(it.body&&it.body.id)||(/\/api\/tickets\/([^/?]+)/.exec(it.url)||[])[1];if(_id)_ids.add(_id);});_setPendingTicketIds(_ids);}catch(_e){}};_refresh();const _iv=setInterval(_refresh,4000);return ()=>{_act=false;clearInterval(_iv);};},[planData]);const [zoom,setZoom]=_react.useState.call(void 0, 1);const [placing,setPlacing]=_react.useState.call(void 0, false);const [newTicket,setNewTicket]=_react.useState.call(void 0, null);const [filterType,setFilterType]=_react.useState.call(void 0, "alle");const [filterStatus,setFilterStatus]=_react.useState.call(void 0, "alle");const [filterLayer,setFilterLayer]=_react.useState.call(void 0, "alle");const [filterSearch,setFilterSearch]=_react.useState.call(void 0, "");
