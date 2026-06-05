@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.127';
+  var SW_VER='epkolar-v3.9.128';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.127-supabase";
+const APP_VERSION="3.9.128-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -4128,7 +4128,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
     let active=true;
     (async()=>{try{
       // Load defects for this project
-      const defs=await _sbGet("defects","project_id=eq."+encodeURIComponent(p.id)).catch(()=>[]);
+      const defs=await _sbGet("defects","project_id=eq."+encodeURIComponent(p.id)+"&melder=eq.Kunde").catch(()=>[]);/* v3.9.128 L-Defense-in-Depth: Portal lädt NUR kunden-gemeldete Mängel (Render filterte ohnehin auf melder==="Kunde"). Interne review_note/frist/zugewiesen anderer Mängel landen nicht mehr in der anon-Response. Die eigentliche Schranke bleibt RLS = Sebastian-Server-Audit. */
       if(!active)return;
       if(defs&&defs.length){setForms(prev=>({...prev,maengel:defs.map(_mapDefect)}));}
       // Load freed documents (kunde_freigabe=true)
@@ -7068,6 +7068,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const workers=useFilters?allWorkers.filter(w=>!hiddenMA.has(w.id)):allWorkers;
     if(!kwList.length){_optionalChain([window, 'access', _bex7 => _bex7.__toast, 'optionalCall', _bex8 => _bex8("\u26a0\ufe0f Keine KW-Daten","warn")]);return;}
 
+    const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");/* v3.9.128 M-P2: generateBWB escapte Kunden-/MA-/Tätigkeitsnamen NICHT (Zwilling exportBauwochenbericht tut es) → &/</> brachen die Excel beim Kunden/ÖBA */
     let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
     const sheetNames=["Summenblatt",...kwList.map(k=>"Bericht KW"+k.split("-")[1]+"-"+k.split("-")[0])];
     sheetNames.forEach(n=>{html+='<x:ExcelWorksheet><x:Name>'+n+'</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>';});
@@ -7082,11 +7083,11 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
 
       html+='<table id="Bericht_KW'+kwStr+'-'+yr+'">';
-      html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
+      html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+esc(proj.kunde||proj.name)+'</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" class="hdr">Bauwochenbericht</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
-      html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+w.name+'</th>';});
+      html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+esc(w.name)+'</th>';});
       html+='<th>Summe Std.</th><th>T\u00e4tigkeit</th></tr>';
       html+='<tr><td class="kwh" colspan="'+(nc+3)+'">KW'+kwStr+' / '+yr+'</td></tr>';
       days.forEach((day,di)=>{
@@ -7096,12 +7097,12 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
         html+='<td class="num sum">'+(rowSum?_n(rowSum,2):"")+'</td>';
         const _dayT=[...new Set(kwEntries.filter(e=>_fmtDate(e.datum)===ds).map(e=>e.taetigkeit).filter(Boolean))].join("; ");
-        html+='<td>'+(_dayT||"")+'</td></tr>';
+        html+='<td>'+esc(_dayT||"")+'</td></tr>';
       });
       const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
       html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
       workers.forEach(w=>{const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';});
-      html+='<td class="num">'+_n(kwTotal,2)+'</td><td>'+taetigkeit+'</td></tr>';
+      html+='<td class="num">'+_n(kwTotal,2)+'</td><td>'+esc(taetigkeit)+'</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:20px">&nbsp;</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="font-size:8pt;color:#666;border:none">Gegen diesen Bauwochenbericht kann innerhalb von 48 Stunden Berufung eingelegt werden. Ansonsten hat der Kunde bzw. Auftraggeber seinen Inhalt vollst\u00e4ndig zugestimmt und der Bericht G\u00fcltigkeit.</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:40px">&nbsp;</td></tr>';
@@ -7113,7 +7114,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
 
     // Summenblatt
     html+='<table id="Summenblatt">';
-    html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+(proj.kunde||proj.name)+'</td></tr>';
+    html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+esc(proj.kunde||proj.name)+'</td></tr>';
     html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
     html+='<tr><td colspan="'+(nc+3)+'" class="hdr">Summenblatt Bauwochenberichte</td></tr>';
     html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
@@ -7122,7 +7123,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       const days=_kwDates(parseInt(yr),kw);
       const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
       const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
-      html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+w.name+'</th>';});html+='<th>Summe</th><th>T\u00e4tigkeit</th></tr>';
+      html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+esc(w.name)+'</th>';});html+='<th>Summe</th><th>T\u00e4tigkeit</th></tr>';
       days.forEach((day,di)=>{
         const ds=_fmtDate(day);const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
         html+='<tr><td>'+dname+' '+String(day.getDate()).padStart(2,"0")+'.'+String(day.getMonth()+1).padStart(2,"0")+'.'+yr+'</td>';
@@ -7130,12 +7131,12 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         workers.forEach(w=>{const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(h?_n(h,2):"")+'</td>';rowSum+=h;});
         html+='<td class="num sum">'+(rowSum?_n(rowSum,2):"")+'</td>';
         const _dayT2=[...new Set(kwEntries.filter(e=>_fmtDate(e.datum)===ds).map(e=>e.taetigkeit).filter(Boolean))].join("; ");
-        html+='<td>'+(_dayT2||"")+'</td></tr>';
+        html+='<td>'+esc(_dayT2||"")+'</td></tr>';
       });
       const kwTotal=kwEntries.reduce((s,e)=>s+(e.stunden||0),0);
       html+='<tr class="sum"><td>Summe KW'+kwStr+'</td>';
       workers.forEach(w=>{const wSum=kwEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(wSum?_n(wSum,2):"")+'</td>';});
-      html+='<td class="num">'+_n(kwTotal,2)+'</td><td>'+taetigkeit+'</td></tr>';
+      html+='<td class="num">'+_n(kwTotal,2)+'</td><td>'+esc(taetigkeit)+'</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:4px"></td></tr>';
     });
     const rolleGroups={};
@@ -9486,7 +9487,7 @@ function VExport({p,entries,forms,monteure,ww,curUser}){
   const srvBase=buildExportPath("regie",p.nr,p.name).split("\\").slice(0,3).join("\\")+"\\";
   const genPdf=()=>{
     const now=new Date().toLocaleDateString("de-AT");const fname=buildExportFilename("protokoll",p.nr,td2(),1,"txt");
-    const lines=["╔══════════════════════════════════════════════════════════════════════════════╗","║     Andreas Kolar & Sohn GesmbH — Der Haustechnikprofi                      ║","║     PROJEKTDOKUMENTATION                                                    ║","╚══════════════════════════════════════════════════════════════════════════════╝","","Projekt:        "+p.name,"PA-Nr:          "+p.nr,"Kunde:          "+p.kunde,"Ort:            "+p.plz+" "+p.ort,"Kunden-Nr:      "+(p.kundenNr||"—"),"Matchcode:       "+p.matchcode,"Auftragssumme:  "+fmt$(p.betrag),"Gewerk:         "+(p.gewerk||_optionalChain([GW, 'access', _309 => _309[p.type], 'optionalAccess', _310 => _310.l])),"Status:         "+sc.l,"Beginn:         "+fdt(p.start),"Ende:           "+(p.ende?fdt(p.ende):"laufend"),"Fortschritt:    "+p.fortschritt+"%","Export-Datum:   "+now,"","Serverpfad:     "+srvBase,"Dateiname:      "+fname,"","───────────────────────────────────────────────","  ZEITERFASSUNG — "+_n(totalH,2)+"h gesamt ("+pe.length+" Buchungen)","───────────────────────────────────────────────",""];
+    const lines=["╔══════════════════════════════════════════════════════════════════════════════╗","║     Andreas Kolar & Sohn GesmbH — Der Haustechnikprofi                      ║","║     PROJEKTDOKUMENTATION                                                    ║","╚══════════════════════════════════════════════════════════════════════════════╝","","Projekt:        "+(p.name||"—"),"PA-Nr:          "+(p.nr||"—"),"Kunde:          "+(p.kunde||"—"),"Ort:            "+((p.plz||"")+" "+(p.ort||"")).trim(),"Kunden-Nr:      "+(p.kundenNr||"—"),"Matchcode:       "+(p.matchcode||"—"),/* v3.9.128 M-P2: Null-Guards — Altprojekte druckten sonst "Kunde: undefined"/"Matchcode: undefined" */"Auftragssumme:  "+fmt$(p.betrag),"Gewerk:         "+(p.gewerk||_optionalChain([GW, 'access', _309 => _309[p.type], 'optionalAccess', _310 => _310.l])),"Status:         "+sc.l,"Beginn:         "+fdt(p.start),"Ende:           "+(p.ende?fdt(p.ende):"laufend"),"Fortschritt:    "+(p.fortschritt||0)+"%","Export-Datum:   "+now,"","Serverpfad:     "+srvBase,"Dateiname:      "+fname,"","───────────────────────────────────────────────","  ZEITERFASSUNG — "+_n(totalH,2)+"h gesamt ("+pe.length+" Buchungen)","───────────────────────────────────────────────",""];
     if(pe.length){lines.push("Datum          Mitarbeiter    Gewerk         Tätigkeit                      Std.");lines.push("─".repeat(90));pe.forEach(x=>{const w=(monteure||MONT).find(y=>y.id===x.w);lines.push((fdt(x.date)||"").padEnd(15)+(_optionalChain([w, 'optionalAccess', _311 => _311.n])||"").padEnd(15)+(_optionalChain([GW, 'access', _312 => _312[x.gw], 'optionalAccess', _313 => _313.l])||"").padEnd(15)+(x.taetigkeit||x.task||"").padEnd(31)+_n((parseFloat(x.hours||x.stunden)||0),2));});}else{lines.push("Keine Zeitbuchungen vorhanden.");}
     lines.push("","───────────────────────────────────────────────","  FORMULARE & PROTOKOLLE","───────────────────────────────────────────────","","Regieberichte:         "+rg.length,"Schließfreigaben:      "+sf.length,"Dichtheitsprüfungen:   "+dh.length,"Ausheizprotokolle:     "+ah.length,"Abnahmeprotokolle:     "+ab.length,"Mängel gesamt:         "+mg.length+" (davon "+mgOffen+" offen)");
     if(rg.length){lines.push("","  Regieberichte:");rg.forEach((r,i)=>{lines.push("  #"+String(i+1).padStart(3,"0")+" "+(r.art||"")+" — "+fdt(r.datum)+" — "+(r.arbeit||"").substring(0,60));lines.push("    → "+buildExportPath("regie",p.nr,p.name)+buildExportFilename("regie",p.nr,r.datum,i+1));});}
@@ -12235,7 +12236,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
       txt+="──── "+fdt(e.datum)+" ────\n";
       txt+="Wetter: "+wetterLabel(e.wetter)+(e.temperatur?(" · "+e.temperatur+" °C"):"")+"\n";
       txt+="Anwesend: "+(wNames||"—")+"\n\n";
-      txt+="Tätigkeiten:\n"+e.taetigkeiten+"\n";
+      txt+="Tätigkeiten:\n"+(e.taetigkeiten||"—")+"\n";/* v3.9.128 M-P3: Null-Guard Bautagebuch-TXT */
       if(e.material)txt+="\nMaterial:\n"+e.material+"\n";
       if(e.besonderheiten)txt+="\nBesonderheiten:\n"+e.besonderheiten+"\n";
       txt+="\nErstellt von: "+(e.erstelltVon||"—")+"\n\n";

@@ -45,3 +45,11 @@ Werkzeuge/Mitarbeiter/Auswertungen/Einstellungen/Büro-Export/Admin) rendern **s
 - `||stdVonTag(d)`-Fallback in yearSt NICHT geändert (schützt unmigrierte Legacy-0-Rows; erst nach C1 anfassen).
 - React-Hunter: die 3 Crashes (StundenzettelView/ChartBox/WerkzeugView) waren der komplette TDZ/Scope-Satz; die AbsView-TDZ (v3.9.109) war von der Bug-Hunt-Welle selbst eingeschleppt und ist gefixt + per Test geguardet.
 - Offene Sebastian-Items unverändert: P0-2 supplier_configs (Edge-Deploy supplier-sync + REVOKE), admin-create-user-Deploy.
+
+## 🔴 KUNDENPORTAL — SERVER-SEITIG (Finder L, v3.9.128) — Sebastian/Chat-Claude RLS-Audit
+Das öffentliche Portal läuft mit anon-Key; die EINZIGE echte Schranke ist Supabase-RLS (aus index.html nicht prüfbar). Code-seitige Defense-in-Depth ist in v3.9.128 drin (Portal lädt nur melder=Kunde-Mängel), aber die P1 brauchen RLS:
+- **P1 portalCode enumerierbar**: `PortalEntry` macht anon-`_sbGet("projects",...)` mit Client-seitigem Code-Abgleich. Wenn anon-SELECT auf `projects` erlaubt ist → alle Codes+Projektzeilen (inkl. `betrag`!) abgreifbar. FIX: anon-SELECT auf projects verbieten; Portal-Login als SECURITY-DEFINER-RPC `portal_login(code)` die nur kundensichtbare Felder einer Zeile liefert.
+- **P1 Defect-Spoofing**: Mangel-POST nimmt `project_id` aus Client-Body (anon). Bei permissiver INSERT-RLS schreibt anon in BELIEBIGE project_id. FIX: INSERT-RLS bzw. RPC die project_id server-seitig aus dem portalCode ableitet.
+- **P1 Defect-Datensparsamkeit**: serverseitig `select` auf kundensichtbare Spalten begrenzen (review_note/frist/zugewiesen nie an anon).
+- **P2 Abnahme ohne Ownership**: `kundeAbnahme` PUT auf beliebige defect-id (anon). FIX: UPDATE-RLS bindet an portalCode-Projekt.
+- **P2 Rate-Limit**: kein Spam-Schutz für anon-Mangel-Flood. FIX: PostgREST/Edge-Rate-Limit pro Code/IP.
