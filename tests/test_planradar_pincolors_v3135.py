@@ -6,7 +6,8 @@ def test_two_stage_colors(index_html):
     assert 'const _hasStatus = !!(ticket.status && TICKET_STATUS && TICKET_STATUS[ticket.status]);' in index_html
     assert 'const fillColor = ticket.color || (_hasStatus ? ts.c : "#ffffff");' in index_html
     # Border-Ring = Zuweisung (offline=orange, zugewiesen=grün, sonst grau)
-    assert 'const _asgColor = (ticket.push_pending || ticket._offline) ? "#f97316" : (ticket.assignee ? "#22c55e" : "#9ca3af");' in index_html
+    # v3.9.137: _asgColor nutzt _isUnsynced (Sync-Queue) statt totem push_pending
+    assert 'const _asgColor = _isUnsynced ? "#f97316" : (ticket.assignee ? "#22c55e" : "#9ca3af");' in index_html
     assert '"3px solid "+_asgColor' in index_html
 
 

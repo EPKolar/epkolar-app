@@ -36,7 +36,7 @@ def test_xy_percent_canonical(index_html):
 def test_pin_constant_screen_size(index_html):
     # scale(1/zoom) am Pin-Anker (Bottom-Center) → konstante Bildschirmgröße
     assert 'transform:"scale("+(1/(zoom||1))+")", transformOrigin:"50% 100%"' in index_html
-    assert "function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure, zoom})" in index_html
+    assert "function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure, zoom" in index_html
 
 
 def test_pin_filter_not_pixel_only(index_html):
