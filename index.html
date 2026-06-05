@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.139';
+  var SW_VER='epkolar-v3.9.140';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.139-supabase";
+const APP_VERSION="3.9.140-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10711,6 +10711,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
   const [showTickets, setShowTickets] = _react.useState.call(void 0, true);
   const [pageDims, setPageDims] = _react.useState.call(void 0, null);
   const [loading, setLoading] = _react.useState.call(void 0, true);
+  const [loadError, setLoadError] = _react.useState.call(void 0, null);/* v3.9.140: Lade-Fehler statt schwarzem Viewer */
   const canvasRef = _react.useRef.call(void 0, null);
   const containerRef = _react.useRef.call(void 0, null);
   const panStartRef = _react.useRef.call(void 0, null);
@@ -10726,14 +10727,14 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
   _react.useEffect.call(void 0, () => {
     let active = true;
     if(!plan || !_isPdf || !_planSrc) { setLoading(false); return; }
-    setLoading(true);
+    setLoadError(null); setLoading(true);
     _planLoadPdf(plan.id, _planSrc).then(cache => {
       if(!active) return;
       setPageCount(cache.pageCount);
       setPageNum(1);
     }).catch(e => {
       console.warn("[PlanViewer] PDF load:", e && e.message || e);
-      if(active) setLoading(false);
+      if(active){ setLoading(false); setLoadError("PDF konnte nicht geladen werden: "+(e&&e.message||e)); }
     });
     return () => { active = false; };
   }, [plan && plan.id, _planSrc]);
@@ -10748,7 +10749,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       setLoading(false);
     }).catch(e => {
       console.warn("[PlanViewer] Render:", e && e.message || e);
-      if(active) setLoading(false);
+      if(active){ setLoading(false); setLoadError("Plan-Render fehlgeschlagen: "+(e&&e.message||e)); }
     });
     return () => { active = false; };
   }, [plan && plan.id, pageNum, scale, _isPdf]);
@@ -10872,6 +10873,14 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
       loading ? React.createElement('div', {
         style: {position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: V.dm, fontSize: 14, zIndex: 5}
       }, "📄 Plan wird geladen…") : null,
+      loadError && !loading ? React.createElement('div', {
+        style: {position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:V.dm, fontSize:13, zIndex:6, padding:24, textAlign:"center"}
+      },
+        React.createElement('div', {style:{fontSize:40}}, "⚠️"),
+        React.createElement('div', {style:{fontSize:15, fontWeight:700, color:V.tx}}, "Plan konnte nicht angezeigt werden"),
+        React.createElement('div', {style:{maxWidth:420, lineHeight:1.5}}, String(loadError).slice(0,160)),
+        _planSrc ? React.createElement('a', {href:_planSrc, target:"_blank", rel:"noopener", style:{...bpS, textDecoration:"none", display:"inline-block", marginTop:4}}, "📄 Plan im neuen Tab öffnen") : null
+      ) : null,/* v3.9.140: Fehler-Fallback statt schwarzem Viewer */
       /* v3.9.71 S51-4 PlanRadar-Cluster-Pill: Floating Pin-Count bottom-left auf Canvas (zeigt Total + offen — Plan-Sicht-Indikator). */
       !loading && plan && ticketsOnPage.length > 0 ? React.createElement('div', {
         style: {position: "absolute", bottom: 10, left: 10, zIndex: 10, background: V.cd + "ee", border: "1px solid " + V.bd, borderRadius: 16, padding: "4px 11px", display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: V.tx, boxShadow: "0 2px 8px rgba(0,0,0,.3)", pointerEvents: "none"}
