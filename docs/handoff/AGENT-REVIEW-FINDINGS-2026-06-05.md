@@ -37,3 +37,27 @@ Monteur erhält `tool_checkout` (default-prefs), aber hat keinen `werkzeuge`-Tab
 - Notif: markRead/delete/Alle-gelesen persistieren konsistent, unreadCount ist derived (kein Desync).
 - Notif: z-index Backdrop(199)/Panel(200) korrekt, Entry-Klicks nicht geschluckt.
 - Sync: Regex `/^HTTP(\d{3})/` matcht alle 7 Throw-Sites zuverlässig; transiente Fehler behalten Queue; Drops werden über `syncQueueFailed`+Banner+Toast sichtbar (nicht silent); `_mutex` serialisiert RMW-Ops.
+
+---
+
+## Welle 3 — Arbeitsscheine-Review (v3.9.151)
+
+### ✅ Gefixt
+- **P2 OFFA-Dedupe case-insensitiv** (commitImport): `a.nummer===parsed.nummer` → beidseitig `.toUpperCase()` (wie JUPROWA-Pfad). Sonst Duplikat-Insert bei lowercase-Altscheinen. *(v3.9.151)*
+
+### ⏳ OFFEN — WhatsApp-Abschluss-Notification (KUNDEN-AUSGEHEND, `_waSendMessage` sendet automatisch wenn `_waConfig.enabled`). NICHT blind geändert — Sebastian muss mit echter WA-Config testen.
+
+**🔴 P1 Double-Fire bei Rück-Vor-Wechsel:** Seit „alle Wechsel frei" (v3.9.122) löst `erledigt→in_bearbeitung→erledigt` die „Auftrag abgeschlossen"-WhatsApp **erneut** aus (v3.9.124-Guard deckt nur FERTIG→FERTIG, nicht den Round-Trip). Kein persistiertes „bereits benachrichtigt"-Flag vorhanden → Kunde kann Duplikat-Nachricht bekommen.
+**Fix-Vorschlag:** AS-Feld `wa_done_notified=true` beim ersten Senden (DB-Spalte via Chat-Claude), Trigger `&& !s.wa_done_notified`; in updAs-Body + JUPROWA-Push aufnehmen. Interim ohne DB-Spalte: client-persistierte notified-AS-id-Menge in ODB.
+
+**🔴 P1 Edit-Formular sendet NIE:** Der WA-Trigger sitzt nur in `updAs` (Inline-Dropdown/Swipe). Der **Edit-Formular-Speichern-Pfad (`saveAs`)** UND der **Auto-Close auf „erledigt"** (Doppel-Unterschrift) rufen `updAs` NICHT auf → die häufigsten Abschluss-Wege (Büro setzt Status im Formular, Monteur schließt vor Ort ab) senden **gar nichts**.
+**Fix-Vorschlag:** WA-on-done-Logik aus `updAs` in Helper extrahieren, in `saveAs` mitaufrufen (pre-edit-Status vs. final-Status vergleichen, inkl. Auto-Close-Override).
+
+**P2 Telefon-Feld-Mismatch:** JUPROWA-Tickets mappen Telefon in `kundTel`, nicht `telefon` → `const phone=(s.telefon||...)` ist leer → Notification no-opt für ALLE JUPROWA-Tickets (Großteil). Auch der manuelle Senden-Button (form.telefon-only).
+**Fix-Vorschlag:** `const phone=(s.telefon||s.kundTel||updates.telefon||"").trim();` in Auto-Trigger + manuellem Handler. (Achtung: aktiviert neue Sends → mit Double-Fire-Fix koppeln.)
+
+**P2 Billed→Draft-Revert propagiert zu JUPROWA:** Fat-Finger-Revert eines `abgerechnet`-Tickets nach `aufgenommen` wird beim nächsten JUPROWA-Pull/Push in die Buchhaltung propagiert (Sebastians „alle Wechsel frei"-Design). Vorschlag: `confirm()` für Transition aus AS_GRP_FERTIG zurück in AS_GRP_OFFEN (nicht-blockierend, wie storno).
+
+### ✅ Vom Agent als KORREKT bestätigt
+- Monteur-Anlage-Verbot solide (UI-Gate `as_create` versteckt „+ Neuer Schein" UND „🎤 Schnellerfassung"; `saveAs` re-blockt; kein Bypass via Edit/Duplicate/Voice/Offline).
+- Zahlen-Locale (`_normDauer` „3,5"→„3.5", NaN-Bail), absPerName exact-token (Doppel-Zählung gefixt), Sync-Button-nach-Drain (v3.9.38), Re-Import-Clobber-Schutz (status/termine/dauer aus Merge-Body gelöscht), OFFA-Leer-Zeilen-Filter — alle ✅.
