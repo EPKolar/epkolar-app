@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.148';
+  var SW_VER='epkolar-v3.9.149';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.148-supabase";
+const APP_VERSION="3.9.149-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5095,7 +5095,7 @@ class _ViewBoundary extends React.Component{
                  Bad-Request, außer 408/429) UND online-TypeErrors werden NIE erfolgreich → fallen in den
                  Retry-Zähler → nach 5 gedroppt → Item raus, Banner klärt sich, nächste Items laufen weiter. */
               const _hm=/^HTTP(\d{3})/.exec(e.message||"");const _st=_hm?parseInt(_hm[1],10):0;
-              const _transient=!navigator.onLine||_st>=500||e.message==='Failed to fetch';
+              const _transient=!navigator.onLine||_st>=500||_st===408||_st===429||e.message==='Failed to fetch';/* v3.9.149 (Agent P1): 408 Timeout + 429 Rate-Limit sind retrybar (Kommentar sagte das schon, Code nicht) */
               if(_transient){fail++;break;} // transient → Queue behalten, Run stoppen
               // v3.5.70 Block 5b: Max 5 Retries (permanente/unklare Fehler), dann als FAILED markieren
               const retries=(item._retries||0)+1;
@@ -5122,7 +5122,7 @@ class _ViewBoundary extends React.Component{
           if(removeIds.length>0) await SQ.removeMany(removeIds);
           // Update retry counts for items that failed but aren't skipped yet
           // v3.5.141: Retry-Count-Update via SQ-Mutex — vorher konnte gleichzeitiger SQ.push die Updates ueberschreiben
-          if(fail>0&&skipIds.length===0){await SQ._serial(async()=>{const q=await ODB.load("syncQueue")||[];const updated=q.map(x=>{const orig=queue.find(o=>o.id===x.id);return orig&&orig._retries?{...x,_retries:orig._retries}:x;});await ODB.save("syncQueue",updated);});}
+          if(fail>0){await SQ._serial(async()=>{const q=await ODB.load("syncQueue")||[];const updated=q.map(x=>{const orig=queue.find(o=>o.id===x.id);return orig&&orig._retries?{...x,_retries:orig._retries}:x;});await ODB.save("syncQueue",updated);});}/* v3.9.149 (Agent P2): Retry-Count auch persistieren wenn ein Sibling gedroppt wurde (q ist post-removeMany, idempotent) — sonst loopen Items ewig */
         }
         const cnt=await SQ.count();
         setPendingCount(cnt);
@@ -5615,7 +5615,7 @@ class _ViewBoundary extends React.Component{
                 filtered=filtered.slice().sort((a,b)=>{const ta=new Date(a.time||a.created_at||0).getTime()||0;const tb=new Date(b.time||b.created_at||0).getTime()||0;return tb-ta;});
                 return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":notifFilter==="kunde"?"Keine Kunden-Benachrichtigungen":notifFilter==="ungelesen"?"Alle gelesen 🎉":"Keine Benachrichtigungen" )):(
                 filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");/* v3.9.60 Sprint-39 E-1: created_at-Fallback wenn time fehlt (lokal-erzeugte notifs hatten kein time → 'NaNmin' angezeigt). */const _nts=new Date(n.time||n.created_at||0).getTime()||0;/* v3.9.83 Sprint-62.2: centralized _fmtTimeAgo ("Heute, 14:30" / "Gestern, 09:15" / "Mo, 14:00" / abs). */const agoStr=_fmtTimeAgo(_nts);
-                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.144: Notification-Klick navigiert — n.link ODER aus NOTIF_TYPES[type].cat abgeleitet (vorher: ohne link nur schließen = "nix geht in der Glocke"). cat→Tab-Perm. */const _catTab={projekte:"projekte",arbeitsscheine:"arbeitsscheine",urlaub:"urlaub",werkzeuge:"werkzeuge",material:"projekte",kunden:"arbeitsscheine"};const _tgt=n.link||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat]);if(_tgt){const ti=tabs.findIndex(t=>t.perm===_tgt);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent",transition:"background .12s ease-out, border-left-color .12s ease-out"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
+                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.144: Notification-Klick navigiert — n.link ODER aus NOTIF_TYPES[type].cat abgeleitet (vorher: ohne link nur schließen = "nix geht in der Glocke"). cat→Tab-Perm. */const _typeTab={deadline_fz:"fahrzeuge"};/* v3.9.149 (Agent): Fahrzeug-Frist → Fahrzeuge (cat=system navigiert sonst nicht) */const _catTab={projekte:"projekte",arbeitsscheine:"arbeitsscheine",urlaub:"urlaub",werkzeuge:"werkzeuge",material:"projekte",kunden:"arbeitsscheine"};const _tgt=n.link||_typeTab[n.type]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat]);if(_tgt){const ti=tabs.findIndex(t=>t.perm===_tgt);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent",transition:"background .12s ease-out, border-left-color .12s ease-out"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
                     , React.createElement('span', { style: {fontSize:20,flexShrink:0}}, _optionalChain([nt, 'optionalAccess', _83 => _83.i])||"🔔")
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
                       , React.createElement('div', { style: {fontSize:12,fontWeight:n.read?400:700,color:n.read?V.dm:V.tx}}, n.title)

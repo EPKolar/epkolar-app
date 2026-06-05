@@ -9,7 +9,8 @@ def test_http_status_in_throws(index_html):
 
 def test_sync_transient_vs_permanent(index_html):
     # Banner-steckt-Fix: nur transiente Fehler behalten die Queue; 4xx/online-TypeError droppen nach Retries
-    assert 'const _transient=!navigator.onLine||_st>=500||e.message===' in index_html
+    # v3.9.149: 408/429 ergänzt (retrybar)
+    assert 'const _transient=!navigator.onLine||_st>=500||_st===408||_st===429||e.message===' in index_html
     assert "if(_transient){fail++;break;}" in index_html
     # die alte "jeder TypeError = network = break"-Logik ist weg
     assert "const isNetwork=!navigator.onLine||e.message==='Failed to fetch'||e.name==='TypeError';" not in index_html
