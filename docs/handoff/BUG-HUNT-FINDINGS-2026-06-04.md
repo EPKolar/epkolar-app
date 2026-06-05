@@ -53,3 +53,12 @@ Das öffentliche Portal läuft mit anon-Key; die EINZIGE echte Schranke ist Supa
 - **P1 Defect-Datensparsamkeit**: serverseitig `select` auf kundensichtbare Spalten begrenzen (review_note/frist/zugewiesen nie an anon).
 - **P2 Abnahme ohne Ownership**: `kundeAbnahme` PUT auf beliebige defect-id (anon). FIX: UPDATE-RLS bindet an portalCode-Projekt.
 - **P2 Rate-Limit**: kein Spam-Schutz für anon-Mangel-Flood. FIX: PostgREST/Edge-Rate-Limit pro Code/IP.
+
+## 🟡 TEILZEIT-LOHN — Sebastian-Entscheidung nötig (Finder P, v3.9.129, NICHT autonom gefixt)
+**Kontext**: Sebastian hat stdVonTag (Mo-Do 8,5 / Fr 4,5 = 38,5h/Wo) explizit als KANONISCH bestätigt. Die folgenden Funde würden diese Logik für TEILZEIT-MA ändern → lohnkritisch, daher bewusst geflaggt statt autonom gefixt. Nur relevant FALLS Teilzeit-MA existieren (das `woche`-Feld pro MA ist editierbar):
+- **P1 stdVonTag ignoriert `ks.woche`** (`14050/14078`): Ein 20h-Teilzeit-MA verbraucht pro Urlaubstag trotzdem 8,5h → Resturlaub stark negativ, Stunden-Spalten zu hoch. FIX-Vorschlag: stdVonTag pro MA mit `(woche/38.5)` skalieren — ABER konsistent in tog/yearSt/resturlaub. Sebastian-Freigabe nötig (ändert bestehende Urlaubssalden).
+- **P2 Chef-Auslastung `/38.5` fix** (`15810`): Teilzeit-MA mit voller Leistung zeigt 52% statt 100%, Ampel dauerhaft falsch. FIX: kontingent an ChefDashboard durchreichen, durch `(woche||38.5)` teilen.
+- **P2 Projekt-Budget flat €85/h** (`15820`): nutzt nicht den pro-MA `stundensatz`. FIX: Kosten je Eintrag mit Monteur-Stundensatz summieren. (Falls €85 bewusste Pauschale → kein Fix.)
+
+GEFIXT in v3.9.129 (sicher, P3): AbsView-Monatsstatistik TZ-Parse (+T00:00:00, Monatserster kippte in Vormonat) · Dashboard-Projektstunden hours||stunden-Fallback (Konsistenz mit Detailansicht).
+_easterSunday/_isATFeiertag SELBST-VERIFIZIERT korrekt (Ostern 2026=5.4. → Feiertage 6.4/14.5/25.5/4.6; 2027=28.3.).
