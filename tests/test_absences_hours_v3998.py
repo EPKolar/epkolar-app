@@ -14,8 +14,9 @@ def test_absences_post_writes_stdvontag_hours(index_html):
     m = re.search(r'url:"/api/absences",method:"POST",body:\{([^}]*)\}', index_html)
     assert m, "absences POST-Writer (Kalender-Toggle) nicht gefunden"
     body = m.group(1)
-    assert "hours:stdVonTag(d)" in body, (
-        "absences-Writer muss hours:stdVonTag(d) setzen (kanonische Tageslogik, NICHT flat 7,7)"
+    # v3.9.130: woche-aware (Vollzeit=identisch, Teilzeit skaliert) — stdVonTag(d,_wocheOf(sel))
+    assert "hours:stdVonTag(d,_wocheOf(sel))" in body, (
+        "absences-Writer muss hours:stdVonTag(d,_wocheOf(sel)) setzen (kanonisch + woche-aware)"
     )
     assert "7.7" not in body, "flat 7,7 darf NICHT mehr im absences-Writer stehen"
     assert "tage:(stdVonTag(d)>0?1:0)" in body, "tage nur an Werktagen (Feiertag/WE = 0)"
