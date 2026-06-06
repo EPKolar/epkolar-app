@@ -68,3 +68,19 @@ Verifiziert: keine `whatsapp_config`-Zeile → `_waSendMessage` mockMode → kei
 ### ✅ Vom Agent als KORREKT bestätigt
 - Monteur-Anlage-Verbot solide (UI-Gate `as_create` versteckt „+ Neuer Schein" UND „🎤 Schnellerfassung"; `saveAs` re-blockt; kein Bypass via Edit/Duplicate/Voice/Offline).
 - Zahlen-Locale (`_normDauer` „3,5"→„3.5", NaN-Bail), absPerName exact-token (Doppel-Zählung gefixt), Sync-Button-nach-Drain (v3.9.38), Re-Import-Clobber-Schutz (status/termine/dauer aus Merge-Body gelöscht), OFFA-Leer-Zeilen-Filter — alle ✅.
+
+---
+
+## Welle 5 — Zeiterfassung/Bauwochenbericht-Review (v3.9.153)
+
+### ✅ Gefixt
+- **🔴 P1 `_kwFromDate` DST-Drift**: nutzte ms-Division `(dt-firstMon)/(7·864e5)` mit Math.floor + local-midnight-Daten → nach Frühjahrs-DST (Ende März) durchgängig **KW−1** (~6 Mon/Jahr falsche KW im Bauwochenbericht: Sheet-Namen, Summen-Zeilen, KW-Filter, Tätigkeitstext). Vienna-Ganzjahr-Test: 30 Tage Mismatch → 0. Fix: UTC-ISO-Woche (driftfrei). *(v3.9.153)*
+- **P2 Hidden-Worker in KW-Summen** (generateBWB): `kwTotal` summierte ALLE Einträge inkl. ausgeblendeter Monteure, aber Spalten nur sichtbare → Zeilensumme≠Wochensumme im signierten Kundendokument. Fix: `_visIds`-Set, beide kwEntries-Blöcke nur sichtbare. *(v3.9.153)*
+
+### ⏳ OFFEN (komplexere Roll-up-Refaktorierung / niedrigere Prio)
+- **P2 Rollen-Total ignoriert KW-Filter** (generateBWB ~7173-7174): „Gesamtübersicht nach Rolle" nutzt `pEntries` (ganze Projekthistorie) statt der KW-gefilterten Menge → bei gewähltem KW-Subset zeigen Wochentabellen gefiltert, Rollen-Total aber ALLE Wochen → reconcilen nicht. Fix: Rollen-Total aus KW-gefilterter Menge bauen (+ hiddenMA ausschließen).
+- **P3 Rundungs-Inkonsistenz**: Von/Bis/Pause-Auto-Fill rundet auf 0.5h (`Math.round(d*2)/2`), manuelles Stunden-Feld behält 2 Dezimalen → je nach zuletzt bearbeitetem Feld unter-/überbezahlt. Einheitliche Rundungsregel definieren.
+- **generateAll (7259)**: separate „Alle-Projekte"-Export-Funktion, eigener kwEntries (NICHT gefixt — kein _visIds-Scope, vom Agent nicht reviewt). Prüfen ob gleiche hidden-worker-Logik nötig.
+
+### ✅ Vom Agent als KORREKT bestätigt
+- addEntry-Range-Guard (0<h≤24, NaN-Bail) + Doppel-Tap-Ref solide; getMonthEntries kein Doppel-Count (single-pass, wid-Match max 1×); VZeit/VBer-Wochenmathe (getISO+setDate) DST-korrekt (0 Mismatches); Locale via type=number/time (Komma erreicht parseFloat nicht); Feld-User auf eigene monteurId beschränkt (add+delete).
