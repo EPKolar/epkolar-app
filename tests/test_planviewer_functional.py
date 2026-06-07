@@ -72,6 +72,8 @@ def test_ticketsOnPage_filters_page_with_default():
 def test_pendingPin_uses_ternary_not_and_anti_pattern():
     """v3.8.56 Lehre: pendingPin-Render muss Ternary nutzen (kein && Anti-Pattern)."""
     text = INDEX.read_text(encoding='utf-8')
-    # pendingPin?React.createElement(...):null muss vorkommen
-    assert re.search(r'pendingPin\?React\.createElement', text), \
+    # pendingPin-Confirm-Render muss Ternary (?...:null) nutzen, kein && -Anti-Pattern.
+    # v3.9.168: Gate ist jetzt `pendingPin&&!newTicket?React.createElement` (Direkt-Flow blendet die Confirm-Bar
+    # aus, sobald das Ticket-Formular offen ist) — weiterhin ein Ternary, daher Regex um die Bedingung erweitert.
+    assert re.search(r'pendingPin(?:&&[^?{}]+)?\?React\.createElement', text), \
         'pendingPin-Render muss Ternary nutzen, kein &&-Anti-Pattern'
