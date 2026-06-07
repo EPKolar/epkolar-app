@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.157';
+  var SW_VER='epkolar-v3.9.158';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.157-supabase";
+const APP_VERSION="3.9.158-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7054,6 +7054,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   const _kwDates=(yr,kw)=>{const jan4=new Date(yr,0,4);const dow=jan4.getDay()||7;const firstMon=new Date(yr,0,4-dow+1);const mon=new Date(firstMon);mon.setDate(firstMon.getDate()+(kw-1)*7);const days=[];for(let i=0;i<7;i++){const dd=new Date(mon);dd.setDate(mon.getDate()+i);days.push(dd);}return days;};
   const _localD=(d)=>typeof d==='string'&&/^\d{4}-/.test(d)?new Date(parseInt(d.slice(0,4)),parseInt(d.slice(5,7))-1,parseInt(d.slice(8,10))):new Date(d);
   const _kwFromDate=(d)=>{const dt=_localD(d);const u=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));const day=u.getUTCDay()||7;u.setUTCDate(u.getUTCDate()+4-day);const ys=new Date(Date.UTC(u.getUTCFullYear(),0,1));return Math.max(1,Math.ceil((((u-ys)/864e5)+1)/7));};/* v3.9.153 (Agent P1): UTC-ISO-Woche statt ms-Division — vorher KW-1 nach Frühjahrs-DST (~6 Mon/Jahr falsche KW im Bauwochenbericht) */
+  const _kwYearFromDate=(d)=>{const dt=_localD(d);const u=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));const day=u.getUTCDay()||7;u.setUTCDate(u.getUTCDate()+4-day);return u.getUTCFullYear();};/* v3.9.158: ISO-Wochenjahr — KW-Key/Filter mischten Kalenderjahr+ISO-Woche → Off-by-one an Jahresgrenzen im BWB-Export */
   const _fmtDate=(d)=>{if(typeof d==='string'&&/^\d{4}-\d{2}-\d{2}/.test(d))return d.slice(0,10);const dd=_localD(d);return dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");};
 
   // === PREVIEW HELPERS ===
@@ -7061,7 +7062,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const pEntries=allEntries.filter(e=>e.projekt===projId);
     const pBT=allBT.filter(b=>b.projekt===projId);
     const kwSet=new Set();
-    pEntries.forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(d.getFullYear()+"-"+String(_kwFromDate(d)).padStart(2,"0"));}});
+    pEntries.forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(_kwYearFromDate(d)+"-"+String(_kwFromDate(d)).padStart(2,"0"));}});
     const kwList=[...kwSet].sort();
     const workerIds=new Set();
     pEntries.forEach(e=>{if(e.monteur)workerIds.add(e.monteur);});
@@ -7082,8 +7083,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       const kw=parseInt(kwStr);
       const pBT=allBT.filter(b=>b.projekt===projId);
       const pEntries=allEntries.filter(e=>e.projekt===projId);
-      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
-      const kwE=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});
+      const kwE=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});
       tMap[kwKey]=kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):(kwE.length?[...new Set(kwE.map(e=>e.taetigkeit).filter(Boolean))].join("; "):"");
     });
     setEditTaet(tMap);
@@ -7129,8 +7130,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       const [yr,kwStr]=kwKey.split("-");
       const kw=parseInt(kwStr);
       const days=_kwDates(parseInt(yr),kw);
-      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw&&_visIds.has(e.monteur);});
-      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
+      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw&&_visIds.has(e.monteur);});
+      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
 
       html+='<table id="Bericht_KW'+kwStr+'-'+yr+'">';
       html+='<tr><td colspan="'+(nc+1)+'" class="sub">Andreas Kolar & Sohn GesmbH</td><td colspan="2" class="sub" style="text-align:right">'+esc(proj.kunde||proj.name)+'</td></tr>';
@@ -7171,8 +7172,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     kwList.forEach(kwKey=>{
       const [yr,kwStr]=kwKey.split("-");const kw=parseInt(kwStr);
       const days=_kwDates(parseInt(yr),kw);
-      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw&&_visIds.has(e.monteur);});
-      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
+      const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw&&_visIds.has(e.monteur);});
+      const taetigkeit=useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
       html+='<tr><th>Datum</th>';workers.forEach(w=>{html+='<th>'+esc(w.name)+'</th>';});html+='<th>Summe</th><th>T\u00e4tigkeit</th></tr>';
       days.forEach((day,di)=>{
         const ds=_fmtDate(day);const dname=["So","Mo","Di","Mi","Do","Fr","Sa"][day.getDay()];
@@ -7220,7 +7221,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const hrs=allEntries.filter(e=>e.projekt===p.id).reduce((s,e)=>s+(e.stunden||0),0);
     const btCnt=allBT.filter(b=>b.projekt===p.id).length;
     const kwSet=new Set();
-    allEntries.filter(e=>e.projekt===p.id).forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(d.getFullYear()+"-KW"+String(_kwFromDate(d)).padStart(2,"0"));}});
+    allEntries.filter(e=>e.projekt===p.id).forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(_kwYearFromDate(d)+"-KW"+String(_kwFromDate(d)).padStart(2,"0"));}});
     return {id:p.id,name:p.name,nr:p.nr,kunde:p.kunde,cnt,hrs,btCnt,kws:kwSet.size};
   });
 
@@ -7281,7 +7282,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
             const [yr,kwStr]=kwKey.split("-");
             const kw=parseInt(kwStr);
             const days=_kwDates(parseInt(yr),kw);
-            const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return d.getFullYear()===parseInt(yr)&&_kwFromDate(d)===kw;});
+            const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});
             const taet=editTaet[kwKey]!==undefined?editTaet[kwKey]:"";
             const visWorkerIds=new Set(visibleWorkers.map(w=>w.id));
             const kwTotal=kwEntries.filter(e=>visWorkerIds.has(e.monteur)).reduce((s,e)=>s+(e.stunden||0),0);
