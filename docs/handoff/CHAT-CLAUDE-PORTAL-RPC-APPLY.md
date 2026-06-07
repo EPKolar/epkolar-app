@@ -1,5 +1,13 @@
 # Für Chat-Claude — Portal-RPC v3.9.156 applizieren (Supabase `jiggujpruejkaomgxarp`, public)
 
+> ## ✅ ERLEDIGT 2026-06-07 (CC via Supabase-Plugin-MCP nach OAuth)
+> Alle Schritte ausgeführt + verifiziert: Block-0-Spalten-Verify (start_date/end_date, uploaded_at/file_url
+> korrigiert) → `portal_fetch` CREATE (SECURITY DEFINER, search_path, anon-EXECUTE) → Funktions- +
+> Frontend-Integrations-Test (anon-RPC 200, `_mapProject` ok, KEIN betrag/kunden_nr/review_note/zugewiesen,
+> Härtung `{}`) → **DROP** `projects_anon_select` + `project_documents_anon_select` → Smoke: anon-Direktread
+> projects/project_documents/defects = **0 rows**, RPC weiter **200**. **Kein Rollback nötig.** defects hatte
+> keine anon-SELECT-Policy. Die untenstehende Anleitung ist nur noch Referenz/Rollback-Quelle.
+
 **Du hast DB-Zugriff, CC nicht.** Ziel: Portal von anon-Direktreads auf `portal_fetch`-RPC umstellen,
 danach anon-SELECT auf projects/project_documents/defects droppen.
 

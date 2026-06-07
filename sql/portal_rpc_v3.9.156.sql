@@ -7,12 +7,15 @@
 --   NUR mit whitelisteten, kundentauglichen Spalten (kein SELECT *, keine internen Felder).
 --   Danach braucht anon KEIN SELECT mehr auf projects/project_documents/defects (Phase 4 = Policy-Drop).
 --
--- ⚠️ SPALTENNAMEN: aus index.html-Writern/Mappern INFERRED — CC hat KEINEN DB-Zugriff (andere Org).
---   → Block 0 (unten) ZWINGEND vor CREATE laufen lassen und bei Abweichung anpassen:
---     - projects: heißt es start/ende ODER start_date/end_date? gibt es nr, fortschritt, email_kunde, ansprechpartner?
---     - defects: title/description (kanonisch laut Writer) vorhanden? images, kunde_status, melder, ort?
---   Ausschlussliste (NICHT in die RPC): defects.zugewiesen/frist/review_note/status/prio/ebene/gewerk/created_by;
---   projects.betrag/kunden_nr/created_by/tags. (Siehe docs/handoff/PORTAL-RPC-DESIGN.md.)
+-- ✅ APPLIZIERT 2026-06-07 (CC via Supabase-Plugin-MCP nach OAuth). Block 0 lief, Spalten gegen echtes
+--   Schema VERIFIZIERT + korrigiert: projects start_date/end_date (NICHT start/ende), project_documents
+--   uploaded_at + file_url (es gibt KEIN created_at/file_path auf der Tabelle). JSON-Keys (start/ende/
+--   created_at/file_path) bewusst unverändert → Frontend-Mapper. defects-Whitelist unverändert.
+--   Smoke grün: portal_fetch('GED2024')=Projekt ohne betrag/kunden_nr/review_note/zugewiesen; 'xx'/'NICHTDA99'='{}';
+--   anon-EXECUTE=true; prosecdef=true. Danach DROP der 2 anon-SELECT-Policies (s.u.) → anon-Direktread
+--   projects/project_documents = 0 rows, RPC weiter 200. Kein Rollback nötig.
+--   Ausschlussliste (NICHT in der RPC): defects.zugewiesen/frist/review_note/status/prio/ebene/gewerk/created_by;
+--   projects.betrag/kunden_nr/matchcode/land/type/beschreibung/notizen/tags/created_by. (Siehe PORTAL-RPC-DESIGN.md.)
 --
 -- ═══════════════════════════════════════════════════════════
 -- BLOCK 0 — VERIFY Spalten (read-only, PFLICHT vor CREATE; Whitelist ggf. anpassen)
@@ -47,12 +50,12 @@ AS $$
           'id', p.id, 'name', p.name, 'nr', p.nr, 'kunde', p.kunde,
           'ansprechpartner', p.ansprechpartner, 'strasse', p.strasse, 'plz', p.plz, 'ort', p.ort,
           'telefon', p.telefon, 'email_kunde', p.email_kunde, 'status', p.status,
-          'fortschritt', p.fortschritt, 'start', p.start, 'ende', p.ende, 'gewerk', p.gewerk,
+          'fortschritt', p.fortschritt, 'start', p.start_date, 'ende', p.end_date, 'gewerk', p.gewerk,
           'portal_code', p.portal_code
         ) FROM proj p),
       'documents', COALESCE((SELECT json_agg(json_build_object(
           'id', d.id, 'project_id', d.project_id, 'name', d.name, 'file_name', d.file_name,
-          'category', d.category, 'created_at', d.created_at, 'file_data', d.file_data, 'file_path', d.file_path
+          'category', d.category, 'created_at', d.uploaded_at, 'file_data', d.file_data, 'file_path', d.file_url
         )) FROM public.project_documents d JOIN proj ON d.project_id = proj.id
            WHERE d.kunde_freigabe = 1), '[]'::json),
       'defects', COALESCE((SELECT json_agg(json_build_object(
