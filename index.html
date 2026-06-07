@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.156';
+  var SW_VER='epkolar-v3.9.157';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.156-supabase";
+const APP_VERSION="3.9.157-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -4118,6 +4118,13 @@ async function _portalRpc(code){
   if(!r.ok)throw new Error("HTTP"+r.status);
   return await r.json();
 }
+/* v3.9.157: generischer Portal-RPC-Call (Writes über SECURITY-DEFINER-RPCs, da defects keine anon-Write-Policy hat). */
+async function _portalRpcCall(name,body){
+  const _t=(typeof _authToken!=='undefined'&&_authToken)?_authToken:SUPABASE_KEY;
+  const r=await fetch(SUPABASE_URL+"/rest/v1/rpc/"+name,{method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+_t,"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error("HTTP"+r.status);
+  return await r.json();
+}
 function PortalEntry({onPortal,projects}){
   const [showP,setShowP]=_react.useState.call(void 0, false);
   const [code,setCode]=_react.useState.call(void 0, "");
@@ -4225,7 +4232,8 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
       const mid=uid();
       const m={id:mid,pid:p.id,name:newMangel.name,beschreibung:newMangel.beschreibung||"",ort:newMangel.ort||"",status:"offen",kundeStatus:"gemeldet",prio:"normal",date:td2(),melder:"Kunde",photos:fullPhotos,reviewNote:"",zugewiesen:""};
       setForms(f=>({...f,maengel:[...(f.maengel||[]),{...m,photos:thumbPhotos}]}));
-      SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:m.name,description:m.beschreibung,status:"offen",prio:"normal",created_by:"Kunde",images:thumbPhotos,melder:"Kunde",kunde_status:"gemeldet",ort:m.ort}});
+      /* v3.9.157: über SECURITY-DEFINER-RPC statt SQ (defects hat keine anon-Write-Policy → SQ-POST war 403). */
+      _portalRpcCall("portal_submit_defect",{p_code:p.portalCode,p_id:mid,p_title:m.name,p_description:m.beschreibung||"",p_ort:m.ort||"",p_images:JSON.stringify(thumbPhotos||[])}).catch(err=>{console.warn("[mangel-rpc]",err&&err.message||err);if(window.__toast)window.__toast("⚠️ Mangel konnte nicht gespeichert werden — bitte Internet-Verbindung prüfen","warn",6000);});
       // Queue full photos for server upload via PhotoQ
       fullPhotos.forEach((dataUrl,i)=>{
         if(dataUrl&&dataUrl.startsWith("data:image")){
@@ -4244,7 +4252,8 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
 
   const kundeAbnahme=(id)=>{
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"abgenommen",status:"behoben"}:m)}));
-    SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:"behoben",kunde_status:"abgenommen"}});
+    /* v3.9.157: über SECURITY-DEFINER-RPC statt SQ (defects hat keine anon-Write-Policy). */
+    _portalRpcCall("portal_confirm_abnahme",{p_code:p.portalCode,p_defect_id:id}).then(ok=>{if(ok===false&&window.__toast)window.__toast("⚠️ Abnahme nicht möglich","warn");}).catch(err=>{console.warn("[abnahme-rpc]",err&&err.message||err);if(window.__toast)window.__toast("⚠️ Abnahme fehlgeschlagen — Verbindung prüfen","warn");});
     _optionalChain([window, 'access', _17d => _17d.__toast, 'optionalCall', _17e => _17e("✅ Abnahme bestätigt")]);
     setSelMangel(null);};
 
