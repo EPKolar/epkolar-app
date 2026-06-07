@@ -46,6 +46,18 @@ Node-Repro verifiziert: 2024-12-30→`2025-01`, 2027-01-01→`2026-53`, 2022-01-
 **Sauber bestätigt (kein Bug):** Zeit/Stunden-Mathematik+Rundung (Agent 2), JSON-Parse-Pfade defensiv, tank/km-Log
 korrekt read-modify-write, Mutex-Disziplin `_serial` (v3.9.149).
 
-> Empfehlung: 403-Wedge (#1 Sync) + PhotoQ-break (#4 Sync) sind eng begrenzt + hoher User-Impact → gute Kandidaten
-> für einen gezielten Fix mit Freigabe. Die Fahrzeug-Dual-Storage-Familie ist ein größerer Umbau (wie YachtLog
-> Track-Unification) — Daten-Modell-Entscheidung.
+## ✅ Fix-Status 2026-06-07 (eng begrenzte Fixes, je eigener Commit, Triade grün)
+- **FIX 1 — 403-Wedge: ✅ GEFIXT** v3.9.159 (`109c24b`). doSync breakt nur noch bei 401; 403 (RLS-Denial) fällt in
+  Retry/Drop wie permanenter 4xx → blockiert die Queue nicht mehr. Transiente Fehler stoppen weiterhin. Kein _juprowaPush.
+- **FIX 2 — PhotoQ-Block: ✅ GEFIXT** v3.9.160 (`d41f2e8`). Kaputtes Foto → status:"error" (sichtbar) + skip; nur
+  transiente Fehler (offline/5xx/408/429) stoppen den Lauf. Nachfolgende Fotos laufen weiter.
+- **FIX 3 — POST-Idempotenz: ⛔ GATED → NICHT angewendet, dokumentiert.** Grund (H6): Der saubere Idempotenz-Fix
+  (Upsert auf der geteilten `_sbPost`-Schreibhilfe) würde den Pfad anfassen, den **`_juprowaPush` ebenfalls nutzt**
+  (`index.html:~3116` `_sbPost('activity_log',...)`). Per Gate-Regel daher nicht gefixt. **Empfohlener Fix für
+  dedizierten Sprint:** (a) read-modify-write-Handler serviceheft/tank/km id-Dedupe vor `arr.push`
+  (`if(!arr.some(x=>x.id===body.id))arr.push(body)`) — berührt _juprowaPush NICHT, wäre der sichere Teil; (b) doSync
+  409 (Row existiert bereits) als Erfolg behandeln statt Retry/Drop → kein falscher „verworfen"-Alarm. Beide getrennt
+  + getestet, ohne `_sbPost` global umzustellen.
+- **KRIT Fahrzeug Dual-Storage: dokumentiert** → `docs/handoff/FAHRZEUG-DUAL-STORAGE-DESIGN.md` (Ist-Zustand,
+  fz_schaeden/fz_termine LEER = eingebettete JSON-Spalten de-facto Quelle, Option A/B, Migrationspfad+Backup+Risiken,
+  Pre-Live-Task). Kein Code/keine Migration jetzt.
