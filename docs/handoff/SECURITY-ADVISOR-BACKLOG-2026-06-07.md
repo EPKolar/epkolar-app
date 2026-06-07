@@ -31,3 +31,17 @@ das Massen-Ändern von Policies/Views/Funktionen auf der Live-Prod-DB ohne Einze
 4. `security_definer_view` `_public` — klären ob noch genutzt, sonst droppen.
 
 CC hat NICHTS davon angewandt (Prod-DB-Sicherheit = kontrolliert mit dir, kein Blind-Hardening).
+
+## 🆕 Deep-Hunt-Funde 2026-06-07 (brauchen Sebastian-Entscheidung)
+- **Kunden-Portal „Mangel melden" + „Abnahme bestätigen" sind KAPUTT (403).** Beide schreiben via Sync-Queue
+  als anon auf `defects` — aber `defects` hat NUR `authenticated`-Policies (kein anon-INSERT/UPDATE). → Kunden-
+  Meldungen/Abnahmen landen NIE in der DB (langjährig, kein Regress). **Sicherer Fix (CC bereit, vom Auto-Mode
+  geblockt = braucht deine Freigabe für neue anon-Write-Fläche):** 2 SECURITY-DEFINER-RPCs `portal_submit_defect`
+  (validiert portal_code, erzwingt melder='Kunde'/status, scoped aufs Projekt — kein Status-Injection/Fremdprojekt)
+  + `portal_confirm_abnahme` (nur 'behoben'→'abgenommen' am eigenen Projekt) + Frontend submitMangel/kundeAbnahme
+  auf RPC statt SQ umstellen. **Freigeben?** Risiko gering (Code-Besitz = Kundenzugriff, Längen-Limits, kein
+  Fremdzugriff), aber es ist eine neue anon-Schreibmöglichkeit.
+- **Storage-Bucket `epkolar-files` ist PUBLIC** (8 Objekte) → anon kann listen+laden (Advisor `public_bucket_allows_listing`).
+  Falls Projekt-Dokumente/Fotos drin: potenzielles Leak. ABER evtl. nutzt das Portal public-URLs (`file_url`) →
+  privat-schalten könnte Downloads brechen. **Prüfen: Inhalt + ob das Portal public-URLs braucht, bevor man's privat macht.**
+- **`auth_leaked_password_protection` aus** → im Supabase-Dashboard (Auth-Settings) aktivieren (low-risk).
