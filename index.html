@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.159';
+  var SW_VER='epkolar-v3.9.160';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.159-supabase";
+const APP_VERSION="3.9.160-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -2544,7 +2544,13 @@ const PhotoQ={
           const publicUrl=await _sbUploadFile(storagePath,ph.dataUrl);
           await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
           await PhotoQ.remove(ph.id);ok++;
-        }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;break;}
+        }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;
+          /* v3.9.160 FIX PhotoQ-Block: nur TRANSIENTE Fehler (offline/5xx/408/429/Failed-to-fetch) stoppen den
+             Lauf. Vorher blockierte JEDER Fehler — auch ein dauerhaft kaputtes Foto (z.B. ungültige dataUrl / 4xx)
+             — per break alle nachfolgenden Fotos. Jetzt: permanenter Fehler → Foto bleibt als status:"error"
+             markiert (sichtbar in count, kein stiller Verlust) + nächstes Foto wird weiter hochgeladen. */
+          const _hm=/(?:HTTP|Auth:)(\d{3})/.exec(e.message||"");const _st=_hm?parseInt(_hm[1],10):0;
+          if(!navigator.onLine||_st>=500||_st===408||_st===429||(e.message||"").includes("Failed to fetch"))break;}
       }
     }finally{PhotoQ._flushing=false;}
     return{ok,fail};
