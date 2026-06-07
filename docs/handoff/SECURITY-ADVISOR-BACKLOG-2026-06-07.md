@@ -43,3 +43,13 @@ CC hat NICHTS davon angewandt (Prod-DB-Sicherheit = kontrolliert mit dir, kein B
   public-URLs). **OFFEN (größer):** Bucket bleibt public → Direkt-URL-Download bei bekanntem Pfad möglich; echter
   Schutz = privat + signed-URLs (Frontend-Refactor).
 - **`auth_leaked_password_protection` aus** → im Supabase-Dashboard (Auth-Settings) aktivieren (low-risk, Dashboard).
+
+## 🔎 Monitoring-Befund 2026-06-07 (postgres-Logs) — Notifications-RLS-Denials
+Wiederkehrende ERRORs `new row violates row-level security policy for table "notifications"` (~20:00). Die
+`notif_insert`-Policy verlangt `is_staff() OR user_id = current_user_pk()`. Ein Nicht-Staff-User (monteur ODER
+der via is_staff()-Bug fälschlich ausgeschlossene projektleiter/techniker), der eine Notification an einen
+ANDEREN User schreibt (z.B. Ticket/Task zuweisen → Assignee benachrichtigen), wird abgelehnt → die Benachrichtigung
+landet NIE in der DB. **Verknüpft mit der offenen is_staff()-Rollen-Entscheidung** (siehe
+`sql/harden_function_search_path_v3.9.157.sql`): sollen projektleiter/techniker Staff sein? Wenn ja, würde das
+einen Teil dieser Denials beheben. Für monteur-ausgehende Notifications braucht es zusätzlich eine bewusste
+Policy-Entscheidung (dürfen Feld-User andere benachrichtigen?). **NICHT blind RLS geändert — Sebastian-Entscheidung.**
