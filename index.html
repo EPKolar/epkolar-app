@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.158';
+  var SW_VER='epkolar-v3.9.159';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.158-supabase";
+const APP_VERSION="3.9.159-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5138,7 +5138,12 @@ class _ViewBoundary extends React.Component{
               okIds.push(item.id);ok++;
             }catch(e){
               const isAuth=e.message&&e.message.startsWith("Auth:");
-              if(isAuth){fail++;break;} // auth error → stop, wait for re-login
+              const _authSt=isAuth?(parseInt(e.message.slice(5),10)||0):0;
+              if(isAuth&&_authSt!==403){fail++;break;} // 401/sonstige Auth → echte Session, Run stoppen + auf Re-Login warten
+              /* v3.9.159 FIX 403-Wedge: 403 = permanente RLS-Ablehnung (kein Session-Problem). Vorher break →
+                 das vergiftete Item blockierte die GANZE restliche Queue dauerhaft (pendingCount>0, Banner steckt).
+                 Jetzt fällt 403 unten in die Retry-Zähler/Drop-Logik wie ein permanenter 4xx (nach 5 Versuchen raus,
+                 nachfolgende Items laufen weiter). Transiente Fehler (5xx/408/429/offline) stoppen den Run weiterhin. */
               /* v3.9.131 FIX "Sync-Banner steckt am Handy": Vorher wurde JEDER TypeError/'Failed to fetch'
                  als network klassifiziert → break → das Item wurde NIE gedroppt, blieb ewig in der Queue
                  (pendingCount>0, Banner verschwand nie) UND blockierte per break die ganze restliche Queue.
