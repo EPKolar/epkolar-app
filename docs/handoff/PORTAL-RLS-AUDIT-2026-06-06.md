@@ -22,3 +22,41 @@ Für die **anon**-Rolle in Supabase, pro Tabelle:
 
 ## ✅ Korrekt verteidigt
 Kein service-role-Key im Client; users-Tabelle hinter `login_lookup`-RPC + Spalten-Allowlist; Mangel-Text längenlimitiert + Doppel-Submit-Guard; bestehende Report-Exporte escapen via `esc()`/`_e()`; `_openFileUrl` via Blob + noopener; Portal zeigt nur das eine gematchte Projekt (keine Enumeration in der UI).
+
+---
+
+## Update 2026-06-07 — anon-Scope-ALTER vorbereitet (v3.9.155), NICHT appliziert
+
+**⚠️ CC konnte die ALTER NICHT selbst applizieren:** Der claude.ai-Supabase-MCP-Connector ist
+für eine andere Org autorisiert (MOBOLog/SRC Seefunk/Hausverwaltung) — `list_projects` enthält
+`jiggujpruejkaomgxarp` NICHT → `execute_sql`/`apply_migration` → "You do not have permission".
+Konsistent mit der langjährigen Realität „SQL macht Chat-Claude/Sebastian". **Phase 2 (Apply) +
+Phase 3 (post-Apply-Smoke) + Auto-Rollback müssen von jemandem mit DB-Zugriff ausgeführt werden.**
+
+**Read-only-Beleg (anon-curl, öffentlicher anon-Key, 2026-06-07):**
+| Query | content-range (.../TOTAL) | Deutung |
+|---|---|---|
+| `/project_documents?select=id` (kein Filter) | `.../1` | anon liest **1 Dokument** |
+| `/project_documents?...&kunde_freigabe=eq.1` | `.../0` | davon **0 freigegeben** → **das 1 ist NICHT-freigegeben** = Leak |
+| `/projects?select=id` (kein Filter) | `.../2` | anon liest alle 2 Projekte |
+| `/projects?...&portal_code=not.is.null` | `.../2` | beide haben portal_code |
+| `kunde_freigabe`-Wert | `0` | Spaltentyp **INTEGER** (Prädikat `= 1`) |
+
+**Bewertung (ehrlich):**
+- **project_documents**: ALTER schließt einen **demonstrierten** Leak (1 nicht-freigegebenes Dok wird anon-unlesbar → 0).
+- **projects**: ALTER ist korrekte Härtung, senkt aber die aktuell lesbare Menge NICHT (beide Projekte sind Portal-Projekte). Das eigentliche projects-Leck (anon liest **alle Spalten aller Portal-Projekte** inkl. Beträge/Email, ohne den Code zu kennen) bleibt offen — das schließt erst die RPC unten.
+- **plans_anon_select**: NICHT im v3.9.155-Scope (Task-Scope = 2 Tabellen), hat aber dasselbe Leck (anon liest alle Pläne) → eigener Folge-Task (auch im v3103-Draft enthalten).
+
+**Bereitgestellt (committet):** `sql/RLS_anon_scope_v3.9.155.sql` (Verify-Block + 2 ALTER + Smoke-Block)
++ `sql/RLS_anon_scope_v3.9.155_ROLLBACK.sql`. Hinweis: Es existiert bereits `sql/migrate_anon_portal_lockdown_v3103.sql`
+(deckt zusätzlich plans, aber Snapshot+Recreate-Ansatz) — ebenfalls **nicht appliziert**. v3.9.155 ist die
+schlankere ALTER-statt-DROP-Variante.
+
+## PHASE 4 — Follow-up (NICHT jetzt bauen, separater Task)
+Die ALTER sind nur **Zwischen-Härtung**: anon kann weiterhin **alle Portal-Projekte enumerieren** und
+deren volle Zeilen lesen (Code-Match ist client-only). **Robuster Endzustand:** eine
+`SECURITY DEFINER`-RPC `portal_load(p_code text)`, die serverseitig den Code validiert und NUR das eine
+passende Projekt + dessen freigegebene Docs/Pläne/Defects zurückgibt (whitelisted Spalten, kein betrag/intern).
+Danach ist anon-SELECT auf projects/project_documents/plans **ganz entbehrlich** (Policies können zu
+`USING(false)` für anon werden). Frontend ruft dann `rpc/portal_load` statt der Tabellen-GETs.
+→ Als separaten Task vorschlagen; benötigt Frontend-Änderung (KundenPortal) + RPC-Definition.
