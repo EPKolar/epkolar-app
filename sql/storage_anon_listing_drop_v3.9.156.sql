@@ -14,6 +14,5 @@ DROP POLICY IF EXISTS "Public read epkolar-files" ON storage.objects;
 -- OFFEN (größere Sebastian-Entscheidung): Bucket bleibt PUBLIC → wer einen exakten Pfad kennt/errät
 --   (plans/<projectid>/<ts>_<name>.pdf) kann weiter direkt laden. Echter Schutz = Bucket privat +
 --   createSignedUrl (zeitbegrenzt) überall im Frontend (Refactor). Dieser Drop schließt nur die Enumeration.
--- ROLLBACK (falls ein auth-Feature doch Listing braucht):
---   CREATE POLICY "Public read epkolar-files" ON storage.objects FOR SELECT TO public USING (bucket_id='epkolar-files');
---   CREATE POLICY "Allow anon reads" ON storage.objects FOR SELECT TO anon USING (bucket_id='epkolar-files');
+-- REIHENFOLGE: standalone, keine Abhängigkeit (App nutzt nur /object/public). Bereits LIVE ausgeführt.
+-- ROLLBACK: sql/storage_anon_listing_drop_v3.9.156_ROLLBACK.sql (Recreate beider Policies, exakte alte Defs).

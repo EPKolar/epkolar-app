@@ -1,5 +1,30 @@
 # 🔴 Kundenportal Security-Audit (Agententeam Welle 6, 2026-06-06)
 
+> ## ✅ GESAMTSTAND 2026-06-07 (CC via Supabase-Plugin-MCP, alles live appliziert + read-only verifiziert)
+> Der hier beschriebene anon-Leak ist **serverseitig geschlossen**:
+> - **projects / project_documents:** anon-Direktread-Policies **GEDROPPT** → anon kann diese Tabellen NICHT mehr
+>   direkt lesen (verifiziert: anon-curl `GET /projects`/`/project_documents` = **0 rows**). Portal-Zugriff läuft
+>   nur noch über die SECURITY-DEFINER-RPC **`portal_fetch`** (whitelisted, kein betrag/kunden_nr/review_note/
+>   zugewiesen, serverseitige Code-Validierung). Migrationen: `sql/portal_rpc_v3.9.156.sql`,
+>   `sql/portal_anon_policy_drop_v3.9.156.sql` (+ Rollbacks).
+> - **defects:** hatte nie eine anon-SELECT-Policy. Portal-LESEN via RPC; Portal-SCHREIBEN (Mangel melden / Abnahme)
+>   jetzt über `portal_submit_defect` / `portal_confirm_abnahme` (SECURITY DEFINER, code-validiert, scoped) —
+>   vorher 403/kaputt. `sql/portal_write_rpcs_v3.9.157.sql`.
+> - **storage.objects:** anon-**Listing/Enumeration GEDROPPT** (`Allow anon reads` + `Public read epkolar-files`) →
+>   anon kann den Bucket nicht mehr enumerieren (verifiziert: `/object/list` 200/4 → 200/0). App nutzt nur
+>   `/object/public/` + listet nie → verifiziert non-breaking (public-Download HEAD 200 unverändert).
+>   `sql/storage_anon_listing_drop_v3.9.156.sql` (+ Rollback).
+>
+> ### ⚠️ RESTRISIKO (NICHT in dieser Arbeit gefixt — separater Pre-Live-Task)
+> - **Bucket `epkolar-files` bleibt PUBLIC**: Wer einen exakten Datei-Pfad kennt oder errät
+>   (`plans/<projectid>/<ts>_<name>.pdf`), kann die Datei weiterhin **ohne Login** per public-URL laden. Das Drop
+>   schließt nur die Enumeration, nicht den Direkt-URL-Zugriff. **Echte Dokumentensicherheit = privater Bucket +
+>   signierte URLs** (Frontend müsste überall `createSignedUrl` statt `/object/public/` nutzen). Aufwand: Frontend +
+>   Storage-Policy-Umbau. Als eigener Pre-Live-Task vormerken.
+> - **`activity_log_anon_insert`** weiterhin offen (anon darf ins Audit-Log schreiben) — separater Task, nicht Teil
+>   dieser Portal-Arbeit.
+
+
 **KRITISCH für Sebastian — server-seitig, NICHT im Client fixbar.** Das Kundenportal läuft **unauthentifiziert**: Portal-Nutzer sind nie eingeloggt → `_authToken=null` → **jede Portal-Anfrage geht mit dem hartkodierten anon-`SUPABASE_KEY`** (im ausgelieferten JS sichtbar). Der „Zugangscode" wird **nur client-seitig** verglichen (`tryPortal` L4122 `portalCode===code`). **Der gesamte Access-Boundary ist damit anon-RLS.** Wenn die anon-Policies permissiv sind, ist das Portal ein voller Kunden-Daten-Leak + Cross-Project-Write — **unabhängig vom Code**.
 
 ## ✅ Client-seitig gehärtet (v3.9.154)

@@ -7,4 +7,6 @@ DROP POLICY IF EXISTS project_documents_anon_select ON public.project_documents;
 
 -- Smoke (anon-curl, anon-Key): GET /projects?select=id → 0 rows; GET /project_documents?select=id → 0 rows;
 --   POST /rpc/portal_fetch {GED2024} → 200 + Projekt. (Alles am 2026-06-07 grün verifiziert.)
--- ROLLBACK: sql/portal_anon_select_drop_v3.9.156_ROLLBACK.sql (Recreate mit dem gehärteten v3.9.155-Scope).
+-- ROLLBACK: sql/portal_anon_policy_drop_v3.9.156_ROLLBACK.sql (Recreate mit dem gehärteten v3.9.155-Scope
+--   aus RLS_anon_scope_v3.9.155.sql). Reihenfolge: NUR rückgängig machen, wenn parallel portal_fetch entfernt
+--   ODER das Frontend zurückgerollt wird — sonst doppelter (redundanter) anon-Lesepfad.
