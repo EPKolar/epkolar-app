@@ -14,9 +14,11 @@ das Massen-Ändern von Policies/Views/Funktionen auf der Live-Prod-DB ohne Einze
 - **30× `rls_policy_always_true`**: Tabellen mit `USING(true)`-Policies für `ALL` (z.B. `authenticated_write_projects`,
   `auth_all_worker_projects` …). = die „~29 authenticated-offenen Tabellen" aus früheren Tasks. Jeder authenticated
   User kann schreiben. **Bewusst out-of-scope** (Sebastian-Entscheidung) — braucht pro Tabelle ein Zugriffsmodell.
-- **17× `function_search_path_mutable`**: Funktionen ohne fixiertes `search_path` (z.B. `guard_projects`, …).
-  Hardening = `ALTER FUNCTION … SET search_path = public, pg_temp`. Pro Funktion prüfen (manche sind Trigger). CC's
-  neue `portal_fetch` ist KORREKT fixiert (nicht in der Liste).
+- **`function_search_path_mutable` → ✅ 17 auf 4 reduziert (2026-06-07, `sql/harden_function_search_path_v3.9.157.sql`)**:
+  13 Funktionen gehärtet (6 SECURITY-DEFINER-Helfer + 7 Trigger) — jede Def vorher gelesen (alle Refs qualifiziert
+  → safe), verifiziert non-breaking. **Offen: nur die 4 `juprowa_*`** (bewusst out-of-scope). Dabei der Befund
+  **`is_staff()`-Rollen-Strings** (`'pl'/'vadmin'` tot; effektiv = admin/buero = dokumentierte Absicht; ob PL/Techniker
+  alle Daten sehen sollen = Sebastian-Entscheidung) — dokumentiert in der SQL-Datei, RLS NICHT blind geändert.
 - **18× `anon_security_definer_function_executable` / 18× `authenticated_…`**: Rollen können SECURITY-DEFINER-Funktionen
   ausführen. Enthält CC's `portal_fetch` (gewollt, gehärtet) + Pre-existing. Pro Funktion prüfen, ob die Exposition gewollt ist.
 - **1× `public_bucket_allows_listing`**: ein Storage-Bucket erlaubt anon-Listing (Dateinamen-Leak möglich). Bucket prüfen.
