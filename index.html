@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.160';
+  var SW_VER='epkolar-v3.9.161';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2298,7 +2298,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.160-supabase";
+const APP_VERSION="3.9.161-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -6155,7 +6155,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
        per DevTools/React-State manuell setzt → hier bail-out + Toast. */
     /* v3.9.125 Sebastian: Monteur darf GAR KEINE Scheine anlegen — Defense-in-Depth zusätzlich zum canDo("as_create")-UI-Gate (Bearbeiten bestehender bleibt erlaubt). */
     if(isMonteurRole&&!isAdmin&&!editId){_optionalChain([window,'access',_mna1=>_mna1.__toast,'optionalCall',_mna2=>_mna2("⚠️ Monteure dürfen keine Arbeitsscheine anlegen","warn")]);_saveAsInFlightRef.current=0;return;}
-    if(isMonteurRole&&!isAdmin&&form.monteur!==curUser.monteurId){_optionalChain([window,'access',_g324a=>_g324a.__toast,'optionalCall',_g324b=>_g324b("⚠️ Keine Berechtigung — Monteure können nur eigene Arbeitsscheine anlegen","warn")]);return;}
+    if(isMonteurRole&&!isAdmin&&form.monteur!==curUser.monteurId){_optionalChain([window,'access',_g324a=>_g324a.__toast,'optionalCall',_g324b=>_g324b("⚠️ Keine Berechtigung — Monteure können nur eigene Arbeitsscheine anlegen","warn")]);_saveAsInFlightRef.current=0;return;}/* v3.9.161 FIX AS#3: Guard zurücksetzen (analog 6152/6157) — sonst 800ms-Lockout des nächsten legitimen Saves */
     // v3.5.71 Block 4b: Duplikat-Warnung bei neuem AS (gleicher Kunde + Termin ±3 Tage)
     if(!editId&&form.kundName&&form.terminBestaetigt){
       const ft=new Date(form.terminBestaetigt).getTime();
@@ -6205,12 +6205,13 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     setImportPreview(results);setImportLoading(false);setSub("import_preview");};
   const commitImport=()=>{
     const toImport=importPreview.filter(r=>!r.error&&r.nummer);let added=0,updated=0;
+    const seen=new Set();/* v3.9.161 FIX AS#1: In-Batch-Dedupe — dieselbe Scheinnummer im selben OFFA-Import nicht zweimal anlegen */
     toImport.forEach(r=>{
       const rawSB=r.sachbearbeiter||"";
       const mappedSB=rawSB in OFFA_SB_MAP?OFFA_SB_MAP[rawSB]:(JUPROWA_SB_MAP[rawSB]||rawSB);
       const as={nummer:r.nummer,kundNr:r.kundNr||""/* v3.9.120: aus OFFA-Parse statt hartkodiert leer */,kundName:r.kundName||"",kundStr:r.kundStr||"",kundPlz:r.kundPlz||"",kundOrt:r.kundOrt||"",projektnr:r.projektnr||"",scheinstatus:"aufgenommen",scheinart:"kein",prioritaet:"keine",verrechnung:"verrechenbar",sachbearbeiter:mappedSB,monteur:r._monteurId||"",terminBestaetigt:"",terminZeit:"",terminVorschlag:"",terminVorschlagZeit:"",dauer:"",aufgenommen:r.aufgenommen||td2(),aufgZeit:"",bearbeitetVon:"IMPORT",arbeitsanweisungen:r.arbeitsanweisungen||"",durchgefuehrte:"",notizen:"OFFA Import "+td2(),kontakt:"",stoerungsmelder:"",telefon:r.telefon||"",arbeitsort:r.arbeitsort||""};
-      if(r._exists&&r._existId){/* v3.9.111 Hunt: Re-Import darf NUR OFFA-Beschreibungsfelder mergen — NICHT scheinstatus/art/prio/verrechnung/notizen/termine/dauer clobbern (sonst wird ein erledigter Schein auf "aufgenommen" zurückgesetzt + Notizen/Termine gelöscht = Datenverlust). */const upd={...as};['scheinstatus','scheinart','prioritaet','verrechnung','notizen','bearbeitetVon','terminBestaetigt','terminZeit','terminVorschlag','terminVorschlagZeit','dauer','aufgZeit','durchgefuehrte','kontakt','stoerungsmelder','aufgenommen','kundNr'].forEach(_k=>delete upd[_k]);if(!r._monteurId)delete upd.monteur;if(r.kundNr)upd.kundNr=r.kundNr;/* v3.9.120: Kd-Nr beim Re-Import nur setzen wenn geparst — nie mit leer überschreiben */setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...upd}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:upd});updated++;}
-      else{const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
+      if(r._exists&&r._existId){/* v3.9.111 Hunt: Re-Import darf NUR OFFA-Beschreibungsfelder mergen — NICHT scheinstatus/art/prio/verrechnung/notizen/termine/dauer clobbern (sonst wird ein erledigter Schein auf "aufgenommen" zurückgesetzt + Notizen/Termine gelöscht = Datenverlust). */const upd={...as};['scheinstatus','scheinart','prioritaet','verrechnung','notizen','bearbeitetVon','terminBestaetigt','terminZeit','terminVorschlag','terminVorschlagZeit','dauer','aufgZeit','durchgefuehrte','kontakt','stoerungsmelder','aufgenommen','kundNr'].forEach(_k=>delete upd[_k]);if(!r._monteurId)delete upd.monteur;if(r.kundNr)upd.kundNr=r.kundNr;/* v3.9.120: Kd-Nr beim Re-Import nur setzen wenn geparst — nie mit leer überschreiben */setArbeitsscheine(prev=>prev.map(a=>a.id===r._existId?{...a,...upd}:a));SQ.push({url:"/api/arbeitsscheine/"+r._existId,method:"PUT",body:upd});seen.add((r.nummer||"").toUpperCase());updated++;}
+      else{const _nk=(r.nummer||"").toUpperCase();if(seen.has(_nk))return;/* In-Batch-Dup: erste Anlage gewinnt, weitere übersprungen */seen.add(_nk);const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});added++;}
     });
     _optionalChain([window, 'access', _imp1 => _imp1.__toast, 'optionalCall', _imp2 => _imp2(added+" neu, "+updated+" aktualisiert")]);setImportPreview([]);setSub("liste");};
   const updPreview=(idx,field,val)=>setImportPreview(prev=>prev.map((r,i)=>i===idx?{...r,[field]:val}:r));
@@ -10901,10 +10902,12 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
     const _fx = _vr ? _vr.width/2 : 0, _fy = _vr ? _vr.height/2 : 0;
     setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); const r = z>0?nz/z:1; setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r})); return nz; });
   };
+  const _hiddenLy = new Set((layers||[]).filter(l=>l.visible===false).map(l=>l.id));/* v3.9.161 FIX Mängel#1: explizit ausgeblendete Ebenen */
   const ticketsOnPage = (tickets || []).filter(t => {
     const planMatch = t.planId === (plan && plan.id) || t.plan_id === (plan && plan.id);
     if(!planMatch) return false;
     if((t.page || 1) !== pageNum) return false;
+    if(_hiddenLy.has(t.gewerk||t.layer)) return false;/* v3.9.161 FIX Mängel#1: Layer-Auge (👁️/⊘) wirkte vorher nicht auf Pins — versteckte Ebene jetzt ausgeblendet (unbekannte Ebenen bleiben sichtbar = konservativ) */
     return t.x != null && t.y != null;/* v3.9.136: x/y (%) Pflicht — eine Konvention, DB-konsistent */
   });
   /* v3.9.146 Phase 4: Plan MIT Pin-Overlay als PNG exportieren — gerenderter PDF-Canvas + Pins an x/y(%)
