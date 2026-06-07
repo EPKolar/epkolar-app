@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.164';
+  var SW_VER='epkolar-v3.9.166';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2226,8 +2226,10 @@ window.API = (function() {
       // v3.8.7 BLOCK 1 B-020: Belt-and-braces — nach ALLEN Auth-Pfaden MUSS _authToken gesetzt sein.
       // Falls durch race/edge nicht → HARTE Abweisung statt Dashboard-Render mit anon-Key.
       if(!_authToken){console.error('[B020-H] _authToken null nach Auth-Flow',{username:u,email,gotrueFlag:gotrue});throw new Error("Anmeldung fehlgeschlagen — bitte erneut versuchen [B20-H]");}
-      if(_authToken){try{await _sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1});}catch(e){console.warn('[LOGIN-STAMP]',e&&e.message||e);}}
-      if(_authToken){try{await _sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""});}catch(e){console.warn('[LOGIN-AUDIT]',e&&e.message||e);}}
+      /* v3.9.166 FIX Login#3: Telemetrie (last_login/activity_log) fire-and-forget statt await — lag synchron im
+         kritischen Login-Pfad (verzögerte Dashboard, konnte unnötigen Re-Auth triggern). Ergebnis wird nicht genutzt. */
+      if(_authToken){_sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1}).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
+      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""}).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}
       let perms=[];try{perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];}catch(e){perms=[];}
       const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:email,permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
@@ -2298,7 +2300,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.164-supabase";
+const APP_VERSION="3.9.166-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10155,6 +10157,7 @@ function VCheck({p,forms,setForms,ww,curUser}){
     if(!items.length)return;
     const cl={id:uid(),pid:p.id,name:customName,date:td2(),by:_optionalChain([curUser, 'optionalAccess', _363 => _363.name])||"",items,sigMA:"",sigKunde:"",status:"offen"};
     setForms(f=>({...f,checklisten:[...(f.checklisten||[]),cl]}));
+    SQ.push({url:"/api/checklists",method:"POST",body:{id:cl.id,project_id:p.id,name:cl.name}});/* v3.9.166 FIX Checklisten#2: createCustom persistierte NICHT (nur lokal) → eigene Checklisten gingen beim Reload verloren. Jetzt analog createFromTemplate. */
     setSel(cl.id);setShowNew(false);setCustomName("");setCustomItems("");
   };
   /* v3.9.100 Sprint-81.3: SQ.push für checklists.items+status — bisher nur lokal in setForms → Cross-Device-Datenverlust. PUT /api/checklists/:id schreibt durch zu Supabase. checklists.items ist jsonb (kein TEXT_JSON_FIELDS-Stringify nötig). Sig-Spalten NICHT mitgeschrieben (Load-Mapping liest sie nicht → Schema-Status unklar; separater Sprint). */
@@ -10228,7 +10231,7 @@ function VCheck({p,forms,setForms,ww,curUser}){
                 )
                 , React.createElement('div', { style: {flexShrink:0,display:"flex",flexDirection:"column",gap:4}}
                   , item.photo?(React.createElement('div', { style: {width:48,height:48,borderRadius:4,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: item.photo, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { onClick: ()=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],photo:""};return{...c,items};});}, style: {position:"absolute",top:-2,right:-2,width:14,height:14,borderRadius:"50%",background:COLORS.ERROR,color:"#fff",border:"none",fontSize:7,cursor:"pointer"}}, "✕"))):(
-                    React.createElement('label', { style: {width:48,height:48,borderRadius:4,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:V.dm}}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{const file=_optionalChain([e, 'access', _364 => _364.target, 'access', _365 => _365.files, 'optionalAccess', _366 => _366[0]]);try{e.target.value="";}catch(_){}if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Material-Foto konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],photo:ev.target.result};return{...c,items};});};reader.readAsDataURL(file);}} ), "📷")
+                    React.createElement('label', { style: {width:48,height:48,borderRadius:4,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:V.dm}}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{const file=_optionalChain([e, 'access', _364 => _364.target, 'access', _365 => _365.files, 'optionalAccess', _366 => _366[0]]);try{e.target.value="";}catch(_){}if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Checklisten-Foto konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],photo:ev.target.result};return{...c,items};});};reader.readAsDataURL(file);}} ), "📷")
                   )
                 )
               )
@@ -10946,7 +10949,7 @@ function PlanViewerCanvas({plan, tickets, layers, monteure, pinMode, pendingPin,
 
   return React.createElement('div', {
     ref: containerRef,
-    style: {position: "relative", display: "flex", height: "75vh", background: V.bg, borderRadius: 8, overflow: "hidden", border: "1px solid " + V.bd}
+    style: {position: "relative", display: "flex", height: "82vh", background: V.bg, borderRadius: 8, overflow: "hidden", border: "1px solid " + V.bd}/* v3.9.165: höher = immersiver (PlanRadar-Benchmark) */
   },
     pageCount > 1 ? React.createElement('div', {
       style: {width: 110, background: V.cd, padding: 8, overflowY: "auto", borderRight: "1px solid " + V.bd, flexShrink: 0}
@@ -11200,7 +11203,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     React.createElement('div', { onDrop: handleDrop, onDragOver: handleDragOver, onDragLeave: handleDragLeave, style: {position:"relative"}}
       , dropActive&&React.createElement('div', { style: {position:"absolute",inset:0,zIndex:100,background:"rgba(249,115,22,.15)",border:"3px dashed "+V.ac,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}, React.createElement('div', { style: {background:V.cd,padding:"20px 40px",borderRadius:12,fontSize:18,fontWeight:700,color:V.ac}}, "📤 Plan hier ablegen"   ))
       , React.createElement('div', { className: "header-row", style: {marginBottom:12}}, React.createElement('div', {}, React.createElement('h2', { style: {fontSize:window.innerWidth<600?18:22,fontWeight:800,margin:0}}, "🗺️ Pläne & Tickets"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, p.name, " (" , p.nr, ") — Baupläne hochladen, Tickets platzieren, per Drag & Drop verschieben.")), React.createElement('div', { style: {display:"flex",gap:6}}, isAdmin&&React.createElement('button', { onClick: ()=>_optionalChain([fileRef, 'access', _395 => _395.current, 'optionalAccess', _396 => _396.click, 'call', _397 => _397()]), style: bpS}, "📤 Plan hochladen"  ), React.createElement('input', { ref: fileRef, type: "file", accept: "image/*,.jpg,.jpeg,.png,.pdf,application/pdf", multiple: true, style: {display:"none"}, onChange: handleUpload} ), React.createElement('button', { onClick: exportTickets, style: xBtn("xls")}, "📥 Export" )))
-      , !(isMob&&subView==="viewer")&&React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}/* v3.9.147 Mobil-UX: KPI-Karten im Plan-Viewer ausblenden — Plan startete sonst bei y=836/844 (unter Fold) */, React.createElement(Kpi, { label: "Pläne", value: plans.length, sub: "hochgeladen", color: "#3b82f6", i: 0} ), React.createElement(Kpi, { label: "Tickets", value: stats.total, sub: stats.offen+" offen", color: "#f97316", i: 1} ), React.createElement(Kpi, { label: "In Bearbeitung" , value: stats.inBearb, sub: "laufend", color: "#eab308", i: 2} ), React.createElement(Kpi, { label: "Erledigt", value: stats.erledigt, sub: "abgeschlossen", color: "#22c55e", i: 3} ))
+      , subView!=="viewer"&&React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}/* v3.9.165 PlanRadar-Benchmark: KPI-Karten im Plan-Viewer (Desktop+Mobile) ausblenden → Plan dominiert immersiv; Stats sieht man in den Tickets/Übersicht-Subviews + der Cluster-Pill auf dem Canvas */, React.createElement(Kpi, { label: "Pläne", value: plans.length, sub: "hochgeladen", color: "#3b82f6", i: 0} ), React.createElement(Kpi, { label: "Tickets", value: stats.total, sub: stats.offen+" offen", color: "#f97316", i: 1} ), React.createElement(Kpi, { label: "In Bearbeitung" , value: stats.inBearb, sub: "laufend", color: "#eab308", i: 2} ), React.createElement(Kpi, { label: "Erledigt", value: stats.erledigt, sub: "abgeschlossen", color: "#22c55e", i: 3} ))
       /* v3.9.49 S34-1 VPlan Tab-Bar Modern-Pills mit Counts */
       , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:14,overflowX:"auto",padding:"4px",background:V.bg,borderRadius:10,border:"1px solid "+V.bd}}, [{id:"viewer",i:"🗺️",l:"Plan-Viewer",c:""},{id:"tickets",i:"🎫",l:"Alle Tickets",c:allTickets.length},{id:"layers",i:"📐",l:"Ebenen",c:layers.length},{id:"upload",i:"📁",l:"Planverwaltung",c:plans.length}].map(t=>{const sel=subView===t.id;return React.createElement('button', { key: t.id, onClick: ()=>setSubView(t.id), style: {padding:isMob?"7px 10px":"8px 16px",border:"none",background:sel?"linear-gradient(135deg,"+V.ac+","+V.ac+"DD)":"transparent",color:sel?"#fff":V.dm,fontSize:isMob?11:12,fontWeight:sel?700:500,borderRadius:8,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:5,transition:"all .2s ease",boxShadow:sel?"0 2px 8px rgba(249,115,22,.3)":"none"}, onMouseOver: e=>{if(!sel)e.currentTarget.style.background=V.cd;}, onMouseOut: e=>{if(!sel)e.currentTarget.style.background="transparent";}}, React.createElement('span', null, t.i), !isMob&&React.createElement('span', null, t.l), t.c!==""&&t.c>0&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:8,background:sel?"rgba(255,255,255,.25)":V.bd,fontSize:9,fontWeight:700,fontFamily:mono}}, t.c));}))
 
@@ -12347,7 +12350,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const getWorkersForDay=(datum)=>{
     if(!entries||!entries.length)return[];
     const dayE=entries.filter(e=>e.p===p.id&&(e.datum||e.date||"").split("T")[0]===datum);
-    return[...new Set(dayE.map(e=>e.w||e.worker||e.worker_id).filter(Boolean))];
+    return[...new Set(dayE.map(e=>e.w||e.worker||e.worker_id).filter(Boolean))].filter(wid=>(monteure||MONT).some(m=>m.id===wid));/* v3.9.166 FIX Bautagebuch#2: nur bekannte Monteure übernehmen — sonst landet eine rohe/kryptische Worker-ID im Tagesbericht + TXT/XLS-Export */
   };
   const getTasksForDay=(datum)=>{
     if(!entries||!entries.length)return"";

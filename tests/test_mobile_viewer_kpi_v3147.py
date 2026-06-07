@@ -1,5 +1,6 @@
-"""v3.9.147 — Mobil-UX: KPI-Karten im Plan-Viewer ausblenden (Plan war unter dem Fold)."""
+"""v3.9.165 — KPI-Karten im Plan-Viewer (Desktop+Mobile) ausblenden → Plan dominiert immersiv (PlanRadar-Benchmark).
+(vorher v3.9.147: nur Mobile-Viewer; jetzt der ganze Viewer-Subview.)"""
 
 
-def test_kpi_hidden_on_mobile_viewer(index_html):
-    assert '!(isMob&&subView==="viewer")&&React.createElement(\'div\', { className: "kpi-grid", style: {marginBottom:14}}' in index_html
+def test_kpi_hidden_in_viewer(index_html):
+    assert 'subView!=="viewer"&&React.createElement(\'div\', { className: "kpi-grid", style: {marginBottom:14}}' in index_html
