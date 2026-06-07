@@ -60,3 +60,12 @@ passende Projekt + dessen freigegebene Docs/Pläne/Defects zurückgibt (whitelis
 Danach ist anon-SELECT auf projects/project_documents/plans **ganz entbehrlich** (Policies können zu
 `USING(false)` für anon werden). Frontend ruft dann `rpc/portal_load` statt der Tabellen-GETs.
 → Als separaten Task vorschlagen; benötigt Frontend-Änderung (KundenPortal) + RPC-Definition.
+
+### Nachtrag 2026-06-07 (2. Apply-Versuch): immer noch nicht appliziert + Prädikat-Korrektur
+- CC-MCP-Zugriff erneut geprüft: weiterhin "You do not have permission" → Apply weiterhin nur durch Chat-Claude/Editor.
+- Read-only-Smoke (anon-curl) bestätigt: **Migration NICHT appliziert** (anon liest weiter 1 nicht-freigegebenes Dok).
+- **Neuer Befund:** Projekt `pmof9xiwk` hat `portal_code=''` (leer, nicht NULL). Aufschlüsselung: `IS NOT NULL`=2,
+  `IS NOT NULL & <> ''`=1 (nur `p4`/GED2024), `= ''`=1. Der Client schließt leere Codes aus (Z.4121 `neq.''`).
+  → Migrations-Prädikat von `portal_code IS NOT NULL` auf **`portal_code IS NOT NULL AND portal_code <> ''`**
+  korrigiert (Datei v3.9.155). Sonst bliebe das Nicht-Portal-Projekt `pmof9xiwk` anon-lesbar. Erwartete Wirkung:
+  anon-lesbare projects 2 → 1.

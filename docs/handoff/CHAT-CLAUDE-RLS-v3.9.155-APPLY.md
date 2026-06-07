@@ -33,11 +33,13 @@ WHERE table_schema='public'
 ## Schritt 2 — APPLY (ALTER)
 ```sql
 ALTER POLICY projects_anon_select ON public.projects
-  USING (auth.role()='anon' AND portal_code IS NOT NULL);
+  USING (auth.role()='anon' AND portal_code IS NOT NULL AND portal_code <> '');
 
 ALTER POLICY project_documents_anon_select ON public.project_documents
   USING (auth.role()='anon' AND kunde_freigabe = 1);   -- kunde_freigabe ist INTEGER (verifiziert)
 ```
+> ⚠️ `portal_code <> ''` ist Absicht: Projekt `pmof9xiwk` hat `portal_code=''` (leer). Der Client schließt
+> leere Codes aus (Z.4121 `neq.''`); ohne `<> ''` bliebe dieses Nicht-Portal-Projekt anon-lesbar.
 
 ## Schritt 3 — SMOKE (anon real per curl)
 anon-Key = `SUPABASE_KEY` aus `index.html` Z.471. Basis-URL: `https://jiggujpruejkaomgxarp.supabase.co/rest/v1`.
@@ -45,6 +47,7 @@ Header je Request: `apikey: <KEY>`, `Authorization: Bearer <KEY>`, `Prefer: coun
 Den `content-range`-Response-Header lesen (Format `bereich/TOTAL`). Mit `curl.exe` (nicht PowerShell Invoke-WebRequest — der lehnt `Range: 0-0` ab).
 
 1. **Leak weg:** `GET /project_documents?select=id` (kein Filter) → muss jetzt `.../0` sein (vorher `.../1`).
+   `GET /projects?select=id` (kein Filter) → muss jetzt `.../1` sein (vorher `.../2`; Leer-Code-Projekt fällt raus).
 2. **Portal lebt (KRITISCH):**
    ```sql
    SELECT portal_code FROM projects WHERE portal_code IS NOT NULL LIMIT 1;

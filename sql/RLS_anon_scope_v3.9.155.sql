@@ -52,7 +52,11 @@ WHERE table_schema='public'
 -- BLOCK 2 — FIX (ALTER, nicht DROP)
 -- ═══════════════════════════════════════════════════════════
 ALTER POLICY projects_anon_select ON public.projects
-  USING (auth.role()='anon' AND portal_code IS NOT NULL);
+  USING (auth.role()='anon' AND portal_code IS NOT NULL AND portal_code <> '');
+  -- v3.9.155b (anon-curl-Befund 2026-06-07): Projekt pmof9xiwk hat portal_code='' (leer, nicht NULL).
+  -- Der Client schließt leere Codes aus (Z.4121 portal_code=neq.''). Nur "IS NOT NULL" würde das
+  -- Leer-Code-Projekt anon-lesbar LASSEN → "<> ''" ergänzt, um exakt die Client-Portal-Eligibility zu treffen.
+  -- Wirkung: anon-lesbare projects 2 → 1 (nur echte Portal-Projekte).
 
 ALTER POLICY project_documents_anon_select ON public.project_documents
   USING (auth.role()='anon' AND kunde_freigabe = 1);   -- kunde_freigabe ist INTEGER (verifiziert)
@@ -65,8 +69,9 @@ SELECT policyname, qual FROM pg_policies
 WHERE schemaname='public'
   AND policyname IN ('projects_anon_select','project_documents_anon_select');
 -- Erwartet jetzt:
---   projects_anon_select:          (auth.role() = 'anon'::text) AND (portal_code IS NOT NULL)
+--   projects_anon_select:          (auth.role() = 'anon'::text) AND (portal_code IS NOT NULL) AND (portal_code <> ''::text)
 --   project_documents_anon_select: (auth.role() = 'anon'::text) AND (kunde_freigabe = 1)
+-- anon-curl danach: GET /projects?select=id (kein Filter) → muss .../1 sein (vorher .../2; das Leer-Code-Projekt fällt raus).
 --
 -- ANSCHLIESSEND anon-curl (Bericht Phase 3):
 --   1) /project_documents?select=id OHNE Filter → muss jetzt NUR kunde_freigabe=1-Zeilen liefern (hier: 0).
