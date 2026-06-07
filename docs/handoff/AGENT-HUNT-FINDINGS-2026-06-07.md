@@ -46,6 +46,17 @@ Node-Repro verifiziert: 2024-12-30→`2025-01`, 2027-01-01→`2026-53`, 2022-01-
 **Sauber bestätigt (kein Bug):** Zeit/Stunden-Mathematik+Rundung (Agent 2), JSON-Parse-Pfade defensiv, tank/km-Log
 korrekt read-modify-write, Mutex-Disziplin `_serial` (v3.9.149).
 
+## 🧪 Verhaltens-Test (echter Laufzeit-Beweis, nicht nur pytest) — `scripts/verify_sync_behavior.cjs`
+Node-Harness repliziert die ECHTE doSync-Loop (index.html:5135-5166 v3.9.159) + PhotoQ.flush (2540-2553 v3.9.160)
+VERBATIM mit gemockten Calls. **Ergebnis 2026-06-07: ALLE GRÜN (exit 0)** — beide Fixes bewiesen, kein Revert:
+- **A (403-Wedge):** [403, ok1, ok2] → Run1: ok1+ok2 durchgelaufen, 403 bleibt mit _retries=1 (kein break-Wedge);
+  nach 5 Runs → 403 in `syncQueueFailed`, Queue leer. ✅
+- **B (transient):** [5xx, ok3] → 5xx bricht ab, ok3 NICHT verarbeitet, beide bleiben, nichts gedroppt (Queue hält+retryt). ✅
+- **C (401):** [401, ok4] → 401 break, ok4 nicht verarbeitet, 401 bleibt (Re-Auth-Pfad unverändert). ✅
+- **D (PhotoQ):** [kaputt, gut1, gut2] → gut1+gut2 hochgeladen, kaputtes='error' (sichtbar), KEIN break. ✅
+- **E (PhotoQ transient):** [offline, gut3] → break, gut3 nicht hochgeladen, offline='error'. ✅
+Reproduzierbar: `node scripts/verify_sync_behavior.cjs`.
+
 ## ✅ Fix-Status 2026-06-07 (eng begrenzte Fixes, je eigener Commit, Triade grün)
 - **FIX 1 — 403-Wedge: ✅ GEFIXT** v3.9.159 (`109c24b`). doSync breakt nur noch bei 401; 403 (RLS-Denial) fällt in
   Retry/Drop wie permanenter 4xx → blockiert die Queue nicht mehr. Transiente Fehler stoppen weiterhin. Kein _juprowaPush.
