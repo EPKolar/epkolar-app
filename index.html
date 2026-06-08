@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.182';
+  var SW_VER='epkolar-v3.9.183';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2300,7 +2300,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.182-supabase";
+const APP_VERSION="3.9.183-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -9216,7 +9216,9 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
       SQ.push({url:"/api/projects",method:"POST",body:{...form,id}});
     }
     _optionalChain([window, 'access', _292 => _292.__toast, 'optionalCall', _293 => _293(editP?"✅ Projekt aktualisiert":"✅ Projekt angelegt")]);setForm(emptyProj);setEditP(null);setShowNew(false);
-    _savingProject.current=false;
+    /* v3.9.183 FIX Projekte#4: Guard NICHT synchron reset (war wirkungslos gegen Doppel-Klick im selben Tick).
+       Async-Reset (800ms) blockt das Rapid-Double-Submit-Fenster und heilt sich selbst. */
+    setTimeout(()=>{_savingProject.current=false;},800);
   };
   const archiveP=async id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!await _confirmModal("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
   const deleteP=async id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!await _confirmModal("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!",{variant:"danger"}))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});/* v3.9.64 SPRINT-43 EDGE-3: orphan-cleanup localStorage-Keys mit project-id-Suffix. matCart_<id> blieb sonst nach Project-Delete als zombie liegen. */try{localStorage.removeItem("matCart_"+id);}catch(_e){console.warn('[silent-ls]',_e&&_e.message||_e);}_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
@@ -9271,7 +9273,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
           , form.portalCode?(React.createElement(React.Fragment, null
             , React.createElement('span', { style: {fontFamily:mono,fontSize:16,letterSpacing:3,fontWeight:800,color:V.ac,background:V.cd,padding:"4px 10px",borderRadius:4}}, form.portalCode)
             , React.createElement('button', { onClick: ()=>setForm(p=>({...p,portalCode:""})), style: {...bdS,padding:"4px 8px",fontSize:10}}, "Deaktivieren")
-          )):(React.createElement('button', { onClick: ()=>{const _alpha="ABCDEFGHJKMNPQRSTUVWXYZ23456789";const _rb=(window.crypto&&window.crypto.getRandomValues)?window.crypto.getRandomValues(new Uint8Array(6)):Array.from({length:6},()=>Math.floor(Math.random()*256));const c=(form.nr||"EP").replace(/[^A-Z0-9]/gi,"").slice(0,3).toUpperCase()+Array.from(_rb).map(b=>_alpha[b%31]).join("");/* v3.9.154 (Security-Agent P1): crypto-Random 6 Zeichen (~30 bit, kein 0/O/1/I/L) statt Math.random 4-stellig (~13 bit, brute-forcebar). HINWEIS: echter Access-Boundary ist anon-RLS server-seitig (Code-Match ist client-only) — siehe docs/handoff/PORTAL-RLS-AUDIT. */setForm(p=>({...p,portalCode:c}));}, style: {...bgS,padding:"4px 10px",fontSize:11}}, "Portal aktivieren" ))
+          )):(React.createElement('button', { onClick: ()=>{const _alpha="ABCDEFGHJKMNPQRSTUVWXYZ23456789";const _gen=()=>{const _rb=(window.crypto&&window.crypto.getRandomValues)?window.crypto.getRandomValues(new Uint8Array(6)):Array.from({length:6},()=>Math.floor(Math.random()*256));return (form.nr||"EP").replace(/[^A-Z0-9]/gi,"").slice(0,3).toUpperCase()+Array.from(_rb).map(b=>_alpha[b%31]).join("");};/* v3.9.154 (Security-Agent P1): crypto-Random 6 Zeichen (~30 bit, kein 0/O/1/I/L) statt Math.random. HINWEIS: echter Access-Boundary ist anon-RLS server-seitig (Code-Match ist client-only) — siehe docs/handoff/PORTAL-RLS-AUDIT. */let c=_gen();/* v3.9.183 FIX Projekte#3: Uniqueness-Guard gegen bestehende portalCodes (Kollision quasi nie, aber korrekt). */for(let _i=0;_i<12&&projects.some(p=>(p.portalCode||p.portal_code)===c);_i++)c=_gen();setForm(p=>({...p,portalCode:c}));}, style: {...bgS,padding:"4px 10px",fontSize:11}}, "Portal aktivieren" ))
         )
         , React.createElement('div', { style: {display:"flex",gap:6}}
           , React.createElement('button', { onClick: saveProject, className: "epk-btn-hover", style: bpS}, "💾 " , editP?"Aktualisieren":"Anlegen")
@@ -10897,7 +10899,8 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   _react.useEffect.call(void 0, () => {
     if(!selectedTicket) { _lastCenteredRef.current = null; return; }
     if(_lastCenteredRef.current === selectedTicket.id) return;
-    const _pg = selectedTicket.page || 1;
+    /* v3.9.183 FIX Pläne#6: Seite clampen — Ticket.page > pageCount würde sonst auf eine nicht-existente Seite zentrieren (leeres Canvas). */
+    const _pg = Math.min(Math.max(1, selectedTicket.page || 1), pageCount || 1);
     if(_pg !== pageNum) { setPageNum(_pg); return; }
     if(!pageDims || !pageDims.baseWidth || !viewportRef.current) return;
     const nx = selectedTicket.x!=null?Number(selectedTicket.x)/100:null;/* v3.9.136: x ist %% → /100 */
@@ -10909,7 +10912,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
        sichtbar als Fehl-Zentrierung des Liste→Plan-Sprungs bei Zoom≠1). Inkrement-Zoom war korrekt (Offset konstant). */
     setPan({x: pageDims.baseWidth/2 - nx*pageDims.baseWidth*zoom, y: pageDims.baseHeight/2 - ny*pageDims.baseHeight*zoom});
     _lastCenteredRef.current = selectedTicket.id;
-  }, [selectedTicket && selectedTicket.id, pageDims, pageNum]);
+  }, [selectedTicket && selectedTicket.id, pageDims, pageNum, pageCount]);/* v3.9.183: pageCount in deps — Clamp re-evaluiert sobald PDF-Seitenzahl bekannt */
 
   const handleCanvasClick = (e) => {
     if(!pinMode) return;
@@ -12862,6 +12865,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   },[orders]);
   // Cart helpers
   const cartCount=Object.values(cart).filter(v=>v>0).length;
+  /* v3.9.183 FIX: Freitext ist auch eine Position — Gesamt-Positionszahl (Katalog + 1 für Freitext) für Anzeige/Bestätigung. */
+  const posCount=cartCount+(freitext.trim()?1:0);
   const setMenge=(key,val)=>{const n=Math.max(0,parseFloat(String(val).replace(",","."))||0);/* v3.9.127 F7: Dezimal-Mengen (2,5m Kabel) + Komma-Norm — parseInt schnitt Nachkomma ab */setCart(prev=>{const c={...prev};if(n>0)c[key]=n;else delete c[key];return c;});};
   const clearCart=()=>{setCart({});setFreitext("");setPrio("normal");};
   const itemKey=(catId,itemId,dimIdx)=>catId+"__"+itemId+"__"+(dimIdx!==undefined?dimIdx:"x");
@@ -12875,7 +12880,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     if(_sendingOrder.current)return;
     if(cartCount===0&&!freitext.trim()){window.__toast&&window.__toast("Warenkorb ist leer","error");return;}
     /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
-    if(!await _confirmModal("Material-Anforderung absenden? ("+cartCount+" Positionen)"))return;
+    if(!await _confirmModal("Material-Anforderung absenden? ("+posCount+" Positionen)"))return;
     _sendingOrder.current=true;
     setSending(true);
     const positionen=[];
@@ -13085,7 +13090,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           , Object.entries(MAT_PRIO).map(([k,v])=>(React.createElement('button', { key: k, onClick: ()=>setPrio(k), style: {padding:isMob?"6px 12px":"5px 12px",borderRadius:16,border:"1.5px solid "+(prio===k?v.c:V.bd),background:prio===k?v.c+"18":"transparent",color:prio===k?v.c:V.dm,fontSize:isMob?12:11,fontWeight:prio===k?700:400,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, v.i, " ", v.l)))
         )
         , React.createElement('div', { style: {flex:1}})
-        , cartCount>0&&React.createElement('button', { onClick: ()=>{
+        , (cartCount>0||freitext.trim())&&React.createElement('button', { onClick: ()=>{
           // v3.5.71 Block 3d: Warenkorb Drucken via neuem Fenster
           // v3.8.20 R-3: _e() XSS-Härtung für Print-HTML
           const _e=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -13104,8 +13109,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           if(w){w.document.write(html);w.document.close();}
           else window.__toast?.("Popup blockiert — bitte erlauben","warn");
         }, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "🖨 Drucken")
-        , cartCount>0&&React.createElement('button', { onClick: async()=>{/* v3.9.10 Modal-Migration Round-3 */ if(await _confirmModal("Warenkorb leeren?",{variant:"danger"}))clearCart();}, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "Leeren")
-        , React.createElement('button', { onClick: sendOrder, disabled: sending||cartCount===0&&!freitext.trim(), style: {padding:isMob?"8px 20px":"8px 18px",borderRadius:8,border:"none",background:cartCount>0||freitext.trim()?"#009640":"#555",color:"#fff",fontWeight:700,fontSize:isMob?14:13,cursor:cartCount>0||freitext.trim()?"pointer":"not-allowed",opacity:sending?.6:1,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:isMob?42:0}}, sending?React.createElement("span",{},React.createElement("span",{className:"epk-spin",style:{marginRight:6}})," Sende..."):"📦 Ans Lager senden", cartCount>0&&React.createElement('span', { style: {padding:"2px 7px",borderRadius:10,background:"rgba(255,255,255,.25)",fontSize:11,fontWeight:700}}, cartCount))
+        , (cartCount>0||freitext.trim())&&React.createElement('button', { onClick: async()=>{/* v3.9.10 Modal-Migration Round-3 */ if(await _confirmModal("Warenkorb leeren?",{variant:"danger"}))clearCart();}, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "Leeren")
+        , React.createElement('button', { onClick: sendOrder, disabled: sending||cartCount===0&&!freitext.trim(), style: {padding:isMob?"8px 20px":"8px 18px",borderRadius:8,border:"none",background:cartCount>0||freitext.trim()?"#009640":"#555",color:"#fff",fontWeight:700,fontSize:isMob?14:13,cursor:cartCount>0||freitext.trim()?"pointer":"not-allowed",opacity:sending?.6:1,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:isMob?42:0}}, sending?React.createElement("span",{},React.createElement("span",{className:"epk-spin",style:{marginRight:6}})," Sende..."):"📦 Ans Lager senden", posCount>0&&React.createElement('span', { style: {padding:"2px 7px",borderRadius:10,background:"rgba(255,255,255,.25)",fontSize:11,fontWeight:700}}, posCount))
       )
     );
   };
@@ -17495,7 +17500,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   };
 
   // New vehicle form
-  const [nf,setNf]=_react.useState.call(void 0, {kennzeichen:"",marke:"",modell:"",typ:"PKW",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"",versicherung:"",kmStand:"",reifen:"",scheibenwischer:""});
+  const [nf,setNf]=_react.useState.call(void 0, {kennzeichen:"",marke:"",modell:"",typ:"PKW",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"",versicherung:"",kmStand:"",reifen:"",scheibenwischer:"",vignette_typ:"",vignette_bis:""});
   const addFz=()=>{
     /* v3.9.63 Sprint-42 Form-Round-2: silent-return → Toast für klare User-Feedback */
     if(!nf.kennzeichen.trim()){_optionalChain([window,'access',_g4263c=>_g4263c.__toast,'optionalCall',_g4263d=>_g4263d("⚠️ Kennzeichen ist Pflicht","warn")]);return;}
@@ -17503,7 +17508,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     setFahrzeuge(prev=>[fz,...prev]);
     SQ.push({url:"/api/fahrzeuge",method:"POST",body:fz});
     _optionalChain([window, 'access', _649 => _649.__toast, 'optionalCall', _650 => _650("✅ Fahrzeug angelegt")]);
-    setNf({kennzeichen:"",marke:"",modell:"",typ:"PKW",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"",versicherung:"",kmStand:"",reifen:"",scheibenwischer:""});
+    setNf({kennzeichen:"",marke:"",modell:"",typ:"PKW",fahrer:"",farbe:"",baujahr:"",pickerl:"",naechstService:"",versicherung:"",kmStand:"",reifen:"",scheibenwischer:"",vignette_typ:"",vignette_bis:""});
     setShowAdd(false);
   };
 
@@ -17594,6 +17599,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const openBatch=()=>{setBatchMode(true);setSel(null);setFzScanMode(false);setShowAdd(false);const prefFz=myFzId||_optionalChain([sortedFz, 'access', _683 => _683[0], 'optionalAccess', _684 => _684.id])||"";setBatchFzId(prefFz);const fz=fahrzeuge.find(f=>f.id===prefFz);if(fz)setBKm(String(fz.kmStand||""));};
 
   const FZ_TYPEN=["PKW","Transporter","LKW","Anhänger","Stapler","Hebewerk","Sonstige"];
+  /* v3.9.183 Vignette: Österreich-Vignetten-Typen (DB-Spalten fahrzeuge.vignette_typ/vignette_bis). */
+  const FZ_VIGNETTE_TYPEN=["keine","Jahresvignette","2-Monats-Vignette","10-Tages-Vignette","Digitale Jahresvignette"];
 
   return (
     React.createElement('div', {}
@@ -17882,6 +17889,9 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fahrer"), React.createElement('select', { value: nf.fahrer, onChange: e=>setNf(p=>({...p,fahrer:e.target.value})), style: II()}, React.createElement('option', { value: ""}, "— keiner —"  ), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n)))))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: nf.kmStand, onChange: e=>setNf(p=>({...p,kmStand:e.target.value})), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl bis" ), React.createElement('input', { type: "date", value: nf.pickerl, onChange: e=>setNf(p=>({...p,pickerl:e.target.value})), style: II()} ))
+          /* v3.9.183 Vignette */
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette"), React.createElement('select', { value: nf.vignette_typ||"", onChange: e=>setNf(p=>({...p,vignette_typ:e.target.value})), style: II()}, FZ_VIGNETTE_TYPEN.map(t=>(React.createElement('option', { key: t, value: t==="keine"?"":t}, t)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette gültig bis"  ), React.createElement('input', { type: "date", value: nf.vignette_bis||"", onChange: e=>setNf(p=>({...p,vignette_bis:e.target.value})), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: nf.naechstService, onChange: e=>setNf(p=>({...p,naechstService:e.target.value})), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: nf.versicherung, onChange: e=>setNf(p=>({...p,versicherung:e.target.value})), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), React.createElement('input', { value: nf.reifen, onChange: e=>setNf(p=>({...p,reifen:e.target.value})), style: II(), placeholder: "205/65/R16C"} ))
@@ -17971,6 +17981,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
               , isVAdmin?(React.createElement('select', { value: selFz.fahrer||"", onChange: e=>upd(sel,f=>({...f,fahrer:e.target.value})), style: {...II(),fontSize:12}}, React.createElement('option', { value: ""}, "— keiner —"  ), (monteure||MONT).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))):(React.createElement('div', { style: {fontSize:13}}, _optionalChain([(monteure||MONT), 'access', _703 => _703.find, 'call', _704 => _704(m=>m.id===selFz.fahrer), 'optionalAccess', _705 => _705.n])||"—"))
             )
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('div', { style: {fontSize:13}}, selFz.versicherung||"—"))
+            /* v3.9.183 Vignette-Anzeige + Ablauf-Warnung (reuse _pickerlStatus). */
+            , selFz.vignette_typ&&React.createElement('div', {}, React.createElement('span', { style: LL()}, "🛣️ Vignette"), (()=>{const _vSt=window._pickerlStatus(selFz.vignette_bis);const _vCol=_vSt==='overdue'?"#dc2626":_vSt==='warn'?"#d97706":"#16a34a";return React.createElement('div', { style: {fontSize:13,fontWeight:600,color:selFz.vignette_bis?_vCol:undefined}}, selFz.vignette_typ, selFz.vignette_bis?(" · bis "+fdt(selFz.vignette_bis)+(_vSt==='overdue'?" ⚠️ abgelaufen":_vSt==='warn'?" ⚠️ bald fällig":"")):"");})())
             , selFz.reifen&&React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), React.createElement('div', { style: {fontSize:13,fontWeight:600,fontFamily:"monospace"}}, selFz.reifen))
             , selFz.scheibenwischer&&React.createElement('div', {}, React.createElement('span', { style: LL()}, "Wischer (V/H)" ), React.createElement('div', { style: {fontSize:13,fontFamily:"monospace"}}, selFz.scheibenwischer, " cm" ))
           )
@@ -18044,6 +18056,9 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "🗓️ Termine & Werkstatt"   )
           , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl gültig bis"  ), React.createElement('input', { type: "date", value: selFz.pickerl||"", onChange: e=>upd(sel,f=>({...f,pickerl:e.target.value})), style: II()} ))
+            /* v3.9.183 Vignette-Edit */
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette"), React.createElement('select', { value: selFz.vignette_typ||"", onChange: e=>upd(sel,f=>({...f,vignette_typ:e.target.value})), style: II()}, FZ_VIGNETTE_TYPEN.map(t=>(React.createElement('option', { key: t, value: t==="keine"?"":t}, t)))))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette gültig bis"  ), React.createElement('input', { type: "date", value: selFz.vignette_bis||"", onChange: e=>upd(sel,f=>({...f,vignette_bis:e.target.value})), style: II()} ))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: selFz.naechstService||"", onChange: e=>upd(sel,f=>({...f,naechstService:e.target.value})), style: II()} ))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: selFz.versicherung||"", onChange: e=>upd(sel,f=>({...f,versicherung:e.target.value})), style: II()} ))
           )
