@@ -12,4 +12,5 @@ def test_retry_count_persists_with_sibling_drop(index_html):
 
 def test_notif_deadline_fz_navigates(index_html):
     assert 'const _typeTab={deadline_fz:"fahrzeuge"};' in index_html
-    assert "const _tgt=n.link||_typeTab[n.type]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat]);" in index_html
+    # v3.9.169 FIX Notif#1: n.link via _catTab aufgelöst (material→projekte, kunden→arbeitsscheine)
+    assert "const _tgt=_catTab[n.link]||n.link||_typeTab[n.type]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat]);" in index_html
