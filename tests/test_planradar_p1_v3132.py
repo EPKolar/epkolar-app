@@ -17,4 +17,5 @@ def test_readers_use_gewerk_fallback(index_html):
     assert "visibleLayers.includes(t.gewerk||t.layer)" in index_html
     assert "layers.find(l=>l.id===(ticket.gewerk||ticket.layer))" in index_html
     assert "(layers || []).find(l => l.id === (ticket.gewerk||ticket.layer))" in index_html
-    assert index_html.count("layers.find(x=>x.id===(t.gewerk||t.layer))") == 2
+    # v3.9.187: +1 durch Tickets-Mobile-Karten-Reader (nutzt ebenfalls gewerk||layer) → 3
+    assert index_html.count("layers.find(x=>x.id===(t.gewerk||t.layer))") == 3

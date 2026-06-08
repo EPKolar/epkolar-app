@@ -4,7 +4,8 @@
 def test_http_status_in_throws(index_html):
     # Diagnose: alle non-auth Throws tragen den HTTP-Status
     assert 'throw new Error("HTTP"+r.status+" "+e);' in index_html
-    assert index_html.count('throw new Error("HTTP"+r.status+" "+e);') == 7
+    # v3.9.187: +1 durch _sbDeleteWhere (Projekt-Lösch-Kaskade) → 8
+    assert index_html.count('throw new Error("HTTP"+r.status+" "+e);') == 8
 
 
 def test_sync_transient_vs_permanent(index_html):
