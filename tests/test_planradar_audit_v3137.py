@@ -15,7 +15,8 @@ def test_ebene_edit_sets_gewerk(index_html):
     # P1 (Auditor B): Ebene-Edit setzt gewerk (kanonisch) + value gewerk||layer
     assert "value: ed.gewerk||ed.layer, onChange: e=>setEd(p=>({...p,layer:e.target.value,gewerk:e.target.value}))" in index_html
     # updateTicket PUT persistiert gewerk+layer
-    assert 'gewerk:u.gewerk||u.layer||"",layer:u.layer||""/* v3.9.137 P1: Ebene persistieren */' in index_html
+    # v3.9.180: updateTicket-Rewrite (Journal-Auto-Log) nutzt _u statt u; Ebene wird weiterhin persistiert.
+    assert 'gewerk:_u.gewerk||_u.layer||"",layer:_u.layer||""' in index_html
 
 
 def test_layerbar_count_uses_gewerk(index_html):
