@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.189';
+  var SW_VER='epkolar-v3.9.190';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1698,6 +1698,7 @@ function _mapProject(p){
   return{...p,kundenNr:p.kundenNr||p.kunden_nr||"",portalCode:p.portalCode||p.portal_code||"",
     start:p.start||p.start_date||"",ende:p.ende||p.end_date||"",
     emailKunde:p.emailKunde||p.email_kunde||"",createdBy:p.createdBy||p.created_by||"",
+    planLayers:(typeof p.plan_layers==='string'?_jp(p.plan_layers):(p.plan_layers||p.planLayers||null))/* v3.9.190 Ebenen pro Projekt (jsonb) — null → DEF_LAYERS-Fallback in VPlan */,
     tags:_jp(p.tags)};
 }
 function _mapFahrzeug(f){
@@ -2314,7 +2315,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.189-supabase";
+const APP_VERSION="3.9.190-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -11274,7 +11275,10 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     const _raw=planData.tickets.filter(t=>t.pid===p.id);
     return _vpIsField?_raw.filter(t=>t.assignee===_vpMid):_raw;
   },[planData.tickets,p.id,_vpIsField,_vpMid]);
-  const layers=planData.layers;
+  /* v3.9.190 Ebenen PRO PROJEKT, persistiert (projects.plan_layers jsonb). null → DEF_LAYERS-Fallback. Sichtbarkeit bleibt Session-UI (kein PUT bei toggleLayer). */
+  const [layers,setLayers]=_react.useState.call(void 0, ()=>{const _pl=Array.isArray(p.planLayers)&&p.planLayers.length?p.planLayers:null;return _pl?_pl.map(l=>({...l,visible:l.visible!==false})):DEF_LAYERS.map(l=>({...l}));});
+  _react.useEffect.call(void 0, ()=>{const _pl=Array.isArray(p.planLayers)&&p.planLayers.length?p.planLayers:null;setLayers(_pl?_pl.map(l=>({...l,visible:l.visible!==false})):DEF_LAYERS.map(l=>({...l})));},[p.id]);
+  const _persistLayers=(next)=>{try{SQ.push({url:"/api/projects/"+p.id,method:"PUT",body:{plan_layers:next}});}catch(_e){console.warn('[layers-persist]',_e&&_e.message||_e);}};
   const [selPlan,setSelPlan]=_react.useState.call(void 0, null);const [selTicket,setSelTicket]=_react.useState.call(void 0, null);const [subView,setSubView]=_react.useState.call(void 0, "viewer");
   /* v3.9.142 FIX TDZ: Auto-Select-Effekt MUSS nach der selPlan/plans-Deklaration stehen (vorher VOR
      der const-Deklaration → "Cannot access selPlan before initialization" → VPlan-Crash = der echte
@@ -11350,12 +11354,11 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     if(_old&&_old.status!==u.status){const _cu=(typeof window!=="undefined"&&window._curUser&&window._curUser())||null;const _au=(_cu&&(_cu.name||_cu.username))||"System";_u={...u,comments:[...(u.comments||[]),{text:"Status → "+((TICKET_STATUS[u.status]||{}).l||u.status),author:_au,date:new Date().toLocaleDateString("de-AT")+" "+new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}),type:"event"}]};}
     setPlanData(prev=>({...prev,tickets:prev.tickets.map(t=>t.id===_u.id?_u:t)}));setSelTicket(_u);SQ.push({url:"/api/tickets/"+_u.id,method:"PUT",body:{title:_u.title,description:_u.description||"",status:_u.status,priority:_u.priority||"normal",assignee:_u.assignee||"",gewerk:_u.gewerk||_u.layer||"",layer:_u.layer||"",x:_u.x,y:_u.y/* v3.9.182: Pin-Position persistieren (Drag-Reposition) */,photos:_u.photos||[],comments:_u.comments||[]/* v3.9.180: Kommentare/Journal in die DB */,progress:_u.progress||0,updated_at:_u.updatedAt||td2()}});if(_u.type==="mangel"){const _ds=({offen:"offen",in_bearbeitung:"in Behebung",erledigt:"behoben",abgenommen:"behoben",abgeschlossen:"behoben",storniert:"behoben"})[_u.status]||"offen";SQ.push({url:"/api/defects/"+_u.id,method:"PUT",body:{title:_u.title,description:_u.description||"",status:_ds,prio:_u.priority||"normal"}});setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===_u.id?{...m,status:_ds,name:_u.title}:m)}));}/* v3.9.182 FIX Pläne#1: gespiegelten Mangel/Defect-Status + Titel mitführen (sonst veraltet er) */};
   const deleteTicket=async id=>{if(!isAdmin)return;if(!await _confirmModal("Ticket wirklich löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,tickets:prev.tickets.filter(t=>t.id!==id)}));setForms(f=>({...f,maengel:(f.maengel||[]).filter(m=>m.id!==id)}));SQ.push({url:"/api/tickets/"+id,method:"DELETE"});SQ.push({url:"/api/defects/"+id,method:"DELETE"})/* v3.9.182 FIX Pläne#1/#2: gespiegelten Mangel/Defect mitlöschen (sonst Geister-Defect im Mängel-Tab/Kundenportal) */;setSelTicket(null);setSideMode("tickets");};
-  const toggleLayer=id=>setPlanData(prev=>({...prev,layers:prev.layers.map(l=>l.id===id?{...l,visible:!l.visible}:l)}));
-  const addLayer=()=>{const cs=["#14b8a6","#ec4899","#84cc16","#6366f1","#f43f5e"];setPlanData(prev=>({...prev,layers:[...prev.layers,{id:uid(),name:"Neue Ebene",color:cs[prev.layers.length%cs.length],icon:"📌",visible:true}]}));};
-  const updateLayer=(id,u)=>setPlanData(prev=>({...prev,layers:prev.layers.map(l=>l.id===id?{...l,...u}:l)}));
-  // v3.8.44 S3.3: UI-only — layers werden aktuell NICHT in DB persistiert (kein SQ.push).
-  // Falls künftig Persistenz hinzukommt: canDo("plan_delete", curUser)-Guard davor setzen.
-  const deleteLayer=id=>setPlanData(prev=>({...prev,layers:prev.layers.filter(l=>l.id!==id)}));
+  /* v3.9.190: toggleLayer = nur Session-Sichtbarkeit (kein PUT). add/update/delete = Definition → pro Projekt persistieren. */
+  const toggleLayer=id=>setLayers(prev=>prev.map(l=>l.id===id?{...l,visible:!l.visible}:l));
+  const addLayer=()=>{const cs=["#14b8a6","#ec4899","#84cc16","#6366f1","#f43f5e"];setLayers(prev=>{const next=[...prev,{id:uid(),name:"Neue Ebene",color:cs[prev.length%cs.length],icon:"📌",visible:true}];_persistLayers(next);return next;});};
+  const updateLayer=(id,u)=>setLayers(prev=>{const next=prev.map(l=>l.id===id?{...l,...u}:l);_persistLayers(next);return next;});
+  const deleteLayer=id=>setLayers(prev=>{const next=prev.filter(l=>l.id!==id);_persistLayers(next);return next;});
   /* v3.9.80 S55-1 useMemo: 3× filter pro Render */
   const stats=_react.useMemo.call(void 0, ()=>({total:allTickets.length,offen:allTickets.filter(t=>t.status==="offen").length,inBearb:allTickets.filter(t=>t.status==="in_bearbeitung").length,erledigt:allTickets.filter(t=>t.status==="erledigt"||t.status==="abgenommen").length}),[allTickets]);
   const exportTickets=()=>{const hdrs=["Nr","Typ","Status","Fortschritt","Titel","Ebene","Verantwortlich","Frist"];const data=allTickets.map((t,i)=>{const tt=TICKET_TYPES[t.type];const ts=TICKET_STATUS[t.status];const l=layers.find(x=>x.id===(t.gewerk||t.layer));const w=(monteure||MONT).find(x=>x.id===t.assignee);return [i+1,_optionalChain([tt, 'optionalAccess', _391 => _391.l])||"",_optionalChain([ts, 'optionalAccess', _392 => _392.l])||"",(t.progress||0)+"%",t.title,_optionalChain([l, 'optionalAccess', _393 => _393.name])||"",_optionalChain([w, 'optionalAccess', _394 => _394.n])||"",t.dueDate?fdt(t.dueDate):""];});genXls("🗺️ Tickets — "+p.name,p.nr+" · Pläne & Mängel · "+allTickets.length+" Tickets",hdrs,data,p.nr+"_Tickets.xls",{colWidths:[35,75,85,60,200,95,95,75],leftCols:[0,1,4,5,6],boldCols:[4],statusMap:{"Offen":"#ef4444","In Bearbeitung":"#f97316","Erledigt":"#22c55e","Abgenommen":"#3b82f6","Abgeschlossen":"#6366f1","Storniert":"#71717a"}});};
