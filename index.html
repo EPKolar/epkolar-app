@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.180';
+  var SW_VER='epkolar-v3.9.181';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2155,7 +2155,7 @@ async function _translateAndExec(url,method,body){
     // Remove id from patch body
     const patchData={...mapped};delete patchData.id;
     /* v3.8.64 Bug-4: Tabellen ohne updated_at-Spalte (PGRST204 verifiziert via DevTools-Console 26.04). Notifications PATCH 400 → SyncQueue droppt nach 5 fails → "als gelesen" persistiert nie. Blacklist verhindert Spalten-Injection für bekannte non-updated_at-Tabellen. */
-    if(table!=="notifications")patchData.updated_at=new Date().toISOString();
+    if(table!=="notifications"&&table!=="plans")patchData.updated_at=new Date().toISOString();/* v3.9.181 FIX: plans hat KEINE updated_at-Spalte → updated_at-Injection ließ ALLE plans-PUTs (category/Geschoss, kunde_freigabe, page_count) mit PGRST204 fehlschlagen → Geschoss/Freigabe persistierten nie */
     await _sbPatch(table,idOrSub,patchData);
   }else if(method==="DELETE"){
     if(!idOrSub){console.warn("[api] DELETE without ID:",url);return{ok:1};}
@@ -2300,7 +2300,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.180-supabase";
+const APP_VERSION="3.9.181-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -11084,7 +11084,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
 
 /* v3.9.138 PlanRadar Phase 2: Quick-Edit-Popup beim Pin-Klick — Schnellbearbeitung (Status/Zuständiger/
    Frist/Priorität) + Foto-Vorschau + "Öffnen" (volles Ticket) / "Speichern", OHNE den vollen Detail-Panel. */
-function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment}) {
+function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment, onPhotos}) {
   const [st, setSt] = _react.useState.call(void 0, ticket.status || "offen");
   const [asg, setAsg] = _react.useState.call(void 0, ticket.assignee || "");
   const [due, setDue] = _react.useState.call(void 0, ticket.dueDate || ticket.due_date || "");
@@ -11107,7 +11107,11 @@ function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment}) {
         ),
         React.createElement('button', {onClick:onClose, "aria-label":"Schließen", style:{border:"none", background:"transparent", color:V.dm, fontSize:18, cursor:"pointer", padding:"2px 6px", minHeight:36, minWidth:36}}, "✕")
       ),
-      _photoSrc ? React.createElement('img', {src:_photoSrc, alt:"Foto", style:{width:"100%", maxHeight:140, objectFit:"cover", borderRadius:8, marginBottom:12, border:"1px solid "+V.bd}}) : null,
+      React.createElement('div', {style:{display:"flex", gap:6, flexWrap:"wrap", marginBottom:12}}/* v3.9.181: alle Fotos anzeigen + Datei/Kamera hinzufügen (statt 1 read-only) */,
+        (ticket.photos||[]).map((ph,_pi)=>{const _s=typeof ph==="string"?ph:(ph.dataUrl||ph.url||"");return React.createElement('div', {key:_pi, style:{width:60, height:60, borderRadius:6, overflow:"hidden", border:"1px solid "+V.bd, position:"relative", background:V.bg}}, _s?React.createElement('img', {src:_s, style:{width:"100%", height:"100%", objectFit:"cover"}, alt:""}):null, onPhotos?React.createElement('button', {onClick:()=>onPhotos((ticket.photos||[]).filter((_,_di)=>_di!==_pi)), style:{position:"absolute", top:-2, right:-2, width:18, height:18, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:COLORS.ERROR, color:"#fff", border:"none", fontSize:9, cursor:"pointer", lineHeight:1}}, "✕"):null);}),
+        onPhotos?React.createElement('label', {style:{width:60, height:60, borderRadius:6, border:"2px dashed "+V.bd, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, cursor:"pointer", color:V.dm}, title:"Foto wählen"}, "+", React.createElement('input', {type:"file", accept:"image/*", multiple:true, style:{display:"none"}, onChange:e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)onPhotos([...(ticket.photos||[]),{name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]);});try{e.target.value="";}catch(_e){}}})):null,
+        onPhotos?React.createElement('label', {style:{width:60, height:60, borderRadius:6, border:"2px dashed "+V.bd, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, cursor:"pointer", color:V.dm}, title:"Kamera"}, "📷", React.createElement('input', {type:"file", accept:"image/*", capture:"environment", style:{display:"none"}, onChange:e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)onPhotos([...(ticket.photos||[]),{name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt}]);});try{e.target.value="";}catch(_e){}}})):null
+      ),
       React.createElement('div', {style:{marginBottom:8}}, React.createElement('label', {style:LL()}, "Status"),
         React.createElement('select', {value:st, onChange:e=>setSt(e.target.value), style:_selSt}, Object.entries(TICKET_STATUS).map(([k,v])=>React.createElement('option', {key:k, value:k}, v.i+" "+v.l)))),
       React.createElement('div', {style:{marginBottom:8}}, React.createElement('label', {style:LL()}, "Zuständig"),
@@ -11303,7 +11307,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
       ))
 
       /* v3.9.49 S34-1 Mobile-Bottom-Sheet Drag-Handle (visueller Hint für Bottom-Sheet) */
-      , quickTicket&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, onSave: u=>{updateTicket(u);setQuickTicket(null);}, onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}, onClose: ()=>setQuickTicket(null), onComment: (c)=>{const _u={...quickTicket,comments:[...(quickTicket.comments||[]),c],updatedAt:td2()};updateTicket(_u);setQuickTicket(_u);}/* v3.9.180: Kommentar im Quick-Popup → persistiert + Popup bleibt offen */} )
+      , quickTicket&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, onSave: u=>{updateTicket(u);setQuickTicket(null);}, onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}, onClose: ()=>setQuickTicket(null), onComment: (c)=>{const _u={...quickTicket,comments:[...(quickTicket.comments||[]),c],updatedAt:td2()};updateTicket(_u);setQuickTicket(_u);}/* v3.9.180: Kommentar im Quick-Popup → persistiert + Popup bleibt offen */, onPhotos: (arr)=>{const _u2={...quickTicket,photos:arr,updatedAt:td2()};updateTicket(_u2);setQuickTicket(_u2);}/* v3.9.181: Fotos im Quick-Popup → persistiert */} )
       , isMob&&selTicket&&subView==="viewer"&&(React.createElement('div', { onClick: ()=>setSelTicket(null), style: {position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease-out"}}, React.createElement('div', { onClick: e=>e.stopPropagation(), style: {width:"100%",maxHeight:"80vh",overflowY:"auto",borderRadius:"16px 16px 0 0",background:V.cd,boxShadow:"0 -8px 32px rgba(0,0,0,.4)"}}, React.createElement('div', { className: "epk-tap", onClick: ()=>setSelTicket(null), style: {display:"flex",justifyContent:"center",padding:"10px 0 6px",cursor:"pointer",touchAction:"manipulation"}, title: "Schließen"}, React.createElement('div', { style: {width:48,height:5,borderRadius:3,background:V.dm,opacity:.55,boxShadow:"0 1px 2px rgba(0,0,0,.2)"}} )), React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>setSelTicket(null), ww: ww, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid} ))))
       , pendingPin&&!newTicket?React.createElement('div', { style: {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:V.bg,border:"1px solid "+V.bd,borderRadius:12,padding:"10px 16px",display:"flex",gap:10,zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,.4)"}}, React.createElement('span', { style: {color:V.tx,fontSize:13,padding:"8px 4px",alignSelf:"center"}}, "📍 Passt die Position?" ), React.createElement('button', { onClick: confirmPendingPin, style: {background:V.ac,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}, "✓ Ja — Ticket ausfüllen" ), React.createElement('button', { onClick: cancelPendingPin, style: {background:COLORS.ERROR,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit"}}, "✗ Abbrechen" )):null
       /* v3.9.71 S51-3 Mobile-FAB für "+ Neuer Pin" — PlanRadar-Match. Nur Mobile, nur wenn Plan ausgewählt & nicht im placing-Mode & kein pending. */

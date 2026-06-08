@@ -2,8 +2,8 @@
 
 
 def test_quickedit_component_exists(index_html):
-    # v3.9.180: onComment ergänzt (Journal/Kommentar-Sektion im Quick-Popup)
-    assert "function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment}) {" in index_html
+    # v3.9.180: onComment (Journal) + v3.9.181: onPhotos (Foto-Grid) ergänzt
+    assert "function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment, onPhotos}) {" in index_html
     # Schnellbearbeitungs-Felder
     assert 'React.createElement(\'label\', {style:LL()}, "Status")' in index_html
     assert 'React.createElement(\'label\', {style:LL()}, "Zuständig")' in index_html
