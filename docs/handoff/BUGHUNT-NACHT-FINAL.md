@@ -4,10 +4,12 @@
 P1 DOM-XSS genAsPdf (6422, `<`→`<` nur Daten) · P2 finkzeit-Clobber (15097/15103 Merge) · P2 Cross-User-syncQueue (owner-Stempel + Flush-Filter) · P2 Ticket-Typ↔Defect-Upsert · P2 QuickEditPin Scroll-Lock+Esc · P2 PlanViewer-Esc-Cascade · P3 _OFFPW empty-salt · P3 genBescheinigung Monat-Index · P3 Notif/Photo/Sync-Panel safe-area-top.
 **⚠️ Lehre:** Agenten-Fix `html.replace(/<\/script/)` war FALSCH (zerschösse legit Tag); `</script>` NIE in Kommentaren im Inline-Script (beendet Tag im Browser — node --check fing's ab).
 
-## ⏳ NOCH OFFEN (nächste Session):
-- P3 Zeit-addModal Bottom-Sheet mobil (9744 + 17137) — fiddlig (outer flex-end + inner full-width); globale CSS (16px-Input/44px-Button) deckt Gröbstes ab.
-- P2 tote Fullbleed-Modal-CSS (187/290) — Selektoren matchen React-Inline-Styles (`position: fixed` mit Space) nicht; CSSOM-korrekte additive Regel.
-- P3 _authRetry id-loser POST-Dup (1495-1510) — latent; id vor POST in _sbPost.
+## ✅ RESTPUNKTE — in v3.9.194 abgeschlossen:
+- **P3 Zeit-addModal** (9743/17137) — GEFIXT: beide auf Mobile = Bottom-Sheet (flex-end + full-width + 16px-Radius-oben + Safe-Area-paddingBottom).
+- **P2 tote Fullbleed-Modal-CSS** (187/290) — bewusst NICHT aktiviert: `border-radius:0 !important` würde die neuen Bottom-Sheets (v3.9.191/193/194) plattmachen → Regression. Ist obsoleter Dead-Code (durch per-Modal-isMob-Handling abgelöst), harmlos. Bei Bedarf entfernen, nicht aktivieren.
+- **P3 _authRetry** (1495-1510) — VERIFIZIERT als Non-Issue: re-exec NUR bei 401/403 (= Server hat abgewiesen, NICHTS geschrieben) → Retry ist der einzige Write, kein Duplikat. Kein (riskanter id-erzwingender) Fix nötig.
+
+**→ Alle Bug-Hunt-Funde abgearbeitet (gefixt oder fundiert als Non-Issue/obsolet geklärt).**
 
 ---
 
