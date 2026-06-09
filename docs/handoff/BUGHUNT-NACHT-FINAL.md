@@ -1,5 +1,16 @@
 # BUG-HUNT NACHT — FINAL Work-Order (Agententeam Synth, 2026-06-08)
 
+## ✅ STATUS — in v3.9.193 (`82eb828`) GEFIXT (9 Funde):
+P1 DOM-XSS genAsPdf (6422, `<`→`<` nur Daten) · P2 finkzeit-Clobber (15097/15103 Merge) · P2 Cross-User-syncQueue (owner-Stempel + Flush-Filter) · P2 Ticket-Typ↔Defect-Upsert · P2 QuickEditPin Scroll-Lock+Esc · P2 PlanViewer-Esc-Cascade · P3 _OFFPW empty-salt · P3 genBescheinigung Monat-Index · P3 Notif/Photo/Sync-Panel safe-area-top.
+**⚠️ Lehre:** Agenten-Fix `html.replace(/<\/script/)` war FALSCH (zerschösse legit Tag); `</script>` NIE in Kommentaren im Inline-Script (beendet Tag im Browser — node --check fing's ab).
+
+## ⏳ NOCH OFFEN (nächste Session):
+- P3 Zeit-addModal Bottom-Sheet mobil (9744 + 17137) — fiddlig (outer flex-end + inner full-width); globale CSS (16px-Input/44px-Button) deckt Gröbstes ab.
+- P2 tote Fullbleed-Modal-CSS (187/290) — Selektoren matchen React-Inline-Styles (`position: fixed` mit Space) nicht; CSSOM-korrekte additive Regel.
+- P3 _authRetry id-loser POST-Dup (1495-1510) — latent; id vor POST in _sbPost.
+
+---
+
 Basis v3.9.192 (bbea6c0). 13-Agenten-Hunt (6 Dim + 6 Verify + Synth), adversarial verifiziert, zeilen-gegengeprüft, test-sichere Varianten. **Startpunkt nächste Session.** Zeilennummern vor Edit per grep bestätigen.
 
 ---
