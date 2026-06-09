@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.229';
+  var SW_VER='epkolar-v3.9.230';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.229-supabase";
+const APP_VERSION="3.9.230-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -16252,6 +16252,27 @@ function UrlaubsantragPanel({curUser,monteure,users}){
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
     finally{setSending(false);}
   };
+  /* v3.9.230 P1 Urlaub→Kontingent-Bruecke: Genehmigen erzeugt absences-Werktags-Eintraege — sonst zieht
+     Resturlaub (liest NUR aus absences) den genehmigten Antrag NIE ab. stdVonTag inline (wie Kalender):
+     Sa/So/AT-Feiertag=0, Mo-Do 8,5h, Fr 4,5h. Vollzeit-Default 38,5 (Teilzeit-woche = Folge-Ticket). */
+  const _stdVonTagBrk=(d)=>{const dow=d.getDay();if(dow===0||dow===6||_isATFeiertag(d))return 0;return dow<=4?8.5:4.5;};
+  const _materialisiereAbsence=async(ant)=>{
+    try{
+      const w=(monteure||[]).find(m=>m.id===ant.worker_id);
+      const wName=(w&&w.n)||ant.worker_name||ant.worker_id;
+      const von=ant.von,bis=ant.bis;if(!von||!bis)return;
+      const start=new Date(von+"T00:00:00"),end=new Date(bis+"T00:00:00");
+      if(isNaN(start)||isNaN(end)||end<start)return;
+      let _existing=new Set();
+      try{const ex=await _api.get('absences','worker_id=eq.'+encodeURIComponent(ant.worker_id)+'&from_date=gte.'+von+'&from_date=lte.'+bis+'&select=id');(ex||[]).forEach(r=>{if(r&&r.id)_existing.add(r.id);});}catch(e){console.warn('[urlaub-brk-existing]',e&&e.message||e);}
+      const _by=curUser.name||curUser.username||"";const _now=new Date().toISOString();
+      for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+        const h=_stdVonTagBrk(d);if(h<=0)continue;
+        const fd=dk(d);const key=wName+"_"+fd;if(_existing.has(key))continue;
+        try{await _api.post('absences',{id:key,worker_id:ant.worker_id,worker_name:wName,type:ant.art,from_date:fd,to_date:fd,hours:h,tage:1,status:'genehmigt',approved_by:_by,approved_at:_now,note:ant.kommentar||""});}catch(e){console.warn('[urlaub-brk-insert]',key,e&&e.message||e);}
+      }
+    }catch(e){console.warn('[urlaub-brk]',e&&e.message||e);}
+  };
   const entscheiden=async(id,status)=>{
     const grund=status==='abgelehnt'?(prompt('Grund für Ablehnung (optional):')||''):'';
     try{
@@ -16259,7 +16280,7 @@ function UrlaubsantragPanel({curUser,monteure,users}){
       await _api.patch('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()});
       setAntraege(prev=>prev.map(a=>a.id===id?{...a,status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()}:a));
       window._showToast?.(status==='genehmigt'?'✅ Genehmigt':'❌ Abgelehnt','success');window._haptic.success();
-      const ant=antraege.find(a=>a.id===id);if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
+      const ant=antraege.find(a=>a.id===id);if(status==='genehmigt'&&ant){await _materialisiereAbsence(ant);}/* v3.9.230 P1: genehmigter Antrag → absences-Werktage materialisieren (sonst kein Resturlaub-Abzug) */if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
   /* v3.9.61 S40 F-11: native confirm → _confirmModal */
