@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.194';
+  var SW_VER='epkolar-v3.9.195';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2315,7 +2315,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.194-supabase";
+const APP_VERSION="3.9.195-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -11152,28 +11152,21 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
             onClick: handleCanvasClick,
             style: {display: "block", boxShadow: "0 4px 16px rgba(0,0,0,.4)", maxWidth: "none"}
           }) : null),
-          showTickets ? ticketsOnPage.map((t, i) => {
-            // v3.8.59 Schema-Reality: tickets sind Pixel (x,y); Render konvertiert zu % via pageDims.
-            const _xPct = (t.x!=null)?Number(t.x):0;/* v3.9.136: t.x ist PROZENT (0-100), direkt als left:%% */
-            const _yPct = (t.y!=null)?Number(t.y):0;/* v3.9.136: t.y ist PROZENT */
-            /* v3.9.71 S51-1: PlanRadar-Match — Hover-Quick-Info Card + ≥44px Touch-Target + Status-Color-Fill + Pulse für NEW. */
-            return React.createElement(PlanCanvasPinMarker, {
-              key: t.id,
-              ticket: t,
-              idx: (pinNr&&pinNr[t.id])?pinNr[t.id]-1:i,/* v3.9.178: kanonische Pin-Nummer (= Ticketliste) */
-              isSelected: !!(selectedTicket && selectedTicket.id === t.id),
-              xPct: _xPct,
-              yPct: _yPct,
-              zoom: zoom,
-              pendingIds: pendingIds,
-              onClick: onPinClick,
-              layers: layers,
-              monteure: monteure,
-              draggable: !pinMode,/* v3.9.184: Pins verschiebbar außer im Platzier-Modus */
-              pctFromClient: pctFromClient,
-              onPinMove: onPinMove
+          showTickets ? (()=>{
+            /* v3.9.195 PlanRadar Pin-Clustering: Pins mit Screen-Distanz < ~38px (zoom-abhängig) zu einer Zähl-Bubble gruppieren;
+               Tap auf die Bubble zoomt fokussiert rein → fächert auf. Einzelpins rendern unverändert (Drag/Click bleiben). */
+            const _pw=(pageDims&&pageDims.baseWidth)||(imgElRef.current&&imgElRef.current.offsetWidth)||1000;
+            const _ph=(pageDims&&pageDims.baseHeight)||(imgElRef.current&&imgElRef.current.offsetHeight)||1000;
+            const _cw=Math.max(0.5,38/(((_pw*zoom))||1)*100), _ch=Math.max(0.5,38/(((_ph*zoom))||1)*100);
+            const _cells={};
+            ticketsOnPage.forEach((t,i)=>{const _xPct = (t.x!=null)?Number(t.x):0;const _yPct = (t.y!=null)?Number(t.y):0;/* v3.9.136: t.x/y sind PROZENT (kanonisch) */const k=Math.floor(_xPct/_cw)+"_"+Math.floor(_yPct/_ch);(_cells[k]=_cells[k]||[]).push({t:t,i:i,x:_xPct,y:_yPct});});
+            return Object.keys(_cells).map(k=>{const grp=_cells[k];
+              if(grp.length===1){const g=grp[0];return React.createElement(PlanCanvasPinMarker, {key:g.t.id, ticket:g.t, idx:(pinNr&&pinNr[g.t.id])?pinNr[g.t.id]-1:g.i, isSelected:!!(selectedTicket&&selectedTicket.id===g.t.id), xPct:g.x, yPct:g.y, zoom:zoom, pendingIds:pendingIds, onClick:onPinClick, layers:layers, monteure:monteure, draggable:!pinMode, pctFromClient:pctFromClient, onPinMove:onPinMove});}
+              const _cx=grp.reduce((s,g)=>s+g.x,0)/grp.length, _cy=grp.reduce((s,g)=>s+g.y,0)/grp.length;
+              const _open=grp.filter(g=>g.t.status==="offen"||g.t.status==="in_bearbeitung").length;
+              return React.createElement('div', {key:"cl_"+k, onClick:(e)=>{e.stopPropagation();const _fx=pan.x+(_cx/100)*_pw*zoom, _fy=pan.y+(_cy/100)*_ph*zoom;setZoom(z=>{const nz=Math.min(6,Math.max(z*1.8,2.5));const r=z>0?nz/z:1;setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r}));return nz;});}, title:grp.length+" Tickets ("+_open+" offen) — antippen zum Reinzoomen", style:{position:"absolute", left:_cx+"%", top:_cy+"%", width:40, height:40, marginLeft:-20, marginTop:-20, transform:"scale("+(1/(zoom||1))+")", transformOrigin:"50% 50%", zIndex:55, cursor:"zoom-in", borderRadius:"50%", background:_open>0?"#009640":"#6b7280", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, fontFamily:mono, border:"3px solid #fff", boxShadow:"0 3px 12px rgba(0,0,0,.5)"}}, grp.length);
             });
-          }) : null,
+          })() : null,
           pendingPin && pendingPin.page === pageNum ? React.createElement('div', {
             style: {
               position: "absolute",
