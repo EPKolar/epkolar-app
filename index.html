@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.216';
+  var SW_VER='epkolar-v3.9.217';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1498,6 +1498,10 @@ function _restoreAuth(){
 _restoreAuth();
 // Proactive auth refresh when tab becomes visible (PWA/mobile wake-up)
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&_authToken){try{const s=JSON.parse(localStorage.getItem("epkolar_auth")||"null");if(!s||!s.exp||s.exp-Date.now()<120000){dlog("[Auth] Tab visible, token expiring soon — refreshing");_sbAuthRefresh();}}catch(_){_sbAuthRefresh();}}});
+/* v3.9.217 F1: Cross-Tab/PWA-Koordination — rotiert ein anderer Kontext (Tab/PWA) den access/refresh-Token,
+   uebernimmt DIESER Tab den neuen Wert SOFORT aus localStorage, statt mit totem RT im RAM weiterzuarbeiten und
+   in einen Rotation-Race-Logout zu laufen. Reiner additiver Listener, kein eigener /token-Call. */
+window.addEventListener("storage",e=>{try{if(e.key==="epkolar_refresh"&&e.newValue&&e.newValue.length>10){_authRefreshToken=e.newValue;}if(e.key==="epkolar_token"&&e.newValue&&_isJwtShape(e.newValue)){_authToken=e.newValue;}}catch(_){}});
 // Auth error detection: 401/403 from RLS → attempt refresh once, then prompt re-login
 let _authFailShown=false;
 function _isAuthErr(status){return status===401||status===403;}
@@ -1509,6 +1513,9 @@ function _onAuthFail(status){if(status===403){console.warn('[Auth] 403 Forbidden
 // implementiert — 5 parallele _authRetry-Calls lösen exakt 1 refresh aus, alle 5 warten
 // auf dasselbe Promise. Hier: nach Retry 2nd-round-401 erkennen, dann _onAuthFail feuern.
 async function _authRetry(fn){
+  /* v3.9.217 F2: Fehlt ein gueltiges JWT (z.B. kurz nach Rotation/Restore/in-flight), erst refreshen statt mit
+     anon-Key zu feuern — sonst deterministisches 401 → unnoetige Re-Auth-Kette. Single-Flight + Offline-Guard. */
+  if(!(_authToken&&_isJwtShape(_authToken))&&navigator.onLine!==false){try{await _sbAuthRefresh();}catch(_){}}
   const r=await fn();
   if(_isAuthErr(r.status)&&navigator.onLine!==false){/* v3.9.107 Hunt: offline NICHT als Auth-Fehler behandeln — der Offline-Guard in _sbAuthRefresh liefert truthy ohne Refresh, sonst feuerte _authRetry einen falschen "Sitzung abgelaufen"-Toast. */
     /* v3.9.215: 403 = RLS-/Berechtigungs-Denial bei GUELTIGER Session (z.B. notifications-RLS, Rollen-Scope) →
@@ -2342,7 +2349,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.216-supabase";
+const APP_VERSION="3.9.217-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
