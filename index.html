@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.205';
+  var SW_VER='epkolar-v3.9.206';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2165,7 +2165,7 @@ async function _translateAndExec(url,method,body){
     // Remove id from patch body
     const patchData={...mapped};delete patchData.id;
     /* v3.8.64 Bug-4: Tabellen ohne updated_at-Spalte (PGRST204 verifiziert via DevTools-Console 26.04). Notifications PATCH 400 → SyncQueue droppt nach 5 fails → "als gelesen" persistiert nie. Blacklist verhindert Spalten-Injection für bekannte non-updated_at-Tabellen. */
-    if(table!=="notifications"&&table!=="plans")patchData.updated_at=new Date().toISOString();/* v3.9.181 FIX: plans hat KEINE updated_at-Spalte → updated_at-Injection ließ ALLE plans-PUTs (category/Geschoss, kunde_freigabe, page_count) mit PGRST204 fehlschlagen → Geschoss/Freigabe persistierten nie */
+    if(table!=="notifications"&&table!=="plans"&&table!=="finkzeit"&&table!=="fahrbewilligungen")patchData.updated_at=new Date().toISOString();/* v3.9.181 FIX: plans hat KEINE updated_at-Spalte → PGRST204. v3.9.206 FIX: finkzeit (Monatsabrechnung-Freigabe-PUT 400 → "sync geht nicht") + fahrbewilligungen ebenfalls ohne updated_at → Blacklist erweitert */
     await _sbPatch(table,idOrSub,patchData);
   }else if(method==="DELETE"){
     if(!idOrSub){console.warn("[api] DELETE without ID:",url);return{ok:1};}
@@ -2318,7 +2318,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.205-supabase";
+const APP_VERSION="3.9.206-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -15159,6 +15159,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     const upd=zettel.map(x=>x.id===z.id?{...x,status:"freigegeben",freigegebenAm:new Date().toISOString(),unterschrift:sigData}:x);
     saveZettel(upd);
     SQ.push({url:"/api/finkzeit/"+z.id,method:"PUT",body:{status:"genehmigt",signatur:sigData}});
+    if(window.__doSync)window.__doSync();/* v3.9.206 sofort hochladen nach Freigabe (nicht auf Sync-Intervall warten) */
     _optionalChain([window, 'access', _610 => _610.__toast, 'optionalCall', _611 => _611("✅ Monatszettel freigegeben")]);
     setSigZettel(null);setSigData(null);
   };
@@ -15199,8 +15200,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{font-family:Arial,sans-serif;padding:20px;color:#1a1a1a}
-      @page{size:landscape;margin:10mm}
-      .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:12px;margin-bottom:16px}
+      @page{size:A4 landscape;margin:8mm}
+      html,body{width:100%}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:10px;margin-bottom:12px}
       .logo{font-size:22px;font-weight:800;color:#009640}.logo img{height:48px;width:auto;display:block;margin-bottom:3px}/* v3.9.150 CI-Logo */
       .logo small{display:block;font-size:11px;color:#666;font-weight:400}
       .info{text-align:right;font-size:12px;color:#444}
