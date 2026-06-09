@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.233';
+  var SW_VER='epkolar-v3.9.234';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.233-supabase";
+const APP_VERSION="3.9.234-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17715,7 +17715,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const delTermin=async(tid)=>{if(!isVAdmin)return;if(!await _confirmModal("Termin wirklich löschen?",{variant:"danger"}))return;setFzTermine(p=>p.filter(t=>t.id!==tid));SQ.push({url:"/api/fz-termine/"+tid,method:"DELETE",body:{}});_optionalChain([window, 'access', _fzt3 => _fzt3.__toast, 'optionalCall', _fzt4 => _fzt4("🗑️ Termin gelöscht")]);};
   const togTermin=(tid)=>{if(!isVAdmin)return;const cur=fzTermine.find(x=>x.id===tid);if(!cur)return;const nv=cur.erledigt?0:1;setFzTermine(p=>p.map(t=>t.id===tid?{...t,erledigt:nv}:t));SQ.push({url:"/api/fz-termine/"+tid,method:"PUT",body:{erledigt:nv}});};
 
-  const upd=(id,fn)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:updated});return updated;}return f;}));};
+  /* v3.9.234 #3 DIFF-1: optionaler 3. Param syncBody → inkrementeller Diff-PUT statt Voll-Row-Clobber.
+     Ohne syncBody = unverändertes Verhalten (Voll-Objekt). Mit syncBody = nur geänderte Spalte(n) gehen
+     an PATCH (Z.2210) → Parallel-Edits an km_log/tank_log/schaeden/serviceheft auf anderem Gerät bleiben erhalten. */
+  const upd=(id,fn,syncBody)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:syncBody!==undefined?syncBody:updated});return updated;}return f;}));};
   /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
   const del=async(id)=>{if(!isVAdmin)return;if(!await _confirmModal("Fahrzeug wirklich löschen?",{variant:"danger"}))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
 
@@ -18370,12 +18373,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , isVAdmin&&(React.createElement('div', { style: {...CC(),marginTop:8}}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "🗓️ Termine & Werkstatt"   )
           , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl gültig bis"  ), React.createElement('input', { type: "date", value: selFz.pickerl||"", onChange: e=>upd(sel,f=>({...f,pickerl:e.target.value})), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Pickerl gültig bis"  ), React.createElement('input', { type: "date", value: selFz.pickerl||"", onChange: e=>upd(sel,f=>({...f,pickerl:e.target.value}),{pickerl:e.target.value}), style: II()} ))
             /* v3.9.183 Vignette-Edit */
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette"), React.createElement('select', { value: selFz.vignette_typ||"", onChange: e=>upd(sel,f=>({...f,vignette_typ:e.target.value})), style: II()}, FZ_VIGNETTE_TYPEN.map(t=>(React.createElement('option', { key: t, value: t==="keine"?"":t}, t)))))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette gültig bis"  ), React.createElement('input', { type: "date", value: selFz.vignette_bis||"", onChange: e=>upd(sel,f=>({...f,vignette_bis:e.target.value})), style: II()} ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: selFz.naechstService||"", onChange: e=>upd(sel,f=>({...f,naechstService:e.target.value})), style: II()} ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: selFz.versicherung||"", onChange: e=>upd(sel,f=>({...f,versicherung:e.target.value})), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette"), React.createElement('select', { value: selFz.vignette_typ||"", onChange: e=>upd(sel,f=>({...f,vignette_typ:e.target.value}),{vignette_typ:e.target.value}), style: II()}, FZ_VIGNETTE_TYPEN.map(t=>(React.createElement('option', { key: t, value: t==="keine"?"":t}, t)))))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Vignette gültig bis"  ), React.createElement('input', { type: "date", value: selFz.vignette_bis||"", onChange: e=>upd(sel,f=>({...f,vignette_bis:e.target.value}),{vignette_bis:e.target.value}), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { type: "date", value: selFz.naechstService||"", onChange: e=>upd(sel,f=>({...f,naechstService:e.target.value}),{naechstService:e.target.value}), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Versicherung"), React.createElement('input', { value: selFz.versicherung||"", onChange: e=>upd(sel,f=>({...f,versicherung:e.target.value}),{versicherung:e.target.value}), style: II()} ))
           )
           /* Zulassungsschein Upload with Preview */
           , React.createElement('div', { style: {...CC(),marginTop:8,padding:10}}
@@ -18457,8 +18460,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , React.createElement('div', { style: {...CC(),marginTop:8}}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "🔧 Technische Daten & Verbrauchsmaterial"    )
           , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), isVAdmin?React.createElement('input', { value: selFz.reifen||"", onChange: e=>upd(sel,f=>({...f,reifen:e.target.value})), style: II(), placeholder: "205/65/R16C"} ):React.createElement('div', { style: {fontSize:13,fontWeight:600,fontFamily:mono}}, selFz.reifen||"—"))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Scheibenwischer (V/H cm)"  ), isVAdmin?React.createElement('input', { value: selFz.scheibenwischer||"", onChange: e=>upd(sel,f=>({...f,scheibenwischer:e.target.value})), style: II(), placeholder: "65/55"} ):React.createElement('div', { style: {fontSize:13,fontFamily:mono}}, selFz.scheibenwischer||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Reifen"), isVAdmin?React.createElement('input', { value: selFz.reifen||"", onChange: e=>upd(sel,f=>({...f,reifen:e.target.value}),{reifen:e.target.value}), style: II(), placeholder: "205/65/R16C"} ):React.createElement('div', { style: {fontSize:13,fontWeight:600,fontFamily:mono}}, selFz.reifen||"—"))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Scheibenwischer (V/H cm)"  ), isVAdmin?React.createElement('input', { value: selFz.scheibenwischer||"", onChange: e=>upd(sel,f=>({...f,scheibenwischer:e.target.value}),{scheibenwischer:e.target.value}), style: II(), placeholder: "65/55"} ):React.createElement('div', { style: {fontSize:13,fontFamily:mono}}, selFz.scheibenwischer||"—"))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Motoröl"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _712 => _712.verbrauchsmaterial, 'optionalAccess', _713 => _713.oel])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),oel:e.target.value}})), style: II(), placeholder: "5W-30"} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _714 => _714.verbrauchsmaterial, 'optionalAccess', _715 => _715.oel])||"—"))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Ölfilter"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _716 => _716.verbrauchsmaterial, 'optionalAccess', _717 => _717.oelfilter])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),oelfilter:e.target.value}})), style: II(), placeholder: "Mann HU ..."  } ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _718 => _718.verbrauchsmaterial, 'optionalAccess', _719 => _719.oelfilter])||"—"))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Luftfilter"), isVAdmin?React.createElement('input', { value: _optionalChain([selFz, 'access', _720 => _720.verbrauchsmaterial, 'optionalAccess', _721 => _721.luftfilter])||"", onChange: e=>upd(sel,f=>({...f,verbrauchsmaterial:{...(f.verbrauchsmaterial||{}),luftfilter:e.target.value}})), style: II()} ):React.createElement('div', { style: {fontSize:12}}, _optionalChain([selFz, 'access', _722 => _722.verbrauchsmaterial, 'optionalAccess', _723 => _723.luftfilter])||"—"))
