@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.234';
+  var SW_VER='epkolar-v3.9.235';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.234-supabase";
+const APP_VERSION="3.9.235-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17718,7 +17718,14 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   /* v3.9.234 #3 DIFF-1: optionaler 3. Param syncBody → inkrementeller Diff-PUT statt Voll-Row-Clobber.
      Ohne syncBody = unverändertes Verhalten (Voll-Objekt). Mit syncBody = nur geänderte Spalte(n) gehen
      an PATCH (Z.2210) → Parallel-Edits an km_log/tank_log/schaeden/serviceheft auf anderem Gerät bleiben erhalten. */
-  const upd=(id,fn,syncBody)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:syncBody!==undefined?syncBody:updated});return updated;}return f;}));};
+  const upd=(id,fn,syncBody)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});const _body=(typeof syncBody==="function")?syncBody(updated):(syncBody!==undefined?syncBody:updated);SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:_body});return updated;}return f;}));};
+  /* v3.9.235 tu-563: Serviceheft-Dokumente (Rechnung/Befund + beliebig viele weitere), PDF-fähig.
+     function-syncBody → PUT trägt NUR die serviceheft-Spalte (statt ganzes Fahrzeug mit allen base64-Bildern). */
+  const _svcSync=u=>({serviceheft:u.serviceheft});
+  const _isPdf=d=>typeof d==="string"&&d.indexOf("data:application/pdf")===0;
+  const _svcDocList=s=>{const out=[];if(s.befund)out.push({k:"befund",name:"Befund",data:s.befund});if(s.rechnung)out.push({k:"rechnung",name:"Rechnung",data:s.rechnung});(s.docs||[]).forEach(d=>out.push({k:"doc",id:d.id,name:d.name||"Dokument",data:d.data}));return out;};
+  const _addSvcDoc=(i,file)=>{if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Dokument konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{const doc={id:uid(),name:file.name||"Dokument",data:ev.target.result};upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,docs:[...(x.docs||[]),doc]}:x)}),_svcSync);};reader.readAsDataURL(file);};
+  const _delSvcDoc=(i,d)=>{upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>{if(j!==i)return x;if(d.k==="befund")return{...x,befund:""};if(d.k==="rechnung")return{...x,rechnung:""};return{...x,docs:(x.docs||[]).filter(z=>z.id!==d.id)};})}),_svcSync);};
   /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
   const del=async(id)=>{if(!isVAdmin)return;if(!await _confirmModal("Fahrzeug wirklich löschen?",{variant:"danger"}))return;setFahrzeuge(prev=>prev.filter(f=>f.id!==id));SQ.push({url:"/api/fahrzeuge/"+id,method:"DELETE",body:{}}); _optionalChain([window, 'access', _629 => _629.__toast, 'optionalCall', _630 => _630("🗑️ Fahrzeug gelöscht")]);if(sel===id)setSel(null);};
 
@@ -18488,9 +18495,17 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                   , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: s.kosten||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:Math.max(0,parseFloat(e.target.value)||0)}:x)})), style: {...II(),fontSize:11,padding:4}} ))
                   , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"  } ))
                   , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Ford Tulln"  } ))
-                  , React.createElement('div', { style: {gridColumn:"span 2",display:"flex",gap:8,flexWrap:"wrap"}}
-                    , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.befund, alt: "Befund", style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.befund,"Befund")} ), React.createElement('span', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)})), style: {cursor:"pointer",fontSize:9,color:COLORS.ERROR}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];e.target.value="";if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Fahrzeug-Befund konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,befund:ev.target.result}:x)}));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
-                    , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "🧾 Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.rechnung, alt: "Rechnung", style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.rechnung,"Rechnung")} ), React.createElement('span', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)})), style: {cursor:"pointer",fontSize:9,color:COLORS.ERROR}}, "✕")):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];e.target.value="";if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Fahrzeug-Rechnung konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:ev.target.result}:x)}));reader.readAsDataURL(file);}, style: {fontSize:10,padding:2}} ))
+                  /* v3.9.235 tu-563: Multi-Dokument-Liste (Rechnung/Befund + beliebig viele), PDF-fähig (📄 statt kaputtes <img>), legacy befund/rechnung bleiben sichtbar. */
+                  , React.createElement('div', { style: {gridColumn:"span 2"}}
+                    , React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Dokumente (Rechnung / Befund / weitere)"  )
+                    , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-start",marginTop:3}}
+                      , _svcDocList(s).map((d,di)=>React.createElement('div', { key: d.id||d.k||di, style: {position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:2,width:50}}
+                        , _isPdf(d.data)?React.createElement('button', { onClick: ()=>_openFileUrl(d.data,d.name), title: d.name, style: {width:46,height:46,borderRadius:6,border:"1px solid "+V.bd,background:V.cd,cursor:"pointer",fontSize:20}}, "📄"):React.createElement('img', { src: d.data, alt: d.name, title: d.name, style: {width:46,height:46,objectFit:"cover",borderRadius:6,cursor:"pointer",border:"1px solid "+V.bd}, onClick: ()=>_openFileUrl(d.data,d.name)} )
+                        , React.createElement('span', { style: {fontSize:8,color:V.dm,maxWidth:50,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name)
+                        , isVAdmin&&React.createElement('span', { onClick: ()=>_delSvcDoc(i,d), title: "Entfernen", style: {position:"absolute",top:-6,right:-2,cursor:"pointer",fontSize:10,color:"#fff",background:COLORS.ERROR,borderRadius:"50%",width:16,height:16,lineHeight:"16px",textAlign:"center"}}, "✕")
+                      ))
+                      , isVAdmin&&React.createElement('label', { title: "Dokument hinzufügen (mehrere möglich, PDF/Bild)", style: {width:46,height:46,borderRadius:6,border:"1px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:22,color:V.dm}}, "+", React.createElement('input', { type: "file", accept: "image/*,.pdf", multiple: true, style: {display:"none"}, onChange: e=>{const fs=Array.from(e.target.files||[]);e.target.value="";fs.forEach(file=>_addSvcDoc(i,file));}} ))
+                    )
                   )
                 )):(React.createElement('div', {}
                   , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, s.art, ": " , s.beschreibung)
