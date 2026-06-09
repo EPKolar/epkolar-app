@@ -175,7 +175,7 @@ def test_auth_fail_flag_prevents_toast_spam(index_html):
     assert "let _authFailShown=false" in index_html, (
         "_authFailShown flag must exist to prevent toast-spam"
     )
-    start = index_html.index("function _onAuthFail()")
+    start = index_html.index("function _onAuthFail(")
     body = index_html[start:start + 400]
     assert "if(_authFailShown)return" in body, (
         "_onAuthFail must early-return on repeat calls"
