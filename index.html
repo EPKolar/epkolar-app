@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.231';
+  var SW_VER='epkolar-v3.9.232';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.231-supabase";
+const APP_VERSION="3.9.232-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -14596,10 +14596,19 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   };
   const ga=(m,d)=>abs[m+"_"+dk(d)];
 
+  /* v3.9.232 FIX (Chef: "seh keine bereits freigegebene Urlaube"): Genehmigungs-Status im Render aus
+     DER PERSISTIERTEN absence.status-Quelle ableiten, nicht nur aus dem optimistischen absApprovals-Map.
+     Bug: absApprovals war nach Reload/cross-device leer/stale → server-bestätigte Freigaben (status='genehmigt')
+     unsichtbar. Jetzt decisive-wins: lokale optimistische Entscheidung (absApprovals) gewinnt für Sofort-Feedback;
+     sonst zählt eine definitive Server-Entscheidung aus absence.status; sonst ausstehend. Reiner Render-Pfad,
+     kein DB-Write, Resturlaub unverändert (zieht genehmigt+ausstehend ohnehin gleich ab). */
+  const _decAppr=s=>s==="genehmigt"||s==="abgelehnt";
+  const _resolveAppr=key=>{const _av=approvals[key];if(_decAppr(_av))return _av;const _vs=abs[key]&&abs[key].status;if(_decAppr(_vs))return _vs;return _av||"ausstehend";};
+
   // Jahres-Statistik pro Person
   /* v3.8.64 Bug-1: Sebastian-Erwartung "alle Urlaubsanträge (genehmigt+ausstehend) vom Rest abziehen, nur abgelehnte ignorieren". Separate Tracking für UI-Visual-Marker. */
   const yearSt=m=>{const r={};Object.keys(AT_T).forEach(t=>{r[t]=0;r[t+"Std"]=0;});r.urlaubGenehmigt=0;r.urlaubStdGen=0;r.urlaubAusstehend=0;r.urlaubStdAusstehend=0;r.sonderGes=0;r.sonderStdGes=0;r.pflegeGes=0;r.pflegeStdGes=0;
-    Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");if(dateStr.startsWith(String(yr))){const d=new Date(dateStr+"T00:00:00");const h=parseFloat(v.hours)||stdVonTag(d,_wocheOf(m));const t=v.type;if(r[t]!==undefined){r[t]++;r[t+"Std"]+=h;}if(t==="urlaub"){const _appr=approvals[key]||"ausstehend";if(_appr==="genehmigt"){r.urlaubGenehmigt++;r.urlaubStdGen+=h;}else if(_appr!=="abgelehnt"){r.urlaubAusstehend++;r.urlaubStdAusstehend+=h;}}const kat=_optionalChain([AT_T, 'access', _549 => _549[t], 'optionalAccess', _550 => _550.kat]);if(kat==="sonder"){r.sonderGes++;r.sonderStdGes+=h;}if(kat==="pflege"){r.pflegeGes++;r.pflegeStdGes+=h;}}}});return r;};
+    Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");if(dateStr.startsWith(String(yr))){const d=new Date(dateStr+"T00:00:00");const h=parseFloat(v.hours)||stdVonTag(d,_wocheOf(m));const t=v.type;if(r[t]!==undefined){r[t]++;r[t+"Std"]+=h;}if(t==="urlaub"){const _appr=_resolveAppr(key);if(_appr==="genehmigt"){r.urlaubGenehmigt++;r.urlaubStdGen+=h;}else if(_appr!=="abgelehnt"){r.urlaubAusstehend++;r.urlaubStdAusstehend+=h;}}const kat=_optionalChain([AT_T, 'access', _549 => _549[t], 'optionalAccess', _550 => _550.kat]);if(kat==="sonder"){r.sonderGes++;r.sonderStdGes+=h;}if(kat==="pflege"){r.pflegeGes++;r.pflegeStdGes+=h;}}}});return r;};
   // Monats-Statistik
   const st=m=>{let u=0,k=0,z=0;Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");const d=new Date(dateStr+"T00:00:00");/* v3.9.129 P-P3: lokal parsen (Konsistenz mit yearSt/EntryRow) — UTC-Parse konnte Monatsersten in den Vormonat kippen */if(d.getMonth()===mo&&d.getFullYear()===yr){if(v.type==="urlaub")u++;if(v.type==="krankenstand")k++;if(v.type==="zeitausgleich")z++;}}});return {urlaub:u,krankenstand:k,zeitausgleich:z};};
   // Resturlaub
@@ -14610,7 +14619,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 
   const approve=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt")]);};
   const reject=(m,d)=>{const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"abgelehnt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_by:_optionalChain([curUser, 'optionalAccess', _561 => _561.name])}});_optionalChain([window, 'access', _562 => _562.__toast, 'optionalCall', _563 => _563("❌ Antrag abgelehnt")]);_optionalChain([pushNotif, 'optionalCall', _564 => _564("absence_approval","❌ Antrag abgelehnt",m+": "+fdt(dk(d))+" abgelehnt")]);};
-  const getApproval=(m,d)=>approvals[m+"_"+dk(d)]||"ausstehend";
+  const getApproval=(m,d)=>_resolveAppr(m+"_"+dk(d));
   const delEntry=async(m,d)=>{/* v3.9.10 Modal-Migration Round-3 */ if(!isAdmin)return;if(!await _confirmModal("Abwesenheit wirklich löschen?",{variant:"danger"}))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
   const updateEntry=(key,changes)=>{setAbs(p=>{const c={...p};if(c[key])c[key]={...c[key],...changes};return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(key),method:"PUT",body:changes});setEditEntry(null);_optionalChain([window, 'access', _565a => _565a.__toast, 'optionalCall', _565b => _565b("✏️ Eintrag aktualisiert")]);};
   const bulkApprove=()=>{allEntries.filter(e=>e.approval==="ausstehend").forEach(e=>{setApprovals(p=>({...p,[e.key]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(e.key),method:"PUT",body:{status:"genehmigt",approved_by:_optionalChain([curUser, 'optionalAccess', _565c => _565c.name])}});});_optionalChain([window, 'access', _565d => _565d.__toast, 'optionalCall', _565e => _565e("✅ Alle genehmigt")]);};
@@ -14618,7 +14627,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   // All entries — v3.9.80 S55-1 useMemo: scan over abs+approvals+names ist O(n*m) — bei jedem Render → expensive
   const allEntries=_react.useMemo.call(void 0, ()=>{
     const out=[];
-    names.forEach(m=>{Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");const appr=approvals[key]||"ausstehend";out.push({name:m,dateStr,type:v.type,by:v.by||"",date:v.date||"",approval:appr,key});}});});
+    names.forEach(m=>{Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");const appr=_resolveAppr(key);out.push({name:m,dateStr,type:v.type,by:v.by||"",date:v.date||"",approval:appr,key});}});});
     out.sort((a,b)=>(b.dateStr||"").localeCompare(a.dateStr||""));
     return out;
   },[names.join("|"),abs,approvals]);
