@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.219';
+  var SW_VER='epkolar-v3.9.220';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1985,7 +1985,7 @@ async function _translateAndExec(url,method,body){
         // fallback: mark all as read (will be filtered later by user context)
         _nResp=await _authRetry(()=>fetch(SB_REST+"/notifications?read=eq.0",_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify({read:1})})));
       }
-      if(_nResp&&!_nResp.ok){const _et=await _nResp.text().catch(()=>"");console.warn("[api] notifications read-all PATCH failed",_nResp.status,_et.slice(0,200));return{ok:0,err:"read-all:"+_nResp.status};}
+      if(_nResp&&!_nResp.ok){const _et=await _nResp.text().catch(()=>"");console.warn("[api] notifications read-all PATCH failed",_nResp.status,_et.slice(0,200));throw new Error("HTTP"+_nResp.status+" "+_et.slice(0,200));/* v3.9.220 #3: werfen statt {ok:0} → doSync behaelt Item bei 5xx (Retry) statt es still aus der Queue zu droppen */}
       return{ok:1};
     }
     if(idOrSub==="clear"&&method==="POST"){
@@ -1993,7 +1993,7 @@ async function _translateAndExec(url,method,body){
       if(uid){
         /* v3.9.53 N-RLS: Response-Status checken. */
         const _cResp=await _authRetry(()=>fetch(SB_REST+"/notifications?user_id=eq."+encodeURIComponent(uid),_fT({method:"DELETE",headers:_sbH()})));
-        if(_cResp&&!_cResp.ok){const _et=await _cResp.text().catch(()=>"");console.warn("[api] notifications clear DELETE failed",_cResp.status,_et.slice(0,200));return{ok:0,err:"clear:"+_cResp.status};}
+        if(_cResp&&!_cResp.ok){const _et=await _cResp.text().catch(()=>"");console.warn("[api] notifications clear DELETE failed",_cResp.status,_et.slice(0,200));throw new Error("HTTP"+_cResp.status+" "+_et.slice(0,200));/* v3.9.220 #3 */}
       }
       return{ok:1};
     }
@@ -2353,7 +2353,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.219-supabase";
+const APP_VERSION="3.9.220-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3167,7 +3167,7 @@ async function _juprowaPush(scheinId){
       if(respData&&respData.ID){patchData.juprowa_raw=respData;patchData.juprowa_sync_at=new Date().toISOString();}
     }catch(pe){/* v3.8.38 Iter-20: Silent-Catch-Sweep Teil 3 — Juprowa-Push Response-Parse-Failure sichtbar machen. Bei Parse-Fail bleibt juprowa_raw+juprowa_sync_at ungesetzt (Push lief durch, aber Return-Daten unklar). */console.warn('[JP-PUSH-PARSE]',scheinId,pe&&pe.message||pe,'result-snippet:',String(result||'').substring(0,200));}
     await _sbPatch('arbeitsscheine',scheinId,patchData);
-    try{const _u=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost('activity_log',{user_id:_optionalChain([_u,'optionalAccess',_=>_.id])||'system',action:'juprowa_push',details:JSON.stringify({nummer:schein.nummer,juprowa_id:schein.juprowa_id,result:result.substring(0,500)})});}catch(e){console.warn('[silent-log]',e&&e.message||e);}
+    try{const _u=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost('activity_log',{user_id:_optionalChain([_u,'optionalAccess',_=>_.id])||'system',action:'juprowa_push',details:JSON.stringify({nummer:schein.nummer,juprowa_id:schein.juprowa_id,result:result.substring(0,500)})}).catch(()=>{});/* v3.9.220 #9: fire-and-forget braucht .catch — umschliessendes try faengt nur das synchrone JSON.parse, nicht die async _sbPost-Rejection */}catch(e){console.warn('[silent-log]',e&&e.message||e);}
     return{ok:true,nummer:schein.nummer,result};
   }catch(e){
     await _sbPatch('arbeitsscheine',scheinId,{push_error:e.message}).catch(pe=>console.warn('[JP-PUSH-ERR-WRITE]',scheinId,pe&&pe.message||pe));
@@ -5776,7 +5776,7 @@ class _ViewBoundary extends React.Component{
                 filtered=filtered.slice().sort((a,b)=>{const ta=new Date(a.time||a.created_at||0).getTime()||0;const tb=new Date(b.time||b.created_at||0).getTime()||0;return tb-ta;});
                 return filtered.length===0?(React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, notifFilter==="eskalation"?"✅":"🔕"), notifFilter==="eskalation"?"Keine dringenden Benachrichtigungen":notifFilter==="kunde"?"Keine Kunden-Benachrichtigungen":notifFilter==="ungelesen"?"Alle gelesen 🎉":"Keine Benachrichtigungen" )):(
                 filtered.slice(0,50).map(n=>{const nt=NOTIF_TYPES[n.type];const isEsk=(n.type||"").includes("eskalation");/* v3.9.60 Sprint-39 E-1: created_at-Fallback wenn time fehlt (lokal-erzeugte notifs hatten kein time → 'NaNmin' angezeigt). */const _nts=new Date(n.time||n.created_at||0).getTime()||0;/* v3.9.83 Sprint-62.2: centralized _fmtTimeAgo ("Heute, 14:30" / "Gestern, 09:15" / "Mo, 14:00" / abs). */const agoStr=_fmtTimeAgo(_nts);
-                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.144: Notification-Klick navigiert — n.link ODER aus NOTIF_TYPES[type].cat abgeleitet (vorher: ohne link nur schließen = "nix geht in der Glocke"). cat→Tab-Perm. */const _typeTab={deadline_fz:"fahrzeuge"};/* v3.9.149 (Agent): Fahrzeug-Frist → Fahrzeuge (cat=system navigiert sonst nicht) */const _catTab={projekte:"projekte",arbeitsscheine:"arbeitsscheine",urlaub:"urlaub",werkzeuge:"werkzeuge",material:"projekte",kunden:"arbeitsscheine"};const _tgt=_catTab[n.link]||n.link||_typeTab[n.type]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat]);/* v3.9.169 FIX Notif#1: n.link ist die KATEGORIE (material/kunden) — durch _catTab auf Tab-Perm auflösen (material→projekte, kunden→arbeitsscheine), sonst klickten dringende Kunden-/Material-Benachrichtigungen ins Leere ("Ziel nicht verfügbar") */if(_tgt){const ti=tabs.findIndex(t=>t.perm===_tgt);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent",transition:"background .12s ease-out, border-left-color .12s ease-out"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
+                  return (React.createElement('div', { key: n.id, onClick: ()=>{markRead(n.id);/* v3.9.144: Notification-Klick navigiert — n.link ODER aus NOTIF_TYPES[type].cat abgeleitet (vorher: ohne link nur schließen = "nix geht in der Glocke"). cat→Tab-Perm. */const _typeTab={deadline_fz:"fahrzeuge"};/* v3.9.149 (Agent): Fahrzeug-Frist → Fahrzeuge (cat=system navigiert sonst nicht) */const _catTab={projekte:"projekte",arbeitsscheine:"arbeitsscheine",urlaub:"urlaub",werkzeuge:"werkzeuge",material:"projekte",kunden:"arbeitsscheine"};const _tgt=_typeTab[n.type]||_catTab[n.link]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat])||n.link;/* v3.9.220 #4: _typeTab ZUERST — sonst short-circuitet n.link="system" (deadline_fz) den Fahrzeug-Fallback → "Ziel nicht verfügbar" *//* v3.9.169 FIX Notif#1: n.link ist die KATEGORIE (material/kunden) — durch _catTab auf Tab-Perm auflösen (material→projekte, kunden→arbeitsscheine), sonst klickten dringende Kunden-/Material-Benachrichtigungen ins Leere ("Ziel nicht verfügbar") */if(_tgt){const ti=tabs.findIndex(t=>t.perm===_tgt);if(ti>=0)setKat(ti);else if(window.__toast)window.__toast("ℹ️ Ziel nicht verfügbar (keine Berechtigung)","info",3000);}setShowNotifPanel(false);}, style: {padding:"12px 16px",borderBottom:"1px solid "+V.bd,cursor:"pointer",background:isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)",display:"flex",gap:10,alignItems:"start",borderLeft:isEsk?"3px solid #ef4444":"3px solid transparent",transition:"background .12s ease-out, border-left-color .12s ease-out"}, onMouseOver: e=>e.currentTarget.style.background=V.hov, onMouseOut: e=>e.currentTarget.style.background=isEsk&&!n.read?"rgba(239,68,68,.06)":n.read?"transparent":"rgba(249,115,22,.03)"}
                     , React.createElement('span', { style: {fontSize:20,flexShrink:0}}, _optionalChain([nt, 'optionalAccess', _83 => _83.i])||"🔔")
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
                       , React.createElement('div', { style: {fontSize:12,fontWeight:n.read?400:700,color:n.read?V.dm:V.tx}}, n.title)

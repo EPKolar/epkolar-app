@@ -3,8 +3,7 @@
 
 def test_notif_click_navigates_by_cat(index_html):
     assert 'const _catTab={projekte:"projekte",arbeitsscheine:"arbeitsscheine",urlaub:"urlaub",werkzeuge:"werkzeuge",material:"projekte",kunden:"arbeitsscheine"};' in index_html
-    # v3.9.149: _typeTab-Override (deadline_fz) vor cat-Lookup
-    # v3.9.169 FIX Notif#1: n.link (=Kategorie material/kunden) durch _catTab auf Tab-Perm auflösen,
-    # sonst klickten Kunden-/Material-Benachrichtigungen ins Leere ("Ziel nicht verfügbar").
-    assert 'const _tgt=_catTab[n.link]||n.link||_typeTab[n.type]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat]);' in index_html
+    # v3.9.220 #4: _typeTab ZUERST (deadline_fz→fahrzeuge), dann _catTab[n.link] (material→projekte, kunden→arbeitsscheine),
+    # dann NOTIF_TYPES.cat, dann n.link als letzter Fallback. Vorher short-circuitete n.link="system" den Fahrzeug-Sprung.
+    assert 'const _tgt=_typeTab[n.type]||_catTab[n.link]||((NOTIF_TYPES[n.type]||{}).cat&&_catTab[(NOTIF_TYPES[n.type]||{}).cat])||n.link;' in index_html
     assert "if(_tgt){const ti=tabs.findIndex(t=>t.perm===_tgt);if(ti>=0)setKat(ti);" in index_html
