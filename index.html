@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.211';
+  var SW_VER='epkolar-v3.9.212';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1680,7 +1680,7 @@ function _mapBody(obj){
   // Regel fuer neue Features: bevorzugt jsonb-Spalten in Supabase -> kein Eintrag hier.
   // Wann hier ergaenzen? Wenn eine bestehende TEXT-Spalte strukturierte Objekte aufnimmt
   // und Umschaltung auf jsonb zu riskant ist (Migration + Policy-Rewrite + Legacy-Reads).
-  const TEXT_JSON_FIELDS=['perms_override','tank_log','km_log','tags','config','order_items','photos','comments','schaeden','termine','serviceheft','verbrauchsmaterial','material','fotos','images'];/* v3.9.198 FIX: tickets.photos/comments sind TEXT → Arrays stringifizieren, sonst 400→Drop. v3.9.210 FIX (Audit): weitere TEXT-Spalten mit Array/Objekt-Inhalt — fahrzeuge schaeden/termine/serviceheft/verbrauchsmaterial, arbeitsscheine material/fotos, defects images/fotos, werkzeuge serviceheft/fotos. Stringify ist konditional (nur Objekte, Z.1688) → kein Doppel-Encoding; Reverse-Maps parsen via _jp/_jo. Alle Spalten als text verifiziert (kein jsonb). */
+  const TEXT_JSON_FIELDS=['perms_override','tank_log','km_log','tags','config','order_items','photos','comments','schaeden','termine','serviceheft','verbrauchsmaterial','material','fotos','images','items'];/* v3.9.212 FIX: checklists.items (TEXT) — Häkchen/Notizen pro Punkt persistierten nie (PUT 400→Drop). v3.9.198 FIX: tickets.photos/comments sind TEXT → Arrays stringifizieren, sonst 400→Drop. v3.9.210 FIX (Audit): weitere TEXT-Spalten mit Array/Objekt-Inhalt — fahrzeuge schaeden/termine/serviceheft/verbrauchsmaterial, arbeitsscheine material/fotos, defects images/fotos, werkzeuge serviceheft/fotos. Stringify ist konditional (nur Objekte, Z.1688) → kein Doppel-Encoding; Reverse-Maps parsen via _jp/_jo. Alle Spalten als text verifiziert (kein jsonb). */
   for(const[k,v]of Object.entries(obj)){
     if(k==='password')continue;
     const sk=RENAME[k]||_toSnake(k);
@@ -2318,7 +2318,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.211-supabase";
+const APP_VERSION="3.9.212-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7607,8 +7607,8 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
      UI-route-gated, aber Handler-Referenzen via React-DevTools/Cache/Event-Replay nach
      Role-Downgrade möglich. delUser hatte den Guard bereits (L6552). RLS schützt
      Server-seitig, aber Client-tampering-Versuche werden nicht mehr gesendet. */
-  const toggleActive=(id)=>{if(curUser.role!=="admin")return;const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:!(_optionalChain([nu, 'optionalAccess', _191 => _191.active]))}});_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
-  const toggleLock=(id)=>{if(curUser.role!=="admin")return;const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,locked:!u.locked}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{locked:!(_optionalChain([nu, 'optionalAccess', _195 => _195.locked]))}});_optionalChain([window, 'access', _196 => _196.__toast, 'optionalCall', _197 => _197(_optionalChain([nu, 'optionalAccess', _198 => _198.locked])?"🔓 Entsperrt":"🔒 Gesperrt")]);};
+  const toggleActive=(id)=>{if(curUser.role!=="admin")return;const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,active:!u.active}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{active:_optionalChain([nu, 'optionalAccess', _191 => _191.active])?0:1}});/* v3.9.212 FIX: users.active ist INTEGER → 0/1 statt Boolean (sonst PATCH 400 → Deaktivieren wirkungslos) */_optionalChain([window, 'access', _192 => _192.__toast, 'optionalCall', _193 => _193(_optionalChain([nu, 'optionalAccess', _194 => _194.active])?"⏸ Benutzer deaktiviert":"▶️ Benutzer aktiviert")]);};
+  const toggleLock=(id)=>{if(curUser.role!=="admin")return;const nu=users.find(u=>u.id===id);setUsers(prev=>prev.map(u=>u.id===id?{...u,locked:!u.locked}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{locked:_optionalChain([nu, 'optionalAccess', _195 => _195.locked])?0:1}});/* v3.9.212 FIX: users.locked ist INTEGER → 0/1 (sonst PATCH 400 → Sperren wirkungslos) */_optionalChain([window, 'access', _196 => _196.__toast, 'optionalCall', _197 => _197(_optionalChain([nu, 'optionalAccess', _198 => _198.locked])?"🔓 Entsperrt":"🔒 Gesperrt")]);};
   const setRole=(id,role)=>{if(curUser.role!=="admin")return;setUsers(prev=>prev.map(u=>u.id===id?{...u,role,permsOverride:null}:u));SQ.push({url:"/api/users/"+id,method:"PUT",body:{role,permsOverride:null}});_optionalChain([window, 'access', _199 => _199.__toast, 'optionalCall', _200 => _200("✅ Rolle geändert — Berechtigungen zurückgesetzt")]);};
   const togglePermOverride=(id,mod)=>{
     if(curUser.role!=="admin")return;
