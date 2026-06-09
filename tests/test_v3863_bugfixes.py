@@ -16,24 +16,28 @@ def test_swUpdate_useState_initializer_checks_localStorage():
     assert 'window.SW_VER' in body, 'Initializer muss window.SW_VER referenzieren'
 
 
-def test_setSwUpdate_in_statechange_handler_is_gated():
-    """_stateChangeHandler muss localStorage-Match-Check vor setSwUpdate(true) haben."""
+def test_setSwUpdate_in_statechange_handler_fires_on_update():
+    """v3.9.209 FIX: _stateChangeHandler ruft setSwUpdate(true) bei ECHTEM Update (installed+controller).
+    Der frühere _stored===window.SW_VER-Guard wurde ENTFERNT — bei stale-SW war stored===geladene Version
+    → Banner dauerhaft unterdrückt → Geräte hingen auf alter Version (kritischer Update-Bug)."""
     text = INDEX.read_text(encoding='utf-8')
-    # Suche statechange-Handler-Body mit Pattern setSwUpdate(true)
     m = re.search(r'_stateChangeHandler\s*=\s*\(\s*\)\s*=>\s*\{([\s\S]{0,500}?setSwUpdate\(true\))', text)
     assert m, '_stateChangeHandler-Body mit setSwUpdate(true) nicht gefunden'
     body = m.group(0)
-    assert 'epk_sw_ver' in body, '_stateChangeHandler muss localStorage-Check haben'
+    assert 'nw.state==="installed"' in body and 'navigator.serviceWorker.controller' in body, \
+        'muss auf echtes neues SW (state installed + vorhandener controller) prüfen'
+    assert '_stored===window.SW_VER' not in body, \
+        'fehlerhafter Over-Suppress-Guard muss entfernt sein (v3.9.209)'
 
 
-def test_setSwUpdate_in_msg_handler_is_gated():
-    """SW_UPDATED-postMessage-Handler muss localStorage-Match-Check haben."""
+def test_setSwUpdate_in_msg_handler_fires_on_update():
+    """v3.9.209 FIX: SW_UPDATED-Handler ruft setSwUpdate(true) OHNE den fehlerhaften _stored===SW_VER-Guard."""
     text = INDEX.read_text(encoding='utf-8')
-    # Suche um den SW_UPDATED-Branch
-    m = re.search(r'SW_UPDATED[\s\S]{0,500}?setSwUpdate\(true\)', text)
+    m = re.search(r'SW_UPDATED[\s\S]{0,300}?setSwUpdate\(true\)', text)
     assert m, 'SW_UPDATED-Handler mit setSwUpdate(true) nicht gefunden'
     body = m.group(0)
-    assert 'epk_sw_ver' in body, 'SW_UPDATED-Handler muss localStorage-Check haben'
+    assert '_stored===window.SW_VER' not in body, \
+        'fehlerhafter Over-Suppress-Guard muss entfernt sein (v3.9.209)'
 
 
 # ═══ Bug-B: u1 → Name Resolve ═══
