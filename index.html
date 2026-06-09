@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.213';
+  var SW_VER='epkolar-v3.9.214';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2242,11 +2242,16 @@ window.API = (function() {
       // Felder nicht mehr ausliefern. Defensiv: Read leer/fehlerhaft → Fallback aufs login_lookup-Result
       // (Vor-Migration liefert es die Felder weiterhin → kein Regress).
       let _prof=null;try{const _pr=await _sbGetUsersSafe("id=eq."+encodeURIComponent(user.id));if(Array.isArray(_pr)&&_pr[0])_prof=_pr[0];}catch(e){console.warn('[login-profile]',e&&e.message||e);}
+      // v3.9.214 #2: Leerer Self-Read = users.auth_user_id-Link fehlt/falsch → Profil faellt auf login_lookup-Result
+      // zurueck (vor der Migration ok; danach permissions/monteurId leer). Observierbar machen, NICHT still.
+      if(!_prof){console.error('[B020-PROF] Authentifizierter Profil-Self-Read leer — users.auth_user_id-Verknuepfung pruefen',{userId:user.id,role:user.role});}
       const _src=_prof||user;
       /* v3.9.166 FIX Login#3: Telemetrie (last_login/activity_log) fire-and-forget statt await — lag synchron im
          kritischen Login-Pfad (verzögerte Dashboard, konnte unnötigen Re-Auth triggern). Ergebnis wird nicht genutzt. */
-      if(_authToken){_sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(_src.login_count)||0)+1}).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
-      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:"gotrue "+navigator.userAgent||""}).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}
+      // v3.9.214 #2: last_login immer; login_count NUR mit echtem Profil hochzaehlen — sonst (Self-Read leer +
+      // nach login_lookup-Migration ohne login_count-Feld) wuerde parseInt(undefined)||0 den Zaehler auf 1 nullen.
+      if(_authToken){const _stamp={last_login:new Date().toISOString()};if(_prof)_stamp.login_count=(parseInt(_src.login_count)||0)+1;_sbPatch("users",user.id,_stamp).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
+      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:"gotrue "+(navigator.userAgent||"")}).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}
       let perms=[];try{perms=typeof _src.permissions==='string'?JSON.parse(_src.permissions||'[]'):_src.permissions||[];}catch(e){perms=[];}
       const _po=_src.perms_override||_src.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:_src.name||user.name,role:_src.role||user.role,username:_src.username||user.username,email:email,permissions:perms,monteurId:_src.monteur_id||'',permsOverride:_poObj};
@@ -2317,7 +2322,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.213-supabase";
+const APP_VERSION="3.9.214-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
