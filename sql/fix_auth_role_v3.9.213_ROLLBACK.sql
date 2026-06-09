@@ -1,0 +1,57 @@
+-- NICHT ANGEWENDET — wartet auf Editor-Run durch Sebastian/Chat-Claude (CC hat keinen DB-Schreibzugriff).
+-- =============================================================================
+-- fix_auth_role_v3.9.213_ROLLBACK.sql
+-- ROLLBACK für fix_auth_role_v3.9.213.sql (auth_role()-Umstellung auf users.role).
+-- =============================================================================
+--
+-- 🔴 WICHTIG — DIESE DATEI IST UNVOLLSTÄNDIG OHNE LIVE-CAPTURE:
+--   Der ALTE/aktuell-live Body von public.auth_role() ist NICHT im Repo bekannt.
+--   Es existiert KEINE belegte Vorgänger-Definition zum Wiedereinspielen.
+--   → Ein verlässlicher Rollback ist NUR möglich, wenn VOR dem Apply von
+--     fix_auth_role_v3.9.213.sql die Live-Definition gecaptured wurde.
+--
+-- PFLICHT-SCHRITT 1 — VOR dem Apply der Fix-Datei (Operator):
+--   Live-Def sichern und in den unten markierten Block einsetzen:
+--
+--     SELECT pg_get_functiondef('public.auth_role()'::regprocedure);
+--
+--   Das Ergebnis 1:1 (inkl. RETURNS-Typ, LANGUAGE, STABLE/VOLATILE,
+--   SECURITY DEFINER, SET search_path, GRANTS) zwischen die Marker kopieren.
+--   pg_get_functiondef liefert bereits ein lauffähiges CREATE OR REPLACE.
+--
+-- PFLICHT-SCHRITT 2 — Bei Bedarf Rollback ausführen:
+--   Diese Datei (mit eingesetztem Capture) einspielen → stellt den Vorzustand her.
+--
+-- =============================================================================
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │ HIER DEN VOR-APPLY-CAPTURE EINSETZEN (pg_get_functiondef-Ausgabe):        │
+-- ├─────────────────────────────────────────────────────────────────────────┤
+-- │                                                                           │
+-- │   -- <<< CAPTURE_START                                                    │
+-- │   -- (noch nicht befüllt — Operator muss Live-Def vor Apply einfügen)     │
+-- │   -- CREATE OR REPLACE FUNCTION public.auth_role() ...                    │
+-- │   -- <<< CAPTURE_END                                                      │
+-- │                                                                           │
+-- └─────────────────────────────────────────────────────────────────────────┘
+--
+-- NOTFALL-FALLBACK (NUR falls KEIN Capture existiert):
+--   Wenn der Vorzustand nicht gesichert wurde, ist die sicherste bekannte
+--   Annäherung die anon-konsistente users.role-Variante (= identisch zur Fix-
+--   Datei). Es gibt KEINEN belegten älteren Body zum Wiederherstellen.
+--   In diesem Fall ist "Rollback" effektiv ein No-Op gegenüber dem Fix —
+--   dokumentiere die Entscheidung und prüfe Policy-Verhalten manuell.
+--
+--   -- REKONSTRUKTION (identisch zur Fix-Datei) — kein echter Vorzustand:
+--   -- CREATE OR REPLACE FUNCTION public.auth_role()
+--   -- RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
+--   -- SET search_path = public, pg_temp
+--   -- AS $$ SELECT COALESCE((SELECT role FROM public.users
+--   --        WHERE auth_user_id = auth.uid() LIMIT 1), 'anon'); $$;
+--
+-- =============================================================================
+-- VERIFY nach Rollback:
+--   SELECT pg_get_functiondef('public.auth_role()'::regprocedure);
+--   -- muss exakt dem VOR-APPLY-Capture entsprechen.
+--   SELECT proname, prosecdef, provolatile, proconfig
+--   FROM pg_proc WHERE proname = 'auth_role' AND pronamespace = 'public'::regnamespace;
+-- =============================================================================
