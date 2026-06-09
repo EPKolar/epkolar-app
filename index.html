@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.218';
+  var SW_VER='epkolar-v3.9.219';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2027,7 +2027,7 @@ async function _translateAndExec(url,method,body){
           sv.push(body);
           await _sbPatch("fahrzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
         }
-      }catch(e){console.warn("[api] Serviceheft update:",e);}
+      }catch(e){console.warn("[api] Serviceheft update:",e);/* v3.9.219 F2: transiente Fehler (5xx/408/429/offline) re-werfen → Item bleibt in SyncQueue + Retry statt stiller Drop. Permanente/Parse-Fehler bleiben geschluckt. */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
     }
     return{ok:1};
   }
@@ -2052,7 +2052,7 @@ async function _translateAndExec(url,method,body){
           }
           await _sbPatch("fahrzeuge",idOrSub,patch);
         }
-      }catch(e){console.warn("[api] Tank/KM update:",e);}
+      }catch(e){console.warn("[api] Tank/KM update:",e);/* v3.9.219 F2: transient re-throw → kein stiller Sync-Drop */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
       delete d.tankLog_add;delete d.tank_log_add;delete d.kmStand;delete d.km_stand;
       if(Object.keys(d).length===0)return{ok:1};
     }
@@ -2067,7 +2067,7 @@ async function _translateAndExec(url,method,body){
           kl.push({km:km,date:_ymd(new Date())});
           await _sbPatch("fahrzeuge",idOrSub,{km_stand:km,km_log:JSON.stringify(kl),updated_at:new Date().toISOString()});
         }
-      }catch(e){console.warn("[api] KM update:",e);}
+      }catch(e){console.warn("[api] KM update:",e);/* v3.9.219 F2: transient re-throw → kein stiller Sync-Drop */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
       delete d.kmStand;delete d.km_stand;
       if(Object.keys(d).length===0)return{ok:1};
     }
@@ -2085,7 +2085,7 @@ async function _translateAndExec(url,method,body){
         sv.push(body);
         await _sbPatch("werkzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
       }
-    }catch(e){console.warn("[api] WZ serviceheft:",e);}
+    }catch(e){console.warn("[api] WZ serviceheft:",e);/* v3.9.219 F2: transient re-throw → kein stiller Sync-Drop */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
     return{ok:1};
   }
 
@@ -2353,7 +2353,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.218-supabase";
+const APP_VERSION="3.9.219-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7322,7 +7322,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:12px"></td></tr>';
     html+='<tr class="sum"><td colspan="'+(nc+3)+'">Gesamt\u00fcbersicht nach Rolle</td></tr>';
     Object.entries(rolleGroups).forEach(([rolle,rWorkers])=>{
-      html+='<tr><td>'+rolle+'</td>';
+      html+='<tr><td>'+esc(rolle)+'</td>';/* v3.9.219 F-P3a: Rollen-Label escapen (sonst bricht &/</> die Excel-HTML-Struktur) */
       workers.forEach(w=>{if(rWorkers.find(rw=>rw.id===w.id)){const total=pEntries.filter(e=>e.monteur===w.id).reduce((s,e)=>s+(e.stunden||0),0);html+='<td class="num">'+(total?_n(total,2):"")+'</td>';}else{html+='<td></td>';}});
       const rolleTotal=pEntries.filter(e=>rWorkers.find(rw=>rw.id===e.monteur)).reduce((s,e)=>s+(e.stunden||0),0);
       html+='<td class="num sum">'+_n(rolleTotal,2)+'</td><td></td></tr>';
@@ -10154,7 +10154,7 @@ function useEditable(forms,setForms,key,pid,defData){
   const saved=(forms[key]||[]).filter(f=>f.pid===pid);
   const [editIdx,setEditIdx]=_react.useState.call(void 0, null);
   const [data,setData]=_react.useState.call(void 0, ()=>_safeJsonParse(JSON.stringify(defData),{}));
-  const load=i=>{setData(_safeJsonParse(JSON.stringify(saved[i]),{}));setEditIdx(i);};
+  const load=i=>{const _s=_safeJsonParse(JSON.stringify(saved[i]),{});if(!Array.isArray(_s.rows))_s.rows=[];setData(_s);setEditIdx(i);};/* v3.9.219 F5: rows-Backfill → kein .map-Crash bei Schema-Drift/Server-Partial ohne rows */
   const clear=()=>{setData(_safeJsonParse(JSON.stringify(defData),{}));setEditIdx(null);};
   const save=()=>{const all=[...(forms[key]||[])];const entry={...data,pid:pid,savedAt:new Date().toLocaleDateString("de-AT")};
     /* v3.9.34 Sprint-19 V-Form-2: Empty-Submit Guard — Datum erforderlich + mind. 1 Zeile mit Inhalt
@@ -10200,7 +10200,7 @@ function FRegie({p,forms,setForms}){
   const [editIdx,setEditIdx]=_react.useState.call(void 0, null);
   const defD={art:"Regie",datum:td2(),ebene:"EG",planpos:"",arbeit:"",personal:[{name:"",stunden:"",fahrzeit:"",bemerkung:""}],material:[{name:"",stueck:"",artikelNr:"",bemerkung:""}],folge:false};
   const [d,setD]=_react.useState.call(void 0, ()=>_safeJsonParse(JSON.stringify(defD),{}));
-  const loadE=i=>{setD(_safeJsonParse(JSON.stringify(saved[i]),{}));setEditIdx(i);};
+  const loadE=i=>{const _s=_safeJsonParse(JSON.stringify(saved[i]),{});if(!Array.isArray(_s.personal))_s.personal=[];if(!Array.isArray(_s.material))_s.material=[];setD(_s);setEditIdx(i);};/* v3.9.219 F6: personal/material-Backfill → kein .map-Crash */
   const clearF=()=>{setD(_safeJsonParse(JSON.stringify(defD),{}));setEditIdx(null);};
   /* v3.9.34 Sprint-19 V-Form-1: nr-Preservation beim Edit — vorher wurde jede Edit-Operation
      die nr auf saved.length+1 setzen (z.B. 3 saved, edit#1 → nr="004" statt "001"). */
@@ -10270,7 +10270,7 @@ function VCheck({p,forms,setForms,ww,curUser}){
   const createFromTemplate=(tpl)=>{
     const cl={id:uid(),pid:p.id,name:tpl.name||"",date:td2(),by:(_optionalChain([curUser, 'optionalAccess', _362 => _362.name])||_optionalChain([curUser, 'optionalAccess', _362b => _362b.username])||""),items:(tpl.items||[]).map(t=>({text:t,done:false,photo:"",note:""})),sigMA:"",sigKunde:"",status:"offen"};
     setForms(f=>({...f,checklisten:[...(f.checklisten||[]),cl]}));
-    SQ.push({url:"/api/checklists",method:"POST",body:{id:cl.id,project_id:p.id,name:cl.name}});
+    SQ.push({url:"/api/checklists",method:"POST",body:{id:cl.id,project_id:p.id,name:cl.name,items:cl.items,status:cl.status}});
     setSel(cl.id);setShowNew(false);
   };
   const createCustom=()=>{
@@ -10279,10 +10279,10 @@ function VCheck({p,forms,setForms,ww,curUser}){
     if(!items.length)return;
     const cl={id:uid(),pid:p.id,name:customName,date:td2(),by:_optionalChain([curUser, 'optionalAccess', _363 => _363.name])||"",items,sigMA:"",sigKunde:"",status:"offen"};
     setForms(f=>({...f,checklisten:[...(f.checklisten||[]),cl]}));
-    SQ.push({url:"/api/checklists",method:"POST",body:{id:cl.id,project_id:p.id,name:cl.name}});/* v3.9.166 FIX Checklisten#2: createCustom persistierte NICHT (nur lokal) → eigene Checklisten gingen beim Reload verloren. Jetzt analog createFromTemplate. */
+    SQ.push({url:"/api/checklists",method:"POST",body:{id:cl.id,project_id:p.id,name:cl.name,items:cl.items,status:cl.status}});/* v3.9.166 FIX Checklisten#2: createCustom persistierte NICHT (nur lokal) → eigene Checklisten gingen beim Reload verloren. Jetzt analog createFromTemplate. */
     setSel(cl.id);setShowNew(false);setCustomName("");setCustomItems("");
   };
-  /* v3.9.100 Sprint-81.3: SQ.push für checklists.items+status — bisher nur lokal in setForms → Cross-Device-Datenverlust. PUT /api/checklists/:id schreibt durch zu Supabase. checklists.items ist jsonb (kein TEXT_JSON_FIELDS-Stringify nötig). Sig-Spalten NICHT mitgeschrieben (Load-Mapping liest sie nicht → Schema-Status unklar; separater Sprint). */
+  /* v3.9.100 Sprint-81.3: SQ.push für checklists.items+status — bisher nur lokal in setForms → Cross-Device-Datenverlust. PUT /api/checklists/:id schreibt durch zu Supabase. checklists.items ist TEXT (in TEXT_JSON_FIELDS → _mapBody stringifyt automatisch). v3.9.219: Erstell-POST schreibt items+status mit (vorher nur name → Reload vor erstem Häkchen = leere Checkliste). Sig-Spalten NICHT mitgeschrieben (Load-Mapping liest sie nicht → Schema-Status unklar; separater Sprint). */
   const update=(id,fn)=>{setForms(f=>({...f,checklisten:(f.checklisten||[]).map(c=>{if(c.id!==id)return c;const _next=fn(c);try{SQ.push({url:"/api/checklists/"+encodeURIComponent(id),method:"PUT",body:{items:_next.items||[],status:_next.status||"offen"}});}catch(_e){console.warn('[VCheck.update SQ.push]',_e&&_e.message||_e);}return _next;})}));};
   const del=(id)=>{
     /* v3.9.26 P2: Field-User darf nur eigene Checklisten löschen. Admin/PL ungebremst. */
@@ -16961,11 +16961,11 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     const bdr="border:1px solid #999;";const bdrN="border:none;";const fA="font-family:Arial,Helvetica,sans-serif;";
     let dayRows="";
     DAYS.forEach((d,i)=>{
-      const iso=isoDate(i);const arr=dayEntries[iso]||[];const dt=dayTotal(i);
+      const iso=isoDate(i);const arr=dayEntries[iso]||[];const dt=dayTotal(i);const rpd=Math.max(ROWS_PER_DAY,arr.length);/* v3.9.219 F4: bei >5 Buchungen/Tag alle Arbeitsstellen rendern (Tagessumme summiert ohnehin alle) */
       // Row 1: Day name + standard times + Tagessumme + Arbeitszeit + Kunden + KO:
-      dayRows+=`<tr style="height:17px;"><td rowspan="${ROWS_PER_DAY}" style="${bdr}padding:4px 6px;font-size:12pt;vertical-align:top;width:90px;">${esc(FULL_DAYS[i])}<br/><span style="font-size:9pt;color:#666;">${esc(STD_TIMES[i]||"")}</span></td><td rowspan="${ROWS_PER_DAY}" style="${bdr}text-align:center;font-weight:bold;font-size:12pt;width:55px;">${dt>0?_n(dt,1):""}</td><td rowspan="${ROWS_PER_DAY}" style="${bdr}text-align:center;font-size:12pt;width:60px;">${dt>0?_n(dt,1):""}</td>`;
+      dayRows+=`<tr style="height:17px;"><td rowspan="${rpd}" style="${bdr}padding:4px 6px;font-size:12pt;vertical-align:top;width:90px;">${esc(FULL_DAYS[i])}<br/><span style="font-size:9pt;color:#666;">${esc(STD_TIMES[i]||"")}</span></td><td rowspan="${rpd}" style="${bdr}text-align:center;font-weight:bold;font-size:12pt;width:55px;">${dt>0?_n(dt,1):""}</td><td rowspan="${rpd}" style="${bdr}text-align:center;font-size:12pt;width:60px;">${dt>0?_n(dt,1):""}</td>`;
       // Arbeitsstelle rows (up to ROWS_PER_DAY)
-      for(let ri=0;ri<ROWS_PER_DAY;ri++){
+      for(let ri=0;ri<rpd;ri++){
         const e=arr[ri];
         const kunde=e?(esc(e.label)+(e.taetigkeit&&e.taetigkeit!==e.label?"<br/><span style=\"font-size:8pt;color:#555;\">"+esc(e.taetigkeit)+"</span>":"")):"";
         const ko=e&&e.von?esc(e.von):"";
