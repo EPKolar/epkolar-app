@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.196';
+  var SW_VER='epkolar-v3.9.197';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2317,7 +2317,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.196-supabase";
+const APP_VERSION="3.9.197-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5509,7 +5509,7 @@ class _ViewBoundary extends React.Component{
     ...(FINKZEIT_ENABLED?[{l:"Monatsabrechnung",i:"📄",c:"#f97316",perm:"stunden",g:2}]:[]),/* FINKZEIT STANDBY (04.06.2026) — Tab geparkt, reaktivierbar via FINKZEIT_ENABLED */
     {l:"Fahrzeuge",i:"🚐",c:"#0ea5e9",perm:"fahrzeuge",g:3},
     {l:"Werkzeuge",i:"🔧",c:"#d97706",perm:"werkzeuge",g:3},
-    {l:"Gefahrstoffe",i:"☣️",c:"#dc2626",perm:"gefahrstoff",g:3},/* v3.9.196 Sicherheitsdatenblätter (alle lesen, Pinger/Schmid/Admin bearbeiten) */
+    {l:"Gefahrenstoffe",i:"☣️",c:"#dc2626",perm:"gefahrstoff",g:3},/* v3.9.196 Sicherheitsdatenblätter (alle lesen, Pinger/Schmid/Admin bearbeiten) */
     {l:"Mitarbeiter",i:"👷",c:"#06b6d4",perm:"mitarbeiter",g:4},
     {l:"Auswertungen",i:"📊",c:"#a855f7",perm:"auswertungen",g:4},
     {l:"Einstellungen",i:"🔌",c:"#6366f1",perm:"_settings",g:4},
@@ -18454,10 +18454,13 @@ function VGefahrstoff({curUser, ww}){
   const [nav,setNav]=_react.useState.call(void 0, []);/* Pfad-Stack der Ordner-IDs */
   const [q,setQ]=_react.useState.call(void 0, "");
   const [busy,setBusy]=_react.useState.call(void 0, false);
+  const [viewer,setViewer]=_react.useState.call(void 0, null);/* v3.9.197 Inline-PDF-Viewer {file,data} */
+  const [viewerLoading,setViewerLoading]=_react.useState.call(void 0, false);
+  useBackLayer(!!viewer,()=>setViewer(null));/* v3.9.197 mobile/Android-Back schließt den PDF-Viewer */
   const fileRef=_react.useRef.call(void 0, null);
   const _touch=_react.useRef.call(void 0, null);
   const cur=nav.length?nav[nav.length-1]:null;
-  _react.useEffect.call(void 0, ()=>{let a=true;Promise.all([_sbGet("gefahrstoff_folders","order=name.asc"),_sbGet("gefahrstoff_files","order=name.asc")]).then(r=>{if(!a)return;setFolders(r[0]||[]);setFiles(r[1]||[]);}).catch(e=>{console.warn("[gefahrstoff load]",e&&e.message||e);});return ()=>{a=false;};},[]);
+  _react.useEffect.call(void 0, ()=>{let a=true;Promise.all([_sbGet("gefahrstoff_folders","order=name.asc"),_sbGet("gefahrstoff_files","select=id,folder_id,name,mime,size,lieferant,notiz,created_by,created_at,updated_at&order=name.asc")/* v3.9.197 file_data NICHT laden (Performance) */]).then(r=>{if(!a)return;setFolders(r[0]||[]);setFiles(r[1]||[]);}).catch(e=>{console.warn("[gefahrstoff load]",e&&e.message||e);});return ()=>{a=false;};},[]);
   /* Navigation: History-Back pro Ebene (mobil ≥5×) + programmatisches Hoch konsumiert die Layer. */
   const goInto=(id)=>{setNav(n=>[...n,id]);if(window.__epkPushLayer)window.__epkPushLayer(()=>setNav(n=>n.slice(0,-1)));};
   const goBack=()=>{if(!nav.length)return;setNav(n=>n.slice(0,-1));if(window.__epkPopLayer)window.__epkPopLayer();};
@@ -18475,16 +18478,17 @@ function VGefahrstoff({curUser, ww}){
   const renameFolder=(fo)=>{const n=(window.prompt("Ordner umbenennen:",fo.name)||"").trim();if(!n||n===fo.name)return;setFolders(p=>p.map(x=>x.id===fo.id?{...x,name:n}:x));SQ.push({url:"/api/gefahrstoff-folders/"+fo.id,method:"PUT",body:{name:n}});};
   const delFolder=async(fo)=>{if(!await _confirmModal("Ordner \""+fo.name+"\" samt Inhalt löschen?",{variant:"danger"}))return;const ids=new Set();const collect=(id)=>{ids.add(id);folders.filter(x=>x.parent_id===id).forEach(c=>collect(c.id));};collect(fo.id);setFolders(p=>p.filter(x=>!ids.has(x.id)));setFiles(p=>p.filter(x=>!ids.has(x.folder_id)));SQ.push({url:"/api/gefahrstoff-folders/"+fo.id,method:"DELETE"});};
   const delFile=async(fi)=>{if(!await _confirmModal("Datei \""+fi.name+"\" löschen?",{variant:"danger"}))return;setFiles(p=>p.filter(x=>x.id!==fi.id));SQ.push({url:"/api/gefahrstoff-files/"+fi.id,method:"DELETE"});};
-  const openFile=(fi)=>{const u=fi.file_url||fi.file_path;if(u)window.open(u,"_blank","noopener");};
-  const onUpload=(e)=>{const fls=e.target.files;if(!fls||!fls.length)return;setBusy(true);const arr=Array.from(fls);let done=0;const fin=()=>{done++;if(done>=arr.length)setBusy(false);};arr.forEach(file=>{const rd=new FileReader();rd.onload=ev=>{(async()=>{try{const id=uid();const pth="gefahrstoff/"+id+(/\.pdf$/i.test(file.name)?".pdf":"");const url=await _sbUploadFile(pth,ev.target.result);const fi={id:id,folder_id:cur,name:file.name,file_path:pth,file_url:url,mime:file.type||"application/pdf",size:file.size,created_by:(curUser&&curUser.name)||""};setFiles(p=>[...p,fi]);SQ.push({url:"/api/gefahrstoff-files",method:"POST",body:fi});if(window.__toast)window.__toast("✅ "+file.name+" hochgeladen","success",2000);}catch(err){if(window.__toast)window.__toast("Upload fehlgeschlagen: "+(err&&err.message||err),"error",4000);}fin();})();};rd.onerror=fin;rd.readAsDataURL(file);});try{e.target.value="";}catch(_e){}};
+  const openFile=async(fi)=>{setViewer({file:fi,data:null});setViewerLoading(true);try{let d=fi.file_data||"";if(!d){const r=await _sbGet("gefahrstoff_files","id=eq."+encodeURIComponent(fi.id)+"&select=file_data");d=(r&&r[0]&&r[0].file_data)||fi.file_url||"";}setViewer({file:fi,data:d});}catch(e){if(window.__toast)window.__toast("Datei konnte nicht geladen werden","error");setViewer(null);}setViewerLoading(false);};
+  /* v3.9.197 Upload = base64 in gefahrstoff_files.file_data via PostgREST (authentifiziert, RLS authenticated) — KEIN Storage (dessen API authentifiziert das ES256-User-JWT nicht → 403). Liste hält nur Metadaten, file_data wird erst beim Öffnen geladen. */
+  const onUpload=(e)=>{const fls=e.target.files;if(!fls||!fls.length)return;setBusy(true);const arr=Array.from(fls);let done=0;const fin=()=>{done++;if(done>=arr.length)setBusy(false);};arr.forEach(file=>{if(file.size>45*1048576){if(window.__toast)window.__toast("⚠️ "+file.name+" zu groß (max 45 MB)","warn",4000);fin();return;}const rd=new FileReader();rd.onload=ev=>{try{const id=uid();const meta={id:id,folder_id:cur,name:file.name,mime:file.type||"application/pdf",size:file.size,created_by:(curUser&&curUser.name)||"",created_at:new Date().toISOString()};setFiles(p=>[...p,meta]);SQ.push({url:"/api/gefahrstoff-files",method:"POST",body:{...meta,file_data:ev.target.result}});if(window.__toast)window.__toast("✅ "+file.name+" hochgeladen","success",2000);}catch(err){if(window.__toast)window.__toast("Upload fehlgeschlagen: "+(err&&err.message||err),"error",4000);}fin();};rd.onerror=fin;rd.readAsDataURL(file);});try{e.target.value="";}catch(_e){}};
   const _fileRow=(fi,showPath)=>React.createElement('div',{key:fi.id,style:{...CC(),padding:"10px 12px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",minHeight:isMob?52:0},onClick:()=>openFile(fi)},
     React.createElement('span',{style:{fontSize:22,flexShrink:0}},"📄"),
-    React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},fi.name),React.createElement('div',{style:{fontSize:11,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},fi.lieferant?React.createElement('span',{},"🏭 ",fi.lieferant):null,fi.size?React.createElement('span',{},_fmtSize(fi.size)):null,showPath?React.createElement('span',{style:{opacity:.75}},"📁 ",_folderPath(fi.folder_id)||"Start"):null)),
+    React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},fi.name),React.createElement('div',{style:{fontSize:11,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},fi.lieferant?React.createElement('span',{},"🏭 ",fi.lieferant):null,fi.size?React.createElement('span',{},_fmtSize(fi.size)):null,(fi.created_at||fi.createdAt)?React.createElement('span',{},"📅 ",fdt(String(fi.created_at||fi.createdAt).slice(0,10))):null,fi.created_by?React.createElement('span',{},"👤 ",fi.created_by):null,showPath?React.createElement('span',{style:{opacity:.75}},"📁 ",_folderPath(fi.folder_id)||"Start"):null)),
     canEdit?React.createElement('button',{onClick:e=>{e.stopPropagation();delFile(fi);},title:"Löschen","aria-label":"Datei löschen",style:{...bdS,padding:"6px 9px",fontSize:12,flexShrink:0}},"🗑️"):null
   );
   return React.createElement('div',{onTouchStart:isMob?_ts:undefined,onTouchEnd:isMob?_te:undefined},
     React.createElement('div',{className:"header-row",style:{marginBottom:12}},
-      React.createElement('div',{},React.createElement('h2',{style:{fontSize:isMob?18:22,fontWeight:800,margin:0}},"☣️ Gefahrstoffe — Sicherheitsdatenblätter"),React.createElement('p',{style:{color:V.dm,fontSize:13,margin:0}},canEdit?"Ordner anlegen, PDFs hochladen, durchsuchen.":"Sicherheitsdatenblätter ansehen + durchsuchen.")),
+      React.createElement('div',{},React.createElement('h2',{style:{fontSize:isMob?18:22,fontWeight:800,margin:0}},"☣️ Gefahrenstoffe — Sicherheitsdatenblätter"),React.createElement('p',{style:{color:V.dm,fontSize:13,margin:0}},canEdit?"Ordner anlegen, PDFs hochladen, durchsuchen.":"Sicherheitsdatenblätter ansehen + durchsuchen.")),
       canEdit?React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap"}},React.createElement('button',{onClick:addFolder,style:{...bsS(),minHeight:isMob?40:0}},"📁 + Ordner"),React.createElement('button',{onClick:()=>{if(fileRef.current)fileRef.current.click();},style:{...bpS,minHeight:isMob?40:0,opacity:busy?.6:1},disabled:busy},busy?"⏳ Lädt…":"📤 PDF hochladen"),React.createElement('input',{ref:fileRef,type:"file",accept:"application/pdf,.pdf",multiple:true,style:{display:"none"},onChange:onUpload})):null
     ),
     React.createElement('div',{style:{display:"flex",gap:6,alignItems:"center",marginBottom:10}},React.createElement('input',{type:"search",value:q,onChange:e=>setQ(e.target.value),placeholder:"🔍 Suchen (Name, Lieferant, Notiz)…",style:{...II(),flex:1,fontSize:isMob?16:13}}),q?React.createElement('button',{onClick:()=>setQ(""),"aria-label":"Suche leeren",style:{...bsS(),padding:"6px 10px"}},"✕"):null),
@@ -18502,7 +18506,17 @@ function VGefahrstoff({curUser, ww}){
       ))):null,
       subFiles.length?React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6}},subFiles.map(fi=>_fileRow(fi,false))):null,
       (!subFolders.length&&!subFiles.length)?React.createElement('div',{style:{...CC(),textAlign:"center",padding:36,color:V.dm,border:"1px dashed "+V.bd}},React.createElement('div',{style:{fontSize:40,marginBottom:8,opacity:.6}},"☣️"),React.createElement('div',{style:{fontWeight:700,color:V.tx,marginBottom:4}},"Leerer Ordner"),canEdit?"Lege einen Ordner an oder lade ein PDF hoch.":"Hier sind noch keine Datenblätter hinterlegt."):null
-    )
+    ),
+    /* v3.9.197 Inline-PDF-Viewer (kein Download nötig) + Download-Fallback */
+    viewer?React.createElement('div',{onClick:()=>setViewer(null),style:{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:9998,display:"flex",flexDirection:"column",animation:"fadeIn .15s ease-out"}},
+      React.createElement('div',{onClick:e=>e.stopPropagation(),style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:V.sb,borderBottom:"1px solid "+V.bd}},
+        React.createElement('span',{style:{fontSize:18}},"📄"),
+        React.createElement('span',{style:{flex:1,minWidth:0,fontWeight:700,color:V.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},viewer.file.name),
+        viewer.data?React.createElement('a',{href:viewer.data,download:viewer.file.name,onClick:e=>e.stopPropagation(),style:{...bsS(),textDecoration:"none",padding:"7px 12px"}},"⬇️ Download"):null,
+        React.createElement('button',{onClick:()=>setViewer(null),"aria-label":"Schließen",style:{...bsS(),padding:"7px 12px"}},"✕ Schließen")
+      ),
+      React.createElement('div',{onClick:e=>e.stopPropagation(),style:{flex:1,minHeight:0,background:"#525659"}},viewerLoading?React.createElement('div',{style:{color:"#fff",textAlign:"center",padding:40,fontSize:14}},"⏳ Lädt…"):viewer.data?React.createElement('iframe',{src:viewer.data,style:{width:"100%",height:"100%",border:"none"},title:viewer.file.name}):React.createElement('div',{style:{color:"#fff",textAlign:"center",padding:40}},"Keine Vorschau verfügbar — bitte herunterladen."))
+    ):null
   );
 }
 
