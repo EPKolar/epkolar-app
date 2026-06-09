@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.235';
+  var SW_VER='epkolar-v3.9.236';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.235-supabase";
+const APP_VERSION="3.9.236-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -12878,6 +12878,9 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const [loading,setLoading]=_react.useState.call(void 0, true);
   const [cart,setCart]=_react.useState.call(void 0, {});// {itemKey: menge}
   const [freitext,setFreitext]=_react.useState.call(void 0, "");
+  /* v3.9.236 Multi-Position: strukturierte Positions-Zeilen (Pattern wie Regiebericht "+ Zeile") — jede Zeile = EINE Position im positionen-Array (kein Freitext-Sammeln). Freitext bleibt separates Notiz-Feld. */
+  const [posRows,setPosRows]=_react.useState.call(void 0, []);
+  const uPos=(i,field,val)=>setPosRows(prev=>prev.map((r,j)=>j===i?{...r,[field]:val}:r));
   const [prio,setPrio]=_react.useState.call(void 0, "normal");
   /* v3.9.185 In-Kontext-Gewerk-Filter: gleiche Quelle wie Einstellungen→Mein Profil (epk_user_gewerk),
      aber direkt im Warenkorb umschaltbar (vorher nur tief in den Einstellungen → Installateure sahen nur Elektro). */
@@ -13087,9 +13090,11 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   // Cart helpers
   const cartCount=Object.values(cart).filter(v=>v>0).length;
   /* v3.9.183 FIX: Freitext ist auch eine Position — Gesamt-Positionszahl (Katalog + 1 für Freitext) für Anzeige/Bestätigung. */
-  const posCount=cartCount+(freitext.trim()?1:0);
+  const _posRowCount=posRows.filter(r=>(r.name||"").trim()).length;/* v3.9.236 */
+  const posCount=cartCount+_posRowCount+(freitext.trim()?1:0);
+  const _hasInput=cartCount>0||_posRowCount>0||!!freitext.trim();/* v3.9.236: Send/Print/Leeren aktiv wenn Katalog ODER manuelle Position ODER Notiz */
   const setMenge=(key,val)=>{const n=Math.max(0,parseFloat(String(val).replace(",","."))||0);/* v3.9.127 F7: Dezimal-Mengen (2,5m Kabel) + Komma-Norm — parseInt schnitt Nachkomma ab */setCart(prev=>{const c={...prev};if(n>0)c[key]=n;else delete c[key];return c;});};
-  const clearCart=()=>{setCart({});setFreitext("");setPrio("normal");};
+  const clearCart=()=>{setCart({});setFreitext("");setPosRows([]);setPrio("normal");};
   const itemKey=(catId,itemId,dimIdx)=>catId+"__"+itemId+"__"+(dimIdx!==undefined?dimIdx:"x");
 
   // Send cart to Lager
@@ -13099,7 +13104,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const _sendingOrder=_react.useRef.call(void 0, false);
   const sendOrder=async()=>{
     if(_sendingOrder.current)return;
-    if(cartCount===0&&!freitext.trim()){window.__toast&&window.__toast("Warenkorb ist leer","error");return;}
+    if(!_hasInput){window.__toast&&window.__toast("Warenkorb ist leer","error");return;}
     /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
     _sendingOrder.current=true;/* v3.9.224 #1: Guard VOR _confirmModal-await (Muster addKm) — sonst Doppel-Tap vor Overlay-Paint → 2x POST = doppelte Material-Anforderung/Kosten */
     if(!await _confirmModal("Material-Anforderung absenden? ("+posCount+" Positionen)")){_sendingOrder.current=false;return;}
@@ -13120,6 +13125,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         });
       });
     });
+    posRows.forEach(r=>{const nm=(r.name||"").trim();if(!nm)return;const mng=parseFloat(String(r.menge).replace(",","."))||1;positionen.push({artNr:"",name:nm,dim:"",menge:mng,einheit:"",katalog:"Manuell",kategorie:"Sonstiges"});});/* v3.9.236: jede manuelle Positions-Zeile = EIN Eintrag im positionen-Array */
     if(freitext.trim())positionen.push({artNr:"",name:freitext.trim(),dim:"",menge:1,einheit:"",katalog:"Freitext",kategorie:"Sonstiges"});
     const ordId="mord_"+Date.now();
     const ordName=positionen.slice(0,3).map(p2=>p2.name+(p2.dim?" "+p2.dim:"")).join(", ")+(positionen.length>3?" (+"+(_n(positionen.length-3,0))+")":"");
@@ -13308,9 +13314,19 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         )// close sysOpen wrapper
         );// close system div
       })// close catalogs.map
-      // Freitext
-      , React.createElement('div', { style: {marginTop:12,marginBottom:12}}
-        , React.createElement('textarea', { value: freitext, onChange: e=>setFreitext(e.target.value), placeholder: "Sonstiges / Freitext (z.B. Spezialmaterial, nicht im Katalog)...", style: {...II(),width:"100%",minHeight:isMob?48:40,fontSize:13,resize:"vertical"} })
+      // v3.9.236 Manuelle Positionen (Multi-Entry, Pattern wie Regiebericht "+ Zeile") — jede Zeile = 1 Position
+      , React.createElement('div', { style: {marginTop:12}}
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}, React.createElement('span', { style: {fontSize:13,fontWeight:700}}, "✏️ Manuelle Positionen"  ), React.createElement('button', { onClick: ()=>setPosRows(prev=>[...prev,{name:"",menge:""}]), style: {...bsS(),padding:"3px 10px",fontSize:11}}, "+ Position" ))
+        , posRows.length===0&&React.createElement('div', { style: {fontSize:11,color:V.dm,padding:"2px 2px 6px"}}, "Pro Artikel eine eigene Zeile — \"+ Position\" für weitere." )
+        , posRows.map((r,i)=>React.createElement('div', { key: i, style: {display:"flex",gap:6,marginBottom:6,alignItems:"center"}}
+          , React.createElement('input', { value: r.name, onChange: e=>uPos(i,"name",e.target.value), placeholder: "Artikel / Bezeichnung", style: {...II(),flex:1,fontSize:13}} )
+          , React.createElement('input', { value: r.menge, onChange: e=>uPos(i,"menge",e.target.value), type: "number", inputMode: "decimal", step: "any", min: "0", placeholder: "Menge", style: {...II(),width:isMob?64:90,textAlign:"center",fontSize:13}} )
+          , React.createElement('button', { onClick: ()=>setPosRows(prev=>prev.filter((_,j)=>j!==i)), title: "Zeile entfernen", style: {...bdS,padding:"4px 9px",fontSize:12}}, "✕")
+        ))
+      )
+      // Freitext-Notiz (optional, echter Freitext)
+      , React.createElement('div', { style: {marginTop:10,marginBottom:12}}
+        , React.createElement('textarea', { value: freitext, onChange: e=>setFreitext(e.target.value), placeholder: "Notiz / Freitext (optional, z.B. Hinweis ans Lager)...", style: {...II(),width:"100%",minHeight:isMob?48:40,fontSize:13,resize:"vertical"} })
       )
       // Footer: Prio + Send
       , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",padding:"10px 0",borderTop:"1px solid "+V.bd}}
@@ -13318,7 +13334,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           , Object.entries(MAT_PRIO).map(([k,v])=>(React.createElement('button', { key: k, onClick: ()=>setPrio(k), style: {padding:isMob?"6px 12px":"5px 12px",borderRadius:16,border:"1.5px solid "+(prio===k?v.c:V.bd),background:prio===k?v.c+"18":"transparent",color:prio===k?v.c:V.dm,fontSize:isMob?12:11,fontWeight:prio===k?700:400,cursor:"pointer",fontFamily:"inherit",minHeight:isMob?36:0}}, v.i, " ", v.l)))
         )
         , React.createElement('div', { style: {flex:1}})
-        , (cartCount>0||freitext.trim())&&React.createElement('button', { onClick: ()=>{
+        , _hasInput&&React.createElement('button', { onClick: ()=>{
           // v3.5.71 Block 3d: Warenkorb Drucken via neuem Fenster
           // v3.8.20 R-3: _e() XSS-Härtung für Print-HTML
           const _e=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -13330,6 +13346,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               else{const k=itemKey(cat.id,item.id);if(cart[k]>0)items.push({name:item.name,dim:"",menge:cart[k],einheit:item.einheit,artNr:item.artNr,katalog:kat.system});}
             });
           }));
+          posRows.forEach(r=>{const nm=(r.name||"").trim();if(nm)items.push({name:nm,dim:"",menge:r.menge||"",einheit:"",artNr:"",katalog:"Manuell"});});/* v3.9.236 */
           if(freitext.trim())items.push({name:freitext.trim(),dim:"",menge:"",einheit:"",artNr:"",katalog:"Freitext"});
           const rows=items.map(i=>`<tr><td>${_e(i.artNr||"")}</td><td>${_e(i.name||"")}</td><td>${_e(i.dim||"")}</td><td style="text-align:right;font-weight:700">${_e(i.menge)}</td><td>${_e(i.einheit||"")}</td><td style="font-size:10px;color:#666">${_e(i.katalog||"")}</td></tr>`).join("");
           const html=`<!doctype html><html><head><meta charset="utf-8"><title>Warenkorb ${_e((p.nr||p.name||"").replace(/"/g,""))}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{border-bottom:3px solid #009640;padding-bottom:8px;color:#009640;margin:0 0 4px}h2{margin:0 0 16px;color:#444;font-size:14px;font-weight:normal}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#009640;color:#fff;padding:8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#f7f8fa}.meta{font-size:11px;color:#666;margin-bottom:20px}.footer{margin-top:30px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:10px}.sig{margin-top:40px;display:flex;gap:40px;font-size:11px}.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}/* v3.9.48 S33-4 F12+F13: tr-page-break-inside:avoid (kein-Zeilen-Split) + thead display:table-header-group (Header auf jeder Druckseite). */@media print{body{padding:0}tr{page-break-inside:avoid}thead{display:table-header-group}.sig{page-break-inside:avoid}}</style></head><body><h1>🛒 Material-Warenkorb</h1><h2>${_e(p.name||"")} ${p.nr?("· "+_e(p.nr)):""}</h2><div class="meta"><b>Erstellt:</b> ${new Date().toLocaleString("de-AT")} · <b>Monteur:</b> ${_e(curUser?.name||"")} · <b>Positionen:</b> ${items.length}</div><table><thead><tr><th>Art.Nr.</th><th>Bezeichnung</th><th>Dim.</th><th style="text-align:right">Menge</th><th>Einheit</th><th>Katalog</th></tr></thead><tbody>${rows}</tbody></table><div class="sig"><div>Monteur / Datum</div><div>Lager / Datum</div></div><div class="footer">EP: Kolar & Sohn GesmbH · Marktplatz 17, 3470 Kirchberg am Wagram · Tel +43 2279 2361</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`;
@@ -13337,8 +13354,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           if(w){w.document.write(html);w.document.close();}
           else window.__toast?.("Popup blockiert — bitte erlauben","warn");
         }, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "🖨 Drucken")
-        , (cartCount>0||freitext.trim())&&React.createElement('button', { onClick: async()=>{/* v3.9.10 Modal-Migration Round-3 */ if(await _confirmModal("Warenkorb leeren?",{variant:"danger"}))clearCart();}, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "Leeren")
-        , React.createElement('button', { onClick: sendOrder, disabled: sending||cartCount===0&&!freitext.trim(), style: {padding:isMob?"8px 20px":"8px 18px",borderRadius:8,border:"none",background:cartCount>0||freitext.trim()?"#009640":"#555",color:"#fff",fontWeight:700,fontSize:isMob?14:13,cursor:cartCount>0||freitext.trim()?"pointer":"not-allowed",opacity:sending?.6:1,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:isMob?42:0}}, sending?React.createElement("span",{},React.createElement("span",{className:"epk-spin",style:{marginRight:6}})," Sende..."):"📦 Ans Lager senden", posCount>0&&React.createElement('span', { style: {padding:"2px 7px",borderRadius:10,background:"rgba(255,255,255,.25)",fontSize:11,fontWeight:700}}, posCount))
+        , _hasInput&&React.createElement('button', { onClick: async()=>{/* v3.9.10 Modal-Migration Round-3 */ if(await _confirmModal("Warenkorb leeren?",{variant:"danger"}))clearCart();}, style: {...bsS(),padding:isMob?"6px 12px":"5px 10px",fontSize:11,minHeight:isMob?36:0}}, "Leeren")
+        , React.createElement('button', { onClick: sendOrder, disabled: sending||!_hasInput, style: {padding:isMob?"8px 20px":"8px 18px",borderRadius:8,border:"none",background:_hasInput?"#009640":"#555",color:"#fff",fontWeight:700,fontSize:isMob?14:13,cursor:_hasInput?"pointer":"not-allowed",opacity:sending?.6:1,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,minHeight:isMob?42:0}}, sending?React.createElement("span",{},React.createElement("span",{className:"epk-spin",style:{marginRight:6}})," Sende..."):"📦 Ans Lager senden", posCount>0&&React.createElement('span', { style: {padding:"2px 7px",borderRadius:10,background:"rgba(255,255,255,.25)",fontSize:11,fontWeight:700}}, posCount))
       )
     );
   };
