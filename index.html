@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.238';
+  var SW_VER='epkolar-v3.9.239';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.238-supabase";
+const APP_VERSION="3.9.239-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5393,7 +5393,7 @@ class _ViewBoundary extends React.Component{
           if(freshMap[did]&&freshMap[did].status!==snap.defectStatuses[did]){
             const d=freshMap[did];
             const pName=_optionalChain([_projects, 'access', _poll4 => _poll4.find, 'call', _poll5 => _poll5(p=>p.id===d.projectId), 'optionalAccess', _poll6 => _poll6.name])||"";
-            const stLabel=d.status==="behoben"?"✅ Behoben":d.status==="in_bearbeitung"?"🔧 In Bearbeitung":d.status==="abgelehnt"?"❌ Abgelehnt":d.status;
+            const stLabel=d.status==="behoben"?"✅ Behoben":(d.status==="in_bearbeitung"||d.status==="in Behebung")?"🔧 In Bearbeitung":d.status==="abgelehnt"?"❌ Abgelehnt":d.status;/* v3.9.239 P3: Mangel-Status "in Behebung" (VMang) zusätzlich zu "in_bearbeitung" (Tickets) labeln */
             _pushNotif("defect_status","Mangel-Status: "+stLabel,(d.title||"Mangel")+(pName?" — "+pName:""));
           }
         });
@@ -8598,7 +8598,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           const extra=_safeJsonParse(d.data,{});
           if(extra.finkStunden>0&&!extra.abgeglichen){
             const prefix=d.jahr+"-"+(d.monat+1<10?"0":"")+(d.monat+1);
-            const epH=entries.filter(e=>{const wid=e.worker||e.w||"";const dt=e.datum||e.date||"";return wid===d.worker_id&&dt.startsWith(prefix);}).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
+            const _du=(users||[]).find(x=>x.id===d.worker_id);const _dmid=_du?(_du.monteurId||_du.monteur_id||""):"";/* v3.9.239 P2: finkzeit.worker_id ist users-PK (uX), entries.worker ist monteurId (wX) → auf monteurId mappen, sonst matchte nie → epH=0 → falsche Stunden-Abweichungs-Warnung */
+            const epH=entries.filter(e=>{const wid=e.worker||e.w||"";const dt=e.datum||e.date||"";return (wid===d.worker_id||(_dmid&&wid===_dmid))&&dt.startsWith(prefix);}).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
             const diff=Math.abs(epH-extra.finkStunden);
             if(diff>1)diffWarn++;
           }
@@ -10484,7 +10485,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     /* v3.9.25 KRITISCH P1-Followup: Triage = Admin/PL-Task. Monteur darf NICHT review-accepten. */
     if(!isAdmin){_optionalChain([window,'access',_g325g=>_g325g.__toast,'optionalCall',_g325h=>_g325h("⚠️ Triage von Kundenmeldungen ist Admin/PL-Task","warn")]);return;}
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"angenommen",zugewiesen:reviewWorker,reviewNote:reviewNote||"Wird bearbeitet",worker:reviewWorker,status:"offen",prio:"hoch"}:m)}));
-    SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:"angenommen",assignee:reviewWorker,zugewiesen:reviewWorker,kunde_status:"angenommen",review_note:reviewNote||"Wird bearbeitet"}});
+    SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:"offen",assignee:reviewWorker,zugewiesen:reviewWorker,kunde_status:"angenommen",review_note:reviewNote||"Wird bearbeitet"}});/* v3.9.239 P1: status MUSS in MANGEL_ST sein ("offen"), nicht "angenommen" — sonst fiel der angenommene Kundenmangel nach 60s-Poll aus der Liste (kunde_status bleibt "angenommen") */
     _optionalChain([window, 'access', _366b => _366b.__toast, 'optionalCall', _366c => _366c("✅ Kundenmeldung angenommen & zugewiesen")]);
     setReviewId(null);setReviewNote("");};
 
@@ -18538,19 +18539,19 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , React.createElement('div', { style: {...CC(),marginTop:8}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}
             , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "📒 Serviceheft ("  , (selFz.serviceheft||[]).length, " Einträge)" )
-            , isVAdmin&&React.createElement('button', { onClick: ()=>{const e={id:uid(),datum:td2(),km:selFz.kmStand||0,art:"Service",beschreibung:"",kosten:0,werkstatt:""};upd(sel,f=>({...f,serviceheft:[e,...(f.serviceheft||[])]}));/* v3.9.126 P1: SQ-POST entfernt — upd() schreibt das serviceheft-Array bereits per PUT; der zusätzliche POST hängte e beim Sync per Read-Modify-Write ERNEUT an → Eintrag nach jedem Klick dupliziert. */_optionalChain([window, 'access', _736 => _736.__toast, 'optionalCall', _737 => _737("📒 Service-Eintrag hinzugefügt")]);}, style: {...bpS,fontSize:11}}, "+ Eintrag" )
+            , isVAdmin&&React.createElement('button', { onClick: ()=>{const e={id:uid(),datum:td2(),km:selFz.kmStand||0,art:"Service",beschreibung:"",kosten:0,werkstatt:""};upd(sel,f=>({...f,serviceheft:[e,...(f.serviceheft||[])]}),_svcSync);/* v3.9.126 P1: SQ-POST entfernt — upd() schreibt das serviceheft-Array bereits per PUT; der zusätzliche POST hängte e beim Sync per Read-Modify-Write ERNEUT an → Eintrag nach jedem Klick dupliziert. */_optionalChain([window, 'access', _736 => _736.__toast, 'optionalCall', _737 => _737("📒 Service-Eintrag hinzugefügt")]);}, style: {...bpS,fontSize:11}}, "+ Eintrag" )
           )
           , (selFz.serviceheft||[]).length===0&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:"24px 16px",border:"1px dashed "+V.bd,borderRadius:8}}, React.createElement('div', { style: {fontSize:32,marginBottom:6,opacity:.6}}, "📒"), React.createElement('div', { style: {fontWeight:700,marginBottom:4,color:V.tx}}, "Keine Service-Einträge"), isVAdmin?"Klick + Eintrag um den ersten Service zu protokollieren.":"Noch keine Service-Historie für dieses Fahrzeug."  )
           , (selFz.serviceheft||[]).map((s,i)=>(React.createElement('div', { key: s.id||i, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid #0ea5e9"}}
             , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
               , React.createElement('div', { style: {flex:1}}
                 , isVAdmin?(React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:4}}
-                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", value: s.km||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,km:parseInt(e.target.value)||0}:x)})), style: {...II(),fontSize:11,padding:4}} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Inspektion"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Reifenwechsel"), React.createElement('option', {}, "Pickerl/§57a"), React.createElement('option', {}, "UVV"), React.createElement('option', {}, "Sonstiges")))
-                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: s.kosten||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:Math.max(0,parseFloat(e.target.value)||0)}:x)})), style: {...II(),fontSize:11,padding:4}} ))
-                  , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"  } ))
-                  , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)})), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Ford Tulln"  } ))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Datum"), React.createElement('input', { type: "date", value: s.datum||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,datum:e.target.value}:x)},_svcSync)), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", value: s.km||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,km:parseInt(e.target.value)||0}:x)},_svcSync)), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Art"), React.createElement('select', { value: s.art||"Service", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,art:e.target.value}:x)},_svcSync)), style: {...II(),fontSize:11,padding:4}}, React.createElement('option', {}, "Service"), React.createElement('option', {}, "Inspektion"), React.createElement('option', {}, "Reparatur"), React.createElement('option', {}, "Reifenwechsel"), React.createElement('option', {}, "Pickerl/§57a"), React.createElement('option', {}, "UVV"), React.createElement('option', {}, "Sonstiges")))
+                  , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Kosten €" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: s.kosten||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,kosten:Math.max(0,parseFloat(e.target.value)||0)}:x)},_svcSync)), style: {...II(),fontSize:11,padding:4}} ))
+                  , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)},_svcSync)), style: {...II(),fontSize:11,padding:4}, placeholder: "Was wurde gemacht?"  } ))
+                  , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Werkstatt"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)},_svcSync)), style: {...II(),fontSize:11,padding:4}, placeholder: "z.B. Ford Tulln"  } ))
                   /* v3.9.235 tu-563: Multi-Dokument-Liste (Rechnung/Befund + beliebig viele), PDF-fähig (📄 statt kaputtes <img>), legacy befund/rechnung bleiben sichtbar. */
                   , React.createElement('div', { style: {gridColumn:"span 2"}}
                     , React.createElement('span', { style: {...LL(),fontSize:9}}, "📎 Dokumente (Rechnung / Befund / weitere)"  )
@@ -18568,7 +18569,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                   , React.createElement('div', { style: {fontSize:12,color:V.dm}}, fdt(s.datum), " · "  , _optionalChain([s, 'access', _738 => _738.km, 'optionalAccess', _739 => _739.toLocaleString, 'call', _740 => _740("de-AT")]), " km" , s.werkstatt?" · "+s.werkstatt:"", s.kosten?" · "+"€"+_n(s.kosten,2):"")
                 ))
               )
-              , isVAdmin&&React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).filter((_,j)=>j!==i)})), style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+              , isVAdmin&&React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,serviceheft:(f.serviceheft||[]).filter((_,j)=>j!==i)}),_svcSync), style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
             )
           )))
           , (selFz.serviceheft||[]).length>0&&(()=>{const total=(selFz.serviceheft||[]).reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:12,fontWeight:700,color:V.ac,marginTop:4}}, "💰 Servicekosten gesamt: "   , _n(total,2), " €" ):null;})()
@@ -18935,7 +18936,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!form.name){_optionalChain([window,'access',_g70k=>_g70k.__toast,'optionalCall',_g70l=>_g70l("⚠️ Name ist Pflichtfeld","warn")]);return;}
     // Auto-generate inventarnr if empty
     if(!form.inventarnr){const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;form.inventarnr="EK-"+prefix+String(next).padStart(3,"0");}
-    if(editId){setWerkzeuge(p=>p.map(w=>w.id===editId?{...form}:w));SQ.push({url:"/api/werkzeuge/"+editId,method:"PUT",body:form});_optionalChain([window, 'access', _752 => _752.__toast, 'optionalCall', _753 => _753("✅ Werkzeug aktualisiert")]);}
+    if(editId){setWerkzeuge(p=>p.map(w=>w.id===editId?{...form}:w));const _wb={...form};delete _wb.serviceheft;delete _wb.fotos;/* v3.9.239 #3 DIFF-7: serviceheft/fotos aus Metadaten-PUT ausschließen (werden separat via _pushWzSh gepflegt) → kein Clobber paralleler Serviceheft-Einträge */SQ.push({url:"/api/werkzeuge/"+editId,method:"PUT",body:_wb});_optionalChain([window, 'access', _752 => _752.__toast, 'optionalCall', _753 => _753("✅ Werkzeug aktualisiert")]);}
     else{setWerkzeuge(p=>[{...form},...p]);SQ.push({url:"/api/werkzeuge",method:"POST",body:form});_optionalChain([window, 'access', _754 => _754.__toast, 'optionalCall', _755 => _755("✅ Werkzeug angelegt — Inventar-Nr: "+form.inventarnr)]);}
     setSub("liste");setEditId(null);
   };
@@ -18957,7 +18958,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const lookupQR=(code)=>{
     const c=code.trim().toUpperCase();
     // Match by inventarnr, seriennr, or id
-    return werkzeuge.find(w=>(w.inventarnr||"").toUpperCase()===c||(w.seriennr||"").toUpperCase()===c||w.id===code||(w.inventarnr||"").toUpperCase().includes(c)||c.includes((w.inventarnr||"").toUpperCase()));
+    return werkzeuge.find(w=>{const inv=(w.inventarnr||"").toUpperCase();const ser=(w.seriennr||"").toUpperCase();return inv===c||ser===c||w.id===code||(c.length>=3&&inv.length>=3&&(inv.includes(c)||c.includes(inv)));});/* v3.9.239: Exakt-Match zuerst; Teilmatch nur bei c>=3 UND inventarnr>=3 — vorher matchte leere inventarnr via includes("") jedes Gerät */
   };
   const handleScanResult=(code)=>{
     const found=lookupQR(code);
@@ -19028,7 +19029,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: "€"+totalWert.toLocaleString("de-AT")+" Wert", color: "#d97706", i: 0, title: "Gesamtanzahl aller im Inventar erfassten Werkzeuge inkl. ausgegebener und reparaturbedürftiger Geräte."} )
       , React.createElement(Kpi, { label: "Verfügbar", value: stCounts.verfuegbar||0, sub: "im Lager" , color: "#22c55e", i: 1, title: "Werkzeuge im Lager, sofort einsatzbereit (Status: verfügbar)."} )
       , React.createElement(Kpi, { label: "Ausgegeben", value: stCounts.ausgegeben||0, sub: "auf Baustellen" , color: "#f97316", i: 2, title: "Werkzeuge aktuell auf Baustellen oder bei Mitarbeitern (Status: ausgegeben)."} )
-      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: stCounts.reparatur||0+" in Reparatur", color: kalibFaellig>0?"#ef4444":"#22c55e", i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung."} )
+      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":"#22c55e", i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung."} )
     )
     , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
       , [{id:"scan",i:"📷",l:"QR Scan"},{id:"liste",i:"📋",l:"Liste"},{id:"checkout",i:"📤",l:"Check-In/Out"},{id:"kalib",i:"🔧",l:"Service"},...(isAdmin?[{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}]:[])].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
