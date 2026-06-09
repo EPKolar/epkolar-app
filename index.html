@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.212';
+  var SW_VER='epkolar-v3.9.213';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2223,34 +2223,33 @@ window.API = (function() {
         throw new Error("Account unvollständig — Email fehlt. Admin kontaktieren. [B20-F]");
       }
       const email=user.email;
-      // Try GoTrue auth first
+      // v3.9.213 #2 SECURITY: bcrypt-Fallback gegen login_lookup.password_hash ENTFERNT.
+      // GoTrue ist online der alleinige Auth-Pfad (alle 10 User verifiziert migriert). Der frühere
+      // Fallback las login_lookup.password_hash (bcrypt-Hash an anon = offline knackbar) → komplett
+      // entfernt, damit login_lookup keinen Hash mehr ausliefern muss. Offline-Login laeuft getrennt
+      // ueber _OFFPW/offlinePwHash (LoginScreen, navigator.onLine===false) — unangetastet.
       let gotrue=false;
-      let _gotrueErr=null;
       try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;/* v3.8.35: epkolar_gc-Cache entfernt (base64-reversible, siehe _silentReAuth-Kommentar) */}catch(authErr){
-        _gotrueErr=authErr;
-        // Fallback: bcrypt (transition period until all users migrated)
-        let valid=false;
-        try{valid=dcodeIO.bcrypt.compareSync(p,user.password_hash);}catch(e){console.warn("[api-auth] bcrypt:",e);}
-        if(!valid){console.error('[B020-D] bcrypt+GoTrue both failed',{username:u,email,gotrueErr:authErr&&authErr.message,hashPresent:!!user.password_hash});throw new Error("Falsches Passwort [B20-D]");}
-        // v3.8.7 BLOCK 1: bcrypt OK → One-Time-Migration via GoTrue signup. Bei Fail: HARTE Abweisung,
-        // kein altEmail-Retry (war Security-Smell bei u+"@epkolar.local" als fake-domain),
-        // kein silent-degraded-Mode (ehemalig B20-E).
-        try{
-          const signUp=await fetch(_SB_AUTH+"/signup",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password:p,data:{role:user.role,name:user.name}})},15000));
-          if(signUp.ok){const sd=await signUp.json();if(sd.access_token){_storeAuth(sd);gotrue=true;/* v3.8.35: epkolar_gc-Cache entfernt */}}
-        }catch(_){}
-        if(!gotrue){console.error('[B020-G] bcrypt OK aber GoTrue-Auth+Signup beide fehlgeschlagen — Admin muss GoTrue-Account anlegen',{username:u,email,gotrueErr:_gotrueErr&&_gotrueErr.message});throw new Error("Anmeldung unvollständig — Admin muss GoTrue-Account anlegen [B20-G]");}
+        const _st=authErr&&authErr.status;
+        if(_st&&_st>=500){console.error('[B020-D] GoTrue serverseitig nicht erreichbar',{username:u,email,status:_st,gotrueErr:authErr&&authErr.message});throw new Error("Anmeldedienst momentan nicht erreichbar — bitte erneut versuchen [B20-D]");}
+        console.error('[B020-D] GoTrue-Auth fehlgeschlagen',{username:u,email,status:_st,gotrueErr:authErr&&authErr.message});throw new Error("Falsches Passwort [B20-D]");
       }
       // v3.8.7 BLOCK 1 B-020: Belt-and-braces — nach ALLEN Auth-Pfaden MUSS _authToken gesetzt sein.
       // Falls durch race/edge nicht → HARTE Abweisung statt Dashboard-Render mit anon-Key.
       if(!_authToken){console.error('[B020-H] _authToken null nach Auth-Flow',{username:u,email,gotrueFlag:gotrue});throw new Error("Anmeldung fehlgeschlagen — bitte erneut versuchen [B20-H]");}
+      // v3.9.213 #2: Vollprofil (permissions/monteur_id/perms_override/login_count) NACH dem GoTrue-Login
+      // ueber den AUTHENTIFIZIERTEN, RLS-geschuetzten Self-Read holen — login_lookup (anon-RPC) muss diese
+      // Felder nicht mehr ausliefern. Defensiv: Read leer/fehlerhaft → Fallback aufs login_lookup-Result
+      // (Vor-Migration liefert es die Felder weiterhin → kein Regress).
+      let _prof=null;try{const _pr=await _sbGetUsersSafe("id=eq."+encodeURIComponent(user.id));if(Array.isArray(_pr)&&_pr[0])_prof=_pr[0];}catch(e){console.warn('[login-profile]',e&&e.message||e);}
+      const _src=_prof||user;
       /* v3.9.166 FIX Login#3: Telemetrie (last_login/activity_log) fire-and-forget statt await — lag synchron im
          kritischen Login-Pfad (verzögerte Dashboard, konnte unnötigen Re-Auth triggern). Ergebnis wird nicht genutzt. */
-      if(_authToken){_sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(user.login_count)||0)+1}).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
-      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:(gotrue?"gotrue":"bcrypt")+" "+navigator.userAgent||""}).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}
-      let perms=[];try{perms=typeof user.permissions==='string'?JSON.parse(user.permissions||'[]'):user.permissions||[];}catch(e){perms=[];}
-      const _po=user.perms_override||user.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
-      const userData={id:user.id,name:user.name,role:user.role,username:user.username,email:email,permissions:perms,monteurId:user.monteur_id||'',permsOverride:_poObj};
+      if(_authToken){_sbPatch("users",user.id,{last_login:new Date().toISOString(),login_count:(parseInt(_src.login_count)||0)+1}).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
+      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:"gotrue "+navigator.userAgent||""}).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}
+      let perms=[];try{perms=typeof _src.permissions==='string'?JSON.parse(_src.permissions||'[]'):_src.permissions||[];}catch(e){perms=[];}
+      const _po=_src.perms_override||_src.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
+      const userData={id:user.id,name:_src.name||user.name,role:_src.role||user.role,username:_src.username||user.username,email:email,permissions:perms,monteurId:_src.monteur_id||'',permsOverride:_poObj};
       _user=userData;
       // v3.5.124: epkolar_token = echter JWT (nicht mehr placeholder 'supabase-session'), epkolar_refresh separat — _storeAuth setzt diese schon bei GoTrue-Login; hier nur bei bcrypt-fallback als Kennzeichen dass bcrypt-Login war
       try{localStorage.setItem('epkolar_user',JSON.stringify(userData));if(_authToken)localStorage.setItem('epkolar_token',_authToken);else localStorage.setItem('epkolar_token','bcrypt-fallback');}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
@@ -2318,7 +2317,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.212-supabase";
+const APP_VERSION="3.9.213-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
