@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.206';
+  var SW_VER='epkolar-v3.9.207';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2318,7 +2318,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.206-supabase";
+const APP_VERSION="3.9.207-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3267,6 +3267,19 @@ async function _planRenderThumbnail(planId, pageNum, canvas) {
   canvas.height = viewport.height;
   await page.render({canvasContext: canvas.getContext("2d"), viewport}).promise;
   return {width: viewport.width, height: viewport.height};
+}
+
+/* v3.9.207 PDF (base64 dataUrl) → Array JPEG-Bild-dataUrls (1 pro Seite) für perfekten Druck.
+   iframes drucken eingebettete PDFs unzuverlässig (leer) → gerenderte Bilder drucken zuverlässig. */
+async function _pdfToImages(dataUrl,scale){
+  try{
+    if(!window.pdfjsLib||!dataUrl||String(dataUrl).indexOf("data:")!==0)return [];
+    const b64=dataUrl.substring(dataUrl.indexOf(",")+1);const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    const pdf=await window.pdfjsLib.getDocument({data:arr.buffer}).promise;
+    const out=[];const _max=Math.min(pdf.numPages,20);
+    for(let i=1;i<=_max;i++){const page=await pdf.getPage(i);const vp=page.getViewport({scale:scale||2});const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;out.push({src:c.toDataURL("image/jpeg",0.92),landscape:vp.width>=vp.height});}
+    return out;
+  }catch(e){console.warn("[_pdfToImages]",e&&e.message||e);return [];}
 }
 
 function _planClearPdfCache(planId) {
@@ -15158,7 +15171,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
     if(!sigData){_optionalChain([window, 'access', _fg1 => _fg1.__toast, 'optionalCall', _fg2 => _fg2("⚠️ Bitte zuerst unterschreiben","error",3000)]);return;}
     const upd=zettel.map(x=>x.id===z.id?{...x,status:"freigegeben",freigegebenAm:new Date().toISOString(),unterschrift:sigData}:x);
     saveZettel(upd);
-    SQ.push({url:"/api/finkzeit/"+z.id,method:"PUT",body:{status:"genehmigt",signatur:sigData}});
+    SQ.push({url:"/api/finkzeit/"+z.id,method:"PUT",body:{status:"genehmigt",signatur:sigData,approved_at:new Date().toISOString(),approved_by:(curUser&&(curUser.name||curUser.username))||""}});/* v3.9.207 approved_at/by serverseitig setzen (war leer) */
     if(window.__doSync)window.__doSync();/* v3.9.206 sofort hochladen nach Freigabe (nicht auf Sync-Intervall warten) */
     _optionalChain([window, 'access', _610 => _610.__toast, 'optionalCall', _611 => _611("✅ Monatszettel freigegeben")]);
     setSigZettel(null);setSigData(null);
@@ -15190,12 +15203,16 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
   const statusIcon=(s)=>s==="freigegeben"?"✅":"⏳";
 
   /* ─── DRUCK / EXPORT ─── */
-  const druckAnsicht=(z)=>{
-    const w=window.open("","_blank","width=800,height=1000");
+  const druckAnsicht=async(z)=>{
+    const w=window.open("","_blank","width=1000,height=800");
     /* v3.9.45 SPRINT-29 F-PDF-3: Popup-blocked Toast statt silent return — Stundenzettel Druck. */
     if(!w){_optionalChain([window,'access',_pdf3a=>_pdf3a.__toast,'optionalCall',_pdf3b=>_pdf3b("⚠️ Popup blockiert — bitte Popup-Blocker deaktivieren","warn")]);return;}
+    try{w.document.write("<!DOCTYPE html><meta charset=utf-8><title>Druck…</title><body style='font-family:Arial;padding:48px;text-align:center;color:#555'><div style='font-size:18px'>⏳ Ausdruck wird vorbereitet…</div></body>");}catch(_pw){}
     // v3.5.144: XSS-Schutz auf z.mitarbeiterName (user-input DB-Feld) im Print-Title
     const _e=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    /* v3.9.207 PDF-Seiten zu Bildern rendern → perfekter Druck (eingebettetes iframe-PDF druckt leer) */
+    const _pdfImgs=(z.dateiTyp&&String(z.dateiTyp).indexOf("pdf")>=0)?await _pdfToImages(z.datei):[];
+    w.document.open();
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Monatsabrechnung ${_e(z.mitarbeiterName)} - ${MONATE[z.monat]||""} ${z.jahr||""}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
@@ -15211,7 +15228,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
       .meta b{color:#333}
       .pdf-frame{border:1px solid #ccc;margin-bottom:16px;background:#fff}
       .pdf-frame iframe{width:100%;height:calc(100vh - 340px);min-height:500px;border:none}
-      .pdf-frame img{width:100%;object-fit:contain}
+      .pdf-frame img,.pdf-frame .pdfpg{width:100%;display:block;object-fit:contain;margin-bottom:6px}
+      .pdf-frame .pdfpg{page-break-after:always}
+      .pdf-frame .pdfpg:last-child{page-break-after:auto}
       .sig-section{margin-top:20px;border-top:2px solid #009640;padding-top:14px;page-break-before:always}
       .sig-row{display:flex;gap:40px;margin-top:12px}
       .sig-box{flex:1;text-align:center}
@@ -15238,7 +15257,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects}){
       <div><b>Status:</b> <span class="status ${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</span></div>
       ${z.freigegebenAm?`<div><b>Freigegeben am:</b> ${new Date(z.freigegebenAm).toLocaleDateString("de-AT")}</div>`:"<div></div>"}
     </div>
-    <div class="pdf-frame">${_optionalChain([z, 'access', _614 => _614.dateiTyp, 'optionalAccess', _615 => _615.includes, 'call', _616 => _616("pdf")])?`<iframe src="${_pdfDataUrlToBlobUrl(z.datei)||_e(z.datei)}"></iframe>`/* v3.9.205 Blob-URL statt data: → PDF rendert (Chrome blockt data:-PDF im iframe) */:`<img src="${_e(z.datei)}" alt="Stundenzettel">`}</div>
+    <div class="pdf-frame">${_pdfImgs.length?_pdfImgs.map(im=>`<img class="pdfpg" src="${im.src}" alt="Seite">`).join(""):(z.datei?`<img src="${_e(z.datei)}" alt="Stundenzettel">`:`<div style="padding:40px;color:#999;text-align:center">Kein PDF hinterlegt</div>`)}</div>
     <div class="sig-section">
       <div style="font-size:14px;font-weight:700;margin-bottom:8px">Freigabe durch Mitarbeiter</div>
       <div class="sig-row">
