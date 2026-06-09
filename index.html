@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.226';
+  var SW_VER='epkolar-v3.9.227';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1841,13 +1841,13 @@ async function _sbGetOrder(table,order,filter){
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail(r.status);return[];}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   return r.json();
 }
-async function _sbPost(table,data){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH("return=representation"),body:JSON.stringify(data)})));
+async function _sbPost(table,data,minimal){/* v3.9.227: minimal=true → Prefer return=minimal (kein RETURNING→SELECT) — Fix Monteur-403 bei notifications-INSERT fuer fremde Empfaenger */
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH(minimal?"return=minimal":"return=representation"),body:JSON.stringify(data)})));
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   try{return await r.json();}catch(_){return{ok:1};}
 }
-async function _sbUpsert(table,data){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH("return=representation,resolution=merge-duplicates"),body:JSON.stringify(data)})));
+async function _sbUpsert(table,data,minimal){/* v3.9.227: minimal=true → return=minimal (kein RETURNING) — Fix notifications-403 */
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH((minimal?"return=minimal":"return=representation")+",resolution=merge-duplicates"),body:JSON.stringify(data)})));
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   try{return await r.json();}catch(_){return{ok:1};}
 }
@@ -1942,7 +1942,7 @@ async function _translateAndExec(url,method,body){
       const admins=await _sbGetUsersSafe("role=eq.admin&active=eq.1");
       const username=body&&body.username||"Unbekannt";
       const notifs=admins.map(a=>({id:Date.now()+"_pwr_"+a.id,user_id:a.id,type:"system",title:"🔑 Passwort-Reset Anfrage",body:"Benutzer '"+username+"' hat eine Passwort-Zurücksetzung angefordert.",link:"",read:0,created_at:new Date().toISOString()}));
-      if(notifs.length)await _sbUpsert("notifications",notifs);
+      if(notifs.length)await _sbUpsert("notifications",notifs,true);/* v3.9.227: return=minimal (RETURNING→SELECT→403-Fix) */
     }catch(e){console.warn("[api] PW-Reset notification:",e);}
     return{ok:1};
   }
@@ -2005,7 +2005,7 @@ async function _translateAndExec(url,method,body){
       const items=(body&&body.items)||[];
       if(items.length){
         const mapped=items.map(n=>_mapBody({id:n.id,user_id:n.user_id||n.user,type:n.type||'',title:n.title||'',body:n.body||'',link:n.link||'',read:n.read?1:0}));
-        await _sbUpsert("notifications",mapped);
+        await _sbUpsert("notifications",mapped,true);/* v3.9.227: return=minimal — Batch-Notif-INSERT (Monteur→Buero/PL) sonst RETURNING→SELECT→403 → Sync-Queue-Wedge */
       }
       return{ok:1};
     }
@@ -2194,7 +2194,7 @@ async function _translateAndExec(url,method,body){
   }
 
   if(method==="POST"){
-    await _sbPost(table,mapped);
+    await _sbPost(table,mapped,table==="notifications");/* v3.9.227: direkter notifications-POST return=minimal (RETURNING→403-Fix) */
   }else if(method==="PUT"||method==="PATCH"){
     if(!idOrSub){console.warn("[api] PUT without ID:",url);return{ok:1};}
     // Remove id from patch body
@@ -2357,7 +2357,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.226-supabase";
+const APP_VERSION="3.9.227-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
