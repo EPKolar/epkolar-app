@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.221';
+  var SW_VER='epkolar-v3.9.222';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2353,7 +2353,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.221-supabase";
+const APP_VERSION="3.9.222-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -12971,13 +12971,13 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const [suppOrdDetail,setSuppOrdDetail]=_react.useState.call(void 0, null);// expanded supplier order id
   const showEk=canDo("view_ek_price",curUser);
   _react.useEffect.call(void 0, ()=>{let a=true;
-    (async()=>{try{
+    (async()=>{try{let _savedMat=[];/* v3.9.222 #1: geladene material_catalogs hoisten, damit sie unten (supplier-Block) nicht verworfen werden */
       const cats=await _sbGet("material_catalogs","order=system.asc");
       if(!a)return;
       if(cats&&cats.length>0){
         const parsed=cats.map(c=>({...c,cats:_jp(c.cats)||[]}));
         setSavedCatalogs(parsed);
-        MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...parsed.map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}))];
+        _savedMat=parsed.map(c=>({id:c.id,system:c.system,gewerk:c.gewerk,cats:c.cats}));MAT_KATALOG=[...MAT_KATALOG_DEFAULT,..._savedMat];
       }
       // Load supplier configs for name mapping
       const scfg=await _sbGet("supplier_configs","select=id,name,gewerk,skonto_prozent,jahresbonus_prozent,zahlungskonditionen,firma_adresse,base_url,unternehmen_id,shk_url,ids_shop_url,interface_type&active=eq.true").catch(()=>[]);
@@ -13008,7 +13008,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           const items=data.items.map((a,i)=>({id:"sa_"+a.id,artNr:a.art_nr,name:a.bezeichnung+(a.langtext?" "+a.langtext:""),einheit:a.mengeneinheit||"Stk",ek:a.ek_preis,lp:a.listenpreis,suppId:a.supplier_id,avail:[]}));
           dynCats.push({id:"supp_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),system:sys+suppLabel,gewerk:data.gewerk,isSupplier:true,cats:[{id:"supp_cat_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),label:sys+" ("+items.length+" Art.)",dims:[],items:items}]});
         }
-        if(dynCats.length>0)MAT_KATALOG=[...MAT_KATALOG_DEFAULT,...dynCats];
+        if(dynCats.length>0)MAT_KATALOG=[...MAT_KATALOG_DEFAULT,..._savedMat,...dynCats];/* v3.9.222 #1: _savedMat (DATANORM-Kataloge) erhalten — vorher verwarf dieser Re-Assign sie */
       }
     }catch(e){console.warn('[silent-async]',e&&e.message||e);}})();
     return()=>{a=false;};
@@ -14183,7 +14183,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const _wpKwRef=_react.useRef.call(void 0, kw);_wpKwRef.current=kw;
   const _wpYrRef=_react.useRef.call(void 0, yr);_wpYrRef.current=yr;
   _react.useEffect.call(void 0, ()=>{
-    const flush=()=>{if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{SQ.push({url:"/api/weekplans",method:"POST",body:{kw:_wpKwRef.current,year:_wpYrRef.current,rows:_wpRowsRef.current}});}catch(e){console.warn('[silent-sq]',e&&e.message||e);}}};
+    const flush=()=>{if(!isAdmin)return;/* v3.9.222 #2: Feld-User-Write-Bypass schliessen — saveWeek ist isAdmin-gegated, der beforeunload/Unmount-flush war es nicht → Monteur-Edits konnten den Wochenplan ueberschreiben */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{SQ.push({url:"/api/weekplans",method:"POST",body:{kw:_wpKwRef.current,year:_wpYrRef.current,rows:_wpRowsRef.current}});}catch(e){console.warn('[silent-sq]',e&&e.message||e);}}};
     window.addEventListener("beforeunload",flush);
     return()=>{window.removeEventListener("beforeunload",flush);flush();};
   },[]);
