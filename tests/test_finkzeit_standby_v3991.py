@@ -6,9 +6,10 @@ Reaktivierung: FINKZEIT_ENABLED = true. DB/Schema unberührt. hasPerm('stunden')
 import re
 
 
-def test_flag_exists_and_disabled(index_html):
-    assert "const FINKZEIT_ENABLED=false;" in index_html, (
-        "Zentrales Flag FINKZEIT_ENABLED muss existieren und false sein (Standby)"
+def test_flag_exists_and_enabled(index_html):
+    # v3.9.204: Monatsabrechnung reaktiviert (Chef-Entscheidung 09.06.2026) — Flag jetzt true.
+    assert "const FINKZEIT_ENABLED=true;" in index_html, (
+        "Zentrales Flag FINKZEIT_ENABLED muss existieren und true sein (reaktiviert v3.9.204)"
     )
 
 
