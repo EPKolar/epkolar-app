@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.225';
+  var SW_VER='epkolar-v3.9.226';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1428,6 +1428,10 @@ async function _sbAuthRefresh(){
   return _authRefreshInflight;
 }
 async function _silentReAuth(){
+  /* v3.9.226: Anon / KEINE Session (kein refresh_token + kein gespeicherter User) → nichts zum Re-Authen,
+     KEIN Nuke/Reload. Sonst loest jeder _authRetry-Read eines nicht-eingeloggten Users (Login-Screen/Portal-Boot)
+     einen Zwangs-Reload aus (Boot-Reload-Loop, vom alten count-Guard nur auf 2 gedeckelt). */
+  try{var _rt0=_authRefreshToken||localStorage.getItem("epkolar_refresh");if(!_rt0&&!localStorage.getItem("epkolar_user")){_authToken=null;_authRefreshToken=null;return null;}}catch(_){}
   /* v3.9.216: Refresh fehlgeschlagen, aber access_token NOCH gueltig (z.B. Rotation-Race: ein paralleler
      Tab/PWA-Kontext hat den refresh_token bereits rotiert) → KEIN Logout. Token behalten + in halber
      Restlaufzeit erneut refreshen. Nur bei WIRKLICH abgelaufenem access_token wird ausgeloggt. Das ist
@@ -1519,7 +1523,7 @@ function _onAuthFail(status){if(status===403){console.warn('[Auth] 403 Forbidden
 async function _authRetry(fn){
   /* v3.9.217 F2: Fehlt ein gueltiges JWT (z.B. kurz nach Rotation/Restore/in-flight), erst refreshen statt mit
      anon-Key zu feuern — sonst deterministisches 401 → unnoetige Re-Auth-Kette. Single-Flight + Offline-Guard. */
-  if(!(_authToken&&_isJwtShape(_authToken))&&navigator.onLine!==false){try{await _sbAuthRefresh();}catch(_){}}
+  if(!(_authToken&&_isJwtShape(_authToken))&&_authRefreshToken&&navigator.onLine!==false){try{await _sbAuthRefresh();}catch(_){}}/* v3.9.226: nur pre-refreshen wenn ein refresh_token existiert (sonst Anon-Reads → unnoetige Re-Auth-Kette) */
   const r=await fn();
   if(_isAuthErr(r.status)&&navigator.onLine!==false){/* v3.9.107 Hunt: offline NICHT als Auth-Fehler behandeln — der Offline-Guard in _sbAuthRefresh liefert truthy ohne Refresh, sonst feuerte _authRetry einen falschen "Sitzung abgelaufen"-Toast. */
     /* v3.9.215: 403 = RLS-/Berechtigungs-Denial bei GUELTIGER Session (z.B. notifications-RLS, Rollen-Scope) →
@@ -2353,7 +2357,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.225-supabase";
+const APP_VERSION="3.9.226-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
