@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.223';
+  var SW_VER='epkolar-v3.9.224';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -667,7 +667,7 @@ const BYTES_KB=1024;
 const BYTES_MB=1024*1024;
 /* v3.9.18 B-014: zentraler Pickerl/Frist-Status. Returns 'ok'|'warn'|'overdue'|null.
    warnDays default 30 (überall genutzte Schwelle). Pure function, kein State. */
-window._pickerlStatus=(datum,warnDays)=>{if(!datum)return null;const w=(warnDays==null)?30:warnDays;const d=new Date(datum);if(isNaN(d))return null;const diff=(d-new Date())/TIME_DAY;if(diff<0)return 'overdue';if(diff<w)return 'warn';return 'ok';};
+window._pickerlStatus=(datum,warnDays)=>{if(!datum)return null;const w=(warnDays==null)?30:warnDays;const d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(datum)?datum+"T00:00:00":datum);/* v3.9.224 #5: date-only lokal parsen (sonst UTC-Mitternacht → Pickerl/Vignette ab ~02:00 lokal falsch 'overdue') */if(isNaN(d))return null;const diff=(d-new Date())/TIME_DAY;if(diff<0)return 'overdue';if(diff<w)return 'warn';return 'ok';};
 window._fmtDate=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();};
 window._fmtDatetime=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return window._fmtDate(d)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
 /* v3.9.92 Sprint-71.4 Unit-Consistency: Std → Std. */ window._fmtRelative=(d)=>{if(!d)return '—';const diff=(Date.now()-new Date(d).getTime())/1000;if(isNaN(diff))return '—';if(diff<60)return 'gerade eben';if(diff<3600)return 'vor '+Math.floor(diff/60)+' Min';if(diff<86400)return 'vor '+Math.floor(diff/3600)+' Std.';if(diff<604800)return 'vor '+Math.floor(diff/86400)+' Tagen';return window._fmtDate(d);};
@@ -2353,7 +2353,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.223-supabase";
+const APP_VERSION="3.9.224-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -13083,8 +13083,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     if(_sendingOrder.current)return;
     if(cartCount===0&&!freitext.trim()){window.__toast&&window.__toast("Warenkorb ist leer","error");return;}
     /* v3.9.10 Modal-Migration Round-3: native confirm → _confirmModal. */
-    if(!await _confirmModal("Material-Anforderung absenden? ("+posCount+" Positionen)"))return;
-    _sendingOrder.current=true;
+    _sendingOrder.current=true;/* v3.9.224 #1: Guard VOR _confirmModal-await (Muster addKm) — sonst Doppel-Tap vor Overlay-Paint → 2x POST = doppelte Material-Anforderung/Kosten */
+    if(!await _confirmModal("Material-Anforderung absenden? ("+posCount+" Positionen)")){_sendingOrder.current=false;return;}
     setSending(true);
     const positionen=[];
     catalogs.forEach(kat=>{
@@ -13153,8 +13153,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     /* v3.9.22 F-3: silent return → Toast warning. */
     if(_deleteLocked.current)return;
     if(!canDo("material_delete",curUser)){window.__toast&&window.__toast("Keine Berechtigung zum Löschen","warn");return;}
-    if(!await _confirmModal("Anforderung wirklich löschen?",{variant:"danger"}))return;
-    _deleteLocked.current=true;
+    _deleteLocked.current=true;/* v3.9.224 #7: Guard vor await (Doppel-Tap-Race wie #1; Reset bei Abbruch + unbedingt Z13161) */
+    if(!await _confirmModal("Anforderung wirklich löschen?",{variant:"danger"})){_deleteLocked.current=false;return;}
     try{await SQ.push({url:"/api/material-orders/"+id,method:"DELETE",body:{}});setOrders(prev=>prev.filter(x=>x.id!==id));if(window.__doSync)window.__doSync();
     if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
     window.__toast&&window.__toast("Gelöscht","success");}catch(e){window.__toast&&window.__toast("Fehler","error");}
