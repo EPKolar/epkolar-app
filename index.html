@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.215';
+  var SW_VER='epkolar-v3.9.216';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1428,6 +1428,20 @@ async function _sbAuthRefresh(){
   return _authRefreshInflight;
 }
 async function _silentReAuth(){
+  /* v3.9.216: Refresh fehlgeschlagen, aber access_token NOCH gueltig (z.B. Rotation-Race: ein paralleler
+     Tab/PWA-Kontext hat den refresh_token bereits rotiert) → KEIN Logout. Token behalten + in halber
+     Restlaufzeit erneut refreshen. Nur bei WIRKLICH abgelaufenem access_token wird ausgeloggt. Das ist
+     der Haupt-Frontend-Hebel gegen "Session laeuft staendig ab" bei mehreren offenen Tabs/PWA-Kontexten. */
+  try{
+    var _sv=JSON.parse(localStorage.getItem("epkolar_auth")||"null");
+    if(_sv&&_sv.at&&_sv.exp&&_isJwtShape(_sv.at)&&_sv.exp>Date.now()+60000){
+      _authLog('reauth_skip_token_valid',{exp_delta_ms:_sv.exp-Date.now()});
+      _authToken=_sv.at;if(_sv.rt)_authRefreshToken=_sv.rt;
+      if(_authRefreshTimer)clearTimeout(_authRefreshTimer);
+      _authRefreshTimer=setTimeout(()=>_sbAuthRefresh(),Math.max(Math.floor((_sv.exp-Date.now())/2),30000));
+      return {access_token:_sv.at,refresh_token:_authRefreshToken};
+    }
+  }catch(_){}
   /* v3.8.65 Loop-Schutz: pro Tab-Session max 2 Reloads, sonst Endlos-Loop bei logged-out Boot */
   try{var _srCnt=parseInt(sessionStorage.getItem("_silent_reauth_count")||"0");if(_srCnt>=2){console.warn("[Auth] _silentReAuth loop-guard: 2 reloads erreicht, skip");return null;}sessionStorage.setItem("_silent_reauth_count",String(_srCnt+1));}catch(_){}
   // v3.8.35: Silent re-auth via cached plaintext-password (epkolar_gc = {e:btoa,p:btoa})
@@ -2328,7 +2342,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.215-supabase";
+const APP_VERSION="3.9.216-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
