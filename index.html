@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.222';
+  var SW_VER='epkolar-v3.9.223';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2353,7 +2353,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.222-supabase";
+const APP_VERSION="3.9.223-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -2572,7 +2572,7 @@ const PhotoQ={
       try{
         const q=await ODB.load("photoQueue")||[];
         q.push({...photo,id:photo.id||(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2)),queuedAt:new Date().toISOString(),status:"pending",retries:0});
-        await ODB.save("photoQueue",q);
+        await ODB.set("photoQueue","data",q);/* v3.9.223 #2: ODB.set direkt — wirft bei QuotaExceeded; ODB.save schluckt den Fehler → sonst return true trotz vollem Speicher → "Speicher voll"-Toast feuert nie → stiller Foto-Verlust */
         return true;
       }catch(e){return false;}
     });
@@ -5373,7 +5373,7 @@ class _ViewBoundary extends React.Component{
         const freshMap={};freshDef.forEach(d=>{freshMap[d.id]={status:d.status,title:d.title,projectId:d.project_id||d.projectId,createdBy:d.created_by||"",prio:d.prio||d.priority||"normal"};});
         // Detect new Kunden-Mängel
         freshDef.forEach(d=>{
-          if(!snap.defectIds.has(d.id)&&(d.created_by==="Kunde"||d.created_by==="kunde")){
+          if(!snap.defectIds.has(d.id)&&((d.melder||d.created_by)==="Kunde"||(d.melder||d.created_by)==="kunde")){/* v3.9.223 #5: Kundenmangel setzt melder="Kunde", nicht created_by → Notif feuerte nie */
             const pName=_optionalChain([_projects, 'access', _poll1 => _poll1.find, 'call', _poll2 => _poll2(p=>p.id===(d.project_id||d.projectId)), 'optionalAccess', _poll3 => _poll3.name])||"Projekt";
             _pushNotif("kunde_mangel","🚨 Kunde meldet Mangel",d.title+" — "+pName);
           }
@@ -5392,7 +5392,7 @@ class _ViewBoundary extends React.Component{
         freshDef.forEach(d=>{newIds.add(d.id);newStatuses[d.id]=d.status;});
         lastSnapshot.current={...snap,defectIds:newIds,defectStatuses:newStatuses};
         // Also update local forms.maengel if server has newer data
-        const mg=freshDef.map(d=>({id:d.id,pid:d.project_id||d.projectId,p:d.project_id||d.projectId,name:d.title,title:d.title,status:d.status,beschreibung:d.description||"",desc:d.description,prio:d.prio||d.priority||"mittel",photos:_jp(d.images||d.fotos),date:d.created||(d.created_at||"").split("T")[0],melder:d.melder||d.created_by||"",kundeStatus:d.kundeStatus||d.kunde_status||"",ort:d.ort||"",reviewNote:d.reviewNote||d.review_note||"",zugewiesen:d.zugewiesen||"",worker:d.zugewiesen||"",ebene:d.description||"",frist:d.frist||""}));
+        const mg=freshDef.map(_mapDefect);/* v3.9.223 #1: kanonischer Mapper statt divergenter Inline-Map — vorher ebene:d.description (Ebene=Beschreibung!) + gewerk fehlte → Korruption von forms.maengel bei JEDEM 60s-Poll */
         setForms(prev=>({...prev,maengel:mg}));
       }
       // Fetch fresh absences for new Krankmeldungen
@@ -5600,7 +5600,7 @@ class _ViewBoundary extends React.Component{
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: async u=>{/* v3.9.127 F6: ODB-Purge bei User-Wechsel — Session-Ablauf umgeht den Logout-Cleanup */try{const _lu=localStorage.getItem('epk_last_login_uid');const _nu=String(u.id||u.username||'');if(_lu&&_nu&&_lu!==_nu){for(const _s of _USER_SCOPED_ODB_STORES){try{await ODB.del(_s,'data');}catch(_){}}}if(_nu)localStorage.setItem('epk_last_login_uid',_nu);}catch(_){}if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(e){console.warn('[silent-global]',e&&e.message||e);}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: async u=>{/* v3.9.127 F6: ODB-Purge bei User-Wechsel — Session-Ablauf umgeht den Logout-Cleanup */try{const _lu=localStorage.getItem('epk_last_login_uid');const _nu=String(u.id||u.username||'');if(_lu&&_nu&&_lu!==_nu){for(const _s of _USER_SCOPED_ODB_STORES){try{await ODB.del(_s,'data');}catch(_){}}try{await ODB.del('meta','data');await ODB.del('meta','notifPrefs');}catch(_){}/* v3.9.223 #9: userspezifische meta-Keys (wpHistory/notifPrefs) bei User-Wechsel raeumen; lastUser/offlinePwHash bleiben (andere Keys) */}if(_nu)localStorage.setItem('epk_last_login_uid',_nu);}catch(_){}if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(e){console.warn('[silent-global]',e&&e.message||e);}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const mainTabs=tabs.filter(t=>t.g<4);
@@ -8717,7 +8717,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     const text=abgelaufen>0?`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${abgelaufen} abgelaufen / ${pickerFaellig.length-abgelaufen} bald fällig`:`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl bald fällig`;
     alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>`${f.kennzeichen} (${fdt(f.pickerl)})`)});
   }
-  const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService)<=new Date());
+  const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date());/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
   if(serviceFaellig.length>0){
     alerts.push({type:"warning",icon:"🔧",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,color:COLORS.ERROR,go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>`${f.kennzeichen} (${fdt(f.naechstService)})`)});
   }
