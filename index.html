@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.273';
+  var SW_VER='epkolar-v3.9.274';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.273-supabase";
+const APP_VERSION="3.9.274-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10514,6 +10514,31 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     server.forEach(s=>{if(!all.some(a=>a===s))all.push(s);});
     return all;
   };
+  /* v3.9.274 (PlanRadar-Welle-2): Maengel-Report als druckbares PDF (Print-Window, EP-Kolar-CI). Client-only, nutzt msF (gefiltert) + getPhotos. Backtick-Template wie exportMonat, KEINE verschachtelten Backticks. */
+  const genMangelPdf=()=>{
+    const w=window.open("","_blank","width=1000,height=820");
+    if(!w){window.__toast&&window.__toast("⚠️ Popup blockiert — bitte Popup-Blocker deaktivieren","warn");return;}
+    const _e=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").split('"').join("&quot;");
+    const _stC=s=>s==="offen"?"#ef4444":s==="in Behebung"?"#f97316":"#22c55e";
+    const _prC=pr=>pr==="hoch"?"#ef4444":pr==="mittel"?"#eab308":"#22c55e";
+    const list=msF.slice().sort((a,b)=>{const _fa=a.frist||"9999-99-99";const _fb=b.frist||"9999-99-99";return _fa<_fb?-1:_fa>_fb?1:0;});
+    const cnt={offen:list.filter(m=>m.status==="offen").length,inb:list.filter(m=>m.status==="in Behebung").length,beh:list.filter(m=>m.status==="behoben").length};
+    const cards=list.map((m,i)=>{
+      const wkr=(monteure||MONT).find(x=>x.id===(m.worker||m.zugewiesen||m.assignee));
+      const phImg=getPhotos(m).slice(0,3).map(ph=>`<img src="${ph}"/>`).join("");
+      const ovd=m.frist&&new Date(m.frist)<new Date()&&m.status!=="behoben";
+      const ovdB=ovd?`<span class="badge" style="background:#ef4444">⏰ ueberfaellig</span>`:"";
+      const kd=m.melder==="Kunde"?` &nbsp;|&nbsp; <b style="color:#f97316">📩 Kundenmeldung</b>`:"";
+      const desc=m.beschreibung?`<div class="desc">${_e(m.beschreibung)}</div>`:"";
+      const photos=phImg?`<div class="phs">${phImg}</div>`:"";
+      const ort=m.ort?` · ${_e(m.ort)}`:"";
+      return `<div class="card"><div class="ch"><span class="num">${i+1}</span><span class="nm">${_e(m.name||"Mangel")}</span><span class="badge" style="background:${_stC(m.status)}">${_e(m.status||"")}</span><span class="badge" style="background:${_prC(m.prio)}">${_e(m.prio||"mittel")}</span>${ovdB}</div><div class="meta">📍 ${_e(m.ebene||"—")}${ort} &nbsp;|&nbsp; 👷 ${_e((wkr&&wkr.n)||"—")} &nbsp;|&nbsp; 📅 Frist: ${m.frist?_e(fdt(m.frist)):"—"}${kd}</div>${desc}${photos}</div>`;
+    }).join("");
+    const empty=`<div style="text-align:center;padding:40px;color:#999">Keine Maengel</div>`;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maengel-Report ${_e(p.name||"")}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:24px;color:#1a1a1a}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:12px;margin-bottom:16px}.logo img{height:48px;display:block}.logo small{display:block;font-size:11px;color:#666;margin-top:3px}.info{text-align:right;font-size:12px;color:#444}.title{font-size:18px;font-weight:700;margin-bottom:4px}.sub{font-size:13px;color:#555;margin-bottom:14px}.sum{display:flex;gap:18px;margin-bottom:16px;font-size:13px}.sum b{font-size:18px}.card{border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px;page-break-inside:avoid}.ch{display:flex;align-items:center;gap:8px;margin-bottom:5px}.num{background:#009640;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto}.nm{font-weight:700;font-size:14px;flex:1}.badge{color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}.meta{font-size:12px;color:#444;margin-bottom:4px}.desc{font-size:12px;color:#333;background:#f7f7f7;border-radius:4px;padding:6px 8px;margin:5px 0}.phs{display:flex;gap:6px;margin-top:6px}.phs img{width:92px;height:92px;object-fit:cover;border-radius:4px;border:1px solid #ccc}.ftr{margin-top:20px;border-top:1px solid #ddd;padding-top:8px;font-size:9px;color:#999;text-align:center}@media print{body{padding:14px}}</style></head><body><div class="header"><div class="logo"><img src="${LOGO_MD}" alt="EP Kolar"/><small>Der Haustechnikprofi · Visionen - Konzepte - Loesungen</small></div><div class="info">Maengel-Report / Snag-List<br>Erstellt: ${new Date().toLocaleDateString("de-AT")}</div></div><div class="title">⚠️ Maengelliste — ${_e(p.name||"")}</div><div class="sub">${_e(p.nr||"")}${p.kunde?" · "+_e(p.kunde):""} · ${list.length} Maengel</div><div class="sum"><span style="color:#ef4444">Offen <b>${cnt.offen}</b></span><span style="color:#f97316">In Behebung <b>${cnt.inb}</b></span><span style="color:#22c55e">Behoben <b>${cnt.beh}</b></span></div>${cards||empty}<div class="ftr">Andreas Kolar &amp; Sohn GesmbH · Marktplatz 17 · 3470 Kirchberg am Wagram · Tel: +43 2279 2361 · office@ep-kolar.at · FN 042490k · UID ATU20296908 · ${new Date().toLocaleString("de-AT")}</div></body></html>`);
+    w.document.close();
+    setTimeout(()=>{try{w.print();}catch(e){console.warn('[mangel-pdf]',e&&e.message||e);}},600);
+  };
 
   // Upload photo for a defect
   const uploadDefectPhoto=async(defectId,file)=>{
@@ -10657,6 +10682,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
         , React.createElement('input', { type: "search", value: fSearch, onChange: e=>setFSearch(e.target.value), placeholder: "🔍 Mangel/Ort/Ebene…", style: {...II(),flex:isMob?"1 1 100%":"0 1 170px",minWidth:0,fontSize:12,padding:"5px 8px"} })
         , React.createElement('select', { value: fWorker, onChange: e=>setFWorker(e.target.value), style: {...II(),width:"auto",fontSize:12,padding:"5px 8px"} }, React.createElement('option', { value: "" }, "👷 Alle"), (monteure||MONT).map(w=>React.createElement('option', { key: w.id, value: w.id }, w.n)))
         , React.createElement('button', { onClick: ()=>{const hdrs=["Mangel","Ebene","Prio","Status","Verantwortlich","Frist","Ort"];const data=msF.map(m=>{const w=(monteure||MONT).find(x=>x.id===(m.worker||m.zugewiesen||m.assignee));return [m.name||"",m.ebene||"",m.prio||"",m.status||"",(w&&w.n)||"",m.frist?fdt(m.frist):"",m.ort||""];});if(!data.length){window.__toast&&window.__toast("Keine Mängel zum Export","warn");return;}genXls("⚠️ Mängelliste — "+(p.name||""),(p.nr||"")+" · "+data.length+" Mängel",hdrs,data,"Maengel_"+((p.nr||p.name||"x")+"").replace(/[^a-zA-Z0-9]/g,"_")+".xls",{colWidths:[200,90,60,90,110,70,120],leftCols:[0,1,4,6]});}, style: {...bsS(),padding:"4px 10px",fontSize:11}}, "📥 Export")
+        , React.createElement('button', { onClick: genMangelPdf, title: "Mängel-Report als PDF drucken oder speichern — mit Fotos und EP-Kolar-CI", style: {...bsS(),padding:"4px 10px",fontSize:11,borderColor:"#ef4444",color:"#ef4444"}}, "📄 PDF-Report")
         , React.createElement('span', { style: {fontSize:11,color:V.dm,fontWeight:700,marginRight:2,marginLeft:4}}, "Status:" )
         , ["alle"].concat(MANGEL_ST).map(s=>{const cnt=s==="alle"?msF.length:msF.filter(m=>m.status===s).length;const sc=s==="alle"?V.ac:s==="offen"?COLORS.ERROR:s==="in Behebung"?COLORS.WARNING:COLORS.SUCCESS;const _on=fSt===s;return React.createElement('button', { key: s, onClick: ()=>setFSt(s), title: "Filter: "+s, style: {padding:"3px 10px",borderRadius:12,background:_on?sc+"28":sc+"12",color:sc,fontSize:10,fontWeight:700,border:(_on?"2px solid "+sc:"1px solid "+sc+"40"),display:"inline-flex",gap:5,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:sc,display:"inline-block"}} ), s, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
         , React.createElement('span', { style: {fontSize:11,color:V.dm,fontWeight:700,marginLeft:8}}, "Prio:" )
