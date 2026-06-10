@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.270';
+  var SW_VER='epkolar-v3.9.271';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.270-supabase";
+const APP_VERSION="3.9.271-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7779,7 +7779,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(!(data.name||"").trim()){_optionalChain([window,'access',_g81a=>_g81a.__toast,'optionalCall',_g81b=>_g81b("⚠️ Händler-Name ist Pflichtfeld","warn")]);return;}
     const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",username:data.username||"",password:data.password||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28,datanorm_url:data.datanorm_url||""};
     try{
-      if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:uid(),...body}});}
+      if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:_uuid(),...body}});}/* v3.9.271 FIX: echte UUID (crypto.randomUUID) statt uid()-Kurz-id — supplier_configs.id ist uuid; Kurz-id brach Insert + verseuchte den DATANORM-Import (supplier_id 22P02) */
       else{await SQ.push({url:"/api/supplier-configs/"+data.id,method:"PUT",body:body});}
       if(window.__doSync)window.__doSync();
       _optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2(isNew?"✅ Händler angelegt":"✅ Gespeichert","success")]);
@@ -7796,12 +7796,19 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}
   };
   // DATANORM Upload for specific supplier
-  const handleDnUpload=async(fileOrList,suppId)=>{
+  const handleDnUpload=async(fileOrList,suppId,suppName)=>{
     /* v3.9.30 Free-Hunt A-Fix3: Mass-Import auf admin+lager beschränkt. v3.9.261: Multi-File — DATANORM.001/.002 + DATPREIS + WRG zusammenführen. */
     const _files=fileOrList&&fileOrList.length!==undefined?Array.prototype.slice.call(fileOrList):(fileOrList?[fileOrList]:[]);
     if(!_files.length||!suppId)return;
     const _isLager=curUser&&(curUser.rolle||"").toLowerCase()==="lagerleitung";
     if(curUser.role!=="admin"&&!_isLager){if(window.__toast)window.__toast("⛔ Keine Berechtigung für DATANORM-Import","error");return;}
+    /* v3.9.271 FIX: supplier_id MUSS die echte supplier_configs.id (uuid) sein. suppId aus einem Legacy-Lieferanten kann eine uid()-Kurz-id sein → echte UUID per Name auflösen; ohne Auflösung NICHT importieren (sonst supplier_articles.supplier_id 22P02). */
+    let _suppId=suppId;
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(suppId||""))){
+      const _scR=suppName?await _sbGet("supplier_configs","select=id&name=eq."+encodeURIComponent(suppName)).catch(()=>null):null;
+      if(_scR&&_scR[0]&&_scR[0].id)_suppId=_scR[0].id;
+      else{setDnUploadStatus("❌ Lieferant ohne gültige UUID — bitte Händler oben speichern/aktualisieren, dann erneut importieren");setDnUploadProgress(0);if(window.__toast)window.__toast("❌ Lieferant-ID ungültig (Kurz-ID) — bitte den Händler oben aktualisieren und erneut importieren.","error",7000);return;}
+    }
     setDnUploadStatus(_files.length+" Datei(en) lesen...");setDnUploadProgress(10);
     try{
       setDnUploadStatus("DATANORM parsen ("+_files.length+" Datei(en))...");setDnUploadProgress(20);
@@ -7820,7 +7827,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           if(autoMap.has(grp.id)&&autoMap.get(grp.id).has(art.artNr)){epSys=grp.system;epGew=grp.gewerk;break;}
         }
         if(!epSys)continue;// skip unmatched
-        rows.push({id:uid(),supplier_id:suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew,listenpreis:art.preis||0,ek_preis:art.preis||0,rabatt_gruppe:art.rabGrp||""});
+        rows.push({id:_uuid(),supplier_id:_suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew,listenpreis:art.preis||0,ek_preis:art.preis||0,rabatt_gruppe:art.rabGrp||""});
       }
       // Batch upsert via direct Supabase REST (SQ too slow for bulk)
       const BATCH=200;
@@ -7840,7 +7847,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       }
       // Update supplier last_sync (v3.8.20 Iter-20: auch hier _authRetry)
       /* v3.9.96 Sprint-75 P2-Fix: Status-Check fuer supplier_configs last_sync PATCH. Vorher silent RLS-denial. */
-      const _scResp=await _authRetry(()=>{const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};return fetch(SB_REST+"/supplier_configs?id=eq."+suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})}));});
+      const _scResp=await _authRetry(()=>{const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};return fetch(SB_REST+"/supplier_configs?id=eq."+_suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:rows.length})}));});
       if(_scResp&&!_scResp.ok){const _scTxt=await _scResp.text().catch(()=>"");console.warn("[supplier_configs] last_sync PATCH failed",_scResp.status,_scTxt.slice(0,200));}
       setDnUploadStatus("✅ "+rows.length+" Artikel importiert ("+articles.detVer+")");setDnUploadProgress(100);
       setTimeout(fetchSuppliers,500);
@@ -8372,7 +8379,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6}}, "📂 DATANORM Import für ",s.name)
               , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, "DATANORM-Datei (.001, .dat) mit A/B-Records hochladen. Artikel werden automatisch durch EP-Filter (77 Produktlinien) gefiltert.")
               , s.datanorm_url&&React.createElement('div', { style: {fontSize:11,color:"#059669",marginBottom:8,padding:"6px 10px",borderRadius:6,background:_dark?"rgba(5,150,105,.08)":"rgba(5,150,105,.05)",border:"1px solid rgba(5,150,105,.2)"}}, "💡 DATANORM-URL verfügbar: ", React.createElement('a', { href: s.datanorm_url, target: "_blank", rel: "noopener", style: {color:"#059669",textDecoration:"underline",wordBreak:"break-all"}}, s.datanorm_url.replace(/https?:\/\//,"").substring(0,60)), " — Datei herunterladen, dann hier hochladen.")
-              , React.createElement('input', { type: "file", ref: suppFileRef, multiple: true, accept: ".001,.002,.003,.004,.005,.dat,.txt,.csv,.wrg,*", style: {display:"none"}, onChange: e=>{const fl=_optionalChain([e,'access',_=>_.target,'optionalAccess',_2=>_2.files]);const _arr=fl?Array.prototype.slice.call(fl):[];try{e.target.value="";}catch(_){}if(_arr.length)handleDnUpload(_arr,s.id);}})
+              , React.createElement('input', { type: "file", ref: suppFileRef, multiple: true, accept: ".001,.002,.003,.004,.005,.dat,.txt,.csv,.wrg,*", style: {display:"none"}, onChange: e=>{const fl=_optionalChain([e,'access',_=>_.target,'optionalAccess',_2=>_2.files]);const _arr=fl?Array.prototype.slice.call(fl):[];try{e.target.value="";}catch(_){}if(_arr.length)handleDnUpload(_arr,s.id,s.name);}})
               , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center"}}
                 , React.createElement('button', { onClick: ()=>_optionalChain([suppFileRef,'access',_=>_.current,'optionalAccess',_2=>_2.click,'call',_3=>_3()]), style: {...bpS,padding:"6px 14px",fontSize:12}}, "📁 Datei wählen")
                 , React.createElement('button', { onClick: ()=>{setDnUploadSupp(null);setDnUploadStatus("");}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "Schließen")
