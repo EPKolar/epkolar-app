@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.279';
+  var SW_VER='epkolar-v3.9.280';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2404,7 +2404,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.279-supabase";
+const APP_VERSION="3.9.280-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10615,6 +10615,15 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     setPlanData(prev=>({...prev,tickets:(prev.tickets||[]).map(t=>t.id===id?{...t,status:_tst}:t)}));
     SQ.push({url:"/api/tickets/"+id,method:"PUT",body:{status:_tst}});
   };
+  /* v3.9.280 W2.2 Increment 2: Mangel auf den (ersten) Projektplan platzieren (mittig 50/50) bzw. wieder entfernen. Schreibt defects.x/y/plan_id/page (spalten-scoped). Im Plan-Viewer dann frei verschiebbar. */
+  const _placeOnPlan=(m)=>{
+    const _pl=((planData&&planData.plans)||[])[0];
+    const _on=m.plan_id&&m.x!=null;
+    if(!_on&&!_pl){if(window.__toast)window.__toast("⚠️ Kein Plan im Projekt — zuerst einen Plan hochladen","warn");return;}
+    setForms(f=>({...f,maengel:(f.maengel||[]).map(x=>x.id===m.id?(_on?{...x,x:null,y:null,planId:"",plan_id:""}:{...x,x:50,y:50,planId:_pl.id,plan_id:_pl.id,page:1}):x)}));
+    SQ.push({url:"/api/defects/"+m.id,method:"PUT",body:(_on?{x:null,y:null,plan_id:"",page:1}:{x:50,y:50,plan_id:_pl.id,page:1})});
+    if(window.__toast)window.__toast(_on?"📍 Vom Plan entfernt":"📍 Auf Plan platziert — im Plan-Viewer frei verschiebbar","success");
+  };
   const updSt=(id,st)=>{
     /* v3.9.25 KRITISCH P1-Followup: Kundenmeldungen (melder==="Kunde") nur Admin/PL ändern. */
     if(!isAdmin){
@@ -10747,6 +10756,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
             , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",flexShrink:0}}
               /* Quick-Status-Pills statt Dropdown — schneller PlanRadar-Workflow */
               , MANGEL_ST.map(ns=>{const isCur=m.status===ns;const nsC=ns==="offen"?COLORS.ERROR:ns==="in Behebung"?COLORS.WARNING:COLORS.SUCCESS;return React.createElement('button', { key: ns, onClick: ()=>{if(!isCur)updSt(m.id,ns);}, title: "Status: "+ns, style: {padding:"3px 8px",borderRadius:12,border:isCur?"2px solid "+nsC:"1px solid "+V.bd,background:isCur?nsC+"22":"transparent",color:isCur?nsC:V.dm,fontSize:9,fontWeight:isCur?700:500,cursor:isCur?"default":"pointer",fontFamily:"inherit",opacity:isCur?1:.7,transition:"all .15s ease"}}, ns==="offen"?"🔴":ns==="in Behebung"?"🟠":"✅");})
+              , isAdmin&&React.createElement('button', { onClick: ()=>_placeOnPlan(m), style: {padding:"3px 9px",borderRadius:12,border:"1px solid "+((m.plan_id&&m.x!=null)?"#0ea5e9":V.bd),background:"transparent",color:(m.plan_id&&m.x!=null)?"#0ea5e9":V.dm,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}, title: (m.plan_id&&m.x!=null)?"Vom Plan entfernen":"Auf Projektplan platzieren (mittig, dann verschiebbar)"}, (m.plan_id&&m.x!=null)?"📍 vom Plan":"📍 auf Plan")
               , isAdmin&&React.createElement('button', { onClick: ()=>delM(m.id), style: {...bdS,padding:"2px 7px",fontSize:10}, title: "Löschen"}, "🗑️")
             )
           )
@@ -11572,6 +11582,8 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const handleDragLeave=e=>{e.preventDefault();setDropActive(false);};
   /* v3.9.80 S55-1 useMemo: filter-chain bei jedem State-Change (Filter-Dropdowns) → recompute */
   const planTickets=_react.useMemo.call(void 0, ()=>allTickets.filter(t=>t.planId===(_optionalChain([selPlan, 'optionalAccess', _378 => _378.id])||"")),[allTickets,selPlan]);
+  /* v3.9.280 W2.2 Increment 2: eigenständige VMang-Defects (positioniert, KEIN Ticket-Spiegel) als Pins — de-dupliziert gegen allTickets (Doppel-Pin-Schutz), auf Ticket-Shape gemappt fürs PlanPin. */
+  const _defectPins=_react.useMemo.call(void 0, ()=>{const _pid=_optionalChain([selPlan, 'optionalAccess', _dp0 => _dp0.id])||"";if(!_pid)return [];const _sm={offen:"offen","in Behebung":"in_bearbeitung",behoben:"erledigt"};const _ids=new Set((allTickets||[]).map(t=>t.id));return (_optionalChain([forms, 'optionalAccess', _dp1 => _dp1.maengel])||[]).filter(m=>(m.planId===_pid||m.plan_id===_pid)&&m.x!=null&&m.y!=null&&!_ids.has(m.id)).map(m=>({id:m.id,x:m.x,y:m.y,page:m.page||1,planId:_pid,type:"mangel",status:_sm[m.status]||"offen",priority:(["kritisch","hoch","mittel","niedrig"].indexOf(m.prio)>=0?m.prio:"mittel"),title:m.name||m.title||"Mangel",description:m.beschreibung||"",_isDefectPin:true}));},[forms&&forms.maengel,selPlan,allTickets]);
   const _ticketNr=_react.useMemo.call(void 0, ()=>{const m={};planTickets.forEach((t,i)=>{m[t.id]=i+1;});return m;},[planTickets]);/* v3.9.178: kanonische, stabile Pin-Nummer pro Plan-Ticket — Liste UND Pin zeigen dieselbe */
   const filteredTickets=_react.useMemo.call(void 0, ()=>planTickets.filter(t=>{if(filterType!=="alle"&&t.type!==filterType)return false;if(filterStatus!=="alle"&&t.status!==filterStatus)return false;if(filterLayer!=="alle"&&(t.gewerk||t.layer)!==filterLayer)return false;/* v3.9.148 P3-A (Agent): gewerk||layer — sonst gewerk-only-Tickets vom Sidebar-Filter geschluckt */return true;}),[planTickets,filterType,filterStatus,filterLayer]);
   /* v3.9.189 PlanRadar Pin-Suche/Jump: reine Zahl → Pin-Nr-Sprung; sonst genau ein Titel/Beschreibungs-Treffer → Sprung (Zentrierung übernimmt der Viewer via selectedTicket). */
@@ -11640,7 +11652,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
           /* v3.9.188 PlanRadar Schnell-Status-Filter (Pills mit Live-Count, wirkt auf Pins + Liste via filterStatus). */
           , planTickets.length>0&&React.createElement('div', { style: {display:"flex",gap:5,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}, React.createElement('span', { style: {fontSize:11,color:V.dm,fontWeight:700}}, "Status:"), [{k:"alle",l:"Alle",c:V.ac,i:""}].concat(Object.entries(TICKET_STATUS).map(([k,v])=>({k:k,l:v.l,c:v.c,i:v.i||""}))).map(o=>{const _cnt=o.k==="alle"?planTickets.length:planTickets.filter(t=>t.status===o.k).length;if(o.k!=="alle"&&_cnt===0)return null;const _act=filterStatus===o.k;return React.createElement('button', { key: o.k, onClick: ()=>setFilterStatus(o.k), title: "Nur "+o.l+" zeigen", style: {padding:isMob?"6px 11px":"4px 10px",minHeight:isMob?34:0,borderRadius:14,border:"1.5px solid "+(_act?o.c:V.bd),background:_act?o.c+"22":"transparent",color:_act?o.c:V.dm,fontSize:isMob?12:11,fontWeight:_act?700:500,cursor:"pointer",fontFamily:"inherit",touchAction:"manipulation",display:"inline-flex",alignItems:"center",gap:4}}, (o.i?o.i+" ":"")+o.l, React.createElement('span', { style: {fontFamily:mono,opacity:.7}}, _cnt));}).filter(Boolean))
           , placing&&!pendingPin&&React.createElement('div', { style: {display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"11px 14px",borderRadius:10,background:"linear-gradient(135deg,rgba(0,150,64,.20),rgba(0,150,64,.05))",border:"1px solid "+V.ac,color:V.tx,fontSize:13,fontWeight:600,animation:"fadeIn .2s ease-out"}/* v3.9.162: klare Anleitung beim Pin-Setzen — vorher gab es keinen sichtbaren Hinweis (nur crosshair) → "ich versteh es nicht" */}, React.createElement('span', { style: {fontSize:20}}, "👆"), React.createElement('span', { style: {flex:1}}, "Tippe jetzt direkt auf den Plan — genau dort, wo das Ticket sitzen soll."), React.createElement('button', { onClick: ()=>setPlacing(false), style: {border:"1px solid "+V.bd,background:V.cd,color:V.tx,borderRadius:6,padding:"5px 12px",cursor:"pointer",fontWeight:600,fontSize:12,fontFamily:"inherit"}}, "Abbrechen"))
-          , React.createElement(PlanViewerCanvas, { plan: selPlan, pinNr: _ticketNr, tickets: _vpFiltered/* v3.9.139: gefilterte Tickets → Pins respektieren Toolbar-Filter */, layers: layers, monteure: monteure, pendingIds: _pendingTicketIds, pinMode: placing, pendingPin: pendingPin, onPlanClick: handlePlanClick, onPinClick: t=>{setSelTicket(t);setQuickTicket(t);/* v3.9.138: Quick-Edit-Popup statt vollem Detail */}, onPinMove: (t,x,y)=>{updateTicket({...t,x:x,y:y,updatedAt:td2()});if(window.__toast)window.__toast("📍 Pin verschoben","success",1500);}/* v3.9.184/187: Pin-Drag → Position persistieren (+updatedAt) */, selectedTicket: selTicket} )
+          , React.createElement(PlanViewerCanvas, { plan: selPlan, pinNr: _ticketNr, tickets: _vpFiltered.concat(_defectPins)/* v3.9.139: gefilterte Tickets → Pins respektieren Toolbar-Filter; +v3.9.280: eigenständige Mängel-Defect-Pins (de-dupliziert) */, layers: layers, monteure: monteure, pendingIds: _pendingTicketIds, pinMode: placing, pendingPin: pendingPin, onPlanClick: handlePlanClick, onPinClick: t=>{if(t&&t._isDefectPin){if(window.__toast)window.__toast("📍 Mangel: "+(t.title||"")+" ("+(t.status||"")+")","info",2500);return;}setSelTicket(t);setQuickTicket(t);/* v3.9.138: Quick-Edit-Popup statt vollem Detail; v3.9.280: Defect-Pin → Info-Toast (Bearbeitung im Mängel-Tab) */}, onPinMove: (t,x,y)=>{if(t&&t._isDefectPin){setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===t.id?{...m,x:x,y:y}:m)}));SQ.push({url:"/api/defects/"+t.id,method:"PUT",body:{x:x,y:y}});if(window.__toast)window.__toast("📍 Mangel-Pin verschoben","success",1500);return;}updateTicket({...t,x:x,y:y,updatedAt:td2()});if(window.__toast)window.__toast("📍 Pin verschoben","success",1500);}/* v3.9.184/187: Pin-Drag → Position persistieren (+updatedAt); v3.9.280: Defect-Pin-Drag → defects.x/y */, selectedTicket: selTicket} )
           /* v3.9.173: Aktions-Leiste "Ticket platzieren" nach oben (über den Plan) verschoben — drunter war unpraktisch */
         )
         , (showSidebar&&!isMob||(isMob&&sideMode==="create"&&newTicket))&&(React.createElement('div', { style: (isMob&&sideMode==="create")?{position:"fixed",left:0,right:0,bottom:0,maxHeight:"86vh",overflowY:"auto",background:V.cd,borderTop:"3px solid "+V.ac,borderRadius:"18px 18px 0 0",boxShadow:"0 -8px 32px rgba(0,0,0,.5)",zIndex:250,padding:16,paddingBottom:"calc(16px + env(safe-area-inset-bottom,0px))",animation:"fadeIn .2s ease-out"}:{}}/* v3.9.167: Ticket-Formular auch auf Mobile/Tablet (Bottom-Sheet) — Sidebar war Desktop-only → Pin setzen führte auf dem Tablet zu nichts (PlanRadar ist tablet-first). */

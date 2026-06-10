@@ -15,8 +15,11 @@ def test_quickedit_component_exists(index_html):
 
 def test_quickedit_wired(index_html):
     assert "const [quickTicket,setQuickTicket]=_react.useState.call(void 0, null);" in index_html
-    # Pin-Klick öffnet Quick-Popup statt vollem Detail
-    assert "onPinClick: t=>{setSelTicket(t);setQuickTicket(t);" in index_html
+    # Pin-Klick öffnet Quick-Popup statt vollem Detail (Ticket-Pins).
+    # v3.9.280: Defect-Pins (_isDefectPin) werden vorab abgefangen (Info-Toast); die Quick-Edit-
+    # Verdrahtung für echte Tickets bleibt erhalten — robust auf die Kern-Verdrahtung prüfen.
+    assert "setSelTicket(t);setQuickTicket(t);" in index_html
+    assert "onPinClick: t=>{" in index_html
     # Popup-Render + onSave→updateTicket, onOpen→volles Detail
     assert "React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, onSave: u=>{updateTicket(u);setQuickTicket(null);}" in index_html
     assert 'onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}' in index_html
