@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.255';
+  var SW_VER='epkolar-v3.9.256';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.255-supabase";
+const APP_VERSION="3.9.256-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -12724,7 +12724,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
           const data=await _sbGet("bautagebuch","project_id=eq."+encodeURIComponent(p.id)).catch(()=>null);
           if(!a)return;
           if(data&&data.length){
-            const mapped=data.map(d=>({id:d.id,pid:d.project_id,datum:d.datum||(d.created_at||"").split("T")[0],wetter:d.wetter||"",temperatur:d.temperatur||"",anwesende:_jp(d.anwesende),taetigkeiten:d.taetigkeiten||"",besonderheiten:d.besonderheiten||"",material:d.material||"",erstelltVon:d.erstellt_von||"",createdAt:(d.created_at||"").split("T")[0]}));
+            const mapped=data.map(d=>({id:d.id,pid:d.project_id,datum:d.datum||(d.created_at||"").split("T")[0],wetter:d.wetter||"",temperatur:(d.temperatur===0?0:(d.temperatur||"")),anwesende:_jp(d.anwesende)/* v3.9.256 FIX (Hunt P3): Temperatur 0 °C ging beim Neuladen verloren (0||"" → "") → 0 jetzt erhalten */,taetigkeiten:d.taetigkeiten||"",besonderheiten:d.besonderheiten||"",material:d.material||"",erstelltVon:d.erstellt_von||"",createdAt:(d.created_at||"").split("T")[0]}));
             setBtEntries(mapped);setLoading(false);
             ODB.save("bt_"+p.id,mapped);return;
           }
@@ -19433,7 +19433,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                     , React.createElement('div', { style: {fontSize:12,color:V.dm}}, fdt(s.datum), s.werkstatt?" · "+s.werkstatt:"", s.kosten?" · "+"€"+_n(s.kosten,2):"")
                   ))
                 )
-                , isAdmin&&React.createElement('button', { onClick: async()=>{/* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */ if(!await _confirmModal("Service-Eintrag löschen?",{variant:"danger"}))return;const wz=werkzeuge.find(w=>w.id===wzServiceSel);const entry=_optionalChain([wz, 'optionalAccess', _999 => _999.serviceheft, 'optionalAccess', _999b => _999b[i]]);setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).filter((_,j)=>j!==i)}:w));if(entry&&entry.id)SQ.push({url:"/api/wz-service/"+entry.id,method:"DELETE"});}, style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
+                , isAdmin&&React.createElement('button', { onClick: async()=>{/* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */ if(!await _confirmModal("Service-Eintrag löschen?",{variant:"danger"}))return;const wz=werkzeuge.find(w=>w.id===wzServiceSel);const entry=_optionalChain([wz, 'optionalAccess', _999 => _999.serviceheft, 'optionalAccess', _999b => _999b[i]]);setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).filter((_,j)=>j!==i)}:w));_pushWzSh(wzServiceSel);/* v3.9.256 FIX (Hunt P2): Löschung über _pushWzSh persistieren (serviceheft-JSON-Array am Werkzeug = Source-of-Truth, identisch zu Add/Edit). Vorher nur DELETE /wz-service/:id (Sekundär-/No-op-Endpoint) → Eintrag erschien nach Reload wieder (Resurrection). */if(entry&&entry.id)SQ.push({url:"/api/wz-service/"+entry.id,method:"DELETE"});}, style: {...bdS,padding:"3px 6px",fontSize:10}}, "✕")
               )
             )))
             , sh.length>0&&(()=>{const total=sh.reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginTop:6}}, "💰 Servicekosten gesamt: "   , _n(total,2), " €" ):null;})()
