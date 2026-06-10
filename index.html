@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.260';
+  var SW_VER='epkolar-v3.9.261';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.260-supabase";
+const APP_VERSION="3.9.261-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7794,21 +7794,19 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     }catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}
   };
   // DATANORM Upload for specific supplier
-  const handleDnUpload=async(file,suppId)=>{
-    /* v3.9.30 Free-Hunt A-Fix3: Mass-Import (25k Artikel/Batch) auf admin+lager beschränken. */
-    if(!file||!suppId)return;
+  const handleDnUpload=async(fileOrList,suppId)=>{
+    /* v3.9.30 Free-Hunt A-Fix3: Mass-Import auf admin+lager beschränkt. v3.9.261: Multi-File — DATANORM.001/.002 + DATPREIS + WRG zusammenführen. */
+    const _files=fileOrList&&fileOrList.length!==undefined?Array.prototype.slice.call(fileOrList):(fileOrList?[fileOrList]:[]);
+    if(!_files.length||!suppId)return;
     const _isLager=curUser&&(curUser.rolle||"").toLowerCase()==="lagerleitung";
     if(curUser.role!=="admin"&&!_isLager){if(window.__toast)window.__toast("⛔ Keine Berechtigung für DATANORM-Import","error");return;}
-    setDnUploadStatus("Datei lesen...");setDnUploadProgress(10);
+    setDnUploadStatus(_files.length+" Datei(en) lesen...");setDnUploadProgress(10);
     try{
-      // Read as Latin-1 first (DATANORM standard), fallback to UTF-8
-      const readAs=(enc)=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsText(file,enc);});
-      let text=await readAs("ISO-8859-1");
-      setDnUploadStatus("DATANORM parsen...");setDnUploadProgress(20);
-      let articles=_parseDatanorm(text,0);
-      if((!articles||articles.length===0)){text=await readAs("UTF-8");articles=_parseDatanorm(text,0);}
+      setDnUploadStatus("DATANORM parsen ("+_files.length+" Datei(en))...");setDnUploadProgress(20);
+      let articles=await _parseDatanormFiles(_files,0);
       if(!articles||articles.length===0){setDnUploadStatus("❌ Keine Artikel gefunden (A-Records fehlen?)");setDnUploadProgress(0);return;}
-      setDnUploadStatus("EP-Filter ("+articles.length+" Artikel)...");setDnUploadProgress(40);
+      const _dnSt=articles.stats||{};
+      setDnUploadStatus("EP-Filter ("+articles.length+" Artikel"+(_dnSt.prices?", "+_dnSt.prices+" Preise aus DATPREIS":"")+")...");setDnUploadProgress(40);
       const autoMap=_epAutoMatch(articles);
       let totalMatched=0;autoMap.forEach(s=>totalMatched+=s.size);
       setDnUploadStatus("Speichere "+totalMatched+" von "+articles.length+" Artikeln...");setDnUploadProgress(60);
@@ -8372,7 +8370,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6}}, "📂 DATANORM Import für ",s.name)
               , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:8}}, "DATANORM-Datei (.001, .dat) mit A/B-Records hochladen. Artikel werden automatisch durch EP-Filter (77 Produktlinien) gefiltert.")
               , s.datanorm_url&&React.createElement('div', { style: {fontSize:11,color:"#059669",marginBottom:8,padding:"6px 10px",borderRadius:6,background:_dark?"rgba(5,150,105,.08)":"rgba(5,150,105,.05)",border:"1px solid rgba(5,150,105,.2)"}}, "💡 DATANORM-URL verfügbar: ", React.createElement('a', { href: s.datanorm_url, target: "_blank", rel: "noopener", style: {color:"#059669",textDecoration:"underline",wordBreak:"break-all"}}, s.datanorm_url.replace(/https?:\/\//,"").substring(0,60)), " — Datei herunterladen, dann hier hochladen.")
-              , React.createElement('input', { type: "file", ref: suppFileRef, accept: ".001,.dat,.txt,.csv,*", style: {display:"none"}, onChange: e=>{const f=_optionalChain([e,'access',_=>_.target,'access',_2=>_2.files,'optionalAccess',_3=>_3[0]]);try{e.target.value="";}catch(_){}if(f)handleDnUpload(f,s.id);}})
+              , React.createElement('input', { type: "file", ref: suppFileRef, multiple: true, accept: ".001,.002,.003,.004,.005,.dat,.txt,.csv,.wrg,*", style: {display:"none"}, onChange: e=>{const fl=_optionalChain([e,'access',_=>_.target,'optionalAccess',_2=>_2.files]);const _arr=fl?Array.prototype.slice.call(fl):[];try{e.target.value="";}catch(_){}if(_arr.length)handleDnUpload(_arr,s.id);}})
               , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center"}}
                 , React.createElement('button', { onClick: ()=>_optionalChain([suppFileRef,'access',_=>_.current,'optionalAccess',_2=>_2.click,'call',_3=>_3()]), style: {...bpS,padding:"6px 14px",fontSize:12}}, "📁 Datei wählen")
                 , React.createElement('button', { onClick: ()=>{setDnUploadSupp(null);setDnUploadStatus("");}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "Schließen")
@@ -11697,6 +11695,64 @@ function _parseDatanorm(text,version){
   }
   articles.detVer=fmt;
   return articles;
+}
+/* ═══ v3.9.261 DATANORM Multi-File Loader: Artikel (DATANORM.001/.002…) + DATPREIS-Preise + WRG-Warengruppen DATEIÜBERGREIFEND zusammenführen. Nutzt den bewährten _parseDatanorm für Artikel; DATPREIS füllt NUR fehlende Preise (kein Override → kein Korruptionsrisiko). Single-File bleibt kompatibel (1 Datei). ═══ */
+async function _parseDatanormFiles(fileList,version){
+  const files=Array.prototype.slice.call(fileList||[]);
+  const readText=(file,enc)=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result||"");r.onerror=rej;r.readAsText(file,enc);});
+  const classify=(name,text)=>{
+    const n=(name||"").toUpperCase();
+    if(/DATPREIS/.test(n))return"price";
+    if(/(^|[^A-Z])WRG([^A-Z]|$)|WARENGRUPP/.test(n))return"group";
+    let a=0,p=0,s=0,cnt=0;const lines=text.replace(/\r\n?/g,"\n").split("\n");
+    for(let i=0;i<lines.length&&cnt<400;i++){const t=lines[i];if(!t.trim())continue;cnt++;const c=t.charAt(0).toUpperCase();if(c==="A")a++;else if(c==="P")p++;else if(c==="S")s++;}
+    if(p>a&&p>s)return"price";
+    if(s>a&&s>p)return"group";
+    return"article";
+  };
+  const parsePriceText=(text)=>{
+    if(/„|”|/.test(text))text=_fixCp850(text);
+    const out={};const lines=text.replace(/\r\n?/g,"\n").split("\n");
+    for(const line of lines){
+      if(!line||line.charAt(0).toUpperCase()!=="P")continue;
+      const p=line.split(";");if(p.length<4)continue;
+      let artNr="",preis=0,pe=1,rabGrp="";const f1=(p[1]||"").trim();
+      if(f1.length===1&&/^[NUDÄL]$/i.test(f1)){artNr=(p[2]||"").trim();preis=parseFloat((p[4]||"0").replace(",","."))||0;pe=parseInt(p[5],10)||1;rabGrp=(p[6]||"").trim();}
+      else{artNr=f1;preis=parseFloat((p[3]||"0").replace(",","."))||0;pe=parseInt(p[4],10)||1;rabGrp=(p[5]||"").trim();}
+      if(artNr&&preis>0)out[artNr]={preis:preis,pe:pe,rabGrp:rabGrp};
+    }
+    return out;
+  };
+  const parseGroupText=(text)=>{
+    if(/„|”|/.test(text))text=_fixCp850(text);
+    const out={};const lines=text.replace(/\r\n?/g,"\n").split("\n");
+    for(const line of lines){
+      if(!line||line.charAt(0).toUpperCase()!=="S")continue;
+      const p=line.split(";");if(p.length<3)continue;const f1=(p[1]||"").trim();let wg="",nm="";
+      if(f1.length===1&&/^[NUDÄL]$/i.test(f1)){wg=(p[2]||"").trim();nm=(p[3]||"").trim();}else{wg=f1;nm=(p[2]||"").trim();}
+      if(wg&&nm)out[wg]=nm;
+    }
+    return out;
+  };
+  const parts={article:[],price:{},group:{}};
+  for(const file of files){
+    let text=await readText(file,"ISO-8859-1");
+    const kind=classify(file.name,text);
+    if(kind==="price"){Object.assign(parts.price,parsePriceText(text));}
+    else if(kind==="group"){Object.assign(parts.group,parseGroupText(text));}
+    else{
+      let arts=_parseDatanorm(text,0);
+      if(!arts||arts.length===0){const u=await readText(file,"UTF-8");arts=_parseDatanorm(u,0);}
+      if(arts&&arts.length){parts.article.push({arts:arts,ver:arts.detVer});}
+    }
+  }
+  const byNr={};let detVer=null;
+  for(const blk of parts.article){detVer=detVer||blk.ver;for(const a of blk.arts){byNr[a.artNr]=a;}}
+  const merged=Object.keys(byNr).map(k=>byNr[k]);
+  for(const a of merged){if(a.preis>0)continue;const pp=parts.price[a.artNr];if(pp){const unit=pp.preis>0?(pp.preis/100)/(pp.pe||1):0;if(unit>0){a.preis=unit;if(pp.rabGrp&&!a.rabGrp)a.rabGrp=pp.rabGrp;}}}
+  merged.detVer=detVer||"multi";
+  merged.stats={files:files.length,articles:merged.length,prices:Object.keys(parts.price).length,groups:Object.keys(parts.group).length};
+  return merged;
 }
 /* ═══ Material-Katalog (Platzhalter — wird durch DATANORM ersetzt) ═══ */
 const MAT_KATALOG_DEFAULT=[
