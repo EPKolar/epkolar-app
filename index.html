@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.261';
+  var SW_VER='epkolar-v3.9.262';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.261-supabase";
+const APP_VERSION="3.9.262-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -14714,6 +14714,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     ()=>{const i=absTabIds.indexOf(subView);if(i>0)setSubView(absTabIds[i-1]);}
   );
   const [tlWeekOff,setTlWeekOff]=_react.useState.call(void 0, 0); // 0 = current week
+  const [tlWeeks,setTlWeeks]=_react.useState.call(void 0, 6); // v3.9.262 Team-Timeline: 6/12/26 Wochen wählbar (Default 6)
   /* v3.9.233 FIX (Chef: "Urlaub beantragen funktioniert beim Monteur ned"): Von/Bis-Antragsform.
      Vorher war der Schnellzugriff-Button ein No-Op (setzte nur subView=kalender+typ, beim Monteur
      ohnehin aktiv → nichts sichtbar). Jetzt öffnet er eine Bereich-Antragsform, die — wie der Kalender —
@@ -15206,18 +15207,26 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 
       /* ═══ TEAM-TIMELINE ═══ */
       , subView==="timeline"&&isAdmin&&(()=>{
-        const WEEKS=isMob?3:6;
+        const WEEKS=tlWeeks;/* v3.9.262: aus State (6/12/26) statt fix isMob?3:6 */
         const startMon=(()=>{const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1)+(tlWeekOff*7));return d;})();
         const days=[];for(let i=0;i<WEEKS*7;i++){const d=new Date(startMon);d.setDate(startMon.getDate()+i);days.push(d);}
         const dayW=isMob?22:28;const nameW=isMob?60:90;
         const todayStr=dk(new Date());
         const kwOf=d=>{const t2=new Date(d);t2.setDate(t2.getDate()-((d.getDay()+6)%7)+3);const jan4=new Date(t2.getFullYear(),0,4);return 1+Math.round(((t2-jan4)/TIME_DAY-(t2.getDay()+6)%7+3)/7);};
         const weekBounds=[];for(let w=0;w<WEEKS;w++){const d=days[w*7];weekBounds.push({start:w*7,label:"KW"+kwOf(d),mo:MO_DE[d.getMonth()].slice(0,3)});}
+        /* v3.9.262 Team-Timeline Kollision (team-weit): Tage mit GENEHMIGTER Abwesenheit (irgendwer) UND OFFENEM Antrag (irgendwer) → beide Balken rot umranden. Nur Lesen aus abs/_resolveAppr. */
+        const _apprDays=new Set(),_reqDays=new Set();
+        names.forEach(nm=>{days.forEach(d=>{const _a=ga(nm,d);if(!_a)return;const _ap=getApproval(nm,d);const _ds=dk(d);if(_ap==="genehmigt")_apprDays.add(_ds);else if(_ap!=="abgelehnt")_reqDays.add(_ds);});});
+        const _collDays=new Set(Array.from(_apprDays).filter(ds=>_reqDays.has(ds)));
         return React.createElement('div', {}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
             , React.createElement('button', { onClick: ()=>setTlWeekOff(p=>p-WEEKS), style: {...bsS(),padding:"5px 12px",fontSize:12}}, "◀ Zurück")
             , React.createElement('span', { style: {fontWeight:700,fontSize:14,color:V.ac}}, "🗓️ Team-Timeline — " , WEEKS, " Wochen" )
             , React.createElement('button', { onClick: ()=>setTlWeekOff(p=>p+WEEKS), style: {...bsS(),padding:"5px 12px",fontSize:12}}, "Vor ▶")
+          )
+          , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}
+            , React.createElement('span', { style: {fontSize:10,color:V.dm}}, "Zeitraum:")
+            , [6,12,26].map(wn=>React.createElement('button', { key: wn, onClick: ()=>{setTlWeeks(wn);setTlWeekOff(0);}, style: {...bsS(),padding:"3px 10px",fontSize:10,minHeight:0,background:tlWeeks===wn?V.ac+"22":V.cd,border:"1px solid "+(tlWeeks===wn?V.ac:V.bd),color:tlWeeks===wn?V.ac:V.dm,fontWeight:tlWeeks===wn?700:600}}, wn+" Wo"))
           )
           , tlWeekOff!==0&&React.createElement('button', { onClick: ()=>setTlWeekOff(0), style: {...bsS(),padding:"3px 10px",fontSize:10,marginBottom:8}}, "↩ Heute")
           , React.createElement('div', { style: {overflowX:"auto",borderRadius:10,border:"1px solid "+V.bd}}
@@ -15240,14 +15249,26 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               /* Worker rows */
               , names.map((m,mi)=>{
                 const mRest=resturlaub(m);
+                /* v3.9.262 Tagezeile-Renderer: which="gen" (genehmigt, volle Balken) | "req" (offen, schraffiert+gestrichelt). */
+                const _dayRow=(which)=>days.map((d,di)=>{
+                  const ab=ga(m,d);const appr=ab?getApproval(m,d):null;
+                  const _match=ab&&(which==="gen"?appr==="genehmigt":(appr!=="genehmigt"&&appr!=="abgelehnt"));
+                  const at2=_match?AT_T[ab.type]:null;
+                  const dow=d.getDay();const we=dow===0||dow===6;const isToday=dk(d)===todayStr;const _ds=dk(d);
+                  const _coll=at2&&_collDays.has(_ds);
+                  const _h=which==="gen"?(isMob?22:26):(isMob?12:14);
+                  const _bg=at2?(which==="gen"?at2.c+"40":"repeating-linear-gradient(45deg,"+at2.c+"55 0 4px,transparent 4px 8px)"):(which==="gen"?(isToday?"rgba(0,150,64,.06)":we?"rgba(100,100,100,.04)":"transparent"):"transparent");
+                  return React.createElement('div', { key: di, title: at2?(m+": "+at2.l+" "+fdt(_ds)+" ("+(which==="gen"?"genehmigt":"offen")+")"+(_coll?" ⚠ Kollision":"")):"", style: {width:dayW,height:_h,background:_bg,borderRight:dow===0?"1px solid "+V.bd:"none",borderLeft:isToday?"2px solid "+V.ac:"none",border:_coll?"1.5px solid #ef4444":(at2&&which==="req"?"1px dashed "+at2.c:undefined),boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",fontSize:which==="gen"?10:7,cursor:at2?"pointer":"default",transition:"background .1s"}, onClick: ()=>{if(at2){setSel(m);setMo(d.getMonth());setSubView("kalender");}}}, at2&&which==="gen"?at2.i:"");
+                });
                 return React.createElement('div', { key: m, style: {display:"flex",borderBottom:"1px solid "+V.bd,background:mi%2===0?"transparent":V.rowAlt}}
-                  , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, role: "button", tabIndex: 0, "aria-label": "Kalender für "+m+" öffnen", onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSel(m);setSubView("kalender");}}, style: {width:nameW,minWidth:nameW,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?9:11,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:2}}
+                  , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, role: "button", tabIndex: 0, "aria-label": "Kalender für "+m+" öffnen", onKeyDown: e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSel(m);setSubView("kalender");}}, style: {width:nameW,minWidth:nameW,position:"sticky",left:0,zIndex:2,background:mi%2===0?V.cd:V.rowAlt,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?9:11,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:2}}
                     , React.createElement('span', { style: {overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, m)
                     , React.createElement('span', { style: {fontSize:8,color:mRest<=20?"#ef4444":"#22c55e",fontWeight:700,flexShrink:0}}, _n(mRest,0),"h")
                   )
-                  , days.map((d,di)=>{const ab=ga(m,d);const at2=ab?AT_T[ab.type]:null;const dow=d.getDay();const we=dow===0||dow===6;const isToday=dk(d)===todayStr;const appr=ab?getApproval(m,d):null;
-                    return React.createElement('div', { key: di, title: at2?(m+": "+at2.l+" "+fdt(dk(d))+(appr?" ("+appr+")":"")):"", style: {width:dayW,height:isMob?24:28,background:at2?at2.c+(appr==="genehmigt"?"40":"25"):isToday?"rgba(0,150,64,.06)":we?"rgba(100,100,100,.04)":"transparent",borderRight:dow===0?"1px solid "+V.bd:"none",borderLeft:isToday?"2px solid "+V.ac:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,cursor:at2?"pointer":"default",transition:"background .1s"}, onClick: ()=>{if(at2){setSel(m);setMo(d.getMonth());setSubView("kalender");}}}, at2?at2.i:"");
-                  })
+                  , React.createElement('div', { style: {display:"flex",flexDirection:"column"}}
+                    , React.createElement('div', { style: {display:"flex"}}, _dayRow("gen"))
+                    , React.createElement('div', { style: {display:"flex",borderTop:"1px dotted "+V.bd,opacity:.95}}, _dayRow("req"))
+                  )
                 );
               })
             )
@@ -15255,6 +15276,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,fontSize:10,flexWrap:"wrap"}}
             , Object.entries(AT_T).slice(0,8).map(([k,v])=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:3}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,background:v.c}} ), v.l))
             , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:3}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,background:V.ac,opacity:.3}} ), "Heute")
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:3}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,border:"1px dashed "+V.dm,background:"repeating-linear-gradient(45deg,"+V.dm+"55 0 3px,transparent 3px 6px)"}} ), "Offener Antrag")
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:3}}, React.createElement('div', { style: {width:10,height:10,borderRadius:2,border:"1.5px solid #ef4444"}} ), "Kollision")
           )
         );
       })()
