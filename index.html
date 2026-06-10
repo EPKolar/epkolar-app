@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.262';
+  var SW_VER='epkolar-v3.9.263';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.262-supabase";
+const APP_VERSION="3.9.263-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -14743,6 +14743,12 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     }catch(e){ODB.load("urlaubskontingent").then(k=>{if(a&&k&&Object.keys(k).length)setKontingent(prev=>({...prev,...k}));}).catch(e2=>console.warn('[ODB-URLAUB-FB]',e2&&e2.message||e2));}})();
     return()=>{a=false;};
   },[yr]);
+  /* v3.9.263 Krankmeldungs-Atteste server-seitig zurücklesen (cross-device Dokumentexplorer). NUR Metadaten + file_url, NIE file_data → DB/Traffic schonen (8GB). Degradiert leer bei fehlender RLS. */
+  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{
+    const rows=await _sbGet("absence_files","select=id,worker_name,file_name,file_size,file_url,created_at&order=created_at.desc").catch(()=>[]);
+    if(!a||!rows||!rows.length)return;
+    setFiles(prev=>{const merged={...prev};const seen={};Object.keys(merged).forEach(k=>{merged[k]=(merged[k]||[]).slice();(merged[k]||[]).forEach(f=>{if(f.id)seen[f.id]=true;});});rows.forEach(r=>{if(r.id&&seen[r.id])return;const wn=r.worker_name||"";if(!wn)return;if(!merged[wn])merged[wn]=[];merged[wn].push({id:r.id,name:r.file_name||"Attest",size:r.file_size||0,fileUrl:r.file_url||"",file_url:r.file_url||"",dataUrl:"",createdAt:r.created_at||""});if(r.id)seen[r.id]=true;});return merged;});
+  }catch(e){console.warn('[ABS-FILES-LOAD]',e&&e.message||e);}})();return()=>{a=false;};},[]);
 
   /* v3.9.130 Teilzeit: woche-Faktor. Vollzeit (woche=38,5 ODER fehlend) → Faktor 1,0 = exakt
      identisch zu v3.9.129 (BEWEISBAR no-op für alle aktuellen MA). Teilzeit (z.B. 20h) skaliert
@@ -14921,6 +14927,10 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     );
   };
 
+  /* v3.9.263 Krankmeldungen: Attest öffnen (Bucket-URL ODER base64-Fallback) + PDF-Erkennung + Krankenstands-Tage je MA aus abs (nur Lesen, _resolveAppr unverändert). */
+  const _openAttest=(f)=>{const url=(f&&(f.fileUrl||f.file_url||f.dataUrl))||"";if(!url){window.__toast&&window.__toast("⚠️ Attest nicht verfügbar","warn");return;}_openFileUrl(url,(f&&f.name)||"Attest");};
+  const _attIsPdf=(f)=>{const u=(f&&(f.fileUrl||f.file_url))||"";const d=(f&&f.dataUrl)||"";return /\.pdf(\?|$)/i.test(u)||d.indexOf("data:application/pdf")===0||/\.pdf$/i.test((f&&f.name)||"");};
+  const _krankByMA=(m)=>{const out=[];Object.keys(abs||{}).forEach(key=>{const v=abs[key];if(v&&v.type==="krankenstand"&&key.indexOf(m+"_")===0){const dateStr=key.slice((m+"_").length);if(dateStr.indexOf(String(yr))===0)out.push({key:key,date:dateStr,hours:parseFloat(v.hours)||0,status:_resolveAppr(key)});}});out.sort((a,b)=>a.date<b.date?-1:1);return out;};
   const _renderUrlaubBoxKrankmeldung = () => {
     return React.createElement('div', { style: {...CC(),borderColor:"rgba(255,107,107,.20)",background:"rgba(255,107,107,.04)"} }
       , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:"#ff6b6b",marginBottom:10} }, "📎 Krankmeldung / AU")
@@ -14930,6 +14940,14 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4} }, "PDF, JPG, PNG · ziehen oder klicken")
       )
       , React.createElement('input', { ref: fr, type: "file", multiple: true, accept: "image/*,.pdf", style: {display:"none"}, onChange: hUp })
+      , (()=>{const list=(files&&files[sel])||[];return list.length>0&&React.createElement('div', { style: {marginTop:10} }
+          , React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6,fontWeight:600} }, "📁 Atteste — "+sel+" ("+list.length+")")
+          , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"} }
+            , list.map(f=>React.createElement('div', { key: f.id||f.name, title: f.name, onClick: ()=>_openAttest(f), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();_openAttest(f);}}, style: {width:64,height:64,borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,background:V.cd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"} }
+              , _attIsPdf(f)?React.createElement('div', { style: {fontSize:26} }, "📄"):React.createElement('img', { src: f.dataUrl||f.fileUrl||f.file_url, alt: f.name, style: {width:"100%",height:"100%",objectFit:"cover"} })
+            ))
+          )
+        );})()
     );
   };
 
@@ -15172,6 +15190,37 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 
       /* ═══ ÜBERSICHT ═══ */
       , subView==="uebersicht"&&isAdmin&&(React.createElement('div', {}
+        /* v3.9.263 Krankenstand-Übersicht pro Mitarbeiter (aufklappbar via <details>, state-frei) + Attest-Galerie */
+        , React.createElement('div', { style: {...CC()}}
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:12,color:COLORS.ERROR}}, "🤒 Krankenstand pro Mitarbeiter "  , yr)
+          , names.map(m=>{const ys=yearSt(m);const kd=_krankByMA(m);const atts=(files&&files[m])||[];if((ys.krankenstand||0)===0&&kd.length===0&&atts.length===0)return null;const _kt=ys.krankenstand||kd.length;
+            return React.createElement('details', { key: m, style: {borderBottom:"1px solid "+V.bd,marginBottom:4} }
+              , React.createElement('summary', { style: {display:"flex",alignItems:"center",gap:10,padding:"8px 4px",cursor:"pointer"} }
+                , React.createElement('span', { style: {fontWeight:700,flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} }, m)
+                , React.createElement('span', { style: {fontSize:11,color:COLORS.ERROR,fontWeight:700} }, _kt+(_kt===1?" Tag":" Tage"))
+                , React.createElement('span', { style: {fontSize:11,color:COLORS.ERROR,fontWeight:600} }, "🤒 "+_n(ys.krankenstandStd||0,1)+"h")
+                , atts.length>0&&React.createElement('span', { style: {fontSize:11,color:V.ac,fontWeight:600} }, "📎 "+atts.length)
+              )
+              , React.createElement('div', { style: {padding:"4px 4px 12px 20px"} }
+                , kd.length>0&&React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:3,marginBottom:10} }
+                  , kd.map(d=>React.createElement('div', { key: d.key, style: {display:"flex",alignItems:"center",gap:8,fontSize:11} }
+                    , React.createElement('span', { style: {fontFamily:mono,color:V.tx} }, fdt(d.date))
+                    , React.createElement('span', { style: {color:V.dm} }, _n(d.hours,1)+"h")
+                    , React.createElement('span', { style: {fontSize:10,fontWeight:700,color:d.status==="genehmigt"?"#22c55e":d.status==="abgelehnt"?"#ef4444":"#eab308"} }, d.status==="genehmigt"?"✓ genehmigt":d.status==="abgelehnt"?"✕ abgelehnt":"⏳ ausstehend")
+                  ))
+                )
+                , atts.length>0&&React.createElement('div', {}
+                  , React.createElement('div', { style: {fontSize:10,color:V.dm,fontWeight:600,marginBottom:5} }, "📁 Atteste / AU")
+                  , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"} }
+                    , atts.map(f=>React.createElement('div', { key: f.id||f.name, title: f.name, onClick: ()=>_openAttest(f), style: {width:56,height:56,borderRadius:6,overflow:"hidden",border:"1px solid "+V.bd,background:V.cd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"} }
+                      , _attIsPdf(f)?React.createElement('div', { style: {fontSize:22} }, "📄"):React.createElement('img', { src: f.dataUrl||f.fileUrl||f.file_url, alt: f.name, style: {width:"100%",height:"100%",objectFit:"cover"} })
+                    ))
+                  )
+                )
+              )
+            );
+          })
+        )
         , React.createElement('div', { style: {...CC()}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:14}}, "📊 Jahresübersicht "  , yr)
           , names.map(m=>{const ys=yearSt(m);const rest=resturlaub(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;
