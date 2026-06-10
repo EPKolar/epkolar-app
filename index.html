@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.247';
+  var SW_VER='epkolar-v3.9.248';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.247-supabase";
+const APP_VERSION="3.9.248-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7203,8 +7203,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   const [editTaet,setEditTaet]=_react.useState.call(void 0, {});
   const isMob=ww<600;
 
-  const loadAll=async()=>{
-    setLoading(true);
+  const loadAll=async(silent)=>{
+    if(!silent)setLoading(true);
     try{
       const [te,bt]=await Promise.all([
         _sbGet("time_entries").catch(()=>[]),
@@ -7213,11 +7213,11 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       setAllEntries((te||[]).map(e=>({...e,datum:e.datum||e.date,projekt:e.projekt||e.project_id,monteur:e.monteur||e.worker_id,stunden:parseFloat(e.stunden||e.hours||0),taetigkeit:e.taetigkeit||e.task||"",bemerkung:e.bemerkung||e.description||""})));
       setAllBT((bt||[]).map(b=>({...b,datum:b.datum||b.date,projekt:b.projekt||b.project_id,taetigkeit:b.taetigkeiten||b.taetigkeit||b.task||"",wetter:b.wetter||"",temperatur:b.temperatur||""})));
       setLoaded(true);
-      _optionalChain([window, 'access', _bex1 => _bex1.__toast, 'optionalCall', _bex2 => _bex2("\u2705 "+((te||[]).length)+" Buchungen + "+((bt||[]).length)+" Tagesberichte geladen")]);
-    }catch(e){_optionalChain([window, 'access', _bex3 => _bex3.__toast, 'optionalCall', _bex4 => _bex4("\u26a0\ufe0f Fehler beim Laden","warn")]);}
-    setLoading(false);
+      if(!silent)_optionalChain([window, 'access', _bex1 => _bex1.__toast, 'optionalCall', _bex2 => _bex2("\u2705 "+((te||[]).length)+" Buchungen + "+((bt||[]).length)+" Tagesberichte geladen")]);
+    }catch(e){if(!silent)_optionalChain([window, 'access', _bex3 => _bex3.__toast, 'optionalCall', _bex4 => _bex4("\u26a0\ufe0f Fehler beim Laden","warn")]);}
+    if(!silent)setLoading(false);
   };
-  _react.useEffect.call(void 0, ()=>{loadAll();},[]);
+  _react.useEffect.call(void 0, ()=>{loadAll();const _iv=setInterval(()=>{loadAll(true);},TIME_HOUR);/* v3.9.248: Projekt-Daten st\u00fcndlich automatisch (silent) nachladen \u2014 B\u00fcro-Export bleibt aktuell ohne manuelles Neuladen */return ()=>clearInterval(_iv);},[]);
 
   const activeProjects=projects.filter(p=>p.status!=="archiviert");
 
@@ -7291,7 +7291,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
 
     const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");/* v3.9.128 M-P2: generateBWB escapte Kunden-/MA-/Tätigkeitsnamen NICHT (Zwilling exportBauwochenbericht tut es) → &/</> brachen die Excel beim Kunden/ÖBA */
     let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>';
-    const sheetNames=["Summenblatt",...kwList.map(k=>"Bericht KW"+k.split("-")[1]+"-"+k.split("-")[0])];
+    const sheetNames=[...kwList.map(k=>"Bericht_KW"+k.split("-")[1]+"-"+k.split("-")[0]),"Summenblatt"];/* v3.9.248 FIX Unterblätter: Sheet-Namen == Tabellen-ids (Unterstrich, KEIN Space) UND Reihenfolge wie die Tabellen (KW-Blätter zuerst, Summenblatt zuletzt). Vorher matchten "Bericht KW.."-Namen NICHT die "Bericht_KW.."-Tabellen-ids → Excel ließ die KW-Unterblätter leer (nur Summenblatt befüllt). */
     sheetNames.forEach(n=>{html+='<x:ExcelWorksheet><x:Name>'+n+'</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>';});
     html+='</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><style>td,th{mso-number-format:"\\@";font-family:Arial;font-size:10pt;border:.5pt solid #bbb;padding:3px 5px}th{background:#e8e8e8;font-weight:bold}.sum{background:#f0f0f0;font-weight:bold}.num{mso-number-format:"0.00";text-align:right}.kwh{background:#009640;color:#fff;font-weight:bold;font-size:11pt}.hdr{font-size:14pt;font-weight:bold;background:#009640;color:#fff;border:none}.sub{font-size:11pt;font-weight:bold;border:none}</style></head><body>';
 
@@ -7327,9 +7327,9 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:20px">&nbsp;</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="font-size:8pt;color:#666;border:none">Gegen diesen Bauwochenbericht kann innerhalb von 48 Stunden Berufung eingelegt werden. Ansonsten hat der Kunde bzw. Auftraggeber seinen Inhalt vollst\u00e4ndig zugestimmt und der Bericht G\u00fcltigkeit.</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none;height:40px">&nbsp;</td></tr>';
-      html+='<tr><td colspan="3" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift EP Kolar & Sohn GmbH</td>';
-      html+='<td colspan="'+nc+'" style="border:none"></td>';
-      html+='<td colspan="2" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift Kunde / \u00d6BA / Auftraggeber</td></tr>';
+      const _sigL=Math.ceil((nc+3)/2),_sigR=(nc+3)-_sigL;/* v3.9.248 FIX: Signatur-Spalten halbieren \u2192 Summe == Tabellenbreite (nc+3). Vorher 3+nc+2 = nc+5 \u2192 Auftraggeber-Unterschrift ragte rechts NEBEN die Tabelle. */
+      html+='<tr><td colspan="'+_sigL+'" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift EP Kolar & Sohn GmbH</td>';
+      html+='<td colspan="'+_sigR+'" style="border-top:1pt solid #000;border-left:none;border-right:none;border-bottom:none;font-size:8pt">Unterschrift Kunde / \u00d6BA / Auftraggeber</td></tr>';
       html+='</table>';
     });
 
