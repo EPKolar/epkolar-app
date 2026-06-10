@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.271';
+  var SW_VER='epkolar-v3.9.272';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2363,7 +2363,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.271-supabase";
+const APP_VERSION="3.9.272-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5179,12 +5179,17 @@ class _ViewBoundary extends React.Component{
   // Push notification helper
   const pushNotif=(type,title,body,targetUsers)=>{
     const targets=targetUsers||users.filter(u=>_optionalChain([notifPrefs, 'access', _51 => _51[u.id], 'optionalAccess', _52 => _52[type]])).map(u=>u.id);
-    const newN=targets.map(tuid=>({id:uid()+Math.random().toString(36).slice(2,4),type,title,body,time:new Date().toISOString(),read:false,user:tuid,link:_optionalChain([NOTIF_TYPES, 'access', _53 => _53[type], 'optionalAccess', _54 => _54.cat])||""}));
-    setNotifications(p=>{const upd=[...newN,...p].slice(0,200);ODB.save("notifications",upd);return upd;});
-    // Persist to server
-    if(newN.length>0){SQ.push({url:"/api/notifications/batch",method:"POST",body:{items:newN.map(n=>({id:n.id,user_id:n.user,type:n.type,title:n.title,body:n.body,link:n.link,read:0}))}});}
+    /* v3.9.272 FIX Idempotenz: DETERMINISTISCHE Notif-id aus user+type+title+body (djb2-Hash) → derselbe Vorgang erzeugt KEINE neue id → kein Duplikat bei Reload/Sync/Poll. Vor Insert lokal prüfen → schon vorhanden = skip (kein Insert, kein Toast). Server-seitig kollidiert die id höchstens (kein neuer Datensatz). */
+    const _ndKey=(s)=>{let _h=5381;for(let _i=0;_i<s.length;_i++){_h=((_h<<5)+_h+s.charCodeAt(_i))>>>0;}return _h.toString(36);};
+    const newN=targets.map(tuid=>({id:"n_"+tuid+"_"+type+"_"+_ndKey((title||"")+"|"+(body||"")),type,title,body,time:new Date().toISOString(),read:false,user:tuid,link:_optionalChain([NOTIF_TYPES, 'access', _53 => _53[type], 'optionalAccess', _54 => _54.cat])||""}));
+    const _haveIds=new Set((notifications||[]).map(n=>n.id));
+    const _freshN=newN.filter(n=>!_haveIds.has(n.id));
+    if(!_freshN.length)return;/* alle bereits vorhanden → idempotent: nichts tun */
+    setNotifications(p=>{const _h2=new Set(p.map(n=>n.id));const _ff=_freshN.filter(n=>!_h2.has(n.id));if(!_ff.length)return p;const upd=[..._ff,...p].slice(0,200);ODB.save("notifications",upd);return upd;});
+    // Persist to server (deterministische id verhindert Doppel-Insert)
+    SQ.push({url:"/api/notifications/batch",method:"POST",body:{items:_freshN.map(n=>({id:n.id,user_id:n.user,type:n.type,title:n.title,body:n.body,link:n.link,read:0}))}});
     const isUrgent=type==="kunde_mangel"||type==="absence_sick"||type==="as_eskalation"||type==="material_eskalation";
-    if(targets.includes(_optionalChain([curUser, 'optionalAccess', _55 => _55.id]))){
+    if(_freshN.some(n=>n.user===_optionalChain([curUser, 'optionalAccess', _55 => _55.id]))){
       playNotifSound(isUrgent);
       const _np=window._cachedNotifPerm||Notification.permission;
       if("Notification" in window&&_np==="granted"){
