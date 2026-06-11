@@ -46,6 +46,21 @@ order by tablename, cmd;
 - `canDo('material_delete')` ist bereits admin/PL/buero → nach Fund-1-Fix deckungsgleich, **kein Client-Write nötig**.
   Falls Chat-Claude material-DELETE bewusst enger (z.B. admin/PL) setzt → CC zieht den Client-Gate nach.
 
+## Fund 3 — project_documents INSERT vs Client doc_upload (Monteur-Silent-Fail)
+Server INSERT: `auth_role() = ANY(['admin','projektleiter','buero'])`.
+Client-Gate `canDo('doc_upload')` = `isA||isPL||isB||isField` → **inkl. Monteur** (Z.3859). Der „📤 Hochladen"-
+Button (Dokumentexplorer, Z.12732) ist für Monteure sichtbar → `POST /api/project-documents` (Z.12583) →
+Server blockt still → Upload verschwindet. **Entscheidung nötig (Intent):**
+- (A) Monteure SOLLEN keine Projekt-Doku hochladen → **Client-Fix (CC, kein DB):** `doc_upload` von
+  `isField` befreien (= admin/PL/buero, deckt sich mit Server). Empfohlen, da Server das ohnehin blockt.
+- (B) Monteure SOLLEN hochladen → **Server-Fix (Chat-Claude):** project_documents INSERT um isField/
+  authenticated erweitern.
+→ Sag welche Variante; (A) baue ich client-seitig, (B) ist DB.
+
+## Fund 4 — whatsapp_messages: RLS an, KEIN UPDATE/DELETE-Policy (niedrig)
+Deny-all für UPDATE/DELETE. Vermutlich gewollt (System/WhatsApp-Integration, kein User-Flow). Nur falls
+ein Code-Pfad whatsapp_messages updaten/löschen will → silent-fail. Zur Kenntnis.
+
 ## Kein Befund (geprüft, OK)
 - fahrzeuge_delete: bereits gefixt (admin/PL/buero/lagerleitung).
 - time_entries: ALL-Policy `is_staff() OR worker_id=current_monteur_id()` → Monteur löscht eigene, Staff alle. OK.
