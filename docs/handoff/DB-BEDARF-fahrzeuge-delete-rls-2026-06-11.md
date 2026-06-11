@@ -21,19 +21,38 @@ Der Client wertet das als Erfolg, entfernt das SyncQueue-Item, retried nie → S
 SELECT/UPDATE-Policies erlauben bereits admin/projektleiter/buero — nur DELETE ist auf admin verengt
 (Inkonsistenz, vermutlich versehentlich).
 
-## Fix — DELETE-Policy an UPDATE-Policy + Client-isVAdmin angleichen
+## Fix — DELETE- (und UPDATE-)Policy an Client-isVAdmin angleichen
+
+Erlaubte Rollen: **admin, projektleiter, buero, lagerleitung** (= Client `isVAdmin` ab v3.9.285).
+Hinweis: **Pinger Leo hat role='projektleiter'** → ist schon mit dem alten Vorschlag abgedeckt; `lagerleitung`
+ist für künftige Lagerleitungs-User ergänzt (Sebastians Wunsch). Client-Gate wurde bereits erweitert (v3.9.285).
 
 ```sql
+-- DELETE: war fälschlich nur admin -> Resurrection
 DROP POLICY IF EXISTS fahrzeuge_delete ON public.fahrzeuge;
 CREATE POLICY fahrzeuge_delete ON public.fahrzeuge
   FOR DELETE TO public
   USING (
     (auth.role() = 'authenticated')
-    AND (auth_role() = ANY (ARRAY['admin','projektleiter','buero']))
+    AND (auth_role() = ANY (ARRAY['admin','projektleiter','buero','lagerleitung']))
+  );
+
+-- UPDATE: zur Konsistenz lagerleitung mit aufnehmen (sonst editiert Lagerleitung in der UI,
+-- Server blockt still = derselbe Effekt bei Fahrzeug-Edits)
+DROP POLICY IF EXISTS fahrzeuge_update ON public.fahrzeuge;
+CREATE POLICY fahrzeuge_update ON public.fahrzeuge
+  FOR UPDATE TO public
+  USING (
+    (auth.role() = 'authenticated')
+    AND (auth_role() = ANY (ARRAY['admin','projektleiter','buero','lagerleitung']))
   );
 ```
 
-(Spiegelt exakt die bestehende `fahrzeuge_update`-USING-Klausel.)
+**Wichtig:** Es gibt aktuell KEINEN User mit `role='lagerleitung'` in der DB. Falls Sebastian einem User
+Lagerleitung geben will → dessen `users.role` auf `'lagerleitung'` setzen (dann greifen Client-Gate + RLS).
+Alternativ (granularer, größerer Umbau, NICHT in diesem Fix): per-User-Permission `fz_delete` über
+`users.permissions`/`permsOverride` + RLS, die diese Permission liest — nur wenn echtes per-User-Vergeben
+gewünscht ist.
 
 ## Verifikation nach Run (read-only)
 ```sql
