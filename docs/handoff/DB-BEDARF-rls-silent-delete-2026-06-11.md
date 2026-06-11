@@ -1,5 +1,16 @@
 # DB-BEDARF — RLS Silent-Delete/Divergenz-Audit · 2026-06-11
 
+**✅ ERLEDIGT 2026-06-11 (Sebastian-autorisierte Migration, Chat-Claude-SQL, von CC ausgeführt + verifiziert):**
+- **Fund 1** material_orders/items DELETE → `current_user_role() IN (admin,projektleiter,buero)` (war JWT-basiert). ✅
+- **Fund 2** supplier_orders DELETE+UPDATE → `current_user_role() IN (admin,projektleiter,buero)` (war `true`/offen). ✅
+- **Fund 3 = Variante 3B gewählt:** project_documents INSERT → `auth.role()='authenticated'` (Monteure dürfen jetzt Projekt-Doku hochladen). ✅
+- **Client-Abgleich:** `material_delete`-Gate (admin/PL/buero) + `doc_upload` (inkl. Monteur) decken sich mit den neuen Policies → **kein Client-Write nötig.**
+- **Fund 4** (whatsapp_messages) bewusst unangetastet (gewollt/System).
+Migration self-verifying (Worker-Guard + 3 RAISE-EXCEPTION-Checks), COMMIT erfolgreich, read-only-Matrix bestätigt.
+
+---
+**(Original-Audit:)**
+
 **Für Chat-Claude (SQL-Editor) — CC macht KEINE Policy-Writes (Direktive). CC liefert Vorschlag + macht danach Client-Abgleich + read-only Verify.**
 
 Read-only-Audit aller DELETE/UPDATE-Policies gg. die Client-`canDo`-Gates. Gleiches Muster wie der
