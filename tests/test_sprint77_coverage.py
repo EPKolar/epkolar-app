@@ -297,7 +297,6 @@ SQL_MIGRATIONS = [
     "migrate_supplier_articles_safe_v3954.sql",
     "migrate_user_gewerk_v3968.sql",
     "migrate_user_kiener_v3959.sql",
-    "migrate_whatsapp_v3919.sql",
 ]
 
 
