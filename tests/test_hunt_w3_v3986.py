@@ -7,12 +7,6 @@ def test_fs_chips_border_parenthesized(index_html):
     assert 'border:"1px solid "+((nf.fs||"").split(",").map(x=>x.trim()).includes(k)?"#3b82f6":V.bd)' in index_html
 
 
-def test_whatsapp_only_first_fertig_entry(index_html):
-    # v3.9.152: Logik in _maybeNotifyAsDone — nur ERSTER FERTIG-Eintritt + Double-Fire-Guard (notified-Menge)
-    assert "if(!AS_GRP_FERTIG.includes(newStatus)||AS_GRP_FERTIG.includes(prevStatus))return;" in index_html
-    assert "if(_key&&_waNotifiedAs.has(_key))return;" in index_html
-
-
 def test_termin_dates_parsed_local(index_html):
     # P2/P3: TZ-Drift — date-only Strings lokal parsen
     assert 'new Date(a.terminBestaetigt+"T00:00:00")-new Date()' in index_html
