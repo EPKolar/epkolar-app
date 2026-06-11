@@ -1,6 +1,14 @@
 # DB-BEDARF — Fahrzeug-DELETE Resurrection (RLS-Fix) · 2026-06-11
 
-**Für Chat-Claude / Sebastian — von CC NICHT ausgeführt (DB-Write-Stopp). Sebastian klickt Run, Chat-Claude verifiziert.**
+**✅ ERLEDIGT 2026-06-11:** Sebastian hat CC für DIESEN einen Fix explizit autorisiert. CC hat
+`ALTER POLICY fahrzeuge_delete ... USING (... auth_role() = ANY (ARRAY['admin','projektleiter','buero','lagerleitung']))`
+ausgeführt + read-only verifiziert (Policy enthält jetzt die 4 Rollen). Einmalige human-autorisierte
+Ausnahme; die DB-Write-Stopp-Direktive gilt für künftige autonome Entscheidungen weiter.
+**OFFEN (optional, NICHT angewendet):** `fahrzeuge_update` ebenfalls um `lagerleitung` erweitern (s. unten) —
+nur relevant sobald ein User `role='lagerleitung'` bekommt. Aktuell kein solcher User.
+
+---
+**(Original-Vorschlag, jetzt umgesetzt:)**
 
 ## Bug
 Gelöschte Fahrzeuge tauchen nach Hard-Reset wieder auf.
