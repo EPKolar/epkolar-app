@@ -73,7 +73,7 @@
 ### (i) v3.9.315 PDF-Pendant — Phase A (3 strategische Stellen)
 **Schritt:** In Bautagebuch / Wochenplanung / ZeiterfassungView-Wochenuebersicht je das neue 🖨️ PDF-Button neben Excel klicken.
 **Erwartung:** Druck-Dialog des Browsers oeffnet sich, im Print-Preview ist die App-UI ausgeblendet (`.tab-bar`, `.kpi-grid`, `.mob-shell-nav`, Buttons via globalem `@media print`-CSS verborgen). A4-Seite, 12mm Margin, lesbare 10pt-Schrift. „Als PDF speichern" im System-Druckdialog erzeugt sauberes PDF.
-**Status:** Phase A — VExport-Tile, Bautagebuch, Wochenplanung, ZeiterfassungView. **Phase B** (Abwesenheit, Fahrtenbuch, Werkzeuge, Auswertungen, MA-Uebersicht KW, OFFA, Projekt-genCsv) bleibt offen.
+**Status:** Phase A (v3.9.315) + Phase B (v3.9.318: Abwesenheit-Card, Monteur-Uebersicht KW, Werkzeuge/Geraete). **Rest** (OFFA, Projekt-genCsv, Fahrtenbuch, Auswertungen, Bauwochenbericht) deferred — bei Bedarf nachschieben.
 **Bonus:** `COMPANY_FOOTER`-Konstante (~Z.3962) zentralisiert die Firmen-Footer-Daten — Refactor der hardcoded Strings in genXls/genFormPdf/printPdf folgt schrittweise.
 **Pass [ ]**
 
