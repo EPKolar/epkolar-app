@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.299';
+  var SW_VER='epkolar-v3.9.300';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2350,7 +2350,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.299-supabase";
+const APP_VERSION="3.9.300-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17990,18 +17990,21 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       finally{setTankOcr(false);setTankOcrProg(0);}
     };
     /* v3.9.278 W-OCR Android-Fix: ergebnis-basierte Kette. Native (schnell) versuchen; bei leerem Ergebnis/Exception/Timeout(5s) automatisch auf Tesseract. Kein Pfad endet im Nichts. (Android-Chrome kann TextDetector EXISTIEREN lassen, aber leer liefern.) */
+    /* v3.9.300 Android-Fix: Tesseract (WASM + deu-Daten) hängt/crasht auf schwächeren Android-Geräten → Tab-OOM-Reload = "keine Tankung". Auf Mobilgeräten daher KEIN Tesseract — nur nativer TextDetector (falls vorhanden), sonst manuelle Eingabe. Tesseract nur Desktop. Formular + Speichern bleiben immer nutzbar. */
     if(typeof TextDetector!=="undefined"){
-      let _done=false;
-      const _to=setTimeout(()=>{if(_done)return;_done=true;_runTesseract();},5000);
-      const _fb=()=>{if(_done)return;_done=true;clearTimeout(_to);_runTesseract();};
+      let _done=false,_to;
+      const _afterFail=()=>{if(_done)return;_done=true;clearTimeout(_to);if(_isMobileDevice){_toast("📷 Beleg gespeichert — Werte bitte manuell eingeben");setTankOcr(false);setTankOcrProg(0);}else{_runTesseract();}};
+      _to=setTimeout(_afterFail,6000);
       try{const img=new Image();img.onload=async()=>{try{const det=new TextDetector();const texts=await det.detect(img);const allText=texts.map(t=>t.rawValue).join(" ");
         if(_done)return;
-        if(_extractTankFields(allText)){_done=true;clearTimeout(_to);_toast("📷 Werte aus Beleg erkannt — bitte prüfen!");setTankOcr(false);}
-        else{_fb();}
-      }catch(_){_fb();}};img.onerror=()=>_fb();img.src=dataUrl;
-      }catch(_){_fb();}
-    }else{
+        if(_extractTankFields(allText)){_done=true;clearTimeout(_to);_toast("📷 Werte aus Beleg erkannt (OCR) — bitte prüfen!");setTankOcr(false);setTankOcrProg(0);}
+        else{_afterFail();}
+      }catch(_){_afterFail();}};img.onerror=()=>_afterFail();img.src=dataUrl;
+      }catch(_){_afterFail();}
+    }else if(!_isMobileDevice){
       _runTesseract();
+    }else{
+      _toast("📷 Beleg gespeichert — Werte bitte manuell eingeben");setTankOcr(false);setTankOcrProg(0);
     }
   };
   const handleTankFoto=(e)=>{
