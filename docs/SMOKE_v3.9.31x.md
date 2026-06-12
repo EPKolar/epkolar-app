@@ -30,8 +30,18 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (r) Nach RLS Welle 1 Phase 1 (Block 0.5+1.1+1.2 live)
+**Schritt:** Drei Schnell-Tests mit verschiedenen Rollen:
+  1. **Monteur** (z.B. paschinger w1) → Zeiterfassung-Tab → eigene Zeit für heute buchen (Stunden eintragen, speichern). **Erwartung:** Eintrag erscheint sofort, Toast „✅ XXh gespeichert" (oder analog).
+  2. **Büro / Projektleiter** (z.B. schober w7 buero oder admin) → Zeiterfassung-Tab → Wochenübersicht eines Monteurs → ✏️-Button auf einem fremden Eintrag → Werte ändern → 💾. **Erwartung:** Toast „✏️ Eintrag aktualisiert" (canDo('zeit_other') + RLS-PUT lässt durch).
+  3. **Monteur** (eigenes Fahrzeug) → ⛽ Tankung speichern. **Erwartung:** Toast „⛽ Tankung erfasst" (RLS-Policy `fahrzeuge_update_office_or_driver` + bestehende `fahrzeuge_update_driver` lassen es durch).
+**Wenn 1+2+3 grün:** Welle 1 Phase 1 stabil → Sebastian gibt Phase 2 (Blöcke 1.3-1.8) frei.
+**Pass [ ]**
+
 ### (q) v3.9.323 RLS-Welle-1 Defense-in-Depth (Client)
-**Vorbereitung:** Sebastian hat `sql/RLS_WELLE_1_READY_v2.sql` blockweise im Supabase-SQL-Editor ausgeführt (mindestens Block 1.1 + 1.2). **v1 ist DEPRECATED** wegen Typ-Mismatch `users.id` (TEXT) vs `auth.uid()` (UUID).
+**Vorbereitung:** Sebastian hat `sql/RLS_WELLE_1_READY_v3.sql` blockweise im Supabase-SQL-Editor ausgeführt. **v1 + v2 sind DEPRECATED** (v1: TEXT-vs-UUID-Lockout; v2: `polname`-statt-`policyname`-Crash + fehlende INSERT-Loop-Branch + nicht vorhandene `is_hr()`).
+
+**Live-Stand 12.06.2026 abends:** Block 0.5 (is_hr bootstrap) ✅, Block 1.1 (fahrzeuge, Snapshot 5 Zeilen, fahrzeuge_update_driver erhalten) ✅, Block 1.2 (time_entries, additiv auf te_read/te_write) ✅. Blöcke 1.3-1.8 stehen aus.
 **Schritt:** Als Monteur (z.B. w7) in der App einloggen.
   1. **Eigenes Fahrzeug** öffnen → ⛽ Tankung → Werte eingeben → Speichern. **Erwartung:** Toast „⛽ Tankung erfasst" + Eintrag in der Liste.
   2. **Fremdes Fahrzeug** öffnen → ⛽ Tankung → Werte eingeben → Speichern. **Erwartung:** Toast „⚠️ Fahrzeug-Änderung NICHT gespeichert — keine Schreibberechtigung. Bitte Büro/Admin informieren (Eingabe ging nicht in die Datenbank)." (rot, 9 s).
