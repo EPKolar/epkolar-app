@@ -51,6 +51,20 @@
   <img id="preview" class="preview" style="display:none" alt="">
 </div>
 
+<div class="card" id="visCard" style="display:none">
+  <div class="hdr">Google Vision (Edge Function)</div>
+  <div class="field"><span class="k">Datum</span><span class="v" id="v_datum">—</span></div>
+  <div class="field"><span class="k">Liter</span><span class="v" id="v_liter">—</span></div>
+  <div class="field"><span class="k">Preis gesamt (€)</span><span class="v" id="v_preis">—</span></div>
+  <div class="field"><span class="k">km</span><span class="v" id="v_km">—</span></div>
+  <div class="row" style="margin-top:10px">
+    <span class="pill" id="v_timing"></span>
+    <span class="pill" id="v_conf"></span>
+  </div>
+  <div id="v_err" style="color:var(--err);font-size:12px;margin-top:8px;display:none"></div>
+  <pre id="v_raw" style="display:none;margin-top:10px"></pre>
+</div>
+
 <div class="card" id="resultCard" style="display:none">
   <div class="hdr">Erkannte Felder (App-Parser)</div>
   <div class="field"><span class="k">Datum</span><span class="v" id="f_datum">—</span></div>
@@ -89,6 +103,10 @@ function renderCaps(){
     '<span class="pill '+(window.Tesseract?'ok':'no')+'">Tesseract: '+(window.Tesseract?'geladen':'lädt…')+'</span>';
 }
 renderCaps();
+
+// ---- Supabase (public anon-key, identisch zu index.html der App) für die Google-Vision-Edge-Function ----
+var SUPABASE_URL = "https://jiggujpruejkaomgxarp.supabase.co";
+var ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ2d1anBydWVqa2FvbWd4YXJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1OTU2NjUsImV4cCI6MjA4OTE3MTY2NX0.RXcu1ri8tK38ApdHWxs0Hl9h1FJQCHGm429QHrS2RMc";
 
 // ---- 1:1 aus der App: _preprocessOcrImage (Graustufen + Kontrast-Stretch, max 1500) ----
 function _preprocessOcrImage(dataUrl, maxEdge){
@@ -186,9 +204,44 @@ function tryTextDetector(dataUrl){
   }catch(e){}
 }
 
+// ---- Google Vision via Edge Function ocr_tankbeleg ----
+async function runVision(dataUrl){
+  document.getElementById('visCard').style.display='block';
+  document.getElementById('v_err').style.display='none';
+  document.getElementById('v_raw').style.display='none';
+  function put(id,val){var el=document.getElementById(id);if(val){el.textContent=val;el.className='v';}else{el.textContent='nicht erkannt';el.className='v empty';}}
+  put('v_datum','');put('v_liter','');put('v_preis','');put('v_km','');
+  document.getElementById('v_timing').textContent='⏳ Vision…';document.getElementById('v_timing').className='pill';
+  document.getElementById('v_conf').textContent='';
+  var t0=performance.now();
+  try{
+    var r=await fetch(SUPABASE_URL+"/functions/v1/ocr_tankbeleg",{method:"POST",headers:{Authorization:"Bearer "+ANON_KEY,apikey:ANON_KEY,"Content-Type":"application/json"},body:JSON.stringify({image:dataUrl})});
+    var ms=Math.round(performance.now()-t0);
+    var d=await r.json().catch(function(){return {ok:false,error:"Antwort kein JSON (HTTP "+r.status+")"};});
+    document.getElementById('v_timing').textContent='⏱ '+ms+' ms';
+    document.getElementById('v_timing').className='pill'+(ms>8000?' no':'');
+    if(!d||d.ok===false){
+      document.getElementById('v_err').style.display='block';
+      document.getElementById('v_err').textContent='❌ '+((d&&d.error)||('HTTP '+r.status));
+      return false;
+    }
+    put('v_datum',d.datum);put('v_liter',d.liter);put('v_preis',d.preis);put('v_km',d.km);
+    document.getElementById('v_conf').textContent=(d.confidence!=null)?('Konfidenz '+d.confidence+'%'):'';
+    document.getElementById('v_conf').className='pill'+(d.confidence!=null&&d.confidence<60?' no':' ok');
+    if(d.rawText){document.getElementById('v_raw').style.display='block';document.getElementById('v_raw').textContent=d.rawText;}
+    return true;
+  }catch(e){
+    document.getElementById('v_timing').textContent='';
+    document.getElementById('v_err').style.display='block';
+    document.getElementById('v_err').textContent='❌ Vision nicht erreichbar: '+(e&&e.message||e);
+    return false;
+  }
+}
+
 document.getElementById('file').addEventListener('change', async function(ev){
   var file = ev.target.files && ev.target.files[0];
   if(!file)return;
+  document.getElementById('visCard').style.display='none';
   document.getElementById('resultCard').style.display='none';
   document.getElementById('rawCard').style.display='none';
   document.getElementById('tdCard').style.display='none';
@@ -202,6 +255,10 @@ document.getElementById('file').addEventListener('change', async function(ev){
 
   var pv=document.getElementById('preview'); pv.src=dataUrl; pv.style.display='block';
   tryTextDetector(dataUrl); // läuft parallel, nur Info
+
+  // ZUERST Google Vision (schnell, Edge Function), DANN Tesseract — direkter Vergleich am selben Foto
+  setStatus('⏳ Google Vision (Edge Function) läuft…');
+  await runVision(dataUrl);
 
   if(!window.Tesseract){ setStatus('<b class="bad">❌ Tesseract nicht geladen (CDN blockiert?).</b> Genau das ist am Handy oft das Problem.'); return; }
   renderCaps();
