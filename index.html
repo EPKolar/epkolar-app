@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.305';
+  var SW_VER='epkolar-v3.9.306';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2194,7 +2194,14 @@ async function _translateAndExec(url,method,body){
     const patchData={...mapped};delete patchData.id;
     /* v3.8.64 Bug-4: Tabellen ohne updated_at-Spalte (PGRST204 verifiziert via DevTools-Console 26.04). Notifications PATCH 400 → SyncQueue droppt nach 5 fails → "als gelesen" persistiert nie. Blacklist verhindert Spalten-Injection für bekannte non-updated_at-Tabellen. */
     if(table!=="notifications"&&table!=="plans"&&table!=="finkzeit"&&table!=="fahrbewilligungen"&&table!=="anmeldungen")patchData.updated_at=new Date().toISOString();/* v3.9.181 FIX: plans hat KEINE updated_at-Spalte → PGRST204. v3.9.206 FIX: finkzeit (Monatsabrechnung-Freigabe-PUT 400 → "sync geht nicht") + fahrbewilligungen ebenfalls ohne updated_at → Blacklist erweitert */
-    await _sbPatch(table,idOrSub,patchData);
+    const _patchRes=await _sbPatch(table,idOrSub,patchData);
+    /* v3.9.306 #3: 0-rows-Safeguard für Fahrzeug-/Tank-Saves. RLS-Silent-Denial liefert HTTP 200 + leeres
+       Array (return=representation) → Update ging NICHT in die DB, App hätte aber "erfasst" gemeldet =
+       stiller Tank-/km-Verlust. Hier eine klare Warnung statt Datenverlust. KEIN re-throw: 0-rows ist
+       permanent (gleiche RLS, Retry sinnlos) → Item gilt als verarbeitet, verstopft die Queue nicht. */
+    if(table==="fahrzeuge"&&Array.isArray(_patchRes)&&_patchRes.length===0){
+      window.__toast&&window.__toast("⚠️ Fahrzeug-Änderung NICHT gespeichert — keine Schreibberechtigung für dieses Fahrzeug. Bitte Büro/Admin informieren (Eingabe ging nicht in die Datenbank).","error",9000);
+    }
   }else if(method==="DELETE"){
     if(!idOrSub){console.warn("[api] DELETE without ID:",url);return{ok:1};}
     /* v3.9.186 FIX Projekte#2: Server-seitige Lösch-Kaskade — sonst verwaisen Kind-Datensätze (project_id) in der DB.
@@ -2350,7 +2357,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.305-supabase";
+const APP_VERSION="3.9.306-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3858,6 +3865,84 @@ window._confirmModal=function(message,opts){
     box.appendChild(msg);box.appendChild(row);overlay.appendChild(box);
     document.body.appendChild(overlay);
     try{btnConfirm.focus();}catch(e){console.warn('[silent-dom]',e&&e.message||e);}
+  });
+};
+// v3.9.306: Editierbarer Tank-Bestätigungs-Dialog.
+// Usage: const r=await window._tankConfirmModal({datum,liter,preis,km},currentKm); if(!r)return; // benutze r.{datum,liter,preis,km}
+// Vanilla-DOM analog _confirmModal; validiert vor Resolve, blockiert Save bei Ungültigkeit (Inline-Hinweis).
+window._tankConfirmModal=function(init,currentKm){
+  init=init||{};currentKm=parseInt(currentKm,10)||0;
+  return new Promise(function(resolve){
+    const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
+    const box=document.createElement('div');
+    box.style.cssText='background:'+bg+';color:'+tx+';border-radius:12px;border:1px solid '+bd+';padding:20px 22px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:inherit;';
+    const title=document.createElement('div');title.textContent='⛽ Tankung speichern?';title.style.cssText='font-size:16px;font-weight:700;margin-bottom:4px;';
+    const sub=document.createElement('div');sub.textContent='Werte prüfen — Änderungen möglich';sub.style.cssText='font-size:12px;color:'+dm+';margin-bottom:14px;';
+    const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;';
+    function mkField(label,name,type,extra){
+      const wrap=document.createElement('div');
+      const lab=document.createElement('div');lab.textContent=label;lab.style.cssText='font-size:12px;color:'+dm+';margin-bottom:3px;font-weight:500;';
+      const inp=document.createElement('input');inp.name=name;inp.type=type;
+      inp.style.cssText='width:100%;padding:10px 11px;border-radius:6px;border:1px solid '+bd+';background:'+inputBg+';color:'+tx+';font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;min-height:44px;';
+      if(extra)Object.keys(extra).forEach(k=>inp.setAttribute(k,extra[k]));
+      wrap.appendChild(lab);wrap.appendChild(inp);
+      return {wrap:wrap,inp:inp};
+    }
+    const fDatum=mkField('📅 Datum','datum','date',{});
+    const fLiter=mkField('🛢 Liter *','liter','number',{inputmode:'decimal',min:'0',step:'0.01',placeholder:'52.3'});
+    const fPreis=mkField('💶 Gesamtpreis (€)','preis','number',{inputmode:'decimal',min:'0',step:'0.01',placeholder:'89.50'});
+    const fKm=mkField('🛣 km-Stand','km','number',{inputmode:'numeric',pattern:'[0-9]*',min:'0',step:'1',placeholder:String(currentKm||'')});
+    fDatum.inp.value=init.datum||'';
+    fLiter.inp.value=(init.liter!==undefined&&init.liter!==null&&init.liter!=='')?String(init.liter).replace('.',','):'';
+    fPreis.inp.value=(init.preis!==undefined&&init.preis!==null&&init.preis!=='')?String(init.preis).replace('.',','):'';
+    fKm.inp.value=(init.km!==undefined&&init.km!==null&&init.km!=='')?String(init.km):'';
+    grid.appendChild(fDatum.wrap);grid.appendChild(fLiter.wrap);grid.appendChild(fPreis.wrap);grid.appendChild(fKm.wrap);
+    const info=document.createElement('div');info.style.cssText='font-size:12px;color:'+ac+';font-weight:600;min-height:18px;margin:4px 2px 6px;';
+    const err=document.createElement('div');err.style.cssText='font-size:12px;color:#ef4444;font-weight:600;min-height:18px;margin:0 2px 8px;white-space:pre-wrap;';
+    function updateInfo(){
+      const L=parseFloat(String(fLiter.inp.value||'').replace(',','.'));
+      const P=parseFloat(String(fPreis.inp.value||'').replace(',','.'));
+      if(L>0&&P>0){info.textContent='💰 Literpreis: '+(P/L).toFixed(3).replace('.',',')+' €/L';}else{info.textContent='';}
+      err.textContent='';
+    }
+    [fLiter.inp,fPreis.inp,fKm.inp,fDatum.inp].forEach(function(i){i.addEventListener('input',updateInfo);});
+    updateInfo();
+    const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;justify-content:flex-end;margin-top:6px;';
+    const btnCancel=document.createElement('button');btnCancel.textContent='Zurück';
+    btnCancel.style.cssText='padding:9px 18px;border-radius:7px;border:1px solid '+bd+';background:'+cd+';color:'+tx+';font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;min-height:44px;';
+    const btnConfirm=document.createElement('button');btnConfirm.textContent='✓ Speichern';
+    btnConfirm.style.cssText='padding:9px 18px;border-radius:7px;border:none;background:linear-gradient(135deg,#009640,#006e30);color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;min-height:44px;';
+    var _prevFocus=null;try{_prevFocus=document.activeElement;}catch(e){_prevFocus=null;}
+    function cleanup(answer){document.removeEventListener('keydown',keyHandler);try{overlay.remove();}catch(e){}try{if(_prevFocus&&typeof _prevFocus.focus==='function')_prevFocus.focus();}catch(e){}resolve(answer);}
+    function validateAndCollect(){
+      const rawL=String(fLiter.inp.value||'').trim();
+      const rawP=String(fPreis.inp.value||'').trim();
+      const rawK=String(fKm.inp.value||'').trim();
+      const datum=String(fDatum.inp.value||'').trim();
+      if(!datum){err.textContent='⚠️ Datum ist Pflicht';return null;}
+      const L=parseFloat(rawL.replace(',','.'));
+      if(!(L>0)){err.textContent='⚠️ Liter ungültig — bitte gültige Zahl > 0 eingeben';fLiter.inp.focus();return null;}
+      let P=0;
+      if(rawP!==''){if(!/^[0-9]+([.,][0-9]{1,2})?$/.test(rawP)){err.textContent='⚠️ Gesamtpreis ungültig — nur Zahlen erlaubt';fPreis.inp.focus();return null;}P=parseFloat(rawP.replace(',','.'))||0;}
+      let K=0;
+      if(rawK!==''){if(!/^[0-9]+$/.test(rawK)){err.textContent='⚠️ km-Stand ungültig — nur Ziffern (keine Buchstaben)';fKm.inp.focus();return null;}K=parseInt(rawK,10)||0;}
+      if(K>0&&currentKm>0&&K<currentKm){err.textContent='⚠️ km-Stand darf nicht kleiner sein als der aktuelle ('+currentKm.toLocaleString('de-DE')+' km)';fKm.inp.focus();return null;}
+      return {datum:datum,liter:L,preis:P,km:K};
+    }
+    function keyHandler(e){
+      if(e.key==='Escape'){e.preventDefault();cleanup(null);return;}
+      if(e.key==='Enter'&&document.activeElement&&document.activeElement.tagName==='INPUT'){e.preventDefault();const v=validateAndCollect();if(v)cleanup(v);return;}
+    }
+    btnCancel.onclick=function(){cleanup(null);};
+    btnConfirm.onclick=function(){const v=validateAndCollect();if(v)cleanup(v);};
+    overlay.onclick=function(e){if(e.target===overlay)cleanup(null);};
+    document.addEventListener('keydown',keyHandler);
+    row.appendChild(btnCancel);row.appendChild(btnConfirm);
+    box.appendChild(title);box.appendChild(sub);box.appendChild(grid);box.appendChild(info);box.appendChild(err);box.appendChild(row);
+    overlay.appendChild(box);document.body.appendChild(overlay);
+    try{fLiter.inp.focus();fLiter.inp.select&&fLiter.inp.select();}catch(e){}
   });
 };
 // ═══════════ STYLES (theme-reactive via Proxy/getter) ═══════════
@@ -18034,26 +18119,18 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     }else{_viaReader();}
   };
   const addTank=async (fzId)=>{
-    /* v3.9.305: Zahlen-Validierung (Liter/Preis/km — keine Buchstaben) + km-Sperre (nie kleiner als aktueller Stand) + Kontroll-Fenster vor dem Speichern */
-    const _liter=parseFloat(String(tankLiter).replace(",","."));
-    if(!(_liter>0)){window.__toast&&window.__toast("⚠️ Liter ungültig — bitte gültige Zahl eingeben","warn");return;}
-    const _preisRaw=String(tankPreis==null?"":tankPreis).trim();
-    let _preis=0;
-    if(_preisRaw!==""){if(!/^[0-9]+([.,][0-9]{1,2})?$/.test(_preisRaw)){window.__toast&&window.__toast("⚠️ Gesamtpreis ungültig — nur Zahlen erlaubt","warn");return;}_preis=parseFloat(_preisRaw.replace(",","."))||0;}
-    const _kmRaw=String(tankKm==null?"":tankKm).trim();
-    let _km=0;
-    if(_kmRaw!==""){if(!/^[0-9]+$/.test(_kmRaw)){window.__toast&&window.__toast("⚠️ km-Stand ungültig — nur Ziffern (keine Buchstaben)","warn");return;}_km=parseInt(_kmRaw,10)||0;}
+    /* v3.9.306: Editierbarer Kontroll-Dialog — Vorwerte aus Form prefilled, User kann im Modal alle vier Felder
+       (Datum/Liter/Preis/km) korrigieren. Validierung + km-Sperre + Pflichtfelder im Modal selbst (Inline-Hinweis),
+       Save erst bei gültigem Datensatz. Verhindert "noch mal Form öffnen" wenn Tippfehler in Bestätigung auffällt. */
     const _fz=(fahrzeuge||[]).find(x=>x.id===fzId)||{};
     const _curKm=parseInt(_fz.kmStand,10)||0;
-    if(_km>0&&_curKm>0&&_km<_curKm){window.__toast&&window.__toast("⚠️ km-Stand darf nicht kleiner sein als der aktuelle ("+_curKm.toLocaleString("de-DE")+" km)","warn");return;}
-    const _datum=tankDatum||td2();
-    const _msg="⛽ Tankung speichern?\n\nBitte alle Werte prüfen:\n\n📅 Datum:\t"+_datum+"\n🛢 Liter:\t"+String(_liter).replace(".",",")+" L\n💶 Gesamtpreis:\t"+_preis.toFixed(2).replace(".",",")+" €\n🛣 km-Stand:\t"+(_km>0?_km.toLocaleString("de-DE")+" km":"— (kein km)");
-    const _ok=window._confirmModal?await window._confirmModal(_msg,{confirmLabel:"✓ Speichern",cancelLabel:"Zurück"}):true;
-    if(!_ok)return;
-    const data={liter:_liter,preis:_preis,km:_km,datum:_datum,foto:tankFoto||""};
+    if(!window._tankConfirmModal){window.__toast&&window.__toast("⚠️ Tank-Dialog nicht verfügbar — bitte App neu laden","error");return;}
+    const _r=await window._tankConfirmModal({datum:tankDatum||td2(),liter:tankLiter,preis:tankPreis,km:tankKm},_curKm);
+    if(!_r)return;
+    const data={liter:_r.liter,preis:_r.preis,km:_r.km,datum:_r.datum,foto:tankFoto||""};
     upd(fzId,f=>{
       f.tankLog=[{...data,by:(curUser&&curUser.name)||""},...(f.tankLog||[])];
-      if(_km>(f.kmStand||0))f.kmStand=_km;
+      if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
       return f;
     },u=>({tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
     window.__toast&&window.__toast("⛽ Tankung erfasst");
@@ -18306,7 +18383,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}
                   , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankL, onChange: e=>setQTankL(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "45.0", autoFocus: true} ))
                   , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Preis € *"  ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankP, onChange: e=>setQTankP(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "72.50"} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", min: "0", step: "1", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
                   , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum"), React.createElement('input', { type: "date", value: qTankDat, onChange: e=>setQTankDat(e.target.value), style: II()} ))
                 )
                 , qTankL&&qTankP&&(React.createElement('div', { style: {padding:8,borderRadius:6,background:"rgba(249,115,22,.06)",marginBottom:10,fontSize:12,display:"flex",justifyContent:"space-between"}}
@@ -18324,7 +18401,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 )
                 , React.createElement('div', { style: {marginBottom:10}}
                   , React.createElement('span', { style: LL()}, "Neuer km-Stand *"  )
-                  , React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qKm, onChange: e=>setQKm(e.target.value), style: {...II(),fontSize:22,fontFamily:mono,textAlign:"center",fontWeight:800}, autoFocus: true} )
+                  , React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", min: "0", step: "1", value: qKm, onChange: e=>setQKm(e.target.value), style: {...II(),fontSize:22,fontFamily:mono,textAlign:"center",fontWeight:800}, autoFocus: true} )
                   , React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:4}}, "Aktuell: " , (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
                 )
                 , React.createElement('div', { style: {marginBottom:12}}
@@ -18406,7 +18483,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
               )
               , React.createElement('div', {}
                 , React.createElement('span', { style: {...LL(),fontSize:10}}, "km-Stand")
-                , React.createElement('input', { type: "number", inputMode:"decimal", value: bKm, onChange: e=>setBKm(e.target.value), style: {...II(),fontSize:13,fontFamily:mono}, onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+                , React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", step: "1", value: bKm, onChange: e=>setBKm(e.target.value), style: {...II(),fontSize:13,fontFamily:mono}, onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
               )
               , React.createElement('button', { onClick: batchSave, disabled: !bLit||!bPreis, style: {...bpS,padding:"12px 20px",fontSize:14,whiteSpace:"nowrap",minHeight:44,opacity:(!bLit||!bPreis)?.4:1}}, "⛽ Speichern" )
             )
@@ -18614,7 +18691,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum *" ), React.createElement('input', { type: "date", value: tankDatum, onChange: e=>setTankDatum(e.target.value), style: II()} ))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.1", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52.3" , autoFocus: true} ))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89.50" } ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", min: "0", step: "1", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
           )
           , tankLiter&&tankPreis&&parseFloat(tankLiter)>0&&React.createElement('div', { style: {fontSize:12,color:V.ac,fontWeight:600,marginBottom:6}}, "💰 Literpreis: "  , _n((parseFloat(tankPreis)/parseFloat(tankLiter)),3), " €/L" )
           , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>addTank(sel), style: bpS}, "💾 Speichern" ), React.createElement('button', { onClick: ()=>{setShowTank(null);setTankFoto("");}, style: bsS()}, "✕"))

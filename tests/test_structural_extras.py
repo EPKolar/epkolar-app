@@ -115,3 +115,20 @@ def test_mapbody_uses_text_json_fields_check(index_html):
 # MONT / Monteure ----------------------------------------------------------
 def test_mont_constants_table_present(index_html):
     assert re.search(r"\bMONT\s*=\s*\[", index_html), "MONT-Tabelle fehlt"
+
+
+# 0-rows-Safeguard (v3.9.306 #3) — RLS-Silent-Denial bei Fahrzeug-/Tank-Save -
+def test_fahrzeug_patch_captures_result(index_html):
+    """Generischer PATCH muss das _sbPatch-Ergebnis erfassen (für 0-rows-Check)."""
+    assert "const _patchRes=await _sbPatch(table,idOrSub,patchData);" in index_html
+
+
+def test_fahrzeug_zero_rows_safeguard_present(index_html):
+    """Bei 0 betroffenen Zeilen (RLS-Denial) muss eine Warnung statt stillem Verlust feuern."""
+    m = re.search(
+        r'if\(table==="fahrzeuge"&&Array\.isArray\(_patchRes\)&&_patchRes\.length===0\)\{([\s\S]{0,300}?)\}',
+        index_html,
+    )
+    assert m, "0-rows-Safeguard für fahrzeuge fehlt"
+    body = m.group(1)
+    assert "window.__toast" in body, "Safeguard muss den User per Toast warnen"
