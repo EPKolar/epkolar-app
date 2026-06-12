@@ -22,6 +22,12 @@ Status-Legende: 🐛 = echter Bug (gefixt) · 📝 = Zweifelsfall (nur dokumenti
 **Risiko:** Versehentliche Bulk-Löschung der Wochenplanung-Zeile, kein Recovery.
 **Fix:** Beide als `async` + `_confirmModal` (delRow danger-Variant). Internals unverändert.
 
+### 🐛 Urlaubsplanung — approve + reject ohne Handler-Guard + _confirmModal (v3.9.326)
+**Zeilen:** 14995-14996
+**Befund:** `approve(m,d)` und `reject(m,d)` (AbsView) mutieren DB-Status (`absences.status` PUT) ohne `_confirmModal` und ohne Handler-Eingangsguard. Render-Buttons sind isAdmin-gated (Z.15043-15044), aber Handler-Defense-in-Depth fehlte → schneller Klick = irreversible Status-Änderung; programmatischer Aufruf (z.B. via DevTools) hätte canDo umgangen.
+**Risiko:** Versehentlicher Klick auf ✅/❌ → Genehmigung/Ablehnung sofort committed. Push-Notification an Mitarbeiter ist raus.
+**Fix:** Beide als `async` + Handler-Guard `if(!isAdmin)return;` + `_confirmModal` mit Antrag-Detail im Text. reject mit danger-Variant.
+
 ---
 
 ## Bereich-Status

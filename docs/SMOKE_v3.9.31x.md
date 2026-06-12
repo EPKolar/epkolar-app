@@ -30,6 +30,11 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (t) v3.9.326 Urlaubsplanung Modal-Guard für approve/reject
+**Schritt:** Urlaub-Tab → einen offenen Antrag genehmigen (✅) und einen anderen ablehnen (❌).
+**Erwartung:** Jeweils erscheint ein `_confirmModal` mit Mitarbeitername + Datum: „Urlaub für X am Y wirklich GENEHMIGEN/ABLEHNEN?". Erst nach Bestätigung wird `status` gesetzt + Push-Notification an Mitarbeiter raus. Bei Abbruch keine Änderung.
+**Pass [ ]**
+
 ### (s) v3.9.325 Wochenplanung Modal-Guard
 **Schritt:** Wochenplanung-Tab → bei einer befüllten Zeile a) das „leeren"-Icon klicken und b) das „löschen"-Icon klicken.
 **Erwartung:** Vor jeder Aktion erscheint ein `_confirmModal` mit der Rückfrage. Erst nach Bestätigung wird die Zeile geleert / gelöscht. Bei Abbruch bleibt alles unverändert.
