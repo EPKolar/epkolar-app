@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.301';
+  var SW_VER='epkolar-v3.9.302';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2350,7 +2350,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.301-supabase";
+const APP_VERSION="3.9.302-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3029,6 +3029,23 @@ function _juprowaWorkerToCode(workerId){
   // Check dynamic map
   for(const[code,wid]of Object.entries(_juprowaDynMap)){if(wid===workerId&&wid!=='__ausgeschieden')return code;}
   return''; // Worker has no Juprowa code (e.g. Barger, Cracana)
+}
+
+/* v3.9.302: Volle OFFA/Juprowa-Monteur-Liste ziehen → _juprowaDynMap automatisch füllen.
+   Damit haben NEUE OFFA-Monteure sofort volle App-Funktion (Zuweisung pusht AK_MONTEUR korrekt)
+   OHNE Hardcoding in JUPROWA_WORKER_MAP — auf jedem Geraet (localStorage je Geraet). Reuse
+   _juprowaResolveWorker (Name-Match + Persist). Fail-safe: fehlt der RPC, No-Op (Auto-Lernen aus
+   Worksheets bleibt unveraendert). RPC juprowa_fetch_monteure → [{code,name}] (Chat-Claude). */
+async function _juprowaFetchMonteure(){
+  try{
+    await (window._ensureAuth&&window._ensureAuth());
+    const r=await fetch(SB_REST+"/rpc/juprowa_fetch_monteure",_fT({method:"POST",headers:_sbWH(),body:"{}"},15000));
+    if(!r.ok)return;
+    const list=await r.json();
+    if(!Array.isArray(list)||!list.length)return;
+    const workers=await _sbGet("workers","select=id,name,vorname").catch(()=>[]);
+    list.forEach(m=>{const c=m&&(m.code||m.AK_MONTEUR||m.monteur_code);const nm=m&&(m.name||m.text||m.AK_MONTEUR_TEXT||m.AK_MONTEUR_NAME||"");if(c)_juprowaResolveWorker(String(c),String(nm||""),workers||[]);});
+  }catch(e){console.warn('[juprowa_fetch_monteure]',e&&e.message||e);}
 }
 
 // Build push JSON from a local Arbeitsschein
@@ -6141,6 +6158,8 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     _juprowaStartAutoSync(setArbeitsscheine);
     return()=>{clearTimeout(t);_juprowaStopAutoSync();};
   },[canSync]);
+  /* v3.9.302: OFFA-Monteur-Liste automatisch ziehen → _juprowaDynMap füllen (neue Monteure sofort voll funktionsfaehig, jedes Geraet). Additiv, fasst _juprowaPush/Pull nicht an. */
+  _react.useEffect.call(void 0, ()=>{if(canSync&&_authToken&&navigator.onLine)_juprowaFetchMonteure();},[canSync]);
   const [sub,setSub]=_react.useState.call(void 0, "liste");
   /* v3.9.82 Sprint-61.2: Filter-Persistence (localStorage) AS-Liste status/art/quick. */
   const _asFilterLoad=(k,d)=>{try{const v=localStorage.getItem("epk_as_"+k);return v||d;}catch(e){return d;}};
