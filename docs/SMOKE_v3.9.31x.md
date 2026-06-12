@@ -91,6 +91,12 @@ Plus die bestehenden FahrbewSection / AnmeldungSection und Passwort-Card.
 **Erwartung:** Jeder Tab zeigt **Icon UND Label** (vorher nur Icon auf Mobile). Aktiver Tab erkennbar durch dickeren 3px-Underline + farbigen Hintergrund + Bold-Text. Icons groesser (16px statt 12px). Bereich-Wechsel sofort sichtbar. Touch-Target mindestens 44px hoch.
 **Pass [ ]**
 
+### (m) v3.9.320 COMPANY_FOOTER-Refactor (Print/PDF/Excel-Footer)
+**Schritt:** Beliebigen Excel-Export oder PDF-Print auslösen (z.B. Bautagebuch Excel, Mängel-Report PDF via Print, Bauwochenbericht, Material-Warenkorb-Print).
+**Erwartung:** Firmen-Footer (Andreas Kolar & Sohn GesmbH · Marktplatz 17, 3470 Kirchberg am Wagram · Tel +43 2279 2361 · office@ep-kolar.at · FN 042490k, LG St. Pölten · UID: ATU20296908) sieht in JEDEM Output identisch aus. Vorher waren ~13 Stellen hardcoded mit kleinen Abweichungen — jetzt eine `COMPANY_FOOTER`-Konstante (Z.~3964) + Helfer `CF_HTML_LINE1` / `CF_HTML_LINE2` / `CF_HTML_NAME` / `CF_HTML_AGB`.
+**Spot-Check:** Wenn künftig die Telefonnummer oder UID wechselt, reicht eine Änderung in der Konstante — die 13 Stellen ziehen automatisch nach.
+**Pass [ ]**
+
 ### (l) v3.9.317 ProjList Status-Badges (Office-UX)
 **Schritt:** Als Admin / Projektleiter / Buero den Projekte-Tab oeffnen → Projekt-Liste.
 **Erwartung:** Unter den bekannten KPI-Werten (⏱️h / 💰 / ⚡Gewerk / 📊%) eine zweite Reihe Status-Badges:
