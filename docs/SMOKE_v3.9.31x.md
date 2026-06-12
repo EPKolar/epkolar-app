@@ -86,6 +86,11 @@
 Plus die bestehenden FahrbewSection / AnmeldungSection und Passwort-Card.
 **Pass [ ]**
 
+### (k) v3.9.316 Mobile Projekt-Navzeile lesbarer
+**Schritt:** Projekt oeffnen auf Handy/iPhone-Safari. Tab-Bar oben (Dashboard / Zeit / Berichte / Plaene / Formulare / Maengel / Checklisten / Bautagebuch / Fotos / Material / Dokumente / OFFA / Export) anschauen + durch die Tabs tippen.
+**Erwartung:** Jeder Tab zeigt **Icon UND Label** (vorher nur Icon auf Mobile). Aktiver Tab erkennbar durch dickeren 3px-Underline + farbigen Hintergrund + Bold-Text. Icons groesser (16px statt 12px). Bereich-Wechsel sofort sichtbar. Touch-Target mindestens 44px hoch.
+**Pass [ ]**
+
 ### Bonus — Tab-Swipe (v3.9.313)
 **Schritt:** Auf Mobile mit dem Finger nach links/rechts ueber den Tab-Content wischen.
 **Erwartung:** Wechselt zum naechsten/vorherigen Tab. Bleibt am Anfang/Ende stehen (keine ungueltigen Indizes). Vertikales Scrollen geht weiterhin (touch-action:pan-y).
