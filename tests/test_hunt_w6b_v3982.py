@@ -9,17 +9,14 @@ def test_generatebwb_escapes(index_html):
     assert index_html.count("text-align:right\">'+esc(proj.") == 2
 
 
-def test_genpdf_null_guards(index_html):
-    # M-P2: TXT-Projektdoku druckte "Kunde: undefined" bei Altprojekten
-    assert '"Kunde:          "+(p.kunde||"—")' in index_html
-    assert '"Matchcode:       "+(p.matchcode||"—")' in index_html
-    assert '"Fortschritt:    "+(p.fortschritt||0)+"%"' in index_html
-
-
-def test_bautagebuch_txt_guard(index_html):
-    # Robust ohne Umlaut-Literal: Null-Guard-Marker im Bautagebuch-TXT-Export
-    assert "v3.9.128 M-P3: Null-Guard Bautagebuch-TXT" in index_html
-    assert '+(e.taetigkeiten||"—")+' in index_html
+def test_no_txt_exports_remain(index_html):
+    # v3.9.308: Alle TXT-Exporte aus der App entfernt (Buero nutzt nur Excel).
+    # genPdf (Projektdoku-TXT), exportTxt (Bautagebuch/Wochenplanung/Zeiterfassung), exportAbsTxt
+    # — keine dieser Funktionsdefinitionen darf mehr existieren.
+    for marker in ("const genPdf=", "const exportAbsTxt=", "const exportTxt="):
+        assert marker not in index_html, f"v3.9.308: {marker} muss entfernt sein"
+    # Auch keine text/plain-Blob-Downloads mehr (nur Uploads via accept=.txt sind ok).
+    assert 'type:"text/plain;charset=utf-8"' not in index_html
 
 
 def test_portal_loads_only_kunde_defects(index_html):
