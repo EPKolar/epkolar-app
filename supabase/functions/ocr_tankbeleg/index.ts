@@ -37,12 +37,19 @@ function parseTankbeleg(text: string) {
     if (total && exp > 0 && Math.abs(total - exp) / exp <= 0.12) { } else if ((!total || total < 5) && exp >= 5) total = Math.round(exp * 100) / 100;
   }
   if (total && total >= 1 && total <= 5000) out.preis = total.toFixed(2);
-  // km: 3-stufig, erster Treffer gewinnt — robust gegen spaltenweises Vision-Layout (Label/Wert durch Zeilenumbrueche getrennt)
-  const kmM =
-    t.match(/KILOMETERSTAND\D{0,10}(\d{2,7})\b/i) ||         // 1) Same-line: Label direkt vor Wert
-    t.match(/KILOMETERSTAND[\s\S]{0,60}?\b(\d{3,7})\b/i) ||  // 2) Block-Naehe: Wert 1-3 Zeilen nach dem Label
-    t.match(/\b(\d{3,7})\s*km\b/i);                          // 3) Generischer Fallback: Zahl + 'km'
-  const kcand = kmM?.[1] ?? null;
+  // km: zeilenbasiert — Label-Zeile finden, dann ueberselbe + max 2 Folgezeilen scannen.
+  // (?!\s*\/\d) verwirft STAN/BATCH-Zahlen (z.B. "046183/420" wurde vorher als km gegriffen).
+  // 0*([1-9]\d{2,6}) strippt fuehrende Nullen + verlangt erste Ziffer != 0.
+  const _lines = t.split(/\r?\n/);
+  const _ki = _lines.findIndex((l) => /KILOMETERSTAND/i.test(l));
+  let kcand: string | null = null;
+  if (_ki >= 0) {
+    for (let i = _ki; i <= Math.min(_ki + 2, _lines.length - 1) && !kcand; i++) {
+      const m = _lines[i].match(/\b0*([1-9]\d{2,6})\b(?!\s*\/\d)/);
+      if (m) kcand = m[1];
+    }
+  }
+  if (!kcand) { const m = t.match(/\b([1-9]\d{2,6})\s*km\b/i); if (m) kcand = m[1]; }
   if (kcand) { const k = parseInt(kcand, 10); if (k >= 1 && k <= 9999999) out.km = String(k); }
   return out;
 }
