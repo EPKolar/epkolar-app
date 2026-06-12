@@ -30,6 +30,11 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (s) v3.9.325 Wochenplanung Modal-Guard
+**Schritt:** Wochenplanung-Tab → bei einer befüllten Zeile a) das „leeren"-Icon klicken und b) das „löschen"-Icon klicken.
+**Erwartung:** Vor jeder Aktion erscheint ein `_confirmModal` mit der Rückfrage. Erst nach Bestätigung wird die Zeile geleert / gelöscht. Bei Abbruch bleibt alles unverändert.
+**Pass [ ]**
+
 ### (r) Nach RLS Welle 1 Phase 1 (Block 0.5+1.1+1.2 live)
 **Schritt:** Drei Schnell-Tests mit verschiedenen Rollen:
   1. **Monteur** (z.B. paschinger w1) → Zeiterfassung-Tab → eigene Zeit für heute buchen (Stunden eintragen, speichern). **Erwartung:** Eintrag erscheint sofort, Toast „✅ XXh gespeichert" (oder analog).
