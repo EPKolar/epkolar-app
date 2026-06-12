@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.321';
+  var SW_VER='epkolar-v3.9.322';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2321,7 +2321,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.321-supabase";
+const APP_VERSION="3.9.322-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -18155,19 +18155,24 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     /* v3.9.306: Editierbarer Kontroll-Dialog — Vorwerte aus Form prefilled, User kann im Modal alle vier Felder
        (Datum/Liter/Preis/km) korrigieren. Validierung + km-Sperre + Pflichtfelder im Modal selbst (Inline-Hinweis),
        Save erst bei gültigem Datensatz. Verhindert "noch mal Form öffnen" wenn Tippfehler in Bestätigung auffällt. */
-    const _fz=(fahrzeuge||[]).find(x=>x.id===fzId)||{};
-    const _curKm=parseInt(_fz.kmStand,10)||0;
-    if(!window._tankConfirmModal){window.__toast&&window.__toast("⚠️ Tank-Dialog nicht verfügbar — bitte App neu laden","error");return;}
-    const _r=await window._tankConfirmModal({datum:tankDatum||td2(),liter:tankLiter,preis:tankPreis,km:tankKm},_curKm);
-    if(!_r)return;
-    const data={liter:_r.liter,preis:_r.preis,km:_r.km,datum:_r.datum,foto:tankFoto||""};
-    upd(fzId,f=>{
-      f.tankLog=[{...data,by:(curUser&&curUser.name)||""},...(f.tankLog||[])];
-      if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
-      return f;
-    },u=>({tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
-    window.__toast&&window.__toast("⛽ Tankung erfasst");
-    setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
+    /* v3.9.322: in-flight-Guard gegen Race (Modal await + Doppelklick → 2x upd). Muster identisch zu addKm Z.~18089. */
+    if(window.__addTankInFlight)return;
+    window.__addTankInFlight=true;
+    try{
+      const _fz=(fahrzeuge||[]).find(x=>x.id===fzId)||{};
+      const _curKm=parseInt(_fz.kmStand,10)||0;
+      if(!window._tankConfirmModal){window.__toast&&window.__toast("⚠️ Tank-Dialog nicht verfügbar — bitte App neu laden","error");return;}
+      const _r=await window._tankConfirmModal({datum:tankDatum||td2(),liter:tankLiter,preis:tankPreis,km:tankKm},_curKm);
+      if(!_r)return;
+      const data={liter:_r.liter,preis:_r.preis,km:_r.km,datum:_r.datum,foto:tankFoto||""};
+      upd(fzId,f=>{
+        f.tankLog=[{...data,by:(curUser&&curUser.name)||""},...(f.tankLog||[])];
+        if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
+        return f;
+      },u=>({tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
+      window.__toast&&window.__toast("⛽ Tankung erfasst");
+      setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
+    }finally{window.__addTankInFlight=false;}
   };
   const addSchaden=(fzId)=>{
     if(!schadBeschr.trim())return;

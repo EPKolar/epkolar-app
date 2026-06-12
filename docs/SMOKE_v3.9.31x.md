@@ -30,6 +30,12 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (n) v3.9.322 addTank Doppelklick-Guard
+**Schritt:** Fahrzeug → ⛽ Tankung → Liter/Preis/km eingeben → 💾 Speichern SEHR SCHNELL doppelt tippen.
+**Erwartung:** Es öffnet sich **GENAU EIN** Kontroll-Modal. Nach Confirm landet **GENAU EINE** Tankung in der Liste + DB (kein Duplikat). Der zweite Tap ist no-op (war vorher Race auf 2× upd).
+**Hintergrund:** `__addTankInFlight`-Guard analog zu `__addKmInFlight` (v3.9.39), gesetzt direkt beim Eintritt, im finally zurückgesetzt.
+**Pass [ ]**
+
 ### (a) Tank-Kontroll-Dialog erscheint vor Speichern + Werte editierbar
 **Schritt:** Fahrzeuge → Detail oeffnen → ⛽ Tankung → Liter/Preis/km eingeben → 💾 Speichern.
 **Erwartung:** Modal `_tankConfirmModal` poppt vor dem Save mit allen 4 Feldern (Datum/Liter/Preis/km). Werte liessen sich direkt im Modal aendern. Live-Literpreis-Anzeige. Inline-Fehler-Toast bei ungueltigen Werten.
