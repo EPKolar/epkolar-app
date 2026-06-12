@@ -91,6 +91,18 @@ Plus die bestehenden FahrbewSection / AnmeldungSection und Passwort-Card.
 **Erwartung:** Jeder Tab zeigt **Icon UND Label** (vorher nur Icon auf Mobile). Aktiver Tab erkennbar durch dickeren 3px-Underline + farbigen Hintergrund + Bold-Text. Icons groesser (16px statt 12px). Bereich-Wechsel sofort sichtbar. Touch-Target mindestens 44px hoch.
 **Pass [ ]**
 
+### (l) v3.9.317 ProjList Status-Badges (Office-UX)
+**Schritt:** Als Admin / Projektleiter / Buero den Projekte-Tab oeffnen → Projekt-Liste.
+**Erwartung:** Unter den bekannten KPI-Werten (⏱️h / 💰 / ⚡Gewerk / 📊%) eine zweite Reihe Status-Badges:
+  - ⚠️ N (gelb hervorgehoben, nur wenn Maengel offen) — zeigt Anzahl offener Maengel.
+  - 📋 N oder „📋 –" (gruen wenn Regiebericht vorhanden, grau wenn keiner).
+  - 🤝 ✓ oder „🤝 –" (gruen wenn Abnahmeprotokoll, grau wenn keines).
+
+Hover/Tap zeigt Tooltip mit Klartext.
+**Sichtbar:** Nur fuer isAdmin || curUser.role==='buero'. Monteur/Helfer/Techniker sehen die Badges NICHT (kein Office-Use-Case + reduziert Lärm).
+**Performance:** Aggregator als useMemo gegen forms/projects — 1 Durchlauf pro Render statt N×M Filter.
+**Pass [ ]**
+
 ### Bonus — Tab-Swipe (v3.9.313)
 **Schritt:** Auf Mobile mit dem Finger nach links/rechts ueber den Tab-Content wischen.
 **Erwartung:** Wechselt zum naechsten/vorherigen Tab. Bleibt am Anfang/Ende stehen (keine ungueltigen Indizes). Vertikales Scrollen geht weiterhin (touch-action:pan-y).
