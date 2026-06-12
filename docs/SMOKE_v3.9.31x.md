@@ -30,6 +30,17 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (o) v3.9.319 PDF-Pendant Phase C — Stichprobe 2 Exporte
+**Schritt:** (1) Urlaub-Tab → "Edit-Mode" als Admin → "📊 Excel" Button daneben "🖨️ PDF". (2) Werkzeuge-Tab → "🖨️ PDF" neben "📊 Excel".
+**Erwartung beide:** Druck-Dialog des Browsers öffnet, UI-Chrome ausgeblendet (`.tab-bar`/`.kpi-grid`/`.no-print`/`.mob-shell-nav`), A4-Seitenformat mit 12mm Rand, Schrift 10pt, EP-Kolar-Footer (Andreas Kolar … FN 042490k … UID ATU20296908) sichtbar. „Als PDF speichern" erzeugt sauberes Dokument.
+**Pass [ ]**
+
+### (p) v3.9.321 Tank-Scan nach Tesseract-Removal
+**Schritt:** Fahrzeug → ⛽ Tankung → 📷 Foto vom Beleg machen (mit Vision-Server-Pfad, online).
+**Erwartung:** OCR liefert Datum/Liter/Preis/km in den Formularfeldern (wenn lesbar). Kein CDN-Lazy-Load mehr (Tesseract weg seit v3.9.321), keine Console-Errors. Offline: graceful Fallback "📷 Beleg gespeichert — Werte manuell eingeben (OCR offline)".
+**Hintergrund:** v3.9.321 hat `_loadTesseract`, `_preprocessOcrImage`, `_extractTankFields` (Dead-Code seit v3.9.304) entfernt. parseTankBeleg läuft ausschließlich über Google-Vision-Edge-Function ocr_tankbeleg.
+**Pass [ ]**
+
 ### (n) v3.9.322 addTank Doppelklick-Guard
 **Schritt:** Fahrzeug → ⛽ Tankung → Liter/Preis/km eingeben → 💾 Speichern SEHR SCHNELL doppelt tippen.
 **Erwartung:** Es öffnet sich **GENAU EIN** Kontroll-Modal. Nach Confirm landet **GENAU EINE** Tankung in der Liste + DB (kein Duplikat). Der zweite Tap ist no-op (war vorher Race auf 2× upd).
