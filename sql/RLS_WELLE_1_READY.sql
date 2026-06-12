@@ -1,5 +1,21 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- EPKolar RLS-Härtung Welle 1 — READY-TO-EXECUTE (2026-06-12)
+-- ⛔ DEPRECATED — NICHT MEHR AUSFÜHREN (2026-06-12)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- KORREKTE VERSION: sql/RLS_WELLE_1_READY_v2.sql
+--
+-- K.O.-Fehler in v1: u.id = auth.uid() ist Typ-Mismatch.
+--   public.users.id ist TEXT (z.B. 'u1'..'u9'), auth.uid() ist UUID — matcht nie.
+--   Effekt: Monteure + Projektleiter würden aus time_entries+fahrzeuge ausgesperrt.
+-- KORRIGIERT in v2:
+--   * Office-Check via public.is_hr() Helper (verifiziert in v3.10.5 / v3.10.6).
+--   * Owner-Check via public.current_monteur_id() Helper.
+--   * Join über public.users.auth_user_id (UUID), NICHT users.id (TEXT).
+--   * Snapshot in _rls_snapshot_v3923 vor Drop, dynamische DROP-LOOP analog
+--     migrate_finkzeit_bescheinigungen_v3109.sql.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- EPKolar RLS-Härtung Welle 1 v1 — DEPRECATED (2026-06-12)
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- ▶ KEINE Automation. Sebastian fuehrt im Supabase-SQL-Editor blockweise aus.

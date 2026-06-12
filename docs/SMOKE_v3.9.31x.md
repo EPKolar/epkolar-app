@@ -31,7 +31,7 @@
 ## Smoke-Tests — bitte abklicken
 
 ### (q) v3.9.323 RLS-Welle-1 Defense-in-Depth (Client)
-**Vorbereitung:** Sebastian hat `sql/RLS_WELLE_1_READY.sql` blockweise im Supabase-SQL-Editor ausgeführt (mindestens Block 1.1 + 1.2).
+**Vorbereitung:** Sebastian hat `sql/RLS_WELLE_1_READY_v2.sql` blockweise im Supabase-SQL-Editor ausgeführt (mindestens Block 1.1 + 1.2). **v1 ist DEPRECATED** wegen Typ-Mismatch `users.id` (TEXT) vs `auth.uid()` (UUID).
 **Schritt:** Als Monteur (z.B. w7) in der App einloggen.
   1. **Eigenes Fahrzeug** öffnen → ⛽ Tankung → Werte eingeben → Speichern. **Erwartung:** Toast „⛽ Tankung erfasst" + Eintrag in der Liste.
   2. **Fremdes Fahrzeug** öffnen → ⛽ Tankung → Werte eingeben → Speichern. **Erwartung:** Toast „⚠️ Fahrzeug-Änderung NICHT gespeichert — keine Schreibberechtigung. Bitte Büro/Admin informieren (Eingabe ging nicht in die Datenbank)." (rot, 9 s).
