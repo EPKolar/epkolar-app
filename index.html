@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.308';
+  var SW_VER='epkolar-v3.9.309';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2357,7 +2357,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.308-supabase";
+const APP_VERSION="3.9.309-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -6248,6 +6248,14 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   /* v3.9.302: OFFA-Monteur-Liste automatisch ziehen → _juprowaDynMap füllen (neue Monteure sofort voll funktionsfaehig, jedes Geraet). Additiv, fasst _juprowaPush/Pull nicht an. */
   _react.useEffect.call(void 0, ()=>{if(canSync&&_authToken&&navigator.onLine)_juprowaFetchMonteure();},[canSync]);
   const [sub,setSub]=_react.useState.call(void 0, "liste");
+  /* v3.9.309: Kachel-Scroll — Klick auf Status-Kachel (Gesamt/Offen/Fertig/Einzel-Status) setzt
+     Filter+Liste-Tab und scrollt zur Liste. Vorher: User klickt Kachel, Liste ist ausserhalb des
+     Viewports → User denkt "macht nichts". Mobile-Buero-UX kritisch. */
+  const _scheinListRef=_react.useRef.call(void 0, null);
+  const _scrollToScheinListe=(status)=>{
+    setFilterStatus(status);setSub("liste");
+    setTimeout(()=>{const el=_scheinListRef.current;if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});},80);
+  };
   /* v3.9.82 Sprint-61.2: Filter-Persistence (localStorage) AS-Liste status/art/quick. */
   const _asFilterLoad=(k,d)=>{try{const v=localStorage.getItem("epk_as_"+k);return v||d;}catch(e){return d;}};
   const _asFilterSave=(k,v)=>{try{localStorage.setItem("epk_as_"+k,v||"");}catch(e){console.warn("[silent-ls]",e&&e.message||e);}};
@@ -6827,10 +6835,10 @@ function sharePdf(){
         )
       ))
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
-        , React.createElement(Kpi, { label: "Gesamt", value: stats.total, sub: "Arbeitsscheine", color: "#f97316", i: 0, onClick: ()=>{setFilterStatus("alle");setSub("liste");}} )
-        , React.createElement(Kpi, { label: "Offen (alle)" , value: stats.offen, sub: "zu erledigen" , color: "#eab308", i: 1, onClick: ()=>{setFilterStatus("offen_bearb");setSub("liste");}} )
-        , Object.entries(AS_STATUS).map(([k,v],idx)=>React.createElement(Kpi, { key: k, label: v.i+" "+v.l, value: stats[k]||0, sub: v.grp, color: v.c, i: idx+1, onClick: ()=>{setFilterStatus(k);setSub("liste");}} ))
-        , React.createElement(Kpi, { label: "Fertig (alle)" , value: stats.fertig, sub: "erledigt+abgerechnet" , color: "#22c55e", i: 10, onClick: ()=>{setFilterStatus("fertig");setSub("liste");}} )
+        , React.createElement(Kpi, { label: "Gesamt", value: stats.total, sub: "Arbeitsscheine", color: "#f97316", i: 0, onClick: ()=>_scrollToScheinListe("alle")} )
+        , React.createElement(Kpi, { label: "Offen (alle)" , value: stats.offen, sub: "zu erledigen" , color: "#eab308", i: 1, onClick: ()=>_scrollToScheinListe("offen_bearb")} )
+        , Object.entries(AS_STATUS).map(([k,v],idx)=>React.createElement(Kpi, { key: k, label: v.i+" "+v.l, value: stats[k]||0, sub: v.grp, color: v.c, i: idx+1, onClick: ()=>_scrollToScheinListe(k)} ))
+        , React.createElement(Kpi, { label: "Fertig (alle)" , value: stats.fertig, sub: "erledigt+abgerechnet" , color: "#22c55e", i: 10, onClick: ()=>_scrollToScheinListe("fertig")} )
       )
       , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
         , [{id:"liste",i:"📋",l:"Liste"},{id:"qrscan",i:"📷",l:"QR Scan"},{id:"kalender",i:"📅",l:"Kalender"},{id:"vorlagen",i:"📑",l:"Vorlagen"},{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}].map(t=>React.createElement('button', { key: t.id, onClick: ()=>{if(t.id==="qrscan")asStartScan();else{asStopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#f97316":V.dm,fontSize:isMob?11:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#f97316":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
@@ -6874,7 +6882,7 @@ function sharePdf(){
         )
       ))
 
-      , sub==="liste"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-liste" }
+      , sub==="liste"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-liste", ref: _scheinListRef }
         /* v3.5.74 Block 8: Schnell-Filter-Chips */
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}
           , [
