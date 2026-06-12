@@ -30,6 +30,11 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (u) v3.9.327 Notifs Modal-Guard für delete + Alle-löschen
+**Schritt:** Notif-Bell → Liste öffnen → einzelne Benachrichtigung mit ✕ löschen + „🗑️"-Button (Alle löschen) klicken.
+**Erwartung:** Vor jeder Aktion `_confirmModal` mit Bestätigungs-Text + Count im Alle-löschen-Dialog. Bei Abbruch keine Änderung.
+**Pass [ ]**
+
 ### (t) v3.9.326 Urlaubsplanung Modal-Guard für approve/reject
 **Schritt:** Urlaub-Tab → einen offenen Antrag genehmigen (✅) und einen anderen ablehnen (❌).
 **Erwartung:** Jeweils erscheint ein `_confirmModal` mit Mitarbeitername + Datum: „Urlaub für X am Y wirklich GENEHMIGEN/ABLEHNEN?". Erst nach Bestätigung wird `status` gesetzt + Push-Notification an Mitarbeiter raus. Bei Abbruch keine Änderung.

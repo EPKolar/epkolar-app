@@ -28,6 +28,14 @@ Status-Legende: 🐛 = echter Bug (gefixt) · 📝 = Zweifelsfall (nur dokumenti
 **Risiko:** Versehentlicher Klick auf ✅/❌ → Genehmigung/Ablehnung sofort committed. Push-Notification an Mitarbeiter ist raus.
 **Fix:** Beide als `async` + Handler-Guard `if(!isAdmin)return;` + `_confirmModal` mit Antrag-Detail im Text. reject mit danger-Variant.
 
+### 🐛 Benachrichtigungen — deleteNotif + „Alle löschen" ohne _confirmModal (v3.9.327)
+**Zeilen:** 5432 (`deleteNotif`) + 5861 (Inline-onClick „🗑️ Alle Benachrichtigungen löschen")
+**Befund:** Beide Lösch-Pfade in der Notif-Center-Komponente waren ohne Modal. Ein-Klick zum Wegputzen einzelner ODER aller Notifications eines Users.
+**Risiko:** Versehentliches Löschen unwiederbringlich (Notif-History weg, SQ.push DELETE / POST clear an Server raus).
+**Fix:**
+- `deleteNotif` als `async` + `_confirmModal("Benachrichtigung wirklich löschen?", {variant:"danger"})` voran.
+- Inline-onClick für „Alle löschen" als `async`-Arrow + `_confirmModal("Alle N Benachrichtigungen wirklich löschen?", {variant:"danger"})` mit Count im Text.
+
 ---
 
 ## Bereich-Status

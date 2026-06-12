@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.326';
+  var SW_VER='epkolar-v3.9.327';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.326-supabase";
+const APP_VERSION="3.9.327-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5429,7 +5429,8 @@ class _ViewBoundary extends React.Component{
   const eskCount=myNotifs.filter(n=>!n.read&&((n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick")).length;
   const markRead=id=>{/* v3.9.35 N-1: Skip SQ-Push wenn already-read — vermeidet redundante PUT-Requests bei wiederholten markRead-Klicks (z.B. Notif-Click + Tab-Switch). */let wasUnread=false;setNotifications(p=>{const upd=p.map(n=>{if(n.id===id){if(!n.read)wasUnread=true;return {...n,read:true};}return n;});ODB.save("notifications",upd);return upd;});if(wasUnread)SQ.push({url:"/api/notifications/"+id,method:"PUT",body:{read:1}});};
   const markAllRead=()=>{setNotifications(p=>{const upd=p.map(n=>n.user===_optionalChain([curUser, 'optionalAccess', _65 => _65.id])?{...n,read:true}:n);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/read-all",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65 => _65.id])}});};
-  const deleteNotif=id=>{setNotifications(p=>{const upd=p.filter(n=>n.id!==id);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"DELETE"});};
+  /* v3.9.327: destruktive Notif-Aktion braucht _confirmModal (Modal-Migration-Lücke). */
+  const deleteNotif=async id=>{if(!await _confirmModal("Benachrichtigung wirklich löschen?",{variant:"danger"}))return;setNotifications(p=>{const upd=p.filter(n=>n.id!==id);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"DELETE"});};
 
   // Load persisted notifications from ODB + server
   _react.useEffect.call(void 0, ()=>{
@@ -5857,7 +5858,7 @@ class _ViewBoundary extends React.Component{
             , React.createElement('div', { style: {padding:"14px 16px",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
               , React.createElement('div', { style: {fontSize:15,fontWeight:800}}, "🔔 Benachrichtigungen" )
               , React.createElement('div', { style: {display:"flex",gap:6}}
-                , myNotifs.length>0&&React.createElement('button', { onClick: ()=>{setNotifications(p=>{const upd=p.filter(n=>n.user!==_optionalChain([curUser, 'optionalAccess', _65b => _65b.id]));ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/clear",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65b => _65b.id])}});}, style: {...bsS(),padding:"4px 10px",fontSize:10}, title: "Alle Benachrichtigungen löschen"}, "🗑️")
+                , myNotifs.length>0&&React.createElement('button', { onClick: async ()=>{if(!await _confirmModal("Alle "+myNotifs.length+" Benachrichtigungen wirklich löschen?",{variant:"danger"}))return;setNotifications(p=>{const upd=p.filter(n=>n.user!==_optionalChain([curUser, 'optionalAccess', _65b => _65b.id]));ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/clear",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65b => _65b.id])}});}, style: {...bsS(),padding:"4px 10px",fontSize:10}, title: "Alle Benachrichtigungen löschen"}, "🗑️")/* v3.9.327: Modal-Guard */
                 , unreadCount>0&&React.createElement('button', { onClick: markAllRead, style: {...bsS(),padding:"4px 10px",fontSize:10}}, "✅ Alle gelesen"  )
                 , React.createElement('button', { onClick: ()=>setShowNotifPanel(false), 'aria-label': "Benachrichtigungen schließen", title: "Schließen", style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,padding:"2px 6px"}}, "✕")
               )
