@@ -37,9 +37,12 @@ function parseTankbeleg(text: string) {
     if (total && exp > 0 && Math.abs(total - exp) / exp <= 0.12) { } else if ((!total || total < 5) && exp >= 5) total = Math.round(exp * 100) / 100;
   }
   if (total && total >= 1 && total <= 5000) out.preis = total.toFixed(2);
-  const kmA = t.match(/KILOMETERSTAND\D{0,4}(\d{1,7})/i);
-  const kmB = t.match(/(\d{3,7})\s*km\b/i);
-  const kcand = kmA?.[1] ?? kmB?.[1] ?? null;
+  // km: 3-stufig, erster Treffer gewinnt — robust gegen spaltenweises Vision-Layout (Label/Wert durch Zeilenumbrueche getrennt)
+  const kmM =
+    t.match(/KILOMETERSTAND\D{0,10}(\d{2,7})\b/i) ||         // 1) Same-line: Label direkt vor Wert
+    t.match(/KILOMETERSTAND[\s\S]{0,60}?\b(\d{3,7})\b/i) ||  // 2) Block-Naehe: Wert 1-3 Zeilen nach dem Label
+    t.match(/\b(\d{3,7})\s*km\b/i);                          // 3) Generischer Fallback: Zahl + 'km'
+  const kcand = kmM?.[1] ?? null;
   if (kcand) { const k = parseInt(kcand, 10); if (k >= 1 && k <= 9999999) out.km = String(k); }
   return out;
 }
