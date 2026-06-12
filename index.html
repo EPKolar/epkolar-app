@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.303';
+  var SW_VER='epkolar-v3.9.304';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2350,7 +2350,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.303-supabase";
+const APP_VERSION="3.9.304-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17996,39 +17996,30 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     return _any;
   };
   const parseTankBeleg=(dataUrl)=>{
-    setTankFoto(dataUrl);setTankOcr(true);
+    setTankFoto(dataUrl);setTankOcr(true);setTankOcrProg(0);
     if(!tankDatum||tankDatum===td2())setTankDatum(td2());
     const _toast=(m)=>_optionalChain([window, 'access', _to0 => _to0.__toast, 'optionalCall', _to0b => _to0b(m)]);
-    /* v3.9.278 W-OCR Android-Fix: Tesseract-Pfad als benannte Funktion → von der ergebnis-basierten Kette aufrufbar. */
-    const _runTesseract=async()=>{
+    /* v3.9.304: Tankbeleg-OCR via Google-Vision-Edge-Function ocr_tankbeleg — server-seitiger Parser, Felder kommen fertig zurück (kein Client-Parsing mehr). Offline/HTTP-Fehler/ok:false/Timeout(15s) → KEIN Blocker, Formular bleibt voll nutzbar (manuelle Eingabe). _loadTesseract/_preprocessOcrImage/_extractTankFields bleiben definiert (nur nicht mehr aufgerufen). Kein Prozent-Fortschritt → setTankOcrProg(0) = unbestimmter Indikator. */
+    (async()=>{
+      if(!navigator.onLine){_toast("📷 Beleg gespeichert — Werte manuell eingeben (OCR offline)");setTankOcr(false);setTankOcrProg(0);return;}
+      const _ctl=new AbortController();const _tmo=setTimeout(()=>{try{_ctl.abort();}catch(_ab){}},15000);
       try{
-        const _T=await _loadTesseract();
-        if(!_T){_toast("📷 Beleg gespeichert — Werte manuell eingeben (OCR offline)");setTankOcr(false);setTankOcrProg(0);return;}
-        const _pre=await _preprocessOcrImage(dataUrl,1500);
-        const _res=await _T.recognize(_pre,"deu",{logger:_m=>{if(_m&&_m.status==="recognizing text")setTankOcrProg(Math.round((_m.progress||0)*100));}});/* v3.9.298 OCR-Fix: Sprache deu (österr. Belege, Komma-Dezimal) statt eng; char_whitelist ENTFERNT — sie blockierte die Schlüsselwörter (Summe/Gesamt/EUR/Liter), die _extractTankFields braucht */
-        const _allText=_optionalChain([_res, 'optionalAccess', _ra => _ra.data, 'optionalAccess', _rb => _rb.text])||"";
-        if(_extractTankFields(_allText))_toast("📷 Werte aus Beleg erkannt (OCR) — bitte prüfen!");
-        else _toast("📷 Beleg gespeichert — Werte manuell eingeben");
-      }catch(_e){console.warn('[tank-ocr]',_e&&_e.message||_e);_toast("📷 Beleg gespeichert — Werte manuell eingeben");}
-      finally{setTankOcr(false);setTankOcrProg(0);}
-    };
-    /* v3.9.278 W-OCR Android-Fix: ergebnis-basierte Kette. Native (schnell) versuchen; bei leerem Ergebnis/Exception/Timeout(5s) automatisch auf Tesseract. Kein Pfad endet im Nichts. (Android-Chrome kann TextDetector EXISTIEREN lassen, aber leer liefern.) */
-    /* v3.9.300 Android-Fix: Tesseract (WASM + deu-Daten) hängt/crasht auf schwächeren Android-Geräten → Tab-OOM-Reload = "keine Tankung". Auf Mobilgeräten daher KEIN Tesseract — nur nativer TextDetector (falls vorhanden), sonst manuelle Eingabe. Tesseract nur Desktop. Formular + Speichern bleiben immer nutzbar. */
-    if(typeof TextDetector!=="undefined"){
-      let _done=false,_to;
-      const _afterFail=()=>{if(_done)return;_done=true;clearTimeout(_to);if(_isMobileDevice){_toast("📷 Beleg gespeichert — Werte bitte manuell eingeben");setTankOcr(false);setTankOcrProg(0);}else{_runTesseract();}};
-      _to=setTimeout(_afterFail,6000);
-      try{const img=new Image();img.onload=async()=>{try{const det=new TextDetector();const texts=await det.detect(img);const allText=texts.map(t=>t.rawValue).join(" ");
-        if(_done)return;
-        if(_extractTankFields(allText)){_done=true;clearTimeout(_to);_toast("📷 Werte aus Beleg erkannt (OCR) — bitte prüfen!");setTankOcr(false);setTankOcrProg(0);}
-        else{_afterFail();}
-      }catch(_){_afterFail();}};img.onerror=()=>_afterFail();img.src=dataUrl;
-      }catch(_){_afterFail();}
-    }else if(!_isMobileDevice){
-      _runTesseract();
-    }else{
-      _toast("📷 Beleg gespeichert — Werte bitte manuell eingeben");setTankOcr(false);setTankOcrProg(0);
-    }
+        await (window._ensureAuth&&window._ensureAuth());
+        const _r=await fetch(SUPABASE_URL+"/functions/v1/ocr_tankbeleg",{method:"POST",headers:{...window._sbH(),"Content-Type":"application/json"},body:JSON.stringify({image:dataUrl}),signal:_ctl.signal});
+        const _j=await _r.json().catch(()=>null);
+        if(_r.ok&&_j&&_j.ok===true){
+          let _any=false;
+          if(_j.datum){setTankDatum(_j.datum);_any=true;}
+          if(_j.liter){setTankLiter(_j.liter);_any=true;}
+          if(_j.preis){setTankPreis(_j.preis);_any=true;}
+          if(_j.km){setTankKm(_j.km);_any=true;}
+          _toast(_any?"📷 Werte aus Beleg erkannt (Google Vision) — bitte prüfen!":"📷 Beleg gespeichert — Werte manuell eingeben");
+        }else{
+          _toast("📷 Beleg gespeichert — Werte manuell eingeben (OCR offline)");
+        }
+      }catch(_e){console.warn('[tank-ocr]',_e&&_e.message||_e);_toast("📷 Beleg gespeichert — Werte manuell eingeben (OCR offline)");}
+      finally{clearTimeout(_tmo);setTankOcr(false);setTankOcrProg(0);}
+    })();
   };
   const handleTankFoto=(e)=>{
     const file=_optionalChain([e, 'access', _635 => _635.target, 'optionalAccess', _636 => _636.files, 'optionalAccess', _637 => _637[0]]);if(!file)return;
