@@ -36,6 +36,23 @@ Status-Legende: 🐛 = echter Bug (gefixt) · 📝 = Zweifelsfall (nur dokumenti
 - `deleteNotif` als `async` + `_confirmModal("Benachrichtigung wirklich löschen?", {variant:"danger"})` voran.
 - Inline-onClick für „Alle löschen" als `async`-Arrow + `_confirmModal("Alle N Benachrichtigungen wirklich löschen?", {variant:"danger"})` mit Count im Text.
 
+### 🐛 Material/Bestellwesen — deleteSuppOrd + deleteCatalog canDo-Gaps (v3.9.328)
+**Zeilen:** 14124 (deleteSuppOrd Render) + 14203 (deleteCatalog Handler-Eintritt) + 14220 (deleteCatalog Render)
+**Befund:**
+- `deleteSuppOrd`: Handler hat `canDo("material_delete")`-Guard, aber Render-Button war IMMER sichtbar → Nicht-Berechtigte sehen Button, klicken, bekommen Permission-Toast (UX-Verwirrung + nutzlos).
+- `deleteCatalog`: Handler hatte WEDER `canDo`-Guard NOCH Render-Filter. `_confirmModal` allein ist nicht Defense-in-Depth — programmatischer Aufruf umgeht ihn.
+
+**Risiko:** Bei deleteCatalog: Monteur ruft `deleteCatalog(catId)` aus DevTools-Console → DATANORM-Katalog gelöscht. Server-API hat zwar i.d.R. eigene Auth-Layer, aber Client-Defense-in-Depth fehlte ganz.
+
+**Fix:**
+- `deleteSuppOrd`: Render-Button mit `canDo("material_delete",curUser)&&...` gegated.
+- `deleteCatalog`: Handler-Eintritt `if(!canDo("material_delete",curUser)){toast(„Keine Berechtigung");return;}` + Render-Button mit `canDo`-Filter.
+- Bestehender `_confirmModal` bleibt.
+
+### 📝 Material — addItem manueller Mengen-Parse + delWzPhoto-canDo-Inkonsistenz
+- **`addItem`** (Z.13421): `parseFloat(String(r.menge).replace(",","."))||1` — Fallback `||1` maskiert leere Eingabe als 1 Stk. **Risiko:** quantitativ falsche Anforderung ohne Validierungs-Toast. **Vorschlag:** mit Validierungs-Toast bei NaN — nicht jetzt fixen (UX-Entscheidung).
+- **`delWzPhoto`** (Z.19225/19813): Render+Handler-Guard ist `isVAdmin` statt `canDo("wz_edit")` wie checkout/checkin. Funktional korrekt, nur inkonsistent. **Vorschlag:** auf `canDo` umstellen bei nächster Wz-Refactor-Welle.
+
 ---
 
 ## Bereich-Status

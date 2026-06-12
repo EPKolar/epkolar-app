@@ -30,6 +30,13 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (v) v3.9.328 Material canDo-Defense-in-Depth (deleteSuppOrd + deleteCatalog)
+**Schritt:** Material-Tab als Monteur einloggen (nicht Admin/PL/Büro).
+  1. Eine Händler-Bestellung öffnen → erwartet: kein 🗑-Button mehr (war vorher sichtbar mit "Permission-Toast on click").
+  2. DATANORM-Kataloge-Liste → erwartet: kein 🗑-Button neben Katalogen.
+  3. Als Admin → Buttons da, Klick öffnet `_confirmModal`, Bestätigung löscht.
+**Pass [ ]**
+
 ### (u) v3.9.327 Notifs Modal-Guard für delete + Alle-löschen
 **Schritt:** Notif-Bell → Liste öffnen → einzelne Benachrichtigung mit ✕ löschen + „🗑️"-Button (Alle löschen) klicken.
 **Erwartung:** Vor jeder Aktion `_confirmModal` mit Bestätigungs-Text + Count im Alle-löschen-Dialog. Bei Abbruch keine Änderung.
