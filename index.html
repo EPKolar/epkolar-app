@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.309';
+  var SW_VER='epkolar-v3.9.310';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2357,7 +2357,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.309-supabase";
+const APP_VERSION="3.9.310-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -18090,7 +18090,15 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           if(_j.datum){setTankDatum(_j.datum);_any=true;}
           if(_j.liter){setTankLiter(_j.liter);_any=true;}
           if(_j.preis){setTankPreis(_j.preis);_any=true;}
-          if(_j.km){setTankKm(_j.km);_any=true;}
+          /* v3.9.310: OCR-km nur uebernehmen wenn >= aktueller Fahrzeug-km-Stand. STAN/BATCH-Treffer
+             (z.B. 046183/420) liegen typischerweise UNTER dem aktuellen Stand → verwerfen + warnen.
+             tankKm wurde beim Dialog-Open bereits mit selFz.kmStand vorbefuellt — die Vorbefuellung bleibt. */
+          if(_j.km){
+            const _vk=parseInt(((fahrzeuge||[]).find(f=>f.id===showTank)||{}).kmStand,10)||0;
+            const _ock=parseInt(_j.km,10)||0;
+            if(_ock>=_vk){setTankKm(_j.km);_any=true;}
+            else{_toast("⚠️ km vom Beleg unplausibel (<aktueller Stand) — bitte prüfen");}
+          }
           _toast(_any?"📷 Werte aus Beleg erkannt (Google Vision) — bitte prüfen!":"📷 Beleg gespeichert — Werte manuell eingeben");
         }else{
           _toast("📷 Beleg gespeichert — Werte manuell eingeben (OCR offline)");
