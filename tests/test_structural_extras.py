@@ -124,11 +124,20 @@ def test_fahrzeug_patch_captures_result(index_html):
 
 
 def test_fahrzeug_zero_rows_safeguard_present(index_html):
-    """Bei 0 betroffenen Zeilen (RLS-Denial) muss eine Warnung statt stillem Verlust feuern."""
+    """Bei 0 betroffenen Zeilen (RLS-Denial) muss eine Warnung statt stillem Verlust feuern.
+
+    v3.9.323: fahrzeuge-Hardcode-Check durch _RLS_SILENT_DENIAL_LABELS-Map-Lookup ersetzt
+    (Defense-in-Depth fuer RLS-Welle-1). Test verifiziert jetzt das generalisierte Pattern.
+    """
+    assert "_RLS_SILENT_DENIAL_LABELS=Object.freeze" in index_html, (
+        "_RLS_SILENT_DENIAL_LABELS-Map fehlt"
+    )
+    assert "fahrzeuge:" in index_html, "fahrzeuge-Eintrag in RLS-Label-Map fehlt"
     m = re.search(
-        r'if\(table==="fahrzeuge"&&Array\.isArray\(_patchRes\)&&_patchRes\.length===0\)\{([\s\S]{0,300}?)\}',
+        r"if\(_RLS_SILENT_DENIAL_LABELS\[table\]\s*&&\s*Array\.isArray\(_patchRes\)\s*&&\s*_patchRes\.length===0\)\{([\s\S]{0,300}?)\}",
         index_html,
     )
-    assert m, "0-rows-Safeguard für fahrzeuge fehlt"
+    assert m, "0-rows-Safeguard mit Map-Lookup fehlt (v3.9.323-Form)"
     body = m.group(1)
     assert "window.__toast" in body, "Safeguard muss den User per Toast warnen"
+    assert "_RLS_SILENT_DENIAL_LABELS[table]" in body, "Toast muss Label aus Map interpolieren"

@@ -30,6 +30,16 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (q) v3.9.323 RLS-Welle-1 Defense-in-Depth (Client)
+**Vorbereitung:** Sebastian hat `sql/RLS_WELLE_1_READY.sql` blockweise im Supabase-SQL-Editor ausgeführt (mindestens Block 1.1 + 1.2).
+**Schritt:** Als Monteur (z.B. w7) in der App einloggen.
+  1. **Eigenes Fahrzeug** öffnen → ⛽ Tankung → Werte eingeben → Speichern. **Erwartung:** Toast „⛽ Tankung erfasst" + Eintrag in der Liste.
+  2. **Fremdes Fahrzeug** öffnen → ⛽ Tankung → Werte eingeben → Speichern. **Erwartung:** Toast „⚠️ Fahrzeug-Änderung NICHT gespeichert — keine Schreibberechtigung. Bitte Büro/Admin informieren (Eingabe ging nicht in die Datenbank)." (rot, 9 s).
+  3. **Eigenen Zeiteintrag** in der Wochenübersicht bearbeiten → Stunden ändern → Speichern. **Erwartung:** Toast „✏️ Eintrag aktualisiert".
+  4. **Fremden Zeiteintrag** versuchen zu bearbeiten (z.B. via direkter SQ.push aus DevTools-Console). **Erwartung:** Toast „⚠️ Zeiteintrag NICHT gespeichert — keine Schreibberechtigung…".
+**Hintergrund:** `_RLS_SILENT_DENIAL_LABELS`-Map in `_translateAndExec` triggert den Toast für `fahrzeuge`, `time_entries`, `forms`, `bautagebuch`, `fz_schaeden` sobald die Server-Policies scharf sind.
+**Pass [ ]**
+
 ### (o) v3.9.319 PDF-Pendant Phase C — Stichprobe 2 Exporte
 **Schritt:** (1) Urlaub-Tab → "Edit-Mode" als Admin → "📊 Excel" Button daneben "🖨️ PDF". (2) Werkzeuge-Tab → "🖨️ PDF" neben "📊 Excel".
 **Erwartung beide:** Druck-Dialog des Browsers öffnet, UI-Chrome ausgeblendet (`.tab-bar`/`.kpi-grid`/`.no-print`/`.mob-shell-nav`), A4-Seitenformat mit 12mm Rand, Schrift 10pt, EP-Kolar-Footer (Andreas Kolar … FN 042490k … UID ATU20296908) sichtbar. „Als PDF speichern" erzeugt sauberes Dokument.

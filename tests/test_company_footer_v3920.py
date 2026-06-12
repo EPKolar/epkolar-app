@@ -71,6 +71,30 @@ def test_pdf_buttons_all_use_window_print(index_html):
         )
 
 
+# v3.9.323: RLS-Welle-1 0-rows-Defense-in-Depth ------------------------------
+
+def test_rls_silent_denial_labels_map(index_html):
+    """v3.9.323: _RLS_SILENT_DENIAL_LABELS Map deckt Welle-1-Tabellen ab."""
+    assert "_RLS_SILENT_DENIAL_LABELS=Object.freeze" in index_html, (
+        "Map-Konstante fehlt — wurde fahrzeuge-Hardcode-Check noch nicht generalisiert?"
+    )
+    # Pflicht-Eintraege fuer Welle-1-Tabellen mit PATCH-Pfad
+    for table in ("fahrzeuge", "time_entries", "forms", "bautagebuch", "fz_schaeden"):
+        assert f"{table}:" in index_html, (
+            f"_RLS_SILENT_DENIAL_LABELS fehlt Eintrag fuer Tabelle '{table}'"
+        )
+    # Generischer Check: alter fahrzeuge-Hardcode darf NICHT mehr existieren
+    import re as _re
+    assert not _re.search(
+        r'if\(table==="fahrzeuge"\s*&&\s*Array\.isArray\(_patchRes\)',
+        index_html,
+    ), "fahrzeuge-Hardcode-Check muss durch Map-Lookup ersetzt sein"
+    # Toast-Format muss Label-Variable nutzen
+    assert '_RLS_SILENT_DENIAL_LABELS[table]' in index_html, (
+        "Toast verwendet die Map nicht — Label-Variable fehlt im Render"
+    )
+
+
 # v3.9.322: addTank Doppelklick-Guard ----------------------------------------
 
 def test_add_tank_inflight_guard(index_html):
