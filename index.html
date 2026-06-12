@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.302';
+  var SW_VER='epkolar-v3.9.303';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2350,7 +2350,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.302-supabase";
+const APP_VERSION="3.9.303-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3056,6 +3056,8 @@ function _juprowaSanitize(s){
     .replace(/\u201C|\u201D/g,'"').replace(/\u20AC/g,'EUR').replace(/\u2026/g,'...')
     .replace(/\u00A0/g,' ');
 }
+/* v3.9.303: Sprach-Transkript Satz-Gro\u00DFschreibung (Web-Speech liefert oft alles klein). Gro\u00DFschreibt Satzanf\u00E4nge (Start + nach .!?). Nomen-Gro\u00DFschreibung br\u00E4uchte NLP \u2014 nicht client-seitig machbar; Satz-Case ist die praktikable Verbesserung. */
+function _capSent(s){if(!s)return s;return String(s).replace(/(^\s*|[.!?]\s+)([a-z\u00E4\u00F6\u00FC\u00DF])/g,function(m,p,c){return p+c.toUpperCase();});}
 function _juprowaReversMap(schein){
   if(!schein||!schein.juprowa_id)return null;
   const json={ID:schein.juprowa_id};
@@ -4087,7 +4089,7 @@ function useSpeech(onResult){
     }
     let rec;try{rec=new SpeechRec();}catch(_g251b){if(window.__toast)window.__toast("🎤 Spracherkennung konnte nicht gestartet werden","error",4000);return;}
     rec.lang="de-AT";rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;
-    rec.onresult=e=>{/* v3.8.44 S2.4 Length-Guard: Race bei Speech-Cancel kann leere results liefern */if(!e||!e.results||!e.results.length)return;const last=e.results[e.results.length-1];if(!last||!last[0]||last[0].transcript==null)return;const t=last[0].transcript;if(onResult.current)onResult.current(t);};
+    rec.onresult=e=>{/* v3.8.44 S2.4 Length-Guard: Race bei Speech-Cancel kann leere results liefern */if(!e||!e.results||!e.results.length)return;const last=e.results[e.results.length-1];if(!last||!last[0]||last[0].transcript==null)return;const t=_capSent(last[0].transcript);if(onResult.current)onResult.current(t);};
     rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted")console.warn("[speech] error:",e.error);setListening(false);/* v3.9.47 S32-2 F4: User-feedback bei Mic-Permission-Denied im MicBtn (Inline-Voice in Forms) — vorher nur Console-Log. */if((e.error==="not-allowed"||e.error==="service-not-allowed")&&window.__toast){window.__toast("🎤 Mikrofon-Zugriff verweigert — bitte Browser-Berechtigung prüfen","error",6000);}else if(e.error==="audio-capture"&&window.__toast){window.__toast("🎤 Kein Mikrofon gefunden","error",4000);}};
     rec.onend=()=>setListening(false);
     recRef.current=rec;
@@ -6629,10 +6631,10 @@ function sharePdf(){
         else interim+=e.results[i][0].transcript;
       }
       finalText=fin.trim();
-      setVoiceText((fin+interim).trim());
+      setVoiceText(_capSent((fin+interim).trim()));
     };
     rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted")console.warn("[voice] error:",e.error);/* v3.9.47 S32-2 F3: User-feedback bei Mic-Permission/Service-Denied — vorher silent → User wundert sich. */if((e.error==="not-allowed"||e.error==="service-not-allowed")&&window.__toast){window.__toast("🎤 Mikrofon-Zugriff verweigert — bitte Browser-Berechtigung prüfen","error",6000);setVoiceListening(false);}else if(e.error==="audio-capture"&&window.__toast){window.__toast("🎤 Kein Mikrofon gefunden — bitte Hardware prüfen","error",5000);setVoiceListening(false);}};
-    rec.onend=()=>{setVoiceListening(false);if(finalText)setVoiceParsed(parseVoice(finalText));};
+    rec.onend=()=>{setVoiceListening(false);if(finalText)setVoiceParsed(parseVoice(_capSent(finalText)));};
     voiceRecRef.current=rec;rec.start();setVoiceListening(true);
   };
   const voiceStop=()=>{if(voiceRecRef.current){voiceRecRef.current.stop();}setVoiceListening(false);};
