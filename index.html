@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.332';
+  var SW_VER='epkolar-v3.9.333';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.332-supabase";
+const APP_VERSION="3.9.333-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17731,7 +17731,8 @@ ${entryRows}
   };
 
   // ── Export: Bauwochenbericht (exakt nach Firmen-Vorlage) ──
-  const exportBauwochenbericht=(projId)=>{
+  /* v3.9.333: Pre-Export-Review-Modal — Buero sieht/editiert Tag-Stunden + Taetigkeiten pro Tag bevor Excel/ÖBA-PDF rauslaeuft. */
+  const exportBauwochenbericht=async(projId)=>{
     const proj=projId?(projects||[]).find(p=>p.id===projId):null;
     const projName=proj?proj.name:"Baustelle";const projNr=proj?proj.nr:"";
     const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -17739,6 +17740,7 @@ ${entryRows}
     const dateFullFmt=(off)=>{const d=dayDate(off);return String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."+d.getFullYear();};
     // Gather workers with hours on this project this week
     const workerHours={};
+    const dayTasksByIdx={};/* v3.9.333: ein Eintrag pro Tag {0..6} mit Taetigkeit-String (default aus entries) */
     DAYS.forEach((_,i)=>{
       const iso=isoDate(i);
       fieldMA.forEach(m=>{
@@ -17749,9 +17751,41 @@ ${entryRows}
           workerHours[m.id].days[i]=h;
         }
       });
+      const dayTasks=(entries||[]).filter(e=>{const dt=(e.datum||e.date||"").split("T")[0];const pid=e.project_id||e.p||e.pid||"";return dt===iso&&pid===projId;}).map(e=>e.taetigkeit||e.task||e.description||e.bemerkung||"").filter(Boolean);
+      dayTasksByIdx[i]=dayTasks.join("; ");
     });
     const workers=Object.values(workerHours);
     if(workers.length===0){_optionalChain([window, 'access', _bwb1 => _bwb1.__toast, 'optionalCall', _bwb2 => _bwb2("⚠️ Keine Stunden auf diesem Projekt in KW "+kw)]);return;}
+    /* v3.9.333: Review-Modal — eine Zeile pro Tag, dynamische Spalten je Worker, plus Taetigkeit pro Tag */
+    if(window._exportReviewModal){
+      const _lastNamesP=workers.map(w=>(w.name||"").split(" ").pop());
+      const _wColumns=workers.map(w=>{const _ln=(w.name||"").split(" ").pop();const _lbl=_lastNamesP.filter(x=>x===_ln).length>1?(w.name||""):_ln;return {key:'w_'+w.name.replace(/[^A-Za-z0-9]/g,'_'),label:_lbl,type:'number',width:80,step:'0.5',min:0,max:24,_workerName:w.name};});
+      const reviewRows=DAYS.map((dayName,i)=>{const row={tag:dayName,datum:dateFullFmt(i),_i:i,taetigkeit:dayTasksByIdx[i]||""};_wColumns.forEach(col=>{const w=workers.find(x=>x.name===col._workerName);row[col.key]=w?(w.days[i]||0):0;});return row;});
+      const _edited=await window._exportReviewModal({
+        title:"📋 Bauwochenbericht — "+(projName||"")+" — KW "+kw+"/"+yr+" — Vorschau",
+        subtitle:"PA "+(projNr||"—")+" · Stunden + Taetigkeiten pro Tag korrigieren — nur Export, DB bleibt.",
+        columns:[
+          {key:"tag",label:"Tag",type:"readonly",width:60},
+          {key:"datum",label:"Datum",type:"readonly",width:100},
+          ..._wColumns,
+          {key:"taetigkeit",label:"🛠 Tätigkeiten (mit ; trennen)",type:"text",width:320}
+        ],
+        rows:reviewRows,
+        confirmLabel:"📊 Excel exportieren"
+      });
+      if(!_edited)return;
+      /* Edited-Werte zurueck in workerHours + dayTasksByIdx einspielen */
+      workers.forEach(w=>{w.days={};});
+      Object.keys(dayTasksByIdx).forEach(k=>delete dayTasksByIdx[k]);
+      _edited.forEach(row=>{
+        _wColumns.forEach(col=>{
+          const w=workers.find(x=>x.name===col._workerName);
+          const h=parseFloat(row[col.key])||0;
+          if(w&&h>0)w.days[row._i]=h;
+        });
+        dayTasksByIdx[row._i]=String(row.taetigkeit||"");
+      });
+    }
     const nc=workers.length;
     // Header row: Datum | Worker1 | Worker2 | ... | Summe Std. | Tätigkeit
     let hdrCells=`<th style="${bdr}font-weight:bold;font-size:10pt;padding:6px;width:80px;">Datum</th>`;
@@ -17772,10 +17806,9 @@ ${entryRows}
       let cells=`<td style="${bdr}padding:4px 6px;font-size:10pt;font-weight:bold;">${dateStr}</td>`;
       workers.forEach(w=>{const h=w.days[i]||0;rowSum+=h;cells+=`<td style="${bdr}text-align:center;font-size:10pt;">${h>0?_n(h,1):""}</td>`;});
       cells+=`<td style="${bdr}text-align:center;font-weight:bold;font-size:10pt;">${rowSum>0?_n(rowSum,1):""}</td>`;
-      // Get tätigkeiten for this day from entries
-      const iso=dayIdx!==null?isoDate(dayIdx):null;
-      const dayTasks=iso?(entries||[]).filter(e=>{const dt=(e.datum||e.date||"").split("T")[0];const pid=e.project_id||e.p||e.pid||"";return dt===iso&&pid===projId;}).map(e=>e.taetigkeit||e.task||e.description||e.bemerkung||"").filter(Boolean):"";
-      cells+=`<td style="${bdr}padding:4px 6px;font-size:9pt;">${Array.isArray(dayTasks)?esc(dayTasks.join("; ")):""}</td>`;
+      // v3.9.333: Taetigkeiten kommen aus dayTasksByIdx (edited oder default-aus-entries)
+      const dayTasksStr=dayIdx!==null?(dayTasksByIdx[dayIdx]||""):"";
+      cells+=`<td style="${bdr}padding:4px 6px;font-size:9pt;">${esc(dayTasksStr)}</td>`;
       dayRowsHtml+=`<tr style="height:20px;">${cells}</tr>`;
     }
     // Summe row
