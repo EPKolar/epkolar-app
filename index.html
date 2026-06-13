@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.339';
+  var SW_VER='epkolar-v3.9.340';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.339-supabase";
+const APP_VERSION="3.9.340-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -19563,6 +19563,10 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const isMob=ww<600;const isAdmin=_optionalChain([curUser, 'optionalAccess', _747 => _747.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _748 => _748.role])==="projektleiter";
   /* v3.9.17 B-016: pinger-Hardcode entfernt; isAdmin (admin||projektleiter) deckt Pinger Leo ab. */
   const isVAdmin=isAdmin;
+  /* v3.9.340: Werkzeug-Labels Render-Gate analog FahrzeugView Z.18368 — admin/projektleiter/buero/lagerleitung dürfen Werkzeug-Labels drucken; Monteur sieht den Button gar nicht. */
+  const _isVAdminWz=isAdmin||["projektleiter","buero","lagerleitung"].includes(_optionalChain([curUser, 'optionalAccess', _749 => _749.role]))||((_optionalChain([curUser, 'optionalAccess', _749b => _749b.rolle])||"").toLowerCase()==="lagerleitung");
+  /* v3.9.340: Toggle-State für Werkzeug-Labels — default AUS (stillgelegt+verloren werden gefiltert). Wenn AN: alle 298 werden gedruckt. Kein Persist. */
+  const [wzShowDecommissioned,setWzShowDecommissioned]=_react.useState.call(void 0, false);
   /* v3.9.91 Sprint-70.3: Filter-Persistence-R2 — Werkzeug-Status/Kat/Chip-Filter persistiert per localStorage. */
   const _wkzFilterLoad=(k,d)=>{try{const v=localStorage.getItem("epk_wkz_"+k);return v===null||v===undefined?d:v;}catch(e){return d;}};
   const _wkzFilterSave=(k,v)=>{try{localStorage.setItem("epk_wkz_"+k,v==null?"":v);}catch(e){console.warn("[silent-ls]",e&&e.message||e);}};
@@ -19785,7 +19789,12 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geraete erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}
         , isAdmin&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neues Gerät"  )
-        , React.createElement('button', { onClick: ()=>printLabels(werkzeuge.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels"), style: bsS(), title: "🏷️ Alle Werkzeuge im System werden gedruckt. Count wird beim Klick im Toast angezeigt."}, "🏷️ Labels" )
+        /* v3.9.340: Werkzeug-Labels-Button — Render-Gate (admin/PL/buero/lagerleitung), Status-Filter (stillgelegt+verloren raus per default), Toggle "Stillgelegte/verlorene einblenden" daneben. */
+        , _isVAdminWz&&React.createElement('button', { onClick: ()=>{const _list=wzShowDecommissioned?werkzeuge:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status));printLabels(_list.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels");}, style: bsS(), title: "🏷️ "+(wzShowDecommissioned?werkzeuge.length:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status)).length)+" Werkzeuge werden gedruckt"+(wzShowDecommissioned?" (inkl. stillgelegt/verloren)":" (ohne stillgelegt/verloren)")+". Count wird beim Klick im Toast angezeigt."}, "🏷️ Labels" )
+        , _isVAdminWz&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:V.dm,cursor:"pointer",padding:"4px 6px"}, title: "Wenn aktiviert, werden auch stillgelegte/verlorene Werkzeuge gedruckt."}
+          , React.createElement('input', { type: "checkbox", checked: wzShowDecommissioned, onChange: e=>setWzShowDecommissioned(e.target.checked), style: {cursor:"pointer"}} )
+          , "Stillgelegte/verlorene einblenden"
+        )
         , React.createElement('button', { onClick: exportWz, style: xBtn("xls")}, "📊 Excel" )
         , React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.318 */
       )

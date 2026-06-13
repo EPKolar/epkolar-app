@@ -30,6 +30,16 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (z) v3.9.340 Werkzeug-Labels Gate + Status-Filter + Toggle
+**Schritt:** Werkzeug-Tab → einmal als Admin/Büro/PL/Lagerleitung, einmal als Monteur. 🏷️ Labels-Button drücken. Toggle „Stillgelegte/verlorene einblenden" prüfen.
+**Erwartung:**
+  - Monteur sieht den 🏷️ Labels-Button GAR NICHT (Render-Gate).
+  - Admin/Büro/PL/Lagerleitung sieht den Button. Default-Klick druckt 293 (= 298 − 5 stillgelegt/verloren); kalibrierung+reparatur bleiben drin (nur temporär weg).
+  - Toggle aktiviert → Klick druckt alle 298.
+  - Toast + Button-`title` zeigen die TATSÄCHLICH gedruckte Anzahl.
+**Hintergrund:** Vorher druckte der Button ALLE 298 ungated für JEDEN — analog v3.9.107 Fahrzeug-Labels-Gating nachgezogen.
+**Pass [ ]**
+
 ### (y) v3.9.338 Fahrzeug-Labels Sichtbarkeitsregel
 **Schritt:** Im Fahrzeuge-Tab den 🏷️ Labels-Button drücken — einmal als Admin/Büro/PL/Lagerleitung, einmal als Monteur.
 **Erwartung:** Admin / Büro / Projektleiter / Lagerleitung sieht UND druckt alle aktiven Fahrzeuge (aktuell 21). Monteur sieht/druckt nur Fahrzeuge denen er als `fahrer` zugeordnet ist (seit v3.9.107 bewusst, damit der einzelne Monteur nicht die ganze Flotte druckt).
