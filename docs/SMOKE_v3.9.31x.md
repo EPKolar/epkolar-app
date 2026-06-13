@@ -30,6 +30,12 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ab) v3.9.343 Fahrzeug-Detail Typ + Farbe editierbar
+**Schritt:** Als Admin/Büro/PL/Lagerleitung ein Fahrzeug im Detail öffnen. Im Kopf-Block bei Typ (Dropdown) eine andere Option wählen, bei Farbe Text ändern.
+**Erwartung:** Beide Felder werden sofort in der DB gespeichert (upd-Helper, gleiche Logik wie Pickerl/Vignette). Nach Reload sind die neuen Werte sichtbar. Monteur sieht beide weiterhin nur als Text.
+**Hintergrund:** Bisher nur lesen — Korrektur ging nur über DB-Bypass.
+**Pass [ ]**
+
 ### (aa) v3.9.342 VBueroExport Auto-Refresh
 **Schritt:** Büro-Export-Tab öffnen → Stundensumme/Projekte-Kacheln merken → ✏️ Berichte-bearbeiten eines Monteurs → Stunden in einer Zeile ändern → Änderungen speichern → Modal schließt sich.
 **Erwartung:**

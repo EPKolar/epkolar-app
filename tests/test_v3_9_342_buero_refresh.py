@@ -217,19 +217,25 @@ def test_loadall_promise_all_anchor(index_html):
 
 # 7) Version-Sync --------------------------------------------------------------
 
-def test_app_version_342(app_version):
-    assert app_version == "3.9.342-supabase", (
-        f"APP_VERSION nicht auf 3.9.342 — aktuell: {app_version}"
+def test_app_version_at_least_342(app_version):
+    """v3.9.342 fuehrte den Test ein — beim Version-Bump auf v3.9.343+ verschiebt
+    sich nur die Major-Minor-Patch-Erwartung, der Test bleibt als Forward-Guard
+    (gleiches Pattern wie v3.9.341 'at_least'-Tests)."""
+    m = re.match(r"3\.9\.(\d+)-supabase", app_version)
+    assert m and int(m.group(1)) >= 342, (
+        f"APP_VERSION nicht >= 3.9.342 — aktuell: {app_version}"
     )
 
 
-def test_cache_name_342(cache_name):
-    assert cache_name == "epkolar-v3.9.342", (
-        f"CACHE_NAME nicht auf epkolar-v3.9.342 — aktuell: {cache_name}"
+def test_cache_name_at_least_342(cache_name):
+    m = re.match(r"epkolar-v3\.9\.(\d+)", cache_name)
+    assert m and int(m.group(1)) >= 342, (
+        f"CACHE_NAME nicht >= epkolar-v3.9.342 — aktuell: {cache_name}"
     )
 
 
-def test_sw_ver_342(index_html):
-    assert "SW_VER='epkolar-v3.9.342'" in index_html, (
-        "SW_VER im IIFE nicht auf v3.9.342 gebumpt."
+def test_sw_ver_at_least_342(index_html):
+    m = re.search(r"SW_VER='epkolar-v3\.9\.(\d+)'", index_html)
+    assert m and int(m.group(1)) >= 342, (
+        "SW_VER im IIFE nicht >= v3.9.342."
     )
