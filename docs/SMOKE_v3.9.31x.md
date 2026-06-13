@@ -30,6 +30,12 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ai) v3.9.350 _exportReviewModal Breite — kein H-Scroll mehr
+**Schritt:** Büro-Export → ✏️ Berichte-bearbeiten eines Monteurs.
+**Erwartung:** Auf Desktop (≥1600 px) ist das Modal fast vollbreit; Datum/Projekt/Tätigkeit/h/Bemerkung/✕ alle ohne horizontalen Scroll sichtbar. Auf schmaleren Viewports (Tablet/Handy) bleibt 96vw — keine Layout-Probleme.
+**Hintergrund:** Vorher war `max-width:1100px` zu eng — die ✕-Lösch-Spalte wurde rechts abgeschnitten. Jetzt `min(1600px, 96vw)`.
+**Pass [ ]**
+
 ### (ah) v3.9.349 planData Merge statt Overwrite (Fix-A aus Ticket-Verlust-Diagnose)
 **Schritt:** Offline-Test reproduzieren (z.B. Devtools → Network → Offline).
   1. App offline → Projekt-Plan öffnen → 2 neue Tickets anlegen (sichtbar im State).
