@@ -30,6 +30,14 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (w) v3.9.329 Tank-km Admin-Override
+**Schritt:** Drei Tests mit verschiedenen Rollen + km < aktueller Stand.
+  1. **Monteur** → Fahrzeug → ⛽ Tankung → km eingeben < aktueller Fahrzeug-km → 💾 Speichern. **Erwartung:** Modal blockt mit rotem Hinweis „km-Stand darf nicht kleiner sein als der aktuelle (X km)". Hart-Sperre wie bisher.
+  2. **Projektleiter / Büro** → gleicher Test. **Erwartung:** Modal blockt identisch. Kein Admin-Override für PL/Büro.
+  3. **Admin** → gleicher Test. **Erwartung:** Modal akzeptiert. Nach Modal-Confirm öffnet sich ein zweites `_confirmModal` mit danger-Variant: „⚠️ km Y ist KLEINER als aktueller Stand (X km). Trotzdem speichern? Das korrigiert den Fahrzeug-km nach unten." Buttons „✓ Korrigieren" / „Zurück". Nach Bestätigung: Tankung wird gespeichert UND `fahrzeuge.kmStand` wird auf Y (den niedrigeren Wert) gesetzt. Toast „⛽ Tankung erfasst · km nach unten korrigiert".
+**Hintergrund:** Wenn an der Zapfsäule jemand einen zu HOHEN km-Stand eintippt und das in die DB läuft, konnte ihn vorher niemand nach unten korrigieren. Admin kann jetzt mit zwei Bestätigungen den Stand auf den realen Wert zurücksetzen.
+**Pass [ ]**
+
 ### (v) v3.9.328 Material canDo-Defense-in-Depth (deleteSuppOrd + deleteCatalog)
 **Schritt:** Material-Tab als Monteur einloggen (nicht Admin/PL/Büro).
   1. Eine Händler-Bestellung öffnen → erwartet: kein 🗑-Button mehr (war vorher sichtbar mit "Permission-Toast on click").

@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.328';
+  var SW_VER='epkolar-v3.9.329';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.328-supabase";
+const APP_VERSION="3.9.329-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3849,8 +3849,9 @@ window._confirmModal=function(message,opts){
 // v3.9.306: Editierbarer Tank-Bestätigungs-Dialog.
 // Usage: const r=await window._tankConfirmModal({datum,liter,preis,km},currentKm); if(!r)return; // benutze r.{datum,liter,preis,km}
 // Vanilla-DOM analog _confirmModal; validiert vor Resolve, blockiert Save bei Ungültigkeit (Inline-Hinweis).
-window._tankConfirmModal=function(init,currentKm){
+window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
   init=init||{};currentKm=parseInt(currentKm,10)||0;
+  allowKmDowngrade=!!allowKmDowngrade;/* v3.9.329: Admin-Override-Flag (Monteur/PL bleiben hart-gesperrt) */
   return new Promise(function(resolve){
     const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
     const overlay=document.createElement('div');
@@ -3907,7 +3908,11 @@ window._tankConfirmModal=function(init,currentKm){
       if(rawP!==''){if(!/^[0-9]+([.,][0-9]{1,2})?$/.test(rawP)){err.textContent='⚠️ Gesamtpreis ungültig — nur Zahlen erlaubt';fPreis.inp.focus();return null;}P=parseFloat(rawP.replace(',','.'))||0;}
       let K=0;
       if(rawK!==''){if(!/^[0-9]+$/.test(rawK)){err.textContent='⚠️ km-Stand ungültig — nur Ziffern (keine Buchstaben)';fKm.inp.focus();return null;}K=parseInt(rawK,10)||0;}
-      if(K>0&&currentKm>0&&K<currentKm){err.textContent='⚠️ km-Stand darf nicht kleiner sein als der aktuelle ('+currentKm.toLocaleString('de-DE')+' km)';fKm.inp.focus();return null;}
+      if(K>0&&currentKm>0&&K<currentKm){
+        if(!allowKmDowngrade){err.textContent='⚠️ km-Stand darf nicht kleiner sein als der aktuelle ('+currentKm.toLocaleString('de-DE')+' km)';fKm.inp.focus();return null;}
+        /* v3.9.329: Admin-Override — pass-through mit Flag, addTank zeigt den finalen Confirm. */
+        return {datum:datum,liter:L,preis:P,km:K,kmDowngraded:true};
+      }
       return {datum:datum,liter:L,preis:P,km:K};
     }
     function keyHandler(e){
@@ -18182,16 +18187,26 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     try{
       const _fz=(fahrzeuge||[]).find(x=>x.id===fzId)||{};
       const _curKm=parseInt(_fz.kmStand,10)||0;
+      /* v3.9.329: Admin-Override fuer km-Sperre (Tippfehler an der Zapfsaeule → zu hoher km im DB).
+         Nur role==='admin' — Monteur/PL/Buero bleiben hart-gesperrt durch Modal. */
+      const _isAdminOnly=(curUser&&curUser.role==='admin');
       if(!window._tankConfirmModal){window.__toast&&window.__toast("⚠️ Tank-Dialog nicht verfügbar — bitte App neu laden","error");return;}
-      const _r=await window._tankConfirmModal({datum:tankDatum||td2(),liter:tankLiter,preis:tankPreis,km:tankKm},_curKm);
+      const _r=await window._tankConfirmModal({datum:tankDatum||td2(),liter:tankLiter,preis:tankPreis,km:tankKm},_curKm,_isAdminOnly);
       if(!_r)return;
+      /* v3.9.329: Final-Confirm bei Admin-Downgrade — explizite Bestaetigung dass der Fahrzeug-km nach unten korrigiert wird. */
+      if(_r.kmDowngraded){
+        const _msg="⚠️ km "+_r.km.toLocaleString("de-DE")+" ist KLEINER als aktueller Stand ("+_curKm.toLocaleString("de-DE")+" km).\n\nTrotzdem speichern? Das korrigiert den Fahrzeug-km nach unten.";
+        if(!await _confirmModal(_msg,{confirmLabel:"✓ Korrigieren",cancelLabel:"Zurück",variant:"danger"}))return;
+      }
       const data={liter:_r.liter,preis:_r.preis,km:_r.km,datum:_r.datum,foto:tankFoto||""};
       upd(fzId,f=>{
         f.tankLog=[{...data,by:(curUser&&curUser.name)||""},...(f.tankLog||[])];
-        if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
+        /* v3.9.329: bei kmDowngraded Forced-Overwrite des Fahrzeug-km (Admin-Korrektur), sonst nur up. */
+        if(_r.kmDowngraded){f.kmStand=_r.km;}
+        else if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
         return f;
       },u=>({tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
-      window.__toast&&window.__toast("⛽ Tankung erfasst");
+      window.__toast&&window.__toast(_r.kmDowngraded?"⛽ Tankung erfasst · km nach unten korrigiert":"⛽ Tankung erfasst");
       setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
     }finally{window.__addTankInFlight=false;}
   };
