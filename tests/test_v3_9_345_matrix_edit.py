@@ -213,24 +213,28 @@ def test_edit_monteur_entries_unchanged_put_anchor(index_html):
 # 11) Version-Sync -------------------------------------------------------------
 
 def test_app_version_345(app_version):
-    assert app_version == "3.9.345-supabase", (
-        f"APP_VERSION nicht 3.9.345-supabase — aktuell: {app_version}"
+    """v3.9.346 Bump: Test pruefte zuvor 3.9.345-supabase — jetzt 3.9.346-supabase."""
+    assert app_version == "3.9.346-supabase", (
+        f"APP_VERSION nicht 3.9.346-supabase — aktuell: {app_version}"
     )
 
 
 def test_cache_name_345(cache_name):
-    assert cache_name == "epkolar-v3.9.345", (
-        f"CACHE_NAME nicht epkolar-v3.9.345 — aktuell: {cache_name}"
+    """v3.9.346 Bump."""
+    assert cache_name == "epkolar-v3.9.346", (
+        f"CACHE_NAME nicht epkolar-v3.9.346 — aktuell: {cache_name}"
     )
 
 
 def test_sw_ver_345(index_html):
-    assert "SW_VER='epkolar-v3.9.345'" in index_html, (
-        "SW_VER im IIFE nicht epkolar-v3.9.345."
+    """v3.9.346 Bump."""
+    assert "SW_VER='epkolar-v3.9.346'" in index_html, (
+        "SW_VER im IIFE nicht epkolar-v3.9.346."
     )
 
 
 def test_sw_header_345(sw_js):
-    assert sw_js.startswith("// EP Kolar Service Worker v3.9.345"), (
-        "SW-Header-Kommentar nicht v3.9.345."
+    """v3.9.346 Bump."""
+    assert sw_js.startswith("// EP Kolar Service Worker v3.9.346"), (
+        "SW-Header-Kommentar nicht v3.9.346."
     )

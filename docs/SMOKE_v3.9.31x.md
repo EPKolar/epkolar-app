@@ -30,6 +30,20 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ae) v3.9.346 Arbeitsscheine: Kein App-Anlegen mehr (nur OFFA)
+**Schritt:** Arbeitsscheine-Tab öffnen.
+**Erwartung:**
+  - „+ Neuer Schein"-Button ist WEG.
+  - „🎤 Schnellerfassung"-Button ist WEG.
+  - Sub-Nav-Tab „Neu" ist WEG (keine Sub-Reiter-Möglichkeit, manuell ein leeres Formular zu öffnen).
+  - „OFFA Import"-Button funktioniert weiter → legt Scheine via PDF an.
+  - „OFFA Excel"-Export funktioniert weiter.
+  - ✏️ bei einem bestehenden Schein öffnet das Formular im Edit-Modus (sub='form' mit editId gesetzt) — funktioniert weiter.
+  - Status-Setzen, Kachel-Klick-Filter, QR-Scan, Kalender, Vorlagen-Tab — alle funktionieren weiter.
+  - Juprowa-Sync der bestehenden Scheine funktioniert weiter.
+**Hintergrund:** Scheine kommen IMMER aus OFFA (auch Nummern via OFFA-Import) — nie aus der App. Drei UI-Anlege-Wege („+ Neuer Schein"-Button, „🎤 Schnellerfassung"-Voice, Sub-Nav-Tab „Neu") sind komplett entfernt; nur der Edit-Pfad bestehender Scheine bleibt.
+**Pass [ ]**
+
 ### (ad) v3.9.345 Bauwochenbericht-Matrix editable + Title-Rename
 **Schritt:** Büro-Export → Projekt öffnen für Vorschau → Title liest „Bauwochenbericht: X" (nicht „Vorschau: X"). Matrix-Zelle eines Tages klicken, Stunden tippen, Zelle verlassen.
 **Erwartung:**

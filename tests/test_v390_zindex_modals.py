@@ -64,28 +64,25 @@ def test_photoq_backdrop_zindex_matches_panel():
 
 
 def test_voice_modal_zindex_above_lightbox():
-    """v3.9.0 S11-N5: Voice-Modal (1500/1501) muss < Lightbox (2000) sein."""
+    """v3.9.346: Voice-Modal komplett entfernt — Scheine kommen IMMER aus OFFA, kein
+    UI-Anlege-Einstieg (Voice-Button + Modal) mehr. Frueher (v3.9.0 S11-N5): Voice-Modal
+    (1500/1501) < Lightbox (2000). Test pruefte Z-Index-Hygiene; jetzt: Voice-Modal-Code
+    darf NICHT mehr im Render existieren (Negativ-Assert)."""
     text = INDEX.read_text(encoding='utf-8')
-    # Voice-Backdrop: voiceStop + setShowVoice(false) + zIndex:1500
+    # Voice-Backdrop darf NICHT mehr existieren (Modal entfernt)
     voice_backdrop = re.findall(
-        r'voiceStop\(\);\s*setShowVoice\(false\)[\s\S]{0,400}?zIndex:1500',
+        r'voiceStop\(\);\s*setShowVoice\(false\)',
         text,
     )
-    assert len(voice_backdrop) >= 1, (
-        'v3.9.0 S11-N5 Regression: Voice-Modal-Backdrop zIndex:1500 fehlt. '
-        'Erwartet: Backdrop-Div mit voiceStop+setShowVoice(false) '
-        'und zIndex:1500. Sprint 11 N5.'
+    assert len(voice_backdrop) == 0, (
+        'v3.9.346 Regression: Voice-Modal-Anker (voiceStop+setShowVoice(false)) '
+        'darf NICHT mehr existieren — Voice-Anlege-Pfad ist entfernt.'
     )
-    # Voice-Panel: zIndex:1501
-    voice_panel = re.findall(r'zIndex:1501', text)
-    assert len(voice_panel) >= 1, (
-        'v3.9.0 S11-N5 Regression: Voice-Modal-Panel zIndex:1501 fehlt. '
-        'Erwartet: Panel-Div mit zIndex:1501 (Backdrop+1). Sprint 11 N5.'
-    )
-    # Hierarchie-Assert: Voice (1500/1501) < Lightbox (2000)
-    assert 1501 < 2000, (
-        'v3.9.0 S11-N5 Logik-Regression: Voice-Z-Index muss strikt < '
-        'Lightbox-Z-Index sein (Lightbox-Priority). Sprint 11 N5.'
+    # showVoice State-Setter darf nicht mehr im Render-Code stehen (Modal raus)
+    show_voice_matches = re.findall(r'showVoice', text)
+    assert len(show_voice_matches) == 0, (
+        'v3.9.346 Regression: showVoice-State (Voice-Modal) muss komplett entfernt sein. '
+        f'Gefunden: {len(show_voice_matches)} Vorkommen.'
     )
 
 
