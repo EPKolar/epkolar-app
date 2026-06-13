@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.353';
+  var SW_VER='epkolar-v3.9.354';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.353-supabase";
+const APP_VERSION="3.9.354-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5527,8 +5527,11 @@ class _ViewBoundary extends React.Component{
     const _ndKey=(s)=>{let _h=5381;for(let _i=0;_i<s.length;_i++){_h=((_h<<5)+_h+s.charCodeAt(_i))>>>0;}return _h.toString(36);};
     const newN=targets.map(tuid=>({id:"n_"+tuid+"_"+type+"_"+_ndKey((title||"")+"|"+(body||"")),type,title,body,time:new Date().toISOString(),read:false,user:tuid,link:_optionalChain([NOTIF_TYPES, 'access', _53 => _53[type], 'optionalAccess', _54 => _54.cat])||""}));
     const _haveIds=new Set((notifications||[]).map(n=>n.id));
-    const _freshN=newN.filter(n=>!_haveIds.has(n.id));
-    if(!_freshN.length)return;/* alle bereits vorhanden → idempotent: nichts tun */
+    /* v3.9.354 #3: Dismissed-Gedächtnis — vom User gelöschte (deterministische) Notif-IDs NICHT neu erzeugen.
+       Überlebt Logout (anders als der 4h-Cooldown epk_autonotif_cd) → "5x gelöscht, kommt wieder" behoben. */
+    let _dismSet;try{const _d=JSON.parse(localStorage.getItem("epk_notif_dismissed")||"[]");_dismSet=new Set(Array.isArray(_d)?_d:[]);}catch(_){_dismSet=new Set();}
+    const _freshN=newN.filter(n=>!_haveIds.has(n.id)&&!_dismSet.has(n.id));
+    if(!_freshN.length)return;/* alle bereits vorhanden/dismissed → idempotent: nichts tun */
     setNotifications(p=>{const _h2=new Set(p.map(n=>n.id));const _ff=_freshN.filter(n=>!_h2.has(n.id));if(!_ff.length)return p;const upd=[..._ff,...p].slice(0,200);ODB.save("notifications",upd);return upd;});
     // Persist to server (deterministische id verhindert Doppel-Insert)
     SQ.push({url:"/api/notifications/batch",method:"POST",body:{items:_freshN.map(n=>({id:n.id,user_id:n.user,type:n.type,title:n.title,body:n.body,link:n.link,read:0}))}});
@@ -5717,7 +5720,7 @@ class _ViewBoundary extends React.Component{
   const markRead=id=>{/* v3.9.35 N-1: Skip SQ-Push wenn already-read — vermeidet redundante PUT-Requests bei wiederholten markRead-Klicks (z.B. Notif-Click + Tab-Switch). */let wasUnread=false;setNotifications(p=>{const upd=p.map(n=>{if(n.id===id){if(!n.read)wasUnread=true;return {...n,read:true};}return n;});ODB.save("notifications",upd);return upd;});if(wasUnread)SQ.push({url:"/api/notifications/"+id,method:"PUT",body:{read:1}});};
   const markAllRead=()=>{setNotifications(p=>{const upd=p.map(n=>n.user===_optionalChain([curUser, 'optionalAccess', _65 => _65.id])?{...n,read:true}:n);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/read-all",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65 => _65.id])}});};
   /* v3.9.327: destruktive Notif-Aktion braucht _confirmModal (Modal-Migration-Lücke). */
-  const deleteNotif=async id=>{if(!await _confirmModal("Benachrichtigung wirklich löschen?",{variant:"danger"}))return;setNotifications(p=>{const upd=p.filter(n=>n.id!==id);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"DELETE"});};
+  const deleteNotif=async id=>{if(!await _confirmModal("Benachrichtigung wirklich löschen?",{variant:"danger"}))return;/* v3.9.354 #3: ID dauerhaft als dismissed merken → Auto-Notif-Regenerierung unterbinden (cap 500, FIFO) */try{let _d=JSON.parse(localStorage.getItem("epk_notif_dismissed")||"[]");if(!Array.isArray(_d))_d=[];if(!_d.includes(id)){_d.push(id);if(_d.length>500)_d=_d.slice(-500);localStorage.setItem("epk_notif_dismissed",JSON.stringify(_d));}}catch(_){}setNotifications(p=>{const upd=p.filter(n=>n.id!==id);ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/"+id,method:"DELETE"});};
 
   // Load persisted notifications from ODB + server
   _react.useEffect.call(void 0, ()=>{
@@ -6145,7 +6148,7 @@ class _ViewBoundary extends React.Component{
             , React.createElement('div', { style: {padding:"14px 16px",borderBottom:"1px solid "+V.bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}
               , React.createElement('div', { style: {fontSize:15,fontWeight:800}}, "🔔 Benachrichtigungen" )
               , React.createElement('div', { style: {display:"flex",gap:6}}
-                , myNotifs.length>0&&React.createElement('button', { onClick: async ()=>{if(!await _confirmModal("Alle "+myNotifs.length+" Benachrichtigungen wirklich löschen?",{variant:"danger"}))return;setNotifications(p=>{const upd=p.filter(n=>n.user!==_optionalChain([curUser, 'optionalAccess', _65b => _65b.id]));ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/clear",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65b => _65b.id])}});}, style: {...bsS(),padding:"4px 10px",fontSize:10}, title: "Alle Benachrichtigungen löschen"}, "🗑️")/* v3.9.327: Modal-Guard */
+                , myNotifs.length>0&&React.createElement('button', { onClick: async ()=>{if(!await _confirmModal("Alle "+myNotifs.length+" Benachrichtigungen wirklich löschen?",{variant:"danger"}))return;/* v3.9.354 #3: alle geleerten IDs als dismissed merken → keine Auto-Regenerierung (cap 500) */try{let _d=JSON.parse(localStorage.getItem("epk_notif_dismissed")||"[]");if(!Array.isArray(_d))_d=[];myNotifs.forEach(n=>{if(!_d.includes(n.id))_d.push(n.id);});if(_d.length>500)_d=_d.slice(-500);localStorage.setItem("epk_notif_dismissed",JSON.stringify(_d));}catch(_){}setNotifications(p=>{const upd=p.filter(n=>n.user!==_optionalChain([curUser, 'optionalAccess', _65b => _65b.id]));ODB.save("notifications",upd);return upd;});SQ.push({url:"/api/notifications/clear",method:"POST",body:{user_id:_optionalChain([curUser, 'optionalAccess', _65b => _65b.id])}});}, style: {...bsS(),padding:"4px 10px",fontSize:10}, title: "Alle Benachrichtigungen löschen"}, "🗑️")/* v3.9.327: Modal-Guard */
                 , unreadCount>0&&React.createElement('button', { onClick: markAllRead, style: {...bsS(),padding:"4px 10px",fontSize:10}}, "✅ Alle gelesen"  )
                 , React.createElement('button', { onClick: ()=>setShowNotifPanel(false), 'aria-label': "Benachrichtigungen schließen", title: "Schließen", style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,padding:"2px 6px"}}, "✕")
               )
@@ -14859,6 +14862,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const switchKw=(newKw)=>{/* v3.8.49 Bug-Fix: Pending Auto-Save VOR KW-Wechsel flushen — vorher verwarf switchKw den 800ms-Debounce-Timer via clearTimeout ohne saveWeek auszuführen → Edits der aktuellen KW gingen auf dem Server verloren, blieben nur im lokalen wpHistory. Nach Reload alte Daten. */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveWeek();}setWpHistory(h=>({...h,[kw]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(wpHistory[newKw]||[])));setCellPick(null);setSelCells(null);/* v3.9.46 SPRINT-31 F-DnD-1: dragRef beim KW-Wechsel resetten — vorher konnte aktive Drag-Auswahl der alten KW (rowId nicht mehr existent) als Stale-State weiterleben. */dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};};
 
   const toggleMA=(rowId,day,maId)=>{
+    if(!isAdmin)return;/* v3.9.354 #6: Wochenplanung nur Admin/PL editierbar (saveWeek war schon gegated; jetzt auch lokale Edits → kein Phantom-Edit für Monteure) */
     setRows(prev=>prev.map(r=>{
       if(r.id!==rowId)return r;
       const cell={...(_optionalChain([r, 'access', _480 => _480.z, 'optionalAccess', _481 => _481[day]])||{ma:[],fz:[]})};
@@ -14868,6 +14872,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     }));
   };
   const toggleFZ=(rowId,day,fzId)=>{
+    if(!isAdmin)return;/* v3.9.354 #6 */
     setRows(prev=>prev.map(r=>{
       if(r.id!==rowId)return r;
       const cell={...(_optionalChain([r, 'access', _482 => _482.z, 'optionalAccess', _483 => _483[day]])||{ma:[],fz:[]})};
@@ -14877,6 +14882,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     }));
   };
   const toggleMAWeek=(rowId,maId)=>{
+    if(!isAdmin)return;/* v3.9.354 #6 */
     const WDAYS=["Mo","Di","Mi","Do","Fr"];
     setRows(prev=>prev.map(r=>{
       if(r.id!==rowId)return r;
@@ -14887,6 +14893,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     }));
   };
   const toggleFZWeek=(rowId,fzId)=>{
+    if(!isAdmin)return;/* v3.9.354 #6 */
     const WDAYS=["Mo","Di","Mi","Do","Fr"];
     setRows(prev=>prev.map(r=>{
       if(r.id!==rowId)return r;
@@ -14899,6 +14906,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
 
   // Multi-day toggle: add/remove MA across selected days
   const toggleMAMulti=(rowId,days,maId)=>{
+    if(!isAdmin)return;/* v3.9.354 #6 */
     setRows(prev=>prev.map(r=>{
       if(r.id!==rowId)return r;
       const allSet=days.every(d=>((_optionalChain([r, 'access', _mM1 => _mM1.z, 'optionalAccess', _mM2 => _mM2[d], 'optionalAccess', _mM3 => _mM3.ma]))||[]).includes(maId));
@@ -14908,6 +14916,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     }));
   };
   const toggleFZMulti=(rowId,days,fzId)=>{
+    if(!isAdmin)return;/* v3.9.354 #6 */
     setRows(prev=>prev.map(r=>{
       if(r.id!==rowId)return r;
       const allSet=days.every(d=>((_optionalChain([r, 'access', _fM1 => _fM1.z, 'optionalAccess', _fM2 => _fM2[d], 'optionalAccess', _fM3 => _fM3.fz]))||[]).includes(fzId));
@@ -14940,11 +14949,11 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     return()=>{window.removeEventListener("beforeunload",flush);flush();};
   },[]);
 
-  const addRow=(name,projId)=>{if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;/* v3.9.35 W-3: Wenn projId gesetzt aber Projekt im projects-Array fehlt (race/stale), pn fällt auf name zurück (kann "" sein) → leere bvh-Row. Skip statt leere Zeile. */const _finalBvh=(pn||name||"").trim();if(!_finalBvh)return;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:_finalBvh,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:_finalBvh,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
+  const addRow=(name,projId)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;/* v3.9.35 W-3: Wenn projId gesetzt aber Projekt im projects-Array fehlt (race/stale), pn fällt auf name zurück (kann "" sein) → leere bvh-Row. Skip statt leere Zeile. */const _finalBvh=(pn||name||"").trim();if(!_finalBvh)return;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:_finalBvh,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:_finalBvh,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
   /* v3.9.325: destruktive Wochenplanungs-Aktionen brauchen _confirmModal (Modal-Migration-Lücke seit v3.9.11). */
-  const clearRow=async(id)=>{if(!await _confirmModal("Zeile wirklich leeren? Alle Mitarbeiter-/Fahrzeug-Zuordnungen für diese Baustelle gehen für die KW verloren."))return;setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));};
-  const delRow=async(id)=>{if(!await _confirmModal("Zeile wirklich löschen?",{variant:"danger"}))return;/* v3.9.35 W-1/W-6: clear cellPick + selCells + dragRef wenn die gelöschte Zeile aktiv war — sonst stale popup/drag-state auf nicht-existenter rowId. */setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));if(_optionalChain([cellPick, 'optionalAccess', _wpDel1 => _wpDel1.rowId])===id)setCellPick(null);if(_optionalChain([selCells, 'optionalAccess', _wpDel2 => _wpDel2.rowId])===id)setSelCells(null);if(dragRef.current&&dragRef.current.rowId===id){dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};}};
-  const moveRow=(id,dir)=>{setRows(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const ni=idx+dir;if(ni<0||ni>=prev.length)return prev;const nr=[...prev];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];return nr;});};
+  const clearRow=async(id)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!await _confirmModal("Zeile wirklich leeren? Alle Mitarbeiter-/Fahrzeug-Zuordnungen für diese Baustelle gehen für die KW verloren."))return;setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));};
+  const delRow=async(id)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!await _confirmModal("Zeile wirklich löschen?",{variant:"danger"}))return;/* v3.9.35 W-1/W-6: clear cellPick + selCells + dragRef wenn die gelöschte Zeile aktiv war — sonst stale popup/drag-state auf nicht-existenter rowId. */setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));if(_optionalChain([cellPick, 'optionalAccess', _wpDel1 => _wpDel1.rowId])===id)setCellPick(null);if(_optionalChain([selCells, 'optionalAccess', _wpDel2 => _wpDel2.rowId])===id)setSelCells(null);if(dragRef.current&&dragRef.current.rowId===id){dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};}};
+  const moveRow=(id,dir)=>{if(!isAdmin)return;/* v3.9.354 #6 */setRows(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const ni=idx+dir;if(ni<0||ni>=prev.length)return prev;const nr=[...prev];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];return nr;});};
   const copyWeek=(srcKw)=>{const src=wpHistory[srcKw];if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){/* v3.9.70 SPRINT-50 F-2: alert → toast. */_optionalChain([window,'access',_g70i=>_g70i.__toast,'optionalCall',_g70j=>_g70j("ℹ KW "+srcKw+" hat keine Einträge","info")]);return;}setRows(padWpRows(src.map(r=>({...r,id:Date.now()+Math.random(),z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
 
   // Export helpers
@@ -15075,7 +15084,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         )
       )
 
-      , React.createElement('p', { style: {color:V.dm,fontSize:11,margin:"0 0 4px",fontStyle:"italic"}}, wpView==="planung"?("Monteure, Baustellen & Fahrzeuge pro Wochentag planen. "+(!isMob?"Mehrere Tage markieren: Maus über Zellen ziehen. ":"")+"Änderungen werden automatisch gespeichert."):"Multi-Projekt Übersicht: Wo ist welcher Mitarbeiter eingeplant?")
+      , React.createElement('p', { style: {color:V.dm,fontSize:11,margin:"0 0 4px",fontStyle:"italic"}}, wpView==="planung"?(isAdmin?("Monteure, Baustellen & Fahrzeuge pro Wochentag planen. "+(!isMob?"Mehrere Tage markieren: Maus über Zellen ziehen. ":"")+"Änderungen werden automatisch gespeichert."):"👁️ Nur Ansicht — die Wochenplanung wird von Büro/PL erstellt. Eigene Änderungen werden nicht gespeichert."):"Multi-Projekt Übersicht: Wo ist welcher Mitarbeiter eingeplant?"/* v3.9.354 #6: Read-only-Hinweis für Monteure statt falscher Auto-Save-Zusage */)
 
       /* View toggle: Planung | MA-Übersicht */
       , React.createElement('div', { style: {display:"flex",gap:4,marginBottom:8}}
@@ -15236,8 +15245,8 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             const hasAnyContent=!isEmpty||DSHORT.some(d=>{const c=_optionalChain([r, 'access', _505b => _505b.z, 'optionalAccess', _506b => _506b[d]]);return (_optionalChain([c, 'optionalAccess', _507b => _507b.ma, 'optionalAccess', _508b => _508b.length])||0)>0||(_optionalChain([c, 'optionalAccess', _509b => _509b.fz, 'optionalAccess', _510b => _510b.length])||0)>0;});
             return (React.createElement('tr', { key: r.id, style: {borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent",opacity:isEmpty&&!hasAnyContent?0.5:1}}
               , React.createElement('td', { style: {padding:"8px 5px",textAlign:"center",color:isEmpty?"#555":"#009640",fontFamily:mono,fontSize:16,fontWeight:700,borderRight:"1px solid "+V.bd}}, idx+1)
-              , React.createElement('td', { style: {padding:"3px 5px",borderRight:"1px solid "+V.bd,verticalAlign:"top",cursor:"pointer",position:"relative"}, onClick: ()=>{if(isEmpty&&editRow!==r.id){setEditRow(r.id);setEditBvh("");}}}
-                , React.createElement('div', { style: {fontWeight:isEmpty?400:700,fontSize:18,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:isEmpty?V.mt:V.tx}, onDoubleClick: ()=>{if(!isEmpty){setEditRow(r.id);setEditBvh(r.bvh);}}, title: r.bvh||"Klicken zum Benennen"}
+              , React.createElement('td', { style: {padding:"3px 5px",borderRight:"1px solid "+V.bd,verticalAlign:"top",cursor:"pointer",position:"relative"}, onClick: ()=>{if(isAdmin&&isEmpty&&editRow!==r.id){setEditRow(r.id);setEditBvh("");}}}/* v3.9.354 #6: Benennen nur Admin/PL */
+                , React.createElement('div', { style: {fontWeight:isEmpty?400:700,fontSize:18,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:isEmpty?V.mt:V.tx}, onDoubleClick: ()=>{if(isAdmin&&!isEmpty){setEditRow(r.id);setEditBvh(r.bvh);}}, title: r.bvh||(isAdmin?"Klicken zum Benennen":"")}
                   , editRow===r.id?(isEmpty?(
                     React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}, onClick: e=>e.stopPropagation()}
                       , React.createElement('select', { autoFocus: true, onChange: e=>{if(e.target.value){const p=projects.find(x=>x.id===e.target.value);if(p){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:p.name,projId:p.id}:x));setEditRow(null);}}}, style: {...II(),fontSize:10,padding:"2px 4px",flex:1,minWidth:100}}
@@ -15522,7 +15531,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       )
       , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10} }
         , React.createElement('div', { style: {background:"rgba(110,168,255,.10)",borderRadius:8,padding:10,textAlign:"center"} }
-          , React.createElement('div', { style: {fontSize:18,fontWeight:700,color:"#6ea8ff",fontFamily:mono} }, (typeof rest==="number"?_n(rest,0):rest)+"h")
+          , React.createElement('div', { style: {fontSize:18,fontWeight:700,color:"#6ea8ff",fontFamily:mono} }, (typeof rest==="number"?_n(rest,1):rest)+"h")/* v3.9.354 #7: 1 Dezimale (konsistent mit Kontingent „192,5h" statt gerundet „193h") */
           , React.createElement('div', { style: {fontSize:10,color:V.dm,textTransform:"uppercase",marginTop:2,letterSpacing:.5} }, "Resturlaub")
         )
         , React.createElement('div', { style: {background:"rgba(255,107,107,.10)",borderRadius:8,padding:10,textAlign:"center"} }

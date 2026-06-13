@@ -75,7 +75,7 @@ def test_notifs_clear_all_button_uses_confirmModal(index_html):
     """
     # Suche das Inline-onClick mit "notifications/clear" — dort muss _confirmModal davor stehen
     m = re.search(
-        r"onClick:\s*async\s*\(\)\s*=>\s*\{\s*if\(!await\s+_confirmModal\([\s\S]{0,300}?notifications/clear",
+        r"onClick:\s*async\s*\(\)\s*=>\s*\{\s*if\(!await\s+_confirmModal\([\s\S]{0,700}?notifications/clear",
         index_html,
     )
     assert m, "Alle-loeschen-Notifs-Button ohne _confirmModal — Bug-Regression v3.9.327"
