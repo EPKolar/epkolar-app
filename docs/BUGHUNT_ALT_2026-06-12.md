@@ -53,6 +53,30 @@ Status-Legende: 🐛 = echter Bug (gefixt) · 📝 = Zweifelsfall (nur dokumenti
 - **`addItem`** (Z.13421): `parseFloat(String(r.menge).replace(",","."))||1` — Fallback `||1` maskiert leere Eingabe als 1 Stk. **Risiko:** quantitativ falsche Anforderung ohne Validierungs-Toast. **Vorschlag:** mit Validierungs-Toast bei NaN — nicht jetzt fixen (UX-Entscheidung).
 - **`delWzPhoto`** (Z.19225/19813): Render+Handler-Guard ist `isVAdmin` statt `canDo("wz_edit")` wie checkout/checkin. Funktional korrekt, nur inkonsistent. **Vorschlag:** auf `canDo` umstellen bei nächster Wz-Refactor-Welle.
 
+### 📝 Native `confirm()` Legacy-Stellen (Modal-Migration nicht komplett)
+
+Beim Schreiben der Regression-Tests aufgefallen — alte native `confirm()`-Aufrufe sind noch vorhanden. Keine destruktive Wirkung (User-Warnings mit klarem Trotzdem-fortsetzen-Pfad), aber inkonsistent mit dem `_confirmModal`-Standard seit v3.9.11.
+
+- **`logout`-Handler** (Z.5555): 2× native `confirm()` für „N ungespeicherte Änderungen werden VERWORFEN" + „Timer läuft noch — wird VERWORFEN". Konvertierung erfordert async-Umbau der Logout-Sequenz (Auth-Logout muss nach Confirm warten).
+- **`saveAs`-Handler ArbeitsscheinView** (Z.6462): 1× native `confirm()` für AS-Duplikat-Warnung („Möglicher Duplikat-AS, trotzdem speichern?"). Liegt im saveAs-Flow vor Submit, einfacher zu konvertieren als Logout.
+
+**Status:** Nicht jetzt fixen (UX-Funktion ist intakt — native confirm() funktioniert). Bei nächster Modal-Round-5-Pass mitnehmen.
+
+### 9 Regression-Tests `tests/test_bughunt_alt_2026_06_12.py`
+
+Verhindert dass die Bug-Hunt-Fixes v3.9.325-328 regressieren:
+1. `test_wochenplanung_clearRow_uses_confirmModal` (v3.9.325)
+2. `test_wochenplanung_delRow_uses_confirmModal_danger`
+3. `test_urlaub_approve_has_admin_guard_and_modal` (v3.9.326)
+4. `test_urlaub_reject_has_admin_guard_and_modal_danger`
+5. `test_deleteNotif_uses_confirmModal` (v3.9.327)
+6. `test_notifs_clear_all_button_uses_confirmModal`
+7. `test_deleteSuppOrd_render_has_canDo_guard` (v3.9.328)
+8. `test_deleteCatalog_handler_has_canDo_guard`
+9. `test_deleteCatalog_render_has_canDo_guard`
+
+Alle 9 grün.
+
 ---
 
 ## Bereich-Status
