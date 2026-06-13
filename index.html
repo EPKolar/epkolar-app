@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.346';
+  var SW_VER='epkolar-v3.9.347';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.346-supabase";
+const APP_VERSION="3.9.347-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3977,7 +3977,21 @@ window._exportReviewModal=function(opts){
   const selectOptionsFor=typeof opts.selectOptionsFor==='function'?opts.selectOptionsFor:null;
   return new Promise(function(resolve){
     const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
+    /* v3.9.347 OVERLAY-SINGLETON-GUARANTEE — verhindert verlorene Speicherungen.
+       Sebastian-Befund: Bei wiederholtem Öffnen (editMonteurEntries / openMultiEntryEdit /
+       Matrix-Zell-Edit nach v3.9.345) stapelten sich MEHRERE Review-Modal-Overlays mit
+       z-index>=99999. User tippt sichtbar ins oberste Modal — Eingaben treffen aber eine
+       darunterliegende ALTE Instanz mit unveränderten rows. cleanup() liefert ALTE Werte
+       → changed-Check ergibt false → KEIN SQ.push → Toast "keine Änderung" oder falscher PUT.
+       Fix: VOR der Anlage des neuen Overlays alle existierenden Review-Modals via
+       data-Attribut-Selector aus dem DOM entfernen → es kann nie mehr als EIN
+       Review-Modal existieren. */
+    try{document.querySelectorAll('[data-epk-review-modal]').forEach(function(el){try{el.remove();}catch(e){}});}catch(e){}
+    /* Doppel-Resolve-Guard: lokales Flag, damit Esc + OK-Klick + Background-Klick nicht
+       mehrfach das Promise resolven oder mehrfach DOM-Manipulation triggern. */
+    var _resolved=false;
     const overlay=document.createElement('div');
+    overlay.setAttribute('data-epk-review-modal','1');
     overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
     const box=document.createElement('div');
     box.style.cssText='background:'+bg+';color:'+tx+';border-radius:12px;border:1px solid '+bd+';padding:18px 20px;max-width:1100px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:inherit;';
@@ -4094,7 +4108,20 @@ window._exportReviewModal=function(opts){
     const btnConfirm=document.createElement('button');btnConfirm.textContent=confirmLabel;
     btnConfirm.style.cssText='padding:9px 18px;border-radius:7px;border:none;background:linear-gradient(135deg,#009640,#006e30);color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;min-height:44px;';
     var _prevFocus=null;try{_prevFocus=document.activeElement;}catch(e){_prevFocus=null;}
-    function cleanup(answer){document.removeEventListener('keydown',keyHandler);try{overlay.remove();}catch(e){}try{if(_prevFocus&&typeof _prevFocus.focus==='function')_prevFocus.focus();}catch(e){}resolve(answer);}
+    /* v3.9.347 cleanup-Hardening: _resolved-Doppel-Resolve-Guard + defensiver Fallback
+       wenn overlay.remove() fehlschlägt (style.display:none + pointerEvents:none +
+       opacity:0) → garantiert nicht mehr interaktiv, kein verwaister Klick-Catcher.
+       Esc + OK-Klick + Background-Klick können nicht mehr mehrfach resolven. */
+    function cleanup(answer){
+      if(_resolved)return;_resolved=true;
+      document.removeEventListener('keydown',keyHandler);
+      var _removed=false;try{overlay.remove();_removed=true;}catch(e){_removed=false;}
+      if(!_removed){
+        try{overlay.style.display='none';overlay.style.pointerEvents='none';overlay.style.opacity='0';}catch(e){}
+      }
+      try{if(_prevFocus&&typeof _prevFocus.focus==='function')_prevFocus.focus();}catch(e){}
+      resolve(answer);
+    }
     function keyHandler(e){
       if(e.key==='Escape'){e.preventDefault();cleanup(null);return;}
     }

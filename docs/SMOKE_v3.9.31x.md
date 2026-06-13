@@ -30,6 +30,16 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (af) v3.9.347 _exportReviewModal Overlay-Singleton — Datenverlust-Fix
+**Schritt:** Büro-Export → ✏️ Berichte-bearbeiten eines Monteurs → Modal schließen (Esc). Wieder ✏️ klicken. Wieder schließen. Insgesamt 3× hintereinander öffnen + schließen.
+**Erwartung:**
+  - Während offen (DevTools-Console): `document.querySelectorAll('[data-epk-review-modal]').length === 1`.
+  - Nach Schließen: `length === 0`.
+  - Eine Tätigkeit/Stunde in einer Zeile ändern → Speichern → Toast „✏️ N Einträge aktualisiert".
+  - Browser-Reload → die Änderung ist in der DB sichtbar (Wert bleibt).
+**Hintergrund:** Vorher stapelten sich Overlays mit z-index≥99999; Eingaben trafen verwaiste alte Instanz statt der sichtbaren. cleanup() gab alte rows zurück → changed-Check false → KEIN SQ.push → Toast „keine Änderung" ODER falscher PUT. Save-Logik der 3 Aufrufer (Berichte/Mini-Liste/Matrix) war nie kaputt — nur das Overlay-Stacking.
+**Pass [ ]**
+
 ### (ae) v3.9.346 Arbeitsscheine: Kein App-Anlegen mehr (nur OFFA)
 **Schritt:** Arbeitsscheine-Tab öffnen.
 **Erwartung:**

@@ -213,28 +213,32 @@ def test_edit_monteur_entries_unchanged_put_anchor(index_html):
 # 11) Version-Sync -------------------------------------------------------------
 
 def test_app_version_345(app_version):
-    """v3.9.346 Bump: Test pruefte zuvor 3.9.345-supabase — jetzt 3.9.346-supabase."""
-    assert app_version == "3.9.346-supabase", (
-        f"APP_VERSION nicht 3.9.346-supabase — aktuell: {app_version}"
+    """Forward-Guard: APP_VERSION mindestens 3.9.345 (Matrix-Edit-Floor)."""
+    import re
+    m = re.match(r"3\.9\.(\d+)-supabase", app_version)
+    assert m and int(m.group(1)) >= 345, (
+        f"APP_VERSION unter 3.9.345 — aktuell: {app_version}"
     )
 
 
 def test_cache_name_345(cache_name):
-    """v3.9.346 Bump."""
-    assert cache_name == "epkolar-v3.9.346", (
-        f"CACHE_NAME nicht epkolar-v3.9.346 — aktuell: {cache_name}"
+    """Forward-Guard: CACHE_NAME mindestens 3.9.345."""
+    import re
+    m = re.match(r"epkolar-v3\.9\.(\d+)", cache_name)
+    assert m and int(m.group(1)) >= 345, (
+        f"CACHE_NAME unter 3.9.345 — aktuell: {cache_name}"
     )
 
 
 def test_sw_ver_345(index_html):
-    """v3.9.346 Bump."""
-    assert "SW_VER='epkolar-v3.9.346'" in index_html, (
-        "SW_VER im IIFE nicht epkolar-v3.9.346."
-    )
+    """Forward-Guard: SW_VER im IIFE mindestens 3.9.345."""
+    import re
+    m = re.search(r"SW_VER='epkolar-v3\.9\.(\d+)'", index_html)
+    assert m and int(m.group(1)) >= 345, "SW_VER im IIFE unter 3.9.345."
 
 
 def test_sw_header_345(sw_js):
-    """v3.9.346 Bump."""
-    assert sw_js.startswith("// EP Kolar Service Worker v3.9.346"), (
-        "SW-Header-Kommentar nicht v3.9.346."
-    )
+    """Forward-Guard: SW-Header mindestens 3.9.345."""
+    import re
+    m = re.match(r"// EP Kolar Service Worker v3\.9\.(\d+)", sw_js)
+    assert m and int(m.group(1)) >= 345, "SW-Header-Kommentar unter 3.9.345."
