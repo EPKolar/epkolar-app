@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.343';
+  var SW_VER='epkolar-v3.9.344';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.343-supabase";
+const APP_VERSION="3.9.344-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3969,6 +3969,12 @@ window._exportReviewModal=function(opts){
      Wird gesetzt fuer editMonteurEntries (echter SQ.push PUT /api/entries/<id>); die anderen
      3 Aufrufer (Zeiterfassung/Wochenplanung/Abwesenheit) behalten den Excel-only-Hinweis. */
   const dbWrite=opts.dbWrite===true;
+  /* v3.9.344: addRow={label, build()} → optionaler '➕'-Button oben rechts; build() liefert eine neue
+     Zeile die per push() in rows landet + re-render. selectOptionsFor=function(col,row)=>[{value,label},…]
+     erlaubt per-row Dropdown-Optionen (für neue Zeilen Projekt-Select, bestehende bleiben readonly).
+     Beides nur aktiv wenn der Aufrufer es passiert — die 3 Excel-only-Aufrufer bleiben unverändert. */
+  const addRow=opts.addRow&&typeof opts.addRow.build==='function'?opts.addRow:null;
+  const selectOptionsFor=typeof opts.selectOptionsFor==='function'?opts.selectOptionsFor:null;
   return new Promise(function(resolve){
     const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
     const overlay=document.createElement('div');
@@ -3981,7 +3987,24 @@ window._exportReviewModal=function(opts){
     const subEl=document.createElement('div');subEl.textContent=subtitle;subEl.style.cssText='font-size:12px;color:'+dm+';';
     headL.appendChild(titleEl);headL.appendChild(subEl);
     const counter=document.createElement('div');counter.style.cssText='font-size:11px;color:'+dm+';font-family:'+(typeof mono!=='undefined'?mono:'monospace')+';white-space:nowrap;align-self:center;';
-    head.appendChild(headL);head.appendChild(counter);
+    /* v3.9.344: '➕ Buchung hinzufügen'-Button im Header (nur wenn addRow gesetzt → editMonteurEntries). */
+    const headR=document.createElement('div');headR.style.cssText='display:flex;align-items:center;gap:8px;';
+    if(addRow){
+      const btnAdd=document.createElement('button');
+      btnAdd.type='button';
+      btnAdd.textContent=String(addRow.label||'➕ Buchung hinzufügen');
+      btnAdd.title='Neue Zeile in der Liste anlegen';
+      btnAdd.style.cssText='padding:7px 14px;border-radius:6px;border:1px solid '+ac+';background:rgba(0,150,64,.12);color:'+ac+';font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;min-height:36px;white-space:nowrap;';
+      btnAdd.onclick=function(){
+        try{const nr=addRow.build();if(nr&&typeof nr==='object'){rows.push(nr);refreshCounter();renderRows();
+          /* Scroll an Tabellen-Ende, damit neue Zeile sichtbar wird */
+          try{scroll.scrollTop=scroll.scrollHeight;}catch(e){}
+        }}catch(e){console.warn('[addRow]',e&&e.message||e);}
+      };
+      headR.appendChild(btnAdd);
+    }
+    headR.appendChild(counter);
+    head.appendChild(headL);head.appendChild(headR);
     function refreshCounter(){counter.textContent=rows.length+' Zeile'+(rows.length===1?'':'n');}
     refreshCounter();
     const scroll=document.createElement('div');scroll.style.cssText='overflow:auto;border:1px solid '+bd+';border-radius:8px;flex:1;min-height:200px;';
@@ -4009,7 +4032,18 @@ window._exportReviewModal=function(opts){
              statt abgeschnitten zu werden. Galt vorher nicht. */
           const td=document.createElement('td');td.style.cssText='padding:4px 8px;vertical-align:top;white-space:normal;word-break:break-word;';
           const v=r[col.key];
-          if(col.type==='readonly'){
+          /* v3.9.344: per-row Select-Override für neue Zeilen (r._isNew). Aufrufer
+             liefert selectOptionsFor(col,row) → falls Optionen vorhanden, wird
+             statt readonly/text ein <select> gerendert (Projekt-Wahl beim Anlegen). */
+          const _selOpts=(r._isNew && selectOptionsFor)?selectOptionsFor(col,r):null;
+          if(_selOpts && Array.isArray(_selOpts) && _selOpts.length){
+            const sel=document.createElement('select');
+            sel.style.cssText='width:100%;padding:6px 8px;border-radius:5px;border:1px solid '+bd+';background:'+inputBg+';color:'+tx+';font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;min-height:32px;color-scheme:'+(typeof _dark!=='undefined'&&_dark?'dark':'light')+';';
+            const emptyOpt=document.createElement('option');emptyOpt.value='';emptyOpt.textContent='— Projekt wählen —';sel.appendChild(emptyOpt);
+            _selOpts.forEach(function(o){const op=document.createElement('option');op.value=String(o.value==null?'':o.value);op.textContent=String(o.label==null?'':o.label);if(String(r[col.key]||'')===op.value)op.selected=true;sel.appendChild(op);});
+            sel.addEventListener('change',function(){r[col.key]=sel.value;});
+            td.appendChild(sel);
+          }else if(col.type==='readonly'){
             const span=document.createElement('span');span.textContent=v==null?'':String(v);
             span.style.cssText='display:block;padding:6px 4px;color:'+dm+';font-size:12px;white-space:normal;word-break:break-word;';
             td.appendChild(span);
@@ -7735,12 +7769,17 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   });
   /* v3.9.337: Monteur-Berichte direkt im Büro-Tab bearbeiten. Öffnet _exportReviewModal mit den
      letzten 50 Zeiteinträgen des Monteurs als editierbare Tabelle. Save → SQ.push PUT pro geänderter
-     Zeile + Optimistic-Update + Silent-Reload. */
+     Zeile + Optimistic-Update + Silent-Reload.
+     v3.9.344: '➕ Buchung hinzufügen' + Split-Use-Case — neue Zeilen ohne id → POST /api/entries
+     (worker_id = der editierte Monteur). PUT/DELETE-Logik unverändert. */
   const editMonteurEntries=async(ms)=>{
     if(!window._exportReviewModal){window.__toast&&window.__toast("⚠️ Export-Review-Modal nicht geladen — bitte App neu laden","warn");return;}
     const myEntries=allEntries.filter(e=>e.monteur===ms.id).sort((a,b)=>String(b.datum||"").localeCompare(String(a.datum||""))).slice(0,50);
     if(!myEntries.length){window.__toast&&window.__toast("ℹ️ Keine Zeiteinträge für "+ms.name,"info");return;}
     const reviewRows=myEntries.map(e=>{const p=(projects||[]).find(x=>x.id===e.projekt);return {id:e.id,datum:String(e.datum||"").slice(0,10),projekt_name:p?(p.nr+" — "+p.name):(e.projekt||"—"),taetigkeit:e.taetigkeit||"",stunden:parseFloat(e.stunden)||0,bemerkung:e.bemerkung||""};});
+    /* v3.9.344: aktive Projekte für Dropdown der neuen Zeilen — gleiche Filter wie sonst (nicht archiviert),
+       Value=project_id, Label="NR — NAME". Wird per selectOptionsFor an die Modal-Render-Schicht uebergeben. */
+    const _projOpts=(projects||[]).filter(p=>p&&p.status!=="archiviert"&&!p.archiv&&!p.gesperrt).map(p=>({value:p.id,label:(p.nr?p.nr+" — ":"")+(p.name||"")}));
     const _edited=await window._exportReviewModal({
       title:"✏️ Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name),
       subtitle:"Letzte 50 Zeiteinträge. Änderungen werden direkt in die DB gespeichert.",
@@ -7756,11 +7795,31 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       ],
       rows:reviewRows,
       confirmLabel:"💾 Änderungen speichern",
-      dbWrite:true
+      dbWrite:true,
+      /* v3.9.344: addRow + selectOptionsFor — neue leere Zeile mit Datum=heute, Projekt wählbar. */
+      addRow:{
+        label:"➕ Buchung hinzufügen",
+        build:()=>({id:null,_isNew:true,datum:_fmtDate(new Date()),projekt_id:"",projekt_name:"",taetigkeit:"",stunden:0,bemerkung:""})
+      },
+      selectOptionsFor:(col,row)=>{
+        if(row&&row._isNew&&col&&col.key==="projekt_name")return _projOpts;
+        return null;
+      }
     });
     if(!_edited)return;
     let cnt=0;
+    let _skipNote=0;
     _edited.forEach(r=>{
+      /* v3.9.344: neue Zeilen (kein orig in myEntries) → POST. Validierung: Stunden>0 + Datum gesetzt. */
+      if(r._isNew||!r.id){
+        const _h=parseFloat(r.stunden)||0;
+        if(!(_h>0)||!r.datum){_skipNote++;return;}
+        const _projId=r.projekt_name||null;/* Select schreibt value=project_id auf den projekt_name-Key */
+        const _newId=uid();
+        SQ.push({url:"/api/entries",method:"POST",body:{id:_newId,worker_id:ms.id,project_id:_projId,date:r.datum,hours:_h,taetigkeit:r.taetigkeit||"",bemerkung:r.bemerkung||"",gewerk:"elektro"}});
+        cnt++;
+        return;
+      }
       const orig=myEntries.find(e=>e.id===r.id);if(!orig)return;
       const origDatum=String(orig.datum||"").slice(0,10);
       const changed=(origDatum!==r.datum)||((orig.taetigkeit||"")!==r.taetigkeit)||((parseFloat(orig.stunden)||0)!==r.stunden)||((orig.bemerkung||"")!==r.bemerkung);
@@ -7772,8 +7831,14 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     if(cnt>0){
       window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
       setTimeout(()=>loadAll(true),1000);/* v3.9.342: Silent-Reload 1000ms nach SQ.push — Sebastian-Vorgabe, sicher dass Server-Write durch ist. War 800ms. */
+    }else if(_skipNote>0){
+      window.__toast&&window.__toast("ℹ️ Zeile übersprungen: Stunden + Datum sind Pflicht für neue Buchungen","warn");
     }else{
       window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
+    }
+    if(cnt>0&&_skipNote>0){
+      /* Zusätzlicher Hinweis falls einige neue Zeilen gespeichert wurden, andere aber wegen Pflichtfeld-Mangel skip */
+      window.__toast&&window.__toast("ℹ️ "+_skipNote+" neue Zeile(n) übersprungen: Stunden + Datum Pflicht","warn");
     }
   };
   /* v3.9.334: Monteur-Übersicht — pro Monteur aggregierte Daten (Std., Projekte, Berichte). */

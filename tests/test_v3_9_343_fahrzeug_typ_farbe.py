@@ -173,20 +173,28 @@ def test_listing_kachel_has_no_upd_typ_or_farbe(index_html):
 
 
 # 6) Version-Sync --------------------------------------------------------------
+# v3.9.344: Forward-Guard-Pattern (>= 343) statt Exact-Match, damit weitere
+# Version-Bumps die Regression-Tests dieser Datei nicht brechen.
 
-def test_app_version_343(app_version):
-    assert app_version == "3.9.343-supabase", (
-        f"APP_VERSION nicht auf 3.9.343 — aktuell: {app_version}"
+def test_app_version_at_least_343(app_version):
+    import re as _re
+    m = _re.match(r"3\.9\.(\d+)-supabase", app_version)
+    assert m and int(m.group(1)) >= 343, (
+        f"APP_VERSION nicht >= 3.9.343 — aktuell: {app_version}"
     )
 
 
-def test_cache_name_343(cache_name):
-    assert cache_name == "epkolar-v3.9.343", (
-        f"CACHE_NAME nicht auf epkolar-v3.9.343 — aktuell: {cache_name}"
+def test_cache_name_at_least_343(cache_name):
+    import re as _re
+    m = _re.match(r"epkolar-v3\.9\.(\d+)", cache_name)
+    assert m and int(m.group(1)) >= 343, (
+        f"CACHE_NAME nicht >= epkolar-v3.9.343 — aktuell: {cache_name}"
     )
 
 
-def test_sw_ver_343(index_html):
-    assert "SW_VER='epkolar-v3.9.343'" in index_html, (
-        "SW_VER im IIFE nicht auf v3.9.343 gebumpt."
+def test_sw_ver_at_least_343(index_html):
+    import re as _re
+    m = _re.search(r"SW_VER='epkolar-v3\.9\.(\d+)'", index_html)
+    assert m and int(m.group(1)) >= 343, (
+        "SW_VER im IIFE nicht >= v3.9.343."
     )

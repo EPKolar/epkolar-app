@@ -30,6 +30,17 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ac) v3.9.344 Berichte-Bearbeiten ➕ Buchung hinzufügen + Split
+**Schritt:** Büro-Export → Monteur-Übersicht → ✏️ bei einem Monteur → ➕ Buchung hinzufügen.
+**Erwartung:**
+  - Neue leere Zeile erscheint (Datum=heute, Projekt-Dropdown wählbar, Tätigkeit/h/Bemerkung leer).
+  - Werte eintragen, Speichern → Toast „✏️ 1 Eintrag aktualisiert"; nach 1 s frischt loadAll die Anzeige und Bauwochenbericht zeigt die neue Buchung.
+  - Split-Test: bestehende 9h-Zeile auf 6h reduzieren + ➕ neue Zeile 3h anderes Projekt → beides in EINEM Speichern, Toast „✏️ 2 Einträge aktualisiert", danach ist die Tagessumme weiter 9h verteilt auf 2 Projekte.
+  - Validierungs-Test: ➕ neue Zeile leer lassen + Speichern → Toast Hinweis dass Datum/Stunden Pflicht sind.
+  - Hinweistext im Modal: „direkt in der Datenbank gespeichert" — KEIN „NUR im Export".
+**Hintergrund:** Vorher nur PUT/DELETE — Neuanlage und Splitting ging nur über ZeiterfassungView, was die Damen-Übersicht zerriss.
+**Pass [ ]**
+
 ### (ab) v3.9.343 Fahrzeug-Detail Typ + Farbe editierbar
 **Schritt:** Als Admin/Büro/PL/Lagerleitung ein Fahrzeug im Detail öffnen. Im Kopf-Block bei Typ (Dropdown) eine andere Option wählen, bei Farbe Text ändern.
 **Erwartung:** Beide Felder werden sofort in der DB gespeichert (upd-Helper, gleiche Logik wie Pickerl/Vignette). Nach Reload sind die neuen Werte sichtbar. Monteur sieht beide weiterhin nur als Text.
