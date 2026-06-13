@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.334';
+  var SW_VER='epkolar-v3.9.335';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.334-supabase";
+const APP_VERSION="3.9.335-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3044,6 +3044,10 @@ function _juprowaSanitize(s){
 }
 /* v3.9.303: Sprach-Transkript Satz-Gro\u00DFschreibung (Web-Speech liefert oft alles klein). Gro\u00DFschreibt Satzanf\u00E4nge (Start + nach .!?). Nomen-Gro\u00DFschreibung br\u00E4uchte NLP \u2014 nicht client-seitig machbar; Satz-Case ist die praktikable Verbesserung. */
 function _capSent(s){if(!s)return s;return String(s).replace(/(^\s*|[.!?]\s+)([a-z\u00E4\u00F6\u00FC\u00DF])/g,function(m,p,c){return p+c.toUpperCase();});}
+/* v3.9.335: Title-Case fuer Eigennamen / Orte / Strassen aus der Spracherkennung. Web-Speech liefert
+   "frau m\u00FCller hauptstrasse" \u2192 parseVoice's Regex matched dank /i, aber captured-Group war lowercase.
+   Wir Title-Casen das pro Wort (auch nach Bindestrich: "Bad V\u00F6slau" / "Sankt-P\u00F6lten"). */
+function _titleCase(s){if(!s)return s;return String(s).replace(/(^|[\s\-])([a-z\u00E4\u00F6\u00FC\u00DF])/g,function(m,p,c){return p+c.toUpperCase();});}
 function _juprowaReversMap(schein){
   if(!schein||!schein.juprowa_id)return null;
   const json={ID:schein.juprowa_id};
@@ -6838,21 +6842,23 @@ function sharePdf(){
     if(/garantie/.test(tl))r.verrechnung="garantie";
 
     // Kunde erkennen: "bei [Name]", "Kunde [Name]", "für [Name]", "Firma [Name]"
+    /* v3.9.335: Title-Case auf alle Eigennamen / Orte / Strassen — die /i-Regex matched zwar lowercase
+       Input, aber das Capture war klein → "müller" statt "Müller". Jetzt _titleCase per Wort. */
     let remaining=t;
     const kundeMatch=t.match(/(?:bei|kunde|für|firma|herr|frau|familie)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})/i);
-    if(kundeMatch){r.kundName=kundeMatch[1].trim();remaining=remaining.replace(kundeMatch[0],"");}
+    if(kundeMatch){r.kundName=_titleCase(kundeMatch[1].trim());remaining=remaining.replace(kundeMatch[0],"");}
 
     // Adresse: "Straße/Gasse/Weg/Platz [Nr]"
     const strMatch=t.match(/([A-ZÄÖÜ][a-zäöüß]+(?:straße|gasse|weg|platz|ring|allee|zeile))\s*(\d+[a-z]?)?/i);
-    if(strMatch){r.kundStr=(strMatch[1]+" "+(strMatch[2]||"")).trim();remaining=remaining.replace(strMatch[0],"");}
+    if(strMatch){r.kundStr=(_titleCase(strMatch[1])+" "+(strMatch[2]||"")).trim();remaining=remaining.replace(strMatch[0],"");}
 
     // PLZ + Ort: 4-stellige Zahl gefolgt von Wort
     const plzMatch=t.match(/(\d{4})\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+(?:an|am|im|bei|ob)\s+(?:der|dem|den)?\s*[A-ZÄÖÜ]?[a-zäöüß]+)?)/i);
-    if(plzMatch){r.kundPlz=plzMatch[1];r.kundOrt=plzMatch[2].trim();remaining=remaining.replace(plzMatch[0],"");}
+    if(plzMatch){r.kundPlz=plzMatch[1];r.kundOrt=_titleCase(plzMatch[2].trim());remaining=remaining.replace(plzMatch[0],"");}
     else{
       // Nur Ort: "in [Ort]"
       const ortMatch=t.match(/\bin\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+(?:an|am|im|bei|ob)\s+(?:der|dem|den)?\s*[A-ZÄÖÜ]?[a-zäöüß]+)?)/i);
-      if(ortMatch){r.kundOrt=ortMatch[1].trim();remaining=remaining.replace(ortMatch[0],"");}
+      if(ortMatch){r.kundOrt=_titleCase(ortMatch[1].trim());remaining=remaining.replace(ortMatch[0],"");}
     }
 
     // Telefonnummer
@@ -6861,7 +6867,7 @@ function sharePdf(){
 
     // Störungsmelder: "gemeldet von [Name]" / "melder [Name]"
     const melderMatch=t.match(/(?:gemeldet\s+von|melder|anrufer)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)/i);
-    if(melderMatch){r.stoerungsmelder=melderMatch[1].trim();remaining=remaining.replace(melderMatch[0],"");}
+    if(melderMatch){r.stoerungsmelder=_titleCase(melderMatch[1].trim());remaining=remaining.replace(melderMatch[0],"");}
 
     // Arbeitsanweisungen: alles was übrig bleibt, aufgeräumt
     remaining=remaining.replace(/(?:störung|reparatur|wartung|regie|dringend|hoch|normal|priorität|nicht verrechenbar|verrechenbar|garantie|sofort|eilig|wichtig)/gi,"").replace(/\s+/g," ").replace(/^[\s,.\-—]+|[\s,.\-—]+$/g,"").trim();
