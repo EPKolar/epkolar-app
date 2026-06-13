@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.337';
+  var SW_VER='epkolar-v3.9.338';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.337-supabase";
+const APP_VERSION="3.9.338-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3626,6 +3626,12 @@ const genBarcodeSVG=(text,w=200,h=60)=>{
 };
 // Print labels for items
 const printLabels=(items,title)=>{
+  /* v3.9.338: Diagnose — Anzahl im Toast + Console-Log, plus Leer-Guard. User-Report:
+     "Labels aktualisiert nicht die Fahrzeuge, lediglich 2 Labels verfuegbar". */
+  const _cnt=Array.isArray(items)?items.length:0;
+  if(!_cnt){_optionalChain([window,'access',_p0=>_p0.__toast,'optionalCall',_p1=>_p1("⚠️ Keine Einträge für "+title+" — Filter prüfen","warn",5000)]);return;}
+  try{console.info("[printLabels]",title,"→",_cnt,"Labels");}catch(_){}
+  _optionalChain([window,'access',_p2=>_p2.__toast,'optionalCall',_p3=>_p3("🏷️ "+_cnt+" Labels werden gedruckt")]);
   const win=window.open("","_blank","width=800,height=600");
   /* v3.9.45 SPRINT-29 F-PDF-5: Popup-blocked Toast statt silent return — printLabels. */
   if(!win){_optionalChain([window,'access',_pdf5a=>_pdf5a.__toast,'optionalCall',_pdf5b=>_pdf5b("⚠️ Popup blockiert — bitte Popup-Blocker deaktivieren","warn")]);return;}
@@ -18685,7 +18691,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
           , React.createElement('button', { onClick: ()=>{if(fzScanMode){fzStopScan();setFzScanMode(false);}else{setBatchMode(false);setFzScanMode(true);setSel(null);}}, style: fzScanMode?bdS:bsS()}, fzScanMode?"✕ Scanner":"📷 Scan")
           , React.createElement('button', { onClick: ()=>{if(batchMode){setBatchMode(false);}else openBatch();}, style: batchMode?{...bdS,borderColor:"#f97316",color:"#f97316"}:bsS()}, batchMode?"✕ Batch":"⛽ Batch")
-          , !sel&&!batchMode&&React.createElement('button', { onClick: ()=>printLabels(visibleFz.filter(f=>f.status!=="stillgelegt").map(f=>({name:((f.marke||"")+" "+(f.modell||"")).trim()||(f.kennzeichen||"—"),code:f.kennzeichen,kennzeichen:f.kennzeichen})),"Fahrzeug-Labels")/* v3.9.107 Hunt: visibleFz statt fahrzeuge — Monteur druckte sonst Labels der GANZEN Flotte (eigene Sicht umgangen). */, style: bsS()}, "🏷️ Labels" )
+          , !sel&&!batchMode&&React.createElement('button', { onClick: ()=>printLabels(visibleFz.filter(f=>f.status!=="stillgelegt").map(f=>({name:((f.marke||"")+" "+(f.modell||"")).trim()||(f.kennzeichen||"—"),code:f.kennzeichen,kennzeichen:f.kennzeichen})),"Fahrzeug-Labels")/* v3.9.107 Hunt: visibleFz statt fahrzeuge — Monteur druckte sonst Labels der GANZEN Flotte (eigene Sicht umgangen). */, style: bsS(), title: "🏷️ Aktuell sichtbare Fahrzeuge werden gedruckt (stillgelegte ausgeblendet). Count wird beim Klick im Toast angezeigt."}, "🏷️ Labels" )
           , !sel&&!batchMode&&isVAdmin&&React.createElement('button', { onClick: ()=>{const h=["Kennzeichen","Marke/Modell","Typ","Fahrer","Baujahr","km-Stand","Reifen","Wischer","Pickerl","Service","Versicherung","Status"];const r=fahrzeuge.map(f=>[f.kennzeichen,f.marke+" "+f.modell,f.typ,_optionalChain([(monteure||MONT), 'access', _685 => _685.find, 'call', _686 => _686(m=>m.id===f.fahrer), 'optionalAccess', _687 => _687.n])||"",f.baujahr||"",(f.kmStand||0).toLocaleString("de-AT"),f.reifen||"",f.scheibenwischer||"",f.pickerl?fdt(f.pickerl):"",f.naechstService?fdt(f.naechstService):"",f.versicherung||"",f.status]);genXls("🚗 Fuhrpark — Fahrzeugübersicht",COMPANY_FOOTER.name+" · "+fahrzeuge.length+" Fahrzeuge",h,r,"Fuhrpark_"+td2()+".xls");}, style: xBtn("xls")}, "📊 Excel" )
           , !sel&&!batchMode&&isVAdmin&&React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.319 */
           , sel&&React.createElement('button', { onClick: ()=>setSel(null), style: bsS()}, "← Zurück" )
@@ -19749,7 +19755,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geraete erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}
         , isAdmin&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neues Gerät"  )
-        , React.createElement('button', { onClick: ()=>printLabels(werkzeuge.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels"), style: bsS()}, "🏷️ Labels" )
+        , React.createElement('button', { onClick: ()=>printLabels(werkzeuge.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels"), style: bsS(), title: "🏷️ Alle Werkzeuge im System werden gedruckt. Count wird beim Klick im Toast angezeigt."}, "🏷️ Labels" )
         , React.createElement('button', { onClick: exportWz, style: xBtn("xls")}, "📊 Excel" )
         , React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.318 */
       )
