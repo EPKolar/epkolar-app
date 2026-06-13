@@ -30,6 +30,16 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ag) v3.9.348 Mitarbeiter projCount Phantom-Fix
+**Schritt:** Mitarbeiter-Tab öffnen → Liste der Monteure → bei jedem die Badge „N Proj." prüfen.
+**Erwartung:**
+  - Badge zählt NUR existierende Projekte (max 2 aktuell), keine Phantom-Projekte mehr.
+  - „6 Proj."-Falschmeldung war vorher durch hartcodierten useState-Default (Z.5052) + ungefilterten count entstanden.
+  - Zuweisungs-Checkboxen rechts (Detail-View) zeigen weiterhin nur aktive Projekte zur Auswahl (unverändert).
+  - VBueroExport-Monteur-Übersicht (eigene Quelle aus `time_entries`) bleibt unverändert.
+**Hintergrund:** Z.5052 hatte Default `{w1:['p1','p4'],w2:['p1','p2','p4','p5'],...}` mit längst gelöschten Projekt-IDs; projCount Z.6465 zählte ohne Filter. Default jetzt `{}`; projCount filtert per `_validProjIds.has(pid)` gegen `projects[]`.
+**Pass [ ]**
+
 ### (af) v3.9.347 _exportReviewModal Overlay-Singleton — Datenverlust-Fix
 **Schritt:** Büro-Export → ✏️ Berichte-bearbeiten eines Monteurs → Modal schließen (Esc). Wieder ✏️ klicken. Wieder schließen. Insgesamt 3× hintereinander öffnen + schließen.
 **Erwartung:**

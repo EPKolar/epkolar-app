@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.347';
+  var SW_VER='epkolar-v3.9.348';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.347-supabase";
+const APP_VERSION="3.9.348-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5049,7 +5049,11 @@ class _ViewBoundary extends React.Component{
   const [planData,setPlanData]=_react.useState.call(void 0, {plans:[],tickets:[],layers:DEF_LAYERS});
   const [arbeitsscheine,setArbeitsscheine]=_react.useState.call(void 0, []);
   const [monteure,setMonteure]=_react.useState.call(void 0, MONT);
-  const [monteurProjekte,setMonteurProjekte]=_react.useState.call(void 0, {w1:["p1","p4"],w2:["p1","p2","p4","p5"],w3:["p3","p4"],w4:["p4"],w5:["p4"],w6:["p4"],w7:["p5"]});
+  /* v3.9.348: Phantom-Default {w1:['p1','p4'],…} entfernt — verwies auf laengst geloeschte
+     Projekt-IDs (p1,p2,p3,p5,pmn71cjss) und liess die "N Proj."-Badge falsche Zahlen anzeigen
+     ('6 Proj.' statt 2). Echte Zuweisungen kommen aus ODB.load('monteurProjekte') + _sbGet
+     im Initial-Load. Leerer Default ist sicher. */
+  const [monteurProjekte,setMonteurProjekte]=_react.useState.call(void 0, {});
   const [werkzeuge,setWerkzeuge]=_react.useState.call(void 0, []);
   const [fahrzeuge,setFahrzeuge]=_react.useState.call(void 0, []);
   const [chartCfg,setChartCfg]=_react.useState.call(void 0, {});
@@ -6462,7 +6466,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Mitarbeiter (" , monteure.length, ")")
           /* v3.9.29 F-M-3: Empty-State wenn keine Mitarbeiter angelegt sind. */
           , monteure.length===0&&React.createElement('div', { style: {...CC(),padding:28,textAlign:"center",color:V.dm,fontSize:13,border:"1px dashed "+V.bd}}, React.createElement('div', { style: {fontSize:42,marginBottom:8,opacity:.7}}, "👥"), React.createElement('div', { style: {fontSize:14,fontWeight:700,color:V.tx,marginBottom:4}}, "Noch keine Mitarbeiter angelegt"), isAdmin&&React.createElement('div', { style: {fontSize:11,marginTop:4}}, "Klick „+ Neuer Mitarbeiter“ oben rechts um den ersten Monteur anzulegen."))
-          , monteure.map(m=>{const projCount=(monteurProjekte[m.id]||[]).length;
+          , (()=>{const _validProjIds=new Set((projects||[]).map(p=>p.id));return monteure.map(m=>{const projCount=(monteurProjekte[m.id]||[]).filter(pid=>_validProjIds.has(pid)).length;/* v3.9.348: nur existierende Projekte zaehlen (verwaiste worker_projects-DB-Zeilen verfaelschten die Anzeige sonst). */
             return (React.createElement('div', { key: m.id, onClick: ()=>setSel(m.id), className: "epk-card-hover", style: {...CC(),padding:isMob?14:12,marginBottom:6,cursor:"pointer",borderColor:sel===m.id?"#06b6d4":V.bd,transition:"border-color .15s"}}
               , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center"}}
                 , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:isMob?10:8}}
@@ -6472,7 +6476,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
                 , React.createElement(Badge, { text: projCount+" Proj.", color: "#06b6d4"} )
               )
             ));
-          })
+          });})()
         )
         , React.createElement('div', {}
           , selM ? (React.createElement('div', { className: "fade-in", style: CC()}
