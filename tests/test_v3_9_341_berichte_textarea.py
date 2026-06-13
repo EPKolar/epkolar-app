@@ -199,19 +199,24 @@ def test_edit_monteur_entries_column_widths(index_html):
 
 # 8) Version-Sync --------------------------------------------------------------
 
-def test_app_version_341(app_version):
-    assert app_version == "3.9.341-supabase", (
-        f"APP_VERSION nicht auf 3.9.341 — aktuell: {app_version}"
+def test_app_version_at_least_341(app_version):
+    """v3.9.341 fuehrte den Test ein — beim Version-Bump auf v3.9.342+ verschiebt
+    sich nur die Major-Minor-Patch-Erwartung, der Test bleibt als Forward-Guard."""
+    m = re.match(r"3\.9\.(\d+)-supabase", app_version)
+    assert m and int(m.group(1)) >= 341, (
+        f"APP_VERSION nicht >= 3.9.341 — aktuell: {app_version}"
     )
 
 
-def test_cache_name_341(cache_name):
-    assert cache_name == "epkolar-v3.9.341", (
-        f"CACHE_NAME nicht auf epkolar-v3.9.341 — aktuell: {cache_name}"
+def test_cache_name_at_least_341(cache_name):
+    m = re.match(r"epkolar-v3\.9\.(\d+)", cache_name)
+    assert m and int(m.group(1)) >= 341, (
+        f"CACHE_NAME nicht >= epkolar-v3.9.341 — aktuell: {cache_name}"
     )
 
 
-def test_sw_ver_341(index_html):
-    assert "SW_VER='epkolar-v3.9.341'" in index_html, (
-        "SW_VER im IIFE nicht auf v3.9.341 gebumpt."
+def test_sw_ver_at_least_341(index_html):
+    m = re.search(r"SW_VER='epkolar-v3\.9\.(\d+)'", index_html)
+    assert m and int(m.group(1)) >= 341, (
+        "SW_VER im IIFE nicht >= v3.9.341."
     )

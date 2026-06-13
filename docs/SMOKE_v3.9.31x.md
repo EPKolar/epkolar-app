@@ -30,6 +30,15 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (aa) v3.9.342 VBueroExport Auto-Refresh
+**Schritt:** Büro-Export-Tab öffnen → Stundensumme/Projekte-Kacheln merken → ✏️ Berichte-bearbeiten eines Monteurs → Stunden in einer Zeile ändern → Änderungen speichern → Modal schließt sich.
+**Erwartung:**
+  - „Daten aktualisieren"-Button ist WEG.
+  - Nach 1 Sekunde aktualisieren sich Kacheln + Bauwochenbericht-Vorschau automatisch auf den neuen Wert.
+  - Browser-Tab in Hintergrund → andere Tab → zurück: Kacheln aktualisieren auf focus.
+**Hintergrund:** Vorher musste die Büro-Dame den Refresh-Button drücken — wurde vergessen, alte Zahlen blieben sichtbar.
+**Pass [ ]**
+
 ### (z2) v3.9.341 Berichte-Bearbeiten Modal: Textarea + Spalten + DB-Hinweis
 **Schritt:** Büro-Export-Tab → Monteur-Übersicht → ✏️ bei einem Monteur → Edit-Modal öffnet.
 **Erwartung:**

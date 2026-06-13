@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.341';
+  var SW_VER='epkolar-v3.9.342';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.341-supabase";
+const APP_VERSION="3.9.342-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7543,7 +7543,15 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     }catch(e){if(!silent)_optionalChain([window, 'access', _bex3 => _bex3.__toast, 'optionalCall', _bex4 => _bex4("\u26a0\ufe0f Fehler beim Laden","warn")]);}
     if(!silent)setLoading(false);
   };
-  _react.useEffect.call(void 0, ()=>{loadAll();const _iv=setInterval(()=>{loadAll(true);},TIME_HOUR);/* v3.9.248: Projekt-Daten st\u00fcndlich automatisch (silent) nachladen \u2014 B\u00fcro-Export bleibt aktuell ohne manuelles Neuladen */return ()=>clearInterval(_iv);},[]);
+  _react.useEffect.call(void 0, ()=>{loadAll();const _iv=setInterval(()=>{loadAll(true);},TIME_HOUR);/* v3.9.248: Projekt-Daten st\u00fcndlich automatisch (silent) nachladen \u2014 B\u00fcro-Export bleibt aktuell ohne manuelles Neuladen */
+    /* v3.9.342: visibilitychange + focus Listener \u2014 wenn Tab/Window wieder Fokus bekommt
+       (B\u00fcro-Dame wechselt zur\u00fcck auf Browser-Tab nach Excel/Outlook/etc.) sofort silent reload,
+       sodass Kacheln + Bauwochenbericht-Vorschau die neuen Werte zeigen statt gestriger Cache. */
+    const _onVis=()=>{if(document.visibilityState==="visible")loadAll(true);};
+    const _onFocus=()=>{loadAll(true);};
+    document.addEventListener("visibilitychange",_onVis);
+    window.addEventListener("focus",_onFocus);
+    return ()=>{clearInterval(_iv);document.removeEventListener("visibilitychange",_onVis);window.removeEventListener("focus",_onFocus);};},[]);
 
   const activeProjects=projects.filter(p=>p.status!=="archiviert");
 
@@ -7763,7 +7771,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     });
     if(cnt>0){
       window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
-      setTimeout(()=>loadAll(true),800);/* Silent-Reload nach kurzer Verzögerung */
+      setTimeout(()=>loadAll(true),1000);/* v3.9.342: Silent-Reload 1000ms nach SQ.push — Sebastian-Vorgabe, sicher dass Server-Write durch ist. War 800ms. */
     }else{
       window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
     }
@@ -7898,8 +7906,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         React.createElement('div', {},
           React.createElement('h2', { style: {fontSize:window.innerWidth<600?18:22,fontWeight:800,margin:0}}, "\ud83d\udccb B\u00fcro-Export" ),
           React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Bauwochenberichte nach Vorlage \u2014 pro Projekt als Excel mit Summenblatt + KW-Bl\u00e4ttern.")
-        ),
-        React.createElement('button', { onClick: loadAll, style: {...bpS,padding:"6px 14px",fontSize:12}}, loading?"\u23f3 Lade...":"\ud83d\udd04 Daten aktualisieren" )
+        )/* v3.9.342: Manueller Refresh-Button entfernt \u2014 wurde von B\u00fcro-Damen vergessen, Auto-Refresh via setTimeout nach Save + visibilitychange/focus-Listener uebernimmt das. */
       ),
 
       React.createElement('div', { className: "kpi-grid", style: {marginBottom:16}},
