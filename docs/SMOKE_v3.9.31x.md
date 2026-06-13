@@ -30,6 +30,17 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (x) v3.9.330 Pre-Export-Review-Modal (Zeiterfassung-Pilot)
+**Schritt:** Zeiterfassung-Tab → einen Monteur auswählen → KW prüfen → „📊 Übersicht Excel" klicken.
+**Erwartung:** Statt sofortiger Excel-Download öffnet sich ein modaler Vorschau-Dialog:
+  - Titel mit Mitarbeiter + KW
+  - Editable Tabelle: Projekt/Tätigkeit/Stunden/Von/Bis/Bemerkung jede Zelle änderbar
+  - „✕" pro Zeile entfernt sie aus dem Export (DB bleibt)
+  - „📊 Excel exportieren" lädt die geänderten Werte herunter
+  - „Zurück" / Esc bricht ab — keine Datei
+**Hintergrund:** Pre-Review-Pattern wie beim Tank-Modal — User-Wunsch „vor jedem Export muss alles gesichtet und angepasst werden können". Pilot für die nächsten Office-Exporte.
+**Pass [ ]**
+
 ### (w) v3.9.329 Tank-km Admin-Override
 **Schritt:** Drei Tests mit verschiedenen Rollen + km < aktueller Stand.
   1. **Monteur** → Fahrzeug → ⛽ Tankung → km eingeben < aktueller Fahrzeug-km → 💾 Speichern. **Erwartung:** Modal blockt mit rotem Hinweis „km-Stand darf nicht kleiner sein als der aktuelle (X km)". Hart-Sperre wie bisher.

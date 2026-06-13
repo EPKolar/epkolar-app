@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.329';
+  var SW_VER='epkolar-v3.9.330';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.329-supabase";
+const APP_VERSION="3.9.330-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3927,6 +3927,121 @@ window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
     box.appendChild(title);box.appendChild(sub);box.appendChild(grid);box.appendChild(info);box.appendChild(err);box.appendChild(row);
     overlay.appendChild(box);document.body.appendChild(overlay);
     try{fLiter.inp.focus();fLiter.inp.select&&fLiter.inp.select();}catch(e){}
+  });
+};
+/* v3.9.330: Pre-Export-Review-Modal. Generisches Vanilla-DOM Modal — User-Wunsch "vor jedem export
+   muss alles gesichtet und angepasst werden können". Pattern analog _tankConfirmModal.
+   Usage:
+     const edited = await window._exportReviewModal({
+       title: "⏱️ Zeiterfassung KW 12 — Übersicht",
+       subtitle: "Werte prüfen + bei Bedarf korrigieren bevor Export.",
+       columns: [
+         {key:"datum", label:"📅 Datum", type:"readonly", width:90},
+         {key:"label", label:"📝 Tätigkeit", type:"text", width:260},
+         {key:"hours", label:"⏱️ Stunden", type:"number", width:80, step:"0.5", min:0, max:24},
+         {key:"bemerkung", label:"📌 Bemerkung", type:"text", width:200}
+       ],
+       rows: [...],
+       confirmLabel: "📊 Excel exportieren"
+     });
+     if(!edited) return;  // User-Abbruch
+     genXls(...edited);
+*/
+window._exportReviewModal=function(opts){
+  opts=opts||{};
+  const title=String(opts.title||"Export — Vorschau");
+  const subtitle=String(opts.subtitle||"Werte prüfen und ggf. anpassen bevor Du exportierst.");
+  const columns=Array.isArray(opts.columns)?opts.columns:[];
+  const rows=Array.isArray(opts.rows)?opts.rows.map(r=>({...r})):[];/* Shallow-Clone gegen Mutation der Quelle */
+  const confirmLabel=String(opts.confirmLabel||"✓ Exportieren");
+  const cancelLabel=String(opts.cancelLabel||"Zurück");
+  return new Promise(function(resolve){
+    const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
+    const box=document.createElement('div');
+    box.style.cssText='background:'+bg+';color:'+tx+';border-radius:12px;border:1px solid '+bd+';padding:18px 20px;max-width:1100px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:inherit;';
+    const head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px;';
+    const headL=document.createElement('div');
+    const titleEl=document.createElement('div');titleEl.textContent=title;titleEl.style.cssText='font-size:16px;font-weight:700;margin-bottom:2px;';
+    const subEl=document.createElement('div');subEl.textContent=subtitle;subEl.style.cssText='font-size:12px;color:'+dm+';';
+    headL.appendChild(titleEl);headL.appendChild(subEl);
+    const counter=document.createElement('div');counter.style.cssText='font-size:11px;color:'+dm+';font-family:'+(typeof mono!=='undefined'?mono:'monospace')+';white-space:nowrap;align-self:center;';
+    head.appendChild(headL);head.appendChild(counter);
+    function refreshCounter(){counter.textContent=rows.length+' Zeile'+(rows.length===1?'':'n');}
+    refreshCounter();
+    const scroll=document.createElement('div');scroll.style.cssText='overflow:auto;border:1px solid '+bd+';border-radius:8px;flex:1;min-height:200px;';
+    const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;font-size:12px;';
+    const thead=document.createElement('thead');
+    const headRow=document.createElement('tr');
+    columns.forEach(function(col){
+      const th=document.createElement('th');th.textContent=col.label||col.key||'';
+      th.style.cssText='position:sticky;top:0;background:'+cd+';color:'+tx+';font-weight:700;text-align:left;padding:8px 10px;border-bottom:2px solid '+bd+';z-index:1;'+(col.width?'min-width:'+col.width+'px;':'');
+      headRow.appendChild(th);
+    });
+    /* Lösch-Spalte */
+    const thDel=document.createElement('th');thDel.style.cssText='position:sticky;top:0;background:'+cd+';width:38px;padding:6px;border-bottom:2px solid '+bd+';z-index:1;';
+    headRow.appendChild(thDel);
+    thead.appendChild(headRow);table.appendChild(thead);
+    const tbody=document.createElement('tbody');table.appendChild(tbody);
+    function renderRows(){
+      tbody.innerHTML='';
+      rows.forEach(function(r,rowIdx){
+        const tr=document.createElement('tr');
+        tr.style.cssText='border-bottom:1px solid '+bd+';';
+        columns.forEach(function(col){
+          const td=document.createElement('td');td.style.cssText='padding:4px 8px;vertical-align:middle;';
+          const v=r[col.key];
+          if(col.type==='readonly'){
+            const span=document.createElement('span');span.textContent=v==null?'':String(v);
+            span.style.cssText='display:block;padding:6px 4px;color:'+dm+';font-size:12px;';
+            td.appendChild(span);
+          }else{
+            const inp=document.createElement('input');
+            inp.type=col.type==='number'?'number':(col.type==='time'?'time':(col.type==='date'?'date':'text'));
+            if(col.step)inp.step=String(col.step);
+            if(col.min!==undefined)inp.min=String(col.min);
+            if(col.max!==undefined)inp.max=String(col.max);
+            inp.value=v==null?'':String(v);
+            inp.style.cssText='width:100%;padding:6px 8px;border-radius:5px;border:1px solid '+bd+';background:'+inputBg+';color:'+tx+';font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;min-height:32px;';
+            inp.addEventListener('input',function(){
+              const raw=inp.value;
+              if(col.type==='number'){const n=parseFloat(raw);r[col.key]=isNaN(n)?(raw===''?'':raw):n;}
+              else r[col.key]=raw;
+            });
+            td.appendChild(inp);
+          }
+          tr.appendChild(td);
+        });
+        const tdDel=document.createElement('td');tdDel.style.cssText='padding:4px;text-align:center;';
+        const delBtn=document.createElement('button');delBtn.textContent='✕';delBtn.title='Zeile aus Export entfernen (nicht aus DB)';
+        delBtn.style.cssText='background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer;';
+        delBtn.onclick=function(){rows.splice(rowIdx,1);refreshCounter();renderRows();};
+        tdDel.appendChild(delBtn);tr.appendChild(tdDel);
+        tbody.appendChild(tr);
+      });
+    }
+    renderRows();
+    scroll.appendChild(table);
+    const note=document.createElement('div');note.textContent='💡 Änderungen wirken NUR im Export, die Datenbank bleibt unverändert.';note.style.cssText='font-size:11px;color:'+dm+';margin:8px 2px 0;';
+    const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;justify-content:flex-end;margin-top:10px;';
+    const btnCancel=document.createElement('button');btnCancel.textContent=cancelLabel;
+    btnCancel.style.cssText='padding:9px 18px;border-radius:7px;border:1px solid '+bd+';background:'+cd+';color:'+tx+';font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;min-height:44px;';
+    const btnConfirm=document.createElement('button');btnConfirm.textContent=confirmLabel;
+    btnConfirm.style.cssText='padding:9px 18px;border-radius:7px;border:none;background:linear-gradient(135deg,#009640,#006e30);color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;min-height:44px;';
+    var _prevFocus=null;try{_prevFocus=document.activeElement;}catch(e){_prevFocus=null;}
+    function cleanup(answer){document.removeEventListener('keydown',keyHandler);try{overlay.remove();}catch(e){}try{if(_prevFocus&&typeof _prevFocus.focus==='function')_prevFocus.focus();}catch(e){}resolve(answer);}
+    function keyHandler(e){
+      if(e.key==='Escape'){e.preventDefault();cleanup(null);return;}
+    }
+    btnCancel.onclick=function(){cleanup(null);};
+    btnConfirm.onclick=function(){cleanup(rows);};
+    overlay.onclick=function(e){if(e.target===overlay)cleanup(null);};
+    document.addEventListener('keydown',keyHandler);
+    row.appendChild(btnCancel);row.appendChild(btnConfirm);
+    box.appendChild(head);box.appendChild(scroll);box.appendChild(note);box.appendChild(row);
+    overlay.appendChild(box);document.body.appendChild(overlay);
+    try{btnConfirm.focus();}catch(e){}
   });
 };
 // ═══════════ STYLES (theme-reactive via Proxy/getter) ═══════════
@@ -17651,11 +17766,39 @@ ${dayRowsHtml}
   };
 
   // ── Export: Einfache Übersicht (wie bisher) ──
-  const exportXls=()=>{
+  /* v3.9.330: Pre-Export-Review-Modal. Buero sieht alle Eintraege als editierbare Tabelle bevor
+     Excel rauslaeuft. Aenderungen wirken NUR im Export — DB bleibt unveraendert. */
+  const exportXls=async()=>{
     const wName=(monteure.find(m=>m.id===selWorker)||{}).n||"Unbekannt";
+    /* Review-Modell: Row-Objekte mit Editfeldern */
+    const reviewRows=[];let nr=0;
+    DAYS.forEach((d,i)=>{const iso=isoDate(i);(dayEntries[iso]||[]).forEach(e=>{nr++;reviewRows.push({nr:nr,tag:d+" "+dateFmt(i),projekt:e.label,taetigkeit:e.taetigkeit||e.label||"",typ:e.type,stunden:parseFloat(_n(e.hours,1).replace(",","."))||0,von:e.von||"",bis:e.bis||"",bemerkung:e.bemerkung||""});});});
+    if(!reviewRows.length){window.__toast&&window.__toast("ℹ️ Keine Einträge in dieser KW","info");return;}
+    if(!window._exportReviewModal){/* Fallback: direkt exportieren */}
+    else{
+      const _edited=await window._exportReviewModal({
+        title:"⏱️ Zeiterfassung — "+wName+" — KW "+kw+"/"+yr+" — Vorschau",
+        subtitle:"Kalenderwoche "+kw+" · "+dateFmt(0)+" – "+dateFmt(5)+". Werte bei Bedarf anpassen — nur Export, DB bleibt.",
+        columns:[
+          {key:"nr",label:"Nr",type:"readonly",width:40},
+          {key:"tag",label:"📅 Tag",type:"readonly",width:120},
+          {key:"projekt",label:"📁 Projekt/Kunde",type:"text",width:240},
+          {key:"taetigkeit",label:"🛠 Tätigkeit",type:"text",width:200},
+          {key:"typ",label:"Typ",type:"readonly",width:70},
+          {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.5",min:0,max:24},
+          {key:"von",label:"Von",type:"time",width:90},
+          {key:"bis",label:"Bis",type:"time",width:90},
+          {key:"bemerkung",label:"📌 Bemerkung",type:"text",width:200}
+        ],
+        rows:reviewRows,
+        confirmLabel:"📊 Excel exportieren"
+      });
+      if(!_edited)return;/* User-Abbruch */
+      reviewRows.length=0;_edited.forEach(r=>reviewRows.push(r));
+    }
+    /* Reihen reagiren auf Lösch-Buttons im Modal — re-numbering jetzt */
     const hdrs=["Nr","Tag","Projekt/Kunde","Tätigkeit","Typ","Stunden","Von","Bis","Bemerkung"];
-    const data=[];let nr=0;
-    DAYS.forEach((d,i)=>{const iso=isoDate(i);(dayEntries[iso]||[]).forEach(e=>{nr++;data.push([nr,d+" "+dateFmt(i),e.label,e.taetigkeit||e.label||"",e.type,_n(e.hours,1),e.von||"—",e.bis||"—",e.bemerkung||""]);});});
+    const data=reviewRows.map((r,i)=>[i+1,r.tag,r.projekt,r.taetigkeit,r.typ,_n(r.stunden,1),r.von||"—",r.bis||"—",r.bemerkung||""]);
     /* v3.9.253 FIX Doppel-Summe: manuelle SUMME-Zeile entfernt — genXls erzeugt via sumCol:5 die einzige, korrekte „Gesamt"-Zeile. Vorher summierte sumCol auch die manuelle SUMME-Zeile mit → Gesamt = 2× + zwei Summenzeilen. */
     genXls("⏱️ Zeiterfassung — "+wName+" — KW "+kw+"/"+yr,"Kalenderwoche "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_"+wName+"_KW"+kw+"_"+yr+".xls",{colWidths:[35,70,200,70,55,55,55,150,150],leftCols:[0,1,2,3,5,6,7],boldCols:[2],sumCol:5});/* v3.9.110 Hunt: sumCol 4→5 — Spalte 4 ist "Typ" (String), 5 ist "Stunden". Vorher summierte Excel die Typ-Spalte → "Gesamt 0,00". 9. colWidth ergänzt. */
   };
