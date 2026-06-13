@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.336';
+  var SW_VER='epkolar-v3.9.337';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.336-supabase";
+const APP_VERSION="3.9.337-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7669,6 +7669,45 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     allEntries.filter(e=>e.projekt===p.id).forEach(e=>{if(e.datum){const d=_localD(e.datum);kwSet.add(_kwYearFromDate(d)+"-KW"+String(_kwFromDate(d)).padStart(2,"0"));}});
     return {id:p.id,name:p.name,nr:p.nr,kunde:p.kunde,cnt,hrs,btCnt,regCnt,mgCnt:mgAll.length,mgOffen,kws:kwSet.size};
   });
+  /* v3.9.337: Monteur-Berichte direkt im Büro-Tab bearbeiten. Öffnet _exportReviewModal mit den
+     letzten 50 Zeiteinträgen des Monteurs als editierbare Tabelle. Save → SQ.push PUT pro geänderter
+     Zeile + Optimistic-Update + Silent-Reload. */
+  const editMonteurEntries=async(ms)=>{
+    if(!window._exportReviewModal){window.__toast&&window.__toast("⚠️ Export-Review-Modal nicht geladen — bitte App neu laden","warn");return;}
+    const myEntries=allEntries.filter(e=>e.monteur===ms.id).sort((a,b)=>String(b.datum||"").localeCompare(String(a.datum||""))).slice(0,50);
+    if(!myEntries.length){window.__toast&&window.__toast("ℹ️ Keine Zeiteinträge für "+ms.name,"info");return;}
+    const reviewRows=myEntries.map(e=>{const p=(projects||[]).find(x=>x.id===e.projekt);return {id:e.id,datum:String(e.datum||"").slice(0,10),projekt_name:p?(p.nr+" — "+p.name):(e.projekt||"—"),taetigkeit:e.taetigkeit||"",stunden:parseFloat(e.stunden)||0,bemerkung:e.bemerkung||""};});
+    const _edited=await window._exportReviewModal({
+      title:"✏️ Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name),
+      subtitle:"Letzte 50 Zeiteinträge. Änderungen werden direkt in die DB gespeichert.",
+      columns:[
+        {key:"datum",label:"📅 Datum",type:"date",width:120},
+        {key:"projekt_name",label:"📁 Projekt",type:"readonly",width:240},
+        {key:"taetigkeit",label:"🛠 Tätigkeit",type:"text",width:280},
+        {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.5",min:0,max:24},
+        {key:"bemerkung",label:"📌 Bemerkung",type:"text",width:200}
+      ],
+      rows:reviewRows,
+      confirmLabel:"💾 Änderungen speichern"
+    });
+    if(!_edited)return;
+    let cnt=0;
+    _edited.forEach(r=>{
+      const orig=myEntries.find(e=>e.id===r.id);if(!orig)return;
+      const origDatum=String(orig.datum||"").slice(0,10);
+      const changed=(origDatum!==r.datum)||((orig.taetigkeit||"")!==r.taetigkeit)||((parseFloat(orig.stunden)||0)!==r.stunden)||((orig.bemerkung||"")!==r.bemerkung);
+      if(changed){
+        SQ.push({url:"/api/entries/"+r.id,method:"PUT",body:{date:r.datum,taetigkeit:r.taetigkeit,hours:r.stunden,bemerkung:r.bemerkung}});
+        cnt++;
+      }
+    });
+    if(cnt>0){
+      window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
+      setTimeout(()=>loadAll(true),800);/* Silent-Reload nach kurzer Verzögerung */
+    }else{
+      window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
+    }
+  };
   /* v3.9.334: Monteur-Übersicht — pro Monteur aggregierte Daten (Std., Projekte, Berichte). */
   const monteurStats=(monteure||[]).map(m=>{
     const myEntries=allEntries.filter(e=>e.monteur===m.id);
@@ -7824,6 +7863,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
       /* v3.9.334: Monteur-\u00dcbersicht \u2014 Buero sieht auf einen Blick wer wieviele Stunden auf wievielen Projekten gemacht hat. */
       loaded && monteurStats.length>0 && React.createElement('div', { style: {...CC(),marginBottom:12,padding:12}},
         React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "\ud83d\udc65 Monteur-\u00dcbersicht (alle Daten)"),
+        React.createElement('div', { style: {fontSize:11,color:V.dm,marginBottom:6}}, "\ud83d\udca1 \u270f\ufe0f-Button \u00f6ffnet die letzten 50 Zeiteintr\u00e4ge des Monteurs zum Bearbeiten \u2014 \u00c4nderungen gehen direkt in die DB."),
         React.createElement('div', { style: {overflowX:"auto"}},
           React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}},
             React.createElement('thead', null, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd}},
@@ -7832,7 +7872,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
               React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Std."),
               React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Projekte"),
               React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Tagesber."),
-              React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Regie")
+              React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Regie"),
+              React.createElement('th', { style: {textAlign:"center",padding:"6px 8px",fontWeight:700,width:60}}, "")
             )),
             React.createElement('tbody', null, monteurStats.map(ms=>React.createElement('tr', { key: ms.id, style: {borderBottom:"1px solid "+V.bd}},
               React.createElement('td', { style: {padding:"6px 8px",fontWeight:600}}, (ms.vorname?ms.vorname+" ":"")+ms.name),
@@ -7840,7 +7881,11 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
               React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,fontWeight:700,color:"#a855f7"}}, _n(ms.hrs,1)),
               React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono}}, ms.projCnt),
               React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,color:ms.btCnt>0?"#f97316":V.dm}}, ms.btCnt),
-              React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,color:ms.regCnt>0?"#22c55e":V.dm}}, ms.regCnt)
+              React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,color:ms.regCnt>0?"#22c55e":V.dm}}, ms.regCnt),
+              /* v3.9.337: Edit-Button \u00f6ffnet _exportReviewModal mit Monteur-Eintr\u00e4gen \u2014 \u00c4nderungen via SQ.push PUT. */
+              React.createElement('td', { style: {padding:"6px 8px",textAlign:"center"}},
+                React.createElement('button', { onClick: ()=>editMonteurEntries(ms), style: {background:"rgba(59,130,246,.12)",color:"#3b82f6",border:"1px solid rgba(59,130,246,.3)",borderRadius:5,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}, title: "Letzte 50 Eintr\u00e4ge bearbeiten"}, "\u270f\ufe0f")
+              )
             )))
           )
         )
