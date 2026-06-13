@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.354';
+  var SW_VER='epkolar-v3.9.355';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2265,7 +2265,7 @@ window.API = (function() {
       // v3.9.214 #2: last_login immer; login_count NUR mit echtem Profil hochzaehlen — sonst (Self-Read leer +
       // nach login_lookup-Migration ohne login_count-Feld) wuerde parseInt(undefined)||0 den Zaehler auf 1 nullen.
       if(_authToken){const _stamp={last_login:new Date().toISOString()};if(_prof)_stamp.login_count=(parseInt(_src.login_count)||0)+1;_sbPatch("users",user.id,_stamp).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
-      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:"gotrue "+(navigator.userAgent||"")}).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}
+      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:"gotrue "+(navigator.userAgent||"")},true).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}/* v3.9.355 #1: return=minimal (kein RETURNING→SELECT) — activity_log_select ist staff-only, der SELECT-Back warf bei Monteur-Login 42501. Analog notifications-Fix v3.9.227. Insert selbst ist erlaubt (WITH CHECK=authenticated). */
       let perms=[];try{perms=typeof _src.permissions==='string'?JSON.parse(_src.permissions||'[]'):_src.permissions||[];}catch(e){perms=[];}
       const _po=_src.perms_override||_src.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:user.id,name:_src.name||user.name,role:_src.role||user.role,username:_src.username||user.username,email:email,permissions:perms,monteurId:_src.monteur_id||'',permsOverride:_poObj};
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.354-supabase";
+const APP_VERSION="3.9.355-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -8015,16 +8015,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         React.createElement(Kpi, { label: "Stunden total", value: _n(allEntries.reduce((s,e)=>s+(e.stunden||0),0),1), sub: "alle Projekte", color: "#a855f7", i: 3} )
       ),
 
-      React.createElement('div', { style: {...CC(),marginBottom:16}},
-        React.createElement('div', { style: {display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}},
-          React.createElement('label', { style: {fontSize:13,fontWeight:600}}, "Projekt:"),
-          React.createElement('select', { value: selProj, onChange: e=>setSelProj(e.target.value), style: {...II(),width:"auto",minWidth:isMob?120:200}},
-            React.createElement('option', { value: "alle"}, "\u2014 Alle Projekte (" , activeProjects.length, ")"),
-            activeProjects.map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr||"", " \u2014 " , p.name)))
-          ),
-          React.createElement('button', { onClick: generateAll, disabled: loading||!loaded, style: {...bpS,padding:"8px 20px"}}, "\ud83d\udcca Bauwochenbericht herunterladen")
-        )
-      ),
+      /* v3.9.355 G1: redundanter Projekt-Dropdown + globaler BWB-Download-Button entfernt \u2014 generateAll/per-Projekt nutzen denselben generateBWB (nur anderer Scope); globaler Download jetzt als "Alle als Excel" im Projekt\u00fcbersicht-Kopf (s.u.). selProj wird weiter via Projekt-Karten-Klick gesetzt. */
 
       /* v3.9.334: Monteur-\u00dcbersicht \u2014 Buero sieht auf einen Blick wer wieviele Stunden auf wievielen Projekten gemacht hat. */
       loaded && monteurStats.length>0 && React.createElement('div', { style: {...CC(),marginBottom:12,padding:12}},
@@ -8057,7 +8048,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         )
       ),
 
-      React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Projekt\u00fcbersicht"),
+      React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}/* v3.9.355 G1: Sektionskopf mit globalem "Alle als Excel" (generateAll = derselbe generateBWB pro Projekt) */
+        , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "\ud83d\udcca Bauwochenberichte")
+        , React.createElement('button', { onClick: generateAll, disabled: loading||!loaded, style: {...bpS,padding:"6px 16px",fontSize:12}}, "\ud83d\udce5 Alle als Excel")
+      ),
       projStats.map(ps=>(
         React.createElement('div', { key: ps.id, style: {...CC(),marginBottom:8,padding:12,cursor:"pointer",borderColor:selProj===ps.id?V.ac:V.bd,transition:"border-color .15s"}, onClick: ()=>setSelProj(ps.id)},
           React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
