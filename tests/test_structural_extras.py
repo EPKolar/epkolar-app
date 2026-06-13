@@ -117,6 +117,32 @@ def test_mont_constants_table_present(index_html):
     assert re.search(r"\bMONT\s*=\s*\[", index_html), "MONT-Tabelle fehlt"
 
 
+# Fix-B Pre-Wipe-Drain-Guard (v3.9.352) ------------------------------------
+def test_fixb_drain_guard_before_idb_wipe(index_html):
+    """Vor indexedDB.deleteDatabase('epkolar_offline') (Lokale-Daten-loeschen-Button)
+    muss ein SQ.count()-Check + Drain/Warnung stehen — sonst gehen ungesyncte
+    Tickets/Eintraege/Fotos beim Wipe verloren (Ursache Sparkasse-Tickets)."""
+    # Marker-Kommentar vorhanden
+    assert "Fix-B Pre-Wipe-Drain-Guard" in index_html, "Fix-B-Marker fehlt"
+    # Der Guard-Block muss VOR dem deleteDatabase-Aufruf des Buttons SQ.count + PhotoQ.count nutzen
+    m = re.search(
+        r"Fix-B Pre-Wipe-Drain-Guard[\s\S]{0,3000}?deleteDatabase\(\"epkolar_offline\"\)",
+        index_html,
+    )
+    assert m, "Fix-B-Block nicht vor deleteDatabase gefunden"
+    body = m.group(0)
+    assert "await SQ.count()" in body, "Guard prueft SQ.count() nicht"
+    assert "PhotoQ.count()" in body, "Guard prueft PhotoQ.count() nicht"
+    assert "window.__doSync" in body, "Guard versucht keinen Drain via __doSync"
+    assert "UNWIEDERBRINGLICH" in body, "harte Warnung mit Verlust-Hinweis fehlt"
+
+
+def test_fixb_logout_guard_untouched(index_html):
+    """Die bestehende Logout-Absicherung (Vorlage) muss unveraendert bleiben."""
+    assert "const cnt=await SQ.count();const _pcnt=await PhotoQ.count()" in index_html
+    assert "werden VERWORFEN. Trotzdem abmelden" in index_html
+
+
 # 0-rows-Safeguard (v3.9.306 #3) — RLS-Silent-Denial bei Fahrzeug-/Tank-Save -
 def test_fahrzeug_patch_captures_result(index_html):
     """Generischer PATCH muss das _sbPatch-Ergebnis erfassen (für 0-rows-Check)."""
