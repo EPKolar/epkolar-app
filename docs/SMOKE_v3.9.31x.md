@@ -30,6 +30,18 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ad) v3.9.345 Bauwochenbericht-Matrix editable + Title-Rename
+**Schritt:** Büro-Export → Projekt öffnen für Vorschau → Title liest „Bauwochenbericht: X" (nicht „Vorschau: X"). Matrix-Zelle eines Tages klicken, Stunden tippen, Zelle verlassen.
+**Erwartung:**
+  - 0-Entries-Zelle: neuer Eintrag wird in DB angelegt (POST /api/entries) — Toast „✓ Stunde gespeichert" + Zelle blitzt grün.
+  - 1-Entry-Zelle: PUT auf den vorhandenen Eintrag — gleiches Feedback.
+  - ≥2-Entry-Zelle: read-only-Summe + `ⓘ`-Hint; Klick öffnet Mini-Edit-Liste der Einzelbuchungen.
+  - Nach 1s frischt loadAll → Kacheln + Bauwochenbericht zeigen den neuen Wert.
+  - Bei 0-rows/RLS-Ablehnung: Zelle springt zurück + Warn-Toast „NICHT gespeichert — keine Berechtigung".
+  - KEIN „Speichern"-Knopf nötig.
+**Hintergrund:** 95%-Workflow für Büro-Damen — Korrekturen direkt in der Vorschau, ohne Umweg über ZeiterfassungView oder ✏️-Liste.
+**Pass [ ]**
+
 ### (ac) v3.9.344 Berichte-Bearbeiten ➕ Buchung hinzufügen + Split
 **Schritt:** Büro-Export → Monteur-Übersicht → ✏️ bei einem Monteur → ➕ Buchung hinzufügen.
 **Erwartung:**

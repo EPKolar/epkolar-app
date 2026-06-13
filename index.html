@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.344';
+  var SW_VER='epkolar-v3.9.345';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.344-supabase";
+const APP_VERSION="3.9.345-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7555,6 +7555,9 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   const [filterKWs,setFilterKWs]=_react.useState.call(void 0, null);
   const [hiddenMA,setHiddenMA]=_react.useState.call(void 0, new Set());
   const [editTaet,setEditTaet]=_react.useState.call(void 0, {});
+  /* v3.9.345: flashCell hält pro Zelle (workerId+date) einen Timestamp,
+     CSS-Übergang färbt 1s grün ein. Key-Pattern: w.id+"|"+ds. */
+  const [flashCell,setFlashCell]=_react.useState.call(void 0, {});
   const isMob=ww<600;
 
   const loadAll=async(silent)=>{
@@ -7851,6 +7854,78 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     return {id:m.id,name:m.n,vorname:m.vorname||"",rolle:m.r||"",hrs,projCnt:projSet.size,btCnt:myBT,regCnt:myRg};
   }).filter(s=>s.hrs>0||s.btCnt>0||s.regCnt>0).sort((a,b)=>b.hrs-a.hrs);
 
+  /* v3.9.345: Matrix-Zelle direkt editieren (Worker w + Tag ds + Projekt showPreview).
+     Pfad: 0 Entries → POST, 1 Entry → PUT, ≥2 Entries → Mini-Liste via _exportReviewModal.
+     Wiederverwendung des SQ.push-Patterns aus editMonteurEntries (v3.9.341/344). */
+  const _parseHr=(v)=>{const s=String(v==null?"":v).replace(",",".").trim();if(!s)return 0;const n=parseFloat(s);return isFinite(n)&&n>=0?n:NaN;};
+  const _flashOk=(key)=>{setFlashCell(prev=>({...prev,[key]:Date.now()}));setTimeout(()=>{setFlashCell(prev=>{const n={...prev};delete n[key];return n;});},1100);};
+  const saveMatrixCell=(w,ds,kwKey,newVal,oldVal)=>{
+    if(!canDo("zeit_other",curUser)){window.__toast&&window.__toast("⚠️ NICHT gespeichert — keine Berechtigung","warn");return;}
+    const _h=_parseHr(newVal);
+    if(!isFinite(_h)||_h<0){window.__toast&&window.__toast("⚠️ Ungültiger Wert — Zelle zurückgesetzt","warn");return;}
+    if(_h===_parseHr(oldVal))return;/* keine Änderung */
+    const _cellKey=w.id+"|"+ds;
+    const matches=allEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds&&e.projekt===showPreview);
+    if(matches.length>=2){window.__toast&&window.__toast("ⓘ Mehrere Einträge — bitte über ⓘ-Mini-Liste editieren","info");return;}
+    if(matches.length===1){
+      const ent=matches[0];
+      SQ.push({url:"/api/entries/"+ent.id,method:"PUT",body:{hours:_h,stunden:_h}});
+      setAllEntries(prev=>prev.map(e=>e.id===ent.id?{...e,stunden:_h,hours:_h}:e));
+      window.__toast&&window.__toast("✓ Stunde gespeichert","success");
+      _flashOk(_cellKey);
+      setTimeout(()=>loadAll(true),1000);
+      return;
+    }
+    /* 0 Entries → INSERT (nur wenn Wert > 0). */
+    if(_h<=0)return;
+    const _newId=uid();
+    const _taet=editTaet[kwKey]||"";
+    SQ.push({url:"/api/entries",method:"POST",body:{id:_newId,worker_id:w.id,project_id:showPreview,date:ds,hours:_h,taetigkeit:_taet,gewerk:"elektro"}});
+    setAllEntries(prev=>[...prev,{id:_newId,monteur:w.id,projekt:showPreview,datum:ds,stunden:_h,hours:_h,taetigkeit:_taet,bemerkung:""}]);
+    window.__toast&&window.__toast("✓ Stunde gespeichert","success");
+    _flashOk(_cellKey);
+    setTimeout(()=>loadAll(true),1000);
+  };
+  /* v3.9.345: ≥2-Entries Mini-Liste — öffnet _exportReviewModal mit nur den
+     betroffenen Einzelbuchungen (Worker+Tag+Projekt). Re-Use des bestehenden Modals. */
+  const openMultiEntryEdit=async(w,ds)=>{
+    if(!window._exportReviewModal){window.__toast&&window.__toast("⚠️ Modal nicht geladen","warn");return;}
+    const matches=allEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds&&e.projekt===showPreview);
+    if(!matches.length)return;
+    const reviewRows=matches.map(e=>({id:e.id,datum:String(e.datum||"").slice(0,10),taetigkeit:e.taetigkeit||"",stunden:parseFloat(e.stunden)||0,bemerkung:e.bemerkung||""}));
+    const _edited=await window._exportReviewModal({
+      title:"✏️ Einzelbuchungen — "+((w.name||"?")+" · "+ds),
+      subtitle:"Mehrere Einträge an diesem Tag/Projekt. Bitte einzeln korrigieren — Summe wird NICHT aufgeteilt.",
+      columns:[
+        {key:"datum",label:"📅 Datum",type:"date",width:120},
+        {key:"taetigkeit",label:"🛠 Tätigkeit",type:"textarea",rows:2,width:280},
+        {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.25",min:0,max:24},
+        {key:"bemerkung",label:"📌 Bemerkung",type:"textarea",rows:2,width:200}
+      ],
+      rows:reviewRows,
+      confirmLabel:"💾 Speichern",
+      dbWrite:true
+    });
+    if(!_edited)return;
+    let cnt=0;
+    _edited.forEach(r=>{
+      if(!r.id)return;
+      const orig=matches.find(e=>e.id===r.id);if(!orig)return;
+      const origDatum=String(orig.datum||"").slice(0,10);
+      const changed=(origDatum!==r.datum)||((orig.taetigkeit||"")!==r.taetigkeit)||((parseFloat(orig.stunden)||0)!==parseFloat(r.stunden||0))||((orig.bemerkung||"")!==r.bemerkung);
+      if(changed){
+        SQ.push({url:"/api/entries/"+r.id,method:"PUT",body:{date:r.datum,taetigkeit:r.taetigkeit,hours:parseFloat(r.stunden)||0,bemerkung:r.bemerkung}});
+        cnt++;
+      }
+    });
+    if(cnt>0){
+      window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
+      setTimeout(()=>loadAll(true),1000);
+    }else{
+      window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
+    }
+  };
+
   // === PREVIEW PANEL ===
   const renderPreview=()=>{
     if(!showPreview)return null;
@@ -7867,7 +7942,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         // Header
         React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:isMob?"flex-start":"center",marginBottom:12,flexWrap:"wrap",gap:8}},
           React.createElement('div', { style: {flex:1,minWidth:0}},
-            React.createElement('h3', { style: {margin:0,fontSize:isMob?14:18,fontWeight:800,wordBreak:"break-word"}}, "\ud83d\udc41 Vorschau: ", proj.nr||""),
+            React.createElement('h3', { style: {margin:0,fontSize:isMob?14:18,fontWeight:800,wordBreak:"break-word"}}, "\ud83d\udcca Bauwochenbericht: ", proj.nr||""),/* v3.9.345: Titel-Rename Vorschau \u2192 Bauwochenbericht (95%-Workflow Buero-Damen). */
             isMob&&React.createElement('div', { style: {fontSize:12,fontWeight:600,marginTop:2}}, proj.name),
             React.createElement('div', { style: {fontSize:11,color:V.dm,marginTop:2}}, visibleKWs.length, " KWs \u00b7 ", visibleWorkers.length, " MA")
           ),
@@ -7937,9 +8012,46 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
                     return React.createElement('tr', { key: di, style: {background:isWE?(_dark?"#1a1a2e":"#f8f8f8"):"transparent"}},
                       React.createElement('td', { style: {...tdSt2,fontWeight:600,whiteSpace:"nowrap"}}, dname, " ", String(day.getDate()).padStart(2,"0"), ".", String(day.getMonth()+1).padStart(2,"0"), ".", String(day.getFullYear())),/* v3.9.169 FIX WP#4: Jahr aus dem Tag selbst (KW1-Montag kann im Vorjahr liegen) statt ISO-Wochenjahr yr → kein "29.12.2026" mehr */
                       visibleWorkers.map(w=>{
-                        const h=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds).reduce((s,e)=>s+(e.stunden||0),0);
+                        const cellEntries=kwEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds);
+                        const h=cellEntries.reduce((s,e)=>s+(e.stunden||0),0);
                         rowSum+=h;
-                        return React.createElement('td', { key: w.id, style: {...numSt,color:h?"#22c55e":V.dm}}, h?_n(h,2):"");
+                        /* v3.9.345: Matrix-Zelle editierbar (canDo zeit_other).
+                           0/1 Entry → input mit inline-Save onBlur. ≥2 → readonly Summe + ⓘ → Mini-Liste. */
+                        const _cellKey=w.id+"|"+ds;
+                        const _flashed=!!flashCell[_cellKey];
+                        const _flashSt=_flashed?{background:"rgba(34,197,94,.35)",transition:"background 1s ease-out"}:{transition:"background 1s ease-out"};
+                        const _canEdit=canDo&&canDo("zeit_other",curUser);
+                        if(!_canEdit){
+                          return React.createElement('td', { key: w.id, style: {...numSt,color:h?"#22c55e":V.dm,..._flashSt}}, h?_n(h,2):"");
+                        }
+                        if(cellEntries.length>=2){
+                          return React.createElement('td', { key: w.id, style: {...numSt,color:h?"#22c55e":V.dm,cursor:"pointer",..._flashSt}, onClick: ()=>openMultiEntryEdit(w,ds), title: "Mehrere Einträge — klick für Mini-Liste"},
+                            h?_n(h,2):"",
+                            React.createElement('span', { style: {marginLeft:4,fontSize:9,color:"#eab308",verticalAlign:"super"}, "data-multi-entry": "1"}, "ⓘ")
+                          );
+                        }
+                        /* 0 oder 1 Entry → inline input */
+                        const _initVal=h?_n(h,2).replace(".",","):"";
+                        return React.createElement('td', { key: w.id, style: {...numSt,padding:0,..._flashSt}},
+                          React.createElement('input', {
+                            type: "text",
+                            inputMode: "decimal",
+                            defaultValue: _initVal,
+                            onFocus: (ev)=>{ev.target.dataset.orig=ev.target.value;ev.target.style.outline="1px solid #009640";},
+                            onBlur: (ev)=>{
+                              ev.target.style.outline="none";
+                              const _newRaw=ev.target.value;
+                              const _origRaw=ev.target.dataset.orig||"";
+                              if(_newRaw===_origRaw)return;
+                              const _newH=_parseHr(_newRaw);
+                              if(!isFinite(_newH)||_newH<0){ev.target.value=_origRaw;window.__toast&&window.__toast("⚠️ Ungültiger Wert — Zelle zurückgesetzt","warn");return;}
+                              try{saveMatrixCell(w,ds,kwKey,_newRaw,_origRaw);}
+                              catch(e){ev.target.value=_origRaw;console.warn("[matrix-save]",e&&e.message||e);}
+                            },
+                            onKeyDown: (ev)=>{if(ev.key==="Enter"){ev.target.blur();}else if(ev.key==="Escape"){ev.target.value=ev.target.dataset.orig||"";ev.target.blur();}},
+                            style: {width:"100%",background:"transparent",border:"none",textAlign:"right",fontFamily:"'SF Mono',monospace",fontWeight:600,color:h?"#22c55e":V.tx,fontSize:isMob?12:11,padding:isMob?"6px 6px":"4px 8px",outline:"none"}
+                          })
+                        );
                       }),
                       React.createElement('td', { style: {...numSt,fontWeight:700,color:rowSum?"#a855f7":V.dm}}, rowSum?_n(rowSum,2):""),
                       di===0?React.createElement('td', { rowSpan: 7, style: {...tdSt2,verticalAlign:"top",padding:4}},

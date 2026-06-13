@@ -231,25 +231,31 @@ def test_dbWrite_branch_does_not_contain_export_only_text(index_html):
 
 # 10) Version-Sync --------------------------------------------------------------
 
-def test_app_version_344(app_version):
-    assert app_version == "3.9.344-supabase", (
-        f"APP_VERSION nicht 3.9.344-supabase — aktuell: {app_version}"
+def test_app_version_at_least_344(app_version):
+    """Forward-Guard: v3.9.344 fuehrte den Test ein — kommende Version-Bumps
+    sollen nicht ruckwirkend brechen (vgl. v3.9.342-Pattern)."""
+    m = re.match(r"3\.9\.(\d+)-supabase", app_version)
+    assert m and int(m.group(1)) >= 344, (
+        f"APP_VERSION nicht >= 3.9.344 — aktuell: {app_version}"
     )
 
 
-def test_cache_name_344(cache_name):
-    assert cache_name == "epkolar-v3.9.344", (
-        f"CACHE_NAME nicht epkolar-v3.9.344 — aktuell: {cache_name}"
+def test_cache_name_at_least_344(cache_name):
+    m = re.match(r"epkolar-v3\.9\.(\d+)", cache_name)
+    assert m and int(m.group(1)) >= 344, (
+        f"CACHE_NAME nicht >= epkolar-v3.9.344 — aktuell: {cache_name}"
     )
 
 
-def test_sw_ver_344(index_html):
-    assert "SW_VER='epkolar-v3.9.344'" in index_html, (
-        "SW_VER im IIFE nicht epkolar-v3.9.344."
+def test_sw_ver_at_least_344(index_html):
+    m = re.search(r"SW_VER='epkolar-v3\.9\.(\d+)'", index_html)
+    assert m and int(m.group(1)) >= 344, (
+        "SW_VER im IIFE nicht >= v3.9.344."
     )
 
 
-def test_sw_header_344(sw_js):
-    assert sw_js.startswith("// EP Kolar Service Worker v3.9.344"), (
-        "SW-Header-Kommentar nicht v3.9.344."
+def test_sw_header_at_least_344(sw_js):
+    m = re.match(r"// EP Kolar Service Worker v3\.9\.(\d+)", sw_js)
+    assert m and int(m.group(1)) >= 344, (
+        "SW-Header-Kommentar nicht >= v3.9.344."
     )
