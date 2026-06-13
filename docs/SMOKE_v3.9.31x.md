@@ -30,6 +30,13 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (y) v3.9.338 Fahrzeug-Labels Sichtbarkeitsregel
+**Schritt:** Im Fahrzeuge-Tab den 🏷️ Labels-Button drücken — einmal als Admin/Büro/PL/Lagerleitung, einmal als Monteur.
+**Erwartung:** Admin / Büro / Projektleiter / Lagerleitung sieht UND druckt alle aktiven Fahrzeuge (aktuell 21). Monteur sieht/druckt nur Fahrzeuge denen er als `fahrer` zugeordnet ist (seit v3.9.107 bewusst, damit der einzelne Monteur nicht die ganze Flotte druckt).
+**Hintergrund:** Befund „nur 2 Fahrzeuge" am Handy war eine veraltete SW-Cache-Version, kein Code-Bug. Nach Hard-Refresh auf v3.9.339 als Admin: alle 21 Fahrzeuge sichtbar. `isVAdmin` (Z.18368) enthält admin/projektleiter/buero/lagerleitung; `visibleFz` (Z.18415) filtert Nicht-VAdmin auf fahrer===monteurId. Logik unverändert korrekt.
+**Bei Abweichung:** Zuerst Cache prüfen (Hard-Refresh / SW-Reset über `/?sw=reset` oder via DevTools → Application → Service Worker → Unregister). Erst dann Code-Befund melden.
+**Pass [ ]**
+
 ### (x) v3.9.330 Pre-Export-Review-Modal (Zeiterfassung-Pilot)
 **Schritt:** Zeiterfassung-Tab → einen Monteur auswählen → KW prüfen → „📊 Übersicht Excel" klicken.
 **Erwartung:** Statt sofortiger Excel-Download öffnet sich ein modaler Vorschau-Dialog:
