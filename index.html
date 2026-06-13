@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.348';
+  var SW_VER='epkolar-v3.9.349';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.348-supabase";
+const APP_VERSION="3.9.349-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5305,9 +5305,48 @@ class _ViewBoundary extends React.Component{
             setMonteurProjekte(prev=>({...prev,...mpObj}));
           }else if(wpMap&&typeof wpMap==='object'&&!Array.isArray(wpMap)&&Object.keys(wpMap).length){setMonteurProjekte(wpMap);}
           // Plans + Tickets + Checklists → planData
+          /* v3.9.349 Fix-A (DIAGNOSE_TICKET_VERLUST.md Schwachstelle #1):
+             Server-Pull merged jetzt MIT lokal-POST-pending Tickets/Plans aus der SyncQueue
+             statt sie zu ueberschreiben. Vorher: server.tkts ersetzte planData.tickets komplett
+             → lokal angelegte aber noch nicht gedrainte Tickets verschwanden (BVH Sparkasse:
+             3 angelegt, DB hat 1, 2 weg). Jetzt: prev.tickets, deren id NICHT vom Server
+             zurueckkommt aber EIN POST in SQ pending ist, bleiben im State. Analog DELETE:
+             pending DELETEs werden aus dem Server-Stand vorab gefiltert (sonst tauchen
+             lokal-geloeschte Tickets wieder auf). */
+          let _v349PendingTicketPosts=new Set();
+          let _v349PendingTicketDeletes=new Set();
+          let _v349PendingPlanPosts=new Set();
+          let _v349PendingPlanDeletes=new Set();
+          try{
+            const _v349Q=await SQ.getAll();
+            _v349Q.forEach(it=>{
+              if(!it||!it.url)return;
+              const _u=String(it.url);
+              const _m=String(it.method||"").toUpperCase();
+              if(_u==="/api/tickets"&&_m==="POST"&&it.body&&it.body.id) _v349PendingTicketPosts.add(it.body.id);
+              else if(_u==="/api/plans"&&_m==="POST"&&it.body&&it.body.id) _v349PendingPlanPosts.add(it.body.id);
+              else if(_u.startsWith("/api/tickets/")&&_m==="DELETE"){const _id=_u.split("/").pop();if(_id) _v349PendingTicketDeletes.add(_id);}
+              else if(_u.startsWith("/api/plans/")&&_m==="DELETE"){const _id=_u.split("/").pop();if(_id) _v349PendingPlanDeletes.add(_id);}
+            });
+          }catch(e){console.warn("[v3.9.349 SQ-merge]",e&&e.message||e);}
           if(_optionalChain([plns, 'optionalAccess', _48c => _48c.length])||_optionalChain([tkts, 'optionalAccess', _48d => _48d.length])){
-            setPlanData(prev=>{const upd={...prev};if(plns&&plns.length)upd.plans=plns.map(_mapPlan);if(tkts&&tkts.length)upd.tickets=tkts.map(t=>({...t,planId:t.planId||t.plan_id,pid:t.pid||t.project_id,createdAt:t.createdAt||t.created_at,updatedAt:t.updatedAt||t.updated_at,dueDate:t.dueDate||t.due_date,photos:_jp(t.photos),comments:_jp(t.comments)}));/* v3.9.180: photos+comments aus JSON-Text parsen (sonst .map auf String → Crash); alles aus der DB */return upd;});/* v3.9.173 FIX KRITISCH: Tickets wurden RAW (nur snake_case plan_id) gespeichert → planTickets-Filter (t.planId camelCase) war leer → Tickets "verschwanden" nach Reload (DB hatte sie, App zeigte 0). Jetzt plan_id→planId etc. gemappt — analog _mapPlan für Pläne. */
-          }
+            setPlanData(prev=>{
+              const upd={...prev};
+              if(plns&&plns.length){
+                const _srvPlanIds=new Set(plns.map(p=>p.id));
+                const _serverPlans=plns.filter(p=>!_v349PendingPlanDeletes.has(p.id)).map(_mapPlan);
+                const _localPendingPlans=(prev.plans||[]).filter(p=>!_srvPlanIds.has(p.id)&&_v349PendingPlanPosts.has(p.id));
+                upd.plans=[..._serverPlans,..._localPendingPlans];
+              }
+              if(tkts&&tkts.length){
+                const _srvTicketIds=new Set(tkts.map(t=>t.id));
+                const _serverTickets=tkts.filter(t=>!_v349PendingTicketDeletes.has(t.id)).map(t=>({...t,planId:t.planId||t.plan_id,pid:t.pid||t.project_id,createdAt:t.createdAt||t.created_at,updatedAt:t.updatedAt||t.updated_at,dueDate:t.dueDate||t.due_date,photos:_jp(t.photos),comments:_jp(t.comments)}));/* v3.9.180: photos+comments aus JSON-Text parsen */
+                const _localPendingTickets=(prev.tickets||[]).filter(t=>!_srvTicketIds.has(t.id)&&_v349PendingTicketPosts.has(t.id));
+                upd.tickets=[..._serverTickets,..._localPendingTickets];
+              }
+              return upd;
+            });
+          }/* v3.9.173 FIX KRITISCH: Tickets wurden RAW (nur snake_case plan_id) gespeichert → planTickets-Filter (t.planId camelCase) war leer → Tickets "verschwanden" nach Reload (DB hatte sie, App zeigte 0). Jetzt plan_id→planId etc. gemappt — analog _mapPlan für Pläne. */
           if(_optionalChain([chkl, 'optionalAccess', _48e => _48e.length])){
             setForms(prev=>({...prev,checklisten:chkl.map(c=>({id:c.id,pid:c.project_id,name:c.name,items:_jp(c.items),date:(c.created_at||"").split("T")[0],status:c.status||"offen"}))}));
           }

@@ -30,6 +30,24 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (ah) v3.9.349 planData Merge statt Overwrite (Fix-A aus Ticket-Verlust-Diagnose)
+**Schritt:** Offline-Test reproduzieren (z.B. Devtools → Network → Offline).
+  1. App offline → Projekt-Plan öffnen → 2 neue Tickets anlegen (sichtbar im State).
+  2. Tab wechseln + zurück → Tickets sind weiter da (Local-State + IndexedDB persist).
+  3. Online schalten → kurz warten bis SyncQueue drained (max ~30 s je nach Intervall).
+  4. Reload (F5) → alle 2 Tickets stehen jetzt sowohl lokal als auch in der DB.
+
+**Härtetest (Race) — beweist den Fix:**
+  1. Offline anlegen (Schritt 1 oben).
+  2. Während noch offline: manuell `await loadAll()` aus der DevTools-Console triggern (server tickets-Pull kommt zurück mit der alten Liste ohne die 2 neuen).
+  3. **Erwartung VOR v3.9.349:** Die 2 lokal angelegten Tickets verschwinden aus dem State.
+  4. **Erwartung MIT v3.9.349:** Die 2 lokal angelegten Tickets bleiben sichtbar, weil SQ.getAll() ihre IDs in `_v349PendingTicketPosts` hat → Merge bewahrt sie.
+
+**Smoke-Punkt für Sebastian:** Eine Stunde lang offline Plan-Tickets anlegen, online schalten, Reload — alle Tickets dürfen NIE wieder aus dem State fallen.
+
+**Hintergrund (DIAGNOSE_TICKET_VERLUST.md, Schwachstelle #1):** Z.5305 ersetzte `planData.tickets` durch Server-Antwort komplett. Lokal-pending Tickets in der SyncQueue verschwanden aus dem State, wenn `loadAll` vor dem Drain lief. Fix-A merged jetzt mit SQ-Queue-bewusst (POSTs preserve, DELETEs filter).
+**Pass [ ]**
+
 ### (ag) v3.9.348 Mitarbeiter projCount Phantom-Fix
 **Schritt:** Mitarbeiter-Tab öffnen → Liste der Monteure → bei jedem die Badge „N Proj." prüfen.
 **Erwartung:**
