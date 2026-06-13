@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.340';
+  var SW_VER='epkolar-v3.9.341';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.340-supabase";
+const APP_VERSION="3.9.341-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3965,6 +3965,10 @@ window._exportReviewModal=function(opts){
   const rows=Array.isArray(opts.rows)?opts.rows.map(r=>({...r})):[];/* Shallow-Clone gegen Mutation der Quelle */
   const confirmLabel=String(opts.confirmLabel||"✓ Exportieren");
   const cancelLabel=String(opts.cancelLabel||"Zurück");
+  /* v3.9.341: dbWrite=true ändert nur den Hinweis-Text — Save-Logik bleibt im Aufrufer.
+     Wird gesetzt fuer editMonteurEntries (echter SQ.push PUT /api/entries/<id>); die anderen
+     3 Aufrufer (Zeiterfassung/Wochenplanung/Abwesenheit) behalten den Excel-only-Hinweis. */
+  const dbWrite=opts.dbWrite===true;
   return new Promise(function(resolve){
     const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
     const overlay=document.createElement('div');
@@ -4000,12 +4004,24 @@ window._exportReviewModal=function(opts){
         const tr=document.createElement('tr');
         tr.style.cssText='border-bottom:1px solid '+bd+';';
         columns.forEach(function(col){
-          const td=document.createElement('td');td.style.cssText='padding:4px 8px;vertical-align:middle;';
+          /* v3.9.341: Zellen mit word-break + whiteSpace:normal + verticalAlign:top
+             damit lange Texte (lange Projektnamen / Tätigkeiten / Bemerkungen) umbrechen
+             statt abgeschnitten zu werden. Galt vorher nicht. */
+          const td=document.createElement('td');td.style.cssText='padding:4px 8px;vertical-align:top;white-space:normal;word-break:break-word;';
           const v=r[col.key];
           if(col.type==='readonly'){
             const span=document.createElement('span');span.textContent=v==null?'':String(v);
-            span.style.cssText='display:block;padding:6px 4px;color:'+dm+';font-size:12px;';
+            span.style.cssText='display:block;padding:6px 4px;color:'+dm+';font-size:12px;white-space:normal;word-break:break-word;';
             td.appendChild(span);
+          }else if(col.type==='textarea'){
+            /* v3.9.341: textarea-Schalter — fuer lange Felder (Taetigkeit/Bemerkung), rows=2,
+               resize:vertical erlaubt, min-height ~48px. onChange-Pfad identisch zu input. */
+            const ta=document.createElement('textarea');
+            ta.rows=col.rows||2;
+            ta.value=v==null?'':String(v);
+            ta.style.cssText='width:100%;padding:6px 8px;border-radius:5px;border:1px solid '+bd+';background:'+inputBg+';color:'+tx+';font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;min-height:48px;resize:vertical;line-height:1.4;';
+            ta.addEventListener('input',function(){r[col.key]=ta.value;});
+            td.appendChild(ta);
           }else{
             const inp=document.createElement('input');
             inp.type=col.type==='number'?'number':(col.type==='time'?'time':(col.type==='date'?'date':'text'));
@@ -4033,7 +4049,11 @@ window._exportReviewModal=function(opts){
     }
     renderRows();
     scroll.appendChild(table);
-    const note=document.createElement('div');note.textContent='💡 Änderungen wirken NUR im Export, die Datenbank bleibt unverändert.';note.style.cssText='font-size:11px;color:'+dm+';margin:8px 2px 0;';
+    /* v3.9.341: dbWrite-Schalter steuert den Hinweis-Text.
+       Excel-only-Aufrufer (Zeiterfassung/Wochenplanung/Abwesenheit/BWB) → "NUR im Export".
+       editMonteurEntries (echter SQ.push PUT) → "direkt in der Datenbank gespeichert".
+       Sebastian-Befund: vorher stand fälschlich der Excel-Hinweis auch beim DB-Write. */
+    const note=document.createElement('div');note.textContent=dbWrite?'💾 Änderungen werden direkt in der Datenbank gespeichert (reale Korrektur der Monteur-Buchungen).':'💡 Änderungen wirken NUR im Export, die Datenbank bleibt unverändert.';note.style.cssText='font-size:11px;color:'+dm+';margin:8px 2px 0;';
     const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;justify-content:flex-end;margin-top:10px;';
     const btnCancel=document.createElement('button');btnCancel.textContent=cancelLabel;
     btnCancel.style.cssText='padding:9px 18px;border-radius:7px;border:1px solid '+bd+';background:'+cd+';color:'+tx+';font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;min-height:44px;';
@@ -7716,15 +7736,19 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
     const _edited=await window._exportReviewModal({
       title:"✏️ Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name),
       subtitle:"Letzte 50 Zeiteinträge. Änderungen werden direkt in die DB gespeichert.",
+      /* v3.9.341: textarea fuer Taetigkeit + Bemerkung (lange Texte vorher abgeschnitten),
+         readonly Projekt mit Umbruch (lange BVH-Namen wie "DR.-GSCHMEIDLERSTRASSE 10 (PA241923)"),
+         dbWrite:true → korrekter DB-Hinweis im Modal. width => minWidth via Modal-CSS. */
       columns:[
         {key:"datum",label:"📅 Datum",type:"date",width:120},
         {key:"projekt_name",label:"📁 Projekt",type:"readonly",width:240},
-        {key:"taetigkeit",label:"🛠 Tätigkeit",type:"text",width:280},
+        {key:"taetigkeit",label:"🛠 Tätigkeit",type:"textarea",rows:2,width:320},
         {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.5",min:0,max:24},
-        {key:"bemerkung",label:"📌 Bemerkung",type:"text",width:200}
+        {key:"bemerkung",label:"📌 Bemerkung",type:"textarea",rows:2,width:240}
       ],
       rows:reviewRows,
-      confirmLabel:"💾 Änderungen speichern"
+      confirmLabel:"💾 Änderungen speichern",
+      dbWrite:true
     });
     if(!_edited)return;
     let cnt=0;

@@ -30,6 +30,16 @@
 
 ## Smoke-Tests — bitte abklicken
 
+### (z2) v3.9.341 Berichte-Bearbeiten Modal: Textarea + Spalten + DB-Hinweis
+**Schritt:** Büro-Export-Tab → Monteur-Übersicht → ✏️ bei einem Monteur → Edit-Modal öffnet.
+**Erwartung:**
+  - Lange Tätigkeit/Bemerkung/Projekt-Texte werden vollständig sichtbar (Umbruch, kein Abschnitt).
+  - Tätigkeit + Bemerkung sind Textareas (2-zeilig, vertikal vergrößerbar).
+  - Hinweis im Modal: „Änderungen werden direkt in der Datenbank gespeichert (reale Korrektur der Monteur-Buchungen)." — KEIN „NUR im Export" mehr.
+  - Speichern funktioniert wie bisher (SQ.push PUT, Toast „✏️ N Einträge aktualisiert").
+**Hintergrund:** Vorher fix-breite single-line inputs schnitten Texte ab + Hinweis war FALSCH (Modal schrieb sehr wohl in DB).
+**Pass [ ]**
+
 ### (z) v3.9.340 Werkzeug-Labels Gate + Status-Filter + Toggle
 **Schritt:** Werkzeug-Tab → einmal als Admin/Büro/PL/Lagerleitung, einmal als Monteur. 🏷️ Labels-Button drücken. Toggle „Stillgelegte/verlorene einblenden" prüfen.
 **Erwartung:**
