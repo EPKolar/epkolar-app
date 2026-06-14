@@ -147,19 +147,30 @@ def test_open_multi_entry_edit_function_present(index_html):
     )
 
 
-# 7) setTimeout(loadAll(true),1000) im Matrix-Save-Pfad ------------------------
+# 7) Refresh nach Matrix-Save: drain-then-reload (v3.9.364) --------------------
 
-def test_save_matrix_cell_settimeout_1000(index_html):
-    """Nach SQ.push muss setTimeout(()=>loadAll(true),1000) stehen — konsistent
-    mit v3.9.342 Refresh-Automatik."""
+def test_save_matrix_cell_sync_then_reload(index_html):
+    """v3.9.364: Nach SQ.push muss _syncThenReload() stehen (erst SQ-Queue drainen,
+    DANN loadAll) statt des alten blinden setTimeout(loadAll,1000), der den
+    optimistischen Wert mit noch-altem DB-Stand überschrieb (State-nach-Write-Bug)."""
     block = _save_matrix_block(index_html)
-    m = re.search(
-        r"setTimeout\(\s*(?:\(\s*\)|_)\s*=>\s*loadAll\(\s*true\s*\)\s*,\s*1000\s*\)",
-        block,
+    assert "_syncThenReload()" in block, (
+        "saveMatrixCell ruft kein _syncThenReload() — Refresh-Automatik fehlt."
     )
-    assert m, (
-        "saveMatrixCell hat kein setTimeout(()=>loadAll(true),1000) — Refresh-Automatik fehlt."
+    # der alte race-anfällige blinde Reload darf nicht mehr im Save-Pfad stehen
+    assert not re.search(r"setTimeout\(\s*(?:\(\s*\)|_)\s*=>\s*loadAll\(\s*true\s*\)\s*,\s*1000\s*\)", block), (
+        "alter setTimeout(loadAll,1000)-Race noch im saveMatrixCell-Pfad."
     )
+
+
+def test_sync_then_reload_drains_before_reload(index_html):
+    """_syncThenReload muss erst __doSync/SQ.count drainen, dann loadAll(true)."""
+    m = re.search(r"const _syncThenReload=async\(\)=>\{([\s\S]{0,600}?)\n  \};", index_html)
+    assert m, "_syncThenReload-Helfer fehlt"
+    body = m.group(1)
+    assert "window.__doSync" in body, "drainet nicht via __doSync"
+    assert "SQ.count()" in body, "wartet nicht auf leere Queue (SQ.count)"
+    assert "loadAll(true)" in body, "lädt am Ende nicht neu"
 
 
 # 8) generateBWB unveraendert (editTaet[kwKey]-Fallback bleibt) ----------------

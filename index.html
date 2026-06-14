@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.363';
+  var SW_VER='epkolar-v3.9.364';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2337,7 +2337,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.363-supabase";
+const APP_VERSION="3.9.364-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7625,7 +7625,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       const taetigkeit=useFilters&&editTaet[proj.id+"|"+kwKey]!==undefined?editTaet[proj.id+"|"+kwKey]:(()=>{const kwBT=pBT.filter(b=>{if(!b.datum)return false;const d=_localD(b.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
 
       html+='<table id="Bericht_KW'+kwStr+'-'+yr+'">';
-      html+='<tr><td colspan="'+(nc+1)+'" class="sub">'+CF_HTML_NAME+'</td><td colspan="2" class="sub" style="text-align:right">'+esc(proj.kunde||proj.name)+'</td></tr>';
+      html+='<tr><td colspan="'+(nc+1)+'" style="border:none;font-size:14pt;font-weight:bold;color:#009640;padding:4px 2px">'+CF_HTML_NAME+'</td><td colspan="2" class="sub" style="text-align:right;border:none">'+esc(proj.kunde||proj.name)+'</td></tr>';/* v3.9.364 CI: EP-grüner Firmenkopf */
+      html+='<tr><td colspan="'+(nc+3)+'" style="border:none;font-size:8pt;color:#666;padding:0 2px 4px">'+COMPANY_FOOTER.slogan+' · '+COMPANY_FOOTER.addr+' · Tel '+COMPANY_FOOTER.phone+' · '+COMPANY_FOOTER.web+'</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" class="hdr">Bauwochenbericht</td></tr>';
       html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
@@ -7656,7 +7657,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
 
     // Summenblatt
     html+='<table id="Summenblatt">';
-    html+='<tr><td colspan="'+(nc+1)+'" class="sub">'+CF_HTML_NAME+'</td><td colspan="2" class="sub" style="text-align:right">'+esc(proj.kunde||proj.name)+'</td></tr>';
+    html+='<tr><td colspan="'+(nc+1)+'" style="border:none;font-size:14pt;font-weight:bold;color:#009640;padding:4px 2px">'+CF_HTML_NAME+'</td><td colspan="2" class="sub" style="text-align:right;border:none">'+esc(proj.kunde||proj.name)+'</td></tr>';/* v3.9.364 CI: EP-grüner Firmenkopf */
+    html+='<tr><td colspan="'+(nc+3)+'" style="border:none;font-size:8pt;color:#666;padding:0 2px 4px">'+COMPANY_FOOTER.slogan+' · '+COMPANY_FOOTER.addr+' · Tel '+COMPANY_FOOTER.phone+' · '+COMPANY_FOOTER.web+'</td></tr>';
     html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
     html+='<tr><td colspan="'+(nc+3)+'" class="hdr">Summenblatt Bauwochenberichte</td></tr>';
     html+='<tr><td colspan="'+(nc+3)+'" style="border:none">&nbsp;</td></tr>';
@@ -7809,6 +7811,16 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
      Wiederverwendung des SQ.push-Patterns aus editMonteurEntries (v3.9.341/344). */
   const _parseHr=(v)=>{const s=String(v==null?"":v).replace(",",".").trim();if(!s)return 0;const n=parseFloat(s);return isFinite(n)&&n>=0?n:NaN;};
   const _flashOk=(key)=>{setFlashCell(prev=>({...prev,[key]:Date.now()}));setTimeout(()=>{setFlashCell(prev=>{const n={...prev};delete n[key];return n;});},1100);};
+  /* v3.9.364 FIX (State-nach-Write): erst die SQ-Queue zur DB drainen, DANN neu laden. Vorher überholte ein
+     blinder setTimeout(loadAll,1000) den asynchronen __doSync-Drain → der Reload zog den noch-alten DB-Stand und
+     überschrieb den optimistisch gesetzten Wert → „verschwindet"/„muss abgeglichen werden". Write/Push unangetastet.
+     Polling auf SQ.count() statt einmal __doSync, weil ein bereits in-flight Batch-Sync (SQ._batchDelay) den
+     __doSync-Aufruf per Guard sofort zurückgibt — wir warten bis die Queue wirklich leer ist (max ~3,2s, dann reload). */
+  const _syncThenReload=async()=>{
+    try{for(let i=0;i<8;i++){if(window.__doSync)await window.__doSync();const c=await SQ.count().catch(()=>0);if(!c)break;await new Promise(r=>setTimeout(r,400));}}
+    catch(_e){console.warn('[bwb-sync-reload]',_e&&_e.message||_e);}
+    loadAll(true);
+  };
   const saveMatrixCell=(w,ds,kwKey,newVal,oldVal,projId)=>{
     /* v3.9.362 FIX: Projekt explizit übergeben (Inline-Vorschau öffnet via openBWB, showPreview ist dann null
        → ohne projId würden Inline-Edits project_id:null-Waisen anlegen + die echte Buchung verfehlen). */
@@ -7827,7 +7839,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       setAllEntries(prev=>prev.map(e=>e.id===ent.id?{...e,stunden:_h,hours:_h}:e));
       window.__toast&&window.__toast("✓ Stunde gespeichert","success");
       _flashOk(_cellKey);
-      setTimeout(()=>loadAll(true),1000);
+      _syncThenReload();/* v3.9.364: erst drainen, dann reload — sonst überschreibt der Reload den optimistischen Wert */
       return;
     }
     /* 0 Entries → INSERT (nur wenn Wert > 0). */
@@ -7838,7 +7850,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     setAllEntries(prev=>[...prev,{id:_newId,monteur:w.id,projekt:_pid,datum:ds,stunden:_h,hours:_h,taetigkeit:_taet,bemerkung:""}]);
     window.__toast&&window.__toast("✓ Stunde gespeichert","success");
     _flashOk(_cellKey);
-    setTimeout(()=>loadAll(true),1000);
+    _syncThenReload();/* v3.9.364: erst drainen, dann reload (siehe oben) */
   };
   /* v3.9.345: ≥2-Entries Mini-Liste — öffnet _exportReviewModal mit nur den
      betroffenen Einzelbuchungen (Worker+Tag+Projekt). Re-Use des bestehenden Modals. */
@@ -7954,7 +7966,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
             const _tk=projId+"|"+kwKey;/* v3.9.362: editTaet projekt-skopiert (mehrere Inline-Vorschauen offen → kein Tätigkeits-Leak zwischen Projekten gleicher KW) */
             const days=_kwDates(parseInt(yr),kw);
             const kwEntries=pEntries.filter(e=>{if(!e.datum)return false;const d=_localD(e.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});
-            const taet=editTaet[_tk]!==undefined?editTaet[_tk]:"";
+            /* v3.9.364 FIX: Tätigkeit auch in der Inline-Vorschau aus Bautagebuch/Einträgen vor-befüllen (wie openPreview/generateBWB) — vorher leer bis man „Vollbild" drückte (das erst editTaet seedet). editTaet (User-Edit) hat Vorrang. */
+            const taet=editTaet[_tk]!==undefined?editTaet[_tk]:(()=>{const kwBT=(allBT||[]).filter(b=>{if(b.projekt!==projId||!b.datum)return false;const d=_localD(b.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});return kwBT.length?kwBT.map(b=>b.taetigkeit).filter(Boolean).join("; "):[...new Set(kwEntries.map(e=>e.taetigkeit).filter(Boolean))].join("; ");})();
             const visWorkerIds=new Set(visibleWorkers.map(w=>w.id));
             const kwTotal=kwEntries.filter(e=>visWorkerIds.has(e.monteur)).reduce((s,e)=>s+(e.stunden||0),0);
             const bdr="1px solid "+(V.bd||"#333");

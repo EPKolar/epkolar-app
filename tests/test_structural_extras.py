@@ -190,7 +190,7 @@ def test_shared_bwb_blocks_defined_and_editable(index_html):
     )
     m = re.search(r"const _renderBWBBlocks=\(pEntries,_kws,visibleWorkers,projId\)=>", index_html)
     assert m, "_renderBWBBlocks-Signatur (mit projId) fehlt"
-    body = index_html[m.start():m.start() + 6000]
+    body = index_html[m.start():m.start() + 8000]
     assert "saveMatrixCell(w,ds,kwKey,_newRaw,_origRaw,projId)" in body, (
         "editierbare Stunden-Zelle muss projId an saveMatrixCell durchreichen"
     )

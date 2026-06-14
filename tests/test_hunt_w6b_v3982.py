@@ -6,7 +6,9 @@ def test_generatebwb_escapes(index_html):
     assert 'const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");/* v3.9.128 M-P2: generateBWB' in index_html
     assert "html+='<th>'+esc(w.name)+'</th>';" in index_html
     assert index_html.count("'</td><td>'+esc(taetigkeit)+'</td></tr>';") == 2
-    assert index_html.count("text-align:right\">'+esc(proj.") == 2
+    # v3.9.364: Kundenname weiterhin esc'd in beiden Sheets (KW + Summenblatt); Style trägt jetzt CI-border:none
+    assert index_html.count("esc(proj.kunde||proj.name)") == 2
+    assert index_html.count("text-align:right;border:none\">'+esc(proj.") == 2
 
 
 def test_no_txt_exports_remain(index_html):
