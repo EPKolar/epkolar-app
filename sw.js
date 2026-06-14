@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.357
-const CACHE_NAME = "epkolar-v3.9.357";
+// EP Kolar Service Worker v3.9.358
+const CACHE_NAME = "epkolar-v3.9.358";
 const ASSETS = [
   './',
   './index.html'
@@ -42,6 +42,21 @@ self.addEventListener('fetch', event => {
         }).catch(() => cached);
         return cached || fetchPromise;
       })
+    );
+    return;
+  }
+  // v3.9.358 FIX: Navigation/HTML IMMER netzfrisch (cache:'no-store') — sonst servierte fetch() die
+  // alte index.html aus dem Browser-/CDN-HTTP-Cache → User hingen nach Deploy auf der Vorversion
+  // (sichtbar: bare URL = alt, ?cc=… = neu). SW-Cache bleibt nur Offline-Fallback.
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => { try { cache.put(event.request, clone); } catch(e) {} });
+        }
+        return response;
+      }).catch(() => caches.match(event.request).then(m => m || caches.match('./index.html')))
     );
     return;
   }

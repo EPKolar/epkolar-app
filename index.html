@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.357';
+  var SW_VER='epkolar-v3.9.358';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2336,7 +2336,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.357-supabase";
+const APP_VERSION="3.9.358-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -6340,7 +6340,7 @@ class _ViewBoundary extends React.Component{
             , _optionalChain([tabs, 'access', _101 => _101[safeKat], 'optionalAccess', _102 => _102.perm])==="mitarbeiter" && hasPerm(curUser,"mitarbeiter") && React.createElement(_ViewBoundary,{name:"mitarbeiter"},React.createElement(MitarbeiterView, { monteure: monteure, setMonteure: setMonteure, monteurProjekte: monteurProjekte, setMonteurProjekte: setMonteurProjekte, ww: ww, curUser: curUser, projects: projects, fahrzeuge: fahrzeuge, abs: abs, entries: entries, arbeitsscheine: arbeitsscheine, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}} ))
             , _optionalChain([tabs, 'access', _103 => _103[safeKat], 'optionalAccess', _104 => _104.perm])==="auswertungen" && hasPerm(curUser,"auswertungen") && React.createElement(_ViewBoundary,{name:"auswertungen"},React.createElement(AuswertungView, { arbeitsscheine: arbeitsscheine, monteure: monteure, abs: abs, absApprovals: absApprovals, entries: entries, werkzeuge: werkzeuge, fahrzeuge: fahrzeuge, chartCfg: chartCfg, setChartCfg: setChartCfg, ww: ww, curUser: curUser, projects: projects} ))
             , _optionalChain([tabs, 'access', _105 => _105[safeKat], 'optionalAccess', _106 => _106.perm])==="_settings" && React.createElement(_ViewBoundary,{name:"_settings"},React.createElement(VerbindungView, { ww: ww, curUser: curUser, isDark: isDark, toggleTheme: toggleTheme} ))
-            , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="bueroexport" && hasPerm(curUser,"bueroexport") && React.createElement(_ViewBoundary,{name:"bueroexport"},React.createElement(VBueroExport, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, ww: ww} ))
+            , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="bueroexport" && hasPerm(curUser,"bueroexport") && React.createElement(_ViewBoundary,{name:"bueroexport"},React.createElement(VBueroExport, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, ww: ww, abs: abs, approvals: absApprovals, files: mFiles, onNav: (tab)=>{const idx=tabs.findIndex(t=>t.perm===tab);if(idx>=0)setKat(idx);}} ))/* v3.9.358: abs/approvals/files/onNav für #3 Abwesenheiten + #4 Krankenstand (read-only Spiegel) */
             , _optionalChain([tabs, 'access', _107 => _107[safeKat], 'optionalAccess', _108 => _108.perm])==="admin" && (hasPerm(curUser,"admin")||canDo("admin_panel",curUser)) && React.createElement(_ViewBoundary,{name:"admin"},React.createElement(AdminPanel, { users: users, setUsers: setUsers, curUser: curUser, ww: ww, notifPrefs: notifPrefs, setNotifPrefs: setNotifPrefs, monteure: monteure, arbeitsscheine: arbeitsscheine} ))
           )
           /* ═══ MOBILE MEHR POPUP ═══ */
@@ -7464,7 +7464,12 @@ function sharePdf(){
 }
 
 // ═══════════ BÜRO-EXPORT (Bauwochenberichte) ═══════════
-function VBueroExport({curUser,projects,monteure,entries,ww}){
+function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,onNav}){
+  const _abYr=new Date().getFullYear();
+  /* v3.9.358: kontingent für #3 Abwesenheits-Bilanz aus ODB (gleiche Quelle wie Urlaub-Modul) + Default 192,5h */
+  const [_abKont,_setAbKont]=_react.useState.call(void 0, {});
+  _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{const k=await ODB.load("urlaubskontingent");if(a&&k&&typeof k==="object")_setAbKont(k);}catch(_){}})();return()=>{a=false;};},[]);
+  const _kontFor=(monteure||[]).reduce((acc,m)=>{acc[m.n]=_abKont[m.n]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};return acc;},{});
   const [loading,setLoading]=_react.useState.call(void 0, false);
   const [allEntries,setAllEntries]=_react.useState.call(void 0, []);
   const [allBT,setAllBT]=_react.useState.call(void 0, []);
@@ -7895,6 +7900,14 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
   };
 
   // === PREVIEW PANEL ===
+  /* ═══ v3.9.358 #3 Abwesenheiten + #4 Krankenstand — READ-ONLY Spiegel über _yearStK/_resturlaubK.
+     KEINE eigene Bilanz-/Genehmigungslogik, KEINE absences-Writes (Genehmigen/Bearbeiten nur im
+     Urlaub-Modul, das durch den Trigger guard_urlaub_edit läuft). */
+  const _absRows=()=>(monteure||[]).map(m=>{const ys=_yearStK(abs,approvals,_kontFor,m.n,_abYr);const urlaub=ys.urlaubStd||0,krank=ys.krankenstandStd||0,za=ys.zeitausgleichStd||0,sonder=ys.sonderStdGes||0,pflege=ys.pflegeStdGes||0;return {name:m.n,gesamt:urlaub+krank+za+sonder+pflege,urlaub,krank,za,sonder,rest:_resturlaubK(abs,approvals,_kontFor,m.n,_abYr)};}).sort((a,b)=>a.name.localeCompare(b.name));
+  const _krankRows=()=>{const rows=[];(monteure||[]).forEach(m=>{Object.entries(abs||{}).forEach(([key,v])=>{if(v.type!=="krankenstand"||!key.startsWith(m.n+"_"))return;const date=v.date||key.slice(m.n.length+1);if(!String(date).startsWith(String(_abYr)))return;rows.push({name:m.n,date:date,hours:v.hours||0,status:_resolveApprK(abs,approvals,key),hasAtt:!!(files&&files[m.n]&&files[m.n].length)});});});return rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||a.name.localeCompare(b.name));};
+  const _absExcel=()=>{const rows=_absRows();genXls("📅 Abwesenheiten "+_abYr,COMPANY_FOOTER.name+" · Abwesenheits-Jahresbilanz",["Mitarbeiter","Gesamt (h)","Urlaub (h)","Krank (h)","ZA (h)","Sonder (h)","Rest Urlaub (h)"],rows.map(r=>[r.name,_n(r.gesamt,1),_n(r.urlaub,1),_n(r.krank,1),_n(r.za,1),_n(r.sonder,1),_n(r.rest,1)]),"Abwesenheiten_"+_abYr+".xls",{leftCols:[0]});};
+  const _krankExcel=()=>{const rows=_krankRows();genXls("🤒 Krankenstand "+_abYr,COMPANY_FOOTER.name+" · Krankenstand-Übersicht",["Mitarbeiter","Datum","Stunden","Status","Attest"],rows.map(r=>[r.name,r.date,_n(r.hours,1),r.status,r.hasAtt?"ja":"NEIN"]),"Krankenstand_"+_abYr+".xls",{leftCols:[0,1,3,4]});};
+
   const renderPreview=()=>{
     if(!showPreview)return null;
     const proj=activeProjects.find(p=>p.id===showPreview);
@@ -8123,6 +8136,53 @@ function VBueroExport({curUser,projects,monteure,entries,ww}){
         )
       )),
 
+      /* \u2550\u2550\u2550 v3.9.358 #3 Abwesenheiten 2026 (read-only Spiegel, alle MA) \u2550\u2550\u2550 */
+      React.createElement('div',{style:{marginTop:16}}
+        ,React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}
+          ,React.createElement('div',{style:{fontSize:15,fontWeight:700}},"\ud83d\udcc5 Abwesenheiten "+_abYr)
+          ,React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap"}}
+            ,React.createElement('button',{onClick:()=>onNav&&onNav("urlaub"),style:{...bsS(),padding:"6px 14px",fontSize:12}},"\u2192 Urlaub-Modul")
+            ,React.createElement('button',{onClick:_absExcel,style:{...bpS,padding:"6px 16px",fontSize:12}},"\ud83d\udce5 Excel")
+          )
+        )
+        ,React.createElement('div',{style:{...CC(),padding:12,overflowX:"auto"}}
+          ,React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:640}}
+            ,React.createElement('thead',{},React.createElement('tr',{},["Mitarbeiter","Gesamt","Urlaub","Krank","ZA","Sonder","Rest Urlaub"].map((h,i)=>React.createElement('th',{key:h,style:{padding:"6px 8px",fontSize:11,fontWeight:700,color:V.dm,borderBottom:"1px solid "+V.bd,textAlign:i===0?"left":"right",whiteSpace:"nowrap"}},h))))
+            ,React.createElement('tbody',{},_absRows().map(r=>React.createElement('tr',{key:r.name}
+              ,React.createElement('td',{style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,fontWeight:600,whiteSpace:"nowrap"}},r.name)
+              ,[r.gesamt,r.urlaub,r.krank,r.za,r.sonder].map((v,i)=>React.createElement('td',{key:i,style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono,color:v>0?V.tx:V.mt}},v>0?_n(v,1):"\u2014"))
+              ,React.createElement('td',{style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono,fontWeight:700,color:"#22c55e"}},_n(r.rest,1))
+            )))
+          )
+          ,React.createElement('div',{style:{fontSize:11,color:V.dm,marginTop:8}},"Read-only-Spiegel des Urlaub-Moduls \u00b7 Stunden \u00b7 ZA reduziert den Resturlaub nicht \u00b7 Genehmigen/Bearbeiten nur im Urlaub-Modul.")
+        )
+      ),
+      /* \u2550\u2550\u2550 v3.9.358 #4 Krankenstand 2026 (read-only + Attest-Status) \u2550\u2550\u2550 */
+      (()=>{const kr=_krankRows();const noAtt=new Set(kr.filter(r=>!r.hasAtt).map(r=>r.name)).size;
+        return React.createElement('div',{style:{marginTop:16}}
+          ,React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}
+            ,React.createElement('div',{style:{fontSize:15,fontWeight:700}},"\ud83e\udd12 Krankenstand "+_abYr)
+            ,React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap"}}
+              ,React.createElement('button',{onClick:()=>onNav&&onNav("urlaub"),style:{...bsS(),padding:"6px 14px",fontSize:12},title:"AU/Attest im Urlaub-Modul hochladen (bestehender Upload-Pfad)"},"\u2b06\ufe0f AU hochladen")
+              ,React.createElement('button',{onClick:_krankExcel,disabled:!kr.length,style:{...bpS,padding:"6px 16px",fontSize:12,opacity:kr.length?1:.4}},"\ud83d\udce5 Excel")
+            )
+          )
+          ,noAtt>0&&React.createElement('div',{style:{background:"rgba(239,68,68,.10)",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,fontWeight:700,color:COLORS.ERROR}},"\u26a0\ufe0f "+noAtt+" Mitarbeiter mit Krankenstand ohne Attest")
+          ,React.createElement('div',{style:{...CC(),padding:12,overflowX:"auto"}}
+            ,kr.length===0?React.createElement('div',{style:{fontSize:12,color:V.dm,textAlign:"center",padding:20}},"Keine Krankenst\u00e4nde "+_abYr)
+            :React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:520}}
+              ,React.createElement('thead',{},React.createElement('tr',{},["Mitarbeiter","Datum","Stunden","Status","Attest"].map((h,i)=>React.createElement('th',{key:h,style:{padding:"6px 8px",fontSize:11,fontWeight:700,color:V.dm,borderBottom:"1px solid "+V.bd,textAlign:i===2?"right":"left",whiteSpace:"nowrap"}},h))))
+              ,React.createElement('tbody',{},kr.map((r,i)=>React.createElement('tr',{key:r.name+"_"+r.date+"_"+i}
+                ,React.createElement('td',{style:{padding:"6px 8px",borderBottom:"1px solid "+V.bd,fontWeight:600,whiteSpace:"nowrap"}},r.name)
+                ,React.createElement('td',{style:{padding:"6px 8px",borderBottom:"1px solid "+V.bd,fontFamily:mono,whiteSpace:"nowrap"}},r.date)
+                ,React.createElement('td',{style:{padding:"6px 8px",borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono}},_n(r.hours,1))
+                ,React.createElement('td',{style:{padding:"6px 8px",borderBottom:"1px solid "+V.bd}},r.status)
+                ,React.createElement('td',{style:{padding:"6px 8px",borderBottom:"1px solid "+V.bd,fontWeight:700,color:r.hasAtt?"#22c55e":COLORS.ERROR}},r.hasAtt?"\u2713":"\u2717 fehlt")
+              )))
+            )
+          )
+        );
+      })(),
       !loaded && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "\u23f3 Daten werden geladen..." ),
       loaded && !allEntries.length && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "Noch keine Zeiterfassungsdaten vorhanden."),
 
