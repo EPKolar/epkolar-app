@@ -209,3 +209,55 @@ def test_savematrixcell_uses_project_not_showpreview(index_html):
     assert "const _pid=projId!==undefined?projId:showPreview;" in body, "_pid-Auflösung fehlt"
     assert "e.projekt===_pid" in body, "matches-Filter nutzt nicht _pid"
     assert "project_id:_pid" in body, "POST-Body nutzt nicht _pid"
+
+
+# Bug-Hunt-Fixes 2026-06-14 v3.9.363 -------------------------------------
+def test_vcheck_del_persists_server_delete(index_html):
+    """VCheck.del MUSS einen SQ.push DELETE auf /api/checklists/ feuern —
+    vorher nur lokaler setForms-Filter → Checkliste kam beim Reload zurück."""
+    assert 'SQ.push({url:"/api/checklists/"+encodeURIComponent(id),method:"DELETE"})' in index_html
+
+
+def test_entry_loose_mapper_derives_gw_from_gewerk(index_html):
+    """Der spread-basierte Entry-Reload-Mapper muss gw aus gewerk ableiten,
+    sonst e.gw===undefined → VBer-Gewerk-Zeilen + VDash-Balken verfehlen alle
+    nachgeladenen Einträge (Server liefert gewerk, nicht gw)."""
+    assert 'bemerkung:x.bemerkung||x.description||"",gw:x.gw||x.gewerk||"elektro"' in index_html
+
+
+def test_due_is_past_helper_end_of_day(index_html):
+    """End-of-Day-bewusster Überfällig-Helfer existiert und wird statt der
+    date-only-Vergleiche genutzt (sonst Überfällig einen Tag zu früh)."""
+    assert 'function _dueIsPast(ds){' in index_html
+    assert 'String(ds).length===10?ds+"T23:59:59":ds' in index_html
+    # die alten date-only-Vergleiche dürfen weg sein
+    assert "new Date(m.frist)<new Date()" not in index_html
+    assert "new Date(t.dueDate)<new Date()" not in index_html
+
+
+def test_ticketdetail_lookups_have_fallbacks(index_html):
+    """TicketDetail darf type/status/priority nicht ungefallbackt dereferenzieren
+    (Crash bei unbekanntem Wert wie priority:'normal')."""
+    assert "const tt=TICKET_TYPES[ticket.type]||TICKET_TYPES.info;const ts=TICKET_STATUS[ticket.status]||TICKET_STATUS.offen;const tp=TICKET_PRIO[ticket.priority]||TICKET_PRIO.mittel;" in index_html
+
+
+def test_no_invalid_normal_priority_default_on_tickets(index_html):
+    """priority/prio-Defaults beim Ticket-Schreiben dürfen nicht das ungültige
+    'normal' verwenden (nicht in TICKET_PRIO) — jetzt 'mittel'."""
+    assert 'priority:ticket.priority||"normal"' not in index_html
+    assert 'priority:_u.priority||"normal"' not in index_html
+    assert 'prio:ticket.priority||"normal"' not in index_html
+    assert 'prio:_u.priority||"normal"' not in index_html
+
+
+def test_bautag_ismine_matches_monteurid(index_html):
+    """_vbIsMineBt muss erstelltVon auch als monteurId erkennen (v3.9.359 schreibt
+    monteurId in erstelltVon) — sonst sperrt sich der Ersteller selbst aus."""
+    assert 'if(_author&&_vbMid&&_author===String(_vbMid).trim().toLowerCase())return true;' in index_html
+
+
+def test_material_autoimport_uses_working_array(index_html):
+    """Auto-Import darf nicht auf stale savedCatalogs-Closure mappen — lokales
+    _working-Array verhindert Duplikat-Kataloge bei gleichem system."""
+    assert "let _working=savedCatalogs.map(c=>({...c}));" in index_html
+    assert "const existing=_working.find(c=>c.system===grp.system);" in index_html
