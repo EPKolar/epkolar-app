@@ -12,16 +12,18 @@ def test_urlaub_status_filter_includes_ausstehend():
     text = INDEX.read_text(encoding='utf-8')
     assert 'urlaubStdAusstehend' in text, 'urlaubStdAusstehend-Counter muss existieren'
     # resturlaub muss beide abziehen
-    m = re.search(r'const resturlaub\s*=\s*m\s*=>[\s\S]{0,400}?urlaubStdGen[\s\S]{0,200}?urlaubStdAusstehend', text)
-    assert m, 'resturlaub muss urlaubStdGen UND urlaubStdAusstehend abziehen'
+    # v3.9.356: in modul-level Helfer _resturlaubK extrahiert (Single Source)
+    m = re.search(r'function _resturlaubK[\s\S]{0,400}?urlaubStdGen[\s\S]{0,200}?urlaubStdAusstehend', text)
+    assert m, 'resturlaub (_resturlaubK) muss urlaubStdGen UND urlaubStdAusstehend abziehen'
 
 
 def test_urlaub_filter_excludes_only_abgelehnt():
     """Filter-Logik: !=='abgelehnt' (nicht nur ==='genehmigt')."""
     text = INDEX.read_text(encoding='utf-8')
     # Suche im yearSt-Body
-    m = re.search(r'const yearSt\s*=\s*m\s*=>[\s\S]{0,1500}?abgelehnt', text)
-    assert m, 'yearSt muss abgelehnt-Filter haben (!== abgelehnt)'
+    # v3.9.356: in modul-level Helfer _yearStK extrahiert (Single Source)
+    m = re.search(r'function _yearStK[\s\S]{0,1500}?abgelehnt', text)
+    assert m, 'yearSt (_yearStK) muss abgelehnt-Filter haben (!== abgelehnt)'
 
 
 # ═══ Bug-2: AKTUELLE PLÄNE entfernt ═══

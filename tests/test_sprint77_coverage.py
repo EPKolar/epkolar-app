@@ -204,13 +204,12 @@ def test_sprint38_sync_button_setArbeitsscheine_after_pull(index_html):
 
 
 def test_bug1_urlaub_carry_over_subtracts_pending(index_html):
-    # resturlaub is a single-line arrow with nested object literal; grab the full
-    # line containing "const resturlaub=" instead of regex-extracting.
+    # v3.9.356: Formel in modul-level Helfer _resturlaubK extrahiert (Single Source); grab that line.
     line = next(
-        (ln for ln in index_html.splitlines() if "const resturlaub=" in ln),
+        (ln for ln in index_html.splitlines() if "function _resturlaubK" in ln),
         "",
     )
-    assert line, "resturlaub helper missing"
+    assert line, "_resturlaubK helper missing"
     assert "urlaubStdGen" in line, "resturlaub must subtract urlaubStdGen (genehmigt)"
     assert "urlaubStdAusstehend" in line, \
         "Bug-1: resturlaub must subtract urlaubStdAusstehend (pending)"

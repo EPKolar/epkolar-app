@@ -7,8 +7,10 @@ from conftest import run_node_snippet
 def _extract(index_html):
     es = re.search(r"function _easterSunday\(y\)\{[\s\S]*?\n\}", index_html).group(0)
     fe = re.search(r"function _isATFeiertag\(d\)\{[\s\S]*?\n\}", index_html).group(0)
-    sv = re.search(r"const stdVonTag=\(d,woche\)=>\{[^\n]*?\};", index_html).group(0)
-    return es + "\n" + fe + "\n" + sv.replace("const stdVonTag", "globalThis.stdVonTag")
+    # v3.9.356: stdVonTag-Logik in modul-level Helfer _stdVonTagK extrahiert (Single Source)
+    sv = re.search(r"function _stdVonTagK\(d,woche\)\{[^\n]*\}", index_html).group(0)
+    # +";" da die Funktions-Deklaration (anders als die alte const-Arrow) kein Semikolon hat
+    return es + "\n" + fe + "\n" + sv.replace("function _stdVonTagK", "globalThis.stdVonTag=function ") + ";"
 
 
 def test_fulltime_is_noop(node_exe, index_html):
@@ -34,6 +36,7 @@ def test_fulltime_is_noop(node_exe, index_html):
 
 def test_callers_pass_woche(index_html):
     # Writer + yearSt-Fallback + EntryRow nutzen _wocheOf
-    assert "const _wocheOf=nm=>{const ks=kontingent[nm];const w=ks&&ks.woche;return (w&&w>0)?w:38.5;};" in index_html
+    # v3.9.356: _wocheOf/yearSt-Logik in modul-level Helfer extrahiert (Single Source)
+    assert "function _wocheOfK(kontingent,nm){const ks=kontingent&&kontingent[nm];const w=ks&&ks.woche;return (w&&w>0)?w:38.5;}" in index_html
     assert "hours:stdVonTag(d,_wocheOf(sel))" in index_html
-    assert "parseFloat(v.hours)||stdVonTag(d,_wocheOf(m))" in index_html
+    assert "parseFloat(v.hours)||_stdVonTagK(d,_wocheOfK(kontingent,m))" in index_html

@@ -72,8 +72,9 @@ def test_urlaub_resturlaub_formula_unchanged():
     """resturlaub-Formel selbst wurde NICHT geändert (nur Header-Label)."""
     text = INDEX.read_text(encoding='utf-8')
     # Suche resturlaub-Body, prüfe dass Formel-Tokens stunden/vorjahr/urlaubStdGen vorkommen
-    m = re.search(r'const resturlaub\s*=\s*m\s*=>[\s\S]{0,400}?ys\.urlaubStdGen', text)
-    assert m, 'resturlaub-Funktion mit ys.urlaubStdGen-Referenz nicht gefunden'
+    # v3.9.356: Formel in modul-level Helfer _resturlaubK extrahiert (Single Source, byte-identisch)
+    m = re.search(r'function _resturlaubK[\s\S]{0,400}?ys\.urlaubStdGen', text)
+    assert m, 'resturlaub-Formel (_resturlaubK) mit ys.urlaubStdGen-Referenz nicht gefunden'
     body = m.group(0)
     assert 'ks.stunden' in body, 'resturlaub muss ks.stunden referenzieren'
     assert 'ks.vorjahr' in body, 'resturlaub muss ks.vorjahr referenzieren'
