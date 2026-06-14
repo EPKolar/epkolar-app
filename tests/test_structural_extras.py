@@ -167,3 +167,29 @@ def test_fahrzeug_zero_rows_safeguard_present(index_html):
     body = m.group(1)
     assert "window.__toast" in body, "Safeguard muss den User per Toast warnen"
     assert "_RLS_SILENT_DENIAL_LABELS[table]" in body, "Toast muss Label aus Map interpolieren"
+
+
+# Büro-Export Inline-BWB Single-Source (v3.9.361) ------------------------
+def test_inline_bwb_delegates_to_shared_blocks(index_html):
+    """renderInlineBWB MUSS die gemeinsamen KW-Blöcke (_renderBWBBlocks) rendern,
+    nicht mehr die alte kompakte KW×MA-Matrix → Single-Source mit dem Modal."""
+    assert "_renderBWBBlocks(pEntries,kwList,workers)" in index_html, (
+        "Inline-Vorschau delegiert nicht an _renderBWBBlocks"
+    )
+    # alte kompakte Matrix-Helfer dürfen NICHT mehr existieren (entfernt)
+    assert 'const _kwLbl=k=>"KW "+String(k).split' not in index_html, (
+        "alte kompakte Inline-Matrix (_kwLbl) noch vorhanden — Duplikat"
+    )
+
+
+def test_shared_bwb_blocks_defined_and_editable(index_html):
+    """_renderBWBBlocks ist EINE Definition und enthält die editierbaren
+    Tages-Stunden-Zellen + Tätigkeit (wie im Modal)."""
+    assert index_html.count("const _renderBWBBlocks=") == 1, (
+        "_renderBWBBlocks muss genau einmal definiert sein"
+    )
+    m = re.search(r"const _renderBWBBlocks=\(pEntries,_kws,visibleWorkers\)=>", index_html)
+    assert m, "_renderBWBBlocks-Signatur fehlt"
+    body = index_html[m.start():m.start() + 6000]
+    assert "saveMatrixCell" in body, "editierbare Stunden-Zelle (saveMatrixCell) fehlt im Block"
+    assert "editTaet" in body, "Tätigkeits-Feld (editTaet) fehlt im Block"
