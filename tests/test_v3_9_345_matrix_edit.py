@@ -165,11 +165,12 @@ def test_save_matrix_cell_settimeout_1000(index_html):
 # 8) generateBWB unveraendert (editTaet[kwKey]-Fallback bleibt) ----------------
 
 def test_generateBWB_editTaet_fallback_unchanged(index_html):
-    """Anker auf das editTaet[kwKey]-Fallback-Pattern in generateBWB —
-    DARF NICHT geaendert werden in v3.9.345."""
+    """Anker auf das editTaet-Fallback-Pattern in generateBWB.
+    v3.9.362: editTaet ist jetzt projekt-skopiert (proj.id+"|"+kwKey) — der
+    useFilters-Fallback auf BT/Entries-Tätigkeit bleibt erhalten."""
     # Zwei Stellen: KW-Sheet + Summenblatt. Mind. eine Anker-Stelle pruefen.
-    assert "useFilters&&editTaet[kwKey]!==undefined?editTaet[kwKey]" in index_html, (
-        "generateBWB editTaet[kwKey]-Fallback wurde geaendert — Excel-Generator-Regression."
+    assert 'useFilters&&editTaet[proj.id+"|"+kwKey]!==undefined?editTaet[proj.id+"|"+kwKey]' in index_html, (
+        "generateBWB editTaet-Fallback (projekt-skopiert) wurde geaendert — Excel-Generator-Regression."
     )
 
 

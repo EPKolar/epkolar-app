@@ -173,8 +173,8 @@ def test_fahrzeug_zero_rows_safeguard_present(index_html):
 def test_inline_bwb_delegates_to_shared_blocks(index_html):
     """renderInlineBWB MUSS die gemeinsamen KW-Blöcke (_renderBWBBlocks) rendern,
     nicht mehr die alte kompakte KW×MA-Matrix → Single-Source mit dem Modal."""
-    assert "_renderBWBBlocks(pEntries,kwList,workers)" in index_html, (
-        "Inline-Vorschau delegiert nicht an _renderBWBBlocks"
+    assert "_renderBWBBlocks(pEntries,kwList,workers,projId)" in index_html, (
+        "Inline-Vorschau delegiert nicht an _renderBWBBlocks (mit projId)"
     )
     # alte kompakte Matrix-Helfer dürfen NICHT mehr existieren (entfernt)
     assert 'const _kwLbl=k=>"KW "+String(k).split' not in index_html, (
@@ -188,8 +188,24 @@ def test_shared_bwb_blocks_defined_and_editable(index_html):
     assert index_html.count("const _renderBWBBlocks=") == 1, (
         "_renderBWBBlocks muss genau einmal definiert sein"
     )
-    m = re.search(r"const _renderBWBBlocks=\(pEntries,_kws,visibleWorkers\)=>", index_html)
-    assert m, "_renderBWBBlocks-Signatur fehlt"
+    m = re.search(r"const _renderBWBBlocks=\(pEntries,_kws,visibleWorkers,projId\)=>", index_html)
+    assert m, "_renderBWBBlocks-Signatur (mit projId) fehlt"
     body = index_html[m.start():m.start() + 6000]
-    assert "saveMatrixCell" in body, "editierbare Stunden-Zelle (saveMatrixCell) fehlt im Block"
-    assert "editTaet" in body, "Tätigkeits-Feld (editTaet) fehlt im Block"
+    assert "saveMatrixCell(w,ds,kwKey,_newRaw,_origRaw,projId)" in body, (
+        "editierbare Stunden-Zelle muss projId an saveMatrixCell durchreichen"
+    )
+    assert 'const _tk=projId+"|"+kwKey;' in body, (
+        "editTaet muss projekt-skopiert sein (_tk = projId|kwKey)"
+    )
+
+
+def test_savematrixcell_uses_project_not_showpreview(index_html):
+    """saveMatrixCell darf NICHT mehr auf das (für die Inline-Vorschau null-wertige)
+    showPreview als Projekt zurückgreifen, sondern auf den explizit übergebenen projId
+    (sonst project_id:null-Waisen + verfehlte Buchung aus der Inline-Edit)."""
+    m = re.search(r"const saveMatrixCell=\(w,ds,kwKey,newVal,oldVal,projId\)=>\{", index_html)
+    assert m, "saveMatrixCell-Signatur (mit projId) fehlt"
+    body = index_html[m.start():m.start() + 1800]
+    assert "const _pid=projId!==undefined?projId:showPreview;" in body, "_pid-Auflösung fehlt"
+    assert "e.projekt===_pid" in body, "matches-Filter nutzt nicht _pid"
+    assert "project_id:_pid" in body, "POST-Body nutzt nicht _pid"
