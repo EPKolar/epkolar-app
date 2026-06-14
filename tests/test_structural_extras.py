@@ -261,3 +261,18 @@ def test_material_autoimport_uses_working_array(index_html):
     _working-Array verhindert Duplikat-Kataloge bei gleichem system."""
     assert "let _working=savedCatalogs.map(c=>({...c}));" in index_html
     assert "const existing=_working.find(c=>c.system===grp.system);" in index_html
+
+
+# KW-Tätigkeit persistiert in time_entries (v3.9.365, Chef-Entscheidung) ----
+def test_kw_taet_persists_to_time_entries(index_html):
+    """Das KW-Tätigkeit-Freitextfeld muss beim Blur über /api/entries-PUT in die
+    taetigkeit-Spalte der KW-Einträge schreiben (nicht nur lokaler State)."""
+    assert "const _saveKwTaet=(projId,kwKey,text)=>{" in index_html, "_saveKwTaet-Handler fehlt"
+    m = re.search(r"const _saveKwTaet=\(projId,kwKey,text\)=>\{([\s\S]{0,1200}?)\n  \};", index_html)
+    assert m, "_saveKwTaet-Block nicht gefunden"
+    body = m.group(1)
+    assert 'canDo("zeit_other",curUser)' in body, "Persist nicht auf zeit_other-Recht gated"
+    assert 'method:"PUT",body:{taetigkeit:_txt}' in body, "schreibt taetigkeit nicht via /api/entries-PUT"
+    assert "_syncThenReload()" in body, "kein drain-then-reload nach dem Write"
+    # textarea muss onBlur an _saveKwTaet binden
+    assert "onBlur: e=>_saveKwTaet(projId,kwKey,e.target.value)" in index_html, "textarea onBlur nicht verdrahtet"

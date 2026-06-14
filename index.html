@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.364';
+  var SW_VER='epkolar-v3.9.365';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2337,7 +2337,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.364-supabase";
+const APP_VERSION="3.9.365-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7852,6 +7852,28 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     _flashOk(_cellKey);
     _syncThenReload();/* v3.9.364: erst drainen, dann reload (siehe oben) */
   };
+  /* v3.9.365: KW-Tätigkeit-Freitext persistieren (Chef-Entscheidung 2026-06-14): beim Blur in die
+     taetigkeit-Spalte ALLER time_entries dieser KW+Projekt schreiben (bestehender /api/entries-PUT).
+     ACHTUNG bewusst destruktiv: überschreibt die individuelle Tagestätigkeit der Monteure dieser KW —
+     vom Chef so gewählt (Büro kuratiert den offiziellen Bauwochenbericht-Text). Nur mit zeit_other-Recht.
+     Danach optimistisch + _syncThenReload (kein manueller Abgleich). */
+  const _saveKwTaet=(projId,kwKey,text)=>{
+    if(!canDo("zeit_other",curUser))return;/* nur Büro/Admin/PL dürfen time_entries schreiben */
+    const _pid=projId!==undefined?projId:showPreview;
+    if(!_pid)return;
+    const [yr,kwStr]=kwKey.split("-");const kw=parseInt(kwStr);
+    const _txt=String(text==null?"":text);
+    const kwEnts=allEntries.filter(e=>{if(e.projekt!==_pid||!e.datum)return false;const d=_localD(e.datum);return _kwYearFromDate(d)===parseInt(yr)&&_kwFromDate(d)===kw;});
+    if(!kwEnts.length)return;/* KW erscheint nur via Einträge in der Liste → es gibt immer ≥1 */
+    const _cur=[...new Set(kwEnts.map(e=>e.taetigkeit).filter(Boolean))].join("; ");
+    if(_txt===_cur)return;/* keine Änderung ggü. aktuellem Aggregat → nichts schreiben */
+    const _ids=new Set(kwEnts.map(e=>e.id));
+    kwEnts.forEach(e=>{SQ.push({url:"/api/entries/"+e.id,method:"PUT",body:{taetigkeit:_txt}});});
+    setAllEntries(prev=>prev.map(e=>_ids.has(e.id)?{...e,taetigkeit:_txt}:e));
+    setEditTaet(prev=>({...prev,[_pid+"|"+kwKey]:_txt}));
+    window.__toast&&window.__toast("✓ Tätigkeit gespeichert ("+kwEnts.length+" Einträge)","success");
+    _syncThenReload();
+  };
   /* v3.9.345: ≥2-Entries Mini-Liste — öffnet _exportReviewModal mit nur den
      betroffenen Einzelbuchungen (Worker+Tag+Projekt). Re-Use des bestehenden Modals. */
   const openMultiEntryEdit=async(w,ds,projId)=>{
@@ -8038,7 +8060,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
                       }),
                       React.createElement('td', { style: {...numSt,fontWeight:700,color:rowSum?"#a855f7":V.dm}}, rowSum?_n(rowSum,2):""),
                       di===0?React.createElement('td', { rowSpan: 7, style: {...tdSt2,verticalAlign:"top",padding:4}},
-                        React.createElement('textarea', { value: taet, onChange: e=>setEditTaet(prev=>({...prev,[_tk]:e.target.value})), style: {width:"100%",minHeight:120,background:"transparent",border:"1px dashed "+(V.bd||"#444"),borderRadius:4,color:V.tx,fontSize:11,padding:4,resize:"vertical",fontFamily:"inherit"}, placeholder: "T\u00e4tigkeit eingeben..."})
+                        React.createElement('textarea', { value: taet, onChange: e=>setEditTaet(prev=>({...prev,[_tk]:e.target.value})), onBlur: e=>_saveKwTaet(projId,kwKey,e.target.value)/* v3.9.365: KW-T\u00e4tigkeit beim Verlassen in time_entries persistieren */, style: {width:"100%",minHeight:120,background:"transparent",border:"1px dashed "+(V.bd||"#444"),borderRadius:4,color:V.tx,fontSize:11,padding:4,resize:"vertical",fontFamily:"inherit"}, placeholder: "T\u00e4tigkeit eingeben..."})
                       ):null
                     );
                   }),
