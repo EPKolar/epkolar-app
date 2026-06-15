@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.380';
+  var SW_VER='epkolar-v3.9.381';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1894,7 +1894,8 @@ const _RLS_SILENT_DENIAL_LABELS=Object.freeze({
   forms:"Formular-Eintrag",
   bautagebuch:"Bautagebuch-Eintrag",
   fz_schaeden:"Fahrzeug-Schadenmeldung",
-  material_catalogs:"Material-Katalog"/* v3.9.362: Write is_staff-gated → bei Nicht-Staff still 0 rows; Toast statt falscher Erfolg */
+  material_catalogs:"Material-Katalog"/* v3.9.362: Write is_staff-gated → bei Nicht-Staff still 0 rows; Toast statt falscher Erfolg */,
+  arbeitsscheine:"Arbeitsschein-Änderung"/* v3.9.381: Defense-in-Depth — falls AS-Write-RLS je verschärft wird, kein stiller 0-rows-Verlust (Toast statt falscher Erfolg) */
 });
 async function _translateAndExec(url,method,body){
   // Parse: /api/{resource}/{id?}
@@ -2337,7 +2338,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.380-supabase";
+const APP_VERSION="3.9.381-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -6708,13 +6709,13 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     if(filterArt!=="alle"&&a.scheinart!==filterArt) return false;
     if(filterMonteur!=="alle"&&a.monteur!==filterMonteur) return false;
     if(filterSB!=="alle"&&a.sachbearbeiter!==filterSB) return false;
-    if(search){const s=search.toLowerCase();if(!((a.nummer||"")+(a.kundName||"")+(a.arbeitsanweisungen||"")+(a.projektnr||"")).toLowerCase().includes(s)) return false;}
+    if(search){const _hay=((a.nummer||"")+" "+(a.kundName||"")+" "+(a.arbeitsanweisungen||"")+" "+(a.projektnr||"")).toLowerCase();const _toks=search.toLowerCase().split(/\s+/).filter(Boolean);if(!_toks.every(t=>_hay.includes(t))) return false;}/* v3.9.381: Felder mit Leerzeichen getrennt (kein Phantom-Treffer über Feldgrenzen) + Mehrwort-Suche (alle Tokens müssen vorkommen) */
     // v3.5.74 Block 8: Quick-Filter
     if(quickFilter==="offen"&&!AS_GRP_OFFEN.includes(a.scheinstatus)) return false;
     if(quickFilter==="inarbeit"&&a.scheinstatus!=="in_bearbeitung") return false;
     if(quickFilter==="erledigt"&&!AS_GRP_FERTIG.includes(a.scheinstatus)) return false;
     if(quickFilter==="meine"&&a.monteur!==curUser.monteurId) return false;
-    if(quickFilter==="heute"&&(a.terminBestaetigt||a.terminVorschlag||"")!==_todayStr) return false;
+    if(quickFilter==="heute"){const _th=_hasTermin(a.terminBestaetigt)?a.terminBestaetigt:(_hasTermin(a.terminVorschlag)?a.terminVorschlag:"");if(_th!==_todayStr) return false;}/* v3.9.381 FIX: Sentinel-terminBestaetigt verdeckte sonst heutige Scheine (deren echtes Datum im terminVorschlag steht) — _hasTermin-Guard wie bei „ueberfaellig" darunter. */
     if(quickFilter==="ueberfaellig"){const t=a.terminBestaetigt||a.terminVorschlag;if(!_hasTermin(t)||t>=_todayStr||AS_GRP_FERTIG.includes(a.scheinstatus)) return false;}
     if(quickFilter==="keinmonteur"&&a.monteur) return false;
     return true;
@@ -7000,7 +7001,7 @@ function sharePdf(){
   /* v3.9.60 Sprint-39 F-4: useMemo — calAs ist Basis für getAsDay-Lookup im Render-Loop pro Tag.
      Re-Filter über arbeitsscheine bei jeder Render-Iteration unnötig. */
   const calAs=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;return a.monteur===calMonteur;}),[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]);
-  const getAsDay=d=>{const ds=dk(d);return calAs.filter(a=>a.terminBestaetigt===ds||(!a.terminBestaetigt&&a.aufgenommen===ds));};
+  const getAsDay=d=>{const ds=dk(d);return calAs.filter(a=>{const tb=_hasTermin(a.terminBestaetigt)?a.terminBestaetigt:"";return tb===ds||(!tb&&a.aufgenommen===ds);});};/* v3.9.381 FIX: Sentinel-terminBestaetigt (0001-01-01) ist truthy → Schein verschwand aus dem Kalender (weder ===ds noch aufgenommen-Fallback). _hasTermin-Guard wie an den anderen Termin-Stellen. */
   // Week view helpers
   const getWeekDays=(d)=>{const mon=new Date(d);const dow=mon.getDay()||7;mon.setDate(mon.getDate()-(dow-1));return Array.from({length:7},(_,i)=>{const dd=new Date(mon);dd.setDate(mon.getDate()+i);return dd;});};
   const calWeekDays=getWeekDays(calDate);
