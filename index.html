@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.376';
+  var SW_VER='epkolar-v3.9.377';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2337,7 +2337,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.376-supabase";
+const APP_VERSION="3.9.377-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -11870,8 +11870,21 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   /* v3.9.184 Mausrad-Zoom (Fokuspunkt unter dem Cursor) — non-passiver Listener (React onWheel ist passiv → preventDefault wirkungslos). */
   _react.useEffect.call(void 0, () => {
     const el = viewportRef.current; if(!el) return;
-    const _wh = (e) => { e.preventDefault(); const vr = el.getBoundingClientRect(); const fx = e.clientX - vr.left, fy = e.clientY - vr.top; const factor = e.deltaY>0 ? 0.9 : 1.1; setZoom(z => { const nz = Math.max(0.4, Math.min(6, z*factor)); const r = z>0?nz/z:1; setPan(pp=>({x:fx-(fx-pp.x)*r, y:fy-(fy-pp.y)*r})); return nz; }); };
-    el.addEventListener("wheel", _wh, { passive: false }); return () => el.removeEventListener("wheel", _wh);
+    /* v3.9.377 Perf: Mausrad-Zoom auf 1 Update pro Animationsframe coalescen (requestAnimationFrame).
+       Vorher feuerte JEDES Wheel-Event setZoom+setPan → voller Re-Render (Canvas + alle Pins) → träges Zoomen.
+       Jetzt wird der Zoom-Faktor aller Events eines Frames AUFMULTIPLIZIERT und einmal angewandt → gleiche
+       Gesamt-Zoomstärke, aber nur 1 Re-Render/Frame. Fokuspunkt = letztes Event des Frames. */
+    let _raf = null, _accum = 1, _fx = 0, _fy = 0;
+    const _wh = (e) => {
+      e.preventDefault();
+      const vr = el.getBoundingClientRect(); _fx = e.clientX - vr.left; _fy = e.clientY - vr.top;
+      _accum *= (e.deltaY>0 ? 0.9 : 1.1);
+      if(!_raf) _raf = requestAnimationFrame(() => {
+        _raf = null; const factor = _accum; _accum = 1;
+        setZoom(z => { const nz = Math.max(0.4, Math.min(6, z*factor)); const r = z>0?nz/z:1; setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r})); return nz; });
+      });
+    };
+    el.addEventListener("wheel", _wh, { passive: false }); return () => { if(_raf) cancelAnimationFrame(_raf); el.removeEventListener("wheel", _wh); };
   }, []);
   /* v3.9.184 Tastatur-Shortcuts: +/- Zoom · 0 Reset · f Vollbild · h Pins · ←/→ Seite · Esc Vollbild aus. Ignoriert Eingabefelder. */
   _react.useEffect.call(void 0, () => {
