@@ -239,11 +239,16 @@ def test_sprint49_riedmann_moreTabs_guard_for_mehr_button(index_html):
 
 
 def test_sprint49_mehr_button_render_uses_guard(index_html):
-    m = re.search(
-        r"ww<1200&&moreTabs\.length>0&&React\.createElement",
-        index_html,
-    )
-    assert m, "Sprint-49: ww<1200&&moreTabs.length>0 render-guard missing for Mehr-Button"
+    """v3.9.371: Das Top-„Mehr"-Dropdown entfällt — Tablet (600-1199px) zeigt jetzt ALLE Tabs
+    im 2-Zeilen-Wrap, Desktop>=1200 ohnehin alle in einer Reihe. Der alte ww<1200-Render-Guard
+    für den Top-Mehr-Button darf daher NICHT mehr aktiv sein (false-gated). Die moreTabs.length>0-
+    Absicherung (Sprint-49 Riedmann) bleibt für das mobile Mehr-Popup erhalten (separater Test)."""
+    assert "const _isTabletNav=ww>=600&&ww<1200;" in index_html, \
+        "v3.9.371: Tablet-Nav-Breakpoint _isTabletNav fehlt"
+    assert 'flexWrap:_isTabletNav?"wrap":"nowrap"' in index_html, \
+        "v3.9.371: tab-bar wrappt auf Tablet nicht (kein flexWrap)"
+    assert "ww<1200&&moreTabs.length>0&&React.createElement" not in index_html, \
+        "v3.9.371: Top-Mehr-Button darf auf Tablet nicht mehr rendern (alle Tabs im Wrap)"
 
 
 def test_sprint49_mehr_popup_uses_guard(index_html):
