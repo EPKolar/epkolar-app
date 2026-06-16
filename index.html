@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.401';
+  var SW_VER='epkolar-v3.9.402';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1708,6 +1708,7 @@ function _mapProject(p){
     start:p.start||p.start_date||"",ende:p.ende||p.end_date||"",
     emailKunde:p.emailKunde||p.email_kunde||"",createdBy:p.createdBy||p.created_by||"",
     planLayers:(typeof p.plan_layers==='string'?_jp(p.plan_layers):(p.plan_layers||p.planLayers||null))/* v3.9.190 Ebenen pro Projekt (jsonb) — null → DEF_LAYERS-Fallback in VPlan */,
+    budgetStunden:(p.budgetStunden!=null?p.budgetStunden:(p.budget_stunden!=null?p.budget_stunden:null)),budgetEuro:(p.budgetEuro!=null?p.budgetEuro:(p.budget_euro!=null?p.budget_euro:null))/* v3.9.402 Projekt-Budget Soll */,
     tags:_jp(p.tags)};
 }
 function _mapFahrzeug(f){
@@ -2361,7 +2362,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.401-supabase";
+const APP_VERSION="3.9.402-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10039,7 +10040,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
   const [editP,setEditP]=_react.useState.call(void 0, null);
   const [viewMode,setViewMode]=_react.useState.call(void 0, "kacheln");
   const isMob=ww<600;
-  const emptyProj={nr:"",name:"",kunde:"",ort:"",plz:"",strasse:"",ansprechpartner:"",telefon:"",emailKunde:"",status:"aktiv",type:"elektro",kundenNr:"",matchcode:"",betrag:0,start:"",ende:"",gewerk:"",fortschritt:0,portalCode:""};
+  const emptyProj={nr:"",name:"",kunde:"",ort:"",plz:"",strasse:"",ansprechpartner:"",telefon:"",emailKunde:"",status:"aktiv",type:"elektro",kundenNr:"",matchcode:"",betrag:0,budgetStunden:null,budgetEuro:null,start:"",ende:"",gewerk:"",fortschritt:0,portalCode:""};
   const [form,setForm]=_react.useState.call(void 0, emptyProj);
 
   const fil=projects.filter(p=>{
@@ -10082,7 +10083,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
   const archiveP=async id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!await _confirmModal("Projekt \""+_optionalChain([pn, 'optionalAccess', _294 => _294.name])+"\" wirklich archivieren?"))return;_optionalChain([window, 'access', _295 => _295.__toast, 'optionalCall', _296 => _296("📦 Projekt archiviert")]);setProjects(prev=>prev.map(p=>p.id===id?{...p,status:"archiv"}:p));SQ.push({url:"/api/projects/"+id,method:"PUT",body:{status:"archiv"}});};
   const deleteP=async id=>{if(!isAdmin)return;const pn=projects.find(p=>p.id===id);if(!await _confirmModal("⚠️ Projekt \""+_optionalChain([pn, 'optionalAccess', _297 => _297.name])+"\" wirklich LÖSCHEN?\n\nAlle Daten gehen verloren!",{variant:"danger"}))return;setProjects(prev=>prev.filter(p=>p.id!==id));SQ.push({url:"/api/projects/"+id,method:"DELETE"});/* v3.9.64 SPRINT-43 EDGE-3: orphan-cleanup localStorage-Keys mit project-id-Suffix. matCart_<id> blieb sonst nach Project-Delete als zombie liegen. */try{localStorage.removeItem("matCart_"+id);}catch(_e){console.warn('[silent-ls]',_e&&_e.message||_e);}_optionalChain([window, 'access', _298 => _298.__toast, 'optionalCall', _299 => _299("🗑️ Projekt gelöscht")]);};
   /* v3.9.33 Sprint-18 N-8: User-Feedback dass Form jetzt im Edit-Mode ist (insb. Mobile, da Form weit unten am DOM). */
-  const editProject=p=>{setForm({nr:p.nr||"",name:p.name||"",kunde:p.kunde||"",ort:p.ort||"",plz:p.plz||"",strasse:p.strasse||"",ansprechpartner:p.ansprechpartner||"",telefon:p.telefon||"",emailKunde:p.emailKunde||p.email_kunde||"",status:p.status||"aktiv",type:p.type||"elektro",kundenNr:p.kundenNr||"",matchcode:p.matchcode||"",betrag:p.betrag||0,start:p.start||"",ende:p.ende||"",gewerk:p.gewerk||"",fortschritt:p.fortschritt||0,portalCode:p.portalCode||""});setEditP(p.id);setShowNew(true);_optionalChain([window, 'access', _ep1 => _ep1.__toast, 'optionalCall', _ep2 => _ep2("✏️ Bearbeitung gestartet — Formular am Seitenanfang","info",2500)]);try{window.scrollTo({top:0,behavior:"smooth"});}catch(e){console.warn('[silent-scroll]',e&&e.message||e);}};
+  const editProject=p=>{const _bs=(p.budgetStunden!=null?p.budgetStunden:(p.budget_stunden!=null?p.budget_stunden:null));const _be=(p.budgetEuro!=null?p.budgetEuro:(p.budget_euro!=null?p.budget_euro:null));setForm({nr:p.nr||"",name:p.name||"",kunde:p.kunde||"",ort:p.ort||"",plz:p.plz||"",strasse:p.strasse||"",ansprechpartner:p.ansprechpartner||"",telefon:p.telefon||"",emailKunde:p.emailKunde||p.email_kunde||"",status:p.status||"aktiv",type:p.type||"elektro",kundenNr:p.kundenNr||"",matchcode:p.matchcode||"",betrag:p.betrag||0,budgetStunden:(_bs!=null&&_bs!==""?parseFloat(_bs):null),budgetEuro:(_be!=null&&_be!==""?parseFloat(_be):null),start:p.start||"",ende:p.ende||"",gewerk:p.gewerk||"",fortschritt:p.fortschritt||0,portalCode:p.portalCode||""});setEditP(p.id);setShowNew(true);_optionalChain([window, 'access', _ep1 => _ep1.__toast, 'optionalCall', _ep2 => _ep2("✏️ Bearbeitung gestartet — Formular am Seitenanfang","info",2500)]);try{window.scrollTo({top:0,behavior:"smooth"});}catch(e){console.warn('[silent-scroll]',e&&e.message||e);}};
 
   return (
     React.createElement('div', {}
@@ -10113,6 +10114,11 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ort"), React.createElement('input', { value: form.ort, onChange: e=>setForm(p=>({...p,ort:e.target.value})), style: II()} ))
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Auftragssumme"), React.createElement('input', { type: "number", inputMode:"decimal", min:"0", value: form.betrag, onChange: e=>setForm(p=>({...p,betrag:Math.max(0,parseFloat(e.target.value)||0)})), style: II()} ))/* v3.9.125: min+clamp — negative Auftragssummen verfälschten Budget-Auswertungen */
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Fortschritt %" ), React.createElement('input', { type: "number", inputMode:"decimal", min: 0, max: 100, value: form.fortschritt, onChange: e=>setForm(p=>({...p,fortschritt:parseInt(e.target.value)||0})), style: II()} ))
+        )
+        /* v3.9.402 Projekt-Budget (Soll) — optional; leer = null (kein 400). Ist-Vergleich im Chef-Portal. */
+        , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Budget Stunden"), React.createElement('input', { type: "number", inputMode:"decimal", min:"0", step:"0.5", value: form.budgetStunden==null?"":form.budgetStunden, onChange: e=>setForm(p=>({...p,budgetStunden:e.target.value===""?null:Math.max(0,parseFloat(e.target.value)||0)})), style: II(), placeholder: "z.B. 150"} ))
+          , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Budget €"), React.createElement('input', { type: "number", inputMode:"decimal", min:"0", value: form.budgetEuro==null?"":form.budgetEuro, onChange: e=>setForm(p=>({...p,budgetEuro:e.target.value===""?null:Math.max(0,parseFloat(e.target.value)||0)})), style: II(), placeholder: "z.B. 25000"} ))
         )
         , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Start"), React.createElement('input', { type: "date", value: form.start, onChange: e=>setForm(p=>({...p,start:e.target.value})), style: II()} ))
@@ -17603,6 +17609,21 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   const _trendMonths=(function(){const arr=[];const n=new Date();for(let i=11;i>=0;i--){const dd=new Date(n.getFullYear(),n.getMonth()-i,1);arr.push({ym:_ymd(dd).slice(0,7),l:dd.toLocaleDateString('de-AT',{month:'short'}).replace('.','')+' '+String(dd.getFullYear()).slice(2)});}return arr;})();
   const _volByMonth={};projects.forEach(p=>{const ym=((p.created_at||p.createdAt||'')+'').slice(0,7);if(!ym)return;_volByMonth[ym]=(_volByMonth[ym]||0)+(parseFloat(p.betrag)||0);});
   const trendData=_trendMonths.map(m=>({l:m.l,v:Math.round(_volByMonth[m.ym]||0)}));
+  /* v3.9.402 Chef-Portal Bereich 3: PROJEKT-BUDGET (Soll-Ist). Stunden: Ist=Σ time_entries.hours je
+     project_id, Ziel=budget_stunden. Euro: Ziel=budget_euro, Ist=KALKULATORISCH (geleistete Std ×
+     workers.stundensatz) → ehrlich "kalk." gelabelt, KEIN bezahlter Ist-Wert. Fehlt der Stundensatz
+     komplett (kalk=0) → €-Teil weggelassen statt falsche Zahl. Nur Projekte MIT Budget. Ampel <85/85-100/>100. */
+  const _projBudget=projects.map(p=>{
+    const bs=parseFloat(p.budget_stunden!=null?p.budget_stunden:p.budgetStunden)||0;
+    const be=parseFloat(p.budget_euro!=null?p.budget_euro:p.budgetEuro)||0;
+    if(!(bs>0)&&!(be>0))return null;
+    const mine=entries.filter(e=>e.p===p.id||e.pid===p.id||e.project_id===p.id);
+    const istH=mine.reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
+    let kalk=0;mine.forEach(e=>{const wid=e.worker||e.w||e.worker_id;const m=monteure.find(x=>x.id===wid);const rate=m?parseFloat(m.stundensatz)||0:0;if(rate>0)kalk+=(parseFloat(e.hours||e.stunden)||0)*rate;});
+    return {id:p.id,nr:p.nr,name:p.name,bs,be,istH,kalk,hPct:bs>0?Math.round(istH/bs*100):null,ePct:(be>0&&kalk>0)?Math.round(kalk/be*100):null};
+  }).filter(Boolean).sort((a,b)=>(b.hPct||0)-(a.hPct||0));
+  const _budBar=pct=>pct<85?'#22c55e':pct<=100?'#eab308':'#ef4444';/* Balkenfüllung */
+  const _budTx=pct=>pct<85?_okG('#22c55e'):pct<=100?(_dark?'#fbbf24':'#a16207'):(_dark?'#f87171':'#b91c1c');/* Text AA hell+dunkel */
   return React.createElement('div',{style:{padding:isMob?12:16}}
     ,React.createElement('div',{style:{marginBottom:14}}
       ,React.createElement('h2',{style:{fontSize:isMob?20:24,fontWeight:800,margin:0}},'👑 Chef-Portal')
@@ -17681,6 +17702,32 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
       ),
       React.createElement('div',{key:'h',style:{fontSize:10,color:V.mt,fontStyle:'italic',marginTop:8}},'Auftragsvolumen = Σ Auftragssummen (projects.betrag) nach Anlagedatum (created_at), letzte 12 Monate. Auftragseingang — kein bezahlter Umsatz. Arbeitsscheine sind Regie (ohne Betrag) und NICHT enthalten. Hinweis: aktuell wenige Projekte → Chart füllt sich mit der Zeit.'),
       _drill('Auswertungen','auswertungen')
+    ])
+    ,_card('budget','🎯','Projekt-Budget (Soll-Ist)',V.acTx,[
+      _projBudget.length===0
+        ?React.createElement('div',{key:'e',style:{fontSize:12,color:V.dm,padding:'4px 0'}},'Kein Projekt-Budget hinterlegt. Budget (Stunden/€) beim Projekt anlegen/bearbeiten eintragen.')
+        :React.createElement('div',{key:'l',style:{display:'flex',flexDirection:'column',gap:12}},_projBudget.map(function(p){
+          return React.createElement('div',{key:p.id,style:{background:V.cd,borderRadius:8,padding:'10px 12px'}}
+            ,React.createElement('div',{style:{fontSize:13,fontWeight:700,marginBottom:8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},(p.nr?p.nr+' · ':'')+(p.name||'—'))
+            ,p.hPct!=null&&React.createElement('div',{style:{marginBottom:(p.ePct!=null||(p.be>0))?8:0}}
+              ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3,gap:8}}
+                ,React.createElement('span',{style:{color:V.dm}},'Stunden')
+                ,React.createElement('span',{style:{fontFamily:mono,fontWeight:700,color:_budTx(p.hPct),whiteSpace:'nowrap'}},_n(p.istH,0)+'h / '+_n(p.bs,0)+'h = '+p.hPct+'%')
+              )
+              ,React.createElement('div',{style:{height:12,background:V.bd,borderRadius:6,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:Math.min(100,p.hPct)+'%',background:_budBar(p.hPct),transition:'width .4s ease'}}))
+            )
+            ,p.ePct!=null&&React.createElement('div',{}
+              ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3,gap:8}}
+                ,React.createElement('span',{style:{color:V.dm}},'kalk. Kosten (geschätzt)')
+                ,React.createElement('span',{style:{fontFamily:mono,fontWeight:700,color:_budTx(p.ePct),whiteSpace:'nowrap'}},fmt$(p.kalk)+' / '+fmt$(p.be)+' = '+p.ePct+'%')
+              )
+              ,React.createElement('div',{style:{height:12,background:V.bd,borderRadius:6,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:Math.min(100,p.ePct)+'%',background:_budBar(p.ePct),transition:'width .4s ease'}}))
+            )
+            ,(p.be>0&&p.ePct==null)&&React.createElement('div',{style:{fontSize:10,color:V.mt,fontStyle:'italic',marginTop:4}},'Budget € '+fmt$(p.be)+' — kalk. Kosten nicht verfügbar (kein Stundensatz hinterlegt)')
+          );
+        })),
+      React.createElement('div',{key:'h',style:{fontSize:10,color:V.mt,fontStyle:'italic',marginTop:10}},'Ist-Stunden = erfasste time_entries je Projekt. „kalk. Kosten" = geleistete Std × Stundensatz (Schätzung, KEIN bezahlter Ist-Wert — Ist-Kosten werden nicht erfasst). Ampel: <85% grün, 85–100% gelb, >100% über Budget.'),
+      _drill('Projekte','projekte')
     ])
     ,_card('as','📋','Arbeitsscheine','#f97316',[
       _metricRow([
