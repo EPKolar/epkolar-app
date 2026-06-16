@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.402';
+  var SW_VER='epkolar-v3.9.403';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1600,6 +1600,28 @@ async function _sbSignedDocUrl(path,expiresIn){
   const j=await r.json();const su=j.signedURL||j.signedUrl||"";
   return su?(su.indexOf("http")===0?su:SB_STORAGE+su):"";
 }
+/* v3.9.403 Stufe B: Gefahrstoff-SDBs (privater Bucket epkolar-gefahrstoff). Storage-RLS spiegelt die
+   DB-RLS: SELECT=authenticated (alle Eingeloggten dürfen SDBs lesen), WRITE=is_staff(). Pfad
+   gefahrstoff/{folder_id|misc}/{uuid}_{name}. _sbUploadGef gibt storage_path zurück; Anzeige via
+   _sbSignedGefUrl (zeitlich begrenzt). epkolar-docs/files-Helfer unberührt. */
+const SB_GEF_BUCKET="epkolar-gefahrstoff";
+async function _sbUploadGef(folderId,fileName,dataUrl){
+  const blob=_dataUrlToBlob(dataUrl);
+  if(!blob)throw new Error("Ungültige Datei");
+  const safe=s=>(s||"datei").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,90);
+  const uidp=(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2));
+  const path="gefahrstoff/"+((folderId&&String(folderId).trim())?safe(folderId):"misc")+"/"+uidp+"_"+safe(fileName);
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_GEF_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/pdf","x-upsert":"true"}),body:blob},60000)));
+  if(!r.ok){const t=await r.text();throw new Error("HTTP"+r.status+" "+t);}
+  return path;
+}
+async function _sbSignedGefUrl(path,expiresIn){
+  if(!path)return "";
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/sign/"+SB_GEF_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify({expiresIn:expiresIn||300})},20000)));
+  if(!r.ok){const t=await r.text();throw new Error("HTTP"+r.status+" "+t);}
+  const j=await r.json();const su=j.signedURL||j.signedUrl||"";
+  return su?(su.indexOf("http")===0?su:SB_STORAGE+su):"";
+}
 
 // v3.8.44 Bug-Hunt-Top-2 (S2.1): Defensive JSON.parse-Helper.
 // 51 JSON.parse-Aufrufe im File. Die meisten sind bereits in try/catch oder
@@ -2362,7 +2384,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.402-supabase";
+const APP_VERSION="3.9.403-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -20120,7 +20142,7 @@ function VGefahrstoff({curUser, ww}){
   const fileRef=_react.useRef.call(void 0, null);
   const _touch=_react.useRef.call(void 0, null);
   const cur=nav.length?nav[nav.length-1]:null;
-  _react.useEffect.call(void 0, ()=>{let a=true;Promise.all([_sbGet("gefahrstoff_folders","order=name.asc"),_sbGet("gefahrstoff_files","select=id,folder_id,name,mime,size,lieferant,notiz,created_by,created_at,updated_at&order=name.asc")/* v3.9.197 file_data NICHT laden (Performance) */]).then(r=>{if(!a)return;setFolders(r[0]||[]);setFiles(r[1]||[]);}).catch(e=>{console.warn("[gefahrstoff load]",e&&e.message||e);});return ()=>{a=false;};},[]);
+  _react.useEffect.call(void 0, ()=>{let a=true;Promise.all([_sbGet("gefahrstoff_folders","order=name.asc"),_sbGet("gefahrstoff_files","select=id,folder_id,name,mime,size,lieferant,notiz,created_by,created_at,updated_at,storage_path&order=name.asc")/* v3.9.197 file_data NICHT laden (Performance); v3.9.403 storage_path mit (→ signed URL beim Öffnen) */]).then(r=>{if(!a)return;setFolders(r[0]||[]);setFiles(r[1]||[]);}).catch(e=>{console.warn("[gefahrstoff load]",e&&e.message||e);});return ()=>{a=false;};},[]);
   /* Navigation: History-Back pro Ebene (mobil ≥5×) + programmatisches Hoch konsumiert die Layer. */
   const goInto=(id)=>{setNav(n=>[...n,id]);if(window.__epkPushLayer)window.__epkPushLayer(()=>setNav(n=>n.slice(0,-1)));};
   const goBack=()=>{if(!nav.length)return;setNav(n=>n.slice(0,-1));if(window.__epkPopLayer)window.__epkPopLayer();};
@@ -20138,9 +20160,26 @@ function VGefahrstoff({curUser, ww}){
   const renameFolder=(fo)=>{const n=(window.prompt("Ordner umbenennen:",fo.name)||"").trim();if(!n||n===fo.name)return;setFolders(p=>p.map(x=>x.id===fo.id?{...x,name:n}:x));SQ.push({url:"/api/gefahrstoff-folders/"+fo.id,method:"PUT",body:{name:n}});};
   const delFolder=async(fo)=>{if(!await _confirmModal("Ordner \""+fo.name+"\" samt Inhalt löschen?",{variant:"danger"}))return;const ids=new Set();const collect=(id)=>{ids.add(id);folders.filter(x=>x.parent_id===id).forEach(c=>collect(c.id));};collect(fo.id);setFolders(p=>p.filter(x=>!ids.has(x.id)));setFiles(p=>p.filter(x=>!ids.has(x.folder_id)));SQ.push({url:"/api/gefahrstoff-folders/"+fo.id,method:"DELETE"});};
   const delFile=async(fi)=>{if(!await _confirmModal("Datei \""+fi.name+"\" löschen?",{variant:"danger"}))return;setFiles(p=>p.filter(x=>x.id!==fi.id));SQ.push({url:"/api/gefahrstoff-files/"+fi.id,method:"DELETE"});};
-  const openFile=async(fi)=>{setViewer({name:fi.name,dataUrl:null});try{let d=fi.file_data||"";if(!d){const r=await _sbGet("gefahrstoff_files","id=eq."+encodeURIComponent(fi.id)+"&select=file_data");d=(r&&r[0]&&r[0].file_data)||fi.file_url||"";}setViewer({name:fi.name,dataUrl:d});}catch(e){if(window.__toast)window.__toast("Datei konnte nicht geladen werden","error");setViewer(null);}};
+  /* v3.9.403 Stufe B: storage_path → signed URL (migrierte SDBs); sonst altes file_data/file_url (parallel lesbar). */
+  const openFile=async(fi)=>{setViewer({name:fi.name,dataUrl:null});try{
+    let d="";
+    if(fi.storage_path){try{d=await _sbSignedGefUrl(fi.storage_path,600);}catch(sErr){console.warn("[gefahrstoff] signed URL:",sErr&&sErr.message||sErr);}}
+    if(!d){const r=await _sbGet("gefahrstoff_files","id=eq."+encodeURIComponent(fi.id)+"&select=file_data,storage_path,file_url");const row=(r&&r[0])||{};
+      if(row.storage_path){try{d=await _sbSignedGefUrl(row.storage_path,600);}catch(_e){}}
+      d=d||row.file_data||fi.file_data||row.file_url||fi.file_url||"";}
+    if(!d){if(window.__toast)window.__toast("Datei konnte nicht geladen werden","error");setViewer(null);return;}
+    setViewer({name:fi.name,dataUrl:d});
+  }catch(e){if(window.__toast)window.__toast("Datei konnte nicht geladen werden","error");setViewer(null);}};
   /* v3.9.197 Upload = base64 in gefahrstoff_files.file_data via PostgREST (authentifiziert, RLS authenticated) — KEIN Storage (dessen API authentifiziert das ES256-User-JWT nicht → 403). Liste hält nur Metadaten, file_data wird erst beim Öffnen geladen. */
-  const onUpload=(e)=>{const fls=e.target.files;if(!fls||!fls.length)return;setBusy(true);const arr=Array.from(fls);let done=0;const fin=()=>{done++;if(done>=arr.length)setBusy(false);};arr.forEach(file=>{if(file.size>45*1048576){if(window.__toast)window.__toast("⚠️ "+file.name+" zu groß (max 45 MB)","warn",4000);fin();return;}const rd=new FileReader();rd.onload=ev=>{try{const id=uid();const meta={id:id,folder_id:cur,name:file.name,mime:file.type||"application/pdf",size:file.size,created_by:(curUser&&curUser.name)||"",created_at:new Date().toISOString()};setFiles(p=>[...p,meta]);SQ.push({url:"/api/gefahrstoff-files",method:"POST",body:{...meta,file_data:ev.target.result}});if(window.__toast)window.__toast("✅ "+file.name+" hochgeladen","success",2000);}catch(err){if(window.__toast)window.__toast("Upload fehlgeschlagen: "+(err&&err.message||err),"error",4000);}fin();};rd.onerror=fin;rd.readAsDataURL(file);});try{e.target.value="";}catch(_e){}};
+  /* v3.9.403 Stufe B: Upload → Bucket epkolar-gefahrstoff (storage_path statt base64). Bei Storage-Fehler
+     base64-Fallback in file_data (KEIN Datenverlust, KEIN Silent-Drop — Hinweis-Toast). ROUTE_MAP-Key
+     "gefahrstoff-files" matcht die POST-URL. */
+  const onUpload=(e)=>{const fls=e.target.files;if(!fls||!fls.length)return;setBusy(true);const arr=Array.from(fls);let done=0;const fin=()=>{done++;if(done>=arr.length)setBusy(false);};arr.forEach(file=>{if(file.size>45*1048576){if(window.__toast)window.__toast("⚠️ "+file.name+" zu groß (max 45 MB)","warn",4000);fin();return;}const rd=new FileReader();rd.onload=async ev=>{const id=uid();const meta={id:id,folder_id:cur,name:file.name,mime:file.type||"application/pdf",size:file.size,created_by:(curUser&&curUser.name)||"",created_at:new Date().toISOString()};try{
+        let storagePath="";
+        try{storagePath=await _sbUploadGef(cur,file.name,ev.target.result);}catch(upErr){console.warn("[gefahrstoff] Storage-Upload fehlgeschlagen → base64-Fallback:",upErr&&upErr.message||upErr);}
+        if(storagePath){setFiles(p=>[...p,{...meta,storage_path:storagePath}]);SQ.push({url:"/api/gefahrstoff-files",method:"POST",body:{...meta,storage_path:storagePath}});if(window.__toast)window.__toast("✅ "+file.name+" hochgeladen","success",2000);}
+        else{setFiles(p=>[...p,meta]);SQ.push({url:"/api/gefahrstoff-files",method:"POST",body:{...meta,file_data:ev.target.result}});if(window.__toast)window.__toast("⚠️ "+file.name+" via DB gespeichert (Storage nicht erreichbar)","warn",5000);}
+      }catch(err){if(window.__toast)window.__toast("Upload fehlgeschlagen: "+(err&&err.message||err),"error",4000);}fin();};rd.onerror=fin;rd.readAsDataURL(file);});try{e.target.value="";}catch(_e){}};
   const _fileRow=(fi,showPath)=>React.createElement('div',{key:fi.id,style:{...CC(),padding:"10px 12px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",minHeight:isMob?52:0},onClick:()=>openFile(fi)},
     React.createElement('span',{style:{fontSize:22,flexShrink:0}},"📄"),
     React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},fi.name),React.createElement('div',{style:{fontSize:11,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},fi.lieferant?React.createElement('span',{},"🏭 ",fi.lieferant):null,fi.size?React.createElement('span',{},_fmtSize(fi.size)):null,(fi.created_at||fi.createdAt)?React.createElement('span',{},"📅 ",fdt(String(fi.created_at||fi.createdAt).slice(0,10))):null,fi.created_by?React.createElement('span',{},"👤 ",fi.created_by):null,showPath?React.createElement('span',{style:{opacity:.75}},"📁 ",_folderPath(fi.folder_id)||"Start"):null)),
