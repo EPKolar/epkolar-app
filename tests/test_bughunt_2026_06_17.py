@@ -204,3 +204,24 @@ def test_zeit_24h_cap_matrix_and_inline():
         'v3.9.411 Regression: saveMatrixCell braucht 24h-Obergrenze'
     assert 'if(newHours>24){window.__toast&&window.__toast("⚠️ Max 24 h pro Tag","warn");return;}' in text, \
         'v3.9.411 Regression: updateEntryHours braucht 24h-Cap'
+
+
+# ── v3.9.412: ChartBox fmt auch fuer HBar/Line/Pie/Donut (nicht nur Bar) ──
+
+def test_chartbox_fmt_all_chart_types():
+    """Positiv: SvgHBar/SvgLine/SvgPie nehmen fmt-Param + ChartBox reicht fmt an alle durch."""
+    text = _txt()
+    # Signaturen nehmen fmt
+    assert 'function SvgHBar({data,width=300,height=0,color="#f97316",fmt})' in text, \
+        'v3.9.412 Regression: SvgHBar muss fmt-Param nehmen'
+    assert 'function SvgLine({data,width=320,height=150,color="#f97316",fmt})' in text, \
+        'v3.9.412 Regression: SvgLine muss fmt-Param nehmen'
+    assert 'function SvgPie({data,size=150,donut=false,fmt})' in text, \
+        'v3.9.412 Regression: SvgPie muss fmt-Param nehmen'
+    # ChartBox-Dispatch reicht fmt an alle Typen durch
+    assert 'tp==="hbar"&&React.createElement(SvgHBar, { data: data, color: color, fmt: fmt})' in text, \
+        'v3.9.412 Regression: ChartBox muss fmt an SvgHBar durchreichen'
+    assert 'tp==="line"&&React.createElement(SvgLine, { data: data, color: color, fmt: fmt})' in text, \
+        'v3.9.412 Regression: ChartBox muss fmt an SvgLine durchreichen'
+    assert 'tp==="donut"&&React.createElement(SvgPie, { data: data, donut: true, fmt: fmt})' in text, \
+        'v3.9.412 Regression: ChartBox muss fmt an SvgPie(donut) durchreichen'
