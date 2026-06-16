@@ -225,3 +225,26 @@ def test_chartbox_fmt_all_chart_types():
         'v3.9.412 Regression: ChartBox muss fmt an SvgLine durchreichen'
     assert 'tp==="donut"&&React.createElement(SvgPie, { data: data, donut: true, fmt: fmt})' in text, \
         'v3.9.412 Regression: ChartBox muss fmt an SvgPie(donut) durchreichen'
+
+
+# ── v3.9.413: Mobile/Lifecycle — Plan-Viewer Touch + Timer-Cleanup + a11y ──
+
+def test_planviewer_touch_action_none():
+    """P1 Positiv: Plan-Viewer Pointer-Surface hat touchAction:none (Pan/Pinch auf Touch)."""
+    text = _txt()
+    assert 'style: {position: "absolute", inset: 0, touchAction: "none"' in text, \
+        'v3.9.413 Regression: Plan-Viewer Pointer-Surface braucht touchAction:none'
+
+
+def test_stz_save_timers_unmount_cleanup():
+    """P2 Positiv: stzSaveTimers werden beim Unmount geraeumt (kein setState-after-unmount)."""
+    text = _txt()
+    assert 'Object.values(stzSaveTimers.current).forEach(t=>{try{clearTimeout(t);}catch(_){}});},[]);' in text, \
+        'v3.9.413 Regression: stzSaveTimers-Unmount-Cleanup fehlt'
+
+
+def test_mobshellnav_aria_label():
+    """P3 Positiv: mob-shell-nav Icon-Buttons haben aria-label."""
+    text = _txt()
+    assert "onClick: ()=>doNav(n.id), title: n.l, 'aria-label': n.l" in text, \
+        'v3.9.413 Regression: mob-shell-nav aria-label fehlt'
