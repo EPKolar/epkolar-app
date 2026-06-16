@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.399';
+  var SW_VER='epkolar-v3.9.400';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2361,7 +2361,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.399-supabase";
+const APP_VERSION="3.9.400-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17545,6 +17545,9 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   const [matOpen,setMatOpen]=_react.useState.call(void 0, null);
   const [gsCount,setGsCount]=_react.useState.call(void 0, null);
   const [absPending,setAbsPending]=_react.useState.call(void 0, null);
+  const [kapZeit,setKapZeit]=_react.useState.call(void 0, 'woche');/* v3.9.400 Auslastung-Zeitraum-Toggle */
+  const [trendVis,setTrendVis]=_react.useState.call(void 0, true);/* v3.9.400 Auftragsvolumen-Trend Chart-Toggle */
+  const [trendType,setTrendType]=_react.useState.call(void 0, 'bar');
   _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{
     try{const mo=await _sbGet('material_orders','select=id,status');if(a)setMatOpen((mo||[]).filter(o=>['angefordert','in_bearbeitung','offen'].includes(o.status)).length);}catch(_){if(a)setMatOpen(0);}
     try{const gf=await _sbGet('gefahrstoff_files','select=id');if(a)setGsCount((gf||[]).length);}catch(_){if(a)setGsCount(0);}
@@ -17568,6 +17571,34 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     ,_secOpen(id)&&React.createElement('div',{style:{padding:'0 14px 14px'}},...bodyEls)
   );
   const _drill=(label,tab)=>React.createElement('button',{onClick:()=>onNav(tab),style:{...bsS(),fontSize:11,padding:'5px 10px',marginTop:10}},label+' →');
+  /* v3.9.400 Chef-Portal Bereich 1: AUSLASTUNG / KAPAZITÄT
+     Aktive Monteure = Rolle EXAKT "Monteur" UND austritt leer (monteure-Objekte tragen kein active-Feld
+     → austritt-leer als Aktiv-Proxy; identisch BWB-Kiener-Fix v3.9.380, Z.7593). Soll = Σ Tages-Soll
+     (_stdVonTagK, Fr/Feiertag-korrekt) über den Zeitraum × aktive Monteure. Ist = time_entries.hours
+     derselben Monteure im Zeitraum. % = Ist/Soll. Ampel <70 grün (Luft) / 70-95 gelb / >95 rot (AA-Token). */
+  const _kapMont=monteure.filter(m=>!String(m.austritt||'').trim()&&m.r==='Monteur');
+  const _kapIds=new Set(_kapMont.map(m=>m.id));
+  const _weekEnd=(function(){const d=new Date(_weekStart+'T00:00:00');d.setDate(d.getDate()+6);return _ymd(d);})();
+  const _moStart=_moNow+'-01';
+  const _moEnd=(function(){const n=new Date();return _ymd(new Date(n.getFullYear(),n.getMonth()+1,0));})();
+  const _sollRange=(start,end)=>{let s=0;const d=new Date(start+'T00:00:00');const e=new Date(end+'T00:00:00');let g=0;while(d<=e&&g++<400){s+=_stdVonTagK(d,38.5);d.setDate(d.getDate()+1);}return s;};
+  const _istRange=(start,end)=>entries.filter(e=>{const id=e.worker||e.w||e.worker_id;const dt=(e.datum||e.date||'');return _kapIds.has(id)&&dt>=start&&dt<=end;}).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
+  const _sollPerWeek=_sollRange(_weekStart,_weekEnd);
+  const _sollPerMonth=_sollRange(_moStart,_moEnd);
+  const _kapSel=kapZeit==='woche'?{start:_weekStart,end:_weekEnd,sollPer:_sollPerWeek}:{start:_moStart,end:_moEnd,sollPer:_sollPerMonth};
+  const kapSoll=_kapMont.length*_kapSel.sollPer;
+  const kapIst=_istRange(_kapSel.start,_kapSel.end);
+  const kapPct=kapSoll>0?Math.round(kapIst/kapSoll*100):0;
+  const kapList=_kapMont.map(m=>{const h=entries.filter(e=>(e.worker||e.w||e.worker_id)===m.id&&(e.datum||e.date||'')>=_kapSel.start&&(e.datum||e.date||'')<=_kapSel.end).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);const pct=_kapSel.sollPer>0?Math.round(h/_kapSel.sollPer*100):0;return {id:m.id,name:(m.vorname?m.vorname+' ':'')+m.n,hours:h,pct};}).sort((a,b)=>b.pct-a.pct);
+  const _ampBar=pct=>pct<70?'#22c55e':pct<=95?'#eab308':'#ef4444';/* Balkenfüllung (kein Text) */
+  const _ampTx=pct=>pct<70?_okG('#22c55e'):pct<=95?(_dark?'#fbbf24':'#a16207'):(_dark?'#f87171':'#b91c1c');/* Text AA hell+dunkel */
+  const _ampLbl=pct=>pct<70?'🟢 Luft für neue Aufträge':pct<=95?'🟡 gut ausgelastet':'🔴 am Anschlag';
+  /* v3.9.400 Chef-Portal Bereich 2: AUFTRAGSVOLUMEN-TREND (€/Monat, AUSSCHLIESSLICH projects.betrag
+     gruppiert nach Anlagedatum created_at — das einzige verlässliche Datum). Arbeitsscheine = Regie ohne
+     Betrag → bewusst NICHT einbezogen. Letzte 12 Monate. Semantik = Auftragseingang, NICHT bezahlter Umsatz. */
+  const _trendMonths=(function(){const arr=[];const n=new Date();for(let i=11;i>=0;i--){const dd=new Date(n.getFullYear(),n.getMonth()-i,1);arr.push({ym:_ymd(dd).slice(0,7),l:dd.toLocaleDateString('de-AT',{month:'short'}).replace('.','')+' '+String(dd.getFullYear()).slice(2)});}return arr;})();
+  const _volByMonth={};projects.forEach(p=>{const ym=((p.created_at||p.createdAt||'')+'').slice(0,7);if(!ym)return;_volByMonth[ym]=(_volByMonth[ym]||0)+(parseFloat(p.betrag)||0);});
+  const trendData=_trendMonths.map(m=>({l:m.l,v:Math.round(_volByMonth[m.ym]||0)}));
   return React.createElement('div',{style:{padding:isMob?12:16}}
     ,React.createElement('div',{style:{marginBottom:14}}
       ,React.createElement('h2',{style:{fontSize:isMob?20:24,fontWeight:800,margin:0}},'👑 Chef-Portal')
@@ -17640,6 +17671,13 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
       React.createElement('div',{key:'h',style:{fontSize:10,color:V.mt,fontStyle:'italic',marginTop:8}},'Auftragsvolumen = Summe der Auftragssummen (Auftragswert, kein realisierter Umsatz — keine Rechnungsdaten). Detail-Charts in Auswertungen.'),
       _drill('Auswertungen','auswertungen')
     ])
+    ,_card('voltrend','📈','Auftragsvolumen-Trend',V.acTx,[
+      React.createElement('div',{key:'g',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(330px,1fr))',gap:12,marginTop:4}}
+        ,React.createElement(ChartBox,{title:'Auftragsvolumen (Projekte) / Monat',data:trendData,defaultType:'bar',visible:trendVis,onToggle:function(){setTrendVis(function(v){return !v;});},chartType:trendType,onTypeChange:setTrendType,color:V.acTx})
+      ),
+      React.createElement('div',{key:'h',style:{fontSize:10,color:V.mt,fontStyle:'italic',marginTop:8}},'Auftragsvolumen = Σ Auftragssummen (projects.betrag) nach Anlagedatum (created_at), letzte 12 Monate. Auftragseingang — kein bezahlter Umsatz. Arbeitsscheine sind Regie (ohne Betrag) und NICHT enthalten. Hinweis: aktuell wenige Projekte → Chart füllt sich mit der Zeit.'),
+      _drill('Auswertungen','auswertungen')
+    ])
     ,_card('as','📋','Arbeitsscheine','#f97316',[
       _metricRow([
         _metric('Offen',offeneAS,'#f97316',function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');}),
@@ -17674,6 +17712,31 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
           ,React.createElement('div',{style:{width:isMob?90:120,fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},w.name)
           ,React.createElement('div',{style:{flex:1,height:14,background:V.bd,borderRadius:7,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:Math.min(100,w.pct)+'%',background:w.color,transition:'width .4s ease'}}))
           ,React.createElement('div',{style:{minWidth:78,textAlign:'right',fontSize:11,fontFamily:mono,color:w.color,fontWeight:700}},_n(w.hours,1)+'h')
+        );})
+      ),
+      _drill('Zeiterfassung','zeiterfassung')
+    ])
+    ,_card('kap','📊','Auslastung / Kapazität','#a855f7',[
+      React.createElement('div',{key:'tg',style:{display:'flex',gap:6,marginBottom:12}}
+        ,['woche','monat'].map(function(z){return React.createElement('button',{key:z,onClick:function(){setKapZeit(z);},style:{padding:'5px 12px',borderRadius:6,border:'1px solid '+(kapZeit===z?'#a855f7':V.bd),background:kapZeit===z?'#a855f718':'transparent',color:kapZeit===z?'#a855f7':V.dm,cursor:'pointer',fontSize:12,fontWeight:700}},z==='woche'?'Diese Woche':'Aktueller Monat');})
+      ),
+      React.createElement('div',{key:'gauge',style:{background:V.cd,borderRadius:8,padding:'12px 14px',marginBottom:10}}
+        ,React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,flexWrap:'wrap'}}
+          ,React.createElement('span',{style:{fontSize:30,fontWeight:800,fontFamily:mono,color:_ampTx(kapPct)}},kapPct+'%')
+          ,React.createElement('span',{style:{fontSize:13,color:V.tx,fontFamily:mono}},'Ist '+_n(kapIst,0)+' h / Ziel '+_n(kapSoll,0)+' h')
+          ,React.createElement('span',{style:{fontSize:12,fontWeight:700,color:_ampTx(kapPct),marginLeft:'auto'}},_ampLbl(kapPct))
+        )
+        ,React.createElement('div',{style:{height:16,background:V.bd,borderRadius:8,overflow:'hidden',marginTop:10,position:'relative'}}
+          ,React.createElement('div',{style:{height:'100%',width:Math.min(100,kapPct)+'%',background:_ampBar(kapPct),transition:'width .4s ease'}})
+        )
+        ,React.createElement('div',{style:{fontSize:10,color:V.dm,marginTop:6}},_kapMont.length+' aktive Monteure × 38,5 h/Woche · Ziel = Soll-Kapazität, Ist = erfasste Stunden im Zeitraum')
+      ),
+      kapList.length>0&&React.createElement('div',{key:'l',style:{marginTop:4}}
+        ,React.createElement('div',{style:{fontSize:11,fontWeight:700,marginBottom:8,color:V.dm}},'Je Monteur (Ist / Ziel %)')
+        ,kapList.map(function(w){return React.createElement('div',{key:w.id,style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}}
+          ,React.createElement('div',{style:{width:isMob?90:130,fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},w.name)
+          ,React.createElement('div',{style:{flex:1,height:12,background:V.bd,borderRadius:6,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:Math.min(100,w.pct)+'%',background:_ampBar(w.pct),transition:'width .4s ease'}}))
+          ,React.createElement('div',{style:{minWidth:100,textAlign:'right',fontSize:11,fontFamily:mono,color:_ampTx(w.pct),fontWeight:700}},_n(w.hours,1)+'h · '+w.pct+'%')
         );})
       ),
       _drill('Zeiterfassung','zeiterfassung')
