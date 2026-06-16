@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.400';
+  var SW_VER='epkolar-v3.9.401';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2361,7 +2361,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.400-supabase";
+const APP_VERSION="3.9.401-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -16202,14 +16202,15 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 }
 
 // ═══════════ SVG CHART ENGINE ═══════════
-function SvgBar({data,height=140,color="#f97316"}){/* v3.9.366: kompakter (180→140) fürs dichtere Auswertungs-Raster */
+function SvgBar({data,height=140,color="#f97316",fmt}){/* v3.9.366: kompakter (180→140) fürs dichtere Auswertungs-Raster */
+  const _fv=fmt||(v=>v);/* v3.9.401: optionaler Wert-Formatter (Default = roher Wert → keine Regression); z.B. kompakte €-Tausender im Auftragsvolumen-Trend, leere Monate ohne "0". */
   if(!data||!data.length)return null;const n=data.length;const mx=Math.max(...data.map(d=>d.v||0),1);const many=n>6;const bw=many?Math.max(18,Math.min(36,260/n)):Math.min(40,Math.floor(280/n));const pad=14;const w=Math.max(pad*2+n*(bw+6),260);const btm=many?40:24;/* v3.9.366: Mindest-viewBox-Breite 260 → wenige Balken strecken sich nicht mehr riesig hoch (breiteres Seitenverhältnis) */
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${w} ${height+btm}`, style: {display:"block",maxHeight:"240px",margin:"0 auto"}}/* v3.9.366: Höhe gedeckelt gegen überdimensionierte Balken in 1-2-Chart-Sektionen */
     , data.map((d,i)=>{const bh=((d.v||0)/mx)*(height-20);const x=pad+i*(bw+6);const y=height-bh;const clr=d.c||color;const maxL=many?10:8;const _lbl=d.l||"";const lbl=_lbl.length>maxL?_lbl.slice(0,maxL)+"…":_lbl;const lblY=many?(i%2===0?height+12:height+26):height+12;return (React.createElement('g', { key: i}
       , React.createElement('rect', { x: x, y: y, width: bw, height: bh, rx: 3, fill: clr, opacity: .85}, React.createElement('animate', { attributeName: "height", from: "0", to: bh, dur: ".4s", fill: "freeze"}), React.createElement('animate', { attributeName: "y", from: height, to: y, dur: ".4s", fill: "freeze"}))
       , many&&React.createElement('line', { x1: x+bw/2, y1: height, x2: x+bw/2, y2: lblY-8, stroke: V.dm, strokeOpacity: .25, strokeWidth: .5})
       , React.createElement('text', { x: x+bw/2, y: lblY, textAnchor: "middle", fill: V.dm, fontSize: many?8:9, fontFamily: "system-ui"}, lbl)
-      , React.createElement('text', { x: x+bw/2, y: y-4, textAnchor: "middle", fill: clr, fontSize: 10, fontWeight: 700}, d.v)
+      , React.createElement('text', { x: x+bw/2, y: y-4, textAnchor: "middle", fill: clr, fontSize: 10, fontWeight: 700}, _fv(d.v))
     ));})
   ));
 }
@@ -16255,7 +16256,7 @@ function SvgLine({data,width=320,height=150,color="#f97316"}){/* v3.9.366: kompa
       , React.createElement('text', { x: p.x, y: p.y-10, textAnchor: "middle", fill: color, fontSize: 9, fontWeight: 600}, data[i].v))))
   ));
 }
-function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTypeChange,color="#f97316"}){
+function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTypeChange,color="#f97316",fmt}){
   const ww=useW();const isMob=ww<600;/* v3.9.102 P0-Crash-Fix: ChartBox nutzt isMob (Chart-Typ-Button-Padding), bekam es aber weder als Prop noch deklariert → "isMob is not defined" auf Tab Auswertungen. useW()-Hook wie projektweites Muster. */
   const tp=chartType||defaultType;
   /* v3.9.65 Sprint 44.3 F-8: Empty-State für ChartBox — vorher rendete SvgBar/Pie/etc. einfach leer + verwirrte User (Chart-Toggle steht ON aber Chart-Fläche bleibt blank). Jetzt: explizit "Keine Daten"-Hint, additiv zu den Sub-Charts. */
@@ -16273,7 +16274,7 @@ function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTyp
       ))
     )
     , visible&&(_hasData?React.createElement('div', {}
-      , tp==="bar"&&React.createElement(SvgBar, { data: data, color: color})
+      , tp==="bar"&&React.createElement(SvgBar, { data: data, color: color, fmt: fmt})
       , tp==="hbar"&&React.createElement(SvgHBar, { data: data, color: color})
       , tp==="pie"&&React.createElement(SvgPie, { data: data})
       , tp==="donut"&&React.createElement(SvgPie, { data: data, donut: true})
@@ -17572,11 +17573,14 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   );
   const _drill=(label,tab)=>React.createElement('button',{onClick:()=>onNav(tab),style:{...bsS(),fontSize:11,padding:'5px 10px',marginTop:10}},label+' →');
   /* v3.9.400 Chef-Portal Bereich 1: AUSLASTUNG / KAPAZITÄT
-     Aktive Monteure = Rolle EXAKT "Monteur" UND austritt leer (monteure-Objekte tragen kein active-Feld
-     → austritt-leer als Aktiv-Proxy; identisch BWB-Kiener-Fix v3.9.380, Z.7593). Soll = Σ Tages-Soll
-     (_stdVonTagK, Fr/Feiertag-korrekt) über den Zeitraum × aktive Monteure. Ist = time_entries.hours
-     derselben Monteure im Zeitraum. % = Ist/Soll. Ampel <70 grün (Luft) / 70-95 gelb / >95 rot (AA-Token). */
-  const _kapMont=monteure.filter(m=>!String(m.austritt||'').trim()&&m.r==='Monteur');
+     v3.9.401 (Chef-Feedback "fehlen Monteure"): Kapazität = ALLE aktiven FELD-Mitarbeiter (austritt leer),
+     d.h. alles AUSSER Backoffice / Verkauf-Buchhaltung / Geschäftsführung / Lagerleitung. Schließt damit
+     Störungstechniker + Techniker ein (Paschinger, Schmid), die Feldstunden leisten — vorher fälschlich
+     nur Rolle EXAKT "Monteur". monteure-Objekte tragen kein active-Feld → austritt-leer als Aktiv-Proxy.
+     Soll = Σ Tages-Soll (_stdVonTagK, Fr/Feiertag-korrekt) über den Zeitraum × aktive Feld-MA. Ist =
+     time_entries.hours derselben MA. % = Ist/Soll. Ampel <70 grün (Luft) / 70-95 gelb / >95 rot (AA-Token). */
+  const _kapNonField=m=>{const r=(m.r||'');return r==='Backoffice'||r==='Verkauf/Buchhaltung'||r==='Lagerleitung'||/Gesch/.test(r);};
+  const _kapMont=monteure.filter(m=>!String(m.austritt||'').trim()&&!_kapNonField(m));
   const _kapIds=new Set(_kapMont.map(m=>m.id));
   const _weekEnd=(function(){const d=new Date(_weekStart+'T00:00:00');d.setDate(d.getDate()+6);return _ymd(d);})();
   const _moStart=_moNow+'-01';
@@ -17673,7 +17677,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     ])
     ,_card('voltrend','📈','Auftragsvolumen-Trend',V.acTx,[
       React.createElement('div',{key:'g',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(330px,1fr))',gap:12,marginTop:4}}
-        ,React.createElement(ChartBox,{title:'Auftragsvolumen (Projekte) / Monat',data:trendData,defaultType:'bar',visible:trendVis,onToggle:function(){setTrendVis(function(v){return !v;});},chartType:trendType,onTypeChange:setTrendType,color:V.acTx})
+        ,React.createElement(ChartBox,{title:'Auftragsvolumen (Projekte) / Monat',data:trendData,defaultType:'bar',visible:trendVis,onToggle:function(){setTrendVis(function(v){return !v;});},chartType:trendType,onTypeChange:setTrendType,color:V.acTx,fmt:function(v){if(!v)return '';if(v>=1000){var k=Math.round(v/100)/10;return '€ '+String(k).replace('.',',')+'k';}return '€ '+Math.round(v);}})
       ),
       React.createElement('div',{key:'h',style:{fontSize:10,color:V.mt,fontStyle:'italic',marginTop:8}},'Auftragsvolumen = Σ Auftragssummen (projects.betrag) nach Anlagedatum (created_at), letzte 12 Monate. Auftragseingang — kein bezahlter Umsatz. Arbeitsscheine sind Regie (ohne Betrag) und NICHT enthalten. Hinweis: aktuell wenige Projekte → Chart füllt sich mit der Zeit.'),
       _drill('Auswertungen','auswertungen')
@@ -18184,6 +18188,10 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
      Erweitert auf alle Field-Rollen mit selWorker===curUser.monteurId Gate (Memory-Hinweis erfuellt). */
   const _isFieldRoleZE=curUser&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
   const _canDelEntry=isAdmin||(_isFieldRoleZE&&selWorker===curUser.monteurId);
+  /* v3.9.401: Monteure (alle Field-Rollen) dürfen ihre EIGENEN Zeiteinträge editieren (Tippfehler in
+     Tätigkeit/Bemerkung/Projekt/Zeit korrigieren) — analog _canDelEntry (own-Gate selWorker===eigene monteurId).
+     Büro/Admin/PL behalten via zeit_other das Editieren FREMDER Einträge. */
+  const _canEditEntry=canDo('zeit_other',curUser)||(_isFieldRoleZE&&selWorker===curUser.monteurId);
   const deleteEntry=async(iso,entryIdx)=>{
     if(!_canDelEntry)return;
     const entry=(dayEntries[iso]||[])[entryIdx];
@@ -18205,7 +18213,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
      das Add-Form mit den Werten eines bestehenden Eintrags und markiert editEntry; addEntry erkennt das
      und macht PUT statt POST + 3-fach-Sync (dayEntries lokal, entries-Prop für VZeit/Dashboard, Toast). */
   const _startEditEntry=(iso,entry)=>{
-    if(!canDo('zeit_other',curUser)){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten","warn");return;}
+    if(!_canEditEntry){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten","warn");return;}
     setEditEntry({id:entry.id});
     setAddDay(iso);
     setAddType(entry.arbeitsschein_id?'schein':(entry.project_id?'projekt':'frei'));
@@ -18240,7 +18248,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     /* v3.9.307: Edit-Branch — PUT statt POST + 3-fach-Sync (DB, dayEntries lokal, entries-Prop). canDo-Guard
        als Defense-in-Depth (_startEditEntry blockt schon, aber API-Aufrufe sollen nie ohne Recht durchlaufen). */
     if(editEntry){
-      if(!canDo('zeit_other',curUser)){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten","warn");return;}
+      if(!_canEditEntry){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten","warn");return;}
       let _oldGewerk='elektro';
       Object.keys(dayEntries).some(d=>{const x=(dayEntries[d]||[]).find(e=>e.id===editEntry.id);if(x){_oldGewerk=x.gewerk||'elektro';return true;}return false;});
       SQ.push({url:"/api/entries/"+editEntry.id,method:"PUT",body:{id:editEntry.id,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,taetigkeit:taet,gewerk:_oldGewerk,bemerkung:addBemerkung,von:addVon,bis:addBis,pause:addPause}});
@@ -18798,7 +18806,7 @@ ${dayRowsHtml}
                     React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                       typeBadge(entry.type),
                       React.createElement('div',{style:{display:"flex",gap:4,alignItems:"center"}},
-                        canDo('zeit_other',curUser)&&React.createElement('span',{onClick:()=>_startEditEntry(iso,entry),role:"button",tabIndex:0,"aria-label":"Eintrag bearbeiten",onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();_startEditEntry(iso,entry);}},style:{cursor:"pointer",fontSize:10,color:"#3b82f6",padding:"2px 4px",borderRadius:3,background:"rgba(59,130,246,.08)"},title:"Bearbeiten (Büro/Admin)"},"✏️"),
+                        _canEditEntry&&React.createElement('span',{onClick:()=>_startEditEntry(iso,entry),role:"button",tabIndex:0,"aria-label":"Eintrag bearbeiten",onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();_startEditEntry(iso,entry);}},style:{cursor:"pointer",fontSize:10,color:"#3b82f6",padding:"2px 4px",borderRadius:3,background:"rgba(59,130,246,.08)"},title:"Bearbeiten"},"✏️"),
                         _canDelEntry&&React.createElement('span',{onClick:()=>deleteEntry(iso,eIdx),role:"button",tabIndex:0,"aria-label":"Eintrag löschen",onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();deleteEntry(iso,eIdx);}},style:{cursor:"pointer",fontSize:10,color:COLORS.ERROR,padding:"2px 4px",borderRadius:3,background:"rgba(239,68,68,.08)"},title:"Eintrag löschen"},"✕")
                       )
                     ),
