@@ -3,7 +3,8 @@
 
 def test_quickedit_component_exists(index_html):
     # v3.9.180: onComment (Journal) + v3.9.181: onPhotos (Foto-Grid) ergänzt
-    assert "function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment, onPhotos}) {" in index_html
+    # v3.9.410: isAdmin/isMtField/vpMid für Self-Assign-Klemme ergänzt
+    assert "function QuickEditPin({ticket, monteure, isAdmin, isMtField, vpMid, onSave, onOpen, onClose, onComment, onPhotos}) {" in index_html
     # Schnellbearbeitungs-Felder
     assert 'React.createElement(\'label\', {style:LL()}, "Status")' in index_html
     assert 'React.createElement(\'label\', {style:LL()}, "Zuständig")' in index_html
@@ -21,5 +22,6 @@ def test_quickedit_wired(index_html):
     assert "setSelTicket(t);setQuickTicket(t);" in index_html
     assert "onPinClick: t=>{" in index_html
     # Popup-Render + onSave→updateTicket, onOpen→volles Detail
-    assert "React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, onSave: u=>{updateTicket(u);setQuickTicket(null);}" in index_html
+    # v3.9.410: isAdmin/isMtField/vpMid-Props für Self-Assign-Klemme durchgereicht
+    assert "React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, onSave: u=>{updateTicket(u);setQuickTicket(null);}" in index_html
     assert 'onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}' in index_html

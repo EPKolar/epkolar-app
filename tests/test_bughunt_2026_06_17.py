@@ -138,3 +138,47 @@ def test_ononline_uses_countmine():
     text = _txt()
     assert 'const cnt=await SQ.countMine();/* v3.9.409' in text, \
         'v3.9.409 Regression: onOnline muss SQ.countMine() nutzen'
+
+
+# ── v3.9.410: QuickEditPin Self-Assign-Klemme + Rechte-Haertung + Pickerl-TZ ──
+
+def test_quickeditpin_self_assign_clamp():
+    """P2 Positiv: QuickEditPin bekommt isMtField/vpMid-Props + klemmt assignee im _save."""
+    text = _txt()
+    assert 'function QuickEditPin({ticket, monteure, isAdmin, isMtField, vpMid,' in text, \
+        'v3.9.410 Regression: QuickEditPin muss isMtField/vpMid-Props annehmen'
+    assert 'const _isMtEdit=!!isMtField&&!isAdmin; const _effAsg=_isMtEdit?(vpMid||ticket.assignee):asg;' in text, \
+        'v3.9.410 Regression: QuickEditPin _save muss assignee klemmen (wie TicketDetail)'
+    # Call-Site reicht Props durch
+    assert 'React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid,' in text, \
+        'v3.9.410 Regression: QuickEditPin-Call-Site muss isMtField/vpMid durchreichen'
+
+
+def test_saveproject_admin_guard():
+    """Positiv: saveProject traegt if(!isAdmin)return."""
+    text = _txt()
+    assert 'const saveProject=()=>{\n    if(!isAdmin)return;' in text, \
+        'v3.9.410 Regression: saveProject Handler-Guard fehlt'
+
+
+def test_wz_save_pushwzsh_wzedit_guard():
+    """Positiv: WZ save + _pushWzSh tragen canDo("wz_edit",curUser)-Guard."""
+    text = _txt()
+    assert 'const _pushWzSh=(wzId)=>{if(!canDo("wz_edit",curUser))return;' in text, \
+        'v3.9.410 Regression: _pushWzSh wz_edit-Guard fehlt'
+    assert 'const save=()=>{\n    if(!canDo("wz_edit",curUser))return;' in text, \
+        'v3.9.410 Regression: WZ save wz_edit-Guard fehlt'
+
+
+def test_zeit_inline_hours_canedit_guard():
+    """Positiv: updateEntryHours traegt if(!_canEditEntry)return."""
+    text = _txt()
+    assert 'const updateEntryHours=(iso,entryIdx,newHours)=>{\n    if(!_canEditEntry)return;' in text, \
+        'v3.9.410 Regression: updateEntryHours _canEditEntry-Guard fehlt'
+
+
+def test_pickerl_deadline_local_parse():
+    """Positiv: Pickerl-Deadline-Notification parst date-only lokal (+T00:00:00)."""
+    text = _txt()
+    assert 'const diff=Math.ceil((new Date(f.pickerl+"T00:00:00")-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"' in text, \
+        'v3.9.410 Regression: Pickerl-Deadline muss +"T00:00:00" lokal parsen (wie Service)'

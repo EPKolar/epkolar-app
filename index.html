@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.409';
+  var SW_VER='epkolar-v3.9.410';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2415,7 +2415,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.409-supabase";
+const APP_VERSION="3.9.410-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5686,7 +5686,7 @@ class _ViewBoundary extends React.Component{
     // v3.9.99 Sebastian-Spec: Führungs-Gruppe statt hardcoded pinger
     const _fleetU=_users.filter(u=>u.role==="admin"||u.role==="projektleiter").map(u=>u.id);
     (_fahrzeuge||[]).forEach(f=>{
-      if(f.pickerl&&/^\d{4}-\d{2}-\d{2}/.test(f.pickerl)){const diff=Math.ceil((new Date(f.pickerl)-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+(f.kennzeichen||f.id||"Fzg"),diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
+      if(f.pickerl&&/^\d{4}-\d{2}-\d{2}/.test(f.pickerl)){const diff=Math.ceil((new Date(f.pickerl+"T00:00:00")-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+(f.kennzeichen||f.id||"Fzg"),diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
       if(f.naechstService&&/^\d{4}-\d{2}-\d{2}/.test(f.naechstService)){const diff=Math.ceil((new Date(f.naechstService+"T00:00:00")-now)/TIME_DAY);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+(f.kennzeichen||f.id||"Fzg"),"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
     });
   },[curUser]);
@@ -10110,6 +10110,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
      "Speichern" bei Neu-Projekt 2 Project-Rows (verschiedene Date.now()-IDs). */
   const _savingProject=_react.useRef.call(void 0, false);
   const saveProject=()=>{
+    if(!isAdmin)return;/* v3.9.410 Handler-Guard (analog archiveP/deleteP) */
     if(_savingProject.current)return;
     /* v3.9.33 Sprint-18 N-1: nr (PA-Nr) ist mit * markiert aber wurde nicht validiert. */
     if(!form.name){_optionalChain([window, 'access', _sp1 => _sp1.__toast, 'optionalCall', _sp2 => _sp2("⚠️ Projektname ist Pflicht","error",3500)]);return;}
@@ -12182,7 +12183,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
 
 /* v3.9.138 PlanRadar Phase 2: Quick-Edit-Popup beim Pin-Klick — Schnellbearbeitung (Status/Zuständiger/
    Frist/Priorität) + Foto-Vorschau + "Öffnen" (volles Ticket) / "Speichern", OHNE den vollen Detail-Panel. */
-function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment, onPhotos}) {
+function QuickEditPin({ticket, monteure, isAdmin, isMtField, vpMid, onSave, onOpen, onClose, onComment, onPhotos}) {
   const [st, setSt] = _react.useState.call(void 0, ticket.status || "offen");
   const [asg, setAsg] = _react.useState.call(void 0, ticket.assignee || "");
   const [due, setDue] = _react.useState.call(void 0, ticket.dueDate || ticket.due_date || "");
@@ -12192,7 +12193,8 @@ function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment, onP
   const _photo = (ticket.photos && ticket.photos.length) ? ticket.photos[0] : null;
   const _photoSrc = _photo ? (typeof _photo === "string" ? _photo : (_photo.dataUrl || _photo.url || "")) : "";
   const _selSt = {...II(), colorScheme:_dark?"dark":"light"};
-  const _save = () => { if(onSave) onSave({...ticket, status:st, assignee:asg, dueDate:due, due_date:due, priority:prio, updatedAt:td2()}); };
+  /* v3.9.410 P2-Fix: Self-Assign-Klemme wie TicketDetail.saveEdit (v3.9.25) — Field-Monteur darf Ticket nur sich selbst zuweisen. */
+  const _save = () => { const _isMtEdit=!!isMtField&&!isAdmin; const _effAsg=_isMtEdit?(vpMid||ticket.assignee):asg; if(_isMtEdit&&_effAsg!==(vpMid||"")){_optionalChain([window,'access',_qe1=>_qe1.__toast,'optionalCall',_qe2=>_qe2("⚠️ Keine Berechtigung — Monteure können Tickets nur sich selbst zuweisen","warn")]);return;} if(onSave) onSave({...ticket, status:st, assignee:_effAsg, dueDate:due, due_date:due, priority:prio, updatedAt:td2()}); };
   const [comment, setComment] = _react.useState.call(void 0, "");
   const _addComment = () => { const _c=(comment||"").trim(); if(!_c)return; const _cu=(typeof window!=="undefined"&&window._curUser&&window._curUser())||null; const _au=(_cu&&(_cu.name||_cu.username))||"Unbekannt"; if(onComment)onComment({text:_c, author:_au, date:new Date().toLocaleDateString("de-AT")+" "+new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"})}); setComment(""); };
   return React.createElement('div', {onClick:onClose, style:{position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:16, animation:"fadeIn .15s ease-out"}},
@@ -12213,7 +12215,7 @@ function QuickEditPin({ticket, monteure, onSave, onOpen, onClose, onComment, onP
       React.createElement('div', {style:{marginBottom:8}}, React.createElement('label', {style:LL()}, "Status"),
         React.createElement('select', {value:st, onChange:e=>setSt(e.target.value), style:_selSt}, Object.entries(TICKET_STATUS).map(([k,v])=>React.createElement('option', {key:k, value:k}, v.i+" "+v.l)))),
       React.createElement('div', {style:{marginBottom:8}}, React.createElement('label', {style:LL()}, "Zuständig"),
-        React.createElement('select', {value:asg, onChange:e=>setAsg(e.target.value), style:_selSt}, React.createElement('option', {value:""}, "— nicht zugewiesen —"), (monteure||[]).map(m=>React.createElement('option', {key:m.id, value:m.id}, m.n||m.name||m.id)))),
+        React.createElement('select', {value:asg, onChange:e=>setAsg(e.target.value), disabled:(!!isMtField&&!isAdmin)/* v3.9.410: Field-Monteur kann assignee nicht ändern */, style:_selSt}, React.createElement('option', {value:""}, "— nicht zugewiesen —"), (monteure||[]).map(m=>React.createElement('option', {key:m.id, value:m.id}, m.n||m.name||m.id)))),
       React.createElement('div', {style:{display:"flex", gap:8, marginBottom:12}},
         React.createElement('div', {style:{flex:1}}, React.createElement('label', {style:LL()}, "Erledigen bis"),
           React.createElement('input', {type:"date", value:due, onChange:e=>setDue(e.target.value), style:{...II(), colorScheme:_dark?"dark":"light"}})),
@@ -12421,7 +12423,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
       ))
 
       /* v3.9.49 S34-1 Mobile-Bottom-Sheet Drag-Handle (visueller Hint für Bottom-Sheet) */
-      , quickTicket&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, onSave: u=>{updateTicket(u);setQuickTicket(null);}, onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}, onClose: ()=>setQuickTicket(null), onComment: (c)=>{const _u={...quickTicket,comments:[...(quickTicket.comments||[]),c],updatedAt:td2()};updateTicket(_u);setQuickTicket(_u);}/* v3.9.180: Kommentar im Quick-Popup → persistiert + Popup bleibt offen */, onPhotos: (arr)=>{const _u2={...quickTicket,photos:arr,updatedAt:td2()};updateTicket(_u2);setQuickTicket(_u2);}/* v3.9.181: Fotos im Quick-Popup → persistiert */} )
+      , quickTicket&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, onSave: u=>{updateTicket(u);setQuickTicket(null);}, onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}, onClose: ()=>setQuickTicket(null), onComment: (c)=>{const _u={...quickTicket,comments:[...(quickTicket.comments||[]),c],updatedAt:td2()};updateTicket(_u);setQuickTicket(_u);}/* v3.9.180: Kommentar im Quick-Popup → persistiert + Popup bleibt offen */, onPhotos: (arr)=>{const _u2={...quickTicket,photos:arr,updatedAt:td2()};updateTicket(_u2);setQuickTicket(_u2);}/* v3.9.181: Fotos im Quick-Popup → persistiert */} )
       , isMob&&selTicket&&subView==="viewer"&&(React.createElement('div', { onClick: ()=>setSelTicket(null), style: {position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease-out"}}, React.createElement('div', { onClick: e=>e.stopPropagation(), style: {width:"100%",maxHeight:"80vh",overflowY:"auto",borderRadius:"16px 16px 0 0",background:V.cd,boxShadow:"0 -8px 32px rgba(0,0,0,.4)"}}, React.createElement('div', { className: "epk-tap", onClick: ()=>setSelTicket(null), style: {display:"flex",justifyContent:"center",padding:"10px 0 6px",cursor:"pointer",touchAction:"manipulation"}, title: "Schließen"}, React.createElement('div', { style: {width:48,height:5,borderRadius:3,background:V.dm,opacity:.55,boxShadow:"0 1px 2px rgba(0,0,0,.2)"}} )), React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>setSelTicket(null), ww: ww, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid} ))))
       , pendingPin&&!newTicket?React.createElement('div', { style: {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:V.bg,border:"1px solid "+V.bd,borderRadius:12,padding:"10px 16px",display:"flex",gap:10,zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,.4)"}}, React.createElement('span', { style: {color:V.tx,fontSize:13,padding:"8px 4px",alignSelf:"center"}}, "📍 Passt die Position?" ), React.createElement('button', { onClick: confirmPendingPin, style: {background:V.ac,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}, "✓ Ja — Ticket ausfüllen" ), React.createElement('button', { onClick: cancelPendingPin, style: {background:COLORS.ERROR,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit"}}, "✗ Abbrechen" )):null
       /* v3.9.71 S51-3 Mobile-FAB für "+ Neuer Pin" — PlanRadar-Match. Nur Mobile, nur wenn Plan ausgewählt & nicht im placing-Mode & kein pending. */
@@ -18260,6 +18262,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
 
   // Update hours for an entry (with debounced auto-save)
   const updateEntryHours=(iso,entryIdx,newHours)=>{
+    if(!_canEditEntry)return;/* v3.9.410 Handler-Guard (analog _startEditEntry/deleteEntry) */
     setDayEntries(prev=>{
       const copy={...prev};
       copy[iso]=[...(copy[iso]||[])];
@@ -20275,7 +20278,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   // Dokumentation verschwand). Fix: wzRef + debounced PUT auf /api/werkzeuge/:id mit
   // serviceheft-Array. PATCH im _translateAndExec serialisiert serviceheft in DB.
   const _wzRef=_react.useRef.call(void 0, werkzeuge);_wzRef.current=werkzeuge;
-  const _pushWzSh=(wzId)=>{debounce("wzsh_"+wzId,()=>{const wz=_wzRef.current.find(w=>w.id===wzId);if(wz)SQ.push({url:"/api/werkzeuge/"+wzId,method:"PUT",body:{serviceheft:wz.serviceheft||[]}});},1200);};
+  const _pushWzSh=(wzId)=>{if(!canDo("wz_edit",curUser))return;/* v3.9.410 Handler-Guard (analog checkout/checkin v3.9.30) */debounce("wzsh_"+wzId,()=>{const wz=_wzRef.current.find(w=>w.id===wzId);if(wz)SQ.push({url:"/api/werkzeuge/"+wzId,method:"PUT",body:{serviceheft:wz.serviceheft||[]}});},1200);};
   // Werkzeug Photos
   const [wzPhotos,setWzPhotos]=_react.useState.call(void 0, []);const wzPhotoRef=_react.useRef.call(void 0, null);
   _react.useEffect.call(void 0, ()=>{
@@ -20377,6 +20380,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const openNew=()=>{setForm(defWz());setEditId(null);setSub("form");};
   const openEdit=w=>{setForm({...w});setEditId(w.id);setSub("form");};
   const save=()=>{
+    if(!canDo("wz_edit",curUser))return;/* v3.9.410 Handler-Guard (analog checkout/checkin v3.9.30) */
     /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!form.name){_optionalChain([window,'access',_g70k=>_g70k.__toast,'optionalCall',_g70l=>_g70l("⚠️ Name ist Pflichtfeld","warn")]);return;}
     // Auto-generate inventarnr if empty
     if(!form.inventarnr){const prefix={elektro:"E",mess:"M",hand:"H",maschine:"MA",sicherheit:"S",verbrauch:"V"}[form.kat||"elektro"]||"X";const existing=werkzeuge.filter(w=>(w.inventarnr||"").startsWith("EK-"+prefix)).map(w=>{const m=(w.inventarnr||"").match(/(\d+)$/);return m?parseInt(m[1]):0;});const next=Math.max(0,...existing)+1;form.inventarnr="EK-"+prefix+String(next).padStart(3,"0");}
