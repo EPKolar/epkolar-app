@@ -1,6 +1,20 @@
 # EPKolar Stand 2026-06-16 — Storage Personaldokumente + Chef-Portal + Kontrast
 
-main = origin = **v3.9.399** (`cd1b12c`), working tree clean, 903 pytest grün, node_check 0.
+main = origin = **v3.9.403** (`5661c6e`), working tree clean, 903 pytest grün, node_check 0.
+
+## NACHTRAG 2026-06-16 (v3.9.400 → v3.9.403)
+- **v3.9.400 Chef-Portal:** Karte **Auslastung/Kapazität** (aktive Feld-MA × 38,5h Soll vs. time_entries Ist, Woche/Monat-Toggle, Ampel <70/70-95/>95, AA) + **Auftragsvolumen-Trend** (projects.betrag/Monat nach created_at, 12 Mon, ChartBox). v3.9.401: Kapazität = ALLE Feld-Rollen (außer Backoffice/Verkauf/GF/Lager) — inkl. Störungstechniker+Techniker.
+- **v3.9.401 Zeiterfassung-Self-Edit:** Monteure dürfen EIGENE time_entries editieren (`_canEditEntry` = zeit_other ODER Feld-Rolle & selWorker===eigene monteurId, analog _canDelEntry). + Auftragsvolumen-Trend sauber (SvgBar/ChartBox optionaler `fmt`, €-Tausender, leere Monate ohne 0).
+- **v3.9.402 Projekt-Budget vs. Ist:** DB `projects.budget_stunden`+`budget_euro` (numeric nullable). Projekt-Formular 2 optionale Felder. Chef-Portal-Karte „Projekt-Budget (Soll-Ist)": Stunden Ist(time_entries)/Ziel + €-Ziel vs. KALK. Kosten (Std×workers.stundensatz, ehrlich „geschätzt", €-Teil weg wenn kein Satz). Ampel <85/85-100/>100. Live verifiziert (Write-Pfad + Anzeige), Test-Budget wieder entfernt.
+- **v3.9.403 Gefahrstoff-SDBs → Storage (KOMPLETT):** plans waren schon im Storage (kein Bloat); echter Bloat = **gefahrstoff_files (59 base64-PDFs, 26 MB)**.
+  - **Stufe A (DB):** `gefahrstoff_files.storage_path text` + privater Bucket **`epkolar-gefahrstoff`** + Storage-RLS = **Spiegel der DB-RLS**: SELECT=authenticated (alle Eingeloggten lesen SDBs), INSERT/UPDATE/DELETE=`is_staff()`.
+  - **Stufe B (Code):** Helfer `_sbUploadGef`/`_sbSignedGefUrl` (Pfad `gefahrstoff/{folder_id|misc}/{uuid}_{name}`). onUpload → Storage (storage_path) mit base64-Fallback bei Storage-Fehler (kein Datenverlust/Silent-Drop). openFile: storage_path→signed URL, sonst file_data/file_url. Liste lädt storage_path. ROUTE_MAP-Key `gefahrstoff-files` ok.
+  - **Stufe C (Migration):** 59/59 migriert (upload→signed-URL verifiziert→storage_path→file_data=null), 0 Fehler, 59 Objekte im Bucket. **Tabelle 27 MB → 56 kB** (VACUUM FULL). UI-Stichprobe: SDB öffnet via signed URL.
+  - **Stufe D OFFEN (separates Go):** `file_data`-Spalte ist überall NULL — ganz droppen/leeren nur auf explizites OK (Code nutzt file_data noch als Fallback).
+  - **Storage-403-Mythos widerlegt:** v3.9.197-Annahme „Storage authentifiziert User-JWT nicht" ist FALSCH — mit echtem Login löst Storage is_staff/auth korrekt auf (bei epkolar-docs + jetzt gefahrstoff bewiesen).
+
+## Heute live (alle gepusht)
+- **v3.9.382** Dead-Code (4 ungenutzte Funktionen).
 
 ## Heute live (alle gepusht)
 - **v3.9.382** Dead-Code (4 ungenutzte Funktionen).
