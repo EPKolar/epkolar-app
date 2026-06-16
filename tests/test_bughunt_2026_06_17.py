@@ -97,3 +97,44 @@ def test_delsvcdoc_uses_helper_not_raw_fetch():
         'v3.9.408 Regression: _delSvcDoc muss _sbDeleteObj nutzen'
     assert 'fetch(SB_STORAGE' not in sds, \
         'v3.9.408 Regression: _delSvcDoc darf keinen rohen fetch(SB_STORAGE ...) mehr nutzen'
+
+
+# ── v3.9.409: P1 Tages-Mehrstunden + Rechte-Haertung (Defense-in-Depth) + onOnline ──
+
+def test_tagesstz_mehrstunden_diff_not_full():
+    """P1 Positiv: Tages-Stundenbestaetigung zeigt Mehrstunden-DIFFERENZ (dt-8.5), nicht volle dt."""
+    text = _txt()
+    assert '"eventuelle Mehrstunden: "+_n(dt-8.5,1)+"h"' in text, \
+        'v3.9.409 Regression: Tages-Mehrstunden muss dt-8.5 sein (nicht volle Tagesstunden)'
+    assert '"eventuelle Mehrstunden: "+_n(dt,1)+"h"' not in text, \
+        'v3.9.409 Regression: alte volle-dt-Variante zurueckgekehrt'
+
+
+def test_urlaub_bulk_handlers_admin_guard():
+    """Positiv: updateEntry/bulkApprove/rejectAll tragen if(!isAdmin)return."""
+    text = _txt()
+    for sig in ['const updateEntry=(key,changes)=>{if(!isAdmin)return;',
+                'const bulkApprove=()=>{if(!isAdmin)return;',
+                'const rejectAll=m=>{if(!isAdmin)return;']:
+        assert sig in text, f'v3.9.409 Regression: Handler-Guard fehlt: {sig}'
+
+
+def test_gefahrstoff_handlers_canedit_guard():
+    """Positiv: gefahrstoff addFolder/renameFolder/delFolder/delFile tragen if(!canEdit)return."""
+    text = _txt()
+    for sig in ['const addFolder=()=>{if(!canEdit)return;',
+                'const renameFolder=(fo)=>{if(!canEdit)return;',
+                'const delFolder=async(fo)=>{if(!canEdit)return;',
+                'const delFile=async(fi)=>{if(!canEdit)return;']:
+        assert sig in text, f'v3.9.409 Regression: gefahrstoff Handler-Guard fehlt: {sig}'
+    # onUpload (gefahrstoff, folder_id:cur) muss !canEdit im Guard haben
+    gu = text[text.index('const meta={id:id,folder_id:cur,')-1200:text.index('const meta={id:id,folder_id:cur,')]
+    assert 'if(!fls||!fls.length||!canEdit)return;' in gu, \
+        'v3.9.409 Regression: gefahrstoff onUpload braucht !canEdit-Guard'
+
+
+def test_ononline_uses_countmine():
+    """Positiv: onOnline-Auto-Flush nutzt SQ.countMine() (nicht count())."""
+    text = _txt()
+    assert 'const cnt=await SQ.countMine();/* v3.9.409' in text, \
+        'v3.9.409 Regression: onOnline muss SQ.countMine() nutzen'
