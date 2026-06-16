@@ -52,3 +52,48 @@ def test_audit_csv_formula_injection_guard():
     # Eindeutiges Fragment des Formel-Injektion-Guards im Audit-CSV _cf-Formatter
     assert r'/^[=+\-@\t\r]/.test(s)' in text, \
         'v3.9.407 Regression: CSV _cf Formel-Injektion-Schutz fehlt'
+
+
+# ── v3.9.408: Storage-Waisen-Fix (Bucket-Objekt beim Loeschen mitentfernen) ──
+
+def test_sb_delete_obj_helper_exists():
+    """Positiv: gemeinsamer Best-Effort Storage-Objekt-Delete-Helper existiert."""
+    text = _txt()
+    assert re.search(r'async function _sbDeleteObj\(bucket,path\)\{', text), \
+        'v3.9.408 Regression: _sbDeleteObj-Helper fehlt'
+    # Helper nutzt _authRetry + _fT + DELETE (kein roher fetch, kein JWT-Waise)
+    seg = text[text.index('async function _sbDeleteObj'):text.index('async function _sbDeleteObj')+600]
+    assert '_authRetry(' in seg and '_fT(' in seg and 'method:"DELETE"' in seg, \
+        'v3.9.408 Regression: _sbDeleteObj muss _authRetry+_fT+DELETE nutzen'
+
+
+def test_gefahrstoff_delfile_removes_object():
+    """Positiv: gefahrstoff delFile entfernt Storage-Objekt mit."""
+    text = _txt()
+    assert 'if(fi.storage_path)_sbDeleteObj(SB_GEF_BUCKET,fi.storage_path)' in text, \
+        'v3.9.408 Regression: delFile muss Storage-Objekt mitloeschen'
+
+
+def test_gefahrstoff_delfolder_removes_objects():
+    """Positiv: gefahrstoff delFolder entfernt Storage-Objekte der enthaltenen Dateien."""
+    text = _txt()
+    assert 'files.filter(x=>ids.has(x.folder_id)&&x.storage_path).forEach(x=>_sbDeleteObj(SB_GEF_BUCKET,x.storage_path))' in text, \
+        'v3.9.408 Regression: delFolder muss Storage-Objekte der Ordner-Dateien mitloeschen'
+
+
+def test_personaldoku_delitem_removes_object():
+    """Positiv: fahrbew + anmeldung delItem entfernen Storage-Objekt mit (epkolar-docs)."""
+    text = _txt()
+    cnt = text.count('if(it.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,it.storage_path)')
+    assert cnt >= 2, \
+        f'v3.9.408 Regression: beide delItem (fahrbew+anmeldung) muessen Storage-Objekt mitloeschen (gefunden {cnt})'
+
+
+def test_delsvcdoc_uses_helper_not_raw_fetch():
+    """Negativ-Guard: _delSvcDoc nutzt _sbDeleteObj statt rohem fetch ohne _authRetry."""
+    text = _txt()
+    sds = text[text.index('const _delSvcDoc='):text.index('const _delSvcDoc=')+400]
+    assert '_sbDeleteObj(SB_FZ_BUCKET' in sds, \
+        'v3.9.408 Regression: _delSvcDoc muss _sbDeleteObj nutzen'
+    assert 'fetch(SB_STORAGE' not in sds, \
+        'v3.9.408 Regression: _delSvcDoc darf keinen rohen fetch(SB_STORAGE ...) mehr nutzen'
