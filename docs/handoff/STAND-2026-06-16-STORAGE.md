@@ -1,6 +1,8 @@
 # EPKolar Stand 2026-06-16 — Storage Personaldokumente + Chef-Portal + Kontrast
 
-main = origin = **v3.9.403** (`5661c6e`), working tree clean, 903 pytest grün, node_check 0.
+main = origin = **v3.9.404** (`34af344`), working tree clean, 903 pytest grün, node_check 0.
+
+- **v3.9.404 Storage Single-Path + file_data-DROP (KOMPLETT):** base64-Fallback in gefahrstoff_files + anmeldungen + fahrbewilligungen ENTFERNT → EIN Pfad (nur Storage). Upload: nur `_sbUploadGef`/`_sbUploadDoc`, Storage-Fehler = Fehler-Toast, KEIN DB-Insert/base64-Re-Bloat. Anzeige: nur `storage_path` → signed URL (file_data/file_url-Lesepfad raus). **DDL: `file_data`-Spalte auf allen 3 Tabellen GEDROPPT** (Vorbedingung 0 Restdaten geprüft; gefahrstoff 59/59 storage_path intakt, anm/fahrbew 0 Zeilen). Live-verifiziert: Upload→Storage ok, SDB öffnet via signed URL, 0 file_data-Fehler. project_documents/plans/photos/absence (eigene file_data) UNBERÜHRT.
 
 ## NACHTRAG 2026-06-16 (v3.9.400 → v3.9.403)
 - **v3.9.400 Chef-Portal:** Karte **Auslastung/Kapazität** (aktive Feld-MA × 38,5h Soll vs. time_entries Ist, Woche/Monat-Toggle, Ampel <70/70-95/>95, AA) + **Auftragsvolumen-Trend** (projects.betrag/Monat nach created_at, 12 Mon, ChartBox). v3.9.401: Kapazität = ALLE Feld-Rollen (außer Backoffice/Verkauf/GF/Lager) — inkl. Störungstechniker+Techniker.
