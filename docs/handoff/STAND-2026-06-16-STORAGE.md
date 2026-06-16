@@ -2,6 +2,13 @@
 
 main = origin = **v3.9.404** (`34af344`), working tree clean, 903 pytest grün, node_check 0.
 
+## DB-Wartung 2026-06-16 (read-only-Analyse + Hygiene, KEIN Code/Version)
+Nach der Storage-Migration die übrigen großen Tabellen analysiert + entschlackt (alles via Supabase-Plugin, project_id jiggujpruejkaomgxarp, self-guarded, Sebastian-Freigabe je Schritt):
+- **supplier_articles 34 MB → 23 MB:** kein Bloat; 24 MB waren Indexe. Gedroppt (read-only verifiziert: 0 Scans/keine Constraint/keine FK + Sync-Smoke ON CONFLICT(supplier_id,art_nr)): `idx_sa_bezeichnung` (0 Scans), `idx_sa_gewerk` (0 Scans), + 2 von 3 Duplikat-Unique-Indexen (`supplier_articles_supplier_art_unique`, `uq_supplier_articles_supplier_art`). **Echte Constraint `supplier_articles_supplier_id_art_nr_key` bleibt** (DATANORM-Upsert der Edge Function `sync_supplier` nutzt `onConflict:'supplier_id,art_nr'` = spaltenbasiert). DATEN unberührt (25.121 Zeilen).
+- **fahrzeuge 31 MB → 21 MB:** VACUUM FULL (15 tote Zeilen Bloat durch große serviceheft-Updates). 20 Fahrzeuge intakt.
+- **plans:** war schon im Storage (kein Bloat), nichts zu tun.
+- **OFFEN (Projekt, NICHT freigegeben):** `fahrzeuge.serviceheft` = **15 MB base64** in `serviceheft[].docs[].data` (26 Anhänge) + ~1,2 MB Legacy `befund`/`rechnung`. Auslagerung wäre nächster großer Gewinn, aber code-involviert (nested-JSON-Rewrite + Bucket/RLS + FahrzeugView-Umbau) → nur als separater staged Auftrag (Sebastian wählte bewusst erst nur VACUUM). Plan: Bucket `epkolar-fahrzeuge` + doc-Upload→Storage (`{id,name,storage_path}` statt `data`) + Migration pro doc (eiserne Regel).
+
 - **v3.9.404 Storage Single-Path + file_data-DROP (KOMPLETT):** base64-Fallback in gefahrstoff_files + anmeldungen + fahrbewilligungen ENTFERNT → EIN Pfad (nur Storage). Upload: nur `_sbUploadGef`/`_sbUploadDoc`, Storage-Fehler = Fehler-Toast, KEIN DB-Insert/base64-Re-Bloat. Anzeige: nur `storage_path` → signed URL (file_data/file_url-Lesepfad raus). **DDL: `file_data`-Spalte auf allen 3 Tabellen GEDROPPT** (Vorbedingung 0 Restdaten geprüft; gefahrstoff 59/59 storage_path intakt, anm/fahrbew 0 Zeilen). Live-verifiziert: Upload→Storage ok, SDB öffnet via signed URL, 0 file_data-Fehler. project_documents/plans/photos/absence (eigene file_data) UNBERÜHRT.
 
 ## NACHTRAG 2026-06-16 (v3.9.400 → v3.9.403)
