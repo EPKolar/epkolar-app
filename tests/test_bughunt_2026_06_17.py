@@ -202,8 +202,8 @@ def test_zeit_24h_cap_matrix_and_inline():
     text = _txt()
     assert 'if(!isFinite(_h)||_h<0||_h>24){' in text, \
         'v3.9.411 Regression: saveMatrixCell braucht 24h-Obergrenze'
-    assert 'if(newHours>24){window.__toast&&window.__toast("⚠️ Max 24 h pro Tag","warn");return;}' in text, \
-        'v3.9.411 Regression: updateEntryHours braucht 24h-Cap'
+    assert 'if(newHours>24||newHours<0){window.__toast&&window.__toast("⚠️ Max 24 h pro Tag","warn");return;}' in text, \
+        'v3.9.411/414 Regression: updateEntryHours braucht 24h-Cap + <0-Guard'
 
 
 # ── v3.9.412: ChartBox fmt auch fuer HBar/Line/Pie/Donut (nicht nur Bar) ──
@@ -248,3 +248,14 @@ def test_mobshellnav_aria_label():
     text = _txt()
     assert "onClick: ()=>doNav(n.id), title: n.l, 'aria-label': n.l" in text, \
         'v3.9.413 Regression: mob-shell-nav aria-label fehlt'
+
+
+# ── v3.9.414: Pickerl-Zaehler TZ-Konsistenz (Nachzug adversariale Review) ──
+
+def test_no_bare_pickerl_utc_parse():
+    """Negativ-Guard: bare new Date(f.pickerl) ohne T00:00:00 darf NICHT zurueckkehren
+    (Pickerl-Zaehler 9525/19309 + Deadline-Notification — gleiche TZ-Bug-Klasse wie naechstService)."""
+    text = _txt()
+    bad = re.findall(r'new Date\(f\.pickerl\)(?!\+)', text)
+    assert not bad, \
+        f'v3.9.414 Regression: bare new Date(f.pickerl) (UTC-Flip) zurueckgekehrt ({len(bad)}x)'
