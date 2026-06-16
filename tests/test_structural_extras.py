@@ -205,7 +205,7 @@ def test_savematrixcell_uses_project_not_showpreview(index_html):
     (sonst project_id:null-Waisen + verfehlte Buchung aus der Inline-Edit)."""
     m = re.search(r"const saveMatrixCell=\(w,ds,kwKey,newVal,oldVal,projId\)=>\{", index_html)
     assert m, "saveMatrixCell-Signatur (mit projId) fehlt"
-    body = index_html[m.start():m.start() + 1800]
+    body = index_html[m.start():m.start() + 2100]  # v3.9.411: Fenster geweitet (24h-Cap-Kommentar dazwischen)
     assert "const _pid=projId!==undefined?projId:showPreview;" in body, "_pid-Auflösung fehlt"
     assert "e.projekt===_pid" in body, "matches-Filter nutzt nicht _pid"
     assert "project_id:_pid" in body, "POST-Body nutzt nicht _pid"

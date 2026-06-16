@@ -182,3 +182,25 @@ def test_pickerl_deadline_local_parse():
     text = _txt()
     assert 'const diff=Math.ceil((new Date(f.pickerl+"T00:00:00")-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"' in text, \
         'v3.9.410 Regression: Pickerl-Deadline muss +"T00:00:00" lokal parsen (wie Service)'
+
+
+# ── v3.9.411: Input-Validierung (OCR-Dezimal + 24h-Cap) ──
+
+def test_ocr_tank_prefill_dot_decimal():
+    """P2 Positiv: Tank-Modal-Prefill nutzt Punkt-Dezimal (type=number-kompatibel)."""
+    text = _txt()
+    assert "String(init.liter).replace(',','.')" in text, \
+        'v3.9.411 Regression: Liter-Prefill muss Punkt-Dezimal sein (type=number)'
+    assert "String(init.preis).replace(',','.')" in text, \
+        'v3.9.411 Regression: Preis-Prefill muss Punkt-Dezimal sein (type=number)'
+    assert "String(init.liter).replace('.',',')" not in text, \
+        'v3.9.411 Regression: alte Komma-Variante (leert type=number-Feld) zurueckgekehrt'
+
+
+def test_zeit_24h_cap_matrix_and_inline():
+    """Positiv: Stunden-24h-Obergrenze in saveMatrixCell + updateEntryHours (Paritaet addEntry)."""
+    text = _txt()
+    assert 'if(!isFinite(_h)||_h<0||_h>24){' in text, \
+        'v3.9.411 Regression: saveMatrixCell braucht 24h-Obergrenze'
+    assert 'if(newHours>24){window.__toast&&window.__toast("⚠️ Max 24 h pro Tag","warn");return;}' in text, \
+        'v3.9.411 Regression: updateEntryHours braucht 24h-Cap'

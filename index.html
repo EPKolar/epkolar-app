@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.410';
+  var SW_VER='epkolar-v3.9.411';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2415,7 +2415,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.410-supabase";
+const APP_VERSION="3.9.411-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -3978,8 +3978,8 @@ window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
     const fPreis=mkField('💶 Gesamtpreis (€)','preis','number',{inputmode:'decimal',min:'0',step:'0.01',placeholder:'89.50'});
     const fKm=mkField('🛣 km-Stand','km','number',{inputmode:'numeric',pattern:'[0-9]*',min:'0',step:'1',placeholder:String(currentKm||'')});
     fDatum.inp.value=init.datum||'';
-    fLiter.inp.value=(init.liter!==undefined&&init.liter!==null&&init.liter!=='')?String(init.liter).replace('.',','):'';
-    fPreis.inp.value=(init.preis!==undefined&&init.preis!==null&&init.preis!=='')?String(init.preis).replace('.',','):'';
+    fLiter.inp.value=(init.liter!==undefined&&init.liter!==null&&init.liter!=='')?String(init.liter).replace(',','.'):'';/* v3.9.411: type=number braucht Punkt-Dezimal (Komma → ungültig → Feld leer, OCR-Wert verloren) */
+    fPreis.inp.value=(init.preis!==undefined&&init.preis!==null&&init.preis!=='')?String(init.preis).replace(',','.'):'';/* v3.9.411 dito */
     fKm.inp.value=(init.km!==undefined&&init.km!==null&&init.km!=='')?String(init.km):'';
     grid.appendChild(fDatum.wrap);grid.appendChild(fLiter.wrap);grid.appendChild(fPreis.wrap);grid.appendChild(fKm.wrap);
     const info=document.createElement('div');info.style.cssText='font-size:12px;color:'+ac+';font-weight:600;min-height:18px;margin:4px 2px 6px;';
@@ -7936,7 +7936,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     if(!canDo("zeit_other",curUser)){window.__toast&&window.__toast("⚠️ NICHT gespeichert — keine Berechtigung","warn");return;}
     if(!_pid){window.__toast&&window.__toast("⚠️ Kein Projekt-Kontext — nicht gespeichert","warn");return;}
     const _h=Math.round(_parseHr(newVal)*100)/100;
-    if(!isFinite(_h)||_h<0){window.__toast&&window.__toast("⚠️ Ungültiger Wert — Zelle zurückgesetzt","warn");return;}
+    if(!isFinite(_h)||_h<0||_h>24){window.__toast&&window.__toast("⚠️ Ungültiger Wert (0–24 h) — Zelle zurückgesetzt","warn");return;}/* v3.9.411: 24h-Obergrenze (Parität zu addEntry; gegen Komma-vergessen 80 statt 8,0) */
     if(_h===_parseHr(oldVal))return;/* keine Änderung */
     const _cellKey=w.id+"|"+ds;
     const matches=allEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds&&e.projekt===_pid);
@@ -18263,6 +18263,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   // Update hours for an entry (with debounced auto-save)
   const updateEntryHours=(iso,entryIdx,newHours)=>{
     if(!_canEditEntry)return;/* v3.9.410 Handler-Guard (analog _startEditEntry/deleteEntry) */
+    if(newHours>24){window.__toast&&window.__toast("⚠️ Max 24 h pro Tag","warn");return;}/* v3.9.411: 24h-Cap (Parität zu addEntry/Matrix) */
     setDayEntries(prev=>{
       const copy={...prev};
       copy[iso]=[...(copy[iso]||[])];
