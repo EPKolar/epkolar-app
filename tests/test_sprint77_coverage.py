@@ -245,8 +245,9 @@ def test_sprint49_mehr_button_render_uses_guard(index_html):
     Absicherung (Sprint-49 Riedmann) bleibt für das mobile Mehr-Popup erhalten (separater Test)."""
     assert "const _isTabletNav=ww>=600&&ww<1200;" in index_html, \
         "v3.9.371: Tablet-Nav-Breakpoint _isTabletNav fehlt"
-    assert 'flexWrap:_isTabletNav?"wrap":"nowrap"' in index_html, \
-        "v3.9.371: tab-bar wrappt auf Tablet nicht (kein flexWrap)"
+    assert 'flexWrap:isMob?"nowrap":"wrap"' in index_html, \
+        "v3.9.389: tab-bar muss auf Tablet UND Desktop (>=600px) umbrechen (flexWrap:wrap) — sonst sind " \
+        "auf dem PC die hinteren Tabs hinter dem nicht-swipebaren overflowX-Scroll unerreichbar"
     assert "ww<1200&&moreTabs.length>0&&React.createElement" not in index_html, \
         "v3.9.371: Top-Mehr-Button darf auf Tablet nicht mehr rendern (alle Tabs im Wrap)"
 
