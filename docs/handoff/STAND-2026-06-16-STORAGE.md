@@ -1,6 +1,16 @@
 # EPKolar Stand 2026-06-16 — Storage Personaldokumente + Chef-Portal + Kontrast
 
-main = origin = **v3.9.405** (`63848e2`), working tree clean, 903 pytest grün, node_check 0.
+main = origin = **v3.9.406** (`4929400`), working tree clean, 903 pytest grün, node_check 0.
+
+- **v3.9.406 FIX serviceheft-Legacy sichtbar:** Regression aus Stufe-C-Migration — `_svcDocList` listete befund/rechnung nur bei `if(s.befund)`, Migration setzte aber `befund=''`+`befund_path`. Fix: `if(s.befund||s.befund_path)` (+ rechnung); `_delSvcDoc` leert auch `*_path`. Live verifiziert (fz5: Befund signiert 563 kB ok).
+
+## Review v3.9.400–406 (2 Agenten, read-only) — keine P1/P2 offen, nur P3-Backlog
+Heutiger Code als solide bestätigt (Div/0 safe, Zeiterfassung-Self-Edit-Sicherheit wasserdicht via selWorker-Gate, Storage Single-Path sauber, Budget-€ live mit echten Stundensätzen). Offene **P3** (kosmetisch/Storage-Müll, NICHT dringend):
+1. **Delete räumt Bucket-Objekt nicht** bei gefahrstoff `delFile` + fahrbew/anmeldung `delItem` (nur DB-Zeile via SQ) → Storage-Waisen. (serviceheft `_delSvcDoc` macht's schon best-effort.) Kleiner nachhaltiger Fix wäre: Löschen soll auch das Storage-Objekt entfernen.
+2. `_delSvcDoc` Storage-DELETE ohne `_authRetry`/Timeout → bei abgelaufenem JWT Waise.
+3. Ampel-Schwellen-Mix: altes „Zeit & Personal"-Widget 70/90/100 vs. neue „Auslastung" 70/95.
+4. ChartBox `fmt` nur am Bar-Chart (Trend-Umschalten auf Linie/HBar → rohe Zahlen).
+5. „🟢 Luft" auch bei 0 aktiven Monteuren (Soll=0).
 
 - **v3.9.405 fahrzeuge.serviceheft base64 → Storage (KOMPLETT, Stufe A–C):** 16 MB base64 in `serviceheft[].docs[].data` (26 Anhänge) + 2 Legacy `befund`/`rechnung` ausgelagert. **Stufe A:** privater Bucket `epkolar-fahrzeuge` + Storage-RLS (SELECT authenticated / WRITE is_staff, spiegelt fahrzeuge-RLS). **Stufe B (Code):** Helfer `_sbUploadFzDoc`/`_sbSignedFzUrl`; `_addSvcDoc` lädt in Storage (storage_path statt data, Fehler=Toast); `_svcDocList`+`_openSvcDoc` lesen storage_path→signed URL, alt-base64 parallel; `_delSvcDoc` löscht Storage-Objekt mit; `_svcSync` column-scoped unverändert. **Stufe C (Migration):** 26 docs + 2 Legacy migriert (eiserne Regel, 0 Fehler), serviceheft-JSON 16 MB→6 kB, 28 Bucket-Objekte. **fahrzeuge 31 MB → 4,3 MB** (Migration + VACUUM FULL). Kein Stufe D (base64 lag im JSON, nicht in Spalte).
 
