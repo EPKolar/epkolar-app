@@ -1,6 +1,8 @@
 # EPKolar Stand 2026-06-16 — Storage Personaldokumente + Chef-Portal + Kontrast
 
-main = origin = **v3.9.404** (`34af344`), working tree clean, 903 pytest grün, node_check 0.
+main = origin = **v3.9.405** (`63848e2`), working tree clean, 903 pytest grün, node_check 0.
+
+- **v3.9.405 fahrzeuge.serviceheft base64 → Storage (KOMPLETT, Stufe A–C):** 16 MB base64 in `serviceheft[].docs[].data` (26 Anhänge) + 2 Legacy `befund`/`rechnung` ausgelagert. **Stufe A:** privater Bucket `epkolar-fahrzeuge` + Storage-RLS (SELECT authenticated / WRITE is_staff, spiegelt fahrzeuge-RLS). **Stufe B (Code):** Helfer `_sbUploadFzDoc`/`_sbSignedFzUrl`; `_addSvcDoc` lädt in Storage (storage_path statt data, Fehler=Toast); `_svcDocList`+`_openSvcDoc` lesen storage_path→signed URL, alt-base64 parallel; `_delSvcDoc` löscht Storage-Objekt mit; `_svcSync` column-scoped unverändert. **Stufe C (Migration):** 26 docs + 2 Legacy migriert (eiserne Regel, 0 Fehler), serviceheft-JSON 16 MB→6 kB, 28 Bucket-Objekte. **fahrzeuge 31 MB → 4,3 MB** (Migration + VACUUM FULL). Kein Stufe D (base64 lag im JSON, nicht in Spalte).
 
 ## DB-Wartung 2026-06-16 (read-only-Analyse + Hygiene, KEIN Code/Version)
 Nach der Storage-Migration die übrigen großen Tabellen analysiert + entschlackt (alles via Supabase-Plugin, project_id jiggujpruejkaomgxarp, self-guarded, Sebastian-Freigabe je Schritt):
