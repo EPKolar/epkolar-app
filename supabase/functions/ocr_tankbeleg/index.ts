@@ -1,10 +1,18 @@
 // supabase/functions/ocr_tankbeleg/index.ts
 // EP Kolar — Tankbeleg-OCR via Google Cloud Vision (DOCUMENT_TEXT_DETECTION)
+// v3.9.419: Aufrufer-Auth (gueltiges User-JWT Pflicht) + Bildgroessen-Limit gegen
+//   Kosten-DoS auf der kostenpflichtigen Vision-API. Deploy mit verify_jwt=false
+//   (In-Code-getUser-Check spiegelt das Muster von supplier-sync/admin-create-user).
+// @ts-ignore - Deno-Runtime
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+// Max base64-Laenge (~9 MB Binaer). Tankbelege sind komprimierte Handyfotos; verhindert
+// 50-MB-Payload-Abuse + Memory-Druck, ohne legitime Fotos abzulehnen.
+const MAX_IMAGE_B64 = 12_000_000;
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
@@ -56,12 +64,30 @@ function parseTankbeleg(text: string) {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "POST erwartet" }, 405);
+  // ── v3.9.419 Aufrufer-Auth: gueltiges User-JWT Pflicht (sonst Kosten-DoS auf Vision) ──
+  // @ts-ignore
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+  // @ts-ignore
+  const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const authHdr = req.headers.get("Authorization") || "";
+  const jwt = authHdr.toLowerCase().startsWith("bearer ") ? authHdr.slice(7).trim() : "";
+  if (!SUPABASE_URL || !ANON_KEY) return json({ ok: false, error: "internal", details: "edge env not configured" }, 500);
+  if (!jwt) return json({ ok: false, error: "unauthorized" }, 401);
+  try {
+    const caller = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: au, error: aerr } = await caller.auth.getUser();
+    if (aerr || !au?.user) return json({ ok: false, error: "unauthorized" }, 401);
+  } catch { return json({ ok: false, error: "unauthorized" }, 401); }
   const KEY = Deno.env.get("GOOGLE_VISION_KEY");
   if (!KEY) return json({ ok: false, error: "GOOGLE_VISION_KEY nicht gesetzt" }, 500);
   let image = "";
   try { const body = await req.json(); image = String(body?.image || ""); }
   catch { return json({ ok: false, error: "Body muss JSON mit {image} sein" }, 400); }
   if (!image) return json({ ok: false, error: "Kein Bild uebergeben" }, 400);
+  if (image.length > MAX_IMAGE_B64) return json({ ok: false, error: "Bild zu gross (max ~9 MB)" }, 413);
   const content = image.includes(",") ? image.split(",").pop()! : image;
   let visionResp: Response;
   try {
