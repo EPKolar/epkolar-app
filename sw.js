@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.428 — fz_schaeden api-Layer-Routen entfernt (toter Code, Folge Single-Source)
-const CACHE_NAME = "epkolar-v3.9.428";
+// EP Kolar Service Worker v3.9.429 — Kommentar-Cleanup fz_schaeden Zweitspeicher
+const CACHE_NAME = "epkolar-v3.9.429";
 const ASSETS = [
   './',
   './index.html'
