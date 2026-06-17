@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.414';
+  var SW_VER='epkolar-v3.9.415';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2415,7 +2415,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.414-supabase";
+const APP_VERSION="3.9.415-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5843,7 +5843,11 @@ class _ViewBoundary extends React.Component{
             const srvMapped=srvNotifs.map(n=>({id:n.id,type:n.type||"system",title:n.title||"",body:n.body||"",time:n.created_at||new Date().toISOString(),read:!!n.read,user:n.user_id||curUser.id,link:n.link||""}));
             setNotifications(prev=>{
               const ids=new Set(prev.map(n=>n.id));
-              const merged=[...prev,...srvMapped.filter(n=>!ids.has(n.id))].sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,200);
+              const srvById=new Map(srvMapped.map(n=>[n.id,n]));
+              /* v3.9.415: read serverseitig nachziehen (monoton true: lokal ODER server) → "alle gelesen"
+                 bleibt geräteübergreifend bestehen; vorher gewann beim Merge immer das lokale read=false. */
+              const reconciled=prev.map(n=>srvById.has(n.id)?{...n,read:n.read||srvById.get(n.id).read}:n);
+              const merged=[...reconciled,...srvMapped.filter(n=>!ids.has(n.id))].sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,200);
               ODB.save("notifications",merged);
               return merged;
             });
@@ -11688,7 +11692,7 @@ function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww,monteure,isAdm
           , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: saveEdit, className: "epk-btn-hover", style: bpS}, "💾 Speichern" ), React.createElement('button', { onClick: ()=>setEditing(false), style: bsS()}, "Abbrechen"))
         )) : (React.createElement('div', {}
           , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}
-            , React.createElement(Badge, { text: ts.i+" "+ts.l, color: ts.c} ), React.createElement(Badge, { text: tp.i+" "+tp.l, color: tp.c} ), layer&&React.createElement(Badge, { text: layer.icon+" "+layer.name, color: layer.color} ), w&&React.createElement(Badge, { text: "👷 "+w.n, color: "#3b82f6"} ), ticket.dueDate&&React.createElement(Badge, { text: "📅 "+fdt(ticket.dueDate), color: _dueIsPast(ticket.dueDate)?"#ef4444":"#71717a"} )
+            , React.createElement(Badge, { text: ts.i+" "+ts.l, color: ts.c} ), React.createElement(Badge, { text: tp.i+" "+tp.l, color: tp.c} ), layer&&React.createElement(Badge, { text: layer.icon+" "+layer.name, color: layer.color} ), w&&React.createElement(Badge, { text: "👷 "+w.n, color: "#3b82f6"} ), ticket.dueDate&&React.createElement(Badge, { text: "📅 "+fdt(ticket.dueDate), color: (_dueIsPast(ticket.dueDate)&&ticket.status!=="erledigt"&&ticket.status!=="abgenommen"&&ticket.status!=="abgeschlossen"&&ticket.status!=="storniert")?"#ef4444":"#71717a"/* v3.9.415: erledigte/abgenommene/abgeschlossene/stornierte Tickets nicht mehr rot (konsistent mit Pin/Liste _ovd) */} )
           )
           /* v3.9.49 S34-1 TicketDetail Status-Workflow-Steps (PlanRadar-Style Pills statt versteckter Dropdown). */
           , React.createElement('div', { style: {display:"flex",gap:0,marginBottom:14,borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,background:V.bg}}

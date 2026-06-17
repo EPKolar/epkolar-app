@@ -259,3 +259,21 @@ def test_no_bare_pickerl_utc_parse():
     bad = re.findall(r'new Date\(f\.pickerl\)(?!\+)', text)
     assert not bad, \
         f'v3.9.414 Regression: bare new Date(f.pickerl) (UTC-Flip) zurueckgekehrt ({len(bad)}x)'
+
+
+# ── v3.9.415: Notif read-reconcile + TicketDetail-Badge status-aware ──
+
+def test_notif_read_reconcile_monotonic():
+    """P1 Positiv: Notif-Merge zieht read serverseitig nach (monoton true)."""
+    text = _txt()
+    assert 'const reconciled=prev.map(n=>srvById.has(n.id)?{...n,read:n.read||srvById.get(n.id).read}:n);' in text, \
+        'v3.9.415 Regression: Notif read-reconcile (monoton) fehlt'
+    assert 'const merged=[...reconciled,...srvMapped.filter(n=>!ids.has(n.id))]' in text, \
+        'v3.9.415 Regression: Merge muss reconciled statt prev nutzen'
+
+
+def test_ticketdetail_due_badge_status_aware():
+    """P3 Positiv: TicketDetail-Faelligkeits-Badge nicht rot bei erledigt/storniert etc."""
+    text = _txt()
+    assert '(_dueIsPast(ticket.dueDate)&&ticket.status!=="erledigt"&&ticket.status!=="abgenommen"&&ticket.status!=="abgeschlossen"&&ticket.status!=="storniert")?"#ef4444":"#71717a"' in text, \
+        'v3.9.415 Regression: TicketDetail-Badge muss Status ausschliessen'
