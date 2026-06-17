@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.431 — G2 focus-clobber-Guard + _wmTimer-Unmount-Cleanup
-const CACHE_NAME = "epkolar-v3.9.431";
+// EP Kolar Service Worker v3.9.432 — toter fz_schaeden-Sub-POST entschaerft (Tabelle gedroppt v3.9.430)
+const CACHE_NAME = "epkolar-v3.9.432";
 const ASSETS = [
   './',
   './index.html'
