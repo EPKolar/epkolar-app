@@ -471,3 +471,13 @@ def test_auslastung_ampel_70_90_100():
         'v3.9.425 Regression: _ampLbl muss 4-stufig 70/90/100 sein'
     assert "const _ampBar=pct=>pct<70?'#22c55e':pct<=95?'#eab308':'#ef4444';" not in text, \
         'v3.9.425 Regression: alte 70/95-Schwelle zurueckgekehrt'
+
+
+# ── v3.9.426: FZ-Schaden Status-Edit in Zweitspeicher fz_schaeden spiegeln ──
+
+def test_fz_schaden_status_mirrors_to_table():
+    """Positiv: Schaden-Status-Edit spiegelt auch in fz_schaeden (Upsert via PK id) —
+    JSON bleibt kanonisch, der Zweitspeicher/Lese-Route veraltet nicht mehr."""
+    text = _txt()
+    assert 'SQ.push({url:"/api/schaeden/"+sel,method:"POST",body:{...s,status:_ns}});' in text, \
+        'v3.9.426 Regression: Status-Edit-Spiegelung nach fz_schaeden fehlt'
