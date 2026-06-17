@@ -21,9 +21,13 @@ Stand: main = origin = **v3.9.423** (war v3.9.415 bei Erstellung).
 > (Staff-Cross-User, schema-verifiziert) · G1 **AS Diff-PUT** (Lost-Update behoben) ·
 > _portalSync transient/permanent-Split (Queue-Wedge weg) · epkolar-files Waisen-Cleanup
 > (Foto/Plan/Doc best-effort). B5 (markAllRead 0-Row) verifiziert gegenstandslos.
-> **STOPP+ENTSCHEIDUNG nötig (NICHT geraten):** Budget-€85/Budget-Ampel, Auslastungs-
-> Ampel-Schwellen, FinkZeit-Schwelle, „Heutige AS"-KPI, Teilzeit-Soll (kein Feld),
-> FZ-Schaden-Dual-Store, Juprowa-Encoding (TABU). Details + Optionen siehe Chat-Report.
+> **ENTSCHIEDEN + umgesetzt (v3.9.424/425):** Budget-Ampel → Option 1 (echter Stundensatz
+> + €85-Pauschalfallback nie 0, budget_euro-Basis, Schwellen 85/100, UI-Hinweis) ·
+> Auslastungs-Ampel → beide 70/90/100 · „Heutige AS"-KPI → nur offene (AS_GRP_OFFEN) ·
+> FinkZeit-Schwelle → bleibt wie ist (Chef-Entscheid).
+> **NOCH OFFEN (Entscheidung):** Teilzeit-Soll (workers hat KEIN Wochenstunden-Feld,
+> urlaubskontingent leer → Feld einführen ODER 38,5h-Annahme behalten?) · FZ-Schaden-
+> Dual-Store (kanonische Quelle? liest ein Report fz_schaeden?) · Juprowa-Encoding (TABU).
 > Verbleibend low-value/optional: G2 focus/visibility-Reload-Clobber (eng, selbstheilend),
 > React-Leaks (_wmTimer/geoTimeout, guarded/harmlos), Quota-IndexedDB-Monitor, Such-Token-AND. 9 Fix-Batches autonom gepusht (v3.9.407–415), 931 pytest grün,
 node_check 0. 4 Audit-Wellen (18 Read-only-Agenten) + adversariale Selbst-Review.
