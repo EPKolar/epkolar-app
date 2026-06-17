@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.429 — Kommentar-Cleanup fz_schaeden Zweitspeicher
-const CACHE_NAME = "epkolar-v3.9.429";
+// EP Kolar Service Worker v3.9.430 — Kontrast-Fix: fehlendes Theme-Token fg->tx (Anwesende-Chips u.a.)
+const CACHE_NAME = "epkolar-v3.9.430";
 const ASSETS = [
   './',
   './index.html'
