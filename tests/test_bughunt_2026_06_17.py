@@ -405,3 +405,19 @@ def test_portalsync_no_blind_break():
         'v3.9.422 Regression: _portalSync transient/permanent-Split fehlt'
     assert 'done.push(item.id);}catch(e){break;}}' not in text, \
         'v3.9.422 Regression: alter blinder catch{break} im _portalSync zurueckgekehrt'
+
+
+# ── v3.9.423: epkolar-files Storage-Waisen-Cleanup (Foto/Plan/Doc) ──
+
+def test_epk_files_orphan_cleanup():
+    """P3 Positiv: Foto/Plan/Doc-Loeschen entfernt das public-Bucket-Objekt mit (best-effort)."""
+    text = _txt()
+    assert 'function _epkFilesPath(v){' in text, \
+        'v3.9.423 Regression: _epkFilesPath-Helper fehlt'
+    # delPhoto + deletePlan + delDoc rufen _epkFilesPath → _sbDeleteObj(SB_BUCKET,...)
+    assert 'const _sp=_epkFilesPath(photoUrl(ph));if(_sp)_sbDeleteObj(SB_BUCKET,_sp);' in text, \
+        'v3.9.423 Regression: delPhoto Storage-Cleanup fehlt'
+    assert '_epkFilesPath(_pl.file_path||_pl.file_url||"");if(_ps)_sbDeleteObj(SB_BUCKET,_ps);' in text, \
+        'v3.9.423 Regression: deletePlan Storage-Cleanup fehlt'
+    assert "if(_ds)_sbDeleteObj(SB_BUCKET,_ds);" in text, \
+        'v3.9.423 Regression: delDoc Storage-Cleanup fehlt'

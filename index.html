@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.422';
+  var SW_VER='epkolar-v3.9.423';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1653,6 +1653,11 @@ async function _sbDeleteObj(bucket,path){
     return !!(r&&r.ok);
   }catch(_e){return false;}
 }
+/* v3.9.423: extrahiert den epkolar-files-Storage-Pfad aus einem gespeicherten Wert — bare Pfad
+   ("photos/…"), public-URL (".../epkolar-files/<pfad>") oder "" bei base64/data:/fremd. Fuer
+   Waisen-Cleanup (Foto/Plan/Doc public Bucket). _storagePath nutzt Date.now() → nicht
+   rekonstruierbar, daher Extraktion aus dem gespeicherten Wert. */
+function _epkFilesPath(v){v=v||"";if(!v||v.indexOf("data:")===0)return "";if(v.includes("/epkolar-files/"))return v.split("/epkolar-files/")[1].split("?")[0];return v.indexOf("http")===0?"":v;}
 
 // v3.8.44 Bug-Hunt-Top-2 (S2.1): Defensive JSON.parse-Helper.
 // 51 JSON.parse-Aufrufe im File. Die meisten sind bereits in try/catch oder
@@ -2421,7 +2426,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.422-supabase";
+const APP_VERSION="3.9.423-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -12337,7 +12342,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   /* v3.9.189 PlanRadar Pin-Suche/Jump: reine Zahl → Pin-Nr-Sprung; sonst genau ein Titel/Beschreibungs-Treffer → Sprung (Zentrierung übernimmt der Viewer via selectedTicket). */
   _react.useEffect.call(void 0, ()=>{const _q=(filterSearch||"").trim();if(!_q)return;if(/^\d+$/.test(_q)){const _hit=planTickets.find(t=>String(_ticketNr[t.id])===_q);if(_hit){setSelTicket(_hit);return;}}if(_vpFiltered.length===1)setSelTicket(_vpFiltered[0]);},[filterSearch]);
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _379 => _379.target, 'optionalAccess', _380 => _380.files])||_optionalChain([e, 'access', _381 => _381.dataTransfer, 'optionalAccess', _382 => _382.files]);if(!fls||!fls.length)return;Array.from(fls).forEach(file=>{const isPdf=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf");if(isPdf){const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Plan-PDF konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ev.target.result,width:1200,height:850,isPdf:true,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:new Date().toISOString()};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ev.target.result,width:1200,height:850,uploaded_by:curUser.name,is_pdf:true}/* v3.9.132 P1a: is_pdf flag (PDF-Upload) */});setSelPlan(np);setSubView("viewer");};reader.readAsDataURL(file);}else{compressPhoto(file,4000,0.92).then(ph=>{const np={id:uid(),pid:p.id,name:file.name.replace(/\.[^.]+$/,""),dataUrl:ph.dataUrl,width:ph.width,height:ph.height,uploadedAt:td2(),uploadedBy:curUser.name,takenAt:ph.takenAt};setPlanData(prev=>({...prev,plans:[...prev.plans,np]}));SQ.push({url:"/api/plans",method:"POST",body:{id:np.id,project_id:p.id,name:np.name,filename:file.name,file_data:ph.dataUrl,width:ph.width,height:ph.height,uploaded_by:curUser.name,is_pdf:false}/* v3.9.132 P1a: is_pdf flag (Bild-Upload) */});setSelPlan(np);setSubView("viewer");}).catch(e=>{console.error('[PLAN-UPLOAD]',file.name,e&&e.message||e);window.__toast&&window.__toast("❌ Plan-Upload fehlgeschlagen: "+file.name,"error");});}});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
-  const deletePlan=async id=>{if(!isAdmin)return;if(!await _confirmModal("Plan und alle zugehörigen Tickets löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
+  const deletePlan=async id=>{if(!isAdmin)return;if(!await _confirmModal("Plan und alle zugehörigen Tickets löschen?",{variant:"danger"}))return;setPlanData(prev=>({...prev,plans:prev.plans.filter(pl=>pl.id!==id),tickets:prev.tickets.filter(t=>t.planId!==id)}));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!=="plan_"+id)}));try{const _pl=((planData&&planData.plans)||[]).find(x=>x.id===id);const _ps=_pl&&_epkFilesPath(_pl.file_path||_pl.file_url||"");if(_ps)_sbDeleteObj(SB_BUCKET,_ps);}catch(_so){}/* v3.9.423: Plan-Storage-Objekt mitloeschen (best-effort) */SQ.push({url:"/api/plans/"+id,method:"DELETE"});if(_optionalChain([selPlan, 'optionalAccess', _383 => _383.id])===id)setSelPlan(null);};
   const isPlanFreigegeben=(planId)=>!!(forms.kundenDocs||[]).find(kd=>kd.id==="plan_"+planId);
   const setPlanGeschoss=(pl,val)=>{const v=(val||"").trim();setPlanData(prev=>({...prev,plans:(prev.plans||[]).map(x=>x.id===pl.id?{...x,geschoss:v}:x)}));SQ.push({url:"/api/plans/"+pl.id,method:"PUT",body:{category:v}});};/* v3.9.177: Geschoss/Ebene eines Plans frei setzen (gespeichert in plans.category) */
   const togglePlanFreigabe=(pl)=>{
@@ -13090,6 +13095,7 @@ function VFotos({p,curUser,monteure,ww}){
     if(!isAdmin)return;
     if(!await _confirmModal("Foto wirklich löschen?",{variant:"danger"}))return;
     try{
+      try{const _sp=_epkFilesPath(photoUrl(ph));if(_sp)_sbDeleteObj(SB_BUCKET,_sp);}catch(_so){}/* v3.9.423: Storage-Objekt mitloeschen (best-effort, kein Waise im public Bucket) */
       await _sbDelete("photos",ph.id);
       setPhotos(prev=>prev.filter(x=>x.id!==ph.id));
       if(lbIdx>=0)setLbIdx(-1);
@@ -13333,7 +13339,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
     reader.readAsDataURL(file);
   };
   const handleUpload=e=>{const fls=_optionalChain([e, 'access', _442 => _442.target, 'optionalAccess', _443 => _443.files])||_optionalChain([e, 'access', _444 => _444.dataTransfer, 'optionalAccess', _445 => _445.files]);if(!_optionalChain([fls, 'optionalAccess', _446 => _446.length]))return;Array.from(fls).forEach(f=>addDoc(f));try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}};
-  const delDoc=async id=>{if(!isAdmin)return;if(!await _confirmModal("Dokument wirklich löschen?",{variant:"danger"}))return;setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
+  const delDoc=async id=>{if(!isAdmin)return;if(!await _confirmModal("Dokument wirklich löschen?",{variant:"danger"}))return;try{const _dd=(docs||[]).find(x=>x.id===id);const _ds=_dd&&_epkFilesPath(_dd.file_path||_dd.file_url||_dd.dataUrl||_dd.data_url||"");if(_ds)_sbDeleteObj(SB_BUCKET,_ds);}catch(_so){}/* v3.9.423: Doc-Storage-Objekt mitloeschen (best-effort) */setDocs(prev=>prev.filter(d=>d.id!==id));setForms(f=>({...f,kundenDocs:(f.kundenDocs||[]).filter(kd=>kd.id!==id)}));SQ.push({url:"/api/project-documents/"+id,method:"DELETE"});_optionalChain([window, 'access', _447 => _447.__toast, 'optionalCall', _448 => _448("🗑️ Dokument gelöscht")]);};
   const openDoc=d=>{_openFileUrl(d.dataUrl||d.fileUrl,d.fileName||d.name);};
   const moveDoc=(docId,folderId)=>{
     /* v3.9.24 Monteur read-only — Move gesperrt */
