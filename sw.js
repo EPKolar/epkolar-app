@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.426
-const CACHE_NAME = "epkolar-v3.9.426";
+// EP Kolar Service Worker v3.9.427 — fz_schaeden Single-Source (Option a)
+const CACHE_NAME = "epkolar-v3.9.427";
 const ASSETS = [
   './',
   './index.html'

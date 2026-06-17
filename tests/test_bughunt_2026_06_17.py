@@ -473,11 +473,15 @@ def test_auslastung_ampel_70_90_100():
         'v3.9.425 Regression: alte 70/95-Schwelle zurueckgekehrt'
 
 
-# ── v3.9.426: FZ-Schaden Status-Edit in Zweitspeicher fz_schaeden spiegeln ──
+# ── v3.9.427: FZ-Schaden Single-Source JSON (Option a) — fz_schaeden-Zweitspeicher entfernt ──
 
-def test_fz_schaden_status_mirrors_to_table():
-    """Positiv: Schaden-Status-Edit spiegelt auch in fz_schaeden (Upsert via PK id) —
-    JSON bleibt kanonisch, der Zweitspeicher/Lese-Route veraltet nicht mehr."""
+def test_fz_schaden_single_source_json():
+    """Option a (Chef-Entscheid): die fz_schaeden-Zweitspeicher-Writes (addSchaden,
+    qDoSchaden, Status-Edit) sind entfernt → Single-Source = fahrzeuge.schaeden JSON.
+    Kein /api/schaeden/-POST mehr im Client. (GET-Resolver/POST-Handler im api-Layer
+    bleiben als toter, harmloser Code — separate Cleanup.)"""
     text = _txt()
-    assert 'SQ.push({url:"/api/schaeden/"+sel,method:"POST",body:{...s,status:_ns}});' in text, \
-        'v3.9.426 Regression: Status-Edit-Spiegelung nach fz_schaeden fehlt'
+    assert '/api/schaeden/' not in text, \
+        'v3.9.427 Regression: fz_schaeden-Zweitspeicher-Write zurueckgekehrt (Option a = Single-Source JSON)'
+    assert 'fz_schaeden-Zweitspeicher entfernt (Option a)' in text, \
+        'v3.9.427 Regression: Single-Source-Marker-Kommentar fehlt'
