@@ -330,3 +330,26 @@ def test_pickerl_badges_local_parse():
         'v3.9.417 Regression: Dashboard-Pickerl-Badge braucht +"T00:00:00"'
     assert 'new Date(fzScannedItem.pickerl+"T00:00:00")>new Date()' in text, \
         'v3.9.417 Regression: QR-Pickerl-Badge braucht +"T00:00:00"'
+
+
+# ── v3.9.418: DB-Schema-Mismatch (schema-verifiziert gegen jiggujpruejkaomgxarp) ──
+
+def test_time_entries_no_phantom_stunden_column():
+    """P1 Positiv: saveMatrixCell sendet nur 'hours' — time_entries hat keine Spalte
+    'stunden' (sonst PostgREST-400 → Drop → Inline-Edit verschwindet)."""
+    text = _txt()
+    assert 'method:"PUT",body:{hours:_h}}' in text, \
+        'v3.9.418 Regression: saveMatrixCell muss nur {hours:_h} senden'
+    assert 'body:{hours:_h,stunden:_h}' not in text, \
+        'v3.9.418 Regression: Phantom-Spalte stunden im PUT-Body zurueckgekehrt (→400/Drop)'
+
+
+def test_as_signature_maps_to_real_columns():
+    """P1 Positiv: AS-saveAs mappt sigMA/sigKunde auf reale Spalten unterschrift_monteur/_kunde
+    (arbeitsscheine hat KEINE sig_ma/sig_kunde → sonst 400 → ganze Speicherung dropt)."""
+    text = _txt()
+    assert "const c={...b,unterschriftMonteur:b.sigMA||\"\",unterschriftKunde:b.sigKunde||\"\"};delete c.sigMA;delete c.sigKunde;" in text, \
+        'v3.9.418 Regression: AS-saveAs sigMA/sigKunde-Normalisierung fehlt'
+    # Reverse-Map spiegelt Signatur beim Laden zurueck in sigMA/sigKunde
+    assert 'sigMA:a.sigMA||a.unterschrift_monteur||"",sigKunde:a.sigKunde||a.unterschrift_kunde||""' in text, \
+        'v3.9.418 Regression: _mapArbeitsschein muss sigMA/sigKunde aus unterschrift_* spiegeln'
