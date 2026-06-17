@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.424';
+  var SW_VER='epkolar-v3.9.425';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2426,7 +2426,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.424-supabase";
+const APP_VERSION="3.9.425-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -17524,7 +17524,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   const _in14d=(function(){const d=new Date();d.setDate(d.getDate()+14);return _ymd(d);})();
   const aktivProj=projects.filter(p=>p.status==='aktiv').length;
   const offeneAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)).length;
-  const heuteAS=arbeitsscheine.filter(a=>(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;
+  const heuteAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;/* v3.9.425: nur offene (Chef-Entscheid) — erledigt/abgerechnet/storniert ausgeschlossen, konsistent mit ueberfaellige */
   const ueberfaellige=arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return _hasTermin(t)&&t<_td;}).length;
   /* v3.8.19 Chef v2 · C.3 Trend-Berechnung (Vorwoche-Snapshot client-side).
      Heuristik: "Schein war vor 7 Tagen offen" = created_at < _weekAgo UND (abschlossen_am leer ODER abschlossen_am > _weekAgo).
@@ -17682,9 +17682,10 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   const kapIst=_istRange(_kapSel.start,_kapSel.end);
   const kapPct=kapSoll>0?Math.round(kapIst/kapSoll*100):0;
   const kapList=_kapMont.map(m=>{const h=entries.filter(e=>(e.worker||e.w||e.worker_id)===m.id&&(e.datum||e.date||'')>=_kapSel.start&&(e.datum||e.date||'')<=_kapSel.end).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);const pct=_kapSel.sollPer>0?Math.round(h/_kapSel.sollPer*100):0;return {id:m.id,name:(m.vorname?m.vorname+' ':'')+m.n,hours:h,pct};}).sort((a,b)=>b.pct-a.pct);
-  const _ampBar=pct=>pct<70?'#22c55e':pct<=95?'#eab308':'#ef4444';/* Balkenfüllung (kein Text) */
-  const _ampTx=pct=>pct<70?_okG('#22c55e'):pct<=95?(_dark?'#fbbf24':'#a16207'):(_dark?'#f87171':'#b91c1c');/* Text AA hell+dunkel */
-  const _ampLbl=pct=>pct<70?'🟢 Luft für neue Aufträge':pct<=95?'🟡 gut ausgelastet':'🔴 am Anschlag';
+  /* v3.9.425: Schwellen 70/90/100 (Chef-Entscheid „beide auf 70/90/100") — identisch zum „Zeit & Personal"-Widget (loadByWorker), 4-stufig statt vorher 70/95 */
+  const _ampBar=pct=>pct<70?'#22c55e':pct<90?'#eab308':pct<=100?'#f97316':'#ef4444';/* Balkenfüllung (kein Text) */
+  const _ampTx=pct=>pct<70?_okG('#22c55e'):pct<90?(_dark?'#fbbf24':'#a16207'):pct<=100?(_dark?'#fb923c':'#c2410c'):(_dark?'#f87171':'#b91c1c');/* Text AA hell+dunkel */
+  const _ampLbl=pct=>pct<70?'🟢 Luft für neue Aufträge':pct<90?'🟡 gut ausgelastet':pct<=100?'🟠 am Anschlag':'🔴 überlastet';
   /* v3.9.400 Chef-Portal Bereich 2: AUFTRAGSVOLUMEN-TREND (€/Monat, AUSSCHLIESSLICH projects.betrag
      gruppiert nach Anlagedatum created_at — das einzige verlässliche Datum). Arbeitsscheine = Regie ohne
      Betrag → bewusst NICHT einbezogen. Letzte 12 Monate. Semantik = Auftragseingang, NICHT bezahlter Umsatz. */

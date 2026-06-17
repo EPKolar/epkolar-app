@@ -451,3 +451,23 @@ def test_budget_ampel_table_uses_budget_euro_and_helper():
     # UI-Hinweis auf €85-Pauschalsatz
     assert 'inkl. €85-Pauschalsatz für Mitarbeiter ohne hinterlegten Satz' in text, \
         'v3.9.424 Regression: €85-UI-Hinweis fehlt'
+
+
+# ── v3.9.425: Auslastungs-Ampel 70/90/100 + Heutige-AS nur offene (Chef-Entscheide) ──
+
+def test_heute_as_only_open():
+    """Positiv: Heutige-AS-KPI zaehlt nur offene (AS_GRP_OFFEN), wie ueberfaellige."""
+    text = _txt()
+    assert "const heuteAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;" in text, \
+        'v3.9.425 Regression: Heutige-AS muss auf AS_GRP_OFFEN filtern'
+
+
+def test_auslastung_ampel_70_90_100():
+    """Positiv: Auslastungs-Ampel (_ampBar/_ampTx/_ampLbl) nutzt 70/90/100 (4-stufig), nicht mehr 70/95."""
+    text = _txt()
+    assert "const _ampBar=pct=>pct<70?'#22c55e':pct<90?'#eab308':pct<=100?'#f97316':'#ef4444';" in text, \
+        'v3.9.425 Regression: _ampBar muss 70/90/100 sein'
+    assert "const _ampLbl=pct=>pct<70?'🟢 Luft für neue Aufträge':pct<90?'🟡 gut ausgelastet':pct<=100?'🟠 am Anschlag':'🔴 überlastet';" in text, \
+        'v3.9.425 Regression: _ampLbl muss 4-stufig 70/90/100 sein'
+    assert "const _ampBar=pct=>pct<70?'#22c55e':pct<=95?'#eab308':'#ef4444';" not in text, \
+        'v3.9.425 Regression: alte 70/95-Schwelle zurueckgekehrt'
