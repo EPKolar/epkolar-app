@@ -295,3 +295,38 @@ def test_zeit_sheet_tap_outside_close():
         'v3.9.416 Regression: Zeit-Sheet Backdrop-onClick fehlt'
     assert 'onClick:e=>e.stopPropagation()/* v3.9.416: Klicks im Panel schließen nicht */' in text, \
         'v3.9.416 Regression: Zeit-Sheet Panel-stopPropagation fehlt'
+
+
+# ── v3.9.417: P1 Datenverlust (_syncThenReload) + Datums-Korrektheit ──
+
+def test_bwb_edit_uses_synthenreload_not_blind_timeout():
+    """P1 Negativ-Guard: editMonteurEntries/openMultiEntryEdit nutzen _syncThenReload,
+    nicht mehr blinden setTimeout(loadAll,1000) der den Batch-Sync ueberholt."""
+    text = _txt()
+    assert 'setTimeout(()=>loadAll(true),1000)' not in text, \
+        'v3.9.417 Regression: blinder setTimeout(loadAll,1000) zurueckgekehrt (Reload ueberholt Sync → Datenverlust)'
+
+
+def test_dashboard_6month_no_setmonth_overflow():
+    """P2 Positiv: 6-Monats-Charts nutzen new Date(y,m-i,1) (Tag 1), kein setMonth-Overflow."""
+    text = _txt()
+    assert 'const _dm=new Date();const d=new Date(_dm.getFullYear(),_dm.getMonth()-i,1);' in text, \
+        'v3.9.417 Regression: 6-Monats-Loop muss Tag 1 explizit setzen'
+    assert 'const d=new Date();d.setMonth(d.getMonth()-i);' not in text, \
+        'v3.9.417 Regression: setMonth-Overflow-Variante zurueckgekehrt'
+
+
+def test_fleet_service_termin_local_parse():
+    """P2 Positiv: Fleet-Service-Termin-Liste parst t.datum date-only lokal."""
+    text = _txt()
+    assert 'const d=t.datum?new Date(t.datum+"T00:00:00"):null;' in text, \
+        'v3.9.417 Regression: Fleet-Service-Termin braucht +"T00:00:00"'
+
+
+def test_pickerl_badges_local_parse():
+    """P3 Positiv: Dashboard-/QR-Pickerl-Badges parsen date-only lokal."""
+    text = _txt()
+    assert 'const pickerl=myFz.pickerl?new Date(myFz.pickerl+"T00:00:00"):null;' in text, \
+        'v3.9.417 Regression: Dashboard-Pickerl-Badge braucht +"T00:00:00"'
+    assert 'new Date(fzScannedItem.pickerl+"T00:00:00")>new Date()' in text, \
+        'v3.9.417 Regression: QR-Pickerl-Badge braucht +"T00:00:00"'

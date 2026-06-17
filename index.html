@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.416';
+  var SW_VER='epkolar-v3.9.417';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2415,7 +2415,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.416-supabase";
+const APP_VERSION="3.9.417-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -7897,7 +7897,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     });
     if(cnt>0){
       window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
-      setTimeout(()=>loadAll(true),1000);/* v3.9.342: Silent-Reload 1000ms nach SQ.push — Sebastian-Vorgabe, sicher dass Server-Write durch ist. War 800ms. */
+      _syncThenReload();/* v3.9.417: erst SQ-Queue drainen, DANN Reload — sonst überholt der Reload den 1500ms-Batch-Sync und zieht den alten DB-Stand → Änderung "verschwindet" (gleiche Klasse wie saveMatrixCell v3.9.364). */
     }else if(_skipNote>0){
       window.__toast&&window.__toast("ℹ️ Zeile übersprungen: Stunden + Datum sind Pflicht für neue Buchungen","warn");
     }else{
@@ -8021,7 +8021,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     });
     if(cnt>0){
       window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
-      setTimeout(()=>loadAll(true),1000);
+      _syncThenReload();/* v3.9.417: erst SQ-Drain, dann Reload (sonst überholt Reload den Batch-Sync → "verschwindet", wie v3.9.364) */
     }else{
       window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
     }
@@ -8937,7 +8937,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               , stats.daily.map((d,i)=>{
                 const maxD=Math.max(...stats.daily.map(x=>parseInt(x.cnt)||1));
                 const h=Math.max(4,(parseInt(d.cnt)/maxD)*100);
-                const dt=new Date(d.day);
+                const dt=new Date(d.day+"T00:00:00");/* v3.9.417: date-only lokal parsen (Heute-Markierung verrutschte) */
                 const isToday=dt.toDateString()===new Date().toDateString();
                 return (React.createElement('div', { key: i, style: {flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}, title: dt.toLocaleDateString("de-AT")+" — "+d.cnt+" Aktionen, "+d.users+" User"}
                   , React.createElement('div', { style: {fontSize:8,color:V.dm,fontFamily:mono}}, parseInt(d.cnt)>0?d.cnt:"")
@@ -9745,7 +9745,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         if(!myFz)return null;
         const kmStand=myFz.kmStand||0;
         const lastSchaden=(myFz.schaeden||[]).filter(x=>x.status==="offen").length;
-        const pickerl=myFz.pickerl?new Date(myFz.pickerl):null;
+        const pickerl=myFz.pickerl?new Date(myFz.pickerl+"T00:00:00"):null;/* v3.9.417: date-only lokal parsen (sonst am Ablauftag zu früh rot) */
         const pickerOk=pickerl&&pickerl>new Date();
         return React.createElement('div', { style: {marginBottom:16}},
           React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.dm,marginBottom:8,textTransform:"uppercase",letterSpacing:1,borderLeft:"3px solid "+COLORS.EP_GREEN,paddingLeft:8}}, "\u{1F690} Mein Fahrzeug" ),
@@ -9956,7 +9956,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
         // Monthly tank costs (last 6 months)
         const moLabels=[];const moData=[];const moLiter=[];
-        for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+        for(let i=5;i>=0;i--){const _dm=new Date();const d=new Date(_dm.getFullYear(),_dm.getMonth()-i,1);/* v3.9.417: Tag explizit 1 — setMonth bei Tag 29-31 läuft sonst in kürzere Monate über (Februar-Bucket fehlt/dupliziert) */const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
           moLabels.push(["Jän","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"][d.getMonth()]);
           let cost=0,lit=0;(fahrzeuge||[]).forEach(f=>(f.tankLog||[]).forEach(t=>{if((t.datum||"").startsWith(key)){cost+=t.preis||0;lit+=t.liter||0;}}));
           moData.push(cost);moLiter.push(lit);
@@ -9965,7 +9965,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
         // Monthly hours (last 6 months)
         const moHours=[];
-        for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+        for(let i=5;i>=0;i--){const _dm=new Date();const d=new Date(_dm.getFullYear(),_dm.getMonth()-i,1);/* v3.9.417: Tag explizit 1 — setMonth bei Tag 29-31 läuft sonst in kürzere Monate über (Februar-Bucket fehlt/dupliziert) */const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
           moHours.push(entries.filter(e=>(e.datum||e.date||"").startsWith(key)).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0));
         }
         const maxMoH=Math.max(...moHours,1);
@@ -19465,7 +19465,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 )
                 /* Badges */
                 , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap"}}
-                  , fzScannedItem.pickerl&&React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl), color: new Date(fzScannedItem.pickerl)>new Date()?_okG("#22c55e"):"#ef4444"} )
+                  , fzScannedItem.pickerl&&React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl), color: new Date(fzScannedItem.pickerl+"T00:00:00")>new Date()?_okG("#22c55e"):"#ef4444"/* v3.9.417: date-only lokal parsen */} )
                   , (fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length>0&&React.createElement(Badge, { text: "⚠️ "+(fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length+" offene Schäden", color: "#ef4444"} )
                   , _optionalChain([fzScannedItem, 'access', _691 => _691.tankLog, 'optionalAccess', _692 => _692.length])>0&&React.createElement(Badge, { text: "⛽ Letzte Tankung: "+fdt(_optionalChain([fzScannedItem, 'access', _693 => _693.tankLog, 'access', _694 => _694[0], 'optionalAccess', _695 => _695.datum])), color: "#f97316"} )
                 )
@@ -20009,7 +20009,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
           , fzTermine.length===0&&!showAddTermin&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:"24px 16px",border:"1px dashed "+V.bd,borderRadius:8}}, React.createElement('div', { style: {fontSize:32,marginBottom:6,opacity:.6}}, "📅"), React.createElement('div', { style: {fontWeight:700,marginBottom:4,color:V.tx}}, "Keine Service-Termine"), isVAdmin?"Plane Wartung und Pickerl mit + Termin oben.":"Aktuell sind keine Service-Termine geplant.")
           , [...fzTermine].sort((a,b)=>(a.datum||"").localeCompare(b.datum||"")).map(t=>{
-            const d=t.datum?new Date(t.datum):null;const diff=d?Math.ceil((d-new Date())/TIME_DAY):null;
+            const d=t.datum?new Date(t.datum+"T00:00:00"):null;const diff=d?Math.ceil((d-new Date())/TIME_DAY):null;/* v3.9.417: date-only lokal parsen (UTC-Flip → "überfällig" einen Tag zu früh) */
             const urgent=diff!==null&&diff<0;const soon=diff!==null&&diff>=0&&diff<14;
             const color=t.erledigt?"#22c55e":urgent?"#ef4444":soon?"#f97316":"#3b82f6";
             return React.createElement('div', { key: t.id, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid "+color,opacity:t.erledigt?0.6:1}}

@@ -63,17 +63,23 @@ def test_no_button_onclick_loadall_in_vbuero(index_html):
 # 2) setTimeout(loadAll(true), 1000) im editMonteurEntries-Save-Pfad ----------
 
 def test_edit_monteur_entries_settimeout_1000ms(index_html):
-    """Im editMonteurEntries-Save-Pfad muss nach dem SQ.push ein
-    setTimeout(()=>loadAll(true), 1000) (oder _=>) stehen. Sebastian-Vorgabe:
-    1000ms, sicher dass Server-Write durch ist."""
+    """v3.9.417: Der blinde setTimeout(()=>loadAll(true),1000) wurde durch
+    _syncThenReload() ersetzt — der 1000ms-Reload ueberholte sonst den 1500ms-Batch-
+    Sync und zog den alten DB-Stand (Aenderung "verschwindet"; gleiche Klasse, die
+    v3.9.364 fuer saveMatrixCell behob). _syncThenReload drainiert die SQ-Queue erst,
+    dann loadAll. Forward-Guard: kein blinder setTimeout-Reload mehr im Save-Pfad."""
     block = _edit_monteur_block(index_html)
+    assert "_syncThenReload()" in block, (
+        "editMonteurEntries ruft kein _syncThenReload() nach SQ.push — v3.9.417 "
+        "ersetzte den race-anfaelligen setTimeout(loadAll,1000)."
+    )
     m = re.search(
         r"setTimeout\(\s*(?:\(\s*\)|_)\s*=>\s*loadAll\(\s*true\s*\)\s*,\s*1000\s*\)",
         block,
     )
-    assert m, (
-        "editMonteurEntries hat kein setTimeout(()=>loadAll(true),1000) nach SQ.push "
-        "— Sebastian-Vorgabe 1000ms (war vorher 800ms), Regression v3.9.342."
+    assert not m, (
+        "editMonteurEntries hat noch den blinden setTimeout(loadAll,1000) — v3.9.417 "
+        "ersetzte ihn durch _syncThenReload() (Reload ueberholte sonst den Batch-Sync)."
     )
 
 
