@@ -421,3 +421,33 @@ def test_epk_files_orphan_cleanup():
         'v3.9.423 Regression: deletePlan Storage-Cleanup fehlt'
     assert "if(_ds)_sbDeleteObj(SB_BUCKET,_ds);" in text, \
         'v3.9.423 Regression: delDoc Storage-Cleanup fehlt'
+
+
+# ── v3.9.424: Budget-Ampel vereinheitlicht (echter Stundensatz + €85-Fallback, budget_euro, 85/100) ──
+
+def test_budget_ampel_unified_kalk_helper():
+    """Positiv: gemeinsamer _projKalkKosten-Helper mit €85-Pauschalfallback (nie 0)."""
+    text = _txt()
+    assert 'const _projKalkKosten=pid=>' in text, \
+        'v3.9.424 Regression: gemeinsamer _projKalkKosten-Helper fehlt'
+    assert '(m&&parseFloat(m.stundensatz)>0)?parseFloat(m.stundensatz):_PAUSCHAL_SATZ' in text, \
+        'v3.9.424 Regression: €85-Pauschalfallback (nie 0) fehlt'
+    assert 'const _PAUSCHAL_SATZ=85;' in text, \
+        'v3.9.424 Regression: _PAUSCHAL_SATZ=85 fehlt'
+
+
+def test_budget_ampel_table_uses_budget_euro_and_helper():
+    """Positiv: Tabellen-Ampel rechnet _projKalkKosten ÷ budget_euro, Schwellen 85/100, ⚪ ohne Budget."""
+    text = _txt()
+    assert 'const costEst=_projKalkKosten(p.id);' in text, \
+        'v3.9.424 Regression: Tabellen-Ampel nutzt _projKalkKosten nicht'
+    assert "const amp=budgetPct==null?'⚪':(budgetPct>100?'🔴':budgetPct<85?'🟢':'🟡');" in text, \
+        'v3.9.424 Regression: Tabellen-Ampel Schwellen 85/100 + ⚪-Fallback fehlen'
+    assert 'const costEst=usedH*85;' not in text, \
+        'v3.9.424 Regression: alter €85-vs-betrag-Pfad zurueckgekehrt'
+    # Budget-Karte nutzt denselben Helper
+    assert 'const kalk=_projKalkKosten(p.id);' in text, \
+        'v3.9.424 Regression: Budget-Karte muss denselben _projKalkKosten-Helper nutzen'
+    # UI-Hinweis auf €85-Pauschalsatz
+    assert 'inkl. €85-Pauschalsatz für Mitarbeiter ohne hinterlegten Satz' in text, \
+        'v3.9.424 Regression: €85-UI-Hinweis fehlt'
