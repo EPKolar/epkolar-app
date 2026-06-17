@@ -277,3 +277,21 @@ def test_ticketdetail_due_badge_status_aware():
     text = _txt()
     assert '(_dueIsPast(ticket.dueDate)&&ticket.status!=="erledigt"&&ticket.status!=="abgenommen"&&ticket.status!=="abgeschlossen"&&ticket.status!=="storniert")?"#ef4444":"#71717a"' in text, \
         'v3.9.415 Regression: TicketDetail-Badge muss Status ausschliessen'
+
+
+# ── v3.9.416: a11y — PdfViewerModal ESC + Zeit-Sheet Tap-outside ──
+
+def test_pdfviewer_esc_handler():
+    """Positiv: PdfViewerModal hat ESC-Keydown-Handler."""
+    text = _txt()
+    assert 'const _h=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",_h);return ()=>window.removeEventListener("keydown",_h);},[onClose]);' in text, \
+        'v3.9.416 Regression: PdfViewerModal ESC-Handler fehlt'
+
+
+def test_zeit_sheet_tap_outside_close():
+    """Positiv: Zeit-Eintrag-Bottom-Sheet schliesst per Tap-outside (Backdrop onClick + Panel stopPropagation)."""
+    text = _txt()
+    assert "onClick:()=>{setAddDay(null);setEditEntry(null);}/* v3.9.416: Tap-outside" in text, \
+        'v3.9.416 Regression: Zeit-Sheet Backdrop-onClick fehlt'
+    assert 'onClick:e=>e.stopPropagation()/* v3.9.416: Klicks im Panel schließen nicht */' in text, \
+        'v3.9.416 Regression: Zeit-Sheet Panel-stopPropagation fehlt'
