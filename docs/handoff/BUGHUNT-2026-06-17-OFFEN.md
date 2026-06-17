@@ -1,6 +1,19 @@
 # Bug-Hunt-Marathon 2026-06-17 — OFFENE Punkte (Sebastian-Entscheidung / Backend)
 
-Stand: main = origin = **v3.9.415**. 9 Fix-Batches autonom gepusht (v3.9.407–415), 931 pytest grün,
+> **UPDATE nach Erstellung (Stand v3.9.418):** Seit diesem Dokument zusätzlich autonom
+> behoben+gepusht (v3.9.416–418): a11y (PdfViewerModal-ESC, Zeit-Sheet-Tap-outside);
+> **2× P1 Datenverlust** „Reload überholt Sync" in BWB-Büro-Edit (editMonteurEntries +
+> openMultiEntryEdit → `_syncThenReload`); Dashboard-6-Monats-Chart `setMonth`-Overflow;
+> Fleet-Service-Termin + Pickerl-Badge Timezone; **2× P1 DB-Schema-Mismatch** (read-only
+> gegen jiggujpruejkaomgxarp verifiziert): `time_entries.stunden` existiert nicht →
+> Phantom-Feld entfernt; `arbeitsscheine` hat `unterschrift_monteur/_kunde` statt
+> `sig_ma/sig_kunde` → in-App-Signatur war funktionslos (0/100 AS signiert), jetzt
+> AS-scoped gemappt. **Schema-Fakten:** time_entries={hours real, KEIN stunden};
+> arbeitsscheine={unterschrift_monteur text, unterschrift_kunde text}.
+> **NEU offen (unten ergänzt):** G1 AS-Voll-Row-PUT Lost-Update, G2 focus/visibility-
+> Reload-Clobber, G3 "Heutige AS"-KPI-Status.
+
+Stand: main = origin = **v3.9.418** (war v3.9.415 bei Erstellung). 9 Fix-Batches autonom gepusht (v3.9.407–415), 931 pytest grün,
 node_check 0. 4 Audit-Wellen (18 Read-only-Agenten) + adversariale Selbst-Review.
 
 **Bereits behoben & live (v3.9.407–415):** FZ-/Pickerl-Timezone (4 Stellen), Material-FK-null,
@@ -109,6 +122,28 @@ Entscheidung oder berühren eingefrorene/lohnrelevante Bereiche.
     „Speicher voll"-Toast feuert bei der echten Gefahr nicht (`navigator.storage.estimate()` nutzen).
 
 ---
+
+## G) Neu gefunden (Welle 5) — strukturell/Entscheidung, nicht autonom gefixt
+
+- **G1 (P2) AS-Edit ist Voll-Row-PUT → Lost-Update.** `saveAs` (~Z.6877) sendet das
+  komplette `_finalForm` per PUT. Läuft parallel ein Juprowa-Auto-Sync oder eine
+  Zweit-Bearbeitung (aktualisiert `juprowa_*`/andere Felder serverseitig), während der
+  Editor mit altem Stand offen ist, überschreibt der stale Client-Stand alle Spalten →
+  verlorene Server-Updates. Fahrzeuge/Material sind bereits auf column-scoped Diff-PUTs
+  umgestellt; AS-Edit ist der verbliebene Voll-Row-Clobber. Fix: nur geänderte Felder
+  diffen/senden (Muster `_svcSync`) bzw. `juprowa_*` nie aus Client-Stand mitschreiben
+  außer im Push-Zweig. (Strukturell + legal-doc → mit Live-Test angehen.)
+- **G2 (P2) focus/visibility-Reload clobbert optimistischen Matrix-Wert.** Die
+  `visibilitychange`/`focus`-Listener (~Z.7623) rufen `loadAll(true)` und überschreiben
+  `allEntries` komplett. Editiert man eine BWB-Zelle und wechselt innerhalb des ~3,2s-
+  `_syncThenReload`-Drain-Fensters kurz zu Excel/Outlook und zurück, zieht das fremde
+  `loadAll` den noch-nicht-geschriebenen Server-Stand → Wert „flackert/verschwindet kurz"
+  (selbstheilend nach Drain). Fix: `_syncInFlight`-Ref setzen während `_syncThenReload`
+  läuft, und in den Listenern `loadAll` überspringen/verzögern wenn `SQ.count()>0`.
+- **G3 (P3) „Heutige AS"-KPI** (Chef-Portal ~Z.17508) zählt ALLE Scheine mit heutigem
+  Termin inkl. erledigt/abgerechnet/storniert; die Nachbar-Kennzahl `ueberfaellige` filtert
+  dagegen `AS_GRP_OFFEN`. Inkonsistent. **Entscheidung:** „heute offen" (dann
+  `&&AS_GRP_OFFEN.includes(scheinstatus)`) oder „alle heutigen" (dann so lassen)?
 
 ## Eingefroren (NICHT anfassen)
 - **VOffa / ZUZEIT.ASC** — OFFA-Lohn-/Zeitübergabe, Format unverifiziert.
