@@ -377,3 +377,19 @@ def test_notif_get_user_id_filter():
         'v3.9.420 Regression: Notif-GET user_id-Filter fehlt'
     assert 'return _sbGetOrder("notifications","created_at.desc",_nuf).then(r=>r.slice(0,200));' in text, \
         'v3.9.420 Regression: Notif-GET muss gefilterten _sbGetOrder nutzen'
+
+
+# ── v3.9.421: AS-Edit Diff-PUT statt Voll-Row (Lost-Update-Fix) ──
+
+def test_as_diff_put_not_full_row():
+    """P2 Positiv: saveAs patcht nur geaenderte Felder (Diff gegen geladene Baseline),
+    sendet kein _finalForm-Full-Row mehr → konkurrierende Server-Updates (juprowa_*)
+    werden nicht von stalem Client-Stand ueberschrieben."""
+    text = _txt()
+    assert 'const _diff={};for(const _dk in _finalForm){if(JSON.stringify(_finalForm[_dk])!==JSON.stringify(_origAs[_dk]))_diff[_dk]=_finalForm[_dk];}' in text, \
+        'v3.9.421 Regression: AS Diff-Berechnung fehlt'
+    # Body baut auf _diff (nicht _finalForm) + Empty-Diff-Guard vor SQ.push
+    assert 'if(Object.keys(_asBody).length>0)SQ.push({url:editId?"/api/arbeitsscheine/"+editId' in text, \
+        'v3.9.421 Regression: AS-PUT braucht Empty-Diff-Guard'
+    assert ':_diff);' in text, \
+        'v3.9.421 Regression: _asBody muss aus _diff gebaut werden (nicht _finalForm)'
