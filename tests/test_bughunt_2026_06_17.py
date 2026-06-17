@@ -393,3 +393,15 @@ def test_as_diff_put_not_full_row():
         'v3.9.421 Regression: AS-PUT braucht Empty-Diff-Guard'
     assert ':_diff);' in text, \
         'v3.9.421 Regression: _asBody muss aus _diff gebaut werden (nicht _finalForm)'
+
+
+# ── v3.9.422: _portalSync transient/permanent-Split (kein Queue-Wedge) ──
+
+def test_portalsync_no_blind_break():
+    """P3 Positiv: _portalSync bricht nicht mehr bei JEDEM Fehler ab (Wedge); permanente
+    4xx werden uebersprungen, nur transiente (Netz/5xx/429/408) brechen ab."""
+    text = _txt()
+    assert 'if(/failed to fetch|networkerror|http5|http429|http408/.test(_m))break;}}if(done.length)await SQ.removeMany(done);};' in text, \
+        'v3.9.422 Regression: _portalSync transient/permanent-Split fehlt'
+    assert 'done.push(item.id);}catch(e){break;}}' not in text, \
+        'v3.9.422 Regression: alter blinder catch{break} im _portalSync zurueckgekehrt'
