@@ -353,3 +353,15 @@ def test_as_signature_maps_to_real_columns():
     # Reverse-Map spiegelt Signatur beim Laden zurueck in sigMA/sigKunde
     assert 'sigMA:a.sigMA||a.unterschrift_monteur||"",sigKunde:a.sigKunde||a.unterschrift_kunde||""' in text, \
         'v3.9.418 Regression: _mapArbeitsschein muss sigMA/sigKunde aus unterschrift_* spiegeln'
+
+
+# ── v3.9.419: BWB-Render-Loop Mo-Sa (Phantom-Sonntagszeile weg) ──
+
+def test_bwb_render_loop_mo_sa():
+    """Positiv: exportBauwochenbericht Render-Loop laeuft Mo-Sa (i<6), konsistent mit
+    Gather/Review-Modal/DAYS — i<7 erzeugte eine leere Sonntag-Phantomzeile."""
+    text = _txt()
+    assert 'for(let i=0;i<6;i++){/* v3.9.419: Mo-Sa' in text, \
+        'v3.9.419 Regression: BWB-Render-Loop muss i<6 (Mo-Sa) sein'
+    assert 'const dayIdx=i<6?i:null;' not in text, \
+        'v3.9.419 Regression: Phantom-Sonntag-Variante (dayIdx=i<6?i:null) zurueckgekehrt'
