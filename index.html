@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.419';
+  var SW_VER='epkolar-v3.9.420';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2001,9 +2001,14 @@ async function _translateAndExec(url,method,body){
 
   // ─── GET handler ───
   if(method==="GET"){
-    // Notifications GET (user-filtered)
+    // Notifications GET — serverseitig auf eigene user_id filtern.
+    // v3.9.420: RLS notif_read = is_staff() OR user_id=current_user_pk() → Staff (admin/buero/PL)
+    // bekamen sonst ALLE Notifs (cross-user); die 200-Grenze konnte eigene verdraengen + Badge
+    // verfaelschen. user_id===users.id===curUser.id (472/472 schema-verifiziert). Ohne curUser.id
+    // → leerer Filter = bisheriges Verhalten (RLS schuetzt Nicht-Staff weiterhin).
     if(resource==="notifications"){
-      return _sbGetOrder("notifications","created_at.desc").then(r=>r.slice(0,200));
+      let _nuf="";try{const _cu=window._curUser&&window._curUser();if(_cu&&_cu.id)_nuf="user_id=eq."+encodeURIComponent(_cu.id);}catch(_n){}
+      return _sbGetOrder("notifications","created_at.desc",_nuf).then(r=>r.slice(0,200));
     }
     // Worker-projects GET
     if(resource==="worker-projects"){
@@ -2416,7 +2421,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.419-supabase";
+const APP_VERSION="3.9.420-supabase";
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,

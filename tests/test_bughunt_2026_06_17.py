@@ -365,3 +365,15 @@ def test_bwb_render_loop_mo_sa():
         'v3.9.419 Regression: BWB-Render-Loop muss i<6 (Mo-Sa) sein'
     assert 'const dayIdx=i<6?i:null;' not in text, \
         'v3.9.419 Regression: Phantom-Sonntag-Variante (dayIdx=i<6?i:null) zurueckgekehrt'
+
+
+# ── v3.9.420: Notif-GET serverseitig auf eigene user_id filtern ──
+
+def test_notif_get_user_id_filter():
+    """Positiv: Notifications-GET filtert serverseitig auf curUser.id (Staff bekam sonst
+    via RLS is_staff() ALLE Notifs → 200-Grenze verdraengte eigene)."""
+    text = _txt()
+    assert '_nuf="user_id=eq."+encodeURIComponent(_cu.id)' in text, \
+        'v3.9.420 Regression: Notif-GET user_id-Filter fehlt'
+    assert 'return _sbGetOrder("notifications","created_at.desc",_nuf).then(r=>r.slice(0,200));' in text, \
+        'v3.9.420 Regression: Notif-GET muss gefilterten _sbGetOrder nutzen'
