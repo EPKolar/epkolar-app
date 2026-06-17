@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.430 — Kontrast-Fix: fehlendes Theme-Token fg->tx (Anwesende-Chips u.a.)
-const CACHE_NAME = "epkolar-v3.9.430";
+// EP Kolar Service Worker v3.9.431 — G2 focus-clobber-Guard + _wmTimer-Unmount-Cleanup
+const CACHE_NAME = "epkolar-v3.9.431";
 const ASSETS = [
   './',
   './index.html'

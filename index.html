@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.430';
+  var SW_VER='epkolar-v3.9.431';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2420,7 +2420,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.430-supabase";/* v3.9.430 Kontrast-Fix: fehlendes Theme-Token fg→tx an 9 Stellen (Anwesende-Chips u.a.) */
+const APP_VERSION="3.9.431-supabase";/* v3.9.431 G2 focus-clobber-Guard + _wmTimer-Cleanup */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -6506,6 +6506,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   const isMob=ww<600;
   const [oldPw,setOldPw]=_react.useState.call(void 0, "");const [newPw,setNewPw]=_react.useState.call(void 0, "");const [newPw2,setNewPw2]=_react.useState.call(void 0, "");const [pwMsg,setPwMsg]=_react.useState.call(void 0, "");const [pwBusy,setPwBusy]=_react.useState.call(void 0, false);/* v3.9.202 eigene PW-Änderung (auch Monteure) */
   const _wmTimer=_react.useRef.call(void 0, {});
+  _react.useEffect.call(void 0, ()=>()=>{Object.values(_wmTimer.current).forEach(t=>{try{clearTimeout(t);}catch(_){}});},[]);/* v3.9.431: ausstehende Monteur-Feld-Debounce-Timer beim Unmount raeumen (analog stzSaveTimers v3.9.413) */
   const updMonteur=(id,f,v)=>{if(!isAdmin)return;setMonteure(prev=>prev.map(m=>m.id===id?{...m,[f]:v}:m));const k=id+"_"+f;if(_wmTimer.current[k])clearTimeout(_wmTimer.current[k]);_wmTimer.current[k]=setTimeout(()=>{const apiField=f==="n"?"name":f==="r"?"role":f==="tel"?"phone":f;SQ.push({url:"/api/workers/"+id,method:"PUT",body:{[apiField]:v}});delete _wmTimer.current[k];},800);};
   /* v3.9.29 F-M-1+F-M-2 Defense-in-Depth: addMonteur/updMonteur ohne Admin-Gate (UI war gegated,
      aber Handler ungeschützt — Console-Bypass möglich). isAdmin-Guard ergänzt. */
@@ -7632,8 +7633,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     /* v3.9.342: visibilitychange + focus Listener \u2014 wenn Tab/Window wieder Fokus bekommt
        (B\u00fcro-Dame wechselt zur\u00fcck auf Browser-Tab nach Excel/Outlook/etc.) sofort silent reload,
        sodass Kacheln + Bauwochenbericht-Vorschau die neuen Werte zeigen statt gestriger Cache. */
-    const _onVis=()=>{if(document.visibilityState==="visible")loadAll(true);};
-    const _onFocus=()=>{loadAll(true);};
+    const _onVis=()=>{if(document.visibilityState==="visible"&&!_syncInFlight.current)loadAll(true);};
+    const _onFocus=()=>{if(!_syncInFlight.current)loadAll(true);};
     document.addEventListener("visibilitychange",_onVis);
     window.addEventListener("focus",_onFocus);
     return ()=>{clearInterval(_iv);document.removeEventListener("visibilitychange",_onVis);window.removeEventListener("focus",_onFocus);};},[]);
@@ -7940,10 +7941,14 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
      überschrieb den optimistisch gesetzten Wert → „verschwindet"/„muss abgeglichen werden". Write/Push unangetastet.
      Polling auf SQ.count() statt einmal __doSync, weil ein bereits in-flight Batch-Sync (SQ._batchDelay) den
      __doSync-Aufruf per Guard sofort zurückgibt — wir warten bis die Queue wirklich leer ist (max ~3,2s, dann reload). */
+  const _syncInFlight=_react.useRef.call(void 0, false);/* v3.9.431 G2: blockt focus/visibility-Reload waehrend eines Sync-Drains (sonst clobbert ein loadAll den optimistischen Matrix-Wert kurz) */
   const _syncThenReload=async()=>{
-    try{for(let i=0;i<8;i++){if(window.__doSync)await window.__doSync();const c=await SQ.count().catch(()=>0);if(!c)break;await new Promise(r=>setTimeout(r,400));}}
-    catch(_e){console.warn('[bwb-sync-reload]',_e&&_e.message||_e);}
-    loadAll(true);
+    _syncInFlight.current=true;
+    try{
+      try{for(let i=0;i<8;i++){if(window.__doSync)await window.__doSync();const c=await SQ.count().catch(()=>0);if(!c)break;await new Promise(r=>setTimeout(r,400));}}
+      catch(_e){console.warn('[bwb-sync-reload]',_e&&_e.message||_e);}
+      loadAll(true);
+    }finally{_syncInFlight.current=false;}
   };
   const saveMatrixCell=(w,ds,kwKey,newVal,oldVal,projId)=>{
     /* v3.9.362 FIX: Projekt explizit übergeben (Inline-Vorschau öffnet via openBWB, showPreview ist dann null

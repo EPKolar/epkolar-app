@@ -485,3 +485,26 @@ def test_fz_schaden_single_source_json():
         'v3.9.427 Regression: fz_schaeden-Zweitspeicher-Write zurueckgekehrt (Option a = Single-Source JSON)'
     assert 'fz_schaeden-Zweitspeicher entfernt (Option a)' in text, \
         'v3.9.427 Regression: Single-Source-Marker-Kommentar fehlt'
+
+
+# ── v3.9.431: G2 focus/visibility-Reload-Clobber + _wmTimer-Leak ──
+
+def test_g2_sync_inflight_guard():
+    """G2 Positiv: _syncInFlight-Ref + Guard in focus/visibility-Listenern verhindert,
+    dass ein loadAll waehrend des Sync-Drains den optimistischen Matrix-Wert clobbert."""
+    text = _txt()
+    assert 'const _syncInFlight=_react.useRef.call(void 0, false);' in text, \
+        'v3.9.431 Regression: _syncInFlight-Ref fehlt'
+    assert 'finally{_syncInFlight.current=false;}' in text, \
+        'v3.9.431 Regression: _syncThenReload muss _syncInFlight in finally zuruecksetzen'
+    assert 'const _onVis=()=>{if(document.visibilityState==="visible"&&!_syncInFlight.current)loadAll(true);};' in text, \
+        'v3.9.431 Regression: _onVis-Guard fehlt'
+    assert 'const _onFocus=()=>{if(!_syncInFlight.current)loadAll(true);};' in text, \
+        'v3.9.431 Regression: _onFocus-Guard fehlt'
+
+
+def test_wmtimer_unmount_cleanup():
+    """Positiv: _wmTimer (Monteur-Feld-Debounce) wird beim Unmount geraeumt."""
+    text = _txt()
+    assert 'Object.values(_wmTimer.current).forEach(t=>{try{clearTimeout(t);}catch(_){}});},[]);' in text, \
+        'v3.9.431 Regression: _wmTimer-Unmount-Cleanup fehlt'
