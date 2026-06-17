@@ -13,7 +13,19 @@
 > **NEU offen (unten ergänzt):** G1 AS-Voll-Row-PUT Lost-Update, G2 focus/visibility-
 > Reload-Clobber, G3 "Heutige AS"-KPI-Status.
 
-Stand: main = origin = **v3.9.418** (war v3.9.415 bei Erstellung). 9 Fix-Batches autonom gepusht (v3.9.407–415), 931 pytest grün,
+Stand: main = origin = **v3.9.423** (war v3.9.415 bei Erstellung).
+
+> **UPDATE 2 (v3.9.419–423, „fix all bugs"-Lauf):** Autonom behoben+gepusht:
+> A1 **ocr_tankbeleg Auth+Bildlimit** (Edge-Fn fixed+LIVE deployed v5, Smoke: anon→401)
+> · BWB-Phantom-Sonntagszeile (Render-Loop Mo-Sa) · B6 **Notif-GET user_id-Filter**
+> (Staff-Cross-User, schema-verifiziert) · G1 **AS Diff-PUT** (Lost-Update behoben) ·
+> _portalSync transient/permanent-Split (Queue-Wedge weg) · epkolar-files Waisen-Cleanup
+> (Foto/Plan/Doc best-effort). B5 (markAllRead 0-Row) verifiziert gegenstandslos.
+> **STOPP+ENTSCHEIDUNG nötig (NICHT geraten):** Budget-€85/Budget-Ampel, Auslastungs-
+> Ampel-Schwellen, FinkZeit-Schwelle, „Heutige AS"-KPI, Teilzeit-Soll (kein Feld),
+> FZ-Schaden-Dual-Store, Juprowa-Encoding (TABU). Details + Optionen siehe Chat-Report.
+> Verbleibend low-value/optional: G2 focus/visibility-Reload-Clobber (eng, selbstheilend),
+> React-Leaks (_wmTimer/geoTimeout, guarded/harmlos), Quota-IndexedDB-Monitor, Such-Token-AND. 9 Fix-Batches autonom gepusht (v3.9.407–415), 931 pytest grün,
 node_check 0. 4 Audit-Wellen (18 Read-only-Agenten) + adversariale Selbst-Review.
 
 **Bereits behoben & live (v3.9.407–415):** FZ-/Pickerl-Timezone (4 Stellen), Material-FK-null,
