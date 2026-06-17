@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.432 — toter fz_schaeden-Sub-POST entschaerft (Tabelle gedroppt v3.9.430)
-const CACHE_NAME = "epkolar-v3.9.432";
+// EP Kolar Service Worker v3.9.433 — Kommentar-Korrektur fz_schaeden-Versionsangabe
+const CACHE_NAME = "epkolar-v3.9.433";
 const ASSETS = [
   './',
   './index.html'
