@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.465 — Header-WLAN-Icon vertikal zentriert
-const CACHE_NAME = "epkolar-v3.9.465";
+// EP Kolar Service Worker v3.9.466 — WLAN-Icon viewBox-Zentrierung (Glyph mittig)
+const CACHE_NAME = "epkolar-v3.9.466";
 const ASSETS = [
   './',
   './index.html'
