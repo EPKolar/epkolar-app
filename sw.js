@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.456 — Auftragssumme für Monteure ausgeblendet
-const CACHE_NAME = "epkolar-v3.9.456";
+// EP Kolar Service Worker v3.9.457 — Werkzeuge: Monteur-Self-Service (aus-/einbuchen)
+const CACHE_NAME = "epkolar-v3.9.457";
 const ASSETS = [
   './',
   './index.html'
