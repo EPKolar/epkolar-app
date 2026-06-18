@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.446 — PDF-Preview Mobile: Gerät-Viewer statt iframe
-const CACHE_NAME = "epkolar-v3.9.446";
+// EP Kolar Service Worker v3.9.447 — WLAN-Status SVG-Icon statt Ampel-Punkt
+const CACHE_NAME = "epkolar-v3.9.447";
 const ASSETS = [
   './',
   './index.html'
