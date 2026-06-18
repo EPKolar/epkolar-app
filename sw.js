@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.442 — #17 idempotenter AS-POST (DO NOTHING gegen Retry-Duplikat)
-const CACHE_NAME = "epkolar-v3.9.442";
+// EP Kolar Service Worker v3.9.443 — Fahrzeug TechDaten textarea statt input (mehrzeilig)
+const CACHE_NAME = "epkolar-v3.9.443";
 const ASSETS = [
   './',
   './index.html'
