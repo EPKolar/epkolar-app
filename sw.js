@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.450 — Lenkfrei Druck via iframe (Popup-blocker-frei, mobil)
-const CACHE_NAME = "epkolar-v3.9.450";
+// EP Kolar Service Worker v3.9.451 — Glocke-Eskalation erst nach 14 Tagen (vorher sanfte Erinnerung)
+const CACHE_NAME = "epkolar-v3.9.451";
 const ASSETS = [
   './',
   './index.html'
