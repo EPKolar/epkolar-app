@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.459 — Büro-Portal Krankenstand: Attest ansehen (signed)
-const CACHE_NAME = "epkolar-v3.9.459";
+// EP Kolar Service Worker v3.9.460 — Atteste: Büro-Löschen + Mitarbeiter-Detail/Profil-Sektion
+const CACHE_NAME = "epkolar-v3.9.460";
 const ASSETS = [
   './',
   './index.html'
