@@ -15,7 +15,12 @@ def test_absences_loader_bridges_approval_status(index_html):
     assert 'apprMap[k]=a.status==="genehmigt"?"genehmigt":a.status==="abgelehnt"?"abgelehnt":"ausstehend"' in index_html, (
         "Server-Status muss auf client-Approval gemappt werden"
     )
-    # local optimistisch gewinnt (prev nach apprMap)
-    assert "setAbsApprovals(prev=>({...apprMap,...prev}))" in index_html, (
-        "Merge: Server als Basis, lokale Werte überschreiben (kein Revert optimistischer Approvals)"
+    # v3.9.435: Merge verfeinert — nur DEFINITIVE lokale Entscheidung (genehmigt/abgelehnt) gewinnt;
+    # stale lokales 'ausstehend' weicht dem Server-Status (Fix Phantom-"X Anträge zur Genehmigung").
+    # Optimistische ECHTE Approvals (genehmigt/abgelehnt) werden weiterhin NICHT revertiert.
+    assert "for(const k in apprMap){const pv=m[k];if(pv!=='genehmigt'&&pv!=='abgelehnt')m[k]=apprMap[k];}return m;" in index_html, (
+        "Merge: Server gewinnt, AUSSER prev hat eine definitive lokale Entscheidung"
+    )
+    assert "setAbsApprovals(prev=>({...apprMap,...prev}))" not in index_html, (
+        "alter prev-wins-Merge (stale 'ausstehend' gewinnt ueber Server-genehmigt) darf nicht zurueckkehren"
     )

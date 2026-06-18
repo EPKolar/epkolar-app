@@ -508,3 +508,16 @@ def test_wmtimer_unmount_cleanup():
     text = _txt()
     assert 'Object.values(_wmTimer.current).forEach(t=>{try{clearTimeout(t);}catch(_){}});},[]);' in text, \
         'v3.9.431 Regression: _wmTimer-Unmount-Cleanup fehlt'
+
+
+# ── v3.9.435: Phantom-"X Antraege zur Genehmigung" — stale absApprovals-Merge ──
+
+def test_absapprovals_merge_server_over_stale_pending():
+    """Bug (16 Antraege nach DB-seitiger Genehmigung): beim Laden darf stale lokales
+    'ausstehend' einen definitiven Server-Status (genehmigt/abgelehnt) NICHT mehr
+    ueberschreiben; nur definitive lokale Entscheidung gewinnt (Merge = _resolveApprK-Praezedenz)."""
+    text = _txt()
+    assert "for(const k in apprMap){const pv=m[k];if(pv!=='genehmigt'&&pv!=='abgelehnt')m[k]=apprMap[k];}return m;" in text, \
+        'v3.9.435 Regression: absApprovals-Merge (Server gewinnt ueber stale ausstehend) fehlt'
+    assert "setAbsApprovals(prev=>({...apprMap,...prev}))" not in text, \
+        'v3.9.435 Regression: alter prev-wins-Merge (stale ausstehend gewinnt) zurueckgekehrt'

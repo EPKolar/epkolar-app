@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.434 — geoTimeout-Leak im Wetter-Effekt-Cleanup geschlossen
-const CACHE_NAME = "epkolar-v3.9.434";
+// EP Kolar Service Worker v3.9.435 — Fix Phantom-"X Antraege zur Genehmigung" (stale absApprovals-Merge)
+const CACHE_NAME = "epkolar-v3.9.435";
 const ASSETS = [
   './',
   './index.html'
