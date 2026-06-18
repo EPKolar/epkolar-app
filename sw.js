@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.457 — Werkzeuge: Monteur-Self-Service (aus-/einbuchen)
-const CACHE_NAME = "epkolar-v3.9.457";
+// EP Kolar Service Worker v3.9.458 — Krankmeldungs-Atteste privat (epkolar-docs) + Löschen
+const CACHE_NAME = "epkolar-v3.9.458";
 const ASSETS = [
   './',
   './index.html'
