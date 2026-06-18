@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.447 — WLAN-Status SVG-Icon statt Ampel-Punkt
-const CACHE_NAME = "epkolar-v3.9.447";
+// EP Kolar Service Worker v3.9.448 — Lenkfrei BIS-Uhrzeit erlaubt 24:00 (text statt time)
+const CACHE_NAME = "epkolar-v3.9.448";
 const ASSETS = [
   './',
   './index.html'
