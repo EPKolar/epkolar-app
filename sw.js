@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.436 — CSP frame-src/object-src Supabase-Host (PDF-Viewer entblockt)
-const CACHE_NAME = "epkolar-v3.9.436";
+// EP Kolar Service Worker v3.9.437 — Zeiterfassung Inline 0h => Eintrag löschen
+const CACHE_NAME = "epkolar-v3.9.437";
 const ASSETS = [
   './',
   './index.html'

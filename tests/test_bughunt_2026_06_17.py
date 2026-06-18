@@ -533,3 +533,19 @@ def test_csp_frame_src_allows_supabase():
         'v3.9.436 Regression: frame-src muss den Supabase-Host erlauben (sonst PDF-iframe blockiert)'
     assert "object-src 'self' blob: data: https://jiggujpruejkaomgxarp.supabase.co;" in text, \
         'v3.9.436 Regression: object-src muss den Supabase-Host erlauben'
+
+
+# ── v3.9.437: Zeiterfassung Inline 0h => Eintrag loeschen (statt still No-Op) ──
+
+def test_inline_zero_hours_deletes_entry():
+    """Chef-Entscheid: korrigiert ein Monteur die Stunden inline auf 0, wird der Eintrag
+    GELOESCHT (DELETE + entries-Prop + dayEntries), statt dass die DB still den alten Wert
+    behaelt (vorher: Save-Zweig feuerte nur bei newHours>0)."""
+    text = _txt()
+    assert "else if(entry.id&&!(newHours>0)){" in text, \
+        'v3.9.437 Regression: 0h-Loeschzweig in updateEntryHours fehlt'
+    # Im Debounce-Save muss bei 0 ein DELETE auf denselben Eintrag erfolgen + lokale Bereinigung.
+    assert 'SQ.push({url:"/api/entries/"+entry.id,method:"DELETE",body:{}});\n            setEntries(prev=>prev.filter(x=>x.id!==entry.id));' in text, \
+        'v3.9.437 Regression: 0h muss DELETE + entries-Prop-Bereinigung ausloesen'
+    assert "setDayEntries(prev=>{const c={...prev};c[iso]=(c[iso]||[]).filter(x=>(x.id||\"\")!==entry.id);return c;});" in text, \
+        'v3.9.437 Regression: 0h muss die Zeile aus dayEntries (per id) entfernen'
