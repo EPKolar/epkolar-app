@@ -521,3 +521,15 @@ def test_absapprovals_merge_server_over_stale_pending():
         'v3.9.435 Regression: absApprovals-Merge (Server gewinnt ueber stale ausstehend) fehlt'
     assert "setAbsApprovals(prev=>({...apprMap,...prev}))" not in text, \
         'v3.9.435 Regression: alter prev-wins-Merge (stale ausstehend gewinnt) zurueckgekehrt'
+
+
+# ── v3.9.436: CSP frame-src/object-src erlaubt Supabase-Host (PDF-Viewer-iframe) ──
+
+def test_csp_frame_src_allows_supabase():
+    """PDF-Viewer (Dokumente/Fahrbewilligungen) laedt signierte Storage-URLs in ein iframe;
+    frame-src/object-src muessen den Supabase-Host erlauben, sonst blockiert der Browser."""
+    text = _txt()
+    assert "frame-src 'self' blob: data: https://jiggujpruejkaomgxarp.supabase.co;" in text, \
+        'v3.9.436 Regression: frame-src muss den Supabase-Host erlauben (sonst PDF-iframe blockiert)'
+    assert "object-src 'self' blob: data: https://jiggujpruejkaomgxarp.supabase.co;" in text, \
+        'v3.9.436 Regression: object-src muss den Supabase-Host erlauben'

@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.435 — Fix Phantom-"X Antraege zur Genehmigung" (stale absApprovals-Merge)
-const CACHE_NAME = "epkolar-v3.9.435";
+// EP Kolar Service Worker v3.9.436 — CSP frame-src/object-src Supabase-Host (PDF-Viewer entblockt)
+const CACHE_NAME = "epkolar-v3.9.436";
 const ASSETS = [
   './',
   './index.html'
