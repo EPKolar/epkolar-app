@@ -583,3 +583,23 @@ def test_storage_estimate_monitor_covers_indexeddb():
     # Muss im selben Intervall wie der localStorage-Check laufen.
     assert "setInterval(()=>{_checkLocalStorageQuota();_checkStorageEstimate();},LS_QUOTA_CHECK_INTERVAL_MS);" in text, \
         'v3.9.439 Regression: Estimate-Check muss im 5-min-Timer mitlaufen'
+
+
+# ── v3.9.440: Urlaubs-Bereichsantrag Overlap-Guard (#14) ──
+
+def test_abs_range_request_skips_approved_and_puts_existing():
+    """#14: submitRequest (Bereich-Antrag) darf bereits GENEHMIGTE Tage nicht antasten
+    (sonst lokaler Reset auf 'ausstehend' + 409 durch POST mit existierender id) und muss
+    fuer existierende Tage PUT statt POST nutzen — analog der _existed-Logik des Einzeltag-Toggles."""
+    text = _txt()
+    # Genehmigte Tage werden uebersprungen + gezaehlt.
+    assert 'if(_resolveAppr(k)==="genehmigt"){skipped++;continue;}' in text, \
+        'v3.9.440 Regression: genehmigte Tage muessen im Bereichsantrag uebersprungen werden'
+    # Existierender Tag -> PUT (Update) statt POST.
+    assert 'const _existed=!!(abs&&abs[k]);' in text, \
+        'v3.9.440 Regression: _existed-Check im Bereichsantrag fehlt'
+    assert 'if(_existed){SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT"' in text, \
+        'v3.9.440 Regression: existierender Tag muss via PUT aktualisiert werden (kein 409)'
+    # Skip-Zaehler wird im Erfolgs-Toast gemeldet.
+    assert 'const _skipMsg=skipped>0?" · "+skipped+" bereits genehmigt übersprungen":"";' in text, \
+        'v3.9.440 Regression: uebersprungene genehmigte Tage muessen gemeldet werden'

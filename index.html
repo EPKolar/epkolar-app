@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.439';
+  var SW_VER='epkolar-v3.9.440';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2440,7 +2440,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.439-supabase";/* v3.9.439 Quota-Monitor deckt jetzt IndexedDB ab (navigator.storage.estimate) -> "Speicher voll"-Warnung feuert vor dem echten QuotaExceededError (Offline-Foto-base64 liegt in IDB) */
+const APP_VERSION="3.9.440-supabase";/* v3.9.440 Urlaubs-Bereichsantrag: genehmigte Tage ueberspringen + existierende Tage via PUT statt POST (kein 409, kein lokaler Reset genehmigter Tage) */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -15732,19 +15732,32 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     const start=new Date(von+"T00:00:00"),end=new Date(bis+"T00:00:00");
     if(isNaN(start.getTime())||isNaN(end.getTime())){window.__toast&&window.__toast("⚠️ Ungültiges Datum","warn");return;}
     const _selWorker=(monteure||[]).find(m=>m.n===who||m.name===who);const _workerId=(_selWorker&&_selWorker.id)||who;
-    const newAbs={},newAppr={};let cnt=0;
+    const newAbs={},newAppr={};let cnt=0,skipped=0;
     for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
       const h=stdVonTag(d,_wocheOf(who));if(h<=0)continue;/* Sa/So/Feiertag = 0 Std → kein Antrag */
       const k=who+"_"+dk(d);
+      /* v3.9.440 (#14): bereits GENEHMIGTE Tage NICHT antasten. Vorher setzte der Bereichsantrag jeden
+         Tag lokal auf "ausstehend" zurueck UND POSTete mit existierender id (NAME_DATE) → 409 duplicate-key
+         (nicht-transient → nach 5 Retries verworfen + Falsch-Warnung "nicht synchronisiert"). Jetzt:
+         genehmigt = ueberspringen+zaehlen; existierender ausstehend/abgelehnt Tag = PUT (Update) statt POST
+         (spiegelt die _existed-Logik des Einzeltag-Toggles `tog`, FIFO-sicher). */
+      if(_resolveAppr(k)==="genehmigt"){skipped++;continue;}
+      const _existed=!!(abs&&abs[k]);
       newAbs[k]={type:typ,date:td2(),by:(curUser&&curUser.name)||"",hours:h};newAppr[k]="ausstehend";
-      SQ.push({url:"/api/absences",method:"POST",body:{id:k,worker_id:_workerId,type:typ,from_date:dk(d),to_date:dk(d),note:reqForm.kommentar||"",hours:h,tage:1,status:"beantragt"}});
+      if(_existed){SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{type:typ,from_date:dk(d),to_date:dk(d),note:reqForm.kommentar||"",hours:h,tage:1,status:"beantragt"}});}
+      else{SQ.push({url:"/api/absences",method:"POST",body:{id:k,worker_id:_workerId,type:typ,from_date:dk(d),to_date:dk(d),note:reqForm.kommentar||"",hours:h,tage:1,status:"beantragt"}});}
       cnt++;
     }
-    if(!cnt){window.__toast&&window.__toast("⚠️ Keine Werktage im Zeitraum (Sa/So/Feiertage zählen nicht)","warn");return;}
+    if(!cnt){
+      if(skipped>0){window.__toast&&window.__toast("⚠️ Alle "+skipped+" Werktag(e) im Zeitraum sind bereits genehmigt — nichts beantragt","warn");}
+      else{window.__toast&&window.__toast("⚠️ Keine Werktage im Zeitraum (Sa/So/Feiertage zählen nicht)","warn");}
+      return;
+    }
     setAbs(p=>({...p,...newAbs}));setApprovals(p=>({...p,...newAppr}));
     const typName=(AT_T[typ]&&AT_T[typ].l)||typ;const _tg=cnt+(cnt===1?" Tag":" Tage");
+    const _skipMsg=skipped>0?" · "+skipped+" bereits genehmigt übersprungen":"";
     pushNotif&&pushNotif("absence_new","Neuer Antrag",who+": "+typName+" "+fdt(von)+"–"+fdt(bis)+" ("+_tg+")");
-    window.__toast&&window.__toast("📤 Antrag gestellt ("+_tg+") — wartet auf Genehmigung");
+    window.__toast&&window.__toast("📤 Antrag gestellt ("+_tg+")"+_skipMsg+" — wartet auf Genehmigung");
     setReqOpen(false);setReqForm({von:td2(),bis:td2(),kommentar:""});
   };
 

@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.439 — Quota-Monitor deckt IndexedDB ab (storage.estimate)
-const CACHE_NAME = "epkolar-v3.9.439";
+// EP Kolar Service Worker v3.9.440 — Urlaubs-Bereichsantrag Overlap-Guard (genehmigte Tage schützen)
+const CACHE_NAME = "epkolar-v3.9.440";
 const ASSETS = [
   './',
   './index.html'
