@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.445 — Fahrzeug TechDaten-Textareas auto-grow
-const CACHE_NAME = "epkolar-v3.9.445";
+// EP Kolar Service Worker v3.9.446 — PDF-Preview Mobile: Gerät-Viewer statt iframe
+const CACHE_NAME = "epkolar-v3.9.446";
 const ASSETS = [
   './',
   './index.html'
