@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.455';
+  var SW_VER='epkolar-v3.9.456';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2449,7 +2449,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.455-supabase";/* v3.9.455 Schnellsuche: Fahrzeug-Treffer oeffnet jetzt das Fahrzeug-Detail direkt (window.__pendingFzSel -> FahrzeugView Mount-Effect setSel), statt nur die Liste */
+const APP_VERSION="3.9.456-supabase";/* v3.9.456 Projekte: Auftragssumme/Betrag NICHT fuer Monteure (role!=='monteur') — ProjList Liste/Karte/Summe + Grid-Spalte raus, VDash-KPI ausgeblendet; alle anderen Rollen sehen sie */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -10146,6 +10146,8 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
 function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekte,forms}){
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
+  const _seeBetrag=curUser.role!=="monteur";/* v3.9.456 (Chef): Auftragssumme/Betrag NICHT fuer Monteure sichtbar — alle anderen Rollen schon */
+  const _gridCols="2.5fr 1.2fr 1fr"+(_seeBetrag?" 80px":"")+" 50px"+(isAdmin?" 120px":"");
   const _isFieldOnly=curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur";
   if(_isFieldOnly){
     const _myProjIds=curUser.monteurId?((monteurProjekte||{})[curUser.monteurId]||[]):[];
@@ -10278,27 +10280,27 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
       )
       , React.createElement('div', { style: {display:"flex",gap:16,marginBottom:14,padding:"10px 14px",background:V.cd,borderRadius:8,border:"1px solid "+V.bd,flexWrap:"wrap",fontSize:12}}
         , React.createElement('span', { style: {color:V.dm}}, "Projekte: " , React.createElement('b', { style: {color:V.tx}}, fil.length))
-        , React.createElement('span', { style: {color:V.dm}}, "Auftragssumme: " , React.createElement('b', { style: {color:V.acTx}}, fmt$(totalBetrag)))
+        , _seeBetrag&&React.createElement('span', { style: {color:V.dm}}, "Auftragssumme: " , React.createElement('b', { style: {color:V.acTx}}, fmt$(totalBetrag)))
         , React.createElement('span', { style: {color:V.dm}}, "Stunden gesamt: "  , React.createElement('b', { style: {color:V.tx}}, _n(totalH,1), "h"))
       )
       , viewMode==="liste"?
       /* ═══ LISTE VIEW ═══ */
       React.createElement('div', { style: {borderRadius:8,border:"1px solid "+V.bd,overflow:"hidden"}}
-        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isAdmin?"2.5fr 1.2fr 1fr 80px 50px 120px":"2.5fr 1.2fr 1fr 80px 50px",gap:0,padding:"8px 12px",background:V.cd,borderBottom:"2px solid "+V.bd,fontSize:10,fontWeight:700,color:V.dm,textTransform:"uppercase",letterSpacing:.5}}
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:_gridCols,gap:0,padding:"8px 12px",background:V.cd,borderBottom:"2px solid "+V.bd,fontSize:10,fontWeight:700,color:V.dm,textTransform:"uppercase",letterSpacing:.5}}
           , React.createElement('span', {}, "Projekt")
           , React.createElement('span', {}, "Kunde / Ort")
           , React.createElement('span', {}, "Gewerk")
-          , React.createElement('span', { style: {textAlign:"right"}}, "Betrag")
+          , _seeBetrag&&React.createElement('span', { style: {textAlign:"right"}}, "Betrag")
           , React.createElement('span', { style: {textAlign:"center"}}, "%")
           , isAdmin&&React.createElement('span', { style: {textAlign:"right"}}, "Aktionen")
         )
         , fil.map((p,idx)=>{const h=hoursByProject[p.id]||0;const fPct=p.fortschritt||0;const sc=p.status==="aktiv"?"#22c55e":p.status==="abgeschlossen"?"#3b82f6":"#71717a";
-          return React.createElement('div', { key: p.id, style: {display:"grid",gridTemplateColumns:isAdmin?"2.5fr 1.2fr 1fr 80px 50px 120px":"2.5fr 1.2fr 1fr 80px 50px",gap:0,padding:"8px 12px",borderBottom:"1px solid "+V.bd,cursor:"pointer",fontSize:12,alignItems:"center",background:idx%2===0?"transparent":V.cd+"44",position:"relative",transition:"background .1s"}, onClick: ()=>onOpen(p), onMouseEnter: e=>e.currentTarget.style.background=V.ac+"0d", onMouseLeave: e=>e.currentTarget.style.background=idx%2===0?"transparent":V.cd+"44"}
+          return React.createElement('div', { key: p.id, style: {display:"grid",gridTemplateColumns:_gridCols,gap:0,padding:"8px 12px",borderBottom:"1px solid "+V.bd,cursor:"pointer",fontSize:12,alignItems:"center",background:idx%2===0?"transparent":V.cd+"44",position:"relative",transition:"background .1s"}, onClick: ()=>onOpen(p), onMouseEnter: e=>e.currentTarget.style.background=V.ac+"0d", onMouseLeave: e=>e.currentTarget.style.background=idx%2===0?"transparent":V.cd+"44"}
             , React.createElement('div', { style: {position:"absolute",left:0,top:0,bottom:0,width:3,background:sc}} )
             , React.createElement('div', { style: {minWidth:0,paddingLeft:6}}, React.createElement('div', { style: {fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, p.name), React.createElement('div', { style: {fontSize:11,color:V.dm}}, p.nr, " · " , _n(h,1), "h"))
             , React.createElement('div', { style: {fontSize:12,color:V.dm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, p.kunde||"—", " · " , p.ort||"")
             , React.createElement('div', { style: {fontSize:11,color:V.dm}}, p.gewerk||"—")
-            , React.createElement('div', { style: {textAlign:"right",fontFamily:mono,fontWeight:600,fontSize:11,color:p.betrag>0?V.ac:V.dm}}, p.betrag>0?fmt$(p.betrag):"—")
+            , _seeBetrag&&React.createElement('div', { style: {textAlign:"right",fontFamily:mono,fontWeight:600,fontSize:11,color:p.betrag>0?V.ac:V.dm}}, p.betrag>0?fmt$(p.betrag):"—")
             , React.createElement('div', { style: {textAlign:"center"}}, React.createElement('div', { style: {width:"100%",height:5,background:V.cd,borderRadius:3,overflow:"hidden"}}, React.createElement('div', { style: {width:fPct+"%",height:"100%",background:sc,borderRadius:3}} )), React.createElement('span', { style: {fontSize:9,color:V.dm}}, fPct, "%"))
             , isAdmin&&React.createElement('div', { style: {display:"flex",gap:4,justifyContent:"flex-end"}, onClick: e=>e.stopPropagation()}
               , React.createElement('button', { onClick: ()=>editProject(p), style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:isMob?13:10,minHeight:isMob?36:0,minWidth:isMob?36:0,touchAction:"manipulation"}, title: "Bearbeiten", 'aria-label': "Bearbeiten"}, "✏️")
@@ -10323,7 +10325,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
             )
             , React.createElement('div', { style: {display:"flex",gap:12,marginTop:8,fontSize:11,color:V.dm}}
               , React.createElement('span', {}, "⏱️ " , _n(h,1), "h")
-              , p.betrag>0&&React.createElement('span', {}, "💰 " , fmt$(p.betrag))
+              , _seeBetrag&&p.betrag>0&&React.createElement('span', {}, "💰 " , fmt$(p.betrag))
               , p.gewerk&&React.createElement('span', {}, "⚡ " , p.gewerk)
               , React.createElement('span', {}, "📊 " , fPct, "%")
             )
@@ -10520,7 +10522,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
         , React.createElement(Kpi, { label: "Heute", value: _n(tE.reduce((s,x)=>s+_h(x),0),1)+"h", sub: tE.length+" Buchungen", color: V.ac, i: 0} )
         , React.createElement(Kpi, { label: "KW "+kw, value: _n(we.reduce((s,x)=>s+_h(x),0),1)+"h", sub: we.length+" Buchungen", color: "#3b82f6", i: 1} )
         , React.createElement(Kpi, { label: "Gesamt Projekt" , value: _n(pe.reduce((s,x)=>s+_h(x),0),1)+"h", sub: pe.length+" Buchungen", color: _okG("#22c55e"), i: 2} )
-        , React.createElement(Kpi, { label: "Auftragssumme", value: fmt$(p.betrag), sub: p.matchcode, color: "#eab308", i: 3} )
+        , (((window._curUser&&window._curUser())||{}).role!=="monteur")&&React.createElement(Kpi, { label: "Auftragssumme", value: fmt$(p.betrag), sub: p.matchcode, color: "#eab308", i: 3} )/* v3.9.456 (Chef): Auftragssumme-KPI nicht fuer Monteure */
       )
       , React.createElement('div', { style: {display:"grid",gridTemplateColumns:ww<768?"1fr":"1fr 1fr",gap:14}}
         , React.createElement('div', { style: CC()}

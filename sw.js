@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.455 — Schnellsuche Fahrzeug-Treffer öffnet Detail direkt
-const CACHE_NAME = "epkolar-v3.9.455";
+// EP Kolar Service Worker v3.9.456 — Auftragssumme für Monteure ausgeblendet
+const CACHE_NAME = "epkolar-v3.9.456";
 const ASSETS = [
   './',
   './index.html'
