@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.463 — Ticket Audit-Trail (status_history jsonb + Timeline)
-const CACHE_NAME = "epkolar-v3.9.463";
+// EP Kolar Service Worker v3.9.464 — Mängel Bulk-Status + Bulk-Zuweisung (Aktionsleiste)
+const CACHE_NAME = "epkolar-v3.9.464";
 const ASSETS = [
   './',
   './index.html'
