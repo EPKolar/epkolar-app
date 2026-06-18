@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.458 — Krankmeldungs-Atteste privat (epkolar-docs) + Löschen
-const CACHE_NAME = "epkolar-v3.9.458";
+// EP Kolar Service Worker v3.9.459 — Büro-Portal Krankenstand: Attest ansehen (signed)
+const CACHE_NAME = "epkolar-v3.9.459";
 const ASSETS = [
   './',
   './index.html'
