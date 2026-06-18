@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.451 — Glocke-Eskalation erst nach 14 Tagen (vorher sanfte Erinnerung)
-const CACHE_NAME = "epkolar-v3.9.451";
+// EP Kolar Service Worker v3.9.452 — Tankung: km-Stand nie geringer (Override entfernt)
+const CACHE_NAME = "epkolar-v3.9.452";
 const ASSETS = [
   './',
   './index.html'
