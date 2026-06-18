@@ -623,3 +623,35 @@ def test_token_and_search_consistency():
     # Gefahrstoff-Datei-Suche: hay aus name+lieferant+notiz.
     assert 'const _hay=[f.name,f.lieferant,f.notiz].map(v=>v||"").join(" ").toLowerCase();const _toks=_q.split(/\\s+/).filter(Boolean);return _toks.every(_t=>_hay.includes(_t));' in text, \
         'v3.9.441 Regression: Gefahrstoff-Suche muss Token-AND sein'
+
+
+# ── v3.9.442: idempotenter AS-POST — ON CONFLICT(id) DO NOTHING (#17) ──
+
+def test_as_post_insert_if_absent_do_nothing():
+    """#17: Der AS-Create-POST nutzt ignore-duplicates (DO NOTHING) gegen Retry-Doppel-Insert nach
+    verlorener HTTP-Antwort. KEIN merge-duplicates (kein Overwrite, Juprowa autoritativ). Nur der
+    Arbeitsscheine-Branch ist betroffen; der generische _sbPost-Pfad bleibt fuer alle anderen Tabellen."""
+    text = _txt()
+    # (a) Helper nutzt ignore-duplicates + return=minimal, NICHT merge-duplicates.
+    assert '_sbWH("return=minimal,resolution=ignore-duplicates")' in text, \
+        'v3.9.442 Regression: _sbInsertIfAbsent muss ignore-duplicates+return=minimal nutzen'
+    assert 'async function _sbInsertIfAbsent(table,data){' in text, \
+        'v3.9.442 Regression: _sbInsertIfAbsent-Helper fehlt'
+    # AS-Branch ruft den Insert-if-absent-Helper, NICHT merge-duplicates.
+    assert 'if(table==="arbeitsscheine"){await _sbInsertIfAbsent(table,mapped);' in text, \
+        'v3.9.442 Regression: AS-POST-Branch muss _sbInsertIfAbsent nutzen'
+    assert 'resolution=merge-duplicates'+'"' not in text.split('async function _sbInsertIfAbsent')[1].split('}')[0], \
+        'v3.9.442 Regression: AS-Insert-Helper darf NICHT merge-duplicates nutzen'
+    # (b) Hard-Guard: _juprowaPush + RPC unveraendert.
+    assert "async function _juprowaPush(scheinId){" in text, \
+        'v3.9.442 Regression: _juprowaPush darf nicht entfernt/umbenannt sein'
+    assert "fetch(SB_REST+'/rpc/juprowa_push_worksheet'," in text, \
+        'v3.9.442 Regression: juprowa_push_worksheet-RPC muss unveraendert bleiben'
+    assert "_sbInsertIfAbsent" not in text.split("async function _juprowaPush")[1].split("\nasync function ")[0], \
+        'v3.9.442 Regression: _juprowaPush darf den Insert-if-absent-Helper NICHT verwenden (Hard-Guard)'
+    # (c) Generischer POST-Pfad fuer Nicht-AS-Tabellen unveraendert (_sbPost im else-Zweig).
+    assert 'else{await _sbPost(table,mapped,table==="notifications");' in text, \
+        'v3.9.442 Regression: generischer _sbPost-Pfad muss fuer andere Tabellen erhalten bleiben'
+    # (d) AS-Create-SQ.push traegt weiter eine stabile id (uid()).
+    assert 'const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});' in text, \
+        'v3.9.442 Regression: AS-Create-SQ.push muss body mit stabiler id:uid() tragen'

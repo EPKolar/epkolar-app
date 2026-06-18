@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.441 — Token-AND-Suche in Projekte/User/Tickets/Gefahrstoff
-const CACHE_NAME = "epkolar-v3.9.441";
+// EP Kolar Service Worker v3.9.442 — #17 idempotenter AS-POST (DO NOTHING gegen Retry-Duplikat)
+const CACHE_NAME = "epkolar-v3.9.442";
 const ASSETS = [
   './',
   './index.html'
