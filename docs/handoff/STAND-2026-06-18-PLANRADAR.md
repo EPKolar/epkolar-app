@@ -22,6 +22,11 @@
 - **Sticky Aktionsleiste** wenn ≥1 ausgewählt: „n ausgewählt | Status ändern▾ (`MANGEL_ST`) | Zuweisen an▾ (Monteure) | ✓ Anwenden | ✕ Abbrechen".
 - `_bulkApply`: Status via `updSt` (inkl. `_syncTicketStatus` → Ticket-Spiegel), Zuweisung via `defects`-PUT `{zugewiesen,worker}`, dann Toast + Auswahl zurücksetzen. Kein DB-Change.
 
+## Live-verifiziert (Playwright gegen `epkolar.github.io/epkolar-app`, v3.9.464, als Admin, 18.06.2026 — 0 Konsolen-Fehler)
+- **A:** Ticket „Aufzugsanschluss" (auf Plan, X:46.2%/Y:38.8%) → „📄 PDF"-Button vorhanden, Klick erzeugte **echten Download `Ticket_8neobl_2026-06-18.pdf`**; jsPDF-Pipeline-Selbsttest grün (addImage/Umlaute/splitTextToSize).
+- **B:** Status-Wechsel Erledigt→In Bearbeitung → „📋 Status-Historie (1)" erscheint mit „Erledigt → In Bearbeitung · Sebastian Günther · 18.6.2026 19:02"; Kommentare unverändert (saubere Trennung). Danach auf Erledigt zurückgesetzt.
+- **C:** „Alle"-Checkbox + Karten-Checkbox + sticky Aktionsleiste (Status/Zuweisen/Anwenden/Abbrechen); Bulk-Apply „behoben" verschob den Test-Mangel korrekt (offen 0 / behoben 1) + Auswahl zurückgesetzt. Test-Mangel danach gelöscht → Prod sauber.
+
 ## DB-Migrationen dieser Sitzung (Plugin, self-guarded, CC-Freigabe „CC führt SQL aus")
 - `absence_files.storage_path` + RLS `absence_files_own_read` (v3.9.458).
 - `tickets.status_history jsonb` (v3.9.463).
