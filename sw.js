@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.453 — Urlaub: Büro darf genehmigen (Trigger+Frontend), Monteur nicht
-const CACHE_NAME = "epkolar-v3.9.453";
+// EP Kolar Service Worker v3.9.454 — Rename Büro-Export -> Büro-Portal
+const CACHE_NAME = "epkolar-v3.9.454";
 const ASSETS = [
   './',
   './index.html'
