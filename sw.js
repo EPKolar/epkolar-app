@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.460 — Atteste: Büro-Löschen + Mitarbeiter-Detail/Profil-Sektion
-const CACHE_NAME = "epkolar-v3.9.460";
+// EP Kolar Service Worker v3.9.461 — Bautagebuch: Spracheingabe (de-AT) in allen Textfeldern
+const CACHE_NAME = "epkolar-v3.9.461";
 const ASSETS = [
   './',
   './index.html'
