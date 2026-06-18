@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.454 — Rename Büro-Export -> Büro-Portal
-const CACHE_NAME = "epkolar-v3.9.454";
+// EP Kolar Service Worker v3.9.455 — Schnellsuche Fahrzeug-Treffer öffnet Detail direkt
+const CACHE_NAME = "epkolar-v3.9.455";
 const ASSETS = [
   './',
   './index.html'
