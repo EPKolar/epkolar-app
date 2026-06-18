@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.462 — Ticket/Mangel Einzel-PDF (jsPDF, Plan-Ausschnitt+Fotos+Journal)
-const CACHE_NAME = "epkolar-v3.9.462";
+// EP Kolar Service Worker v3.9.463 — Ticket Audit-Trail (status_history jsonb + Timeline)
+const CACHE_NAME = "epkolar-v3.9.463";
 const ASSETS = [
   './',
   './index.html'
