@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.466 — WLAN-Icon viewBox-Zentrierung (Glyph mittig)
-const CACHE_NAME = "epkolar-v3.9.466";
+// EP Kolar Service Worker v3.9.467 — PlanRadar Ticket-Vorlagen (1-Klick-Prefill)
+const CACHE_NAME = "epkolar-v3.9.467";
 const ASSETS = [
   './',
   './index.html'
