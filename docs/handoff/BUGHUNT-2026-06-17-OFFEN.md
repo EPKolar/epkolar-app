@@ -13,7 +13,26 @@
 > **NEU offen (unten ergänzt):** G1 AS-Voll-Row-PUT Lost-Update, G2 focus/visibility-
 > Reload-Clobber, G3 "Heutige AS"-KPI-Status.
 
-Stand: main = origin = **v3.9.423** (war v3.9.415 bei Erstellung).
+Stand: main = origin = **v3.9.441** (war v3.9.415 bei Erstellung).
+
+> **UPDATE 3 (v3.9.437–441, „weiter was offen ist"-Lauf, Sebastian-Entscheidungen via AskUserQuestion):**
+> Erledigt+gepusht (je Commit+Triade, 957 pytest grün):
+> - **#13 (v3.9.437)** Zeiterfassung Inline „0 h" → **Eintrag LÖSCHEN** (Chef-Entscheid) statt still No-Op
+>   (DB behielt alten Wert). DELETE + entries-Prop + dayEntries, ohne Modal (800ms-Debounce schützt).
+> - **#12 (v3.9.438)** Bauwochenbericht **zählt Sonntag mit** (Chef-Entscheid): lokale 7-Tage-Woche
+>   `BWB_DAYS` nur in exportBauwochenbericht (Gather+Review+Render i<7), globale `DAYS` bleibt Mo-Sa
+>   (Matrix/Wochentabelle/Tages-Stz unberührt). Konsistent mit generateBWB.
+> - **#24 (v3.9.439)** Quota-Monitor deckt jetzt **IndexedDB** ab (`navigator.storage.estimate`,
+>   origin-weit) → „Speicher voll"-Toast feuert vor dem echten QuotaExceededError; läuft im 5-min-Timer.
+> - **#14 (v3.9.440)** Urlaubs-**Bereichsantrag Overlap-Guard**: genehmigte Tage überspringen+melden,
+>   existierende Tage via PUT statt POST (kein 409, kein lokaler Reset genehmigter Tage).
+> - **#23 (v3.9.441)** **Token-AND-Suche** jetzt auch in Projekte/User/Tickets/Gefahrstoff (wie AS/Material).
+> - **#9 Teilzeit GESCHLOSSEN** (Chef: alle Vollzeit) → 38,5h-Annahme bleibt, kein Code.
+>
+> **NOCH OFFEN (bewusst nicht autonom):** #17 POST-Sync idempotent (Sync-Kern, Risiko → braucht Go +
+> Test), #21 React-Leaks (guarded/harmlos, optional), Backend-Edge-Fns #2 supplier-sync / #3
+> admin-create-user (Deploy nötig), D) Juprowa-Encoding/Reverse-Map (Backend-Semantik bestätigen),
+> eingefroren: VOffa/ZUZEIT.ASC + FinkZeit-freigeben.
 
 > **UPDATE 2 (v3.9.419–423, „fix all bugs"-Lauf):** Autonom behoben+gepusht:
 > A1 **ocr_tankbeleg Auth+Bildlimit** (Edge-Fn fixed+LIVE deployed v5, Smoke: anon→401)
