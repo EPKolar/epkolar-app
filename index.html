@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.440';
+  var SW_VER='epkolar-v3.9.441';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2440,7 +2440,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.440-supabase";/* v3.9.440 Urlaubs-Bereichsantrag: genehmigte Tage ueberspringen + existierende Tage via PUT statt POST (kein 409, kein lokaler Reset genehmigter Tage) */
+const APP_VERSION="3.9.441-supabase";/* v3.9.441 Such-Konsistenz: Token-AND-Suche jetzt auch in Projekte/User/Tickets/Gefahrstoff (wie AS/Material) — Mehrwortsuche, keine Phantomtreffer ueber Feldgrenzen */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -8695,7 +8695,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               const ROLE_ORDER=Object.keys(ROLES);
               let filtered=users.filter(u=>{
                 if(userFilterRole!=="alle"&&u.role!==userFilterRole)return false;
-                if(userSearch){const q=userSearch.toLowerCase();if(!(u.name||"").toLowerCase().includes(q)&&!(u.username||"").toLowerCase().includes(q)&&!(u.email||"").toLowerCase().includes(q))return false;}
+                if(userSearch){const _hay=((u.name||"")+" "+(u.username||"")+" "+(u.email||"")).toLowerCase();const _toks=userSearch.toLowerCase().split(/\s+/).filter(Boolean);if(!_toks.every(_t=>_hay.includes(_t)))return false;}/* v3.9.441 (#23): Token-AND (wie AS/Material) — Mehrwortsuche + keine Phantomtreffer ueber Feldgrenzen */
                 return true;
               });
               filtered.sort((a,b)=>{
@@ -10141,7 +10141,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
 
   const fil=projects.filter(p=>{
     if(tab!=="alle" && p.status!==tab) return false;
-    if(q && !(p.name||"").toLowerCase().includes(q.toLowerCase()) && !(p.nr||"").toLowerCase().includes(q.toLowerCase()) && !(p.kunde||"").toLowerCase().includes(q.toLowerCase())) return false;
+    if(q){const _hay=((p.name||"")+" "+(p.nr||"")+" "+(p.kunde||"")).toLowerCase();const _toks=q.toLowerCase().split(/\s+/).filter(Boolean);if(!_toks.every(_t=>_hay.includes(_t)))return false;}/* v3.9.441 (#23): Token-AND ueber Name/Nr/Kunde */
     return true;
   });
   const counts=projects.reduce(function(acc,p){acc[p.status]=(acc[p.status]||0)+1;return acc;},{aktiv:0,abgeschlossen:0,archiv:0});
@@ -12337,7 +12337,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     if(filterType!=="alle"&&t.type!==filterType)return false;
     if(filterStatus!=="alle"&&t.status!==filterStatus)return false;
     if(filterLayer!=="alle"&&(t.gewerk||t.layer)!==filterLayer)return false;
-    if(_q&&!((t.title||"").toLowerCase().includes(_q)||(t.description||"").toLowerCase().includes(_q)))return false;
+    if(_q){const _hay=((t.title||"")+" "+(t.description||"")).toLowerCase();const _toks=_q.split(/\s+/).filter(Boolean);if(!_toks.every(_t=>_hay.includes(_t)))return false;}/* v3.9.441 (#23): Token-AND ueber Titel/Beschreibung */
     return true;});},[allTickets,filterType,filterStatus,filterLayer,filterSearch]);const [showSidebar,setShowSidebar]=_react.useState.call(void 0, false)/* v3.9.173: Plan volle Breite per Default — Ticket-Liste via "🎫 Ticket-Liste"-Button (drüber dem Plan) */;const [sideMode,setSideMode]=_react.useState.call(void 0, "tickets");const fileRef=_react.useRef.call(void 0, null);const isMob=ww<600;const isTab=ww<768;
   const [dropActive,setDropActive]=_react.useState.call(void 0, false);
   const [pendingPin,setPendingPin]=_react.useState.call(void 0, null);
@@ -20270,7 +20270,7 @@ function VGefahrstoff({curUser, ww}){
   const _q=(q||"").trim().toLowerCase();const searching=_q.length>0;
   const subFolders=folders.filter(f=>(f.parent_id||null)===cur);
   const subFiles=files.filter(f=>(f.folder_id||null)===cur);
-  const hits=searching?files.filter(f=>[f.name,f.lieferant,f.notiz].some(v=>(v||"").toLowerCase().includes(_q))):[];
+  const hits=searching?files.filter(f=>{const _hay=[f.name,f.lieferant,f.notiz].map(v=>v||"").join(" ").toLowerCase();const _toks=_q.split(/\s+/).filter(Boolean);return _toks.every(_t=>_hay.includes(_t));}):[];/* v3.9.441 (#23): Token-AND ueber Name/Lieferant/Notiz */
   const crumbs=nav.map((id,i)=>{const f=folders.find(x=>x.id===id);return {id:id,name:f?f.name:"…",i:i};});
   const _fmtSize=(b)=>{b=Number(b)||0;return b>1048576?(b/1048576).toFixed(1)+" MB":b>1024?Math.round(b/1024)+" KB":b+" B";};
   const _folderPath=(id)=>{const p=[];let c=id,g=0;while(c&&g++<20){const f=folders.find(x=>x.id===c);if(!f)break;p.unshift(f.name);c=f.parent_id;}return p.join(" / ");};

@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.440 — Urlaubs-Bereichsantrag Overlap-Guard (genehmigte Tage schützen)
-const CACHE_NAME = "epkolar-v3.9.440";
+// EP Kolar Service Worker v3.9.441 — Token-AND-Suche in Projekte/User/Tickets/Gefahrstoff
+const CACHE_NAME = "epkolar-v3.9.441";
 const ASSETS = [
   './',
   './index.html'

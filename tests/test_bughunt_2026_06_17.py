@@ -603,3 +603,23 @@ def test_abs_range_request_skips_approved_and_puts_existing():
     # Skip-Zaehler wird im Erfolgs-Toast gemeldet.
     assert 'const _skipMsg=skipped>0?" · "+skipped+" bereits genehmigt übersprungen":"";' in text, \
         'v3.9.440 Regression: uebersprungene genehmigte Tage muessen gemeldet werden'
+
+
+# ── v3.9.441: Token-AND-Suche in Projekte/User/Tickets/Gefahrstoff (#23) ──
+
+def test_token_and_search_consistency():
+    """#23: Mehrwort-Token-AND-Suche (alle Tokens muessen vorkommen, keine Phantomtreffer ueber
+    Feldgrenzen) jetzt auch in User/Projekte/Tickets/Gefahrstoff — vorher nur Einzel-Substring."""
+    text = _txt()
+    # User-Suche (Mitarbeiter-Anlage-Liste): hay aus name+username+email, Token-AND.
+    assert 'const _hay=((u.name||"")+" "+(u.username||"")+" "+(u.email||"")).toLowerCase();const _toks=userSearch.toLowerCase().split(/\\s+/).filter(Boolean);if(!_toks.every(_t=>_hay.includes(_t)))return false;' in text, \
+        'v3.9.441 Regression: User-Suche muss Token-AND sein'
+    # Projekt-Suche: hay aus name+nr+kunde.
+    assert 'const _hay=((p.name||"")+" "+(p.nr||"")+" "+(p.kunde||"")).toLowerCase();const _toks=q.toLowerCase().split(/\\s+/).filter(Boolean);if(!_toks.every(_t=>_hay.includes(_t)))return false;' in text, \
+        'v3.9.441 Regression: Projekt-Suche muss Token-AND sein'
+    # Ticket-Suche: hay aus title+description (Token-Var _t, kein Shadowing der Ticket-Var t).
+    assert 'const _hay=((t.title||"")+" "+(t.description||"")).toLowerCase();const _toks=_q.split(/\\s+/).filter(Boolean);if(!_toks.every(_t=>_hay.includes(_t)))return false;' in text, \
+        'v3.9.441 Regression: Ticket-Suche muss Token-AND sein'
+    # Gefahrstoff-Datei-Suche: hay aus name+lieferant+notiz.
+    assert 'const _hay=[f.name,f.lieferant,f.notiz].map(v=>v||"").join(" ").toLowerCase();const _toks=_q.split(/\\s+/).filter(Boolean);return _toks.every(_t=>_hay.includes(_t));' in text, \
+        'v3.9.441 Regression: Gefahrstoff-Suche muss Token-AND sein'
