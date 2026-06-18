@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.437 — Zeiterfassung Inline 0h => Eintrag löschen
-const CACHE_NAME = "epkolar-v3.9.437";
+// EP Kolar Service Worker v3.9.438 — Bauwochenbericht zählt Sonntag mit (lokale 7-Tage-Woche)
+const CACHE_NAME = "epkolar-v3.9.438";
 const ASSETS = [
   './',
   './index.html'

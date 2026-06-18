@@ -355,16 +355,30 @@ def test_as_signature_maps_to_real_columns():
         'v3.9.418 Regression: _mapArbeitsschein muss sigMA/sigKunde aus unterschrift_* spiegeln'
 
 
-# ── v3.9.419: BWB-Render-Loop Mo-Sa (Phantom-Sonntagszeile weg) ──
+# ── v3.9.438: BWB zaehlt Sonntag mit — lokale 7-Tage-Woche (Chef-Entscheid) ──
+# (loest v3.9.419 ab: damals Mo-Sa gegen Phantom-Sonntag; jetzt Sonntag MIT-gesammelt,
+#  daher keine leere Phantomzeile mehr, sondern eine echte 7. Zeile wie bei generateBWB.)
 
-def test_bwb_render_loop_mo_sa():
-    """Positiv: exportBauwochenbericht Render-Loop laeuft Mo-Sa (i<6), konsistent mit
-    Gather/Review-Modal/DAYS — i<7 erzeugte eine leere Sonntag-Phantomzeile."""
+def test_bwb_counts_sunday_local_seven_days():
+    """exportBauwochenbericht zaehlt den Sonntag mit (Konsistenz mit generateBWB):
+    eine LOKALE 7-Tage-Woche BWB_DAYS treibt Gather, Review-Modal UND Render (i<7).
+    Die komponentenweite DAYS bleibt Mo-Sa (Matrix/Wochentabelle/Tages-Stz unberuehrt)."""
     text = _txt()
-    assert 'for(let i=0;i<6;i++){/* v3.9.419: Mo-Sa' in text, \
-        'v3.9.419 Regression: BWB-Render-Loop muss i<6 (Mo-Sa) sein'
-    assert 'const dayIdx=i<6?i:null;' not in text, \
-        'v3.9.419 Regression: Phantom-Sonntag-Variante (dayIdx=i<6?i:null) zurueckgekehrt'
+    # Lokale 7-Tage-Woche existiert und treibt Gather + Review.
+    assert 'const BWB_DAYS=["Mo","Di","Mi","Do","Fr","Sa","So"];' in text, \
+        'v3.9.438 Regression: lokale 7-Tage-Woche BWB_DAYS fehlt'
+    assert 'BWB_DAYS.forEach((_,i)=>{' in text, \
+        'v3.9.438 Regression: Gather-Loop muss BWB_DAYS (7 Tage) nutzen'
+    assert 'const reviewRows=BWB_DAYS.map((dayName,i)=>{' in text, \
+        'v3.9.438 Regression: Review-Modal-Rows muessen BWB_DAYS nutzen'
+    # Render-Loop laeuft jetzt ueber 7 Tage.
+    assert 'for(let i=0;i<7;i++){/* v3.9.438: Mo-So' in text, \
+        'v3.9.438 Regression: BWB-Render-Loop muss i<7 (Mo-So) sein'
+    # Komponentenweite DAYS bleibt Mo-Sa (NICHT global auf 7 erweitert).
+    assert 'const DAYS=["Mo","Di","Mi","Do","Fr","Sa"];' in text, \
+        'v3.9.438 Regression: globale DAYS darf NICHT auf Sonntag erweitert worden sein'
+    assert 'for(let i=0;i<6;i++){/* v3.9.419: Mo-Sa' not in text, \
+        'v3.9.438 Regression: alter Mo-Sa-Render-Loop (i<6) darf nicht zurueckkehren'
 
 
 # ── v3.9.420: Notif-GET serverseitig auf eigene user_id filtern ──

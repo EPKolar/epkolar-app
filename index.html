@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.437';
+  var SW_VER='epkolar-v3.9.438';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -2419,7 +2419,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.437-supabase";/* v3.9.437 Zeiterfassung Inline: Stunden auf 0 korrigiert => Eintrag loeschen (statt still No-Op; DB behielt alten Wert) */
+const APP_VERSION="3.9.438-supabase";/* v3.9.438 Bauwochenbericht (exportBauwochenbericht): Sonntag zaehlt mit (lokale 7-Tage-Woche, Konsistenz mit generateBWB; globale DAYS Mo-Sa unangetastet) */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -18589,7 +18589,11 @@ ${entryRows}
     // Gather workers with hours on this project this week
     const workerHours={};
     const dayTasksByIdx={};/* v3.9.333: ein Eintrag pro Tag {0..6} mit Taetigkeit-String (default aus entries) */
-    DAYS.forEach((_,i)=>{
+    /* v3.9.438 (Chef-Entscheid): Bauwochenbericht zaehlt den Sonntag mit (Konsistenz mit Zwilling generateBWB).
+       LOKALE 7-Tage-Woche NUR fuer diesen Export — die komponentenweite DAYS (Mo-Sa) bleibt unangetastet
+       (Matrix/Wochentabelle/Tages-Stz weiter Mo-Sa). isoDate(6)/dayDate(6) liefern den Sonntag (kwMon+6). */
+    const BWB_DAYS=["Mo","Di","Mi","Do","Fr","Sa","So"];
+    BWB_DAYS.forEach((_,i)=>{
       const iso=isoDate(i);
       fieldMA.forEach(m=>{
         const mine=(entries||[]).filter(e=>{const wid=e.worker||e.w||e.worker_id||"";const dt=(e.datum||e.date||"").split("T")[0];const pid=e.project_id||e.p||e.pid||"";return wid===m.id&&dt===iso&&pid===projId;});
@@ -18608,7 +18612,7 @@ ${entryRows}
     if(window._exportReviewModal){
       const _lastNamesP=workers.map(w=>(w.name||"").split(" ").pop());
       const _wColumns=workers.map(w=>{const _ln=(w.name||"").split(" ").pop();const _lbl=_lastNamesP.filter(x=>x===_ln).length>1?(w.name||""):_ln;return {key:'w_'+w.name.replace(/[^A-Za-z0-9]/g,'_'),label:_lbl,type:'number',width:80,step:'0.5',min:0,max:24,_workerName:w.name};});
-      const reviewRows=DAYS.map((dayName,i)=>{const row={tag:dayName,datum:dateFullFmt(i),_i:i,taetigkeit:dayTasksByIdx[i]||""};_wColumns.forEach(col=>{const w=workers.find(x=>x.name===col._workerName);row[col.key]=w?(w.days[i]||0):0;});return row;});
+      const reviewRows=BWB_DAYS.map((dayName,i)=>{const row={tag:dayName,datum:dateFullFmt(i),_i:i,taetigkeit:dayTasksByIdx[i]||""};_wColumns.forEach(col=>{const w=workers.find(x=>x.name===col._workerName);row[col.key]=w?(w.days[i]||0):0;});return row;});/* v3.9.438: BWB_DAYS (7 Tage inkl. So) statt DAYS */
       const _edited=await window._exportReviewModal({
         title:"📋 Bauwochenbericht — "+(projName||"")+" — KW "+kw+"/"+yr+" — Vorschau",
         subtitle:"PA "+(projNr||"—")+" · Stunden + Taetigkeiten pro Tag korrigieren — nur Export, DB bleibt.",
@@ -18647,7 +18651,7 @@ ${entryRows}
     subCells+=`<td style="${bdr}"></td><td style="${bdr}"></td>`;
     // Day rows
     let dayRowsHtml="";
-    for(let i=0;i<6;i++){/* v3.9.419: Mo-Sa (6) wie Gather/Review-Modal/DAYS — i<7 erzeugte eine leere Sonntag-Phantomzeile (dieser BWB ist per Design Mo-Sa) */
+    for(let i=0;i<7;i++){/* v3.9.438: Mo-So (7) — Sonntag zaehlt jetzt mit (Chef-Entscheid, Konsistenz mit generateBWB). Gather/Review nutzen dieselbe lokale BWB_DAYS; kein Phantom mehr, weil der Sonntag jetzt MIT-gesammelt wird (echte Zeile wie Mo-Sa, leer nur wenn 0h — analog generateBWB.days.forEach ueber alle 7). */
       const dayIdx=i;
       const dateStr=dayIdx!==null?dateFullFmt(dayIdx):"";
       let rowSum=0;
