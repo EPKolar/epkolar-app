@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.438';
+  var SW_VER='epkolar-v3.9.439';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1706,8 +1706,29 @@ function _checkLocalStorageQuota(){
     return null;
   }
 }
-// Run check every 5 min — S5-1 (P3): Timer-ID + beforeunload cleanup
-let _lsQuotaTimer=setInterval(_checkLocalStorageQuota,LS_QUOTA_CHECK_INTERVAL_MS);
+// v3.9.439 (#24): Storage-Estimate-Monitor (IndexedDB). _checkLocalStorageQuota deckt NUR localStorage ab,
+// die Offline-Foto-base64 + Sync-Queue liegen aber in IndexedDB. navigator.storage.estimate() liefert
+// usage/quota fuer den ganzen Origin (inkl. IDB) -> proaktiver "Speicher voll"-Toast VOR dem echten
+// QuotaExceededError (vorher feuerte die Warnung bei der realen Gefahr nicht). Async, throttled 1x/h via
+// sessionStorage('seQuotaWarn'), rein additiv/best-effort (kein Fehler bricht den Tick).
+function _checkStorageEstimate(){
+  try{
+    if(!navigator.storage||typeof navigator.storage.estimate!=='function')return;
+    navigator.storage.estimate().then(est=>{
+      if(!est||!est.quota)return;
+      const pct=Math.round((est.usage/est.quota)*100);
+      if(pct>=80&&typeof window.__toast==='function'){
+        const lastWarn=parseInt(sessionStorage.getItem('seQuotaWarn')||'0');
+        if(Date.now()-lastWarn>TIME_HOUR){ // max 1x pro Stunde
+          window.__toast('💾 Gerätespeicher fast voll ('+pct+'%) — Fotos synchronisieren & Cache leeren empfohlen','warn',8000);
+          try{sessionStorage.setItem('seQuotaWarn',String(Date.now()));}catch(e){console.warn('[silent-se]',e&&e.message||e);}
+        }
+      }
+    }).catch(e=>{console.warn('[seQuota]',e&&e.message||e);});
+  }catch(e){console.warn('[seQuota-outer]',e&&e.message||e);}
+}
+// Run check every 5 min — S5-1 (P3): Timer-ID + beforeunload cleanup · v3.9.439: auch IDB-Estimate
+let _lsQuotaTimer=setInterval(()=>{_checkLocalStorageQuota();_checkStorageEstimate();},LS_QUOTA_CHECK_INTERVAL_MS);
 try{window.addEventListener("beforeunload",()=>{if(_lsQuotaTimer){clearInterval(_lsQuotaTimer);_lsQuotaTimer=null;}});}catch(e){console.warn('[lsQuota-beforeunload]',e&&e.message||e);}
 // ═══ camelCase → snake_case field mapper ═══
 function _toSnake(s){return s.replace(/[A-Z]/g,m=>'_'+m.toLowerCase());}
@@ -2419,7 +2440,7 @@ window.API = (function() {
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.438-supabase";/* v3.9.438 Bauwochenbericht (exportBauwochenbericht): Sonntag zaehlt mit (lokale 7-Tage-Woche, Konsistenz mit generateBWB; globale DAYS Mo-Sa unangetastet) */
+const APP_VERSION="3.9.439-supabase";/* v3.9.439 Quota-Monitor deckt jetzt IndexedDB ab (navigator.storage.estimate) -> "Speicher voll"-Warnung feuert vor dem echten QuotaExceededError (Offline-Foto-base64 liegt in IDB) */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -2703,6 +2724,8 @@ async function captureAndQueue(file,entityType,entityId,projectId,context){
       try{window._showToast&&window._showToast("⚠ Speicher voll — Foto konnte nicht lokal gespeichert werden. Bitte Internet-Verbindung prüfen und warten bis vorhandene Fotos synchronisiert sind.","error",8000);}catch(e){console.warn('[silent-toast]',e&&e.message||e);}
       /* v3.9.48 S33-3 F9: bei IDB-voll auch LS-Quota-Check sofort triggern (statt 5min-Intervall warten) — User könnte auch LS voll haben. sessionStorage-Reset für Re-Warn. */
       try{sessionStorage.removeItem('lsQuotaWarn');if(typeof _checkLocalStorageQuota==='function')_checkLocalStorageQuota();}catch(e){console.warn('[silent-quota]',e&&e.message||e);}
+      /* v3.9.439 (#24): IDB-voll ist genau der Fall, den der Estimate-Monitor abdeckt — sofort triggern + Re-Warn-Reset. */
+      try{sessionStorage.removeItem('seQuotaWarn');if(typeof _checkStorageEstimate==='function')_checkStorageEstimate();}catch(e){console.warn('[silent-se-quota]',e&&e.message||e);}
       return null;
     }
     // Sofort hochladen wenn online

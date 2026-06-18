@@ -563,3 +563,23 @@ def test_inline_zero_hours_deletes_entry():
         'v3.9.437 Regression: 0h muss DELETE + entries-Prop-Bereinigung ausloesen'
     assert "setDayEntries(prev=>{const c={...prev};c[iso]=(c[iso]||[]).filter(x=>(x.id||\"\")!==entry.id);return c;});" in text, \
         'v3.9.437 Regression: 0h muss die Zeile aus dayEntries (per id) entfernen'
+
+
+# ── v3.9.439: Quota-Monitor deckt IndexedDB ab (navigator.storage.estimate) ──
+
+def test_storage_estimate_monitor_covers_indexeddb():
+    """#24: Der bisherige Quota-Monitor las nur localStorage; die Offline-Foto-base64 + Sync-Queue
+    liegen in IndexedDB. _checkStorageEstimate nutzt navigator.storage.estimate() (origin-weit, inkl.
+    IDB) und warnt ab 80%, throttled 1x/h — und laeuft im selben 5-min-Timer wie der LS-Check."""
+    text = _txt()
+    assert "function _checkStorageEstimate(){" in text, \
+        'v3.9.439 Regression: _checkStorageEstimate-Funktion fehlt'
+    assert "navigator.storage.estimate().then(est=>{" in text, \
+        'v3.9.439 Regression: Estimate-Monitor muss navigator.storage.estimate() nutzen'
+    assert "const pct=Math.round((est.usage/est.quota)*100);" in text, \
+        'v3.9.439 Regression: Estimate-Auslastung (usage/quota) fehlt'
+    assert "sessionStorage.getItem('seQuotaWarn')" in text, \
+        'v3.9.439 Regression: 1x/h-Throttle (seQuotaWarn) fehlt'
+    # Muss im selben Intervall wie der localStorage-Check laufen.
+    assert "setInterval(()=>{_checkLocalStorageQuota();_checkStorageEstimate();},LS_QUOTA_CHECK_INTERVAL_MS);" in text, \
+        'v3.9.439 Regression: Estimate-Check muss im 5-min-Timer mitlaufen'

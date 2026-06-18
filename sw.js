@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.438 — Bauwochenbericht zählt Sonntag mit (lokale 7-Tage-Woche)
-const CACHE_NAME = "epkolar-v3.9.438";
+// EP Kolar Service Worker v3.9.439 — Quota-Monitor deckt IndexedDB ab (storage.estimate)
+const CACHE_NAME = "epkolar-v3.9.439";
 const ASSETS = [
   './',
   './index.html'
