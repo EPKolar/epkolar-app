@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.461 — Bautagebuch: Spracheingabe (de-AT) in allen Textfeldern
-const CACHE_NAME = "epkolar-v3.9.461";
+// EP Kolar Service Worker v3.9.462 — Ticket/Mangel Einzel-PDF (jsPDF, Plan-Ausschnitt+Fotos+Journal)
+const CACHE_NAME = "epkolar-v3.9.462";
 const ASSETS = [
   './',
   './index.html'
