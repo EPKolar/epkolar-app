@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.452 — Tankung: km-Stand nie geringer (Override entfernt)
-const CACHE_NAME = "epkolar-v3.9.452";
+// EP Kolar Service Worker v3.9.453 — Urlaub: Büro darf genehmigen (Trigger+Frontend), Monteur nicht
+const CACHE_NAME = "epkolar-v3.9.453";
 const ASSETS = [
   './',
   './index.html'
