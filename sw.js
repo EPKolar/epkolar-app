@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.464 — Mängel Bulk-Status + Bulk-Zuweisung (Aktionsleiste)
-const CACHE_NAME = "epkolar-v3.9.464";
+// EP Kolar Service Worker v3.9.465 — Header-WLAN-Icon vertikal zentriert
+const CACHE_NAME = "epkolar-v3.9.465";
 const ASSETS = [
   './',
   './index.html'
