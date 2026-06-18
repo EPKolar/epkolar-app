@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.449 — Lenkfrei VON-Uhrzeit Textfeld (analog BIS)
-const CACHE_NAME = "epkolar-v3.9.449";
+// EP Kolar Service Worker v3.9.450 — Lenkfrei Druck via iframe (Popup-blocker-frei, mobil)
+const CACHE_NAME = "epkolar-v3.9.450";
 const ASSETS = [
   './',
   './index.html'
