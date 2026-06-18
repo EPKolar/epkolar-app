@@ -31,11 +31,12 @@ Alle Befunde read-only gegen Supabase `jiggujpruejkaomgxarp` verifiziert. **Kein
 - Repo `supabase/functions`: `admin-create-user`, `ocr_tankbeleg`, **`supplier-sync`** — ebenfalls kein `sync_supplier`.
 - Die **Live**-Funktion heißt `sync_supplier` (deployed, `verify_jwt=false`), aber **ihr v3-Quellcode liegt nirgends vor** (weder Repo noch C:\temp). → Deploy einer „v3" ist ohne Quelle nicht möglich.
 - Zusätzlich: Supabase-CLI ist nicht eingeloggt (`LegacyPlatformAuthRequiredError`, kein `SUPABASE_ACCESS_TOKEN`) → CLI-Deploy generell blockiert; Alternative wäre `deploy_edge_function` via Plugin.
-- **Offene Entscheidung für Sebastian:**
-  1. Wo liegt der `sync_supplier`-v3-Quellcode? (dann nach `C:\temp\epkfn` legen + deployen — via Plugin, da CLI uneingeloggt)
-  2. ODER: meinst du die Repo-Funktion **`supplier-sync`** (gehärteter JWT-Wrapper, Stub-Sync)? Die ist eine andere Funktion.
-  3. ODER: die aktuelle Live-`sync_supplier` (funktioniert, anon-aufrufbar) bleibt — kein Deploy nötig?
-  Hinweis: Frontend ruft **keine** der beiden auf (DATANORM-Import ist clientseitig `_parseDatanormFiles`).
+- **ENTSCHEIDUNG Sebastian (18.06.2026): Option 3 — nichts deployen, Live bleibt.**
+  sync_supplier-v3-Quelle nicht auffindbar, aktuell kein Handlungsbedarf. Live-`sync_supplier`
+  (verify_jwt=false) läuft; Frontend ruft sie ohnehin nicht auf (DATANORM-Import clientseitig
+  `_parseDatanormFiles`). **Block geschlossen.** Falls künftig doch ein v3-Sync gebraucht wird:
+  Quelle nach `C:\temp\epkfn\supabase\functions\sync_supplier\` legen + via Plugin
+  `deploy_edge_function` (CLI ist uneingeloggt).
 
 ## Fazit
-Stand HEAD `35b2da5` (v3.9.460) bleibt unverändert — alle technischen Backlog-Punkte sind entweder bereits umgesetzt (1/2/3), bewusst belassen (5) oder mangels Quelle blockiert (4). Es wurden keine überflüssigen Migrationen/Commits erzeugt.
+Stand HEAD `35b2da5` (v3.9.460) bleibt unverändert — alle technischen Backlog-Punkte sind entweder bereits umgesetzt (1/2/3), bewusst belassen (5) oder per Chef-Entscheidung geschlossen (4, kein Deploy). Es wurden keine überflüssigen Migrationen/Commits erzeugt. **Backlog vollständig abgeschlossen.**
