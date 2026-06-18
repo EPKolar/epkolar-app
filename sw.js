@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.443 — Fahrzeug TechDaten textarea statt input (mehrzeilig)
-const CACHE_NAME = "epkolar-v3.9.443";
+// EP Kolar Service Worker v3.9.444 — Serviceheft-Dokumente PDF/Bild-Preview via PdfViewerModal
+const CACHE_NAME = "epkolar-v3.9.444";
 const ASSETS = [
   './',
   './index.html'
