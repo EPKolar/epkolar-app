@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.471 — Wochenplanung: "Nächste Woche"-Button + Vorausplanungs-Badge
-const CACHE_NAME = "epkolar-v3.9.471";
+// EP Kolar Service Worker v3.9.472 — Ticket-Vorlagen editierbar (system_config + Admin-Editor)
+const CACHE_NAME = "epkolar-v3.9.472";
 const ASSETS = [
   './',
   './index.html'

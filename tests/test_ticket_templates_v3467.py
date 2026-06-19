@@ -17,9 +17,11 @@ def test_apply_template_handler_defined():
 
 
 def test_template_chips_rendered_in_new_ticket_form():
-    assert "TICKET_TEMPLATES.map((tv,ti)=>React.createElement('button'" in HTML, \
+    # v3.9.472: Chips rendern jetzt aus tplList (system_config-geladen, Fallback = TICKET_TEMPLATES-Defaults)
+    assert "tplList.map((tv,ti)=>React.createElement('button'" in HTML, \
         "Vorlagen-Chips werden im Neu-Ticket-Formular nicht gerendert"
     assert "onClick: ()=>_applyTpl(tv)" in HTML
+    assert "const _saveTpl=async(arr)=>" in HTML, "Admin-Save (_saveTpl) fehlt"
 
 
 def test_template_types_and_prios_valid():
