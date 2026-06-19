@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.475 — Ticket-Zuweisungs-Benachrichtigung (ticket_assigned verdrahtet)
-const CACHE_NAME = "epkolar-v3.9.475";
+// EP Kolar Service Worker v3.9.476 — Verknüpfungen: Material/Bautagebuch/Chef-Mängel deep-linken
+const CACHE_NAME = "epkolar-v3.9.476";
 const ASSETS = [
   './',
   './index.html'
