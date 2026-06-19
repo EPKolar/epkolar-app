@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.472 — Ticket-Vorlagen editierbar (system_config + Admin-Editor)
-const CACHE_NAME = "epkolar-v3.9.472";
+// EP Kolar Service Worker v3.9.473 — Plan-Versionierung (Revision-Upload, Pin-Migration, Archiv)
+const CACHE_NAME = "epkolar-v3.9.473";
 const ASSETS = [
   './',
   './index.html'
