@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.473 — Plan-Versionierung (Revision-Upload, Pin-Migration, Archiv)
-const CACHE_NAME = "epkolar-v3.9.473";
+// EP Kolar Service Worker v3.9.474 — Chef-Portal: Mängel/Tickets-Überblick (offen + überfällig)
+const CACHE_NAME = "epkolar-v3.9.474";
 const ASSETS = [
   './',
   './index.html'
