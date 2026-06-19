@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.467 — PlanRadar Ticket-Vorlagen (1-Klick-Prefill)
-const CACHE_NAME = "epkolar-v3.9.467";
+// EP Kolar Service Worker v3.9.468 — Wochenplanung Fahrzeug-Chips kompakt (Kennzeichen + Tooltip)
+const CACHE_NAME = "epkolar-v3.9.468";
 const ASSETS = [
   './',
   './index.html'
