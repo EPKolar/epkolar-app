@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.469 — Eskalations-Automatik überfällige Tickets/Mängel (Glocke)
-const CACHE_NAME = "epkolar-v3.9.469";
+// EP Kolar Service Worker v3.9.470 — Wochenplan BVH-Name 2-zeilig (wrap statt abgeschnitten)
+const CACHE_NAME = "epkolar-v3.9.470";
 const ASSETS = [
   './',
   './index.html'
