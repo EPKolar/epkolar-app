@@ -37,7 +37,7 @@ def test_useMemo_calls_have_deps_array():
         # Forward bracket-balance
         depth = 0
         end = pos
-        for i in range(pos, min(pos + 5000, len(text))):
+        for i in range(pos, min(pos + 20000, len(text))):  # v3.9.469: Fenster 5000→20000 — große, deps-korrekte Hooks (z.B. _checkAutoNotifs [curUser]) sonst fälschlich geflaggt
             if text[i] == '(':
                 depth += 1
             elif text[i] == ')':
@@ -61,7 +61,7 @@ def test_useCallback_calls_have_deps_array():
         pos = m.start()
         depth = 0
         end = pos
-        for i in range(pos, min(pos + 5000, len(text))):
+        for i in range(pos, min(pos + 20000, len(text))):  # v3.9.469: Fenster 5000→20000 — große, deps-korrekte Hooks (z.B. _checkAutoNotifs [curUser]) sonst fälschlich geflaggt
             if text[i] == '(':
                 depth += 1
             elif text[i] == ')':

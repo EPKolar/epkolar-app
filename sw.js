@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.468 — Wochenplanung Fahrzeug-Chips kompakt (Kennzeichen + Tooltip)
-const CACHE_NAME = "epkolar-v3.9.468";
+// EP Kolar Service Worker v3.9.469 — Eskalations-Automatik überfällige Tickets/Mängel (Glocke)
+const CACHE_NAME = "epkolar-v3.9.469";
 const ASSETS = [
   './',
   './index.html'
