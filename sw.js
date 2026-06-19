@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.474 — Chef-Portal: Mängel/Tickets-Überblick (offen + überfällig)
-const CACHE_NAME = "epkolar-v3.9.474";
+// EP Kolar Service Worker v3.9.475 — Ticket-Zuweisungs-Benachrichtigung (ticket_assigned verdrahtet)
+const CACHE_NAME = "epkolar-v3.9.475";
 const ASSETS = [
   './',
   './index.html'
