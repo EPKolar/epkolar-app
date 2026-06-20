@@ -34,7 +34,7 @@ def test_dele_regie_uses_confirmmodal():
     """v3.9.8 Regression: delE (Regie-Eintrag-Löschen) muss _confirmModal verwenden."""
     text = INDEX.read_text(encoding='utf-8')
     # delE-Definition oder Aufruf + _confirmModal in Proximity
-    m = re.search(r'\bdelE\b[\s\S]{0,300}?_confirmModal\(', text)
+    m = re.search(r'\bdelE\b[\s\S]{0,800}?_confirmModal\(', text)  # v3.9.479: Fenster 300->800 (Owner-Gate vor dem Confirm eingefuegt; Confirm weiter vorhanden)
     assert m, (
         'v3.9.8 Regression: delE verwendet _confirmModal nicht in Proximity — '
         'Round-2-Migration für Regie-Delete fehlt oder zurückgerollt'

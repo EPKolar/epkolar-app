@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.478 — Bug-Hunt R2-Fixes: approveAll-Guard + push_pending-Filter
-const CACHE_NAME = "epkolar-v3.9.478";
+// EP Kolar Service Worker v3.9.479 — Bug-Hunt-Folgefixes: Formular/Regie-Löschen Owner-Gate, RLS-Label, _jp/_jo-Warn
+const CACHE_NAME = "epkolar-v3.9.479";
 const ASSETS = [
   './',
   './index.html'
