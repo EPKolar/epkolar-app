@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.479 — Bug-Hunt-Folgefixes: Formular/Regie-Löschen Owner-Gate, RLS-Label, _jp/_jo-Warn
-const CACHE_NAME = "epkolar-v3.9.479";
+// EP Kolar Service Worker v3.9.480 — Bauwochenbericht: KW absteigend + Excel-Scope-Auswahl
+const CACHE_NAME = "epkolar-v3.9.480";
 const ASSETS = [
   './',
   './index.html'

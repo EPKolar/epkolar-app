@@ -186,9 +186,10 @@ def test_generateBWB_editTaet_fallback_unchanged(index_html):
 
 
 def test_generateBWB_signature_unchanged(index_html):
-    """Anker auf die generateBWB-Signatur und Header-Konstante CF_HTML_NAME."""
-    assert "const generateBWB=(proj,useFilters)=>{" in index_html, (
-        "generateBWB-Signatur wurde geaendert — v3.9.345 darf Generator NICHT anfassen."
+    """Anker auf die generateBWB-Signatur. v3.9.480: bewusst um optionalen scopeKW-Param
+    erweitert (Excel-Scope-Auswahl) — die ersten beiden Params (proj,useFilters) unverändert."""
+    assert "const generateBWB=(proj,useFilters,scopeKW)=>{" in index_html, (
+        "generateBWB-Signatur unerwartet — erwartet (proj,useFilters,scopeKW) seit v3.9.480."
     )
 
 
