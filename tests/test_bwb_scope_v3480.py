@@ -28,3 +28,10 @@ def test_grand_total_uses_scope_entries():
 
 def test_inline_excel_button_opens_scope_modal():
     assert "await window._bwbScopeModal(_gd.kwList)" in HTML, "Inline-Excel-Button öffnet die Scope-Auswahl nicht"
+
+
+def test_scope_modal_on_both_excel_buttons_v3484():
+    # v3.9.484 (QA-Befund): Scope-Modal sowohl auf der Inline-Vorschau (7805) ALS AUCH
+    # auf dem primären Projekt-Karten-Button (8419) — vorher nur Inline.
+    assert HTML.count("window._bwbScopeModal(_gd.kwList)") >= 2, \
+        "Scope-Modal nicht auf beiden BWB-Excel-Buttons (Inline + Projekt-Karte)"

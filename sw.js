@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.483 — Wochenplanung: KW53-Navigation (jahr-aware Max-KW)
-const CACHE_NAME = "epkolar-v3.9.483";
+// EP Kolar Service Worker v3.9.484 — QA-Fix: BWB-Excel-Scope-Modal auch auf Projekt-Karten-Button
+const CACHE_NAME = "epkolar-v3.9.484";
 const ASSETS = [
   './',
   './index.html'
