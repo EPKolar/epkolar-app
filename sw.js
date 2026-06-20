@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.477 — Geplante Deaktivierung (Kündigungsfrist, login_lookup-Sperre)
-const CACHE_NAME = "epkolar-v3.9.477";
+// EP Kolar Service Worker v3.9.478 — Bug-Hunt R2-Fixes: approveAll-Guard + push_pending-Filter
+const CACHE_NAME = "epkolar-v3.9.478";
 const ASSETS = [
   './',
   './index.html'
