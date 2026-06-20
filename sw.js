@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.480 — Bauwochenbericht: KW absteigend + Excel-Scope-Auswahl
-const CACHE_NAME = "epkolar-v3.9.480";
+// EP Kolar Service Worker v3.9.481 — Projekt-Form: Baustellen-Straße zur Adresse (Straße+PLZ+Ort)
+const CACHE_NAME = "epkolar-v3.9.481";
 const ASSETS = [
   './',
   './index.html'
