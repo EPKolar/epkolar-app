@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.482 — fix 0h-Matrix-Inline (DELETE) + wpHistory-Jahr-Keying
-const CACHE_NAME = "epkolar-v3.9.482";
+// EP Kolar Service Worker v3.9.483 — Wochenplanung: KW53-Navigation (jahr-aware Max-KW)
+const CACHE_NAME = "epkolar-v3.9.483";
 const ASSETS = [
   './',
   './index.html'
