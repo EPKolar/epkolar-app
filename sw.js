@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.481 — Projekt-Form: Baustellen-Straße zur Adresse (Straße+PLZ+Ort)
-const CACHE_NAME = "epkolar-v3.9.481";
+// EP Kolar Service Worker v3.9.482 — fix 0h-Matrix-Inline (DELETE) + wpHistory-Jahr-Keying
+const CACHE_NAME = "epkolar-v3.9.482";
 const ASSETS = [
   './',
   './index.html'
