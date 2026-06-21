@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.485 — Wochenplanung Tag-Kopieren (📋 Spalten-Header + STRG+C/V)
-const CACHE_NAME = "epkolar-v3.9.485";
+// EP Kolar Service Worker v3.9.486 — WP-Auswahl-Popup Smart-Positioning (klappt nach oben wenn unten kein Platz)
+const CACHE_NAME = "epkolar-v3.9.486";
 const ASSETS = [
   './',
   './index.html'
