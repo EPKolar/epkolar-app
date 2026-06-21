@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.487 — WP-Auswahl-Popup Opazität (V.cd statt V.bg, stärkerer Shadow)
-const CACHE_NAME = "epkolar-v3.9.487";
+// EP Kolar Service Worker v3.9.488 — WP Zellen-Kopieren via Tages-Chips im cellPick-Popup
+const CACHE_NAME = "epkolar-v3.9.488";
 const ASSETS = [
   './',
   './index.html'
