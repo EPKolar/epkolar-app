@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.486 — WP-Auswahl-Popup Smart-Positioning (klappt nach oben wenn unten kein Platz)
-const CACHE_NAME = "epkolar-v3.9.486";
+// EP Kolar Service Worker v3.9.487 — WP-Auswahl-Popup Opazität (V.cd statt V.bg, stärkerer Shadow)
+const CACHE_NAME = "epkolar-v3.9.487";
 const ASSETS = [
   './',
   './index.html'
