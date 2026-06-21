@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.488 — WP Zellen-Kopieren via Tages-Chips im cellPick-Popup
-const CACHE_NAME = "epkolar-v3.9.488";
+// EP Kolar Service Worker v3.9.489 — Chef-Portal Überfällig-Kachel Deep-Link bei 1 Treffer + Filter bei >1
+const CACHE_NAME = "epkolar-v3.9.489";
 const ASSETS = [
   './',
   './index.html'
