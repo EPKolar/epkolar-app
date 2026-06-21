@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.489 — Chef-Portal Überfällig-Kachel Deep-Link bei 1 Treffer + Filter bei >1
-const CACHE_NAME = "epkolar-v3.9.489";
+// EP Kolar Service Worker v3.9.490 — WP-Bug-Hunt-Fixes: Drag-vs-Header-Hover-Conflict + Picker-Resize/Scroll-Tracking
+const CACHE_NAME = "epkolar-v3.9.490";
 const ASSETS = [
   './',
   './index.html'
