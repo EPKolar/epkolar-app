@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.484 — QA-Fix: BWB-Excel-Scope-Modal auch auf Projekt-Karten-Button
-const CACHE_NAME = "epkolar-v3.9.484";
+// EP Kolar Service Worker v3.9.485 — Wochenplanung Tag-Kopieren (📋 Spalten-Header + STRG+C/V)
+const CACHE_NAME = "epkolar-v3.9.485";
 const ASSETS = [
   './',
   './index.html'
