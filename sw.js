@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.495 — Wochenplanung "📋 Vorwoche"-Button (komplette Übernahme inkl. MA+FZ)
-const CACHE_NAME = "epkolar-v3.9.495";
+// EP Kolar Service Worker v3.9.496 — Fix-A-Erweiterung forms+defects (Merge statt Voll-Overwrite, analog v3.9.491)
+const CACHE_NAME = "epkolar-v3.9.496";
 const ASSETS = [
   './',
   './index.html'
