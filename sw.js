@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.509 — Mobile Tap-Targets in Overlay-Panels (Benachrichtigungen/Foto-Warteschlange/Sync), Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.509";
+// EP Kolar Service Worker v3.9.510 — Mobile Tap-Targets Arbeitsscheine-Kalender (Nav/Heute/View-Tabs/Such-Clear), Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.510";
 const ASSETS = [
   './',
   './index.html'
