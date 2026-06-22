@@ -1,44 +1,36 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- ⛔ DEPRECATED am 22.06.2026 — Chat-Claude Pre-Check (live, information_schema)
---    fand Spalten-/Tabellen-Mismatches die Monteure ausgesperrt hätten.
---    Verwende stattdessen: sql/RLS_WELLE_1_READY_v4.sql
---
--- Mismatches in v3 (NICHT MEHR AUSFÜHREN):
---   Block 1.3 forms          — forms.pid (real: forms.project_id);
---                             wp.monteur_id (real: wp.worker_id)
---   Block 1.4 bautagebuch    — bautagebuch.pid (real: bautagebuch.project_id);
---                             wp.monteur_id (real: wp.worker_id)
---   Block 1.5 fz_schaeden    — Tabelle existiert NICHT (gedroppt seit v3.9.427,
---                             Single-Source = fahrzeuge.schaeden jsonb)
---
--- Blöcke 0.5/1.1/1.2 sind bereits LIVE seit 12.06.2026 — der untenstehende
--- v3-Inhalt bleibt nur zur Nachvollziehbarkeit der applied-States. Apply der
--- noch-offenen Blöcke (1.3 ff.) ausschließlich via v4.
--- ═══════════════════════════════════════════════════════════════════════════
--- EPKolar RLS-Härtung Welle 1 v3 — READY-TO-EXECUTE (2026-06-12) [DEPRECATED]
+-- EPKolar RLS-Härtung Welle 1 v4 — READY-TO-EXECUTE (2026-06-22)
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- ▶ STATUS DES LIVE-APPLYS (Stand 12.06.2026 abends):
---     ✅ Block 0.5 is_hr() Bootstrap        — applied
---     ✅ Block 1.1 fahrzeuge                — applied, Snapshot 5 Zeilen
---     ✅ Block 1.2 time_entries             — applied (additiv auf bestehende
---                                              te_read/te_write Policies)
---     ⏳ Block 1.3-1.8 (forms / bautagebuch / fz_schaeden / fahrbewilligungen
---                       / anmeldungen / finkzeit) — offen, warten auf Smoke-OK.
+-- ▶ STATUS DES LIVE-APPLYS (Stand 22.06.2026):
+--     ✅ Block 0.5 is_hr() Bootstrap        — applied (12.06.2026)
+--     ✅ Block 1.1 fahrzeuge                — applied
+--     ✅ Block 1.2 time_entries             — applied
+--     ⏳ Block 1.3 forms                    — KORRIGIERT in v4, wartet auf Apply
+--     ⏳ Block 1.4 bautagebuch              — KORRIGIERT in v4, wartet auf Apply
+--     🚫 Block 1.5 fz_schaeden              — ENTFÄLLT (Tabelle existiert NICHT)
+--     ⏳ Block 1.6 fahrbewilligungen        — wartet auf Apply (Spalten OK)
+--     ⏳ Block 1.7 anmeldungen              — wartet auf Apply (Pre-Check nötig)
+--     ⏳ Block 1.8 finkzeit                 — wartet auf Apply
 --
--- ▶ KORREKTUREN gegenüber v2 (DEPRECATED):
---     1) pg_policies hat die Spalte `policyname`, NICHT `polname` (polname ist
---        nur im pg_policy-Katalog). v2 wäre überall mit 'column polname does
---        not exist' gestorben.
---     2) Doppel-Loop fuer DROP: pg_policies hat fuer INSERT-Policies qual=NULL
---        und nur with_check. Ein qual-Filter killt INSERT-Policies entweder
---        irrtuemlich (qual IS NULL) oder gar nicht. Lösung:
---          Loop 1: cmd<>'INSERT' mit qual='true'/'(true)' Filter.
---          Loop 2: cmd='INSERT' mit with_check='true'/'(true)' Filter.
---     3) is_hr() existierte in Prod NICHT (Migration v3106 lief nie). Block 0.5
---        legt sie idempotent an (CREATE OR REPLACE).
---     4) `_rls_snapshot_v3923.polname` umbenannt zu `policyname` fuer Konsistenz
---        mit pg_policies. Block 1.1+1.2 bereits live mit dieser Spalte applied.
+-- ▶ KORREKTUREN gegenüber v3 (DEPRECATED — siehe Header dort):
+--   Chat-Claude Pre-Check (live, information_schema) am 22.06.2026 ergab:
+--
+--   v3 nutzte ...                       Real (information_schema) ...
+--   ─────────────────────────────────   ─────────────────────────────────
+--   worker_projects.monteur_id          worker_projects.worker_id
+--   forms.pid                           forms.project_id
+--   bautagebuch.pid                     bautagebuch.project_id
+--   fz_schaeden (Tabelle)               EXISTIERT NICHT — Block 1.5 entfällt
+--   fahrbewilligungen.worker_id         OK ✓ unverändert
+--
+--   anmeldungen.<spalte> und finkzeit.<spalte> wurden in v4 NICHT geändert
+--   (Spaltennamen vor Apply mit information_schema-Pre-Check verifizieren).
+--
+-- ▶ HINTERGRUND zu fz_schaeden: laut v3.9.427/430 (App-Changelog) wurde der
+--   Zweitspeicher fz_schaeden-Tabelle gedropped. Single-Source ist seither das
+--   `fahrzeuge.schaeden` jsonb-Feld. Block 1.5 in v3 wäre auf eine nicht-
+--   existente Tabelle gegangen und hätte den ganzen DO-Block crashen lassen.
 --
 -- ▶ KEIN DROP von Policies wie "fahrzeuge_update_driver" — die ist additiv und
 --   bleibt. Loop droppt nur qual=true (= alle authentifizierten unrestricted).
@@ -52,25 +44,54 @@
 -- VORAB-VERIFIKATION (READ-ONLY) — pre-check VOR jedem Block
 -- ───────────────────────────────────────────────────────────────────────────
 --
--- 1) DB-Identität (Worker-Guard — angepasst auf aktuellen Stand 12.06.2026):
+-- 1) DB-Identität (Worker-Guard):
 --    SELECT count(*) FROM public.workers;            -- Erwartet: 10
---      -- 10. worker = 'mpxpwdhrht1b' Kiener Bernd (Monteur).
 --    SELECT count(*) FROM public.supplier_articles;  -- Erwartet: ~25118
 --    SELECT to_regclass('public.fahrzeuge') IS NOT NULL AS exists; -- Erwartet: t
 --
--- 2) Helper-Funktionen vorhanden:
+-- 2) v4-Spalten-Verifikation (gegen v3-Mismatches):
+--    SELECT column_name FROM information_schema.columns
+--    WHERE table_schema='public' AND table_name='worker_projects'
+--    ORDER BY ordinal_position;
+--    -- ERWARTET: id, worker_id, project_id, projects, role, assigned_at
+--    -- (NICHT: monteur_id wie in v3 angenommen)
+--
+--    SELECT column_name FROM information_schema.columns
+--    WHERE table_schema='public' AND table_name='forms'
+--    ORDER BY ordinal_position;
+--    -- ERWARTET: id, project_id, name, form_type, ...
+--    -- (NICHT: pid wie in v3 angenommen)
+--
+--    SELECT column_name FROM information_schema.columns
+--    WHERE table_schema='public' AND table_name='bautagebuch'
+--    ORDER BY ordinal_position;
+--    -- ERWARTET: id, project_id, datum, ...
+--    -- (NICHT: pid wie in v3 angenommen)
+--
+--    SELECT to_regclass('public.fz_schaeden');
+--    -- ERWARTET: NULL (Tabelle gedroppt seit v3.9.427/430 → Block 1.5 entfällt)
+--
+-- 3) Helper-Funktionen vorhanden:
 --    SELECT proname, prosecdef, provolatile
 --    FROM pg_proc WHERE proname IN ('is_hr','current_monteur_id','auth_role')
 --      AND pronamespace = 'public'::regnamespace;
 --    -- Erwartet: 3 rows, prosecdef=true, provolatile='s'.
---    -- Falls is_hr fehlt → Block 0.5 ZUERST anwenden.
 --
--- 3) Owner-Mapping pro Test-Token (manuell als jeweiliger User einloggen):
+-- 4) ID-Konsistenz-Check (KRITISCH — sonst sperren Policies Monteure aus):
+--    SELECT public.current_monteur_id() AS my_monteur_id;
+--    -- ERWARTET: text-ID wie 'w1', 'w4', 'mpxpwdhrht1b' (nicht numerisch).
+--
+--    SELECT DISTINCT worker_id FROM public.worker_projects LIMIT 5;
+--    -- ERWARTET: dieselbe text-ID-Form wie current_monteur_id().
+--    -- Falls worker_projects.worker_id numerisch/UUID ist → NICHT ANWENDEN,
+--    -- sondern Mapping-Layer in Policy ergänzen (wp.worker_id::text vs ...).
+--
+-- 5) Owner-Mapping pro Test-Token (manuell als jeweiliger User einloggen):
 --    SELECT public.current_monteur_id() AS my_monteur_id;
 --    SELECT public.is_hr()              AS am_i_hr;
 --    SELECT public.auth_role()          AS my_role;
 --
--- 4) Snapshot-Tabelle (idempotent — existiert bereits seit Block 1.1):
+-- 6) Snapshot-Tabelle (idempotent — existiert bereits seit Block 1.1):
 CREATE TABLE IF NOT EXISTS public._rls_snapshot_v3923 (
   ts timestamptz DEFAULT now(),
   tablename text,
@@ -85,7 +106,7 @@ CREATE TABLE IF NOT EXISTS public._rls_snapshot_v3923 (
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- BLOCK 0.5) is_hr() Helper-Bootstrap (idempotent)
--- STATUS: ✅ APPLIED am 12.06.2026 (vorher fehlte die Funktion in Prod).
+-- STATUS: ✅ APPLIED am 12.06.2026.
 -- ───────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.is_hr() RETURNS boolean AS $$
   SELECT EXISTS(
@@ -98,128 +119,24 @@ $$ LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public, pg_temp;
 GRANT EXECUTE ON FUNCTION public.is_hr() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_hr() TO anon;
 
--- Verify:
---   SELECT proname, prosecdef FROM pg_proc
---   WHERE proname='is_hr' AND pronamespace='public'::regnamespace;
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- BLOCK 1.1) fahrzeuge — STATUS: ✅ APPLIED am 12.06.2026. Unverändert.
+-- ───────────────────────────────────────────────────────────────────────────
+-- (kein Re-Apply nötig — Snapshot + Policies bereits in Prod)
 
 
 -- ───────────────────────────────────────────────────────────────────────────
--- BLOCK 1.1) fahrzeuge — UPDATE auf Office ODER eigenes Fahrzeug (fahrer)
--- STATUS: ✅ APPLIED am 12.06.2026. fahrzeuge_update_driver erhalten,
---         Snapshot 5 Zeilen, qual=true-Policy gedroppt.
+-- BLOCK 1.2) time_entries — STATUS: ✅ APPLIED am 12.06.2026. Unverändert.
 -- ───────────────────────────────────────────────────────────────────────────
-BEGIN;
-
-INSERT INTO public._rls_snapshot_v3923 (tablename, policyname, roles, cmd, qual, with_check, block)
-SELECT tablename, policyname, roles, cmd, qual, with_check, '1.1_fahrzeuge'
-FROM pg_policies WHERE schemaname='public' AND tablename='fahrzeuge';
-
-DO $$
-DECLARE pol RECORD;
-BEGIN
-  -- Loop 1: non-INSERT qual=true
-  FOR pol IN SELECT policyname FROM pg_policies
-    WHERE schemaname='public' AND tablename='fahrzeuge'
-      AND cmd<>'INSERT'
-      AND (qual='true' OR qual='(true)')
-      AND 'authenticated'::text = ANY(roles)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.fahrzeuge', pol.policyname);
-    RAISE NOTICE 'Dropped (qual): %', pol.policyname;
-  END LOOP;
-  -- Loop 2: INSERT with_check=true
-  FOR pol IN SELECT policyname FROM pg_policies
-    WHERE schemaname='public' AND tablename='fahrzeuge'
-      AND cmd='INSERT'
-      AND (with_check='true' OR with_check='(true)')
-      AND 'authenticated'::text = ANY(roles)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.fahrzeuge', pol.policyname);
-    RAISE NOTICE 'Dropped (with_check): %', pol.policyname;
-  END LOOP;
-END $$;
-
-CREATE POLICY fahrzeuge_select_authed ON public.fahrzeuge
-  FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY fahrzeuge_update_office_or_driver ON public.fahrzeuge
-  FOR UPDATE TO authenticated
-  USING (public.is_hr() OR fahrer = public.current_monteur_id())
-  WITH CHECK (public.is_hr() OR fahrer = public.current_monteur_id());
-
-CREATE POLICY fahrzeuge_insert_office ON public.fahrzeuge
-  FOR INSERT TO authenticated WITH CHECK (public.is_hr());
-
-CREATE POLICY fahrzeuge_delete_office ON public.fahrzeuge
-  FOR DELETE TO authenticated USING (public.is_hr());
-
-COMMIT;
-
-
--- ───────────────────────────────────────────────────────────────────────────
--- BLOCK 1.2) time_entries — WRITE auf own (worker_id) ODER Office
--- STATUS: ✅ APPLIED am 12.06.2026. Tabelle hatte BEREITS restriktive te_read /
---         te_write (is_staff() OR own); neue Policies sind ADDITIV — kein Lockout.
--- ───────────────────────────────────────────────────────────────────────────
-BEGIN;
-
-INSERT INTO public._rls_snapshot_v3923 (tablename, policyname, roles, cmd, qual, with_check, block)
-SELECT tablename, policyname, roles, cmd, qual, with_check, '1.2_time_entries'
-FROM pg_policies WHERE schemaname='public' AND tablename='time_entries';
-
-DO $$
-DECLARE pol RECORD;
-BEGIN
-  FOR pol IN SELECT policyname FROM pg_policies
-    WHERE schemaname='public' AND tablename='time_entries'
-      AND cmd<>'INSERT'
-      AND (qual='true' OR qual='(true)')
-      AND 'authenticated'::text = ANY(roles)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.time_entries', pol.policyname);
-    RAISE NOTICE 'Dropped (qual): %', pol.policyname;
-  END LOOP;
-  FOR pol IN SELECT policyname FROM pg_policies
-    WHERE schemaname='public' AND tablename='time_entries'
-      AND cmd='INSERT'
-      AND (with_check='true' OR with_check='(true)')
-      AND 'authenticated'::text = ANY(roles)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.time_entries', pol.policyname);
-    RAISE NOTICE 'Dropped (with_check): %', pol.policyname;
-  END LOOP;
-END $$;
-
-CREATE POLICY time_entries_select_authed ON public.time_entries
-  FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY time_entries_insert_own_or_office ON public.time_entries
-  FOR INSERT TO authenticated
-  WITH CHECK (public.is_hr() OR worker_id = public.current_monteur_id());
-
-CREATE POLICY time_entries_update_own_or_office ON public.time_entries
-  FOR UPDATE TO authenticated
-  USING (public.is_hr() OR worker_id = public.current_monteur_id())
-  WITH CHECK (public.is_hr() OR worker_id = public.current_monteur_id());
-
-CREATE POLICY time_entries_delete_own_or_office ON public.time_entries
-  FOR DELETE TO authenticated
-  USING (public.is_hr() OR worker_id = public.current_monteur_id());
-
-COMMIT;
+-- (kein Re-Apply nötig)
 
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- BLOCK 1.3) forms — WRITE auf Projekt-Zuweisung (worker_projects) ODER Office
--- STATUS: ⏳ OFFEN. Pre-Check column worker_projects (siehe weiter unten).
+-- STATUS: ⏳ OFFEN.
+-- v4-KORREKTUR: forms.pid → forms.project_id; wp.monteur_id → wp.worker_id.
 -- ───────────────────────────────────────────────────────────────────────────
--- PRE-CHECK (READ-ONLY):
---   SELECT column_name FROM information_schema.columns
---   WHERE table_schema='public' AND table_name='worker_projects';
---   -- Erwartet u.a.: monteur_id, project_id.
---   SELECT column_name FROM information_schema.columns
---   WHERE table_schema='public' AND table_name='forms';
---   -- Erwartet u.a.: pid (project ID).
 BEGIN;
 
 INSERT INTO public._rls_snapshot_v3923 (tablename, policyname, roles, cmd, qual, with_check, block)
@@ -257,22 +174,23 @@ CREATE POLICY forms_write_assigned_or_office ON public.forms
   USING (
     public.is_hr()
     OR EXISTS(SELECT 1 FROM public.worker_projects wp
-              WHERE wp.monteur_id = public.current_monteur_id()
-                AND wp.project_id = forms.pid)
+              WHERE wp.worker_id = public.current_monteur_id()
+                AND wp.project_id = forms.project_id)
   )
   WITH CHECK (
     public.is_hr()
     OR EXISTS(SELECT 1 FROM public.worker_projects wp
-              WHERE wp.monteur_id = public.current_monteur_id()
-                AND wp.project_id = forms.pid)
+              WHERE wp.worker_id = public.current_monteur_id()
+                AND wp.project_id = forms.project_id)
   );
 
 COMMIT;
 
 
 -- ───────────────────────────────────────────────────────────────────────────
--- BLOCK 1.4) bautagebuch — analog forms (pid join via worker_projects)
+-- BLOCK 1.4) bautagebuch — analog forms (project_id join via worker_projects)
 -- STATUS: ⏳ OFFEN.
+-- v4-KORREKTUR: bautagebuch.pid → bautagebuch.project_id; wp.monteur_id → wp.worker_id.
 -- ───────────────────────────────────────────────────────────────────────────
 BEGIN;
 
@@ -311,76 +229,37 @@ CREATE POLICY bautagebuch_write_assigned_or_office ON public.bautagebuch
   USING (
     public.is_hr()
     OR EXISTS(SELECT 1 FROM public.worker_projects wp
-              WHERE wp.monteur_id = public.current_monteur_id()
-                AND wp.project_id = bautagebuch.pid)
+              WHERE wp.worker_id = public.current_monteur_id()
+                AND wp.project_id = bautagebuch.project_id)
   )
   WITH CHECK (
     public.is_hr()
     OR EXISTS(SELECT 1 FROM public.worker_projects wp
-              WHERE wp.monteur_id = public.current_monteur_id()
-                AND wp.project_id = bautagebuch.pid)
+              WHERE wp.worker_id = public.current_monteur_id()
+                AND wp.project_id = bautagebuch.project_id)
   );
 
 COMMIT;
 
 
 -- ───────────────────────────────────────────────────────────────────────────
--- BLOCK 1.5) fz_schaeden — Schadensmeldung auf eigenes Fz ODER Office
--- STATUS: ⏳ OFFEN.
+-- BLOCK 1.5) fz_schaeden — 🚫 ENTFÄLLT (Tabelle existiert NICHT in Prod)
 -- ───────────────────────────────────────────────────────────────────────────
-BEGIN;
-
-INSERT INTO public._rls_snapshot_v3923 (tablename, policyname, roles, cmd, qual, with_check, block)
-SELECT tablename, policyname, roles, cmd, qual, with_check, '1.5_fz_schaeden'
-FROM pg_policies WHERE schemaname='public' AND tablename='fz_schaeden';
-
-DO $$
-DECLARE pol RECORD;
-BEGIN
-  FOR pol IN SELECT policyname FROM pg_policies
-    WHERE schemaname='public' AND tablename='fz_schaeden'
-      AND cmd<>'INSERT'
-      AND (qual='true' OR qual='(true)')
-      AND 'authenticated'::text = ANY(roles)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.fz_schaeden', pol.policyname);
-    RAISE NOTICE 'Dropped (qual): %', pol.policyname;
-  END LOOP;
-  FOR pol IN SELECT policyname FROM pg_policies
-    WHERE schemaname='public' AND tablename='fz_schaeden'
-      AND cmd='INSERT'
-      AND (with_check='true' OR with_check='(true)')
-      AND 'authenticated'::text = ANY(roles)
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.fz_schaeden', pol.policyname);
-    RAISE NOTICE 'Dropped (with_check): %', pol.policyname;
-  END LOOP;
-END $$;
-
-CREATE POLICY fz_schaeden_select_authed ON public.fz_schaeden
-  FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY fz_schaeden_write_owner_or_office ON public.fz_schaeden
-  FOR ALL TO authenticated
-  USING (
-    public.is_hr()
-    OR EXISTS(SELECT 1 FROM public.fahrzeuge f
-              WHERE f.id = fz_schaeden.fz_id
-                AND f.fahrer = public.current_monteur_id())
-  )
-  WITH CHECK (
-    public.is_hr()
-    OR EXISTS(SELECT 1 FROM public.fahrzeuge f
-              WHERE f.id = fz_schaeden.fz_id
-                AND f.fahrer = public.current_monteur_id())
-  );
-
-COMMIT;
+-- Hintergrund: laut App-Changelog v3.9.427 (Single-Source-Refactor) und v3.9.430
+-- wurde die fz_schaeden-Tabelle gedropped. Schaden-Daten liegen seither in
+-- fahrzeuge.schaeden (jsonb). Eine RLS-Policy auf eine nicht-existente Tabelle
+-- würde den DO-Block crashen lassen und damit den ganzen Block-1.5-Apply
+-- rollbacken. fahrzeuge selbst ist bereits durch Block 1.1 (✅ APPLIED) abgedeckt.
+--
+-- Falls jemand fz_schaeden später wieder anlegt, hier neu definieren — bis
+-- dahin: NICHT AUSFÜHREN.
+--
+-- (Block-Inhalt aus v3 bewusst entfernt.)
 
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- BLOCK 1.6) fahrbewilligungen — SELECT auf own ODER Office
--- STATUS: ⏳ OFFEN.
+-- STATUS: ⏳ OFFEN. Spalten OK (worker_id verifiziert).
 -- ───────────────────────────────────────────────────────────────────────────
 BEGIN;
 
@@ -423,9 +302,22 @@ COMMIT;
 
 
 -- ───────────────────────────────────────────────────────────────────────────
--- BLOCK 1.7) anmeldungen — analog fahrbewilligungen
+-- BLOCK 1.7) anmeldungen — own ODER Office
 -- STATUS: ⏳ OFFEN.
+-- ⚠️ PRE-CHECK PFLICHT vor Apply — Spaltenname `worker_id` in v3 angenommen,
+-- aber im v3-Codepath NICHT live-verifiziert. Falls die Tabelle stattdessen
+-- monteur_id oder workerId nutzt → analog Block 1.3/1.4-Bug.
 -- ───────────────────────────────────────────────────────────────────────────
+--
+-- PRE-CHECK (READ-ONLY):
+--   SELECT column_name FROM information_schema.columns
+--   WHERE table_schema='public' AND table_name='anmeldungen'
+--   ORDER BY ordinal_position;
+--   -- → wenn 'worker_id' vorhanden: Block wie unten anwenden.
+--   -- → wenn 'monteur_id' o.ä.: vor Apply hier `worker_id` ersetzen.
+--   -- → wenn Tabelle fehlt (NULL bei to_regclass('public.anmeldungen')):
+--      Block analog 1.5 entfernen.
+--
 BEGIN;
 
 INSERT INTO public._rls_snapshot_v3923 (tablename, policyname, roles, cmd, qual, with_check, block)
@@ -468,11 +360,16 @@ COMMIT;
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- BLOCK 1.8) finkzeit — SELECT nur Office (Standby seit 04.06.2026)
--- STATUS: ⏳ OFFEN. Hinweis: v3.10.5 P0-6 hat finkzeit u.U. BEREITS auf
---   own_or_hr eingeschraenkt (sql/migrate_finkzeit_bescheinigungen_v3109.sql).
---   Pre-Check zeigt's. Falls 'finkzeit_select_own_or_hr' bereits existiert →
---   COMMIT ohne CREATE.
+-- STATUS: ⏳ OFFEN. Keine Join-Spalten — sollte ohne weiteren Pre-Check laufen.
+-- Hinweis: v3.10.5 P0-6 hat finkzeit u.U. BEREITS auf own_or_hr eingeschraenkt
+-- (sql/migrate_finkzeit_bescheinigungen_v3109.sql). Pre-Check zeigt's. Falls
+-- 'finkzeit_select_own_or_hr' bereits existiert → COMMIT ohne CREATE.
 -- ───────────────────────────────────────────────────────────────────────────
+--
+-- PRE-CHECK:
+--   SELECT to_regclass('public.finkzeit');  -- darf nicht NULL sein
+--   SELECT policyname FROM pg_policies WHERE tablename='finkzeit';
+--
 BEGIN;
 
 INSERT INTO public._rls_snapshot_v3923 (tablename, policyname, roles, cmd, qual, with_check, block)
@@ -520,6 +417,13 @@ COMMIT;
 -- 2. Snapshot der vorherigen Policies (Rollback-Material):
 --    SELECT tablename, policyname, cmd, qual, with_check
 --    FROM public._rls_snapshot_v3923 WHERE block LIKE '1.%' ORDER BY block, policyname;
+--
+-- 3. Live-Smoke pro Block (als Monteur-Token einloggen):
+--    - 1.3: SELECT/INSERT in forms für zugewiesenes Projekt → OK; fremdes → 0/Fail
+--    - 1.4: dito für bautagebuch
+--    - 1.6: SELECT in fahrbewilligungen → nur eigene
+--    - 1.7: SELECT in anmeldungen → nur eigene
+--    - 1.8: SELECT in finkzeit → 0 als Monteur, voll als HR
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 -- ROLLBACK je Block (falls noetig)

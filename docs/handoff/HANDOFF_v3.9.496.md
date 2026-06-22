@@ -44,7 +44,7 @@
 
 | Task | Quelle | Aktion |
 |---|---|---|
-| **RLS Welle 1 Phase 2 (Blöcke 1.3-1.8)** | `sql/RLS_WELLE_1_READY_v3.sql` (existiert, idempotent, Phase 1 LIVE-Marker eingebaut) | Forms / bautagebuch / fz_schaeden / fahrbewilligungen / anmeldungen / finkzeit. Pre-Check Spaltennamen `worker_projects.{monteur_id, project_id}` + `forms.pid` + `bautagebuch.pid` vor 1.3 + 1.4. Bei „rot" Rollback via `_rls_snapshot_v3923`. |
+| **RLS Welle 1 Phase 2 (Blöcke 1.3, 1.4, 1.6, 1.7, 1.8)** | `sql/RLS_WELLE_1_READY_v4.sql` (v3 ist DEPRECATED — Spalten-Mismatch hätte Monteure ausgesperrt) | Korrigierte Spalten: `wp.worker_id`, `forms.project_id`, `bautagebuch.project_id`. Block 1.5 fz_schaeden entfällt (Tabelle existiert nicht — gedroppt seit v3.9.427). Block 1.7 anmeldungen + 1.8 finkzeit brauchen noch eigenen Pre-Check (information_schema). Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt. |
 | Riedmann-Monteur-Tankung RLS-Beweis | wartet auf Live-Setup (Live-Gerät / Live-User) | — |
 
 ### C) Wartet auf Sebastian — CLI/Deploy
@@ -74,7 +74,7 @@
 
 1. **Smoke-Test der WP-Kopier-Features (v3.9.485-488, v3.9.494, v3.9.495)** auf echtem Gerät — Tag-Kopieren-Header (📋/✂️), Zellen-Chips im Picker, „📋 Vorwoche"-Header-Button.
 2. **Smoke-Test der Cross-Device-Sync-Hardening (v3.9.491, v3.9.496)** — entries/arbeitsscheine/forms/defects offline anlegen → online → andere Geräte sollten keine Phantom-Verluste mehr sehen.
-3. **RLS Welle 1 Phase 2** ausführen, sobald Smoke-OK aus Phase 1 (Blöcke 0.5/1.1/1.2 live seit v3.9.324). SQL-File: `sql/RLS_WELLE_1_READY_v3.sql`. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt.
+3. **RLS Welle 1 Phase 2** ausführen via `sql/RLS_WELLE_1_READY_v4.sql` (v3 deprecated — Spalten-Mismatch hätte Monteure ausgesperrt; Pre-Check 22.06.2026 dokumentiert in der v4-Datei). Block 1.5 fz_schaeden entfällt (Tabelle gedroppt). Blöcke 1.7/1.8 vor Apply nochmal kurz mit information_schema-Pre-Check verifizieren. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt.
 
 ## HART NICHT ANFASSEN (unverändert)
 
