@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.494 — WP-Kopier-Bugfixes: (A) Tag-Kopieren leere Quelle skippen; (B) Zellen-Chip Source aus prev
-const CACHE_NAME = "epkolar-v3.9.494";
+// EP Kolar Service Worker v3.9.495 — Wochenplanung "📋 Vorwoche"-Button (komplette Übernahme inkl. MA+FZ)
+const CACHE_NAME = "epkolar-v3.9.495";
 const ASSETS = [
   './',
   './index.html'
