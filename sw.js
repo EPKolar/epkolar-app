@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.501 — WP Offline-Race-Schutz: dirty bleibt bis Drain, pending-SQ-Set, Offline-Skip
-const CACHE_NAME = "epkolar-v3.9.501";
+// EP Kolar Service Worker v3.9.502 — KRITISCH: weekplan_rows.z JSONB-Doppel-Serialisierung gefixt (z war als String in JSONB-Spalte → verschwand)
+const CACHE_NAME = "epkolar-v3.9.502";
 const ASSETS = [
   './',
   './index.html'
