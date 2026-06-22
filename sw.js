@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.510 — Mobile Tap-Targets Arbeitsscheine-Kalender (Nav/Heute/View-Tabs/Such-Clear), Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.510";
+// EP Kolar Service Worker v3.9.511 — Mobile Tap-Targets Zeiterfassung (KW-Nav/Filter-Pills/Per-Eintrag-Buttons), Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.511";
 const ASSETS = [
   './',
   './index.html'
