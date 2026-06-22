@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.490 — WP-Bug-Hunt-Fixes: Drag-vs-Header-Hover-Conflict + Picker-Resize/Scroll-Tracking
-const CACHE_NAME = "epkolar-v3.9.490";
+// EP Kolar Service Worker v3.9.491 — Fix-A-Erweiterung: Server-Pull-Merge für entries+arbeitsscheine (analog v3.9.349 Tickets/Plans)
+const CACHE_NAME = "epkolar-v3.9.491";
 const ASSETS = [
   './',
   './index.html'
