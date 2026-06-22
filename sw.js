@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.503 — WP Mobile Tages-Karten-Ansicht (<600px): Tages-Tabs + BVH-Cards; Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.503";
+// EP Kolar Service Worker v3.9.504 — MA-Übersicht Mobile Tages-Karten (<600px): selDay-Tabs + MA-Cards; Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.504";
 const ASSETS = [
   './',
   './index.html'
