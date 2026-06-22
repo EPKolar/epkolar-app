@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.491 — Fix-A-Erweiterung: Server-Pull-Merge für entries+arbeitsscheine (analog v3.9.349 Tickets/Plans)
-const CACHE_NAME = "epkolar-v3.9.491";
+// EP Kolar Service Worker v3.9.492 — Dashboard-Phantom-Urlaubsantrag-Fix (pendingAbs filtert Datum + stale Approvals)
+const CACHE_NAME = "epkolar-v3.9.492";
 const ASSETS = [
   './',
   './index.html'
