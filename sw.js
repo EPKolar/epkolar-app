@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.502 — KRITISCH: weekplan_rows.z JSONB-Doppel-Serialisierung gefixt (z war als String in JSONB-Spalte → verschwand)
-const CACHE_NAME = "epkolar-v3.9.502";
+// EP Kolar Service Worker v3.9.503 — WP Mobile Tages-Karten-Ansicht (<600px): Tages-Tabs + BVH-Cards; Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.503";
 const ASSETS = [
   './',
   './index.html'
