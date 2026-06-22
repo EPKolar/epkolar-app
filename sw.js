@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.506 — WP-Footer Mobile (<600px): Excel/PDF 50/50 Grid + Counter eigene Zeile; Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.506";
+// EP Kolar Service Worker v3.9.507 — WP-Header KW-Nav Mobile: ◀/▶/savedKws-Buttons mit Tap-Targets ≥36px
+const CACHE_NAME = "epkolar-v3.9.507";
 const ASSETS = [
   './',
   './index.html'
