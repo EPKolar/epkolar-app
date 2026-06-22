@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.492 — Dashboard-Phantom-Urlaubsantrag-Fix (pendingAbs filtert Datum + stale Approvals)
-const CACHE_NAME = "epkolar-v3.9.492";
+// EP Kolar Service Worker v3.9.493 — Urlaubs-Notif Massenversand-Fix (approve/reject nur an Antragsteller)
+const CACHE_NAME = "epkolar-v3.9.493";
 const ASSETS = [
   './',
   './index.html'
