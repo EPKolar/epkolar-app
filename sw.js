@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.493 — Urlaubs-Notif Massenversand-Fix (approve/reject nur an Antragsteller)
-const CACHE_NAME = "epkolar-v3.9.493";
+// EP Kolar Service Worker v3.9.494 — WP-Kopier-Bugfixes: (A) Tag-Kopieren leere Quelle skippen; (B) Zellen-Chip Source aus prev
+const CACHE_NAME = "epkolar-v3.9.494";
 const ASSETS = [
   './',
   './index.html'
