@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.511 — Mobile Tap-Targets Zeiterfassung (KW-Nav/Filter-Pills/Per-Eintrag-Buttons), Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.511";
+// EP Kolar Service Worker v3.9.512 — Mobile Tap-Targets Datenblatt-Ordner & Unterschrift-Pad, Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.512";
 const ASSETS = [
   './',
   './index.html'
