@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.504 — MA-Übersicht Mobile Tages-Karten (<600px): selDay-Tabs + MA-Cards; Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.504";
+// EP Kolar Service Worker v3.9.505 — Spezialfahrzeuge-Übersicht Mobile (<600px): Card-Liste pro selDay; Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.505";
 const ASSETS = [
   './',
   './index.html'
