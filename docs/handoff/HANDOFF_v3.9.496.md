@@ -57,7 +57,6 @@
 
 | Task | Input | Quelle |
 |---|---|---|
-| **ocr_tankbeleg Datum-Parser** | echter OCR-rawText eines fehlerhaft geparsten Tank-Belegs | Sebastian sammelt Belege; Edge-Function-Source `supabase/functions/ocr_tankbeleg/` |
 | **Rotes SERVER-Banner mobil** | Sebastians Beobachtung an einem Test-Handy | Visual-QA |
 
 ### E) Bewusst deferred / als P3 verworfen
@@ -66,23 +65,16 @@
 - `delWzPhoto canDo`-Inkonsistenz — `isVAdmin`-Hard-Check vorhanden, nur stilistisch (Welle 2 verworfen).
 - Bug-Hunt-Findings P3 aus Welle 1/3 (viewport-resize-tracking P2 ist via v3.9.490 schon gefixt; rest theoretische Edge-Cases).
 
+## Diese Session — bereits erledigt (auch außerhalb des Code)
+
+- **9 stale `absence_approval`-Notifs in Prod-DB gelöscht** — Sebastian hat die in `v3.9.493` aufgelistete `DELETE FROM notifications WHERE id IN (...)`-Anweisung im Supabase-SQL-Editor ausgeführt (DELETE 9 Success). Damit ist die Folge des Pre-v3.9.493-Massenversands aus dem System raus; v3.9.493-Code-Fix verhindert die Wieder-Entstehung.
+- **ocr_tankbeleg Datum-Parser DONE** — Sebastian hat live mit echtem Beleg gescannt und verifiziert.
+
 ## Nächste konkrete Schritte für Sebastian
 
 1. **Smoke-Test der WP-Kopier-Features (v3.9.485-488, v3.9.494, v3.9.495)** auf echtem Gerät — Tag-Kopieren-Header (📋/✂️), Zellen-Chips im Picker, „📋 Vorwoche"-Header-Button.
 2. **Smoke-Test der Cross-Device-Sync-Hardening (v3.9.491, v3.9.496)** — entries/arbeitsscheine/forms/defects offline anlegen → online → andere Geräte sollten keine Phantom-Verluste mehr sehen.
 3. **RLS Welle 1 Phase 2** ausführen, sobald Smoke-OK aus Phase 1 (Blöcke 0.5/1.1/1.2 live seit v3.9.324). SQL-File: `sql/RLS_WELLE_1_READY_v3.sql`. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt.
-4. **9 verbleibende `absence_approval`-Notifs in der DB löschen** (Sebastian-Bug aus v3.9.493 — v3.9.493-Fix verhindert nur Neue):
-   ```sql
-   DELETE FROM notifications
-   WHERE id IN (
-     'n_u1_absence_approval_nqx4cs','n_u2_absence_approval_nqx4cs',
-     'n_u3_absence_approval_nqx4cs','n_u5_absence_approval_nqx4cs',
-     'n_u6_absence_approval_nqx4cs','n_u7_absence_approval_nqx4cs',
-     'n_u8_absence_approval_nqx4cs','n_u9_absence_approval_nqx4cs',
-     'n_mpxpys5iekd5_absence_approval_nqx4cs'
-   );
-   -- Erwartet: DELETE 9
-   ```
 
 ## HART NICHT ANFASSEN (unverändert)
 
