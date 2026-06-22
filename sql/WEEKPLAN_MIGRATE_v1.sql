@@ -75,7 +75,7 @@ SELECT
   e.row_id_text,
   e.year,
   e.week,
-  (e.ord - 1)::int           AS sort_order,                  -- 0-basiert
+  ((e.ord - 1) * 10)::int    AS sort_order,                  -- × 10 für Lücken-Toleranz (Einschübe)
   COALESCE(e.elem->>'bvh', ''),
   COALESCE(e.elem->>'projId', ''),
   COALESCE(e.elem->>'bem', ''),
