@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.508 — VBautag Mobile: Form-Actions column + Card-Header column + Edit/Delete Tap-Targets ≥40px mit Labels
-const CACHE_NAME = "epkolar-v3.9.508";
+// EP Kolar Service Worker v3.9.509 — Mobile Tap-Targets in Overlay-Panels (Benachrichtigungen/Foto-Warteschlange/Sync), Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.509";
 const ASSETS = [
   './',
   './index.html'
