@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.512 — Mobile Tap-Targets Datenblatt-Ordner & Unterschrift-Pad, Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.512";
+// EP Kolar Service Worker v3.9.513 — Mobile Tap-Targets Urlaub/Abwesenheit (Genehmigungs-Buttons), Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.513";
 const ASSETS = [
   './',
   './index.html'
