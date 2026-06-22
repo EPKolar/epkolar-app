@@ -12,7 +12,7 @@
 <script>
 /* ═══ EP KOLAR SELF-HEAL v1: Nuke stale SW cache ═══ */
 (function(){
-  var SW_VER='epkolar-v3.9.497';
+  var SW_VER='epkolar-v3.9.500';
   /* v3.8.62 Bug-1 Fix: SW_VER ins window-scope damit React-Update-Banner darauf zugreifen kann.
      Ohne window-Expose war SW_VER nur IIFE-scoped, window.SW_VER === undefined → React-Check
      `localStorage.epk_sw_ver !== window.SW_VER` immer true → Banner persistent. */
@@ -1975,6 +1975,7 @@ const ROUTE_MAP={
   "plans":["plans","plans"],
   "tickets":["tickets","tickets"],
   "weekplans":["weekplans","weekplans"],
+  "weekplan-rows":["weekplan-rows","weekplan_rows"],/* v3.9.500: Zeilen-Level-Storage für Multi-User-Sync */
   "finkzeit":["finkzeit","finkzeit"],
   "project-documents":["project-documents","project_documents"],
   "project-folders":["project-folders","project_folders"],
@@ -2235,7 +2236,7 @@ async function _translateAndExec(url,method,body){
     body=d;
   }
 
-  // Weekplans: special upsert with composite key
+  // Weekplans: special upsert with composite key (LEGACY — v3.9.500 ersetzt durch weekplan-rows)
   if(resource==="weekplans"&&method==="POST"){
     const d={...body};
     const data=typeof d.data==='string'?d.data:JSON.stringify(d.data||[]);
@@ -2246,6 +2247,35 @@ async function _translateAndExec(url,method,body){
     // Handle 'rows' field (frontend sends {kw, year, rows})
     if(d.rows){mapped.data=typeof d.rows==='string'?d.rows:JSON.stringify(d.rows);}
     await _sbUpsert("weekplans",mapped);
+    return{ok:1};
+  }
+  /* v3.9.500: weekplan-rows — Zeilen-Level-Storage für Multi-User-Sync.
+     POST = Upsert pro Zeile (Conflict auf row_id). DELETE = single row by row_id. */
+  if(resource==="weekplan-rows"&&method==="POST"&&body){
+    const _mapWpr=(r)=>({
+      row_id:String(r.row_id||r.id||''),
+      year:parseInt(r.year||0,10),
+      week:parseInt(r.week||r.kw||0,10),
+      sort_order:parseInt(r.sort_order||0,10),
+      bvh:r.bvh||'',
+      proj_id:r.proj_id||r.projId||'',
+      bem:r.bem||'',
+      z:typeof r.z==='string'?r.z:JSON.stringify(r.z||{}),
+      updated_by:r.updated_by||''
+    });
+    if(Array.isArray(body)||Array.isArray(body.items)){
+      const arr=Array.isArray(body)?body:body.items;
+      const mapped=arr.map(_mapWpr).filter(m=>m.row_id);
+      if(mapped.length)await _sbUpsert("weekplan_rows",mapped,true);
+    }else{
+      const m=_mapWpr(body);
+      if(m.row_id)await _sbUpsert("weekplan_rows",m);
+    }
+    return{ok:1};
+  }
+  if(resource==="weekplan-rows"&&method==="DELETE"&&idOrSub){
+    const _dResp=await _authRetry(()=>fetch(SB_REST+"/weekplan_rows?row_id=eq."+encodeURIComponent(idOrSub),_fT({method:"DELETE",headers:_sbH()})));
+    if(_dResp&&!_dResp.ok){const _et=await _dResp.text().catch(()=>"");console.warn("[api] weekplan-rows DELETE failed",_dResp.status,_et.slice(0,200));throw new Error("HTTP"+_dResp.status+" "+_et.slice(0,200));}
     return{ok:1};
   }
 
@@ -2454,13 +2484,14 @@ window.API = (function() {
     getTickets: function(pid) { return pid?_sbGet("tickets","project_id=eq."+encodeURIComponent(pid)):_sbGet("tickets"); },
     getChecklists: function(pid) { return pid?_sbGet("checklists","project_id=eq."+encodeURIComponent(pid)):_sbGet("checklists"); },
     getWeekplans: function() { return _sbGet("weekplans"); },
+    getWeekplanRows: function() { return _sbGet("weekplan_rows","order=year.desc,week.desc,sort_order.asc"); },/* v3.9.500 — _sbGet setzt default limit=5000 */
   };
 })();
 
 "use strict";const _jsxFileName = "";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }var _react = require('react');
 
 // ═══ VERSION & ERROR HANDLING ═══
-const APP_VERSION="3.9.497-supabase";/* v3.9.497 Alert-Detail-Panel sichtbar (Home-Dashboard): aufgeklappte Alert-Details (Z.9852) waren quasi unsichtbar — background nur color+"08" (3% Alpha), Border color+"22" (13%), Listentext komplett in Alert-Rot ohne Abgrenzung. Fix: (a) Panel-Background _dark? color+"1a":color+"12" (10%/7%), Border color+"55" (33%), zusätzlicher 4px borderLeft als Akzent, borderRadius 10, padding 12/16, boxShadow 0 4px 16px color+"22"; (b) Listeneinträge — Text auf V.tx (normale Lesefarbe), nur farbiger Bullet "●" links, dünner color+"15"-Trennstrich zwischen Einträgen, flex-Layout mit gap:8. Sebastian-Befund. | v3.9.496 Fix-A-Erweiterung forms+defects (analog v3.9.491 für entries+arbeitsscheine, v3.9.349 für tickets+plans): Server-Pull-Merge auch für forms (7 Kategorien: regie/sf/dh/ah/maengel/abnahme/checklisten) und defects (in forms.maengel gepullt). Voll-Overwrite-Pattern vorher (Z.5487 setForms(prev=>{...prev,...grouped}), Z.5492 setForms(prev=>{...prev,maengel:def.map(_mapDefect)})) löschte lokal-pending POST-Forms/-Maengel wenn Server-Pull vor SyncQueue-Drain passierte. 4 neue Pending-Sets _v496PendingForm{Posts,Deletes} + _v496PendingDefect{Posts,Deletes}. Pro Forms-Kategorie wird Server-Stand gefiltert (DELETEs raus) und mit lokal-pending POSTs aus prev[cat] ergänzt (nur wenn id NICHT im Server-Set). Plus CLAUDE.md im Repo-Root für Klärung Repo-Pfad-Mapping (Z: hier, T: bei Sebastian-Desktop, beide → \\srvdc02\Projekte). | v3.9.495 Wochenplanung "Vorwoche übernehmen" — neuer Button "📋 Vorwoche" im Header (immer sichtbar für Admin/PL), kopiert die KOMPLETTE Vorwoche inkl. MA+FZ-Belegungen pro Tag in die aktuelle KW (im Gegensatz zum bestehenden Vorlage-📋-Button Z.15822/copyWeek der nur BVH/projId/bem übernimmt + z-Daten leert). Edge-Case: kw===1 → Vorjahr KW52/53 via _getMaxKW(yr-1). Confirm-Dialog wenn aktuelle KW nicht leer (_wpWeekHasContent + _confirmModal danger). Toast "Vorwoche ist leer" wenn nichts zu kopieren. Persistenz via setRows → Auto-Save-Debounce 800ms. _wpKey/_wpGet sind year-Closure-fest (Z.15410-11), für Vorjahr-Key direkt prevYr+'-'+prevKw konstruiert + Fallback auf Legacy-Bloß-KW-Key wenn gleichjährig. Helpers _wpWeekHasContent, _wpLoadPrevWeek, _wpCopyFromPrevWeek im AbsView nicht weiter rauskoppelbar. Kein DB-Change, kein neuer REST-Pfad. | v3.9.494 WP-Kopier-Bugfixes (2 P1): (A) _wpPasteDay (Tag-Kopieren v3.9.485) mappte prev.map über ALLE Rows + setzte r.z[targetDay] auf {ma,fz} aus Quelle — auch wenn Quelle leer war. Folge: Zielspalte in Zeilen mit leerer Quelle wurde destruktiv auf {} überschrieben (bestehende Ziel-Einträge gelöscht). Fix: srcHas-Guard mit return r früh; nur Zeilen mit befüllter Quelle bekommen Ziel-Cell ersetzt. (B) Zellen-Kopier-Chip (v3.9.488) onClick-Handler las _cpSrc aus Render-Closure — bei schnellen Klick-Klicks vor Re-Render war _cpSrc stale, kopierte alten Stand statt aktuellen. Fix: Source im setRows-Callback aus prev.find(rowId) → _sRow.z[_cpSrcDay] frisch lesen. Kein State-Add, kein DB-Change. | v3.9.493 Urlaubs-Notif Massenversand-Fix (Sebastian-Bug "Günther 4.6 kommt immer wieder"): approve/reject/approveAll in AbsView (Z.16206/16207/16224) feuerten pushNotif("absence_approval",…) OHNE targetUsers-Parameter → Default in pushNotif Z.5759 ist `users.filter(absence_approval=true)` = alle Field-User (Z.5270/5291 setzt Default-true für Monteur/Helfer/Techniker/Obermonteur). Folge: pro Genehmigung/Ablehnung wurden 9 identische Notifs erzeugt (1 pro User-ID). IDB-Verify bei Sebastian: 9× "Günther: 4.6.2026 abgelehnt" mit user=u1/u2/u3/u5/u6/u7/u8/u9/mpxpys5iekd5. Fix: neuer `_absTargetUid(name)`-Helper resolvet Worker-Name → monteure.find(n===name) → window._allUsers.find(monteurId===workerId) → [userId]; pushNotif erhält jetzt nur den Antragsteller. v3.9.492 Phantom-Datum-Filter (pendingAbs) bleibt drin — adressierte aber das falsche Symptom (allAusstehendCount=0 in Sebastian's State, v3.9.492 ohne Wirkung in seinem Fall). Bestehende 9 Notifs in IDB bleiben — Sebastian muss sie via Glocken-Panel löschen (v3.9.272 dismissed-Gedächtnis verhindert Wiedererscheinen). | v3.9.492 Dashboard-Phantom-Urlaubsantrag (Sebastian-Bug "4.6 Günther kommt immer wieder"): pendingAbs Z.9718 zählte nur Status==='ausstehend' OHNE Datum-Check OHNE Existenz-Check auf abs[k]. Folge: Antrag für 04.06.2026 (vergangen) erschien dauerhaft in der "X Abwesenheitsanträge warten"-Notif + Mitarbeiter-Karte "ausstehend"-Badge. Auch stale absApprovals[k]='ausstehend' Einträge ohne backing-Antrag in abs (Server-deleted) blieben gezählt. Fix: pendingAbs filtert jetzt (1) absApprovals[k]==='ausstehend', (2) abs[k] existiert wenn Daten geladen, (3) abs[k].date >= heute (td2). Defensive fallback: bei Object.keys(abs).length===0 (Daten noch ladend) zähle weiter, damit Notif nicht 0-Phantom-blinkt während Boot. Propagiert in alle 3 Stellen (Notif-Alert, Mitarbeiter-Karten-Sub, Dashboard-Bereich) weil pendingAbs Single-Source ist. Kein DB-Change. | v3.9.491 Fix-A-Erweiterung (DIAGNOSE_TICKET_VERLUST.md): Server-Pull-Merge ebenfalls für entries (time_entries) + arbeitsscheine — analog zu v3.9.349-Pattern für tickets/plans. Voll-Overwrite-Pattern vorher (setEntries Z.5486, setArbeitsscheine Z.5502) löschte lokal-pending POST-Einträge wenn Server-Pull vor SyncQueue-Drain passierte (offline-erstellte Zeitbuchungen / Arbeitsscheine "verschwanden" nach Online-Wechsel). Jetzt: 4 neue Pending-Sets (_v491PendingEntry{Posts,Deletes}, _v491PendingAs{Posts,Deletes}); Server-Stand minus pending DELETEs; lokale prev-Einträge bleiben wenn id NICHT im Server-Set UND pending POST in SQ existiert. SQ-Scan + alle 8 Sets (tickets/plans/entries/arbeitsscheine) jetzt VOR jedem set*-Call positioniert (vorher lag der Scan NACH setEntries → Sets noch leer beim Merge-Verwendungs-Zeitpunkt). PUT-Pattern (nicht-POST/-DELETE) unverändert: Server-PUT-Returns überschreiben weiterhin, was korrekt ist da letzte-write-wins auf Backend-Seite. Kein DB-Change, kein neuer REST-Pfad. Forms/Defects bleiben vorerst Voll-Overwrite (separater Auftrag). | v3.9.490 WP-Bug-Hunt-Fixes: (1) Spalten-Header onMouseEnter setzte hoverDay AUCH während aktiver Cell-Drag-Selektion — User konnte mit STRG+C mitten in einer Multi-Day-Auswahl unbeabsichtigt den Tag-Kopier-Modus auslösen. Jetzt Guard `if(!dragRef.current.active)`. (2) Picker-Smart-Positioning hatte kein resize/scroll-Listener — User-Resize/Scroll während Picker offen ließ cellPickPos veraltet zurück. Jetzt zusätzlicher useEffect mit window.resize+scroll-Listener während cellPick aktiv, ruft extrahierten `_wpMeasurePopup` useCallback erneut auf. Bug-Hunt-Vorlauf hatte 12 Befunde, davon waren #1 (__asOpenId 2. Klick) unecht weil AsView re-mountet bei Nav (verifiziert Z.6565 conditional render), #10 (isAdmin in v3.9.488) mitigiert durch impliziten cellPick-Guard seit v3.9.354, #11 (rows in deps) unecht weil Closure-Snapshot tatsächlich nötig; #3/#5/#6/#7/#8/#9/#12 als P3/Tradeoff bewertet. | v3.9.489 Chef-Portal Überfällig-Kachel Deep-Link: bisher öffnete die "🔴 kritisch"-Kachel nur die unfilterte AS-Voll-Liste — User musste den überfälligen Schein selbst aus z.B. 50 offenen heraussuchen. Jetzt: bei genau 1 überfälligen AS Deep-Link direkt zum Edit-Formular via neuem window.__asOpenId-Mechanismus (Pattern analog __asFilter, useEffect im AsView auf arbeitsscheine deps); bei >1 überfälligen setzt der Klick __asFilter='offen_bearb' (gefilterte Liste statt voll). Datenpfad: ueberfaellige .length-Counter refactored zu _ueberfaelligeArr-Array + .length-API-kompat-Variable (trend/sub/color unverändert). Kein DB-Change. | v3.9.488 WP Zellen-Kopieren via Tages-Chips im Picker: Innerhalb des cellPick-Popups (direkt vor ✕-Schließen) neuer Block "📋 [SrcTag] auf weitere Tage kopieren:" + 5 Chips (Mo..Sa minus Quelle). Orange Chip + ⚠️ wenn Ziel-Tag bereits MA/FZ-Inhalt hat (visueller Hinweis, kein Confirm). Klick auf Chip kopiert r.z[srcDay] → r.z[tgtDay] für GENAU diese eine Zeile (rowId aus cellPick), Picker bleibt offen für Multi-Paste. Quelle = cellPick.days[0] (Single-Click oder erster Tag bei Drag-Multi-Tag). _bem-Modus ausgeklammert. Persistenz via setRows → Auto-Save-Debounce 800ms (kein REST-Pfad, kein DB-Change). Kein neuer State, kein Drag-Konflikt (Drag-Logik unverändert). isAdmin-gegated implizit (cellPick wird ohnehin nur für Admin/PL gesetzt seit v3.9.354). | v3.9.487 WP-Auswahl-Popup Opazität: Background V.bg → V.cd (Card-Token #1c1f2e dark / #fff light — kontrastreicher als bg, klar opak); boxShadow alpha .25 → .8 (8px→32px Streuung) für deutlichere Abhebung gegen Tabellen-Hintergrund; borderRadius 8→12. Beobachtung Sebastian: Picker wirkte transparent obwohl V.bg opak war — Ursache war zu schwacher Shadow + zu niedriger Kontrast Bg vs. Page-Bg (beide dark-Mode-Hex aus selber Familie). | v3.9.486 WP-Auswahl-Popup Smart-Positioning: cellPick-Popup (MA-/FZ-Picker beim Cell-Klick/Drag) wechselte vorher position:absolute mit top:"100%" (immer nach unten) → bei Zeilen am unteren Tabellenrand/Viewport-Boden wurde der Popup-Inhalt + ✕-Schließen-Button abgeschnitten. Jetzt: position:"fixed" + useLayoutEffect misst Popup + Parent-<td>-Rect bei jedem cellPick-Wechsel, klappt nach oben wenn spaceBelow<popupH+20 (und genug Platz oben), horizontal-Clamp gegen rechten Viewport-Rand. visibility:hidden bis gemessen → kein Flash. zIndex 50→9999. maxHeight:calc(100vh-16px)+overflowY:auto als Reserve falls Popup höher als Viewport. Neuer Ref _wpPopupRef + State cellPickPos. | v3.9.485 Wochenplanung Tag-Kopieren — 📋 Icon in jedem Spalten-Header der Planungs-Tabelle (DSHORT-Mo…Sa). Klick auf 📋 = Quelle setzen, dann Spalten-Header eines anderen Tages = Paste (blauer Highlight Quelle / grüner Highlight mögliche Ziele). Bei nicht-leerem Ziel _confirmModal(danger). STRG+C/V als Tastatur-Shortcut wenn Maus über einem Spalten-Header (hoverDay-Tracking via onMouseEnter/Leave); KB greift NICHT in Input/Textarea/Select (kollidiert nicht mit Text-Kopieren). ESC bricht Kopier-Modus ab. Persistenz: nur setRows → Auto-Save-Debounce 800ms persistiert via bestehendes SQ.push (kein neuer REST-Pfad, kein DB-Change). isAdmin-gegated (Monteure sehen Header ohne 📋). | v3.9.484 QA-Befund (Playwright-Durchlauf als schober/schmid/barger/lindhuber): das BWB-Excel-Scope-Modal (v3.9.480) saß nur auf dem Inline-Vorschau-Button; der primäre Projekt-Karten-„📥 Excel" (VBueroExport-Übersicht) exportierte direkt ohne Scope-Auswahl. Jetzt öffnet auch dieser Button _bwbScopeModal. | v3.9.483 KW53-Navigation: ▶-Buttons cappten hart (Wochenplanung auf 52, Wochenbericht/Zeiterfassung auf 53) → KW53 in 53-Wochen-Jahren (z.B. 2026) unerreichbar bzw. KW53 in 52-Wochen-Jahren fälschlich anwählbar. Jetzt globaler benannter Helper `_getMaxKW(year)` (= ISO-Woche des 28.12. = 52 oder 53), genutzt in allen drei KW-Nav-Buttons; kein hartes Math.min(52/53,…) mehr. | v3.9.482 Bug-Fixes: (1) 0h-Matrix-Inline — bestehenden Eintrag auf 0h setzen löscht ihn jetzt (DELETE) statt PUT hours:0 (0h-Zombie); (2) wpHistory-Jahr-Keying — In-Memory-Key war bloße Wochennummer → KW-Kollision über Jahresgrenzen (KW1/2026 überschrieb KW1/2025); jetzt "year-week" wie Server-id (_wpKey schreibt composite, _wpGet liest mit Legacy-Fallback; Load/savedKws/HomeView angepasst). | v3.9.481 Projekt-Form: Baustellen-Straße („Straße / Hausnr.") neben PLZ/Ort gerendert (Adresse zusammen) — Feld existierte bereits (projects.strasse, form.strasse), war aber unter „Kundenkontakt" fehlplatziert → relokalisiert, kein Doppel-Binding, KEIN DB-Change (Spalte existiert). | v3.9.480 Bauwochenbericht: (4a) KW-Sektionen absteigend (neueste zuerst, jahr-aware "YYYY-WW"); (4c) Excel-Export Scope-Auswahl via _bwbScopeModal (Alles/oberste/bestimmte KW) am Inline-Button; generateBWB(proj,useFilters,scopeKW) filtert kwList; Rollen-Gesamtübersicht summiert scopeEntries (nur exportierte KWs) statt aller — bei „Alles" identisch. Summen sind reihenfolge-unabhängig (verifiziert), Reorder ändert keine Gesamtsumme. | v3.9.479 Bug-Hunt-Folgefixes: (1) useEditable.del + FRegie.delE Owner-Gate (Field-User nur eigene Formulare/Regieberichte via created_by===monteurId, Staff voll; Legacy ohne created_by → nur Staff) + Regie-POST schreibt jetzt created_by; (2) RLS-Silent-Deny-Label für plans ergänzt (staff-gegateter UPDATE → Toast statt falscher Erfolg; defects/tickets bewusst NICHT, da UPDATE=authenticated → False-Positive-Schutz); (3) _jp/_jo loggen Parse-Fehler (console.warn) statt still zu schlucken. | v3.9.478 Bug-Hunt-R2-Fixes: (1) approveAll Handler-Guard if(!isAdmin)return (war einziger Approval-Handler ohne Guard, analog bulkApprove/rejectAll) — Defense-in-Depth Massen-Genehmigung; (2) push_pending ist ein Flag, kein scheinstatus → Chef-„Push-Stau"-Deeplink filtert die AS-Liste jetzt korrekt statt alles auszublenden. Fix 3 (tank/km Read-Modify-Write-Race) NICHT umgesetzt: server-seitige API-Interception, bräuchte atomare RPC — gemeldet, nicht gehackt. | v3.9.477 Geplante Deaktivierung (Kündigungsfrist): Admin kann pro User ein Deaktivierungs-Datum setzen (users.deactivate_at). DB-Migration: Spalte + login_lookup erweitert (sperrt server-seitig ab deactivate_at<=heute, airtight). UI im Benutzer-Detail (Datum planen/aufheben + Badge), Auto-Flip active=0 beim Öffnen der Verwaltung, Reaktivieren löscht Termin. | v3.9.476 Verknüpfungen-Fix (Chef-Meldung „Verknüpfungen nicht korrekt"): Home-Material-Kachel → Deep-Link ins material-Tab des Bestell-Projekts (statt generisch onNav projekte; matOpen-Fetch um project_id erweitert), Home-Bautagebuch-Kachel → bautagebuch-Tab (btPid), Chef-Portal „Mängel & Tickets"-Listeneinträge → Deep-Link ins Projekt (Mangel→maengel/Ticket→plaene). Nutzt bestehendes _initView. | v3.9.475 PlanRadar: ticket_assigned-Benachrichtigung verdrahtet (war definiert aber nie gefeuert) — beim Anlegen (createTicket) UND bei Assignee-Wechsel (updateTicket) bekommt der zugewiesene Monteur eine Glocken-Notif (≠ self). | v3.9.474 Chef-Portal: neues „🎫 Mängel & Tickets"-Card — projektübergreifend offene + überfällige Plan-Tickets (tickets) & Mängel (defects) via _sbGet, Frist-Logik wie #5, Top-6-überfällig-Liste (Titel·Projekt·Tage), rotes Badge bei Überfälligen, klickbar → Projekte. | v3.9.473 (#6) Plan-Versionierung: „🔄 Revision"-Upload je Plan (Admin) → neue plans-Zeile version+1 + replaces_plan_id, alte wird archived=true (reversibel, NICHT gelöscht); Tickets+Mängel wandern per plan_id auf die neue Revision (gleiche x/y). Archivierte Pläne standardmäßig ausgeblendet + Toggle, Versions-Badge (vX/alt). DB additiv: plans.archived + replaces_plan_id (version existierte). | v3.9.472 (#3) Ticket-Vorlagen editierbar: aus system_config (key ticket_templates) geladen, Fallback Code-Defaults; Admin-Editor-Modal (🗂 verwalten) mit Add/Edit/Löschen je Label/Titel/Typ/Prio/Ebenen-Keyword/Beschreibung → _sbUpsert(system_config) geräteübergreifend. Chips rendern aus tplList. | v3.9.471 Wochenplanung Vorausplanung auffindbar: 1-Klick-Button „📅 Nächste Woche ▶" (springt KW+1) ↔ „◀ Diese Woche" + gelbes „Vorausplanung"-Badge bei Zukunfts-KW (grau „Vergangene Woche"). Nutzt bestehendes switchKw (pro-KW-Plan, Auto-Save/Flush, beide Wochen unabhängig). Reine UX, kein Datenmodell-Change. | v3.9.470 Wochenplan BVH-Name: nowrap+ellipsis (18px, abgeschnitten) → whiteSpace:normal + wordBreak:break-word + lineHeight 1.25 (16px) → lange BVH-Namen 2-zeilig sichtbar statt gekürzt. | v3.9.469 Fälligkeits-/Eskalations-Automatik: überfällige Tickets (tickets.due_date) + Mängel (defects.frist) lösen Glocken-Notif aus — ≥14 Tage = *_eskalation (rot, zählt via includes()), davor *_due (sanft). Empfänger Admin/PL + zugewiesener Monteur-User. Läuft im 5-min-_checkAutoNotifs. 4 neue NOTIF_TYPES, isUrgent auf includes("eskalation") verallgemeinert. | v3.9.468 Wochenplanung Fahrzeug-Chips kompakt: zeigen nur noch das Kennzeichen (statt „Kennzeichen Modell") + voller Name als title-Tooltip + display:inline-block/maxWidth:100%/ellipsis → sprengen die Spalte nicht mehr. | v3.9.467 (PlanRadar) Ticket-Vorlagen: TICKET_TEMPLATES (8 Presets, type/priority/Ebenen-Keyword) + Chip-Reihe „⚡ Vorlage (1 Klick)" im Neu-Ticket-Formular + _applyTpl (prefüllt type/title/priority/description/layer, Position/Plan bleiben). Statisch, kein DB-Change. | v3.9.466 WifiStatusIcon viewBox '0 2.5 24 24' (war '0 0 24 24') → Glyph-Schwerpunkt optisch vertikal zentriert (wirkt überall: Header-Sync-Button + Sync-Panel). | v3.9.465 Header-WLAN-Sync-Button: justifyContent:center ergänzt (alignItems:center war schon da) → SVG-Icon sauber zentriert. | v3.9.464 (BLOCK C) Mängel-Bulk: Checkbox je Karte + "Alle"-Toggle im Filter (Admin/PL) + sticky Aktionsleiste (n ausgewählt | Status ändern | Zuweisen an | Anwenden | Abbrechen). _bulkApply: Status via updSt (inkl. Ticket-Sync), Zuweisung via defects-PUT {zugewiesen,worker}. Kein DB-Change. | v3.9.463 (BLOCK B) Ticket-Audit-Trail: tickets.status_history (jsonb) + strukturierter Eintrag {status,fromStatus,changed_by_id/name,changed_at,comment} bei jedem Status-Wechsel (updateTicket, ersetzt Event-Kommentar) + aufklappbare "📋 Status-Historie"-Timeline (von→nach, wer, wann) im TicketDetail. _jp-Lesepfad. DB-Migration via Plugin (self-guarded). | v3.9.462 (BLOCK A) Ticket/Mangel-Einzel-PDF: jsPDF (CDN) + _genTicketPdf — A4 grüner Header, Meta-Block, Plan-Ausschnitt mit rotem Pin (Bild via _tkLoadImg / PDF via pdf.js _tkRenderPdfPage, ±150px Crop), Beschreibung, Fotos 2x2, Kommentar-Journal, Footer. Button "📄 PDF" im TicketDetail-Header (Admin/PL/Büro). _pdfStr strippt Emojis (latin1-Font). Fehler → Text-Fallback, nie Crash. */
+const APP_VERSION="3.9.500-supabase";/* v3.9.500 Wochenplanung Multi-User-Sync via Zeilen-Level-Storage (Option B). Vorher: weekplans speicherte ganze KW als JSON-Blob (data=JSON.stringify(rows)), _sbUpsert komplett-overwrite → gleichzeitige Saves von 2 Geräten = Last-Write-Wins, fremde Zeilen WEG. Sebastian-Live-Test bestätigt: A's Projekt verschwindet wenn B 300ms später save'd. JETZT: jede Planungs-Zeile ist eine eigene DB-Row (Tabelle weekplan_rows, PRIMARY KEY row_id). Save = UPSERT pro Zeile, DELETE pro entfernter Zeile. Konflikt nur noch wenn ZWEI User dieselbe ZEILE gleichzeitig editieren (selten). ARCHITEKTUR-CHANGES: (a) ROUTE_MAP: "weekplan-rows" → "weekplan_rows" Tabelle; (b) API.getWeekplanRows + request-Handler für POST/DELETE; (c) App-Scope _loadWeekplansFromRows-Helper, gruppiert by year-week + sort_order; (d) Initial Mount lädt aus weekplan_rows statt weekplans; (e) Polling: 30s-Interval + visibilitychange (Tab-Fokus-Reload), respektiert window.__wpDirtyRowIds von WeekPlan-Component; (f) WeekPlan-Refs _wpLastSaved (Map<id,JSON>) + _wpDirtyIds (Set) + _wpDeletedIds (Set); (g) rows-Change-useEffect: Diff snapshot vs _wpLastSaved → füllt dirty/deleted; (h) saveDirty (ehemals saveWeek): iteriert dirty/deleted, einzelne SQ.push pro Zeile (kein /bulk-Endpoint nötig, SQ _batchDelay:1500); (i) Padding-Rows (bvh leer + alle z leer) werden NIE persistiert, im Save geskippt + im Load via padWpRows wieder ergänzt; (j) row.id-Generierung in addRow/copyWeek/_wpCopyFromPrevWeek/emptyWpRow auf crypto.randomUUID() (Fallback Date+Math.random) — vorher Date.now() bei addRow → PK-Kollision möglich bei Multi-User; (k) switchKw/useEffect Z.15461 Conflict-Guard: Server-Pull setRows nur wenn dirty/deleted leer UND kein wpSaveTimer aktiv; (l) moveRow markiert beide tauschenden IDs als dirty via sort_order-Diff im Snapshot; (m) sort_order = index * 10 (Lücken-Toleranz für Einschübe). SQL-Files sql/WEEKPLAN_ROWS_v1.sql + sql/WEEKPLAN_MIGRATE_v1.sql liegen ready, Human-Run-Gate offen. Alte weekplans-Tabelle bleibt als Backup (NICHT droppen). Legacy /api/weekplans-Endpoint bleibt für Backward-Compat (Z.2239) aber wird nicht mehr aufgerufen. | v3.9.497 Alert-Detail-Panel sichtbar (Home-Dashboard): aufgeklappte Alert-Details (Z.9852) waren quasi unsichtbar — background nur color+"08" (3% Alpha), Border color+"22" (13%), Listentext komplett in Alert-Rot ohne Abgrenzung. Fix: (a) Panel-Background _dark? color+"1a":color+"12" (10%/7%), Border color+"55" (33%), zusätzlicher 4px borderLeft als Akzent, borderRadius 10, padding 12/16, boxShadow 0 4px 16px color+"22"; (b) Listeneinträge — Text auf V.tx (normale Lesefarbe), nur farbiger Bullet "●" links, dünner color+"15"-Trennstrich zwischen Einträgen, flex-Layout mit gap:8. Sebastian-Befund. | v3.9.496 Fix-A-Erweiterung forms+defects (analog v3.9.491 für entries+arbeitsscheine, v3.9.349 für tickets+plans): Server-Pull-Merge auch für forms (7 Kategorien: regie/sf/dh/ah/maengel/abnahme/checklisten) und defects (in forms.maengel gepullt). Voll-Overwrite-Pattern vorher (Z.5487 setForms(prev=>{...prev,...grouped}), Z.5492 setForms(prev=>{...prev,maengel:def.map(_mapDefect)})) löschte lokal-pending POST-Forms/-Maengel wenn Server-Pull vor SyncQueue-Drain passierte. 4 neue Pending-Sets _v496PendingForm{Posts,Deletes} + _v496PendingDefect{Posts,Deletes}. Pro Forms-Kategorie wird Server-Stand gefiltert (DELETEs raus) und mit lokal-pending POSTs aus prev[cat] ergänzt (nur wenn id NICHT im Server-Set). Plus CLAUDE.md im Repo-Root für Klärung Repo-Pfad-Mapping (Z: hier, T: bei Sebastian-Desktop, beide → \\srvdc02\Projekte). | v3.9.495 Wochenplanung "Vorwoche übernehmen" — neuer Button "📋 Vorwoche" im Header (immer sichtbar für Admin/PL), kopiert die KOMPLETTE Vorwoche inkl. MA+FZ-Belegungen pro Tag in die aktuelle KW (im Gegensatz zum bestehenden Vorlage-📋-Button Z.15822/copyWeek der nur BVH/projId/bem übernimmt + z-Daten leert). Edge-Case: kw===1 → Vorjahr KW52/53 via _getMaxKW(yr-1). Confirm-Dialog wenn aktuelle KW nicht leer (_wpWeekHasContent + _confirmModal danger). Toast "Vorwoche ist leer" wenn nichts zu kopieren. Persistenz via setRows → Auto-Save-Debounce 800ms. _wpKey/_wpGet sind year-Closure-fest (Z.15410-11), für Vorjahr-Key direkt prevYr+'-'+prevKw konstruiert + Fallback auf Legacy-Bloß-KW-Key wenn gleichjährig. Helpers _wpWeekHasContent, _wpLoadPrevWeek, _wpCopyFromPrevWeek im AbsView nicht weiter rauskoppelbar. Kein DB-Change, kein neuer REST-Pfad. | v3.9.494 WP-Kopier-Bugfixes (2 P1): (A) _wpPasteDay (Tag-Kopieren v3.9.485) mappte prev.map über ALLE Rows + setzte r.z[targetDay] auf {ma,fz} aus Quelle — auch wenn Quelle leer war. Folge: Zielspalte in Zeilen mit leerer Quelle wurde destruktiv auf {} überschrieben (bestehende Ziel-Einträge gelöscht). Fix: srcHas-Guard mit return r früh; nur Zeilen mit befüllter Quelle bekommen Ziel-Cell ersetzt. (B) Zellen-Kopier-Chip (v3.9.488) onClick-Handler las _cpSrc aus Render-Closure — bei schnellen Klick-Klicks vor Re-Render war _cpSrc stale, kopierte alten Stand statt aktuellen. Fix: Source im setRows-Callback aus prev.find(rowId) → _sRow.z[_cpSrcDay] frisch lesen. Kein State-Add, kein DB-Change. | v3.9.493 Urlaubs-Notif Massenversand-Fix (Sebastian-Bug "Günther 4.6 kommt immer wieder"): approve/reject/approveAll in AbsView (Z.16206/16207/16224) feuerten pushNotif("absence_approval",…) OHNE targetUsers-Parameter → Default in pushNotif Z.5759 ist `users.filter(absence_approval=true)` = alle Field-User (Z.5270/5291 setzt Default-true für Monteur/Helfer/Techniker/Obermonteur). Folge: pro Genehmigung/Ablehnung wurden 9 identische Notifs erzeugt (1 pro User-ID). IDB-Verify bei Sebastian: 9× "Günther: 4.6.2026 abgelehnt" mit user=u1/u2/u3/u5/u6/u7/u8/u9/mpxpys5iekd5. Fix: neuer `_absTargetUid(name)`-Helper resolvet Worker-Name → monteure.find(n===name) → window._allUsers.find(monteurId===workerId) → [userId]; pushNotif erhält jetzt nur den Antragsteller. v3.9.492 Phantom-Datum-Filter (pendingAbs) bleibt drin — adressierte aber das falsche Symptom (allAusstehendCount=0 in Sebastian's State, v3.9.492 ohne Wirkung in seinem Fall). Bestehende 9 Notifs in IDB bleiben — Sebastian muss sie via Glocken-Panel löschen (v3.9.272 dismissed-Gedächtnis verhindert Wiedererscheinen). | v3.9.492 Dashboard-Phantom-Urlaubsantrag (Sebastian-Bug "4.6 Günther kommt immer wieder"): pendingAbs Z.9718 zählte nur Status==='ausstehend' OHNE Datum-Check OHNE Existenz-Check auf abs[k]. Folge: Antrag für 04.06.2026 (vergangen) erschien dauerhaft in der "X Abwesenheitsanträge warten"-Notif + Mitarbeiter-Karte "ausstehend"-Badge. Auch stale absApprovals[k]='ausstehend' Einträge ohne backing-Antrag in abs (Server-deleted) blieben gezählt. Fix: pendingAbs filtert jetzt (1) absApprovals[k]==='ausstehend', (2) abs[k] existiert wenn Daten geladen, (3) abs[k].date >= heute (td2). Defensive fallback: bei Object.keys(abs).length===0 (Daten noch ladend) zähle weiter, damit Notif nicht 0-Phantom-blinkt während Boot. Propagiert in alle 3 Stellen (Notif-Alert, Mitarbeiter-Karten-Sub, Dashboard-Bereich) weil pendingAbs Single-Source ist. Kein DB-Change. | v3.9.491 Fix-A-Erweiterung (DIAGNOSE_TICKET_VERLUST.md): Server-Pull-Merge ebenfalls für entries (time_entries) + arbeitsscheine — analog zu v3.9.349-Pattern für tickets/plans. Voll-Overwrite-Pattern vorher (setEntries Z.5486, setArbeitsscheine Z.5502) löschte lokal-pending POST-Einträge wenn Server-Pull vor SyncQueue-Drain passierte (offline-erstellte Zeitbuchungen / Arbeitsscheine "verschwanden" nach Online-Wechsel). Jetzt: 4 neue Pending-Sets (_v491PendingEntry{Posts,Deletes}, _v491PendingAs{Posts,Deletes}); Server-Stand minus pending DELETEs; lokale prev-Einträge bleiben wenn id NICHT im Server-Set UND pending POST in SQ existiert. SQ-Scan + alle 8 Sets (tickets/plans/entries/arbeitsscheine) jetzt VOR jedem set*-Call positioniert (vorher lag der Scan NACH setEntries → Sets noch leer beim Merge-Verwendungs-Zeitpunkt). PUT-Pattern (nicht-POST/-DELETE) unverändert: Server-PUT-Returns überschreiben weiterhin, was korrekt ist da letzte-write-wins auf Backend-Seite. Kein DB-Change, kein neuer REST-Pfad. Forms/Defects bleiben vorerst Voll-Overwrite (separater Auftrag). | v3.9.490 WP-Bug-Hunt-Fixes: (1) Spalten-Header onMouseEnter setzte hoverDay AUCH während aktiver Cell-Drag-Selektion — User konnte mit STRG+C mitten in einer Multi-Day-Auswahl unbeabsichtigt den Tag-Kopier-Modus auslösen. Jetzt Guard `if(!dragRef.current.active)`. (2) Picker-Smart-Positioning hatte kein resize/scroll-Listener — User-Resize/Scroll während Picker offen ließ cellPickPos veraltet zurück. Jetzt zusätzlicher useEffect mit window.resize+scroll-Listener während cellPick aktiv, ruft extrahierten `_wpMeasurePopup` useCallback erneut auf. Bug-Hunt-Vorlauf hatte 12 Befunde, davon waren #1 (__asOpenId 2. Klick) unecht weil AsView re-mountet bei Nav (verifiziert Z.6565 conditional render), #10 (isAdmin in v3.9.488) mitigiert durch impliziten cellPick-Guard seit v3.9.354, #11 (rows in deps) unecht weil Closure-Snapshot tatsächlich nötig; #3/#5/#6/#7/#8/#9/#12 als P3/Tradeoff bewertet. | v3.9.489 Chef-Portal Überfällig-Kachel Deep-Link: bisher öffnete die "🔴 kritisch"-Kachel nur die unfilterte AS-Voll-Liste — User musste den überfälligen Schein selbst aus z.B. 50 offenen heraussuchen. Jetzt: bei genau 1 überfälligen AS Deep-Link direkt zum Edit-Formular via neuem window.__asOpenId-Mechanismus (Pattern analog __asFilter, useEffect im AsView auf arbeitsscheine deps); bei >1 überfälligen setzt der Klick __asFilter='offen_bearb' (gefilterte Liste statt voll). Datenpfad: ueberfaellige .length-Counter refactored zu _ueberfaelligeArr-Array + .length-API-kompat-Variable (trend/sub/color unverändert). Kein DB-Change. | v3.9.488 WP Zellen-Kopieren via Tages-Chips im Picker: Innerhalb des cellPick-Popups (direkt vor ✕-Schließen) neuer Block "📋 [SrcTag] auf weitere Tage kopieren:" + 5 Chips (Mo..Sa minus Quelle). Orange Chip + ⚠️ wenn Ziel-Tag bereits MA/FZ-Inhalt hat (visueller Hinweis, kein Confirm). Klick auf Chip kopiert r.z[srcDay] → r.z[tgtDay] für GENAU diese eine Zeile (rowId aus cellPick), Picker bleibt offen für Multi-Paste. Quelle = cellPick.days[0] (Single-Click oder erster Tag bei Drag-Multi-Tag). _bem-Modus ausgeklammert. Persistenz via setRows → Auto-Save-Debounce 800ms (kein REST-Pfad, kein DB-Change). Kein neuer State, kein Drag-Konflikt (Drag-Logik unverändert). isAdmin-gegated implizit (cellPick wird ohnehin nur für Admin/PL gesetzt seit v3.9.354). | v3.9.487 WP-Auswahl-Popup Opazität: Background V.bg → V.cd (Card-Token #1c1f2e dark / #fff light — kontrastreicher als bg, klar opak); boxShadow alpha .25 → .8 (8px→32px Streuung) für deutlichere Abhebung gegen Tabellen-Hintergrund; borderRadius 8→12. Beobachtung Sebastian: Picker wirkte transparent obwohl V.bg opak war — Ursache war zu schwacher Shadow + zu niedriger Kontrast Bg vs. Page-Bg (beide dark-Mode-Hex aus selber Familie). | v3.9.486 WP-Auswahl-Popup Smart-Positioning: cellPick-Popup (MA-/FZ-Picker beim Cell-Klick/Drag) wechselte vorher position:absolute mit top:"100%" (immer nach unten) → bei Zeilen am unteren Tabellenrand/Viewport-Boden wurde der Popup-Inhalt + ✕-Schließen-Button abgeschnitten. Jetzt: position:"fixed" + useLayoutEffect misst Popup + Parent-<td>-Rect bei jedem cellPick-Wechsel, klappt nach oben wenn spaceBelow<popupH+20 (und genug Platz oben), horizontal-Clamp gegen rechten Viewport-Rand. visibility:hidden bis gemessen → kein Flash. zIndex 50→9999. maxHeight:calc(100vh-16px)+overflowY:auto als Reserve falls Popup höher als Viewport. Neuer Ref _wpPopupRef + State cellPickPos. | v3.9.485 Wochenplanung Tag-Kopieren — 📋 Icon in jedem Spalten-Header der Planungs-Tabelle (DSHORT-Mo…Sa). Klick auf 📋 = Quelle setzen, dann Spalten-Header eines anderen Tages = Paste (blauer Highlight Quelle / grüner Highlight mögliche Ziele). Bei nicht-leerem Ziel _confirmModal(danger). STRG+C/V als Tastatur-Shortcut wenn Maus über einem Spalten-Header (hoverDay-Tracking via onMouseEnter/Leave); KB greift NICHT in Input/Textarea/Select (kollidiert nicht mit Text-Kopieren). ESC bricht Kopier-Modus ab. Persistenz: nur setRows → Auto-Save-Debounce 800ms persistiert via bestehendes SQ.push (kein neuer REST-Pfad, kein DB-Change). isAdmin-gegated (Monteure sehen Header ohne 📋). | v3.9.484 QA-Befund (Playwright-Durchlauf als schober/schmid/barger/lindhuber): das BWB-Excel-Scope-Modal (v3.9.480) saß nur auf dem Inline-Vorschau-Button; der primäre Projekt-Karten-„📥 Excel" (VBueroExport-Übersicht) exportierte direkt ohne Scope-Auswahl. Jetzt öffnet auch dieser Button _bwbScopeModal. | v3.9.483 KW53-Navigation: ▶-Buttons cappten hart (Wochenplanung auf 52, Wochenbericht/Zeiterfassung auf 53) → KW53 in 53-Wochen-Jahren (z.B. 2026) unerreichbar bzw. KW53 in 52-Wochen-Jahren fälschlich anwählbar. Jetzt globaler benannter Helper `_getMaxKW(year)` (= ISO-Woche des 28.12. = 52 oder 53), genutzt in allen drei KW-Nav-Buttons; kein hartes Math.min(52/53,…) mehr. | v3.9.482 Bug-Fixes: (1) 0h-Matrix-Inline — bestehenden Eintrag auf 0h setzen löscht ihn jetzt (DELETE) statt PUT hours:0 (0h-Zombie); (2) wpHistory-Jahr-Keying — In-Memory-Key war bloße Wochennummer → KW-Kollision über Jahresgrenzen (KW1/2026 überschrieb KW1/2025); jetzt "year-week" wie Server-id (_wpKey schreibt composite, _wpGet liest mit Legacy-Fallback; Load/savedKws/HomeView angepasst). | v3.9.481 Projekt-Form: Baustellen-Straße („Straße / Hausnr.") neben PLZ/Ort gerendert (Adresse zusammen) — Feld existierte bereits (projects.strasse, form.strasse), war aber unter „Kundenkontakt" fehlplatziert → relokalisiert, kein Doppel-Binding, KEIN DB-Change (Spalte existiert). | v3.9.480 Bauwochenbericht: (4a) KW-Sektionen absteigend (neueste zuerst, jahr-aware "YYYY-WW"); (4c) Excel-Export Scope-Auswahl via _bwbScopeModal (Alles/oberste/bestimmte KW) am Inline-Button; generateBWB(proj,useFilters,scopeKW) filtert kwList; Rollen-Gesamtübersicht summiert scopeEntries (nur exportierte KWs) statt aller — bei „Alles" identisch. Summen sind reihenfolge-unabhängig (verifiziert), Reorder ändert keine Gesamtsumme. | v3.9.479 Bug-Hunt-Folgefixes: (1) useEditable.del + FRegie.delE Owner-Gate (Field-User nur eigene Formulare/Regieberichte via created_by===monteurId, Staff voll; Legacy ohne created_by → nur Staff) + Regie-POST schreibt jetzt created_by; (2) RLS-Silent-Deny-Label für plans ergänzt (staff-gegateter UPDATE → Toast statt falscher Erfolg; defects/tickets bewusst NICHT, da UPDATE=authenticated → False-Positive-Schutz); (3) _jp/_jo loggen Parse-Fehler (console.warn) statt still zu schlucken. | v3.9.478 Bug-Hunt-R2-Fixes: (1) approveAll Handler-Guard if(!isAdmin)return (war einziger Approval-Handler ohne Guard, analog bulkApprove/rejectAll) — Defense-in-Depth Massen-Genehmigung; (2) push_pending ist ein Flag, kein scheinstatus → Chef-„Push-Stau"-Deeplink filtert die AS-Liste jetzt korrekt statt alles auszublenden. Fix 3 (tank/km Read-Modify-Write-Race) NICHT umgesetzt: server-seitige API-Interception, bräuchte atomare RPC — gemeldet, nicht gehackt. | v3.9.477 Geplante Deaktivierung (Kündigungsfrist): Admin kann pro User ein Deaktivierungs-Datum setzen (users.deactivate_at). DB-Migration: Spalte + login_lookup erweitert (sperrt server-seitig ab deactivate_at<=heute, airtight). UI im Benutzer-Detail (Datum planen/aufheben + Badge), Auto-Flip active=0 beim Öffnen der Verwaltung, Reaktivieren löscht Termin. | v3.9.476 Verknüpfungen-Fix (Chef-Meldung „Verknüpfungen nicht korrekt"): Home-Material-Kachel → Deep-Link ins material-Tab des Bestell-Projekts (statt generisch onNav projekte; matOpen-Fetch um project_id erweitert), Home-Bautagebuch-Kachel → bautagebuch-Tab (btPid), Chef-Portal „Mängel & Tickets"-Listeneinträge → Deep-Link ins Projekt (Mangel→maengel/Ticket→plaene). Nutzt bestehendes _initView. | v3.9.475 PlanRadar: ticket_assigned-Benachrichtigung verdrahtet (war definiert aber nie gefeuert) — beim Anlegen (createTicket) UND bei Assignee-Wechsel (updateTicket) bekommt der zugewiesene Monteur eine Glocken-Notif (≠ self). | v3.9.474 Chef-Portal: neues „🎫 Mängel & Tickets"-Card — projektübergreifend offene + überfällige Plan-Tickets (tickets) & Mängel (defects) via _sbGet, Frist-Logik wie #5, Top-6-überfällig-Liste (Titel·Projekt·Tage), rotes Badge bei Überfälligen, klickbar → Projekte. | v3.9.473 (#6) Plan-Versionierung: „🔄 Revision"-Upload je Plan (Admin) → neue plans-Zeile version+1 + replaces_plan_id, alte wird archived=true (reversibel, NICHT gelöscht); Tickets+Mängel wandern per plan_id auf die neue Revision (gleiche x/y). Archivierte Pläne standardmäßig ausgeblendet + Toggle, Versions-Badge (vX/alt). DB additiv: plans.archived + replaces_plan_id (version existierte). | v3.9.472 (#3) Ticket-Vorlagen editierbar: aus system_config (key ticket_templates) geladen, Fallback Code-Defaults; Admin-Editor-Modal (🗂 verwalten) mit Add/Edit/Löschen je Label/Titel/Typ/Prio/Ebenen-Keyword/Beschreibung → _sbUpsert(system_config) geräteübergreifend. Chips rendern aus tplList. | v3.9.471 Wochenplanung Vorausplanung auffindbar: 1-Klick-Button „📅 Nächste Woche ▶" (springt KW+1) ↔ „◀ Diese Woche" + gelbes „Vorausplanung"-Badge bei Zukunfts-KW (grau „Vergangene Woche"). Nutzt bestehendes switchKw (pro-KW-Plan, Auto-Save/Flush, beide Wochen unabhängig). Reine UX, kein Datenmodell-Change. | v3.9.470 Wochenplan BVH-Name: nowrap+ellipsis (18px, abgeschnitten) → whiteSpace:normal + wordBreak:break-word + lineHeight 1.25 (16px) → lange BVH-Namen 2-zeilig sichtbar statt gekürzt. | v3.9.469 Fälligkeits-/Eskalations-Automatik: überfällige Tickets (tickets.due_date) + Mängel (defects.frist) lösen Glocken-Notif aus — ≥14 Tage = *_eskalation (rot, zählt via includes()), davor *_due (sanft). Empfänger Admin/PL + zugewiesener Monteur-User. Läuft im 5-min-_checkAutoNotifs. 4 neue NOTIF_TYPES, isUrgent auf includes("eskalation") verallgemeinert. | v3.9.468 Wochenplanung Fahrzeug-Chips kompakt: zeigen nur noch das Kennzeichen (statt „Kennzeichen Modell") + voller Name als title-Tooltip + display:inline-block/maxWidth:100%/ellipsis → sprengen die Spalte nicht mehr. | v3.9.467 (PlanRadar) Ticket-Vorlagen: TICKET_TEMPLATES (8 Presets, type/priority/Ebenen-Keyword) + Chip-Reihe „⚡ Vorlage (1 Klick)" im Neu-Ticket-Formular + _applyTpl (prefüllt type/title/priority/description/layer, Position/Plan bleiben). Statisch, kein DB-Change. | v3.9.466 WifiStatusIcon viewBox '0 2.5 24 24' (war '0 0 24 24') → Glyph-Schwerpunkt optisch vertikal zentriert (wirkt überall: Header-Sync-Button + Sync-Panel). | v3.9.465 Header-WLAN-Sync-Button: justifyContent:center ergänzt (alignItems:center war schon da) → SVG-Icon sauber zentriert. | v3.9.464 (BLOCK C) Mängel-Bulk: Checkbox je Karte + "Alle"-Toggle im Filter (Admin/PL) + sticky Aktionsleiste (n ausgewählt | Status ändern | Zuweisen an | Anwenden | Abbrechen). _bulkApply: Status via updSt (inkl. Ticket-Sync), Zuweisung via defects-PUT {zugewiesen,worker}. Kein DB-Change. | v3.9.463 (BLOCK B) Ticket-Audit-Trail: tickets.status_history (jsonb) + strukturierter Eintrag {status,fromStatus,changed_by_id/name,changed_at,comment} bei jedem Status-Wechsel (updateTicket, ersetzt Event-Kommentar) + aufklappbare "📋 Status-Historie"-Timeline (von→nach, wer, wann) im TicketDetail. _jp-Lesepfad. DB-Migration via Plugin (self-guarded). | v3.9.462 (BLOCK A) Ticket/Mangel-Einzel-PDF: jsPDF (CDN) + _genTicketPdf — A4 grüner Header, Meta-Block, Plan-Ausschnitt mit rotem Pin (Bild via _tkLoadImg / PDF via pdf.js _tkRenderPdfPage, ±150px Crop), Beschreibung, Fotos 2x2, Kommentar-Journal, Footer. Button "📄 PDF" im TicketDetail-Header (Admin/PL/Büro). _pdfStr strippt Emojis (latin1-Font). Fehler → Text-Fallback, nie Crash. */
 /* ═══ FINKZEIT STANDBY (04.06.2026, Sebastian-Entscheidung) ═══
    FinkZeit-Frontend komplett geparkt — Code bleibt erhalten, wird aber nicht gerendert/aufgerufen.
    REAKTIVIERUNG: FINKZEIT_ENABLED = true setzen → Tab "Monatsabrechnung", Dashboard-Card + Alerts,
@@ -5250,6 +5281,56 @@ class _ViewBoundary extends React.Component{
   const [absApprovals,setAbsApprovals]=_react.useState.call(void 0, {});
   const [mFiles,setMFiles]=_react.useState.call(void 0, {});
   const [wpHistory,setWpHistory]=_react.useState.call(void 0, {});
+  /* v3.9.500: weekplan_rows Load-Helper (Zeilen-Level-Storage). Lädt aus weekplan_rows,
+     gruppiert nach year-week, sortiert nach sort_order. Bei isPoll=true: rows die im
+     globalen Dirty-Set (window.__wpDirtyRowIds, gesetzt von WeekPlan-Component während
+     User-Edit zwischen rows-Change und SQ.push) NICHT überschreiben — Edit-Schutz. */
+  const _loadWeekplansFromRows=_react.useCallback.call(void 0, async(isPoll)=>{
+    try{
+      const wprs=await API.getWeekplanRows();
+      if(!Array.isArray(wprs))return;
+      const wpH={};
+      // group by year-week, parse z jsonb
+      wprs.forEach(r=>{
+        if(!r||!r.row_id)return;
+        const key=(r.year!=null?r.year:0)+'-'+r.week;
+        if(!wpH[key])wpH[key]=[];
+        wpH[key].push({
+          id:r.row_id,
+          bvh:r.bvh||"",
+          projId:r.proj_id||"",
+          bem:r.bem||"",
+          z:typeof r.z==='string'?_safeJsonParse(r.z,{}):(r.z||{}),
+          _sortOrder:r.sort_order||0,
+          _updatedAt:r.updated_at||""
+        });
+      });
+      // sort each KW by sort_order asc
+      Object.keys(wpH).forEach(k=>{wpH[k].sort((a,b)=>(a._sortOrder||0)-(b._sortOrder||0));});
+      // Apply with edit-guard if polling
+      const dirtySet=isPoll?((window.__wpDirtyRowIds instanceof Set)?window.__wpDirtyRowIds:null):null;
+      setWpHistory(prev=>{
+        const next={...prev};
+        for(const k in wpH){
+          if(dirtySet&&dirtySet.size){
+            // merge per row: server overrides EXCEPT for dirty row_ids (keep local)
+            const localRows=Array.isArray(prev[k])?prev[k]:[];
+            const localById=new Map(localRows.map(r=>[r.id,r]));
+            const merged=wpH[k].map(srvR=>dirtySet.has(srvR.id)&&localById.has(srvR.id)?localById.get(srvR.id):srvR);
+            // also keep dirty local rows that aren't on server yet (new local rows)
+            localRows.forEach(lr=>{if(dirtySet.has(lr.id)&&!wpH[k].find(s=>s.id===lr.id))merged.push(lr);});
+            // re-sort
+            merged.sort((a,b)=>(a._sortOrder||0)-(b._sortOrder||0));
+            next[k]=merged;
+          }else{
+            next[k]=wpH[k];
+          }
+        }
+        return next;
+      });
+      try{ODB.save("meta",wpH);}catch(_e){console.warn('[silent-odb]',_e&&_e.message||_e);}
+    }catch(e){console.warn("[app] Weekplan-Rows laden:",e);}
+  },[]);
   const [planData,setPlanData]=_react.useState.call(void 0, {plans:[],tickets:[],layers:DEF_LAYERS});
   const [arbeitsscheine,setArbeitsscheine]=_react.useState.call(void 0, []);
   const [monteure,setMonteure]=_react.useState.call(void 0, MONT);
@@ -5606,13 +5687,8 @@ class _ViewBoundary extends React.Component{
           // Admin: load users
           if(curUser.role==="admin"){try{const u=await API.getUsers();if(_optionalChain([u, 'optionalAccess', _49 => _49.length]))setUsers(u.map(_mapUser));}catch(e){console.warn("[app] User-Liste laden:",e);}}
           // Load Weekplans from Supabase → wpHistory
-          try{
-            const wps=await API.getWeekplans();
-            if(_optionalChain([wps, 'optionalAccess', _49w1 => _49w1.length])){
-              const wpH={};wps.forEach(wp=>{wpH[(wp.year!=null?wp.year:0)+'-'+wp.week]=_safeJsonParse(wp.data,[]);});/* v3.9.482: Key jahr-präfixiert (year-week, wie Server-id) — vorher bloße Wochennummer → KW-Kollision über Jahresgrenzen (KW1/2026 überschrieb KW1/2025 im Speicher) */
-              if(Object.keys(wpH).length){setWpHistory(prev=>({...prev,...wpH}));ODB.save("meta",wpH);}
-            }
-          }catch(e){console.warn("[app] Weekplans laden:",e);}
+          // v3.9.500: Zeilen-Level-Storage. Lädt aus weekplan_rows, gruppiert nach year-week.
+          await _loadWeekplansFromRows(false);
           // ═══ FIRST-TIME SEEDING: Wenn Supabase leer, INIT-Daten hochladen ═══
           if(!_optionalChain([prj, 'optionalAccess', _49s1 => _49s1.length])&&curUser.role==="admin"&&_authToken){
             /* v3.9.208 FIX DATENVERLUST: wie workers — transienter Leer-Load würde echte Projekte mit INIT_PROJECTS überschreiben. Vor Seed bestätigen, dass projects WIRKLICH leer ist. */
@@ -6120,6 +6196,19 @@ class _ViewBoundary extends React.Component{
     pollTimer.current=setInterval(pollForChanges,POLL_INTERVAL);
     return ()=>{if(pollTimer.current)clearInterval(pollTimer.current);};
   },[curUser,pollForChanges]);
+
+  /* v3.9.500: Weekplan-Multi-User-Sync — 30s-Polling für weekplan_rows + Tab-Fokus-Reload.
+     Edit-Schutz via window.__wpDirtyRowIds (gesetzt von WeekPlan während User-Edit). */
+  _react.useEffect.call(void 0, ()=>{
+    if(!curUser)return;
+    const iv=setInterval(()=>{
+      if(document.visibilityState!=='visible')return;
+      _loadWeekplansFromRows(true);
+    },30000);
+    const onVis=()=>{if(document.visibilityState==='visible')_loadWeekplansFromRows(true);};
+    document.addEventListener('visibilitychange',onVis);
+    return ()=>{clearInterval(iv);document.removeEventListener('visibilitychange',onVis);};
+  },[curUser,_loadWeekplansFromRows]);
 
   const logout=async()=>{const cnt=await SQ.count();const _pcnt=await PhotoQ.count().catch(()=>0);/* v3.8.9 Bug-Hunt Iter-10: Warn-Text erweitert um Photo-Queue */const _msg=[];if(cnt>0)_msg.push(cnt+" ungespeicherte Änderung"+(cnt>1?"en":""));if(_pcnt>0)_msg.push(_pcnt+" Foto"+(_pcnt>1?"s":"")+" in der Warteschlange");if(_msg.length&&!confirm("⚠️ "+_msg.join(" + ")+" werden VERWORFEN. Trotzdem abmelden?"))return;/* v3.8.7 Bug-Hunt Iter-3: Timer warnen+clearen statt für nächsten User liegen lassen */const _tmr=(typeof window._epkTimer!=='undefined'&&window._epkTimer.get)?window._epkTimer.get():null;if(_tmr&&_tmr.running){if(!confirm("⏱️ Timer läuft noch — vor Logout bitte stoppen. Ohne Stopp wird die Zeit VERWORFEN. Trotzdem abmelden?"))return;try{localStorage.removeItem('epk_timer');}catch(_){}}/* v3.8.9 Bug-Hunt Iter-10: SQ + PhotoQ NACH Confirm tatsächlich clearen — sonst flushen sie beim nächsten User unter dessen Token! */if(cnt>0){try{await SQ.clear();}catch(_){}}if(_pcnt>0){try{await PhotoQ.clear();}catch(_){}}_sbAuthLogout();API.setToken(null);/* v3.8.43 Bug-Hunt-S4.2: Juprowa-AutoSync-Timer beim Logout stoppen — verhindert Token-Race wenn nächster User einloggt (alter 5-Min-Timer würde mit User-A-Token feuern). */try{if(typeof _juprowaStopAutoSync==="function")_juprowaStopAutoSync();}catch(_){}/* v3.8.7 B-017: Admin-Debug-Helper beim Logout cleanen */try{delete window._sbH;delete window._sbAuthLogin;delete window._sbAuthRefresh;delete window._silentReAuth;}catch(_){}/* v3.8.7 Bug-Hunt Iter-4: Offline-Cache cleanen — base64-Password + lastUser bleiben sonst im IDB (M-4 Scenario-Mitigation) */try{await ODB.del("meta","offlinePwHash");await ODB.del("meta","lastUser");}catch(_){}/* v3.8.10 Bug-Hunt Iter-11: Alle user-scoped Daten-Caches clearen — sonst lädt nächster User beim Mount die ODB-Kopie von User A. syncQueue + photoQueue NICHT clearen (schon oben user-confirmed behandelt), meta NICHT pauschal clearen (notifPrefs uid-scoped OK). Per-Store Key "data" wird entfernt (ODB.save schreibt immer unter "data"). */try{const _clearStores=["entries","forms","abs","absApprovals","files","planData","arbeitsscheine","werkzeuge","monteure","projects","monteurProjekte","fahrzeuge","notifications","stundenzettel","syncQueueFailed"];for(const _s of _clearStores){try{await ODB.del(_s,"data");}catch(_){}}}catch(_){}/* v3.8.16 Bug-Hunt Iter-17: user-scoped localStorage-Prefs clearen (SB-Default, autonotif-CD, dash-Vis). Theme+Fav sind bereits per-username gekeyt. */try{localStorage.removeItem('epkolar_default_sb');localStorage.removeItem('epk_autonotif_cd');localStorage.removeItem('epk_dash_vis');localStorage.removeItem('selftest_last_run');localStorage.removeItem('s8_last_run');/* v3.8.49 Cross-User-Leak-Fix: 4 zusätzliche user-scoped Keys die vorher über Logout hinweg persistieren. epk_calib_check triggert falsche Kalib-Warnungen an nächsten User. epk_user_gewerk lässt Material-Filter vom Vor-User stehen (User-B sieht Elektro-only obwohl er Sanitär ist). epk_install_dismissed/epk_ios_dismissed sind kosmetisch aber User-scoped. matCart_* muss dynamisch gefunden werden (per-Projekt keyed). */localStorage.removeItem('epk_calib_check');localStorage.removeItem('epk_user_gewerk');localStorage.removeItem('epk_install_dismissed');localStorage.removeItem('epk_ios_dismissed');/* v3.9.91 Sprint-70.3: Cross-User-Leak-Fix für neue Filter-Persistenz — epk_mat_ / epk_wkz_ / epk_fhz_ prefix-Schleife. */for(let _lsi=localStorage.length-1;_lsi>=0;_lsi--){const _lsk=localStorage.key(_lsi);if(_lsk&&(_lsk.startsWith('epk_mat_')||_lsk.startsWith('epk_wkz_')||_lsk.startsWith('epk_fhz_')))localStorage.removeItem(_lsk);}for(let _lsi=localStorage.length-1;_lsi>=0;_lsi--){const _lsk=localStorage.key(_lsi);if(_lsk&&_lsk.startsWith('matCart_'))localStorage.removeItem(_lsk);}}catch(_){}/* v3.8.34 QW1+QW2 LOCALSTORAGE_AUDIT: epkolar_gc (base64 credentials) + epkolar_juprowa_wmap (user-scoped mapping) + epkolar_auth_backup_preforce (dev-restore, hygienisch) bleiben sonst ueber Logout hinweg liegen. epkolar_gc ist P2 Security (base64 ist reversibel = effektiv Klartext-PW). */try{localStorage.removeItem('epkolar_gc');localStorage.removeItem('epkolar_juprowa_wmap');localStorage.removeItem('epkolar_auth_backup_preforce');}catch(_){}setCurUser(null);setKat(0);setOpenP(null);history.replaceState({kat:0},'');};
 
@@ -15426,7 +15515,25 @@ const W0=[{id:1,bvh:"WHA Marktplatz 20",projId:"",bem:"Erdung",z:{Mo:{ma:["w3"],
 
 const MIN_WP_ROWS=15;
 const FS_KLASSEN=["AM","A1","A2","A","B","BE","C1","C1E","C","CE","D1","D1E","D","DE","F","Staplerschein"];
-const emptyWpRow=()=>({id:Date.now()+Math.random(),bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}});
+/* v3.9.500: UUID-basierte Row-IDs für Multi-User-Sync. Vorher Date.now() → Kollision möglich
+   wenn zwei User in derselben ms eine Zeile anlegen. Bestehende Float-IDs aus pre-v3.9.500
+   bleiben gültig (TEXT-PK akzeptiert beides). crypto.randomUUID() ist in allen modernen
+   Browsern + Node verfügbar; Fallback auf Date+Math.random für ältere Webviews. */
+const _newRowId=()=>{try{if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();}catch(_){}return 'r-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);};
+const _isPaddingRow=(r)=>{
+  if(!r)return true;
+  if((r.bvh||"").trim())return false;
+  if((r.projId||"").trim())return false;
+  if((r.bem||"").trim())return false;
+  const z=r.z||{};
+  for(const d of ["Mo","Di","Mi","Do","Fr","Sa"]){
+    const c=z[d]||{};
+    if(((c.ma)||[]).length>0)return false;
+    if(((c.fz)||[]).length>0)return false;
+  }
+  return true;
+};
+const emptyWpRow=()=>({id:_newRowId(),bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}});
 const padWpRows=(rws)=>{const r=[...(rws||[])];while(r.length<MIN_WP_ROWS)r.push(emptyWpRow());return r;};
 
 function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge}){
@@ -15458,13 +15565,36 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const [kw,setKw]=_react.useState.call(void 0, curKw);
   const [rows,setRows]=_react.useState.call(void 0, ()=>padWpRows(migrateRows(_wpGet(curKw)||W0)));
   // v3.5.85 B-004 Fix: rows neu laden wenn wpHistory für aktuelle KW nachträglich (async) eintrifft
-  _react.useEffect.call(void 0, ()=>{const h=_wpGet(kw);if(Array.isArray(h)&&h.length>0){setRows(padWpRows(migrateRows(h)));wpInitRef.current=true;}},[wpHistory,kw]);
+  _react.useEffect.call(void 0, ()=>{
+    /* v3.9.500: Conflict-Guard — wenn User AKTUELL editiert (wpSaveTimer aktiv ODER dirty/deleted-Set nicht leer),
+       NICHT mit Server-Stand überschreiben. Sonst gehen lokale ungespeicherte Edits verloren. */
+    if(wpSaveTimer.current||_wpDirtyIds.current.size||_wpDeletedIds.current.size)return;
+    const h=_wpGet(kw);
+    if(Array.isArray(h)&&h.length>0){
+      const migrated=padWpRows(migrateRows(h));
+      setRows(migrated);
+      wpInitRef.current=true;
+      /* _wpLastSaved für die geladene KW neu initialisieren: jede non-padding row als JSON-Snapshot */
+      const newLast=new Map();
+      migrated.forEach((r,i)=>{if(r&&r.id&&!_isPaddingRow(r))newLast.set(r.id,JSON.stringify({bvh:r.bvh||"",projId:r.projId||"",bem:r.bem||"",z:r.z||{},_so:i*10}));});
+      _wpLastSaved.current=newLast;
+    }
+  },[wpHistory,kw]);
   const [sa,setSa]=_react.useState.call(void 0, false);const [nv,setNv]=_react.useState.call(void 0, "");const [nProjId,setNProjId]=_react.useState.call(void 0, "");
   const [editRow,setEditRow]=_react.useState.call(void 0, null);const [editBvh,setEditBvh]=_react.useState.call(void 0, "");
   const [saving,setSaving]=_react.useState.call(void 0, false);
   const [saved,setSaved]=_react.useState.call(void 0, false);
   const wpInitRef=_react.useRef.call(void 0, true);
   const wpSaveTimer=_react.useRef.call(void 0, null);
+  /* v3.9.500: Diff-Tracking für Multi-User-Sync.
+     _wpLastSaved: Map<row_id, JSON-string der zuletzt persistierten Row> (pro KW separat).
+     _wpDirtyIds: Set<row_id> der seit letztem Save geänderten/neuen rows.
+     _wpDeletedIds: Set<row_id> der seit letztem Save entfernten rows (vorher in _wpLastSaved).
+     Window-Expose der Dirty-Set für App-Level Polling-Guard (Z._loadWeekplansFromRows). */
+  const _wpLastSaved=_react.useRef.call(void 0, new Map());
+  const _wpDirtyIds=_react.useRef.call(void 0, new Set());
+  const _wpDeletedIds=_react.useRef.call(void 0, new Set());
+  _react.useEffect.call(void 0, ()=>{window.__wpDirtyRowIds=_wpDirtyIds.current;return ()=>{if(window.__wpDirtyRowIds===_wpDirtyIds.current)delete window.__wpDirtyRowIds;};},[]);
   const [cellPick,setCellPick]=_react.useState.call(void 0, null);// {rowId,days:["Mo","Di",...],type:"ma"|"fz"}
   const [wpView,setWpView]=_react.useState.call(void 0, "planung");// "planung"|"maUebersicht"
   /* v3.9.485: Tag-Kopieren — Quelle (Mo|Di|…|Sa) + Hover-Day für STRG+C/V im Spalten-Header.
@@ -15521,7 +15651,22 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const m={};DSHORT.forEach(d=>{const s=new Set();rows.forEach(r=>{(_optionalChain([r, 'access', _477 => _477.z, 'optionalAccess', _478 => _478[d], 'optionalAccess', _479 => _479.ma])||[]).forEach(id=>s.add(id));});m[d]=s.size;});return m;
   },[rows]);
 
-  const switchKw=(newKw)=>{/* v3.8.49 Bug-Fix: Pending Auto-Save VOR KW-Wechsel flushen — vorher verwarf switchKw den 800ms-Debounce-Timer via clearTimeout ohne saveWeek auszuführen → Edits der aktuellen KW gingen auf dem Server verloren, blieben nur im lokalen wpHistory. Nach Reload alte Daten. */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveWeek();}setWpHistory(h=>({...h,[_wpKey(kw)]:rows}));setKw(newKw);wpInitRef.current=true;setRows(padWpRows(migrateRows(_wpGet(newKw)||[])));setCellPick(null);setSelCells(null);/* v3.9.46 SPRINT-31 F-DnD-1: dragRef beim KW-Wechsel resetten — vorher konnte aktive Drag-Auswahl der alten KW (rowId nicht mehr existent) als Stale-State weiterleben. */dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};};
+  const switchKw=(newKw)=>{
+    /* v3.9.500: Vor KW-Wechsel pending Edits flushen — saveDirty pusht Dirty/Deleted statt
+       altem weekplans-Blob. Danach _wpLastSaved für die neue KW frisch initialisieren. */
+    if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveDirty();}
+    setWpHistory(h=>({...h,[_wpKey(kw)]:rows}));
+    setKw(newKw);
+    wpInitRef.current=true;
+    const _newRows=padWpRows(migrateRows(_wpGet(newKw)||[]));
+    setRows(_newRows);
+    const newLast=new Map();
+    _newRows.forEach((r,i)=>{if(r&&r.id&&!_isPaddingRow(r))newLast.set(r.id,JSON.stringify({bvh:r.bvh||"",projId:r.projId||"",bem:r.bem||"",z:r.z||{},_so:i*10}));});
+    _wpLastSaved.current=newLast;
+    _wpDirtyIds.current.clear();_wpDeletedIds.current.clear();
+    setCellPick(null);setSelCells(null);
+    dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};
+  };
 
   const toggleMA=(rowId,day,maId)=>{
     if(!isAdmin)return;/* v3.9.354 #6: Wochenplanung nur Admin/PL editierbar (saveWeek war schon gegated; jetzt auch lokale Edits → kein Phantom-Edit für Monteure) */
@@ -15615,7 +15760,8 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       const ok=await _confirmModal("Aktuelle KW "+kw+" überschreiben? Bestehende Planung wird ersetzt.",{variant:"danger"});
       if(!ok)return;
     }
-    const _copied=prevRows.map(r=>({...r,id:r.id,bem:r.bem||"",z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[...((r&&r.z&&r.z[d]&&r.z[d].ma)||[])],fz:[...((r&&r.z&&r.z[d]&&r.z[d].fz)||[])]}]))}));
+    /* v3.9.500: neue UUID-IDs für KW-Kopien — sonst PK-Kollision in weekplan_rows (KW27 mit row_id==KW26-row_id). */
+    const _copied=prevRows.map(r=>({...r,id:_newRowId(),bem:r.bem||"",z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[...((r&&r.z&&r.z[d]&&r.z[d].ma)||[])],fz:[...((r&&r.z&&r.z[d]&&r.z[d].fz)||[])]}]))}));
     setRows(padWpRows(_copied));
     const _prevKwDisplay=kw>1?(kw-1):_getMaxKW(yr-1);
     window.__toast&&window.__toast("📋 KW "+_prevKwDisplay+" übernommen — wird automatisch gespeichert","ok");
@@ -15691,9 +15837,70 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     return()=>{window.removeEventListener("resize",h);window.removeEventListener("scroll",h,true);};
   },[cellPick,_wpMeasurePopup]);
 
-  const saveWeek=()=>{if(!isAdmin)return;setSaving(true);setWpHistory(h=>({...h,[_wpKey(kw)]:rows}));SQ.push({url:"/api/weekplans",method:"POST",body:{kw,year:yr,rows}});setTimeout(()=>{setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);},400);};
-  // Auto-save on rows change (debounced 800ms, skip initial load)
-  _react.useEffect.call(void 0, ()=>{if(wpInitRef.current){wpInitRef.current=false;return;}if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);wpSaveTimer.current=setTimeout(()=>saveWeek(),800);return()=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);};},[rows]);
+  /* v3.9.500: saveWeek → saveDirty. Statt ganzen rows-Array zu pushen, werden NUR
+     geänderte/neue rows (UPSERT) bzw entfernte rows (DELETE) als einzelne SQ-Items
+     gepusht. Padding-Rows (bvh leer + alle z leer) werden NIE persistiert. */
+  const _curUserName=(curUser&&(curUser.name||curUser.username))||'';
+  const saveDirty=()=>{
+    if(!isAdmin)return;
+    const dirty=_wpDirtyIds.current,deleted=_wpDeletedIds.current;
+    if(!dirty.size&&!deleted.size)return;
+    setSaving(true);
+    // Build sort_order map: index in current rows × 10 (Lücken-Toleranz für Einschübe)
+    const sortOrderById=new Map();
+    rows.forEach((r,i)=>{sortOrderById.set(r.id,i*10);});
+    // 1) UPSERT für dirty rows (non-padding only)
+    const upserts=[];
+    dirty.forEach(rid=>{
+      const r=rows.find(x=>x&&x.id===rid);
+      if(!r||_isPaddingRow(r))return;/* Padding NIE persistieren */
+      upserts.push({
+        row_id:String(r.id),
+        year:yr,week:kw,
+        sort_order:sortOrderById.get(r.id)||0,
+        bvh:r.bvh||"",proj_id:r.projId||"",bem:r.bem||"",
+        z:r.z||{},
+        updated_by:_curUserName
+      });
+    });
+    if(upserts.length){
+      // einzelne UPSERTs (SyncQueue batched ohnehin)
+      upserts.forEach(u=>SQ.push({url:"/api/weekplan-rows",method:"POST",body:u}));
+    }
+    // 2) DELETE für entfernte rows
+    deleted.forEach(rid=>{
+      if(!rid)return;
+      SQ.push({url:"/api/weekplan-rows/"+encodeURIComponent(rid),method:"DELETE"});
+    });
+    // 3) _wpLastSaved aktualisieren: aktueller Stand (non-padding) als JSON
+    const newLast=new Map();
+    rows.forEach(r=>{if(r&&r.id&&!_isPaddingRow(r))newLast.set(r.id,JSON.stringify({bvh:r.bvh||"",projId:r.projId||"",bem:r.bem||"",z:r.z||{},_so:sortOrderById.get(r.id)||0}));});
+    _wpLastSaved.current=newLast;
+    // 4) Mirror in wpHistory (Multi-Device-Layer + ODB-Cache profitieren)
+    setWpHistory(h=>({...h,[_wpKey(kw)]:rows}));
+    // 5) Dirty/Deleted leeren
+    dirty.clear();deleted.clear();
+    setTimeout(()=>{setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);},400);
+  };
+  /* Auto-save on rows change (debounced 800ms). Diff vs _wpLastSaved → füllt Dirty/Deleted. */
+  _react.useEffect.call(void 0, ()=>{
+    if(wpInitRef.current){wpInitRef.current=false;return;}
+    if(!isAdmin)return;
+    // Diff vs zuletzt-gespeichertem Stand: was hat sich geändert (Inhalt) oder ist neu?
+    const present=new Set();
+    rows.forEach((r,i)=>{
+      if(!r||!r.id||_isPaddingRow(r))return;
+      present.add(r.id);
+      const snapshot=JSON.stringify({bvh:r.bvh||"",projId:r.projId||"",bem:r.bem||"",z:r.z||{},_so:i*10});
+      const prev=_wpLastSaved.current.get(r.id);
+      if(prev!==snapshot)_wpDirtyIds.current.add(r.id);
+    });
+    // Was vorher gespeichert war + jetzt nicht mehr (oder Padding geworden) → DELETE
+    _wpLastSaved.current.forEach((_v,id)=>{if(!present.has(id))_wpDeletedIds.current.add(id);});
+    if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);
+    wpSaveTimer.current=setTimeout(()=>{wpSaveTimer.current=null;saveDirty();},800);
+    return()=>{if(wpSaveTimer.current)clearTimeout(wpSaveTimer.current);};
+  },[rows]);
   // v3.8.49 Bug-Fix: beforeunload-Handler flusht pending 800ms-Debounce wenn User
   // Tab/Window schließt oder reloadet. Vorher: Edits die <800ms vor close waren → verloren.
   // Refs für rows/kw/yr damit Listener stabil bleibt (empty-deps-useEffect).
@@ -15701,17 +15908,17 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
   const _wpKwRef=_react.useRef.call(void 0, kw);_wpKwRef.current=kw;
   const _wpYrRef=_react.useRef.call(void 0, yr);_wpYrRef.current=yr;
   _react.useEffect.call(void 0, ()=>{
-    const flush=()=>{if(!isAdmin)return;/* v3.9.222 #2: Feld-User-Write-Bypass schliessen — saveWeek ist isAdmin-gegated, der beforeunload/Unmount-flush war es nicht → Monteur-Edits konnten den Wochenplan ueberschreiben */if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{SQ.push({url:"/api/weekplans",method:"POST",body:{kw:_wpKwRef.current,year:_wpYrRef.current,rows:_wpRowsRef.current}});}catch(e){console.warn('[silent-sq]',e&&e.message||e);}}};
+    const flush=()=>{if(!isAdmin)return;if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;try{saveDirty();/* v3.9.500: pre-unmount/unload flush → saveDirty pusht dirty rows als einzelne SQ-Items, KEIN volles weekplans-Blob mehr */}catch(e){console.warn('[silent-sq]',e&&e.message||e);}}};
     window.addEventListener("beforeunload",flush);
     return()=>{window.removeEventListener("beforeunload",flush);flush();};
   },[]);
 
-  const addRow=(name,projId)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;/* v3.9.35 W-3: Wenn projId gesetzt aber Projekt im projects-Array fehlt (race/stale), pn fällt auf name zurück (kann "" sein) → leere bvh-Row. Skip statt leere Zeile. */const _finalBvh=(pn||name||"").trim();if(!_finalBvh)return;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:_finalBvh,projId:projId||""}:r);}else{return[...prev,{id:Date.now(),bvh:_finalBvh,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
+  const addRow=(name,projId)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!_optionalChain([name, 'optionalAccess', _486 => _486.trim, 'call', _487 => _487()])&&!projId)return;const pn=projId?_optionalChain([projects, 'access', _488 => _488.find, 'call', _489 => _489(p=>p.id===projId), 'optionalAccess', _490 => _490.name])||name:name;/* v3.9.35 W-3 */const _finalBvh=(pn||name||"").trim();if(!_finalBvh)return;setRows(prev=>{const emptyIdx=prev.findIndex(r=>!(r.bvh||"").trim());if(emptyIdx>=0){return prev.map((r,i)=>i===emptyIdx?{...r,bvh:_finalBvh,projId:projId||""}:r);}else{return[...prev,{id:_newRowId()/* v3.9.500: UUID statt Date.now() — Multi-User-Kollisions-Schutz */,bvh:_finalBvh,projId:projId||"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}];}});setNv("");setNProjId("");setSa(false);};
   /* v3.9.325: destruktive Wochenplanungs-Aktionen brauchen _confirmModal (Modal-Migration-Lücke seit v3.9.11). */
   const clearRow=async(id)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!await _confirmModal("Zeile wirklich leeren? Alle Mitarbeiter-/Fahrzeug-Zuordnungen für diese Baustelle gehen für die KW verloren."))return;setRows(prev=>prev.map(r=>r.id===id?{...r,bvh:"",projId:"",bem:"",z:{Mo:{ma:[],fz:[]},Di:{ma:[],fz:[]},Mi:{ma:[],fz:[]},Do:{ma:[],fz:[]},Fr:{ma:[],fz:[]},Sa:{ma:[],fz:[]}}}:r));};
   const delRow=async(id)=>{if(!isAdmin)return;/* v3.9.354 #6 */if(!await _confirmModal("Zeile wirklich löschen?",{variant:"danger"}))return;/* v3.9.35 W-1/W-6: clear cellPick + selCells + dragRef wenn die gelöschte Zeile aktiv war — sonst stale popup/drag-state auf nicht-existenter rowId. */setRows(prev=>padWpRows(prev.filter(x=>x.id!==id)));if(_optionalChain([cellPick, 'optionalAccess', _wpDel1 => _wpDel1.rowId])===id)setCellPick(null);if(_optionalChain([selCells, 'optionalAccess', _wpDel2 => _wpDel2.rowId])===id)setSelCells(null);if(dragRef.current&&dragRef.current.rowId===id){dragRef.current={active:false,rowId:null,startIdx:-1,endIdx:-1};}};
   const moveRow=(id,dir)=>{if(!isAdmin)return;/* v3.9.354 #6 */setRows(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const ni=idx+dir;if(ni<0||ni>=prev.length)return prev;const nr=[...prev];[nr[idx],nr[ni]]=[nr[ni],nr[idx]];return nr;});};
-  const copyWeek=(srcKw)=>{const src=_wpGet(srcKw);if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){/* v3.9.70 SPRINT-50 F-2: alert → toast. */_optionalChain([window,'access',_g70i=>_g70i.__toast,'optionalCall',_g70j=>_g70j("ℹ KW "+srcKw+" hat keine Einträge","info")]);return;}setRows(padWpRows(src.map(r=>({...r,id:Date.now()+Math.random(),z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
+  const copyWeek=(srcKw)=>{const src=_wpGet(srcKw);if(!_optionalChain([src, 'optionalAccess', _491 => _491.length])){_optionalChain([window,'access',_g70i=>_g70i.__toast,'optionalCall',_g70j=>_g70j("ℹ KW "+srcKw+" hat keine Einträge","info")]);return;}setRows(padWpRows(src.map(r=>({...r,id:_newRowId()/* v3.9.500: UUID statt Date.now()+random */,z:Object.fromEntries(DSHORT.map(d=>[d,{ma:[],fz:[]}]))}))));};
 
   // Export helpers
   /* v3.9.308: Wochenplanung-TXT-Export entfernt — Buero nutzt Excel. */

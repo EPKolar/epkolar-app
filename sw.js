@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.497 — Alert-Detail-Panel sichtbar (Home-Dashboard kräftigerer Hintergrund + Akzent-Rand + lesbarer Listentext)
-const CACHE_NAME = "epkolar-v3.9.497";
+// EP Kolar Service Worker v3.9.500 — Wochenplanung Multi-User-Sync: Zeilen-Level-Storage (weekplan_rows), Diff-Save, Polling 30s, Conflict-Schutz
+const CACHE_NAME = "epkolar-v3.9.500";
 const ASSETS = [
   './',
   './index.html'
