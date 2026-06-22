@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.507 — WP-Header KW-Nav Mobile: ◀/▶/savedKws-Buttons mit Tap-Targets ≥36px
-const CACHE_NAME = "epkolar-v3.9.507";
+// EP Kolar Service Worker v3.9.508 — VBautag Mobile: Form-Actions column + Card-Header column + Edit/Delete Tap-Targets ≥40px mit Labels
+const CACHE_NAME = "epkolar-v3.9.508";
 const ASSETS = [
   './',
   './index.html'
