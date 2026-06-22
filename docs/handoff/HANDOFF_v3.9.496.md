@@ -44,7 +44,7 @@
 
 | Task | Quelle | Aktion |
 |---|---|---|
-| **RLS Welle 1 Phase 2 (Blöcke 1.0a, 1.3, 1.4, 1.6, 1.7, 1.8)** | `sql/RLS_WELLE_1_READY_v5.sql` (v4 + v3 sind DEPRECATED) | v5 fixt zwei aufeinanderfolgende Bugs: (1) Spalten-Mismatches aus v3 (`wp.worker_id`, `forms.project_id`, `bautagebuch.project_id`); (2) DROP-Loop-Filter v3/v4 droppte nur `qual='true'`, NICHT die realen offenen Policies mit `qual=(auth.role()='authenticated'::text)` → Härtung war wirkungslos. v5 erweitert Filter um `auth.role()`-Pattern + neuer Block **1.0a Repair** für fahrzeuge/time_entries (die nominell seit 12.06. „applied" sind aber wegen Filter-Bug daneben offene Policies stehen haben). Block 1.5 fz_schaeden entfällt (Tabelle gedroppt). Blöcke 1.7/1.8 brauchen weiterhin information_schema-Pre-Check. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt. |
+| **RLS Welle 1 Phase 2 (Blöcke 1.1, 1.2, 1.3, 1.4, 1.6, 1.7, 1.8)** | `sql/RLS_WELLE_1_READY_v6.sql` (v3, v4, v5 sind DEPRECATED) | v6 ist der saubere Endzustand nach 3 Iterationen. Behebt: (a) Spalten-Mismatches aus v3 (`wp.worker_id`, `forms.project_id`, `bautagebuch.project_id`); (b) DROP-Filter v3/v4 droppte nur `qual='true'` — v6 droppt auch `qual LIKE '%auth.role()%authenticated%'`; (c) v5 fragile Namens-Allowlist (te_read/te_write) — v6 ist rein pattern-basiert, additive restriktive Policies (`fahrzeuge_update_driver` etc.) bleiben naturgemäß erhalten; (d) Block 1.1+1.2 idempotent integriert (pattern-drop + explicit-drop + create) — Endlage deterministisch, kein separates 1.0a-Repair mehr nötig; (e) Block 1.7 anmeldungen conditional via `information_schema`-Check (SKIP wenn Spalte fehlt); (f) Snapshot-Dedup via NOT EXISTS. Block 1.5 fz_schaeden entfällt (Tabelle gedroppt). Rollback-Snapshot `_rls_snapshot_v3923` idempotent. |
 | Riedmann-Monteur-Tankung RLS-Beweis | wartet auf Live-Setup (Live-Gerät / Live-User) | — |
 
 ### C) Wartet auf Sebastian — CLI/Deploy
@@ -74,7 +74,7 @@
 
 1. **Smoke-Test der WP-Kopier-Features (v3.9.485-488, v3.9.494, v3.9.495)** auf echtem Gerät — Tag-Kopieren-Header (📋/✂️), Zellen-Chips im Picker, „📋 Vorwoche"-Header-Button.
 2. **Smoke-Test der Cross-Device-Sync-Hardening (v3.9.491, v3.9.496)** — entries/arbeitsscheine/forms/defects offline anlegen → online → andere Geräte sollten keine Phantom-Verluste mehr sehen.
-3. **RLS Welle 1 Phase 2** ausführen via `sql/RLS_WELLE_1_READY_v5.sql` (v3 + v4 deprecated; v4 hatte zusätzlich zum Spalten-Mismatch noch einen DROP-Loop-Filter-Bug der die Härtung wirkungslos gemacht hätte). v5 enthält neuen **Block 1.0a Repair** der für fahrzeuge/time_entries die in v3 offen-gebliebenen `auth.role()`-Policies daneben entfernt — pflicht zuerst applien. Block 1.5 fz_schaeden entfällt. Blöcke 1.7/1.8 vor Apply nochmal kurz mit information_schema-Pre-Check verifizieren. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt.
+3. **RLS Welle 1 Phase 2** ausführen via `sql/RLS_WELLE_1_READY_v6.sql` (v3 + v4 + v5 deprecated nach 3 Iterations-Fixes — siehe HANDOFF-Backlog-Tabelle für Detail). v6 ist idempotent + pattern-basiert + conditional, kann blockweise sequentiell ausgeführt werden. Block 1.5 fz_schaeden entfällt. Block 1.7 anmeldungen SKIPPED sich automatisch wenn `worker_id`-Spalte fehlt. Rollback-Snapshot `_rls_snapshot_v3923` idempotent.
 
 ## HART NICHT ANFASSEN (unverändert)
 
