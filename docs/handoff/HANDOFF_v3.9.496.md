@@ -44,7 +44,7 @@
 
 | Task | Quelle | Aktion |
 |---|---|---|
-| **RLS Welle 1 Phase 2 (Blöcke 1.3, 1.4, 1.6, 1.7, 1.8)** | `sql/RLS_WELLE_1_READY_v4.sql` (v3 ist DEPRECATED — Spalten-Mismatch hätte Monteure ausgesperrt) | Korrigierte Spalten: `wp.worker_id`, `forms.project_id`, `bautagebuch.project_id`. Block 1.5 fz_schaeden entfällt (Tabelle existiert nicht — gedroppt seit v3.9.427). Block 1.7 anmeldungen + 1.8 finkzeit brauchen noch eigenen Pre-Check (information_schema). Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt. |
+| **RLS Welle 1 Phase 2 (Blöcke 1.0a, 1.3, 1.4, 1.6, 1.7, 1.8)** | `sql/RLS_WELLE_1_READY_v5.sql` (v4 + v3 sind DEPRECATED) | v5 fixt zwei aufeinanderfolgende Bugs: (1) Spalten-Mismatches aus v3 (`wp.worker_id`, `forms.project_id`, `bautagebuch.project_id`); (2) DROP-Loop-Filter v3/v4 droppte nur `qual='true'`, NICHT die realen offenen Policies mit `qual=(auth.role()='authenticated'::text)` → Härtung war wirkungslos. v5 erweitert Filter um `auth.role()`-Pattern + neuer Block **1.0a Repair** für fahrzeuge/time_entries (die nominell seit 12.06. „applied" sind aber wegen Filter-Bug daneben offene Policies stehen haben). Block 1.5 fz_schaeden entfällt (Tabelle gedroppt). Blöcke 1.7/1.8 brauchen weiterhin information_schema-Pre-Check. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt. |
 | Riedmann-Monteur-Tankung RLS-Beweis | wartet auf Live-Setup (Live-Gerät / Live-User) | — |
 
 ### C) Wartet auf Sebastian — CLI/Deploy
@@ -74,7 +74,7 @@
 
 1. **Smoke-Test der WP-Kopier-Features (v3.9.485-488, v3.9.494, v3.9.495)** auf echtem Gerät — Tag-Kopieren-Header (📋/✂️), Zellen-Chips im Picker, „📋 Vorwoche"-Header-Button.
 2. **Smoke-Test der Cross-Device-Sync-Hardening (v3.9.491, v3.9.496)** — entries/arbeitsscheine/forms/defects offline anlegen → online → andere Geräte sollten keine Phantom-Verluste mehr sehen.
-3. **RLS Welle 1 Phase 2** ausführen via `sql/RLS_WELLE_1_READY_v4.sql` (v3 deprecated — Spalten-Mismatch hätte Monteure ausgesperrt; Pre-Check 22.06.2026 dokumentiert in der v4-Datei). Block 1.5 fz_schaeden entfällt (Tabelle gedroppt). Blöcke 1.7/1.8 vor Apply nochmal kurz mit information_schema-Pre-Check verifizieren. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt.
+3. **RLS Welle 1 Phase 2** ausführen via `sql/RLS_WELLE_1_READY_v5.sql` (v3 + v4 deprecated; v4 hatte zusätzlich zum Spalten-Mismatch noch einen DROP-Loop-Filter-Bug der die Härtung wirkungslos gemacht hätte). v5 enthält neuen **Block 1.0a Repair** der für fahrzeuge/time_entries die in v3 offen-gebliebenen `auth.role()`-Policies daneben entfernt — pflicht zuerst applien. Block 1.5 fz_schaeden entfällt. Blöcke 1.7/1.8 vor Apply nochmal kurz mit information_schema-Pre-Check verifizieren. Rollback-Snapshot `_rls_snapshot_v3923` ist idempotent angelegt.
 
 ## HART NICHT ANFASSEN (unverändert)
 
