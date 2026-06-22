@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.505 — Spezialfahrzeuge-Übersicht Mobile (<600px): Card-Liste pro selDay; Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.505";
+// EP Kolar Service Worker v3.9.506 — WP-Footer Mobile (<600px): Excel/PDF 50/50 Grid + Counter eigene Zeile; Desktop unverändert
+const CACHE_NAME = "epkolar-v3.9.506";
 const ASSETS = [
   './',
   './index.html'
