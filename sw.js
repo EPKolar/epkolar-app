@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.530 — horizontale Scrollbars ausblenden (::-webkit-scrollbar height:0)
-const CACHE_NAME = "epkolar-v3.9.530";
+// EP Kolar Service Worker v3.9.531 — Arbeitsschein-Nr.: dauerhaftes ⟳ (Juprowa-Marker) entfernt, Push-Pfeil ↑ bleibt
+const CACHE_NAME = "epkolar-v3.9.531";
 const ASSETS = [
   './',
   './index.html'
