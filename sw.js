@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.535 — AS-Monteur-Schutz auf alle Write-Pfade (updAs/storno/verschieben Defense-in-Depth, Listen-Inline-Editoren abgedeckt)
-const CACHE_NAME = "epkolar-v3.9.535";
+// EP Kolar Service Worker v3.9.536 — Lager-Kiosk Monteur-Tafel (Tag+Woche, ?screen=, nur lager_display + Admin-Preview, read-only, WakeLock+Auto-Refresh)
+const CACHE_NAME = "epkolar-v3.9.536";
 const ASSETS = [
   './',
   './index.html'
