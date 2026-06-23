@@ -13,17 +13,24 @@ def test_material_preisvergleich_mobile_minwidth():
 
 
 def test_weekplan_mobile_minwidth():
-    """WeekPlan: minWidth:isMob?0:600,fontSize:12."""
+    """v3.9.523: WeekPlan-Planungs-Streifen (Abwesenheiten + SpezFz) wurden vom
+    minWidth:isMob?0:600-Tabellenlayout auf das Wetter/Tabellen-Flex-Grid (minWidth:800,
+    overflowX:auto) umgestellt. Mobile-Safety jetzt über Desktop-Gate (!isMob) + Tages-Karten
+    statt der alten isMob?0:600-Tabelle. Test prüft beide Pfade."""
     text = INDEX.read_text(encoding='utf-8')
-    pattern = r'minWidth:isMob\?0:600,\s*fontSize:12'
-    assert re.search(pattern, text), \
-        'v3.8.74 Sub-Page CSS Regression: WeekPlan table minWidth-isMob-guard fehlt'
+    # SpezFz-Übersichtsstreifen ist Desktop-only → kein Mobile-Table-Overflow
+    assert 'spezFz.length>0&&!isMob' in text, \
+        'WeekPlan SpezFz-Streifen nicht mehr !isMob-gated (Mobile-Safety-Regression)'
+    # Mobile-Pfad existiert als Card-Block (v3.9.505)
+    assert 'spezFz.length>0&&isMob' in text, \
+        'WeekPlan SpezFz Mobile-Card-Block fehlt'
 
 
 def test_chefdashboard_ampeln_mobile_minwidth():
-    """ChefDashboard Projekt-Ampeln: minWidth:isMob?0:600 (pattern occurs >=2x in index.html)."""
+    """ChefDashboard Projekt-Ampeln: minWidth:isMob?0:600.
+    v3.9.523: Das 2. Vorkommen (WeekPlan SpezFz-Streifen) wurde auf das Flex-Grid umgestellt,
+    daher bleibt nur noch das ChefDashboard-Vorkommen (>=1)."""
     text = INDEX.read_text(encoding='utf-8')
     matches = re.findall(r'minWidth:isMob\?0:600', text)
-    assert len(matches) >= 2, \
-        f'v3.8.74 Sub-Page CSS Regression: ChefDashboard Projekt-Ampeln minWidth-isMob-guard fehlt ' \
-        f'(erwartet >=2 Vorkommen für WeekPlan + ChefDashboard, gefunden: {len(matches)})'
+    assert len(matches) >= 1, \
+        f'ChefDashboard Projekt-Ampeln minWidth-isMob-guard fehlt (gefunden: {len(matches)})'

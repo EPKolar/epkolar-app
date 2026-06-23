@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.522 — Bug-Fix: Material-Notif bleibt nach erledigter Bestellung (Cleanup in _checkAutoNotifs)
-const CACHE_NAME = "epkolar-v3.9.522";
+// EP Kolar Service Worker v3.9.523 — Planungs-Streifen (Abwesenheiten + SpezFz) fluchten mit Tabelle/Wetter (Flex-Grid)
+const CACHE_NAME = "epkolar-v3.9.523";
 const ASSETS = [
   './',
   './index.html'
