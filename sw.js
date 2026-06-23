@@ -1,4 +1,4 @@
-// EP Kolar Service Worker v3.9.532 — Arbeitsschein orange ↑ direkt nach erfolgreichem Einzel-Push leeren (editId-.then State-Clear) — Arbeitsschein-Nr.: dauerhaftes ⟳ (Juprowa-Marker) entfernt, Push-Pfeil ↑ bleibt
+// EP Kolar Service Worker v3.9.532 — Arbeitsschein orange ↑ direkt nach erfolgreichem Einzel-Push leeren (editId-.then State-Clear)
 const CACHE_NAME = "epkolar-v3.9.532";
 const ASSETS = [
   './',
