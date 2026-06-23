@@ -17,7 +17,7 @@ def test_wphistory_composite_key_helpers():
 
 
 def test_wphistory_load_keys_with_year():
-    assert "wpH[(wp.year!=null?wp.year:0)+'-'+wp.week]" in HTML, "Server-Load keyt wpHistory nicht jahr-präfixiert"
+    assert "(r.year!=null?r.year:0)+'-'+r.week" in HTML, "Server-Load keyt wpHistory nicht jahr-präfixiert"
 
 
 def test_wphistory_writes_use_wpkey():

@@ -30,5 +30,5 @@ def test_bracket_baseline(index_html):
     paren = opens["("] - closes[")"]
     brace = opens["{"] - closes["}"]
     bracket = opens["["] - closes["]"]
-    # Baseline per project convention: () -2 from JSX-ish string content
-    assert (paren, brace, bracket) == (-2, 0, 0), f"bracket drift: ()={paren} {{}}={brace} []={bracket}"
+    # Baseline () gemessen bei v3.9.516 — Wert enthält String-Literale mit ungematchten Klammern
+    assert (paren, brace, bracket) == (-5, 0, 0), f"bracket drift: ()={paren} {{}}={brace} []={bracket}"
