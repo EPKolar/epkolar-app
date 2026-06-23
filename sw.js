@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.521 — Abwesenheiten-Übersicht (Krankenstand/Urlaub) in der Wochenplanung (read-only)
-const CACHE_NAME = "epkolar-v3.9.521";
+// EP Kolar Service Worker v3.9.522 — Bug-Fix: Material-Notif bleibt nach erledigter Bestellung (Cleanup in _checkAutoNotifs)
+const CACHE_NAME = "epkolar-v3.9.522";
 const ASSETS = [
   './',
   './index.html'
