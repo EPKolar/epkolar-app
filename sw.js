@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.524 — Team-Kachel flex statt grid (Karten wachsen/füllen Reihen)
-const CACHE_NAME = "epkolar-v3.9.524";
+// EP Kolar Service Worker v3.9.525 — Team-Kachel Icon-Logik (Chef 👔 / Mitarbeiterinnen 👩 / Rest 👷)
+const CACHE_NAME = "epkolar-v3.9.525";
 const ASSETS = [
   './',
   './index.html'
