@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.516 — Excel-Export Druck-Kontrast (genXls: graue Schrift schwarz, alle Exporte)
-const CACHE_NAME = "epkolar-v3.9.516";
+// EP Kolar Service Worker v3.9.518 — Alert-Detail-Panel Redesign (Status-aware Zeilen, Home-Dashboard)
+const CACHE_NAME = "epkolar-v3.9.518";
 const ASSETS = [
   './',
   './index.html'
