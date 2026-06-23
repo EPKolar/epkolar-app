@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.540 — Bug-Fix #2: WP-Polling-Race (Pending-Set inkrementell+synchron statt async Voll-Rebuild im Drain) — verhindert Overwrite frischer Edits
-const CACHE_NAME = "epkolar-v3.9.540";
+// EP Kolar Service Worker v3.9.541 — Versions-Resync (SW_VER 535→541, 5-Vers-Drift) + version-triple-sync Guard-Test; Code wie v3.9.540 (WP-Race-Fix)
+const CACHE_NAME = "epkolar-v3.9.541";
 const ASSETS = [
   './',
   './index.html'
