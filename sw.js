@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.539 — Bug-Fix #1+#4: _asMtLocked auf autoritativen (gesyncten) AS-Status statt stale form.scheinstatus (Remote-/Auto-Close-sicher)
-const CACHE_NAME = "epkolar-v3.9.539";
+// EP Kolar Service Worker v3.9.540 — Bug-Fix #2: WP-Polling-Race (Pending-Set inkrementell+synchron statt async Voll-Rebuild im Drain) — verhindert Overwrite frischer Edits
+const CACHE_NAME = "epkolar-v3.9.540";
 const ASSETS = [
   './',
   './index.html'
