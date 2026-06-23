@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.543 — WP-Drain-Hook Regressions-Fix: row_id nur aus Pending-Set löschen wenn keine weitere SQ-Op sie referenziert (Doppel-Save-Lost-Update)
-const CACHE_NAME = "epkolar-v3.9.543";
+// EP Kolar Service Worker v3.9.544 — Bug-Hunt 3-Fix: Notif-Daily-Refire (dedupKey), AS-Pull schützt pending PUTs, Abwesenheits-Pull Merge statt Voll-Overwrite
+const CACHE_NAME = "epkolar-v3.9.544";
 const ASSETS = [
   './',
   './index.html'
