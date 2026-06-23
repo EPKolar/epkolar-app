@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.527 — Auswertungen: Auftragsvolumen nur Büro/Admin/PL (Monteure ausgeblendet)
-const CACHE_NAME = "epkolar-v3.9.527";
+// EP Kolar Service Worker v3.9.528 — Tankbeleg-km robust aus OCR-rawText (KILOMETERSTAND) + Plausi
+const CACHE_NAME = "epkolar-v3.9.528";
 const ASSETS = [
   './',
   './index.html'
