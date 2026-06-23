@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.532 — Arbeitsschein orange ↑ direkt nach erfolgreichem Einzel-Push leeren (editId-.then State-Clear)
-const CACHE_NAME = "epkolar-v3.9.532";
+// EP Kolar Service Worker v3.9.533 — AS-Edit-Permission: Monteur-Grunddaten-Lock bei abgeschlossenem Schein + OFFA-Kundenstammdaten read-only für alle
+const CACHE_NAME = "epkolar-v3.9.533";
 const ASSETS = [
   './',
   './index.html'
