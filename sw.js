@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.541 — Versions-Resync (SW_VER 535→541, 5-Vers-Drift) + version-triple-sync Guard-Test; Code wie v3.9.540 (WP-Race-Fix)
-const CACHE_NAME = "epkolar-v3.9.541";
+// EP Kolar Service Worker v3.9.542 — Tank-Kontrolle Lost-Update-Fix (_tankMark liest tank_log frisch aus DB statt stale Local-State-Blob zurückzuschreiben)
+const CACHE_NAME = "epkolar-v3.9.542";
 const ASSETS = [
   './',
   './index.html'
