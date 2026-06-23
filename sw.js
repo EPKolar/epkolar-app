@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.523 — Planungs-Streifen (Abwesenheiten + SpezFz) fluchten mit Tabelle/Wetter (Flex-Grid)
-const CACHE_NAME = "epkolar-v3.9.523";
+// EP Kolar Service Worker v3.9.524 — Team-Kachel flex statt grid (Karten wachsen/füllen Reihen)
+const CACHE_NAME = "epkolar-v3.9.524";
 const ASSETS = [
   './',
   './index.html'
