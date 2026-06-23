@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.515 — Mobile Polish Urlaubskontingent-Tabelle (minWidth für sauberen Scroll), Desktop unverändert
-const CACHE_NAME = "epkolar-v3.9.515";
+// EP Kolar Service Worker v3.9.516 — Excel-Export Druck-Kontrast (genXls: graue Schrift schwarz, alle Exporte)
+const CACHE_NAME = "epkolar-v3.9.516";
 const ASSETS = [
   './',
   './index.html'
