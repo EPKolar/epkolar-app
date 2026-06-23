@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.520 — Excel höhere Datenzeilen (Wochenplanung + MA-Übersicht, rowHeight-Opt)
-const CACHE_NAME = "epkolar-v3.9.520";
+// EP Kolar Service Worker v3.9.521 — Abwesenheiten-Übersicht (Krankenstand/Urlaub) in der Wochenplanung (read-only)
+const CACHE_NAME = "epkolar-v3.9.521";
 const ASSETS = [
   './',
   './index.html'
