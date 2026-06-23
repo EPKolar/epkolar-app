@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.533 — AS-Edit-Permission: Monteur-Grunddaten-Lock bei abgeschlossenem Schein + OFFA-Kundenstammdaten read-only für alle
-const CACHE_NAME = "epkolar-v3.9.533";
+// EP Kolar Service Worker v3.9.534 — AS-Edit sync-sicher: Monteur-Zuweisung nie änderbar (kein RLS-403) + Storno/Verschieben für Monteur bei abgeschlossenem Schein gesperrt
+const CACHE_NAME = "epkolar-v3.9.534";
 const ASSETS = [
   './',
   './index.html'
