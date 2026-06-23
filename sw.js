@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.542 — Tank-Kontrolle Lost-Update-Fix (_tankMark liest tank_log frisch aus DB statt stale Local-State-Blob zurückzuschreiben)
-const CACHE_NAME = "epkolar-v3.9.542";
+// EP Kolar Service Worker v3.9.543 — WP-Drain-Hook Regressions-Fix: row_id nur aus Pending-Set löschen wenn keine weitere SQ-Op sie referenziert (Doppel-Save-Lost-Update)
+const CACHE_NAME = "epkolar-v3.9.543";
 const ASSETS = [
   './',
   './index.html'
