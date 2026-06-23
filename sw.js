@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.525 — Team-Kachel Icon-Logik (Chef 👔 / Mitarbeiterinnen 👩 / Rest 👷)
-const CACHE_NAME = "epkolar-v3.9.525";
+// EP Kolar Service Worker v3.9.526 — Team-Kachel Chef-Icon 👔→👨‍💼 (Geschäftsführer mit Kopf)
+const CACHE_NAME = "epkolar-v3.9.526";
 const ASSETS = [
   './',
   './index.html'
