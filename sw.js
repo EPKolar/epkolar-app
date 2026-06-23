@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.537 — Büro-Portal Tank-Kontrolle online (VBueroExport: Tankbelege als kontrolliert markieren, Beleg-Lightbox), Tank-Flow-Kern unberührt
-const CACHE_NAME = "epkolar-v3.9.537";
+// EP Kolar Service Worker v3.9.538 — Tankfoto-Migration-Utility (admin-gated console: window._migrateTankFotos, DRY-RUN default / {go:true} Base64→Storage), Tank-Flow-Kern unberührt
+const CACHE_NAME = "epkolar-v3.9.538";
 const ASSETS = [
   './',
   './index.html'
