@@ -132,7 +132,7 @@ def test_save_logic_editMonteurEntries_unchanged():
 
 def test_juprowa_push_call_unchanged():
     """_juprowaPush-Aufruf ist Phase-2-sensitiv und muss UNVERAENDERT bleiben."""
-    anchor = "_juprowaPush(editId).then(r=>{if(!r||(!r.ok&&r.error))console.warn"
+    anchor = "_juprowaPush(editId).then(r=>{if(r&&r.ok){setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...a,push_pending:false}:a))"
     assert anchor in INDEX, \
         f"_juprowaPush-Aufruf veraendert: Anker {anchor!r} nicht gefunden"
 

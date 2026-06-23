@@ -150,7 +150,7 @@ def test_juprowa_push_call_unchanged(index_html):
     block = _arbeitsschein_view_block(index_html)
     # Anker auf die exakte Aufrufe-Sequenz (v3.8.42 Auto-Push, hat ueberlebt v3.9.346):
     assert (
-        '_juprowaPush(editId).then(r=>{if(!r||(!r.ok&&r.error))console.warn'
+        '_juprowaPush(editId).then(r=>{if(r&&r.ok){setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...a,push_pending:false}:a))'
         in block
     ), (
         "v3.9.346 Regression: _juprowaPush(editId)-Auto-Push-Anker in saveAs wurde "
