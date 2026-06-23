@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.538 — Tankfoto-Migration-Utility (admin-gated console: window._migrateTankFotos, DRY-RUN default / {go:true} Base64→Storage), Tank-Flow-Kern unberührt
-const CACHE_NAME = "epkolar-v3.9.538";
+// EP Kolar Service Worker v3.9.539 — Bug-Fix #1+#4: _asMtLocked auf autoritativen (gesyncten) AS-Status statt stale form.scheinstatus (Remote-/Auto-Close-sicher)
+const CACHE_NAME = "epkolar-v3.9.539";
 const ASSETS = [
   './',
   './index.html'
