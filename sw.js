@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.529 — tank_log Einträge id + kontrolliert-Felder (Fundament Beleg-Kontrolle)
-const CACHE_NAME = "epkolar-v3.9.529";
+// EP Kolar Service Worker v3.9.530 — horizontale Scrollbars ausblenden (::-webkit-scrollbar height:0)
+const CACHE_NAME = "epkolar-v3.9.530";
 const ASSETS = [
   './',
   './index.html'
