@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.536 — Lager-Kiosk Monteur-Tafel (Tag+Woche, ?screen=, nur lager_display + Admin-Preview, read-only, WakeLock+Auto-Refresh)
-const CACHE_NAME = "epkolar-v3.9.536";
+// EP Kolar Service Worker v3.9.537 — Büro-Portal Tank-Kontrolle online (VBueroExport: Tankbelege als kontrolliert markieren, Beleg-Lightbox), Tank-Flow-Kern unberührt
+const CACHE_NAME = "epkolar-v3.9.537";
 const ASSETS = [
   './',
   './index.html'
