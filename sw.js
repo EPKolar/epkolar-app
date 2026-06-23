@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.519 — Planungs-Excel: Krankenstand- + Urlaub-Zeile aus abs-Daten (reine Anzeige)
-const CACHE_NAME = "epkolar-v3.9.519";
+// EP Kolar Service Worker v3.9.520 — Excel höhere Datenzeilen (Wochenplanung + MA-Übersicht, rowHeight-Opt)
+const CACHE_NAME = "epkolar-v3.9.520";
 const ASSETS = [
   './',
   './index.html'
