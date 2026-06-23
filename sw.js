@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.526 — Team-Kachel Chef-Icon 👔→👨‍💼 (Geschäftsführer mit Kopf)
-const CACHE_NAME = "epkolar-v3.9.526";
+// EP Kolar Service Worker v3.9.527 — Auswertungen: Auftragsvolumen nur Büro/Admin/PL (Monteure ausgeblendet)
+const CACHE_NAME = "epkolar-v3.9.527";
 const ASSETS = [
   './',
   './index.html'
