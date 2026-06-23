@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.534 — AS-Edit sync-sicher: Monteur-Zuweisung nie änderbar (kein RLS-403) + Storno/Verschieben für Monteur bei abgeschlossenem Schein gesperrt
-const CACHE_NAME = "epkolar-v3.9.534";
+// EP Kolar Service Worker v3.9.535 — AS-Monteur-Schutz auf alle Write-Pfade (updAs/storno/verschieben Defense-in-Depth, Listen-Inline-Editoren abgedeckt)
+const CACHE_NAME = "epkolar-v3.9.535";
 const ASSETS = [
   './',
   './index.html'
