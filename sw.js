@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.518 — Alert-Detail-Panel Redesign (Status-aware Zeilen, Home-Dashboard)
-const CACHE_NAME = "epkolar-v3.9.518";
+// EP Kolar Service Worker v3.9.519 — Planungs-Excel: Krankenstand- + Urlaub-Zeile aus abs-Daten (reine Anzeige)
+const CACHE_NAME = "epkolar-v3.9.519";
 const ASSETS = [
   './',
   './index.html'
