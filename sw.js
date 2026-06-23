@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.544 — Bug-Hunt 3-Fix: Notif-Daily-Refire (dedupKey), AS-Pull schützt pending PUTs, Abwesenheits-Pull Merge statt Voll-Overwrite
-const CACHE_NAME = "epkolar-v3.9.544";
+// EP Kolar Service Worker v3.9.545 — Bug-Hunt Sekundär: _mUser monteurId-Fix (Notif an zugew. Monteur), Material-Cleanup exakter Suffix-Match, ZeiterfassungView KW-Cap via _getMaxKW
+const CACHE_NAME = "epkolar-v3.9.545";
 const ASSETS = [
   './',
   './index.html'
