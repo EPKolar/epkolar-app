@@ -1,4 +1,20 @@
-# Mobile Inventory v3.8.67
+# Mobile Inventory
+
+> ## ⏩ Update 23.06.2026 — Tap-Target-Welle v3.9.503–515 (live)
+>
+> Die Tabelle/Inventur unten ist der **historische Stand v3.8.67** (alte Zeilennummern, nicht mehr aktuell). Aktueller Mobile-Stand:
+>
+> **Card-/Mobile-Layouts (v3.9.503–508):** Wochenplanung (Planung, MA-Übersicht, Spezialfahrzeuge, Footer, Header, View-Switcher), VBautag — alle <600px als Tages-Karten/Card-Listen statt breiter Tabellen. Desktop unverändert.
+>
+> **Tap-Target-Pass (v3.9.509–515):** Overlay-Panels (Benachrichtigung/Foto-Queue/Sync), Arbeitsscheine-Kalender, Zeiterfassung (KW-Nav/Filter/Per-Eintrag), Datenblatt-Ordner + SignaturePad, Urlaub/Abwesenheit (Genehmigungs-Actions), Chef-Portal (`_drill`-Nav + Handlungsbedarf-Grid), Urlaubskontingent-Tabelle minWidth. Alle ≥30–44px, `touchAction:manipulation`, jeweils `isMob?neu:original` → Desktop byte-identisch.
+>
+> **Bewusst belassen:** Zeiterfassung Week-Summary/Day-Columns (gewollt horizontal-scrollbar), WP-Desktop-Planungstabelle (Mobile nutzt Karten), AS-Listen-Karten + Material (waren schon mobil).
+>
+> **Noch offen (gezielte Session):** VMaterial-Detail-Tabs, AS-Detail-Edit-Form, BWB-Inline-Vorschau. Details in `docs/handoff/HANDOFF_v3.9.516.md`.
+
+---
+
+# Mobile Inventory v3.8.67 (historisch)
 
 Branch: `cc-mobile-refactor/2026-04-30`  Base: `27a0040` (v3.8.66)
 File: `index.html` (17193 lines, 1.75 MB)
