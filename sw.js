@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.551 — Tank-Kontrolle Beleg-Lightbox: Foto + erfasste Werte (Datum/Liter/Betrag/km/Erfasst) nebeneinander zum Vergleich; responsive (mobil gestapelt)
-const CACHE_NAME = "epkolar-v3.9.551";
+// EP Kolar Service Worker v3.9.552 — Material- & Foto-Editor im Arbeitsschein (App-only, Fotos→Storage-URL) + PDF Material-Tabelle/Foto-Grid; kein Push/OFFA, _juprowaPush unberührt
+const CACHE_NAME = "epkolar-v3.9.552";
 const ASSETS = [
   './',
   './index.html'
