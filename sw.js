@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.550 — AS-Header Sync/Gepusht-Zeitstempel mit Uhrzeit (Europe/Vienna, echte TZ-Konvert.) + OFFA-Kontakt-Block in rechte Spalte (nach Grunddaten) verlegt
-const CACHE_NAME = "epkolar-v3.9.550";
+// EP Kolar Service Worker v3.9.551 — Tank-Kontrolle Beleg-Lightbox: Foto + erfasste Werte (Datum/Liter/Betrag/km/Erfasst) nebeneinander zum Vergleich; responsive (mobil gestapelt)
+const CACHE_NAME = "epkolar-v3.9.551";
 const ASSETS = [
   './',
   './index.html'
