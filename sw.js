@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.555 — Tank-Beleg km-Korrektur zieht Fahrzeug-Tacho (km_stand) mit (km des neuesten Belegs, Datum desc); km_log unberuehrt; App-only
-const CACHE_NAME = "epkolar-v3.9.555";
+// EP Kolar Service Worker v3.9.556 — Eskalation: sehr hoch + FIXTERMIN gelten jetzt als dringend (Auto-Eskalation + dringendeAS wie hoch); zentrale AS_URGENT_PRIOS
+const CACHE_NAME = "epkolar-v3.9.556";
 const ASSETS = [
   './',
   './index.html'
