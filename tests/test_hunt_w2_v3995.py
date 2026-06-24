@@ -4,14 +4,18 @@ JUPROWA-Prio-Push, Excel-Summenspalte, Bescheinigung-Escaping.
 """
 
 
-def test_juprowa_prio_rev_has_dringend(index_html):
+def test_juprowa_prio_rev_offa_7_codes(index_html):
+    # v3.9.548: REV auf OFFA-Tabelle 1-7 umgestellt; "dringend" entfernt (nicht in OFFA-Stufen)
     import re
     m = re.search(r"const JUPROWA_PRIO_REV=\{([^}]*)\}", index_html)
     assert m, "JUPROWA_PRIO_REV nicht gefunden"
     body = m.group(1)
-    assert "dringend:'1'" in body, "dringend muss auf '1' gemappt sein (sonst Priorität-Verlust beim Push)"
-    assert "niedrig:'0'" in body, "niedrig (korrekt geschrieben) muss vorhanden sein"
-    assert "niedig" not in body, "Tippfehler-Key 'niedig' muss weg sein"
+    assert "keine:'1'" in body, "keine muss auf '1' (sonst Priorität-Verlust beim Push)"
+    assert "niedrig:'3'" in body, "niedrig (korrekt geschrieben) muss auf '3'"
+    assert "hoch:'5'" in body
+    assert "FIXTERMIN:'7'" in body
+    assert "dringend" not in body, "dringend wurde v3.9.548 entfernt (nicht in OFFA-Tabelle)"
+    assert "niedig" not in body, "Tippfehler-Key 'niedig' darf nicht vorkommen"
 
 
 def test_exportxls_sumcol_is_hours(index_html):

@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.547 — AS-Edit-Form UX: Dauer-Dezimal-Anzeige (intern HH:MM:SS), Unterschriften full-width, Termin-verschieben in Termin-Sektion (Push/Mapper unberührt)
-const CACHE_NAME = "epkolar-v3.9.547";
+// EP Kolar Service Worker v3.9.548 — Priorität-Mapping 7 OFFA-Stufen (Pull+Push+Dropdown) + read-only OFFA-Kontakt-Block (juprowa_raw, tel:/mailto:); _juprowaPush-Body unberührt
+const CACHE_NAME = "epkolar-v3.9.548";
 const ASSETS = [
   './',
   './index.html'

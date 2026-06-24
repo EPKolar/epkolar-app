@@ -24,10 +24,11 @@ def _extract_const_obj(node_exe, index_html, name):
 
 
 # ----- AS_PRIO -----
-def test_as_prio_has_5_levels(node_exe, index_html):
+def test_as_prio_has_7_levels(node_exe, index_html):
+    # v3.9.548: 7 OFFA-Stufen (vorher 5; "dringend" raus, +aufgeschoben/sehr hoch/FIXTERMIN)
     obj = _extract_const_obj(node_exe, index_html, "AS_PRIO")
-    assert len(obj) == 5
-    assert set(obj.keys()) == {"keine", "niedrig", "normal", "hoch", "dringend"}
+    assert len(obj) == 7
+    assert set(obj.keys()) == {"keine", "aufgeschoben", "niedrig", "normal", "hoch", "sehr hoch", "FIXTERMIN"}
 
 
 def test_as_prio_each_has_label_color(node_exe, index_html):
@@ -82,26 +83,30 @@ def test_juprowa_art_map_targets_in_as_art(node_exe, index_html):
 
 
 # ----- JUPROWA_PRIO_MAP -----
-def test_juprowa_prio_map_minimal(node_exe, index_html):
+def test_juprowa_prio_map_offa_codes(node_exe, index_html):
+    # v3.9.548: OFFA-Codes 1-7 (1=keine ... 5=hoch ... 7=FIXTERMIN); 0=keine
     obj = _extract_const_obj(node_exe, index_html, "JUPROWA_PRIO_MAP")
     assert obj["0"] == "keine"
-    assert obj["1"] == "hoch"
+    assert obj["1"] == "keine"
+    assert obj["3"] == "niedrig"
+    assert obj["5"] == "hoch"
+    assert obj["6"] == "sehr hoch"
+    assert obj["7"] == "FIXTERMIN"
 
 
 # ----- JUPROWA_PRIO_REV -----
-def test_juprowa_prio_rev_keine_to_zero(node_exe, index_html):
+def test_juprowa_prio_rev_offa_codes(node_exe, index_html):
+    # v3.9.548: Label->OFFA-Code 1-7 (keine->1, hoch->5, FIXTERMIN->7)
     obj = _extract_const_obj(node_exe, index_html, "JUPROWA_PRIO_REV")
-    assert obj.get("keine") == "0"
-    assert obj.get("hoch") == "1"
+    assert obj.get("keine") == "1"
+    assert obj.get("hoch") == "5"
+    assert obj.get("FIXTERMIN") == "7"
 
 
-def test_juprowa_prio_rev_legacy_keys_present(node_exe, index_html):
-    # Bekannter Befund: REV hat Legacy-Keys "niedig" (typo!), "aufgeschoben"
-    # die in AS_PRIO nicht existieren - dokumentiert aber nicht aktiv genutzt.
+def test_juprowa_prio_rev_full_7_stages(node_exe, index_html):
+    # v3.9.548: REV = exakt die 7 OFFA-Stufen, Codes 1-7, Keys == AS_PRIO-Keys
     obj = _extract_const_obj(node_exe, index_html, "JUPROWA_PRIO_REV")
-    # Mindestens die echten 5 + alte sollten alle "0" oder "1" sein
-    for k, v in obj.items():
-        assert v in ("0", "1"), f"REV[{k}]={v} not 0/1"
+    assert obj == {"keine": "1", "aufgeschoben": "2", "niedrig": "3", "normal": "4", "hoch": "5", "sehr hoch": "6", "FIXTERMIN": "7"}
 
 
 # ----- WZ_STATUS (Werkzeug) -----
