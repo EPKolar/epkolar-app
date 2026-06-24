@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.546 — AS#2 Juprowa: push_pending/Auto-Push nur bei echter Push-Feld-Änderung (_isPush diff-basiert); Zeit#2: ZeiterfassungView 7-tägig (Sonntag sichtbar)
-const CACHE_NAME = "epkolar-v3.9.546";
+// EP Kolar Service Worker v3.9.547 — AS-Edit-Form UX: Dauer-Dezimal-Anzeige (intern HH:MM:SS), Unterschriften full-width, Termin-verschieben in Termin-Sektion (Push/Mapper unberührt)
+const CACHE_NAME = "epkolar-v3.9.547";
 const ASSETS = [
   './',
   './index.html'
