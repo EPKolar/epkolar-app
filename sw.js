@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.549 — Monteur-Zeiterfassung im Schein (Fahrzeit+Arbeitszeit HH:MM, Gesamtzeit auto, App-only in fahrzeit/stunden als Minuten); kein Push/OFFA, _juprowaPush unberührt
-const CACHE_NAME = "epkolar-v3.9.549";
+// EP Kolar Service Worker v3.9.550 — AS-Header Sync/Gepusht-Zeitstempel mit Uhrzeit (Europe/Vienna, echte TZ-Konvert.) + OFFA-Kontakt-Block in rechte Spalte (nach Grunddaten) verlegt
+const CACHE_NAME = "epkolar-v3.9.550";
 const ASSETS = [
   './',
   './index.html'
