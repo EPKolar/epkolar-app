@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.554 — Zeiterfassung (App): +/− Stepper (15-Min-Schritte) an Fahrzeit + Arbeitszeit; nutzt form.fahrzeit/stunden + _minToHhmm, nie <0
-const CACHE_NAME = "epkolar-v3.9.554";
+// EP Kolar Service Worker v3.9.555 — Tank-Beleg km-Korrektur zieht Fahrzeug-Tacho (km_stand) mit (km des neuesten Belegs, Datum desc); km_log unberuehrt; App-only
+const CACHE_NAME = "epkolar-v3.9.555";
 const ASSETS = [
   './',
   './index.html'
