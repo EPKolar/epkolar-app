@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.548 — Priorität-Mapping 7 OFFA-Stufen (Pull+Push+Dropdown) + read-only OFFA-Kontakt-Block (juprowa_raw, tel:/mailto:); _juprowaPush-Body unberührt
-const CACHE_NAME = "epkolar-v3.9.548";
+// EP Kolar Service Worker v3.9.549 — Monteur-Zeiterfassung im Schein (Fahrzeit+Arbeitszeit HH:MM, Gesamtzeit auto, App-only in fahrzeit/stunden als Minuten); kein Push/OFFA, _juprowaPush unberührt
+const CACHE_NAME = "epkolar-v3.9.549";
 const ASSETS = [
   './',
   './index.html'
