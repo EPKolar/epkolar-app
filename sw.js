@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.553 — Tank-Kontrolle Beleg-Lightbox: erfasste Werte (Datum/Liter/Betrag/km) korrigierbar (Edit-Modus + _tankEditSave, race-sicher fresh-read); App-only
-const CACHE_NAME = "epkolar-v3.9.553";
+// EP Kolar Service Worker v3.9.554 — Zeiterfassung (App): +/− Stepper (15-Min-Schritte) an Fahrzeit + Arbeitszeit; nutzt form.fahrzeit/stunden + _minToHhmm, nie <0
+const CACHE_NAME = "epkolar-v3.9.554";
 const ASSETS = [
   './',
   './index.html'
