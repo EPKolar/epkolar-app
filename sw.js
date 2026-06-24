@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.545 — Bug-Hunt Sekundär: _mUser monteurId-Fix (Notif an zugew. Monteur), Material-Cleanup exakter Suffix-Match, ZeiterfassungView KW-Cap via _getMaxKW
-const CACHE_NAME = "epkolar-v3.9.545";
+// EP Kolar Service Worker v3.9.546 — AS#2 Juprowa: push_pending/Auto-Push nur bei echter Push-Feld-Änderung (_isPush diff-basiert); Zeit#2: ZeiterfassungView 7-tägig (Sonntag sichtbar)
+const CACHE_NAME = "epkolar-v3.9.546";
 const ASSETS = [
   './',
   './index.html'
