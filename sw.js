@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.567 — FIX: RPC-Calls (admin_create_user + kiosk_week_absences) brauchen Content-Type:application/json (sonst parst PostgREST die Params nicht → Call schlug fehl). Behebt: Krankenstand/Urlaub auf Wochenplan-Tafel leer + GoTrue-Login bei neuen Benutzern
-const CACHE_NAME = "epkolar-v3.9.567";
+// EP Kolar Service Worker v3.9.568 — Wochenplan-Tafel: eigene "Bemerkung"-Spalte rechts (wie Excel/App), normal lesbar; klein-kursives bem unter BVH entfernt; Sonderzeilen Krankenstand/Urlaub mit leerer Bemerkung-Zelle
+const CACHE_NAME = "epkolar-v3.9.568";
 const ASSETS = [
   './',
   './index.html'
