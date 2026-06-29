@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.559 — Bug-A UX: "Login erstellen" scrollt jetzt zum (oben liegenden) Neuer-Benutzer-Formular + fokussiert Benutzername (vorher wirkte es als passiere nichts); v3.9.558 Bug-A Sichtbarkeit
-const CACHE_NAME = "epkolar-v3.9.559";
+// EP Kolar Service Worker v3.9.560 — Monteur-Tafel (Wandmonitor): ALLE aktiven Feld-MA als Zeilen (Filter "hat Scheine" raus), Wand-lesbares Layout (Name rollenfarbig 22px, Zeilen flex-fill, HEUTE/WE getönt, Chips bold + max3)
+const CACHE_NAME = "epkolar-v3.9.560";
 const ASSETS = [
   './',
   './index.html'
