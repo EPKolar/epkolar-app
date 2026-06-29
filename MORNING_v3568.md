@@ -3,7 +3,12 @@
 ## ⚡ DAS MUSST DU ENTSCHEIDEN (oben, kurz)
 1. **A-2 Juprowa-Fix freigeben?** Liegt fertig + verifiziert auf Branch `a2-juprowa-roundtrip` (`b72742d`), **nicht gepusht**. Freigabe = (a) Tabu-Auslegung `_juprowaReversMap` bestätigen, (b) Deploy erlauben → ermöglicht echten OFFA-Push. **Dry-Run unten ist grün.**
 2. **Dead-Code löschen?** 8 tot-belegte Elemente + 1 verwaistes File (Liste in `FINDINGS_v3568.md` TEIL B). Nichts gelöscht — deine Entscheidung. `toggleFZ` NICHT löschen (evtl. Mobile-Wochenplan).
-3. **Welche LOW/Korrektheit-Bugs als nächstes?** Kandidaten: km_stand-Klobber (`:2188`), Juprowa-Import-Silent-Success (`:3162`), Fahrtenbuch +32-Tage-Überfetch (`:19553`), reviewProgress ungated (`:12350`).
+3. **Welche Korrektheit-Bugs als nächstes?** (alle in `FINDINGS_v3568.md`, keiner gefixt). Top-Kandidaten nach Realwert:
+   - **`SQ.push` stiller Quota-Datenverlust** (`:2748`) — Offline-Änderung geht ohne Toast verloren bei vollem IndexedDB. (Pass 3, höchster Realwert.)
+   - **JWT base64url-Decode still fehlerhaft** (`:1305/5838/6348`) — passt zum „3× 401"-Symptom. (Pass 3.)
+   - **Nicht-idempotenter POST → Duplikate** (`:2377`) — verlorene Antwort = Doppel-Eintrag. (Pass 3, = altes Backlog #17.)
+   - km_stand-Klobber (`:2188`), Juprowa-Import-Silent-Success (`:3162`), Fahrtenbuch +32-Tage-Überfetch (`:19553`), reviewProgress ungated (`:12350`), BWB-KW-Kopfzeile (`:20304`), Auslastung-Zukunftsstunden (`:19126`).
+   - **`_juprowaSanitize` unvollständiges Latin-1** (`:3275`) — OFFA-Mojibake, gehört zum A-2/OFFA-Komplex (zusammen freigeben?).
 
 ---
 
@@ -45,4 +50,6 @@ Echte Aenderung: freigegeben->erledigt = 5 ✓ | ->storniert = 20 ✓ | Fallback
 3. GitHub Pages-Build abwarten, dann an EINEM Juprowa-Schein einen Push triggern und in OFFA prüfen dass Status 4/15 erhalten bleibt.
 
 ## Stand Hunt
-Beide Pässe abgeschlossen (9 Agenten Pass 1 + 5 Agenten Pass 2). Autonomer Weiter-Hunt läuft bis dein „stop". Keine weiteren live-brechenden Bugs offen; Codebasis auffällig defensiv gehärtet (XSS/Zahlen/Race-Klassen weitgehend sauber).
+Drei Pässe abgeschlossen (9 Agenten Pass 1 + 5 Pass 2 + 5 Pass 3). Autonomer Weiter-Hunt läuft bis dein „stop".
+Codebasis auffällig defensiv gehärtet — Memory-Leaks/XSS/Zahlen/Race/Datums-Kern-Helfer weitgehend sauber.
+Die wertvollsten neuen Funde stecken in **Sync-Queue/Offline** (`SQ.push`-Quota-Verlust `:2748`, Nicht-Idempotenz `:2377`), **Auth** (JWT base64url `:1305`) und **OFFA-Encoding** (`_juprowaSanitize` `:3275`). Voll in `FINDINGS_v3568.md`.

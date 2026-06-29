@@ -71,3 +71,34 @@ Jeder Fund: Zeile + Ist-Code-Beleg + Kategorie. **Nichts gefixt** (außer A-1 CL
 
 ## Hinweis
 Zeilennummern aus Pass 1 (vor v3.9.569-Shift) mit `~` markiert — vor Löschung neu greppen. **Löschen entscheidet Sebastian** (Hard-Stop: kein autonomes Code-Löschen).
+
+---
+
+# PASS 3 — Nachtrag (5 weitere Dimensionen)
+
+## 🟠 MEDIUM / Korrektheit
+- **`SQ.push` stiller Datenverlust bei IndexedDB-Quota** · `:2748` (+`:2696/2751`) · `ODB.save` schluckt jeden Fehler (`catch console.warn`), `SQ.push` warnt nur in Konsole, kein Aufrufer prüft Return. Bei `QuotaExceededError` wird die Offline-Änderung **nicht gequeued, kein Toast/Banner** → stiller Verlust. PhotoQ wurde genau dafür gehärtet (`:2778/2833`), SQ.push NICHT. **Höchster Realwert in Pass 3.**
+- **Nicht-idempotenter POST → Duplikate** · `:2377` (vs `:2376`) · roher `_sbPost` (kein `resolution=`-Header, `:1951`) für ALLE Tabellen außer arbeitsscheine; Bodies tragen feste Client-`id`. Verlorene HTTP-Antwort → Re-POST → 409/23505 → nach 5 Drop + Falsch-Warnung „verworfen", obwohl Zeile in DB → User legt Duplikat an. Idempotenz (`_sbInsertIfAbsent`) nur für arbeitsscheine verdrahtet. (= altes Backlog #17, bestätigt.)
+- **JWT base64url-Decode schlägt still fehl** · `:1305/5838/6348` (+`:740/1369/1375`) · `atob(token.split('.')[1])` OHNE `-/_`→`+/`-Konvertierung (die `:1287` korrekt macht) → bei JWTs mit `-`/`_` wirft `atob`, role/exp-Prüfung im try/catch schlägt **still** fehl (curuser-recover, anon-Refresh übersprungen). **Passt zum dokumentierten „3× 401"-Symptom.**
+- **`_juprowaSanitize` unvollständiges Latin-1** · `:3275` · ț/ș/ă/č/ř + Emoji bleiben durch → AK_ARBEITEN/NOTIZ/BAUADR_NAM1 (Kundenname „Cracana") bei echtem CP1252 auf OFFA → Mojibake/Push-Bruch. **OFFA-relevant** (zu A-2-Komplex).
+- **BWB KW-Zeitraum-Kopfzeile schließt Sonntag aus** · `:20304` · `exportBauwochenbericht` rendert 7 Tage inkl. Sonntag mit Stunden, Kopf zeigt aber `dateFmt(0)–dateFmt(5)` (Mo–Sa, müsste `dateFmt(6)`). Plus kosmetisch leere Sonntag-Phantomzeile (`:20274`).
+- **Auslastungs-Widget zählt Zukunfts-Stunden** · `:19126` · Filter nur `>=_weekStart`, kein `<=_weekEnd` → % überhöht; Kapazitäts-Widget (`:19284`, korrekt gebounded) zeigt für denselben MA grün.
+
+## 🟡 LOW / Defense-in-depth / Verdacht
+- Auslastungs-Ampel-Inkonsistenz (`:19127` fix 38,5 vs `:19284` feiertags-korrigiert) → in Feiertagswochen zwei Ampelfarben für denselben MA.
+- **Teilzeit ignoriert** (`:19021 _stdVonTagBrk` 8,5/4,5 + `:19276/20087` 38,5 hartkodiert) — **NUR relevant wenn Teilzeit-Monteure existieren** (aktuell 38,5 Default überall → latent/Folge-Ticket). Bestätigung nötig.
+- SQ Falsch-Erfolgszählung: gedroppte Items im „N synchronisiert"-Toast mitgezählt (`:6443`).
+- Cross-User-Queue-Verlust bei Logout auf Leihgerät (`:6624` `SQ.clear()` = alle Owner).
+- `syncQueueFailed` beim User-Wechsel gepurgt → Drop-Diagnose des Vorgängers weg (`:6798`). DiD.
+- Orphaned PUT nach POST-Drop → `_sbPatch` auf nicht-existente id = 200+leer = stiller No-Op (`:2378`). Verdacht.
+- OCR-Parser `substring(indexOf("Monteur:"))` ohne -1-Guard → stilles Falschergebnis bei Format-Drift (`:3571`). Korrektheit.
+- AK_TERMIN nimmt `terminZeit`=HH:MM an → bei HH:MM:SS ungültiges Format (`:3300`). Verdacht.
+- Resturlaub hängt vom Antrags-UI ab (Kalender `beantragt` zieht sofort ab, `urlaubsantraege` erst bei Genehmigung) (`:17283` vs `:19046`). Verdacht (evtl. gewollt).
+- Materialisierung-Dedupe über Namens-Key fragil (`:19030/19034`) → Doppel-Insert bei Namens-Divergenz. Verdacht.
+
+## ✅ Pass-3 ENTWARNT
+- **Memory/Timer/Listener-Cleanup:** außergewöhnlich sauber — Kamera/MediaStream-Scanner (getTracks().stop()), rAF (cancel), WakeLock, Geolocation (AbortController), alle Debounce-Timer-Maps symmetrisch aufgeräumt. Kein Leak. (Nebenbefund: IntersectionObserver-Lazy-Wrapper `:18646` = toter Code.)
+- **BWB Gather/Render:** beide Zwillinge 7-tägig + summenkonsistent (alte „Gather-6/Render-7"-Vermutung existiert NICHT). Wochenplan-Export bewusst 6-tägig korrekt.
+- **Urlaub-Kern:** Overlap-Guard vorhanden (`:17280` skip genehmigt + PUT statt POST), Krankenstand/Urlaub-Matching getrennt, Halbtage/Feiertage korrekt.
+- **Parsing:** `_safeJsonParse` robust, KEINE `new RegExp(userInput)` (keine RegExp-Injection), ~40 JSON.parse durchgängig guarded.
+- `_onAuthFail(403)` reißt Session/Queue NICHT ab (nur warn+return).
