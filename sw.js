@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.568 — Wochenplan-Tafel: eigene "Bemerkung"-Spalte rechts (wie Excel/App), normal lesbar; klein-kursives bem unter BVH entfernt; Sonderzeilen Krankenstand/Urlaub mit leerer Bemerkung-Zelle
-const CACHE_NAME = "epkolar-v3.9.568";
+// EP Kolar Service Worker v3.9.569 — Kiosk-PII-Lockdown: lager_display liest workers/arbeitsscheine nur noch via minimal-RPC (kiosk_field_workers/kiosk_week_arbeitsscheine), kein SVNR/Reisepass/Tel/Adresse mehr im Kiosk
+const CACHE_NAME = "epkolar-v3.9.569";
 const ASSETS = [
   './',
   './index.html'
