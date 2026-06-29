@@ -1,3 +1,12 @@
+> # ⚠️ STALE — ~75% überholt (Stand 2026-06-29, v3.9.568/569)
+> Dieser Backlog ist durch den frischen Hunt-Pass auf v3.9.568 weitgehend abgelöst. Verifiziert:
+> **A1** (ocr_tankbeleg Auth+Size-Limit) = bereits live seit v3.9.419 · **B5/B6** (markAllRead /
+> GET notifications user_id-Filter) = bereits gefixt (v3.9.53/420) · **B034** (tickets.page Spalte)
+> = existiert längst in der DB · **A3** (admin-create-user Rollback) = tote, nicht deployte Edge-Fn,
+> 2026-06-29 aus dem Repo entfernt. **A2** (supplier-sync set-credentials Validierung) = gefixt+committet.
+> **Einziger echter offener Bug aus diesem Dokument-Kontext + neuer Hunt:** Juprowa-Status-Roundtrip —
+> siehe `OPEN_BUGS_v3568.md` + `HANDOFF_A2_juprowa_status_roundtrip.md`. Aktuelle Befundliste: `FINDINGS_v3568.md`.
+
 # Bug-Hunt-Marathon 2026-06-17 — OFFENE Punkte (Sebastian-Entscheidung / Backend)
 
 > **UPDATE nach Erstellung (Stand v3.9.418):** Seit diesem Dokument zusätzlich autonom
