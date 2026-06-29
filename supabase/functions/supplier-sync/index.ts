@@ -1,6 +1,9 @@
 // supabase/functions/supplier-sync/index.ts
 // =============================================================================
 // EP Kolar — supplier-sync Edge-Function (P0-2 cred-lockdown, Sebastian-Spec v3.10.5)
+//   + P2-Fix 2026-06-29 (BUGHUNT-2026-06-17-OFFEN A2): set-credentials validiert
+//     jetzt supplierId-Existenz (.select().maybeSingle() → 404 statt stillem No-Op-200)
+//     und lehnt leere username/password ab. Rest byte-identisch zur Dashboard-v2.
 // =============================================================================
 // Zweck: Verschiebt JEDEN Umgang mit supplier_configs.username/password auf den
 // Server (service_role). Der Client liest Creds nie mehr; er ruft nur noch:
@@ -94,14 +97,22 @@ serve(async (req: Request) => {
   // 4a. set-credentials — server-only write, never echoes creds back
   if (body.action === "set-credentials") {
     const b = body as CredsBody;
-    if (!b.supplierId || typeof b.username !== "string" || typeof b.password !== "string") {
-      return json(400, { ok: false, error: "validation", details: "supplierId, username, password required" });
+    // P2-Fix: leere Strings sind keine gültigen Creds (trim-Check, nicht nur typeof).
+    const uName = typeof b.username === "string" ? b.username : "";
+    const pWord = typeof b.password === "string" ? b.password : "";
+    if (!b.supplierId || !uName.trim() || !pWord.trim()) {
+      return json(400, { ok: false, error: "validation", details: "supplierId, non-empty username and password required" });
     }
-    const { error: upErr } = await admin
+    // P2-Fix: .select().maybeSingle() — ohne Rückgabe meldet ein UPDATE mit 0 betroffenen
+    // Zeilen (nicht-existente supplierId) fälschlich 200 {ok:true} trotz No-Op.
+    const { data: updRow, error: upErr } = await admin
       .from("supplier_configs")
       .update({ username: b.username, password: b.password, updated_at: new Date().toISOString() })
-      .eq("id", b.supplierId);
+      .eq("id", b.supplierId)
+      .select("id")
+      .maybeSingle();
     if (upErr) return json(500, { ok: false, error: "internal", details: "cred update failed: " + (upErr.message || "") });
+    if (!updRow) return json(404, { ok: false, error: "not_found", details: "supplierId does not exist" });
     return json(200, { ok: true, supplierId: b.supplierId }); // NO creds in response
   }
 
