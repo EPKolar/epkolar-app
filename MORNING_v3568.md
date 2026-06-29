@@ -4,6 +4,8 @@
 1. **A-2 Juprowa-Fix freigeben?** Liegt fertig + verifiziert auf Branch `a2-juprowa-roundtrip` (`b72742d`), **nicht gepusht**. Freigabe = (a) Tabu-Auslegung `_juprowaReversMap` bestätigen, (b) Deploy erlauben → ermöglicht echten OFFA-Push. **Dry-Run unten ist grün.**
 2. **Dead-Code löschen?** 8 tot-belegte Elemente + 1 verwaistes File (Liste in `FINDINGS_v3568.md` TEIL B). Nichts gelöscht — deine Entscheidung. `toggleFZ` NICHT löschen (evtl. Mobile-Wochenplan).
 3. **Welche Korrektheit-Bugs als nächstes?** (alle in `FINDINGS_v3568.md`, keiner gefixt). Top-Kandidaten nach Realwert:
+   - **🔴 `qDoSchaden` ohne `SQ.push`** (`:21035`) — FZ-QR-Schadenmeldung wird NIE gespeichert, Datenverlust. (Pass 4, klar live-brechend, kleiner Fix.)
+   - **`updSt` ohne `kunde_status`-Spiegel** (`:12308`) — Kunde sieht Abnahme-Button nicht. (Pass 4, kundenrelevant.)
    - **`SQ.push` stiller Quota-Datenverlust** (`:2748`) — Offline-Änderung geht ohne Toast verloren bei vollem IndexedDB. (Pass 3, höchster Realwert.)
    - **JWT base64url-Decode still fehlerhaft** (`:1305/5838/6348`) — passt zum „3× 401"-Symptom. (Pass 3.)
    - **Nicht-idempotenter POST → Duplikate** (`:2377`) — verlorene Antwort = Doppel-Eintrag. (Pass 3, = altes Backlog #17.)

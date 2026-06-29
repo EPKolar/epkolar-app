@@ -102,3 +102,32 @@ Zeilennummern aus Pass 1 (vor v3.9.569-Shift) mit `~` markiert — vor Löschung
 - **Urlaub-Kern:** Overlap-Guard vorhanden (`:17280` skip genehmigt + PUT statt POST), Krankenstand/Urlaub-Matching getrennt, Halbtage/Feiertage korrekt.
 - **Parsing:** `_safeJsonParse` robust, KEINE `new RegExp(userInput)` (keine RegExp-Injection), ~40 JSON.parse durchgängig guarded.
 - `_onAuthFail(403)` reißt Session/Queue NICHT ab (nur warn+return).
+
+---
+
+# PASS 4 — Nachtrag (externe Integrationen, Status-Übergänge, Such/Filter, Foto/Storage, Notifications)
+
+## 🔴 LIVE-brechend (Datenverlust)
+- **`qDoSchaden` schreibt Schaden NIE in die DB** · `:21035–21040` · nach `setFahrzeuge(...schaeden:[sch,...])` folgt nur Kommentar+Toast, **KEIN `SQ.push`** (anders als Schwestern `qDoKm` `:21022`, `qDoTank` `:21031`). Ein über den FZ-QR-Scanner gemeldeter Schaden geht bei Reload/auf anderen Geräten verloren. **Stärkster Fund der Nacht.**
+
+## 🟠 MEDIUM / Korrektheit
+- **`updSt` aktualisiert `kunde_status`-Spiegel nicht** · `:12308–12314` · Mängel-Kanban-Dropdown (+`_bulkApply`) setzt nur `status`. Kundenportal liest `kundeStatus` (`:4908/5088`) → Admin setzt kundengemeldeten Mangel auf „behoben", Portal zeigt weiter „in Bearbeitung", Kunde sieht Abnahme-Button nicht. (Review-Buttons `reviewDone` `:12347` setzen beide korrekt.) **Kundenrelevant.**
+- **`tog` setzt genehmigten Urlaubstag ohne Guard zurück** · `:17237–17243` · Einzeltag-Kalender-Toggle fehlt der `if(genehmigt)skip`-Guard den `submitRequest` (`:17280`) hat; Monteur kann eigenen genehmigten Tag auf „beantragt" zurückklicken.
+- **FinkZeit-Abweichungs-Schwelle inkonsistent** · `:10346` (Dashboard `diff>1h` absolut) vs `:18365/18367` (Detail `<0,5h` grün / `<5%` orange relativ) → 0,6h-Δ zählt im Dashboard nicht, Detail zeigt rot. (= altes Backlog #11.)
+- **Juprowa-PULL verliert Termin-Uhrzeit** · `:3085/3087` setzt `terminVorschlagZeit`/`terminZeit:""`, Existing-Merge (`:3148`) übernimmt sie NICHT → Push `terminZeit||'00:00'` (`:3300`) → AK_TERMIN kippt nach Roundtrip auf 00:00. (OFFA, zum A-2-Komplex.)
+- **Mangel-Status ohne `status_history`** · `:12293–12298` · `_syncTicketStatus` (von `updSt`/`reviewProgress`/`reviewDone`) schreibt keinen History-Eintrag; nur `updateTicket` (Plan-Viewer `:13425`) tut es → Audit-Lücke je nach Bearbeitungsweg.
+- **Foto-Storage-Orphans** · Upload-ok/DB-fail → Retry neuer `Date.now()`-Pfad, altes Objekt verwaist (`:2801–2811`); 409 nicht im Transient-Filter → Foto hängt „error" (`:2811`); Delete-Reihenfolge invertiert (Storage vor DB, nicht awaited) → Row ohne Datei (`:14165`).
+
+## 🔵 LOW / Defense-in-depth / Verdacht
+- Wochenplan-„Meine"-Substring-FP (`:10623` „Mayr"∈„Mayrhofer") + leerer Name → `includes("")` zeigt alles. Legacy-Name→ID-Migration mis-assignment (`:16195`).
+- Such-Inkonsistenz: Umlaut-Faltung nur Globalsuche (`:6842`) nicht Module; Token-AND vs Substring-OR über Module (`:11884/14444/15936`, = #23); Formular-Suche nur erstes Feld via `||` (`:11884`).
+- Notification Selbst-Benachrichtigung (`:7622/7630/17246`, kein Actor-Ausschluss); zu aggressives content-hash-Dedup ohne dedupKey → verschluckte Wiederhol-Notifs + permanente Dismissed-Memory (`:6216`); 200-Cap global über alle User (`:6224`, Verdacht Stale-Badge); Cross-User-Insert im Poll (`:6554`, Verdacht).
+- EXIF-Orientierung im Haupt-Foto-Pfad ignoriert (`:4477`, OCR-Pfad fixt es — Verdacht browserabh.); Foto-Pfad-Kollision `Date.now()`+name statt id + x-upsert (`:1617`); `_sbDeleteObj`-Fehler überall verschluckt (`:1697`).
+- `_shouldAutoClose` auf `form.scheinstatus` statt Server-Status (`:7595`) → abgerechnet→erledigt-Regress für Admin/Büro (Verdacht). `reviewReject` Status „abgelehnt" außerhalb MANGEL_ST + kein `_syncTicketStatus` (`:12336`, Verdacht). `updateTicket` mappt storniert→behoben (`:13428`, Verdacht).
+- DATANORM `ek_preis=listenpreis` ohne Rabattgruppen-Abschlag (`:9477`, Verdacht — evtl. via effEk gewollt). Juprowa-PULL überschreibt Adressfelder ohne isPending-Schutz (`:3140`, Verdacht — evtl. OFFA-autoritativ gewollt).
+
+## ✅ Pass-4 ENTWARNT
+- **fz_schaeden Dual-Store existiert NICHT mehr** (entfernt v3.9.427/432, Single-Source `fahrzeuge.schaeden` JSON; nur DB-Tabelle + Label-Leiche bleiben) — altes Backlog #10 stale.
+- **GPS-Leak:** `compressPhoto` re-encodet via Canvas → strippt EXIF/GPS; GPS bewusst separat in `gps_lat/lon`. **Quota-Monitor** nutzt `navigator.storage.estimate()` (IndexedDB) korrekt (#24 done).
+- **AS-State-Machine** `AS_TRANSITIONS` bewusst „alle Wechsel frei" (v3.9.122 Sebastian) — Guard ist toter Schutz, kein Defekt. AS-Gruppen einheitlich, Monteur-Schreibpfade gelockt.
+- AS-Quickfilter „Meine" nutzt ID-Gleichheit (kein Substring); Leersuche konsistent.
