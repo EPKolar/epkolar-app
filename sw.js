@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.566 — Wochenplan-Tafel Krankenstand/Urlaub via kiosk_week_absences-RPC (lager_display ist RLS-gesperrt fuer absences → SECURITY-DEFINER-RPC nur Name/Tag/Typ der Woche); Lager-Kiosk Logout in die Kopfzeile beider Views (kein ueberlappendes Overlay mehr)
-const CACHE_NAME = "epkolar-v3.9.566";
+// EP Kolar Service Worker v3.9.567 — FIX: RPC-Calls (admin_create_user + kiosk_week_absences) brauchen Content-Type:application/json (sonst parst PostgREST die Params nicht → Call schlug fehl). Behebt: Krankenstand/Urlaub auf Wochenplan-Tafel leer + GoTrue-Login bei neuen Benutzern
+const CACHE_NAME = "epkolar-v3.9.567";
 const ASSETS = [
   './',
   './index.html'
