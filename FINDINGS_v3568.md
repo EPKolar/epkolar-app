@@ -131,3 +131,33 @@ Zeilennummern aus Pass 1 (vor v3.9.569-Shift) mit `~` markiert — vor Löschung
 - **GPS-Leak:** `compressPhoto` re-encodet via Canvas → strippt EXIF/GPS; GPS bewusst separat in `gps_lat/lon`. **Quota-Monitor** nutzt `navigator.storage.estimate()` (IndexedDB) korrekt (#24 done).
 - **AS-State-Machine** `AS_TRANSITIONS` bewusst „alle Wechsel frei" (v3.9.122 Sebastian) — Guard ist toter Schutz, kein Defekt. AS-Gruppen einheitlich, Monteur-Schreibpfade gelockt.
 - AS-Quickfilter „Meine" nutzt ID-Gleichheit (kein Substring); Leersuche konsistent.
+
+---
+
+# PASS 5 — Nachtrag (Formular-Validierung, Mobile/Wochenplan, Completeness-Critic)
+
+## 🔴 LIVE-brechend / Feature kaputt
+- **Wochenplan auf Mobile un-editierbar** · `:16987/17125/16742` · Mobile-Card-Tap setzt `cellPick`, aber der Picker rendert NUR in `renderCell` im Desktop-`!isMob`-Zweig → MA/FZ-Zuordnung + Umbenennen/Bemerkung/Löschen/Sortieren (`:17110–17133`) auf Smartphones nicht möglich. **= die offene „Mobile-Wochenplanung-Umbau"-Aufgabe aus dem Handoff** (v3.9.503-Karten-Umbau hat Picker-Anbindung verloren). Reine isMob-Render-Arbeit, Desktop byte-identisch lassen.
+
+## 🟠 MEDIUM / Korrektheit
+- **Zeit-Eintrag-Edit ohne Guard** · `:8746` · Review-Grid-PUT sendet `hours:r.stunden` ROH (kein parseFloat/Rundung/0–24-Guard), während NEW-Pfad (`:8734`) + `addEntry` (`:11580`) + `saveMatrixCell` (`:8798`) clampen → geleertes Feld=NaN/null, negativ, >24h ungeprüft in DB (Kern der Zeiterfassung).
+- **Mobile „Heute"-Markierung off-by-one** · `:16884` · `isToday=i===((getDay()+5)%7)` bei DSHORT Mo–Sa → Montag kein Chip, Dienstag markiert „Mo". Desktop nutzt korrekt `(getDay()+6)%7`.
+- **`admin_stats`-RPC nie gebaut** · `:9803` · Statistik-Tab-KPIs (Vorgänge/Heute/Logins/Fehlversuche) zeigen dauerhaft „—" (graceful, aber Feature faktisch tot bis Backend-RPC).
+
+## 🔵 LOW / Defense-in-depth / Verdacht
+- `changed`-Erkennung Zeit-Grid Number-vs-String-Mismatch → überflüssige PUTs (`:8744`, Verdacht).
+- `createUser` (`:9315`) + `addMonteur` (`:7195`) Required nur Truthy ohne `.trim()` → Whitespace-Name passiert, bricht Dedup. addMonteur ohne E-Mail-Format/Dedup (anders als createUser).
+- skonto/jahresbonus/intervall ohne Range-Guard (negativ/>100%) (`:9427`).
+- `_mapDefect` Deprecated-Doppelfeld-Aliase warten auf SQL-Konsolidierung `migrate_defects_consolidate_v3112.sql` (`:1896`, Cleanup ausstehend).
+- Mobile-Card-Wrapper-onClick ohne `stopPropagation` → fragil sobald Mobile-Picker je rendert (`:16815`). `window.innerWidth<600`-Reads ohne Resize-Subscription, stale bei Rotation (`:11614/20378/4785`).
+- Native `confirm()` im AS-Duplikat-Pfad statt `_confirmModal` (`:7591`, kosmetisch).
+
+## ✅ Pass-5 ENTWARNT
+- Marker-Sweep: `kaputt/broken/deprecated/Workaround` fast alle erledigte Changelog-Kommentare, kein `if(false)`/block-killing-return. Error-Boundaries + global onerror/unhandledrejection vorhanden. Leere catch-Blöcke intentional (DOM-Cleanup/JSON-Guards).
+- Konstanten (38,5/192,5/25 Urlaubstage, Timeouts) durchgängig zweckgebunden konsistent. `window._*`-Exporte = dev-gated Test-Harness (kein Dead-Code).
+- Save-Handler breit validiert (saveProject/saveEntry/Fahrtenbuch/addEntry/saveMatrixCell/submitMangel/createUser mit Required+Range+Trim+Dedup); Freitext durchgängig maxLength-gecappt.
+
+---
+
+# 📊 SÄTTIGUNG (nach 5 Pässen / 27 Agenten)
+Produktive Dimensionen weitgehend ausgeschöpft. Der Completeness-Critic fand **keinen neuen live-brechenden** Fund; Codebasis-Kern (Memory/XSS/Zahlen/Race/Datum/Cleanup/Validierung) auffällig hart. Die echten Bugs konzentrieren sich auf: **Offline/Sync-Queue, Storage-Orphans, externe Integrationen (OFFA/FinkZeit/DATANORM), Spiegel-Felder (kunde_status), Mobile-Wochenplan, Zeit-Edit-Guard**. Weiteres Breit-Hunting → abnehmender Grenzertrag; sinnvoller wäre gezielte Verifikation/Fix der Top-Funde.
