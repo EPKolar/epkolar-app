@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.557 — Fix: deactivate_at in _USER_SAFE_COLS — geplante Deaktivierung wird nach Reload wieder angezeigt (Spalte wurde nie geladen → mapte zu leer)
-const CACHE_NAME = "epkolar-v3.9.557";
+// EP Kolar Service Worker v3.9.558 — Bug-A: Mitarbeiter (workers) ohne users-Login in Benutzerverwaltung sichtbar + "Login erstellen" (Prefill aus worker, admin-only); v3.9.557 deactivate_at-Fix
+const CACHE_NAME = "epkolar-v3.9.558";
 const ASSETS = [
   './',
   './index.html'
