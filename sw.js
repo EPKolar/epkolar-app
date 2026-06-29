@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.556 — Eskalation: sehr hoch + FIXTERMIN gelten jetzt als dringend (Auto-Eskalation + dringendeAS wie hoch); zentrale AS_URGENT_PRIOS
-const CACHE_NAME = "epkolar-v3.9.556";
+// EP Kolar Service Worker v3.9.557 — Fix: deactivate_at in _USER_SAFE_COLS — geplante Deaktivierung wird nach Reload wieder angezeigt (Spalte wurde nie geladen → mapte zu leer)
+const CACHE_NAME = "epkolar-v3.9.557";
 const ASSETS = [
   './',
   './index.html'
