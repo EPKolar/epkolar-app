@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.560 — Monteur-Tafel (Wandmonitor): ALLE aktiven Feld-MA als Zeilen (Filter "hat Scheine" raus), Wand-lesbares Layout (Name rollenfarbig 22px, Zeilen flex-fill, HEUTE/WE getönt, Chips bold + max3)
-const CACHE_NAME = "epkolar-v3.9.560";
+// EP Kolar Service Worker v3.9.561 — Neue Lager-Display-Ansicht WochenplanTafel (Excel-Look) für ?screen=planung: read-only Raster bvh×Mo-Sa aus weekplan_rows (aktuelle KW), Wand-Optik, 60s-Refresh+WakeLock; ?screen=monteure unverändert
+const CACHE_NAME = "epkolar-v3.9.561";
 const ASSETS = [
   './',
   './index.html'

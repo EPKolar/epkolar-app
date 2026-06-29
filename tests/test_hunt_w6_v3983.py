@@ -25,7 +25,7 @@ def test_iso_week_year_helper(node_exe, index_html):
     # 29.12.2025 (Mo) = KW1/2026 → 2026 (getFullYear wäre 2025!); 01.01.2027 (Fr) = KW53/2026 → 2026
     # (getFullYear wäre 2027!); Juni normal. Hinweis: 2026 startet am Do → 53 ISO-Wochen.
     assert res == [2026, 2026, 2026], f"isoWY falsch: {res}"
-    assert index_html.count("const yr=isoWY();") == 3, "alle 3 KW-Views müssen isoWY nutzen"
+    assert index_html.count("const yr=isoWY();") == 4, "alle 4 KW-Views müssen isoWY nutzen"  # v3.9.561: +WochenplanTafel (Kiosk ?screen=planung)
 
 
 def test_menge_decimal_comma(index_html):
