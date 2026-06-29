@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.558 — Bug-A: Mitarbeiter (workers) ohne users-Login in Benutzerverwaltung sichtbar + "Login erstellen" (Prefill aus worker, admin-only); v3.9.557 deactivate_at-Fix
-const CACHE_NAME = "epkolar-v3.9.558";
+// EP Kolar Service Worker v3.9.559 — Bug-A UX: "Login erstellen" scrollt jetzt zum (oben liegenden) Neuer-Benutzer-Formular + fokussiert Benutzername (vorher wirkte es als passiere nichts); v3.9.558 Bug-A Sichtbarkeit
+const CACHE_NAME = "epkolar-v3.9.559";
 const ASSETS = [
   './',
   './index.html'
