@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.563 — Wochenplanung-PDF: Querformat-Excel-Gitter (A4 landscape) via verstecktem iframe statt window.print()-Hochformat; _wpBuildPrintHTML + _wpPrintPlan, nur die 2 WP-Druck-Buttons umgehaengt
-const CACHE_NAME = "epkolar-v3.9.563";
+// EP Kolar Service Worker v3.9.564 — createUser legt jetzt echten GoTrue-Login an (admin_create_user-RPC, admin-gated, + auth_user_id-Link); Monteur-Tafel tagView reiche Block-Liste (volle Infos, 00:00=keine Zeit); Wochenplan-Tafel Krankenstand/Urlaub-Zeilen wie Excel; AS-Eskalation FIXTERMIN/'sehr hoch' nach 3 statt 14 Tagen
+const CACHE_NAME = "epkolar-v3.9.564";
 const ASSETS = [
   './',
   './index.html'
