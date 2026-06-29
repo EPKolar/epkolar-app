@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.561 — Neue Lager-Display-Ansicht WochenplanTafel (Excel-Look) für ?screen=planung: read-only Raster bvh×Mo-Sa aus weekplan_rows (aktuelle KW), Wand-Optik, 60s-Refresh+WakeLock; ?screen=monteure unverändert
-const CACHE_NAME = "epkolar-v3.9.561";
+// EP Kolar Service Worker v3.9.562 — Monteur-Tafel: Startzeit (terminZeit||termin_vorschlag_zeit) im Chip + Zeit-Sortierung + alle Scheine als Einzeiler (kein +N), Auto-Rotation Woche/Tag-Button (60s, default AUS); Lager-Kiosk: dezenter Logout-Overlay auf beiden Screens
+const CACHE_NAME = "epkolar-v3.9.562";
 const ASSETS = [
   './',
   './index.html'
