@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.564 — createUser legt jetzt echten GoTrue-Login an (admin_create_user-RPC, admin-gated, + auth_user_id-Link); Monteur-Tafel tagView reiche Block-Liste (volle Infos, 00:00=keine Zeit); Wochenplan-Tafel Krankenstand/Urlaub-Zeilen wie Excel; AS-Eskalation FIXTERMIN/'sehr hoch' nach 3 statt 14 Tagen
-const CACHE_NAME = "epkolar-v3.9.564";
+// EP Kolar Service Worker v3.9.565 — Lager-Kiosk Logout-Button klar sichtbar (Slate-Chip statt weiss-auf-weiss, Opacity 0.7); Monteur-Tafel Wochen-Chip zeigt mehr (Zeit+Nr / Kunde / Ort, 2-3 Zeilen) statt 1-Zeiler — weniger als Tagesansicht
+const CACHE_NAME = "epkolar-v3.9.565";
 const ASSETS = [
   './',
   './index.html'
