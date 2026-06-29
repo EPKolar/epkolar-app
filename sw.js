@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.565 — Lager-Kiosk Logout-Button klar sichtbar (Slate-Chip statt weiss-auf-weiss, Opacity 0.7); Monteur-Tafel Wochen-Chip zeigt mehr (Zeit+Nr / Kunde / Ort, 2-3 Zeilen) statt 1-Zeiler — weniger als Tagesansicht
-const CACHE_NAME = "epkolar-v3.9.565";
+// EP Kolar Service Worker v3.9.566 — Wochenplan-Tafel Krankenstand/Urlaub via kiosk_week_absences-RPC (lager_display ist RLS-gesperrt fuer absences → SECURITY-DEFINER-RPC nur Name/Tag/Typ der Woche); Lager-Kiosk Logout in die Kopfzeile beider Views (kein ueberlappendes Overlay mehr)
+const CACHE_NAME = "epkolar-v3.9.566";
 const ASSETS = [
   './',
   './index.html'
