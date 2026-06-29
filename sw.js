@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.562 — Monteur-Tafel: Startzeit (terminZeit||termin_vorschlag_zeit) im Chip + Zeit-Sortierung + alle Scheine als Einzeiler (kein +N), Auto-Rotation Woche/Tag-Button (60s, default AUS); Lager-Kiosk: dezenter Logout-Overlay auf beiden Screens
-const CACHE_NAME = "epkolar-v3.9.562";
+// EP Kolar Service Worker v3.9.563 — Wochenplanung-PDF: Querformat-Excel-Gitter (A4 landscape) via verstecktem iframe statt window.print()-Hochformat; _wpBuildPrintHTML + _wpPrintPlan, nur die 2 WP-Druck-Buttons umgehaengt
+const CACHE_NAME = "epkolar-v3.9.563";
 const ASSETS = [
   './',
   './index.html'

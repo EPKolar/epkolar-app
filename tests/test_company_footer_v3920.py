@@ -65,9 +65,9 @@ def test_pdf_buttons_all_use_window_print(index_html):
     matches = pattern.findall(index_html)
     assert matches, "Keine xBtn('pdf')-Buttons gefunden — Pattern-Match-Problem?"
     for blob in matches:
-        assert "window.print()" in blob, (
-            "PDF-Button ohne window.print()-Handler — Foundation seit v3.9.315 setzt "
-            f"globales @media print voraus. Auszug: {blob[:200]}"
+        assert ("window.print()" in blob) or ("_wpPrintPlan" in blob), (
+            "PDF-Button ohne window.print()/_wpPrintPlan-Handler — Foundation seit v3.9.315 setzt "
+            f"globales @media print voraus (Ausnahme v3.9.563: WP-Querformat-PDF via _wpPrintPlan). Auszug: {blob[:200]}"
         )
 
 
