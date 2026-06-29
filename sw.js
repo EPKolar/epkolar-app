@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.569 — Kiosk-PII-Lockdown: lager_display liest workers/arbeitsscheine nur noch via minimal-RPC (kiosk_field_workers/kiosk_week_arbeitsscheine), kein SVNR/Reisepass/Tel/Adresse mehr im Kiosk
-const CACHE_NAME = "epkolar-v3.9.569";
+// EP Kolar Service Worker v3.9.570 — A-2 Juprowa Status-Roundtrip-Fix: AK_AUFSTATUS-Push echot gepullten Roh-Status (4 bleibt 4, 15 bleibt 15) statt blindem Reverse 4→1/15→11 (Builder _juprowaReversMap, Dirty-Check gegen juprowa_raw)
+const CACHE_NAME = "epkolar-v3.9.570";
 const ASSETS = [
   './',
   './index.html'
