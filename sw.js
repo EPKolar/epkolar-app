@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.575 — Bug-Hunt #4 (orthogonal): Zeit-Eintrag-Edit weist NaN/≤0/>24h VOR dem push ab (gepinnte SQ.push-Zeile byte-identisch, Lohnpfad-Freezes 341/344/345/347 gruen). (570=A-2, 571=urspr. #4-Versuch)
-const CACHE_NAME = "epkolar-v3.9.575";
+// EP Kolar Service Worker v3.9.576 — Feature Bauprovisorien: neuer staff-only Menuepunkt (Liste/Karten/Jahres-Streifen/Verrechnen mit Foto+Rechnung-Upload), Badge offene Jahresmieten. ERFORDERT BAUPROVISORIEN_SCHEMA_stage.sql in prod (zuerst!).
+const CACHE_NAME = "epkolar-v3.9.576";
 const ASSETS = [
   './',
   './index.html'
