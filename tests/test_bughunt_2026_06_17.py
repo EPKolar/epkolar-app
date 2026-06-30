@@ -470,10 +470,17 @@ def test_budget_ampel_table_uses_budget_euro_and_helper():
 # ── v3.9.425: Auslastungs-Ampel 70/90/100 + Heutige-AS nur offene (Chef-Entscheide) ──
 
 def test_heute_as_only_open():
-    """Positiv: Heutige-AS-KPI zaehlt nur offene (AS_GRP_OFFEN), wie ueberfaellige."""
+    """Positiv: Heutige-AS-KPI zaehlt nur offene (AS_GRP_OFFEN) + _hasTermin-Sentinel-Guard (v3.9.607 #11), wie ueberfaellige.
+    Invariante statt Literal-Snapshot: v3.9.607 hat heuteAS auf Block-Form mit _hasTermin umgestellt (Sentinel-terminBestaetigt
+    verdeckte sonst heutige Scheine). AS_GRP_OFFEN-Filter (v3.9.425-Schutz) bleibt erhalten."""
     text = _txt()
-    assert "const heuteAS=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(a.terminBestaetigt||a.terminVorschlag||'').startsWith(_td)).length;" in text, \
+    i = text.find("const heuteAS=arbeitsscheine.filter(a=>{")
+    assert i >= 0, 'heuteAS-KPI (Block-Form) nicht gefunden — Form geaendert?'
+    seg = text[i:i + 400]
+    assert "AS_GRP_OFFEN.includes(a.scheinstatus)" in seg, \
         'v3.9.425 Regression: Heutige-AS muss auf AS_GRP_OFFEN filtern'
+    assert "_hasTermin(a.terminBestaetigt)" in seg, \
+        'v3.9.607 #11 Regression: heuteAS braucht _hasTermin-Sentinel-Guard'
 
 
 def test_auslastung_ampel_70_90_100():
