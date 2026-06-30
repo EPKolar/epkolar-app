@@ -1,13 +1,13 @@
 # MORNING — Übergabe Overnight-Lauf (2026-06-29 → 30)
 
-## ✅ GEFIXT + GEPUSHT 2026-06-30 (live **v3.9.574**)
-- **#1 qDoSchaden** FZ-Schaden-Datenverlust → `3ed7d08` (572) · **#5 updSt kunde_status-Spiegel** → `db45153` (573) · **#2 SQ.push Quota-Warnung** → `5d54a33` (574). Je voller Gate (pytest 998/0), eigener Commit. Versionen 570=A-2-Branch, 571=reverted #4 (übersprungen).
+## ✅ GEFIXT + GEPUSHT 2026-06-30 (live **v3.9.575**)
+- **#1 qDoSchaden** FZ-Schaden-Datenverlust → `3ed7d08` (572) · **#5 updSt kunde_status-Spiegel** → `db45153` (573) · **#2 SQ.push Quota-Warnung** → `5d54a33` (574) · **#4 Zeit-Edit-Guard (orthogonal)** → `3a4229a` (575). Je voller Gate (pytest 998/0, #4 mit den 4 Lohnpfad-Freezes explizit grün), eigener Commit. Versionen 570=A-2-Branch (ungepusht), 571=verworfener erster #4-Versuch (übersprungen).
+- **PW-Rotation** `34kolar70` → durch Sebastian ausgeführt. Geteiltes Standard-PW eliminiert (5 Accounts je eigenes), git-History-Eintrag wertlos. Doku/Memory maskiert.
 
 ## ⚡ DAS MUSST DU ENTSCHEIDEN (Stand 2026-06-30)
-1. **A-2 Juprowa-Fix freigeben?** Branch `a2-juprowa-roundtrip` (`b72742d`, v3.9.570), nicht gepusht, Dry-Run grün. Freigabe = Tabu-Auslegung `_juprowaReversMap` + OFFA-Live-Push.
-2. **#4 Zeit-Edit-Guard (Lohnpfad) — ORTHOGONAL bestätigt.** Die 4 Freeze-Guards (341/344/345/347) pinnen nur das Body-Format (Cross-Feature-Schutz), keine Stunden-Behandlung → Guard VOR dem push (gepinnte Zeile byte-identisch) lässt alle 4 grün, KEIN Rebaseline. Diff steht in `OPEN_BUGS_v3568.md`. **NICHT committet — dein Lohnpfad-Review → dann „go #4".**
-3. **Dead-Code löschen?** Re-verifiziert: **7 Funktionen sicher tot** (count=1: doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _safeSessionSet, _titleCase) + `preview/whatsapp_ui_v0.html` (0 Refs). `getWeekplans` (count=1, aber auf `window.API` = extern aufrufbar → Vorsicht). **`toggleFZ` (6 Refs) + `_V` (Substring-Noise, Name zu generisch) NICHT tot → NICHT löschen.** Nichts gelöscht.
-4. **Weitere Bugs (Befund-only):** ⛔ NICHT autonom — #6 JWT base64url (`:1305`, **Auth**) · `_juprowaSanitize`/PULL-Zeit (`:3275/3085`, **OFFA**) · plus BWB-KW-Kopf (`:20304`), Foto-Orphans (`:2801`), km_stand (`:2188`), Mobile-Wochenplan-Umbau (`:16987` = Ur-Auftrag). Du wählst.
+1. **A-2 Juprowa-Fix freigeben?** Branch `a2-juprowa-roundtrip` (`b72742d`, v3.9.570), **nicht gepusht**, Dry-Run grün. Freigabe = Tabu-Auslegung `_juprowaReversMap` bestätigen + Merge/Push (= OFFA-Live-Push). **KEIN OFFA-Write bis dahin.**
+2. **Dead-Code löschen?** **7 Funktionen sicher tot** (count=1: doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _safeSessionSet, _titleCase) + `preview/whatsapp_ui_v0.html` (0 Refs). `getWeekplans` (count=1, aber `window.API` = extern aufrufbar → Vorsicht). **`toggleFZ` (6 Refs) + `_V` NICHT tot → NICHT löschen.** Nichts gelöscht — deine Entscheidung.
+3. **Befund-only-Reste (NICHT autonom angefasst):** ⛔ #6 JWT base64url (`:1305`, **Auth**) · `_juprowaSanitize`/Juprowa-PULL-Zeit (`:3275/3085`, **OFFA**). Plus offene Korrektheits-Themen: BWB-KW-Kopf (`:20304`), Foto-Storage-Orphans (`:2801`), km_stand-Klobber (`:2188`), FinkZeit #11 (`:10346`), **Mobile-Wochenplan-Umbau** (`:16987` = Ur-Auftrag, größere isMob-Arbeit). Du wählst Reihenfolge.
 
 ---
 

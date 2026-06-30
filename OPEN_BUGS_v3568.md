@@ -38,10 +38,13 @@ Der alte `docs/handoff/BUGHUNT-2026-06-17-OFFEN.md` ist ~75% stale (siehe Kopf-N
 - **#1 qDoSchaden Datenverlust** (`:21035`) → `3ed7d08` (v3.9.572). Persistiert jetzt via `upd+_schSync` (column-scoped PUT) wie addSchaden/qDoKm/qDoTank.
 - **#5 updSt kunde_status-Spiegel** (`:12308`) → `db45153` (v3.9.573). `_DEF2KUNDE`-Map nur für `melder=Kunde`; `_bulkApply` erbt via Delegation. Kunde sieht Abnahme-Button wieder.
 - **#2 SQ.push stiller Quota-Verlust** (`:2748`) → `5d54a33` (v3.9.574). Sichtbarer Toast im catch (PhotoQ-Muster) statt stillem Verlust. *(Item bei voller Quota nicht erzwingbar persistierbar — Warnung ist die ehrliche Mitigation; tiefere Queue-Pufferung bewusst NICHT gemacht.)*
+- **#4 Zeit-Edit-Guard (orthogonal)** (`:8746`) → `3a4229a` (v3.9.575). Guard VOR dem push, gepinnte SQ.push-Zeile byte-identisch → alle 4 Lohnpfad-Freezes (341/344/345/347) explizit grün, KEIN Rebaseline. NaN/≤0/>24h beim Edit abgewiesen.
+- **PW-Rotation** `34kolar70` → durch Sebastian ausgeführt (`ROTATE_PW_stage.sql`-Muster). Geteiltes Standard-PW eliminiert (admin/lindhuber/schober/aliti/lager je eigenes), git-History-Eintrag damit wertlos.
 
 ---
 
-## 🟠 ZURÜCKGESTELLT — #4 Zeit-Edit-Guard (braucht Lohnpfad-Freeze-Review)
+## ✅ #4 Zeit-Edit-Guard — GEFIXT 2026-06-30 (v3.9.575, `3a4229a`) — orthogonal, Freezes grün
+*(Historie/Analyse — der Fix ist live; Details unten dokumentieren warum kein Rebaseline nötig war.)*
 - **Was:** `editMonteurEntries`-Save-Pfad (`index.html:8746`) sendet beim Edit bestehender Zeit-Einträge
   `hours:r.stunden` ROH — kein 0–24-/NaN-Guard. Geleertes Feld → NaN/null, Tippfehler → >24h ungeprüft
   in die DB (Lohn-relevant). NEW-Pfad (`:8734`) clampt korrekt (`Math.round((parseFloat||0)*100)/100` + `>0`).
