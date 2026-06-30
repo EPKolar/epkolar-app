@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.578 — Phase-2 #km_stand: Tank-/QR-Beleg erhoeht km_stand nur (Math.max), senkt den Tacho nicht mehr (Klobber-Fix). (576=Bauprovisorien-Branch, 577=BWB-Kopf)
-const CACHE_NAME = "epkolar-v3.9.578";
+// EP Kolar Service Worker v3.9.579 — Phase-2 #Foto-Orphan: PhotoQ-Upload verwendet bereits hochgeladene URL wieder (kein Re-Upload bei DB-Post-Fail-Retry) → keine Storage-Waisen mehr. (576=Bauprovisorien, 577=BWB, 578=km_stand)
+const CACHE_NAME = "epkolar-v3.9.579";
 const ASSETS = [
   './',
   './index.html'
