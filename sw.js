@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.575 — Bug-Hunt #4 (orthogonal): Zeit-Eintrag-Edit weist NaN/≤0/>24h VOR dem push ab (gepinnte SQ.push-Zeile byte-identisch, Lohnpfad-Freezes 341/344/345/347 gruen). (570=A-2, 571=urspr. #4-Versuch)
-const CACHE_NAME = "epkolar-v3.9.575";
+// EP Kolar Service Worker v3.9.577 — Phase-2 #BWB: exportBauwochenbericht KW-Kopfzeile zeigt jetzt dateFmt(0)-dateFmt(6) (Mo-So), passend zum 7-Tage-Render inkl. Sonntag. (576=Bauprovisorien-Branch)
+const CACHE_NAME = "epkolar-v3.9.577";
 const ASSETS = [
   './',
   './index.html'
