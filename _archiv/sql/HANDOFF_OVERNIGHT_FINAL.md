@@ -44,7 +44,7 @@ App live: **v3.5.122** (`ce746bf`).
 2. `/sql/AUTH_DEBUG_QUERIES.sql` Query B ausführen → NULL-Trap check
 3. Wenn NULL-Felder: FIX B drunter ausführen
 4. Hard-Reload App: `location.reload()` nach `localStorage.clear()`
-5. Console: `await window._sbAuthLogin('info@ep-kolar.at','test1234')`
+5. Console: `await window._sbAuthLogin('info@ep-kolar.at','[ROTIERT-2026-06-30]')`
    - Wegen **v3.5.113** siehst du jetzt die echte GoTrue-Fehlermeldung statt "500 ..."
 
 ## 🟢 Nicht mehr in diesem Loop berührt (forbidden-zone per CLAUDE.md)

@@ -46,7 +46,7 @@ Baseline auf allen 5 Commits: `() -2, {} 0, [] 0` ✓ · `node --check` ✓ · G
 
 ### 5. B-020 UI-Login (zum DIAGNOSTIZIEREN, nicht fixen!)
 - F12 Console + Network aktiv
-- Login mit `schober / test1234`
+- Login mit `schober / [ROTIERT-2026-06-30]`
 - **Artefakte liefern**: Network → `login_lookup` Response-Body (Array oder Object?), Console-Errors, LocalStorage `epkolar_token`/`epkolar_refresh`.
 - Siehe `sql/B020_DIAGNOSE_19_04.md` für Hypothesen + Fix-Vorschlag.
 
@@ -54,7 +54,7 @@ Baseline auf allen 5 Commits: `() -2, {} 0, [] 0` ✓ · `node --check` ✓ · G
 
 | ID | Thema | Status | Empfehlung |
 |---|---|---|---|
-| **B-020** | UI-Login silent-fail (schober/test1234) | **P1 OPEN** | Browser-Artefakte sammeln, dann gezielter Fix (~15min) |
+| **B-020** | UI-Login silent-fail (schober/[ROTIERT-2026-06-30]) | **P1 OPEN** | Browser-Artefakte sammeln, dann gezielter Fix (~15min) |
 | B-021 | Silent-Re-Auth vor langen Patches | P2 OPEN | Bei >JWT-TTL-Sessions können AS-Close-Patches mit 401 scheitern; existierender _sbAuthRefresh fängt 95% ab |
 | R-1…R-6 | Bewusst-nicht-gefixt aus Overnight | P3 (siehe `sql/TODO_MORGEN.md`) | Bei nächster Berührung mitfixen |
 

@@ -127,7 +127,7 @@ Zeilennummern aus Pass 1 (vor v3.9.569-Shift) mit `~` markiert — vor Löschung
 - DATANORM `ek_preis=listenpreis` ohne Rabattgruppen-Abschlag (`:9477`, Verdacht — evtl. via effEk gewollt). Juprowa-PULL überschreibt Adressfelder ohne isPending-Schutz (`:3140`, Verdacht — evtl. OFFA-autoritativ gewollt).
 
 ## ✅ Pass-4 ENTWARNT
-- **fz_schaeden Dual-Store existiert NICHT mehr** (entfernt v3.9.427/432, Single-Source `fahrzeuge.schaeden` JSON; nur DB-Tabelle + Label-Leiche bleiben) — altes Backlog #10 stale.
+- **fz_schaeden Dual-Store existiert NICHT mehr** (entfernt v3.9.427/432, Single-Source `fahrzeuge.schaeden` JSON) — altes Backlog #10 stale. **Server-seitig verifiziert 2026-06-30 (Fall A):** Tabelle `fz_schaeden` physisch weg (information_schema/pg_class → KEINE_RELATION, nicht nur PGRST205), `fahrzeuge.schaeden` = `text`/JSON, leer (0/21) = einzige/kanonische Quelle. Nichts zu droppen/migrieren.
 - **GPS-Leak:** `compressPhoto` re-encodet via Canvas → strippt EXIF/GPS; GPS bewusst separat in `gps_lat/lon`. **Quota-Monitor** nutzt `navigator.storage.estimate()` (IndexedDB) korrekt (#24 done).
 - **AS-State-Machine** `AS_TRANSITIONS` bewusst „alle Wechsel frei" (v3.9.122 Sebastian) — Guard ist toter Schutz, kein Defekt. AS-Gruppen einheitlich, Monteur-Schreibpfade gelockt.
 - AS-Quickfilter „Meine" nutzt ID-Gleichheit (kein Substring); Leersuche konsistent.

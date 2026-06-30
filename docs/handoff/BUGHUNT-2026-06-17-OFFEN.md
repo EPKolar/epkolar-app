@@ -109,9 +109,14 @@ Entscheidung oder berühren eingefrorene/lohnrelevante Bereiche.
 9. **P2 Teilzeit ignoriert.** Kapazitäts-Soll (`38.5` hartkodiert) und Urlaubs-Materialisierung (`_stdVonTagBrk`
    8,5/4,5 ohne `woche`-Faktor) skalieren NICHT mit Teilzeit-Wochenstunden → Teilzeit-MA werden bei Auslastung und
    Resturlaub falsch gerechnet. **Nur relevant, wenn es Teilzeit-Monteure gibt — bitte bestätigen.**
-10. **P2 FZ-Schaden Dual-Store.** Schäden werden in `fahrzeuge.schaeden` (JSON) UND `fz_schaeden` (Tabelle) geschrieben,
-    aber Status-Edits + Read nur über die JSON-Spalte → `fz_schaeden` veraltet still. Kanonische Quelle klären (oder
-    toten `_sbPost("fz_schaeden")` entfernen).
+10. **~~P2 FZ-Schaden Dual-Store~~ — ✅ STALE/ERLEDIGT (Fall A, server-seitig verifiziert 2026-06-30).** KEIN
+    Dual-Store mehr: Tabelle `fz_schaeden` existiert physisch NICHT (information_schema/pg_class →
+    KEINE_RELATION, nicht nur PGRST205; entfernt v3.9.427/432). `fahrzeuge.schaeden` (Spalte type `text`,
+    JSON-serialisiert) ist die einzige/kanonische Quelle, aktuell leer (0/21 Fahrzeuge). Code-Seite: nur
+    JSON-Lese/Schreibpfade (`addSchaden`/`_schSync` Diff-PUT), die 7 `fz_schaeden`-Treffer sind 1 Label-String
+    + Kommentare zur Entfernung. Nichts zu droppen, nichts zu migrieren. *(Ursprünglich:)* Schäden wurden in
+    `fahrzeuge.schaeden` (JSON) UND `fz_schaeden` (Tabelle) geschrieben, aber Status-Edits + Read nur über
+    die JSON-Spalte → `fz_schaeden` veraltet still.
 11. **P2 FinkZeit-Abweichungs-Schwelle inkonsistent.** Dashboard-Warnung: `diff>1h` (absolut). Detail-View: `<0,5h`
     grün / `<5%` orange / sonst rot (relativ). Gleiche Sache, zwei Kriterien → Dashboard-Zähler weicht vom Detail ab.
     Auf eine gemeinsame Schwelle einigen.

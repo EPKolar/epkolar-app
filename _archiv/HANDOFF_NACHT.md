@@ -194,7 +194,7 @@ APP_VERSION muss `"3.7.0-supabase"` sein.
 - Supabase Dashboard → SQL-Editor: `sql/B020_FIX.sql` öffnen
 - Schritt 1 SOFORT ausführen (u7 Schober Email-Fix)
 - Schritt 2 (Orphan-Cleanup) optional
-- Schritt 3: Supabase Dashboard → Authentication → Users: 3 neue Accounts anlegen für paschinger/barger/cracana mit test1234, UUIDs kopieren, dann Schritt 3 SQL mit echten UUIDs ausführen
+- Schritt 3: Supabase Dashboard → Authentication → Users: 3 neue Accounts anlegen für paschinger/barger/cracana mit [ROTIERT-2026-06-30], UUIDs kopieren, dann Schritt 3 SQL mit echten UUIDs ausführen
 - Schritt 4 Verify-Query ausführen
 
 ### 3. P1 — Smoke-Tests (je ~30 s, 5 min total)

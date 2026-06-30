@@ -292,7 +292,7 @@ Schon grün (Claude Nacht-2): DB_VER=7, APP_VERSION, _curUser, _b017check, _self
 4. Riedmann-Nav: `riedmann` Login → nur Monteur-Tabs
 
 **Photos-Upload (B-021 Status Quo):**
-1. paschinger/test1234 Login (falls GoTrue fail: auf schober ausweichen)
+1. paschinger/[ROTIERT-2026-06-30] Login (falls GoTrue fail: auf schober ausweichen)
 2. AS → Foto aufnehmen → POST 201 Created
 3. `SELECT uploaded_by FROM photos ORDER BY uploaded_at DESC LIMIT 1` = 'w1'
 4. Cross-User-Sichtbarkeit IST NICHT TEIL DES TESTS (B-021 Status Quo)

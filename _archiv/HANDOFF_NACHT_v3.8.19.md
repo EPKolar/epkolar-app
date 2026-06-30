@@ -130,7 +130,7 @@ Kein Fake-Bumping: jeder Block hat echte Artefakte produziert, nichts nur verwä
 
 1. **BASELINE_FIX_v3.8.sql** auf Supabase laufen lassen (P0!) → danach BASELINE_FIX_VERIFY_v3.8.sql (8×TRUE erwartet).
 2. **B_12_ORPHANS_ANALYSIS.md** · Details-Query ausführen, pro Row Kategorie zuweisen, Staging-SQL (a/b/c/d) wählen, commit `v3.8.19.x` mit resolved-SQL.
-3. **B-020 Login-Smoke 5 User** (paschinger/barger/cracana/pinger/schmid) mit `test1234` testen — wenn Fails: separates Hotfix.
+3. **B-020 Login-Smoke 5 User** (paschinger/barger/cracana/pinger/schmid) mit `[ROTIERT-2026-06-30]` testen — wenn Fails: separates Hotfix.
 4. **Smoke-TODOs aus SMOKE_LOG_v3.8.18.md** · 4 UI-Fixes visuell + Photos-Upload + Cross-User-Cleanup.
 5. **Mobile-UX iPhone-12-Viewport** · `window._selfTest()` → `tooSmallTouch` <5 erwartet. Screenshots optional in docs/.
 6. **sync_supplier Edge Function** CLI-Deploy (falls noch nie committed → Sebastian pflegt im Supabase Dashboard).

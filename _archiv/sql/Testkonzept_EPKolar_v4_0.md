@@ -40,7 +40,7 @@ RLS-Security-Fix (B-006 teils + B-007 voll).
 |------|----------|----------|-----------|
 | admin | sebastian | (bekannt) | (kein Worker-Link) |
 | projektleiter | (PL-Account) | — | — |
-| monteur | schober | test1234 | w? |
+| monteur | schober | [ROTIERT-2026-06-30] | w? |
 | monteur | riedmann | (bekannt) | w9 |
 | portal | (Projekt-Code) | n/a | n/a |
 
@@ -59,7 +59,7 @@ DB-Stand (bei v3.5.81 verifiziert):
 
 | ID | Schritt | Erwartung |
 |----|---------|-----------|
-| TC-A-01 | Login mit `schober/test1234` | Weiterleitung zum HomeView, `curUser` gesetzt, `window._ensureAuth()` verfügbar |
+| TC-A-01 | Login mit `schober/[ROTIERT-2026-06-30]` | Weiterleitung zum HomeView, `curUser` gesetzt, `window._ensureAuth()` verfügbar |
 | TC-A-02 | JWT-Refresh nach 55 Min Idle | `_api.get` funktioniert weiterhin, kein 401-Crash |
 | TC-A-03 | Falsches Passwort | Fehler-Meldung, kein Session-Leak |
 | TC-A-04 | Offline-Login (Network→Offline + bekannter User) | aus IndexedDB-Cache (lastUser), Auth-Hash-Match |

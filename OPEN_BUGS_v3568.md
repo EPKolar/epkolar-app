@@ -66,7 +66,7 @@ offen zu löschen:** `_safeSessionSet` (`:1726`) bleibt (durch `test_sprint77_co
 - **#5 updSt kunde_status-Spiegel** (`:12308`) → `db45153` (v3.9.573). `_DEF2KUNDE`-Map nur für `melder=Kunde`; `_bulkApply` erbt via Delegation. Kunde sieht Abnahme-Button wieder.
 - **#2 SQ.push stiller Quota-Verlust** (`:2748`) → `5d54a33` (v3.9.574). Sichtbarer Toast im catch (PhotoQ-Muster) statt stillem Verlust. *(Item bei voller Quota nicht erzwingbar persistierbar — Warnung ist die ehrliche Mitigation; tiefere Queue-Pufferung bewusst NICHT gemacht.)*
 - **#4 Zeit-Edit-Guard (orthogonal)** (`:8746`) → `3a4229a` (v3.9.575). Guard VOR dem push, gepinnte SQ.push-Zeile byte-identisch → alle 4 Lohnpfad-Freezes (341/344/345/347) explizit grün, KEIN Rebaseline. NaN/≤0/>24h beim Edit abgewiesen.
-- **PW-Rotation** `[altes PW, rotiert, wertlos]` → durch Sebastian ausgeführt (`ROTATE_PW_stage.sql`-Muster). Geteiltes Standard-PW eliminiert (admin/lindhuber/schober/aliti/lager je eigenes), git-History-Eintrag damit wertlos.
+- **PW-Rotation** `[altes PW, rotiert, wertlos]` → durch Sebastian BESTÄTIGT ausgeführt (2026-06-30). Geteiltes Standard-PW eliminiert (admin/lindhuber/schober/aliti/lager je eigenes), git-History-Eintrag damit wertlos. Stage-SQL `ROTATE_PW_stage.sql` aus Working-Tree entfernt (war untracked, nie committet).
 
 ---
 

@@ -74,7 +74,7 @@ sichtbar per perm-Check (`m.role==='monteur'` oder tab.perm check).
 v3.8.12 aktiv.
 
 **Sebastian-Test**:
-1. Login als `paschinger/test1234` (falls GoTrue fail: auf schober ausweichen)
+1. Login als `paschinger/[ROTIERT-2026-06-30]` (falls GoTrue fail: auf schober ausweichen)
 2. AS → Foto aufnehmen → POST 201 Created erwartet
 3. Supabase SQL: `SELECT uploaded_by FROM photos ORDER BY uploaded_at DESC LIMIT 1`
    → Erwartet: `'w1'` (paschinger-worker_id) oder entsprechend
@@ -125,18 +125,18 @@ und v3.8.11 (13 ODB stores) Fixes aktiv. ✅ Code-verified.
 
 ### T-schober
 
-- Login schober/test1234: PASS [  ] / FAIL [  ]
+- Login schober/[ROTIERT-2026-06-30]: PASS [  ] / FAIL [  ]
 - Role=buero erkannt: PASS [  ] / FAIL [  ]
 - Keine monteur-only-Tabs sichtbar: PASS [  ] / FAIL [  ]
 
 ### T-riedmann
 
-- Login riedmann/test1234 (oder bekanntes PW): PASS [  ] / FAIL [  ]
+- Login riedmann/[ROTIERT-2026-06-30] (oder bekanntes PW): PASS [  ] / FAIL [  ]
 - Role=monteur Tabs: PASS [  ] / FAIL [  ]
 
 ### T-lindhuber
 
-- Login lindhuber/test1234: PASS [  ] / FAIL [  ]
+- Login lindhuber/[ROTIERT-2026-06-30]: PASS [  ] / FAIL [  ]
 - Role=buero: PASS [  ] / FAIL [  ]
 
 ---

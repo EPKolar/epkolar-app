@@ -48,7 +48,7 @@ Alle zuvor offenen Tabellen haben jetzt `authenticated_read_*` + `authenticated_
 
 ## 3. Smoke-Test-JS (pending, für dich in Browser-Console)
 
-**Als schober (schober/test1234):**
+**Als schober (schober/[ROTIERT-2026-06-30]):**
 ```js
 (async()=>{
   const U=window.SUPABASE_URL||"https://jiggujpruejkaomgxarp.supabase.co";

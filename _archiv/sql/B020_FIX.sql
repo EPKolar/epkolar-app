@@ -37,9 +37,9 @@ SELECT id, username, email, auth_user_id, role FROM public.users WHERE id='u7';
 -- 3. u1/u2/u3 — Brauchen NEUE GoTrue-Accounts
 --    SQL kann das NICHT direkt (encrypted_password via bcrypt, email_confirmed_at etc).
 --    Sebastian: Supabase Dashboard → Authentication → Users → "Add user" für jeden:
---      paschinger@ep-kolar.at / test1234
---      barger@ep-kolar.at / test1234
---      cracana@ep-kolar.at / test1234
+--      paschinger@ep-kolar.at / [ROTIERT-2026-06-30]
+--      barger@ep-kolar.at / [ROTIERT-2026-06-30]
+--      cracana@ep-kolar.at / [ROTIERT-2026-06-30]
 --    Danach die auth.users.id kopieren und die UUID unten einsetzen.
 -- ────────────────────────────────────────────────────────────
 -- Nach Dashboard-Anlage: Ersetze '<NEUE_UUID>' durch die echten IDs.
@@ -71,7 +71,7 @@ ORDER BY pu.id;
 -- ────────────────────────────────────────────────────────────
 -- 5. Smoke nach Fix (im Browser Console als Admin):
 -- ────────────────────────────────────────────────────────────
--- F5 → Login mit schober/test1234
+-- F5 → Login mit schober/[ROTIERT-2026-06-30]
 -- Erwartung: Login-Success, Dashboard erscheint, _authToken ist JWT
 --   localStorage.getItem('epkolar_token').length > 200
 -- Falls Login bei u1/u2/u3 failt: UUIDs in Schritt 3 prüfen.

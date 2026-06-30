@@ -146,7 +146,7 @@ const r = await fetch('https://jiggujpruejkaomgxarp.supabase.co/functions/v1/adm
     username:'testuser1',
     name:'Test User 1',
     email:'testuser1+test@ep-kolar.at',
-    password:'test1234',
+    password:'<DEIN-PW>', /* Platzhalter — echtes PW einsetzen, nicht committen */
     role:'monteur'
   })
 });

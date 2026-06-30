@@ -68,7 +68,7 @@ typeof window._sbH === 'function' && window._sbH.toString().length > 100
 ```
 
 ### 4. Login + Token-Persistenz (P0-B Regression)
-Login mit `schober / test1234`, dann Console:
+Login mit `schober / [ROTIERT-2026-06-30]`, dann Console:
 ```js
 localStorage.getItem('epkolar_token').length > 200
 // MUSS true sein (echter JWT). Wenn kurz → bcrypt-fallback oder supabase-session-Regression.

@@ -35,5 +35,5 @@
 11. Multi-Projekt WÜ PL
 
 ## Operativ
-- Schober PW = "test1234" → ändern
+- Schober PW = "[ROTIERT-2026-06-30]" → ändern
 - Lindhuber PW → setzen

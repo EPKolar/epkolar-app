@@ -6,7 +6,7 @@ Sebastian bestätigte am 19.04 ~14:00: Final-Verify-Query aus `sql/B020_FIX.sql`
 
 ## Login-Regression pro User
 
-Sebastian durchläuft nach v3.8-Deploy: je User `{username}/test1234` einloggen, prüfen:
+Sebastian durchläuft nach v3.8-Deploy: je User `{username}/[ROTIERT-2026-06-30]` einloggen, prüfen:
 
 | User | Username | Email | Role | Expected Dashboard-Tabs | PASS/FAIL | Notiz |
 |---|---|---|---|---|---|---|
@@ -35,7 +35,7 @@ Test: In DB `UPDATE users SET locked=true WHERE id='u1'` (ACHTUNG: danach wieder
 Test: richtiges username, falsches PW → Toast "Falsches Passwort [B20-D]".
 
 ### B20-F: Empty email (sollte nach DB-Fix nicht mehr auftreten)
-Test: In DB `UPDATE users SET email='' WHERE id='u1'` → Login paschinger/test1234 → Toast "Account unvollständig [B20-F]".
+Test: In DB `UPDATE users SET email='' WHERE id='u1'` → Login paschinger/[ROTIERT-2026-06-30] → Toast "Account unvollständig [B20-F]".
 Danach sofort Rollback `UPDATE users SET email='paschinger@ep-kolar.at' WHERE id='u1'`.
 
 ### B20-G: Bcrypt OK aber GoTrue-Signup fail

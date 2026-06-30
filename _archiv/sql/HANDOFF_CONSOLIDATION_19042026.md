@@ -84,7 +84,7 @@ Siehe `sql/B021_VERIFY.md` für 4 weitere Smoke-Tests (Thundering-Herd etc.).
 
 | ID | Thema | Status | Empfehlung |
 |---|---|---|---|
-| **B-020** | UI-Login silent-fail (schober/test1234) | P1 OPEN — Diagnose committed, wartet auf Browser-Artefakte | Sebastian liefert F12-Artefakte, dann gezielter Fix (~15min) |
+| **B-020** | UI-Login silent-fail (schober/[ROTIERT-2026-06-30]) | P1 OPEN — Diagnose committed, wartet auf Browser-Artefakte | Sebastian liefert F12-Artefakte, dann gezielter Fix (~15min) |
 | B-022-rest | ~146 non-functional setX Stellen | P3 Backlog | Bei nächster Modal-Überarbeitung mitfixen |
 | B-017 rest | Weitere `window._api`, `window._allUsers` etc. | Bewusst-bleibt | Bei echter Sicherheits-Audit auditieren |
 

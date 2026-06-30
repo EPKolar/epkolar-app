@@ -1,7 +1,7 @@
 # B-020 Diagnose — UI-Login silent fail · 19.04.2026
 
 ## Ist-Zustand
-Sebastian berichtet: Login mit `schober / test1234` → Screen bleibt leer, kein Dashboard, kein Error-Toast.
+Sebastian berichtet: Login mit `schober / [ROTIERT-2026-06-30]` → Screen bleibt leer, kein Dashboard, kein Error-Toast.
 
 ## Code-Analyse
 
@@ -53,7 +53,7 @@ const tryLogin = async () => {
 ## Reproducer (für Sebastian)
 
 1. App öffnen → Login-Maske
-2. Username "schober", Passwort "test1234"
+2. Username "schober", Passwort "[ROTIERT-2026-06-30]"
 3. Submit
 4. F12 Console öffnen vor Submit — achten auf:
    - Network-Tab: `login_lookup` RPC-Call → Status 200? Body = `[{...}]` (Array) oder `{...}` (Object)?
@@ -101,7 +101,7 @@ Der beobachtete "blank screen" + "kein Error" ist ohne Browser-DevTools-Session 
 
 ### Empfohlene nächste Schritte für Sebastian (5 min in Browser)
 1. F12 öffnen, Console + Network aktiv
-2. Login-Attempt mit schober/test1234
+2. Login-Attempt mit schober/[ROTIERT-2026-06-30]
 3. Screenshot/Paste:
    - RPC `login_lookup` Response-Body (Array oder Object?)
    - Console-Errors (falls JS-Throw)

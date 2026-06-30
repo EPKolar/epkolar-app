@@ -16,7 +16,7 @@ Nur das Neue. Basis `sql/Testkonzept_EPKolar_v5_0.md` bleibt gültig (die v4.x/v
 
 ### T-160 · B020 DB-Fix verifiziert
 - **Voraussetzung**: Sebastian hat `sql/B020_FIX.sql` ausgeführt (9×OK)
-- **Schritt**: Als `paschinger/test1234` einloggen.
+- **Schritt**: Als `paschinger/[ROTIERT-2026-06-30]` einloggen.
 - **PASS**: Dashboard lädt, _authToken ist echter JWT (length > 200).
 - **FAIL**: Toast "[B20-F]" oder Dashboard bleibt leer.
 

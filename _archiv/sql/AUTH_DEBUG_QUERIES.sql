@@ -121,7 +121,7 @@ ORDER BY t.tgname;
 -- TEST: User-Trigger temporär deaktivieren (mit ROLLBACK)
 -- BEGIN;
 --   ALTER TABLE auth.users DISABLE TRIGGER USER;
---   -- jetzt in Browser: await window._sbAuthLogin('info@...','test1234')
+--   -- jetzt in Browser: await window._sbAuthLogin('info@...','[ROTIERT-2026-06-30]')
 -- ROLLBACK;
 
 -- ──────────────────────────────────────────────────────────────
@@ -163,6 +163,6 @@ ORDER BY u.email;
 -- ──────────────────────────────────────────────────────────────
 -- POST-FIX VERIFIKATION
 -- Nach jedem FIX im Browser testen:
---   await window._sbAuthLogin('info@ep-kolar.at','test1234')
---   await window._sbAuthLogin('office@ep-kolar.at','test1234')
+--   await window._sbAuthLogin('info@ep-kolar.at','[ROTIERT-2026-06-30]')
+--   await window._sbAuthLogin('office@ep-kolar.at','[ROTIERT-2026-06-30]')
 -- ──────────────────────────────────────────────────────────────
