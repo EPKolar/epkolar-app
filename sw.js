@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.581 — Phase-3 Dead-Code: 7 ungenutzte Funktionen entfernt (doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _safeSessionSet, _titleCase) + preview/whatsapp_ui_v0.html geloescht. Alle 0-Refs re-verifiziert.
-const CACHE_NAME = "epkolar-v3.9.581";
+// EP Kolar Service Worker v3.9.582 — Feature Bauprovisorien LIVE (Schema in prod, RLS staff-only+lager_display-Block verifiziert) + Merge von Phase-2/3 (577-581). Menuepunkt staff-only, Verrechnen mit Foto/Rechnung-Upload.
+const CACHE_NAME = "epkolar-v3.9.582";
 const ASSETS = [
   './',
   './index.html'
