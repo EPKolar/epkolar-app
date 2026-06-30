@@ -1,4 +1,4 @@
-// EP Kolar Service Worker v3.9.577 — Phase-2 #BWB: exportBauwochenbericht KW-Kopfzeile zeigt jetzt dateFmt(0)-dateFmt(6) (Mo-So), passend zum 7-Tage-Render inkl. Sonntag. (576=Bauprovisorien-Branch)
+// EP Kolar Service Worker v3.9.578 — Phase-2 #km_stand: Tank-/QR-Beleg erhoeht km_stand nur (Math.max), senkt den Tacho nicht mehr (Klobber-Fix). (576=Bauprovisorien-Branch, 577=BWB-Kopf)
 const CACHE_NAME = "epkolar-v3.9.578";
 const ASSETS = [
   './',
