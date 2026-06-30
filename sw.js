@@ -1,5 +1,5 @@
 // EP Kolar Service Worker v3.9.577 — Phase-2 #BWB: exportBauwochenbericht KW-Kopfzeile zeigt jetzt dateFmt(0)-dateFmt(6) (Mo-So), passend zum 7-Tage-Render inkl. Sonntag. (576=Bauprovisorien-Branch)
-const CACHE_NAME = "epkolar-v3.9.577";
+const CACHE_NAME = "epkolar-v3.9.578";
 const ASSETS = [
   './',
   './index.html'
