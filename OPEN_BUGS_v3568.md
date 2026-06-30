@@ -1,8 +1,35 @@
-# OPEN BUGS — Stand v3.9.569 (2026-06-29)
+# OPEN BUGS — Stand v3.9.569 (2026-06-29) · Nachtrag 2026-06-30 (v3.9.582)
 
 Konsolidierte Liste der **echten** offenen Bugs nach dem Hunt-Pass auf v3.9.568/569.
 Vollständige Befundliste (inkl. Defense-in-depth + Dead-Code): `FINDINGS_v3568.md`.
 Der alte `docs/handoff/BUGHUNT-2026-06-17-OFFEN.md` ist ~75% stale (siehe Kopf-Notiz dort).
+
+---
+
+## 🟢 NACHTRAG 2026-06-30 (live **v3.9.582**, HEAD `99915e9`, main == origin; Bauprovisorien scharf)
+
+**Sync-Gesundheits-Check (read-only) — GRÜN, kein Handlungsbedarf:**
+- **Pull grün:** arbeitsscheine 108 total, max nummer `S075362`; Juprowa-`WorksheetList` liefert rolling
+  56er-Fenster (`S075248`–`S075362`, 0 ohne Nummer). **App-Max == Juprowa-Max == S075362 → kein Gap.**
+  `added:0/skipped:56` in jedem Pull ist NORMAL (alle 56 bereits in DB). RPC `juprowa_fetch_worksheets`
+  GETtet ohne limit/Datum/Status-Filter; Client `_juprowaSync` (`:3107`) keyt auf `nummer` ohne limit/
+  Pagination, überspringt nur leere AK_SCHEINNR (`:3134` — aktuell 0). Pull-Frische: `juprowa_sync_at`
+  zuletzt heute 07:34, 56 Scheine heute gesynct. *(Gemeldetes „Schein fehlt" war ein UI-Filter, kein Pull-Defekt.)*
+- **Push grün:** push_pending=1 (`S075362`, in_bearbeitung, gerade lokal editiert → drained beim nächsten
+  5-Min-Zyklus), push_error=0, `local_updated_at > updated_at` = 0 (**App markiert Änderungen korrekt**),
+  max(`last_push_at`) = heute 07:34 (NICHT mehr 24.06 — Push läuft, Auto-Drain `_juprowaDrainPending(10)`
+  nach jedem Pull `:3190`). 107/108 mit juprowa_id (1 = lokal angelegter Nicht-Juprowa-Schein, erwartet).
+
+**Dead-Code Phase 3 — ABGESCHLOSSEN (`f3d0ae6`, v3.9.581):** 6 tote Funktionen + `preview/whatsapp_ui_v0.html`
+entfernt (doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _titleCase). **Nichts mehr
+offen zu löschen:** `_safeSessionSet` (`:1726`) bleibt (durch `test_sprint77_coverage.py` guard-getestet),
+`getWeekplans`/`toggleFZ`/`_V` bewusst behalten, `supplier-sync` Edge-Fn braucht Dashboard/Cron-Klärung.
+
+**Korrektheits-Fixes 2026-06-30 — DONE & live (v3.9.577–580):**
+- ✅ **BWB-KW-Kopfzeile** Sonntag im Zeitraum-Label (`dateFmt(0)`–`dateFmt(6)`) → `34aa643` (v3.9.577).
+- ✅ **km_stand-Klobber** Tank-Pfad erhöht km_stand nur (`Math.max`), senkt Tacho nicht mehr → `894cdaf` (v3.9.578).
+- ✅ **Foto-Storage-Orphans** Upload nutzt bereits hochgeladene URL wieder (kein Waise bei DB-Post-Retry) → `e74b818` (v3.9.579).
+- ✅ **FinkZeit #11** Dashboard-Abweichungs-Schwelle auf 0.5h angeglichen (Export-Konsistenz) → `32ebba6` (v3.9.580).
 
 ---
 
