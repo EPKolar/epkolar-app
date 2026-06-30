@@ -1,7 +1,7 @@
 # MONTEUR PERMISSION AUDIT — 2026-05-18
 
 **Repo-HEAD:** `1d08865` v3.9.24 PUSHED
-**Modus:** Code-Only-Audit (MCP-Blocker: Sebastian-PWs für `barger`/`riedmann` unbekannt; `planung@…/34kolar70` → "Benutzer nicht gefunden [B20-B]", `guenther/34kolar70` → "Benutzername und Passwort eingeben"; Chrome-Instabilität)
+**Modus:** Code-Only-Audit (MCP-Blocker: Sebastian-PWs für `barger`/`riedmann` unbekannt; `planung@…/<PW maskiert - sichere Ablage>` → "Benutzer nicht gefunden [B20-B]", `guenther/<PW maskiert - sichere Ablage>` → "Benutzername und Passwort eingeben"; Chrome-Instabilität)
 **Scope:** Frage 1 (v3.9.23/24-Gates wasserdicht?) · Frage 2 (welche Sites fehlen noch?) · Frage 3 (alle Subpages durchgehen)
 
 ---
@@ -95,7 +95,7 @@ Nicht autonom fixbar — entweder weil Verhalten "by-design" ist und Geschäftse
 3. **Entscheidung VZeit.delEntry pro-Owner:** Soll Monteur fremde Zeitbuchungen löschen können? Wahrscheinlich NEIN → Quick-Fix möglich (P1).
 4. **Entscheidung VBautag.edit pro-Owner:** Soll Monteur fremde Bautagebuch-Einträge editieren können? Wahrscheinlich NEIN → Quick-Fix möglich (P1).
 5. **PW-Reset für `barger` + `riedmann`:** MCP-Test nicht möglich ohne diese PWs. Riedmann ist nicht in INIT_USERS (L2525-2534) — neu anzulegen?
-6. **chef-Login PW:** `planung@ep-kolar.at/34kolar70` wird abgelehnt mit "Benutzer nicht gefunden [B20-B]" — entweder Username vs E-Mail-Login-Bug oder PW falsch. `guenther` username existiert (L2526).
+6. **chef-Login PW:** `planung@ep-kolar.at/<PW maskiert - sichere Ablage>` wird abgelehnt mit "Benutzer nicht gefunden [B20-B]" — entweder Username vs E-Mail-Login-Bug oder PW falsch. `guenther` username existiert (L2526).
 7. **DB-Audit (PostgREST/Supabase):** Code-Gates verhindern UI-Bypass, aber jemand mit Service-Role-Key oder direkten REST-Calls könnte SQ.push-Payloads forgen. RLS-Policies sollten Server-side den `worker_id`/`assignee`-Match gegen `auth.uid()` durchsetzen. Nicht in diesem Audit-Scope (Code-Only).
 8. **WerkzeugView Helfer-Audit:** Wenn Helfer-Use-Case aktiv wird (aktuell kein User in INIT_USERS hat `role==="helfer"`), eigenes Audit-Pass für `werkzeuge` Modul.
 

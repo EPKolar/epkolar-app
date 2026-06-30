@@ -4,14 +4,14 @@
 -- -> Login unmoeglich (GoTrue ist alleiniger Auth-Pfad, index.html:2444).
 -- Fix: GoTrue-User mit den BEREITS hinterlegten auth_user_id-UUIDs anlegen
 --      (=> kein Relink in public.users noetig). Muster 1:1 aus admin_create_user-RPC.
--- Standard-PW: 34kolar70.  Projekt-Ref: jiggujpruejkaomgxarp.
+-- Standard-PW: <PW maskiert - sichere Ablage>.  Projekt-Ref: jiggujpruejkaomgxarp.
 --
 -- Idempotent: legt nur an, wenn die auth.users-Zeile (per id) noch fehlt.
 
 do $$
 declare
   _r record;
-  _pw text := '34kolar70';
+  _pw text := '<PW maskiert - sichere Ablage>';
 begin
   for _r in
     select u.auth_user_id::uuid as uid, lower(trim(u.email)) as email

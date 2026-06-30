@@ -2,7 +2,7 @@
 
 **Stand:** LIVE **v3.9.568**, HEAD `c7b8b82`, `origin/main` in sync, working tree clean.
 **Hosting:** GitHub Pages → `https://epkolar.github.io/epkolar-app/` (NICHT Vercel).
-**Kiosk-URLs:** `?screen=planung` (WochenplanTafel) · `?screen=monteure` (MonteurTafel). Login `lager` / `34kolar70` (Rolle lager_display).
+**Kiosk-URLs:** `?screen=planung` (WochenplanTafel) · `?screen=monteure` (MonteurTafel). Login `lager` / `<PW maskiert - sichere Ablage>` (Rolle lager_display).
 
 ---
 
@@ -38,7 +38,7 @@
 - `public.kiosk_week_absences(p_from text,p_to text)` — Gate `auth_role()='lager_display' OR is_staff()`, liefert nur `worker_name/day/atype` der Woche (Krankenstand/Urlaub). EXECUTE nur authenticated.
 - Bestehende RLS-Quellen-Regeln: `auth_role()`=public.users.role, `is_staff()`=admin/buero/projektleiter (sub-basiert), `auth.role()` ist im **Storage-Pfad null** → Storage-Policies sub-basiert.
 
-**Manuell:** GoTrue-Logins für **aliti** (Ismael Aliti, w-id mqyxfca35x6i) + **lager** angelegt, Passwort `34kolar70`.
+**Manuell:** GoTrue-Logins für **aliti** (Ismael Aliti, w-id mqyxfca35x6i) + **lager** angelegt, Passwort `<PW maskiert - sichere Ablage>`.
 
 ---
 

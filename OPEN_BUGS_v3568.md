@@ -36,6 +36,26 @@ Der alte `docs/handoff/BUGHUNT-2026-06-17-OFFEN.md` ist ~75% stale (siehe Kopf-N
 
 ---
 
+## 🟠 ZURÜCKGESTELLT — #4 Zeit-Edit-Guard (braucht Lohnpfad-Freeze-Review)
+- **Was:** `editMonteurEntries`-Save-Pfad (`index.html:8746`) sendet beim Edit bestehender Zeit-Einträge
+  `hours:r.stunden` ROH — kein 0–24-/NaN-Guard. Geleertes Feld → NaN/null, Tippfehler → >24h ungeprüft
+  in die DB (Lohn-relevant). NEW-Pfad (`:8734`) clampt korrekt (`Math.round((parseFloat||0)*100)/100` + `>0`).
+- **Fix ist fertig vorbereitet** (verworfen aus dem Working Tree, reproduzierbar): Guard `_he=parseFloat(r.stunden)`,
+  `if(!(_he>0)||_he>24){skip}` + Toast.
+- **⚠️ WARUM zurückgestellt — Lohnpfad-Freeze:** Die PUT-Zeile ist durch **4 Regression-Anker** gepinnt:
+  `tests/test_v3_9_341/344/345/347` (`assert 'SQ.push({url:"/api/entries/"+r.id,...hours:r.stunden,...}' in index_html`).
+  Diese Anker sind **Cross-Feature-Schutz** (Doc-Strings: „v3.9.341 darf NUR DOM-Render anfassen, nicht die
+  SQ.push-Logik" / „Regression v3.9.345 darf die ✏️-Monteur-Liste NICHT anfassen") — sie pinnen das **Body-Format**
+  gegen versehentliche Änderung durch *andere* Features. Sie schützen KEINE bestimmte Stunden-Behandlung.
+- **Verdikt = ORTHOGONAL:** #4 (NaN/>24 abweisen) lässt sich als Guard **VOR** dem `SQ.push` umsetzen, ohne die
+  gepinnte Zeile zu berühren → alle 4 Freezes blieben grün (kein Re-Baseline der Test-Anker nötig). Der bisher
+  verworfene Diff hatte `hours:r.stunden`→`hours:_he` geändert (= Anker-Bruch); die orthogonale Variante lässt
+  die Zeile byte-identisch.
+- **Nächster Schritt (Sebastian):** Lohnpfad-Freeze-Review → dann orthogonalen Guard freigeben (Push vor der
+  gepinnten Zeile, Zeile unverändert). Voller Gate, eigener Commit.
+
+---
+
 ## 🟡 Niedrigprio / Defense-in-depth (kein akuter Handlungsbedarf — Detail in FINDINGS_v3568.md)
 - weekplan Dirty/Deleted-Set-Leak im Drop-Pfad (`:6405` vs `:6424`) — Korrektheit, selten.
 - weekplan reload-Guard global statt KW-gefiltert (`:16204`).
