@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.580 — Phase-2 #FinkZeit: Dashboard-Abweichungs-Schwelle (>=0.5h) an die Export-Logik (abs(diff)<0.5h = abgeglichen) angeglichen — vorher 1h vs 0.5h inkonsistent. (576-579: Bauprovisorien/BWB/km_stand/Foto)
-const CACHE_NAME = "epkolar-v3.9.580";
+// EP Kolar Service Worker v3.9.581 — Phase-3 Dead-Code: 7 ungenutzte Funktionen entfernt (doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _safeSessionSet, _titleCase) + preview/whatsapp_ui_v0.html geloescht. Alle 0-Refs re-verifiziert.
+const CACHE_NAME = "epkolar-v3.9.581";
 const ASSETS = [
   './',
   './index.html'
