@@ -527,14 +527,15 @@ def test_wmtimer_unmount_cleanup():
 # ── v3.9.435: Phantom-"X Antraege zur Genehmigung" — stale absApprovals-Merge ──
 
 def test_absapprovals_merge_server_over_stale_pending():
-    """Bug (16 Antraege nach DB-seitiger Genehmigung): beim Laden darf stale lokales
-    'ausstehend' einen definitiven Server-Status (genehmigt/abgelehnt) NICHT mehr
-    ueberschreiben; nur definitive lokale Entscheidung gewinnt (Merge = _resolveApprK-Praezedenz)."""
+    """Bug (Phantom-Antraege nach Re-Login): beim Laden wird absApprovals auf die FRISCHE
+    Server-apprMap REDUZIERT (v3.9.596) — stale lokales 'ausstehend' aus dem IndexedDB-Cache,
+    das der Server nicht bestaetigt, verschwindet (statt sich zu zementieren). AUSGENOMMEN nur
+    un-gesyncte lokale Entscheidungen (pending SQ POST/PUT in _v544PendingAbsKeep)."""
     text = _txt()
-    assert "for(const k in apprMap){const pv=m[k];if(pv!=='genehmigt'&&pv!=='abgelehnt')m[k]=apprMap[k];}return m;" in text, \
-        'v3.9.435 Regression: absApprovals-Merge (Server gewinnt ueber stale ausstehend) fehlt'
+    assert "const m={...apprMap};_v544PendingAbsKeep.forEach(k=>{const pv=(prev||{})[k];if(pv!==undefined)m[k]=pv;});return m;" in text, \
+        'v3.9.596 Regression: absApprovals-Merge muss auf Server-apprMap reduzieren (stale ausstehend droppen), pending-keep ausgenommen'
     assert "setAbsApprovals(prev=>({...apprMap,...prev}))" not in text, \
-        'v3.9.435 Regression: alter prev-wins-Merge (stale ausstehend gewinnt) zurueckgekehrt'
+        'Regression: prev-wins-Merge (stale ausstehend gewinnt ueber Server) darf nicht zurueckkehren'
 
 
 # ── v3.9.436: CSP frame-src/object-src erlaubt Supabase-Host (PDF-Viewer-iframe) ──
