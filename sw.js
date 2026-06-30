@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.572 — Bug-Hunt #1: FZ-QR-Schadenmeldung (qDoSchaden) persistiert jetzt via upd+_schSync (column-scoped PUT) statt nur lokalem State — kein Datenverlust mehr. (570=A-2 Branch, 571=reverted #4)
-const CACHE_NAME = "epkolar-v3.9.572";
+// EP Kolar Service Worker v3.9.573 — Bug-Hunt #5: Mängel-Kanban-Dropdown (updSt) spiegelt kunde_status für kundengemeldete Mängel — Kunde sieht Abnahme-Button wieder. (570=A-2, 571=reverted #4, 572=#1)
+const CACHE_NAME = "epkolar-v3.9.573";
 const ASSETS = [
   './',
   './index.html'
