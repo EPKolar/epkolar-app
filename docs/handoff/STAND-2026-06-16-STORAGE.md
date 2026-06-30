@@ -64,4 +64,4 @@ FahrbewSection + AnmeldungSection: onUpload → `_sbUploadDoc(workerId,name,data
 ## OFFEN
 - **Stufe 3 Migration** base64→Storage: NUR auf Sebastians off-peak-Go (keiner live). Pro Datei: lesen→hochladen→signed-URL verifizieren→erst dann file_data leeren. Idempotent, Zähler, kein Löschen vor verifiziertem Upload.
 - Backup-Tabellen `_rls_snapshot_v3923`/`_wp_orphan_backup_v3946` nur auf OK droppen. `auth_leaked_password_protection` im Dashboard aktivieren. VOffa/ZUZEIT.ASC eingefroren.
-- Admin-Login admin/<PW maskiert - sichere Ablage>. Live https://epkolar.github.io/epkolar-app/
+- Admin-Login admin/[altes PW, rotiert, wertlos]. Live https://epkolar.github.io/epkolar-app/

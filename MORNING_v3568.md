@@ -2,7 +2,7 @@
 
 ## ✅ GEFIXT + GEPUSHT 2026-06-30 (live **v3.9.575**)
 - **#1 qDoSchaden** FZ-Schaden-Datenverlust → `3ed7d08` (572) · **#5 updSt kunde_status-Spiegel** → `db45153` (573) · **#2 SQ.push Quota-Warnung** → `5d54a33` (574) · **#4 Zeit-Edit-Guard (orthogonal)** → `3a4229a` (575). Je voller Gate (pytest 998/0, #4 mit den 4 Lohnpfad-Freezes explizit grün), eigener Commit. Versionen 570=A-2-Branch (ungepusht), 571=verworfener erster #4-Versuch (übersprungen).
-- **PW-Rotation** `34kolar70` → durch Sebastian ausgeführt. Geteiltes Standard-PW eliminiert (5 Accounts je eigenes), git-History-Eintrag wertlos. Doku/Memory maskiert.
+- **PW-Rotation** `[altes PW, rotiert, wertlos]` → durch Sebastian ausgeführt. Geteiltes Standard-PW eliminiert (5 Accounts je eigenes), git-History-Eintrag wertlos. Doku/Memory maskiert.
 
 ## ⚡ DAS MUSST DU ENTSCHEIDEN (Stand 2026-06-30)
 1. **A-2 Juprowa-Fix freigeben?** Branch `a2-juprowa-roundtrip` (`b72742d`, v3.9.570), **nicht gepusht**, Dry-Run grün. Freigabe = Tabu-Auslegung `_juprowaReversMap` bestätigen + Merge/Push (= OFFA-Live-Push). **KEIN OFFA-Write bis dahin.**
