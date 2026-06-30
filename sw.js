@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.615 — Feature Bauprovisorien LIVE (Schema in prod, RLS staff-only+lager_display-Block verifiziert) + Merge von Phase-2/3 (577-581). Menuepunkt staff-only, Verrechnen mit Foto/Rechnung-Upload.
-const CACHE_NAME = "epkolar-v3.9.615";
+// EP Kolar Service Worker v3.9.616 — Feature Bauprovisorien LIVE (Schema in prod, RLS staff-only+lager_display-Block verifiziert) + Merge von Phase-2/3 (577-581). Menuepunkt staff-only, Verrechnen mit Foto/Rechnung-Upload.
+const CACHE_NAME = "epkolar-v3.9.616";
 const ASSETS = [
   './',
   './index.html'
