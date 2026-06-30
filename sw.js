@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.569 — Kiosk-PII-Lockdown: lager_display liest workers/arbeitsscheine nur noch via minimal-RPC (kiosk_field_workers/kiosk_week_arbeitsscheine), kein SVNR/Reisepass/Tel/Adresse mehr im Kiosk
-const CACHE_NAME = "epkolar-v3.9.569";
+// EP Kolar Service Worker v3.9.572 — Bug-Hunt #1: FZ-QR-Schadenmeldung (qDoSchaden) persistiert jetzt via upd+_schSync (column-scoped PUT) statt nur lokalem State — kein Datenverlust mehr. (570=A-2 Branch, 571=reverted #4)
+const CACHE_NAME = "epkolar-v3.9.572";
 const ASSETS = [
   './',
   './index.html'
