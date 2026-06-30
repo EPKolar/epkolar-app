@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.573 — Bug-Hunt #5: Mängel-Kanban-Dropdown (updSt) spiegelt kunde_status für kundengemeldete Mängel — Kunde sieht Abnahme-Button wieder. (570=A-2, 571=reverted #4, 572=#1)
-const CACHE_NAME = "epkolar-v3.9.573";
+// EP Kolar Service Worker v3.9.574 — Bug-Hunt #2: SQ.push warnt jetzt sichtbar bei Enqueue-/Quota-Fehler (Toast) statt stillem Offline-Datenverlust. (570=A-2, 571=reverted #4, 572=#1, 573=#5)
+const CACHE_NAME = "epkolar-v3.9.574";
 const ASSETS = [
   './',
   './index.html'
