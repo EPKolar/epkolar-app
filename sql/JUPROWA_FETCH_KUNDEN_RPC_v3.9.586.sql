@@ -1,3 +1,13 @@
+-- NACHTRAG 2026-06-30: Der "Kunden synchronisieren"-Button (PostgREST, authenticated-Rolle)
+-- bekam 500 (Code 57014 statement timeout): RPC-Laufzeit ~7,5s vs. authenticated.statement_timeout=8s.
+-- WICHTIG: SET LOCAL / Funktions-SET statement_timeout HILFT NICHT — der Timer des Top-Level-
+-- Statements wird beim Statement-Start armiert und durch GUC-Aenderungen INNERHALB der Funktion
+-- NICHT neu armiert (empirisch verifiziert: cancel trotz SET LOCAL '120s'). Dem RPC wurde zwar ein
+-- harmloser SET statement_timeout='120s'-Clause hinzugefuegt (Migration juprowa_fetch_kunden_raise_
+-- statement_timeout) — der wirkt NUR fuer service_role/Cron (kein Rollen-Limit), NICHT fuer den Button.
+-- LOESUNG fuer den Button: Edge-Function supabase/functions/juprowa_sync_kunden (laeuft ausserhalb
+-- des PostgREST-Timeouts). Diese RPC bleibt fuer service_role/Cron-Pulls bestehen.
+--
 -- RPC juprowa_fetch_kunden: Pull Juprowa ServicePad KundeList -> Upsert in public.kunden.
 -- Angewandt via Supabase MCP apply_migration (create_juprowa_fetch_kunden_rpc) 2026-06-30.
 -- HARTE GRENZE: ausschliesslich GET gegen Juprowa (kein Write/Push). Upsert nur in UNSERE kunden-Tabelle.
