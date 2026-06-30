@@ -4,8 +4,13 @@
 - **#1 qDoSchaden** FZ-Schaden-Datenverlust → `3ed7d08` (572) · **#5 updSt kunde_status-Spiegel** → `db45153` (573) · **#2 SQ.push Quota-Warnung** → `5d54a33` (574) · **#4 Zeit-Edit-Guard (orthogonal)** → `3a4229a` (575). Je voller Gate (pytest 998/0, #4 mit den 4 Lohnpfad-Freezes explizit grün), eigener Commit. Versionen 570=A-2-Branch (ungepusht), 571=verworfener erster #4-Versuch (übersprungen).
 - **PW-Rotation** `[altes PW, rotiert, wertlos]` → durch Sebastian ausgeführt. Geteiltes Standard-PW eliminiert (5 Accounts je eigenes), git-History-Eintrag wertlos. Doku/Memory maskiert.
 
-## ⚡ DAS MUSST DU ENTSCHEIDEN (Stand 2026-06-30)
-1. **A-2 Juprowa-Fix freigeben?** Branch `a2-juprowa-roundtrip` (`b72742d`, v3.9.570), **nicht gepusht**, Dry-Run grün. Freigabe = Tabu-Auslegung `_juprowaReversMap` bestätigen + Merge/Push (= OFFA-Live-Push). **KEIN OFFA-Write bis dahin.**
+## ✅ ERLEDIGT 2026-06-30 (Nachtrag)
+1. **A-2 Juprowa-Fix — GEFIXT & LIVE.** Branch `a2-juprowa-roundtrip` (`b72742d`) nach main gemerged →
+   **`33ab0ac` (v3.9.583)**, gepusht, raw-verifiziert. Nur Builder `_juprowaReversMap` geändert, `_juprowaPush`/`AK_PRIOR`
+   byte-identisch. Gate grün (pytest 998/0). Erster echter Push **S075362 von Sebastian in OFFA als korrekt bestätigt** →
+   Normalbetrieb frei. DB-Backup `_backup_arbeitsscheine_status_pre_a2_20260630` (108==108) bleibt 1–2 Tage, dann weg.
+
+## ⚡ DAS MUSST DU ENTSCHEIDEN (Stand 2026-06-30) — A-2 erledigt, siehe oben
 2. **Dead-Code löschen?** **7 Funktionen sicher tot** (count=1: doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _safeSessionSet, _titleCase) + `preview/whatsapp_ui_v0.html` (0 Refs). `getWeekplans` (count=1, aber `window.API` = extern aufrufbar → Vorsicht). **`toggleFZ` (6 Refs) + `_V` NICHT tot → NICHT löschen.** Nichts gelöscht — deine Entscheidung.
 3. **Befund-only-Reste (NICHT autonom angefasst):** ⛔ #6 JWT base64url (`:1305`, **Auth**) · `_juprowaSanitize`/Juprowa-PULL-Zeit (`:3275/3085`, **OFFA**). Plus offene Korrektheits-Themen: BWB-KW-Kopf (`:20304`), Foto-Storage-Orphans (`:2801`), km_stand-Klobber (`:2188`), FinkZeit #11 (`:10346`), **Mobile-Wochenplan-Umbau** (`:16987` = Ur-Auftrag, größere isMob-Arbeit). Du wählst Reihenfolge.
 

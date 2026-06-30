@@ -33,21 +33,21 @@ offen zu löschen:** `_safeSessionSet` (`:1726`) bleibt (durch `test_sprint77_co
 
 ---
 
-## 🔴 EINZIGER echter offener Bug mit Handlungsbedarf
+## ✅ KEINE offenen Bugs mit Handlungsbedarf mehr (A-2 GESCHLOSSEN 2026-06-30)
 
-### A-2 · Juprowa Status-Roundtrip 4→1 / 15→11
-- **Was:** `JUPROWA_STATUS_MAP` (`index.html:3017`) ist nicht-injektiv (4 und 15 kollabieren auf
-  `freigegeben`/`bar_bezahlt` wie 1/11). Der Push-Builder `_juprowaReversMap` (`:3307`) schreibt
-  ohne Dirty-Check den kanonischen Reverse → ein gepullter OFFA-Status **4 wird als 1**, **15 als 11**
-  zurückgepusht, auch ohne echte Status-Änderung. Stille, OFFA-seitig irreversible Korruption.
-- **Schwere:** MEDIUM (Korrektheit, externe Buchhaltung).
-- **Fix:** STAGED auf lokalem Branch `a2-juprowa-roundtrip` (Commit `b72742d`, v3.9.570) — Dirty-Check
-  gegen `juprowa_raw.AK_AUFSTATUS`. Builder-only, `_juprowaPush` unberührt. **NICHT gepusht.**
-- **Dry-Run:** `scripts/a2_dryrun.mjs` → alle 10 OFFA-Codes roundtrip-stabil (4→4, 15→15) verifiziert.
-- **⚠️ FREIGABE-BEDARF (Sebastian):**
-  1. Tabu-Auslegung bestätigen (`_juprowaReversMap`-Edit ändert Push-Verhalten, auch wenn `_juprowaPush`
-     selbst nicht editiert ist).
-  2. Erst NACH Sicht des Dry-Runs den Live-Deploy (= ermöglicht echten OFFA-Push) freigeben.
+### A-2 · Juprowa Status-Roundtrip 4→1 / 15→11 — ✅ GEFIXT & LIVE (v3.9.583, `33ab0ac`)
+- **War:** `JUPROWA_STATUS_MAP` (`index.html:3017`) nicht-injektiv (4 und 15 kollabieren auf
+  `freigegeben`/`bar_bezahlt` wie 1/11); Push-Builder `_juprowaReversMap` schrieb ohne Dirty-Check den
+  kanonischen Reverse → gepullter OFFA-Status **4→1**, **15→11**, auch ohne echte Änderung. Stille,
+  OFFA-seitig irreversible Korruption.
+- **Fix LIVE:** Branch `a2-juprowa-roundtrip` (`b72742d`) nach main gemerged → **`33ab0ac` (v3.9.583)**,
+  gepusht, raw-verifiziert (`_rawSt` live, Version-Triple 3.9.583). Dirty-Check echot
+  `juprowa_raw.AK_AUFSTATUS` wenn er auf denselben App-Status abbildet. **NUR Builder geändert;
+  `_juprowaPush` + `AK_PRIOR` byte-identisch.** Gate grün (node_check 0, bracket-Baseline, pytest 998/0).
+- **Verifiziert:** Dry-Run alle 10 Codes roundtrip-stabil (4→4, 15→15) **+ erster echter Push S075362
+  von Sebastian in OFFA als korrekt bestätigt (2026-06-30).** Normalbetrieb freigegeben, kein Push-STOPP mehr.
+- **DB-Backup:** `_backup_arbeitsscheine_status_pre_a2_20260630` (108==108) bleibt noch 1–2 Tage liegen,
+  dann löschbar.
 - **Details:** `HANDOFF_A2_juprowa_status_roundtrip.md`.
 
 ---
