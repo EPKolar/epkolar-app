@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.579 — Phase-2 #Foto-Orphan: PhotoQ-Upload verwendet bereits hochgeladene URL wieder (kein Re-Upload bei DB-Post-Fail-Retry) → keine Storage-Waisen mehr. (576=Bauprovisorien, 577=BWB, 578=km_stand)
-const CACHE_NAME = "epkolar-v3.9.579";
+// EP Kolar Service Worker v3.9.580 — Phase-2 #FinkZeit: Dashboard-Abweichungs-Schwelle (>=0.5h) an die Export-Logik (abs(diff)<0.5h = abgeglichen) angeglichen — vorher 1h vs 0.5h inkonsistent. (576-579: Bauprovisorien/BWB/km_stand/Foto)
+const CACHE_NAME = "epkolar-v3.9.580";
 const ASSETS = [
   './',
   './index.html'
