@@ -1,18 +1,13 @@
 # MORNING — Übergabe Overnight-Lauf (2026-06-29 → 30)
 
-## ⚡ DAS MUSST DU ENTSCHEIDEN (oben, kurz)
-1. **A-2 Juprowa-Fix freigeben?** Liegt fertig + verifiziert auf Branch `a2-juprowa-roundtrip` (`b72742d`), **nicht gepusht**. Freigabe = (a) Tabu-Auslegung `_juprowaReversMap` bestätigen, (b) Deploy erlauben → ermöglicht echten OFFA-Push. **Dry-Run unten ist grün.**
-2. **Dead-Code löschen?** 8 tot-belegte Elemente + 1 verwaistes File (Liste in `FINDINGS_v3568.md` TEIL B). Nichts gelöscht — deine Entscheidung. `toggleFZ` NICHT löschen (evtl. Mobile-Wochenplan).
-3. **Welche Korrektheit-Bugs als nächstes?** (alle in `FINDINGS_v3568.md`, keiner gefixt). Top-Kandidaten nach Realwert:
-   - **🔴 `qDoSchaden` ohne `SQ.push`** (`:21035`) — FZ-QR-Schadenmeldung wird NIE gespeichert, Datenverlust. (Pass 4, klar live-brechend, kleiner Fix.)
-   - **🔴 Wochenplan auf Mobile un-editierbar** (`:16987/17125`) — `cellPick`-Picker nur Desktop. **= dein offener „Mobile-Wochenplanung-Umbau"** (Handoff). Größere isMob-Render-Arbeit.
-   - **🔴 Zeit-Eintrag-Edit ohne 0–24-Guard** (`:8746`) — NaN/negativ/>24h in DB (Kern Zeiterfassung). Kleiner Fix (parseFloat+clamp wie NEW-Pfad).
-   - **`updSt` ohne `kunde_status`-Spiegel** (`:12308`) — Kunde sieht Abnahme-Button nicht. (Pass 4, kundenrelevant.)
-   - **`SQ.push` stiller Quota-Datenverlust** (`:2748`) — Offline-Änderung geht ohne Toast verloren bei vollem IndexedDB. (Pass 3, höchster Realwert.)
-   - **JWT base64url-Decode still fehlerhaft** (`:1305/5838/6348`) — passt zum „3× 401"-Symptom. (Pass 3.)
-   - **Nicht-idempotenter POST → Duplikate** (`:2377`) — verlorene Antwort = Doppel-Eintrag. (Pass 3, = altes Backlog #17.)
-   - km_stand-Klobber (`:2188`), Juprowa-Import-Silent-Success (`:3162`), Fahrtenbuch +32-Tage-Überfetch (`:19553`), reviewProgress ungated (`:12350`), BWB-KW-Kopfzeile (`:20304`), Auslastung-Zukunftsstunden (`:19126`).
-   - **`_juprowaSanitize` unvollständiges Latin-1** (`:3275`) — OFFA-Mojibake, gehört zum A-2/OFFA-Komplex (zusammen freigeben?).
+## ✅ GEFIXT + GEPUSHT 2026-06-30 (live **v3.9.574**)
+- **#1 qDoSchaden** FZ-Schaden-Datenverlust → `3ed7d08` (572) · **#5 updSt kunde_status-Spiegel** → `db45153` (573) · **#2 SQ.push Quota-Warnung** → `5d54a33` (574). Je voller Gate (pytest 998/0), eigener Commit. Versionen 570=A-2-Branch, 571=reverted #4 (übersprungen).
+
+## ⚡ DAS MUSST DU ENTSCHEIDEN (Stand 2026-06-30)
+1. **A-2 Juprowa-Fix freigeben?** Branch `a2-juprowa-roundtrip` (`b72742d`, v3.9.570), nicht gepusht, Dry-Run grün. Freigabe = Tabu-Auslegung `_juprowaReversMap` + OFFA-Live-Push.
+2. **#4 Zeit-Edit-Guard (Lohnpfad) — ORTHOGONAL bestätigt.** Die 4 Freeze-Guards (341/344/345/347) pinnen nur das Body-Format (Cross-Feature-Schutz), keine Stunden-Behandlung → Guard VOR dem push (gepinnte Zeile byte-identisch) lässt alle 4 grün, KEIN Rebaseline. Diff steht in `OPEN_BUGS_v3568.md`. **NICHT committet — dein Lohnpfad-Review → dann „go #4".**
+3. **Dead-Code löschen?** Re-verifiziert: **7 Funktionen sicher tot** (count=1: doJuprowaSync/FullSync/PushAll, getAllDescendantIds, _planClearPdfCache, _safeSessionSet, _titleCase) + `preview/whatsapp_ui_v0.html` (0 Refs). `getWeekplans` (count=1, aber auf `window.API` = extern aufrufbar → Vorsicht). **`toggleFZ` (6 Refs) + `_V` (Substring-Noise, Name zu generisch) NICHT tot → NICHT löschen.** Nichts gelöscht.
+4. **Weitere Bugs (Befund-only):** ⛔ NICHT autonom — #6 JWT base64url (`:1305`, **Auth**) · `_juprowaSanitize`/PULL-Zeit (`:3275/3085`, **OFFA**) · plus BWB-KW-Kopf (`:20304`), Foto-Orphans (`:2801`), km_stand (`:2188`), Mobile-Wochenplan-Umbau (`:16987` = Ur-Auftrag). Du wählst.
 
 ---
 

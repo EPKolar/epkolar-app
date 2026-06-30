@@ -34,6 +34,11 @@ Der alte `docs/handoff/BUGHUNT-2026-06-17-OFFEN.md` ist ~75% stale (siehe Kopf-N
 - **supplier-sync set-credentials** (Validierung) = gefixt+committet (`ac44304`).
 - **2b GoTrue-Logins** lindhuber/schober = angelegt (MCP).
 
+### ✅ Gefixt + gepusht 2026-06-30 (Sammellauf)
+- **#1 qDoSchaden Datenverlust** (`:21035`) → `3ed7d08` (v3.9.572). Persistiert jetzt via `upd+_schSync` (column-scoped PUT) wie addSchaden/qDoKm/qDoTank.
+- **#5 updSt kunde_status-Spiegel** (`:12308`) → `db45153` (v3.9.573). `_DEF2KUNDE`-Map nur für `melder=Kunde`; `_bulkApply` erbt via Delegation. Kunde sieht Abnahme-Button wieder.
+- **#2 SQ.push stiller Quota-Verlust** (`:2748`) → `5d54a33` (v3.9.574). Sichtbarer Toast im catch (PhotoQ-Muster) statt stillem Verlust. *(Item bei voller Quota nicht erzwingbar persistierbar — Warnung ist die ehrliche Mitigation; tiefere Queue-Pufferung bewusst NICHT gemacht.)*
+
 ---
 
 ## 🟠 ZURÜCKGESTELLT — #4 Zeit-Edit-Guard (braucht Lohnpfad-Freeze-Review)
@@ -53,6 +58,20 @@ Der alte `docs/handoff/BUGHUNT-2026-06-17-OFFEN.md` ist ~75% stale (siehe Kopf-N
   die Zeile byte-identisch.
 - **Nächster Schritt (Sebastian):** Lohnpfad-Freeze-Review → dann orthogonalen Guard freigeben (Push vor der
   gepinnten Zeile, Zeile unverändert). Voller Gate, eigener Commit.
+- **ANALYSE ABGESCHLOSSEN (2026-06-30):** Alle 4 Guards gelesen — sie pinnen ALLE denselben Literal-String
+  `SQ.push({url:"/api/entries/"+r.id,...hours:r.stunden,bemerkung:r.bemerkung}})` als reinen Code-Snapshot.
+  Doc-Strings: 341 „NUR DOM-Render, nicht SQ.push-Logik" · 344 „NUR neue Pfade, nicht PUT-Logik" · 345 „Liste
+  NICHT anfassen" · 347 „PUT-Body UNVERAENDERT". = **Cross-Feature-Schutz des Body-Formats**, KEINE Stunden-
+  Wert-Behandlung. → **ORTHOGONAL BESTÄTIGT.** Orthogonaler Diff (Guard VOR dem push, Zeile byte-identisch):
+  ```
+  if(changed){
+    const _he=parseFloat(r.stunden);
+    if(!Number.isFinite(_he)||_he<=0||_he>24){_skipEdit++;return;}   // NaN/≤0/>24 abweisen
+    SQ.push({url:"/api/entries/"+r.id,method:"PUT",body:{date:r.datum,taetigkeit:r.taetigkeit,hours:r.stunden,bemerkung:r.bemerkung}});  // unveraendert -> alle 4 Freezes gruen
+    cnt++;
+  }
+  ```
+  Lässt alle 4 Anker grün (kein Rebaseline). NICHT committet — Lohnpfad, Sebastian-Freigabe.
 
 ---
 
