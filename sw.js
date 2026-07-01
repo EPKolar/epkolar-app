@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.623 — FIX Urlaub-Doppelencode: _translateAndExec dekodiert idOrSub einmal (NAME_DATE-Keys mit Umlaut kamen doppel-encoded → 0 Rows → stiller Erfolg). Sonst unveraendert ggue. v3.9.622 (Bauprovisorien LIVE, RLS staff-only+lager_display-Block).
-const CACHE_NAME = "epkolar-v3.9.623";
+// EP Kolar Service Worker v3.9.624 — FIX admin-PW-Reset-Button: admin_reset_password mit RPC-Contract (target_user_id=auth_user_id, new_password) + _sbWH() + min-6 (vorher p_email/p_password+_sbH = Param-Mismatch, GoTrue-Reset lief ins Leere). Sonst unveraendert ggue. v3.9.623 (Urlaub-Doppelencode-Fix).
+const CACHE_NAME = "epkolar-v3.9.624";
 const ASSETS = [
   './',
   './index.html'
