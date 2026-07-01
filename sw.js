@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.625 — Mobile MA-Übersicht Redesign: kompakte Zeilen + Rollen-Farbpunkt + Mini-Wochenstreifen (Mo–Sa) + X/6-Auslastung + frei-Sammelzeile statt Leerkarten (nur isMob-Presentation, Save-Logik unberuehrt). Sonst unveraendert ggue. v3.9.624 (admin-PW-Reset-Fix).
-const CACHE_NAME = "epkolar-v3.9.625";
+// EP Kolar Service Worker v3.9.626 — Mobile MA-Übersicht Design-Pass: neutrale Zeilen + projektfarbiger Akzent-Balken statt Orange-Wash, projektfarbiges Wochen-Ribbon (Signature), dezente Geplant/Frei-Zeile (nur isMob-Presentation). Sonst unveraendert ggue. v3.9.625.
+const CACHE_NAME = "epkolar-v3.9.626";
 const ASSETS = [
   './',
   './index.html'
