@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.622 — Feature Bauprovisorien LIVE (Schema in prod, RLS staff-only+lager_display-Block verifiziert) + Merge von Phase-2/3 (577-581). Menuepunkt staff-only, Verrechnen mit Foto/Rechnung-Upload.
-const CACHE_NAME = "epkolar-v3.9.622";
+// EP Kolar Service Worker v3.9.623 — FIX Urlaub-Doppelencode: _translateAndExec dekodiert idOrSub einmal (NAME_DATE-Keys mit Umlaut kamen doppel-encoded → 0 Rows → stiller Erfolg). Sonst unveraendert ggue. v3.9.622 (Bauprovisorien LIVE, RLS staff-only+lager_display-Block).
+const CACHE_NAME = "epkolar-v3.9.623";
 const ASSETS = [
   './',
   './index.html'
