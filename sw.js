@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.624 — FIX admin-PW-Reset-Button: admin_reset_password mit RPC-Contract (target_user_id=auth_user_id, new_password) + _sbWH() + min-6 (vorher p_email/p_password+_sbH = Param-Mismatch, GoTrue-Reset lief ins Leere). Sonst unveraendert ggue. v3.9.623 (Urlaub-Doppelencode-Fix).
-const CACHE_NAME = "epkolar-v3.9.624";
+// EP Kolar Service Worker v3.9.625 — Mobile MA-Übersicht Redesign: kompakte Zeilen + Rollen-Farbpunkt + Mini-Wochenstreifen (Mo–Sa) + X/6-Auslastung + frei-Sammelzeile statt Leerkarten (nur isMob-Presentation, Save-Logik unberuehrt). Sonst unveraendert ggue. v3.9.624 (admin-PW-Reset-Fix).
+const CACHE_NAME = "epkolar-v3.9.625";
 const ASSETS = [
   './',
   './index.html'
