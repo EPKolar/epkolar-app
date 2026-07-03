@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.639 - Stempel-Pausenregeln pro Rolle konfigurierbar (Mitarbeiter-Verwaltung, isWAdm-only). Netto-Logik unveraendert.
-const CACHE_NAME = "epkolar-v3.9.639";
+// EP Kolar Service Worker v3.9.640 - Mobile-Fix P2-1: Arbeitsscheine Wochenansicht scrollt auf Handy wieder (width statt minWidth). Desktop byte-identisch.
+const CACHE_NAME = "epkolar-v3.9.640";
 const ASSETS = [
   './',
   './index.html'
