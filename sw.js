@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.641 - Mobile-Fix P2-5: Urlaubsantrag-Formular Von|Bis|Art auf Handy 1-spaltig (Date-Picker sprengten 3-Spalten-Grid). Desktop byte-identisch.
-const CACHE_NAME = "epkolar-v3.9.641";
+// EP Kolar Service Worker v3.9.642 - Mobile-Fix P2-4: VBer Wochenbericht-Tabelle scrollt auf Handy (width:640 statt width:100%) statt zu quetschen. Desktop byte-identisch.
+const CACHE_NAME = "epkolar-v3.9.642";
 const ASSETS = [
   './',
   './index.html'
