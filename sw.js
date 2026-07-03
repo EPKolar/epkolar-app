@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.649 - KV-Serie V3: Zuschlagslogik (Mehrarbeit/Ue 50/100, Kumulationssperre) + KVZuschlagReport im Auswertungen-Tab (Staff). Auswertung, nicht Lohnverrechnung.
-const CACHE_NAME = "epkolar-v3.9.649";
+// EP Kolar Service Worker v3.9.650 - KV-Serie V4: Monteur-Zulagen-Report (Taggeld/Montagezulage) im Buero-Portal + CSV-Export fuer Lohnverrechner. Keine Verbuchung.
+const CACHE_NAME = "epkolar-v3.9.650";
 const ASSETS = [
   './',
   './index.html'
