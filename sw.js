@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.630 - Wochenplanung Streifen-Ausrichtung Teil 2: Abwesenheits-/SpezFz-Container padding 6px 10px->6px 0 -> Flex-Grid volle Breite wie Tabelle -> Sa-Kante fluchtet <=1px. Haupttabelle/Wetter unveraendert.
-const CACHE_NAME = "epkolar-v3.9.630";
+// EP Kolar Service Worker v3.9.631 - Wochenplanung: Zeitausgleich-Zeile in PDF-/Excel-Export, On-Screen-Streifen + Kiosk-Display ergaenzt (bisher nur Krankenstand+Urlaub). Reine Anzeige.
+const CACHE_NAME = "epkolar-v3.9.631";
 const ASSETS = [
   './',
   './index.html'
