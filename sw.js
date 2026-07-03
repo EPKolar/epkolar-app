@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.658 - Flotte GPS Teil 2: Heading-Pfeil im Marker + Karten-Controls (Alle einpassen / Verlauf loeschen).
-const CACHE_NAME = "epkolar-v3.9.658";
+// EP Kolar Service Worker v3.9.659 - KV-V4 CSV-Feld-Escaping: Namen mit ;/"/Newline verschieben nicht mehr die CSV-Spalten.
+const CACHE_NAME = "epkolar-v3.9.659";
 const ASSETS = [
   './',
   './index.html'
