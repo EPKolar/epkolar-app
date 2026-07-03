@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.651 - KV-Serie V5: EFZG-Anzeige (Entgeltfortzahlungs-Staffel 6/8/10/12 Wochen nach Dienstjahren) im Krankenstand-Block. Info, nicht Lohnverrechnung.
-const CACHE_NAME = "epkolar-v3.9.651";
+// EP Kolar Service Worker v3.9.652 - Stempel-Pausen-Fallback-Fix: {Backoffice:0,default:60} statt {buero:0,...} (workers.role = Anzeige-Rollen).
+const CACHE_NAME = "epkolar-v3.9.652";
 const ASSETS = [
   './',
   './index.html'

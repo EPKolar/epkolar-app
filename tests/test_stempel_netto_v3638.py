@@ -6,7 +6,7 @@ evaluiert die reinen Funktionen in Node. Kein DB-/Render-Zugriff.
 Regel: stempel_log.ts ist roh; Rundung (5-min-Raster) + Pausenabzug NUR hier.
 Rundung: Kommen AUF, Gehen AB. Abzug EINMAL pro Tag, nie negativ.
 Pause rollenabhaengig aus rules (system_config 'stempel_pause_rules'),
-Fallback {buero:0, default:60}.
+Fallback {Backoffice:0, default:60} (Key = Anzeige-Rolle aus workers.role, NICHT "buero").
 """
 import re
 import json
@@ -47,12 +47,12 @@ _BUERO_2P = ("[{kommen:Date.UTC(2026,0,15,7,0),gehen:Date.UTC(2026,0,15,12,0)},"
              "{kommen:Date.UTC(2026,0,15,13,0),gehen:Date.UTC(2026,0,15,17,0)}]")
 _FELD_1P = "[{kommen:Date.UTC(2026,0,15,7,0),gehen:Date.UTC(2026,0,15,17,0)}]"
 _FELD_2P = _BUERO_2P
-_RULES = "{buero:0,default:60}"
+_RULES = "{Backoffice:0,default:60}"
 
 
 def test_netto_buero_zwei_paare_kein_abzug(node_exe, index_html):
     # 5h + 4h = 9h = 540min, Buero-Abzug 0
-    assert _eval(node_exe, index_html, "_stTagNetto(" + _BUERO_2P + ",'buero'," + _RULES + ")") == 540
+    assert _eval(node_exe, index_html, "_stTagNetto(" + _BUERO_2P + ",'Backoffice'," + _RULES + ")") == 540
 
 
 def test_netto_feld_ein_paar_minus_pause(node_exe, index_html):
@@ -93,5 +93,12 @@ def test_pause_lookup_leer_ergibt_60(node_exe, index_html):
     assert _eval(node_exe, index_html, "_stPauseAbzug('monteur',{})") == 60
 
 
-def test_pause_lookup_buero_null_via_konfig(node_exe, index_html):
-    assert _eval(node_exe, index_html, "_stPauseAbzug('buero',{buero:0,default:60})") == 0
+def test_pause_lookup_backoffice_null_via_konfig(node_exe, index_html):
+    # workers.role fuehrt Anzeige-Rollen -> Buero-Staff ist "Backoffice", nicht "buero"
+    assert _eval(node_exe, index_html, "_stPauseAbzug('Backoffice',{Backoffice:0,default:60})") == 0
+
+
+def test_fallback_konstante_backoffice(node_exe, index_html):
+    # In-Memory-Fallback nutzt die Anzeige-Rolle "Backoffice" (workers.role), NICHT "buero"
+    res = _eval(node_exe, index_html, "[STEMPEL_PAUSE_FALLBACK.Backoffice, (STEMPEL_PAUSE_FALLBACK.buero===undefined), STEMPEL_PAUSE_FALLBACK.default]")
+    assert res == [0, True, 60]
