@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.638 - Stempeluhr-Fundament (DORMANT): Kiosk ?screen=stempel (admin-only), pure Netto-Helper, SQL nur als Datei. Ohne ?screen=stempel unveraendert.
-const CACHE_NAME = "epkolar-v3.9.638";
+// EP Kolar Service Worker v3.9.639 - Stempel-Pausenregeln pro Rolle konfigurierbar (Mitarbeiter-Verwaltung, isWAdm-only). Netto-Logik unveraendert.
+const CACHE_NAME = "epkolar-v3.9.639";
 const ASSETS = [
   './',
   './index.html'
