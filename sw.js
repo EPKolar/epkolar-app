@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.632 - Buero-Portal Krankenstand-Liste: Filter+Sort wie AS (Suche, Spalten-Sort, Dropdowns MA/Attest/Monat, Attest-fehlt-Pill, Zaehler). UI-only, keine Query.
-const CACHE_NAME = "epkolar-v3.9.632";
+// EP Kolar Service Worker v3.9.633 - Fix: VBueroExport laedt absence_files selbst -> Krankenstand-Attest-Spalte + vorhanden-Filter zeigen hinterlegte Atteste auch ohne Urlaub-Modul-Besuch.
+const CACHE_NAME = "epkolar-v3.9.633";
 const ASSETS = [
   './',
   './index.html'
