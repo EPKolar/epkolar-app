@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.629 - Wochenplanung Streifen-Ausrichtung: flexShrink:0->1 an %-Zellen der 3 Flex-Streifen -> schrumpfen jetzt wie die fixed-Tabelle, Sa-Kante fluchtet. Breiten/Haupttabelle unveraendert.
-const CACHE_NAME = "epkolar-v3.9.629";
+// EP Kolar Service Worker v3.9.630 - Wochenplanung Streifen-Ausrichtung Teil 2: Abwesenheits-/SpezFz-Container padding 6px 10px->6px 0 -> Flex-Grid volle Breite wie Tabelle -> Sa-Kante fluchtet <=1px. Haupttabelle/Wetter unveraendert.
+const CACHE_NAME = "epkolar-v3.9.630";
 const ASSETS = [
   './',
   './index.html'
