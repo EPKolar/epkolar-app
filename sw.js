@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.640 - Mobile-Fix P2-1: Arbeitsscheine Wochenansicht scrollt auf Handy wieder (width statt minWidth). Desktop byte-identisch.
-const CACHE_NAME = "epkolar-v3.9.640";
+// EP Kolar Service Worker v3.9.641 - Mobile-Fix P2-5: Urlaubsantrag-Formular Von|Bis|Art auf Handy 1-spaltig (Date-Picker sprengten 3-Spalten-Grid). Desktop byte-identisch.
+const CACHE_NAME = "epkolar-v3.9.641";
 const ASSETS = [
   './',
   './index.html'
