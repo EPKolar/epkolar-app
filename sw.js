@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.648 - KV-Serie V2: totes kontingent.urlaub-Tage-Feld sanft stillgelegt (Save/Load), Resturlaub nur in Stunden. DB-Spalte bleibt.
-const CACHE_NAME = "epkolar-v3.9.648";
+// EP Kolar Service Worker v3.9.649 - KV-Serie V3: Zuschlagslogik (Mehrarbeit/Ue 50/100, Kumulationssperre) + KVZuschlagReport im Auswertungen-Tab (Staff). Auswertung, nicht Lohnverrechnung.
+const CACHE_NAME = "epkolar-v3.9.649";
 const ASSETS = [
   './',
   './index.html'
