@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.635 - Krankenstand-Zeitraum-Bloecke klappbar (Buero-Portal): zusammenhaengende Tage = ein Block (Name/von-bis/N Tage/h/Attest), default zu. UI-only.
-const CACHE_NAME = "epkolar-v3.9.635";
+// EP Kolar Service Worker v3.9.636 - Buero-Portal Mobile: 3 breite Tabellen als Card-Listen <600px (isMob), Tap-Targets Krankenstand-Filter. Desktop unveraendert.
+const CACHE_NAME = "epkolar-v3.9.636";
 const ASSETS = [
   './',
   './index.html'
