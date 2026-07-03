@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.637 - Attest In-App-Viewer (Overlay, Bild/pdf.js-Canvas, kein iframe) statt extern; Buero + Urlaub. Signed-URL unveraendert.
-const CACHE_NAME = "epkolar-v3.9.637";
+// EP Kolar Service Worker v3.9.638 - Stempeluhr-Fundament (DORMANT): Kiosk ?screen=stempel (admin-only), pure Netto-Helper, SQL nur als Datei. Ohne ?screen=stempel unveraendert.
+const CACHE_NAME = "epkolar-v3.9.638";
 const ASSETS = [
   './',
   './index.html'
