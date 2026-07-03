@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.654 - Kosmetik: KV-Zulagen Hinweistext zeigt Montagezulage-Faktor mit 3 Dezimalen (1,155 statt 1,16). Rechnung/CSV unveraendert.
-const CACHE_NAME = "epkolar-v3.9.654";
+// EP Kolar Service Worker v3.9.655 - Flotte: Fahrzeug-Fleet-Liste (Status aktiv/inaktiv/wartet) + Klick zentriert Karte. Ersetzt die kleine Wartet-Ecke.
+const CACHE_NAME = "epkolar-v3.9.655";
 const ASSETS = [
   './',
   './index.html'
