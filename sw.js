@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.652 - Stempel-Pausen-Fallback-Fix: {Backoffice:0,default:60} statt {buero:0,...} (workers.role = Anzeige-Rollen).
-const CACHE_NAME = "epkolar-v3.9.652";
+// EP Kolar Service Worker v3.9.653 - Mobile-P3-D Kosmetik: isMob-Schwelle 700->600 (ChefDash/Zeiterfassung) + VDoku minmax-px-Fix.
+const CACHE_NAME = "epkolar-v3.9.653";
 const ASSETS = [
   './',
   './index.html'
