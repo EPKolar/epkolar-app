@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.646 - Kiosk-Auto-Update: ?screen-Kiosks reloaden bei SW-Wechsel (controllerchange) + stuendlich SKIP_WAITING. Haupt-App unveraendert.
-const CACHE_NAME = "epkolar-v3.9.646";
+// EP Kolar Service Worker v3.9.647 - KV-Serie V1: KV-Metallgewerbe-Konstanten (window.KV_RULES + system_config kv_rules) + isWAdm-Konfig in Mitarbeiter-Verwaltung. Auswertung, nicht Lohnverrechnung.
+const CACHE_NAME = "epkolar-v3.9.647";
 const ASSETS = [
   './',
   './index.html'
