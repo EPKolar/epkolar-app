@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.643 - Mobile-Fix P2-2: Home "Meine Woche"-Widget auf Handy 3-spaltig (2 Reihen) statt 6 gequetscht. Desktop byte-identisch.
-const CACHE_NAME = "epkolar-v3.9.643";
+// EP Kolar Service Worker v3.9.644 - Mobile-Fix P2-3: Projekte Listen-Ansicht scrollt auf Handy (feste px-Spalten + overflowX:auto) statt zu quetschen. Desktop byte-identisch.
+const CACHE_NAME = "epkolar-v3.9.644";
 const ASSETS = [
   './',
   './index.html'
