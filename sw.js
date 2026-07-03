@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.650 - KV-Serie V4: Monteur-Zulagen-Report (Taggeld/Montagezulage) im Buero-Portal + CSV-Export fuer Lohnverrechner. Keine Verbuchung.
-const CACHE_NAME = "epkolar-v3.9.650";
+// EP Kolar Service Worker v3.9.651 - KV-Serie V5: EFZG-Anzeige (Entgeltfortzahlungs-Staffel 6/8/10/12 Wochen nach Dienstjahren) im Krankenstand-Block. Info, nicht Lohnverrechnung.
+const CACHE_NAME = "epkolar-v3.9.651";
 const ASSETS = [
   './',
   './index.html'
