@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.656 - Flotte GPS-Ausbau: Fahrer je Fahrzeug + Rich-Popup (Richtung/Kompass) + Verlaufs-Trail bei Klick.
-const CACHE_NAME = "epkolar-v3.9.656";
+// EP Kolar Service Worker v3.9.657 - KV-V3 Bugfix: Zuschlaege pro TAG statt pro Eintrag aggregiert (Ueberstunden waren untererfasst).
+const CACHE_NAME = "epkolar-v3.9.657";
 const ASSETS = [
   './',
   './index.html'
