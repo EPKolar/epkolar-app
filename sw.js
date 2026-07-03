@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.657 - KV-V3 Bugfix: Zuschlaege pro TAG statt pro Eintrag aggregiert (Ueberstunden waren untererfasst).
-const CACHE_NAME = "epkolar-v3.9.657";
+// EP Kolar Service Worker v3.9.658 - Flotte GPS Teil 2: Heading-Pfeil im Marker + Karten-Controls (Alle einpassen / Verlauf loeschen).
+const CACHE_NAME = "epkolar-v3.9.658";
 const ASSETS = [
   './',
   './index.html'
