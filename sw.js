@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.636 - Buero-Portal Mobile: 3 breite Tabellen als Card-Listen <600px (isMob), Tap-Targets Krankenstand-Filter. Desktop unveraendert.
-const CACHE_NAME = "epkolar-v3.9.636";
+// EP Kolar Service Worker v3.9.637 - Attest In-App-Viewer (Overlay, Bild/pdf.js-Canvas, kein iframe) statt extern; Buero + Urlaub. Signed-URL unveraendert.
+const CACHE_NAME = "epkolar-v3.9.637";
 const ASSETS = [
   './',
   './index.html'
