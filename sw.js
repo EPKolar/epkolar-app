@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.633 - Fix: VBueroExport laedt absence_files selbst -> Krankenstand-Attest-Spalte + vorhanden-Filter zeigen hinterlegte Atteste auch ohne Urlaub-Modul-Besuch.
-const CACHE_NAME = "epkolar-v3.9.633";
+// EP Kolar Service Worker v3.9.634 - Kiosk Auto-Fit (WochenplanTafel + MonteurTafel): natuerliche Hoehe + transform:scale-to-fit (Clamp 0.6..1.25) + Vollbild-Button. Kein optional chaining.
+const CACHE_NAME = "epkolar-v3.9.634";
 const ASSETS = [
   './',
   './index.html'
