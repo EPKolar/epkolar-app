@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.655 - Flotte: Fahrzeug-Fleet-Liste (Status aktiv/inaktiv/wartet) + Klick zentriert Karte. Ersetzt die kleine Wartet-Ecke.
-const CACHE_NAME = "epkolar-v3.9.655";
+// EP Kolar Service Worker v3.9.656 - Flotte GPS-Ausbau: Fahrer je Fahrzeug + Rich-Popup (Richtung/Kompass) + Verlaufs-Trail bei Klick.
+const CACHE_NAME = "epkolar-v3.9.656";
 const ASSETS = [
   './',
   './index.html'
