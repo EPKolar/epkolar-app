@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.642 - Mobile-Fix P2-4: VBer Wochenbericht-Tabelle scrollt auf Handy (width:640 statt width:100%) statt zu quetschen. Desktop byte-identisch.
-const CACHE_NAME = "epkolar-v3.9.642";
+// EP Kolar Service Worker v3.9.643 - Mobile-Fix P2-2: Home "Meine Woche"-Widget auf Handy 3-spaltig (2 Reihen) statt 6 gequetscht. Desktop byte-identisch.
+const CACHE_NAME = "epkolar-v3.9.643";
 const ASSETS = [
   './',
   './index.html'
