@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.631 - Wochenplanung: Zeitausgleich-Zeile in PDF-/Excel-Export, On-Screen-Streifen + Kiosk-Display ergaenzt (bisher nur Krankenstand+Urlaub). Reine Anzeige.
-const CACHE_NAME = "epkolar-v3.9.631";
+// EP Kolar Service Worker v3.9.632 - Buero-Portal Krankenstand-Liste: Filter+Sort wie AS (Suche, Spalten-Sort, Dropdowns MA/Attest/Monat, Attest-fehlt-Pill, Zaehler). UI-only, keine Query.
+const CACHE_NAME = "epkolar-v3.9.632";
 const ASSETS = [
   './',
   './index.html'
