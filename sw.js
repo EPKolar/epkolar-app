@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.647 - KV-Serie V1: KV-Metallgewerbe-Konstanten (window.KV_RULES + system_config kv_rules) + isWAdm-Konfig in Mitarbeiter-Verwaltung. Auswertung, nicht Lohnverrechnung.
-const CACHE_NAME = "epkolar-v3.9.647";
+// EP Kolar Service Worker v3.9.648 - KV-Serie V2: totes kontingent.urlaub-Tage-Feld sanft stillgelegt (Save/Load), Resturlaub nur in Stunden. DB-Spalte bleibt.
+const CACHE_NAME = "epkolar-v3.9.648";
 const ASSETS = [
   './',
   './index.html'
