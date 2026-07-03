@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.662 - Stempeluhr-Hardening: Doppel-Scan-Sperre + Uebernacht-Richtung + WakeLock-Release (keine 0h-Schichten mehr durch Edge-Cases).
-const CACHE_NAME = "epkolar-v3.9.662";
+// EP Kolar Service Worker v3.9.663 - Flotte-Datenpfad: Marker aus View fz_latest (keine verschwindenden Fahrzeuge), Trail on-demand, Popup-Restore, In-Flight-Guard.
+const CACHE_NAME = "epkolar-v3.9.663";
 const ASSETS = [
   './',
   './index.html'

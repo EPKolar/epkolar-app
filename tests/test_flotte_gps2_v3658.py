@@ -13,8 +13,8 @@ def test_heading_arrow(index_html):
 
 def test_trail_state(index_html):
     assert "const [trailFid,setTrailFid]=_react.useState.call(void 0, null)" in index_html
-    # _showTrail merkt sich das Fahrzeug
-    assert "}}setTrailFid(fid);};" in index_html
+    # _showTrail merkt sich das Fahrzeug (seit v3.9.663 async, setTrailFid am Anfang vor dem on-demand-Fetch)
+    assert "typeof L==='undefined')return;setTrailFid(fid);" in index_html
 
 
 def test_clear_trail(index_html):
