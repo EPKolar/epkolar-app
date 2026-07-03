@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.628 - Wochenplanung Desktop: Bem-Spalte 8->14%, Samstag 6% (index-abh.), Zeilen/Chips kompakter, Bem-Overflow gefixt; alle sync. Spaltenbloecke identisch. Mobil unberuehrt.
-const CACHE_NAME = "epkolar-v3.9.628";
+// EP Kolar Service Worker v3.9.629 - Wochenplanung Streifen-Ausrichtung: flexShrink:0->1 an %-Zellen der 3 Flex-Streifen -> schrumpfen jetzt wie die fixed-Tabelle, Sa-Kante fluchtet. Breiten/Haupttabelle unveraendert.
+const CACHE_NAME = "epkolar-v3.9.629";
 const ASSETS = [
   './',
   './index.html'
