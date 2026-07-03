@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.661 - Stundenbestaetigung Sonntag-Label-Fix: kein leerer/undefined-Wochentagsblock mehr in Wochen-/Tages-Export.
-const CACHE_NAME = "epkolar-v3.9.661";
+// EP Kolar Service Worker v3.9.662 - Stempeluhr-Hardening: Doppel-Scan-Sperre + Uebernacht-Richtung + WakeLock-Release (keine 0h-Schichten mehr durch Edge-Cases).
+const CACHE_NAME = "epkolar-v3.9.662";
 const ASSETS = [
   './',
   './index.html'
