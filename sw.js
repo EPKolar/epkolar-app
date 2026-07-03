@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.634 - Kiosk Auto-Fit (WochenplanTafel + MonteurTafel): natuerliche Hoehe + transform:scale-to-fit (Clamp 0.6..1.25) + Vollbild-Button. Kein optional chaining.
-const CACHE_NAME = "epkolar-v3.9.634";
+// EP Kolar Service Worker v3.9.635 - Krankenstand-Zeitraum-Bloecke klappbar (Buero-Portal): zusammenhaengende Tage = ein Block (Name/von-bis/N Tage/h/Attest), default zu. UI-only.
+const CACHE_NAME = "epkolar-v3.9.635";
 const ASSETS = [
   './',
   './index.html'
