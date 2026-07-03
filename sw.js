@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.627 — Mobile Planung: Bemerkung-Freitext ("was ist zu tun") unter den Wochentag-Zellen pro BVH (Tap→Inline-Edit, nutzt bestehende _bem-setRows-Schreiblogik); + MA-Übersicht Politur (Rollen-Kurzlabel, 1-zeilige Projektnamen f. gleichmaessige Zeilen). Sonst unveraendert ggue. v3.9.626.
-const CACHE_NAME = "epkolar-v3.9.627";
+// EP Kolar Service Worker v3.9.628 - Wochenplanung Desktop: Bem-Spalte 8->14%, Samstag 6% (index-abh.), Zeilen/Chips kompakter, Bem-Overflow gefixt; alle sync. Spaltenbloecke identisch. Mobil unberuehrt.
+const CACHE_NAME = "epkolar-v3.9.628";
 const ASSETS = [
   './',
   './index.html'
