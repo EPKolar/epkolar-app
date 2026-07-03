@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.644 - Mobile-Fix P2-3: Projekte Listen-Ansicht scrollt auf Handy (feste px-Spalten + overflowX:auto) statt zu quetschen. Desktop byte-identisch.
-const CACHE_NAME = "epkolar-v3.9.644";
+// EP Kolar Service Worker v3.9.645 - Flotte-Tab (GPS-Leaflet-Karte, isStaff): Marker aus Fahrzeug-Bestand + fz_positions, Leer-Zustand fuer Traccar-Pilot. SQL nur als Datei.
+const CACHE_NAME = "epkolar-v3.9.645";
 const ASSETS = [
   './',
   './index.html'
