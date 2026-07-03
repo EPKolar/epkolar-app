@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.645 - Flotte-Tab (GPS-Leaflet-Karte, isStaff): Marker aus Fahrzeug-Bestand + fz_positions, Leer-Zustand fuer Traccar-Pilot. SQL nur als Datei.
-const CACHE_NAME = "epkolar-v3.9.645";
+// EP Kolar Service Worker v3.9.646 - Kiosk-Auto-Update: ?screen-Kiosks reloaden bei SW-Wechsel (controllerchange) + stuendlich SKIP_WAITING. Haupt-App unveraendert.
+const CACHE_NAME = "epkolar-v3.9.646";
 const ASSETS = [
   './',
   './index.html'
