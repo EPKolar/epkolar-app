@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.660 - Flotte Live-Follow: Karte folgt einem gewaehlten Fahrzeug (60s-Re-Center) + folgt-Indikator.
-const CACHE_NAME = "epkolar-v3.9.660";
+// EP Kolar Service Worker v3.9.661 - Stundenbestaetigung Sonntag-Label-Fix: kein leerer/undefined-Wochentagsblock mehr in Wochen-/Tages-Export.
+const CACHE_NAME = "epkolar-v3.9.661";
 const ASSETS = [
   './',
   './index.html'
