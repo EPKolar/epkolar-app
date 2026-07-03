@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.653 - Mobile-P3-D Kosmetik: isMob-Schwelle 700->600 (ChefDash/Zeiterfassung) + VDoku minmax-px-Fix.
-const CACHE_NAME = "epkolar-v3.9.653";
+// EP Kolar Service Worker v3.9.654 - Kosmetik: KV-Zulagen Hinweistext zeigt Montagezulage-Faktor mit 3 Dezimalen (1,155 statt 1,16). Rechnung/CSV unveraendert.
+const CACHE_NAME = "epkolar-v3.9.654";
 const ASSETS = [
   './',
   './index.html'
