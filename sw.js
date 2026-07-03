@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.659 - KV-V4 CSV-Feld-Escaping: Namen mit ;/"/Newline verschieben nicht mehr die CSV-Spalten.
-const CACHE_NAME = "epkolar-v3.9.659";
+// EP Kolar Service Worker v3.9.660 - Flotte Live-Follow: Karte folgt einem gewaehlten Fahrzeug (60s-Re-Center) + folgt-Indikator.
+const CACHE_NAME = "epkolar-v3.9.660";
 const ASSETS = [
   './',
   './index.html'
