@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.666 - Wochenplanung: Last-Second-Save-Fix (stale flush-Closure) + KW53-Misfile-Cap.
-const CACHE_NAME = "epkolar-v3.9.666";
+// EP Kolar Service Worker v3.9.667 - AS-Eskalation NaN-Guard: dringender Schein ohne aufgenommen-Datum eskaliert jetzt (created_at-Fallback) statt still nie.
+const CACHE_NAME = "epkolar-v3.9.667";
 const ASSETS = [
   './',
   './index.html'
