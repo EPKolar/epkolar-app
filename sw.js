@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.665 - Bauwochenbericht 2 Nachkommastellen: Spalten reconcilen mit Summen (wie generateBWB).
-const CACHE_NAME = "epkolar-v3.9.665";
+// EP Kolar Service Worker v3.9.666 - Wochenplanung: Last-Second-Save-Fix (stale flush-Closure) + KW53-Misfile-Cap.
+const CACHE_NAME = "epkolar-v3.9.666";
 const ASSETS = [
   './',
   './index.html'
