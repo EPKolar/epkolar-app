@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.664 - KV-Correctness: Dienstjahre kalendergenau, EFZG-Verbrauch arbeitsjahr-scoped+abgerundet, kv_rules NaN-Guard.
-const CACHE_NAME = "epkolar-v3.9.664";
+// EP Kolar Service Worker v3.9.665 - Bauwochenbericht 2 Nachkommastellen: Spalten reconcilen mit Summen (wie generateBWB).
+const CACHE_NAME = "epkolar-v3.9.665";
 const ASSETS = [
   './',
   './index.html'
