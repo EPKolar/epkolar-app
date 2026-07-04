@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.663 - Flotte-Datenpfad: Marker aus View fz_latest (keine verschwindenden Fahrzeuge), Trail on-demand, Popup-Restore, In-Flight-Guard.
-const CACHE_NAME = "epkolar-v3.9.663";
+// EP Kolar Service Worker v3.9.664 - KV-Correctness: Dienstjahre kalendergenau, EFZG-Verbrauch arbeitsjahr-scoped+abgerundet, kv_rules NaN-Guard.
+const CACHE_NAME = "epkolar-v3.9.664";
 const ASSETS = [
   './',
   './index.html'
