@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.669 - AS-Notif-Cleanup: erledigte Eskalations-/Reminder-Notifs werden aus der Glocke entfernt (Mirror Material-Cleanup).
-const CACHE_NAME = "epkolar-v3.9.669";
+// EP Kolar Service Worker v3.9.670 - Lager-Display: Kiosk springt ab Fr 09:00 Wien automatisch auf die Folgewoche (DST-sicher via Intl).
+const CACHE_NAME = "epkolar-v3.9.670";
 const ASSETS = [
   './',
   './index.html'
