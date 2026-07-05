@@ -32,6 +32,7 @@ def test_absstats_wochentagsgenau(index_html):
 
 
 def test_absstats_abgelehnt_uebersprungen(index_html):
-    assert 'if(v.type==="urlaub"&&_resolveApprK(abs,null,k)==="abgelehnt")return;' in index_html
+    # v3.9.668: arg null -> approvals (approvals-Prop jetzt durchgereicht); Intent unveraendert
+    assert 'if(v.type==="urlaub"&&_resolveApprK(abs,approvals,k)==="abgelehnt")return;' in index_html
     # alte wochentagsblinde Heuristik weg
     assert "const dayUnit=h>0?(h>=8?1:0.5):1;" not in index_html

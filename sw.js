@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.667 - AS-Eskalation NaN-Guard: dringender Schein ohne aufgenommen-Datum eskaliert jetzt (created_at-Fallback) statt still nie.
-const CACHE_NAME = "epkolar-v3.9.667";
+// EP Kolar Service Worker v3.9.668 - Urlaub-Anzeige-Konsistenz: abgelehnter Urlaub nicht mehr als verbraucht, Legacy-Aliase krank/za, approvals in Self-Service-Karte.
+const CACHE_NAME = "epkolar-v3.9.668";
 const ASSETS = [
   './',
   './index.html'
