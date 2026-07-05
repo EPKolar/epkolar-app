@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.668 - Urlaub-Anzeige-Konsistenz: abgelehnter Urlaub nicht mehr als verbraucht, Legacy-Aliase krank/za, approvals in Self-Service-Karte.
-const CACHE_NAME = "epkolar-v3.9.668";
+// EP Kolar Service Worker v3.9.669 - AS-Notif-Cleanup: erledigte Eskalations-/Reminder-Notifs werden aus der Glocke entfernt (Mirror Material-Cleanup).
+const CACHE_NAME = "epkolar-v3.9.669";
 const ASSETS = [
   './',
   './index.html'
