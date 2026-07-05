@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.670 - Lager-Display: Kiosk springt ab Fr 09:00 Wien automatisch auf die Folgewoche (DST-sicher via Intl).
-const CACHE_NAME = "epkolar-v3.9.670";
+// EP Kolar Service Worker v3.9.672 - Hotfix ProjList TDZ (Tab Projekte lud nicht: _gridCols nutzte isMob vor const-Init) + v3.9.671 Montagezulage Phase 1 (manuell): KV_RULES-Jahres-Saetze + Pure-Fns, KVRulesConfig-Jahres-Satz-UI, sql/MONTAGEZULAGE_v1.sql (Human-Run-Gate).
+const CACHE_NAME = "epkolar-v3.9.672";
 const ASSETS = [
   './',
   './index.html'
