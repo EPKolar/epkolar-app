@@ -62,7 +62,13 @@ def cache_name(sw_js):
 
 
 def _extract_fn(index_html, name, signature_regex=None):
-    """Extract a top-level `function NAME(...)` definition (including body)."""
+    """Extract a top-level `function NAME(...)` definition (including body).
+
+    Der Rumpf beginnt erst nach der GESCHLOSSENEN Parameterliste. Bei
+    destrukturierten Parametern (`function X({a,b}){...}`) ist die erste `{`
+    nach dem Namen die Destrukturierung, nicht der Body — deshalb erst die
+    `(...)` auf Tiefe 0 bringen und danach die Braces zaehlen.
+    """
     # Find start position
     if signature_regex is None:
         signature_regex = rf"function\s+{re.escape(name)}\s*\("
@@ -70,7 +76,24 @@ def _extract_fn(index_html, name, signature_regex=None):
     if not m:
         return None
     start = m.start()
-    i = index_html.find("{", start)
+    # Parameterliste ueberspringen
+    i = index_html.find("(", start)
+    if i < 0:
+        return None
+    paren = 0
+    while i < len(index_html):
+        c = index_html[i]
+        if c == "(":
+            paren += 1
+        elif c == ")":
+            paren -= 1
+            if paren == 0:
+                i += 1
+                break
+        i += 1
+    else:
+        return None
+    i = index_html.find("{", i)
     if i < 0:
         return None
     depth = 0
