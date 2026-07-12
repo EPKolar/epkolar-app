@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.673 - Planung Mobile: Zeilen-Controls (Hoch/Runter/Loeschen) in der Tages-Karten-Ansicht ergaenzt (Mobile-Branch rendert eigenes Markup, Desktop-Controls waren dort nie im Baum). Gleiche Handler wie Desktop, 40x40 Touch-Targets.
-const CACHE_NAME = "epkolar-v3.9.673";
+// EP Kolar Service Worker v3.9.674 - Planung Abwesenheits-Overlay: nur noch GENEHMIGTE Abwesenheiten (gemeinsamer Helper _absShow fuer Streifen/Excel/PDF; vorher matchten alle drei nur auf type und zeigten auch abgelehnte Tage). Kiosk-Screen wird serverseitig via kiosk_week_absences gefiltert (sql/KIOSK_ABS_STATUS_v1.sql).
+const CACHE_NAME = "epkolar-v3.9.674";
 const ASSETS = [
   './',
   './index.html'
