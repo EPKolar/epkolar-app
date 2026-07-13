@@ -1,0 +1,514 @@
+diff --git a/scripts/bughunt-eternal-baumgmt.bat b/scripts/bughunt-eternal-baumgmt.bat
+index 9bdb298..0ae2417 100644
+--- a/scripts/bughunt-eternal-baumgmt.bat
++++ b/scripts/bughunt-eternal-baumgmt.bat
+@@ -2,26 +2,9 @@
+ setlocal EnableDelayedExpansion
+ 
+ REM ============================================================
+-REM EPKolar Eternal Bug Hunt - Loop-Driver (Baumanagement)
++REM EPKolar Eternal Bug Hunt - Loop Driver v2 (minimal, robust)
++REM ASCII-only, CRLF, no inline PowerShell heredocs
+ REM ============================================================
+-REM Pattern aus MotorLog-Setup adaptiert:
+-REM - Stop-Flag: T:\STOP-BUG-HUNT-BAUMGMT.flag (UNIQUE, NICHT MotorLog teilen!)
+-REM - Branch: cc-bug-hunt-eternal/2026-04-26
+-REM - 4 Sprints/Tag konservativ (Token-Pool mit MotorLog geteilt)
+-REM - 90 min Sleep zwischen Sprints (5400s)
+-REM - 4h Cooldown bei rate_limit (14400s)
+-REM - 14 Tage Hard-Cap
+-REM - 3 Failures = Halt
+-REM
+-REM Usage:
+-REM   bughunt-eternal-baumgmt.bat            -- normaler Lauf
+-REM   bughunt-eternal-baumgmt.bat --dry-run  -- nur Setup-Validation, KEIN CC-Call
+-REM ============================================================
+-
+-REM -- Dry-Run-Flag check (FIRST!) --
+-set "DRY_RUN=0"
+-if "%~1"=="--dry-run" set "DRY_RUN=1"
+-if "%~1"=="-n" set "DRY_RUN=1"
+ 
+ set "REPO_PATH=T:\05_Claude\02_Baumanagment & Zeiterfassungs - APP\03_Repos\epkolar-app"
+ set "STOP_FLAG_LOCAL=T:\STOP-BUG-HUNT-BAUMGMT.flag"
+@@ -29,210 +12,203 @@ set "STOP_FLAG_REMOTE_NAME=STOP-BUG-HUNT-BAUMGMT.flag"
+ set "STATE_FILE=scripts\bughunt-state-baumgmt.txt"
+ set "QUEUE_FILE=scripts\bughunt-queue-baumgmt.txt"
+ set "LOG_FILE=scripts\bughunt-log-baumgmt.txt"
+-set "OUTPUT_FILE=scripts\bughunt-last-output-baumgmt.txt"
+ set "REPORT_FILE=docs\bug-hunt\REPORT.md"
+ set "BRANCH=cc-bug-hunt-eternal/2026-04-26"
+-set "MASTER_PROMPT_TEMPLATE=docs\bug-hunt\MASTER_PROMPT_TEMPLATE.md"
+-set "SLEEP_BETWEEN_SPRINTS_SEC=5400"
+-set "COOLDOWN_RATE_LIMIT_SEC=14400"
+-set "MAX_FAIL_COUNT=3"
++set "ANTISLEEP_PS1=scripts\bughunt-antisleep.ps1"
++set "STATE_UPDATE_PS1=scripts\bughunt-state-update.ps1"
++set "POWERPLAN_BACKUP=scripts\powerplan-backup-baumgmt.txt"
++set "SLEEP_BETWEEN=5400"
++set "COOLDOWN_RATE=14400"
++set "MAX_FAIL=3"
+ set "MAX_LIFETIME_DAYS=12"
+-set "POWERPLAN_BACKUP_FILE=scripts\powerplan-backup-baumgmt.txt"
+ 
+-cd /d "%REPO_PATH%"
++set "DRYRUN=0"
++if /I "%~1"=="--dry-run" set "DRYRUN=1"
+ 
+-if "%DRY_RUN%"=="1" (
+-  echo [DRY-RUN] Skipping power-plan change, anti-sleep heartbeat, CC-call.
+-  echo [DRY-RUN] Validating setup files exist...
+-  if not exist "%STATE_FILE%" (echo   FAIL: state file missing & exit /b 1)
+-  if not exist "%QUEUE_FILE%" (echo   FAIL: queue file missing & exit /b 1)
+-  if not exist "%MASTER_PROMPT_TEMPLATE%" (echo   FAIL: master prompt template missing & exit /b 1)
+-  if not exist "%REPORT_FILE%" (echo   FAIL: REPORT.md missing & exit /b 1)
+-  echo   OK: state, queue, template, report all present.
+-  echo [DRY-RUN] Stop-flag-check (local): %STOP_FLAG_LOCAL%
+-  if exist "%STOP_FLAG_LOCAL%" (
+-    echo   STOP-FLAG PRESENT - would exit immediately. Exiting dry-run.
+-    exit /b 0
+-  )
+-  echo   No stop flag present.
+-  echo [DRY-RUN] Reading first non-comment line of queue...
+-  set "FIRST_TOPIC="
+-  for /f "usebackq tokens=* delims=" %%L in ("%QUEUE_FILE%") do (
+-    set "LINE=%%L"
+-    set "FIRST_CHAR=!LINE:~0,1!"
+-    if "!FIRST_TOPIC!"=="" if NOT "!FIRST_CHAR!"=="#" if NOT "!LINE!"=="" set "FIRST_TOPIC=!LINE!"
+-  )
+-  echo   First topic: !FIRST_TOPIC!
+-  echo [DRY-RUN] Power-plan backup test ^(would write %POWERPLAN_BACKUP_FILE%^)
+-  powercfg /getactivescheme > "%POWERPLAN_BACKUP_FILE%"
+-  if exist "%POWERPLAN_BACKUP_FILE%" (
+-    echo   OK: powerplan backup written.
+-  ) else (
+-    echo   FAIL: powerplan backup not written
+-    exit /b 2
+-  )
+-  echo [DRY-RUN] All checks passed. Exiting without sprint execution.
+-  exit /b 0
++cd /d "%REPO_PATH%"
++if errorlevel 1 (
++    echo ERROR: cd failed for %REPO_PATH%
++    exit /b 1
+ )
+ 
+-REM ============================================================
+-REM NORMAL RUN (not dry-run)
+-REM ============================================================
++if "%DRYRUN%"=="1" goto :DRYRUN_BLOCK
+ 
+-REM -- Power-Plan Backup + High-Performance setzen --
+-powercfg /getactivescheme > "%POWERPLAN_BACKUP_FILE%"
+-powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+-powercfg /change monitor-timeout-ac 0
+-powercfg /change standby-timeout-ac 0
+-powercfg /change disk-timeout-ac 0
++REM ---- Power-Plan setup (best-effort, no error blocks) ----
++powercfg /getactivescheme > "%POWERPLAN_BACKUP%" 2>nul
++powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c >nul 2>nul
++powercfg /change monitor-timeout-ac 0 >nul 2>nul
++powercfg /change standby-timeout-ac 0 >nul 2>nul
++powercfg /change disk-timeout-ac 0 >nul 2>nul
+ 
+-REM -- Anti-Sleep im Hintergrund (PowerShell-Heartbeat alle 60s) --
+-start "BUGHUNT-AntiSleep-Baumgmt" /MIN powershell -NoProfile -WindowStyle Hidden -Command ^
+-  "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class P { [DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint esFlags); }'; while ($true) { [P]::SetThreadExecutionState(0x80000000 -bor 0x00000001 -bor 0x00000040); $w = New-Object -ComObject WScript.Shell; $w.SendKeys('{SCROLLLOCK 2}'); Start-Sleep -Seconds 60 }"
++REM ---- Anti-Sleep helper (separate ps1, avoids quote hell) ----
++if exist "%ANTISLEEP_PS1%" (
++    start "BUGHUNT-AntiSleep-Baumgmt" /MIN powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%ANTISLEEP_PS1%"
++)
+ 
+-REM -- State laden (oder erzeugen) --
++REM ---- Initial state file if missing ----
+ if not exist "%STATE_FILE%" (
+-  echo SPRINT_COUNTER=0> "%STATE_FILE%"
+-  echo FAIL_COUNT=0>> "%STATE_FILE%"
+-  echo LAST_SUCCESS=>> "%STATE_FILE%"
+-  echo START_DATE=%DATE%>> "%STATE_FILE%"
+-  echo LIFETIME_DAYS=%MAX_LIFETIME_DAYS%>> "%STATE_FILE%"
+-  echo LAST_RATE_LIMIT=>> "%STATE_FILE%"
++    >"%STATE_FILE%" echo SPRINT_COUNTER=0
++    >>"%STATE_FILE%" echo FAIL_COUNT=0
++    >>"%STATE_FILE%" echo LAST_SUCCESS=
++    >>"%STATE_FILE%" echo START_DATE=%DATE%
++    >>"%STATE_FILE%" echo LIFETIME_DAYS=%MAX_LIFETIME_DAYS%
++    >>"%STATE_FILE%" echo LAST_RATE_LIMIT=
+ )
+ 
+-echo [%DATE% %TIME%] BUGHUNT-BAUMGMT started >> "%LOG_FILE%"
++call :LOG "=== Hunt started ==="
++call :LOG "Branch %BRANCH%"
+ 
+-REM -- Hauptschleife --
+ :LOOP
+-  REM 1. Stop-Flag-Check (lokal)
+-  if exist "%STOP_FLAG_LOCAL%" goto :STOP_NORMAL
+-
+-  REM 2. Stop-Flag-Check (remote, via git fetch main only)
+-  git fetch origin main --quiet
+-  for /f %%i in ('git ls-tree origin/main %STOP_FLAG_REMOTE_NAME% --name-only 2^>nul') do (
+-    if "%%i"=="%STOP_FLAG_REMOTE_NAME%" goto :STOP_NORMAL
+-  )
+-
+-  REM 3. Lifetime-Check (Setup-Datum aus State, gegen heute)
+-  REM TODO: PowerShell-Snippet mit Get-Date arithmetic, halt bei MAX_LIFETIME_DAYS
+-
+-  REM 4. Failure-Check
+-  set "FAIL=0"
+-  for /f "tokens=1,2 delims==" %%a in (%STATE_FILE%) do (
+-    if "%%a"=="FAIL_COUNT" set "FAIL=%%b"
+-  )
+-  if !FAIL! GEQ %MAX_FAIL_COUNT% goto :STOP_FAILURE
+-
+-  REM 5. Cooldown-Check (LAST_RATE_LIMIT)
+-  REM TODO: wenn LAST_RATE_LIMIT < 4h alt -> continue mit langem sleep
+-
+-  REM 6. Sprint-Counter inkrementieren + Topic aus Queue lesen
+-  set "NEW_SPRINT=1"
+-  for /f "tokens=1,2 delims==" %%a in (%STATE_FILE%) do (
+-    if "%%a"=="SPRINT_COUNTER" set /a NEW_SPRINT=%%b+1
+-  )
+-
+-  REM Topic aus Queue.txt holen - Zeile NEW_SPRINT (ohne Kommentare/Leerzeilen)
+-  set "TOPIC="
+-  set "LINE_IDX=0"
+-  for /f "usebackq tokens=* delims=" %%L in ("%QUEUE_FILE%") do (
+-    set "LINE=%%L"
+-    set "FIRST_CHAR=!LINE:~0,1!"
+-    if NOT "!FIRST_CHAR!"=="#" if NOT "!LINE!"=="" (
+-      set /a LINE_IDX+=1
+-      if !LINE_IDX!==!NEW_SPRINT! set "TOPIC=!LINE!"
++    REM 1) Local stop flag
++    if exist "%STOP_FLAG_LOCAL%" (
++        call :LOG "STOP local flag"
++        goto :CLEANUP
+     )
+-  )
+-
+-  REM Round 3+ Auto-Increment falls Topic leer
+-  if "!TOPIC!"=="" (
+-    set /a ROTATE_IDX=^(!NEW_SPRINT! - 25 - 1^) %% 25 + 1
+-    set /a PASS_NUM=^(!NEW_SPRINT! - 26^) / 25 + 2
+-    REM Re-fetch ROTATE_IDX-tes Non-Comment-Topic aus Queue als Basis
+-    set "BASE_TOPIC="
+-    set "LINE_IDX2=0"
+-    for /f "usebackq tokens=* delims=" %%L in ("%QUEUE_FILE%") do (
+-      set "LINE=%%L"
+-      set "FIRST_CHAR=!LINE:~0,1!"
+-      if NOT "!FIRST_CHAR!"=="#" if NOT "!LINE!"=="" (
+-        set /a LINE_IDX2+=1
+-        if !LINE_IDX2!==!ROTATE_IDX! set "BASE_TOPIC=!LINE!"
+-      )
++
++    REM 2) Remote stop flag (origin/main)
++    git fetch origin main --quiet >nul 2>nul
++    git ls-tree origin/main %STOP_FLAG_REMOTE_NAME% --name-only 2>nul | findstr /B "%STOP_FLAG_REMOTE_NAME%" >nul
++    if not errorlevel 1 (
++        call :LOG "STOP remote flag"
++        goto :CLEANUP
++    )
++
++    REM 3) Failure cap
++    set "FAIL=0"
++    for /f "tokens=2 delims==" %%F in ('findstr /B "FAIL_COUNT=" "%STATE_FILE%"') do set "FAIL=%%F"
++    if !FAIL! GEQ %MAX_FAIL% (
++        call :LOG "STOP failure cap !FAIL!"
++        goto :CLEANUP
++    )
++
++    REM 4) Sprint counter
++    set "SC=0"
++    for /f "tokens=2 delims==" %%S in ('findstr /B "SPRINT_COUNTER=" "%STATE_FILE%"') do set "SC=%%S"
++    set /a NEW_SPRINT=!SC!+1
++
++    REM 5) Topic from queue (Nth non-comment line, with Round 3+ rotate)
++    call :PICK_TOPIC !NEW_SPRINT!
++    if "!TOPIC!"=="" set "TOPIC=Re-Audit-Generic-Sprint-!NEW_SPRINT!"
++
++    call :LOG "Sprint !NEW_SPRINT! start: !TOPIC!"
++
++    REM 6) Build prompt
++    set "PROMPT_FILE=%TEMP%\bughunt-prompt-baumgmt-!NEW_SPRINT!.txt"
++    > "!PROMPT_FILE!" echo Eternal-Bug-Hunt Sprint !NEW_SPRINT! Topic !TOPIC!
++    >> "!PROMPT_FILE!" echo Branch %BRANCH%
++    >> "!PROMPT_FILE!" echo Run 3-Sub-Agent Triade per docs/bug-hunt/SUB_AGENT_BRIEFINGS.md
++    >> "!PROMPT_FILE!" echo Append sprint section to docs/bug-hunt/REPORT.md, commit + push to %BRANCH% only.
++    >> "!PROMPT_FILE!" echo NEVER push main, NEVER merge.
++
++    REM 7) claude CLI
++    where claude >nul 2>nul
++    if errorlevel 1 (
++        call :LOG "FAIL Sprint !NEW_SPRINT! claude not in PATH"
++        set /a FAIL+=1
++        call :SET_STATE FAIL_COUNT !FAIL!
++        goto :SLEEP_NEXT
++    )
++
++    set "OUT_FILE=scripts\bughunt-last-output-baumgmt.txt"
++    call claude -p "Eternal-Bug-Hunt Sprint !NEW_SPRINT! Topic !TOPIC!. Branch %BRANCH%. Run 3-Sub-Agent triade per docs/bug-hunt/SUB_AGENT_BRIEFINGS.md, append sprint section to docs/bug-hunt/REPORT.md, commit + push to %BRANCH% only. NEVER push main, NEVER merge." --allow-dangerously-skip-permissions --output-format stream-json --verbose > "!OUT_FILE!" 2>&1
++    set "EC=!errorlevel!"
++
++    REM 8) Rate-limit check
++    findstr /I "rate_limit overloaded" "!OUT_FILE!" >nul 2>nul
++    if not errorlevel 1 (
++        call :LOG "RATE LIMIT - cooldown 4h"
++        call :SET_STATE LAST_RATE_LIMIT now
++        timeout /t %COOLDOWN_RATE% /nobreak >nul
++        goto :LOOP
+     )
+-    set "TOPIC=Re-Audit !BASE_TOPIC! (Pass !PASS_NUM!, Fokus: neue Findings seit Pass !PASS_NUM!-1)"
+-  )
+-
+-  REM 7. Master-Prompt bauen aus Template
+-  set "TEMP_PROMPT=%TEMP%\bughunt-prompt-baumgmt-!NEW_SPRINT!.txt"
+-  powershell -NoProfile -Command ^
+-    "(Get-Content '%MASTER_PROMPT_TEMPLATE%') -replace '\{SPRINT_ID\}','!NEW_SPRINT!' -replace '\{TOPIC\}','!TOPIC!' -replace '\{DATE\}','%DATE%' | Set-Content '!TEMP_PROMPT!'"
+-
+-  REM 8. CC-Call (Claude Code via CLI - Sebastian muss Pfad ggf. anpassen)
+-  echo [%DATE% %TIME%] Starting Sprint !NEW_SPRINT!: !TOPIC! >> "%LOG_FILE%"
+-
+-  call claude code --prompt-file "!TEMP_PROMPT!" --no-interactive > "%OUTPUT_FILE%" 2>&1
+-  set "EXIT_CODE=!errorlevel!"
+-
+-  REM 9. Result-Parse
+-  findstr /C:"rate_limit" "%OUTPUT_FILE%" >nul
+-  if !errorlevel!==0 (
+-    echo [%DATE% %TIME%] RATE LIMIT - cooldown 4h >> "%LOG_FILE%"
+-    powershell -NoProfile -Command ^
+-      "(Get-Content '%STATE_FILE%') -replace 'LAST_RATE_LIMIT=.*','LAST_RATE_LIMIT=%DATE% %TIME%' | Set-Content '%STATE_FILE%'"
+-    timeout /t %COOLDOWN_RATE_LIMIT_SEC% /nobreak
++
++    if !EC! EQU 0 (
++        call :LOG "OK Sprint !NEW_SPRINT! complete"
++        call :SET_STATE SPRINT_COUNTER !NEW_SPRINT!
++        call :SET_STATE FAIL_COUNT 0
++        call :SET_STATE LAST_SUCCESS now
++    ) else (
++        set /a FAIL+=1
++        call :LOG "FAIL Sprint !NEW_SPRINT! exit !EC!"
++        call :SET_STATE FAIL_COUNT !FAIL!
++    )
++
++    :SLEEP_NEXT
++    set /a SR=%SLEEP_BETWEEN%
++    :SLEEP_LOOP
++        if exist "%STOP_FLAG_LOCAL%" (
++            call :LOG "STOP during sleep"
++            goto :CLEANUP
++        )
++        timeout /t 60 /nobreak >nul
++        set /a SR-=60
++        if !SR! GTR 0 goto :SLEEP_LOOP
++
+     goto :LOOP
+-  )
+-
+-  if !EXIT_CODE!==0 (
+-    REM Success - State-Update + Reset Fail-Counter
+-    powershell -NoProfile -Command ^
+-      "(Get-Content '%STATE_FILE%') -replace 'SPRINT_COUNTER=.*','SPRINT_COUNTER=!NEW_SPRINT!' -replace 'FAIL_COUNT=.*','FAIL_COUNT=0' -replace 'LAST_SUCCESS=.*','LAST_SUCCESS=%DATE% %TIME%' | Set-Content '%STATE_FILE%'"
+-    echo [%DATE% %TIME%] SUCCESS Sprint !NEW_SPRINT! >> "%LOG_FILE%"
+-  ) else (
+-    REM Failure - increment fail counter
+-    set /a FAIL+=1
+-    powershell -NoProfile -Command ^
+-      "(Get-Content '%STATE_FILE%') -replace 'FAIL_COUNT=.*','FAIL_COUNT=!FAIL!' | Set-Content '%STATE_FILE%'"
+-    echo [%DATE% %TIME%] FAILURE !FAIL!/!MAX_FAIL_COUNT! - Sprint !NEW_SPRINT! exit !EXIT_CODE! >> "%LOG_FILE%"
+-  )
+-
+-  REM 10. Sleep zwischen Sprints (mit Stop-Check-Subloop alle 60s)
+-  set /a SLEEP_REMAIN=%SLEEP_BETWEEN_SPRINTS_SEC%
+-  :SLEEP_LOOP
+-    if exist "%STOP_FLAG_LOCAL%" goto :STOP_NORMAL
+-    timeout /t 60 /nobreak >nul
+-    set /a SLEEP_REMAIN-=60
+-    if !SLEEP_REMAIN! GTR 0 goto :SLEEP_LOOP
+-
+-  goto :LOOP
+-
+-:STOP_NORMAL
+-echo [%DATE% %TIME%] STOPPED via flag (normal) >> "%LOG_FILE%"
+-echo. >> "%REPORT_FILE%"
+-echo --- >> "%REPORT_FILE%"
+-echo STOPPED at %DATE% %TIME% via stop-flag >> "%REPORT_FILE%"
+-goto :CLEANUP
+-
+-:STOP_FAILURE
+-echo [%DATE% %TIME%] STOPPED via failure-cap (%MAX_FAIL_COUNT% consecutive fails) >> "%LOG_FILE%"
+-echo. >> "%REPORT_FILE%"
+-echo --- >> "%REPORT_FILE%"
+-echo HALTED at %DATE% %TIME% - %MAX_FAIL_COUNT% consecutive failures >> "%REPORT_FILE%"
+-goto :CLEANUP
++
++:DRYRUN_BLOCK
++    echo [DRY] Path OK: %CD%
++    if exist "%QUEUE_FILE%" ( echo [DRY] Queue OK ) else ( echo [DRY] MISSING %QUEUE_FILE% )
++    if exist "%STATE_FILE%" ( echo [DRY] State OK ) else ( echo [DRY] MISSING %STATE_FILE% )
++    if exist "%REPORT_FILE%" ( echo [DRY] Report OK ) else ( echo [DRY] MISSING %REPORT_FILE% )
++    if exist "%ANTISLEEP_PS1%" ( echo [DRY] AntiSleep ps1 OK ) else ( echo [DRY] WARN missing %ANTISLEEP_PS1% )
++    where claude >nul 2>nul
++    if errorlevel 1 ( echo [DRY] WARN claude not in PATH ) else ( echo [DRY] claude OK )
++    if exist "%STOP_FLAG_LOCAL%" ( echo [DRY] WARN stop-flag set ) else ( echo [DRY] Stop-flag clear )
++    echo [DRY] Done.
++    exit /b 0
+ 
+ :CLEANUP
+-REM Power-Plan restore
+-if exist "%POWERPLAN_BACKUP_FILE%" (
+-  for /f "tokens=4" %%g in ("%POWERPLAN_BACKUP_FILE%") do powercfg /setactive %%g
+-)
++    call :LOG "=== Hunt stopped ==="
++    for /f "tokens=4" %%G in ('type "%POWERPLAN_BACKUP%" 2^>nul') do powercfg /setactive %%G >nul 2>nul
++    taskkill /FI "WINDOWTITLE eq BUGHUNT-AntiSleep-Baumgmt*" /F >nul 2>nul
++    git add docs/bug-hunt/REPORT.md %LOG_FILE% %STATE_FILE% 2>nul
++    git diff --cached --quiet 2>nul
++    if errorlevel 1 (
++        git commit -m "hunt final state" 2>nul
++        git push origin %BRANCH% 2>nul
++    )
++    exit /b 0
+ 
+-REM Anti-Sleep-Prozess killen
+-taskkill /FI "WINDOWTITLE eq BUGHUNT-AntiSleep-Baumgmt*" /F >nul 2>&1
++:LOG
++    set "_M=%~1"
++    >>"%LOG_FILE%" echo [%DATE% %TIME%] !_M!
++    exit /b 0
+ 
+-REM Final-Push
+-git add docs/bug-hunt/REPORT.md "%LOG_FILE%" "%STATE_FILE%"
+-git commit -m "hunt: stopped at sprint !NEW_SPRINT!" 2>nul
+-git push origin %BRANCH% 2>nul
++:SET_STATE
++    REM Args: KEY VALUE (no equals sign in args!)
++    set "_K=%~1"
++    set "_V=%~2"
++    if exist "%STATE_UPDATE_PS1%" (
++        powershell -NoProfile -ExecutionPolicy Bypass -File "%STATE_UPDATE_PS1%" "%STATE_FILE%" "!_K!" "!_V!" >nul 2>nul
++    )
++    exit /b 0
+ 
+-endlocal
+-exit /b 0
++:PICK_TOPIC
++    REM Arg1: sprint number
++    set "TOPIC="
++    set /a _N=%~1
++    set /a _IDX=0
++    for /f "usebackq tokens=* delims=" %%L in ("%QUEUE_FILE%") do (
++        set "_LN=%%L"
++        if not "!_LN!"=="" if not "!_LN:~0,1!"=="#" (
++            set /a _IDX+=1
++            if !_IDX! EQU !_N! set "TOPIC=!_LN!"
++        )
++    )
++    if "!TOPIC!"=="" if !_IDX! GTR 0 (
++        REM Round 3+: rotate
++        set /a _R=^(!_N!-1^) %% !_IDX! + 1
++        set /a _P=^(!_N!-1^) / !_IDX! + 1
++        set /a _IDX2=0
++        set "_RTOPIC="
++        for /f "usebackq tokens=* delims=" %%L in ("%QUEUE_FILE%") do (
++            set "_LN=%%L"
++            if not "!_LN!"=="" if not "!_LN:~0,1!"=="#" (
++                set /a _IDX2+=1
++                if !_IDX2! EQU !_R! set "_RTOPIC=!_LN!"
++            )
++        )
++        set "TOPIC=Re-Audit !_RTOPIC! Pass !_P!"
++    )
++    exit /b 0
+diff --git a/scripts/bughunt-queue-baumgmt.txt b/scripts/bughunt-queue-baumgmt.txt
+index f7e13fa..3c7a42f 100644
+--- a/scripts/bughunt-queue-baumgmt.txt
++++ b/scripts/bughunt-queue-baumgmt.txt
+@@ -1,37 +1,32 @@
+-# Format: 1 Topic pro Zeile, # = Kommentar
+-# Bat liest sequenziell, Sprint-Counter inkrementiert pro non-comment Zeile
+-# Round wird via Sprint-Counter abgeleitet: 1-15 = R1, 16-25 = R2, 26+ = R3+ (Re-Audit-Mode)
++# Queue: 1 topic per line, # = comment, blank lines ignored
++# Sprint-Counter increments per non-comment line
++# Sprints 1-15 = Round 1, 16-25 = Round 2, 26+ = Round 3+ auto-rotate
+ 
+-# === ROUND 1 — Breitenscan über alle Tabs/Bereiche ===
+-Home/Dashboard — Wetter, KPIs, Live-Updates, Baustellen-Cards
+-Chef-Tab — Auslastung, Sorgenkind-Widget, Trend-Arrows, Next-Week-Preview
+-Arbeitsscheine — List, Detail, Status-Workflow, PDF-Export, Juprowa-Sync
+-Planung — Wochen-Einsatz, MA-Zuweisung, Drag&Drop, Spezialfahrzeug-Übersicht
+-Zeiterfassung — Time-Entry, Kalender, FinkZeit-PDF-Mirror, BWB-Export
+-Urlaub — Berechnung, Status-Filter, Kalender, Anträge, Team-Timeline
+-Monatsabrechnung — Worker-Detail, Freigabe-Workflow, Excel-Export
+-Fahrzeuge — Liste, Pickerl-Tracking, Service, Tankkosten, MTD-KPI
+-Werkzeuge — Liste, Filter-Chips, Bulk-Edit, QR-Scan, Service, Kalibrierung
+-Material — Warenkorb, Lager, KlarPris, DATANORM, Händler-Bestellungen
+-Mitarbeiter — Stammdaten, Rollen, GoTrue-Auth-Linking
+-Auswertungen — Reports, Charts, Filter
+-Einstellungen — User-Prefs, Theme, Notification-Config
+-Büro-Export — BWB-Excel, OFFA-PDF-Import, FinkZeit-Mirror
+-Admin — User-Management, RLS-Roles, Lieferanten-Konfig, IDS/SHK
++# === ROUND 1 - Breitenscan ===
++Home/Dashboard - Wetter, KPIs, Live-Updates, Baustellen-Cards
++Chef-Tab - Auslastung, Sorgenkind-Widget, Trend-Arrows, Next-Week-Preview
++Arbeitsscheine - List, Detail, Status-Workflow, PDF-Export, Juprowa-Sync
++Planung - Wochen-Einsatz, MA-Zuweisung, Drag-Drop, Spezialfahrzeug-Uebersicht
++Zeiterfassung - Time-Entry, Kalender, FinkZeit-PDF-Mirror, BWB-Export
++Urlaub - Berechnung, Status-Filter, Kalender, Antraege, Team-Timeline
++Monatsabrechnung - Worker-Detail, Freigabe-Workflow, Excel-Export
++Fahrzeuge - Liste, Pickerl-Tracking, Service, Tankkosten, MTD-KPI
++Werkzeuge - Liste, Filter-Chips, Bulk-Edit, QR-Scan, Service, Kalibrierung
++Material - Warenkorb, Lager, KlarPris, DATANORM, Haendler-Bestellungen
++Mitarbeiter - Stammdaten, Rollen, GoTrue-Auth-Linking
++Auswertungen - Reports, Charts, Filter
++Einstellungen - User-Prefs, Theme, Notification-Config
++Buero-Export - BWB-Excel, OFFA-PDF-Import, FinkZeit-Mirror
++Admin - User-Management, RLS-Roles, Lieferanten-Konfig, IDS/SHK
+ 
+-# === ROUND 2 — Tiefenbohrung Cross-Component ===
+-Auth-Flow & RLS — Login, Refresh, Silent-Re-Auth, Multi-Session, 401-Recovery
+-Offline-First & SyncQueue — IndexedDB, Heartbeat, Conflict-Resolution, [silent-await]
+-PWA-Lifecycle — Service-Worker, Cache-Bust, Install-Banner, beforeinstallprompt
+-Notifications-System — Subscription, Read/Unread, Eskalation, Cross-Device
+-Plan-Viewer — PDF-Render, Multi-Page, Pin-Place, Versions, Canvas-Lifecycle
+-Photos & Storage — Upload, RLS, Quota, Multi-Camera, EXIF
+-DATANORM-Pipeline — Holter/SHT/Schrack, EP_AUTO_FILTER, CP850, V4/V5
+-Juprowa-Bidirektional — Push-Felder, Konflikt-Schutz, Storno, Encoding
+-QR-Code-System — AS-QR, Werkzeug-QR, Scanner, Deep-Links
+-Mobile/Tablet-Responsive — Tabs, Pills, Touch-Targets, Viewport, Safe-Area
+-
+-# === ROUND 3+ — Auto-Increment Re-Audit (Bat-generiert) ===
+-# Bat liest nach Topic 25 weiter und generiert dynamisch:
+-#   "Re-Audit Topic-{N} (Pass M, Fokus: neue Findings seit Pass M-1)"
+-# wobei N rotiert von 1 bis 25 und M = Round-Pass-Counter
++# === ROUND 2 - Tiefenbohrung ===
++Auth-Flow - Login, Refresh, Silent-Re-Auth, Multi-Session, 401-Recovery
++Offline-First - IndexedDB, Heartbeat, Conflict-Resolution, silent-await
++PWA-Lifecycle - Service-Worker, Cache-Bust, Install-Banner, beforeinstallprompt
++Notifications - Subscription, Read/Unread, Eskalation, Cross-Device
++Plan-Viewer - PDF-Render, Multi-Page, Pin-Place, Versions, Canvas-Lifecycle
++Photos - Upload, RLS, Quota, Multi-Camera, EXIF
++DATANORM-Pipeline - Holter/SHT/Schrack, EP_AUTO_FILTER, CP850, V4/V5
++Juprowa-Bidi - Push-Felder, Konflikt-Schutz, Storno, Encoding
++QR-Code - AS-QR, Werkzeug-QR, Scanner, Deep-Links
++Mobile-Responsive - Tabs, Pills, Touch-Targets, Viewport, Safe-Area
+diff --git a/scripts/bughunt-state-baumgmt.txt b/scripts/bughunt-state-baumgmt.txt
+index d956298..43b2068 100644
+--- a/scripts/bughunt-state-baumgmt.txt
++++ b/scripts/bughunt-state-baumgmt.txt
+@@ -1,6 +1,6 @@
+ SPRINT_COUNTER=0
+ FAIL_COUNT=0
+ LAST_SUCCESS=
+-START_DATE=
++START_DATE=26.04.2026
+ LIFETIME_DAYS=12
+-LAST_RATE_LIMIT=
++LAST_RATE_LIMIT=now
+diff --git a/scripts/powerplan-backup-baumgmt.txt b/scripts/powerplan-backup-baumgmt.txt
+index bf9c7ee..1e20130 100644
+--- a/scripts/powerplan-backup-baumgmt.txt
++++ b/scripts/powerplan-backup-baumgmt.txt
+@@ -1 +1 @@
+-GUID des Energieschemas: a1841308-3541-4fab-bc81-f71556f20b4a  (Energiesparmodus)
++GUID des Energieschemas: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (H�chstleistung)
+\ No newline at end of file
