@@ -1,25 +1,42 @@
 # EPKolar-App — Claude-Code Hinweise
 
-## Repo-Pfad / Environment
+## Repo-Pfade — Arbeitsklon vs. Spiegel (seit 13.07.2026)
 
-**Repo liegt physisch auf:** `\\srvdc02\Projekte\05_Claude\02_Baumanagment & Zeiterfassungs - APP\03_Repos\epkolar-app`
+| Pfad | Rolle |
+|---|---|
+| **`C:\repos\epkolar-app`** | **Arbeitsklon — der einzige.** Alle Edits, Tests, Commits, Pushes laufen hier. |
+| `\\srvdc02\Projekte\…\03_Repos\epkolar-app` (Z:/T:) | **Nur Ablage/Spiegel.** Wird per `git pull origin main` nachgezogen. **Keine Edits, keine Commits, kein Push.** |
 
-**Laufwerksbuchstabe ist pro PC verschieden gemappt:**
-- PC `technik` (Inner-Claude/CC): `Z:`
-- Sebastians Desktop: `T:`
+**Warum:** Das srvdc02-Share ist für git/pytest unbrauchbar langsam. Gemessen am 12.07.2026:
+pytest 2h04 (lokal: 21 min) · `git push` 28–30 min (lokal: Sekunden) · `git commit`/`git status`
+laufen regelmäßig in Minuten-Timeouts, ein gekillter Lauf hinterlässt eine stale
+`.git/index.lock` · dazu ein SMB-Aussetzer mitten im git-Befehl
+(»unable to open object pack directory: Function not implemented«).
 
-> Auf `technik` ist `T:` ein **anderer** Share (`\\srvdc02\Technik`) — NICHT das Repo. Vor `cd T:\…` immer `git rev-parse --show-toplevel`.
+> **Achtung Laufwerksbuchstaben (nur noch für den Spiegel relevant):** auf PC `technik` ist das
+> Repo unter `Z:`, auf Sebastians Desktop unter `T:`. Auf `technik` ist `T:` ein **anderer** Share
+> (`\\srvdc02\Technik`) — NICHT das Repo.
+
+**Stashes leben nur auf dem srvdc02-Spiegel** (`stash@{0}` Flotte-GPS-WIP, `stash@{1}` Sebastian-WIP)
+und bleiben dort unangetastet. Der Flotte-WIP ist zusätzlich als
+`docs/wip/FLOTTE_GPS_WIP_2026-07.patch` versioniert und damit auch im Arbeitsklon vorhanden.
 
 ### Regeln für git / node / npm
 
-- IMMER lokal gemappten Laufwerksbuchstaben verwenden (auf `technik`: `Z:`). NIE den rohen UNC-Pfad `\\srvdc02\…` — CMD/npm haben Bugs damit (»UNC paths are not supported«, neue cmd-shell auf `C:\Windows`).
+- Im Arbeitsklon `C:\repos\epkolar-app` arbeiten. Nie den rohen UNC-Pfad `\\srvdc02\…` als
+  Arbeitsverzeichnis — CMD/npm haben Bugs damit (»UNC paths are not supported«).
 - Edge-Function-Deploys NUR aus `C:\temp\epkfn` (`supabase` CLI verträgt weder UNC noch Netzlaufwerk).
 - Vor jedem Commit verifizieren:
   ```
-  cd /d "Z:\05_Claude\02_Baumanagment & Zeiterfassungs - APP\03_Repos\epkolar-app"
+  cd /d C:\repos\epkolar-app
   git rev-parse --show-toplevel
-  # erwartet: //srvdc02/Projekte/05_Claude/02_Baumanagment & Zeiterfassungs - APP/03_Repos/epkolar-app
+  # erwartet: C:/repos/epkolar-app
   ```
+
+### Tests
+
+Voller Lauf direkt im Arbeitsklon: `python -m pytest tests/ -q` (~21 min, ~1172 Tests).
+Gate ist **voller Lauf grün** — keine fixe Testzahl. Auf dem Share NIE testen.
 
 ## Versionierung — 4 Stellen synchron halten
 
