@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.678 - Flotte Status-Modell (Vorbild FinkZeit): pure Functions _fzStatus/_fzStatusSeit/_fzDauerFmt/_fzSeitFmt im //@FLOTTE-STATUS-Sentinel. Vier Zustaende (faehrt/steht/inaktiv/wartet) statt drei, mit "seit wann" und Dauer (HHH:MM). Liste und Karten-Popup zeigen dieselbe Status-Zeile. Trail laedt jetzt speed+ignition mit, damit "seit" fuer das selektierte Fahrzeug exakt ist statt genaehert.
-const CACHE_NAME = "epkolar-v3.9.678";
+// EP Kolar Service Worker v3.9.679 - Flotte: Fahrt-Segmentierungs-Engine (Fahrtenbuch-Fundament, pure + getestet, KEINE UI). Zuendung ist primaeres Signal (Teltonika FMC003 liefert sie per OBD), speed nur Fallback; Stillstand > stillMin beendet die Fahrt in beiden Pfaden. km immer via Haversine, OEM-Tacho nur als Zusatzinfo (tachoVon/tachoBis).
+const CACHE_NAME = "epkolar-v3.9.679";
 const ASSETS = [
   './',
   './index.html'
