@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.675 - Planung: Zeile mit nur-Bemerkung ist keine Padding-Zeile mehr. Save nutzte _isPaddingRow (bvh+projId+bem+z), der Render aber nur bvh -> solche Zeilen wurden persistiert, aber ohne Aktions-Icons/BVH-Input gerendert = unloeschbare Zombies. Jetzt EINE Leer-Definition (_isPaddingRow) in Desktop-Render und Mobile-Kartenliste.
-const CACHE_NAME = "epkolar-v3.9.675";
+// EP Kolar Service Worker v3.9.676 - Planung-Export: Nur-Bemerkung-Zeilen erscheinen jetzt auch in Excel und PDF (Konsistenz Bildschirm=Export, Sebastian-Entscheid 13.07.). Leere BVH-Zelle bekommt "-", Text bleibt in der Bemerkungs-Spalte. PDF-Spaltenbreiten exakt auf die Excel-Proportionen gezogen. MA-Uebersicht behaelt bewusst den bvh-Filter.
+const CACHE_NAME = "epkolar-v3.9.676";
 const ASSETS = [
   './',
   './index.html'

@@ -74,3 +74,23 @@ def test_render_nutzt_denselben_helper(index_html):
         "Mobile-Kartenliste muss _isPaddingRow nutzen — sonst ist die Nur-Bemerkung-Zeile "
         "mobil unsichtbar und damit wieder unloeschbar"
     )
+
+
+def test_export_nutzt_denselben_helper(index_html):
+    """v3.9.676: Excel- und PDF-Export zeigen dieselben Zeilen wie der Bildschirm.
+
+    Sebastian 13.07.: "Alles was in der Planung ist, muss auch im Excel sein."
+    """
+    assert index_html.count("const activeRows=rows.filter(r=>!_isPaddingRow(r));") == 2, (
+        "Excel-Export (exportXls) und PDF-Export (_wpPrintPlan) muessen beide _isPaddingRow "
+        "nutzen — sonst fehlen Nur-Bemerkung-Zeilen im Export"
+    )
+    # Die MA-Uebersicht (Tabelle + ihr Excel) behaelt den bvh-Filter ABSICHTLICH: sie aggregiert
+    # Mitarbeiter x Tag -> Projekt und nutzt r.bvh als Label/Farb-Key. Eine Zeile ohne BVH und
+    # ohne MA traegt dort nichts bei, wuerde aber leere Chips erzeugen.
+    assert index_html.count('const activeRows=rows.filter(r=>(r.bvh||"").trim());') == 2, (
+        "MA-Uebersicht (Tabelle + Excel) soll weiterhin auf bvh filtern — kein Leer-Chip"
+    )
+    # BVH-Zelle einer Nur-Bemerkung-Zeile bekommt einen Strich statt eines leeren Titels;
+    # der Text steht in der eigenen Bemerkungs-Spalte, nicht doppelt.
+    assert 'bvh:r.bvh||"—"' in index_html, "Excel/PDF: leere BVH-Zelle braucht den Platzhalter —"
