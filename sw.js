@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.676 - Planung-Export: Nur-Bemerkung-Zeilen erscheinen jetzt auch in Excel und PDF (Konsistenz Bildschirm=Export, Sebastian-Entscheid 13.07.). Leere BVH-Zelle bekommt "-", Text bleibt in der Bemerkungs-Spalte. PDF-Spaltenbreiten exakt auf die Excel-Proportionen gezogen. MA-Uebersicht behaelt bewusst den bvh-Filter.
-const CACHE_NAME = "epkolar-v3.9.676";
+// EP Kolar Service Worker v3.9.677 - Flotte: eingefrorener GPS-WIP angewandt (aus docs/wip/FLOTTE_GPS_WIP_2026-07.patch). Null-Island (0/0) + NaN/Infinity-Koordinaten werden verworfen statt Marker/fitBounds zu zerlegen; Follow zentriert nicht mehr auf Muell-Koordinaten; Leer-Banner nennt jetzt die richtige View (fz_latest / GPS_LATEST_v1.sql).
+const CACHE_NAME = "epkolar-v3.9.677";
 const ASSETS = [
   './',
   './index.html'
