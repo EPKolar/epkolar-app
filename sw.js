@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.677 - Flotte: eingefrorener GPS-WIP angewandt (aus docs/wip/FLOTTE_GPS_WIP_2026-07.patch). Null-Island (0/0) + NaN/Infinity-Koordinaten werden verworfen statt Marker/fitBounds zu zerlegen; Follow zentriert nicht mehr auf Muell-Koordinaten; Leer-Banner nennt jetzt die richtige View (fz_latest / GPS_LATEST_v1.sql).
-const CACHE_NAME = "epkolar-v3.9.677";
+// EP Kolar Service Worker v3.9.678 - Flotte Status-Modell (Vorbild FinkZeit): pure Functions _fzStatus/_fzStatusSeit/_fzDauerFmt/_fzSeitFmt im //@FLOTTE-STATUS-Sentinel. Vier Zustaende (faehrt/steht/inaktiv/wartet) statt drei, mit "seit wann" und Dauer (HHH:MM). Liste und Karten-Popup zeigen dieselbe Status-Zeile. Trail laedt jetzt speed+ignition mit, damit "seit" fuer das selektierte Fahrzeug exakt ist statt genaehert.
+const CACHE_NAME = "epkolar-v3.9.678";
 const ASSETS = [
   './',
   './index.html'

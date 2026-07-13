@@ -19,7 +19,9 @@ def test_trail_state(index_html):
 
 def test_clear_trail(index_html):
     assert "var _clearTrail=function(){" in index_html
-    assert "setTrailFid(null);};" in index_html
+    # v3.9.678: raeumt zusaetzlich das exakte "Status seit" weg — sonst zeigte die Liste
+    # weiter den Zustandsbeginn aus einer Historie, die gar nicht mehr angezeigt wird.
+    assert "setTrailFid(null);setTrailSeit(null);};" in index_html
 
 
 def test_fit_all(index_html):

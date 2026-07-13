@@ -18,7 +18,12 @@ def test_markers_from_view(index_html):
 
 def test_track_fetcher(index_html):
     assert "async function _flotteFetchTrack(fid){" in index_html
-    assert '"/fz_positions?select=lat,lon,ts&fahrzeug_id=eq."+encodeURIComponent(fid)+"&order=ts.desc&limit=500"' in index_html
+    # v3.9.678: speed+ignition kommen mit — _fzStatusSeit braucht sie, um den fahren/stehen-
+    # Wechsel in der Historie zu finden. Ohne sie waere jeder Punkt "steht".
+    assert (
+        '"/fz_positions?select=lat,lon,ts,speed,ignition&fahrzeug_id=eq."'
+        '+encodeURIComponent(fid)+"&order=ts.desc&limit=500"'
+    ) in index_html
 
 
 def test_refs(index_html):

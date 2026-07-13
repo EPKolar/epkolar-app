@@ -16,12 +16,15 @@ def test_klick_fokus_setview(index_html):
 
 
 def test_status_klassifizierung(index_html):
-    # wartet (keine Position) / inaktiv (>24h) / aktiv
-    assert "var status=!p?'wartet':(_flotteInactive(tsMs,_now2)?'inaktiv':'aktiv')" in index_html
+    # v3.9.678: die Inline-Ableitung ('wartet'|'inaktiv'|'aktiv') ist durch das pure
+    # Status-Modell ersetzt — vier Zustaende (faehrt/steht/inaktiv/wartet) aus _fzStatus.
+    # Die Klassifikation selbst ist jetzt in test_flotte_status_v3678.py getestet.
+    assert "var stat=_fzStatus(p,_now2,seitExakt);" in index_html
+    assert "status:stat.code,seit:stat.seit,dauerMin:stat.dauerMin" in index_html
 
 
 def test_status_summary(index_html):
-    assert "_nAkt+' aktiv · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
+    assert "_nAkt+' fährt · '+_nSteht+' steht · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
 
 
 def test_toggle_button(index_html):
