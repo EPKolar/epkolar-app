@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.674 - Planung Abwesenheits-Overlay: nur noch GENEHMIGTE Abwesenheiten (gemeinsamer Helper _absShow fuer Streifen/Excel/PDF; vorher matchten alle drei nur auf type und zeigten auch abgelehnte Tage). Kiosk-Screen wird serverseitig via kiosk_week_absences gefiltert (sql/KIOSK_ABS_STATUS_v1.sql).
-const CACHE_NAME = "epkolar-v3.9.674";
+// EP Kolar Service Worker v3.9.675 - Planung: Zeile mit nur-Bemerkung ist keine Padding-Zeile mehr. Save nutzte _isPaddingRow (bvh+projId+bem+z), der Render aber nur bvh -> solche Zeilen wurden persistiert, aber ohne Aktions-Icons/BVH-Input gerendert = unloeschbare Zombies. Jetzt EINE Leer-Definition (_isPaddingRow) in Desktop-Render und Mobile-Kartenliste.
+const CACHE_NAME = "epkolar-v3.9.675";
 const ASSETS = [
   './',
   './index.html'
