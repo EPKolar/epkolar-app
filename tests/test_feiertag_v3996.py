@@ -6,28 +6,21 @@ jedes Jahr korrekt) → stdVonTag liefert 0 an Feiertagen.
 """
 import re
 import json
-from conftest import run_node_snippet
+from conftest import run_node_snippet, _extract_fn
 
-
-def _extract_fn(src, name):
-    sig = "function " + name + "("
-    start = src.index(sig)
-    i = src.index("{", start)
-    depth = 0
-    while i < len(src):
-        c = src[i]
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return src[start:i + 1]
-        i += 1
-    raise AssertionError(name + " not found")
+# Der lokale _extract_fn-Klon ist entfernt (13.07.2026): sein Brace-Zaehler nahm die erste
+# `{` nach dem Funktionsnamen als Body-Start und griff damit bei destrukturierten Parametern
+# (function X({a,b}){...}) die Parameterliste statt des Rumpfs. Hier war das folgenlos, weil
+# _easterSunday/_isATFeiertag normale Parameter haben — aber latent kaputt. Master ist der
+# gefixte Extraktor in conftest.py (Commit 6f3f12b).
 
 
 def _holiday_harness(index_html):
-    return _extract_fn(index_html, "_easterSunday") + "\n" + _extract_fn(index_html, "_isATFeiertag") + "\n"
+    easter = _extract_fn(index_html, "_easterSunday")
+    feiertag = _extract_fn(index_html, "_isATFeiertag")
+    assert easter, "_easterSunday nicht gefunden"
+    assert feiertag, "_isATFeiertag nicht gefunden"
+    return easter + "\n" + feiertag + "\n"
 
 
 def test_easter_helper_present(index_html):

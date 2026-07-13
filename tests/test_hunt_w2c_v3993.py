@@ -1,28 +1,18 @@
 """v3.9.112 — Bug-Hunt Welle 2c: Übernacht-von/bis + Logout-Token-Fenster."""
 import re
 import json
-from conftest import run_node_snippet
+from conftest import run_node_snippet, _extract_fn
 
-
-def _extract_fn(src, name):
-    sig = "function " + name + "("
-    start = src.index(sig)
-    i = src.index("{", start)
-    depth = 0
-    while i < len(src):
-        c = src[i]
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return src[start:i + 1]
-        i += 1
-    raise AssertionError(name + " not found")
+# Der lokale _extract_fn-Klon ist entfernt (13.07.2026): sein Brace-Zaehler nahm die erste
+# `{` nach dem Funktionsnamen als Body-Start und griff damit bei destrukturierten Parametern
+# (function X({a,b}){...}) die Parameterliste statt des Rumpfs. Hier war das folgenlos, weil
+# _wrapHrs/_sbAuthLogout normale Parameter haben — aber latent kaputt. Master ist der
+# gefixte Extraktor in conftest.py (Commit 6f3f12b).
 
 
 def test_wraphrs_behavior(node_exe, index_html):
     fn = _extract_fn(index_html, "_wrapHrs")
+    assert fn, "_wrapHrs nicht gefunden"
     snippet = fn + (
         "process.stdout.write(JSON.stringify(["
         "_wrapHrs('08:00','16:30'),"   # same-day 8.5h
@@ -43,6 +33,7 @@ def test_wraphrs_used_six_times(index_html):
 
 def test_logout_nulls_token_before_fetch(index_html):
     body = _extract_fn(index_html, "_sbAuthLogout")
+    assert body, "_sbAuthLogout nicht gefunden"
     # Token wird in _tok gekapselt und _authToken SOFORT genullt, DANN fetch mit _tok.
     i_capture = body.index("const _tok=_authToken;_authToken=null")
     i_fetch = body.index('fetch(_SB_AUTH+"/logout"')

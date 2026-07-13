@@ -7,6 +7,12 @@ import pytest
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# Master fuer alle Subprocess-Timeouts der Suite (Node-Snippets, Bracket-Guard).
+# Hart kodierte Limits sterben, sobald die I/O langsam ist (Netzlaufwerk, kalte Caches)
+# und liefern dann leeren stdout = Fail, obwohl der Code stimmt. Ueberschreibbar via
+# EPK_TEST_TIMEOUT. Kein zweites Env-Lesen woanders — von hier importieren.
+EPK_TEST_TIMEOUT = int(os.environ.get("EPK_TEST_TIMEOUT", "120"))
+
 NODE_CANDIDATES = [
     r"C:\Program Files\nodejs\node.exe",
     r"C:\Program Files\nodejs\node.cmd",
@@ -156,7 +162,7 @@ def run_node_snippet(node_exe, snippet):
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=10,
+        timeout=EPK_TEST_TIMEOUT,
     )
     if result.returncode != 0:
         raise RuntimeError(f"node failed: {result.stderr}")

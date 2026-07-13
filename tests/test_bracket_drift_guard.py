@@ -1,17 +1,17 @@
 """v3.9.14+: Bracket-Drift-Guard — verhindert silent worsening von index.html bracket-balance."""
-import os
 import subprocess
 import sys
 from pathlib import Path
+
+from conftest import EPK_TEST_TIMEOUT
 
 REPO = Path(__file__).parent.parent
 SCRIPT = REPO / 'scripts' / '_bracket_check.py'
 INDEX = REPO / 'index.html'
 
-# Liegt das Repo auf einem SMB-Share, braucht der Subprocess fuer die 2,7-MB-index.html
-# deutlich laenger als 30s — dann stirbt er im Timeout und liefert leeren stdout (= Fail,
-# obwohl die Balance stimmt). Guard bleibt scharf, nur das Limit ist realistisch.
-TIMEOUT = int(os.environ.get('EPK_TEST_TIMEOUT', '120'))
+# Timeout kommt aus conftest (Master). Ein hartes Limit stirbt bei langsamer I/O und
+# liefert dann leeren stdout = Fail, obwohl die Balance stimmt.
+TIMEOUT = EPK_TEST_TIMEOUT
 
 
 def test_bracket_drift_within_baseline():
