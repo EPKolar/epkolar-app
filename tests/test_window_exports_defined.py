@@ -53,6 +53,44 @@ def test_alle_window_exporte_zeigen_auf_existierende_symbole(index_html):
     )
 
 
+def _finde_kaputte_exporte(quelltext):
+    """Die Pruef-Logik, isoliert — damit sie selbst testbar ist."""
+    return [
+        f"window.{name} = {symbol}"
+        for name, symbol in _EXPORT.findall(quelltext)
+        if not _deklariert(quelltext, symbol)
+    ]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SELBSTTEST DES WAECHTERS
+# Ein Waechter, der nie bewiesen hat, dass er anschlaegt, ist eine Beruhigungspille.
+# Die beiden Faelle unten sind der Crash vom 14.07. in Miniaturform.
+# ══════════════════════════════════════════════════════════════════════════════
+def test_waechter_schlaegt_bei_der_kaputten_zeile_an():
+    """Der echte Crash: _stUuid wurde geloescht, der Export blieb stehen."""
+    kaputt = """
+    function _stTagNetto(a){return a;}
+    function _stErrKind(e){return 'net';}
+    if(typeof window!=='undefined'){window._stTagNetto=_stTagNetto;window._stUuid=_stUuid;window._stErrKind=_stErrKind;}
+    """
+    treffer = _finde_kaputte_exporte(kaputt)
+    assert treffer == ["window._stUuid = _stUuid"], (
+        "Der Waechter haette den echten Boot-Crash vom 14.07. NICHT gefangen. "
+        f"Gefunden: {treffer}"
+    )
+
+
+def test_waechter_schweigt_bei_gesunder_zeile():
+    """Gegenprobe — sonst waere ein Waechter, der immer schreit, genauso wertlos."""
+    gesund = """
+    function _stTagNetto(a){return a;}
+    function _stErrKind(e){return 'net';}
+    if(typeof window!=='undefined'){window._stTagNetto=_stTagNetto;window._stErrKind=_stErrKind;}
+    """
+    assert _finde_kaputte_exporte(gesund) == []
+
+
 def test_stuuid_ist_und_bleibt_weg(index_html):
     """Die konkrete Regression: _stUuid wurde entfernt, das globale _uuid ist die Quelle.
 
