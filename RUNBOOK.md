@@ -221,7 +221,18 @@ git push --force-with-lease         # NUR wenn wirklich nötig, R2 warnt davor
 
 ---
 
-## 10 · Secrets-Handling
+## 10 · Inbetriebnahme-Doku (Setup Guides)
+
+- **Stempeluhr-Kiosk** (`?screen=stempel`): `docs/SETUP_STEMPELUHR.md` —
+  Hardware-Setup, Rundungs-/Pausenregeln, Inbetriebnahme-Checkliste,
+  Troubleshooting.
+- **Traccar/GPS-Flotte**: `docs/SETUP_TRACCAR.md` — Ausgangszustand,
+  Tracker-Konfiguration (Teltonika On-Moving-Profil), App-Poll,
+  `gps_ingest`-Lücke, Retention.
+
+---
+
+## 11 · Secrets-Handling
 
 - **SUPABASE_KEY** (anon key, in `index.html` L334): public JWT, okay im Client, da Row-Level-Security schützt.
 - **SUPABASE_DB_URL** (Pooler-Connect-String mit Passwort): NUR in `.env` lokal, nie committen (`.gitignore` blocked).

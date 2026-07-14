@@ -1,0 +1,72 @@
+-- ═══════════════════════════════════════════════════════════════════
+-- GPS_RETENTION_v1.sql — Retention fuer fz_positions (GPS-Rohpunkte), 12 Monate
+-- NUR VORBEREITUNG — NICHTS in dieser Datei wird durch den blossen Run scharf
+-- geschaltet. Kein automatischer Job, keine Aenderung an Tabellen/Policies.
+-- HUMAN-RUN-GATE. Ausfuehren (falls/wenn ueberhaupt) im Supabase SQL-Editor
+-- (Projekt jiggujpruejkaomgxarp).
+--
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │ fz_fahrten BLEIBT UNBERUEHRT.                                     │
+-- │ Diese Datei kappt AUSSCHLIESSLICH die Rohpunkte in fz_positions.  │
+-- │ Die aggregierten Fahrten in fz_fahrten (sql/FZ_FAHRTEN_v1.sql)    │
+-- │ sind die Langzeit-Wahrheit — Fahrtenbuch und Auswertung (Phase    │
+-- │ F2/F4) lesen NUR aus fz_fahrten, nie aus fz_positions direkt.     │
+-- │ Segmentierung (_fzSegmente) laeuft NAH AN ECHTZEIT auf frischen   │
+-- │ Rohpunkten; einmal zu fz_fahrten verdichtete Fahrten brauchen die │
+-- │ Rohpunkte danach nicht mehr. Retention auf fz_positions ist damit │
+-- │ unkritisch fuer Fahrtenbuch/Auswertung.                           │
+-- └─────────────────────────────────────────────────────────────────┘
+--
+-- STATUS 14.07.2026: fz_positions ist AKTUELL LEER. Die 13 Tracker
+-- (12x Teltonika FMC003 + 1x FMC130, siehe sql/FZ_TRACKER_v1.sql) sind
+-- NICHT bestellt (Stand Handoff 14.07.2026), Traccar/gps_ingest fehlen noch. Diese Datei
+-- ist reine VORSORGE, damit die Retention steht, sobald Rohdaten fliessen
+-- — kein akutes Problem, keine Eile.
+-- ═══════════════════════════════════════════════════════════════════
+
+-- ── 1) Manueller Loesch-Lauf (dokumentiert, NICHT Teil des Datei-Runs) ─────
+-- Bewusst auskommentiert. Bei Bedarf einzeln markieren + im SQL-Editor
+-- ausfuehren. loescht Rohpunkte aelter als 12 Monate; fz_fahrten ist davon
+-- nicht betroffen (siehe Kasten oben).
+--
+-- DELETE FROM public.fz_positions WHERE ts < now() - interval '12 months';
+--
+-- Vorher zur Kontrolle (read-only, gefahrlos):
+-- SELECT count(*) FROM public.fz_positions WHERE ts < now() - interval '12 months';
+
+-- ── 2) pg_cron-Job (auskommentiert — NICHT scharf schalten) ───────────────
+-- pg_cron ist in Supabase eine Extension, die ERST aktiviert werden muss
+-- (Dashboard → Database → Extensions → "pg_cron" einschalten; legt das
+-- Schema "cron" an). Ohne aktivierte Extension schlaegt cron.schedule(...)
+-- mit "schema cron does not exist" fehl.
+--
+-- Empfohlener Rhythmus: monatlich, Nacht/Wochenende (hier: 1. jeden Monats,
+-- 03:00 Server-Zeit). Job-Name eindeutig, damit ein erneutes SELECT
+-- cron.schedule(...) mit gleichem Namen den bestehenden Job ersetzt statt
+-- zu duplizieren (pg_cron-Verhalten: gleicher jobname = Replace).
+--
+-- SELECT cron.schedule(
+--   'fz_positions_retention_12m',
+--   '0 3 1 * *',
+--   $$DELETE FROM public.fz_positions WHERE ts < now() - interval '12 months';$$
+-- );
+--
+-- Job wieder entfernen:
+-- SELECT cron.unschedule('fz_positions_retention_12m');
+--
+-- Laufende Jobs pruefen:
+-- SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname = 'fz_positions_retention_12m';
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Diese Datei hat AKTUELL KEIN einziges ausfuehrendes Statement — alles
+-- oben ist auskommentiert (Loesch-Lauf) oder dokumentierter, ebenfalls
+-- auskommentierter Cron-Vorschlag. Ein Run dieser Datei im jetzigen Zustand
+-- veraendert NICHTS an der DB. Aktivierung (Loeschung ODER Cron-Job) ist
+-- eine bewusste, separate Sebastian-Entscheidung, sobald fz_positions
+-- tatsaechlich Daten traegt und 12 Monate zurueckliegt.
+-- ═══════════════════════════════════════════════════════════════════
+
+-- ── Verifikation / Monitoring (read-only, jederzeit gefahrlos) ────────────
+-- SELECT count(*) FROM public.fz_positions;                              -- erwartet: 0 (Stand 14.07.2026)
+-- SELECT min(ts), max(ts) FROM public.fz_positions;                      -- sobald Daten da sind: Spannweite pruefen
+-- SELECT count(*) FROM public.fz_fahrten;                                -- unveraendert von dieser Datei

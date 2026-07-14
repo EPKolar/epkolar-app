@@ -23,6 +23,24 @@ wurde in `../_archiv/sql/` verschoben (v3.8.24, 23.04.2026).
 
 - `RLS_SNAPSHOT_v3.8.sql` — Query für Soll/Ist-Vergleich der RLS-Policies
 
+## Human-Run-Gate — offen/manuell (14.07.2026)
+
+- `STEMPEL_TERMINAL_v1.sql` — **offen.** Eigene Kiosk-Rolle `stempel_terminal`
+  für die Stempeluhr (analog `lager_display`): RPC `stempel_terminal_workers()`
+  (minimale Felder id/name/role/nfc_uid), SELECT+INSERT (kein UPDATE/DELETE)
+  auf `stempel_log`, SELECT auf `system_config` Key `stempel_pause_rules`.
+  Kein `auth.users`-Write (Auth-User legt Sebastian im Dashboard an, siehe
+  Kommentarblock in der Datei). Zusätzlich nötig, aber NICHT Teil dieser
+  SQL-Datei: App-Gate `?screen=stempel` (index.html ~Z.7376) um die neue
+  Rolle erweitern + StempelTafel auf die RPC umstellen.
+- `GPS_RETENTION_v1.sql` — **offen/manuell, nicht scharf geschaltet.** 12-Monats-
+  Retention für `fz_positions` (GPS-Rohpunkte). `fz_fahrten` bleibt unberührt
+  (Fahrtenbuch/Auswertung hängen an den aggregierten Fahrten, nicht an den
+  Rohpunkten). Enthält nur auskommentierten DELETE-Einzeiler + auskommentierten
+  pg_cron-Vorschlag (Extension muss vor Aktivierung erst eingeschaltet werden).
+  `fz_positions` ist Stand 14.07.2026 leer (Tracker NICHT bestellt, keine Daten)
+  — reine Vorsorge, kein akuter Handlungsbedarf.
+
 ## Feature-12 WhatsApp (nicht deployed)
 
 - `WHATSAPP_SCHEMA_v3.8.sql` — 2 Tabellen + RLS + Indizes

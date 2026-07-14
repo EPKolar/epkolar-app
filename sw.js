@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.690 - Flotte im Fink-Layout: EIN Frame, drei Panels (Fahrzeugliste | Karte | Fahrtenbuch), kein Overlay, kein Toggle, App-Theme. Fahrtenbuch fahrzeuguebergreifend ("alle" in EINEM Request), Zeitraumfilter mit Presets, Summenzeile, Fink-Spalten, Excel- und PDF-Export, Tabs fuer Tageskilometer/Geschwindigkeit. Fahrt anklicken zeichnet sie durchgezogen auf der Karte, mit Start-/Ende-Marker und fitBounds.
-const CACHE_NAME = "epkolar-v3.9.690";
+// EP Kolar Service Worker v3.9.693 - Stempeluhr Teil F+G: NFC-Chip-Zuordnung im Mitarbeiter-Formular (Buero-Reader, Kollisionscheck, 23505-Abfang, Chip entfernen) und eigene Terminal-UI am Wandpanel mit Urlaubs-/ZA-Antrag per Chip-Identifikation (4 Schritte, status=beantragt, ein Datensatz je Werktag, 30s-Timeout, keine Salden am Panel).
+const CACHE_NAME = "epkolar-v3.9.693";
 const ASSETS = [
   './',
   './index.html'
