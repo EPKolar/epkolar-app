@@ -137,8 +137,42 @@ gelöscht: kein Fehler, kein Rollback, keine Warnung. Die anderen vier stammen a
 Rekonstruktion und sind bis zur Messung **unverifiziert** — darunter `guard_users_privilege`, der
 Schutz gegen Rechte-Eskalation.
 
-`sql/VERIFY_TRIGGER_BODIES_v1.sql` misst alle fünf auf einmal gegen die DB (read-only, gefahrlos).
+`sql/VERIFY_TRIGGER_BODIES_v2.sql` misst alle fünf auf einmal gegen die DB (read-only, gefahrlos).
 **Vor jedem Eingriff ausführen.**
+
+### Jede Mess-Query trägt einen Kontrollwert. Ohne getroffenen Kontrollwert ist der Lauf ungültig.
+
+Eine Messung, deren Ergebnis „plausibel aussieht", ist kein Beweis — sie ist eine Vermutung mit
+Nachkommastellen. **Jede Mess-Query braucht einen Wert, dessen Soll man unabhängig kennt.**
+
+Am 14.07.2026 hat genau das den Fehler gefangen: Die Verify-Query lieferte für
+`guard_urlaub_edit` ein Delta von **879** statt der erwarteten **~793**. Das Ergebnis der Query sah
+für sich genommen völlig glaubwürdig aus („alle fünf Trigger weichen ab") — **nur der verfehlte
+Kontrollwert verriet, dass die Messung selbst kaputt war.** Ohne ihn hätten wir vier Trigger
+„saniert", die nie ein Problem hatten.
+
+### Muster: Cross-Engine-Normalisierung (die Falle dahinter)
+
+> **Niemals zwei Werte vergleichen, die von zwei verschiedenen Engines normalisiert wurden.**
+
+Die kaputte Query verglich die **live-Seite (von Postgres normalisiert)** gegen die **repo-Seite
+(von Python normalisiert)**. Beide benutzten `\s+` — aber `\s` bedeutet nicht dasselbe:
+
+| Engine | `\s` matcht |
+|---|---|
+| Python | ASCII-Whitespace **und Unicode-Whitespace** (U+00A0 usw.) |
+| Postgres | `[[:space:]]` — **nur ASCII** |
+
+Enthält der Text ein geschütztes Leerzeichen, kollabiert Python es mit, Postgres nicht. **Gleicher
+Text, andere Länge, anderer MD5.** Lokal reproduziert: derselbe 8-Zeilen-Body ergibt 120 Zeichen
+(Python) vs. 132 (Postgres).
+
+**Und das ist hier kein Laborfall:** Die Trigger wurden per **Copy-Paste aus dem Chat** in den
+SQL-Editor deployed — genau dabei entstehen unsichtbare Unicode-Leerzeichen in der Einrückung.
+
+**Regel:** Beide Seiten eines Vergleichs durch **dieselbe** Engine schicken. Geht das nicht,
+die Zeichenklasse **explizit** ausschreiben (`[ \t\n\r\f\v]`) statt `\s` zu vertrauen — und im
+Zweifel vorher zählen, ob überhaupt Nicht-ASCII-Whitespace im Text steckt.
 
 ### `sql/` im main-Checkout ist eine geladene Waffe
 

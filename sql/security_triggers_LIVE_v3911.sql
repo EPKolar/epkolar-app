@@ -36,7 +36,19 @@
 -- ║      guard_projects          (Projekt-Schutz)                           ║
 -- ║  Sie sind ALLE als unverifiziert zu behandeln, bis gemessen.            ║
 -- ║                                                                        ║
--- ║  → sql/VERIFY_TRIGGER_BODIES_v1.sql misst alle fünf auf einmal gegen    ║
+-- ║  ── PRÄZISIERUNG 14.07. spät ──────────────────────────────────────     ║
+-- ║  Die erste Verify-Query (v1) hat FALSCH gemessen: sie verglich eine     ║
+-- ║  von Postgres normalisierte Live-Seite gegen eine von Python            ║
+-- ║  normalisierte Repo-Seite — zwei Engines, zwei Definitionen von \s.     ║
+-- ║  Ihre Aussage „alle fünf weichen ab" ist damit UNBEWIESEN und kann      ║
+-- ║  ein reines Messartefakt sein (unsichtbare Unicode-Leerzeichen aus      ║
+-- ║  dem Copy-Paste-Deploy). → sql/VERIFY_TRIGGER_BODIES_v2.sql klärt das.  ║
+-- ║                                                                        ║
+-- ║  UNBERÜHRT davon bleibt der Kernbefund: 1746 gegen 953 sind ~800        ║
+-- ║  Zeichen Unterschied. Whitespace-Artefakte erklären davon höchstens     ║
+-- ║  ~86. Der Rest ist ECHTE LOGIK, die in dieser Datei fehlt.              ║
+-- ║                                                                        ║
+-- ║  → sql/VERIFY_TRIGGER_BODIES_v2.sql misst alle fünf auf einmal gegen    ║
 -- ║    die DB (read-only, gefahrlos, ändert nichts). Ausführen, bevor       ║
 -- ║    irgendjemand irgendeinen dieser Trigger anfasst.                     ║
 -- ║                                                                        ║
