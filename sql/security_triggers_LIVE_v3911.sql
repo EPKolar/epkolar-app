@@ -24,6 +24,22 @@
 -- ║       and proname='guard_urlaub_edit';                                  ║
 -- ║  Gesicherter Live-Body: docs/wip/guard_urlaub_edit_LIVE_2026-07-14.sql  ║
 -- ║                                                                        ║
+-- ║                                                                        ║
+-- ║  ⚠️ UND DAS BETRIFFT NICHT NUR guard_urlaub_edit.                       ║
+-- ║  Diese Datei rekonstruiert FÜNF Trigger. Gemessen wurde bisher genau    ║
+-- ║  EINER — und der war 800 Zeichen zu kurz. Gleiche Datei, gleicher       ║
+-- ║  Rekonstruktionsvorgang, gleicher Tag. Es gibt keinen Grund            ║
+-- ║  anzunehmen, dass ausgerechnet die anderen vier vollständig sind:       ║
+-- ║      guard_kontingent        (Urlaubskontingent-Schutz)                 ║
+-- ║      guard_users_privilege   (Schutz gegen Rechte-Eskalation!)          ║
+-- ║      guard_admin_only        (Admin-Gate)                               ║
+-- ║      guard_projects          (Projekt-Schutz)                           ║
+-- ║  Sie sind ALLE als unverifiziert zu behandeln, bis gemessen.            ║
+-- ║                                                                        ║
+-- ║  → sql/VERIFY_TRIGGER_BODIES_v1.sql misst alle fünf auf einmal gegen    ║
+-- ║    die DB (read-only, gefahrlos, ändert nichts). Ausführen, bevor       ║
+-- ║    irgendjemand irgendeinen dieser Trigger anfasst.                     ║
+-- ║                                                                        ║
 -- ║  Diese Datei bleibt als HISTORIE liegen — sie wird nicht gelöscht,      ║
 -- ║  aber sie ist keine Wahrheit.                                           ║
 -- ╚════════════════════════════════════════════════════════════════════════╝
