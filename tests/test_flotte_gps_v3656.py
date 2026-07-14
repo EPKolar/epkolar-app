@@ -6,7 +6,10 @@ Fahrer-Name je Fahrzeug (aus fahrzeuge.fahrer -> Monteur), angereichertes Popup
 
 
 def test_monteure_prop(index_html):
-    assert "React.createElement(FlotteView, { fahrzeuge: fahrzeuge, monteure: monteure, ww: ww, curUser: curUser}" in index_html
+    # v3.9.681: projects kam dazu (Projekt-Zuordnung im Fahrtenbuch). Assertion nicht mehr auf
+    # die komplette Props-Liste im Wortlaut — sie bricht sonst bei jedem neuen Prop, ohne dass
+    # sich am geprueften Verhalten etwas aendert.
+    assert "React.createElement(FlotteView, { fahrzeuge: fahrzeuge, monteure: monteure, ww: ww, curUser: curUser" in index_html
     assert "const monteure=props.monteure||[];" in index_html
 
 

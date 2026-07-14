@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.680 - Fahrzeug-Detailkarte Mobile: Barcode raus aus der Kopfzeile. Als drittes Flex-Kind neben Kennzeichen und km-Stand quetschte er beides zusammen und ragte an den Rand; jetzt eigene zentrierte Zeile unter dem Kopf, auf Kartenbreite skaliert (viewBox + inline style schlaegt die festen width/height-Attribute). Desktop unveraendert.
-const CACHE_NAME = "epkolar-v3.9.680";
+// EP Kolar Service Worker v3.9.682 - Zeiterfassung: Sonntag nur bei vorhandenen Eintraegen sichtbar (Optik Mo-Sa; das Grid ist repeat(6,1fr), der 7. Tag brach als einsame zweite Zeile um). Reine Anzeige-Regel wie exportWochenStz v3.9.661 - DAYS bleibt 7-taegig, ein Sonntag MIT Eintraegen bleibt immer sichtbar (v3.9.546-Schutz), die Wochensumme zaehlt ihn immer mit.
+const CACHE_NAME = "epkolar-v3.9.682";
 const ASSETS = [
   './',
   './index.html'
