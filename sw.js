@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.679 - Flotte: Fahrt-Segmentierungs-Engine (Fahrtenbuch-Fundament, pure + getestet, KEINE UI). Zuendung ist primaeres Signal (Teltonika FMC003 liefert sie per OBD), speed nur Fallback; Stillstand > stillMin beendet die Fahrt in beiden Pfaden. km immer via Haversine, OEM-Tacho nur als Zusatzinfo (tachoVon/tachoBis).
-const CACHE_NAME = "epkolar-v3.9.679";
+// EP Kolar Service Worker v3.9.680 - Fahrzeug-Detailkarte Mobile: Barcode raus aus der Kopfzeile. Als drittes Flex-Kind neben Kennzeichen und km-Stand quetschte er beides zusammen und ragte an den Rand; jetzt eigene zentrierte Zeile unter dem Kopf, auf Kartenbreite skaliert (viewBox + inline style schlaegt die festen width/height-Attribute). Desktop unveraendert.
+const CACHE_NAME = "epkolar-v3.9.680";
 const ASSETS = [
   './',
   './index.html'
