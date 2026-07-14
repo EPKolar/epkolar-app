@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.687 - Flotte Phase F4 (Abschluss): Auswertung im Fahrtenbuch (Tageskilometer als Balken, Geschwindigkeitsverlauf je einzelner Fahrt als Linie) + Filtersuche und Favoriten in der Fahrzeugliste. Gezeichnet mit der bestehenden SVG-Engine, keine neue Bibliothek. Damit sind F1-F4 komplett; es fehlen nur noch echte Tracker-Daten.
-const CACHE_NAME = "epkolar-v3.9.687";
+// EP Kolar Service Worker v3.9.688 - LOHNRELEVANT: 5-Minuten-Raster fuer die manuelle Zeiterfassung. von (Kommen) AUF, bis (Gehen) AB - Betriebsregel Sebastian 14.07.2026, bewusst zulasten der Monteure. Sichtbare Normalisierung beim Verlassen des Feldes (WYSIWYG) plus defensive Rundung im Save; gespeichert werden die gerundeten Zeiten. Gilt fuer VZeit und ZeiterfassungView. Timer: Start AUF, Stopp AB; Lauf unter 5 Minuten wird verworfen statt als 0h gebucht. NICHT rueckwirkend. Stempeluhr unangetastet.
+const CACHE_NAME = "epkolar-v3.9.688";
 const ASSETS = [
   './',
   './index.html'

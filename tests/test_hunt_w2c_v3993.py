@@ -26,8 +26,13 @@ def test_wraphrs_behavior(node_exe, index_html):
 
 
 def test_wraphrs_used_six_times(index_html):
-    # 1 Definition + 6 Call-Sites = 7 Vorkommen von "_wrapHrs("
-    assert index_html.count("_wrapHrs(") == 7, "alle 6 von/bis-Stunden-Berechnungen müssen _wrapHrs nutzen"
+    # 1 Definition + 12 Call-Sites = 13 Vorkommen von "_wrapHrs(".
+    #
+    # v3.9.688 (5-Minuten-Raster) hat je Erfassungskomponente (VZeit, ZeiterfassungView) drei
+    # Call-Sites ergaenzt: das onBlur von "Von", das onBlur von "Bis" und die defensive
+    # Neuberechnung im Save-Handler. Sinn des Guards bleibt: JEDE von/bis-Stundenberechnung
+    # laeuft ueber _wrapHrs — nie ueber eine Inline-Rechnung, die den Uebernacht-Fall verliert.
+    assert index_html.count("_wrapHrs(") == 13, "alle von/bis-Stunden-Berechnungen müssen _wrapHrs nutzen"
     assert 'new Date("2000-01-01T"+addBis)' not in index_html, "kein inline-Übernacht-bug-Pattern mehr"
 
 
