@@ -174,7 +174,8 @@ def test_filter_und_favoriten(index_html):
     assert "const [fzFilter,setFzFilter]=_react.useState.call(void 0, '');" in index_html
     assert "localStorage.setItem('epk_flotte_fav'" in index_html
     # Favoriten stehen oben.
-    assert "var fa=_isFav(a.f.id)?0:1, fb=_isFav(b.f.id)?0:1;" in index_html
+    # v3.9.689: Sortierung liegt jetzt in der pure Funktion _fzFleetSort.
+    assert "var fa=fav(a.f.id)?0:1, fb=fav(b.f.id)?0:1;" in index_html
     # Fahrer ist mitsuchbar — _fahrerName nimmt das FAHRZEUG, nicht die id.
     assert "String(_fahrerName(f)||'')" in index_html
 
@@ -183,5 +184,6 @@ def test_filter_faelscht_die_zaehler_nicht(index_html):
     """Die Kopfzeile zaehlt den ganzen Fuhrpark. Wuerde sie mitgefiltert, suggerierte ein Filter,
     es gaebe nur noch drei Fahrzeuge — und jemand haelt das fuer den Bestand."""
     assert "var fleetView=_fq?fleet.filter(" in index_html
-    assert "_nAkt+' fährt · '+_nSteht+' steht · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
+    # v3.9.689: Zaehler vierstufig + "ohne Tracker" — aber weiterhin ueber den GANZEN Fuhrpark.
+    assert "_nAkt+' aktiv · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
     assert "fleetView.map(function(row){" in index_html

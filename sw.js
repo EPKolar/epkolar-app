@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.688 - LOHNRELEVANT: 5-Minuten-Raster fuer die manuelle Zeiterfassung. von (Kommen) AUF, bis (Gehen) AB - Betriebsregel Sebastian 14.07.2026, bewusst zulasten der Monteure. Sichtbare Normalisierung beim Verlassen des Feldes (WYSIWYG) plus defensive Rundung im Save; gespeichert werden die gerundeten Zeiten. Gilt fuer VZeit und ZeiterfassungView. Timer: Start AUF, Stopp AB; Lauf unter 5 Minuten wird verworfen statt als 0h gebucht. NICHT rueckwirkend. Stempeluhr unangetastet.
-const CACHE_NAME = "epkolar-v3.9.688";
+// EP Kolar Service Worker v3.9.689 - Flotte-Rollout: Die Fleet-Liste zeigt jetzt ALLE Fahrzeuge (vierte Stufe "kein Tracker", grau, ans Ende) statt nur die mit IMEI - vorher war die Liste bei 21 Fahrzeugen und 0 IMEIs schlicht leer. IMEI-Zuordnung an zwei Stellen: inline im Fleet-Panel und im Fahrzeug-Formular (neue Sektion GPS-Tracker mit Typ/SIM/Einbaudatum). Spalten-Sniff degradiert sauber, solange sql/FZ_TRACKER_v1.sql nicht gelaufen ist.
+const CACHE_NAME = "epkolar-v3.9.689";
 const ASSETS = [
   './',
   './index.html'

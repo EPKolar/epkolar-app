@@ -19,16 +19,21 @@ def test_status_klassifizierung(index_html):
     # v3.9.678: die Inline-Ableitung ('wartet'|'inaktiv'|'aktiv') ist durch das pure
     # Status-Modell ersetzt — vier Zustaende (faehrt/steht/inaktiv/wartet) aus _fzStatus.
     # Die Klassifikation selbst ist jetzt in test_flotte_status_v3678.py getestet.
-    assert "var stat=_fzStatus(p,_now2,seitExakt);" in index_html
-    assert "status:stat.code,seit:stat.seit,dauerMin:stat.dauerMin" in index_html
+    # v3.9.689: Die Ableitung liegt jetzt in der pure Funktion _fzFleetZeilen (Sentinel
+    # //@FLOTTE-ROLLOUT) und zeigt ALLE Fahrzeuge, nicht nur die mit IMEI. In der Liste ist der
+    # Status vierstufig (aktiv/inaktiv/wartet/kein_tracker) — faehrt/steht bleiben fuers Popup.
+    assert "var fleet=_fzFleetZeilen(fahrzeuge,byId,_now2);" in index_html
+    assert "var code=(st.code==='faehrt'||st.code==='steht')?'aktiv':st.code;" in index_html
 
 
 def test_status_summary(index_html):
-    assert "_nAkt+' fährt · '+_nSteht+' steht · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
+    # v3.9.689: vierstufig + "ohne Tracker"
+    assert "_nAkt+' aktiv · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
 
 
 def test_toggle_button(index_html):
-    assert "'Fahrzeuge ('+trackerFz.length+')'" in index_html
+    # v3.9.689: zaehlt den ganzen Fuhrpark — vorher stand hier "Fahrzeuge (0)" neben 21 Autos.
+    assert "'Fahrzeuge ('+fahrzeuge.length+')'" in index_html
 
 
 def test_listOpen_state(index_html):

@@ -38,7 +38,7 @@ def test_inflight_guard(index_html):
 def test_popup_restore(index_html):
     assert "m.on('popupopen',function(){_openFid.current=f.id;});" in index_html
     assert "if(_openFid.current&&_markers.current[_openFid.current]){try{_markers.current[_openFid.current].openPopup();}catch(_eo){}}" in index_html
-    assert "+_rich,{autoPan:false});" in index_html
+    assert "+_rich+_trkLine,{autoPan:false});" in index_html
 
 
 def test_compass_inactive_guard(index_html):
