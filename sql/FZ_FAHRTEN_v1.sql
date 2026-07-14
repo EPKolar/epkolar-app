@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS public.fz_fahrten (
   start_lon        double precision,
   end_lat          double precision,
   end_lon          double precision,
-  start_adresse    text,          -- Reverse-Geocoding, Phase F3 (Nominatim). Bis dahin NULL.
-  end_adresse      text,          -- dito
+  start_ort        text,          -- Reverse-Geocoding (Nominatim, Phase F3). Bis zum 1. Lookup NULL.
+  ziel_ort         text,          -- dito. Siehe sql/GEO_CACHE_v1.sql.
   tacho_von        numeric,       -- OEM-Kilometerstand, fahrzeugabhaengig verfuegbar
   tacho_bis        numeric,       -- ZUSATZINFO — km wird IMMER aus Haversine gerechnet
   fahrer_id        text,          -- workers.id; wer das Fahrzeug an dem Tag hatte

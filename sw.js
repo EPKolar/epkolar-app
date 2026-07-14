@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.683 - Fahrtenbuch F2-Reste: Excel-Export der Fahrtenliste (gleiche Spalten wie am Bildschirm, mit Summenzeile) + Trail je EINZELNER Fahrt auf der Karte statt der ganzen 500-Punkte-Historie. Die Punktkette wird aus den Rohdaten nach Zeitfenster geschnitten, die Segmentierungs-Engine bleibt pure und unangetastet.
-const CACHE_NAME = "epkolar-v3.9.683";
+// EP Kolar Service Worker v3.9.684 - Fahrtenbuch Phase F3: Reverse-Geocoding via Nominatim (OSM). Koordinaten werden zu "Ort, Strasse Hausnr" - in Liste UND Excel-Export. Nominatims Policy (max 1 req/s, kein Bulk) wird im Code ERZWUNGEN: serielle Queue, pure Drossel-Funktion, drei Cache-Stufen (Ort an der Fahrt -> geo_cache -> Session), Deckel pro Ladevorgang, 429 setzt Lookups fuer die Session aus. Ausfall/Timeout -> Koordinaten-Fallback. sql/GEO_CACHE_v1.sql ist Run-Gate.
+const CACHE_NAME = "epkolar-v3.9.684";
 const ASSETS = [
   './',
   './index.html'
