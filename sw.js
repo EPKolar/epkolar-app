@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.694 - Self-Service-Karte heisst jetzt "Projektstunden" statt "Arbeitszeit" (sie zeigt time_entries = Projektzeit; die Anwesenheit steht in stempel_log/PZE). Reine Umbenennung.
-const CACHE_NAME = "epkolar-v3.9.694";
+// EP Kolar Service Worker v3.9.695 - Terminal-User lauffaehig: Rollenquelle konsolidiert auf auth_role()/public.users.role (der app_metadata-Weg haette das Terminal still an der RLS verhungern lassen), ?screen=stempel-Gate fuer stempel_terminal, workers-Load ueber die minimale RPC (keine SVNR am Wandpanel), Antrags-Doppelpruefung ueber den PK-Konflikt statt ueber ein absences-SELECT.
+const CACHE_NAME = "epkolar-v3.9.695";
 const ASSETS = [
   './',
   './index.html'

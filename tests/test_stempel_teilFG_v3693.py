@@ -104,9 +104,29 @@ def test_wochenende_und_feiertage_uebersprungen(index_html):
     assert "if(std<=0)continue;" in body
 
 
-def test_schreibweg_ist_die_syncqueue(index_html):
+def test_schreibweg_ist_direkter_post_kein_syncqueue(index_html):
+    """v3.9.695 hat den Schreibweg BEWUSST von SQ.push auf einen direkten POST umgestellt.
+
+    Warum die Umstellung noetig war: Das Terminal hat auf `absences` nur INSERT, kein SELECT
+    (am oeffentlichen Wandpanel haben fremde Abwesenheiten nichts verloren). Damit gibt es
+    keinen Weg, vorab zu pruefen, ob ein Tag schon beantragt ist — die Doppel-Erkennung muss
+    ueber den PK-Konflikt laufen (409/23505). Die SyncQueue kann das nicht liefern: sie postet
+    mit `resolution=ignore-duplicates`, schluckt das Duplikat also STILL. Der Monteur haette
+    nie erfahren, ob sein Antrag angekommen ist oder als Dublette verpufft.
+
+    Bewusster Preis: kein Offline-Antrag mehr. Ein Netzfehler wird ehrlich gemeldet
+    ("Keine Verbindung — bitte gleich nochmal versuchen"), statt Erfolg vorzutaeuschen.
+    Der Urlaubsantrag hat Zeit; der Stempel nicht — DER laeuft weiter ueber die SyncQueue.
+    """
     body = _submit(index_html)
-    assert "SQ.push({url:'/api/absences',method:'POST'" in body
+    assert "SB_REST+'/absences'" in body
+    assert "_sbWH('return=minimal')" in body
+    assert "SQ.push" not in body, "Der Antrag darf NICHT ueber die SyncQueue laufen (Duplikat wird still geschluckt)"
+
+
+def test_stempel_laeuft_weiter_ueber_die_syncqueue(index_html):
+    """Gegenprobe: Der STEMPEL bleibt offline-faehig. Nur der Antrag wurde umgestellt."""
+    assert "SQ.push({url:'/api/stempel-log',method:'POST',body:row})" in index_html
 
 
 def test_doppelantrag_wird_uebersprungen_nicht_ueberschrieben(index_html):

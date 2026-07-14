@@ -1,5 +1,15 @@
 -- ═══════════════════════════════════════════════════════════════════
--- STEMPEL_TERMINAL_v1.sql — eigene Kiosk-Rolle fuer die Stempeluhr (App v3.9.638+)
+-- STEMPEL_TERMINAL_v2.sql — eigene Kiosk-Rolle fuer die Stempeluhr (App v3.9.638+)
+--
+-- v2 ERSETZT v1 VOLLSTAENDIG. v1 ist NIE gelaufen und wurde geloescht.
+-- Der Unterschied ist nicht kosmetisch: v1 erkannte die Rolle ueber den
+-- JWT-Claim app_metadata.role. Das war falsch. Der Client liest diesen Claim
+-- NIRGENDS (das Wort 'app_metadata' kommt in index.html kein einziges Mal vor),
+-- und auth_role() — der Helper, auf dem der Grossteil der RLS sitzt — liest
+-- public.users.role. v1 haette also eine Rollenquelle geprueft, die weder der
+-- Client noch der Rest der Datenbank benutzt: das Terminal haette sich
+-- angemeldet und waere anschliessend an jeder Policy verhungert.
+-- ENTSCHEID Sebastian: EINE Rollenwahrheit = auth_role() = public.users.role.
 -- IDEMPOTENT. NICHT automatisch ausgefuehrt — HUMAN-RUN-GATE.
 -- Ausfuehren im Supabase SQL-Editor (Projekt jiggujpruejkaomgxarp).
 --
@@ -10,9 +20,11 @@
 -- an — analog zum bestehenden Lager-Kiosk (lager_display, siehe
 -- KIOSK_PII_RPCS_stage.sql / KIOSK_PII_LOCKDOWN_stage.sql).
 --
--- Rollen-Erkennung wie bei lager_display: NICHT ueber public.users.role,
--- sondern ueber ((auth.jwt() -> 'app_metadata') ->> 'role'). Kiosk-Accounts
--- sind Geraete-Logins, keine Mitarbeiter-Datensaetze in public.users.
+-- Rollen-Erkennung wie bei lager_display: ueber public.users.role, gelesen via
+-- public.auth_role() (SELECT role FROM public.users WHERE auth_user_id=auth.uid()).
+-- Der Kiosk-Account IST ein Datensatz in public.users — er ist nur kein
+-- Mitarbeiter: er hat keine monteur_id. Genau darum braucht der Urlaubs-Trigger
+-- weiter unten einen eigenen Zweig (siehe Abschnitt 5).
 --
 -- Prinzip "nur die Felder, die die Tafel liest": RLS ist ZEILEN-, keine
 -- SPALTEN-Beschraenkung. Fuer workers (enthaelt mehr als die Tafel braucht)
@@ -68,7 +80,7 @@ SECURITY DEFINER
 SET search_path TO 'public', 'pg_temp'
 AS $function$
 BEGIN
-  IF NOT ( ((auth.jwt() -> 'app_metadata') ->> 'role') = 'stempel_terminal'
+  IF NOT ( public.auth_role() = 'stempel_terminal'
            OR public.is_staff() ) THEN
     RAISE EXCEPTION 'not authorized' USING errcode = '42501';
   END IF;
@@ -90,12 +102,12 @@ GRANT EXECUTE ON FUNCTION public.stempel_terminal_workers() TO authenticated;
 DROP POLICY IF EXISTS stempel_log_select_terminal ON public.stempel_log;
 CREATE POLICY stempel_log_select_terminal ON public.stempel_log
   AS PERMISSIVE FOR SELECT TO authenticated
-  USING ( ((auth.jwt() -> 'app_metadata') ->> 'role') = 'stempel_terminal' );
+  USING ( public.auth_role() = 'stempel_terminal' );
 
 DROP POLICY IF EXISTS stempel_log_insert_terminal ON public.stempel_log;
 CREATE POLICY stempel_log_insert_terminal ON public.stempel_log
   AS PERMISSIVE FOR INSERT TO authenticated
-  WITH CHECK ( ((auth.jwt() -> 'app_metadata') ->> 'role') = 'stempel_terminal' );
+  WITH CHECK ( public.auth_role() = 'stempel_terminal' );
 
 -- Bewusst KEINE UPDATE-/DELETE-Policy fuer stempel_terminal — append-only.
 
@@ -106,7 +118,7 @@ DROP POLICY IF EXISTS system_config_select_stempel_terminal ON public.system_con
 CREATE POLICY system_config_select_stempel_terminal ON public.system_config
   AS PERMISSIVE FOR SELECT TO authenticated
   USING (
-    ((auth.jwt() -> 'app_metadata') ->> 'role') = 'stempel_terminal'
+    public.auth_role() = 'stempel_terminal'
     AND key = 'stempel_pause_rules'
   );
 
@@ -152,7 +164,7 @@ DROP POLICY IF EXISTS absences_insert_terminal ON public.absences;
 CREATE POLICY absences_insert_terminal ON public.absences
   AS PERMISSIVE FOR INSERT TO authenticated
   WITH CHECK (
-    ((auth.jwt() -> 'app_metadata') ->> 'role') = 'stempel_terminal'
+    public.auth_role() = 'stempel_terminal'
     AND status = 'beantragt'
   );
 
@@ -168,7 +180,7 @@ CREATE POLICY absences_insert_terminal ON public.absences
 --
 -- Der Terminal-Account ist — analog stempel_terminal_workers() und
 -- lager_display — ein reiner Geraete-Login OHNE Zeile in public.users
--- (Rollen-Erkennung laeuft ueber (auth.jwt()->'app_metadata'->>'role'), nicht
+-- (Rollen-Erkennung laeuft ueber public.auth_role() = public.users.role, nicht
 -- ueber public.users.role). Damit liefert obiges SELECT fuer den Terminal-
 -- Account KEINE Zeile: me.role und me.monteur_id sind NULL.
 --   - me.role = 'admin' → NULL = 'admin' → false (kein Admin-Bypass)
@@ -198,21 +210,27 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   me record;
   sub text := auth.jwt() ->> 'sub';
-  jwt_role text := (auth.jwt() -> 'app_metadata') ->> 'role';
 BEGIN
   IF sub IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;  -- service_role bypass
 
-  -- Stempel-Terminal (Kiosk-Login, KEINE Zeile in public.users, KEIN
-  -- monteur_id): darf per NFC-Scan fuer JEDE worker_id einen neuen Antrag
-  -- im Status 'beantragt' anlegen. Kein Update/Delete.
-  IF jwt_role = 'stempel_terminal' THEN
+  SELECT role, perms_override, monteur_id INTO me FROM public.users WHERE auth_user_id::text = sub LIMIT 1;
+
+  -- NEU (v2): Stempel-Terminal. Der Terminal-User HAT eine Zeile in public.users
+  -- (role='stempel_terminal') — genau wie der Lager-Kiosk (lager_display). Er hat aber
+  -- KEINE monteur_id, kann den Self-Service-Zweig unten also nie erreichen: dessen
+  -- Bedingung NEW.worker_id = me.monteur_id waere immer NULL = falsch, und JEDER
+  -- Terminal-Antrag waere unten am RAISE EXCEPTION gestorben. Darum dieser Zweig.
+  -- Er steht NACH dem users-Lookup (er braucht me.role) und VOR dem Admin-Check.
+  -- Erlaubt ist ausschliesslich INSERT mit status='beantragt', fuer BELIEBIGE
+  -- worker_id (der Mitarbeiter identifiziert sich per NFC-Chip, nicht per Login).
+  -- Kein UPDATE, kein DELETE, kein Selbst-Genehmigen.
+  IF me.role = 'stempel_terminal' THEN
     IF TG_OP = 'INSERT' AND COALESCE(NEW.status,'beantragt') = 'beantragt' THEN
       RETURN NEW;
     END IF;
     RAISE EXCEPTION 'urlaub: stempel_terminal darf nur INSERT mit status=beantragt';
   END IF;
 
-  SELECT role, perms_override, monteur_id INTO me FROM public.users WHERE auth_user_id::text = sub LIMIT 1;
   IF me.role = 'admin' OR (me.perms_override -> 'urlaub_edit')::text = 'true' THEN
     RETURN COALESCE(NEW, OLD);                            -- Verwalter: voll
   END IF;
@@ -236,29 +254,46 @@ END $$;
 -- auth.users-INSERT in dieser Datei). Vorgehen analog zum bestehenden
 -- Lager-Kiosk-User (lager/lager_display):
 --
+-- GEPRUEFT (v2): Die App-Benutzerverwaltung kann diese Rolle NICHT vergeben.
+-- Ihr Rollen-Dropdown wird aus Object.keys(ROLES) gebaut (index.html ~Z.11102),
+-- und ROLES (~Z.3183) enthaelt weder 'lager_display' noch 'stempel_terminal' —
+-- beides sind Geraete-Rollen ausserhalb des Mitarbeiter-Rollenmodells. Der
+-- SQL-Weg unten ist also NICHT die bequeme Abkuerzung, sondern der einzige.
+--
 --   1. Supabase Dashboard → Authentication → Users → "Add user"
---      (z.B. E-Mail stempel@ep-kolar.local oder aehnlich, Passwort setzen).
---   2. Am neuen User "Edit" → raw_app_meta_data (JSON) ergaenzen:
---        { "role": "stempel_terminal" }
---      (Analog dem bestehenden lager_display-User — dort greift exakt
---      dasselbe Claim-Feld in den RESTRICTIVE- und RPC-Policies.)
---   3. Client-seitig fehlt noch das App-Gate: index.html ~Z.7376 laesst
---      ?screen=stempel aktuell NUR fuer curUser.role==='admin' zu. Damit
---      der neue Terminal-User die Tafel ueberhaupt sehen kann, muss diese
---      Bedingung um 'stempel_terminal' erweitert werden UND StempelTafel
---      muss auf stempel_terminal_workers() statt des rohen
---      _sbGet('workers', 'select=id,name,role,nfc_uid...') umgestellt
---      werden (sonst laeuft der Terminal-User in die fehlende workers-
---      Policy). DAS ist eine App-Code-Aenderung, NICHT Teil dieser
---      SQL-Datei — separater Schritt, danach Client-Deploy. Der neue
---      Urlaub/ZA-Antrags-Flow (Abschnitt 4+5 oben) braucht ebenso noch
---      client-seitige UI (Aktion "Urlaub/Zeitausgleich beantragen" in
---      StempelTafel, POST auf absences mit status='beantragt') — DB-seitig
---      ist das Fundament nach dieser Datei fertig, die UI fehlt noch.
---   4. Bis Schritt 3 umgesetzt ist, bleibt der Kiosk unveraendert per
---      Admin-Login betrieben. Diese Datei ist rein additiv und stoert den
---      bestehenden Admin-Betrieb NICHT (is_staff()-Policies aus
---      STEMPEL_v1.sql bleiben unangetastet).
+--      (z.B. stempel@ep-kolar.local, Passwort setzen). Die auth.users-Zeile
+--      legt NUR Sebastian an — auth ist tabu fuer Claude Code.
+--      KEIN raw_app_meta_data noetig. v1 verlangte das; es war falsch.
+--   2. Die zugehoerige public.users-Zeile anlegen — DAS ist die Rollenquelle,
+--      die auth_role() liest und auf der alle Policies dieser Datei sitzen.
+--      auth_user_id ist die UUID aus Schritt 1 (im Dashboard am User sichtbar):
+--
+--      -- INSERT INTO public.users (id, auth_user_id, username, name, role)
+--      -- VALUES (
+--      --   gen_random_uuid(),
+--      --   '<AUTH-UUID-AUS-SCHRITT-1>',
+--      --   'stempel',
+--      --   'Stempel-Terminal',
+--      --   'stempel_terminal'
+--      -- );
+--
+--      Spaltennamen vorher gegen die LIVE-Tabelle pruefen (der bestehende
+--      lager-User ist die beste Vorlage):
+--      -- SELECT id, auth_user_id, username, name, role, monteur_id
+--      --   FROM public.users WHERE role = 'lager_display';
+--      Der Terminal-User bekommt bewusst KEINE monteur_id — er ist kein
+--      Mitarbeiter. Genau darum braucht der Urlaubs-Trigger (Abschnitt 5)
+--      seinen eigenen Zweig.
+--   3. Verifizieren, dass die Rollenquelle greift (als Terminal-User eingeloggt):
+--      -- SELECT public.auth_role();   -- muss 'stempel_terminal' liefern
+--   4. Client: App-Gate + RPC-Ladeweg sind ab App-Version v3.9.695 drin
+--      (curUser.role==='stempel_terminal' im ?screen=stempel-Gate, workers-Load
+--      ueber stempel_terminal_workers(), Antrags-Doppelpruefung ueber den
+--      PK-Konflikt statt ueber ein absences-SELECT). Kein weiterer Client-
+--      Schritt noetig.
+--   5. Diese Datei ist rein additiv: der bestehende Admin-Betrieb des Kiosks
+--      (is_staff()-Policies aus STEMPEL_v1.sql) bleibt unangetastet. Der
+--      Admin-Preview ueber ?screen=stempel funktioniert unveraendert weiter.
 -- ═══════════════════════════════════════════════════════════════════
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -314,8 +349,10 @@ END $$;
 --
 -- select proname, pg_get_functiondef(oid) from pg_proc
 --   where pronamespace='public'::regnamespace and proname='guard_urlaub_edit';
--- -- Body muss den neuen "IF jwt_role = 'stempel_terminal' THEN ..."-Zweig
--- -- direkt nach dem service_role-Bypass enthalten.
+-- -- Body muss den neuen "IF me.role = 'stempel_terminal' THEN ..."-Zweig enthalten,
+-- -- und zwar NACH dem SELECT ... INTO me aus public.users (er braucht me.role) und
+-- -- VOR dem Admin-Check. Steht er davor, ist me noch leer und der Zweig greift nie.
+-- -- 'jwt_role' darf im Body NICHT mehr vorkommen (das war die v1-Rollenquelle).
 --
 -- -- Manueller Rollen-Test (nach Schritt 2 der Sebastian-Anleitung, als
 -- -- stempel_terminal-User eingeloggt):
