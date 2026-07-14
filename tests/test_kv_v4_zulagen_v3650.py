@@ -56,7 +56,10 @@ def test_report_component(index_html):
 
 
 def test_report_in_bueroportal(index_html):
-    assert "React.createElement(KVZulagenReport, { entries: entries, monteure: monteure, ww: ww}" in index_html
+    # v3.9.685: curUser kam dazu (created_by bei der Tages-Vergabe). Assertion nicht mehr auf die
+    # komplette Props-Liste im Wortlaut — sie bricht sonst bei jedem neuen Prop, ohne dass sich am
+    # geprueften Verhalten (Report haengt im Buero-Portal) etwas aendert.
+    assert "React.createElement(KVZulagenReport, { entries: entries, monteure: monteure, ww: ww" in index_html
 
 
 def test_csv_export(index_html):

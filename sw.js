@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.684 - Fahrtenbuch Phase F3: Reverse-Geocoding via Nominatim (OSM). Koordinaten werden zu "Ort, Strasse Hausnr" - in Liste UND Excel-Export. Nominatims Policy (max 1 req/s, kein Bulk) wird im Code ERZWUNGEN: serielle Queue, pure Drossel-Funktion, drei Cache-Stufen (Ort an der Fahrt -> geo_cache -> Session), Deckel pro Ladevorgang, 429 setzt Lookups fuer die Session aus. Ausfall/Timeout -> Koordinaten-Fallback. sql/GEO_CACHE_v1.sql ist Run-Gate.
-const CACHE_NAME = "epkolar-v3.9.684";
+// EP Kolar Service Worker v3.9.685 - Montagezulage Phase 2: manuelle Tages-Vergabe (Buero/PL flaggt Mitarbeiter-Tage im KV-Zulagen-Report). Ersetzt die Phase-1-Naeherung, die die Zulage auf ALLE Monatsstunden inkl. Werkstatt und Fahrtzeit legte - die Zahl im Report wird dadurch niedriger und richtig. Satz nach Jahr des Tages. Ohne die Tabelle (sql/MONTAGEZULAGE_v1.sql, Run-Gate) ist die Vergabe gesperrt und die Zulage 0.
+const CACHE_NAME = "epkolar-v3.9.685";
 const ASSETS = [
   './',
   './index.html'
