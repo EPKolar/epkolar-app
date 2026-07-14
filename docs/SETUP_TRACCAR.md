@@ -82,27 +82,67 @@ Flotte-Tab.** Fahrtenbuch- und Analyse-Fetches laufen bewusst **nicht** in
 diesem Takt (die Fahrtenbuch-Historie wird nur on-demand pro ausgewähltem
 Fahrzeug geladen, nicht im Poll-Intervall).
 
-> **Offener Punkt — im Code noch nicht umgesetzt:** Der aktuell implementierte
-> Poll (`index.html`, Effekt bei `setInterval(load,60000)`, Kommentar
-> „Positionen laden + 60s-Poll (Kiosk-Muster)") läuft mit **60 Sekunden**, nicht
-> mit den vorgegebenen 5–10 s. Bevor der Traccar-Pilot live geht, muss dieses
-> Intervall auf die Sebastian-Vorgabe angepasst werden — das ist ein
-> Code-Auftrag, keiner für dieses Dokument (diese Doku fasst nur den
-> Ist-/Soll-Zustand zusammen). Der Fetch selbst ist bereits gegen Overlap
-> abgesichert (`_polling`-Ref verhindert, dass eine ältere Antwort eine
-> neuere überschreibt) und bricht bei fehlender View/Tabelle sauber auf den
-> Leer-Zustand herunter (404/`42P01` → `missing`-Flag statt Crash).
+**Erledigt seit v3.9.691:** Der Poll läuft auf `FLOTTE_POLL_MS = 10 * TIME_SECOND`
+(vorher 60 s). Der Fetch ist gegen Overlap abgesichert (`_polling`-Ref — bei
+10-s-Takt und langsamem Netz ist dieser Guard nicht mehr Kosmetik, sondern
+tragend: sonst überholt eine ältere Antwort eine neuere und die Karte springt
+zurück) und bricht bei fehlender View/Tabelle sauber auf den Leer-Zustand herunter
+(404/`42P01` → `missing`-Flag statt Crash).
+
+> **Nicht mitbeschleunigt — und das mit Absicht:** Der 60-Sekunden-Poll in
+> `WochenplanTafel` (Lager-Kiosk, `kiosk_week_absences`-RPC) bleibt bei 60 s. Er
+> hat mit der Flotte nichts zu tun. Ein Test hält das fest, damit ihn niemand
+> „mit aufräumt".
 
 ---
 
-## 4 · Was noch fehlt
+## 4 · `gps_ingest` — die Brücke (gebaut, NICHT deployt)
 
-**`gps_ingest` (Traccar → `fz_positions`) ist noch nicht gebaut.** Das ist der
-eigentliche Blocker für den gesamten Realitätstest — ohne diese Brücke bleibt
-`fz_positions` leer, unabhängig davon, wie gut Tracker-Konfiguration und
-App-Seite vorbereitet sind. Reihenfolge laut Handoff: Tracker bestellen →
-Traccar-Pilot aufsetzen (Portfreigabe/DynDNS auf srvdc02, §96-Zustimmungen) →
-`gps_ingest` als eigener Auftrag.
+Quelle: `supabase/functions/gps_ingest/index.ts`. SQL-Fundament:
+`sql/GPS_INGEST_v1.sql`. **Beides liegt fertig im Repo und wartet auf Sebastians
+Go.** Claude Code deployt nichts.
+
+### Inbetriebnahme
+
+1. **Secret setzen** (langes Zufallstoken, z. B. `openssl rand -hex 32`):
+   `supabase secrets set GPS_INGEST_TOKEN=<token>`
+2. **SQL laufen lassen:** `sql/GPS_INGEST_v1.sql` (Unique-Index auf
+   `(fahrzeug_id, ts)` + Index auf `fahrzeuge.tracker_imei`).
+3. **Deployen — ohne JWT-Pflicht**, denn Traccar hat kein Supabase-JWT und wird
+   nie eines haben:
+   ```
+   cd C:\temp\epkfn
+   supabase functions deploy gps_ingest --no-verify-jwt
+   ```
+   (Die Supabase-CLI verträgt weder UNC-Pfade noch Netzlaufwerke — daher
+   `C:\temp\epkfn`, siehe CLAUDE.md.)
+4. **Traccar-Forward** (`conf/traccar.xml`):
+   ```xml
+   <entry key='forward.enable'>true</entry>
+   <entry key='forward.type'>json</entry>
+   <entry key='forward.url'>https://jiggujpruejkaomgxarp.functions.supabase.co/gps_ingest?token=&lt;token&gt;</entry>
+   ```
+   Kann die Traccar-Version Custom-Header, ist `x-gps-token: <token>` der
+   sauberere Weg — dann steht das Token nicht im Log.
+5. **IMEI am Fahrzeug eintragen** (Fahrzeug-Formular, seit v3.9.689).
+
+### Die vier Fallstricke, die die Function bewusst behandelt
+
+| Fallstrick | Warum er wehtut |
+|---|---|
+| **`speed` kommt in KNOTEN** | Ungerechnet gespeichert fährt die Flotte dauerhaft **46 % zu langsam** (1 kn = 1,852 km/h) — und es fällt niemandem auf, weil 50 statt 93 km/h plausibel aussieht. Die Function rechnet um. |
+| **`device.uniqueId` = IMEI** | Der einzige Schlüssel zum Fahrzeug. Fehlt sie am Fahrzeug, antwortet die Function mit **200** und `unmapped:[…]` — **nicht** mit 500. Bei ≠ 2xx wiederholt Traccar endlos einen Zustand, den nur das Büro auflösen kann (IMEI nachtragen). Ein DB-Ausfall gibt dagegen sehr wohl 500, denn **der** Retry ist richtig. |
+| **`fixTime` ≠ `serverTime`** | `fixTime` ist der Zeitpunkt der Ortung, `serverTime` nur der des Empfangs. Nimmt man serverTime, verschiebt eine Funkloch-Nachlieferung die halbe Fahrt. |
+| **Traccar wiederholt Forwards** | Ohne Eindeutigkeit legt jede Wiederholung denselben Punkt nochmal an und verfälscht Tageskilometer und Ø-Geschwindigkeit still. Darum der Unique-Index `(fahrzeug_id, ts)` + `ON CONFLICT DO NOTHING`. |
+
+Zusätzlich verworfen werden: Punkte mit `valid:false`, Koordinaten außerhalb des
+Wertebereichs und die **Nullinsel** (0/0) — ein Tracker ohne Fix meldet die gern,
+und ein einziger solcher Punkt zieht die Karte nach Afrika und macht jede
+Distanzrechnung der Fahrt kaputt.
+
+Abgesichert durch `tests/test_gps_ingest.py` (16 Tests). **Aber:** kein einziger
+echter GPS-Punkt ist je durch diese Kette gelaufen. Der erste Tracker ist der
+Realitätstest, nicht die Testsuite.
 
 Ebenfalls offen, aber nachgelagert: `sql/FZ_TRACKER_v1.sql`
 (`tracker_typ`/`tracker_sim`/`tracker_eingebaut`) ist noch nicht ausgeführt —
