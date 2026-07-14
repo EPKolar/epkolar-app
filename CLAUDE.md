@@ -58,14 +58,42 @@ Bei jedem App-Bump:
 3. `sw.js` Header-Kommentar Zeile 1
 4. `sw.js` `const CACHE_NAME = "epkolar-vX.Y.Z"` (Z.2)
 
-## Triade vor jedem Push
+## Gates vor jedem Push
 
 ```
-python scripts/node_check.py index.html    # exit 0
+python scripts/node_check.py index.html     # exit 0
 python scripts/_bracket_check.py index.html # () -1, {} 0, [] 0 (Baseline)
 node sql/_check_version.js                  # ✓ versions synced
-python -m pytest tests/ -q                  # alle grün (aktuell 993)
+python -m pytest tests/ -q                  # voller Lauf grün (~40 s)
 ```
+
+### …und danach der Browser-Check. NICHT optional.
+
+```
+python -m http.server 8899 --bind 127.0.0.1   # im Repo-Wurzelverzeichnis, im Hintergrund
+# Seite laden (Playwright/Chrome), dann prüfen:
+#   - Console: 0 errors
+#   - typeof APP_VERSION !== 'undefined'   (sonst ist der Script-Body abgebrochen)
+#   - document.querySelector('#root').children.length > 0   (React gemountet)
+```
+
+**Warum das ein Pflicht-Gate ist — teuer gelernt am 14.07.2026:** v3.9.691 hinterließ
+`window._stUuid=_stUuid;` in der Export-Zeile, obwohl `_stUuid` gelöscht war. Ergebnis:
+`ReferenceError` auf **Top-Level** → der gesamte Script-Body danach (also die komplette App)
+wurde nie definiert. **Die Live-App war über vier Versionen hinweg tot** und niemand hat es
+gemerkt.
+
+Keines der bestehenden Gates konnte das finden, und das ist kein Zufall:
+
+| Gate | Warum es blind war |
+|---|---|
+| `node_check.py` | **parst** die Datei, **führt sie nicht aus**. Syntaktisch war alles korrekt. |
+| `pytest` | statisch (String-/Regex-Asserts über den Quelltext). |
+| Node-Eval-Tests | die Export-Zeile steht hinter `if(typeof window!=='undefined')` — **in Node gibt es kein `window`**. Der Zweig wurde übersprungen, der Fehler konnte dort gar nicht auftreten. |
+
+**Kein Gate hat das Bundle je geladen.** Ein Browser hätte es in fünf Sekunden gefunden.
+Zusätzlich fängt `tests/test_window_exports_defined.py` jetzt genau diese Fehlerklasse
+statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 ## Push-Weg
 

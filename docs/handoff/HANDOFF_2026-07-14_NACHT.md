@@ -3,7 +3,28 @@
 **Arbeitsklon:** `C:\repos\epkolar-app`. srvdc02-Share ist **nur Spiegel** (zieht sich täglich 05:00
 selbst nach), **nie** Push-Quelle. Session-Start: `git fetch && git reset --hard origin/main`.
 
-**Stand:** v3.9.691 → v3.9.693. Ausgangspunkt war v3.9.690 (`3fb2145`).
+**Stand:** v3.9.691 → **v3.9.695** (`0e53334`). Ausgangspunkt war v3.9.690 (`3fb2145`).
+pytest 1362 → **1443 grün**.
+
+---
+
+## ⚠️ ZUERST LESEN: Die Live-App war vier Versionen lang tot
+
+`window._stUuid=_stUuid;` blieb in der Export-Zeile des `//@STEMPEL-HELPERS`-Blocks stehen,
+obwohl `_stUuid` in v3.9.691 gelöscht wurde. **`ReferenceError` auf Top-Level** → der gesamte
+Script-Body danach — die komplette App — wurde nie definiert. `epkolar.github.io` zeigte nur
+den Ladebildschirm, `APP_VERSION` war `not defined`. Betroffen: **v3.9.691 bis v3.9.694**.
+Behoben in v3.9.695, live verifiziert (0 Console-Errors, React mountet).
+
+**Kein einziges Gate konnte das finden.** `node_check` *parst* nur und führt nichts aus; pytest
+ist statisch; die Node-Eval-Tests übersprangen die Zeile, weil sie hinter
+`if(typeof window!=='undefined')` steht und **Node kein `window` hat**. Kein Gate hat das Bundle
+je *geladen*.
+
+**Daraus folgt, und das steht jetzt in CLAUDE.md:** Der **Browser-Check ist ein Pflicht-Gate**
+vor jedem Push (Seite laden, 0 Console-Errors, `APP_VERSION` definiert, `#root` gefüllt).
+Zusätzlich fängt `tests/test_window_exports_defined.py` diese Fehlerklasse statisch —
+inklusive Selbsttest, der beweist, dass er die kaputte Zeile anschlägt.
 
 ---
 
@@ -89,16 +110,38 @@ Test verbietet `Resturlaub`/`Saldo`/`urlaubskontingent` in den Panel-Screens.
 | `sql/FZ_TRACKER_v1.sql` | ✅ gelaufen (14.07., Human-Run-Gate) |
 | `system_config` Seed `stempel_pause_rules` = `{"Backoffice":0,"default":60}` | ✅ gelaufen — Schlüssel **„Backoffice"**, nicht „buero" |
 | `sql/MONTAGEZULAGE_v1.sql` | ✅ gelaufen (Tabelle `montagezulage_tage` existiert) |
-| **`sql/STEMPEL_TERMINAL_v1.sql`** | ⏳ **OFFEN — Teil G funktioniert ohne diese Datei NICHT** |
+| **`sql/STEMPEL_TERMINAL_v2.sql`** | ⏳ **OFFEN — Teil G funktioniert ohne diese Datei NICHT** |
+| **`sql/KIOSK_RESTRICTIVE_FIX_v1.sql`** | ⏳ offen — repariert wirkungslose Kiosk-Sperren |
 | `sql/GPS_RETENTION_v1.sql` | ⏳ offen, bewusst inert (nur Vorbereitung) |
+| `sql/GPS_INGEST_v1.sql` | ⏳ offen — erst nach dem Go für `gps_ingest` |
 
-> **Achtung, der Stolperstein:** `STEMPEL_TERMINAL_v1.sql` enthält nicht nur die Policies, sondern
-> auch ein `CREATE OR REPLACE FUNCTION guard_urlaub_edit()`. **Grund:** Der Terminal-User hat
-> keine Zeile in `public.users` und damit **keine `monteur_id`**. Der bestehende Trigger erlaubt
-> Nicht-Admins nur `NEW.worker_id = me.monteur_id` — für den Terminal-User ist das nie wahr, also
-> würde **jeder** Terminal-Antrag am `RAISE EXCEPTION` scheitern. Der neue Zweig erlaubt der Rolle
-> `stempel_terminal` ausschließlich `INSERT` mit `status='beantragt'`, für beliebige `worker_id`.
-> Kein UPDATE, kein DELETE, kein Zugriff auf `urlaubskontingent`.
+> **`STEMPEL_TERMINAL_v1.sql` ist gelöscht.** Sie ist **nie gelaufen** und war falsch: Sie erkannte
+> die Rolle über den JWT-Claim `app_metadata.role`. Der Client liest diesen Claim **nirgends**
+> (das Wort kam in `index.html` kein einziges Mal vor), und `auth_role()` — der Helper, auf dem der
+> Großteil der RLS sitzt — liest `public.users.role`. Das Terminal hätte sich erfolgreich angemeldet
+> und wäre danach an **jeder** Policy verhungert.
+>
+> **Entscheid Sebastian: EINE Rollenwahrheit = `auth_role()` = `public.users.role`.** v2 setzt das um.
+
+> **Der Stolperstein in v2:** Sie enthält nicht nur Policies, sondern auch ein
+> `CREATE OR REPLACE FUNCTION guard_urlaub_edit()`. **Grund:** Der Terminal-User hat zwar eine
+> `public.users`-Zeile (wie `lager_display`), aber **keine `monteur_id`** — er ist kein Mitarbeiter.
+> Der bestehende Trigger erlaubt Nicht-Admins nur `NEW.worker_id = me.monteur_id`; das ist für ihn
+> nie wahr, also würde **jeder** Terminal-Antrag am `RAISE EXCEPTION` sterben. Der neue Zweig steht
+> **nach** dem `public.users`-Lookup (er braucht `me.role`) und **vor** dem Admin-Check und erlaubt
+> ausschließlich `INSERT` mit `status='beantragt'`, für beliebige `worker_id`.
+>
+> **Rolle anlegen geht nur per SQL.** Geprüft: Die App-Benutzerverwaltung kann `stempel_terminal`
+> nicht vergeben — ihr Dropdown kommt aus `Object.keys(ROLES)`, und `ROLES` kennt weder
+> `lager_display` noch `stempel_terminal`. Template steht auskommentiert in v2; `auth.users` bleibt
+> tabu für Claude Code.
+
+> **`KIOSK_RESTRICTIVE_FIX_v1.sql`:** Die `no_lager_display`-RESTRICTIVE-Sperren auf `fz_fahrten`,
+> `fz_positions`, `geo_cache` und `kunden` prüfen ebenfalls `app_metadata` — und haben damit **nie
+> gegriffen**. **Kein aktives Leck:** die Tabellen tragen nur `is_staff()`-PERMISSIVE, und der Kiosk
+> ist nicht staff, also hielt Default-Deny. Aber eine Sicherung, die man fälschlich für wirksam hält,
+> ist gefährlicher als gar keine — sie verleitet dazu, die PERMISSIVE-Seite später zu lockern.
+> Neuer Helper `is_kiosk_role()` sperrt jetzt `lager_display` **und** `stempel_terminal`.
 
 ---
 
