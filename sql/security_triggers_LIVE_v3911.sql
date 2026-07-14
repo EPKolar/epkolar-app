@@ -1,6 +1,33 @@
 -- ============================================================================
 -- SECURITY-TRIGGER — BEREITS LIVE AUSGEFÜHRT (Chat-Claude via Supabase SQL-Editor, 2026-06-03)
 -- ============================================================================
+--
+-- ╔════════════════════════════════════════════════════════════════════════╗
+-- ║  ⛔ DIESE REKONSTRUKTION IST UNVOLLSTÄNDIG.                             ║
+-- ║     NIEMALS ALS BASIS FÜR EIN "CREATE OR REPLACE" VERWENDEN.            ║
+-- ║                                                                        ║
+-- ║  Gemessen am 14.07.2026 (MD5-Vergleich der Normalform gegen die DB):    ║
+-- ║    Live-Body guard_urlaub_edit()  = 1746 Zeichen                        ║
+-- ║    Diese Datei                    =  953 Zeichen                        ║
+-- ║  Es fehlen ~800 Zeichen ECHTER Logik. Welche, war zum Zeitpunkt des     ║
+-- ║  Fundes noch nicht analysiert.                                          ║
+-- ║                                                                        ║
+-- ║  Ein CREATE OR REPLACE auf dieser Grundlage hätte diese ~800 Zeichen    ║
+-- ║  KOMMENTARLOS GELÖSCHT: kein Fehler, kein Rollback, keine Warnung.      ║
+-- ║  Die Urlaubs-Absicherung wäre still um Logik ärmer gewesen, die         ║
+-- ║  niemand mehr kennt. Beinahe passiert über sql/STEMPEL_TERMINAL_v2.sql  ║
+-- ║  (dort Abschnitt 5 deshalb stillgelegt).                                ║
+-- ║                                                                        ║
+-- ║  MASSGEBLICH IST AUSSCHLIESSLICH DER IST-STAND AUS DER DB:              ║
+-- ║    select pg_get_functiondef(oid) from pg_proc                          ║
+-- ║     where pronamespace='public'::regnamespace                           ║
+-- ║       and proname='guard_urlaub_edit';                                  ║
+-- ║  Gesicherter Live-Body: docs/wip/guard_urlaub_edit_LIVE_2026-07-14.sql  ║
+-- ║                                                                        ║
+-- ║  Diese Datei bleibt als HISTORIE liegen — sie wird nicht gelöscht,      ║
+-- ║  aber sie ist keine Wahrheit.                                           ║
+-- ╚════════════════════════════════════════════════════════════════════════╝
+--
 -- ⚠️ NICHT erneut ausführen / NICHT überschreiben. Diese Datei ist DOKU + Rollback-Basis.
 -- Die LIVE-Version in der DB ist maßgeblich; die CREATE-Statements hier sind aus der
 -- Beschreibung REKONSTRUIERT (Logik korrekt, Formulierung kann minimal abweichen).

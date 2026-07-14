@@ -99,6 +99,34 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
+## `CREATE OR REPLACE` auf Live-Objekte — NIE aus einer Repo-Rekonstruktion
+
+**Regel:** Bevor eine Live-Funktion/-View per `CREATE OR REPLACE` ersetzt wird, **immer zuerst den
+Ist-Body aus der DB ziehen** und darauf aufbauen. Eine Datei im Repo, die behauptet, den Live-Stand
+abzubilden, ist eine **Behauptung**, kein Beweis.
+
+```sql
+-- Ist-Stand holen (das ist die einzige Wahrheit):
+select pg_get_functiondef(oid) from pg_proc
+ where pronamespace='public'::regnamespace and proname='<funktion>';
+
+-- Und gegen die Repo-Datei prüfen — Normalform (Whitespace weg), dann MD5:
+select md5(regexp_replace(pg_get_functiondef(oid), '\s+', ' ', 'g')) as live_md5,
+       length(regexp_replace(pg_get_functiondef(oid), '\s+', ' ', 'g')) as live_len
+  from pg_proc
+ where pronamespace='public'::regnamespace and proname='<funktion>';
+```
+
+**Warum das eine harte Regel ist — 14.07.2026, um Haaresbreite:**
+`sql/security_triggers_LIVE_v3911.sql` gab sich als Live-Stand von `guard_urlaub_edit()` aus. Der
+Vergleich ergab: **Live 1746 Zeichen normalisiert, Repo-Datei 953.** Es fehlten ~800 Zeichen echter
+Logik. Ein `CREATE OR REPLACE` auf dieser Basis (in `STEMPEL_TERMINAL_v2.sql` bereits vorbereitet)
+hätte sie **kommentarlos gelöscht** — kein Fehler, kein Rollback, keine Warnung. Die
+Urlaubs-Absicherung wäre still um Logik ärmer gewesen, die niemand mehr kennt.
+
+Der Unterschied zum Boot-Crash desselben Tages: Den hätte ein Browser in fünf Sekunden gefunden.
+**Diesen hier hätte nie jemand gefunden.**
+
 ## Hart nicht anfassen
 
 - `_juprowaPush` / `_juprowaPull` / Juprowa Phase-1+2

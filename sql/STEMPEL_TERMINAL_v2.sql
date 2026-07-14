@@ -168,7 +168,44 @@ CREATE POLICY absences_insert_terminal ON public.absences
     AND status = 'beantragt'
   );
 
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║  ⛔ ABSCHNITT 5 IST STILLGELEGT — NICHT WIEDER SCHARF SCHALTEN.           ║
+-- ║                                                                          ║
+-- ║  Der CREATE OR REPLACE FUNCTION guard_urlaub_edit() weiter unten ist      ║
+-- ║  KOMPLETT AUSKOMMENTIERT. Er darf so NICHT ausgefuehrt werden.            ║
+-- ║                                                                          ║
+-- ║  GRUND (Chat-Claude, MD5-Vergleich in der DB, 14.07.2026):                ║
+-- ║  security_triggers_LIVE_v3911.sql ist eine REKONSTRUKTION und sie ist     ║
+-- ║  UNVOLLSTAENDIG. Der echte Live-Body hat normalisiert 1746 Zeichen, die   ║
+-- ║  Repo-Datei nur 953. Es fehlen ~800 Zeichen echter Logik.                 ║
+-- ║                                                                          ║
+-- ║  Ein CREATE OR REPLACE auf Basis dieser Rekonstruktion haette die         ║
+-- ║  fehlenden ~800 Zeichen KOMMENTARLOS GELOESCHT. Kein Fehler, kein         ║
+-- ║  Rollback, keine Warnung — die Urlaubs-Absicherung waere still um         ║
+-- ║  Logik aermer gewesen, die niemand mehr kennt.                            ║
+-- ║                                                                          ║
+-- ║  DIE REGEL, DIE DARAUS FOLGT:                                             ║
+-- ║  CREATE OR REPLACE auf ein LIVE-Objekt NIEMALS auf Basis einer            ║
+-- ║  Repo-Rekonstruktion. Immer zuerst den Ist-Body aus der DB ziehen         ║
+-- ║  (pg_get_functiondef) und DARAUF aufbauen.                                ║
+-- ║                                                                          ║
+-- ║  NAECHSTER SCHRITT (v3): Sobald der echte Live-Body als                   ║
+-- ║  docs/wip/guard_urlaub_edit_LIVE_2026-07-14.sql im Repo liegt, wird       ║
+-- ║  dieser Abschnitt NEU aufgebaut: vollstaendiger Live-Body + der           ║
+-- ║  minimal-invasive stempel_terminal-Zweig an der richtigen Stelle.         ║
+-- ║  Der Live-Body liegt Claude Code NICHT vor (kein DB-Zugriff).             ║
+-- ║                                                                          ║
+-- ║  BIS DAHIN: Die Abschnitte 1-4 dieser Datei (RPC + Policies) sind         ║
+-- ║  unbedenklich und koennen laufen. Der Urlaubs-Antrag am Terminal          ║
+-- ║  funktioniert aber ERST, wenn der Trigger-Zweig da ist — bis dahin        ║
+-- ║  scheitert er am RAISE EXCEPTION des bestehenden Triggers. Stempeln       ║
+-- ║  (Kommen/Gehen) funktioniert dagegen sofort.                              ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+--
 -- ── 5) TRIGGER-KONFLIKT: guard_urlaub_edit() muss angepasst werden ────────
+-- ACHTUNG: Die folgende Analyse basiert auf der UNVOLLSTAENDIGEN Rekonstruktion
+-- sql/security_triggers_LIVE_v3911.sql. Sie beschreibt den Konflikt korrekt,
+-- aber der Loesungscode darunter ist NICHT lauffaehig (siehe Kasten oben).
 -- GEPRUEFT gegen sql/security_triggers_LIVE_v3911.sql (Live-Funktion,
 -- rekonstruiert, s. dortiger Header): guard_urlaub_edit() erlaubt
 -- Nicht-Admins/Nicht-urlaub_edit NUR den Self-Service-Zweig
@@ -205,45 +242,45 @@ CREATE POLICY absences_insert_terminal ON public.absences
 -- IDEMPOTENT (CREATE OR REPLACE). Aenderung ist minimal-invasiv: der
 -- bestehende Admin-/urlaub_edit-/Monteur-Self-Service-Pfad ist Zeichen fuer
 -- Zeichen unveraendert, nur der neue stempel_terminal-Zweig kommt davor.
-CREATE OR REPLACE FUNCTION public.guard_urlaub_edit()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  me record;
-  sub text := auth.jwt() ->> 'sub';
-BEGIN
-  IF sub IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;  -- service_role bypass
-
-  SELECT role, perms_override, monteur_id INTO me FROM public.users WHERE auth_user_id::text = sub LIMIT 1;
-
-  -- NEU (v2): Stempel-Terminal. Der Terminal-User HAT eine Zeile in public.users
-  -- (role='stempel_terminal') — genau wie der Lager-Kiosk (lager_display). Er hat aber
-  -- KEINE monteur_id, kann den Self-Service-Zweig unten also nie erreichen: dessen
-  -- Bedingung NEW.worker_id = me.monteur_id waere immer NULL = falsch, und JEDER
-  -- Terminal-Antrag waere unten am RAISE EXCEPTION gestorben. Darum dieser Zweig.
-  -- Er steht NACH dem users-Lookup (er braucht me.role) und VOR dem Admin-Check.
-  -- Erlaubt ist ausschliesslich INSERT mit status='beantragt', fuer BELIEBIGE
-  -- worker_id (der Mitarbeiter identifiziert sich per NFC-Chip, nicht per Login).
-  -- Kein UPDATE, kein DELETE, kein Selbst-Genehmigen.
-  IF me.role = 'stempel_terminal' THEN
-    IF TG_OP = 'INSERT' AND COALESCE(NEW.status,'beantragt') = 'beantragt' THEN
-      RETURN NEW;
-    END IF;
-    RAISE EXCEPTION 'urlaub: stempel_terminal darf nur INSERT mit status=beantragt';
-  END IF;
-
-  IF me.role = 'admin' OR (me.perms_override -> 'urlaub_edit')::text = 'true' THEN
-    RETURN COALESCE(NEW, OLD);                            -- Verwalter: voll
-  END IF;
-  -- Monteur-Self-Service: nur eigene, nur Status 'beantragt', kein Selbst-Genehmigen
-  IF TG_OP = 'INSERT' THEN
-    IF NEW.worker_id = me.monteur_id AND COALESCE(NEW.status,'beantragt') = 'beantragt' THEN RETURN NEW; END IF;
-  ELSIF TG_OP = 'UPDATE' THEN
-    IF OLD.worker_id = me.monteur_id AND OLD.status = 'beantragt' AND NEW.status = 'beantragt' THEN RETURN NEW; END IF;
-  ELSIF TG_OP = 'DELETE' THEN
-    IF OLD.worker_id = me.monteur_id AND OLD.status = 'beantragt' THEN RETURN OLD; END IF;
-  END IF;
-  RAISE EXCEPTION 'urlaub: keine Berechtigung (nur eigene Anträge im Status beantragt)';
-END $$;
+-- CREATE OR REPLACE FUNCTION public.guard_urlaub_edit()
+-- RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- DECLARE
+--   me record;
+--   sub text := auth.jwt() ->> 'sub';
+-- BEGIN
+--   IF sub IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;  -- service_role bypass
+-- 
+--   SELECT role, perms_override, monteur_id INTO me FROM public.users WHERE auth_user_id::text = sub LIMIT 1;
+-- 
+--   -- NEU (v2): Stempel-Terminal. Der Terminal-User HAT eine Zeile in public.users
+--   -- (role='stempel_terminal') — genau wie der Lager-Kiosk (lager_display). Er hat aber
+--   -- KEINE monteur_id, kann den Self-Service-Zweig unten also nie erreichen: dessen
+--   -- Bedingung NEW.worker_id = me.monteur_id waere immer NULL = falsch, und JEDER
+--   -- Terminal-Antrag waere unten am RAISE EXCEPTION gestorben. Darum dieser Zweig.
+--   -- Er steht NACH dem users-Lookup (er braucht me.role) und VOR dem Admin-Check.
+--   -- Erlaubt ist ausschliesslich INSERT mit status='beantragt', fuer BELIEBIGE
+--   -- worker_id (der Mitarbeiter identifiziert sich per NFC-Chip, nicht per Login).
+--   -- Kein UPDATE, kein DELETE, kein Selbst-Genehmigen.
+--   IF me.role = 'stempel_terminal' THEN
+--     IF TG_OP = 'INSERT' AND COALESCE(NEW.status,'beantragt') = 'beantragt' THEN
+--       RETURN NEW;
+--     END IF;
+--     RAISE EXCEPTION 'urlaub: stempel_terminal darf nur INSERT mit status=beantragt';
+--   END IF;
+-- 
+--   IF me.role = 'admin' OR (me.perms_override -> 'urlaub_edit')::text = 'true' THEN
+--     RETURN COALESCE(NEW, OLD);                            -- Verwalter: voll
+--   END IF;
+--   -- Monteur-Self-Service: nur eigene, nur Status 'beantragt', kein Selbst-Genehmigen
+--   IF TG_OP = 'INSERT' THEN
+--     IF NEW.worker_id = me.monteur_id AND COALESCE(NEW.status,'beantragt') = 'beantragt' THEN RETURN NEW; END IF;
+--   ELSIF TG_OP = 'UPDATE' THEN
+--     IF OLD.worker_id = me.monteur_id AND OLD.status = 'beantragt' AND NEW.status = 'beantragt' THEN RETURN NEW; END IF;
+--   ELSIF TG_OP = 'DELETE' THEN
+--     IF OLD.worker_id = me.monteur_id AND OLD.status = 'beantragt' THEN RETURN OLD; END IF;
+--   END IF;
+--   RAISE EXCEPTION 'urlaub: keine Berechtigung (nur eigene Anträge im Status beantragt)';
+-- END $$;
 -- Trigger-Bindung trg_guard_urlaub_absences bleibt unveraendert (CREATE OR
 -- REPLACE FUNCTION aendert nur den Funktionsbody, nicht die Trigger-
 -- Registrierung aus security_triggers_LIVE_v3911.sql — kein erneutes
