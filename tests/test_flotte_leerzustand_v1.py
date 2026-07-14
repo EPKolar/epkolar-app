@@ -176,8 +176,9 @@ def test_liste_zeigt_alle_fahrzeuge(index_html):
     # Der trackerFz-Filter darf die Liste NICHT mehr speisen.
     assert "var fleet=_fzFleetZeilen(fahrzeuge,byId,_now2);" in index_html
     assert "var fleet=trackerFz.map(" not in index_html
-    # Der Toggle zaehlt den ganzen Fuhrpark.
-    assert "'Fahrzeuge ('+fahrzeuge.length+')'" in index_html
+    # v3.9.690: Fahrzeuge ohne Tracker stehen als eingeklappte Gruppe am Listenende.
+    assert "const _ohneTracker=fleetView.filter(function(r){return !r.hatTracker;});" in index_html
+    assert "' ohne Tracker'" in index_html
 
 
 def test_zaehler_bleiben_gesamtbestand(index_html):
@@ -188,12 +189,13 @@ def test_zaehler_bleiben_gesamtbestand(index_html):
 
 
 def test_zeile_ohne_tracker_zentriert_nichts(index_html):
-    assert "onClick:function(){if(row.hatTracker)_focus(row);}" in index_html
+    # v3.9.690: Zeilen-Klick zentriert die Karte UND filtert das Fahrtenbuch unten auf das Fahrzeug.
+    assert "onClick:function(){if(row.hatTracker)_focus(row);setBuchFid(row.f.id);}," in index_html
 
 
 def test_banner_unterscheidet_die_beiden_lagen(index_html):
     # "GPS-Pilot ausstehend" war irrefuehrend, solange schlicht keine IMEI zugeordnet ist.
-    assert "Noch keine Tracker zugeordnet — IMEI im Fleet-Panel oder im Fahrzeug-Formular eintragen" in index_html
+    assert "Noch keine Tracker zugeordnet" in index_html
     assert "GPS-Pilot ausstehend" not in index_html
 
 

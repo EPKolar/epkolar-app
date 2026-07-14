@@ -33,7 +33,8 @@ def test_status_summary(index_html):
 
 def test_toggle_button(index_html):
     # v3.9.689: zaehlt den ganzen Fuhrpark — vorher stand hier "Fahrzeuge (0)" neben 21 Autos.
-    assert "'Fahrzeuge ('+fahrzeuge.length+')'" in index_html
+    # v3.9.690: nur noch mobil (Desktop hat das Dreifenster-Layout ohne Toggle).
+    assert "'🚐 Fahrzeuge ('+fahrzeuge.length+')'" in index_html
 
 
 def test_listOpen_state(index_html):

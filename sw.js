@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.689 - Flotte-Rollout: Die Fleet-Liste zeigt jetzt ALLE Fahrzeuge (vierte Stufe "kein Tracker", grau, ans Ende) statt nur die mit IMEI - vorher war die Liste bei 21 Fahrzeugen und 0 IMEIs schlicht leer. IMEI-Zuordnung an zwei Stellen: inline im Fleet-Panel und im Fahrzeug-Formular (neue Sektion GPS-Tracker mit Typ/SIM/Einbaudatum). Spalten-Sniff degradiert sauber, solange sql/FZ_TRACKER_v1.sql nicht gelaufen ist.
-const CACHE_NAME = "epkolar-v3.9.689";
+// EP Kolar Service Worker v3.9.690 - Flotte im Fink-Layout: EIN Frame, drei Panels (Fahrzeugliste | Karte | Fahrtenbuch), kein Overlay, kein Toggle, App-Theme. Fahrtenbuch fahrzeuguebergreifend ("alle" in EINEM Request), Zeitraumfilter mit Presets, Summenzeile, Fink-Spalten, Excel- und PDF-Export, Tabs fuer Tageskilometer/Geschwindigkeit. Fahrt anklicken zeichnet sie durchgezogen auf der Karte, mit Start-/Ende-Marker und fitBounds.
+const CACHE_NAME = "epkolar-v3.9.690";
 const ASSETS = [
   './',
   './index.html'

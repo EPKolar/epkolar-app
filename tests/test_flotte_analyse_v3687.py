@@ -166,7 +166,8 @@ def test_geschwindigkeit_haengt_an_einer_fahrt(index_html):
 
 
 def test_leerzustand_analyse(index_html):
-    assert "'Keine Fahrten im Zeitraum — nichts auszuwerten.'" in index_html
+    # v3.9.690: Der Leer-Zustand haengt jetzt am Panel-Render (eine Stelle statt zweier).
+    assert "Keine Fahrten im gewählten Zeitraum" in index_html
     assert "der Tracker hat sie nicht mitgeliefert" in index_html
 
 
@@ -186,4 +187,6 @@ def test_filter_faelscht_die_zaehler_nicht(index_html):
     assert "var fleetView=_fq?fleet.filter(" in index_html
     # v3.9.689: Zaehler vierstufig + "ohne Tracker" — aber weiterhin ueber den GANZEN Fuhrpark.
     assert "_nAkt+' aktiv · '+_nInakt+' inaktiv · '+_nWart+' wartet'" in index_html
-    assert "fleetView.map(function(row){" in index_html
+    # v3.9.690: die Liste rendert getrennt nach mit/ohne Tracker (Gruppe am Ende).
+    assert "_mitTracker.map(_fleetZeile)" in index_html
+    assert "const _mitTracker=fleetView.filter(function(r){return r.hatTracker;});" in index_html

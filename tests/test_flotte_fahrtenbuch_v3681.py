@@ -41,8 +41,10 @@ def test_upsert_ist_idempotent(index_html):
 def test_karte_bleibt_gemountet(index_html):
     # Overlay UEBER der Karte — kein bedingtes Rendern des Map-Containers. Sonst brechen
     # Popup-Restore / In-Flight-Guard / Trail aus v3.9.663.
-    assert "buchOpen?h(FahrtenbuchView,{" in index_html
-    assert "const [buchOpen,setBuchOpen]=_react.useState.call(void 0, false);" in index_html
+    # v3.9.690: Das Fahrtenbuch ist kein Overlay mehr, sondern Panel 3 im Fink-Frame — es ist
+    # IMMER sichtbar, der Toggle ist ersatzlos weg. Die Karte bleibt trotzdem gemountet.
+    assert "const _panelBuch=h(FahrtenbuchView,{" in index_html
+    assert "buchOpen" not in index_html, "der Fahrtenbuch-Toggle ist ersatzlos entfallen"
 
 
 def test_kein_privat_geschaeftlich_feld(index_html):
@@ -112,18 +114,17 @@ def test_export_nutzt_bestehenden_weg(index_html):
     # Kein neuer Export-Pfad — genXls wie ueberall sonst.
     body = _fb_body(index_html)
     assert "const exportFahrten=function(){" in body
-    assert "genXls('📖 Fahrtenbuch — '+kz" in body
+    assert "genXls('📖 Fahrtenbuch — '+(fid?_kz({}):'alle Fahrzeuge')" in body
 
 
 def test_export_spalten_wie_am_bildschirm(index_html):
     # Konsistenz Bildschirm = Datei (die Lehre aus v3.9.676).
     body = _fb_body(index_html)
-    assert (
-        "const hdrs=['Datum','Fahrzeug','Beginn','Ende','Dauer','km','Start','Ziel','Projekt'];"
-        in body
-    )
+    # v3.9.690: Fink-Spalten. Kennzeichen nur im Alle-Modus, Tacho nur wenn es Werte gibt.
+    assert "hdr.push('Tag','Datum','Beginn','Ende','Dauer','Start','Ziel','km');" in body
+    assert "if(!fid)hdr.push('Kennzeichen');" in body
     # Summenzeile muss mit — sonst muss der Leser selbst addieren.
-    assert "data.push(['','','','SUMME'," in body
+    assert "sum[Math.max(0,iDauer-1)]='SUMME';" in body
 
 
 def test_export_bei_leerem_zeitraum_kein_crash(index_html):
@@ -144,7 +145,9 @@ def test_trail_je_einzelner_fahrt(index_html):
 
 def test_karte_zeichnet_nur_die_gewaehlte_fahrt(index_html):
     assert "var _showFahrtTrail=function(pts){" in index_html
-    assert "L.polyline(pts,{color:'#f97316',weight:4,opacity:0.9})" in index_html
+    # v3.9.690: durchgezogen statt gestrichelt (Fink-Optik), plus Start-/Ende-Marker.
+    assert "L.polyline(pts,{color:'#0ea5e9',weight:4,opacity:0.95,lineJoin:'round',lineCap:'round'})" in index_html
+    assert "_fahrtMk.current=[_mk(pts[0],'#22c55e','▶'),_mk(pts[pts.length-1],'#ef4444','■')];" in index_html
     # Abwahl fuehrt zurueck zur Gesamtansicht — ueber denselben _clearTrail, kein zweiter Pfad.
     assert "setTrailFid(null);setTrailSeit(null);setFahrtTrail(false);};" in index_html
     assert "(trailFid||fahrtTrail)?h('button',{onClick:_clearTrail" in index_html

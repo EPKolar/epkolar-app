@@ -24,6 +24,8 @@ def test_followId_in_deps(index_html):
 
 
 def test_row_follow_toggle(index_html):
+    # v3.9.690: Live-Follow bleibt in der Zeile — ohne den Button waere er nur noch beendbar,
+    # nicht mehr startbar, und das Feature waere still verschwunden.
     assert "setFollowId(function(cur){return (cur===row.f.id)?null:row.f.id;});" in index_html
     # stopPropagation, damit der Zeilen-Klick (_focus) nicht mitfeuert
     assert "ev.stopPropagation();" in index_html
