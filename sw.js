@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.686 - Planungs-Wetterzeile zeigte HARTCODIERTE Demo-Daten (4/2/7/5/6/3 Grad, "network disabled") und hat nie eine API aufgerufen - im Hochsommer Wintertemperaturen. Jetzt echte Open-Meteo-Tageswerte fuer die ANGEZEIGTE KW, Zuordnung ueber das ISO-Datum statt ueber den Array-Index. Eine gemeinsame Wettercode-Tabelle fuer Home und Planung. Dazu: Leaflet-Mausrad zoomt erst nach Klick in die Karte.
-const CACHE_NAME = "epkolar-v3.9.686";
+// EP Kolar Service Worker v3.9.687 - Flotte Phase F4 (Abschluss): Auswertung im Fahrtenbuch (Tageskilometer als Balken, Geschwindigkeitsverlauf je einzelner Fahrt als Linie) + Filtersuche und Favoriten in der Fahrzeugliste. Gezeichnet mit der bestehenden SVG-Engine, keine neue Bibliothek. Damit sind F1-F4 komplett; es fehlen nur noch echte Tracker-Daten.
+const CACHE_NAME = "epkolar-v3.9.687";
 const ASSETS = [
   './',
   './index.html'
