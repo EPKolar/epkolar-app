@@ -140,6 +140,24 @@ Schutz gegen Rechte-Eskalation.
 `sql/VERIFY_TRIGGER_BODIES_v1.sql` misst alle fünf auf einmal gegen die DB (read-only, gefahrlos).
 **Vor jedem Eingriff ausführen.**
 
+### `sql/` im main-Checkout ist eine geladene Waffe
+
+> **Niemals einen ungepushten Arbeitsstand in `sql/` liegen lassen.**
+> Work in Progress gehört nach `docs/wip/` oder in einen Branch.
+
+**Grund:** Sebastian kopiert SQL **direkt aus `C:\repos\epkolar-app\sql\`** in den Supabase-Editor
+und führt es aus. Was dort liegt, ist damit potenziell **live** — auch ein Entwurf, auch ein
+halbfertiger Stand, auch eine Datei, die „nur zum Draufschauen" gedacht war. Zwischen „ich lege das
+mal ab" und „das läuft auf der Produktionsdatenbank" liegt kein Gate.
+
+Konkret passiert am 14.07.2026: `STEMPEL_TERMINAL_v2.sql` lag zwischen zwei Commits mit einem
+**aktiven** `CREATE OR REPLACE guard_urlaub_edit()` in `sql/` — aufgebaut auf der unvollständigen
+Rekonstruktion. Wäre sie in diesem Fenster ausgeführt worden, hätte sie ~800 Zeichen Live-Logik
+gelöscht. (Sie wurde es nachweislich nicht — kein Repo-Body passt zum Live-Stand.)
+
+**Praktisch heißt das:** Gefährliche Abschnitte werden **auskommentiert**, nicht „später noch
+scharf gemacht". Eine Datei in `sql/` muss zu jedem Zeitpunkt gefahrlos ausführbar sein.
+
 **Warum das eine harte Regel ist — 14.07.2026, um Haaresbreite:**
 `sql/security_triggers_LIVE_v3911.sql` gab sich als Live-Stand von `guard_urlaub_edit()` aus. Der
 Vergleich ergab: **Live 1746 Zeichen normalisiert, Repo-Datei 953.** Es fehlten ~800 Zeichen echter

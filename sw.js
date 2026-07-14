@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.697 - FinkZeit-Differenz ist kein Fehlerzustand mehr: Projektzeit (time_entries) und Anwesenheit (FinkZeit) messen Verschiedenes, eine Abweichung ist normal. Alert von warning auf info, KPI-Kachel nicht mehr rot. Die Zahl bleibt sichtbar, nur der Alarm ist weg.
-const CACHE_NAME = "epkolar-v3.9.697";
+// EP Kolar Service Worker v3.9.698 - Dead-Code Phase 2 Batch 1: pendingPushCount, srvBase, _tagLabel, _seitFmt entfernt (je 0 Referenzen, belegt). Nur Entfernen, Verhalten bit-identisch.
+const CACHE_NAME = "epkolar-v3.9.698";
 const ASSETS = [
   './',
   './index.html'
