@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.695 - Terminal-User lauffaehig: Rollenquelle konsolidiert auf auth_role()/public.users.role (der app_metadata-Weg haette das Terminal still an der RLS verhungern lassen), ?screen=stempel-Gate fuer stempel_terminal, workers-Load ueber die minimale RPC (keine SVNR am Wandpanel), Antrags-Doppelpruefung ueber den PK-Konflikt statt ueber ein absences-SELECT.
-const CACHE_NAME = "epkolar-v3.9.695";
+// EP Kolar Service Worker v3.9.696 - Terminal-Antrag meldet die Trigger-Ablehnung verstaendlich ("noch nicht freigeschaltet, Stempeln funktioniert normal") statt eines nackten Fehlers. Der Trigger-Zweig ist stillgelegt, bis der echte Live-Body vorliegt (die Repo-Rekonstruktion war unvollstaendig).
+const CACHE_NAME = "epkolar-v3.9.696";
 const ASSETS = [
   './',
   './index.html'

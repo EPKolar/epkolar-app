@@ -127,3 +127,25 @@ def test_netzfehler_wird_ehrlich_gemeldet(index_html):
     body = _submit(index_html)
     assert "_stErrKind(e)==='net'" in body
     assert "Keine Verbindung" in body
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 5) Der Zustand "Trigger noch nicht freigeschaltet"
+#
+# Abschnitt 5 von STEMPEL_TERMINAL_v2.sql ist STILLGELEGT: die Repo-Rekonstruktion des
+# Live-Triggers (security_triggers_LIVE_v3911.sql) war unvollstaendig — Live 1746 Zeichen
+# normalisiert, Repo 953 — ein CREATE OR REPLACE haette ~800 Zeichen Live-Logik kommentarlos
+# geloescht. Bis der echte Live-Body vorliegt (v3), lehnt guard_urlaub_edit() jeden
+# Terminal-Antrag mit RAISE EXCEPTION ab (PostgREST -> HTTP 400, 'urlaub: ...' im Body).
+#
+# Das ist ein ERWARTETER Zwischenzustand, kein Bug. Der Monteur steht aber vor der Wand und
+# darf dafuer kein nacktes "Fehler" sehen.
+# ══════════════════════════════════════════════════════════════════════════════
+def test_trigger_ablehnung_wird_verstaendlich_gemeldet(index_html):
+    body = _submit(index_html)
+    assert "indexOf('urlaub:')" in body, \
+        "Die Trigger-Ablehnung wird nicht erkannt — der Monteur saehe nur 'Antrag konnte nicht " \
+        "eingereicht werden' und wuesste nicht, dass Stempeln trotzdem geht."
+    assert "noch nicht freigeschaltet" in body
+    assert "Stempeln funktioniert normal" in body, \
+        "Die Meldung muss sagen, was WEITERHIN geht — sonst probiert der Mann auch das Stempeln nicht."
