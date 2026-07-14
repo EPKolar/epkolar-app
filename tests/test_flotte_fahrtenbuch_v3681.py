@@ -19,7 +19,9 @@ def test_komponente_existiert(index_html):
 
 def test_fahrten_kommen_aus_der_engine_nicht_aus_der_db(index_html):
     # Quelle der Wahrheit ist die Segmentierung, nicht fz_fahrten.
-    assert "const s=_fzSegmente(pos,{});" in index_html
+    # v3.9.683: die Rohpunkte heissen jetzt rohpos — sie bleiben im State, weil der Trail je
+    # EINZELNER Fahrt sie nach Zeitfenster zuschneidet.
+    assert "const s=_fzSegmente(rohpos,{});" in index_html
     assert "async function _fzFetchRange(fid,fromIso,toIso){" in index_html
 
 
@@ -94,3 +96,55 @@ def test_sql_datei_ist_gestaged(index_html):
     assert "zweck" not in spalten.lower(), "fz_fahrten darf keine zweck-Spalte haben"
     assert "privat" not in spalten.lower()
     assert "projekt_id" in spalten and "arbeitsschein_id" in spalten
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v3.9.683 — F2-Reste: Export + Trail je EINZELNER Fahrt
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _fb_body(index_html):
+    start = index_html.index("function FahrtenbuchView(props){")
+    return index_html[start : index_html.index("\nfunction FlotteView(props){")]
+
+
+def test_export_nutzt_bestehenden_weg(index_html):
+    # Kein neuer Export-Pfad — genXls wie ueberall sonst.
+    body = _fb_body(index_html)
+    assert "const exportFahrten=function(){" in body
+    assert "genXls('📖 Fahrtenbuch — '+kz" in body
+
+
+def test_export_spalten_wie_am_bildschirm(index_html):
+    # Konsistenz Bildschirm = Datei (die Lehre aus v3.9.676).
+    body = _fb_body(index_html)
+    assert (
+        "const hdrs=['Datum','Fahrzeug','Beginn','Ende','Dauer','km','Start','Ziel','Projekt'];"
+        in body
+    )
+    # Summenzeile muss mit — sonst muss der Leser selbst addieren.
+    assert "data.push(['','','','SUMME'," in body
+
+
+def test_export_bei_leerem_zeitraum_kein_crash(index_html):
+    # fz_positions ist leer (Tracker nicht bestellt) — der Normalfall ist heute NULL Fahrten.
+    body = _fb_body(index_html)
+    assert "if(!segs.length){if(window.__toast)window.__toast('Keine Fahrten im Zeitraum','info');return;}" in body
+
+
+def test_trail_je_einzelner_fahrt(index_html):
+    body = _fb_body(index_html)
+    # Punktkette wird aus den Rohdaten nach Zeitfenster geschnitten — die Engine bleibt pure
+    # und liefert weiterhin nur Start-/Endpunkt.
+    assert "const _fahrtPunkte=function(s){" in body
+    assert "if(isNaN(t)||t<s.beginn||t>s.ende)return;" in body
+    # Null-Island/NaN fliegen raus, sonst zieht die Polyline in den Golf von Guinea.
+    assert "if(!isFinite(la)||!isFinite(lo)||(la===0&&lo===0))return;" in body
+
+
+def test_karte_zeichnet_nur_die_gewaehlte_fahrt(index_html):
+    assert "var _showFahrtTrail=function(pts){" in index_html
+    assert "L.polyline(pts,{color:'#f97316',weight:4,opacity:0.9})" in index_html
+    # Abwahl fuehrt zurueck zur Gesamtansicht — ueber denselben _clearTrail, kein zweiter Pfad.
+    assert "setTrailFid(null);setTrailSeit(null);setFahrtTrail(false);};" in index_html
+    assert "(trailFid||fahrtTrail)?h('button',{onClick:_clearTrail" in index_html

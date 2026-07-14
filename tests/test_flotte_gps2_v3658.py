@@ -21,7 +21,9 @@ def test_clear_trail(index_html):
     assert "var _clearTrail=function(){" in index_html
     # v3.9.678: raeumt zusaetzlich das exakte "Status seit" weg — sonst zeigte die Liste
     # weiter den Zustandsbeginn aus einer Historie, die gar nicht mehr angezeigt wird.
-    assert "setTrailFid(null);setTrailSeit(null);};" in index_html
+    # v3.9.683: raeumt auch den Einzel-Fahrt-Trail weg — bewusst DERSELBE Aufraeum-Pfad,
+    # damit es nicht zwei Wege gibt, die Karte in einen sauberen Zustand zu bringen.
+    assert "setTrailFid(null);setTrailSeit(null);setFahrtTrail(false);};" in index_html
 
 
 def test_fit_all(index_html):
@@ -31,5 +33,6 @@ def test_fit_all(index_html):
 def test_controls_render(index_html):
     assert "h('button',{onClick:_fitAll," in index_html
     assert "'⌖ Alle'" in index_html
-    assert "trailFid?h('button',{onClick:_clearTrail" in index_html
+    # v3.9.683: der Button raeumt jetzt auch den Einzel-Fahrt-Trail weg und heisst dann "Fahrt ✕".
+    assert "(trailFid||fahrtTrail)?h('button',{onClick:_clearTrail" in index_html
     assert "'Verlauf ✕'" in index_html

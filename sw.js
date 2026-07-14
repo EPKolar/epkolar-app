@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.682 - Zeiterfassung: Sonntag nur bei vorhandenen Eintraegen sichtbar (Optik Mo-Sa; das Grid ist repeat(6,1fr), der 7. Tag brach als einsame zweite Zeile um). Reine Anzeige-Regel wie exportWochenStz v3.9.661 - DAYS bleibt 7-taegig, ein Sonntag MIT Eintraegen bleibt immer sichtbar (v3.9.546-Schutz), die Wochensumme zaehlt ihn immer mit.
-const CACHE_NAME = "epkolar-v3.9.682";
+// EP Kolar Service Worker v3.9.683 - Fahrtenbuch F2-Reste: Excel-Export der Fahrtenliste (gleiche Spalten wie am Bildschirm, mit Summenzeile) + Trail je EINZELNER Fahrt auf der Karte statt der ganzen 500-Punkte-Historie. Die Punktkette wird aus den Rohdaten nach Zeitfenster geschnitten, die Segmentierungs-Engine bleibt pure und unangetastet.
+const CACHE_NAME = "epkolar-v3.9.683";
 const ASSETS = [
   './',
   './index.html'
