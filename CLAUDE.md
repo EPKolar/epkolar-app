@@ -122,6 +122,24 @@ select md5(btrim(regexp_replace(prosrc, '\s+', ' ', 'g')))   as body_md5,
 Denselben Hash über den Body in der Repo-Datei rechnen. **Weichen Hash oder Länge ab, ist die
 Repo-Datei keine Replace-Basis** — Punkt. Nicht „wahrscheinlich schon", nicht „nur Formatierung".
 
+### Absolute Regel für die fünf Security-Trigger (unbefristet)
+
+`sql/security_triggers_LIVE_v3911.sql` rekonstruiert fünf Trigger:
+`guard_urlaub_edit` · `guard_kontingent` · `guard_users_privilege` · `guard_admin_only` ·
+`guard_projects`.
+
+> **KEIN `CREATE OR REPLACE` auf irgendeinen dieser fünf, dessen Live-Body nicht als
+> `docs/wip/<name>_LIVE_<datum>.sql` gesichert UND hash-verifiziert ist.**
+
+Gemessen wurde bisher nur `guard_urlaub_edit` — Live **1746** Zeichen normalisiert gegen **953** in
+der Repo-Datei. **~800 Zeichen echter Logik fehlen dort.** Ein Replace hätte sie kommentarlos
+gelöscht: kein Fehler, kein Rollback, keine Warnung. Die anderen vier stammen aus derselben
+Rekonstruktion und sind bis zur Messung **unverifiziert** — darunter `guard_users_privilege`, der
+Schutz gegen Rechte-Eskalation.
+
+`sql/VERIFY_TRIGGER_BODIES_v1.sql` misst alle fünf auf einmal gegen die DB (read-only, gefahrlos).
+**Vor jedem Eingriff ausführen.**
+
 **Warum das eine harte Regel ist — 14.07.2026, um Haaresbreite:**
 `sql/security_triggers_LIVE_v3911.sql` gab sich als Live-Stand von `guard_urlaub_edit()` aus. Der
 Vergleich ergab: **Live 1746 Zeichen normalisiert, Repo-Datei 953.** Es fehlten ~800 Zeichen echter
