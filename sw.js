@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.693 - Stempeluhr Teil F+G: NFC-Chip-Zuordnung im Mitarbeiter-Formular (Buero-Reader, Kollisionscheck, 23505-Abfang, Chip entfernen) und eigene Terminal-UI am Wandpanel mit Urlaubs-/ZA-Antrag per Chip-Identifikation (4 Schritte, status=beantragt, ein Datensatz je Werktag, 30s-Timeout, keine Salden am Panel).
-const CACHE_NAME = "epkolar-v3.9.693";
+// EP Kolar Service Worker v3.9.694 - Self-Service-Karte heisst jetzt "Projektstunden" statt "Arbeitszeit" (sie zeigt time_entries = Projektzeit; die Anwesenheit steht in stempel_log/PZE). Reine Umbenennung.
+const CACHE_NAME = "epkolar-v3.9.694";
 const ASSETS = [
   './',
   './index.html'
