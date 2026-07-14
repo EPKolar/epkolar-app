@@ -106,16 +106,21 @@ Ist-Body aus der DB ziehen** und darauf aufbauen. Eine Datei im Repo, die behaup
 abzubilden, ist eine **Behauptung**, kein Beweis.
 
 ```sql
--- Ist-Stand holen (das ist die einzige Wahrheit):
+-- 1) Ist-Stand holen (das ist die einzige Wahrheit):
 select pg_get_functiondef(oid) from pg_proc
  where pronamespace='public'::regnamespace and proname='<funktion>';
 
--- Und gegen die Repo-Datei prüfen — Normalform (Whitespace weg), dann MD5:
-select md5(regexp_replace(pg_get_functiondef(oid), '\s+', ' ', 'g')) as live_md5,
-       length(regexp_replace(pg_get_functiondef(oid), '\s+', ' ', 'g')) as live_len
+-- 2) Normalform-Hash des FUNKTIONSKÖRPERS (prosrc = nur der Text zwischen den
+--    Dollar-Quotes; Whitespace-Läufe → ein Space, trimmen, dann MD5).
+--    Das ist das Standard-Werkzeug: zwei Bodies sind identisch, wenn ihr Hash gleich ist.
+select md5(btrim(regexp_replace(prosrc, '\s+', ' ', 'g')))   as body_md5,
+       length(btrim(regexp_replace(prosrc, '\s+', ' ', 'g'))) as body_len
   from pg_proc
  where pronamespace='public'::regnamespace and proname='<funktion>';
 ```
+
+Denselben Hash über den Body in der Repo-Datei rechnen. **Weichen Hash oder Länge ab, ist die
+Repo-Datei keine Replace-Basis** — Punkt. Nicht „wahrscheinlich schon", nicht „nur Formatierung".
 
 **Warum das eine harte Regel ist — 14.07.2026, um Haaresbreite:**
 `sql/security_triggers_LIVE_v3911.sql` gab sich als Live-Stand von `guard_urlaub_edit()` aus. Der

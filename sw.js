@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.696 - Terminal-Antrag meldet die Trigger-Ablehnung verstaendlich ("noch nicht freigeschaltet, Stempeln funktioniert normal") statt eines nackten Fehlers. Der Trigger-Zweig ist stillgelegt, bis der echte Live-Body vorliegt (die Repo-Rekonstruktion war unvollstaendig).
-const CACHE_NAME = "epkolar-v3.9.696";
+// EP Kolar Service Worker v3.9.697 - FinkZeit-Differenz ist kein Fehlerzustand mehr: Projektzeit (time_entries) und Anwesenheit (FinkZeit) messen Verschiedenes, eine Abweichung ist normal. Alert von warning auf info, KPI-Kachel nicht mehr rot. Die Zahl bleibt sichtbar, nur der Alarm ist weg.
+const CACHE_NAME = "epkolar-v3.9.697";
 const ASSETS = [
   './',
   './index.html'
