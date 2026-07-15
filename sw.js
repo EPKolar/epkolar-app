@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.713 - Dispo Etappe 3 Rechenkern-Fundament (pure //@DISPO: _dispoAdrKey/_dispoDauer/_dispoHaversine/_dispo2opt/_dispoKapazitaet), testbar. Algorithmus+UI folgen. Reiner index.html-Fix.
-const CACHE_NAME = "epkolar-v3.9.713";
+// EP Kolar Service Worker v3.9.714 - Dispo E3-Verdrahtung Stufe 1 (pure //@DISPO: _dispoPlan Greedy+Buendelung+2-opt, _dispoTopf, _dispoAbwAbzug N8). E4-Tab folgt. Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.714";
 const ASSETS = [
   './',
   './index.html'
