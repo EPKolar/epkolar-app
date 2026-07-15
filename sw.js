@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.712 - Dispo Etappe 2: fz_bedarf (App-only Fahrzeug-Bedarf am Arbeitsschein) Client-Lesepfad 42703-tolerant, nie in Push-Pfaden. SQL gestaged, UI-Block folgt. Reiner index.html-Fix.
-const CACHE_NAME = "epkolar-v3.9.712";
+// EP Kolar Service Worker v3.9.713 - Dispo Etappe 3 Rechenkern-Fundament (pure //@DISPO: _dispoAdrKey/_dispoDauer/_dispoHaversine/_dispo2opt/_dispoKapazitaet), testbar. Algorithmus+UI folgen. Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.713";
 const ASSETS = [
   './',
   './index.html'
