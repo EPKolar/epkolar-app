@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.703 - Mitarbeiter-Anlage erzeugt optional automatisch einen Login (Checkbox, admin-only, Username=Nachname aus Bestand, Rolle via _W2U). Worker via SQ offline-faehig; Login getrennt AWAITED nur online, gruen nur bei r.ok, RPC nie in die SyncQueue, kein erfundenes Default-Passwort.
-const CACHE_NAME = "epkolar-v3.9.703";
+// EP Kolar Service Worker v3.9.704 - Spezialfahrzeuge-Uebersicht auf der Wochenplan-Kiosk-Tafel: je belegtem Spez-FZ eine 🚛-Zeile unter Zeitausgleich (BVH je Tag, Doppelbelegung rot+Warnung, unbelegte ausgeblendet). Ableitung exakt wie Haupt-Planung, read-only, nur WochenplanTafel.
+const CACHE_NAME = "epkolar-v3.9.704";
 const ASSETS = [
   './',
   './index.html'
