@@ -14799,7 +14799,13 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   const pointersRef = _react.useRef.call(void 0, new Map());
   const lastPinchDistRef = _react.useRef.call(void 0, null);
   const viewportRef = _react.useRef.call(void 0, null);/* v3.9.136 Liste↔Plan-Sync */
+  const worldRef = _react.useRef.call(void 0, null);/* v3.9.709 world-Container (transform-Div) — für Flex-Offset-korrekten Fokus-Zoom */
   const _lastCenteredRef = _react.useRef.call(void 0, null);
+  /* v3.9.709 Flex-Offset-Fix (Handy-Pinch driftete): der world-Div ist per flex align/justify-center im Gesten-Div
+     zentriert → sein transform-origin (0,0) sitzt NICHT an der Viewport-Ecke, sondern um den Flex-Offset o versetzt
+     (gemessen: kleiner Plan +30/+235px, A4 −448/−538px). Fokus-Zoom braucht den Fokuspunkt relativ zu DIESEM Ursprung,
+     sonst driftet der Zoom um o·(r−1). _worldOrigin() liefert die Screen-Koordinaten der Ursprungs-Ecke (inkl. Pan+Scroll). */
+  const _worldOrigin = () => { const w = worldRef.current; if(!w) return null; const r = w.getBoundingClientRect(); return {x: r.left, y: r.top}; };
   // v3.8.56 Fix: Plan-Schema heisst file_url (Storage-URL), Component erwartete dataUrl.
   // Ein Resolver normalisiert: dataUrl > data_url > file_url > "".
   const _planSrc = (plan && (plan.dataUrl || plan.data_url || plan.file_url)) || "";
@@ -14877,8 +14883,10 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         /* v3.9.142 Phase 3 FOKUSPUNKT-ZOOM: Punkt unter den Fingern (Pinch-Midpoint) bleibt fix,
            statt aus Ecke 0,0 zu springen. fx/fy = Midpoint im Viewport; pan kompensiert: panX=fx-(fx-panX)*r. */
         const _mx=(pts[0].x+pts[1].x)/2, _my=(pts[0].y+pts[1].y)/2;
+        /* v3.9.709 Fokus relativ zum world-Layout-Ursprung (Flex-Offset) statt zur Viewport-Ecke — sonst driftet der Pinch. */
+        const _wo=_worldOrigin();
         const _vr=viewportRef.current?viewportRef.current.getBoundingClientRect():null;
-        const _fx=_vr?(_mx-_vr.left):_mx, _fy=_vr?(_my-_vr.top):_my;
+        const _fx=_wo?(_mx-_wo.x+pan.x):(_vr?(_mx-_vr.left):_mx), _fy=_wo?(_my-_wo.y+pan.y):(_vr?(_my-_vr.top):_my);
         setZoom(z=>{const nz=Math.max(0.4,Math.min(6,z*ratio));const r=z>0?nz/z:1;setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r}));return nz;});
       }
       lastPinchDistRef.current = dist;
@@ -14900,8 +14908,9 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         if(_mv < 6){
           const _now = e.timeStamp||0, _last = _tapRef.current;
           if(_last && (_now-_last.t) < 300 && Math.hypot(e.clientX-_last.x, e.clientY-_last.y) < 28){
+            const _wo = _worldOrigin();/* v3.9.709 Flex-Offset-korrekter Fokus */
             const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
-            const fx = _vr ? e.clientX-_vr.left : 0, fy = _vr ? e.clientY-_vr.top : 0;
+            const fx = _wo ? e.clientX-_wo.x+pan.x : (_vr ? e.clientX-_vr.left : 0), fy = _wo ? e.clientY-_wo.y+pan.y : (_vr ? e.clientY-_vr.top : 0);
             setZoom(z=>{const nz = z<1.8?2.5:1; setPan(pp=>{ if(nz===1) return {x:0,y:0}; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,0.4,6); return {x:_o.tx,y:_o.ty}; }); return nz;});
             _tapRef.current = null;
           } else { _tapRef.current = {t:_now, x:e.clientX, y:e.clientY}; }
@@ -14947,7 +14956,8 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   const _zoomCenter = (delta) => {
     const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
     const _fx = _vr ? _vr.width/2 : 0, _fy = _vr ? _vr.height/2 : 0;
-    setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); setPan(pp=>{const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_fx,y:_fy},z>0?nz/z:1,0.4,6);return {x:_o.tx,y:_o.ty};}); return nz; });
+    const _wo = _worldOrigin();/* v3.9.709 Flex-Offset abziehen: Viewport-Mitte in den world-Layout-Frame übersetzen (sonst springt der Plan pro Klick um o·(r−1)) */
+    setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); setPan(pp=>{const _mx=(_wo&&_vr)?(_vr.left+_fx-_wo.x+pp.x):_fx, _my=(_wo&&_vr)?(_vr.top+_fy-_wo.y+pp.y):_fy; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},z>0?nz/z:1,0.4,6);return {x:_o.tx,y:_o.ty};}); return nz; });
   };
   /* v3.9.184 Pin-Drag: Bildschirm-Koordinaten → Plan-Prozent (0-100), via gerenderter Plan-Element-Rect (zoom/pan-korrekt, da Element im transformierten world-div liegt). */
   const pctFromClient = (cx, cy) => {
@@ -14975,14 +14985,18 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
        Vorher feuerte JEDES Wheel-Event setZoom+setPan → voller Re-Render (Canvas + alle Pins) → träges Zoomen.
        Jetzt wird der Zoom-Faktor aller Events eines Frames AUFMULTIPLIZIERT und einmal angewandt → gleiche
        Gesamt-Zoomstärke, aber nur 1 Re-Render/Frame. Fokuspunkt = letztes Event des Frames. */
-    let _raf = null, _accum = 1, _fx = 0, _fy = 0;
+    let _raf = null, _accum = 1, _fx = 0, _fy = 0, _wl = 0, _wt = 0, _haveW = false;
     const _wh = (e) => {
       e.preventDefault();
-      const vr = el.getBoundingClientRect(); _fx = e.clientX - vr.left; _fy = e.clientY - vr.top;
+      const vr = el.getBoundingClientRect();
+      /* v3.9.709 Fokus relativ zum world-Layout-Ursprung (Flex-Offset). Effekt-deps=[] → pan hier stale;
+         daher world-Ursprung als Screen-Koordinate merken und mid erst in setPan mit pp bilden. */
+      const _wo = _worldOrigin(); _haveW = !!_wo;
+      _fx = e.clientX; _fy = e.clientY; if(_wo){ _wl = _wo.x; _wt = _wo.y; } else { _fx = e.clientX - vr.left; _fy = e.clientY - vr.top; }
       _accum *= (e.deltaY>0 ? 0.9 : 1.1);
       if(!_raf) _raf = requestAnimationFrame(() => {
         _raf = null; const factor = _accum; _accum = 1;
-        setZoom(z => { const _ns = Math.max(0.4, Math.min(6, z*factor)); setPan(pp=>{const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_fx,y:_fy},factor,0.4,6);return {x:_o.tx,y:_o.ty};}); return _ns; });
+        setZoom(z => { const _ns = Math.max(0.4, Math.min(6, z*factor)); setPan(pp=>{const _mx=_haveW?(_fx-_wl+pp.x):_fx, _my=_haveW?(_fy-_wt+pp.y):_fy; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},factor,0.4,6);return {x:_o.tx,y:_o.ty};}); return _ns; });
       });
     };
     el.addEventListener("wheel", _wh, { passive: false }); return () => { if(_raf) cancelAnimationFrame(_raf); el.removeEventListener("wheel", _wh); };
@@ -15125,6 +15139,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         style: {position: "absolute", inset: 0, touchAction: "none"/* v3.9.413: native Touch-Pan/Pinch deaktivieren → Pointer-Handler steuern Pan/Zoom (sonst kapert Browser-Scroll die Geste auf Handy/Tablet) */, cursor: pinMode ? "crosshair" : (isPanning ? "grabbing" : "grab"), display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto"}
       },
         React.createElement('div', {
+          ref: worldRef,/* v3.9.709 Flex-Offset-Messung für Fokus-Zoom */
           style: {transform: "translate(" + pan.x + "px, " + pan.y + "px) scale(" + zoom + ")", transformOrigin: "0 0", position: "relative", display: "inline-block", willChange: "transform"}/* v3.9.134 World-Container */
         },
           _isPdf ? React.createElement('canvas', {
