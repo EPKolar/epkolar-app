@@ -12,9 +12,13 @@ def test_kiosk_path_gate(index_html):
 
 
 def test_controllerchange_reload(index_html):
-    # controllerchange -> location.reload(); Handler wird NUR im _isKioskPath-Zweig registriert
+    # controllerchange -> reload; Handler wird NUR im _isKioskPath-Zweig registriert
     assert 'navigator.serviceWorker.addEventListener("controllerchange",_kioskCtrlHandler)' in index_html
-    assert '_kioskCtrlHandler=function(){if(_kioskRefreshing)return;_kioskRefreshing=true;try{location.reload();' in index_html
+    # v3.9.705: der Handler reloadet nur noch STILLE Kiosk-Rollen (lager_display/stempel_terminal)
+    # und ausschliesslich durch den Loop-Guard — Admin-Preview bekommt den Banner, kein Auto-Reload.
+    assert "if(_cr!=='lager_display'&&_cr!=='stempel_terminal')return;" in index_html
+    assert "if(!window._kioskReloadGuard('cc-'" in index_html
+    assert "_kioskRefreshing=true;try{location.reload();" in index_html
     # der Handler-Setup steht im if(_isKioskPath)-Block
     m = re.search(r"if\(_isKioskPath\)\{\s*var _kioskRefreshing=false;", index_html)
     assert m, "controllerchange-Setup nicht im _isKioskPath-Gate"

@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.704 - Spezialfahrzeuge-Uebersicht auf der Wochenplan-Kiosk-Tafel: je belegtem Spez-FZ eine 🚛-Zeile unter Zeitausgleich (BVH je Tag, Doppelbelegung rot+Warnung, unbelegte ausgeblendet). Ableitung exakt wie Haupt-Planung, read-only, nur WochenplanTafel.
-const CACHE_NAME = "epkolar-v3.9.704";
+// EP Kolar Service Worker v3.9.705 - Kiosk Self-Update: install ruft self.skipWaiting() (neuer SW aktiviert sofort statt in "waiting" zu haengen), activate behaelt clients.claim() -> controllerchange feuert -> Kiosk laedt sich selbst neu. Zusammen mit dem Versions-Poller in index.html genuegt EIN TV-Browser-Neustart, danach self-updating.
+const CACHE_NAME = "epkolar-v3.9.705";
 const ASSETS = [
   './',
   './index.html'
@@ -8,6 +8,11 @@ const ASSETS = [
 self.addEventListener('install', event => {
   // v3.8.7: matchAll({includeUncontrolled:true}) — während install hat SW KEINE controlled clients
   // → vorheriger Code erreichte nie einen Client mit SW_UPDATED
+  // v3.9.705: skipWaiting() im install — ein neuer SW aktiviert sofort statt in "waiting" zu
+  //           haengen bis alle Tabs geschlossen sind. Der Samsung-TV-Kiosk navigiert/schliesst nie,
+  //           darum blieb der neue SW dort ewig "waiting" und das Geraet klebte auf der Altversion.
+  //           Jetzt: install -> skipWaiting -> activate -> clients.claim() -> controllerchange.
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
@@ -30,6 +35,9 @@ self.addEventListener('fetch', event => {
   const url = event.request.url;
   if (!url.startsWith('http://') && !url.startsWith('https://')) return;
   if (url.includes('supabase.co')) return;
+  // v3.9.705: Versions-Poll (index.html?_v=<ts>) NIE durch den SW cachen — sonst sammelt der
+  // Kiosk bei jedem 10-min-Poll eine weitere Vollkopie der index.html im Cache an. Netzwerk direkt.
+  if (url.includes('index.html?_v=')) return;
   if (url.includes('cdnjs.cloudflare.com')) {
     event.respondWith(
       caches.match(event.request).then(cached => {
