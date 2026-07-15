@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.707 - Kiosk taeglicher Hard-Reset um 03:00 Wiener Zeit: jedes stille Kiosk-Panel heilt sich einmal/Tag selbst (SW unregister + Caches loeschen + Reload) im bestehenden v705-Poll-Takt, DST-sicher via Intl/Europe/Vienna, Einmal-pro-Tag-Marker, Erst-Lauf ohne Sofort-Reload. Reiner index.html-Fix, SW nur Versions-Bump.
-const CACHE_NAME = "epkolar-v3.9.707";
+// EP Kolar Service Worker v3.9.708 - Plan-Viewer Refactor: Fokuszoom-Mathematik in eine reine getestete Funktion _planZoomAt gezogen (Doppeltipp/Zoom-Buttons/Mausrad darueber geroutet, verhaltensgleich); das Pinch-to-Zoom existierte in PlanViewerCanvas bereits vollstaendig. Reiner index.html-Fix, SW nur Versions-Bump.
+const CACHE_NAME = "epkolar-v3.9.708";
 const ASSETS = [
   './',
   './index.html'
