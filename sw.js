@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.701 - Bug-Hunt die drei P2: (6) Scan waehrend des Urlaubsantrags stempelt nicht mehr, (8) FinkZeit-Kachel-Rahmen nicht mehr rot bei Differenz, (7) Anlern-Button fuer die Terminal-Rolle ausgeblendet (waere 403). Alle Bug-Hunt-Befunde ausser 4/9 (Teilzeit/Nachtschicht, keine im Betrieb) erledigt.
-const CACHE_NAME = "epkolar-v3.9.701";
+// EP Kolar Service Worker v3.9.702 - Flotte-Fahrtenbuch vergroesserbar: Drag-Splitter (Maus+Touch, Min-Hoehen, invalidateSize, Hoehe pro Geraet in localStorage) zwischen oberem Bereich und Fahrtenbuch, plus Maximieren-Toggle (fuellt den Tab, ESC schliesst). Charts wachsen per ResizeObserver+maxH mit. Worker-FahrtenbuchPanel unangetastet.
+const CACHE_NAME = "epkolar-v3.9.702";
 const ASSETS = [
   './',
   './index.html'
