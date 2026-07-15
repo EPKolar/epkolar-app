@@ -14,9 +14,12 @@ nie Push-Quelle. Session-Start: `git fetch && git reset --hard origin/main`.
 
 ## ✅ Diese Session gebaut & live (v3.9.691 → 704)
 
-**Stempeluhr-Rollout A–G + Terminal (in Betrieb):** Härte, PZE-Büro-Auswertung, NFC im Büro, Terminal-UI
-+ Urlaubsantrag. Rollenkonsolidierung auf `auth_role()`. `TERMINAL_FINAL_v3.sql` **gelaufen** (nach
-1-Zeichen-Semikolon-Hotfix), nachgemessen: Trigger `47e14985…`/2434, 7 Kiosk-Sperren, Terminal-User da.
+**Stempeluhr-Rollout A–G + Terminal (DB + Client fertig, wartet auf Hardware):** Härte, PZE-Büro-Auswertung,
+NFC im Büro, Terminal-UI + Urlaubsantrag. Rollenkonsolidierung auf `auth_role()`. `TERMINAL_FINAL_v3.sql`
+**gelaufen** (nach 1-Zeichen-Semikolon-Hotfix), nachgemessen: Trigger `47e14985…`/2434, 7 Kiosk-Sperren.
+**Korrektur (16.07.):** `terminal_user = 0` — bewusst. Die Hardware ist erst bestellt; die Terminal-User-Anlage
+erfolgt bei Inbetriebnahme. Die frühere Zeile „Terminal-User da" war falsch. Terminal-Status = **DB + Client
+fertig, wartet auf Hardware.**
 
 **Bug-Hunt (7 von 9 Befunden gefixt, v699–701):** Terminal-Datenleck, `_sbGet`-403-Swallow, PZE-DST,
 Doppel-Kommen, Antrags-Scan, FinkZeit-Rahmen, Chip-Button. Zeitbomben 4 (Teilzeit) + 9 (Nachtschicht)
@@ -48,6 +51,13 @@ Dead-Code Batch 1 (v698) · Flotte-Fahrtenbuch vergrößerbar, Drag-Splitter + M
    beim ersten Öffnen von „Urlaub", `{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5}`). Lohnnah → Entscheid.
 6. **Offener Feature-Punkt v703:** kein Haus-Initialpasswort im Code → Login-Passwort tippt der Admin
    (min. 4). Falls ein Muster gewünscht ist, nennen.
+
+**Teststatus v703 Auto-Login (ehrlich, Stand 16.07.):** Username-Ableitung browser-belegt
+(`Mueller` → `mueller`), Logik pytest-abgedeckt (**1525 grün**). End-to-End bewusst **NICHT** synthetisch
+getestet — ein Playwright-Durchlauf würde echte `auth.users`-Zeilen gegen die Live-DB anlegen, und
+Auth-Pfade sind Dauer-Tabu (auch für Tests mit Teardown, Sebastian-Entscheid 16.07.). Die Erstverwendung
+erfolgt am nächsten echten Neuzugang **unter Beobachtung**; bis dahin gilt der **v558-Button** („Login
+erstellen" in der Benutzerverwaltung) als erprobter Fallback.
 
 ---
 

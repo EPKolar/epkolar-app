@@ -59,8 +59,11 @@ schließenden `$function$` von Abschnitt A fehlte das Semikolon (`pg_get_functio
 ergänzt; die Repo-Datei trägt das Semikolon jetzt (Datei = DB-Stand).
 
 **Nachgemessen (Chat-Claude, live):** Trigger `47e14985…`/2434 (v3-Voll **mit** stempel_terminal-Zweig),
-**7** `no_kiosk`-Policies, `is_kiosk_role` vorhanden. Terminal-User angelegt. Das Terminal-Kapitel
-(A–G + Rollenkonsolidierung + Trigger) ist **abgeschlossen und in Betrieb**.
+**7** `no_kiosk`-Policies, `is_kiosk_role` vorhanden. Das Terminal-Kapitel (A–G + Rollenkonsolidierung +
+Trigger) ist **DB- und Client-seitig abgeschlossen**.
+> **Korrektur (16.07.):** `terminal_user = 0` — bewusst. Die Hardware ist erst bestellt; die Terminal-User-
+> Anlage erfolgt bei Inbetriebnahme. Frühere Zeilen „Terminal-User angelegt / in Betrieb" waren falsch.
+> Terminal-Status = **DB + Client fertig, wartet auf Hardware.**
 
 > Lehre: ein Hash-Selbst-Nachweis prüft den *Inhalt*, nicht die *Syntax*. SQL-Pakete zusätzlich
 > PARSE-testen (siehe CLAUDE.md). Der fehlende Strichpunkt wäre so vor dem Run aufgefallen.
