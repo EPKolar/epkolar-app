@@ -299,3 +299,50 @@ def test_gutschrift_taucht_nicht_bei_soll_null_auf(node_exe, index_html):
     expr = ("(function(){var r=_pzeTagRow([],'monteur',{Backoffice:0,default:60},0,0,true);"
             "return [r.gutschrift,r.nettoMin,r.saldoMin];})()")
     assert _eval(node_exe, index_html, expr) == [False, 0, 0]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v3.9.700 Bug-Hunt Befund 5 — Doppel-Kommen wird erkannt
+# Vorher prüfte _pzeUngerade nur die ANZAHL (n%2===1). Zwei gleichgerichtete Stempel
+# (2× Kommen, Doppelscan ohne Auschecken) sind GERADE und fielen durch die Fehler-Queue
+# UND die Fehltag-Markierung -> stiller -8:30-Tag. Jetzt: paart _stPairEvents nicht alle
+# Events sauber weg, ist der Tag inkonsistent.
+# ══════════════════════════════════════════════════════════════════════════════
+_MO5 = "'2026-01-12T{h}:{m}:00'"  # Montag
+
+
+def test_zwei_kommen_wird_als_inkonsistent_erkannt(node_exe, index_html):
+    expr = ("(function(){var evs=[{direction:'kommen',ts:" + _MO5.format(h='07', m='00') + "},"
+            "{direction:'kommen',ts:" + _MO5.format(h='07', m='05') + "}];"
+            "return _pzeUngerade(evs);})()")
+    assert _eval(node_exe, index_html, expr) is True, \
+        "2× Kommen (gerade Anzahl) muss jetzt als inkonsistent geflaggt werden"
+
+
+def test_sauberes_paar_ist_nicht_inkonsistent(node_exe, index_html):
+    expr = ("(function(){var evs=[{direction:'kommen',ts:" + _MO5.format(h='07', m='00') + "},"
+            "{direction:'gehen',ts:" + _MO5.format(h='16', m='00') + "}];"
+            "return _pzeUngerade(evs);})()")
+    assert _eval(node_exe, index_html, expr) is False
+
+
+def test_ungerade_anzahl_bleibt_inkonsistent(node_exe, index_html):
+    expr = ("(function(){var evs=[{direction:'kommen',ts:" + _MO5.format(h='07', m='00') + "},"
+            "{direction:'gehen',ts:" + _MO5.format(h='12', m='00') + "},"
+            "{direction:'kommen',ts:" + _MO5.format(h='13', m='00') + "}];"
+            "return _pzeUngerade(evs);})()")
+    assert _eval(node_exe, index_html, expr) is True
+
+
+def test_null_stempel_ist_kein_fehler(node_exe, index_html):
+    """Abwesenheit (0 Stempel) darf NIE als inkonsistent gelten."""
+    assert _eval(node_exe, index_html, "_pzeUngerade([])") is False
+
+
+def test_zwei_saubere_paare_sind_konsistent(node_exe, index_html):
+    expr = ("(function(){var evs=[{direction:'kommen',ts:" + _MO5.format(h='07', m='00') + "},"
+            "{direction:'gehen',ts:" + _MO5.format(h='12', m='00') + "},"
+            "{direction:'kommen',ts:" + _MO5.format(h='13', m='00') + "},"
+            "{direction:'gehen',ts:" + _MO5.format(h='16', m='00') + "}];"
+            "return _pzeUngerade(evs);})()")
+    assert _eval(node_exe, index_html, expr) is False

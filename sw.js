@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.699 - Die zwei Betriebstag-Blocker des Stempel-Terminals: (a) Wandpanel laedt keine Belegschaftsdaten mehr (kein projects/time_entries/fahrzeuge im IndexedDB eines oeffentlichen Panels, DSGVO/§96), (b) Erfolg (gruen) nur nach bestaetigter Persistenz - gescheiterter INSERT (403/RLS) zeigt rot statt gruen, und der Richtungs-Read wirft jetzt bei 403 statt still 0-Stunden-Tage zu erzeugen.
-const CACHE_NAME = "epkolar-v3.9.699";
+// EP Kolar Service Worker v3.9.700 - PZE zwei lohnrelevante P1: (Befund 3) DST-feste Tagesschleife - der 31.03. fiel im Fruehjahr aus Summe/Excel/PDF, jetzt kalendarische Iteration; (Befund 5) Doppel-Kommen (2x gleiche Richtung) wird als inkonsistent erkannt statt stiller -8:30-Tag.
+const CACHE_NAME = "epkolar-v3.9.700";
 const ASSETS = [
   './',
   './index.html'
