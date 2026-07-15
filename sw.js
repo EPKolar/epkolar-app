@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.700 - PZE zwei lohnrelevante P1: (Befund 3) DST-feste Tagesschleife - der 31.03. fiel im Fruehjahr aus Summe/Excel/PDF, jetzt kalendarische Iteration; (Befund 5) Doppel-Kommen (2x gleiche Richtung) wird als inkonsistent erkannt statt stiller -8:30-Tag.
-const CACHE_NAME = "epkolar-v3.9.700";
+// EP Kolar Service Worker v3.9.701 - Bug-Hunt die drei P2: (6) Scan waehrend des Urlaubsantrags stempelt nicht mehr, (8) FinkZeit-Kachel-Rahmen nicht mehr rot bei Differenz, (7) Anlern-Button fuer die Terminal-Rolle ausgeblendet (waere 403). Alle Bug-Hunt-Befunde ausser 4/9 (Teilzeit/Nachtschicht, keine im Betrieb) erledigt.
+const CACHE_NAME = "epkolar-v3.9.701";
 const ASSETS = [
   './',
   './index.html'
