@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.711 - Theme Mobil: In-App-Wahl (epk_theme light/dark/system) schlaegt die OS-Einstellung; resolveTheme pure, Dreifach-Toggle, color-scheme + theme-color folgen der Wahl, matchMedia nur bei system. Reiner index.html-Fix, SW nur Versions-Bump.
-const CACHE_NAME = "epkolar-v3.9.711";
+// EP Kolar Service Worker v3.9.712 - Dispo Etappe 2: fz_bedarf (App-only Fahrzeug-Bedarf am Arbeitsschein) Client-Lesepfad 42703-tolerant, nie in Push-Pfaden. SQL gestaged, UI-Block folgt. Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.712";
 const ASSETS = [
   './',
   './index.html'
