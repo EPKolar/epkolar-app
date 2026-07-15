@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.710 - Perf-Fix 1a: Tankbeleg-Fotos via _sbUploadFile nach Storage (nur URL) statt Base64 in tank_log -> stoppt den Zulauf, der den fahrzeuge-Boot-Store auf ~15 MB blaehte. Reiner index.html-Fix, SW nur Versions-Bump.
-const CACHE_NAME = "epkolar-v3.9.710";
+// EP Kolar Service Worker v3.9.711 - Theme Mobil: In-App-Wahl (epk_theme light/dark/system) schlaegt die OS-Einstellung; resolveTheme pure, Dreifach-Toggle, color-scheme + theme-color folgen der Wahl, matchMedia nur bei system. Reiner index.html-Fix, SW nur Versions-Bump.
+const CACHE_NAME = "epkolar-v3.9.711";
 const ASSETS = [
   './',
   './index.html'
