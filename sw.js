@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.706 - 🚛-Spezialfahrzeuge am lager_display-Kiosk: kontrollierter Lesepfad via RPC kiosk_fahrzeuge() (SECURITY DEFINER, nur id/kennzeichen/typ/modell/status) statt rohem fahrzeuge-Read, der bei fehlender RLS still [] lieferte; plus Diagnose-Zeile im Tafel-Kopf (v<VER> · FZ:<n> · Spez:<n>). Reiner index.html-Fix, SW nur Versions-Bump.
-const CACHE_NAME = "epkolar-v3.9.706";
+// EP Kolar Service Worker v3.9.707 - Kiosk taeglicher Hard-Reset um 03:00 Wiener Zeit: jedes stille Kiosk-Panel heilt sich einmal/Tag selbst (SW unregister + Caches loeschen + Reload) im bestehenden v705-Poll-Takt, DST-sicher via Intl/Europe/Vienna, Einmal-pro-Tag-Marker, Erst-Lauf ohne Sofort-Reload. Reiner index.html-Fix, SW nur Versions-Bump.
+const CACHE_NAME = "epkolar-v3.9.707";
 const ASSETS = [
   './',
   './index.html'
