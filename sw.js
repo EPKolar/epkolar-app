@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.698 - Dead-Code Phase 2 Batch 1: pendingPushCount, srvBase, _tagLabel, _seitFmt entfernt (je 0 Referenzen, belegt). Nur Entfernen, Verhalten bit-identisch.
-const CACHE_NAME = "epkolar-v3.9.698";
+// EP Kolar Service Worker v3.9.699 - Die zwei Betriebstag-Blocker des Stempel-Terminals: (a) Wandpanel laedt keine Belegschaftsdaten mehr (kein projects/time_entries/fahrzeuge im IndexedDB eines oeffentlichen Panels, DSGVO/§96), (b) Erfolg (gruen) nur nach bestaetigter Persistenz - gescheiterter INSERT (403/RLS) zeigt rot statt gruen, und der Richtungs-Read wirft jetzt bei 403 statt still 0-Stunden-Tage zu erzeugen.
+const CACHE_NAME = "epkolar-v3.9.699";
 const ASSETS = [
   './',
   './index.html'

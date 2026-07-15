@@ -99,6 +99,21 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
+## Behauptet ein Kommentar eine Eigenschaft, muss ein Test sie beweisen
+
+Ein Kommentar wie „DST-sicher", „stempelt NICHT", „COLORS.ERROR raus" ist eine **Absichts-
+erklärung, kein Fakt** — bis ein Test ihn belegt. Am 14.07.2026 waren **alle drei** dieser
+wörtlichen Commit-Behauptungen falsch, und alle drei standen als Tatsache im Code:
+
+- *„Basis 12:00 → DST-sicher"* — die Schleife verlor im Frühjahr einen ganzen Tag aus der
+  Lohnabrechnung.
+- *„Im Antrags-Modus stempelt der Scan NICHT"* — er stempelte in jedem Zustand außer `ident`.
+- *„v3.9.697: COLORS.ERROR raus"* — an einer von drei Stellen stand es noch drin.
+
+**Regel:** Behauptet ein Kommentar eine nicht-triviale Eigenschaft, schreib den Test, der sie
+beweist — im selben Commit. Das gilt besonders für alles Lohnrelevante und für jede „X passiert
+NICHT"-Aussage (die sind am teuersten, weil sie ein Schweigen versprechen).
+
 ## `CREATE OR REPLACE` auf Live-Objekte — NIE aus einer Repo-Rekonstruktion
 
 **Regel:** Bevor eine Live-Funktion/-View per `CREATE OR REPLACE` ersetzt wird, **immer zuerst den

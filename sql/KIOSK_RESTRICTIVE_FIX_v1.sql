@@ -76,6 +76,41 @@ CREATE POLICY kunden_no_kiosk ON public.kunden AS RESTRICTIVE
   FOR ALL USING ( NOT public.is_kiosk_role() );
 
 -- ═══════════════════════════════════════════════════════════════════
+-- ── ERWEITERUNG v3.9.699 (Bug-Hunt Befund 1) ─────────────────────────
+-- Die drei folgenden Tabellen tragen breite `authenticated`-SELECT-Policies
+-- (USING(true), "App-Layer filtert") und lagen damit fuer JEDEN eingeloggten
+-- Kiosk offen — inkl. time_entries = die gebuchten Arbeitsstunden der GANZEN
+-- Belegschaft. KEINE Kiosk-Tafel (MonteurTafel, WochenplanTafel, StempelTafel)
+-- rendert oder braucht diese drei. Darum harte RESTRICTIVE-Sperre fuer BEIDE
+-- Kiosk-Rollen — der Guertel zum client-seitigen Hosentraeger (v3.9.699 laedt
+-- sie fuer stempel_terminal schon nicht mehr, fuer lager_display time_entries+
+-- forms ebenfalls nicht).
+--
+-- BEWUSST NICHT hier: fahrzeuge, projects, absences, arbeitsscheine. Die
+-- Lager-Tafeln (lager_display) nutzen sie legitim (WochenplanTafel bekommt
+-- fahrzeuge/abs, MonteurTafel arbeitsscheine). Fuer die schuetzt das
+-- Client-Scoping im Bootstrap, nicht eine DB-Sperre — sonst braeche der
+-- laufende Lager-Kiosk.
+-- ═══════════════════════════════════════════════════════════════════
+
+-- ── 5) time_entries (Arbeitsstunden ALLER Mitarbeiter — sensibelste Tabelle) ─
+DROP POLICY IF EXISTS time_entries_no_kiosk ON public.time_entries;
+CREATE POLICY time_entries_no_kiosk ON public.time_entries AS RESTRICTIVE
+  FOR ALL USING ( NOT public.is_kiosk_role() );
+
+-- ── 6) forms (Formulare/Mängel) ──────────────────────────────────────
+DROP POLICY IF EXISTS forms_no_kiosk ON public.forms;
+CREATE POLICY forms_no_kiosk ON public.forms AS RESTRICTIVE
+  FOR ALL USING ( NOT public.is_kiosk_role() );
+
+-- ── 7) bautagebuch ───────────────────────────────────────────────────
+-- Falls die Tabelle existiert; sonst ignoriert Postgres den DROP und der
+-- CREATE schlaegt fehl -> dann diesen Block auskommentiert lassen.
+DROP POLICY IF EXISTS bautagebuch_no_kiosk ON public.bautagebuch;
+CREATE POLICY bautagebuch_no_kiosk ON public.bautagebuch AS RESTRICTIVE
+  FOR ALL USING ( NOT public.is_kiosk_role() );
+
+-- ═══════════════════════════════════════════════════════════════════
 -- VERIFIKATION (nach dem Lauf):
 --
 --   -- a) Alle vier RESTRICTIVE-Sperren da, und keine alte mehr:
