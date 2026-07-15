@@ -112,6 +112,9 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
   in Postgres, auch Unicode in Python). Nur ein verfehlter Kontrollwert entlarvte die kaputte Messung.
 - **Generierte Live-berührende Artefakte tragen einen Selbst-Nachweis** (15.07.): `TERMINAL_FINAL_v3` beweist
   per Test, dass v3-Body-minus-Zweig = Live-Body — der Replace fügt nur hinzu, löscht nichts.
+- **SQL-Pakete PARSE-testen, nicht nur hashen** (15.07.): `TERMINAL_FINAL_v3` hatte den richtigen Inhalt,
+  aber nach `$function$` fehlte ein `;` (`pg_get_functiondef` liefert keins) → `42601`, Batch lief gar nicht.
+  Ein Hash prüft Inhalt, nicht Syntax. Vor dem Human-Run einen Parse-Smoke (sqlglot/EXPLAIN) laufen lassen.
 - **`sql/` im main-Checkout ist eine geladene Waffe** (14.07.): Sebastian kopiert von dort in den SQL-Editor.
   Ungepushte/gefährliche Stände nie dort liegen lassen (WIP → `docs/wip/`), Gefährliches auskommentieren.
 - **Fund außerhalb des Auftrags** (14.07.): erst melden, Beleg zeigen, Freigabe abwarten — nicht ungefragt

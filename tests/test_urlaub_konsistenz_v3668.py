@@ -24,7 +24,8 @@ def test_krankrows_legacy_and_fallback(index_html):
 
 
 def test_mitarbeiterview_approvals_prop(index_html):
-    assert "function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekte,ww,curUser,projects,fahrzeuge,abs,approvals,entries,arbeitsscheine,onNav}){" in index_html
+    # v3.9.703: Signatur um users,setUsers erweitert (automatische Login-Anlage) — approvals bleibt.
+    assert "function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekte,ww,curUser,projects,fahrzeuge,abs,approvals,entries,arbeitsscheine,onNav,users,setUsers}){" in index_html
     assert "abs: abs, approvals: absApprovals, entries: entries" in index_html
 
 

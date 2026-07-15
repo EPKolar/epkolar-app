@@ -73,7 +73,10 @@ BEGIN
     RAISE EXCEPTION 'Nur eigene offene Antraege aenderbar, kein Selbst-Genehmigen';
   END IF;
   RETURN COALESCE(NEW, OLD);
-END; $function$
+END; $function$;
+-- ^ Semikolon nach $function$ ist Pflicht (pg_get_functiondef liefert KEINS). Ohne -> 42601
+--   an der naechsten Anweisung (~Z.129), der ganze Batch laeuft nicht. Am 15.07. genau so
+--   passiert; Chat-Claude hat es beim Run ergaenzt. Datei = DB-Stand.
 
 
 -- ═══════════════════════════════════════════════════════════════════

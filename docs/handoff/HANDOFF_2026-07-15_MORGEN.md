@@ -51,13 +51,19 @@ Voller Report: `docs/BUGHUNT_2026-07-14.md`.
 
 ---
 
-## ✅ Stempel-Terminal ist VOLLSTÄNDIG IN BETRIEB (15.07.)
+## ✅ Stempel-Terminal ist IN BETRIEB (15.07., verifiziert)
 
-`sql/TERMINAL_FINAL_v3.sql` ist gelaufen, der Terminal-User ist angelegt, Chat-Claude hat live
-verifiziert (v3-Body minus Zweig = `284dc6f1…`/1746 unabhängig nachgerechnet, Footer TABU-konform).
-Kontrolle nachträglich: `docs/wip/VERIFY_NACH_V3_RUN.sql` (read-only, prüft Trigger-Hash `47e14985…`/2434,
-7 Kiosk-Sperren, 1 Terminal-User). **Das Terminal stempelt und beantragt jetzt vollständig.** Das ganze
-Terminal-Kapitel (A–G + Rollenkonsolidierung + Trigger) ist abgeschlossen.
+`sql/TERMINAL_FINAL_v3.sql` ist gelaufen — aber erst nach einem **1-Zeichen-Hotfix**: nach dem
+schließenden `$function$` von Abschnitt A fehlte das Semikolon (`pg_get_functiondef` liefert keins) →
+`42601` an der Folgeanweisung, der Batch lief zunächst **gar nicht**. Chat-Claude hat es beim Run
+ergänzt; die Repo-Datei trägt das Semikolon jetzt (Datei = DB-Stand).
+
+**Nachgemessen (Chat-Claude, live):** Trigger `47e14985…`/2434 (v3-Voll **mit** stempel_terminal-Zweig),
+**7** `no_kiosk`-Policies, `is_kiosk_role` vorhanden. Terminal-User angelegt. Das Terminal-Kapitel
+(A–G + Rollenkonsolidierung + Trigger) ist **abgeschlossen und in Betrieb**.
+
+> Lehre: ein Hash-Selbst-Nachweis prüft den *Inhalt*, nicht die *Syntax*. SQL-Pakete zusätzlich
+> PARSE-testen (siehe CLAUDE.md). Der fehlende Strichpunkt wäre so vor dem Run aufgefallen.
 
 **Entschieden (für die nächste Session, jetzt NICHT gebaut — Punkt 2 bleibt gesperrt):** Frage 1 =
 KVZuschlagReport (Überstunden) **wird mit umgestellt** auf `stempel_log` (braucht echte Von/Bis-Uhrzeiten

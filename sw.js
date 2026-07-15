@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.702 - Flotte-Fahrtenbuch vergroesserbar: Drag-Splitter (Maus+Touch, Min-Hoehen, invalidateSize, Hoehe pro Geraet in localStorage) zwischen oberem Bereich und Fahrtenbuch, plus Maximieren-Toggle (fuellt den Tab, ESC schliesst). Charts wachsen per ResizeObserver+maxH mit. Worker-FahrtenbuchPanel unangetastet.
-const CACHE_NAME = "epkolar-v3.9.702";
+// EP Kolar Service Worker v3.9.703 - Mitarbeiter-Anlage erzeugt optional automatisch einen Login (Checkbox, admin-only, Username=Nachname aus Bestand, Rolle via _W2U). Worker via SQ offline-faehig; Login getrennt AWAITED nur online, gruen nur bei r.ok, RPC nie in die SyncQueue, kein erfundenes Default-Passwort.
+const CACHE_NAME = "epkolar-v3.9.703";
 const ASSETS = [
   './',
   './index.html'
