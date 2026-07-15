@@ -1,203 +1,163 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- CLEANUP_2026-07.sql
--- Gestagetes Supabase-Cleanup-Paket. Erzeugt von CC ohne Live-DB-Zugriff,
--- Stand 2026-07-15. Gegenstueck zu den Reads in
--- docs/db/HYGIENE_READ_QUERIES_2026-07.sql und dem Repo-Stand in
--- docs/db/RLS_SNAPSHOT_2026-07-15.md.
+-- CLEANUP_2026-07.sql  ·  Stand 2026-07-15 (scharfgestellt nach Live-Inventur)
+-- Gegenstueck zu docs/db/HYGIENE_READ_QUERIES_2026-07.sql + RLS_SNAPSHOT_2026-07-15.md.
+-- Live-Reads #1–#7 sind am 15.07. ~19:0x (Chat-Claude) gelaufen; die Erwartungs-
+-- zahlen unten stammen daraus.
 --
 -- ┌─ HARTE REGEL (CLAUDE.md: „sql/ ist eine geladene Waffe") ─────────────────┐
--- │ Diese Datei muss ZU JEDEM ZEITPUNKT gefahrlos komplett ausfuehrbar sein.  │
--- │ JEDE destruktive Zeile (DROP/DELETE/ALTER DROP) ist AUSKOMMENTIERT und     │
--- │ wird erst nach dem passenden Read-Ergebnis + (bei S4) einem einzelnen      │
--- │ Sebastian-„ja" von Hand scharfgestellt. Nichts Destruktives ist scharf.   │
--- │ Was aktiv laeuft, wenn man „Run all" drueckt: NUR die read-only Nachweis-  │
--- │ SELECTs. Kein Schreibzugriff ohne bewusstes Ent-Kommentieren.             │
+-- │ Diese Datei bleibt bei „Run all" GEFAHRLOS: es laufen NUR read-only        │
+-- │ Nachweis-/Generator-SELECTs. Kein DROP/DELETE/ALTER ist hier scharf.        │
+-- │ Das Loeschen selbst passiert sektionsweise ueber die von den Generatoren    │
+-- │ ERZEUGTEN Statements — Chat-Claude/Sebastian prueft die Ausgabe (Zahl ==     │
+-- │ Erwartung) und fuehrt sie dann bewusst aus. S4 zusaetzlich: je ein          │
+-- │ einzelnes Sebastian-„ja". Reihenfolge S1 → (Kiosk+Login-Check) → S2 → S3.   │
 -- └───────────────────────────────────────────────────────────────────────────┘
---
--- Reihenfolge: harmlos → heikel. Jede Sektion ist idempotent und einzeln
--- ausfuehrbar. Jede destruktive Zeile traegt im Kommentar die ERWARTETE
--- Objekt-/Zeilenzahl aus dem zugehoerigen Read; weicht die Realitaet ab,
--- NICHT scharfstellen, sondern zurueck an die Reads.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- S1  Tote / nie greifende app_metadata-Kiosk-Policies droppen
---     Risiko: MITTEL (Policy-Aenderung) — aber die Alt-Policies greifen laut
---     KIOSK_RESTRICTIVE_FIX_v1.sql ohnehin NIE (falsche Rollenquelle), und der
---     Ersatz *_no_kiosk deckt dasselbe wirksam ab.
---     VORAUSSETZUNG zum Scharfstellen (BEIDES muss aus Read #3 bestaetigt sein):
---       (a) Read #3a listet die *_no_lager_display-Policies noch als vorhanden.
---       (b) Read #3b bestaetigt die 7 *_no_kiosk-Ersatz-Policies als AKTIV
---           UND Read #3c bestaetigt is_kiosk_role() als vorhanden.
---     Ist (a) leer -> nichts zu tun. Ist (b)/(c) nicht erfuellt -> NICHT droppen
---     (sonst Loch). Ersatz-Nachweis: siehe RLS_SNAPSHOT_2026-07-15.md Abschnitt 1.
+-- S1  63 tote app_metadata-Kiosk-Policies droppen  ·  Risiko: MITTEL
+--     Live-Befund #3: 63 Policies auf 52 Tabellen pruefen app_metadata
+--     (Familie lager_display_no_select/_no_update/_no_delete/_no_insert, alle
+--     RESTRICTIVE) — waren NIE wirksam (falsche Rollenquelle, v695-Befund).
+--     Ersatz AKTIV verifiziert: is_kiosk_role() existiert (1 Fn), 7 Policies
+--     nutzen sie (KIOSK_RESTRICTIVE_FIX_v1 ist gelaufen). Drop daher gefahrlos.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Read-only Vorab-Nachweis (laeuft gefahrlos mit): zeigt, ob ueberhaupt Alt-
--- Policies existieren und ob der Ersatz aktiv ist. ERWARTUNG: Spalte
--- alt_policies_offen listet 0..4 Namen; ersatz_no_kiosk_aktiv sollte 7 sein.
-SELECT 'alt_app_metadata_policies' AS was,
-       string_agg(tablename||'.'||policyname, ', ' ORDER BY tablename) AS treffer
+-- 1a) Kontrolle vor dem Drop (gefahrlos) — ERWARTUNG: exakt 63.
+SELECT count(*) AS s1_app_metadata_policies_ERWARTET_63
 FROM pg_policies
-WHERE schemaname='public'
-  AND (policyname LIKE '%no_lager_display%' OR qual ILIKE '%app_metadata%');
+WHERE schemaname='public' AND qual ILIKE '%app_metadata%';
 
-SELECT 'ersatz_no_kiosk_aktiv' AS was, count(*) AS anzahl_erwartet_7
+-- 1b) Ersatz aktiv? — ERWARTUNG: no_kiosk = 7 UND is_kiosk_role = 1.
+SELECT
+  (SELECT count(*) FROM pg_policies WHERE schemaname='public' AND policyname LIKE '%_no_kiosk%') AS ersatz_no_kiosk_ERWARTET_7,
+  (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='is_kiosk_role') AS is_kiosk_role_ERWARTET_1;
+
+-- 1c) GENERATOR (gefahrlos): erzeugt exakt die 63 DROP-Statements. Chat-Claude/
+--     Sebastian: Ausgabe pruefen (== 63 Zeilen, Namen plausibel), DANN ausfuehren.
+--     Nur wenn 1a==63 UND 1b==(7,1). Weicht 1a ab -> STOPP, zurueck an Read #3.
+SELECT string_agg(
+         'DROP POLICY IF EXISTS '||quote_ident(policyname)||' ON public.'||quote_ident(tablename)||';',
+         E'\n' ORDER BY tablename, policyname
+       ) AS s1_drop_statements_zum_ausfuehren
 FROM pg_policies
-WHERE schemaname='public' AND policyname LIKE '%_no_kiosk%';
+WHERE schemaname='public' AND qual ILIKE '%app_metadata%';
 
--- ── DESTRUKTIV — AUSKOMMENTIERT bis Read #3 bestaetigt (a)+(b)+(c). ──────────
--- Erwartete gedroppte Objekte: bis zu 4 Alt-Policies (fz_fahrten, fz_positions,
--- geo_cache, kunden je 1× *_no_lager_display). Namen 1:1 aus Read #3a einsetzen.
--- HINWEIS: KIOSK_RESTRICTIVE_FIX_v1.sql droppt diese Alt-Namen bereits selbst,
--- BEVOR es die *_no_kiosk anlegt. Wurde dieses Skript gelaufen, ist S1 leer.
--- Diese Sektion ist daher primaer ein Sicherungs-/Nachzieh-Schritt, falls
--- KIOSK_RESTRICTIVE_FIX_v1 NICHT lief, der Ersatz aber anderweitig existiert.
---
--- -- TODO nach Read #3 — erst ent-kommentieren, wenn (a)+(b)+(c) bestaetigt:
--- DROP POLICY IF EXISTS fz_fahrten_no_lager_display    ON public.fz_fahrten;
--- DROP POLICY IF EXISTS fz_positions_no_lager_display  ON public.fz_positions;
--- DROP POLICY IF EXISTS geo_cache_no_lager_display     ON public.geo_cache;
--- DROP POLICY IF EXISTS kunden_no_lager_display        ON public.kunden;
--- -- Falls Read #3a weitere app_metadata-Policies auf anderen Tabellen zeigt,
--- -- hier EINZELN mit exaktem Namen ergaenzen (kein Wildcard-Drop).
+-- 1d) Nach dem Drop Gegenzaehlung (gefahrlos) — ERWARTUNG: 0.
+--     SELECT count(*) FROM pg_policies WHERE schemaname='public' AND qual ILIKE '%app_metadata%';
+--   → danach FUNKTIONS-CHECK vor S2: lager_display laedt (Kiosk ?screen=planung),
+--     normaler Login geht. Erst dann S2.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- S2  Verwaiste Funktionen / Trigger
---     Risiko: MITTEL–HOCH. Nur mit 0-Referenz-Nachweis droppen.
---     0-Referenz = (i) Funktion haengt an KEINEM Trigger (Read #4a)
---                  UND (ii) Funktionsname steht NICHT in RLS_SNAPSHOT Abschnitt 4
---                       (Client-RPCs) UND nicht als String in index.html.
---     Die 5 guard_*-Funktionen + is_kiosk_role() + alle kiosk_*/juprowa_*/portal_*
---     /login_lookup/admin_*-RPCs sind NACHWEISLICH referenziert -> NIE droppen.
+-- S2  Verwaiste Funktionen  ·  Risiko: MITTEL–HOCH
+--     Live-Befund #4: 34 Funktionen im public-Schema. Drop nur bei DREIFACH-0:
+--       (i)  haengt an KEINEM Trigger (Read #4a),
+--       (ii) ruft/aufgerufen von KEINER anderen DB-Funktion (pg_proc-Body-Scan,
+--            Chat-Claude — „Fn ruft Fn" zaehlt NICHT als verwaist),
+--       (iii) 0 Treffer als String/RPC in index.html (Client-Grep, CC).
+--     guard_urlaub_edit + alle in 2a gelisteten NIE anfassen.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Read-only Vorab-Nachweis (gefahrlos): Funktionen im public-Schema, die an
--- KEINEM Trigger haengen. Das ist die ROH-Kandidatenliste — jeder Treffer muss
--- ZUSAETZLICH gegen index.html (RPC-Aufruf) geprueft werden, bevor er faellt.
-SELECT p.proname AS funktion_ohne_trigger,
-       pg_get_function_identity_arguments(p.oid) AS args
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-  AND p.prokind = 'f'
-  AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgfoid = p.oid)
-  -- bekannt-referenzierte NICHT als Waisen zeigen:
+-- 2a) Roh-Kandidaten (gefahrlos): Fn ohne Trigger, ohne die bekannt-referenzierten.
+SELECT p.proname AS kandidat, pg_get_function_identity_arguments(p.oid) AS args
+FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+WHERE n.nspname='public' AND p.prokind='f'
+  AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgfoid=p.oid)
   AND p.proname NOT IN (
     'is_kiosk_role','auth_role','is_staff',
-    'guard_kontingent','guard_projects','guard_admin_only',
-    'guard_urlaub_edit','guard_users_privilege',
-    'kiosk_fahrzeuge','kiosk_field_workers','kiosk_week_absences',
-    'kiosk_week_arbeitsscheine','stempel_terminal_workers',
+    'guard_kontingent','guard_projects','guard_admin_only','guard_urlaub_edit','guard_users_privilege',
+    'kiosk_fahrzeuge','kiosk_field_workers','kiosk_week_absences','kiosk_week_arbeitsscheine',
+    'stempel_terminal_workers','admin_create_user','admin_reset_password','login_lookup','portal_fetch',
     'juprowa_fetch_kunden','juprowa_fetch_monteure','juprowa_fetch_worksheets',
-    'juprowa_get_config','juprowa_push_worksheet','juprowa_update_passport',
-    'admin_create_user','admin_reset_password','login_lookup','portal_fetch'
+    'juprowa_get_config','juprowa_push_worksheet','juprowa_update_passport'
   )
 ORDER BY p.proname;
--- ERWARTUNG: idealerweise nur Helper (z.B. _uuid), die intern von anderen
--- Funktionen aufgerufen werden. So einen NICHT droppen. Ein echter Waise-Drop
--- kommt nur infrage, wenn der Name auch als String in index.html 0 Treffer hat.
 
--- ── DESTRUKTIV — AUSKOMMENTIERT: kein einziger 0-Referenz-Nachweis liegt vor
--- ── (CC hat keinen DB-Zugriff). Muster zum spaeteren, EINZELNEN Scharfstellen:
+-- 2b) CLIENT-GREP-BEWEIS (CC, gegen den aktuellen index.html-Stand):
+--     Fuer JEDEN Namen aus 2a im Arbeitsklon laufen lassen — nur 0 = droppbar:
+--       grep -c "\b<name>\b" index.html        (0 = kein Client-Ref)
+--       grep -c "/rpc/<name>" index.html        (0 = kein RPC-Aufruf)
+--     Ergebnis je Kandidat hier als Kommentar eintragen, bevor gedroppt wird.
+--     (Kandidatenliste steht erst nach Read #4a fest -> dann Grep -> dann Drop.)
 --
--- -- TODO nach Read #4 + index.html-0-Treffer-Nachweis, pro Objekt EINZELN:
--- -- DROP FUNCTION IF EXISTS public.<verwaiste_funktion>(<exakte_args>);
--- -- DROP TRIGGER  IF EXISTS <verwaister_trigger> ON public.<tabelle>;
--- -- (Args exakt aus Read #4 uebernehmen; ohne Signatur schlaegt DROP bei
--- --  ueberladenen Funktionen fehl. Guard-Trigger NIEMALS hier eintragen.)
+-- 2c) DESTRUKTIV — bleibt AUSKOMMENTIERT bis (i)+(ii)+(iii) je Objekt erfuellt:
+-- -- DROP FUNCTION IF EXISTS public.<verwaiste_fn>(<exakte_args_aus_2a>);
+-- -- (Signatur exakt uebernehmen; Guard-Funktionen NIEMALS eintragen.)
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- S3  Waisen-Zeilen bereinigen
---     Risiko: HOCH (Datenverlust). Immer ERST Backup-SELECT, DANN Loeschung.
---     Alle DELETEs bleiben auskommentiert, bis Read #5 die Zahl bestaetigt.
+-- S3  Daten-Reparatur (KEINE Massen-Loeschung)  ·  Risiko: NIEDRIG (1 Zeile)
+--     Live-Befund #5: absences ohne Worker = 0  -> Sektion 3.1 ENTFAELLT.
+--     weekplan_rows mit z-als-String = genau 1 Zeile (v502-Altlast) -> gezielt.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- 3.1  absences ohne existierenden Worker
--- Schritt A (gefahrlos, laeuft mit): Backup der betroffenen Zeilen ANZEIGEN.
--- Vor einem echten Lauf das Ergebnis als JSON nach docs/db/ sichern
--- (Muster: docs/db/orphan-tables-backup-2026-06-18.json).
-SELECT a.*
-FROM public.absences a
-LEFT JOIN public.workers w ON w.id = a.worker_id
-WHERE a.worker_id IS NOT NULL AND w.id IS NULL;
+-- 3.1  absences-Waisen: Live-Befund = 0. Nichts zu tun. (Keine Zeile.)
 
--- Schritt B — DESTRUKTIV, AUSKOMMENTIERT bis Read #5a die Zahl liefert.
--- Erwartete geloeschte Zeilen: == count aus Read #5a (absences_ohne_worker).
--- Weicht die Zahl beim echten Lauf ab -> abbrechen, neu pruefen.
---
--- -- TODO nach Read #5a + Backup-SELECT (Schritt A) gesichert:
--- DELETE FROM public.absences a
--- USING (
---   SELECT a2.id FROM public.absences a2
---   LEFT JOIN public.workers w ON w.id = a2.worker_id
---   WHERE a2.worker_id IS NOT NULL AND w.id IS NULL
--- ) orphan
--- WHERE a.id = orphan.id;
+-- 3.2  weekplan_rows: genau 1 Zeile hat z als JSON-STRING statt jsonb-Objekt.
+-- Schritt A (gefahrlos): die eine Zeile identifizieren + fuer's Backup zeigen.
+SELECT row_id, year, week, jsonb_typeof(z) AS z_typ, z
+FROM public.weekplan_rows
+WHERE jsonb_typeof(z) = 'string';   -- ERWARTUNG: genau 1 Zeile
 
--- 3.2  weekplan_rows mit z-als-String (jsonb_typeof='string')
--- KEINE Loeschung — das ist ein MIGRATIONS-, kein Waisen-Fall. Nur Diagnose in
--- Read #5b. Wenn dort 'string'-Zeilen auftauchen, gehoert das in ein separates
--- Migrations-Skript (String -> jsonb-Objekt umbauen), NICHT in dieses Cleanup.
--- (Absichtlich keine ausfuehrbare Zeile hier.)
+-- Schritt B — Reparatur (den String einmal nach jsonb-Objekt aufloesen).
+-- AUSKOMMENTIERT bis Schritt A die row_id zeigt UND die Zeile als
+-- docs/db/cleanup-backup-2026-07-15-weekplan_z.json gesichert ist.
+-- Nur diese EINE row_id einsetzen (kein tabellenweiter UPDATE):
+-- -- UPDATE public.weekplan_rows
+-- --   SET z = (z #>> '{}')::jsonb          -- JSON-String -> jsonb-Objekt
+-- --   WHERE row_id = '<row_id_aus_Schritt_A>' AND jsonb_typeof(z)='string';
+-- Gegenprobe nach dem Lauf (ERWARTUNG: 0):
+-- --   SELECT count(*) FROM public.weekplan_rows WHERE jsonb_typeof(z)='string';
 
--- 3.3  stempel_log / fz_positions Retention
--- KEINE Loeschung in diesem Paket. Retention hat ein eigenes, gereviewtes Skript
--- (sql/GPS_RETENTION_v1.sql). Read #5c liefert nur die Groessenordnung.
--- (Absichtlich keine ausfuehrbare Zeile hier.)
-
--- 3.4  tank_log Base64-Reste
--- KEINE Loeschung/Nullung. Erst muss migrate_tankfotos.mjs die Bilder nach
--- Storage gebracht haben (Storage derzeit durch ES256-JWT-Blocker eingeschraenkt).
--- Read #5d diagnostiziert nur. (Absichtlich keine ausfuehrbare Zeile hier.)
+-- 3.3  stempel_log / fz_positions / tank_log: KEIN Cleanup hier.
+--   - tank_log Base64 (9,3 MB, 7 FZ) laeuft ueber Performance-Fix 1, NICHT hier.
+--   - Retention stempel_log/fz_positions = eigenes gereviewtes Skript, spaeter.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- S4  SCHWERE Struktur-Aenderungen — je EINZELN, je ein eigenes Sebastian-„ja"
---     Risiko: SEHR HOCH (irreversibler Tabellen-/Spalten-Verlust).
---     DEFAULT: KOMPLETT AUSKOMMENTIERT. Kein „Run all" darf das ausloesen.
---     Jede der beiden Zeilen braucht:
---       1) das zugehoerige Read-Ergebnis (Zeilen/Werte-Nachweis),
---       2) ein separates, ausdrueckliches „ja" von Sebastian NUR fuer DIESE Zeile,
---       3) vorher ein Voll-Backup der Tabelle nach docs/db/ (JSON).
+-- S4  SCHWERE Struktur-Aenderungen — je EINZELN, je ein Sebastian-„ja" + Backup.
+--     DEFAULT KOMPLETT AUSKOMMENTIERT. „Run all" loest nichts aus.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- ── S4-Frage 1 ──────────────────────────────────────────────────────────────
--- „Soll die Legacy-Tabelle public.weekplans ENDGUELTIG geloescht werden?"
--- Repo-Stand: Legacy seit v500; App schreibt in weekplan_rows. ABER die
--- KIOSK_RESTRICTIVE/weekplan-Kommentare im Code sagen ausdruecklich
--- „NICHT droppen / Legacy /api/weekplans-Endpoint bleibt". => Erst bestaetigen,
--- dass dieser Legacy-Endpoint stillgelegt ist UND Read #1/#2 die Tabelle als
--- unbeschrieben zeigt.
--- Nachweis vor Freigabe (gefahrlos ausfuehren):
---   SELECT count(*) AS weekplans_zeilen, max(updated_at) AS letzte_aenderung
---   FROM public.weekplans;   -- Spaltenname letzte_aenderung ggf. anpassen
--- Erwartung fuer „gefahrlos droppbar": keine frischen updated_at (nichts seit v500).
---
--- -- TODO — nur nach Sebastian-„ja" #1 + Backup public.weekplans -> docs/db/:
+-- ── S4-1  public.weekplans (Legacy) — Live-Befund: 11 Zeilen ────────────────
+-- Backup ZUERST (gefahrlos): Ergebnis als docs/db/weekplans-final-backup-2026-07.json
+-- sichern (11 Zeilen), damit der Drop jederzeit rueckholbar ist.
+--   SELECT * FROM public.weekplans;    -- ERWARTUNG: 11 Zeilen
+-- -- TODO — nur nach Sebastian-„ja" #1 + Backup-JSON im Repo:
 -- -- DROP TABLE IF EXISTS public.weekplans;
 
--- ── S4-Frage 2 ──────────────────────────────────────────────────────────────
--- „Soll die deprecated Spalte public.urlaubskontingent.urlaub geloescht werden?"
--- Repo-Stand: deprecated seit v648; Urlaub = absences + kontingent.stunden.
--- Nachweis vor Freigabe (gefahrlos, = Read #2-Zusatz):
---   SELECT count(*) FILTER (WHERE urlaub IS NOT NULL) AS zeilen_mit_urlaub_wert
---   FROM public.urlaubskontingent;
--- Erwartung fuer „gefahrlos droppbar": 0 Non-NULL-Werte ODER Werte nachweislich
--- nirgends (index.html) mehr gelesen. ACHTUNG: an urlaubskontingent haengt der
--- Trigger trg_guard_kontingent (guard_kontingent) — der DROP COLUMN ist davon
--- unberuehrt, aber vor dem Lauf gegenpruefen, dass keine Trigger-Logik die Spalte
--- referenziert.
---
--- -- TODO — nur nach Sebastian-„ja" #2 + Backup public.urlaubskontingent -> docs/db/:
+-- ── S4-2  urlaubskontingent.urlaub (deprecated seit v648) — 0 Non-NULL ──────
+-- Live-Befund: Spalte existiert, 0 Non-NULL-Werte -> gefahrlos droppbar.
+-- Trigger trg_guard_kontingent (guard_kontingent) haengt an der Tabelle, ist vom
+-- DROP COLUMN aber unberuehrt (referenziert die Spalte nicht) — vor dem Lauf
+-- kurz gegenpruefen. Wartet auf Sebastians woertliches „droppen".
+--   SELECT count(*) FILTER (WHERE urlaub IS NOT NULL) FROM public.urlaubskontingent;  -- ERWARTUNG: 0
+-- -- TODO — nur nach Sebastian-„ja" #2:
 -- -- ALTER TABLE public.urlaubskontingent DROP COLUMN IF EXISTS urlaub;
+
+-- ── S4-3  _backup_arbeitsscheine_status_pre_a2_20260630 (NEU) ───────────────
+-- Vergessene A2-Fix-Sicherung vom 30.06. — Live-Befund: 108 Zeilen, 264 kB.
+-- Backup ZUERST (gefahrlos) nach docs/db/backup-arbeitsscheine-status-pre-a2.json (108 Z.),
+-- dann Drop nach Einzel-OK.
+--   SELECT * FROM public._backup_arbeitsscheine_status_pre_a2_20260630;  -- ERWARTUNG: 108 Zeilen
+-- -- TODO — nur nach Sebastian-„ja" #3 + Backup-JSON:
+-- -- DROP TABLE IF EXISTS public._backup_arbeitsscheine_status_pre_a2_20260630;
+
+-- ── S4-FRAGEN an Sebastian (nur formuliert — NICHTS gebaut) ─────────────────
+-- F-A) notifications: 739 Zeilen / 2,5 MB. Rotations-Regel gewuenscht?
+--      (z.B. gelesene Notifs > 90 Tage loeschen.) -> dann eigenes Retention-Skript.
+-- F-B) activity_log: 8.446 Zeilen / 1,9 MB. Rotations-Regel gewuenscht?
+--      (z.B. Log-Eintraege > 6 Monate loeschen.) -> dann eigenes Retention-Skript.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- ENDE. Wenn diese Datei komplett „Run all" durchlaeuft, wurden AUSSCHLIESSLICH
--- read-only Nachweis-SELECTs ausgefuehrt. Alles Destruktive steht auskommentiert
--- und wartet auf Read-Ergebnisse (+ bei S4 je ein einzelnes Sebastian-„ja").
+-- NICHT ANFASSEN (Inventur bestaetigt behalten):
+--   kunden (6.463, OFFA-Import) · finkzeit (0, Mirror bleibt) · fahrzeuge 9,3 MB
+--   Base64 (7 FZ -> Performance-Fix 1, NICHT Cleanup) · Storage epkolar-files 8 /
+--   epkolar-docs 16 Objekte (unauffaellig) · alles unter auth.*/storage.* ·
+--   guard_urlaub_edit (v696-Baustelle) · plz_geo/plz_distanz/montagezulage_tage
+--   (gestaged, warten auf Gate).
+-- AUTH-HYGIENE: Live-Befund 0 NULL-Token-User -> alles sauber, keine Sektion noetig.
 -- ═══════════════════════════════════════════════════════════════════════════
