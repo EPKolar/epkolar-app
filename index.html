@@ -14762,6 +14762,21 @@ function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, laye
   );
 }
 
+/* v3.9.708 Plan-Pinch/Fokus-Zoom — EINE reine Funktion für ALLE Zoom-Wege (Pinch, Mausrad, +/−-Buttons, Doppeltipp, Cluster-Bubble).
+   Transform-Modell: world-div hat `translate(tx,ty) scale(s)` mit transformOrigin 0 0 (Pins sind Kinder → driften nicht).
+   state = {s, tx, ty} (aktueller Zoom + Pan in Viewport-Pixel). mid = Fokuspunkt in Viewport-Koordinaten (relativ zum
+   world-Ursprung, transformOrigin 0 0). faktor = multiplikativer Zoom (Pinch: dist/startDist, Wheel: accum, Button: nz/z).
+   Ergebnis hält mid FIX: der Plan-Punkt unter mid bleibt an derselben Stelle (Inverse: planPx=(mid-t)/s ist vor==nach gleich).
+   Grenzen minS..maxS (Default 1..5). Kein optional chaining (Samsung-TV/Sucrase). */
+function _planZoomAt(state, mid, faktor, minS, maxS){
+  var s=(state&&state.s)||1;
+  var tx=(state&&state.tx)||0, ty=(state&&state.ty)||0;
+  var lo=(minS==null?1:minS), hi=(maxS==null?5:maxS);
+  var ns=Math.max(lo, Math.min(hi, s*faktor));
+  var r=s>0?ns/s:1;
+  var mx=(mid&&mid.x)||0, my=(mid&&mid.y)||0;
+  return { s:ns, tx:mx-(mx-tx)*r, ty:my-(my-ty)*r };
+}
 function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pendingPin, onPlanClick, onPinClick, onPendingPinMove, selectedTicket, pendingIds, onPinMove}) {
   const [isFs, setIsFs] = _react.useState.call(void 0, false);/* v3.9.184 Vollbild/immersiv */
   const [pageNum, setPageNum] = _react.useState.call(void 0, 1);
@@ -14887,7 +14902,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
           if(_last && (_now-_last.t) < 300 && Math.hypot(e.clientX-_last.x, e.clientY-_last.y) < 28){
             const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
             const fx = _vr ? e.clientX-_vr.left : 0, fy = _vr ? e.clientY-_vr.top : 0;
-            setZoom(z=>{const nz = z<1.8?2.5:1; const r = z>0?nz/z:1; setPan(pp=> nz===1?{x:0,y:0}:{x:fx-(fx-pp.x)*r, y:fy-(fy-pp.y)*r}); return nz;});
+            setZoom(z=>{const nz = z<1.8?2.5:1; setPan(pp=>{ if(nz===1) return {x:0,y:0}; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,0.4,6); return {x:_o.tx,y:_o.ty}; }); return nz;});
             _tapRef.current = null;
           } else { _tapRef.current = {t:_now, x:e.clientX, y:e.clientY}; }
         }
@@ -14932,7 +14947,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   const _zoomCenter = (delta) => {
     const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
     const _fx = _vr ? _vr.width/2 : 0, _fy = _vr ? _vr.height/2 : 0;
-    setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); const r = z>0?nz/z:1; setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r})); return nz; });
+    setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); setPan(pp=>{const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_fx,y:_fy},z>0?nz/z:1,0.4,6);return {x:_o.tx,y:_o.ty};}); return nz; });
   };
   /* v3.9.184 Pin-Drag: Bildschirm-Koordinaten → Plan-Prozent (0-100), via gerenderter Plan-Element-Rect (zoom/pan-korrekt, da Element im transformierten world-div liegt). */
   const pctFromClient = (cx, cy) => {
@@ -14967,7 +14982,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
       _accum *= (e.deltaY>0 ? 0.9 : 1.1);
       if(!_raf) _raf = requestAnimationFrame(() => {
         _raf = null; const factor = _accum; _accum = 1;
-        setZoom(z => { const nz = Math.max(0.4, Math.min(6, z*factor)); const r = z>0?nz/z:1; setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r})); return nz; });
+        setZoom(z => { const _ns = Math.max(0.4, Math.min(6, z*factor)); setPan(pp=>{const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_fx,y:_fy},factor,0.4,6);return {x:_o.tx,y:_o.ty};}); return _ns; });
       });
     };
     el.addEventListener("wheel", _wh, { passive: false }); return () => { if(_raf) cancelAnimationFrame(_raf); el.removeEventListener("wheel", _wh); };
