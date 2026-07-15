@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.705 - Kiosk Self-Update: install ruft self.skipWaiting() (neuer SW aktiviert sofort statt in "waiting" zu haengen), activate behaelt clients.claim() -> controllerchange feuert -> Kiosk laedt sich selbst neu. Zusammen mit dem Versions-Poller in index.html genuegt EIN TV-Browser-Neustart, danach self-updating.
-const CACHE_NAME = "epkolar-v3.9.705";
+// EP Kolar Service Worker v3.9.706 - 🚛-Spezialfahrzeuge am lager_display-Kiosk: kontrollierter Lesepfad via RPC kiosk_fahrzeuge() (SECURITY DEFINER, nur id/kennzeichen/typ/modell/status) statt rohem fahrzeuge-Read, der bei fehlender RLS still [] lieferte; plus Diagnose-Zeile im Tafel-Kopf (v<VER> · FZ:<n> · Spez:<n>). Reiner index.html-Fix, SW nur Versions-Bump.
+const CACHE_NAME = "epkolar-v3.9.706";
 const ASSETS = [
   './',
   './index.html'
