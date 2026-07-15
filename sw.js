@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.708 - Plan-Viewer Refactor: Fokuszoom-Mathematik in eine reine getestete Funktion _planZoomAt gezogen (Doppeltipp/Zoom-Buttons/Mausrad darueber geroutet, verhaltensgleich); das Pinch-to-Zoom existierte in PlanViewerCanvas bereits vollstaendig. Reiner index.html-Fix, SW nur Versions-Bump.
-const CACHE_NAME = "epkolar-v3.9.708";
+// EP Kolar Service Worker v3.9.709 - Plan-Viewer Handy-Pinch Fokus-Zoom Flex-Offset-korrekt (worldRef/_worldOrigin misst getBoundingClientRect -> Fokuspunkt bleibt unter dem Finger statt zu driften; alle 4 Zoom-Pfade). Reiner index.html-Fix, SW nur Versions-Bump.
+const CACHE_NAME = "epkolar-v3.9.709";
 const ASSETS = [
   './',
   './index.html'
