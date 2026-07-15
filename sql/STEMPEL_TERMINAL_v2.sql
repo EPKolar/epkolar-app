@@ -1,4 +1,14 @@
 -- ═══════════════════════════════════════════════════════════════════
+-- ⚠️ TEILWEISE ÜBERHOLT — Stand 15.07.2026:
+--   • Abschnitte 1-4 (RPC stempel_terminal_workers + stempel_log/system_config/
+--     absences-Policies) sind am 14.07. GELAUFEN. Nicht erneut nötig.
+--   • Abschnitt 5 (guard_urlaub_edit-Replace) ist STILLGELEGT und wird ERSETZT
+--     durch sql/TERMINAL_FINAL_v3.sql — dort auf dem ECHTEN Live-Body statt der
+--     unvollständigen Rekonstruktion. NICHT den hier auskommentierten Abschnitt 5
+--     scharf schalten.
+-- Diese Datei bleibt als Historie/Doku der Abschnitte 1-4. Für den letzten Schritt:
+--   → sql/TERMINAL_FINAL_v3.sql (das eine Run-Paket).
+-- ═══════════════════════════════════════════════════════════════════
 -- STEMPEL_TERMINAL_v2.sql — eigene Kiosk-Rolle fuer die Stempeluhr (App v3.9.638+)
 --
 -- v2 ERSETZT v1 VOLLSTAENDIG. v1 ist NIE gelaufen und wurde geloescht.

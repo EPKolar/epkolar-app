@@ -36,21 +36,27 @@
 -- ║      guard_projects          (Projekt-Schutz)                           ║
 -- ║  Sie sind ALLE als unverifiziert zu behandeln, bis gemessen.            ║
 -- ║                                                                        ║
--- ║  ── PRÄZISIERUNG 14.07. spät ──────────────────────────────────────     ║
--- ║  Die erste Verify-Query (v1) hat FALSCH gemessen: sie verglich eine     ║
--- ║  von Postgres normalisierte Live-Seite gegen eine von Python            ║
--- ║  normalisierte Repo-Seite — zwei Engines, zwei Definitionen von \s.     ║
--- ║  Ihre Aussage „alle fünf weichen ab" ist damit UNBEWIESEN und kann      ║
--- ║  ein reines Messartefakt sein (unsichtbare Unicode-Leerzeichen aus      ║
--- ║  dem Copy-Paste-Deploy). → sql/VERIFY_TRIGGER_BODIES_v2.sql klärt das.  ║
+-- ║  ── ENDGÜLTIG GEMESSEN 15.07. (kalibrierte Engine) ────────────────     ║
+-- ║  Der Live-Export aller fünf Bodies (docs/wip/trigger_bodies_LIVE_       ║
+-- ║  2026-07-14.csv) wurde in EINER Engine gegen v3911 verglichen (beide    ║
+-- ║  Seiten identisch normalisiert, ASCII-\s, kein NBSP im Live-Body).      ║
+-- ║  Kontrollwert getroffen (guard_urlaub_edit 284dc6f1.../1746).           ║
+-- ║  ERGEBNIS: ALLE FÜNF weichen wirklich ab — kein Messartefakt.          ║
+-- ║      guard_urlaub_edit       live 1746  vs repo  953   (+793)           ║
+-- ║      guard_kontingent        live  486  vs repo  387   (+99)            ║
+-- ║      guard_projects          live  397  vs repo  328   (+69)            ║
+-- ║      guard_admin_only        live  366  vs repo  300   (+66)            ║
+-- ║      guard_users_privilege   live  699  vs repo  680   (+19)            ║
+-- ║  Die Live-Bodies liegen 1:1 als docs/wip/<name>_LIVE_2026-07-14.sql.    ║
+-- ║  (Die frühere v1-Verify-Query hatte mit einer Cross-Engine-Normali-     ║
+-- ║   sierung falsch gemessen; die kalibrierte Messung bestätigt den        ║
+-- ║   Verdacht nun sauber statt zufällig.)                                  ║
 -- ║                                                                        ║
--- ║  UNBERÜHRT davon bleibt der Kernbefund: 1746 gegen 953 sind ~800        ║
--- ║  Zeichen Unterschied. Whitespace-Artefakte erklären davon höchstens     ║
--- ║  ~86. Der Rest ist ECHTE LOGIK, die in dieser Datei fehlt.              ║
--- ║                                                                        ║
--- ║  → sql/VERIFY_TRIGGER_BODIES_v2.sql misst alle fünf auf einmal gegen    ║
--- ║    die DB (read-only, gefahrlos, ändert nichts). Ausführen, bevor       ║
--- ║    irgendjemand irgendeinen dieser Trigger anfasst.                     ║
+-- ║  guard_urlaub_edit ist über sql/TERMINAL_FINAL_v3.sql auf dem ECHTEN    ║
+-- ║  Live-Body neu aufgebaut (+ stempel_terminal-Zweig). Die anderen VIER   ║
+-- ║  bleiben unberührt in der DB — sie funktionieren, nur diese Repo-Datei  ║
+-- ║  bildet sie unvollständig ab. Wer einen davon je ändern muss, nimmt     ║
+-- ║  den *_LIVE-Body als Basis, NIE diese Rekonstruktion.                   ║
 -- ║                                                                        ║
 -- ║  Diese Datei bleibt als HISTORIE liegen — sie wird nicht gelöscht,      ║
 -- ║  aber sie ist keine Wahrheit.                                           ║
