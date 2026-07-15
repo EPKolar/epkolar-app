@@ -51,11 +51,18 @@ Voller Report: `docs/BUGHUNT_2026-07-14.md`.
 
 ---
 
-## ✅ Stempel-Terminal ist FERTIG und live verifiziert (15.07.)
+## ✅ Stempel-Terminal ist VOLLSTÄNDIG IN BETRIEB (15.07.)
 
 `sql/TERMINAL_FINAL_v3.sql` ist gelaufen, der Terminal-User ist angelegt, Chat-Claude hat live
-verifiziert. **Das Terminal stempelt und beantragt jetzt vollständig.** Das ganze Terminal-Kapitel
-(A–G + Rollenkonsolidierung + Trigger) ist abgeschlossen.
+verifiziert (v3-Body minus Zweig = `284dc6f1…`/1746 unabhängig nachgerechnet, Footer TABU-konform).
+Kontrolle nachträglich: `docs/wip/VERIFY_NACH_V3_RUN.sql` (read-only, prüft Trigger-Hash `47e14985…`/2434,
+7 Kiosk-Sperren, 1 Terminal-User). **Das Terminal stempelt und beantragt jetzt vollständig.** Das ganze
+Terminal-Kapitel (A–G + Rollenkonsolidierung + Trigger) ist abgeschlossen.
+
+**Entschieden (für die nächste Session, jetzt NICHT gebaut — Punkt 2 bleibt gesperrt):** Frage 1 =
+KVZuschlagReport (Überstunden) **wird mit umgestellt** auf `stempel_log` (braucht echte Von/Bis-Uhrzeiten
+fürs Nachtfenster). Frage 3 = Chef-Auslastungs-Ampel **auf `stempel_log`** (echte Anwesenheit). Beides
+kommt in Punkt 2, mit €-Beispiel-Abnahme.
 
 ## SQL Run-Gate
 

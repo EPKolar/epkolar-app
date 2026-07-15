@@ -99,6 +99,26 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
+## Lektionen 14./15.07.2026 — Kurzindex (Details in den Abschnitten darunter)
+
+- **Browser-Check ist Pflicht-Gate** (14.07.): `node_check` parst nur, lädt nie das Bundle. Ein
+  `window._x=_y` ohne Deklaration killte die Live-App 4 Versionen lang. → Seite laden, 0 Console-Errors.
+- **Kommentar-Behauptung braucht Test** (14.07.): „DST-sicher"/„stempelt NICHT"/„ERROR raus" waren alle
+  drei falsch und standen als Fakt im Code. Behauptet ein Kommentar eine Eigenschaft, beweist ein Test sie.
+- **Kein `CREATE OR REPLACE` aus Repo-Rekonstruktion** (14./15.07.): erst `pg_get_functiondef` aus der DB.
+  `v3911` war für alle 5 guard-Trigger unvollständig (+793/+99/+69/+66/+19); ein Replace hätte Live-Logik
+  gelöscht. Live-Bodies liegen als `docs/wip/*_LIVE_2026-07-14.sql`.
+- **Jede Mess-Query trägt einen Kontrollwert** (15.07.): Cross-Engine-Normalisierung lügt (`\s` = nur ASCII
+  in Postgres, auch Unicode in Python). Nur ein verfehlter Kontrollwert entlarvte die kaputte Messung.
+- **Generierte Live-berührende Artefakte tragen einen Selbst-Nachweis** (15.07.): `TERMINAL_FINAL_v3` beweist
+  per Test, dass v3-Body-minus-Zweig = Live-Body — der Replace fügt nur hinzu, löscht nichts.
+- **`sql/` im main-Checkout ist eine geladene Waffe** (14.07.): Sebastian kopiert von dort in den SQL-Editor.
+  Ungepushte/gefährliche Stände nie dort liegen lassen (WIP → `docs/wip/`), Gefährliches auskommentieren.
+- **Fund außerhalb des Auftrags** (14.07.): erst melden, Beleg zeigen, Freigabe abwarten — nicht ungefragt
+  committen (Ausnahme: akute Live-Störung, dann im Report ansagen).
+- **DB-Body-Transfer via Datei, nicht Chat-Paste** (15.07.): `CREATE FUNCTION`+`$$`+`RAISE` triggert den
+  Content-Filter (3× gescheitert). Datei ins Repo/Laufwerk, oder OAuth für den Supabase-MCP.
+
 ## Behauptet ein Kommentar eine Eigenschaft, muss ein Test sie beweisen
 
 Ein Kommentar wie „DST-sicher", „stempelt NICHT", „COLORS.ERROR raus" ist eine **Absichts-
