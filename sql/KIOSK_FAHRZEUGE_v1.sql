@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- KIOSK_FAHRZEUGE_v1.sql  (v3.9.706)  — Human-Run-Gate, Sebastian klickt Run.
+-- KIOSK_FAHRZEUGE_v1.sql  (v3.9.708)  — Human-Run-Gate, Sebastian klickt Run.
 -- ═══════════════════════════════════════════════════════════════════════════
 -- ZWECK: Die Lager-Wandtafel (?screen=planung, Rolle lager_display) leitet ihre
 -- 🚛-Spezialfahrzeug-Zeilen aus `fahrzeuge` ab. Falls lager_display die Tabelle
@@ -13,19 +13,34 @@
 -- ODER is_staff()), EXECUTE nur fuer authenticated. KEINE RLS-Policy wird
 -- angelegt, geaendert oder geloescht.
 --
--- ID-TYP-PARITAET: Rueckgabe als SETOF jsonb via jsonb_build_object — damit
--- traegt jedes Feld exakt den JSON-Typ des rohen PostgREST-Reads (int bleibt
--- Zahl, uuid/text bleibt String). Das ist wichtig, weil die Tafel per
--- z.<tag>.fz.indexOf(f.id) matcht: ein Typwechsel (Zahl vs. "Zahl") wuerde die
--- 🚛-Zuordnung still brechen. jsonb_build_object bewahrt die Paritaet.
+-- WICHTIG v3.9.708 — RETURNS TABLE statt SETOF jsonb:
+-- Die erste Fassung gab SETOF jsonb zurueck. PostgREST kann ein SETOF-SCALAR
+-- unter dem Funktionsnamen VERSCHACHTELN ([{"kiosk_fahrzeuge":{...}}]) statt die
+-- Objekte flach zu liefern — dann sieht der Client f.typ/f.modell als undefined,
+-- das Spez-Praedikat trifft nie, und die 🚛-Zeile bleibt leer OBWOHL fahrzeuge
+-- geladen ist (FZ:>0 · Spez:0). Darum jetzt RETURNS TABLE mit benannten Spalten —
+-- exakt das bewaehrte Muster der drei laufenden Kiosk-RPCs (kiosk_field_workers,
+-- kiosk_week_arbeitsscheine, kiosk_week_absences). Ergebnis: flaches
+-- [{id,kennzeichen,typ,modell,status}], identische Form wie der rohe Read.
 --
--- IDEMPOTENT & GEFAHRLOS: nur CREATE OR REPLACE einer NEUEN Funktion +
--- REVOKE/GRANT darauf. Beruehrt keine bestehende Funktion, Tabelle oder Policy.
+-- ID-TYP: fahrzeuge.id ist text (uuid v4 aus _uuid(); belegt durch
+-- fz_positions.fahrzeug_id text NOT NULL). Rueckgabe als text -> String-Paritaet
+-- zu z.<tag>.fz (dort steht dieselbe _uuid()-Zeichenkette) -> indexOf matcht.
+--
+-- IDEMPOTENT & GEFAHRLOS: nur CREATE OR REPLACE einer bestehenden/neuen Funktion
+-- + REVOKE/GRANT darauf. Beruehrt keine andere Funktion, Tabelle oder Policy.
 -- Mehrfach ausfuehrbar. Kein DROP, kein ALTER auf Fremdobjekte.
+-- (CREATE OR REPLACE mit geaendertem Rueckgabetyp: falls Postgres wegen des
+--  Typwechsels SETOF jsonb -> TABLE meckert, das vorangestellte DROP nutzen.)
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- Rueckgabetyp-Wechsel: CREATE OR REPLACE kann den Signatur-/Rueckgabetyp nicht
+-- aendern -> zuerst die alte Fassung entfernen. Gefahrlos: es ist unsere eigene,
+-- erst heute angelegte Funktion, kein Fremdobjekt.
+DROP FUNCTION IF EXISTS public.kiosk_fahrzeuge();
+
 CREATE OR REPLACE FUNCTION public.kiosk_fahrzeuge()
-RETURNS SETOF jsonb
+RETURNS TABLE(id text, kennzeichen text, typ text, modell text, status text)
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
@@ -38,12 +53,7 @@ BEGIN
     RAISE EXCEPTION 'not authorized' USING errcode = '42501';
   END IF;
   RETURN QUERY
-    SELECT jsonb_build_object(
-             'id',          f.id,
-             'kennzeichen', f.kennzeichen,
-             'typ',         f.typ,
-             'modell',      f.modell,
-             'status',      f.status)
+    SELECT f.id::text, f.kennzeichen::text, f.typ::text, f.modell::text, f.status::text
     FROM public.fahrzeuge f
     ORDER BY f.kennzeichen ASC;
 END
@@ -53,12 +63,10 @@ REVOKE ALL   ON FUNCTION public.kiosk_fahrzeuge() FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.kiosk_fahrzeuge() TO authenticated;
 
 -- ── Selbst-Nachweis nach dem Run (read-only, gefahrlos) ─────────────────────
--- Soll: die Funktion existiert, ist SECURITY DEFINER, gibt >0 Zeilen mit genau
--- den 5 Feldern zurueck. Kontrollwert: fahrzeuge-Gesamtzahl muss zur RPC-Zahl
--- passen (die RPC filtert NICHT — sie gibt alle Fahrzeuge, die Tafel filtert
--- client-seitig auf das Spez-Praedikat).
---   SELECT proname, prosecdef  FROM pg_proc
+-- Soll: Funktion existiert, SECURITY DEFINER, liefert flache Zeilen mit genau
+-- den 5 Spalten. Kontrollwert: via_rpc == via_table (die RPC filtert NICHT).
+--   SELECT proname, prosecdef FROM pg_proc
 --     WHERE pronamespace='public'::regnamespace AND proname='kiosk_fahrzeuge';  -- prosecdef=t
 --   SELECT count(*) AS via_rpc   FROM public.kiosk_fahrzeuge();
 --   SELECT count(*) AS via_table FROM public.fahrzeuge;                          -- muss gleich sein
---   SELECT public.kiosk_fahrzeuge() LIMIT 1;   -- ein jsonb-Objekt mit id/kennzeichen/typ/modell/status
+--   SELECT * FROM public.kiosk_fahrzeuge() LIMIT 1;   -- id,kennzeichen,typ,modell,status FLACH

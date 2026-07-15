@@ -33,9 +33,11 @@ def test_rpc_security_definer_and_gate(repo_root):
 
 def test_rpc_returns_only_panel_fields_no_pii(repo_root):
     sql = _sql(repo_root)
-    assert "RETURNS SETOF jsonb" in sql                 # JSON-Typ-Paritaet zum rohen Read
-    assert "jsonb_build_object(" in sql
-    for field in ("'id'", "'kennzeichen'", "'typ'", "'modell'", "'status'"):
+    # v3.9.708: RETURNS TABLE (flach, benannte Spalten) statt SETOF jsonb — sonst kann PostgREST
+    # das Ergebnis unter dem Funktionsnamen verschachteln und f.typ wird undefined (FZ:>0, Spez:0).
+    assert "RETURNS TABLE(id text, kennzeichen text, typ text, modell text, status text)" in sql
+    assert "SETOF jsonb" not in sql.split("$function$")[1]  # nicht im Funktionskoerper (Kommentar erlaubt)
+    for field in ("f.id::text", "f.kennzeichen::text", "f.typ::text", "f.modell::text", "f.status::text"):
         assert field in sql
     # KEIN PII / Fuhrpark-Interna am oeffentlichen Wandpanel. Ein Feld wird nur AUSGEGEBEN, wenn es
     # als quotierter jsonb-Key auftaucht ('feld') — der erklaerende Kommentar nennt die Woerter bewusst.
