@@ -51,34 +51,73 @@ Voller Report: `docs/BUGHUNT_2026-07-14.md`.
 
 ---
 
-## SQL Run-Gate — was Sebastian ausführen muss
+## ✅ Stempel-Terminal ist FERTIG und live verifiziert (15.07.)
+
+`sql/TERMINAL_FINAL_v3.sql` ist gelaufen, der Terminal-User ist angelegt, Chat-Claude hat live
+verifiziert. **Das Terminal stempelt und beantragt jetzt vollständig.** Das ganze Terminal-Kapitel
+(A–G + Rollenkonsolidierung + Trigger) ist abgeschlossen.
+
+## SQL Run-Gate
 
 | Datei | Zweck | Stand |
 |---|---|---|
-| `STEMPEL_TERMINAL_v2.sql` **Abschn. 1–4** | RPC + Policies für die Terminal-Rolle | ⏳ **danach stempelt das Terminal** |
-| `STEMPEL_TERMINAL_v2.sql` **Abschn. 5** | `guard_urlaub_edit`-Zweig | ⛔ **stillgelegt** — wartet auf v3 (echter Live-Body) |
-| `KIOSK_RESTRICTIVE_FIX_v1.sql` | Kiosk-Sperren auf `is_kiosk_role()` + time_entries/forms/bautagebuch | ⏳ offen |
-| `VERIFY_TRIGGER_BODIES_v2.sql` | read-only, misst alle 5 Trigger gegen die DB | ⏳ **zuerst laufen lassen** |
-| `GPS_INGEST_v1.sql` | Unique-Index für `gps_ingest` | ⏳ erst mit dem Deploy |
+| `STEMPEL_TERMINAL_v2.sql` Abschn. 1–4 | RPC + Policies für die Terminal-Rolle | ✅ gelaufen (14.07.) |
+| `TERMINAL_FINAL_v3.sql` | `guard_urlaub_edit` auf Live-Body + Terminal-Zweig **und** Kiosk-Sperren (7 Tabellen) | ✅ **gelaufen (15.07.)** |
 | `MONTAGEZULAGE_v1.sql`, `FZ_TRACKER_v1.sql`, Seed | — | ✅ gelaufen |
+| `GPS_INGEST_v1.sql` | Unique-Index für `gps_ingest` | ⏳ erst mit dem Deploy (gesperrt) |
 
-**Terminal-User anlegen geht NUR per SQL** (die App-Benutzerverwaltung kann `stempel_terminal` nicht
-vergeben — Template in v2). `auth.users` bleibt tabu für Claude Code.
+> `STEMPEL_TERMINAL_v2.sql` Abschn. 5 (Rekonstruktions-Replace) bleibt **stillgelegt** — ersetzt durch
+> TERMINAL_FINAL_v3. `KIOSK_RESTRICTIVE_FIX_v1.sql` und `VERIFY_TRIGGER_BODIES_v2.sql` sind als
+> Historie/Diagnose erledigt (ihr Inhalt steckt in TERMINAL_FINAL_v3 bzw. wurde durch die kalibrierte
+> CSV-Messung überholt).
+
+---
+
+## Der Trigger-Abschluss — und die drei Lektionen als Muster
+
+Der Weg zu `TERMINAL_FINAL_v3.sql` war die lehrreichste Sequenz der Session. Drei Muster, die bleiben:
+
+**1. Nie ein Live-Objekt aus einer Repo-Rekonstruktion ersetzen.**
+`security_triggers_LIVE_v3911.sql` gab sich als Live-Stand aus, war aber eine **unvollständige
+Rekonstruktion**. Ein `CREATE OR REPLACE` darauf hätte bei `guard_urlaub_edit` ~793 Zeichen echter
+Logik kommentarlos gelöscht (JWT-Quelle, `permissions`-Spalte, projektleiter/buero-Zugriff,
+DELETE-Zweig, `'storniert'`-Status). **Kalibriert gemessen weichen ALLE FÜNF** guard-Trigger ab
+(+793/+99/+69/+66/+19). Die vier anderen laufen unverändert in der DB — nur die Repo-Datei bildet sie
+unvollständig ab; ihre echten Bodies liegen als `docs/wip/<name>_LIVE_2026-07-14.sql`. Regel steht in
+CLAUDE.md: erst `pg_get_functiondef` ziehen, dann darauf aufbauen.
+
+**2. Cross-Engine-Normalisierung lügt — mit Kontrollwert kalibrieren.**
+Die erste Verify-Query verglich eine **von Postgres** normalisierte Live-Seite gegen eine **von
+Python** normalisierte Repo-Seite. `\s` heißt in beiden Engines etwas anderes (Postgres: nur ASCII;
+Python: auch Unicode-Whitespace). Ergebnis: plausibel aussehende, aber falsche Zahlen. Gefangen hat es
+nur ein **eingebauter Kontrollwert** (erwartetes Delta verfehlt). Beim finalen Lauf war der
+Kontrollwert `guard_urlaub_edit = 284dc6f1…/1746` — er MUSS treffen, sonst ist die Messung ungültig.
+Regel in CLAUDE.md: jede Mess-Query trägt einen Kontrollwert mit bekanntem Soll.
+
+**3. Generierte kritische Artefakte tragen einen maschinellen Selbst-Nachweis.**
+`TERMINAL_FINAL_v3.sql` beweist sich selbst: **v3-Trigger-Body MINUS Terminal-Zweig** ergibt
+normalisiert exakt `284dc6f1…/1746` — also den unveränderten Live-Body. Der Replace fügt damit
+nachweislich **nur** den Terminal-Zweig hinzu und löscht nichts. Der Nachweis wurde generativ geprüft
+**und** in `tests/test_terminal_final_v3.py` festgenagelt — eine spätere Änderung, die versehentlich
+Live-Logik entfernt, bricht den Test. Muster für jedes generierte SQL/Config, das ein Live-Objekt
+anfasst.
+
+**Nebenbei zum Transport:** Der Chat-Paste des Trigger-Bodies scheiterte **dreimal** an einem
+Content-Filter (`CREATE FUNCTION` + `$$` + `RAISE EXCEPTION` sieht wie Injection aus). Verlässlich war
+erst die **Datei** (CSV aus Downloads ins Repo). Bei künftigen DB-Body-Transfers: Datei, nicht Paste —
+oder OAuth für den Supabase-MCP, dann zieht Claude Code die Bodies selbst.
 
 ---
 
 ## Offen — wartet auf Sebastian (alles gesperrt)
 
-1. **Trigger-Kette v3:** Sebastian legt `docs/wip/trigger_bodies_LIVE_2026-07-14.csv` ab (Voll-Export
-   aller 5 Bodies mit norm_md5). Daraus: 5 Einzeldateien + Hash-Selbstcheck + Diff-Erklärung je
-   Trigger + `STEMPEL_TERMINAL_v3.sql` (Trigger-Abschnitt auf echtem Live-Body). Bis dahin keinerlei
-   Trigger-Replace. Der Chat-Paste des Bodies ist **dreimal** an einem Content-Filter gescheitert —
-   Datei-ins-Repo ist der verlässliche Weg.
-2. **Punkt 2** (Anwesenheits-Basis KVZulagenReport + KVZuschlagReport auf `stempel_log`): Fragen 1+3
+1. **Punkt 2** (Anwesenheits-Basis KVZulagenReport + KVZuschlagReport auf `stempel_log`): Fragen 1+3
    noch offen, Abnahme am durchgerechneten €-Beispiel.
-3. **Frage 3** (Chef-Auslastungs-Ampel): Zweck-Entscheid Anwesenheit vs. Verrechenbarkeit.
-4. **`gps_ingest`-Deploy** (Traccar → `fz_positions`): eigener Go. Quelle liegt fertig im Repo.
-5. **Dead-Code Phase 2** weitere Batches: nur nach Freigabe je Kandidat.
+2. **Frage 3** (Chef-Auslastungs-Ampel): Zweck-Entscheid Anwesenheit vs. Verrechenbarkeit.
+3. **`gps_ingest`-Deploy** (Traccar → `fz_positions`): eigener Go. Quelle liegt fertig im Repo.
+4. **Dead-Code Phase 2** weitere Batches: nur nach Freigabe je Kandidat.
+
+*(Die Trigger-Kette ist erledigt — siehe oben, TERMINAL_FINAL_v3 gelaufen.)*
 
 ---
 
