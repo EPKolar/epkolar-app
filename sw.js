@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.709 - Plan-Viewer Handy-Pinch Fokus-Zoom Flex-Offset-korrekt (worldRef/_worldOrigin misst getBoundingClientRect -> Fokuspunkt bleibt unter dem Finger statt zu driften; alle 4 Zoom-Pfade). Reiner index.html-Fix, SW nur Versions-Bump.
-const CACHE_NAME = "epkolar-v3.9.709";
+// EP Kolar Service Worker v3.9.710 - Perf-Fix 1a: Tankbeleg-Fotos via _sbUploadFile nach Storage (nur URL) statt Base64 in tank_log -> stoppt den Zulauf, der den fahrzeuge-Boot-Store auf ~15 MB blaehte. Reiner index.html-Fix, SW nur Versions-Bump.
+const CACHE_NAME = "epkolar-v3.9.710";
 const ASSETS = [
   './',
   './index.html'

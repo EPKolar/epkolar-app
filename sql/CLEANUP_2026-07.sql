@@ -165,13 +165,12 @@ WHERE row_id='cef82eae-fc46-4103-930e-d9644f2877d4';   -- ERWARTUNG: 1 Zeile, z_
 -- Backup -> docs/db/weekplans-final-backup-2026-07.json (11 Zeilen).
 -- -- TODO nach Sebastian-ja #1 + Backup:  DROP TABLE IF EXISTS public.weekplans;
 
--- S4-2  urlaubskontingent.urlaub -- 0 Non-NULL, ABER NICHT gefahrlos.
--- Der Trigger guard_kontingent REFERENZIERT 'urlaub' im Body (position>0=true) ->
--- ein DROP COLUMN wuerde den Trigger brechen. VORBEDINGUNG: guard_kontingent v2
--- OHNE urlaub-Referenz als eigenes gestagedes SQL auf dem LIVE-Body (Chat-Claude
--- zieht pg_get_functiondef; NIE aus Repo-Rekonstruktion). DANN erst der Drop.
+-- S4-2  urlaubskontingent.urlaub (deprecated seit v648) -- 0 Non-NULL -> gefahrlos.
+-- Live: 0 Non-NULL-Werte. Praezisionscheck (Chat-Claude, \m/\M + NEW./OLD.-Match auf prosrc):
+-- der Trigger guard_kontingent referenziert die SPALTE urlaub NICHT -- die Treffer waren der
+-- Tabellenname 'urlaubskontingent'. Kein Trigger-Fix noetig, DROP COLUMN gefahrlos.
 --   SELECT count(*) FILTER (WHERE urlaub IS NOT NULL) FROM public.urlaubskontingent;  -- ERW: 0
--- -- TODO nach guard_kontingent-v2-Fix + Sebastian-ja #2:
+-- -- TODO nach Sebastians woertlichem "droppen" (+ Backup):
 -- -- ALTER TABLE public.urlaubskontingent DROP COLUMN IF EXISTS urlaub;
 
 -- S4-3  _backup_arbeitsscheine_status_pre_a2_20260630 (NEU) -- Live: 108 Zeilen, 264 kB.
