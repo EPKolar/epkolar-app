@@ -13,6 +13,9 @@
 
 -- ============================================================================
 -- S1  63 tote lager_display_no_<cmd>-Policies droppen  ·  Risiko: MITTEL
+-- ★ AUSGEFUEHRT 15.07.2026 ~19:5x (Chat-Claude): 63/63 gedroppt, Gegenzaehlung 0/0,
+--   Ersatz 7 no_kiosk + is_kiosk_role/kiosk_fahrzeuge/login_lookup vorhanden, Kiosk-
+--   Funktionscheck gruen (v711, FZ:21·Spez:1, 🚛 rendert). Backup: docs/db/policies-backup-2026-07-15.json. ERLEDIGT.
 --     Live-Befund #3: 63 RESTRICTIVE-Policies pruefen app_metadata (falsche
 --     Rollenquelle) -> waren NIE wirksam (v695). Ersatz AKTIV: is_kiosk_role()=1,
 --     7 *_no_kiosk-Policies. Namen verifiziert (51x no_select + je 4x no_delete/
@@ -141,6 +144,8 @@ ORDER BY p.proname;
 
 -- 3.2  weekplan_rows: genau 1 Zeile mit z als JSON-STRING (v502-Altlast).
 --      row_id = cef82eae-fc46-4103-930e-d9644f2877d4.
+-- ★ AUSGEFUEHRT 15.07.2026 (Chat-Claude): repariert (string->object), Rest-Strings 0.
+--   Inhalt war ein leeres KW26-Raster (Backup docs/db/cleanup-backup-2026-07-15-weekplan_z.json belegt). ERLEDIGT.
 -- Schritt A (gefahrlos): Zeile fuer's Backup -> docs/db/cleanup-backup-2026-07-15-weekplan_z.json.
 SELECT row_id, year, week, jsonb_typeof(z) AS z_typ, z
 FROM public.weekplan_rows
