@@ -13,9 +13,10 @@ def test_dispopanel_component_present(index_html):
 def test_buildinput_present_and_exported(index_html):
     assert "function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen)" in index_html
     assert "window._dispoBuildInput=_dispoBuildInput" in index_html
-    # Folgewoche Mo-Fr, Prio-1 (Termin+Monteur) als Kapazitaets-Abzug
+    # Folgewoche Mo-Fr (KW+1-Anker)
     assert "d.setDate(d.getDate()-(dow-1)+7)" in index_html
-    assert "AS_GRP_OFFEN.indexOf(s.scheinstatus)>=0 && (!s.terminBestaetigt||!s.monteur)" in index_html
+    # v3.9.727 #17: Scope = offen (nicht aufgeschoben) UND (kein Termin ODER ueberfaellig termin<heute)
+    assert 'if(s.scheinstatus==="aufgeschoben")return false;var t=_termISO(s);return (!t)||(t<_heute);' in index_html
 
 
 def test_tab_gated_buero_pl_admin(index_html):

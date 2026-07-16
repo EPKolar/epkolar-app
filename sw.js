@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.726 - Dispo #15 Vorab-Optik: leere Baustellen-Tage nicht mehr wie Vorschlag (kein Kasten, dezent getoent + graue Zeile 🏗 BVH, Tooltip); harte Blocker kompakt Icon+Wort; Legenden-Zeile.
-const CACHE_NAME = "epkolar-v3.9.726";
+// EP Kolar Service Worker v3.9.727 - Dispo #17 Scope: ueberfaellige Termine (termin<heute) gehoeren in die Planung (⚠-Badge + Alters-Bonus); Zukunfts-Termine sind fix (📌, Kapazitaets-Abzug, kein Umplanen); aufgeschoben = Parkplatz raus. Kopf +ueberfaellig.
+const CACHE_NAME = "epkolar-v3.9.727";
 const ASSETS = [
   './',
   './index.html'
