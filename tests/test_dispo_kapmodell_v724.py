@@ -110,8 +110,9 @@ def test_buildinput_tagarten(index_html, node_exe, tmp_path):
 var mon=[{id:'m1',n:'Anton',r:'Monteur'}];
 var now=new Date('2026-07-16T00:00:00');
 var base=_dispoBuildInput([],mon,{},{},now,3);
-var iso=base.wochen[0].tage[1].iso; var wtag=base.wochen[0].tage[1].wtag; // Di
-var kwk=base.wochen[0].yr+'-'+base.wochen[0].kw;
+// v3.9.739: Woche 0 ist jetzt die LAUFENDE Woche (kann vergangene Tage haben) -> tagArt auf der Folgewoche (immer Zukunft) pruefen.
+var iso=base.wochen[1].tage[1].iso; var wtag=base.wochen[1].tage[1].wtag; // Di der Folgewoche
+var kwk=base.wochen[1].yr+'-'+base.wochen[1].kw;
 function mkWp(bvh){var wp={};var z={};z[wtag]={ma:['m1']};wp[kwk]=[{z:z,bvh:bvh}];return wp;}
 // Stoerungen-Zeile -> voll + tagArt stoerung, NICHT geblockt
 var oS=_dispoBuildInput([],mon,mkWp('Störungen'),{},now,3);

@@ -57,13 +57,14 @@ def test_blockgrund_urlaub_und_belegung(index_html, node_exe, tmp_path):
 var mon=[{id:'m1',n:'Anton',r:'Monteur'}];
 var now=new Date('2026-07-16T00:00:00');
 var base=_dispoBuildInput([],mon,{},{},now,3);
-var monIso=base.wochen[0].tage[0].iso;
-// Urlaub am Montag W1
+// v3.9.739: Woche 0 ist die laufende Woche (Mo kann vergangen sein) -> Belegung/Urlaub auf der Folgewoche pruefen.
+var monIso=base.wochen[1].tage[0].iso;
+// Urlaub am Montag der Folgewoche
 var am={}; am['Anton_'+monIso]={type:'urlaub',status:'genehmigt',hours:0};
 var oU=_dispoBuildInput([],mon,{},am,now,3);
 ok(oU.blockGrund['m1'][monIso] && oU.blockGrund['m1'][monIso][0].icon==='🏖️','Urlaub -> 🏖️-Grund');
 // Belegung (weekplan_rows dieser KW) mit BVH-Name
-var wp={}; wp[base.wochen[0].yr+'-'+base.wochen[0].kw]=[{z:{Mo:{ma:['m1']}},bvh:'BVH Leth'}];
+var wp={}; wp[base.wochen[1].yr+'-'+base.wochen[1].kw]=[{z:{Mo:{ma:['m1']}},bvh:'BVH Leth'}];
 var oB=_dispoBuildInput([],mon,wp,{},now,3);
 ok(oB.blockGrund['m1'][monIso] && oB.blockGrund['m1'][monIso][0].icon==='🏗','Belegung -> 🏗-Grund');
 ok(oB.blockGrund['m1'][monIso][0].label.indexOf('BVH Leth')>=0,'BVH-Name aus der Planungszeile (v3.9.724: + Vorab-Hinweis)');

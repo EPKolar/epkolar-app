@@ -46,7 +46,8 @@ def test_scope_ueberfaellig_fix_aufgeschoben(index_html, node_exe, tmp_path):
 var mon=[{id:'m1',n:'Anton',r:'Monteur'}];
 var now=new Date('2026-07-16T12:00:00');
 var base=_dispoBuildInput([],mon,{},{},now,3);
-var futIso=base.wochen[0].tage[0].iso;
+// v3.9.739: Woche 0 ist die laufende Woche -> ein echter ZUKUNFTS-Tag fuer den fixen Termin B liegt in der Folgewoche.
+var futIso=base.wochen[1].tage[0].iso;
 var scheine=[
   {id:'A',scheinstatus:'in_bearbeitung',monteur:'m1',terminBestaetigt:'2026-07-10',arbeitsort:'Wien'},
   {id:'B',scheinstatus:'in_bearbeitung',monteur:'m1',terminBestaetigt:futIso,dauer:'03:00',arbeitsort:'Graz'},
