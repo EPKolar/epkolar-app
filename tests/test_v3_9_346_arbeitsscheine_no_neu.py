@@ -11,7 +11,7 @@ NICHT angetastet:
   - importOffa / commitImport (OFFA-PDF-Import).
   - exportOffa (OFFA-Excel-Export).
   - _juprowaPush (Phase-2-sensitiv).
-  - Status-Setzen, QR-Scan, Liste, Kalender, Vorlagen-Tab.
+  - Status-Setzen, QR-Scan, Liste, Kalender. (Vorlagen-Tab in v3.9.719 P1-c entfernt.)
 """
 import re
 
@@ -67,13 +67,13 @@ def test_no_form_tab_in_subnav(index_html):
         "v3.9.346 Regression: Sub-Nav-Tab {id:'form',i:'✏️',l:editId?...:'Neu'} noch "
         "in ArbeitsscheinView. Tab muss entfernt sein."
     )
-    # Sub-Nav-Array muss noch andere Tabs enthalten (liste/qrscan/kalender/vorlagen)
+    # Sub-Nav-Array muss noch andere Tabs enthalten (liste/qrscan/kalender)
     sub_nav = re.search(
         r'\[\s*\{\s*id\s*:\s*["\']liste["\'][\s\S]{0,400}?\]\.map\(t=>React\.createElement\(\s*[\'\"]button[\'\"]',
         block,
     )
     assert sub_nav, (
-        "v3.9.346 Regression: Sub-Nav-Tab-Array (liste/qrscan/kalender/vorlagen) nicht "
+        "v3.9.346 Regression: Sub-Nav-Tab-Array (liste/qrscan/kalender) nicht "
         "mehr gefunden — Tab-Bar darf nicht komplett verloren gehen."
     )
 

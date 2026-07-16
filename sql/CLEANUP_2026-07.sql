@@ -184,6 +184,14 @@ WHERE row_id='cef82eae-fc46-4103-930e-d9644f2877d4';   -- ERWARTUNG: 1 Zeile, z_
 -- -- TODO nach Sebastian-ja #3 + Backup:
 -- -- DROP TABLE IF EXISTS public._backup_arbeitsscheine_status_pre_a2_20260630;
 
+-- S4-5  as_vorlagen (NEU, v3.9.719 P1-c) -- AS-Anlage nur noch in OFFA, App-Vorlagen komplett raus
+-- (Panel + Fill-Bus + Sub-Tab + Boot-Selbsttest entfernt, 0 Code-Referenzen). Die Tabelle wird von
+-- der App nicht mehr gelesen/geschrieben. Zeilenzahl zieht Chat-Claude beim naechsten Editor-Lauf.
+--   SELECT count(*) AS zeilen, max(created_at) AS letzte FROM public.as_vorlagen;  -- ERW: ? (Chat-Claude)
+-- Backup -> docs/db/as-vorlagen-backup-2026-07.json (vor Drop ziehen).
+-- -- TODO nach Sebastians woertlichem "droppen" (+ Backup):
+-- -- DROP TABLE IF EXISTS public.as_vorlagen;
+
 -- S4-4  Retention-FRAGEN an Sebastian (nur formuliert, kein Code):
 -- F-A) notifications 739 Zeilen / 2,5 MB -- Vorschlag: gelesene Notifs > 90 Tage loeschen?
 -- F-B) activity_log 8.446 Zeilen / 1,9 MB -- Vorschlag: Eintraege > 6 Monate loeschen?
