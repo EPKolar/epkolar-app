@@ -32,9 +32,9 @@ var cfg={
   tage:[{key:'Mo',normMin:510},{key:'Di',normMin:510}],
   firma:firma, dist:dist, kapAbzug:{}, hatFz:function(){return true;},
   scheine:[
-    {id:'S1',bvh:'BVH-A1',adrKey:'a',plz:'A',dauerMin:120,alterMs:3},
-    {id:'S2',bvh:'BVH-A2',adrKey:'a',plz:'A',dauerMin:120,alterMs:2},
-    {id:'S3',bvh:'BVH-B', adrKey:'b',plz:'B',dauerMin:120,alterMs:1}
+    {id:'S1',bvh:'BVH-A1',adrKey:'a',plz:'A',dauerMin:120,alterMs:3,monteurId:'M1'},
+    {id:'S2',bvh:'BVH-A2',adrKey:'a',plz:'A',dauerMin:120,alterMs:2,monteurId:'M1'},
+    {id:'S3',bvh:'BVH-B', adrKey:'b',plz:'B',dauerMin:120,alterMs:1,monteurId:'M1'}
   ]};
 var r=_dispoPlan(cfg);
 // S1 und S2 (gleicher adrKey 'a') muessen bei DEMSELBEN Monteur am SELBEN Tag landen (Buendelung)
@@ -44,12 +44,12 @@ ok(r.warteliste.length===0,'alles verplant');
 ok(typeof r.wocheKm==='number','wocheKm zahl');
 // WAND: ein Schein mit 500min auf 510-Norm (kap 510-60=450) passt nicht -> Warteliste
 var cfg2={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firma,dist:dist,kapAbzug:{},hatFz:function(){return true;},
-  scheine:[{id:'X',bvh:'X',adrKey:'x',plz:'A',dauerMin:500,alterMs:1}]};
+  scheine:[{id:'X',bvh:'X',adrKey:'x',plz:'A',dauerMin:500,alterMs:1,monteurId:'M1'}]};
 var r2=_dispoPlan(cfg2);
 ok(r2.warteliste.length===1 && r2.warteliste[0].scheinId==='X','WAND: 500min passt nicht in 450 -> Warteliste');
 // fz-Bedarf: hatFz=false -> Warteliste mit Grund
 var cfg3={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firma,dist:dist,kapAbzug:{},hatFz:function(){return false;},
-  scheine:[{id:'Y',bvh:'Y',adrKey:'y',plz:'A',dauerMin:60,fzTyp:'Steiger',alterMs:1}]};
+  scheine:[{id:'Y',bvh:'Y',adrKey:'y',plz:'A',dauerMin:60,fzTyp:'Steiger',alterMs:1,monteurId:'M1'}]};
 var r3=_dispoPlan(cfg3);
 ok(r3.warteliste.length===1,'fz-Bedarf ohne freies FZ -> Warteliste');
 console.log('OK');

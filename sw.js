@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.716 - Dispo E4b Uebernahme: Chip -> regulaerer updAs-Edit (termin+monteur+dauer) -> OFFA-Push (byte-gleich zu manuell). fz_bedarf nie gepusht. Reiner index.html-Fix.
-const CACHE_NAME = "epkolar-v3.9.716";
+// EP Kolar Service Worker v3.9.717 - Dispo P1-a: Monteur kommt AUS dem Schein, Dispo waehlt nie einen; ohne Monteur -> Warteliste; kein Spillover (Least-Loaded raus); Rasterzeilen nur Feld-Monteure (WeekPlan-Praedikat). Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.717";
 const ASSETS = [
   './',
   './index.html'
