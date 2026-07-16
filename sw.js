@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.714 - Dispo E3-Verdrahtung Stufe 1 (pure //@DISPO: _dispoPlan Greedy+Buendelung+2-opt, _dispoTopf, _dispoAbwAbzug N8). E4-Tab folgt. Reiner index.html-Fix.
-const CACHE_NAME = "epkolar-v3.9.714";
+// EP Kolar Service Worker v3.9.715 - Dispo E4-Tab (read-only): Sub-Tab Vorschlagsplanung (Buero/PL/Admin), DispoPanel -> _dispoBuildInput/_dispoPlan, Wochenraster+Chips+Warteliste. Uebernahme folgt. Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.715";
 const ASSETS = [
   './',
   './index.html'
