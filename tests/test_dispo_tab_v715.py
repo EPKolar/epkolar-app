@@ -11,7 +11,7 @@ def test_dispopanel_component_present(index_html):
 
 
 def test_buildinput_present_and_exported(index_html):
-    assert "function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now)" in index_html
+    assert "function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen)" in index_html
     assert "window._dispoBuildInput=_dispoBuildInput" in index_html
     # Folgewoche Mo-Fr, Prio-1 (Termin+Monteur) als Kapazitaets-Abzug
     assert "d.setDate(d.getDate()-(dow-1)+7)" in index_html

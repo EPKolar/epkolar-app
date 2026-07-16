@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.721 - Theme-Hotfix Mobil: Re-Entry-Guard 350ms gegen Touch-Ghost-Click (Dark war am Handy nicht fixierbar) + Segmented Control [Hell|Dunkel|Auto] in Einstellungen (setzt Modus direkt) + Toast bei jedem Wechsel.
-const CACHE_NAME = "epkolar-v3.9.721";
+// EP Kolar Service Worker v3.9.722 - Dispo P1-e Teil 1: 3-Wochen-Horizont (rollierend KW+1..+3, je KW eigene Kapazitaet aus weekplan_rows, Jahresgrenze via isoW) + Wochen-Malus (Dringendes bleibt vorne) + km ab Firma (Tagesrundfahrt, feste Endpunkte). UI: klappbare KW-Sektionen, Mobile KW-Tabs.
+const CACHE_NAME = "epkolar-v3.9.722";
 const ASSETS = [
   './',
   './index.html'
