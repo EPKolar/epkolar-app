@@ -63,6 +63,12 @@ var pA=o.cfg.scheine.filter(function(p){return p.id==='A';})[0];
 ok(pA.ueberfaelligVon==='2026-07-10','A traegt ueberfaelligVon');
 ok(pA.ueberfaelligTage>0,'A ueberfaelligTage>0');
 ok(o.ueberfaelligCount===1,'genau 1 ueberfaellig');
+// P1-Fix (Review v729): OFFA-Sentinel '0001-01-01' = KEIN Termin -> nicht ueberfaellig, kein ~739000-Tage-Ausreisser
+var schS=[{id:'SENT',scheinstatus:'aufgenommen',monteur:'m1',terminBestaetigt:'0001-01-01',arbeitsort:'X'}];
+var oS=_dispoBuildInput(schS,mon,{},{},now,3);
+var pS=oS.cfg.scheine.filter(function(p){return p.id==='SENT';})[0];
+ok(pS && pS.ueberfaelligVon==='' && pS.ueberfaelligTage===0,'Sentinel 0001-01-01 -> nicht ueberfaellig');
+ok(oS.ueberfaelligCount===0,'Sentinel blaeht ueberfaelligCount NICHT auf');
 // 17d: B ist fix -> Kapazitaets-Abzug + fixMap
 ok(o.fixMap['m1'] && o.fixMap['m1'][futIso] && o.fixMap['m1'][futIso][0].scheinId==='B','B als fester Chip (fixMap)');
 ok(o.cfg.kapAbzug['m1'][futIso]>=180,'B (3h) zieht Kapazitaet ab');

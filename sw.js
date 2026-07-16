@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.728 - #18a OFFA-verwaiste Scheine erkennen: juprowa-gebunden + offen + sync_at >7 Tage trotz Pull -> Badge "⚠ in OFFA prüfen" (Form) + Sammel-Hinweis (Liste). Kein Auto-Status, kein DDL, kein Push. 18b (Einzel-GET) nicht moeglich: Client pullt nur bulk.
-const CACHE_NAME = "epkolar-v3.9.728";
+// EP Kolar Service Worker v3.9.729 - #19 km-Kaskade: "+0 km" raus -> ehrliches Label (echte plz_distanz-Matrix "N km" / gleiche PLZ "~2 km" / Geo-Zentroid "~N km" / unbekannt "? km"); Fahrzeit NIE 0. plz_geo/plz_distanz leer-tolerant (auto-echt bei Befuellung). + P1-Review-Fix: OFFA-Sentinel 0001-01-01 nicht mehr als ueberfaellig.
+const CACHE_NAME = "epkolar-v3.9.729";
 const ASSETS = [
   './',
   './index.html'
