@@ -83,8 +83,9 @@ def test_panel_16arest_struktur(index_html):
     start = index_html.index("function DispoPanel({")
     end = index_html.index("function ArbeitsscheinView({", start)
     body = index_html[start:end]
-    # Live-Drop-Feedback: Klassifizierer im Panel + Feedback-State + farbige Zell-Border
-    assert "_dispoDropFeedback" in body, "Live-Drop-Feedback nutzt den Klassifizierer nicht"
+    # Live-Drop-Feedback: Klassifizierer im Panel + Feedback-State + farbige Zell-Border.
+    # v3.9.740 #22a: das Feedback spiegelt jetzt die WRITE-Wand (_dispoDropOk) statt _dispoDropFeedback.
+    assert "_dispoDropOk" in body, "Live-Drop-Feedback nutzt die Write-Wand nicht"
     assert "_dropFb" in body, "kein Feedback-State fuer die live gefaerbte Zielzelle"
     # KW-Tab-Hover-Wechsel waehrend des Drags (600 ms)
     assert "_kwHoverRef" in body, "kein KW-Tab-Hover-Timer beim Ziehen"
