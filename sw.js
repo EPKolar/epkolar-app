@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.720 - Dispo P1-d: AS-Sub-Tabs zeigen auf Mobile das Label klein unter dem Icon (column-Flex) statt es auszublenden -> Dispo-Tab am Handy auffindbar. Tap-Target >=44px, alle Tabs gleich.
-const CACHE_NAME = "epkolar-v3.9.720";
+// EP Kolar Service Worker v3.9.721 - Theme-Hotfix Mobil: Re-Entry-Guard 350ms gegen Touch-Ghost-Click (Dark war am Handy nicht fixierbar) + Segmented Control [Hell|Dunkel|Auto] in Einstellungen (setzt Modus direkt) + Toast bei jedem Wechsel.
+const CACHE_NAME = "epkolar-v3.9.721";
 const ASSETS = [
   './',
   './index.html'

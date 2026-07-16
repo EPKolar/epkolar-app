@@ -30,7 +30,7 @@ console.log('OK');
 def test_global_key_and_default_system(index_html):
     # GLOBALER Key epk_theme (nicht mehr per-user epk_theme_<username> in der Aufloesung)
     assert 'resolveTheme(localStorage.getItem("epk_theme"),_systemDark())' in index_html
-    assert 'localStorage.setItem("epk_theme",next)' in index_html
+    assert 'localStorage.setItem("epk_theme",mode)' in index_html
 
 
 def test_hard_choice_ignores_matchmedia(index_html):
