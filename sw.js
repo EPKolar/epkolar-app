@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.719 - Dispo P1-c: AS-Anlage NUR in OFFA. AS-Vorlagen-Panel + Fill-Bus + Sub-Tab + Boot-Selbsttest entfernt (0 Code-Refs); menschliche Neuanlage gesperrt (saveAs bail); Import-Pfade byte-identisch. DB-Tabelle bleibt (S4-Kandidat).
-const CACHE_NAME = "epkolar-v3.9.719";
+// EP Kolar Service Worker v3.9.720 - Dispo P1-d: AS-Sub-Tabs zeigen auf Mobile das Label klein unter dem Icon (column-Flex) statt es auszublenden -> Dispo-Tab am Handy auffindbar. Tap-Target >=44px, alle Tabs gleich.
+const CACHE_NAME = "epkolar-v3.9.720";
 const ASSETS = [
   './',
   './index.html'
