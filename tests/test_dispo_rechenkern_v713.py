@@ -23,7 +23,7 @@ eq(a1,a2,'adrKey Nr. == Nr.'); eq(a2,a3,'adrKey Nr. == plain'); eq(a1,'marktplat
 eq(_dispoAdrKey('Kirchberg/Wagram, Hauptstraße'),'kirchberg/wagram hauptstrasse','adrKey umlaut');
 // _dispoDauer: Feld schlaegt Keyword schlaegt Default
 eq(_dispoDauer({dauer:'02:30'}).min,150,'dauer feld'); ok(_dispoDauer({dauer:'02:30'}).geschaetzt===false,'dauer feld exakt');
-eq(_dispoDauer({arbeitsanweisungen:'Verteiler tauschen'}).min,240,'dauer keyword verteiler');
+eq(_dispoDauer({arbeitsanweisungen:'Verteiler tauschen'}).min,120,'dauer keyword verteiler (v751 #29d: Klasse Zaehler, gemessen 120)');
 ok(_dispoDauer({arbeitsanweisungen:'Verteiler tauschen'}).geschaetzt===true,'dauer keyword geschaetzt');
 eq(_dispoDauer({arbeitsanweisungen:'irgendwas anderes'}).min,90,'dauer default');
 // _dispoHaversine: gleicher Punkt = 0; 1 Grad lat ~ 111km * 1.3
