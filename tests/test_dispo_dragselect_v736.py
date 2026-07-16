@@ -17,9 +17,10 @@ def _panel(index_html):
 
 def test_drag_unterdrueckt_globale_textauswahl(index_html):
     body = _panel(index_html)
-    # BEIDE Drags (Pin/Reschedule _chipDrag UND Hoehen-Griff _dauerDrag) unterdruecken die Textauswahl
-    # global und stellen sie bei pointerup wieder her (Sebastian: Dauer-Ziehen markierte nur Text).
-    assert body.count('document.body.style.userSelect="none"') >= 2, "nicht beide Drags unterdruecken die Textauswahl"
+    # BEIDE Drags (Pin/Reschedule _chipDrag UND Hoehen-Griff _dauerDrag) unterdruecken die Textauswahl.
+    # v3.9.737: refactored in den geteilten Helfer _dragSelOff() (setzt body userSelect none) — beide rufen ihn.
+    assert 'document.body.style.userSelect="none"' in body, "kein globales userSelect none beim Drag"
+    assert body.count("_dragSelOff()") >= 2, "nicht beide Drags rufen den Selektions-Aus-Helfer"
 
 
 def test_kacheln_userselect_none(index_html):
