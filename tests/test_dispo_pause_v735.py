@@ -40,12 +40,13 @@ console.log('OK');
     _run(node_exe, tmp_path, js)
 
 
-def test_stopp_kreuzt_pause_ende_plus60(index_html, node_exe, tmp_path):
-    """Start 11:30, Dauer 60 -> kreuzt 12:00 -> Pause eingeschoben, Ende 13:30 (810) statt 12:30."""
+def test_stopp_kreuzt_pause_rutscht_dahinter(index_html, node_exe, tmp_path):
+    """v3.9.749 #27: ein Stopp, der die Pause kreuzen wuerde, wird GANZ hinter die Pause gelegt (13:00),
+    nicht mehr mitten drin um 60 min gestreckt (First-Fit-Modell, keine Ueberschneidung)."""
     js = _block(index_html) + _OK + u"""
-var r=_dispoAblauf([{fahrtMin:0,dauerMin:60}],690,10,15,{});
-ok(r[0].startMin===690,'Start 11:30 (690)');
-ok(r[0].endMin===810,'Ende 13:30 (810) — 60-min-Pause eingeschoben');
+var r=_dispoAblauf([{fahrtMin:0,dauerMin:60}],690,10,15,{endMin:990});
+ok(r[0].startMin===780,'Start rutscht auf 13:00 (780) — passt nicht in die 30-min-Luecke vor der Pause');
+ok(r[0].endMin===840,'Ende 14:00 (840)');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js)

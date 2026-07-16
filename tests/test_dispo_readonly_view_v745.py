@@ -34,7 +34,8 @@ def test_ablauf_pfad_schreibt_nicht(index_html):
     body = _panel(index_html)
     # Die Einreihungs-/Ablauf-Berechnung je Zelle (von _abItems bis zum td-Render) darf keinen Schreibhelfer
     # enthalten — sie rechnet Startzeiten nur und zeigt sie an.
-    seg = body[body.index("var _abItems=chips.map("):body.index("return h('td'")]
+    # v3.9.749 #27: Einreihung heisst jetzt _combItems (fixe-ohne-Zeit + Vorschlaege, First-Fit in die Luecken).
+    seg = body[body.index("var _fxAnchors="):body.index("return h('td'")]
     for helfer in ("updAs", "SQ.push", "onDrop(", "onUebernehmen(", "onReschedule("):
         assert helfer not in seg, "Schreibhelfer '%s' im Ablauf-/Einreihungs-Pfad — Ansehen darf nie schreiben" % helfer
 

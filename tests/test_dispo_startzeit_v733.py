@@ -67,10 +67,11 @@ console.log('OK');
 
 
 def test_ablauf_snap_naechste_taktung(index_html, node_exe, tmp_path):
-    """Start wird auf die naechste 15-min-Taktung (verankert an 07:00) gerundet (nearest)."""
+    """v3.9.749 #27: Start wird auf die naechste 15-min-Taktung AUFGERUNDET (ceil, Start nie vor Ankunft)."""
     js = _block(index_html) + _OK + u"""
-ok(_dispoAblauf([{fahrtMin:7,dauerMin:30}],DISPO_TAG_START_MIN,0,15)[0].startMin===420,'7 min Fahrt -> rundet auf 07:00');
-ok(_dispoAblauf([{fahrtMin:8,dauerMin:30}],DISPO_TAG_START_MIN,0,15)[0].startMin===435,'8 min Fahrt -> rundet auf 07:15');
+ok(_dispoAblauf([{fahrtMin:0,dauerMin:30}],DISPO_TAG_START_MIN,0,15)[0].startMin===420,'0 min Fahrt -> 07:00 exakt');
+ok(_dispoAblauf([{fahrtMin:1,dauerMin:30}],DISPO_TAG_START_MIN,0,15)[0].startMin===435,'1 min Fahrt -> ceil auf 07:15');
+ok(_dispoAblauf([{fahrtMin:15,dauerMin:30}],DISPO_TAG_START_MIN,0,15)[0].startMin===435,'15 min Fahrt -> 07:15 exakt');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js)

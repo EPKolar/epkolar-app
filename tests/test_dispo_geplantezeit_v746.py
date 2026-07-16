@@ -28,5 +28,5 @@ def test_fixe_ohne_zeit_wird_geplant(index_html):
     # fixe ohne termin_zeit bekommt eine GEPLANTE Zeit aus der Ablaufrechnung (nicht mehr nur 'ohne Zeit').
     assert "geplant:" in fx, "fixe Kachel ohne Zeit setzt kein geplant-Flag"
     assert "_slot" in fx or "_fxSlot" in fx, "fixe Kachel ohne Zeit bekommt keinen Ablauf-Slot (_fxSlot)"
-    # und der Ablauf-Slot fuer fixe-ohne-Zeit wird ueberhaupt berechnet:
-    assert "_abFix" in _panel(index_html), "kein _dispoAblauf-Slot fuer fixe ohne Zeit (_abFix)"
+    # v3.9.749 #27: der Ablauf-Slot fuer fixe-ohne-Zeit kommt jetzt aus der kombinierten Einreihung (_combAb):
+    assert "_combAb" in _panel(index_html), "kein kombinierter _dispoAblauf-Slot fuer fixe ohne Zeit (_combAb)"
