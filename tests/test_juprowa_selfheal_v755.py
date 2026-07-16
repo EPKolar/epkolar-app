@@ -38,7 +38,7 @@ def test_handlers_trigger_schedule_not_direct_push(index_html):
     """updAs/storno/verschieben/saveAs schedulen den Push (kein Sofort-_juprowaPush, kein _juprowaMarkEdited)."""
     for marker in ("const updAs=", "const storno=", "const verschieben="):
         start = index_html.index(marker)
-        seg = index_html[start:start + 1600]
+        seg = index_html[start:start + 2400]  # v3.9.757: 31a-Guard verlaengerte updAs
         assert "_juprowaSchedulePush(" in seg, "%s schedult den Push nicht" % marker
         assert "_juprowaPush(" not in seg, "%s ruft _juprowaPush direkt (kein Sofort-Push mehr erlaubt)" % marker
         assert "_juprowaMarkEdited" not in seg, "%s ruft das stillgelegte W2 _juprowaMarkEdited" % marker
