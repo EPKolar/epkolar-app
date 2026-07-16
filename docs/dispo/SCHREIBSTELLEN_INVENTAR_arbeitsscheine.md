@@ -1,6 +1,11 @@
 # Register #31e — Schreibstellen-Inventar `arbeitsscheine` (Abrechnungs-Lebensader)
 
-**Stand:** 16.07.2026, nach v3.9.755 (#31g). **Gate:** `tests/test_as_writers_whitelist.py` friert diese Whitelist ein.
+**Stand:** 16.07.2026, nach **v3.9.756** (#31g-Konsolidierung: W2 stillgelegt → 5 Writer).
+**Gate:** `tests/test_as_writers_whitelist.py` friert die 5er-Whitelist ein.
+
+> **v3.9.756 UMGESETZT:** W2 (`_juprowaMarkEdited`) ist **stillgelegt** — `push_pending` fließt nur noch über
+> den SQ-Pfad (W1); der Push läuft über die per-Schein-Debounce-Klammer `_juprowaSchedulePush` (Doppelpush-
+> Konsolidierung, genau 1 Push). Whitelist von 6 → **5**. Die Empfehlung unten ist damit erledigt.
 
 ## Grundsatz
 Juprowa ist die reine **Maschinen-Brücke App↔OFFA**. Der Push ist die **Abrechnungs-Lebensader**.

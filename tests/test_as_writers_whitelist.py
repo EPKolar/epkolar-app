@@ -8,13 +8,12 @@ un-auditierter direkter `_sbPatch/_sbPost("arbeitsscheine", ...)` auf ODER wande
 User-Handler, schlaegt der Test fehl und erzwingt eine erneute Pruefung (siehe
 docs/dispo/SCHREIBSTELLEN_INVENTAR_arbeitsscheine.md).
 
-Stand-Inventar (6 direkte Writer, alle Maschinen-Bruecke):
+Stand-Inventar (v3.9.756: 5 direkte Writer, alle Maschinen-Bruecke):
   _juprowaSync      x2  (PULL: existierenden Schein patchen / neuen posten — App<-OFFA)
   _juprowaPush      x3  (PUSH: push_error bei RPC-non-ok / echo-gated Reset / push_error im catch)
-  _juprowaMarkEdited x1 (redundanter push_pending=true-Direktwrite = W2 der 31g-Forensik; dupliziert den
-                         SQ-Pfad W1 -> Migrations-Kandidat, NUR mit Live-Co-Verifikation)
-Legitim direkt sind die 5 Sync/Push-Writes (sie SIND die Bruecke). Der markEdited-Write ist der einzige
-Konsolidierungs-Kandidat — bewusst NICHT in diesem Lauf angefasst (Lebensader).
+W2 (_juprowaMarkEdited, redundanter push_pending=true-Direktwrite = W2 der 31g-Forensik) wurde in v3.9.756
+STILLGELEGT: push_pending fliesst jetzt nur ueber den SQ-Pfad (W1), der Push ueber die per-Schein-Debounce-
+Klammer _juprowaSchedulePush. Damit ist die Whitelist von 6 auf 5 gesunken.
 """
 import re
 
@@ -22,7 +21,10 @@ _WRITER = re.compile(r"""_sb(?:Patch|Post|Upsert|Delete|DeleteWhere)\((['"])arbe
 _FN = re.compile(r"(?:async\s+function|function)\s+(_?[A-Za-z0-9]+)\s*\(")
 
 # Eingefrorene Whitelist: Funktion -> erwartete Anzahl direkter arbeitsscheine-Writer.
-_WHITELIST = {"_juprowaSync": 2, "_juprowaPush": 3, "_juprowaMarkEdited": 1}
+# v3.9.756: W2 (_juprowaMarkEdited push_pending:true-Direktwrite) STILLGELEGT -> von 6 auf 5 runter.
+# push_pending fliesst jetzt ausschliesslich ueber den SQ-Pfad (W1); der Push laeuft ueber die
+# per-Schein-Debounce-Klammer _juprowaSchedulePush (siehe #31g-Konsolidierung).
+_WHITELIST = {"_juprowaSync": 2, "_juprowaPush": 3}
 _WHITELIST_TOTAL = sum(_WHITELIST.values())
 
 # User-Schreib-Handler: hier darf NIE ein direkter arbeitsscheine-Writer stehen — Writes gehen ueber SQ.push.

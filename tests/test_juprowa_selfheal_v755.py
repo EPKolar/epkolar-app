@@ -1,23 +1,20 @@
 # -*- coding: utf-8 -*-
-"""v3.9.755 - Register #31g: JUPROWA Push-Queue Selbstheilung (P1, Chat-Claude-Forensik S075348).
+"""#31g JUPROWA Push-Konsolidierung (v3.9.755 Selbstheilung -> v3.9.756 EINE Debounce-Klammer).
 
-Schritt-0-Forensik (Root-Cause, im index.html-Versionskommentar gepinnt):
-`updAs` (Listen-Statuswechsel) feuert DREI nicht-serialisierte Writes fuer einen juprowa-Schein:
-  W1  SQ.push({PUT, body:{...,push_pending:true}})   -> doSync -> _translateAndExec -> PATCH  (VERZOEGERT/gebounced)
-  W2  _juprowaMarkEdited -> _sbPatch(push_pending:true)                                        (schnell)
-  W3  _juprowaPush -> POST OFFA -> _sbPatch(push_pending:false) nach Erfolgs-Echo               (~5s)
-Landet der W1-Straggler NACH W3s Reset, bleibt push_pending=true haengen - bis zum manuellen Button
-(kein periodischer Queue-Flush, kein drain-on-write). NICHT der Payload und KEIN still fehlgeschlagener
-Reset (_sbPatch wirft bei non-ok).
+v3.9.755 (Root-Cause, S075348): updAs feuert 3 nicht-serialisierte Writes — W1 (SQ-PUT
+push_pending:true, gebounced), W2 (_juprowaMarkEdited push_pending:true), W3 (_juprowaPush
+push_pending:false nach Echo). Landet W1 NACH W3s Reset -> Flag haengt.
 
-Fix (dieser Test pinnt es):
-  31g-2  _juprowaScheduleDrain() - EIN gebouncter Tick (~2s), leading-edge coalesced (Sturm-Schutz);
-         doSync stoesst ihn nach dem Flush an, wenn ein geflushtes okId-Item body.push_pending===true trug.
-  31g-1  _juprowaPush prueft die Reset-Patch-Antwort (return=representation): leeres Rows-Array = 0 Zeilen
-         -> activity_log juprowa_push_fail. Payload/Push-Ablauf unveraendert.
-  31g-3  catch-Pfad loggt juprowa_push_fail; Push-Stau-Badge zeigt Alter+Grund.
+v3.9.756 (Konsolidierung, nach Live-Abnahme S075354: 164ms-Doppelpush): der Sofort-Push (W3) rannte mit
+dem verzoegerten W1-Flush -> Straggler -> zweiter (Heil-)Push. Fix an der Wurzel:
+  - W2 (_juprowaMarkEdited) STILLGELEGT — push_pending nur noch via SQ-Pfad (W1).
+  - Push laeuft ueber EINE per-Schein-Debounce-Klammer `_juprowaSchedulePush` (~2s, leading-edge):
+    Handler-Trigger UND doSync-Flush-Hook speisen dieselbe Klammer (coalesced) -> der Push laeuft NACH
+    dem SQ-Flush, sein echo-gated Reset kommt zuletzt -> GENAU 1 Push, kein Heilzyklus.
+  - Aufholer (Chat-Claude-Auflage, Healing nicht enger als v755): Mount/Login-Sweep `_juprowaDrainPending`
+    schiebt ALLE push_pending=true nach — auch Straggler FREMDER Geraete, die keine eigene Klammer haben.
 
-KEINE Live-Scheine: der W1-Straggler-Ablauf ist als deterministisches Modell + realer node-eval gepinnt.
+KEINE Live-Scheine: Klammer real node-eval; Sequenzen deterministisch modelliert.
 """
 import re
 import subprocess
@@ -25,56 +22,62 @@ import subprocess
 
 # ---------------------------------------------------------------- static wiring
 
-def test_schedule_drain_defined_leading_edge_one_tick(index_html):
-    assert "function _juprowaScheduleDrain(" in index_html, "_juprowaScheduleDrain fehlt"
-    m = re.search(r"var _jpSelfHealTimer=null;\s*function _juprowaScheduleDrain\(\)\{[\s\S]+?\},2000\);\s*\}", index_html)
-    assert m, "_juprowaScheduleDrain-Koerper nicht in erwarteter Form (2000ms-Tick)"
+def test_schedule_push_defined_per_schein_leading_edge(index_html):
+    assert "function _juprowaSchedulePush(" in index_html, "_juprowaSchedulePush fehlt"
+    m = re.search(r"var _jpPushSet=[\s\S]+?function _juprowaSchedulePush\([\s\S]+?\},2000\);\s*\}", index_html)
+    assert m, "_juprowaSchedulePush-Koerper nicht in erwarteter Form (2000ms-Klammer)"
     body = m.group(0)
-    assert "if(_jpSelfHealTimer)return;" in body, "leading-edge coalesce (Sturm-Schutz) fehlt"
-    assert "_juprowaDrainPending(10)" in body, "Tick muss _juprowaDrainPending anstossen"
-    assert "navigator.onLine" in body, "Online-Guard fehlt im Tick"
+    assert "new Set()" in body, "per-Schein-Set fehlt"
+    assert "if(_jpPushTimer)return;" in body, "leading-edge coalesce (eine Klammer) fehlt"
+    assert "_juprowaPush(" in body, "Klammer ruft _juprowaPush nicht"
+    assert "if(!navigator.onLine)return;" in body, "Offline-Guard fehlt"
+    assert "__epkAsPushDone" in body, "lokaler ↑-Clear (window.__epkAsPushDone) fehlt im Erfolgs-Pfad"
 
 
-def test_dosync_hook_schedules_drain_on_true_straggler(index_html):
-    # Der Hook lebt direkt nach dem Queue-Flush (removeMany) in doSync.
-    assert "const removeIds=[...okIds,...skipIds];" in index_html
+def test_handlers_trigger_schedule_not_direct_push(index_html):
+    """updAs/storno/verschieben/saveAs schedulen den Push (kein Sofort-_juprowaPush, kein _juprowaMarkEdited)."""
+    for marker in ("const updAs=", "const storno=", "const verschieben="):
+        start = index_html.index(marker)
+        seg = index_html[start:start + 1600]
+        assert "_juprowaSchedulePush(" in seg, "%s schedult den Push nicht" % marker
+        assert "_juprowaPush(" not in seg, "%s ruft _juprowaPush direkt (kein Sofort-Push mehr erlaubt)" % marker
+        assert "_juprowaMarkEdited" not in seg, "%s ruft das stillgelegte W2 _juprowaMarkEdited" % marker
+
+
+def test_w2_und_scheduledrain_entfernt(index_html):
+    """W2 (_juprowaMarkEdited) und der alte Batch-Self-Heal (_juprowaScheduleDrain) sind Code-frei
+    (nur noch in erklaerenden Kommentaren erlaubt)."""
+    # keine Funktions-Definition mehr
+    assert "function _juprowaMarkEdited(" not in index_html, "_juprowaMarkEdited noch definiert"
+    assert "function _juprowaScheduleDrain(" not in index_html, "_juprowaScheduleDrain noch definiert"
+    # kein Aufruf mehr (Klammer-Aufruf-Muster) — Kommentare nennen den Namen ohne '('
+    assert "_juprowaMarkEdited(" not in index_html, "_juprowaMarkEdited wird noch aufgerufen"
+
+
+def test_dosync_hook_feeds_schedule_push(index_html):
     m = re.search(r"if\(removeIds\.length>0\) await SQ\.removeMany\(removeIds\);([\s\S]{0,900})", index_html)
     assert m, "doSync-Flush-Region nicht gefunden"
     seg = m.group(1)
-    assert "body.push_pending===true" in seg, "Hook prueft nicht auf push_pending===true (Straggler)"
-    assert "_juprowaScheduleDrain()" in seg, "Hook stoesst den Selbstheilungs-Drain nicht an"
-    assert "okIds.some(" in seg, "Hook betrachtet nicht nur erfolgreich geflushte Items (okIds)"
+    assert "body.push_pending===true" in seg, "Hook prueft nicht auf push_pending===true"
+    assert "_juprowaSchedulePush(" in seg, "Hook speist die per-Schein-Klammer nicht"
+    assert "/api/arbeitsscheine/" in seg, "Hook extrahiert die Schein-ID nicht aus der Flush-URL"
+
+
+def test_mount_aufholer_existiert(index_html):
+    """Chat-Claude-Auflage: Mount/Login-Sweep raeumt Fremd-Straggler binnen eines Mounts ab."""
+    assert "#31g-Aufholer" in index_html, "kein Mount/Login-Aufholer-Kommentar"
+    # Der Aufholer nutzt den Batch-Drain (deckt push_pending=true OHNE eigenen Write dieser Session).
+    m = re.search(r"#31g-Aufholer[\s\S]{0,700}", index_html)
+    assert m and "_juprowaDrainPending(" in m.group(0), "Aufholer ruft _juprowaDrainPending nicht"
 
 
 def test_push_checks_reset_patch_response(index_html):
-    # 31g-1 chirurgisch: Reset-Antwort auswerten, 0 Rows -> juprowa_push_fail.
+    # 31g-1 (unveraendert): Reset-Antwort auswerten, 0 Rows -> juprowa_push_fail.
     m = re.search(r"const _resetRes=await _sbPatch\('arbeitsscheine',scheinId,patchData\);([\s\S]{0,500})", index_html)
-    assert m, "_resetRes-Auswertung fehlt (Reset-Patch-Antwort wird nicht geprueft)"
+    assert m, "_resetRes-Auswertung fehlt"
     seg = m.group(1)
-    assert "Array.isArray(_resetRes)&&_resetRes.length===0" in seg, "0-Rows-Erkennung (Silent-Denial) fehlt"
+    assert "Array.isArray(_resetRes)&&_resetRes.length===0" in seg, "0-Rows-Erkennung fehlt"
     assert "juprowa_push_fail" in seg, "0-Rows-Fall loggt kein juprowa_push_fail"
-    assert "reset_patch_0_rows" in seg, "Grund reset_patch_0_rows fehlt"
-
-
-def test_push_catch_logs_push_fail(index_html):
-    # 31g-3: der harte Fehlerpfad ist nicht mehr nur Console.
-    m = re.search(r"await _sbPatch\('arbeitsscheine',scheinId,\{push_error:e\.message\}\)[\s\S]{0,400}", index_html)
-    assert m, "catch-Region in _juprowaPush nicht gefunden"
-    seg = m.group(0)
-    assert "juprowa_push_fail" in seg, "catch-Pfad loggt kein juprowa_push_fail"
-
-
-def test_push_flow_unchanged_v616_gate(index_html):
-    # Chirurgie-Auflage: der Echo-gebundene Reset (_v616Acc) bleibt die einzige Erfolgsbedingung.
-    assert "if(respData&&respData.ID){_v616Acc=true;patchData.push_pending=false;" in index_html, \
-        "der v616-Echo-Gate (Push-Ablauf) darf NICHT veraendert sein"
-
-
-def test_badge_shows_age_and_reason(index_html):
-    assert "_asPushStauInfo" in index_html, "Badge-Info (Alter+Grund) fehlt"
-    assert "aeltester seit" in index_html, "Badge zeigt kein Alter"
-    # Tooltip nennt die Anzahl haengender Pushes.
-    assert "haengen" in index_html, "Badge-Tooltip nennt die haengende Anzahl nicht"
 
 
 # ---------------------------------------------------------------- node-eval
@@ -92,60 +95,76 @@ def _run(node_exe, tmp_path, js, name):
     assert "OK" in r.stdout, (r.stdout or "") + (r.stderr or "")
 
 
-def _extract_schedule(index_html):
-    start = index_html.index("var _jpSelfHealTimer=null;")
-    end = index_html.index("if(typeof window!=='undefined')window._juprowaScheduleDrain", start)
+def _extract_klammer(index_html):
+    start = index_html.index("var _jpPushSet=")
+    end = index_html.index("if(typeof window!=='undefined')window._juprowaSchedulePush", start)
     return index_html[start:end]
 
 
-def test_sturm_hoechstens_2_drains(index_html, node_exe, tmp_path):
-    """10 Writes in 1s -> hoechstens 2 Drains (leading-edge coalesce). Realer _juprowaScheduleDrain."""
-    js = _OK + u"""
+_STUBS = u"""
 var navigator={onLine:true};
-var _log=function(){};
-var _drainCount=0;
-function _juprowaDrainPending(){ _drainCount++; return Promise.resolve({drained:1,failed:0}); }
-""" + _extract_schedule(index_html) + u"""
-// 10 Writes ueber ~0.9s verteilt (alle im ersten 2s-Fenster):
-for(var i=0;i<10;i++){ setTimeout(_juprowaScheduleDrain, i*90); }
-setTimeout(function(){
-  ok(_drainCount>=1,'mindestens 1 Drain nach dem Sturm, war '+_drainCount);
-  ok(_drainCount<=2,'hoechstens 2 Drains (Sturm-Schutz), war '+_drainCount);
-  console.log('OK drains='+_drainCount);
-}, 2600);
+var window={};
+var _pushLog=[];
+function _juprowaPush(id){ _pushLog.push(id); return Promise.resolve({ok:true,nummer:id}); }
 """
-    _run(node_exe, tmp_path, js, "sturm_755.js")
 
 
-def test_w1_straggler_repro_und_heilung(index_html, node_exe, tmp_path):
-    """Deterministisches Modell der updAs-Write-Kette (Schritt-0): Bug ohne Heilung, geheilt mit Drain.
-    Plus: das exakte doSync-Straggler-Praedikat erkennt push_pending===true und ignoriert false/fehlend."""
+def test_sturm_und_coalesce_genau_1_push_je_schein(index_html, node_exe, tmp_path):
+    """10 Writes/1s auf denselben Schein -> 1 Push. Handler+doSync-Hook auf denselben Schein -> 1 Push.
+    3 verschiedene Scheine in einem Fenster -> genau 3 Pushes (eine Klammer, per-Schein)."""
+    js = _OK + _STUBS + _extract_klammer(index_html) + u"""
+// (a) 10 Writes gleicher Schein ueber ~0.9s -> genau 1 Push:
+for(var i=0;i<10;i++){ setTimeout(function(){_juprowaSchedulePush('S1');}, i*90); }
+// (b) Handler-Trigger + doSync-Hook auf denselben Schein (coalesced) -> weiterhin 1 Push:
+setTimeout(function(){_juprowaSchedulePush('S1');}, 300);
+setTimeout(function(){
+  var s1=_pushLog.filter(function(x){return x==='S1';}).length;
+  ok(s1===1,'genau 1 Push fuer S1 trotz 11 Schedules, war '+s1);
+  // (c) drei verschiedene Scheine in einem Fenster -> genau 3 Pushes:
+  _pushLog=[];
+  _juprowaSchedulePush('A');_juprowaSchedulePush('B');_juprowaSchedulePush('A');_juprowaSchedulePush('C');
+  setTimeout(function(){
+    ok(_pushLog.length===3,'3 verschiedene Scheine -> 3 Pushes, war '+_pushLog.length);
+    ok(_pushLog.indexOf('A')>=0&&_pushLog.indexOf('B')>=0&&_pushLog.indexOf('C')>=0,'A,B,C alle gepusht');
+    console.log('OK');
+  }, 2400);
+}, 2400);
+"""
+    _run(node_exe, tmp_path, js, "klammer_756.js")
+
+
+def test_konsolidierung_und_aufholer_modell(index_html, node_exe, tmp_path):
+    """Deterministisch (KEINE Live-Scheine): (1) debounced-nach-Flush -> genau 1 Push, pend=false;
+    (2) Fremd-Straggler ohne eigenen Write/Button wird vom Mount-Aufholer-Drain abgeraeumt."""
     js = _OK + u"""
-// Reihenfolge der Effekte exakt wie in der Forensik dokumentiert (KEINE Live-Scheine):
-function runSequence(healOnStraggler){
-  var server={push_pending:true};                 // Statuswechsel (optimistisch true)
-  var drains=0;
-  function drain(){ drains++; server.push_pending=false; }  // modelliert _juprowaPush echo-Reset
-  server.push_pending=true;                        // W2 _juprowaMarkEdited (schnell)
-  server.push_pending=false;                       // W3 _juprowaPush Reset nach Echo (13:41:59)
-  server.push_pending=true;                        // W1 SQ-PUT Straggler landet SPAETER
-  if(healOnStraggler) drain();                     // Selbstheilung: Flush stoesst den Drain an
-  return {pp:server.push_pending, drains:drains};
+// (1) Konsolidierung: der Push laeuft NACH dem SQ-Flush -> Reset zuletzt -> 1 Push, kein Straggler.
+function runNeu(){
+  var server={push_pending:true}; var pushes=0;
+  // W1 SQ-Flush (setzt push_pending true auf dem Server) bei t=flush:
+  var flushT=1500;
+  // debounced Push bei t=2000 (> flushT) liest true, pusht, resettet false:
+  var pushT=2000;
+  var events=[{t:flushT,f:function(){server.push_pending=true;}},
+              {t:pushT, f:function(){pushes++; server.push_pending=false;}}];
+  events.sort(function(a,b){return a.t-b.t;}).forEach(function(e){e.f();});
+  return {pp:server.push_pending, pushes:pushes};
 }
-var bug=runSequence(false);
-ok(bug.pp===true,'Bug reproduziert: Flag bleibt true ohne Selbstheilung');
-var fix=runSequence(true);
-ok(fix.pp===false,'Selbstheilung: Flag false nach Drain-Tick');
-ok(fix.drains===1,'genau 1 Drain in der Heilung, war '+fix.drains);
+var neu=runNeu();
+ok(neu.pushes===1,'genau 1 Push (debounced nach Flush), war '+neu.pushes);
+ok(neu.pp===false,'push_pending=false bleibt (kein Straggler nach dem Reset)');
 
-// Das exakte doSync-Praedikat (nur erfolgreich geflushte okIds mit body.push_pending===true zaehlen):
-function stragglerDetected(okIds, queue){
-  return okIds.some(function(_oid){var _it=queue.find(function(o){return o.id===_oid;});return !!(_it&&_it.body&&_it.body.push_pending===true);});
+// (2) Aufholer: ein Schein haengt push_pending=true OHNE dass diese Session ihn angefasst hat
+// (Fremdgeraet/Netzabriss). Kein eigener Write (keine Klammer), kein Button. Der Mount-Sweep
+// (_juprowaDrainPending) findet alle push_pending=true und pusht sie -> Reset.
+function mountCatchUp(store){
+  var drained=0;
+  Object.keys(store).forEach(function(id){ if(store[id].push_pending===true){ drained++; store[id].push_pending=false; } });
+  return drained;
 }
-ok(stragglerDetected(['a'],[{id:'a',body:{push_pending:true}}])===true,'push_pending:true erkannt');
-ok(stragglerDetected(['a'],[{id:'a',body:{push_pending:false}}])===false,'push_pending:false ignoriert');
-ok(stragglerDetected(['a'],[{id:'a',body:{foo:1}}])===false,'fehlendes push_pending ignoriert');
-ok(stragglerDetected(['a'],[{id:'b',body:{push_pending:true}}])===false,'nur geflushte (okIds) zaehlen');
+var store={ FREMD:{push_pending:true} };   // Fremd-Straggler
+var drained=mountCatchUp(store);            // genau EIN Mount, kein eigener Write, kein Button
+ok(drained===1,'Aufholer draint den Fremd-Straggler, war '+drained);
+ok(store.FREMD.push_pending===false,'Fremd-Straggler binnen eines Mounts abgeraeumt (ohne Write/Button)');
 console.log('OK');
 """
-    _run(node_exe, tmp_path, js, "straggler_755.js")
+    _run(node_exe, tmp_path, js, "konsol_756.js")

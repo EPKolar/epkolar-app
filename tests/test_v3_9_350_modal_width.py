@@ -91,5 +91,5 @@ def test_dbWrite_v341_unchanged():
 
 def test_juprowa_push_unchanged():
     """_juprowaPush HART unangetastet."""
-    anchor = "_juprowaPush(editId).then(r=>{if(r&&r.ok){setArbeitsscheine(prev=>prev.map(a=>a.id===editId?{...a,push_pending:false}:a))"
+    anchor = "_juprowaSchedulePush(editId)"  # v3.9.756 #31g-Konsolidierung: Save-Hook-Push via per-Schein-Debounce-Klammer
     assert anchor in INDEX, "_juprowaPush-Anker veraendert"

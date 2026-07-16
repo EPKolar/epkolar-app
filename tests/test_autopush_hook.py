@@ -71,17 +71,21 @@ def test_save_path_contains_autopush_marker(index_html):
 
 
 def test_save_hook_has_online_guard(index_html):
-    """Every [AUTOPUSH] site must be guarded by navigator.onLine."""
-    # Find all lines containing AUTOPUSH and verify navigator.onLine nearby
-    lines = index_html.splitlines()
-    autopush_lines = [i for i, l in enumerate(lines) if "[AUTOPUSH]" in l]
-    assert autopush_lines, "no AUTOPUSH line found"
-    for idx in autopush_lines:
-        # Look 2 lines back (single-line JSX may put guard in same line)
-        window = "\n".join(lines[max(0, idx - 2):idx + 1])
-        assert "navigator.onLine" in window, (
-            f"AUTOPUSH at line {idx + 1} missing navigator.onLine guard"
-        )
+    """v3.9.756: Auto-Push laeuft ueber die per-Schein-Debounce-Klammer _juprowaSchedulePush.
+    Online-Guard doppelt: (1) jeder Handler-Trigger prueft navigator.onLine BEVOR er schedult,
+    (2) _juprowaSchedulePush selbst bricht offline ab, bevor es _juprowaPush ruft."""
+    import re
+    for m in re.finditer(r"_juprowaSchedulePush\(", index_html):
+        line_start = index_html.rfind("\n", 0, m.start()) + 1
+        line = index_html[line_start:index_html.index("\n", m.start())]
+        if "function _juprowaSchedulePush" in line or "window._juprowaSchedulePush" in line:
+            continue  # Definition / window-Export, kein Trigger
+        if "_sid" in line:
+            continue  # doSync-Flush-Hook: liegt bereits in doSyncs if(navigator.onLine)-Block + Fn-Guard
+        assert "navigator.onLine" in line, "Handler-Trigger ohne navigator.onLine-Guard: %s" % line[:80]
+    m = re.search(r"function _juprowaSchedulePush\([\s\S]+?\},2000\);\s*\}", index_html)
+    assert m, "_juprowaSchedulePush-Koerper nicht gefunden"
+    assert "if(!navigator.onLine)return;" in m.group(0), "_juprowaSchedulePush ohne Offline-Abbruch"
 
 
 def test_save_hook_uses_no_await_before_juprowapush(index_html):
