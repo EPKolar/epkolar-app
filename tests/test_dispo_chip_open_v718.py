@@ -15,7 +15,7 @@ def _panel(index_html):
 
 
 def test_dispopanel_signature_onopenschein(index_html):
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein})" in index_html
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onReschedule})" in index_html
 
 
 def test_chip_oeffnet_schein(index_html):

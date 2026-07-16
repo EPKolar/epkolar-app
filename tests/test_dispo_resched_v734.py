@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+"""v3.9.734 — Dispo: fixe Termine per Drag zwischen Tagen umterminieren.
+
+Sebastian (16.07., live): "drag und drop verschiebung zwischen tagen geht noch nicht." Vorschlags-Chips
+liessen sich schon ziehen (Pin, #16a), aber die FIXEN Zukunfts-Termine (📌, aus fixMap) hatten bewusst
+keinen Drag — genau die will man aber zwischen Tagen verschieben (umterminieren). Jetzt: fixe Kachel auf
+einen Tag DESSELBEN Monteurs ziehen -> terminBestaetigt wird auf den Zieltag gesetzt (updAs/E4b, Monteur/
+Dauer/terminZeit bleiben; terminBestaetigt ist Push-Feld -> normaler Reschedule-Push). Fremde Zeile oder
+derselbe Tag -> kein Write.
+
+PURER Kern (node-eval): _dispoCanResched(fromMid,toMid,fromIso,toIso) -> nur true bei gleichem Monteur
+UND anderem, gueltigem Tag. Die Drag-Geste + der updAs-Write sind struktur-gepinnt.
+"""
+import subprocess
+
+
+def _block(index_html):
+    start = index_html.index("var DISPO_RESERVE_MIN=60;")
+    end = index_html.index("if(typeof window!=='undefined'){window._dispoAdrKey", start)
+    return index_html[start:end]
+
+
+_OK = u"\nfunction ok(c,n){ if(!c){ console.error('FAIL '+n); process.exit(1);} }\n"
+
+
+def _run(node_exe, tmp_path, js):
+    f = tmp_path / "resched734.js"
+    f.write_text(js, encoding="utf-8")
+    r = subprocess.run([node_exe, str(f)], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    assert "OK" in r.stdout
+
+
+def test_canresched_gleicher_monteur_anderer_tag(index_html, node_exe, tmp_path):
+    js = _block(index_html) + _OK + u"""
+ok(_dispoCanResched('M1','M1','2026-07-20','2026-07-22')===true,'gleicher Monteur, anderer Tag -> ja');
+console.log('OK');
+"""
+    _run(node_exe, tmp_path, js)
+
+
+def test_canresched_fremder_monteur_nein(index_html, node_exe, tmp_path):
+    js = _block(index_html) + _OK + u"""
+ok(_dispoCanResched('M1','M2','2026-07-20','2026-07-22')===false,'fremde Zeile -> nein (Monteur kommt aus dem AS)');
+console.log('OK');
+"""
+    _run(node_exe, tmp_path, js)
+
+
+def test_canresched_gleicher_tag_nein(index_html, node_exe, tmp_path):
+    js = _block(index_html) + _OK + u"""
+ok(_dispoCanResched('M1','M1','2026-07-20','2026-07-20')===false,'derselbe Tag -> kein Write');
+ok(_dispoCanResched('M1','M1','2026-07-20','')===false,'kein Zieltag -> kein Write');
+console.log('OK');
+"""
+    _run(node_exe, tmp_path, js)
+
+
+def test_panel_resched_struktur(index_html):
+    start = index_html.index("function DispoPanel({")
+    end = index_html.index("function ArbeitsscheinView({", start)
+    body = index_html[start:end]
+    # DispoPanel bekommt onReschedule; die fixe Kachel ist ziehbar und nutzt den Guard
+    assert "onReschedule" in body, "DispoPanel kennt kein Umterminieren (onReschedule)"
+    assert "_dispoCanResched" in body, "Drop-Umterminierung prueft den Guard nicht"
+
+
+def test_dispopanel_signatur_onreschedule(index_html):
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onReschedule})" in index_html
+
+
+def test_callsite_reschedule_schreibt_terminbestaetigt(index_html):
+    # onReschedule-Callback in ArbeitsscheinView setzt terminBestaetigt via updAs (E4b, Push-Feld).
+    i = index_html.index("onReschedule:")
+    seg = index_html[i:i + 260]
+    assert "updAs(" in seg, "Reschedule schreibt nicht via updAs"
+    assert "terminBestaetigt" in seg, "Reschedule setzt terminBestaetigt nicht"
+    assert "SQ.push" not in seg, "Reschedule darf keinen eigenen SQ.push-Sonderpfad haben"
