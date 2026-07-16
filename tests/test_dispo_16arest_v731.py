@@ -51,32 +51,8 @@ console.log('OK');
     _run(node_exe, tmp_path, js)
 
 
-def test_dropfeedback_block_fremde_zeile(index_html, node_exe, tmp_path):
-    """Zielzelle gehoert einem anderen Monteur als der gezogene Eintrag -> 'block' (rot)."""
-    js = _block(index_html) + _OK + u"""
-ok(_dispoDropFeedback('M1','M2',999,60)==='block','fremde Zeile -> block');
-ok(_dispoDropFeedback('M1','M1',999,60)!=='block','eigene Zeile -> nicht block');
-console.log('OK');
-"""
-    _run(node_exe, tmp_path, js)
-
-
-def test_dropfeedback_ok_passt(index_html, node_exe, tmp_path):
-    """Eigene Zeile und Dauer+PUFFER passen in die Rest-Kapazitaet -> 'ok' (gruen)."""
-    js = _block(index_html) + _OK + u"""
-ok(_dispoDropFeedback('M1','M1',200,120)==='ok','passt -> ok');
-console.log('OK');
-"""
-    _run(node_exe, tmp_path, js)
-
-
-def test_dropfeedback_tight_voll(index_html, node_exe, tmp_path):
-    """Eigene Zeile, aber Dauer+PUFFER sprengt die Rest-Kapazitaet -> 'tight' (orange, Pin erzwingt)."""
-    js = _block(index_html) + _OK + u"""
-ok(_dispoDropFeedback('M1','M1',60,120)==='tight','zu voll -> tight');
-console.log('OK');
-"""
-    _run(node_exe, tmp_path, js)
+# v3.9.759 (#8-13 Cleaning): die 3 _dispoDropFeedback-Tests entfernt — die Funktion war toter Code
+# (0 Aufrufe; das Live-Drop-Feedback spiegelt seit #22a die WRITE-Wand _dispoDropOk, s.u. struktur-Test).
 
 
 def test_panel_16arest_struktur(index_html):

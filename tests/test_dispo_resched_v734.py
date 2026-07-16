@@ -31,29 +31,8 @@ def _run(node_exe, tmp_path, js):
     assert "OK" in r.stdout
 
 
-def test_canresched_gleicher_monteur_anderer_tag(index_html, node_exe, tmp_path):
-    js = _block(index_html) + _OK + u"""
-ok(_dispoCanResched('M1','M1','2026-07-20','2026-07-22')===true,'gleicher Monteur, anderer Tag -> ja');
-console.log('OK');
-"""
-    _run(node_exe, tmp_path, js)
-
-
-def test_canresched_fremder_monteur_nein(index_html, node_exe, tmp_path):
-    js = _block(index_html) + _OK + u"""
-ok(_dispoCanResched('M1','M2','2026-07-20','2026-07-22')===false,'fremde Zeile -> nein (Monteur kommt aus dem AS)');
-console.log('OK');
-"""
-    _run(node_exe, tmp_path, js)
-
-
-def test_canresched_gleicher_tag_nein(index_html, node_exe, tmp_path):
-    js = _block(index_html) + _OK + u"""
-ok(_dispoCanResched('M1','M1','2026-07-20','2026-07-20')===false,'derselbe Tag -> kein Write');
-ok(_dispoCanResched('M1','M1','2026-07-20','')===false,'kein Zieltag -> kein Write');
-console.log('OK');
-"""
-    _run(node_exe, tmp_path, js)
+# v3.9.759 (#8-13 Cleaning): die 3 _dispoCanResched-Tests entfernt — die Funktion war toter Code
+# (0 Aufrufe; Reschedule laeuft seit #22a ueber den einheitlichen onDrop-Write, s.u.).
 
 
 def test_panel_resched_ist_jetzt_ondrop(index_html):
