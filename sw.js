@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.727 - Dispo #17 Scope: ueberfaellige Termine (termin<heute) gehoeren in die Planung (⚠-Badge + Alters-Bonus); Zukunfts-Termine sind fix (📌, Kapazitaets-Abzug, kein Umplanen); aufgeschoben = Parkplatz raus. Kopf +ueberfaellig.
-const CACHE_NAME = "epkolar-v3.9.727";
+// EP Kolar Service Worker v3.9.728 - #18a OFFA-verwaiste Scheine erkennen: juprowa-gebunden + offen + sync_at >7 Tage trotz Pull -> Badge "⚠ in OFFA prüfen" (Form) + Sammel-Hinweis (Liste). Kein Auto-Status, kein DDL, kein Push. 18b (Einzel-GET) nicht moeglich: Client pullt nur bulk.
+const CACHE_NAME = "epkolar-v3.9.728";
 const ASSETS = [
   './',
   './index.html'
