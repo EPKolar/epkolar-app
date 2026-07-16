@@ -103,3 +103,38 @@ in `sql/CLEANUP_2026-07.sql`)** · Tankfoto-Migration go · **E4b-Live-Abnahme**
 ## Empfehlung
 Kontext dieser Session ist voll. **Frische Session:** Einlese-Befehl + dieser Handoff + `git log -14` + Register
 = Wahrheit. An der ersten offenen Nummer (#18) weitermachen; **#19-Wortlaut zuerst anfordern** (fehlt).
+
+---
+
+# STAND-UPDATE (Fortsetzung, v728–v730)
+
+**HEAD v3.9.730** (`ae85b86`). pytest 1672 grün. Working tree clean.
+**Matrix 0–20:** `0✔724 1– 2✔723 3✔723 4✔723 5– 6– 7– 8– 9– 10– 11– 12– 13– 14✔725 15✔726 16⏳ 17✔727 18✔728 19✔729 20–`
+**Reihung (Sebastian 16.07. umgereiht):** 19✔ → 16(⏳ 16a-Kern da) → 20 → 18✔ → 1 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13.
+
+## Neu gebaut & gepusht
+| Reg | Ver | SHA | Inhalt |
+|---|---|---|---|
+| **#18a** | 728 | 454e605 | OFFA-verwaiste Scheine erkennen (`_isOffaVerwaist`, Badge + Sammel-Hinweis; Pull-Zeitstempel global; **18b nicht möglich** — kein Worksheet-Einzel-GET client-seitig, nur bulk RPC) |
+| **#19** | 729 | bd0b175 | km/Fahrzeit-Kaskade (`_dispoStrecke`): Matrix→"N km" / gleiche PLZ→"~2 km" / Geo→"~N km" / unbekannt→"? km"; **"+0 km" raus**; Fahrzeit NIE 0; plz_geo/plz_distanz leer-tolerant via `window.__dispoGeo` (auto-echt bei Befüllung) + **P1-Review-Fix Sentinel** |
+| **#16a** | 730 | ae85b86 | Drag&Drop Termin-Pin (Pointer-Events, 8px-Schwelle, `epk_dispo_pins` localStorage, `_dispoPlan` cfg.pins) |
+
+## Review-Agenten-Funde (read-only, diese Session)
+- **P1 GEFIXT (v729):** OFFA-Sentinel `terminBestaetigt='0001-01-01'` wurde in `_termISO` als ~739000 Tage überfällig fehlklassifiziert → `ueberfaelligCount` aufgebläht + Greedy-Sort korrupt. Fix: `_termISO` nur `t>"1900-01-01"` (Schwelle wie `_hasTermin` Z.1532).
+- **P2 OFFEN für Sebastian (Produktentscheid):** Störungsdienst-Bonus (`-DISPO_STOERTAG_BONUS`, ~Z.4729) wird auf JEDEN Schein angewandt → Routinearbeit wird auf Bereitschaftstage gezogen. Frage: Bonus nur wenn `_dispoTopf(s)===0`? Dann bleiben Störungsdienst-Tage für echte Störungen frei.
+- **P3 OFFEN (klein):** Vorab-Tag + Teilabwesenheit = `max()` statt Summe (~Z.4807) → seltene Überkapazität; Monday-Frontloading bei dist=0 (bis Geo live); begründung-km (Greedy) vs 2-opt-Route inkonsistent sobald Geo live.
+
+## #5 Phantom-Krankmeldung — zeilengenaue Karte (Review-Agent, für den Build)
+Poll `pollForChanges` Z.7895-7961. Snapshot-Ref Z.7885 `{defectIds,defectStatuses,absenceKeys}`. Seed `_pollSeeded` Z.7886, gesetzt Z.7959.
+ABSENCE-Diff **Z.7941-7957**: Guard nur `freshAbs.length>0` (7942); Notif `_pushNotif("absence_sick"...)` Z.7953; `_absKey` Z.7944-7949 nutzt **`a.from_date`** (7947, KEINE `date`-Spalte!); **KOMPLETT-ERSATZ** Z.7957.
+DEFECT-Diff **Z.7902-7925** = gleiche Klasse (KOMPLETT-ERSATZ Z.7925). Weekplan-Poll 7979-7988 kein Kandidat.
+FIX (a) Union-Merge Z.7957 `new Set([...snap.absenceKeys,...newAbsKeys])` (+Z.7925 defectIds); (b) Plausi VOR 7950/7957: `snap.absenceKeys.size>0 && freshAbs.length < 0.5*size` → skip Notif+skip Ersatz + console.warn (spiegeln bei Defects 7903); (c) `absence_sick` nur wenn `a.from_date >= (td2()-3 Tage)` (`td2` Z.4242 = Wiener Datum; String-Vergleich gegen **from_date**, NIE `a.date`=42703).
+
+## #16 Rest (nach 16a-Kern)
+16a-Rest: Wartelisten-Zeile ziehbar (gleiche Regeln, auf Tag ihres Monteurs); Drag über KW-Tab (#14) → nach 600ms Hover Woche wechseln; Drop-Ziel-Feedback live grün/orange/rot. 16b: Dauer-Griff (≡ ≥20px am Chip-Rand), horizontal = Dauer 15-min-Schritte (min30/maxNorm), Live-Label, Balken zieht mit; Plan-Dauer erst bei ✓ Übernehmen als dauer (HH:MM:SS, updAs/E4b).
+
+## #20 Zeitachse (nach #16) — Anker
+`DISPO_TAG_START=07:00`, `DISPO_ZEITRASTER_MIN=15`. Ablaufzeit je Chip: Start 07:00 ab Firma, kumulativ Fahrzeit (`_dispoStrecke().min`, nie 0) + Dauer + PUFFER, round15; Chip-Label "07:00–08:30". Tageszelle als Mini-Timeline (07–17, 15-min-Snap-Ticks leise). Fixe 📌 an echter `termin_zeit`, ohne Zeit → "ohne Zeit"-Band oben. **Übernahme schreibt zusätzlich Startzeit — Schritt 0: Zielfeld wörtlich verifizieren (`termin_zeit`, wie MonteurTafel v536 liest; Push-Feld-Status), via updAs.**
+
+## Sebastian-Gates (für #13)
+geo (PLZ_GEO/DISTANZ+OSRM; Schema live, Tabellen LEER — Client v729 zieht auto echte km bei Befüllung) · AS_FZ_BEDARF-SQL · DISPO_BLOCKS-SQL (mit #1) · S4×4+as_vorlagen(S4-5) · Tankfoto-Migration go · E4b-Live-Abnahme · PAT workflow-scope · **P2/P3-Review-Entscheide** (siehe oben).
