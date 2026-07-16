@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.725 - Dispo #14 KW-Navigation: KW-Tabs [◀] KW30(N) | KW31(N) [▶] statt Klapp-Sektionen, GLEICH Desktop+Mobile; genau EINE KW als Raster, Tab-Wechsel ohne Re-Compute; ◀/▶ am Rand disabled; gewaehlte KW ueberlebt Neu-berechnen.
-const CACHE_NAME = "epkolar-v3.9.725";
+// EP Kolar Service Worker v3.9.726 - Dispo #15 Vorab-Optik: leere Baustellen-Tage nicht mehr wie Vorschlag (kein Kasten, dezent getoent + graue Zeile 🏗 BVH, Tooltip); harte Blocker kompakt Icon+Wort; Legenden-Zeile.
+const CACHE_NAME = "epkolar-v3.9.726";
 const ASSETS = [
   './',
   './index.html'
