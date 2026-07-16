@@ -63,12 +63,21 @@ def test_dosync_hook_feeds_schedule_push(index_html):
     assert "/api/arbeitsscheine/" in seg, "Hook extrahiert die Schein-ID nicht aus der Flush-URL"
 
 
-def test_mount_aufholer_existiert(index_html):
-    """Chat-Claude-Auflage: Mount/Login-Sweep raeumt Fremd-Straggler binnen eines Mounts ab."""
-    assert "#31g-Aufholer" in index_html, "kein Mount/Login-Aufholer-Kommentar"
-    # Der Aufholer nutzt den Batch-Drain (deckt push_pending=true OHNE eigenen Write dieser Session).
-    m = re.search(r"#31g-Aufholer[\s\S]{0,700}", index_html)
-    assert m and "_juprowaDrainPending(" in m.group(0), "Aufholer ruft _juprowaDrainPending nicht"
+def test_mount_aufholer_app_level_wiring(index_html):
+    """v3.9.758 Wiring-Fix (Chat-Claude Messung 2): der Aufholer feuert am APP-START (curUser + Auth-Ready),
+    einmalig, tab-UNABHAENGIG — nicht mehr im tab-gated canSync-Effekt (der feuerte am App-Start nie)."""
+    assert "#31g-Aufholer WIRING-FIX" in index_html, "App-Level-Aufholer-Kommentar fehlt"
+    m = re.search(r"const _jpCatchUpDone=_react\.useRef[\s\S]{0,760}", index_html)
+    assert m, "App-Level-Aufholer-Effekt (_jpCatchUpDone) nicht gefunden"
+    seg = m.group(0)
+    assert "if(_jpCatchUpDone.current||!curUser)return;" in seg, "kein curUser/Ref-Guard (App-Start-Trigger)"
+    assert "API.getToken()" in seg and "navigator.onLine" in seg, "Auth-Ready/Online-Gate fehlt"
+    assert "_juprowaDrainPending(50)" in seg, "Aufholer ruft den Drain nicht"
+    assert "},[curUser]);" in seg, "Effekt nicht auf curUser gekeyt (App-Start statt tab-gated)"
+    # Gegenprobe: der tab-gated ArbeitsscheinView-Effekt (window.__epkAsPushDone) draint NICHT mehr.
+    vstart = index_html.index("window.__epkAsPushDone=(pid)=>")
+    vseg = index_html[vstart:vstart + 700]
+    assert "_juprowaDrainPending" not in vseg, "Aufholer liegt noch im tab-gated canSync-Effekt"
 
 
 def test_push_checks_reset_patch_response(index_html):
@@ -153,18 +162,28 @@ var neu=runNeu();
 ok(neu.pushes===1,'genau 1 Push (debounced nach Flush), war '+neu.pushes);
 ok(neu.pp===false,'push_pending=false bleibt (kein Straggler nach dem Reset)');
 
-// (2) Aufholer: ein Schein haengt push_pending=true OHNE dass diese Session ihn angefasst hat
-// (Fremdgeraet/Netzabriss). Kein eigener Write (keine Klammer), kein Button. Der Mount-Sweep
-// (_juprowaDrainPending) findet alle push_pending=true und pusht sie -> Reset.
-function mountCatchUp(store){
-  var drained=0;
-  Object.keys(store).forEach(function(id){ if(store[id].push_pending===true){ drained++; store[id].push_pending=false; } });
-  return drained;
+// (2) Aufholer-WIRING (Mount-Simulation der Fire-Entscheidung, KEIN direkter Drain-Call — Chat-Claude
+// Messung 2: der fruehere Test pruefte die falsche Ebene). Modelliert den App-Start-Effekt: curUser-
+// getriggert, Timer-Callback prueft online+token, Ref-once. Der Drain selbst ist live-bewiesen.
+function makeCatchUp(){
+  var doneRef={current:false}; var drainCalls=0;
+  function tick(state){                       // state={curUser,online,token} — ein Mount/Auth-Tick
+    if(doneRef.current||!state.curUser)return; // Effekt-Guard (App-Start-Trigger)
+    if(!state.online||!state.token)return;     // Timer-Callback: noch nicht ready -> skip, KEIN Ref-Set
+    doneRef.current=true; drainCalls++;        // ready -> genau 1 Drain
+  }
+  return {tick:tick, calls:function(){return drainCalls;}, done:function(){return doneRef.current;}};
 }
-var store={ FREMD:{push_pending:true} };   // Fremd-Straggler
-var drained=mountCatchUp(store);            // genau EIN Mount, kein eigener Write, kein Button
-ok(drained===1,'Aufholer draint den Fremd-Straggler, war '+drained);
-ok(store.FREMD.push_pending===false,'Fremd-Straggler binnen eines Mounts abgeraeumt (ohne Write/Button)');
+var c=makeCatchUp();
+c.tick({curUser:true,online:true,token:null});   // Mount, aber Auth noch nicht ready
+ok(c.calls()===0,'ohne Token kein Drain');
+ok(c.done()===false,'Ref bleibt false wenn nicht ready (retry-faehig)');
+c.tick({curUser:true,online:true,token:'jwt'});  // Auth-Ready
+ok(c.calls()===1,'nach Auth-Ready genau 1 Drain am App-Start (Wiring feuert)');
+c.tick({curUser:true,online:true,token:'jwt'});  // Re-Render/weiterer Tick
+ok(c.calls()===1,'Ref-once: kein Doppel-Drain');
+var c2=makeCatchUp(); c2.tick({curUser:false,online:true,token:'jwt'});
+ok(c2.calls()===0,'kein curUser (ausgeloggt) -> kein Drain');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js, "konsol_756.js")
