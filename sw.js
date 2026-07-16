@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.724 - Dispo #0 Kapazitaetsmodell: 3 Tagesarten. Planungszeilen Störungen/SAT-Störungen = volle Kap + Score-Bonus (⚡ Stoerungsdienst, bevorzugt; SAT-Scheine->SAT-Tage); normale Baustelle = Vorab-Fenster DISPO_VORAB_MIN=120 statt Vollblock (Chip "vor 🏗"); frei=voll; Urlaub/Krank blocken ganz.
-const CACHE_NAME = "epkolar-v3.9.724";
+// EP Kolar Service Worker v3.9.725 - Dispo #14 KW-Navigation: KW-Tabs [◀] KW30(N) | KW31(N) [▶] statt Klapp-Sektionen, GLEICH Desktop+Mobile; genau EINE KW als Raster, Tab-Wechsel ohne Re-Compute; ◀/▶ am Rand disabled; gewaehlte KW ueberlebt Neu-berechnen.
+const CACHE_NAME = "epkolar-v3.9.725";
 const ASSETS = [
   './',
   './index.html'

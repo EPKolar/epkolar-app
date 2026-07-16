@@ -121,10 +121,10 @@ def test_dispopanel_km_ab_firma_hinweis(index_html):
     assert "ab Firma" in body, "km-ab-Firma-Hinweis (Tagesrundfahrt) fehlt im Panel"
 
 
-def test_dispopanel_wochen_klappbar(index_html):
+def test_dispopanel_wochen_navigierbar(index_html):
     body = _panel(index_html)
-    # Wochen-Sektionen auf-/zuklappbar (W1 offen, 2+3 klappbar)
-    assert "_setOpenW" in body or "_openW" in body, "Wochen-Sektionen nicht klappbar"
+    # v3.9.725 #14: Wochen werden durchgeschaltet (KW-Tabs, _kwIdx) statt aufgeklappt.
+    assert "_kwIdx" in body, "Wochen nicht per KW-Navigation durchschaltbar"
 
 
 def test_buildinput_drei_wochen_und_jahresgrenze(index_html, node_exe, tmp_path):
