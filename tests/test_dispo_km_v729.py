@@ -73,5 +73,5 @@ def test_kein_plus0km_im_rechenkern(index_html):
 
 
 def test_signatur_erweitert(index_html):
-    assert "function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,geoMap,distMatrix)" in index_html
+    assert "function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,geoMap,distMatrix,blocksMap)" in index_html
     assert "window._dispoStrecke=_dispoStrecke" in index_html
