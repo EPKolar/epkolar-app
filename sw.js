@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.715 - Dispo E4-Tab (read-only): Sub-Tab Vorschlagsplanung (Buero/PL/Admin), DispoPanel -> _dispoBuildInput/_dispoPlan, Wochenraster+Chips+Warteliste. Uebernahme folgt. Reiner index.html-Fix.
-const CACHE_NAME = "epkolar-v3.9.715";
+// EP Kolar Service Worker v3.9.716 - Dispo E4b Uebernahme: Chip -> regulaerer updAs-Edit (termin+monteur+dauer) -> OFFA-Push (byte-gleich zu manuell). fz_bedarf nie gepusht. Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.716";
 const ASSETS = [
   './',
   './index.html'

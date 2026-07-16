@@ -6,7 +6,7 @@ Struktur-Pins; die _dispoBuildInput->_dispoPlan-Kette wird im Browser-Smoke ausg
 
 
 def test_dispopanel_component_present(index_html):
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs})" in index_html
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen})" in index_html
     assert "Vorschlagsplanung" in index_html
 
 
@@ -23,7 +23,7 @@ def test_tab_gated_buero_pl_admin(index_html):
 
 
 def test_render_wired(index_html):
-    assert 'sub==="dispo"&&React.createElement(DispoPanel, {arbeitsscheine: arbeitsscheine, monteure: monteure, wpHistory: wpHistory, abs: abs})' in index_html
+    assert 'sub==="dispo"&&React.createElement(DispoPanel, {arbeitsscheine: arbeitsscheine, monteure: monteure, wpHistory: wpHistory, abs: abs, onUebernehmen:' in index_html
     # ArbeitsscheinView bekommt jetzt wpHistory + abs
     assert "function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif,users,wpHistory,abs})" in index_html
 
