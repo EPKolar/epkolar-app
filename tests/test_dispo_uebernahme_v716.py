@@ -21,7 +21,7 @@ def test_chip_button_calls_onuebernehmen(index_html):
     assert "onUebernehmen?h('button'" in body
     assert "onUebernehmen(c.scheinId,m.id,t.iso,c.dauerMin)" in body
     # Übernahme-Button nur wenn Callback da (read-only bleibt möglich)
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen})" in index_html
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein})" in index_html
 
 
 def test_uebernahme_uses_regular_updAs(index_html):

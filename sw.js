@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.717 - Dispo P1-a: Monteur kommt AUS dem Schein, Dispo waehlt nie einen; ohne Monteur -> Warteliste; kein Spillover (Least-Loaded raus); Rasterzeilen nur Feld-Monteure (WeekPlan-Praedikat). Reiner index.html-Fix.
-const CACHE_NAME = "epkolar-v3.9.717";
+// EP Kolar Service Worker v3.9.718 - Dispo P1-b: Chip + Wartelisten-Eintrag oeffnen den Arbeitsschein (onOpenSchein -> setSub liste + openEdit); Uebernehmen-Button stopPropagation; Schein-Nr am Chip. Reiner index.html-Fix.
+const CACHE_NAME = "epkolar-v3.9.718";
 const ASSETS = [
   './',
   './index.html'
