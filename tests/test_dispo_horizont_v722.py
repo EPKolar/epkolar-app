@@ -27,7 +27,7 @@ def _run(node_exe, tmp_path, js):
 
 
 def test_konstanten_da(index_html):
-    assert "var DISPO_HORIZONT_WOCHEN=3;" in index_html
+    assert "var DISPO_HORIZONT_WOCHEN=4;" in index_html  # v3.9.743 (Sebastian): 4 Wochen
     assert "var DISPO_WOCHEN_MALUS=" in index_html
 
 
