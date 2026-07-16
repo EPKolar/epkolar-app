@@ -66,7 +66,7 @@ ok(oU.blockGrund['m1'][monIso] && oU.blockGrund['m1'][monIso][0].icon==='🏖️
 var wp={}; wp[base.wochen[0].yr+'-'+base.wochen[0].kw]=[{z:{Mo:{ma:['m1']}},bvh:'BVH Leth'}];
 var oB=_dispoBuildInput([],mon,wp,{},now,3);
 ok(oB.blockGrund['m1'][monIso] && oB.blockGrund['m1'][monIso][0].icon==='🏗','Belegung -> 🏗-Grund');
-ok(oB.blockGrund['m1'][monIso][0].label==='BVH Leth','BVH-Name aus der Planungszeile');
+ok(oB.blockGrund['m1'][monIso][0].label.indexOf('BVH Leth')>=0,'BVH-Name aus der Planungszeile (v3.9.724: + Vorab-Hinweis)');
 // freier Tag ohne Abzug -> kein Grund
 var oF=_dispoBuildInput([],mon,{},{},now,3);
 ok(!oF.blockGrund['m1'][monIso],'freier Tag -> kein Block-Grund (zeigt spaeter --)');

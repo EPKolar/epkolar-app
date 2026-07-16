@@ -1,5 +1,5 @@
-// EP Kolar Service Worker v3.9.723 - Dispo lesbar: Scheine ueberall mit Nr+Kunde+Arbeit+Ort (Chip+Warteliste, klickbar); leere Monteur-Tag-Zelle zeigt den Block-Grund (🏖️ Urlaub / 🤒 Krank / ⏰ ZA / 🏗 BVH) statt totem Strich; Kopfzeile +spaeter(KW+2/+3). Kern unveraendert.
-const CACHE_NAME = "epkolar-v3.9.723";
+// EP Kolar Service Worker v3.9.724 - Dispo #0 Kapazitaetsmodell: 3 Tagesarten. Planungszeilen Störungen/SAT-Störungen = volle Kap + Score-Bonus (⚡ Stoerungsdienst, bevorzugt; SAT-Scheine->SAT-Tage); normale Baustelle = Vorab-Fenster DISPO_VORAB_MIN=120 statt Vollblock (Chip "vor 🏗"); frei=voll; Urlaub/Krank blocken ganz.
+const CACHE_NAME = "epkolar-v3.9.724";
 const ASSETS = [
   './',
   './index.html'
