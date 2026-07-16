@@ -41,7 +41,8 @@ def test_wartelisten_eintrag_oeffnet_schein(index_html):
 def test_chip_zeigt_scheinnr(index_html):
     body = _panel(index_html)
     seg = body[body.index("chips.map(function(c,ci)"):body.index("chips.length?h('div'")]
-    assert "_scheinById(c.scheinId).nummer" in seg, "Schein-Nr. fehlt am Chip"
+    # v3.9.742 #23: Chip rendert via gemeinsame _chipBox; die Schein-Nr. kommt aus _cs=_scheinById(...).
+    assert "_cs=_scheinById(c.scheinId)" in seg and "nummer:(_cs.nummer" in seg, "Schein-Nr. fehlt am Chip"
 
 
 def test_callsite_onopenschein_setzt_sub_und_openedit(index_html):
