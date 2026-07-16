@@ -43,4 +43,5 @@ def test_ein_raster_pro_kw(index_html):
 def test_uebernahme_schreibt_aktive_kw(index_html):
     # v722-Verhalten gepinnt: Uebernahme uebergibt t.iso (Datum der jeweiligen Zelle/KW).
     body = _panel(index_html)
-    assert "onUebernehmen(c.scheinId,m.id,t.iso,c.dauerMin)" in body, "Uebernahme schreibt nicht das KW-Datum"
+    # v3.9.732 #16b: Dauer-Arg ist jetzt _effDauer(c); das KW-Datum t.iso bleibt unveraendert.
+    assert "onUebernehmen(c.scheinId,m.id,t.iso,_effDauer(c))" in body, "Uebernahme schreibt nicht das KW-Datum"

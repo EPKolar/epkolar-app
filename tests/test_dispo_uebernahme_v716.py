@@ -19,7 +19,8 @@ def test_minutes_to_hhmm_helper(index_html):
 def test_chip_button_calls_onuebernehmen(index_html):
     body = _dispopanel(index_html)
     assert "onUebernehmen?h('button'" in body
-    assert "onUebernehmen(c.scheinId,m.id,t.iso,c.dauerMin)" in body
+    # v3.9.732 #16b: 4. Argument ist die (ggf. per Dauer-Griff geaenderte) effektive Dauer _effDauer(c).
+    assert "onUebernehmen(c.scheinId,m.id,t.iso,_effDauer(c))" in body
     # Übernahme-Button nur wenn Callback da (read-only bleibt möglich)
     assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein})" in index_html
 

@@ -27,7 +27,7 @@ def test_chip_oeffnet_schein(index_html):
 
 def test_uebernehmen_stopt_propagation(index_html):
     body = _panel(index_html)
-    idx = body.index("onUebernehmen(c.scheinId,m.id,t.iso,c.dauerMin)")
+    idx = body.index("onUebernehmen(c.scheinId,m.id,t.iso,_effDauer(c))")
     seg = body[idx - 140:idx]
     assert "stopPropagation" in seg, "Uebernehmen-Button ohne stopPropagation -> oeffnet zugleich den Schein"
 
