@@ -15,8 +15,10 @@ diese Felder -> ein manueller Listen-Inline-Edit derselben Felder erzeugt densel
 
 
 def test_uebernahme_callback_ist_updAs(index_html):
-    assert ("onUebernehmen: (scheinId,monteurId,iso,dauerMin)=>{"
-            "updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,dauer:_dispoMinToHHMM(dauerMin)})"
+    # v3.9.733 #20: Signatur +startHHMM, updAs schreibt zusaetzlich terminZeit (DB termin_zeit) — byte-gleich
+    # zu einem manuellen Buero-Edit derselben Felder (updAs bleibt der einzige Schreibpfad).
+    assert "onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{" in index_html
+    assert ('updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,dauer:_dispoMinToHHMM(dauerMin),terminZeit:startHHMM||""})'
             in index_html)
 
 
@@ -39,6 +41,6 @@ def test_updAs_setzt_push_pending_und_put(index_html):
 
 
 def test_callback_ohne_sqpush_und_ohne_fzbedarf(index_html):
-    seg = index_html.split("onUebernehmen: (scheinId,monteurId,iso,dauerMin)=>{", 1)[1][:220]
+    seg = index_html.split("onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{", 1)[1][:320]
     assert "SQ.push" not in seg
     assert "fz_bedarf" not in seg and "fzBedarf" not in seg

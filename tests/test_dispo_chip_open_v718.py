@@ -27,7 +27,7 @@ def test_chip_oeffnet_schein(index_html):
 
 def test_uebernehmen_stopt_propagation(index_html):
     body = _panel(index_html)
-    idx = body.index("onUebernehmen(c.scheinId,m.id,t.iso,_effDauer(c))")
+    idx = body.index("onUebernehmen(c.scheinId,m.id,t.iso,_eff,_dispoMinToHHMM(_win.startMin))")
     seg = body[idx - 140:idx]
     assert "stopPropagation" in seg, "Uebernehmen-Button ohne stopPropagation -> oeffnet zugleich den Schein"
 
@@ -46,7 +46,7 @@ def test_chip_zeigt_scheinnr(index_html):
 
 def test_callsite_onopenschein_setzt_sub_und_openedit(index_html):
     i = index_html.index('sub==="dispo"&&React.createElement(DispoPanel,')
-    seg = index_html[i:i + 800]
+    seg = index_html[i:i + 1200]  # v733: onUebernehmen-Callback wuchs (terminZeit + Startzeit-Toast)
     assert "onOpenSchein:" in seg
     assert 'setSub("liste")' in seg
     assert "openEdit(" in seg

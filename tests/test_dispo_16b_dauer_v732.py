@@ -79,10 +79,12 @@ def test_panel_16b_struktur(index_html):
     start = index_html.index("function DispoPanel({")
     end = index_html.index("function ArbeitsscheinView({", start)
     body = index_html[start:end]
-    # Dauer-Griff (Handle), Snap-Rechnung, Override-Dauer-State, Uebernahme nutzt die geaenderte Dauer
+    # Dauer-Griff (Handle), Snap-Rechnung, Override-Dauer-State, Uebernahme nutzt die geaenderte Dauer.
+    # v3.9.733: Geste ist jetzt VERTIKAL (Kachel-Hoehe ziehen, ns-resize) statt horizontal (Sebastian).
     assert "_dispoDauerSnap" in body, "Dauer-Griff rechnet nicht mit _dispoDauerSnap"
-    assert "_dauerDrag" in body, "kein horizontaler Dauer-Griff (Pointer-Geste) am Chip"
+    assert "_dauerDrag" in body, "kein Dauer-Griff (Pointer-Geste) am Chip"
     assert "_dauerOv" in body, "keine Override-Dauer (Live) vor der Uebernahme"
-    # Uebernahme schreibt die GEAENDERTE Dauer (nicht die urspruengliche c.dauerMin).
-    assert "onUebernehmen(c.scheinId,m.id,t.iso,_effDauer(c))" in body, "Uebernahme uebergibt nicht die geaenderte Dauer"
+    assert "ns-resize" in body, "Hoehen-Griff (vertikal) fehlt — Sebastian: Kachel in der Hoehe ziehen"
+    # Uebernahme schreibt die GEAENDERTE Dauer (_eff), nicht die urspruengliche c.dauerMin.
+    assert "onUebernehmen(c.scheinId,m.id,t.iso,_eff,_dispoMinToHHMM(_win.startMin))" in body, "Uebernahme uebergibt nicht die geaenderte Dauer"
     assert "onUebernehmen(c.scheinId,m.id,t.iso,c.dauerMin)" not in body, "alte Uebernahme-Dauer (c.dauerMin) noch vorhanden"
