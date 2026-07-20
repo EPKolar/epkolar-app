@@ -74,7 +74,9 @@ def test_iso_date_parse_pattern(index_html):
 
 
 def test_german_date_parse_pattern(index_html):
-    assert '.split(".")' in index_html
+    # v3.9.780: die doppelt-gequotete .split(".")-Variante lebte im entfernten
+    # OFFA-PDF-Parser; die einfach-gequotete Variante (dd.mm.yyyy) bleibt.
+    assert '.split(".")' in index_html or ".split('.')" in index_html
 
 
 # _juprowaSanitize ---------------------------------------------------------

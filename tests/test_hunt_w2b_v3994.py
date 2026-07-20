@@ -1,13 +1,14 @@
 """v3.9.111 — Bug-Hunt Welle 2b: OFFA-Re-Import-Preserve + Server-Approval-Bridge."""
 
 
-def test_offa_reimport_preserves_workflow_fields(index_html):
-    # commitImport-Update darf scheinstatus/notizen/termine NICHT clobbern.
-    assert "const upd={...as};" in index_html, "Re-Import muss eine reduzierte upd-Kopie bauen"
-    for f in ["'scheinstatus'", "'prioritaet'", "'notizen'", "'terminBestaetigt'", "'durchgefuehrte'"]:
-        assert f in index_html, f"{f} muss aus dem Re-Import-Update-Patch entfernt werden (Datenverlust-Schutz)"
-    # Der Update-PUT muss upd nutzen, nicht das volle as
-    assert 'method:"PUT",body:upd}' in index_html, "Re-Import-PUT muss upd (reduziert) senden, nicht as"
+def test_offa_reimport_removed_v780(index_html):
+    # v3.9.780: Der manuelle OFFA-PDF-Import inkl. Re-Import-Merge (commitImport) wurde
+    # als toter Code entfernt (v698-Muster). Frueher pinnte dieser Test den Re-Import-
+    # Preserve-Pfad — jetzt ist er ein Removal-Pin. (Juprowa-Pull ist die alleinige Quelle.)
+    assert "const commitImport=" not in index_html, "v3.9.780: commitImport muss entfernt bleiben"
+    assert "const upd={...as};" not in index_html, (
+        "v3.9.780: Re-Import-Update-Merge (upd={...as}) gehoerte zum entfernten commitImport"
+    )
 
 
 def test_absences_loader_bridges_approval_status(index_html):

@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """v3.9.719 — Dispo P1-c (Sebastian): AS-Anlage NUR in OFFA.
 
-Arbeitsscheine entstehen ausschliesslich in OFFA und kommen via Juprowa-Pull bzw. OFFA-PDF-Import
-in die App. Kein Mensch legt in der App einen Schein an. Vorlagen gibt es in der App nicht.
+Arbeitsscheine entstehen ausschliesslich in OFFA und kommen via Juprowa-Pull in die App.
+(Der manuelle OFFA-PDF-Import wurde in v3.9.780 als toter Code entfernt.)
+Kein Mensch legt in der App einen Schein an. Vorlagen gibt es in der App nicht.
 
 - Sub-Tab "📑 Vorlagen" + ASVorlagenPanel + vorlagenFill-Bus (window._vorlagenBus) komplett raus
   (v698-Muster: nur entfernen, 0 Rest-Referenzen). Boot-Selbsttest as_vorlagen mit raus.
 - Menschliche Neuanlage bleibt gesperrt (saveAs bail-out fuer !editId); der letzte Neu-Modus-Einstieg
   (vorlagenFill-Bus -> setEditId(null)+setSub("form")) ist weg.
-- Import-Pfade byte-identisch: Juprowa-Pull + OFFA-PDF-Import (SQ.push POST /api/arbeitsscheine).
+- Juprowa-Pull-Mapper bleibt unberuehrt (maschinelle OFFA-Quelle).
 - as_vorlagen-Tabelle NICHT gedroppt -> nur S4-Kandidat im CLEANUP.
 """
 import re
@@ -52,10 +53,15 @@ def test_saveas_neuanlage_bleibt_gesperrt(index_html):
         "saveAs-Bail-out fuer Neuanlage fehlt"
 
 
-def test_offa_pdf_import_byte_identisch(index_html):
+def test_offa_pdf_import_removed_v780(index_html):
+    """v3.9.780: Der manuelle OFFA-PDF-Import (Button/Input/Handler/Vorschau) wurde
+    als toter Code entfernt. Arbeitsscheine kommen jetzt ausschliesslich via
+    Juprowa-Pull (siehe test_juprowa_pull_mapper_bleibt) in die App."""
     block = _as_view(index_html)
-    assert 'url:"/api/arbeitsscheine",method:"POST"' in block, "OFFA-PDF-Import-Insert-Pfad angetastet"
-    assert "const commitImport=" in block, "commitImport (OFFA-Insert) fehlt"
+    assert "const commitImport=" not in block, "v3.9.780: commitImport muss entfernt bleiben"
+    import re as _re
+    assert _re.search(r'const\s+importOffa\s*=', block) is None, \
+        "v3.9.780: importOffa-Handler muss entfernt bleiben"
 
 
 def test_juprowa_pull_mapper_bleibt(index_html):

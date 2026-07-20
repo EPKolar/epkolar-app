@@ -661,6 +661,9 @@ def test_as_post_insert_if_absent_do_nothing():
     # (c) Generischer POST-Pfad fuer Nicht-AS-Tabellen unveraendert (_sbPost im else-Zweig).
     assert 'else{await _sbPost(table,mapped,table==="notifications");' in text, \
         'v3.9.442 Regression: generischer _sbPost-Pfad muss fuer andere Tabellen erhalten bleiben'
-    # (d) AS-Create-SQ.push traegt weiter eine stabile id (uid()).
-    assert 'const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});' in text, \
-        'v3.9.442 Regression: AS-Create-SQ.push muss body mit stabiler id:uid() tragen'
+    # (d) v3.9.780: Der EINZIGE AS-Create-SQ.push-Produzent (mit stabiler id:uid()) lebte
+    # im manuellen OFFA-PDF-Import (commitImport) und wurde als toter Code entfernt
+    # (v698-Muster). Der SQ-FLUSH-Handler oben (a) bleibt unveraendert; Juprowa-Pull ist
+    # nun die alleinige AS-Quelle. Removal-Pin statt Presence-Pin:
+    assert 'const newAs={...as,id:uid()};setArbeitsscheine(prev=>[newAs,...prev]);SQ.push({url:"/api/arbeitsscheine",method:"POST",body:newAs});' not in text, \
+        'v3.9.780: AS-Create-SQ.push aus commitImport muss mit dem Import-Flow entfernt sein'

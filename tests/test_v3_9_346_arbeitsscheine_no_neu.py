@@ -8,7 +8,6 @@ Drei UI-Anlege-Wege wurden entfernt:
 NICHT angetastet:
   - openEdit-Pfad bestehender Scheine (setForm({...a});setEditId(a.id);setSub('form')).
   - saveAs PUT-Branch (editId-Pfad).
-  - importOffa / commitImport (OFFA-PDF-Import).
   - exportOffa (OFFA-Excel-Export).
   - _juprowaPush (Phase-2-sensitiv).
   - Status-Setzen, QR-Scan, Liste, Kalender. (Vorlagen-Tab in v3.9.719 P1-c entfernt.)
@@ -122,23 +121,25 @@ def test_save_as_put_anchor_unchanged(index_html):
     )
 
 
-# 7) importOffa unveraendert --------------------------------------------------
+# 7) manueller OFFA-PDF-Import ENTFERNT (v3.9.780) ----------------------------
 
-def test_import_offa_unchanged(index_html):
-    """importOffa-Pfad (OFFA-PDF-Import) muss voll funktionsfaehig bleiben."""
+def test_import_offa_removed_v780(index_html):
+    """v3.9.780: Der manuelle OFFA-PDF-Import-Flow (Button/Input/Handler/Vorschau)
+    wurde als toter Code entfernt (v698-Muster). Frueher pinnte dieser Test seine
+    Anwesenheit — jetzt ist er ein Removal-Pin. Arbeitsscheine kommen ausschliesslich
+    aus OFFA via Juprowa-Pull; der OFFA-Excel-EXPORT bleibt (siehe unten)."""
     block = _arbeitsschein_view_block(index_html)
-    assert re.search(
-        r'const\s+importOffa\s*=\s*async\s*\(\s*e\s*\)',
-        block,
-    ), "v3.9.346 Regression: importOffa-Funktion fehlt — OFFA-Import darf nicht angetastet werden."
-    # commitImport (Insert-Pfad fuer OFFA-Scheine) bleibt
-    assert "const commitImport=" in block, (
-        "v3.9.346 Regression: commitImport-Funktion fehlt — OFFA-Insert-Pfad muss bleiben."
+    assert re.search(r'const\s+importOffa\s*=\s*async\s*\(\s*e\s*\)', block) is None, (
+        "v3.9.780 Regression: importOffa-Handler wieder aufgetaucht — manueller "
+        "PDF-Import muss entfernt bleiben."
     )
-    # SQ.push POST /api/arbeitsscheine im commitImport (OFFA-Insert-Pfad)
-    assert 'url:"/api/arbeitsscheine",method:"POST"' in block, (
-        "v3.9.346 Regression: SQ.push POST /api/arbeitsscheine fehlt — "
-        "OFFA-Import-Insert-Pfad muss intakt bleiben."
+    assert "const commitImport=" not in block, (
+        "v3.9.780 Regression: commitImport wieder aufgetaucht — muss entfernt bleiben."
+    )
+    # exportOffa (OFFA-EXCEL-EXPORT) bleibt UNBERUEHRT
+    assert "const exportOffa=" in block, (
+        "v3.9.780 Regression: exportOffa (OFFA-Excel-Export) fehlt — Export darf NICHT "
+        "vom Import-Removal betroffen sein."
     )
 
 
