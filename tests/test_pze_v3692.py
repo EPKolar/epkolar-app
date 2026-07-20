@@ -210,12 +210,13 @@ def test_summen_ueber_mehrere_tage(node_exe, index_html):
         "saldoMin": -30,
         "projMin": 650,
         "pauseMin": 60,
+        "krankMin": 0,  # v3.9.770: additives Feld, ohne Krank-Tage 0
     }
 
 
 def test_summen_leer_ist_alles_null(node_exe, index_html):
     s = _eval(node_exe, index_html, "_pzeSummen([])")
-    assert s == {"nettoMin": 0, "sollMin": 0, "saldoMin": 0, "projMin": 0, "pauseMin": 0}
+    assert s == {"nettoMin": 0, "sollMin": 0, "saldoMin": 0, "projMin": 0, "pauseMin": 0, "krankMin": 0}  # v3.9.770
 
 
 # ═══════════════════════════════════════════════════════════════════
