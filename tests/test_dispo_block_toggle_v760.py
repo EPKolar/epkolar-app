@@ -41,6 +41,14 @@ def test_panel_body_bleibt_schreibfrei(index_html):
         "dispo_blocks-DELETE liegt im Panel-Body statt in der Eltern-Prop"
 
 
+def test_toggle_kopfstreifen_gegen_kollision(index_html):
+    """v3.9.763 P3-Nachbesserung: die Zelle reserviert einen Kopfstreifen (paddingTop), wenn der Toggle
+    gerendert wird, damit das absolut positionierte Toggle nie ueber Karten/Chips liegt."""
+    body = _panel(index_html)
+    assert "var _hasToggle=(typeof onToggleBlock==='function')" in body, "_hasToggle-Bedingung fehlt"
+    assert "paddingTop:_hasToggle?18:4" in body, "kein reservierter Kopfstreifen (paddingTop) fuer die Toggle-Zelle"
+
+
 def test_toggle_hat_vergangenheits_guard(index_html):
     body = _panel(index_html)
     assert "var _toggleBtn=function(m,t){" in body, "_toggleBtn-Renderer fehlt"
