@@ -6,7 +6,8 @@ Je Screen: 0 Console-Errors · 0 unhandled rejections · kein Error-Boundary-Fal
 
 **Live-Version:** **v3.9.763-supabase** (github.io). **Tool:** claude-in-chrome + Write-Monitor (fetch-Wrapper
 zählt PATCH/POST/DELETE auf arbeitsscheine + Juprowa-Push = Read-only-Beweis). **Stand: ABGESCHLOSSEN** — alle
-4 Rollen durch (Admin, PL/schmid, Monteur/barger, Kiosk). **1 Fund gesamt (SM-02, P1) + 1 benigne (SM-01).**
+4 Rollen durch (Admin, PL/schmid, Monteur/barger, Kiosk). **0 echte Bugs** (SM-02 nach DB-Check zurückgezogen =
+gewollte Admin-Freigabe via perms_override) **+ 1 benigne (SM-01).**
 Read-only-Bilanz je Rolle: 0 durch-mein-Ansehen verursachte Abrechnungs-Mutationen (0 OFFA-Pushes, 0
 push_pending-Änderung, 0 updAs).
 
@@ -70,11 +71,12 @@ Legende: 🟢 grün (0 Errors/Rejections, kein EB-Fallback, keine undefined/NaN/
 - Sichtbare Tabs (Home, Projekte, AS, Planung, Zeit, Urlaub, Monatsabr., Fahrzeuge, Werkzeuge, Gefahrenstoffe,
   Mitarbeiter): alle 🟢 — 0 Errors/Rejections/Error-Boundary/bad-Text.
 - **Arbeitsscheine:** 23 in Bargers Scope (Admin sah deutlich mehr) — RLS greift sichtbar.
-- **📊 Auswertungen: 🔴 SM-02** (firmenweite Sicht, s. Bugliste).
+- **📊 Auswertungen: 🟢** — für Monteur sichtbar, aber **gewollt** (perms_override `auswertungen:true`, vom
+  Admin freigegeben; ursprüngl. als SM-02 geflaggt, nach DB-Check zurückgezogen).
 - **Read-only-Bilanz:** 0 kritische Writes über die ganze Monteur-Session (Monteur triggert keinen
   Juprowa-Pull, da nicht canSync).
 
-**Monteur-Funde: SM-02.**
+**Monteur-Funde: keine** (SM-02 = gewollte perms_override-Freigabe, zurückgezogen).
 
 ## Kiosk / lager_display — Detail (Wandmonitore, read-only)
 
@@ -104,15 +106,14 @@ Legende: 🟢 grün (0 Errors/Rejections, kein EB-Fallback, keine undefined/NaN/
 ### P0 / P1
 _(keine)_
 
-### P1 (falsche Sicht / Datenexposition)
-- **SM-02** — **Monteur sieht firmenweite Auswertungen.** Als `barger` (role=monteur, w2) ist der Tab
-  **📊 Auswertungen** in der Nav und **rendert das volle Firmen-Dashboard**: Werkzeugwert €16 490 (296 Geräte),
-  21 Fahrzeuge / €1360 Tankkosten, alle 23 Arbeitsscheine, alle 7 Mitarbeiter in den Diagrammen, Export
-  „Alle als Excel"/„PDF". Permission-Modell (`m={... auswertungen:isA||isPL||isB ...}`, index.html ~Z. 4600)
-  schließt Monteur aus → die Nav gated diesen Tab nicht entsprechend. **Repro:** als barger einloggen →
-  📊 Auswertungen. **Nicht gefixt** (Liste-zuerst; Sebastian priorisiert — evtl. gewollt? sonst Nav-Gate an
-  `canDo('auswertungen',curUser)` hängen). *(Mitarbeiter-Tab rendert für Monteur nur eine begrenzte Sicht —
-  keine fremde PII wie SVNR/Gehalt gefunden; unkritisch.)*
+### GEKLÄRT — kein Bug
+- **SM-02 (zurückgezogen)** — „Monteur sieht Auswertungen" ist **gewollt**: die Nav gated per
+  `hasPerm(curUser,"auswertungen")`, und `hasPerm` (index.html Z. 4594-4596) respektiert das per-User-Feld
+  **`permsOverride`** ÜBER die Rollen-Default-Module. DB-Check (live, read-only): **alle 5 Monteure**
+  (riedmann/barger/aliti/cracana/kiener) haben `perms_override = {stunden,werkzeuge,auswertungen,fahrzeuge,
+  material_order: true}` — vom Admin bewusst freigegeben. App verhält sich korrekt. *(Ursprünglicher
+  False-Positive: nur die harte `canDo`-Default-Map betrachtet, nicht die DB-Overrides.)* Der Mitarbeiter-Tab
+  zeigt Monteuren nur eine begrenzte Sicht (keine fremde PII).
 
 ### P2 (Kosmetik / benigne)
 - **SM-01** — Cold-Load feuert `400` auf `POST auth/v1/token?grant_type=refresh_token` (frischer Browser ohne
@@ -134,8 +135,8 @@ Sektionen nur per Snapshot geprüft. Admin-Rolle danach sauber (read-only) neu a
 ## Fazit
 **Smoke-Volllauf abgeschlossen — alle 4 Rollen (Admin, PL, Monteur, Kiosk) read-only durchgecheckt.**
 Keine P0-Crashes, kein Datenverlust, keine Error-Boundaries, keine undefined/NaN/[object in irgendeinem
-Screen. **1 Fund zur Priorisierung: SM-02** (Monteur sieht firmenweite Auswertungen) + **1 benigne: SM-01**
-(Cold-Load-400-Refresh-Rauschen). Die neuen Features live bestätigt: #28d-Vollbilanz (Invariante hält),
+Screen. **0 echte Bugs.** (SM-02 „Monteur sieht Auswertungen" nach DB-Check zurückgezogen = gewollte
+Admin-Freigabe via `perms_override`.) Einzig **SM-01** benignes Cold-Load-400-Refresh-Rauschen (P2). Die neuen Features live bestätigt: #28d-Vollbilanz (Invariante hält),
 #1-Teil-2-Sperr-Toggle (40 Toggles, keine Kollision), Dispo read-only (#26), RLS/§96 je Rolle korrekt
 (Monteur ohne Dispo/Flotte/Admin; PL mit Dispo/Flotte ohne Admin/Chef).
 
