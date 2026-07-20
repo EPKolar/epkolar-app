@@ -106,7 +106,7 @@ def test_tote_stufen_markiert(index_html):
 # ================================================================ Vorschau-Warnung
 
 def test_vorschau_hinweis_vorhanden(index_html):
-    assert "⚠ Vorschau — Lohnverrechner maßgeblich, keine Abrechnungsgrundlage." in index_html, \
-        "Vorschau-Warnung im Report fehlt"
-    assert index_html.count("⚠ Vorschau — Lohnverrechner maßgeblich") >= 1, \
-        "Vorschau-Vermerk fehlt im Entfernungszulage-Report"
+    # v3.9.775 Etappe 3: die Kalender-Vergabe ist jetzt LOHNRELEVANT (eff. Tage bestimmen die abgerechnete
+    # Menge), darum ist der alte "keine Abrechnungsgrundlage"-Vermerk bewusst ersetzt.
+    assert "Lohnverrechner maßgeblich" in index_html, "Vermerk Lohnverrechner-massgeblich fehlt"
+    assert "Entfernungszulage — lohnrelevant" in index_html, "lohnrelevanter Vergabe-Hinweis fehlt"

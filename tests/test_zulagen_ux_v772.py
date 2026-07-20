@@ -9,11 +9,9 @@ import re
 
 
 def test_warnkasten_kompakt(index_html):
-    assert "'⚠ Vorschau — Lohnverrechner maßgeblich, keine Abrechnungsgrundlage.'" in index_html, \
-        "kompakter Ein-/Zweizeiler-Warnkasten fehlt"
-    # der alte lange Dauertext ist nicht mehr dauerhaft sichtbar, sondern im Detail-Aufklapp
-    assert "'⚠ VORSCHAU — der Lohnverrechner ist maßgeblich. Die App-Zahl" not in index_html, \
-        "alter langer Dauer-Warnkasten noch vorhanden"
+    # v3.9.775 Etappe 3: kompakter Ein-/Zweizeiler bleibt, Wortlaut jetzt lohnrelevant.
+    assert "⚠ Entfernungszulage — lohnrelevant: die Kalender-Vergabe (eff. Tage) bestimmt die abgerechnete Menge. Lohnverrechner maßgeblich." in index_html, "kompakter lohnrelevanter Warnkasten fehlt"
+    assert "⚠ VORSCHAU — der Lohnverrechner ist maßgeblich. Die App-Zahl" not in index_html, "alter langer Dauer-Warnkasten noch vorhanden"
 
 
 def test_details_aufklapp(index_html):
