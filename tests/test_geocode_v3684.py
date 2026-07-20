@@ -136,7 +136,8 @@ def test_koordinaten_fallback(node_exe, index_html):
 def test_csp_erlaubt_nominatim(index_html):
     # Ohne CSP-Eintrag wird jeder Lookup vom Browser geblockt — und zwar still.
     assert "connect-src 'self' https://jiggujpruejkaomgxarp.supabase.co" in index_html
-    assert "https://nominatim.openstreetmap.org;" in index_html
+    # v3.9.765 #19b: nach nominatim folgt jetzt der OSRM-Host, der ';' wanderte weiter.
+    assert "https://nominatim.openstreetmap.org" in index_html
 
 
 def test_429_setzt_lookups_fuer_die_session_aus(index_html):
