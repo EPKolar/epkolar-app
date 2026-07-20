@@ -70,13 +70,15 @@ def test_komma_coercion(node_exe, index_html):
     assert _eval(node_exe, index_html, "_kvMontagezulageSatz('2026-01-01',{montagezulage:{2026:'1,155'},montagezulageStd:1.155})") == pytest.approx(1.155)
     # Fallback-Satz als String mit Komma (unbek. Jahr)
     assert _eval(node_exe, index_html, "_kvMontagezulageSatz('2030-01-01',{montagezulageStd:'1,20'})") == pytest.approx(1.20)
-    # kaputter Satz -> Fallback-Default 1.155
-    assert _eval(node_exe, index_html, "_kvMontagezulageSatz('2030-01-01',{montagezulageStd:'abc'})") == pytest.approx(1.155)
+    # kaputter Satz -> Fallback-Default (v3.9.768: 1,13 statt 1,155)
+    assert _eval(node_exe, index_html, "_kvMontagezulageSatz('2030-01-01',{montagezulageStd:'abc'})") == pytest.approx(1.13)
 
 
 # ── UI-Wiring / Regression-Guards ──
 def test_kv_rules_map_present(index_html):
-    assert "montagezulage:{2026:1.155,2027:1.178}" in index_html
+    # v3.9.768: Satz 2026 = 1,13 (Lohnzettel LA 4060). 2027 BEWUSST nicht hinterlegt —
+    # der frueher gepinnte Wert 1,178 war unbelegt und ist jetzt Lohnverrechner-Pruefpunkt.
+    assert "montagezulage:{2026:1.13}" in index_html
 
 
 def test_save_handles_object_field(index_html):

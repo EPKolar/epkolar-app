@@ -25,11 +25,13 @@ def test_kv_kernwerte(node_exe, index_html):
     assert kv["tagStd"] == 7.7
     assert kv["urlaubStdJahr"] == 192.5
     assert kv["urlaubStdJahr25DJ"] == 231
-    assert kv["taggeldAb6h"] == 11.94
+    # v3.9.768: Lohnzettel EP Kolar LA 2740 "Entfernungszl.kl.fr." — 11,94 war ein KV-Schaetzwert.
+    assert kv["taggeldAb6h"] == 11.71
     assert kv["taggeldAb11h"] == 30.0
-    assert kv["montagezulageStd"] == 1.155
+    # v3.9.768: Lohnzettel EP Kolar LA 4060 "Montagezulage pfl. Menge" — 1,155 war ein KV-Schaetzwert.
+    assert kv["montagezulageStd"] == 1.13
     assert kv["kmGeld"] == 0.5
-    assert kv["stand"].startswith("KV Metallgewerbe")
+    assert kv["stand"].startswith("Lohnzettel EP Kolar")
 
 
 def test_kv_zuschlag_faktoren(node_exe, index_html):
