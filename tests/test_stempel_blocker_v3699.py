@@ -7,6 +7,7 @@ Diese Datei ist zugleich der Beweis für die neue Hausregel „behauptet ein Kom
 Eigenschaft, muss ein Test sie beweisen" — hier für Auflage 1b (Erfolg nur nach Persistenz).
 """
 import re
+import pytest
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -61,6 +62,7 @@ def test_stReadLog_wirft_bei_nicht_ok(index_html):
     assert "!r.ok" in body or "!r||!r.ok" in body
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_process_liest_stempel_log_ueber_stReadLog(index_html):
     """Der Tages-Read im Scan darf NICHT mehr über das auth-schluckende _sbGet laufen."""
     m = re.search(r"async function _process\(uid\)\{.*?_busy\.current=false;", index_html, re.S)
@@ -79,12 +81,14 @@ def _process(index_html):
     return m.group(0)
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_online_stempel_ist_ein_awaited_post(index_html):
     proc = _process(index_html)
     assert "await _authRetry(()=>fetch(SB_REST+'/stempel_log'" in proc, \
         "Der Online-Stempel wird nicht als bestätigter POST geschrieben"
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_harter_fehler_zeigt_nie_gruen_und_queued_nicht(index_html):
     """Ein 403/RLS/Constraint darf NIE grün zeigen und darf NICHT in die Queue (Retry hilft nicht)."""
     proc = _process(index_html)
@@ -101,6 +105,7 @@ def test_kein_blindes_sq_push_mehr_vor_dem_gruen(index_html):
     assert "SQ.push({url:'/api/stempel-log',method:'POST',body:row});/* INSERT via SyncQueue" not in proc
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_feedback_haengt_an_queued_nicht_an_offline(index_html):
     """Die Offline-Quittung greift jetzt bei _queued (offline ODER net-Fallback), nicht nur _offline."""
     proc = _process(index_html)

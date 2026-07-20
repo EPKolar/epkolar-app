@@ -107,6 +107,7 @@ def test_kein_lokales_uuid_schatten_in_stempeltafel(index_html):
     assert "const _uuid=" not in src
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_st_id_fallback_string_lebt_nur_noch_in_kommentaren(index_html):
     """ABWEICHUNG vom Auftrag: der Auftrag verlangt woertlich, dass der String
     'st_'+Date.now() NIRGENDS mehr im File vorkommt. Das stimmt so nicht ganz — der String
@@ -136,10 +137,12 @@ def test_evcache_existiert_als_ref(index_html):
     assert "const _evCache=_react.useRef.call(void 0, {});" in index_html
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_evcache_wird_aus_read_befuellt(index_html):
     assert "_evCache.current[worker.id]=events.map(x=>({direction:x.direction,ts:x.ts}));" in index_html
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_evcache_wird_nach_sq_push_befuellt(index_html):
     assert "_evCache.current[worker.id]=(events||[]).concat([{direction:dir,ts:nowIso}]);" in index_html
 
@@ -147,10 +150,12 @@ def test_evcache_wird_nach_sq_push_befuellt(index_html):
 # ═══════════════════════════════════════════════════════════════════
 # 5) Netzfehler-Pfad erreicht trotzdem SQ.push (kein return im net-Zweig)
 # ═══════════════════════════════════════════════════════════════════
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_missing_zweig_endet_mit_return(index_html):
     assert "if(_kind==='missing'){setTblErr('stempel_log fehlt — sql/STEMPEL_v1.sql ausführen');_showFb({kind:'error'});return;}" in index_html
 
 
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_net_zweig_endet_nicht_mit_return_vor_offline_true(index_html):
     """Nach der missing-Pruefung faengt `if(_kind!=='net'){...return;}` den 'other'-Fall ab
     (return) — der verbleibende 'net'-Fall faellt OHNE eigenen return direkt durch zu
@@ -163,5 +168,6 @@ def test_net_zweig_endet_nicht_mit_return_vor_offline_true(index_html):
 # ═══════════════════════════════════════════════════════════════════
 # 6) device-Werte fuer offline-gebuchte Stempel
 # ═══════════════════════════════════════════════════════════════════
+@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
 def test_device_werte_kiosk_offline_varianten(index_html):
     assert "const _dev=_unsicher?'kiosk:offline?':(_offline?'kiosk:offline':'kiosk');" in index_html
