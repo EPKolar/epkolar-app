@@ -122,7 +122,8 @@ def test_degradiert_ohne_tabelle(index_html):
     assert "async function _mzFetch(ym){" in index_html
     assert "return{ok:false,missing:true,flags:{}};" in index_html
     assert "Tabelle montagezulage_tage fehlt — sql/MONTAGEZULAGE_v1.sql ausführen" in index_html
-    assert "disabled:mzMissing" in index_html
+    # v3.9.772: Vergabe flach statt Klappblock -> bei fehlender Tabelle wird _mzPanel nicht gerendert (statt disabled).
+    assert ",!mzMissing?_mzPanel():null" in index_html
 
 
 def test_schreibpfad_idempotent(index_html):
@@ -146,7 +147,7 @@ def test_kein_request_auf_verdacht(index_html):
 
 
 def test_lohnverrechner_bleibt_massgeblich(index_html):
-    assert "Für die Lohnabrechnung bleibt der Lohnverrechner maßgeblich — KEINE automatische Verbuchung." in index_html
+    assert "Lohnverrechner maßgeblich — KEINE automatische Verbuchung."  # v3.9.772: jetzt im Vorschau-Detail-Aufklapp in index_html
 
 
 def test_sql_gestaged(index_html):

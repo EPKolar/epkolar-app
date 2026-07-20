@@ -141,7 +141,7 @@ def test_tote_stufen_markiert(index_html):
 # ================================================================ Vorschau-Warnung
 
 def test_vorschau_hinweis_vorhanden(index_html):
-    assert "⚠ VORSCHAU — der Lohnverrechner ist maßgeblich" in index_html, \
+    assert "⚠ Vorschau — Lohnverrechner maßgeblich, keine Abrechnungsgrundlage." in index_html, \
         "Vorschau-Warnung im Report fehlt"
     assert "167 h vs. Zeiteinträge 158 h" in index_html, \
         "offener Mengen-Pruefpunkt nicht im Hinweis benannt"
