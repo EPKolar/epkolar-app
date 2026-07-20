@@ -70,7 +70,7 @@ console.log(JSON.stringify(out));
 
 def test_anzeige_heisst_entfernungszulage(index_html):
     assert "'💶 Entfernungszulage'" in index_html, "Report-Titel nicht umbenannt"
-    assert "'Entfernungszulage EUR'" in index_html, "CSV-Header nicht umbenannt (geht an den Lohnverrechner)"
+    # v3.9.776: CSV-Export (mit Header 'Entfernungszulage EUR') durch PZE-PDF-Uebergabe ersetzt — Pin entfaellt.
     assert "'Monteur','Tage >6h','Tage >11h','Entfernungszulage'" in index_html, "Spaltenkopf nicht umbenannt"
     assert "'Entfernungszulage ab 6h'" in index_html, "Admin-Label nicht umbenannt"
 

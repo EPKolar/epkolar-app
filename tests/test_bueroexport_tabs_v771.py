@@ -54,7 +54,7 @@ def test_defaultopen_prop(index_html):
     assert index_html.count("_react.useState.call(void 0, props.defaultOpen||false)") == 2, \
         "defaultOpen nicht in genau 2 Komponenten (KVZulagenReport + PZEView)"
     b = _vbuero(index_html)
-    assert "React.createElement(KVZulagenReport, { entries: entries, monteure: monteure, ww: ww, curUser: curUser, defaultOpen: true} )" in b, \
+    assert "React.createElement(KVZulagenReport, { entries: entries, monteure: monteure, ww: ww, curUser: curUser, abs: abs, approvals: approvals, kontingent: _kontFor, defaultOpen: true} )" in b, \
         "KVZulagenReport bekommt defaultOpen nicht"
     assert "kontingent: _kontFor, defaultOpen: true} )" in b, "PZEView bekommt defaultOpen nicht"
 

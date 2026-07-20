@@ -1,46 +1,21 @@
-"""v3.9.659 KV-V4 CSV-Feld-Escaping (Bug-Hunt #3).
+"""v3.9.776 — Der KV-V4 Zulagen-CSV-Export ist entfernt (Regression-Pin der Ablösung).
 
-Der Zulagen-CSV-Export quotet jetzt Felder mit ; " oder Zeilenumbruch (interne "
-verdoppelt) — sonst verschoebe ein ";" im Monteur-Namen die Spalten. Extrahiert die
-echte _csvEsc-Funktion aus index.html und testet sie in Node.
+Historie: v3.9.659 fuehrte ein CSV-Feld-Escaping (_csvEsc) fuer den Zulagen-CSV-Export ein. In
+v3.9.776 wurde der CSV-Export durch den PZE-PDF-Uebergabezettel an den Lohnverrechner ersetzt
+(FinkZeit-Monatsblatt inkl. Entfernungszulage-Fuss). Damit sind _csvEsc und der CSV-Export ohne
+Referenz — dieser Test haelt die Ablösung fest, damit der tote Pfad nicht stillschweigend zurueckkehrt.
 """
-import re
-import json
-from conftest import run_node_snippet
 
 
-def _csvesc_fn(index_html):
-    m = re.search(r"var _csvEsc=function\(v\)\{.*?\};", index_html)
-    assert m, "_csvEsc-Funktion nicht gefunden"
-    return m.group(0)
+def test_csv_escape_entfernt(index_html):
+    assert "var _csvEsc=function" not in index_html, "toter CSV-Escaper darf nicht zurueckkehren"
+    assert "head.map(_csvEsc)" not in index_html, "CSV-Kopf-Wiring muss entfernt sein"
 
 
-def _eval(node_exe, index_html, expr):
-    snippet = _csvesc_fn(index_html) + "\nprocess.stdout.write(JSON.stringify((" + expr + ")))"
-    return json.loads(run_node_snippet(node_exe, snippet))
+def test_csv_export_entfernt(index_html):
+    assert "'KV-Zulagen_'+ym+'.csv'" not in index_html, "CSV-Download darf nicht mehr existieren"
+    assert "const _csv=()=>{" not in index_html, "KVZulagenReport._csv muss entfernt sein"
 
 
-def test_kein_special_unveraendert(node_exe, index_html):
-    assert _eval(node_exe, index_html, "_csvEsc('Mueller Hans')") == "Mueller Hans"
-
-
-def test_semikolon_gequotet(node_exe, index_html):
-    assert _eval(node_exe, index_html, "_csvEsc('Meier; Co')") == '"Meier; Co"'
-
-
-def test_quote_verdoppelt(node_exe, index_html):
-    assert _eval(node_exe, index_html, "_csvEsc('A\\\"B')") == '"A""B"'
-
-
-def test_newline_gequotet(node_exe, index_html):
-    assert _eval(node_exe, index_html, "_csvEsc('a\\nb')") == '"a\nb"'
-
-
-def test_null_leer(node_exe, index_html):
-    assert _eval(node_exe, index_html, "_csvEsc(null)") == ""
-
-
-def test_wiring_map_angewandt(index_html):
-    # _csvEsc wird auf Kopf + Zeilen angewandt
-    assert "head.map(_csvEsc).join(';')" in index_html
-    assert "].map(_csvEsc).join(';')" in index_html
+def test_pze_pdf_uebergabe_ersetzt_csv(index_html):
+    assert "📄 PZE-PDF (Lohnverrechner)" in index_html, "PZE-PDF-Uebergabe-Button muss den CSV-Button ersetzen"

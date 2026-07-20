@@ -56,8 +56,12 @@ def test_report_in_bueroportal(index_html):
     assert "React.createElement(KVZulagenReport, { entries: entries, monteure: monteure, ww: ww" in index_html
 
 
-def test_csv_export(index_html):
-    assert "'KV-Zulagen_'+ym+'.csv'" in index_html
+def test_pze_pdf_export(index_html):
+    # v3.9.776: der CSV-Export (KV-Zulagen_*.csv) ist durch den PZE-PDF-Uebergabezettel an den
+    # Lohnverrechner ersetzt (modul-globaler Generator _pzePdf, geteilt mit PZEView).
+    assert "'KV-Zulagen_'+ym+'.csv'" not in index_html, "alter CSV-Export darf nicht mehr existieren"
+    assert "📄 PZE-PDF (Lohnverrechner)" in index_html, "PZE-PDF-Uebergabe-Button fehlt"
+    assert "_pzeBtn" in index_html, "PZE-PDF-Button-Handler fehlt"
 
 
 def test_report_lohnverrechner_hinweis(index_html):

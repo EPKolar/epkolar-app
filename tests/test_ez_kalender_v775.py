@@ -203,12 +203,13 @@ def test_kalender_komponente(index_html):
 
 
 def test_menge_eff_basiert(index_html):
-    """Die abgerechnete EZ-Summe (Ergebnistabelle + CSV) haengt an _ezEffTage, nicht mehr an der Auto-Zaehlung."""
+    """Die abgerechnete EZ-Summe (Ergebnistabelle) haengt an _ezEffTage, nicht mehr an der Auto-Zaehlung.
+
+    v3.9.776: der CSV-Export ist durch den PZE-PDF-Uebergabezettel ersetzt — die frueheren CSV-Header-Pins
+    entfallen; die eff-basierte MENGE (_ezEffTage) bleibt die gepinnte Invariante.
+    """
     assert "_ezEffTage(byW[wid].days,ezFlags,wid" in index_html
     assert "taggeldSum:ez.sum" in index_html
-    # Spaltenkoepfe bleiben byte-stabil (Tage>6h/Tage>11h = Info); nur der EUR-Wert ist eff-basiert.
-    assert "['Monat','Monteur','Tage>6h','Tage>11h','Entfernungszulage EUR']" in index_html
-    assert "r.tage6,r.tage11,_eur(r.taggeldSum)" in index_html
 
 
 def test_rechnung_unberuehrt(index_html):
