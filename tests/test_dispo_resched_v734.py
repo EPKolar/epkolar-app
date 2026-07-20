@@ -46,4 +46,4 @@ def test_panel_resched_ist_jetzt_ondrop(index_html):
 
 
 def test_dispopanel_signatur_ondrop(index_html):
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock})" in index_html
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})" in index_html

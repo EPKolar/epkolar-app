@@ -25,7 +25,8 @@ def _panel(index_html):
 
 def _button(index_html):
     body = _panel(index_html)
-    m = re.search(r"h\('button',\{onClick:[^\n]*?\"↻ Neu berechnen\"\)", body)
+    # v3.9.767: onClick ist seit der onRefreshScheine-Verdrahtung mehrzeilig -> re.S statt Ein-Zeilen-Match.
+    m = re.search(r"h\('button',\{onClick:.*?\"↻ Neu berechnen\"\)", body, re.S)
     assert m, "Button '↻ Neu berechnen' nicht mehr auffindbar (Renderpfad veraendert?)"
     return m.group(0)
 
@@ -74,14 +75,21 @@ def test_geste_guard_bleibt(index_html):
 
 # ---------------------------------------------------------------- Halt-Befund gepinnt
 
-def test_kein_as_pull_im_panel(index_html):
-    """Solange keine Eltern-Prop existiert, darf das Panel _juprowaSync NICHT selbst rufen."""
+def test_kein_as_pull_im_panel_body(index_html):
+    """v3.9.767 umgestellt: das Panel darf den AS-Pull NICHT selbst fahren — nur die Prop rufen.
+
+    Vorher (v766) pinnte dieser Test 'Panel zieht ueberhaupt keine AS'. Seit der Prop onRefreshScheine
+    existiert, ist die Aussage: der Pull-Mechanismus (_juprowaSync/_asPullFresh/_sbGet arbeitsscheine)
+    bleibt im Eltern-Component, das Panel kennt nur den Prop-Namen (v745: kein Fetch/Write im Panel-Body).
+    """
     body = _panel(index_html)
-    assert "_juprowaSync(" not in body, \
-        "DispoPanel ruft _juprowaSync direkt — ohne setArbeitsscheine-Prop ist das nicht sauber verdrahtet"
+    assert "_juprowaSync(" not in body, "DispoPanel ruft _juprowaSync direkt — gehoert in den Parent"
+    assert "_asPullFresh(" not in body, "DispoPanel ruft den AS-Pull selbst — gehoert an die Prop-Callsite"
+    assert '_sbGet("arbeitsscheine")' not in body, "DispoPanel fetcht arbeitsscheine selbst (v745 verletzt)"
+    assert "onRefreshScheine" in body, "Prop onRefreshScheine im Panel nicht verdrahtet"
 
 
-def test_dispopanel_signatur_unveraendert(index_html):
+def test_dispopanel_signatur_v767(index_html):
     assert ("function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,"
-            "onOpenSchein,onDrop,onToggleBlock}){") in index_html, \
+            "onOpenSchein,onDrop,onToggleBlock,onRefreshScheine}){") in index_html, \
         "DispoPanel-Signatur veraendert — Prop-Pins v715-718/v734/v760 mitziehen"

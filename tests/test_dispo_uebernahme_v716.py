@@ -22,7 +22,7 @@ def test_chip_button_calls_onuebernehmen(index_html):
     # v3.9.733 #20: 4. Arg = effektive Dauer (_eff), 5. Arg = Startzeit (HH:MM aus _dispoAblauf) -> terminZeit.
     assert "onUebernehmen(c.scheinId,m.id,t.iso,_eff,_dispoMinToHHMM(_win.startMin))" in body
     # Übernahme-Button nur wenn Callback da (read-only bleibt möglich)
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock})" in index_html
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})" in index_html
 
 
 def test_uebernahme_uses_regular_updAs(index_html):

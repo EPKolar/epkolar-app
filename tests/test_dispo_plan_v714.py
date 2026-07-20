@@ -2,7 +2,7 @@
 """v3.9.714 — Dispo E3-Verdrahtung: _dispoPlan (Greedy + Buendelung + 2-opt) + _dispoTopf + _dispoAbwAbzug.
 
 Testliste (Bauauftrag): Wand (Schein passt nicht -> Warteliste) · Buendelung gleiche Adresse -> ein
-Monteur/Tag · Topf-Reihenfolge · Abwesenheit beantragt blockt / abgelehnt frei / Teiltag reduziert.
+Monteur/Tag · Topf-Reihenfolge · Abwesenheit: NUR genehmigt blockt (v767) / beantragt+abgelehnt frei / Teiltag reduziert.
 """
 import subprocess
 
@@ -20,7 +20,10 @@ function ok(c,n){ if(!c){ console.error('FAIL '+n); process.exit(1);} }
 ok(_dispoTopf({scheinart:'stoerung'})===0,'topf stoerung'); ok(_dispoTopf({prioritaet:'hoch'})===1,'topf hoch');
 ok(_dispoTopf({prioritaet:'normal'})===2,'topf rest');
 // _dispoAbwAbzug (normMin 510)
-ok(_dispoAbwAbzug({status:'beantragt'},510)===510,'beantragt blockt');
+/* v3.9.767 Sebastian-Entscheid 20.07.: beantragt blockt NICHT mehr (weder Kapazitaet noch Overlay) —
+   nur status==='genehmigt' zieht Kapazitaet ab. Alt-Erwartung 510 bewusst auf 0 gedreht. */
+ok(_dispoAbwAbzug({status:'beantragt'},510)===0,'beantragt blockt NICHT mehr (nur genehmigt)');
+ok(_dispoAbwAbzug({status:'genehmigt'},510)===510,'genehmigt blockt weiter');
 ok(_dispoAbwAbzug({status:'abgelehnt'},510)===0,'abgelehnt frei');
 ok(_dispoAbwAbzug({status:'genehmigt',std:4},510)===240,'ZA-teiltag 4h');
 ok(_dispoAbwAbzug(null,510)===0,'keine abwesenheit');
