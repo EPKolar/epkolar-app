@@ -53,16 +53,12 @@ def test_sql_sperrt_time_entries_forms_bautagebuch_fuer_kiosk():
 # ══════════════════════════════════════════════════════════════════════════════
 # Befund 2 — _sbGet-403-Swallow im Richtungs-Lesepfad
 # ══════════════════════════════════════════════════════════════════════════════
-def test_stReadLog_wirft_bei_nicht_ok(index_html):
-    m = re.search(r"async function _stReadLog\(filter\)\{.*?\n  \}", index_html, re.S)
-    assert m, "_stReadLog nicht gefunden"
-    body = m.group(0)
-    # Muss bei !ok werfen — NICHT wie _sbGet ein leeres Array liefern.
-    assert "throw new Error(" in body
-    assert "!r.ok" in body or "!r||!r.ok" in body
+def test_stReadLog_entfernt_v782(index_html):
+    # v3.9.782: _stReadLog entfernt (0 Aufrufer seit v769 -> Scan via RPC stempel_terminal_stempel).
+    # Removal-Regression-Pin: die tote Funktion darf nicht zurueckkehren.
+    assert "async function _stReadLog(" not in index_html, "_stReadLog wieder da (tot seit v769)"
 
-
-@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
+@pytest.mark.skip(reason="v769/v782: Scan laeuft ueber RPC stempel_terminal_stempel, nicht mehr ueber _stReadLog; _stReadLog in v782 entfernt.")
 def test_process_liest_stempel_log_ueber_stReadLog(index_html):
     """Der Tages-Read im Scan darf NICHT mehr über das auth-schluckende _sbGet laufen."""
     m = re.search(r"async function _process\(uid\)\{.*?_busy\.current=false;", index_html, re.S)
