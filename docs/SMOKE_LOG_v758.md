@@ -6,8 +6,9 @@ Je Screen: 0 Console-Errors · 0 unhandled rejections · kein Error-Boundary-Fal
 
 **Live-Version:** **v3.9.763-supabase** (github.io). **Tool:** claude-in-chrome + Write-Monitor (fetch-Wrapper
 zählt PATCH/POST/DELETE auf arbeitsscheine + Juprowa-Push = Read-only-Beweis). **Stand: ABGESCHLOSSEN** — alle
-4 Rollen durch (Admin, PL/schmid, Monteur/barger, Kiosk). **0 echte Bugs** (SM-02 nach DB-Check zurückgezogen =
-gewollte Admin-Freigabe via perms_override) **+ 1 benigne (SM-01).**
+4 Rollen durch (Admin, PL/schmid, Monteur/barger, Kiosk). **0 Bugs.** Beide Anfangs-Funde geklärt: SM-02 =
+gewollte Admin-Freigabe (`perms_override`); SM-01 = erwartetes Session-Ablauf-Verhalten (Dev-Console-only,
+Sebastian-Entscheid: nicht fixen).
 Read-only-Bilanz je Rolle: 0 durch-mein-Ansehen verursachte Abrechnungs-Mutationen (0 OFFA-Pushes, 0
 push_pending-Änderung, 0 updAs).
 
@@ -115,10 +116,15 @@ _(keine)_
   False-Positive: nur die harte `canDo`-Default-Map betrachtet, nicht die DB-Overrides.)* Der Mitarbeiter-Tab
   zeigt Monteuren nur eine begrenzte Sicht (keine fremde PII).
 
-### P2 (Kosmetik / benigne)
-- **SM-01** — Cold-Load feuert `400` auf `POST auth/v1/token?grant_type=refresh_token` (frischer Browser ohne
-  Session → Token-Refresh ohne Session → Login-Screen). Benigne, nur Console-Rauschen. Kandidat: Refresh nur
-  bei vorhandenem Session-Token. **Nicht gefixt** (read-only + Freigabe-Gate).
+### GEKLÄRT — kein Bug (Forts.)
+- **SM-01 (geschlossen, erwartetes Verhalten)** — Der `400` auf `token?grant_type=refresh_token` tritt
+  **nicht** bei jedem Cold-Load auf, sondern nur bei einer **abgelaufenen gespeicherten Session**: die App
+  refresht mit dem stale `refresh_token`, GoTrue antwortet korrekt `400 (invalid_grant)`, die App fängt das
+  sauber und zeigt den Login. Ein **wirklich frischer** Browser (kein `epkolar_refresh`) macht gar keinen
+  Refresh-POST (Guard `if(!_rt)`, index.html Z. 1341/1379) → kein 400. Der 400 ist damit die korrekte
+  Server-Antwort auf Session-Ablauf, rein im Dev-Console sichtbar (kein User-Impact, UX korrekt).
+  **Bewusst NICHT gefixt** (Sebastian-Entscheid): den Refresh zu überspringen würde unnötige Re-Logins
+  riskieren (refresh_token opak, Gültigkeit lokal nicht prüfbar) — schlechtere UX als ein benignes Console-Log.
 
 ---
 
@@ -135,8 +141,9 @@ Sektionen nur per Snapshot geprüft. Admin-Rolle danach sauber (read-only) neu a
 ## Fazit
 **Smoke-Volllauf abgeschlossen — alle 4 Rollen (Admin, PL, Monteur, Kiosk) read-only durchgecheckt.**
 Keine P0-Crashes, kein Datenverlust, keine Error-Boundaries, keine undefined/NaN/[object in irgendeinem
-Screen. **0 echte Bugs.** (SM-02 „Monteur sieht Auswertungen" nach DB-Check zurückgezogen = gewollte
-Admin-Freigabe via `perms_override`.) Einzig **SM-01** benignes Cold-Load-400-Refresh-Rauschen (P2). Die neuen Features live bestätigt: #28d-Vollbilanz (Invariante hält),
+Screen. **0 Bugs.** Beide Anfangs-Funde nach genauerer Prüfung geklärt: **SM-02** „Monteur sieht Auswertungen"
+= gewollte Admin-Freigabe via `perms_override`; **SM-01** 400-Refresh = korrektes Session-Ablauf-Verhalten
+(Dev-Console-only, bewusst nicht gefixt). Die neuen Features live bestätigt: #28d-Vollbilanz (Invariante hält),
 #1-Teil-2-Sperr-Toggle (40 Toggles, keine Kollision), Dispo read-only (#26), RLS/§96 je Rolle korrekt
 (Monteur ohne Dispo/Flotte/Admin; PL mit Dispo/Flotte ohne Admin/Chef).
 
