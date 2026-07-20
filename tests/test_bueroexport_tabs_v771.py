@@ -67,6 +67,7 @@ def test_tab_leiste_mit_tap_target(index_html):
 
 def test_rechnung_unberuehrt(index_html):
     """Guard: die Kern-Rechenfunktionen sind nicht angefasst (nur Navigation)."""
-    # _pzeTagRow / _kvMontagezulageTag / _kvTaggeldTag existieren unverändert weiter
-    for fn in ("function _pzeTagRow(", "function _kvMontagezulageTag(", "function _kvTaggeldTag("):
+    # _pzeTagRow / _kvTaggeldTag existieren unverändert weiter
+    # (v3.9.774: _kvMontagezulageTag mit der Montagezulage entfernt)
+    for fn in ("function _pzeTagRow(", "function _kvTaggeldTag("):
         assert fn in index_html, "Rechenfunktion versehentlich entfernt: " + fn

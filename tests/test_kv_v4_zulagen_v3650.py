@@ -31,23 +31,17 @@ def test_taggeld_stufen(node_exe, index_html):
     assert _eval(node_exe, index_html, expr) is True
 
 
-def test_montagezulage(node_exe, index_html):
-    assert abs(_eval(node_exe, index_html, "_kvMontagezulage(10," + _R + ")") - 11.55) < 1e-9
-    assert _eval(node_exe, index_html, "_kvMontagezulage(0," + _R + ")") == 0
-
-
 def test_zulagen_monat_aggregat(node_exe, index_html):
-    # Tage [8,12,5,6.5]: Taggeld 11,94+30+0+11,94 = 53,88 ; Baustelle 40h -> 46,20 ; gesamt 100,08
-    r = _eval(node_exe, index_html, "_kvZulagenMonat([8,12,5,6.5],40," + _R + ")")
+    # v3.9.774 Montagezulage entfernt — nur noch Entfernungszulage (Taggeld).
+    # Tage [8,12,5,6.5]: Taggeld 11,94+30+0+11,94 = 53,88 (tage6=2, tage11=1)
+    r = _eval(node_exe, index_html, "_kvZulagenMonat([8,12,5,6.5],0," + _R + ")")
     assert r["tage6"] == 2 and r["tage11"] == 1
     assert abs(r["taggeldSum"] - 53.88) < 1e-9
-    assert abs(r["montageSum"] - 46.2) < 1e-9
-    assert abs(r["gesamt"] - 100.08) < 1e-9
 
 
 def test_zulagen_monat_leer(node_exe, index_html):
     r = _eval(node_exe, index_html, "_kvZulagenMonat([],0," + _R + ")")
-    assert r["gesamt"] == 0 and r["tage6"] == 0 and r["tage11"] == 0
+    assert r["taggeldSum"] == 0 and r["tage6"] == 0 and r["tage11"] == 0
 
 
 # ── UI-Wiring ──

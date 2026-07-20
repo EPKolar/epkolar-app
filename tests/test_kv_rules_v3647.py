@@ -28,8 +28,9 @@ def test_kv_kernwerte(node_exe, index_html):
     # v3.9.768: Lohnzettel EP Kolar LA 2740 "Entfernungszl.kl.fr." — 11,94 war ein KV-Schaetzwert.
     assert kv["taggeldAb6h"] == 11.71
     assert kv["taggeldAb11h"] == 30.0
-    # v3.9.768: Lohnzettel EP Kolar LA 4060 "Montagezulage pfl. Menge" — 1,155 war ein KV-Schaetzwert.
-    assert kv["montagezulageStd"] == 1.13
+    # v3.9.774: Montagezulage (montagezulageStd/montagezulage) komplett aus der App entfernt —
+    # der Lohnverrechner macht sie. Das Feld darf NICHT mehr im Fallback stehen.
+    assert "montagezulageStd" not in kv
     assert kv["kmGeld"] == 0.5
     assert kv["stand"].startswith("Lohnzettel EP Kolar")
 

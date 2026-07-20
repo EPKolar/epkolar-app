@@ -36,52 +36,17 @@ def _node(tmp_path, js, name="zul.js"):
 
 def test_saetze_im_fallback(index_html):
     assert "taggeldAb6h:11.71," in index_html, "Entfernungszulage-Satz nicht auf 11,71 (Lohnzettel LA 2740)"
-    assert "montagezulageStd:1.13," in index_html, "Montagezulage-Fallback nicht auf 1,13 (Lohnzettel LA 4060)"
-    assert "montagezulage:{2026:1.13}," in index_html, "Montagezulage-Jahressatz 2026 nicht auf 1,13"
     assert "taggeldAb6h:11.94" not in index_html, "alter Satz 11,94 noch vorhanden"
-    assert "montagezulageStd:1.155" not in index_html, "alter Satz 1,155 noch vorhanden"
-
-
-def test_2027_nicht_erfunden(index_html):
-    """Der Lohnzettel belegt nur 2026 — 2027 darf NICHT geraten werden."""
-    # Nur der WIRKSAME Block zaehlt. Die APP_VERSION-Kommentarketten nennen die historischen
-    # Werte (2026:1.155, 2027:1.178) als Prosa — das ist Changelog, kein aktiver Satz.
-    start = index_html.index("const KV_RULES_FALLBACK={")
-    block = index_html[start:index_html.index("\n};", start)]
-    # Auf den SCHLUESSEL pruefen, nicht auf das Wort — der Erklaertext im Block nennt 2027
-    # bewusst als offenen Lohnverrechner-Pruefpunkt.
-    assert not re.search(r"2027\s*:", block), \
-        "2027 ist als Satz-Schluessel hinterlegt, obwohl der Lohnzettel nur 2026 belegt"
-    m = re.search(r"montagezulage:\{([^}]*)\}", block)
-    assert m, "montagezulage-Map nicht gefunden"
-    assert m.group(1).strip() == "2026:1.13", \
-        "Satz-Map ist nicht exakt {2026:1.13} — bekommen: " + m.group(1)
 
 
 def test_beleg_im_kommentar(index_html):
     assert "LA 2740" in index_html, "Beleg-Kommentar LA 2740 fehlt"
-    assert "LA 4060" in index_html, "Beleg-Kommentar LA 4060 fehlt"
 
 
 # ================================================================ Rechnung (node-eval)
 
-def test_montagezulage_tag_mal_113(index_html, tmp_path):
-    js = _fn(index_html, "_kvMontagezulageSatz") + "\n" + _fn(index_html, "_kvMontagezulageTag") + """
-var out=[];
-out.push(_kvMontagezulageTag(8.5,'2026-06-15',{},true));   // 8,5 x 1,13
-out.push(_kvMontagezulageTag(167,'2026-06-15',{},true));   // Lohnzettel-Gegenrechnung
-out.push(_kvMontagezulageTag(8.5,'2027-01-15',{},true));   // 2027 unbelegt -> Fallback 1,13
-out.push(_kvMontagezulageTag(8.5,'2026-06-15',{},false));  // ohne Flag -> 0
-console.log(JSON.stringify(out.map(function(x){return Math.round(x*1000)/1000;})));
-"""
-    got = _node(tmp_path, js, "mz.js")
-    assert got == "[9.605,188.71,9.605,0]", (
-        "Montagezulage rechnet nicht Std x 1,13. Erwartet 8,5h=9,605 EUR, 167h=188,71 EUR "
-        "(Lohnzettel-Gegenrechnung), 2027=Fallback 9,605, ohne Flag 0. Bekommen: " + got)
-
-
 def test_entfernungszulage_menge_mal_1171(index_html, tmp_path):
-    js = _fn(index_html, "_kvTaggeldTag") + "\n" + _fn(index_html, "_kvMontagezulage") + "\n" \
+    js = _fn(index_html, "_kvTaggeldTag") + "\n" \
          + _fn(index_html, "_kvZulagenMonat") + """
 var out=[];
 out.push(_kvTaggeldTag(7.5,{}));   // >6h  -> 11,71
@@ -104,7 +69,7 @@ console.log(JSON.stringify(out));
 # ================================================================ Label
 
 def test_anzeige_heisst_entfernungszulage(index_html):
-    assert "'💶 Zulagen — Entfernungszulage & Montagezulage'" in index_html, "Report-Titel nicht umbenannt"
+    assert "'💶 Entfernungszulage'" in index_html, "Report-Titel nicht umbenannt"
     assert "'Entfernungszulage EUR'" in index_html, "CSV-Header nicht umbenannt (geht an den Lohnverrechner)"
     assert "'Monteur','Tage >6h','Tage >11h','Entfernungszulage'" in index_html, "Spaltenkopf nicht umbenannt"
     assert "'Entfernungszulage ab 6h'" in index_html, "Admin-Label nicht umbenannt"
@@ -127,7 +92,7 @@ def test_keine_taggeld_anzeige_mehr(index_html):
 
 def test_feldnamen_unveraendert(index_html):
     """Variante B abgelehnt: Feldnamen NICHT umbenennen (sonst Migration + Fallback-Risiko)."""
-    for feld in ("taggeldAb6h", "taggeldAb11h", "taggeldNacht", "montagezulageStd"):
+    for feld in ("taggeldAb6h", "taggeldAb11h", "taggeldNacht"):
         assert feld in index_html, "Feldname " + feld + " wurde umbenannt — das braeuchte eine Datenmigration"
 
 
@@ -143,7 +108,5 @@ def test_tote_stufen_markiert(index_html):
 def test_vorschau_hinweis_vorhanden(index_html):
     assert "⚠ Vorschau — Lohnverrechner maßgeblich, keine Abrechnungsgrundlage." in index_html, \
         "Vorschau-Warnung im Report fehlt"
-    assert "167 h vs. Zeiteinträge 158 h" in index_html, \
-        "offener Mengen-Pruefpunkt nicht im Hinweis benannt"
-    assert index_html.count("⚠ Vorschau — Lohnverrechner maßgeblich") >= 2, \
-        "Vorschau-Vermerk fehlt in der Vergabe-UI (mobil + Desktop)"
+    assert index_html.count("⚠ Vorschau — Lohnverrechner maßgeblich") >= 1, \
+        "Vorschau-Vermerk fehlt im Entfernungszulage-Report"
