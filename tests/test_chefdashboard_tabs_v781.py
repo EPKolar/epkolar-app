@@ -56,7 +56,8 @@ def test_tab_leiste_mit_tap_target(index_html):
     c = _chef(index_html)
     assert "CD_TABS.map(function(_t){var _act=(_cdTab===_t[0]);" in c, "Tab-Leiste rendert CD_TABS nicht"
     assert "_setCdTab(_t[0])" in c, "Tab-Button ruft _setCdTab nicht"
-    assert "minHeight:48" in c, "Tap-Target der Tab-Buttons nicht >=44 (48)"
+    # v3.9.802: Tab-Leiste auf flachen AdminPanel-Stil umgebaut -> Tap-Target jetzt minHeight:44 mobil (statt 48).
+    assert "minHeight:isMob?44:0" in c, "Tap-Target der Tab-Buttons nicht >=44 (mobil)"
 
 
 # ── jede der 14 Sektionen + KPI-Grid haengt an genau EINEM _cdTab===-Guard ──

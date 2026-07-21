@@ -62,7 +62,8 @@ def test_defaultopen_prop(index_html):
 def test_tab_leiste_mit_tap_target(index_html):
     b = _vbuero(index_html)
     assert "_setBxTab(_t[0])" in b, "Tab-Button ruft _setBxTab nicht"
-    assert "minHeight:48" in b, "Tap-Target der Tab-Buttons nicht >=44 (48)"
+    # v3.9.802: Tab-Leiste auf flachen AdminPanel-Stil umgebaut -> Tap-Target jetzt minHeight:44 mobil (statt 48).
+    assert "minHeight:_bxMob?44:0" in b, "Tap-Target der Tab-Buttons nicht >=44 (mobil)"
 
 
 def test_rechnung_unberuehrt(index_html):

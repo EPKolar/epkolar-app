@@ -49,7 +49,8 @@ def test_chef_kritisch_row_wraps(index_html):
 
 def test_admin_subtabs_no_shrink(index_html):
     # v3.9.117: Sub-Tab-Buttons dürfen nicht schrumpfen (Labels wurden geclippt statt Leiste zu scrollen)
-    assert 'whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",transition:"all .15s"}}, t.l)))' in index_html, (
+    # v3.9.802: Admin-Leiste bekam minHeight:44 mobil + Kommentar -> der exakte String verschob sich; flexShrink:0 bleibt.
+    assert 'whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",transition:"all .15s"}}, t.l)' in index_html, (
         "Admin-Sub-Tab-Buttons brauchen flexShrink:0"
     )
 
