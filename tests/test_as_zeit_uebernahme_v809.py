@@ -66,10 +66,16 @@ def test_verdrahtung(index_html):
     assert "updAs(s.id,{ze_uebernommen:true});" in index_html, "Marker-Set fehlt"
     # #4 Update nur bei echter Schein-Zeit-Aenderung (Vergleich _row vs s).
     assert "if(Number(_row.fahrzeit||0)===Number(s.fahrzeit||0)&&Number(_row.stunden||0)===Number(s.stunden||0))return;" in index_html, "Zeit-Aenderungs-Gate fehlt"
-    # 2B/4B Insert-Format ueber addEntry-Muster (SQ /api/entries).
-    assert ('SQ.push({url:"/api/entries",method:"POST",body:{id:_eid,worker_id:s.monteur,project_id:"",'
+    # 2B/4B Insert-Format ueber awaited _sbPost (v811 #3: r.ok-bestaetigt).
+    assert ('await _sbPost("time_entries",{id:_eid,worker_id:s.monteur,project_id:"",'
             'arbeitsschein_id:s.id,date:_tag,hours:_h,taetigkeit:"Arbeitsschein "+(s.nummer||"")' in index_html), \
-        "Insert-Format (4B project_id leer / arbeitsschein_id / taetigkeit) veraendert"
+        "Insert-Format (awaited _sbPost, 4B project_id leer / arbeitsschein_id / taetigkeit) veraendert"
+    # #3 (v811): Marker ze_uebernommen NUR nach bestaetigtem Insert -> updAs(marker) steht NACH dem awaited _sbPost.
+    _ins = index_html.index('await _sbPost("time_entries"')
+    _mrk = index_html.index("updAs(s.id,{ze_uebernommen:true});")
+    assert _mrk > _ins, "Marker-Set (updAs) steht nicht NACH dem awaited Insert -> stiller Verlust moeglich"
+    # Insert-Fehler -> catch -> return OHNE Marker (Retry beim naechsten Save).
+    assert "return;/* Marker NICHT setzen" in index_html, "catch-Zweig bricht nicht sauber ohne Marker ab"
     # Spaetere Aenderung: bestehenden Eintrag ueber arbeitsschein_id finden.
     assert '_sbGet("time_entries","arbeitsschein_id=eq."+encodeURIComponent(s.id)+"&select=id,hours")' in index_html
     # Geloescht bleibt geloescht -> kein Auto-Neu.
@@ -90,7 +96,7 @@ def test_kein_juprowa_kein_push(index_html):
     b = index_html.index("\n  };", a)
     block = index_html[a:b]
     assert "juprowa" not in block.lower(), "Uebernahme darf keinen Juprowa/Push-Bezug haben"
-    assert 'SQ.push({url:"/api/entries",method:"POST"' in block, "Insert nicht ueber /api/entries-SQ-Weg"
+    assert 'await _sbPost("time_entries"' in block, "Insert nicht ueber awaited _sbPost (v811 #3)"
     assert '_sbPatch("time_entries"' in block, "Update nicht ueber _sbPatch"
     # scheinart-Push (v799) bleibt entfernt -> kein Push-Pfad-Regress.
     start = index_html.index("const JUPROWA_PUSH_FIELDS={")
