@@ -106,11 +106,11 @@ def test_cell_zeigt_stunden(index_html):
 
 
 def test_cell_status_label_statt_punkt(index_html):
-    """Struktur-Pin: lesbares Status-Label je Zustand statt des unlesbaren Mini-Punkts."""
+    """Struktur-Pin (v3.9.785): lesbares Stufen-Label je Zustand (ausgeschrieben klein/mittel/groß)."""
     blk = _ez_kalender_block(index_html)
-    assert "'✓ vergeben'" in blk
-    assert "'vorbelegt'" in blk
-    assert "'✕ abgewählt'" in blk
+    assert "'✓ '+meta.label" in blk, "bestaetigte Stufe ausgeschrieben (✓ klein/mittel/groß)"
+    assert "'klein (Vorschlag)'" in blk
+    assert "'✕ keine'" in blk
     # der fruehere Mini-Punkt-Marker ist weg
     assert "mark='•'" not in blk, "Mini-Punkt '•' muss durch lesbares Label ersetzt sein"
 
@@ -124,54 +124,51 @@ def test_cell_heute_ring(index_html):
 
 
 def test_legende_vorhanden(index_html):
-    """Optik: Legende-Zeile mit Farbchips (vergeben/vorbelegt/abgewählt/Ring=heute)."""
+    """Optik: Legende-Zeile mit Farbchips (v3.9.785: klein/mittel/groß/Vorschlag/keine/Abwesenheit/Ring=heute)."""
     start = index_html.index("function KVZulagenReport(props){")
     body = index_html[start:index_html.index("function ", start + 10)]
     assert "'Ring = heute'" in body
-    assert "'vorbelegt (Vorschlag)'" in body
+    assert "'klein (Vorschlag)'" in body
+    assert "'mittel'" in body and "'groß'" in body
 
 
-def test_toggle_verhalten_v783(index_html):
-    """Klick-Toggle (onToggle -> aktiv=!eff). v3.9.783 (LOHNRELEVANT, Sebastian freigegeben): der Toggle reicht
-    den Abwesenheits-Ausschluss (!!ad[iso]) an _ezDayEff durch — ein Klick auf einen genehmigten Abwesenheitstag
-    zaehlt ihn DAZU (aktiv=true, Override), statt ihn abzuwaehlen. Die Klick-Verdrahtung selbst bleibt gleich."""
-    assert "var eff=_ezDayEff(dm[iso]||0,prevEntry,!!ad[iso]);var want=!eff;" in index_html
+def test_toggle_verhalten_v785(index_html):
+    """Klick-Toggle v3.9.785: der Klick berechnet die naechste Stufe (_ezCycleNext), Verdrahtung onToggle bleibt."""
+    assert "var next=_ezCycleNext(cur);" in index_html
     blk = _ez_kalender_block(index_html)
     assert "onClick:clickable?function(){onToggle(iso);}:undefined" in blk
 
 
-def test_riedmann_juli_unveraendert(index_html, node_exe, tmp_path):
-    """RUECKWAERTSKOMPAT-BEWEIS (v777): OHNE absSet-Param rechnet _ezEffTage byte-genau wie vor v783 —
-    8 Tage = 93,68 €, 2 weggeklickt -> 70,26 €. Der v783-Abwesenheits-Ausschluss greift erst mit absSet
-    (siehe test_ez_kalender_v775.test_riedmann_juli_beispiel: mit absSet -> 7/81,97)."""
+def test_riedmann_juli_stufen(index_html, node_exe, tmp_path):
+    """v3.9.785 (3-Stufen): 7 Anwesenheitstage klein x 11,94 = 83,58; per Flag mittel/gross hochgeschaltet.
+    Die alten byte-Pins (Satz 11,71, {tage}) sind mit dem KV-Satz 11,94 + Stufen-Modell obsolet."""
     js = _block(index_html) + _OK + u"""
-var W='R', days={};
-['2026-07-01','2026-07-02','2026-07-03','2026-07-06','2026-07-07','2026-07-08','2026-07-09','2026-07-10'].forEach(function(d){days[d]=8;});
-var unkorr=_ezEffTage(days,{},W);
-ok(unkorr.tage===8 && Math.abs(unkorr.sum-93.68)<1e-9,'8 Tage vorbelegt = 93,68');
-var korr=_ezEffTage(days,{'R_2026-07-09':{aktiv:false},'R_2026-07-10':{aktiv:false}},W);
-ok(korr.tage===6 && Math.abs(korr.sum-70.26)<1e-9,'2 weggeklickt -> 6 Tage = 70,26');
+var W='R';var SA={klein:11.94,mittel:30.00,gross:62.04};
+function days(n){var d={};for(var i=1;i<=n;i++){d['2026-07-'+String(i).padStart(2,'0')]=8;}return d;}
+var a=_ezEffTage(days(7),{},W,SA);
+ok(a.tageKlein===7 && Math.abs(a.sum-83.58)<1e-9,'7 klein = 83,58');
+var b=_ezEffTage(days(7),{'R_2026-07-06':{stufe:'gross'},'R_2026-07-07':{stufe:'gross'}},W,SA);
+ok(b.tageKlein===5 && b.tageGross===2 && Math.abs(b.sum-183.78)<1e-9,'5 klein + 2 gross = 183,78');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js)
 
 
-def test_rechnung_unberuehrt_pin(index_html):
-    """Grenze: Satz 11,71 + _ezEffTage-Struktur (Union, tage*satz, kein Deckel) + _ezSet-Schreibweg bleiben.
+def test_rechnung_kern_v785(index_html):
+    """Grenze v3.9.785: KV-Satz klein 11,94 + Stufen-Rechenstruktur (je Stufe*Satz, kein Deckel) + _ezSet-Schreibweg.
 
-    v3.9.783 (LOHNRELEVANT, Sebastian freigegeben): der _ezDayEff-Kern bekommt EINEN 3. Param absGenehmigt —
-    an genehmigten Abwesenheitstagen entfaellt die Vorbelegung (LA 2740). Der Flag-Override und der Satz 11,71
-    bleiben unveraendert; kein Deckel, kein zweiter Rechenpfad. Der alte byte-Pin (>6 ohne Ausschluss) ist
-    bewusst abgeloest.
+    Der _ezDayEff-Kern liefert die STUFE (Flag-Override gewinnt, genehmigte Abwesenheit -> kein Vorschlag). Die
+    alten byte-Pins (Satz 11,71, bool-Rueckgabe, {tage:tage,sum:tage*s}) sind mit dem 3-Stufen-Umbau obsolet.
     """
-    assert "taggeldAb6h:11.71" in index_html
-    # _ezDayEff-Kern v783: Flag-Override zuerst, sonst (>6h) UND nicht genehmigt-abwesend
-    assert ("if(flagEntry!=null&&flagEntry.aktiv!==undefined)return !!flagEntry.aktiv;\n"
-            "  return ((parseFloat(std)||0)>6)&&!absGenehmigt;") in index_html
-    # _ezEffTage-Kern unveraendert (Union aus daysMap + Flags, tage*satz, kein Deckel)
+    assert "taggeldAb6h:11.94" in index_html
+    # _ezDayEff-Kern v785: Flag-Stufe-Override zuerst, sonst (>6h & nicht abwesend) -> Vorschlag 'klein'
+    de = index_html[index_html.index("function _ezDayEff("):index_html.index("function _ezEffTage(")]
+    assert "if(flagEntry!=null&&flagEntry.stufe!==undefined){" in de
+    assert "(((parseFloat(std)||0)>6)&&!absGenehmigt)?'klein':''" in de
+    # _ezEffTage: Summe je Stufe, kein Deckel
     ez_start = index_html.index("function _ezEffTage(")
     ez_body = index_html[ez_start:index_html.index("\n}", ez_start)]
-    assert "return {tage:tage,sum:tage*s};" in ez_body
+    assert "return {tageKlein:tK,tageMittel:tM,tageGross:tG,sum:tK*sK+tM*sM+tG*sG};" in ez_body
     assert "Math.min" not in ez_body
-    # _ezSet-Schreibweg unveraendert
+    # _ezSet-Schreibweg (Upsert + Delete-Pfad)
     assert "SB_REST+'/entfernungszulage_tage?on_conflict=worker_id,datum'" in index_html

@@ -35,8 +35,12 @@ def _node(tmp_path, js, name="zul.js"):
 # ================================================================ Sätze (statisch)
 
 def test_saetze_im_fallback(index_html):
-    assert "taggeldAb6h:11.71," in index_html, "Entfernungszulage-Satz nicht auf 11,71 (Lohnzettel LA 2740)"
-    assert "taggeldAb6h:11.94" not in index_html, "alter Satz 11,94 noch vorhanden"
+    # v3.9.785: KV-Blatt gueltig ab 01.01.2026 (Sebastian) -> kleine Entfernungszulage 11,94. Der frueher hier
+    # gepinnte Wert 11,71 war der FALSCHE Alt-Wert und ist jetzt bewusst obsolet.
+    assert "taggeldAb6h:11.94," in index_html, "Entfernungszulage klein nicht auf 11,94 (KV ab 01.01.2026)"
+    assert "taggeldAb6h:11.71," not in index_html, "alter FALSCHER Satz 11,71 noch vorhanden"
+    # v3.9.785: NEU die Stufen mittel/gross
+    assert "ezMittel:30.00, ezGross:62.04," in index_html, "3-Stufen-Saetze mittel/gross fehlen"
 
 
 def test_beleg_im_kommentar(index_html):
@@ -70,9 +74,11 @@ console.log(JSON.stringify(out));
 
 def test_anzeige_heisst_entfernungszulage(index_html):
     assert "'💶 Entfernungszulage'" in index_html, "Report-Titel nicht umbenannt"
-    # v3.9.776: CSV-Export (mit Header 'Entfernungszulage EUR') durch PZE-PDF-Uebergabe ersetzt — Pin entfaellt.
-    assert "'Monteur','Tage >6h','Tage >11h','Entfernungszulage'" in index_html, "Spaltenkopf nicht umbenannt"
-    assert "'Entfernungszulage ab 6h'" in index_html, "Admin-Label nicht umbenannt"
+    # v3.9.785: der Report-Spaltenkopf zeigt jetzt die 3 Stufen statt der frueheren Info-Spalten
+    # 'Tage >6h'/'Tage >11h' (die kamen aus _kvZulagenMonat und sind mit dem Stufen-Modell obsolet).
+    assert "['Monteur','klein','mittel','groß','Entfernungszulage']" in index_html, "Spaltenkopf nicht auf 3 Stufen"
+    # v3.9.785: Admin-Label "Entfernungszulage ab 6h" -> "Entfernungszulage klein" (3-Stufen-Modell)
+    assert "'Entfernungszulage klein'" in index_html, "Admin-Label nicht auf Stufe klein"
 
 
 def test_keine_taggeld_anzeige_mehr(index_html):
@@ -97,10 +103,12 @@ def test_feldnamen_unveraendert(index_html):
 
 
 def test_tote_stufen_markiert(index_html):
-    """P2/Punkt 3: Naechtigung bleibt als toter Zweig, ist aber im Admin-UI als ohne Funktion markiert."""
-    assert "taggeldNacht:62.04" in index_html, "Naechtigungs-Satz entfernt — sollte stehen bleiben"
-    assert index_html.count("ohne Funktion (EP Kolar: keine Nächtigung)") >= 2, \
-        "tote Stufen (ab 11h / Nacht) nicht als ohne Funktion gekennzeichnet"
+    """Naechtigung bleibt als toter Zweig, im Admin-UI als ohne Funktion markiert. v3.9.785: die Legacy-Felder
+    taggeldAb11h/taggeldNacht bleiben (ohne Funktion) — die aktive 3-Stufen-Menge kommt aus ezMittel/ezGross."""
+    assert "taggeldNacht:62.04" in index_html, "Legacy-Nacht-Satz entfernt — sollte stehen bleiben"
+    # v3.9.785: Label-Format geaendert ("Legacy „ab 11h"/„Nacht" — ohne Funktion (keine Nächtigung)").
+    assert index_html.count("ohne Funktion (keine Nächtigung)") >= 2, \
+        "Legacy-Stufen (ab 11h / Nacht) nicht als ohne Funktion gekennzeichnet"
 
 
 # ================================================================ Vorschau-Warnung

@@ -9,8 +9,9 @@ import re
 
 
 def test_warnkasten_kompakt(index_html):
-    # v3.9.775 Etappe 3: kompakter Ein-/Zweizeiler bleibt, Wortlaut jetzt lohnrelevant.
-    assert "⚠ Entfernungszulage — lohnrelevant: die Kalender-Vergabe (eff. Tage) bestimmt die abgerechnete Menge. Lohnverrechner maßgeblich." in index_html, "kompakter lohnrelevanter Warnkasten fehlt"
+    # v3.9.785: kompakter lohnrelevanter Warnkasten, Wortlaut auf das 3-Stufen-Modell aktualisiert
+    # (frueher "eff. Tage" -> jetzt "Stufe je Tag: klein/mittel/groß").
+    assert "⚠ Entfernungszulage — lohnrelevant: die Kalender-Vergabe (Stufe je Tag: klein/mittel/groß) bestimmt die abgerechnete Menge. Genau eine Stufe pro Tag. Lohnverrechner maßgeblich." in index_html, "kompakter lohnrelevanter Warnkasten fehlt"
     assert "⚠ VORSCHAU — der Lohnverrechner ist maßgeblich. Die App-Zahl" not in index_html, "alter langer Dauer-Warnkasten noch vorhanden"
 
 
@@ -23,7 +24,8 @@ def test_details_aufklapp(index_html):
 
 
 def test_rechnung_zahlen_unberuehrt(index_html):
-    """Entfernungszulage-Sätze + Rechenkern unverändert (harte Grenze)."""
-    assert "taggeldAb6h:11.71," in index_html, "Entfernungszulage-Satz verändert"
+    """Entfernungszulage-Satz klein + Rechenkern. v3.9.785: KV-Satz klein 11,94 (Alt 11,71 war der FALSCHE Wert,
+    KV-Blatt gueltig ab 01.01.2026); die Rechenfunktionen selbst bleiben bestehen."""
+    assert "taggeldAb6h:11.94," in index_html, "Entfernungszulage klein nicht auf 11,94 (war 11,71 falsch)"
     for fn in ("function _kvTaggeldTag(", "function _kvZulagenMonat("):
         assert fn in index_html, "Rechenfunktion versehentlich entfernt: " + fn

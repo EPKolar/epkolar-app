@@ -12,37 +12,32 @@ from conftest import run_node_snippet, _extract_fn
 
 
 def test_ez_menge_riedmann_7_tage(node_exe, index_html):
-    """Riedmann-Pin (v3.9.783 aktualisiert): 8 Anwesenheitstage >6h, aber 01.07. genehmigt krank
-    -> 7 eff. Tage x 11,71 = 81,97 EUR (LA 2740: keine Entfernungszulage auf genehmigter Abwesenheit).
+    """Riedmann-Pin (v3.9.785, 3-Stufen): 7 Anwesenheitstage klein x 11,94 = 83,58 EUR (KV ab 01.01.2026).
 
-    Alter Pin (bis v3.9.782): 8/93,68 — die Vorbelegung ignorierte Abwesenheiten (Sebastian-Befund aus der
-    PDF-Sicht: Krank-Tag faelschlich vorbelegt). Der alte 8/93,68-Pin ist bewusst obsolet (Sebastian freigegeben).
-    Node-eval der EINEN EZ-Summenfunktion _ezEffTage (mit ihren Helfern _ezKey/_ezDayEff) — genau die
-    Funktion, die Kalender, Zulagen-Ergebnistabelle und PDF-Fuss nutzen. Kein zweiter Rechenpfad.
+    Alte Pins 81,97 (Satz 11,71) bzw. 93,68 sind mit dem korrekten KV-Satz 11,94 obsolet (Sebastian freigegeben).
+    Node-eval der EINEN EZ-Summenfunktion _ezEffTage (mit _ezKey/_ezDayEff) — dieselbe Funktion, die Kalender,
+    Zulagen-Ergebnistabelle und PDF-Fuss nutzen. Rueckgabe je Stufe {tageKlein,tageMittel,tageGross,sum}.
     """
     parts = []
     for name in ("_ezKey", "_ezDayEff", "_ezEffTage"):
         fn = _extract_fn(index_html, name)
         assert fn, f"{name} nicht gefunden"
         parts.append(fn)
-    days = {f"2026-03-{d:02d}": 8.0 for d in range(2, 10)}  # 8 Tage, je 8h (>6h)
-    abs_set = {"2026-03-02": True}  # ein Tag genehmigt abwesend (aus _ezAbsSet)
+    days = {f"2026-03-{d:02d}": 8.0 for d in range(2, 9)}  # 7 Tage, je 8h (>6h) -> klein
     snippet = (
         "\n".join(parts) + "\n"
+        "const SA={klein:11.94,mittel:30.00,gross:62.04};"
         "const dm=" + json.dumps(days) + ";"
-        "const aset=" + json.dumps(abs_set) + ";"
-        "const r=_ezEffTage(dm,{},'W1',11.71,aset);"
-        "const rOhne=_ezEffTage(dm,{},'W1',11.71);"  # ohne absSet-Param = Rueckwaertskompatibilitaet
-        "const rOverride=_ezEffTage(dm,{'W1_2026-03-02':{aktiv:true}},'W1',11.71,aset);"  # explizit dazu
-        "process.stdout.write(JSON.stringify({mit:r,ohne:rOhne,override:rOverride}));"
+        "const r=_ezEffTage(dm,{},'W1',SA);"  # 7 klein
+        "const rGross=_ezEffTage(dm,{'W1_2026-03-07':{stufe:'gross'},'W1_2026-03-08':{stufe:'gross'}},'W1',SA);"  # 5 klein + 2 gross
+        "const rAbs=_ezEffTage(dm,{},'W1',SA,{'2026-03-02':true});"  # 1 Tag genehmigt abwesend
+        "process.stdout.write(JSON.stringify({klein:r,gross:rGross,abs:rAbs}));"
     )
     out = json.loads(run_node_snippet(node_exe, snippet))
-    assert out["mit"]["tage"] == 7, out
-    assert abs(out["mit"]["sum"] - 81.97) < 1e-9, f"7 x 11,71 muss 81,97 EUR ergeben, war {out['mit']}"
-    # Rueckwaertskompatibel: ohne absSet unveraendert 8/93,68
-    assert out["ohne"]["tage"] == 8 and abs(out["ohne"]["sum"] - 93.68) < 1e-9, out["ohne"]
-    # Flag-Override: explizit aktiv=true zaehlt den Abwesenheitstag DOCH -> wieder 8/93,68
-    assert out["override"]["tage"] == 8 and abs(out["override"]["sum"] - 93.68) < 1e-9, out["override"]
+    assert out["klein"]["tageKlein"] == 7 and abs(out["klein"]["sum"] - 83.58) < 1e-9, f"7 klein x 11,94 = 83,58, war {out['klein']}"
+    assert out["gross"]["tageKlein"] == 5 and out["gross"]["tageGross"] == 2 and abs(out["gross"]["sum"] - 183.78) < 1e-9, out["gross"]
+    # v783-Abwesenheits-Ausschluss bleibt: 1 Tag genehmigt krank -> 6 klein
+    assert out["abs"]["tageKlein"] == 6 and abs(out["abs"]["sum"] - 71.64) < 1e-9, out["abs"]
 
 
 def test_pdf_finkzeit_spaltenfolge(index_html):
@@ -81,17 +76,20 @@ def test_pdf_dst_iteration_kalendarisch(index_html):
 
 
 def test_ez_menge_eine_quelle_ezefftage(index_html):
-    """Die EZ-Menge im PDF haengt an _ezEffTage (nicht an stempel_log / r.ez / einer >6h-Zaehlung)."""
+    """Die EZ-Menge im PDF haengt an _ezEffTage (nicht an stempel_log / r.ez). v3.9.785: je Stufe, Saetze via _ezSaetze."""
     pdf = _extract_fn(index_html, "_pzePdf")
     assert "_ezEffTage(" in pdf, "PDF-Fuss muss die EZ-Menge aus _ezEffTage beziehen"
-    # Der Fuss beschriftet Menge x Satz; Satz kommt aus KV_RULES (Variable satz), nicht hart im Text.
-    assert "Entfernungszulage:" in pdf and "EUR" in pdf, "EZ-Fuss (Tage x Satz = Betrag) fehlt"
-    assert "kv.taggeldAb6h" in pdf, "Satz muss aus KV_RULES.taggeldAb6h stammen (nie hart 11,71 im Body)"
+    # Der Fuss beschriftet Menge je Stufe x Satz; Saetze aus KV_RULES (_ezSaetze), nicht hart im Text.
+    assert "Entfernungszulage — klein:" in pdf and "EUR" in pdf, "EZ-Fuss je Stufe (klein/mittel/groß) fehlt"
+    assert "_ezSaetze(kv)" in pdf, "Saetze muessen aus KV_RULES (_ezSaetze) stammen (nie hart 11,94 im Body)"
+    assert "Summe Entfernungszulage:" in pdf, "Stufen-Summe im PDF-Fuss fehlt"
 
 
 def test_rechenkern_unberuehrt(index_html):
-    """Saetze + Rechenkern unveraendert: taggeldAb6h 11,71, _kvTaggeldTag/_ezEffTage/_kvZulagenMonat existieren."""
-    assert "taggeldAb6h:11.71" in index_html, "EZ-Satz 11,71 (LA 2740) muss unveraendert sein"
+    """v3.9.785 Saetze + Rechenkern: klein 11,94 (KV ab 01.01.2026, Alt 11,71 war falsch), mittel/gross gesetzt;
+    _kvTaggeldTag/_ezEffTage/_kvZulagenMonat existieren."""
+    assert "taggeldAb6h:11.94" in index_html, "EZ-Satz klein 11,94 (KV 2026)"
+    assert "ezMittel:30.00" in index_html and "ezGross:62.04" in index_html, "Saetze mittel/gross"
     assert re.search(r"function _kvTaggeldTag\(", index_html), "_kvTaggeldTag muss existieren"
     assert re.search(r"function _ezEffTage\(", index_html), "_ezEffTage muss existieren"
     assert re.search(r"function _kvZulagenMonat\(", index_html), "_kvZulagenMonat muss existieren"

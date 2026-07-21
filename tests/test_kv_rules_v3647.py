@@ -25,9 +25,13 @@ def test_kv_kernwerte(node_exe, index_html):
     assert kv["tagStd"] == 7.7
     assert kv["urlaubStdJahr"] == 192.5
     assert kv["urlaubStdJahr25DJ"] == 231
-    # v3.9.768: Lohnzettel EP Kolar LA 2740 "Entfernungszl.kl.fr." — 11,94 war ein KV-Schaetzwert.
-    assert kv["taggeldAb6h"] == 11.71
-    assert kv["taggeldAb11h"] == 30.0
+    # v3.9.785: Entfernungszulage KLEIN. Der Alt-Wert 11,71 (v3.9.768) war FALSCH — das KV-Blatt gueltig ab
+    # 01.01.2026 (Sebastian bestaetigt) fuehrt 11,94. taggeldAb6h = kleine Stufe (Feldname bleibt, keine Migration).
+    assert kv["taggeldAb6h"] == 11.94  # war 11,71 (falsch), jetzt KV-Satz 2026
+    assert kv["taggeldAb11h"] == 30.0  # Legacy "ab 11h" (ohne Funktion) bleibt stehen
+    # v3.9.785: NEU die 3-Stufen-Saetze mittel/gross (KV ab 01.01.2026); genau eine Stufe pro Tag.
+    assert kv["ezMittel"] == 30.0
+    assert kv["ezGross"] == 62.04
     # v3.9.774: Montagezulage (montagezulageStd/montagezulage) komplett aus der App entfernt —
     # der Lohnverrechner macht sie. Das Feld darf NICHT mehr im Fallback stehen.
     assert "montagezulageStd" not in kv
