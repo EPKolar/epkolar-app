@@ -49,9 +49,11 @@ def test_gate_laesst_terminal_durch(index_html):
 
 
 def test_terminal_kommt_nur_auf_die_stempeltafel(index_html):
-    """Sperre, nicht Komfort: ohne diese Zeile koennte man am Wandpanel ?screen=planung
-    aufrufen und den Wochenplan mitsamt aller Namen lesen."""
-    assert "const _scr=_isStempelTerminal?'stempel':(_kioskScreen||'monteure');" in index_html
+    """Sperre, nicht Komfort: das Stempel-Terminal wird IMMER auf 'stempel' gezwungen (kein ?screen-Umweg auf
+    den Wochenplan). v3.9.784: nur der Nicht-Terminal-Fallback wurde erweitert (Boot-aufgeloeste Ansicht
+    window.__kioskScreen > ?screen > Default 'monteure', ueberlebt den ?cc=-Hardreset). Der Terminal-Zweig
+    ('stempel' zuerst) ist unveraendert."""
+    assert "const _scr=_isStempelTerminal?'stempel':((typeof window!=='undefined'&&window.__kioskScreen)||_kioskScreen||'monteure');" in index_html
 
 
 def test_monteur_kommt_weiterhin_nicht_rein(index_html):
