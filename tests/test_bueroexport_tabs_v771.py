@@ -25,14 +25,15 @@ def test_localstorage_persistenz(index_html):
     b = _vbuero(index_html)
     assert "localStorage.getItem('epk_bueroexport_tab')" in b, "kein localStorage-Load des Tabs"
     assert "localStorage.setItem('epk_bueroexport_tab'" in b, "kein localStorage-Save des Tabs"
-    # Fallback auf ersten Tab bei ungültig/leer
-    assert "return 'projekte';" in b, "kein Fallback auf ersten Tab (projekte)"
+    # v3.9.792 Etappe 2: Init-Prioritaet history.state.sub > localStorage > Default 'projekte' (localStorage bleibt Fallback).
+    assert "_navSubResolve(_st,_ls,_bxValid,'projekte')" in b, "kein Default 'projekte' via _navSubResolve"
 
 
 def test_setter_speichert(index_html):
     b = _vbuero(index_html)
-    assert "const _setBxTab=function(_t){_setBxTabRaw(_t);try{localStorage.setItem('epk_bueroexport_tab',_t);}catch(_e){}};" in b, \
-        "_setBxTab speichert nicht in localStorage"
+    # v3.9.792 Etappe 2: der Setter speichert weiter in localStorage UND pusht den Sub-Tab in die History.
+    assert "try{localStorage.setItem('epk_bueroexport_tab',_t);}catch(_e){}_navPush({sub:_t});" in b, \
+        "_setBxTab speichert nicht in localStorage / pusht sub nicht in History"
 
 
 def test_sektionen_haengen_am_tab(index_html):

@@ -36,14 +36,15 @@ def test_localstorage_persistenz(index_html):
     c = _chef(index_html)
     assert "localStorage.getItem('epk_chefdashboard_tab')" in c, "kein localStorage-Load des Tabs"
     assert "localStorage.setItem('epk_chefdashboard_tab'" in c, "kein localStorage-Save des Tabs"
-    # Fallback auf ersten Tab bei ungueltig/leer
-    assert "return 'ueberblick';" in c, "kein Fallback auf ersten Tab (ueberblick)"
+    # v3.9.792 Etappe 2: Init-Prioritaet history.state.sub > localStorage > Default 'ueberblick' (localStorage bleibt Fallback).
+    assert "_navSubResolve(_st,_ls,_cdValid,'ueberblick')" in c, "kein Default 'ueberblick' via _navSubResolve"
 
 
 def test_setter_speichert(index_html):
     c = _chef(index_html)
-    assert "const _setCdTab=function(_t){_setCdTabRaw(_t);try{localStorage.setItem('epk_chefdashboard_tab',_t);}catch(_e){}};" in c, \
-        "_setCdTab speichert nicht in localStorage"
+    # v3.9.792 Etappe 2: der Setter speichert weiter in localStorage UND pusht den Sub-Tab in die History.
+    assert "try{localStorage.setItem('epk_chefdashboard_tab',_t);}catch(_e){}_navPush({sub:_t});" in c, \
+        "_setCdTab speichert nicht in localStorage / pusht sub nicht in History"
 
 
 def test_state_setter_vorhanden(index_html):
