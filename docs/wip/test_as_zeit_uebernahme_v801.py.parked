@@ -1,0 +1,82 @@
+# -*- coding: utf-8 -*-
+"""v3.9.801 — Am Schein erfasste Zeit (v549 fahrzeit/stunden) -> Zeiterfassung (Sebastian-Freigabe 21.07.).
+
+Freigegebene Varianten: 2B (Fahrzeit IST Arbeitszeit -> EIN time_entry, hours=(fahrzeit+stunden)/60),
+1C-Idempotenz (frischer DB-Read je arbeitsschein_id, insert-only), Dedup X (keine Pruefung gegen andere
+Tagesbuchungen), Trigger T1 (Zeit vorhanden UND Arbeit begonnen UND Monteur), 4B (project_id leer,
+Zuordnung ueber arbeitsschein_id, taetigkeit "Arbeitsschein <Nr>"). time_entries ist NIE Push-Feld.
+
+Die I/O-Uebernahme (DB-Read + Insert) ist nicht node-testbar; die pure Entscheidungslogik
+(_asUebernahmeBedarf / _asUebernahmeStunden) per node-eval, die Verdrahtung statisch gepinnt.
+"""
+from conftest import run_node_snippet
+
+
+def _fn(index_html, name, multiline):
+    a = index_html.index("function " + name + "(")
+    end = index_html.index("\n}", a) + 2 if multiline else index_html.index("\n", a)
+    return index_html[a:end]
+
+
+def _call(node_exe, index_html, name, js, multiline):
+    snip = _fn(index_html, name, multiline) + f";process.stdout.write(String({name}({js})))"
+    return run_node_snippet(node_exe, snip).strip()
+
+
+def _bedarf(node_exe, index_html, js):
+    return _call(node_exe, index_html, "_asUebernahmeBedarf", js, True)
+
+
+def _std(node_exe, index_html, js):
+    return _call(node_exe, index_html, "_asUebernahmeStunden", js, False)
+
+
+def test_trigger_t1_bedarf(node_exe, index_html):
+    base = "{id:'x',monteur:'w2',fahrzeit:15,stunden:390,"
+    assert _bedarf(node_exe, index_html, base + "scheinstatus:'in_bearbeitung'}") == "true"
+    assert _bedarf(node_exe, index_html, base + "scheinstatus:'erledigt'}") == "true"
+    # Arbeit noch nicht begonnen -> NICHT uebernehmen (nicht zu frueh).
+    assert _bedarf(node_exe, index_html, base + "scheinstatus:'aufgenommen'}") == "false"
+    assert _bedarf(node_exe, index_html, base + "scheinstatus:'freigegeben'}") == "false"
+
+
+def test_bedarf_guards(node_exe, index_html):
+    # Keine Zeit -> nein.
+    assert _bedarf(node_exe, index_html, "{id:'x',monteur:'w2',fahrzeit:0,stunden:0,scheinstatus:'in_bearbeitung'}") == "false"
+    # Kein Monteur -> nein (ohne Zuordnung keine Zeiterfassung).
+    assert _bedarf(node_exe, index_html, "{id:'x',monteur:'',fahrzeit:15,scheinstatus:'in_bearbeitung'}") == "false"
+    # Keine id -> nein.
+    assert _bedarf(node_exe, index_html, "{monteur:'w2',fahrzeit:15,scheinstatus:'in_bearbeitung'}") == "false"
+
+
+def test_stunden_2b_kombiniert(node_exe, index_html):
+    # Barger S075377: 15 Fahrt + 390 Arbeit = 405 min = 6.75 h.
+    assert _std(node_exe, index_html, "{fahrzeit:15,stunden:390}") == "6.75"
+    # Riedmann S075381: 30 + 30 = 60 min = 1 h.
+    assert _std(node_exe, index_html, "{fahrzeit:30,stunden:30}") == "1"
+    assert _std(node_exe, index_html, "{fahrzeit:0,stunden:0}") == "0"
+
+
+def test_uebernahme_verdrahtung(index_html):
+    assert "const _asZeitUebernahme=async(schein)=>{" in index_html, "async Uebernahme-Helfer fehlt"
+    # 1C Idempotenz: frischer DB-Read je arbeitsschein_id, insert-only.
+    assert '_sbGet("time_entries","arbeitsschein_id=eq."+encodeURIComponent(schein.id)+"&select=id")' in index_html
+    assert "if(_ex&&_ex.length)return;" in index_html, "insert-only-Guard (schon uebernommen) fehlt"
+    # 2B EIN Eintrag, hours=_h; 4B project_id leer + taetigkeit "Arbeitsschein <Nr>".
+    assert ('project_id:"",arbeitsschein_id:schein.id,date:_tag,hours:_h,taetigkeit:"Arbeitsschein "+(schein.nummer||"")'
+            in index_html), "Insert-Format (4B project_id leer / taetigkeit) veraendert"
+    # Trigger sitzt in saveAs.
+    assert "_asZeitUebernahme({..._finalForm,id:editId});" in index_html, "saveAs-Trigger fehlt"
+
+
+def test_kein_juprowa_kein_push(index_html):
+    # time_entries ist NIE Push-Feld: die Uebernahme geht ueber /api/entries (SQ), KEIN Juprowa.
+    a = index_html.index("const _asZeitUebernahme=async(schein)=>{")
+    b = index_html.index("};", a)
+    block = index_html[a:b]
+    assert "juprowa" not in block.lower(), "Uebernahme darf keinen Juprowa/Push-Bezug haben"
+    assert 'SQ.push({url:"/api/entries",method:"POST"' in block, "Insert geht nicht ueber den /api/entries-SQ-Weg"
+    # scheinart-Push (v799) bleibt entfernt (kein Regress in den Push-Pfad).
+    start = index_html.index("const JUPROWA_PUSH_FIELDS={")
+    pf = index_html[start:index_html.index("};", start)]
+    assert "scheinart:'AK_AUFART'" not in pf

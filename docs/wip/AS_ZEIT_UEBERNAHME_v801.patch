@@ -1,0 +1,65 @@
+diff --git a/index.html b/index.html
+index 1c4033e..5221079 100644
+--- a/index.html
++++ b/index.html
+@@ -3373,6 +3373,22 @@ const AS_GRP_OFFEN=["aufgenommen","freigegeben","in_bearbeitung","aufgeschoben"]
+    DAUERHEILUNG ist GEWOLLT (d4): setzt OFFA spaeter wieder "keine", korrigiert der naechste Pull erneut. */
+ function _prioHeilBedarf(prio,status){return String(prio||'')==='keine'&&AS_GRP_OFFEN.indexOf(status)>=0;}
+ if(typeof window!=='undefined')window._prioHeilBedarf=_prioHeilBedarf;
++/* v3.9.801 AS-Zeit -> Zeiterfassung (Sebastian-Freigabe auf Befund 21.07.): am Schein erfasste Zeit (v549
++   fahrzeit/stunden, Minuten) wird beim Speichern in die Zeiterfassung uebernommen. PURE Entscheidungslogik
++   (node-testbar), der I/O-Teil (frischer DB-Read + Insert) sitzt in ArbeitsscheinView._asZeitUebernahme.
++   Trigger T1: Zeit vorhanden UND Arbeit begonnen (scheinstatus nicht aufgenommen/freigegeben) UND Monteur
++   gesetzt — feuert an in_bearbeitung-Scheinen (Barger/Riedmann), nicht an noch-nicht-begonnenen. */
++function _asUebernahmeBedarf(s){
++  if(!s||!s.id||!s.monteur)return false;
++  if(s.ze_uebernommen)return false;/* v3.9.801 Marker: Schein erzeugt den Auto-Eintrag GENAU EINMAL; danach gehoert er dem Menschen (Loeschen -> NIE automatisch neu). */
++  var fz=Number(s.fahrzeit||0),st=Number(s.stunden||0);
++  if(fz<=0&&st<=0)return false;
++  var status=String(s.scheinstatus||"");
++  return status!=="aufgenommen"&&status!=="freigegeben";
++}
++/* 2B: Fahrzeit IST Arbeitszeit (EP Kolar) -> EIN Wert, hours = (fahrzeit+stunden)/60 (Minuten->Stunden). */
++function _asUebernahmeStunden(s){var fz=Number((s&&s.fahrzeit)||0),st=Number((s&&s.stunden)||0);return Math.round(((fz+st)/60)*100)/100;}
++if(typeof window!=='undefined'){window._asUebernahmeBedarf=_asUebernahmeBedarf;window._asUebernahmeStunden=_asUebernahmeStunden;}
+ const AS_GRP_FERTIG=["erledigt","abgerechnet","bar_bezahlt"];
+ const AS_PRIO={keine:{l:"keine",c:"#71717a"},aufgeschoben:{l:"aufgeschoben",c:"#a3a3a3"},niedrig:{l:"niedrig",c:"#22c55e"},normal:{l:"normal",c:"#3b82f6"},hoch:{l:"hoch",c:"#f97316"},"sehr hoch":{l:"sehr hoch",c:COLORS.ERROR},FIXTERMIN:{l:"FIXTERMIN",c:"#be123c"}};/* v3.9.548 T5: 7 OFFA-Stufen (Tabellen-Reihenfolge). "dringend" entfernt (war nicht in OFFA). Eskalations-Logik (_checkAutoNotifs/dringendeAS) prüft weiter "hoch"/"dringend" — neue Stufen sehr hoch/FIXTERMIN eskalieren NICHT auto (separate Entscheidung, nicht in diesem Auftrag). */
+ const AS_URGENT_PRIOS=["hoch","sehr hoch","fixtermin","dringend"];/* v3.9.556: zentrale Urgenz-Stufen fuer Eskalation+dringendeAS. sehr hoch/FIXTERMIN gelten jetzt als >=hoch dringend. "dringend" Legacy-Altwert (kein echter AS-Wert mehr), schadet nicht. */
+@@ -9892,6 +9908,28 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
+      Arbeitsscheine entstehen ausschliesslich in OFFA; das Formular ist nur noch via openEdit (editId gesetzt) erreichbar. */
+   /* v3.9.42 Sprint-27 F3 Tier-1: in-flight Guard gegen Doppel-Submit (Rapid-Click → multiple SQ.push für NEW Scheine → Duplikate). Window 800ms, useRef damit Re-Render sicher. */
+   const _saveAsInFlightRef=_react.useRef.call(void 0, 0);
++  /* v3.9.801 AS-Zeit -> Zeiterfassung (Sebastian-Freigabe Befund 21.07.): beim Speichern die am Schein
++     erfasste Zeit als EINEN time_entry uebernehmen. IDEMPOTENZ ueber einen MARKER am Schein (ze_uebernommen):
++     der Schein erzeugt den Auto-Eintrag GENAU EINMAL, danach gehoert er dem Menschen — Monteur/Buero duerfen
++     ihn bearbeiten UND loeschen; nach dem Loeschen wird NIE automatisch neu angelegt (Marker bleibt true;
++     Neu-Buchung dann regulaer ueber die Zeiterfassung-Schein-Auswahl). Dedup-gegen-manuell entfaellt (Schein
++     + manuelle Eintraege ergeben den Tag, nie ueberlappend). 2B: hours = Arbeit+Fahrt (Fahrzeit IST
++     Arbeitszeit, ein verschmolzener Eintrag). 4B: project_id LEER (Zuordnung ueber arbeitsschein_id),
++     taetigkeit "Arbeitsschein <Nr>". time_entries + ze_uebernommen sind KEINE Push-Felder -> KEIN Juprowa.
++     EZ/PZE-Rechnung UNVERAENDERT: der Eintrag speist die bestehende Tagessummen-Logik (v785 _ezEffTage/PZE),
++     2B greift automatisch; v786-Konflikt-Warnung aktiv. BRAUCHT die Spalte ze_uebernommen (DDL, Human-Run-
++     Gate) — DDL VOR dem Code-Deploy laufen lassen, sonst greift der Marker nicht. */
++  const _asZeitUebernahme=(schein)=>{
++    try{
++      if(!_asUebernahmeBedarf(schein))return;
++      const _h=_asUebernahmeStunden(schein);
++      const _tag=(schein.terminBestaetigt&&_hasTermin(schein.terminBestaetigt))?String(schein.terminBestaetigt).slice(0,10):_ymd(new Date());
++      const _eid="ze_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
++      SQ.push({url:"/api/entries",method:"POST",body:{id:_eid,worker_id:schein.monteur,project_id:"",arbeitsschein_id:schein.id,date:_tag,hours:_h,taetigkeit:"Arbeitsschein "+(schein.nummer||""),gewerk:"elektro"}});
++      updAs(schein.id,{ze_uebernommen:true});/* Marker setzen: genau EINMAL (ze_uebernommen ist kein Push-Feld -> kein Juprowa). */
++      if(window.__toast)window.__toast("⏱ Schein-Zeit "+_n(_h,2)+"h in die Zeiterfassung uebernommen ("+(schein.nummer||"")+") — Rest des Tages normal ergaenzen.","info",5000);
++    }catch(_e){console.warn('[as-zeit-uebernahme]',_e&&_e.message||_e);}
++  };
+   const saveAs=()=>{if(!form.kundName&&!form.arbeitsanweisungen) return;
+     const _now=Date.now();if(_now-_saveAsInFlightRef.current<800){return;}_saveAsInFlightRef.current=_now;
+     /* v3.9.42 Sprint-27 F4 Tier-1: Dauer-Sanity — negative/NaN bail out + Toast. min:"0" im input ist nur Hint, Type-Number erlaubt manuelles parsen. */
+@@ -9945,7 +9983,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
+        Client-Stand NICHT konkurrierend server-aktualisierte Felder (z.B. juprowa_sync_at/_id durch
+        Auto-Sync waehrend der Editor offen war). JSON.stringify-Vergleich deckt material/fotos-Arrays;
+        fehlende Baseline ({}) → voller Diff = bisheriges Full-Row-Verhalten (kein Regress). */
+-    const _asBody=(b=>{if(!('sigMA'in b)&&!('sigKunde'in b))return b;const c={...b,unterschriftMonteur:b.sigMA||"",unterschriftKunde:b.sigKunde||""};delete c.sigMA;delete c.sigKunde;return c;})(_isPush?{..._diff,push_pending:true,local_updated_at:new Date().toISOString()}:_diff);/* v3.9.418: AS-Signatur sigMA/sigKunde → reale Spalten unterschrift_monteur/_kunde. */if(Object.keys(_asBody).length>0)SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_asBody});/* v3.9.756 #31g-Konsolidierung: kein W2-Direktwrite + kein Sofort-Push mehr — Push via per-Schein-Debounce-Klammer (nach dem SQ-Flush -> genau 1 Push, kein Heilzyklus). Der lokale ↑-Clear passiert im Push-.then via window.__epkAsPushDone (v3.9.532-Verhalten erhalten). */if(_isPush&&navigator.onLine&&typeof _juprowaSchedulePush==="function")_juprowaSchedulePush(editId);try{window._epkVibrate&&window._epkVibrate("save");}catch(e){console.warn('[silent-dom]',e&&e.message||e);}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);/* v3.9.42 Sprint-27 F2 Tier-1: saveAs gibt _finalForm zurück — Caller (Speichern&PDF) bekommt auto-close-aware Form für genAsPdf statt stale `form`. */return _finalForm;};
++    const _asBody=(b=>{if(!('sigMA'in b)&&!('sigKunde'in b))return b;const c={...b,unterschriftMonteur:b.sigMA||"",unterschriftKunde:b.sigKunde||""};delete c.sigMA;delete c.sigKunde;return c;})(_isPush?{..._diff,push_pending:true,local_updated_at:new Date().toISOString()}:_diff);/* v3.9.418: AS-Signatur sigMA/sigKunde → reale Spalten unterschrift_monteur/_kunde. */if(Object.keys(_asBody).length>0)SQ.push({url:editId?"/api/arbeitsscheine/"+editId:"/api/arbeitsscheine",method:editId?"PUT":"POST",body:_asBody});/* v3.9.756 #31g-Konsolidierung: kein W2-Direktwrite + kein Sofort-Push mehr — Push via per-Schein-Debounce-Klammer (nach dem SQ-Flush -> genau 1 Push, kein Heilzyklus). Der lokale ↑-Clear passiert im Push-.then via window.__epkAsPushDone (v3.9.532-Verhalten erhalten). */if(_isPush&&navigator.onLine&&typeof _juprowaSchedulePush==="function")_juprowaSchedulePush(editId);try{window._epkVibrate&&window._epkVibrate("save");}catch(e){console.warn('[silent-dom]',e&&e.message||e);}_optionalChain([window, 'access', _116 => _116.__toast, 'optionalCall', _117 => _117(_shouldAutoClose?_se+" AS automatisch abgeschlossen":(editId?_se+" Schein aktualisiert":_se+" Schein angelegt"))]);setSub("liste");setEditId(null);/* v3.9.42 Sprint-27 F2 Tier-1: saveAs gibt _finalForm zurück — Caller (Speichern&PDF) bekommt auto-close-aware Form für genAsPdf statt stale `form`. */_asZeitUebernahme({..._finalForm,id:editId});/* v3.9.801: am Schein erfasste Zeit in die Zeiterfassung uebernehmen (fire-and-forget, idempotent via arbeitsschein_id) */return _finalForm;};
+   const storno=async id=>{const _sPre=arbeitsscheine.find(x=>x.id===id);/* v3.9.535 Defense-in-Depth: Monteur darf abgeschlossenen Schein nicht stornieren (UI-Buttons sind schon gegated). */if(isMonteurRole&&!isAdmin&&_sPre&&!AS_GRP_OFFEN.includes(_sPre.scheinstatus)){if(window.__toast)window.__toast("🔒 Abgeschlossener Schein — Storno nur durch Büro/Admin","warn");return;}/* v3.9.81 SPRINT-60 F-1: native confirm to _confirmModal (EP-CI-Styling, Sprint 40/44 standard). */ if(!await _confirmModal("Arbeitsschein wirklich stornieren?",{variant:"danger"}))return;const s=arbeitsscheine.find(x=>x.id===id);const isJup=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,scheinstatus:"storniert",push_pending:isJup?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:isJup?{scheinstatus:"storniert",push_pending:true,local_updated_at:new Date().toISOString()}:{scheinstatus:"storniert"}});/* v3.9.756 #31g-Konsolidierung: Push via per-Schein-Debounce-Klammer (kein W2-Direktwrite, kein Sofort-Push). */if(isJup&&navigator.onLine&&typeof _juprowaSchedulePush==="function")_juprowaSchedulePush(id);if(s)_optionalChain([pushNotif, 'optionalCall', _118 => _118("as_status","Arbeitsschein storniert",s.nummer+" — "+s.kundName)]);_optionalChain([window, 'access', _119 => _119.__toast, 'optionalCall', _120 => _120("⛔ Arbeitsschein storniert")]);};
+   const deleteAs=async id=>{if(!canDo("as_delete",curUser))return;/* v3.9.613 #6: Handler an Render/canDo (as_delete=isA||isPL||isB) + DB-RLS (as_write=is_staff, inkl. buero) angleichen — vorher lokales isAdmin(=admin||PL) -> buero sah den Loesch-Button, Klick war No-Op (toter Button) */if(!await _confirmModal("Arbeitsschein endgültig löschen?",{variant:"danger"}))return;setArbeitsscheine(prev=>prev.filter(a=>a.id!==id));SQ.push({url:"/api/arbeitsscheine/"+id,method:"DELETE"});setSub("liste");setEditId(null);};
+   const verschieben=(id,d)=>{if(!d)return;const s=arbeitsscheine.find(x=>x.id===id);/* v3.9.535 Defense-in-Depth: Monteur darf Termin eines abgeschlossenen Scheins nicht verschieben (Grunddaten/Office). */if(isMonteurRole&&!isAdmin&&s&&!AS_GRP_OFFEN.includes(s.scheinstatus)){if(window.__toast)window.__toast("🔒 Abgeschlossener Schein — Termin nur durch Büro/Admin","warn");return;}const pp=s&&s.juprowa_id;setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,terminBestaetigt:d,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{termin_bestaetigt:d,push_pending:true,local_updated_at:new Date().toISOString()}:{termin_bestaetigt:d}});/* v3.9.756 #31g-Konsolidierung: Push via per-Schein-Debounce-Klammer (kein W2-Direktwrite, kein Sofort-Push). */if(pp&&navigator.onLine&&typeof _juprowaSchedulePush==="function")_juprowaSchedulePush(id);};

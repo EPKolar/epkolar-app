@@ -1,0 +1,22 @@
+-- v3.9.801 — Marker fuer die AS-Zeit -> Zeiterfassung-Uebernahme (Sebastian-Freigabe Befund 21.07.2026)
+-- ZWECK: Ein Arbeitsschein mit erfasster Zeit (fahrzeit/stunden, v549) erzeugt GENAU EINMAL einen
+--        time_entry. Danach gehoert der Eintrag dem Menschen (Monteur/Buero duerfen ihn bearbeiten
+--        UND loeschen; nach dem Loeschen wird NIE automatisch neu angelegt). Die Idempotenz laeuft
+--        ueber diesen Marker am Schein, NICHT ueber "existiert ein time_entry mit dieser arbeitsschein_id"
+--        (letzteres wuerde nach dem Loeschen neu anlegen und den Menschen entmuendigen).
+--
+-- HUMAN-RUN-GATE: NICHT automatisch ausgefuehrt. Sebastian fuehrt das im SQL-Editor aus.
+-- DEPLOY-REIHENFOLGE (WICHTIG): dieses DDL MUSS VOR dem v3.9.801-Code-Deploy laufen. Sonst greift der
+--   Marker nicht (Spalte fehlt) und der Trigger legt bei jedem Schein-Speichern einen weiteren Eintrag an.
+--
+-- KEIN Push-Feld: ze_uebernommen wird NIE nach OFFA/Juprowa gepusht (nicht in JUPROWA_PUSH_FIELDS).
+-- Idempotent (IF NOT EXISTS) — mehrfaches Ausfuehren ist harmlos.
+
+ALTER TABLE public.arbeitsscheine
+  ADD COLUMN IF NOT EXISTS ze_uebernommen boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN public.arbeitsscheine.ze_uebernommen IS
+  'v3.9.801: true = die am Schein erfasste Zeit wurde bereits EINMAL automatisch in die Zeiterfassung uebernommen. Verhindert Mehrfach-Anlage; der time_entry gehoert danach dem Menschen. Kein Push-Feld.';
+
+-- Verifikation nach dem Lauf (erwartet: Spalte da, alle Bestandszeilen false):
+-- select count(*) filter (where ze_uebernommen) as uebernommen, count(*) as gesamt from public.arbeitsscheine;
