@@ -47,9 +47,12 @@ def test_liste_auftragstyp_read_only(index_html):
     assert 'title: "Auftragstyp wird in OFFA gepflegt"' in index_html, "OFFA-Tooltip/read-only Anzeige fehlt"
 
 
-def test_formular_scheinart_disabled_offa_badge(index_html):
-    assert 'value: form.scheinart, disabled: true, title: "Auftragstyp wird in OFFA gepflegt"' in index_html, \
-        "Formular-Scheinart muss disabled + OFFA-Badge sein (v533-Muster)"
+def test_formular_scheinart_readonly_offa_badge(index_html):
+    # v3.9.803 (Kein-Dropdown-Grundsatz): das Formular-Auftragstyp-Feld ist kein disabled-SELECT mehr,
+    # sondern reine Text-Anzeige (Icon+Label) + OFFA-Badge. Read-only + OFFA=Wurzel bleibt der Vertrag.
+    assert "value: form.scheinart, disabled: true" not in index_html, "Auftragstyp im Formular noch als Select"
+    assert '(AS_ART[form.scheinart]?(AS_ART[form.scheinart].i+" "+AS_ART[form.scheinart].l):"—")' in index_html, \
+        "Formular-Auftragstyp muss reine Text-Anzeige (Icon+Label) + OFFA-Badge sein"
 
 
 def test_prio_inline_bleibt_editierbar(index_html):
