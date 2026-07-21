@@ -74,8 +74,8 @@ def test_verdrahtung(index_html):
     _ins = index_html.index('await _sbPost("time_entries"')
     _mrk = index_html.index("updAs(s.id,{ze_uebernommen:true});")
     assert _mrk > _ins, "Marker-Set (updAs) steht nicht NACH dem awaited Insert -> stiller Verlust moeglich"
-    # Insert-Fehler -> catch -> return OHNE Marker (Retry beim naechsten Save).
-    assert "return;/* Marker NICHT setzen" in index_html, "catch-Zweig bricht nicht sauber ohne Marker ab"
+    # Insert-Fehler (echter) -> catch -> return OHNE Marker (Retry beim naechsten Save). v815: dup-Zweig davor.
+    assert "return;/* echter Fehler: Marker NICHT setzen" in index_html, "echter-Fehler-Zweig bricht nicht sauber ohne Marker ab"
     # Spaetere Aenderung: bestehenden Eintrag ueber arbeitsschein_id finden.
     assert '_sbGet("time_entries","arbeitsschein_id=eq."+encodeURIComponent(s.id)+"&select=id,hours")' in index_html
     # Geloescht bleibt geloescht -> kein Auto-Neu.
@@ -89,6 +89,33 @@ def test_verdrahtung(index_html):
     assert 'await _sbPatch("time_entries",_cur.id,{hours:_h});' in index_html, "Update-Pfad fehlt"
     # Trigger sitzt am saveAs-Ende.
     assert "_asZeitUebernahme({..._finalForm,id:editId});" in index_html, "saveAs-Trigger fehlt"
+
+
+def test_dup_err_erkennung_v815(node_exe, index_html):
+    # UNIQUE-Konflikt sicher erkennen (23505 ODER HTTP409+duplicate/unique) -> "bereits uebernommen".
+    def _d(js):
+        return _call(node_exe, index_html, "_asZeitDupErr", js)
+    assert _d("'HTTP409 code 23505 duplicate key value violates unique constraint'") == "true"
+    assert _d("'HTTP409 duplicate key'") == "true"
+    assert _d("'HTTP409 unique constraint'") == "true"
+    assert _d("'irgendwas 23505 irgendwas'") == "true"
+    # Sicherheits-Default: 409 OHNE duplicate/unique = KEIN sicherer Dup -> echter Fehler.
+    assert _d("'HTTP409 generic conflict'") == "false"
+    assert _d("'HTTP500 network error'") == "false"
+    assert _d("'HTTP403 forbidden'") == "false"
+    assert _d("''") == "false"
+
+
+def test_catch_verzweigung_v815(index_html):
+    # catch verzweigt: 23505/409-dup -> Marker + Info + return; sonst wie v811.
+    assert "if(_asZeitDupErr(_em)){" in index_html, "catch verzweigt nicht auf _asZeitDupErr"
+    a = index_html.index("if(_asZeitDupErr(_em)){")
+    b = index_html.index("}", index_html.index("return;", a))  # bis zum return des dup-Zweigs
+    dup_block = index_html[a:b]
+    assert "updAs(s.id,{ze_uebernommen:true});" in dup_block, "dup-Zweig setzt den Marker nicht"
+    assert '"info"' in dup_block, "dup-Zweig nutzt keine Info-Toast (sondern Warn?)"
+    # window-Export des PURE-Helfers.
+    assert "window._asZeitDupErr=_asZeitDupErr" in index_html, "_asZeitDupErr nicht window-exportiert"
 
 
 def test_kein_juprowa_kein_push(index_html):
