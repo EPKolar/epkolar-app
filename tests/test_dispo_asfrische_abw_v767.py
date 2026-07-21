@@ -113,7 +113,7 @@ console.log(JSON.stringify(out));
 def test_overlay_folgt_der_kapazitaet(index_html):
     """Anzeige == Kapazitaet: der Grund-Chip haengt an absAbz, nicht an einer zweiten Statusregel."""
     start = index_html.index("function _dispoBuildInput(")
-    blk = index_html[start:start + 6000]
+    blk = index_html[start:start + 7500]  # v3.9.807: Fenster geweitet (6000->7500) — der 3B-_typMed-Build schob die absAbz-Zeile knapp ueber 6000 (Offset 6003); Inhalt unveraendert.
     assert "if(absAbz>=t.normMin){gruende.push(_dispoAbwLabel(ab.type));}" in blk, \
         "Overlay-Chip haengt nicht mehr an absAbz — Anzeige koennte von der Kapazitaet abweichen"
     assert "if(absAbz>0)gruende.push(_dispoAbwLabel(ab.type));" in blk, \
