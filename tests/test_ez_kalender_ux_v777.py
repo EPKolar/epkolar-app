@@ -131,15 +131,19 @@ def test_legende_vorhanden(index_html):
     assert "'vorbelegt (Vorschlag)'" in body
 
 
-def test_toggle_verhalten_unveraendert(index_html):
-    """Klick-Toggle (onToggle -> aktiv=!eff) bleibt unveraendert (nur Anzeige geaendert)."""
-    assert "var eff=_ezDayEff(dm[iso]||0,prevEntry);var want=!eff;" in index_html
+def test_toggle_verhalten_v783(index_html):
+    """Klick-Toggle (onToggle -> aktiv=!eff). v3.9.783 (LOHNRELEVANT, Sebastian freigegeben): der Toggle reicht
+    den Abwesenheits-Ausschluss (!!ad[iso]) an _ezDayEff durch — ein Klick auf einen genehmigten Abwesenheitstag
+    zaehlt ihn DAZU (aktiv=true, Override), statt ihn abzuwaehlen. Die Klick-Verdrahtung selbst bleibt gleich."""
+    assert "var eff=_ezDayEff(dm[iso]||0,prevEntry,!!ad[iso]);var want=!eff;" in index_html
     blk = _ez_kalender_block(index_html)
     assert "onClick:clickable?function(){onToggle(iso);}:undefined" in blk
 
 
 def test_riedmann_juli_unveraendert(index_html, node_exe, tmp_path):
-    """ANZEIGE-ONLY-BEWEIS: die Rechnung bleibt exakt — 8 Tage = 93,68 €, 2 weggeklickt -> 70,26 €."""
+    """RUECKWAERTSKOMPAT-BEWEIS (v777): OHNE absSet-Param rechnet _ezEffTage byte-genau wie vor v783 —
+    8 Tage = 93,68 €, 2 weggeklickt -> 70,26 €. Der v783-Abwesenheits-Ausschluss greift erst mit absSet
+    (siehe test_ez_kalender_v775.test_riedmann_juli_beispiel: mit absSet -> 7/81,97)."""
     js = _block(index_html) + _OK + u"""
 var W='R', days={};
 ['2026-07-01','2026-07-02','2026-07-03','2026-07-06','2026-07-07','2026-07-08','2026-07-09','2026-07-10'].forEach(function(d){days[d]=8;});
@@ -153,11 +157,17 @@ console.log('OK');
 
 
 def test_rechnung_unberuehrt_pin(index_html):
-    """Grenze: Satz 11,71 + Rechenwege _ezEffTage/_ezDayEff/_ezSet byte-identisch (kein Umbau)."""
+    """Grenze: Satz 11,71 + _ezEffTage-Struktur (Union, tage*satz, kein Deckel) + _ezSet-Schreibweg bleiben.
+
+    v3.9.783 (LOHNRELEVANT, Sebastian freigegeben): der _ezDayEff-Kern bekommt EINEN 3. Param absGenehmigt —
+    an genehmigten Abwesenheitstagen entfaellt die Vorbelegung (LA 2740). Der Flag-Override und der Satz 11,71
+    bleiben unveraendert; kein Deckel, kein zweiter Rechenpfad. Der alte byte-Pin (>6 ohne Ausschluss) ist
+    bewusst abgeloest.
+    """
     assert "taggeldAb6h:11.71" in index_html
-    # _ezDayEff exakt unveraendert
+    # _ezDayEff-Kern v783: Flag-Override zuerst, sonst (>6h) UND nicht genehmigt-abwesend
     assert ("if(flagEntry!=null&&flagEntry.aktiv!==undefined)return !!flagEntry.aktiv;\n"
-            "  return (parseFloat(std)||0)>6;") in index_html
+            "  return ((parseFloat(std)||0)>6)&&!absGenehmigt;") in index_html
     # _ezEffTage-Kern unveraendert (Union aus daysMap + Flags, tage*satz, kein Deckel)
     ez_start = index_html.index("function _ezEffTage(")
     ez_body = index_html[ez_start:index_html.index("\n}", ez_start)]

@@ -98,13 +98,19 @@ console.log('OK');
 
 
 def test_ezdayeff(index_html, node_exe, tmp_path):
-    """eff je Tag: Flag ueberschreibt Vorbelegung (>6h)."""
+    """eff je Tag: Flag ueberschreibt Vorbelegung (>6h); v3.9.783 3. Param absGenehmigt schliesst aus."""
     js = _block(index_html) + _OK + u"""
 ok(_ezDayEff(8,undefined)===true,'8h ohne Flag -> eff (Vorbelegung)');
 ok(_ezDayEff(4,undefined)===false,'4h ohne Flag -> nicht eff');
 ok(_ezDayEff(8,{aktiv:false})===false,'Flag aktiv=false zieht 8h-Tag ab');
 ok(_ezDayEff(3,{aktiv:true})===true,'Flag aktiv=true zaehlt 3h-Tag dazu');
 ok(_ezDayEff(0,{aktiv:true})===true,'Flag aktiv=true auf 0h-Tag zaehlt dazu');
+// v3.9.783 (LOHNRELEVANT): genehmigte Abwesenheit (3. Param) schliesst die Vorbelegung aus, Flag-Override bleibt.
+ok(_ezDayEff(8,undefined,true)===false,'8h Krank (genehmigt) ohne Flag -> NICHT vorbelegt');
+ok(_ezDayEff(8,undefined,false)===true,'absGenehmigt=false -> wie vor v783 (kein Ausschluss)');
+ok(_ezDayEff(8,{aktiv:true},true)===true,'8h Krank + aktiv=true -> Override zaehlt DOCH');
+ok(_ezDayEff(8,{aktiv:false},true)===false,'8h Krank + aktiv=false -> raus');
+ok(_ezDayEff(0,{aktiv:true},true)===true,'0h Krank + aktiv=true -> Override zaehlt');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js)
@@ -140,14 +146,53 @@ console.log('OK');
 
 
 def test_riedmann_juli_beispiel(index_html, node_exe, tmp_path):
-    """€-Beispiel: 8 Tage vorbelegt, unkorrigiert = 93,68 €; 2 weggeklickt -> 6 Tage = 70,26 €."""
+    """€-Beispiel (v3.9.783 aktualisiert): Riedmann Juli, 8 Anwesenheitstage, 01.07. genehmigt krank -> 7/81,97.
+
+    Alter Pin (bis v3.9.782): 8 Tage/93,68 € — die Vorbelegung ignorierte Abwesenheiten. Sebastian-Befund aus
+    der PDF-Sichtpruefung: der genehmigte Krank-Tag 01.07. wurde faelschlich EZ-vorbelegt (Lohnzettel LA 2740:
+    keine Entfernungszulage auf genehmigter Abwesenheit). v3.9.783 zieht genehmigte Abwesenheit (absSet) ab
+    -> 7 Tage/81,97 €. Explizit dazugeklickt (aktiv=true) zaehlt wieder (Flag-Override). Der alte 8/93,68-Pin ist
+    bewusst obsolet (Sebastian freigegeben). Rueckwaertskompatibel: ohne absSet-Param unveraendert 8/93,68.
+    """
     js = _block(index_html) + _OK + u"""
 var W='R', days={};
 ['2026-07-01','2026-07-02','2026-07-03','2026-07-06','2026-07-07','2026-07-08','2026-07-09','2026-07-10'].forEach(function(d){days[d]=8;});
-var unkorr=_ezEffTage(days,{},W);
-ok(unkorr.tage===8 && Math.abs(unkorr.sum-93.68)<1e-9,'8 Tage vorbelegt = 93,68');
-var korr=_ezEffTage(days,{'R_2026-07-09':{aktiv:false},'R_2026-07-10':{aktiv:false}},W);
-ok(korr.tage===6 && Math.abs(korr.sum-70.26)<1e-9,'2 weggeklickt -> 6 Tage = 70,26');
+var absSet={'2026-07-01':true}; // 01.07. genehmigt krank (aus _ezAbsSet)
+var mit=_ezEffTage(days,{},W,11.71,absSet);
+ok(mit.tage===7 && Math.abs(mit.sum-81.97)<1e-9,'01.07 krank raus -> 7 Tage = 81,97');
+var override=_ezEffTage(days,{'R_2026-07-01':{aktiv:true}},W,11.71,absSet);
+ok(override.tage===8 && Math.abs(override.sum-93.68)<1e-9,'01.07 explizit dazu -> wieder 8 = 93,68 (Override)');
+var ohne=_ezEffTage(days,{},W,11.71); // ohne absSet-Param = Rueckwaertskompatibilitaet
+ok(ohne.tage===8 && Math.abs(ohne.sum-93.68)<1e-9,'ohne absSet-Param unveraendert 8/93,68');
+console.log('OK');
+"""
+    _run(node_exe, tmp_path, js)
+
+
+def test_ezabsset(index_html, node_exe, tmp_path):
+    """_ezAbsSet(abs,approvals,name) -> {iso:true} nur fuer GENEHMIGTE Abwesenheit (alle Typen).
+
+    Status wie _resolveApprK (approvals gewinnt vor abs.status); beantragt/abgelehnt zaehlen NICHT. Key = name_iso
+    (Prefix-Match wie _pzeBuildRows/_krankByMA); fremder MA + leerer/unbekannter Name -> leeres Set.
+    """
+    js = _block(index_html) + _OK + u"""
+var A={
+ 'Riedmann_2026-07-01':{type:'krankenstand',status:'genehmigt'},
+ 'Riedmann_2026-07-02':{type:'urlaub',status:'beantragt'},
+ 'Riedmann_2026-07-03':{type:'urlaub',status:'abgelehnt'},
+ 'Riedmann_2026-07-04':{type:'za',status:'genehmigt'},
+ 'Anderer_2026-07-01':{type:'krankenstand',status:'genehmigt'}
+};
+var apps={'Riedmann_2026-07-02':'genehmigt'}; // approvals gewinnt vor abs.status
+var s=_ezAbsSet(A,apps,'Riedmann');
+ok(s['2026-07-01']===true,'krank genehmigt -> im Set');
+ok(s['2026-07-02']===true,'approvals=genehmigt schlaegt abs.status=beantragt');
+ok(s['2026-07-03']===undefined,'abgelehnt -> nicht im Set');
+ok(s['2026-07-04']===true,'za genehmigt -> im Set (alle Typen)');
+ok(s['Anderer_2026-07-01']===undefined,'fremder MA nicht dabei');
+ok(Object.keys(s).length===3,'genau 3 genehmigte Tage fuer Riedmann');
+ok(Object.keys(_ezAbsSet(A,apps,'')).length===0,'leerer Name -> leeres Set');
+ok(Object.keys(_ezAbsSet(A,apps,'Unbekannt')).length===0,'unbekannter MA -> leeres Set');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js)
@@ -185,7 +230,7 @@ def test_datenzugriff_existiert(index_html):
 
 
 def test_window_export_pure_helfer(index_html):
-    for name in ("_ezWtag", "_ezMonthGrid", "_ezWeekDays", "_ezKey", "_ezDayEff", "_ezEffTage"):
+    for name in ("_ezWtag", "_ezMonthGrid", "_ezWeekDays", "_ezKey", "_ezDayEff", "_ezEffTage", "_ezAbsSet"):
         assert "window." + name + "=" + name in index_html, "fehlender window-Export: " + name
 
 
@@ -198,8 +243,9 @@ def test_kalender_komponente(index_html):
     assert "Tabelle entfernungszulage_tage fehlt" in index_html
     # 3 sichtbar unterscheidbare Zustaende: u.a. durchgestrichener (weggeklickter) Tag
     assert "textDecoration:strike?'line-through':'none'" in index_html
-    # Klick schreibt aktiv=!eff
-    assert "var eff=_ezDayEff(dm[iso]||0,prevEntry);var want=!eff;" in index_html
+    # Klick schreibt aktiv=!eff; v3.9.783 reicht den Abwesenheits-Ausschluss (!!ad[iso]) an _ezDayEff durch,
+    # damit ein Klick auf einen genehmigten Abwesenheitstag ihn DAZU-zaehlt (aktiv=true, Override) statt abwaehlt.
+    assert "var eff=_ezDayEff(dm[iso]||0,prevEntry,!!ad[iso]);var want=!eff;" in index_html
 
 
 def test_menge_eff_basiert(index_html):
@@ -226,3 +272,41 @@ def test_rechnung_unberuehrt(index_html):
     ez_start = index_html.index("function _ezEffTage(")
     ez_body = index_html[ez_start:index_html.index("\n}", ez_start)]
     assert "Math.min" not in ez_body, "kein Deckel in _ezEffTage"
+
+
+def test_v783_abwesenheit_ausschluss_verdrahtung(index_html):
+    """v3.9.783 (LOHNRELEVANT): genehmigte Abwesenheit (_ezAbsSet) faellt aus der EZ-Vorbelegung (LA 2740).
+
+    EINE PURE-Authority _ezAbsSet, an ALLE lohnrelevanten Aufrufer durchgereicht — kein neuer Fetch, kein
+    zweiter Rechenpfad. EZ-Kalender kennzeichnet Abwesenheitstage (absDays-Prop).
+    """
+    # _ezDayEff hat den 3. Param + verrechnet ihn (Vorbelegung nur wenn NICHT genehmigt-abwesend)
+    de = index_html[index_html.index("function _ezDayEff("):index_html.index("function _ezEffTage(")]
+    assert "function _ezDayEff(std,flagEntry,absGenehmigt){" in de, "3. Param absGenehmigt fehlt"
+    assert "((parseFloat(std)||0)>6)&&!absGenehmigt" in de, "Ausschluss nicht in _ezDayEff verdrahtet"
+    # _ezEffTage reicht absSet an _ezDayEff durch
+    ef = index_html[index_html.index("function _ezEffTage("):index_html.index("function _ezAbsSet(")]
+    assert "var A=absSet||{};" in ef and "f[_ezKey(wid,iso)],!!A[iso]" in ef, "_ezEffTage reicht absSet nicht durch"
+    # PURE-Helfer _ezAbsSet existiert + window-exportiert
+    assert "function _ezAbsSet(abs,approvals,workerName){" in index_html
+    assert "window._ezAbsSet=_ezAbsSet" in index_html
+    # Aufrufer reichen absSet durch (abs/approvals schon im Scope, kein neuer Fetch)
+    assert "_ezEffTage(byW[wid].days,ezFlags,wid,(kv&&kv.taggeldAb6h!=null)?kv.taggeldAb6h:11.71,_ezAbsSet(props.abs||{},props.approvals,_nm))" in index_html, "KVZulagenReport-rows reicht absSet nicht durch"
+    assert "var absSet=_ezAbsSet(abs||{},approvals,worker.name);" in index_html, "_pzePdf baut absSet nicht"
+    assert "_ezEffTage(daysMap,ezF,worker.id,satz,absSet)" in index_html, "_pzePdf reicht absSet nicht an _ezEffTage"
+    # EZ-Kalender: Prop + Label-Branch
+    assert "const absDays=props.absDays||{};" in index_html, "EZKalender nimmt absDays-Prop nicht"
+    assert "absDays:_ezAbsDaysFor(ezWid)" in index_html, "EZKalender bekommt absDays nicht gerendert"
+    assert "var absG=absDays[iso];" in index_html and "var eff=_ezDayEff(std,flagEntry,!!absG);" in index_html
+
+
+def test_v783_konflikt_marker(index_html):
+    """v3.9.783: Konflikt-Marker (genehmigter Fehlgrund UND Projektbuchung am selben Tag) in PZE-PDF + On-Screen.
+
+    Macht die widerspruechliche Datenlage (Krank-Tag MIT Projektzeit) sichtbar; Bereinigung ist Buero/Sebastian.
+    """
+    # PDF-Notiz-Spalte
+    assert "if(r.fehlgrund&&r.fehlgrund.genehmigt&&r.projMin>0)notiz=(notiz?notiz+' ':'')+'Konflikt Abw/Proj';" in index_html
+    # On-Screen-PZE (Desktop-Notiz-Zelle + Mobile-Card) — mind. 2 weitere Vorkommen des Marker-Guards
+    assert index_html.count("r.fehlgrund&&r.fehlgrund.genehmigt&&r.projMin>0") >= 3, "Konflikt-Marker fehlt in PDF/Desktop/Mobile"
+    assert "Konflikt: Abwesenheit + Projektbuchung" in index_html, "On-Screen-Konflikt-Text fehlt"

@@ -11,11 +11,14 @@ import re
 from conftest import run_node_snippet, _extract_fn
 
 
-def test_ez_menge_riedmann_8_tage(node_exe, index_html):
-    """Riedmann-Pin: 8 Anwesenheitstage >6h, keine Flags -> 8 eff. Tage x 11,71 = 93,68 EUR (LA 2740).
+def test_ez_menge_riedmann_7_tage(node_exe, index_html):
+    """Riedmann-Pin (v3.9.783 aktualisiert): 8 Anwesenheitstage >6h, aber 01.07. genehmigt krank
+    -> 7 eff. Tage x 11,71 = 81,97 EUR (LA 2740: keine Entfernungszulage auf genehmigter Abwesenheit).
 
+    Alter Pin (bis v3.9.782): 8/93,68 — die Vorbelegung ignorierte Abwesenheiten (Sebastian-Befund aus der
+    PDF-Sicht: Krank-Tag faelschlich vorbelegt). Der alte 8/93,68-Pin ist bewusst obsolet (Sebastian freigegeben).
     Node-eval der EINEN EZ-Summenfunktion _ezEffTage (mit ihren Helfern _ezKey/_ezDayEff) — genau die
-    Funktion, die Kalender und Zulagen-Ergebnistabelle nutzen. Kein zweiter Rechenpfad.
+    Funktion, die Kalender, Zulagen-Ergebnistabelle und PDF-Fuss nutzen. Kein zweiter Rechenpfad.
     """
     parts = []
     for name in ("_ezKey", "_ezDayEff", "_ezEffTage"):
@@ -23,15 +26,23 @@ def test_ez_menge_riedmann_8_tage(node_exe, index_html):
         assert fn, f"{name} nicht gefunden"
         parts.append(fn)
     days = {f"2026-03-{d:02d}": 8.0 for d in range(2, 10)}  # 8 Tage, je 8h (>6h)
+    abs_set = {"2026-03-02": True}  # ein Tag genehmigt abwesend (aus _ezAbsSet)
     snippet = (
         "\n".join(parts) + "\n"
         "const dm=" + json.dumps(days) + ";"
-        "const r=_ezEffTage(dm,{},'W1',11.71);"
-        "process.stdout.write(JSON.stringify(r));"
+        "const aset=" + json.dumps(abs_set) + ";"
+        "const r=_ezEffTage(dm,{},'W1',11.71,aset);"
+        "const rOhne=_ezEffTage(dm,{},'W1',11.71);"  # ohne absSet-Param = Rueckwaertskompatibilitaet
+        "const rOverride=_ezEffTage(dm,{'W1_2026-03-02':{aktiv:true}},'W1',11.71,aset);"  # explizit dazu
+        "process.stdout.write(JSON.stringify({mit:r,ohne:rOhne,override:rOverride}));"
     )
-    r = json.loads(run_node_snippet(node_exe, snippet))
-    assert r["tage"] == 8, r
-    assert abs(r["sum"] - 93.68) < 1e-9, f"8 x 11,71 muss 93,68 EUR ergeben, war {r}"
+    out = json.loads(run_node_snippet(node_exe, snippet))
+    assert out["mit"]["tage"] == 7, out
+    assert abs(out["mit"]["sum"] - 81.97) < 1e-9, f"7 x 11,71 muss 81,97 EUR ergeben, war {out['mit']}"
+    # Rueckwaertskompatibel: ohne absSet unveraendert 8/93,68
+    assert out["ohne"]["tage"] == 8 and abs(out["ohne"]["sum"] - 93.68) < 1e-9, out["ohne"]
+    # Flag-Override: explizit aktiv=true zaehlt den Abwesenheitstag DOCH -> wieder 8/93,68
+    assert out["override"]["tage"] == 8 and abs(out["override"]["sum"] - 93.68) < 1e-9, out["override"]
 
 
 def test_pdf_finkzeit_spaltenfolge(index_html):
