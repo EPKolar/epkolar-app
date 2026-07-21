@@ -9,17 +9,12 @@ Screen->Plan (Inverse): planPx = (clientRelativZumUrsprung - t) / s.
 """
 import json
 import os
-import re
 import subprocess
 import tempfile
 
 import pytest
 
-
-def _extract_fn(index_html, name):
-    m = re.search(r"function " + re.escape(name) + r"\(.*?\n\}", index_html, re.S)
-    assert m, name + " nicht in index.html gefunden"
-    return m.group(0)
+from conftest import _extract_fn
 
 
 def _run_node(node_exe, index_html, driver):

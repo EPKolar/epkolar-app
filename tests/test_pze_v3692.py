@@ -66,9 +66,13 @@ def test_group_by_day_23_30_ortszeit_bleibt_am_selben_tag(node_exe, index_html):
     assert len(out["2026-01-15"]) == 1
 
 
-def test_group_by_day_utc_rollover_wird_lokal_korrigiert(node_exe, index_html):
+def test_group_by_day_utc_rollover_wird_lokal_korrigiert(node_exe, index_html, monkeypatch):
     # 23:45 UTC am 14.01. entspricht 00:45 Wien am 15.01. (Winter, UTC+1) -> gehoert LOKAL
     # zum 15., waere bei naiver getUTCDate()-Gruppierung faelschlich noch am 14.
+    # _pzeGroupByDay nutzt LOKALE Date-Methoden -> das Ergebnis haengt an der TZ des Node-Prozesses.
+    # Ohne Pin gruen nur auf UTC+-Maschinen (Wien), rot auf UTC/US (CI). TZ hart auf Wien pinnen:
+    # run_node_snippet erbt os.environ; Node liest process.env.TZ (auch unter Windows).
+    monkeypatch.setenv("TZ", "Europe/Vienna")
     events = (
         "[{direction:'kommen',ts:'2026-01-14T23:45:00Z'},"
         "{direction:'gehen',ts:'2026-01-15T08:00:00Z'}]"

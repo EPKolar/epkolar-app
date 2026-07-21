@@ -11,16 +11,9 @@ Poll galten alte Krankmeldungen als "neu" -> Phantom-Notif. Fix (client-only):
 
 PURER Kern (node-eval): _absNotifOk(fromD, heuteISO) — Alters-Guard.
 """
-import re
 import subprocess
 
-
-def _extract_fn(index_html, name):
-    i = index_html.index("function " + name + "(")
-    # bis zur schliessenden Klammer der Funktion (naiv: naechstes "\n}" auf Spaltenanfang-Ebene reicht nicht;
-    # die Funktion ist einzeilig-kompakt -> bis zum ersten "}\n" nach dem Body).
-    j = index_html.index("}", index_html.index("{", i))
-    return index_html[i:j + 1]
+from conftest import _extract_fn
 
 
 def test_absnotifok_neu_und_alt(index_html, node_exe, tmp_path):
