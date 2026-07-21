@@ -82,8 +82,14 @@ def test_report_component(index_html):
     assert "function KVZuschlagReport(props)" in index_html
 
 
-def test_report_staff_gated(index_html):
-    assert "_canSeeVolume && React.createElement(KVZuschlagReport" in index_html
+def test_report_gated(index_html):
+    # v3.9.804: KVZuschlagReport (lohnsensibel) aus der staff-sichtbaren Auswertung ENTFERNT und ins
+    # Chef-Portal/Personal verschoben (Chef-Portal-Gate = role admin ODER Geschaeftsfuehrer, Z.8517 ->
+    # Monteure/Angestellte/Buero/PL sehen ihn NICHT). Strengeres Gate als vorher.
+    assert "_canSeeVolume && React.createElement(KVZuschlagReport" not in index_html, \
+        "KVZuschlagReport haengt noch in der staff-sichtbaren Auswertung"
+    assert "_cdTab==='personal' && React.createElement(KVZuschlagReport, { entries: entries, monteure: monteure, ww: ww} )" in index_html, \
+        "KVZuschlagReport nicht im admin/GF-gegateten Chef-Personal-Tab"
 
 
 def test_report_lohnverrechner_hinweis(index_html):
