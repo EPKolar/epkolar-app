@@ -53,9 +53,12 @@ def test_werkzeug_muster_intakt(index_html):
         "Werkzeug-Referenzmuster useBackLayer(sub!==liste) fehlt"
 
 
-def test_e1_scope_nur_admin(index_html):
-    # AS-Sub-Tab-View (E2-E4) darf KEINE useBackLayer-Sub-Tab-Verdrahtung tragen.
+def test_e1_admin_wiring_leakt_nicht_in_as(index_html):
+    # E1 war Admin-only. Die Admin-Verdrahtung darf nicht in die AS-View gewandert sein.
+    # (Die urspruengliche "AS unberuehrt"-Zusicherung gilt ab v3.9.795/E2 NICHT mehr:
+    #  E2 gibt dem AS-Schein-Detail (sub==="form") legitim einen eigenen useBackLayer;
+    #  das pinnt test_as_detail_backlayer_e2_v795.py.)
     a = index_html.index("function ArbeitsscheinView({")
-    b = index_html.index("\nfunction ", a + 1)  # naechste Top-Level-Funktion (Zeilenanfang)
+    b = index_html.index("function EZKalender(props){", a)  # echte naechste Top-Level-Komponente
     asv = index_html[a:b]
-    assert "useBackLayer(sub" not in asv, "AS-View wurde in E1 angefasst (Scope-Verletzung)"
+    assert "useBackLayer(adminTab" not in asv, "Admin-E1-Verdrahtung in die AS-View geleakt"

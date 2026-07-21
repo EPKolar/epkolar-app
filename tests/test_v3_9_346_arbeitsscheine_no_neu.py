@@ -95,14 +95,20 @@ def test_form_render_block_still_present(index_html):
 # 5) openEdit unveraendert -----------------------------------------------------
 
 def test_open_edit_unchanged(index_html):
-    """openEdit-Pattern (setForm({...a});setEditId(a.id);setSub('form')) muss
-    unveraendert vorhanden sein."""
+    """openEdit-KERN (setForm({...a});setEditId(a.id);setSub('form')) muss erhalten
+    bleiben = nur Bearbeiten bestehender Scheine, KEIN Neu-Anlege-Modus.
+
+    v3.9.795 (Navigation E2): openEdit hat die Signatur (a,_origin) bekommen und davor
+    ein reines _asPrevSub-Ursprungs-Capture (Detail-Back-Layer). Der Edit-Kern
+    setForm/setEditId(a.id)/setSub('form') ist byte-gleich geblieben -> v346-Intent
+    (kein setEditId(null)/Neu-Modus) unberuehrt. Regex nur um Signatur + Capture-Prefix
+    erweitert; setEditId(a.id) direkt vor setSub('form') bleibt Pflicht."""
     assert re.search(
-        r'const\s+openEdit\s*=\s*a\s*=>\s*\{\s*setForm\(\{\.\.\.a\}\)\s*;\s*setEditId\(a\.id\)\s*;\s*setSub\(\s*["\']form["\']\s*\)\s*;\s*\}',
-        index_html,
+        r'const\s+openEdit\s*=\s*\(a,_origin\)\s*=>\s*\{.*?setForm\(\{\.\.\.a\}\)\s*;\s*setEditId\(a\.id\)\s*;\s*setSub\(\s*["\']form["\']\s*\)\s*;\s*\}',
+        index_html, re.S,
     ), (
-        "v3.9.346 Regression: openEdit-Funktion (setForm/setEditId/setSub('form')) "
-        "wurde geaendert — Edit-Pfad bestehender Scheine darf nicht angetastet werden."
+        "v3.9.346 Regression: openEdit-Edit-Kern (setForm/setEditId(a.id)/setSub('form')) "
+        "wurde angetastet — Edit-Pfad bestehender Scheine muss erhalten bleiben (kein Neu-Modus)."
     )
 
 
