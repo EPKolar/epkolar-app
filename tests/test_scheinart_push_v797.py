@@ -1,102 +1,63 @@
 # -*- coding: utf-8 -*-
-"""v3.9.797 — Auftragstyp/scheinart: Inline-Edit in der AS-Liste + Push nach OFFA.
+"""v3.9.797 -> v3.9.799 VERTRAGSAENDERUNG (Sebastian-Entscheid 21.07.2026): scheinart Push RAUS.
 
-TEIL A: zwei Inline-Selects (Prioritaet, Auftragstyp=scheinart) in der Liste nach dem
-        woertlichen SB/Monteur/Status-Muster; Mobile-Chips in der Karte.
-TEIL B: scheinart wird push-faehig (AK_AUFART in JUPROWA_PUSH_FIELDS) + Reverse-Map +
-        Dirty-Check im Builder nach WOERTLICHEM v3.9.615/v3.9.570-Muster (Roundtrip-stabil).
-        Pull-Update-Block (Z.~3555) bekommt den !isPending-Guard (uebersteht den Pull).
+BEFUND (Chat-Claude + Sebastian, DB-Zeitstempel + OFFA-Live-Test): OFFA importiert AK_AUFART
+NICHT aus der ServicePad-Cloud und stellt es bei jedem OFFA-seitigen Save auf seinen Stand
+zurueck (S075361: App-Push 5 -> OFFA-Save -> Cloud 0 -> App-Pull zurueck auf "kein"; auch am
+OFFENEN Schein). Gegenprobe S075381: AK_MONTEUR + AK_PRIOR kommen in OFFA an -> der Import
+laeuft generell, NUR AK_AUFART ist Einbahnstrasse OFFA->App. Ein App-Push des Auftragstyps war
+also eine Datenillusion (stiller Revert).
 
-PUSH-SCHUTZ: der Push-Pfad aendert sich AUSSCHLIESSLICH um (a) EINEN PUSH_FIELDS-Eintrag +
-(b) EINEN Dirty-Check-Block. _juprowaPush-Signatur byte-identisch. ROUNDTRIP-BEWEIS unten:
-ein Edit eines ANDEREN Felds (notizen) bei AK_AUFART=3 echot die 3 (kein stilles 3->1).
+Deshalb wurde der in v3.9.797 gebaute scheinart-Push in v3.9.799 zurueckgebaut: scheinart ist
+wieder PULL-ONLY, OFFA = Wurzel. Die Liste zeigt den Auftragstyp read-only (Icon+Label), das
+Formular disabled mit OFFA-Badge. Das PRIO-Inline-Select bleibt editierbar (AK_PRIOR ist
+doppelt live-bewiesen). Diese Datei pinnt den NEUEN Vertrag (kein stilles Anpassen).
 """
-import json
-import pytest
-from conftest import run_node_snippet
 
 
-def _call(node_exe, fn_bundle, schein_js):
-    snippet = fn_bundle + f";process.stdout.write(JSON.stringify(_juprowaReversMap({schein_js})))"
-    return json.loads(run_node_snippet(node_exe, snippet))
-
-
-# ── ROUNDTRIP-BEWEIS (Pflicht, v583/v615-Testtyp) ──────────────────────────────
-def test_roundtrip_kein_stilles_umschreiben(node_exe, fn_juprowa_reverse_map):
-    # Regie-/Reparatur-Schein: gepullter Roh-AK_AUFART=3, App-scheinart='reparatur' (roundtrip-stabil).
-    # Ein Push wegen eines ANDEREN Feld-Edits (notizen) darf die 3 NICHT auf 1 umschreiben.
-    schein = ("{juprowa_id:'5',nummer:'S1',notizen:'geaendert',scheinart:'reparatur',"
-              "juprowa_raw:{AK_AUFART:'3'}}")
-    out = _call(node_exe, fn_juprowa_reverse_map, schein)
-    assert out["AK_AUFART"] == "3", "stilles Umschreiben des gepullten AK_AUFART (soll Roh-Echo 3 sein)"
-
-
-def test_echte_aenderung_sendet_reverse(node_exe, fn_juprowa_reverse_map):
-    # Roh war 3 (reparatur), lokal auf 'garantie' geaendert -> nicht roundtrip-stabil -> Reverse 6.
-    schein = ("{juprowa_id:'5',nummer:'S1',scheinart:'garantie',juprowa_raw:{AK_AUFART:'3'}}")
-    out = _call(node_exe, fn_juprowa_reverse_map, schein)
-    assert out["AK_AUFART"] == "6", "echte scheinart-Aenderung muss den kanonischen Reverse senden"
-
-
-def test_ohne_raw_kanonischer_reverse(node_exe, fn_juprowa_reverse_map):
-    schein = ("{juprowa_id:'5',nummer:'S1',scheinart:'montage'}")
-    out = _call(node_exe, fn_juprowa_reverse_map, schein)
-    assert out["AK_AUFART"] == "4", "ohne juprowa_raw -> kanonischer Reverse (montage->4)"
-
-
-def test_ohne_scheinart_kein_ak_aufart(node_exe, fn_juprowa_reverse_map):
-    # Kein scheinart gesetzt -> AK_AUFART wird NICHT gesendet (Payload-Groesse bleibt stabil).
-    schein = ("{juprowa_id:'5',nummer:'S1',notizen:'x'}")
-    out = _call(node_exe, fn_juprowa_reverse_map, schein)
-    assert "AK_AUFART" not in out
-
-
-# ── STATIC PINS: Push-Pfad ──────────────────────────────────────────────────────
-def test_push_field_und_reverse_map(index_html):
-    assert "scheinart:'AK_AUFART'," in index_html, "scheinart nicht in JUPROWA_PUSH_FIELDS"
-    assert ("const JUPROWA_ART_REV={kein:'0',stoerung:'1',lieferung:'2',reparatur:'3',"
-            "montage:'4',mangelbehebung:'5',garantie:'6'};" in index_html), "JUPROWA_ART_REV falsch/fehlt"
-
-
-def test_dirty_check_block_v583_muster(index_html):
-    # WOERTLICH analog Status/Prio: Roh-Echo bei roundtrip-stabil, sonst Reverse.
-    assert "if(schein.scheinart&&JUPROWA_ART_REV[schein.scheinart]!=null){" in index_html
-    assert ("json.AK_AUFART=(_rawArt!=null&&JUPROWA_ART_MAP[_rawArt]===schein.scheinart)"
-            "?_rawArt:JUPROWA_ART_REV[schein.scheinart];" in index_html)
-
-
-def test_pull_guard_isPending(index_html):
-    # scheinart-Pull darf lokale Aenderung bei push_pending NICHT clobbern.
-    assert "if(!isPending&&mapped.scheinart&&mapped.scheinart!==existing.scheinart)" in index_html, \
-        "!isPending-Guard fehlt an der scheinart-Pull-Zeile"
-
-
-def test_scope_guard_push_fields_unveraendert(index_html):
-    # Scope-Guard: die 8 Original-Push-Keys + sachbearbeiter/bearbeitetVon=null bleiben; nur scheinart neu.
+def test_scheinart_nicht_mehr_push_feld(index_html):
     start = index_html.index("const JUPROWA_PUSH_FIELDS={")
     block = index_html[start:index_html.index("};", start)]
+    assert "scheinart:'AK_AUFART'" not in block, "scheinart darf NICHT mehr in JUPROWA_PUSH_FIELDS stehen"
+    # Die 8 Original-Push-Keys bleiben unveraendert.
     for feld in ("durchgefuehrte:'AK_ARBEITEN'", "notizen:'AK_NOTIZ'", "monteur:'AK_MONTEUR'",
                  "terminBestaetigt:'AK_TERMIN'", "dauer:'AK_DAUER'", "prioritaet:'AK_PRIOR'",
                  "arbeitsanweisungen:'AK_DURCHZUFUEHREN'", "scheinstatus:'AK_AUFSTATUS'",
-                 "scheinart:'AK_AUFART'", "sachbearbeiter:null", "bearbeitetVon:null"):
-        assert feld in block, "PUSH_FIELDS-Eintrag fehlt/veraendert: " + feld
-    # _isPush-Trigger byte-identisch (v546) — scheinart greift nun automatisch, weil Push-Feld.
-    assert "editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in _diff)" in index_html
-    # _juprowaPush-Signatur unangetastet.
+                 "sachbearbeiter:null", "bearbeitetVon:null"):
+        assert feld in block, "Push-Feld fehlt/veraendert: " + feld
+
+
+def test_kein_ak_aufart_im_builder(index_html):
+    assert "json.AK_AUFART=" not in index_html, "AK_AUFART-Dirty-Check muss aus dem Builder raus sein"
+    # Definition entfernt (die Version-/Rueckbau-KOMMENTARE duerfen den Namen weiter nennen).
+    assert "const JUPROWA_ART_REV=" not in index_html, "JUPROWA_ART_REV-Definition ist toter Code -> entfernt"
+
+
+def test_scheinart_pull_ohne_isPending_guard(index_html):
+    # Pull folgt scheinart wieder bedingungslos (OFFA=Wurzel), KEIN !isPending-Guard.
+    assert "if(mapped.scheinart&&mapped.scheinart!==existing.scheinart)upd.scheinart=mapped.scheinart;" in index_html
+    assert "if(!isPending&&mapped.scheinart" not in index_html, "der v797-!isPending-Guard muss raus sein"
+
+
+def test_liste_auftragstyp_read_only(index_html):
+    # In der Liste darf am Auftragstyp KEIN Schreibweg mehr haengen.
+    assert "updAs(a.id,{scheinart:e.target.value})" not in index_html, \
+        "Auftragstyp-Liste ist read-only -> kein updAs/onChange am scheinart-Feld"
+    # Read-only Anzeige mit OFFA-Tooltip vorhanden.
+    assert 'title: "Auftragstyp wird in OFFA gepflegt"' in index_html, "OFFA-Tooltip/read-only Anzeige fehlt"
+
+
+def test_formular_scheinart_disabled_offa_badge(index_html):
+    assert 'value: form.scheinart, disabled: true, title: "Auftragstyp wird in OFFA gepflegt"' in index_html, \
+        "Formular-Scheinart muss disabled + OFFA-Badge sein (v533-Muster)"
+
+
+def test_prio_inline_bleibt_editierbar(index_html):
+    # Prio-Inline-Select bleibt WOERTLICH editierbar (AK_PRIOR ist Push-Feld, live-bewiesen).
+    assert "updAs(a.id,{prioritaet:e.target.value})" in index_html, "Prio-Inline-Select darf NICHT read-only werden"
+
+
+def test_juprowa_push_signatur_byte_identisch(index_html):
+    # Push-Kern unangetastet.
     assert "async function _juprowaPush(scheinId){" in index_html
-
-
-# ── STATIC PINS: Liste + Mobile (TEIL A) ────────────────────────────────────────
-def test_liste_inline_selects(index_html):
-    assert "updAs(a.id,{prioritaet:e.target.value})" in index_html, "Prio-Inline-Select fehlt in der Liste"
-    assert "updAs(a.id,{scheinart:e.target.value})" in index_html, "Auftragstyp-Inline-Select fehlt in der Liste"
-    # Auftragstyp: 7 Werte aus JUPROWA_ART_MAP, Label aus AS_ART.l, Wert=Code.
-    assert "Object.keys(JUPROWA_ART_MAP).map(function(_c){var _k=JUPROWA_ART_MAP[_c];" in index_html
-    # Spaltenkoepfe.
-    assert '"Priorität", sortArrow("prioritaet")' in index_html
-    assert '"Auftragstyp", sortArrow("scheinart")' in index_html
-
-
-def test_mobile_chips(index_html):
-    assert 'a.prioritaet&&a.prioritaet!=="keine"&&React.createElement' in index_html, "Prio-Chip mobil fehlt"
-    assert 'a.scheinart&&a.scheinart!=="kein"&&React.createElement' in index_html, "Auftragstyp-Chip mobil fehlt"
+    assert "editId&&_finalForm.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in _diff)" in index_html

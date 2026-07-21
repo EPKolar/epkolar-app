@@ -144,9 +144,6 @@ def fn_juprowa_reverse_map(index_html):
         "const JUPROWA_PRIO_REV={keine:'0',niedrig:'1',normal:'2',hoch:'3'};\n"
         "const JUPROWA_STATUS_REV={aufgenommen:'1',in_bearbeitung:'2',"
         "erledigt:'3',abgerechnet:'4',storniert:'5'};\n"
-        # v3.9.797: AK_AUFART Reverse + Map (echte Werte) fuer den scheinart-Dirty-Check
-        "const JUPROWA_ART_MAP={'0':'kein','1':'stoerung','2':'lieferung','3':'reparatur','4':'montage','5':'mangelbehebung','6':'garantie'};\n"
-        "const JUPROWA_ART_REV={kein:'0',stoerung:'1',lieferung:'2',reparatur:'3',montage:'4',mangelbehebung:'5',garantie:'6'};\n"
         "function _juprowaWorkerToCode(id){return null;}\n"
     )
     return stubs + sanitize + "\n" + reverse_map
