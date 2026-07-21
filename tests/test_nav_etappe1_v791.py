@@ -44,13 +44,13 @@ def test_genau_ein_popstate_handler(index_html):
     assert index_html.count("addEventListener('popstate'") == 1
 
 
-def test_altpfade_erhalten(index_html):
-    """Die bestehenden kat/Projekt-Push-Pfade (Etappe 1 Regressionsschutz) bleiben auch nach Etappe 2 erhalten.
-    (Etappe 2 ergaenzt Sub-Tab-_navPush-Aufrufe — der count==1-Pin von v791 ist damit bewusst obsolet.)"""
+def test_keine_verhaltensaenderung_altpfade(index_html):
+    """Etappe 1 aendert die bestehenden Push-Pfade NICHT (Regressionsschutz)."""
+    # die alten kat/Projekt-Pushes stehen unveraendert
     assert "history.pushState({kat,projId:openP.id,projView:'dashboard'},'');" in index_html
     assert "if(curUser)history.replaceState({kat},'');" in index_html
-    # der Core existiert (Definition), die Umstellung der Views laeuft ab Etappe 2
-    assert "function _navPush(patch){" in index_html
+    # noch KEIN View ruft _navPush (Umstellung erst Etappe 2+) -> nur die Definition + window-Export existieren
+    assert index_html.count("_navPush(") == 1  # nur die Funktionsdefinition selbst (window._navPush=_navPush zaehlt nicht als Call)
 
 
 def test_kiosk_byte_identisch(index_html):

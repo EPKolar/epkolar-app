@@ -26,8 +26,8 @@ def test_tab_gated_buero_pl_admin(index_html):
 
 def test_render_wired(index_html):
     assert 'sub==="dispo"&&React.createElement(DispoPanel, {arbeitsscheine: arbeitsscheine, monteure: monteure, wpHistory: wpHistory, abs: abs, onUebernehmen:' in index_html
-    # ArbeitsscheinView bekommt wpHistory + abs; v3.9.792 Etappe 2 zusaetzlich _regSubView/_unregSubView (Sub-Tab-History)
-    assert "function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif,users,wpHistory,abs,_regSubView,_unregSubView})" in index_html
+    # ArbeitsscheinView bekommt jetzt wpHistory + abs
+    assert "function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser,pushNotif,users,wpHistory,abs})" in index_html
 
 
 def test_readonly_no_write_in_panel(index_html):
