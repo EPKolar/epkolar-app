@@ -45,14 +45,24 @@ def test_min_three_pilot_migrations_exist(index_html):
 
 
 def test_del_monteur_migrated(index_html):
-    pat = (
-        r"const\s+delMonteur\s*=\s*async\s+id\s*=>\s*\{[^}]*"
-        r"await\s+_confirmModal\([^)]*Mitarbeiter"
-    )
-    assert re.search(pat, index_html), (
+    """delMonteur ist async und dialogisiert über _confirmModal, nicht nativ.
+
+    v3.9.824: das alte Fenster `\\{[^}]*await _confirmModal\\([^)]*Mitarbeiter` setzte voraus,
+    dass zwischen Funktionsanfang und erstem Dialog KEIN `}` steht. Seit dem Löschschutz läuft
+    dort zuerst der Referenz-Check (Arrow-Funktionen, Objektliterale) -> das Fenster matchte
+    nicht mehr. Geschnitten wird jetzt auf den echten Funktionsabschluss (Muster wie in
+    test_v394_confirm_migration seit v3.9.820); die Absicht ist unverändert und zusätzlich
+    verschärft: natives confirm() im Body ist explizit verboten.
+    """
+    i = index_html.index("const delMonteur=async id=>{")
+    body = index_html[i:index_html.index("\n  };", i)]
+    assert re.search(r"await\s+_confirmModal\(", body), (
         "delMonteur should be async and use await _confirmModal"
     )
-    assert "delMonteur=id=>{if(!isAdmin)return;if(!confirm(" not in index_html, (
+    assert "Mitarbeiter" in body, (
+        "delMonteur-Dialog hat keinen Mitarbeiter-Bezug mehr — falscher Funktions-Match?"
+    )
+    assert not re.search(r"[^_\w]confirm\s*\(", body), (
         "delMonteur still uses native confirm()"
     )
 
