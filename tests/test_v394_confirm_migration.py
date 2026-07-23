@@ -7,21 +7,26 @@ INDEX = Path(__file__).parent.parent / 'index.html'
 
 def test_delMonteur_uses_confirmmodal():
     """v3.9.4 Regression: delMonteur muss _confirmModal nutzen, NICHT
-    native confirm() (native blockt UI + ignoriert Variant-Styling)."""
+    native confirm() (native blockt UI + ignoriert Variant-Styling).
+
+    v3.9.820: delMonteur ist mehrzeilig geworden (awaited DELETE + 1-Zeilen-Check gegen
+    RLS-Silent-Denial). Das alte 600-Zeichen-Regex-Fenster mit '}\\s*;'-Terminator matchte
+    nicht mehr -> Body wird jetzt bis zum echten Funktionsabschluss geschnitten. Die Absicht
+    ist unveraendert und wird zusaetzlich verschaerft (native confirm() explizit verboten)."""
     text = INDEX.read_text(encoding='utf-8')
-    # Suche delMonteur-Body und prüfe _confirmModal-Proximity
-    m = re.search(
-        r'(?:const|let|var)\s+delMonteur\s*=\s*(?:async\s*)?[^{]*\{([\s\S]{0,600}?)\}\s*;',
-        text,
-    )
-    assert m, (
+    i = text.find('const delMonteur=async id=>{')
+    assert i >= 0, (
         "v3.9.4 Regression: delMonteur-Definition nicht gefunden in index.html."
     )
-    body = m.group(1)
+    body = text[i:text.index('\n  };', i)]
     assert 'await _confirmModal' in body or '_confirmModal(' in body, (
         "v3.9.4 Regression: delMonteur ruft _confirmModal NICHT — "
         "native confirm() blockt UI. Body-Snippet: "
         f"{body[:200]}"
+    )
+    # v3.9.820 Verschaerfung: native confirm() darf im Body NICHT vorkommen.
+    assert not re.search(r'[^_\w]confirm\s*\(', body), (
+        "v3.9.4 Regression: natives confirm() in delMonteur gefunden."
     )
     # Doppel-Check: setMonteure-prev-filter muss in selbem Block stehen (zeigt richtige Funktion)
     assert 'setMonteure(prev' in body or 'setMonteure(prev=>prev.filter' in body, (
