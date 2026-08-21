@@ -54,9 +54,11 @@ def test_defect_save_schreibt_kanonische_felder(index_html):
 def test_status_rueckmap_auf_mangel_st(index_html):
     i = index_html.find("quickDefect&&subView===")
     block = index_html[i:i + 1600]
-    # ticket-status -> mangel-status (MANGEL_ST = offen / "in Behebung" / behoben)
-    assert 'in_bearbeitung:"in Behebung"' in block and 'erledigt:"behoben"' in block, (
-        "Status-Rückmap ticket->mangel fehlt/falsch"
+    # v3.9.831: die Rückmap wurde in die Modul-Konstante _TICKET2MANGEL_ST konsolidiert
+    # (war vorher inline `_rev={...}`). Der onSave verweist jetzt darauf; die Korrektheit
+    # der Map (sauberer Round-Trip, gültige MANGEL_ST-Werte) prüft test_status_map_consolidation.
+    assert "_dst=_TICKET2MANGEL_ST[u.status]||\"offen\"" in block, (
+        "Status-Rückmap ticket->mangel (_TICKET2MANGEL_ST) im onSave nicht verdrahtet"
     )
 
 
