@@ -211,13 +211,14 @@ def test_loadall_promise_all_anchor(index_html):
     expected_tables = [
         '_sbGet("time_entries")',
         '_sbGet("bautagebuch")',
-        '_sbGet("forms","type=eq.regie")',
+        # v3.9.844: Spalte korrigiert type->form_type (type existiert nicht -> 400 brach den ganzen Buero-Export)
+        '_sbGet("forms","form_type=eq.regie")',
         '_sbGet("defects")',
     ]
     for t in expected_tables:
         assert t in index_html, (
             f"loadAll-Promise.all hat {t} verloren — Daten-Lade-Logik wurde "
-            "geaendert, NICHT erlaubt in v3.9.342."
+            "geaendert (form_type-Korrektur v3.9.844 erlaubt, sonst nichts)."
         )
 
 
