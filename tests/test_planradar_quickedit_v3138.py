@@ -4,7 +4,9 @@
 def test_quickedit_component_exists(index_html):
     # v3.9.180: onComment (Journal) + v3.9.181: onPhotos (Foto-Grid) ergänzt
     # v3.9.410: isAdmin/isMtField/vpMid für Self-Assign-Klemme ergänzt
-    assert "function QuickEditPin({ticket, monteure, isAdmin, isMtField, vpMid, onSave, onOpen, onClose, onComment, onPhotos}) {" in index_html
+    # v3.9.829: statusOptions/hideJournal ergänzt (Defect-Pins wiederverwenden das Popup mit
+    #           begrenzter Status-Liste + ohne Journal) — Defaults = unverändertes Ticket-Verhalten.
+    assert "function QuickEditPin({ticket, monteure, isAdmin, isMtField, vpMid, onSave, onOpen, onClose, onComment, onPhotos, statusOptions, hideJournal}) {" in index_html
     # Schnellbearbeitungs-Felder
     assert 'React.createElement(\'label\', {style:LL()}, "Status")' in index_html
     assert 'React.createElement(\'label\', {style:LL()}, "Zuständig")' in index_html
