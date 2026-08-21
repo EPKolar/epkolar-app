@@ -4,6 +4,43 @@ Status der Features und Backlog. Keine Release-Dates — nur Prio + Zustand.
 
 ---
 
+## 🎯 STRATEGISCHE RICHTUNG · Mehr PlanRadar (sauber & einfach)
+
+**Leitprinzip (Sebastian, 21.08.2026): PlanRadar-Funktionalität soll schrittweise
+immer stärker in die App — aber sauber und für den User einfach.** Nicht Feature-Fülle,
+sondern jeder Schritt so, dass ein Monteur/Bauleiter ihn **ohne Schulung** bedient
+(Mangel-Pin setzen → zuweisen → Foto dran → fertig = **ein Fluss**, keine Formularwüste).
+Jeder neue Schritt: rein additiv, bestehende Bedienung nicht verändern.
+
+**Ist-Stand — die PlanRadar-Kernschleife existiert bereits (kein Greenfield):**
+Plan → Pin → Ticket/Mangel → Status/Foto/Frist → PDF. Belegt im Code:
+- Plan-Viewer mit Pan/Zoom/Pinch/Multi-Page-PDF (`PlanViewerCanvas` ~16460, pdf.js-Cache ~4030).
+- **Pins an Plan-Koordinate** (x/y in %), Tap platziert, Drag verschiebt (`handleCanvasClick` ~16622, `PlanCanvasPinMarker` ~16398), stabile Pin-Nr (`_ticketNr` ~17017).
+- **Mängel als eigene draggbare Pins** am Plan (`_defectPins` ~17016, in `tickets` gemerged ~17111).
+- Ticket-Objekt: Status-Workflow, Prio, Frist, Fortschritt, **Kommentar-Journal** (`TicketDetail` ~16295), Status-Historie (jsonb, v3.9.463).
+- **Polymorphe Foto-Queue** an Entität gebunden, GPS+Kompression+Offline (`captureAndQueue` ~3259).
+- **Einzel-Ticket-PDF** mit Plan-Ausschnitt + eingezeichnetem Pin (`_genTicketPdf` ~16256), Mängel-Snag-Liste (`genMangelPdf` ~15820).
+- Bulk-Status/-Zuweisung (v3.9.464), reifer Offline-Sync (`SQ`/`doSync` ~8180).
+- Vorgeschichte/Details: `docs/handoff/STAND-2026-06-18-PLANRADAR.md` (Block A/B/C).
+
+**Nächste Schritte (priorisiert nach Hebel/Aufwand — alle bauen auf Vorhandenem auf):**
+
+| # | Schritt | Warum / Hebel | Aufbauen auf | Größe |
+|---|---|---|---|---|
+| **①** | **Plan-Gesamtreport-PDF** (1 Seite = Gesamtplan + alle nummerierten Pins + Legende Nr→Titel/Status/Frist/Verantw.) | *Bester Hebel.* Der klassische PlanRadar-Deliverable; heute nur Einzel-Pin-Ausschnitte + bildlose Mängelliste. Rein additiv, sofort sichtbarer Nutzen. | `_tkRenderPdfPage` (volle Planseite als Canvas) + `_tkCropPin`-Zeichenlogik verallgemeinert + `_ticketNr` + `genMangelPdf`-Layout für die Legende | klein–mittel (~1 Funktion, kein Schema/Backend) |
+| **②** | **Defect-Pins am Plan editierbar** machen | Schließt die auffälligste UX-Naht: ein über VMang gesetzter Mangel ist am Plan nur **Lese-Pin** („Bearbeitung im Mängel-Tab", ~17111), ein Plan-Ticket voll editierbar. | `_mapDefect` (~1892) + bestehende Spiegel (`_syncTicketStatus` ~15869) | klein |
+| **③** | **Formular-/Checklisten-Builder** mit typisierten Feldern (Zahl/Messwert/Dropdown/Datum/Unterschrift) + serverseitige Vorlagen | Heute nur Text+Checkbox aus **hartcodierten** `CL_TEMPLATES` (~15610). | `VCheck` (~15618) + `checklists`-Tabelle; Item-Schema um `type`/`options`, Vorlagen in eigene Tabelle | mittel–groß |
+| **④** | **Externe Zuweisung an Subunternehmer** (eigener Zugang + Benachrichtigung) | Assignee heute nur interne `monteure` (~16332). | Kunden-Portal + `kundeStatus`-Spiegel (~15884) als Vorbild; Notifications (~8035) vorhanden, E-Mail an Externe fehlt | groß (Entität/Auth/RLS/Portal) |
+
+**Empfehlung nächster Schritt: ①** (höchster sichtbarer Nutzen pro Aufwand, alle Bausteine
+liegen vor), unmittelbar danach der kleine Teil von **②**. Restlücken laut 18.06.-Doku:
+Plan-Versionierung + Pin-Migration (größter Aufwand), Fälligkeits-/Eskalations-Automatik,
+Mengen/Aufmaß auf Plan.
+
+*(Zeilennummern sind Näherungswerte Stand v3.9.826 — vor dem Bau die Funktion per Name greppen.)*
+
+---
+
 ## ✅ DONE
 
 | # | Feature | Verfügbar ab | Notiz |
