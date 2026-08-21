@@ -28,14 +28,15 @@ Plan → Pin → Ticket/Mangel → Status/Foto/Frist → PDF. Belegt im Code:
 | # | Schritt | Warum / Hebel | Aufbauen auf | Größe |
 |---|---|---|---|---|
 | **①** | ~~**Plan-Gesamtreport-PDF**~~ ✅ **GELIEFERT v3.9.828** — Button „📄 Plan-Report" im Plan-Viewer (admin/PL/buero): Gesamtplan je Seite + alle nummerierten Pins (Farbe=Status) + Legendentabelle. Funktion `_genPlanReportPdf`. | *Bester Hebel — erledigt.* | (gebaut auf `_tkRenderPdfPage`/`_tkLoadImg`/`_pdfStr`/`TICKET_STATUS`) | ✅ |
-| **②** | **Defect-Pins am Plan editierbar** machen | Schließt die auffälligste UX-Naht: ein über VMang gesetzter Mangel ist am Plan nur **Lese-Pin** („Bearbeitung im Mängel-Tab", ~17111), ein Plan-Ticket voll editierbar. | `_mapDefect` (~1892) + bestehende Spiegel (`_syncTicketStatus` ~15869) | klein |
+| **②** | ~~**Defect-Pins am Plan editierbar**~~ ✅ **GELIEFERT v3.9.829** — Klick auf Mängel-Pin öffnet QuickEditPin (Status/Zuständig/Frist/Prio), schreibt kanonische `defects`-Felder, Status→MANGEL_ST rückgemappt. | *UX-Naht geschlossen.* | `QuickEditPin` +`statusOptions`/`hideJournal`, `_mapDefect` | ✅ |
 | **③** | **Formular-/Checklisten-Builder** mit typisierten Feldern (Zahl/Messwert/Dropdown/Datum/Unterschrift) + serverseitige Vorlagen | Heute nur Text+Checkbox aus **hartcodierten** `CL_TEMPLATES` (~15610). | `VCheck` (~15618) + `checklists`-Tabelle; Item-Schema um `type`/`options`, Vorlagen in eigene Tabelle | mittel–groß |
 | **④** | **Externe Zuweisung an Subunternehmer** (eigener Zugang + Benachrichtigung) | Assignee heute nur interne `monteure` (~16332). | Kunden-Portal + `kundeStatus`-Spiegel (~15884) als Vorbild; Notifications (~8035) vorhanden, E-Mail an Externe fehlt | groß (Entität/Auth/RLS/Portal) |
 
-**① ist geliefert (v3.9.828).** **Nächster Schritt: ②** — VMang-Defect-Pins am Plan editierbar
-machen (heute nur Lese-Pin mit Info-Toast, ~17112 `onPinClick` `_isDefectPin`-Zweig). Kleiner Schritt,
-schließt die auffälligste UX-Naht. Restlücken laut 18.06.-Doku: Plan-Versionierung + Pin-Migration
-(größter Aufwand), Fälligkeits-/Eskalations-Automatik, Mengen/Aufmaß auf Plan.
+**① + ② sind geliefert (v3.9.828 / v3.9.829).** **Nächster Schritt: ③** — Formular-/Checklisten-Builder
+mit typisierten Feldern + serverseitigen Vorlagen. **Achtung: braucht eine Design-Entscheidung**
+(welche Feldtypen, Vorlagen-Schema `checklist_templates` = **DDL → Human-Run-Gate/Sebastian**) und ist
+mittel–groß — kein reiner Additiv-Schritt wie ①/②. Restlücken laut 18.06.-Doku: Plan-Versionierung +
+Pin-Migration (größter Aufwand), Fälligkeits-/Eskalations-Automatik, Mengen/Aufmaß auf Plan.
 
 *(Zeilennummern sind Näherungswerte Stand v3.9.826 — vor dem Bau die Funktion per Name greppen.)*
 
