@@ -55,8 +55,11 @@ def test_leerer_austritt_bleibt_leer(node_exe, index_html):
 # ── 2) BEIDE Ladewege nutzen den Mapper (Regressionsschutz gegen den Ur-Bug) ──
 def test_beide_ladewege_mappen(index_html):
     assert "setMonteure(mt.map(_mapWorker))" in index_html, "Cache-Pfad mappt nicht (Ur-Bug)"
-    assert "setMonteure(wk.map(_mapWorker))" in index_html, "Server-Pfad nutzt nicht _mapWorker"
+    # v3.9.848: Server-Pfad ist jetzt ein Reload-Merge (setMonteure(prev=>...)) — mappt aber
+    # weiterhin ueber _mapWorker (nur nicht mehr als wk.map(_mapWorker)). Intent unveraendert.
+    assert "?_prevById.get(x.id):_mapWorker(x)" in index_html, "Server-Pfad (v848-Merge) nutzt nicht _mapWorker"
     assert "setMonteure(mt);" not in index_html, "rohes setMonteure(mt) noch vorhanden — Ur-Bug zurueck"
+    assert "setMonteure(wk);" not in index_html, "roher (ungemappter) Server-Pfad setMonteure(wk) — Ur-Bug zurueck"
     assert "window._mapWorker=_mapWorker" in index_html, "_mapWorker nicht window-exportiert"
 
 
