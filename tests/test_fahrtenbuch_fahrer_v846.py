@@ -12,19 +12,23 @@ import re
 
 
 def test_fahrervon_bevorzugt_snapshot(index_html):
-    # der neue Zugriff nimmt zuerst x.fahrer_id
-    assert 'var _fid=(x&&x.fahrer_id)||((fahrzeuge.find(function(y){return y.id===((x&&x.fahrzeug_id)||fid);})||{}).fahrer)||null;' in index_html
-    # die alte, immer-aktueller-Fahrer-Logik ist NUR aus _fahrerVon weg
-    # (der Dispo-Helfer _fahrerName :26224 nutzt fahrzeuge.fahrer weiterhin bewusst).
+    # v3.9.855-Nachzieher: _fahrerVon zeigt NUR den Fahrt-Snapshot x.fahrer_id.
+    # Der v846-Fallback auf den aktuellen Fahrzeugfahrer ist ENTFERNT (er erzeugte
+    # genau die falsche Zuordnung, die v846 verhindern wollte).
+    assert "var _fid=(x&&x.fahrer_id)||null;" in index_html
     m = re.search(r"const _fahrerVon=function\(x\)\{.*?\n  \};", index_html, re.S)
     assert m, "_fahrerVon-Funktion nicht gefunden"
+    # kein Rueckgriff mehr auf fahrzeuge.fahrer innerhalb von _fahrerVon
+    assert "fahrzeuge.find" not in m.group(0)
     assert "const f=fahrzeuge.find" not in m.group(0)
     assert "if(!f||!f.fahrer)" not in m.group(0)
 
 
-def test_snapshot_wird_weiterhin_persistiert(index_html):
-    # der Write-on-Read-Snapshot bleibt Quelle der Wahrheit
-    assert 'fahrer_id:(_fz&&_fz.fahrer)?_fz.fahrer:null' in index_html
+def test_snapshot_nur_bei_belegbarer_quelle(index_html):
+    # v3.9.855: der Write-on-Read schreibt KEINEN erfundenen Fahrer mehr
+    # (kein _fz.fahrer zum Ansehzeitpunkt) — mangels zeitlich belegbarer Quelle null.
+    assert 'fahrer_id:(_fz&&_fz.fahrer)?_fz.fahrer:null' not in index_html
+    assert "fahrer_id:null/* v3.9.855" in index_html
 
 
 def test_fallback_auf_monteur_name(index_html):
