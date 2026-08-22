@@ -31,7 +31,10 @@ def test_28a_dist_nutzt_minuten(index_html):
 def test_28b_score_und_konstanten(index_html):
     assert "var DISPO_NAH_MIN=15;" in index_html, "DISPO_NAH_MIN fehlt"
     assert re.search(r"var DISPO_NAH_BONUS=30000;", index_html), "DISPO_NAH_BONUS fehlt/veraendert"
-    assert "if(dist(stops[qn],s)<DISPO_NAH_MIN)" in index_html, "28b: Nachbarschafts-Check (dist<DISPO_NAH_MIN) fehlt"
+    # v3.9.856: Nachbarschafts-Check ist jetzt known-gated (near()) statt distanz-blind
+    # (dist()<NAH sah die INNERORTS-Attrappe bei unbekannter Geo als echte Naehe).
+    assert "if(near(stops[qn],s)){nah=true;break;}" in index_html, "28b: Nachbarschafts-Check (known-gated near()) fehlt"
+    assert "return !!(st.known&&st.min!=null&&st.min<DISPO_NAH_MIN);}" in index_html, "28b: near() nicht known-gated"
     assert "(nah?-DISPO_NAH_BONUS:0)" in index_html, "28b: Nachbarschafts-Bonus nicht im Score"
     # Magnitude-Ordnung: Buendel (100000) > Nachbar (30000) > Wochen-Malus (10000).
     assert 100000 > 30000 > 10000, "Magnitude-Ordnung Buendel>Nachbar>Wochen verletzt (Konstanten anpassen)"
