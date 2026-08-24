@@ -12,8 +12,15 @@ in die View gereicht (fuer _ezAbsSet, v783-Abwesenheits-Ausschluss).
 def test_props_durchgereicht(index_html):
     assert "function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,approvals}){" in index_html, \
         "abs/approvals fehlen in der StundenzettelView-Signatur"
+    # v3.9.864 KORRIGIERT: hier stand bis v3.9.863 als Wert der nackte Name `approvals`.
+    # Der Test war gruen — er hat den WORTLAUT der Callsite geprueft, nicht ob der Wert
+    # aufloest. Eine Bindung dieses Namens gibt es im App-Render nicht (der State heisst
+    # absApprovals, :7348) -> beim Oeffnen des Tabs "Monatsabrechnung" ReferenceError im
+    # Render von App, und die GANZE App fiel auf die Fehlerseite. Ein String-Match kann
+    # einen ReferenceError festschreiben; deshalb prueft tests/test_stunden_approvals_prop_v864.py
+    # zusaetzlich die QUELLE (nur absApprovals erlaubt) statt nur den Text.
     assert ("StundenzettelView, { monteure: monteure, ww: ww, curUser: curUser, users: users, "
-            "entries: entries, projects: projects, abs: abs, approvals: approvals}" in index_html), \
+            "entries: entries, projects: projects, abs: abs, approvals: absApprovals}" in index_html), \
         "abs/approvals werden am Render-Ort nicht durchgereicht"
 
 

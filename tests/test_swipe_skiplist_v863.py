@@ -149,3 +149,35 @@ def test_selbsttest_asserts_schlagen_bei_rueckbau_an(index_html):
     assert m and "onTouchCancel" not in m.group(0), (
         "Umkehrprobe: der Rueckgabe-Riegel wuerde nicht anschlagen"
     )
+
+
+# ── v3.9.864: die Leaflet-Karte ist keine Wischflaeche ────────────────────────
+
+def test_flotte_karte_traegt_data_no_swipe(index_html):
+    """REGRESSION, die v3.9.863 selbst verursacht hat und die erst der
+    Browser-Durchlauf fand:
+
+    Solange `select` in der Skip-Liste stand, verschluckte sie die Wische, die
+    auf der Flotte-Karte begannen. Ohne sie ging der Wisch durch und riss die
+    Leaflet-Karte aus ihrem EIGENEN Touch-Handler heraus ab ->
+    TypeError classList of undefined -> die ganze App auf der Fehlerseite.
+
+    Gemessen (gleiche Klick-/Wisch-Sequenz, frischer Origin): v3.9.862 sauber,
+    v3.9.863/864 ohne diesen Riegel reproduzierbar Absturz.
+
+    Der Riegel ist zugleich das richtige Verhalten und folgt dem Plan-Viewer
+    (:17003): auf einer Karte schiebt man die Karte, man wechselt keinen Tab.
+    """
+    assert "h('div',{ref:_mapEl,'data-no-swipe':\"1\"" in index_html, (
+        "Der Leaflet-Kartencontainer der Flotte traegt kein data-no-swipe — "
+        "ein Wisch dort raeumt die Karte aus ihrem eigenen Touch-Handler ab "
+        "und nimmt die ganze App mit."
+    )
+
+
+def test_plan_viewer_behaelt_seinen_no_swipe_riegel(index_html):
+    """Der Praezedenzfall, an dem sich der Kartenriegel orientiert."""
+    assert "'data-no-swipe': \"1\"" in index_html, (
+        "Plan-Viewer-Riegel (data-no-swipe) ist weg — Pan/Zoom dort wuerde "
+        "wieder mit der Wisch-Navigation kollidieren."
+    )
