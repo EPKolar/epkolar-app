@@ -56,16 +56,36 @@ def test_sektion_default_zugeklappt(index_html):
     assert "localStorage" not in index_html[i:i + 300], "Klapp-State darf NICHT persistiert werden"
 
 
-def test_sektion_nur_bei_vorhandenen_ehemaligen(index_html):
-    assert "if(_alt.length>0)_out.push(" in index_html, "Sektion wird auch bei 0 Ehemaligen gerendert"
-    assert 'Ehemalige ("+_alt.length+")' in index_html, "Sektions-Titel mit Anzahl fehlt"
+def test_keine_ehemaligen_sektion_mehr(index_html):
+    """ERSETZT test_sektion_nur_bei_vorhandenen_ehemaligen (v3.9.866).
+
+    v823 hat die Sektion eingefuehrt und hier festgeschrieben. Sie war zwar
+    default zugeklappt, die Kopfzeile mit dem Namens-Zaehler stand aber sichtbar
+    in der Liste und war einen Klick entfernt. Auftrag v3.9.866: Ausgetretene
+    verschwinden ganz aus dem Alltagsbild, Staff holt sie ueber einen Schalter.
+    Der Riegel dreht sich damit um - die Sektion darf NICHT mehr existieren."""
+    assert "if(_alt.length>0)_out.push(" not in index_html, (
+        "Die Ehemaligen-Sektion ist zurueck - v3.9.866 hat sie ersetzt."
+    )
+    assert 'Ehemalige ("+_alt.length+")' not in index_html, (
+        "Sektions-Kopfzeile mit Namens-Zaehler ist zurueck."
+    )
+    assert 'showEhem?"Auch Ehemalige":"Nur Aktive"' in index_html, (
+        "Der Ersatz - der Schalter - fehlt."
+    )
 
 
-def test_ein_renderer_fuer_beide_bloecke(index_html):
-    """Klick/Detail/Bearbeiten muss in 'Ehemalige' identisch funktionieren -> derselbe Renderer."""
+def test_ein_renderer_fuer_alle_zeilen(index_html):
+    """ERSETZT test_ein_renderer_fuer_beide_bloecke (v3.9.866).
+
+    Die urspruengliche Absicht bleibt: Klick, Detail und Bearbeiten muessen fuer
+    einen Ausgetretenen identisch funktionieren wie fuer einen Aktiven. Nur gibt
+    es seit v3.9.866 keine zwei Bloecke mehr, sondern EINE Liste, deren Umfang
+    der Schalter bestimmt - also erst recht derselbe Renderer."""
     assert "const _row=m=>{const projCount=" in index_html, "kein gemeinsamer Zeilen-Renderer"
-    assert "const _out=_akt.map(_row);" in index_html, "Aktive nutzen den Renderer nicht"
-    assert "_alt.map(_row)" in index_html, "Ehemalige nutzen den Renderer nicht"
+    assert "const _out=_sichtbareMA.map(_row);" in index_html, (
+        "Die Liste rendert nicht mehr die sichtbare Menge ueber _row."
+    )
     assert "return monteure.map(m=>{const projCount=" not in index_html, "alter Direkt-map noch vorhanden"
 
 

@@ -17,7 +17,10 @@ def test_role_kpis_usememo():
     text = INDEX.read_text(encoding='utf-8')
     pattern = (
         r'_roleKpis=_react\.useMemo\.call\(void 0,\s*\(\)=>'
-        r'[\s\S]{0,800}?\[monteure\]\)'
+        # v3.9.866: Dep ist jetzt _sichtbareMA (die vom Schalter abhaengige Menge)
+        # statt monteure - die KPI-Kacheln muessen zur sichtbaren Liste passen.
+        # Der Riegel selbst bleibt: es MUSS ein useMemo sein (v3.8.94 Agent TT).
+        r'[\s\S]{0,800}?\[(?:monteure|_sichtbareMA)\]\)'
     )
     matches = re.findall(pattern, text)
     assert len(matches) >= 1, (
