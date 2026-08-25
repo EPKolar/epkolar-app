@@ -65,7 +65,9 @@ def test_callbacks_sind_inhaltlich_unveraendert(index_html):
 def test_tippen_auf_der_leiste_bleibt_moeglich(index_html):
     """Der Riegel darf erst bei echter Querbewegung greifen, sonst schluckt die
     Leiste ihre eigenen Knopfdruecke."""
-    m = re.search(r"if\(Math\.abs\(dx\)>(\d+)&&Math\.abs\(dx\)>Math\.abs\(dy\)&&e\.cancelable\)", index_html)
+    # v3.9.870: der Riegel steht jetzt als Frueh-Ausstieg da (if(!(...))return;),
+    # damit ein Quer-Scroller vorher zum Zug kommt. Die Schwelle selbst ist dieselbe.
+    m = re.search(r"Math\.abs\(dx\)>(\d+)&&Math\.abs\(dx\)>Math\.abs\(dy\)&&e\.cancelable", index_html)
     assert m, "Der touchmove-Riegel ist nicht mehr auffindbar"
     schwelle = int(m.group(1))
     assert schwelle >= 10, (

@@ -63,10 +63,25 @@ def test_table_nicht_mehr_pauschal_geskippt(index_html):
     )
 
 
-def test_skip_nutzt_scrollbarkeits_pruefung(index_html):
+def test_scroller_wird_gemerkt_statt_vorab_zu_verwerfen(index_html):
+    """GEAENDERT in v3.9.870 - eine RUECKNAHME, keine Erweiterung.
+    v863 liess eine Geste verfallen, die auf einem Quer-Scroller BEGANN. Das war
+    die einzige Stelle, an der die Erkennung strenger wurde - und mit leeren
+    Testdaten prinzipiell unsichtbar: ohne Inhalt laeuft kein Container ueber,
+    mit echten Listen sehr wohl, im schmalen Hochformat mehr als im breiten.
+    Jetzt entscheidet die Tatsache: der Scroller wird nur gemerkt, am Ende
+    zaehlt, ob er sich wirklich bewegt hat."""
     expr = _skip_expr(index_html)
-    assert "_swScrollableX(el,e.currentTarget)" in expr, (
-        "Der Skip prueft nicht mehr auf echte Quer-Scrollbarkeit.\n" + expr
+    assert "_swScrollableX" not in expr, (
+        "Quer-Scroller entwertet die Geste wieder VORAB - genau die "
+        "Verschaerfung, die v3.9.870 zuruecknimmt.\n" + expr
+    )
+    assert "sc:sc,scL:sc?sc.scrollLeft:0" in index_html, (
+        "Der Scroller wird nicht mehr gemerkt - dann kann am Ende niemand "
+        "entscheiden, ob er die Geste verbraucht hat."
+    )
+    assert "if(Math.abs(_jetzt-touch.current.scL)>1)return;" in index_html, (
+        "Am Ende wird nicht geprueft, ob der Scroller sich bewegt hat."
     )
 
 
@@ -132,7 +147,7 @@ def test_selbsttest_asserts_schlagen_bei_rueckbau_an(index_html):
     (Repo-Lektion: vier Riegel waren gruen und massen nichts). Hier wird der
     alte Stand rekonstruiert und geprueft, dass die Riegel dann ROT werden."""
     alt = index_html.replace(
-        'el.closest("input,textarea,[data-no-swipe]")||_swScrollableX(el,e.currentTarget)',
+        'el.closest("input,textarea,[data-no-swipe]")',
         'el.closest("input,textarea,select,table,[data-no-swipe]")',
     )
     assert alt != index_html, "Rueckbau griff nicht — Anker veraltet"
@@ -140,9 +155,6 @@ def test_selbsttest_asserts_schlagen_bei_rueckbau_an(index_html):
     expr_alt = _skip_expr(alt)
     assert "select" in expr_alt, "Umkehrprobe: select-Riegel wuerde nicht anschlagen"
     assert "table" in expr_alt, "Umkehrprobe: table-Riegel wuerde nicht anschlagen"
-    assert "_swScrollableX(el,e.currentTarget)" not in expr_alt, (
-        "Umkehrprobe: Scrollbarkeits-Riegel wuerde nicht anschlagen"
-    )
 
     ohne_cancel = index_html.replace("onTouchCancel:handlers.onTouchCancel,", "")
     m = re.search(r"return \{onTouchStart:handlers\.onTouchStart.*?\};", ohne_cancel)
