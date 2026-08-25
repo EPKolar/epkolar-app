@@ -163,7 +163,10 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
         "Umkehrprobe: der Eingabe-Riegel wuerde nicht anschlagen"
     )
 
-    kurz = re.sub(r"if\(weg<\d+\)return;", "if(weg<1000)return;", index_html, count=1)
+    # v3.9.871: index.html hat inzwischen eine zweite, frueher stehende weg<...-Zeile
+    # (die 3px-Richtungsentscheidung im Wisch-Hook). Der Rueckbau muss deshalb genau
+    # die Abwesenheits-Schwelle treffen - was dieser Test beim Umbau prompt gemeldet hat.
+    kurz = index_html.replace("if(weg<120000)return;", "if(weg<1000)return;", 1)
     assert kurz != index_html, "Rueckbau der Wartezeit griff nicht"
     m = re.search(r"if\(weg<(\d+)\)return;", _effekt(kurz))
     assert m and int(m.group(1)) < 120000, (
