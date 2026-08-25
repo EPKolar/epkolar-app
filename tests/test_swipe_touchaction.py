@@ -22,7 +22,7 @@ import re
 
 # Alle useSwipe-Callsites liefern Variablen, die per {...var} auf den
 # Wisch-Container gespreadet werden. Diese Namen sind die horizontalen Wische.
-SWIPE_SPREADS = ["mainSwipe", "shellSwipe", "absSwipe", "navSwipe"]
+SWIPE_SPREADS = ["mainSwipe", "shellSwipe", "absSwipe", "navSwipe", "shellNavSwipe"]
 # v3.9.869: navSwipe kam dazu — die fixe .bottom-nav liegt im Hochformat ueber den
 # untersten ~58px und ist KEIN Kind von .main-pad. Ein Wisch dort erreichte den Hook
 # nie ("quer geht wischen, hoch nicht"). Sie ist damit eine vollwertige Wisch-Flaeche
@@ -59,8 +59,11 @@ def test_alle_useSwipe_callsites_erfasst(index_html):
     Kommt eine neue Wisch-Flaeche dazu, muss sie hier aufgenommen und mit
     touch-action versehen werden."""
     callsites = len(re.findall(r"useSwipe\(", index_html))
-    assert callsites == 5, (
-        f"Erwartet: 1 Definition + 4 Callsites = 5 'useSwipe('; gefunden {callsites}. "
+    # v3.9.872: shellNavSwipe kam dazu - die Projekt-Bottom-Nav (.mob-shell-nav) ist
+    # wie die Haupt-Bottom-Nav position:fixed und Geschwister des Wisch-Containers,
+    # auf dem Handy sogar zweireihig. Ohne eigene Flaeche waere dort die Daumenzone tot.
+    assert callsites == 6, (
+        f"Erwartet: 1 Definition + 5 Callsites = 6 'useSwipe('; gefunden {callsites}. "
         f"Neue Wisch-Flaeche? SWIPE_SPREADS + touch-action-Guard pruefen."
     )
 
