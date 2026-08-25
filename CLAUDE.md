@@ -4,7 +4,7 @@
 
 | Pfad | Rolle |
 |---|---|
-| **`C:\repos\epkolar-app`** | **Arbeitsklon — der einzige.** Alle Edits, Tests, Commits, Pushes laufen hier. |
+| **`C:\repos\epkolar-app`** | **Arbeitsklon — der einzige.** Alle Edits, Tests, Commits, Pushes laufen hier. **Achtung: auf PC `technik` existiert er nicht von selbst** — dort zuerst `git clone --depth 50 https://github.com/EPKolar/epkolar-app.git` nach `C:\repos\` (am 25.08.2026 so angelegt, Dauer ~1 min). |
 | `\\srvdc02\Projekte\…\03_Repos\epkolar-app` (Z:/T:) | **Nur Ablage/Spiegel.** **Keine Edits, keine Commits, kein Push — und kein Pull durch Claude Code.** |
 
 > **Claude Code führt KEINE git-Befehle mehr über Z:/SMB aus — auch keinen Abschluss-Pull.**
@@ -25,9 +25,11 @@ laufen regelmäßig in Minuten-Timeouts, ein gekillter Lauf hinterlässt eine st
 `.git/index.lock` · dazu ein SMB-Aussetzer mitten im git-Befehl
 (»unable to open object pack directory: Function not implemented«).
 
-> **Achtung Laufwerksbuchstaben (nur noch für den Spiegel relevant):** auf PC `technik` ist das
-> Repo unter `Z:`, auf Sebastians Desktop unter `T:`. Auf `technik` ist `T:` ein **anderer** Share
-> (`\\srvdc02\Technik`) — NICHT das Repo.
+> **Achtung Laufwerksbuchstaben (nur noch für den Spiegel relevant):** auf Sebastians Desktop liegt
+> der Spiegel unter `T:`. **Auf PC `technik` gemessen am 25.08.2026: `T:` = `\\srvdc02\Projekte`,
+> also SEHR WOHL der Spiegel; `W:` = `\\srvdc02\Technik`.** Die frühere Notiz hier (`Z:` = Repo,
+> `T:` = ein anderer Share) stimmt auf diesem Rechner nicht mehr — im Zweifel `net use` fragen
+> statt raten.
 
 **Stashes leben nur auf dem srvdc02-Spiegel** (`stash@{0}` Flotte-GPS-WIP, `stash@{1}` Sebastian-WIP)
 und bleiben dort unangetastet. Der Flotte-WIP ist zusätzlich als
@@ -98,6 +100,33 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 ## Push-Weg
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
+
+## Lektionen 24./25.08.2026 — die Wisch-Jagd (Details: `docs/handoffs/HANDOFF_2026-08-25.md`)
+
+Acht Versionen, bis der gemeldete Fehler gefunden war. Jede Messung war grün, während zwei
+Nutzer unabhängig das Gegenteil berichteten. Was daraus zu lernen ist:
+
+- **Widersprechen sich Messung und zwei Nutzerberichte, hat die MESSUNG unrecht.** Nicht genauer
+  messen — anders messen. Der Unterschied liegt dort, wo die Messung die Wirklichkeit vereinfacht.
+- **Synthetische und CDP-Touch-Gesten durchlaufen die Scroll-Arbitrierung des Browsers nicht wie
+  ein echter Finger.** Der Standard-Playwright-Kontext hat sogar `hasTouch:false` — dann kann gar
+  keine echte Geste entstehen. Für Gesten: `newContext({hasTouch:true,isMobile:true})` + CDP
+  `Input.dispatchTouchEvent`.
+- **Mit der ROLLE und den DATEN des Meldenden messen.** Als Admin mit vollen Daten war der Fehler
+  unsichtbar; als `monteur` mit leerer Liste fiel er sofort auf.
+- **Nach einem VERGLEICH fragen, statt blind weiterzumessen.** Die drei entscheidenden Hinweise
+  kamen alle vom Nutzer: „quer geht, hoch nicht" · „nur in der Leiste" · „im Projekt geht's".
+- **Wer scrollt, entscheidet, wem eine Geste gehört.** Scrollt die Seite, nimmt Chrome sie auf
+  oberster Ebene. Scrollt ein Container, bleibt sie beim Element. Das war die Ursache.
+- **Ein Test kann einen Absturz FESTSCHREIBEN.** `test_monatsabrechnung_v813` prüfte den Wortlaut
+  einer Callsite (`approvals: approvals`) statt der Quelle — grün, während der Tab die ganze App
+  umriss. Bei Props-Riegeln die QUELLE prüfen, nicht den Text.
+- **Verdacht auf Selbstverschulden? Gegen die Vorversion messen:** `git show <alt>:index.html` auf
+  eigenem Port servieren, identische Sequenz fahren. So war die Leaflet-Regression in Minuten belegt.
+- **Ablesung an `aria-current`, nie am sichtbaren Text** — „Planung" und „Zeiterfassung" beginnen
+  beide mit „◀ KW 35 / 2026". Und React rendert asynchron: 300–600 ms warten.
+- **Ein Fix, den niemand antippt, kommt nie an.** Der Update-Banner funktionierte, verlangte aber
+  einen Tipper. Seit v868 wendet die App ein Update selbst an, wenn nichts verloren gehen kann.
 
 ## Lektionen 14./15.07.2026 — Kurzindex (Details in den Abschnitten darunter)
 
@@ -245,5 +274,5 @@ Der Unterschied zum Boot-Crash desselben Tages: Den hätte ein Browser in fünf 
 - `_juprowaPush` / `_juprowaPull` / Juprowa Phase-1+2
 - `parseTankBeleg` / `addTank` / Tank-Kontroll-Dialog / km-Sperre
 - `_RLS_SILENT_DENIAL_LABELS`
-- DB-Writes: nur Sebastian via Supabase-SQL-Editor (`jiggujpruejkaomgxarp`). Plugin zeigt auf falsche Org. SQ.push-DELETE/POST/PUT durch die App ist OK (das ist die normale Offline-Queue).
+- DB-Writes: **das Supabase-Plugin funktioniert und zeigt auf die RICHTIGE Org** (EP Kolar & Sohn, Projekt `jiggujpruejkaomgxarp`) — die alte Warnung "falsche Org" ist ueberholt (25.08.2026 belegt: `list_projects` zeigt genau dieses eine Projekt). Schreiben nur auf ausdrueckliche Anweisung, und dann mit: project_id vorab pruefen, idempotent, Wiederherstellungs-SQL im Migrations-Kommentar, Selbsttest mit Kontrollwerten (Rollen simulieren, BEGIN/ROLLBACK) und Vorher/Nachher-Beweis. **Juprowa bleibt tabu** (Sebastian 25.08.: "juprowa machen wir nichts, das funktioniert"). Scheitert der OAuth-Link mit `Unrecognized client_id` (HTTP 422), ist die client_id abgelaufen: `authenticate` NEU aufrufen und die neue URL per curl testen, bevor jemand losgeschickt wird. SQ.push-DELETE/POST/PUT durch die App ist OK (das ist die normale Offline-Queue).
 - Diagnose-Aufträge sind strikt read-only. Keine selbst-initiierten Fixes.
