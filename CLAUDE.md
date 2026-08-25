@@ -79,6 +79,27 @@ python -m http.server 8899 --bind 127.0.0.1   # im Repo-Wurzelverzeichnis, im Hi
 #   - document.querySelector('#root').children.length > 0   (React gemountet)
 ```
 
+### …und bei Änderungen an Views: der Tab-Durchlauf
+
+```
+python scripts/tab_sweep.py                                    # gegen Live
+python scripts/tab_sweep.py http://127.0.0.1:8899/index.html   # lokal
+```
+
+Der Browser-Check oben lädt nur die **Startseite**. Ein Prop, das auf einen nicht
+existierenden Namen zeigt, wird wegen des `&&`-Kurzschlusses aber **nur beim Öffnen
+genau seines Tabs** ausgewertet — und reißt dann die ganze App auf die Fehlerseite,
+weil der ReferenceError im Render von `App` entsteht und keine `_ViewBoundary` ihn
+fangen kann.
+
+**Genau so stand „Monatsabrechnung" monatelang kaputt live** (25.08.2026,
+`approvals` statt `absApprovals`) — und ein pytest-Test hatte den kaputten Wortlaut
+sogar wortgleich festgeschrieben und war grün dabei. `node_check` parst nur, pytest
+ist statisch, der Browser-Check sieht nur die Startseite. Der Tab-Durchlauf ist das
+einzige Gate, das diese Fehlerklasse sehen kann. Kostet zwei Minuten.
+
+Braucht einmalig `pip install playwright && playwright install chromium`.
+
 **Warum das ein Pflicht-Gate ist — teuer gelernt am 14.07.2026:** v3.9.691 hinterließ
 `window._stUuid=_stUuid;` in der Export-Zeile, obwohl `_stUuid` gelöscht war. Ergebnis:
 `ReferenceError` auf **Top-Level** → der gesamte Script-Body danach (also die komplette App)
