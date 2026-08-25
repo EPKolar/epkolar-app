@@ -49,7 +49,12 @@ def test_poll_intervals(index_html):
 def test_mismatch_behavior_role_split(index_html):
     # lager_display -> stiller Reload; alle anderen -> Banner (setSwUpdate)
     assert "if(_isLD){window._kioskSilentReload(_serverVer);}" in index_html
-    assert "else{setSwUpdate(true);}" in index_html
+    # v3.9.868: der Nicht-Kiosk-Zweig legt zusaetzlich die erkannte Zielversion ab
+    # (_neueVerRef), damit der Auto-Update-Pfad weiss, worauf er aktualisieren soll.
+    # Die Absicht dieses Tests ist unveraendert: Kiosk = stiller Reload, alle
+    # anderen = Banner. Beides wird hier weiter geprueft.
+    assert "else{_neueVerRef.current=_serverVer;setSwUpdate(true);}" in index_html
+    assert "setSwUpdate(true)" in index_html
 
 
 def test_loop_guard_helpers(index_html):
