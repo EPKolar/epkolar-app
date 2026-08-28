@@ -129,6 +129,40 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
+## Lektionen 28.08.2026 (Details: `docs/handoffs/HANDOFF_2026-08-28.md`)
+
+**Ein Riegel, der die Lücke des Geprüften teilt, misst nichts.** `test_feiertag_v3996`
+listete die 2026-Feiertage **ohne den 26.10.** — genau den Tag, den auch `_isATFeiertag`
+nicht kannte. Der Test war grün, während Urlaub und Zeiterfassung am Nationalfeiertag
+volle 8,5 Sollstunden rechneten. Fünfter Beleg derselben Krankheit (vier Riegel am 23.08.,
+der `approvals`-Test am 25.08., `tab_sweep` am 28.08.).
+→ Beim Schreiben eines Tests immer fragen: *woher weiß ich, dass meine Erwartungsliste
+vollständig ist?* Die Antwort darf nicht „aus derselben Quelle wie der Code" sein.
+
+**Vor jedem Fix die anderen Verbraucher derselben Größe auflisten.** Den Status-Filter
+einfach in `msF` zu ziehen wäre der naheliegende Fix gewesen — und hätte die Status-Zähler
+auf 0 gesetzt, weil die aus `msF` zählen. Die fünf Minuten Prüfung haben den Folgeschaden
+verhindert **und einen zweiten Fehler mitgefunden** (Prio-Zähler zählten aus einer bereits
+nach Prio gefilterten Menge).
+
+**Feste Zeichenfenster in Tests sind eine Schuld, kein Werkzeug.**
+`test_juprowa_selfheal_v755` prüfte 2400 Zeichen ab `const updAs=`; die Funktion ist
+inzwischen 3338 Zeichen lang. Der Riegel maß die **Kommentarlänge** mit und wurde rot,
+obwohl der geprüfte Aufruf unverändert dastand — das Fenster war schon einmal nachgezogen
+worden. Jetzt Abgrenzung bis zur nächsten Deklaration derselben Ebene: prüft mehr, nicht
+weniger.
+
+**Backslashes zerfallen in Bash-Heredocs — dreimal an einem Tag.** `"\n"` wird zum echten
+Zeilenumbruch und hat eine Testdatei zerlegt (und früher schon einen Pfad im Memory).
+→ Für alles mit Backslash `chr(92)`/`chr(10)` verwenden **oder die Edit/Write-Werkzeuge
+statt der Shell**.
+
+**Agenten-Befunde sind Hypothesen.** Jeder umgesetzte Befund wurde selbst am Code
+nachgeprüft. Zwei waren dabei größer als gemeldet, einer anders gelagert. Ein widerlegter
+Befund ist ein vollwertiges Ergebnis — Agenten ausdrücklich dazu ermächtigen.
+
+---
+
 ## Lektionen 24./25.08.2026 — die Wisch-Jagd (Details: `docs/handoffs/HANDOFF_2026-08-25.md`)
 
 Acht Versionen, bis der gemeldete Fehler gefunden war. Jede Messung war grün, während zwei
