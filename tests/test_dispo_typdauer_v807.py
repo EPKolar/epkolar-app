@@ -115,7 +115,19 @@ def test_verdrahtung_und_kerne(index_html):
     assert "var DISPO_TYP_DAUER_FALLBACK={reparatur:120,montage:180,mangelbehebung:90,garantie:90,lieferung:30};" in index_html
     assert "function _dispoDauer(schein,regeln,gelernt,typMedian){" in index_html
     assert "var _typMed=_dispoMedianJeTyp(scheine);" in index_html
-    assert index_html.count("_dispoDauer(s,null,_gelernt,_typMed)") == 2, "Planner-Aufrufe nicht beide verdrahtet"
+    # v3.9.886: gezaehlt wird jetzt OHNE Kommentare. Der Riegel war rot, weil ein
+    # erklaerender Kommentar und der APP_VERSION-Changelog den Aufruf woertlich
+    # nennen - er mass also die Prosa mit. In diesem Repo ist das heute die vierte
+    # Wiederholung derselben Falle.
+    import re as _re
+    _code = _re.sub(r'/\*.*?\*/', '', index_html, flags=_re.S)
+    _code = chr(10).join(l for l in _code.splitlines()
+                         if not l.startswith("const APP_VERSION="))
+    assert _code.count("_dispoDauer(s,null,_gelernt,_typMed)") == 2, (
+        "Planner-Aufrufe nicht beide verdrahtet (gefunden %d) - der Plan muss die "
+        "gelernten Mediane an BEIDEN Stellen durchreichen."
+        % _code.count("_dispoDauer(s,null,_gelernt,_typMed)")
+    )
     # Kerne unberuehrt.
     for k in ("function _dispoMedianJeKlasse(", "function _dispoParseDauer(", "function _dispoMengeFaktor("):
         assert k in index_html, "Kern veraendert/entfernt: " + k
