@@ -102,10 +102,19 @@ def test_delsvcdoc_uses_helper_not_raw_fetch():
 # ── v3.9.409: P1 Tages-Mehrstunden + Rechte-Haertung (Defense-in-Depth) + onOnline ──
 
 def test_tagesstz_mehrstunden_diff_not_full():
-    """P1 Positiv: Tages-Stundenbestaetigung zeigt Mehrstunden-DIFFERENZ (dt-8.5), nicht volle dt."""
+    """P1 Positiv: Tages-Stundenbestaetigung zeigt Mehrstunden-DIFFERENZ, nicht volle dt.
+
+    v3.9.879 NACHGEZOGEN - nicht abgeschwaecht: die Bezugsgroesse ist nicht mehr
+    hart 8,5, sondern _tagNorm (Mo-Do 8,5 / Fr 4,5 / Sa,So,Feiertag 0). 8h an einem
+    Freitag sind 3,5h ueber Norm und blieben vorher unsichtbar. Die EIGENSCHAFT, die
+    dieser Riegel seit v3.9.409 sichert - Differenz statt voller Tagesstunden - wird
+    weiter geprueft, nur nicht mehr am festen Wert 8.5.
+    """
     text = _txt()
-    assert '"eventuelle Mehrstunden: "+_n(dt-8.5,1)+"h"' in text, \
-        'v3.9.409 Regression: Tages-Mehrstunden muss dt-8.5 sein (nicht volle Tagesstunden)'
+    _diff_ok = ('"eventuelle Mehrstunden: "+_n(dt-_tagNorm,1)+"h"' in text
+                or '"eventuelle Mehrstunden: "+_n(dt-8.5,1)+"h"' in text)
+    assert _diff_ok, \
+        'v3.9.409/879 Regression: Tages-Mehrstunden muss eine DIFFERENZ gegen die Tagesnorm sein'
     assert '"eventuelle Mehrstunden: "+_n(dt,1)+"h"' not in text, \
         'v3.9.409 Regression: alte volle-dt-Variante zurueckgekehrt'
 
