@@ -34,11 +34,36 @@ def test_schedule_push_defined_per_schein_leading_edge(index_html):
     assert "__epkAsPushDone" in body, "lokaler ↑-Clear (window.__epkAsPushDone) fehlt im Erfolgs-Pfad"
 
 
+def _handler_seg(index_html, start):
+    """Der Handler-Rumpf bis zur naechsten Deklaration auf derselben Ebene.
+
+    Frueher stand hier ein festes Fenster von 2400 Zeichen. Das musste schon einmal
+    nachgezogen werden (v3.9.757) und ist am 28.08.2026 erneut gerissen: ein laengerer
+    Kommentar in updAs schob _juprowaSchedulePush( aus dem Fenster - der Test wurde rot,
+    obwohl der Aufruf unveraendert dastand. Ein Riegel, der auf Zeichenzahl statt auf
+    Struktur prueft, misst die Kommentarlaenge mit.
+
+    Jetzt bis zur naechsten `  const `-Deklaration (zwei Leerzeichen Einzug = gleiche
+    Ebene). Das prueft MEHR als vorher, nicht weniger: den ganzen Rumpf statt eines
+    Ausschnitts."""
+    ende = -1
+    _nl = chr(10)
+    _cr = chr(13)
+    for grenze in (_cr + _nl + "  const ", _nl + "  const "):
+        i = index_html.find(grenze, start + 20)
+        if i != -1 and (ende == -1 or i < ende):
+            ende = i
+    assert ende != -1, "Ende des Handlers nicht gefunden - Einrueckung geaendert?"
+    seg = index_html[start:ende]
+    assert len(seg) > 200, "Handler-Rumpf verdaechtig kurz (%d Zeichen)" % len(seg)
+    return seg
+
+
 def test_handlers_trigger_schedule_not_direct_push(index_html):
     """updAs/storno/verschieben/saveAs schedulen den Push (kein Sofort-_juprowaPush, kein _juprowaMarkEdited)."""
     for marker in ("const updAs=", "const storno=", "const verschieben="):
         start = index_html.index(marker)
-        seg = index_html[start:start + 2400]  # v3.9.757: 31a-Guard verlaengerte updAs
+        seg = _handler_seg(index_html, start)
         assert "_juprowaSchedulePush(" in seg, "%s schedult den Push nicht" % marker
         assert "_juprowaPush(" not in seg, "%s ruft _juprowaPush direkt (kein Sofort-Push mehr erlaubt)" % marker
         assert "_juprowaMarkEdited" not in seg, "%s ruft das stillgelegte W2 _juprowaMarkEdited" % marker

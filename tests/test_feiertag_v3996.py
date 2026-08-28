@@ -30,8 +30,11 @@ def test_easter_helper_present(index_html):
 
 def test_at_holidays_2026(node_exe, index_html):
     # Chat-Claude bestätigte 2026-Feiertage (NÖ): fix + beweglich (Oster-basiert).
+    # v3.9.875: 2026-10-26 (Nationalfeiertag) FEHLTE hier — genau deshalb war dieser
+    # Test gruen, waehrend _isATFeiertag den Tag nicht kannte. Ein Riegel, der die
+    # Luecke des Geprueften teilt, misst nichts.
     holidays = ["2026-01-01", "2026-01-06", "2026-04-06", "2026-05-01", "2026-05-14",
-                "2026-05-25", "2026-06-04", "2026-08-15", "2026-11-01", "2026-12-08",
+                "2026-05-25", "2026-06-04", "2026-08-15", "2026-10-26", "2026-11-01", "2026-12-08",
                 "2026-12-25", "2026-12-26"]
     snippet = _holiday_harness(index_html) + (
         "const days=" + json.dumps(holidays) + ";"
@@ -64,3 +67,55 @@ def test_pfingstmontag_other_year(node_exe, index_html):
     )
     res = json.loads(run_node_snippet(node_exe, snippet))
     assert res == [True, True, False], f"Easter-Logik über Jahre falsch: {res}"
+
+
+# ---------------------------------------------------------------------------
+# v3.9.875 - Nationalfeiertag. Eigener Riegel, weil der Tag LOHN kostet.
+# ---------------------------------------------------------------------------
+
+def test_nationalfeiertag_ueber_jahre(node_exe, index_html):
+    """26.10. ist ein FIXER Feiertag - er muss in JEDEM Jahr greifen, nicht nur 2026.
+
+    Warum das Geld kostet: _stdVonTagK (Urlaub) und _stdVonTagBrk (Zeiterfassung)
+    liefern an Feiertagen 0 Sollstunden. Fehlt der Tag, rechnet die App am 26.10.
+    volle 8,5 Stunden - wer ueber den Nationalfeiertag Urlaub nimmt, bekommt einen
+    Urlaubstag abgezogen, der ihm zusteht. Zusaetzlich plant die Dispo dort einen
+    vollen Arbeitstag.
+    """
+    snippet = _holiday_harness(index_html) + (
+        "const out=[2024,2025,2026,2027,2030].map(y=>_isATFeiertag(new Date(y,9,26)));"
+        "process.stdout.write(JSON.stringify(out));"
+    )
+    res = json.loads(run_node_snippet(node_exe, snippet))
+    assert all(res), "26.10. muss in jedem Jahr Feiertag sein, war %s" % res
+
+
+def test_nachbartage_bleiben_arbeitstage(node_exe, index_html):
+    """Gegenprobe zur Zahl 26: nur der 26.10., nicht der 25./27.10., nicht 26.9./26.11."""
+    snippet = _holiday_harness(index_html) + (
+        "const out=[[2026,9,25],[2026,9,27],[2026,8,26],[2026,10,26]]"
+        ".map(a=>_isATFeiertag(new Date(a[0],a[1],a[2])));"
+        "process.stdout.write(JSON.stringify(out));"
+    )
+    res = json.loads(run_node_snippet(node_exe, snippet))
+    assert not any(res), "25./27.10., 26.9. und 26.11. sind Arbeitstage, war %s" % res
+
+
+def test_selbsttest_riegel_schlaegt_beim_rueckbau_an(node_exe, index_html):
+    """Umkehrprobe: wird [10,26] entfernt, MUSS der Riegel rot werden.
+
+    Ohne diese Probe koennte der Test aus einem anderen Grund gruen sein - genau
+    der Zustand, in dem die Feiertagspruefung jahrelang war.
+    """
+    zurueck = index_html.replace(
+        "const fixed=[[1,1],[1,6],[5,1],[8,15],[10,26],[11,1],[12,8],[12,25],[12,26]];",
+        "const fixed=[[1,1],[1,6],[5,1],[8,15],[11,1],[12,8],[12,25],[12,26]];", 1)
+    assert zurueck != index_html, "Rueckbau griff nicht - Anker veraltet"
+    snippet = _holiday_harness(zurueck) + (
+        "process.stdout.write(JSON.stringify(_isATFeiertag(new Date(2026,9,26))));"
+    )
+    res = json.loads(run_node_snippet(node_exe, snippet))
+    assert res is False, (
+        "Umkehrprobe gescheitert: ohne [10,26] meldet _isATFeiertag den 26.10. "
+        "trotzdem als Feiertag - dann prueft dieser Test etwas anderes als gedacht."
+    )
