@@ -86,10 +86,18 @@ def main(url=LIVE):
         seite.on("pageerror", lambda e: fehler.append("pageerror: " + str(e)[:140]))
 
         def konsole(m):
-            if m.type == "error":
-                t = m.text
-                if not any(x.lower() in t.lower() for x in IGNORIEREN):
-                    fehler.append("console: " + t[:130])
+            # In Playwright-fuer-Python sind .type/.text je nach Version Eigenschaft
+            # ODER Methode. Trifft man die falsche Variante, vergleicht man gegen ein
+            # Funktionsobjekt - der Vergleich ist dann IMMER falsch und das Skript
+            # meldet faelschlich "sauber". Genau die Sorte stiller Fehlgruen, die
+            # dieses Gate eigentlich verhindern soll. Deshalb beide Formen bedienen.
+            art = m.type() if callable(getattr(m, "type", None)) else getattr(m, "type", "")
+            if art != "error":
+                return
+            t = m.text() if callable(getattr(m, "text", None)) else getattr(m, "text", "")
+            t = str(t)
+            if not any(x.lower() in t.lower() for x in IGNORIEREN):
+                fehler.append("console: " + t[:130])
         seite.on("console", konsole)
 
         seite.goto(url, wait_until="domcontentloaded")
