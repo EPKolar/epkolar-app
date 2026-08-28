@@ -20,7 +20,12 @@ def test_window_export(index_html):
 
 def test_button_verdrahtet_und_gegatet(index_html):
     # Button ruft die Funktion mit dem aktuellen Plan + allen Pins (Tickets + Defect-Pins)
-    marker = "_genPlanReportPdf(selPlan,planTickets.concat(_defectPins),monteure,layers,p)"
+    # v3.9.877 NACHGEZOGEN: Basis ist jetzt _nrBase statt planTickets (planTickets war fuer
+    # Feldrollen auf die EIGENEN Tickets gefiltert), und die Bildschirm-Nummernkarte
+    # _ticketNr wird durchgereicht, damit der PDF nicht neu durchzaehlt - er warf vorher
+    # positionslose Tickets weg und verschob dadurch jede folgende Nummer gegen den
+    # Bildschirm. Geprueft wird weiterhin dasselbe: Plan + alle Pins + Rollen-Gate.
+    marker = "_genPlanReportPdf(selPlan,_nrBase.concat(_defectPins),monteure,layers,p,_ticketNr)"
     i = index_html.find(marker)
     assert i != -1, "Plan-Report-Button nicht korrekt verdrahtet"
     # Gate wie beim Einzel-Ticket-PDF: admin/PL (isAdmin) ODER buero — steht direkt vor dem Button
