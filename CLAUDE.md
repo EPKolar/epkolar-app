@@ -352,5 +352,16 @@ Der Unterschied zum Boot-Crash desselben Tages: Den hätte ein Browser in fünf 
 - `_juprowaPush` / `_juprowaPull` / Juprowa Phase-1+2
 - `parseTankBeleg` / `addTank` / Tank-Kontroll-Dialog / km-Sperre
 - `_RLS_SILENT_DENIAL_LABELS`
-- DB-Writes: **das Supabase-Plugin funktioniert und zeigt auf die RICHTIGE Org** (EP Kolar & Sohn, Projekt `jiggujpruejkaomgxarp`) — die alte Warnung "falsche Org" ist ueberholt (25.08.2026 belegt: `list_projects` zeigt genau dieses eine Projekt). Schreiben nur auf ausdrueckliche Anweisung, und dann mit: project_id vorab pruefen, idempotent, Wiederherstellungs-SQL im Migrations-Kommentar, Selbsttest mit Kontrollwerten (Rollen simulieren, BEGIN/ROLLBACK) und Vorher/Nachher-Beweis. **Juprowa bleibt tabu** (Sebastian 25.08.: "juprowa machen wir nichts, das funktioniert"). Scheitert der OAuth-Link mit `Unrecognized client_id` (HTTP 422), ist die client_id abgelaufen: `authenticate` NEU aufrufen und die neue URL per curl testen, bevor jemand losgeschickt wird. SQ.push-DELETE/POST/PUT durch die App ist OK (das ist die normale Offline-Queue).
+- DB-Writes: **das Supabase-Plugin funktioniert und zeigt auf die RICHTIGE Org** (EP Kolar & Sohn, Projekt `jiggujpruejkaomgxarp`) — die alte Warnung "falsche Org" ist ueberholt (25.08.2026 belegt: `list_projects` zeigt genau dieses eine Projekt). Schreiben nur auf ausdrueckliche Anweisung, und dann mit: project_id vorab pruefen, idempotent, Wiederherstellungs-SQL im Migrations-Kommentar, Selbsttest mit Kontrollwerten (Rollen simulieren, BEGIN/ROLLBACK) und Vorher/Nachher-Beweis. **Juprowa bleibt tabu** (Sebastian 25.08.: "juprowa machen wir nichts, das funktioniert"). **OAuth-Link IMMER vorher testen — 28.08. viermal ins Leere gelaufen, weil ich es nicht tat.** Die client_id verfaellt nach wenigen Minuten; der Link ist dann tot, BEVOR ihn jemand anklickt, und der Nutzer sieht nur eine nichtssagende Seite. Erkennungsmerkmal:
+
+```
+curl -s -o /dev/null -w '%{http_code}' '<autorisierungs-url>'
+  422  + {"message":"Unrecognized client_id"}  -> TOT, neu erzeugen
+  303  + 'Redirecting to .../dashboard/authorize' -> LEBT, jetzt losschicken
+curl -s -m 3 -o /dev/null -w '%{http_code}' http://localhost:<port>/callback
+  400  -> der lokale Empfaenger laeuft (erwartet, ihm fehlen nur die Parameter)
+  kein Ergebnis -> Empfaenger ist weg, Link ist wertlos
+```
+
+Wiederholtes `authenticate` liefert manchmal DIESELBE (tote) client_id — dann nochmal aufrufen, bis eine neue kommt, und wieder testen. Am besten den Link nicht zum Kopieren anbieten (er ist >700 Zeichen und bricht ab), sondern als `! powershell -c "Start-Process '<url>'"` zum Selbstausfuehren. Bricht die Weiterleitung danach mit einer Fehlerseite ab, ist die URL aus der Adresszeile trotzdem gueltig -> `complete_authentication`. SQ.push-DELETE/POST/PUT durch die App ist OK (das ist die normale Offline-Queue).
 - Diagnose-Aufträge sind strikt read-only. Keine selbst-initiierten Fixes.
