@@ -64,10 +64,20 @@ def test_pdf_buttons_all_use_window_print(index_html):
     )
     matches = pattern.findall(index_html)
     assert matches, "Keine xBtn('pdf')-Buttons gefunden — Pattern-Match-Problem?"
+    # v3.9.882: _genBautagPdf ist die zweite dokumentierte Ausnahme, aus demselben
+    # Grund wie _wpPrintPlan — sie erzeugt ein EIGENES A4-Dokument mit eigenem
+    # Briefkopf, eigenem Fuss und eigener Seitenzaehlung und haengt gar nicht am
+    # globalen @media print. Genau deshalb ist sie zulaessig: der Riegel soll
+    # verhindern, dass jemand einen Handler einschiebt, der das Druck-Setup BRAUCHT
+    # und nicht hat — nicht, dass jemand ein besseres Dokument baut. Das Bautagebuch
+    # druckte vorher die Live-Ansicht: im Dunkelmodus weisse Schrift auf weissem
+    # Papier und nach EINEM Bildschirm abgeschnitten.
+    _eigene_erzeuger = ("_wpPrintPlan", "_genBautagPdf")
     for blob in matches:
-        assert ("window.print()" in blob) or ("_wpPrintPlan" in blob), (
-            "PDF-Button ohne window.print()/_wpPrintPlan-Handler — Foundation seit v3.9.315 setzt "
-            f"globales @media print voraus (Ausnahme v3.9.563: WP-Querformat-PDF via _wpPrintPlan). Auszug: {blob[:200]}"
+        assert ("window.print()" in blob) or any(g in blob for g in _eigene_erzeuger), (
+            "PDF-Button ohne window.print() und ohne eigenen Dokumenterzeuger — die "
+            "Grundlage seit v3.9.315 setzt das globale @media print voraus. Erlaubte "
+            f"eigene Erzeuger: {', '.join(_eigene_erzeuger)}. Auszug: {blob[:200]}"
         )
 
 
