@@ -357,9 +357,18 @@ def test_changelog_kommentar_ist_kein_startzeit_problem(index_html):
     Sie zu loeschen waere ein messbar winziger Gewinn gegen einen echten
     Verlust. Dieser Riegel haelt fest, dass sie bleiben duerfen.
     """
+    # v3.9.885: Der Zugriff ging ueber die feste Zeilennummer 2887 und riss,
+    # sobald irgendwo davor eine Zeile dazukam - genau die Sproedigkeit, die
+    # der Docstring dieses Tests selbst anprangert ("nicht nach Zeilennummer,
+    # die verschiebt sich mit jedem Commit, sondern nach Groesse"). Jetzt wird
+    # die Changelog-Zeile GESUCHT statt an einer Position vermutet.
     zeilen = index_html.split("\n")
     assert len(zeilen) > 2889, "Datei kuerzer als erwartet"
-    assert len(zeilen[2887]) > 50000, (
+    kandidaten = [z for z in zeilen if z.startswith("const APP_VERSION=")]
+    assert len(kandidaten) == 1, (
+        "Erwartet genau eine APP_VERSION-Zeile, gefunden %d" % len(kandidaten)
+    )
+    assert len(kandidaten[0]) > 50000, (
         "Der APP_VERSION-Changelog ist verschwunden. Falls er aus "
         "Performance-Gruenden entfernt wurde: der Gewinn ist nach dieser "
         "Messung nicht nachweisbar, der Verlust an Historie schon."

@@ -32,7 +32,15 @@ def test_wraphrs_used_six_times(index_html):
     # Call-Sites ergaenzt: das onBlur von "Von", das onBlur von "Bis" und die defensive
     # Neuberechnung im Save-Handler. Sinn des Guards bleibt: JEDE von/bis-Stundenberechnung
     # laeuft ueber _wrapHrs — nie ueber eine Inline-Rechnung, die den Uebernacht-Fall verliert.
-    assert index_html.count("_wrapHrs(") == 13, "alle von/bis-Stunden-Berechnungen müssen _wrapHrs nutzen"
+    # v3.9.885: 13 -> 14. Der neue Helfer _zeitEffektiveStunden BENUTZT _wrapHrs -
+    # er erfuellt also genau das, was dieser Riegel sichert (keine selbstgebaute
+    # von/bis-Rechnung). Die Zahl steigt, wenn eine Stelle dazukommt, die es
+    # richtig macht; sie faellt, wenn jemand wieder von Hand rechnet - und genau
+    # das soll sie melden.
+    assert index_html.count("_wrapHrs(") == 14, (
+        "alle von/bis-Stunden-Berechnungen muessen _wrapHrs nutzen - weicht die "
+        "Zahl ab, rechnet entweder jemand von Hand oder eine Stelle ist entfallen"
+    )
     assert 'new Date("2000-01-01T"+addBis)' not in index_html, "kein inline-Übernacht-bug-Pattern mehr"
 
 
