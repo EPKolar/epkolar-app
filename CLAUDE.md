@@ -100,6 +100,13 @@ einzige Gate, das diese Fehlerklasse sehen kann. Kostet zwei Minuten.
 
 Braucht einmalig `pip install playwright && playwright install chromium`.
 
+> **Noch nie ausgefuehrt.** Das Skript ist die Transkription genau des Laufs, der
+> am 25.08. live gegen v3.9.874 sauber durchlief — aber im Arbeitsklon war kein
+> Playwright installiert, also lief das Skript selbst nie. Geprueft sind nur
+> `py_compile` und der Abhaengigkeits-Riegel. **Beim ersten echten Lauf mit
+> kritischem Blick draufschauen**: ein Gate, das faelschlich gruen meldet, ist in
+> diesem Repo schon dreimal teurer gewesen als gar kein Gate.
+
 **Warum das ein Pflicht-Gate ist — teuer gelernt am 14.07.2026:** v3.9.691 hinterließ
 `window._stUuid=_stUuid;` in der Export-Zeile, obwohl `_stUuid` gelöscht war. Ergebnis:
 `ReferenceError` auf **Top-Level** → der gesamte Script-Body danach (also die komplette App)
