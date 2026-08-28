@@ -22,8 +22,16 @@ def _block(index_html):
 
 def test_28a_dist_nutzt_minuten(index_html):
     # die cfg.dist-Funktion (Score/2opt) gibt st.min zurueck, nicht st.km.
-    assert "return st.min!=null?st.min:DISPO_INNERORTS_MIN;}" in index_html, \
-        "28a: cfg.dist optimiert nicht auf Minuten (st.min)"
+    #
+    # v3.9.888 NACHGEZOGEN - nicht abgeschwaecht: der Rueckfallwert bei UNBEKANNTER
+    # Distanz ist nicht mehr DISPO_INNERORTS_MIN (5), sondern DISPO_UNBEKANNT_MIN (45),
+    # und das known-Flag wird beachtet. Grund: 5 Minuten liessen einen Stopp ohne
+    # bekannte PLZ so billig aussehen wie einen um die Ecke - 80 km weg wie nebenan.
+    # v3.9.856 hat genau das fuer near() geheilt, dist() blieb uebrig. Die EIGENSCHAFT,
+    # die dieser Riegel seit v764 sichert - Optimierung auf MINUTEN statt km - gilt
+    # unveraendert und wird weiter geprueft.
+    assert "return (st&&st.known&&st.min!=null)?st.min:DISPO_UNBEKANNT_MIN;}" in index_html, \
+        "28a/888: cfg.dist optimiert nicht auf Minuten oder beachtet das known-Flag nicht"
     assert "return st.km!=null?st.km:DISPO_INNERORTS_KM;}" not in index_html, \
         "28a: alte km-basierte dist noch vorhanden"
 
