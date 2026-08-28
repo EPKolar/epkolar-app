@@ -54,7 +54,23 @@ Gate ist **voller Lauf grün** — keine fixe Testzahl. Auf dem Share NIE testen
 
 ## Versionierung — 4 Stellen synchron halten
 
-Bei jedem App-Bump:
+**Nimm das Skript, nicht die Hand:**
+
+```
+python scripts/version_bump.py 3.9.879 "Kurzbeschreibung OHNE Versionsprefix"
+python scripts/version_bump.py --pruefen      # meldet doppelte Kopf-Prefixe
+python scripts/version_bump.py --reparieren   # raeumt sie auf
+node sql/_check_version.js                    # danach IMMER
+```
+
+Warum: am 28.08. ging der Handsprung an EINEM Tag **viermal** gleich daneben — der
+sw.js-Kopf bekam die Version doppelt (`v3.9.878 - v3.9.878 - …`), weil die Vorlage das
+Prefix schreibt und der uebergebene Text schon eines hatte. Folgenlos, aber vermeidbar.
+Das Skript setzt das Prefix je Stelle **genau einmal** und prueft vor dem Schreiben, dass
+es keine neue Doppelung erzeugt. `_check_version.js` bleibt bewusst ein **eigener** Riegel
+und wird vom Bump-Skript NICHT aufgerufen.
+
+Die vier Stellen (was das Skript anfasst):
 1. `index.html` `var SW_VER='epkolar-vX.Y.Z'` (Z.15)
 2. `index.html` `const APP_VERSION="X.Y.Z-supabase"` (Z.~2463) — Versions-Historie als trailing comment-Chain
 3. `sw.js` Header-Kommentar Zeile 1
