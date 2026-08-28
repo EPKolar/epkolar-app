@@ -84,6 +84,6 @@ def test_planSrc_resolver_handles_file_url():
 def test_planLoadPdf_handles_storage_url():
     """_planLoadPdf muss https-URLs (Supabase Storage) akzeptieren."""
     text = INDEX.read_text(encoding='utf-8')
-    m = re.search(r'async function _planLoadPdf[\s\S]{0,1500}?pdfjsLib\.getDocument', text)
+    m = re.search(r'async function _planLoadPdf[\s\S]*?pdfjsLib\.getDocument', text)
     assert m
     assert 'http:' in m.group(0) or 'https:' in m.group(0)

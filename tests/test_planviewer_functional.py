@@ -7,7 +7,7 @@ INDEX = Path(__file__).parent.parent / 'index.html'
 def test_planLoadPdf_accepts_data_blob_http():
     """_planLoadPdf muss data:/blob:/http(s):-URLs akzeptieren."""
     text = INDEX.read_text(encoding='utf-8')
-    m = re.search(r'async function _planLoadPdf[\s\S]{0,1500}?pdfjsLib\.getDocument', text)
+    m = re.search(r'async function _planLoadPdf[\s\S]*?pdfjsLib\.getDocument', text)
     assert m
     body = m.group(0)
     assert 'data:' in body

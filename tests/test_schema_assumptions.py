@@ -42,7 +42,7 @@ def test_planviewer_handles_file_url_schema():
 def test_planLoadPdf_handles_storage_url():
     """_planLoadPdf muss https-URLs (Supabase Storage) akzeptieren."""
     text = INDEX.read_text(encoding='utf-8')
-    m = re.search(r'async function _planLoadPdf[\s\S]{0,1500}?pdfjsLib\.getDocument', text)
+    m = re.search(r'async function _planLoadPdf[\s\S]*?pdfjsLib\.getDocument', text)
     assert m, '_planLoadPdf-Body nicht gefunden'
     body = m.group(0)
     assert 'http:' in body or 'https:' in body, '_planLoadPdf muss http(s):-URL akzeptieren'
