@@ -50,11 +50,21 @@ var cfg2={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firm
   scheine:[{id:'X',bvh:'X',adrKey:'x',plz:'A',dauerMin:500,alterMs:1,monteurId:'M1'}]};
 var r2=_dispoPlan(cfg2);
 ok(r2.warteliste.length===1 && r2.warteliste[0].scheinId==='X','WAND: 500min passt nicht in 450 -> Warteliste');
-// fz-Bedarf: hatFz=false -> Warteliste mit Grund
-var cfg3={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firma,dist:dist,kapAbzug:{},hatFz:function(){return false;},
+// v3.9.891: Der Fall 'hatFz=false -> Warteliste' ist ERSATZLOS entfallen, weil es die
+// Fahrzeugpruefung nicht mehr gibt. Sie war function(){return true;} - ein Riegel, der nie
+// zumachen konnte - und ihr einziger Aufrufer haengt an s.fzTyp, fuer das es app-weit keinen
+// Schreiber gibt. Stattdessen wird jetzt geprueft, dass ein Schein MIT fzTyp ganz normal
+// geplant wird (frueher haette der tote Zweig ihn theoretisch aussortiert) und dass der
+// Wartelisten-Grund kein Fahrzeug mehr erfindet.
+var cfg3={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firma,dist:dist,kapAbzug:{},
   scheine:[{id:'Y',bvh:'Y',adrKey:'y',plz:'A',dauerMin:60,fzTyp:'Steiger',alterMs:1,monteurId:'M1'}]};
 var r3=_dispoPlan(cfg3);
-ok(r3.warteliste.length===1,'fz-Bedarf ohne freies FZ -> Warteliste');
+ok(r3.warteliste.length===0,'fzTyp sortiert nicht mehr aus - die Pruefung ist entfernt');
+var cfg4={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firma,dist:dist,kapAbzug:{},
+  scheine:[{id:'Z',bvh:'Z',adrKey:'z',plz:'A',dauerMin:500,fzTyp:'Steiger',alterMs:1,monteurId:'M1'}]};
+var r4=_dispoPlan(cfg4);
+ok(r4.warteliste.length===1 && r4.warteliste[0].grund.indexOf('Steiger')<0,
+   'Kapazitaets-Ueberlauf nennt kein erfundenes Fahrzeug als Grund');
 console.log('OK');
 """
     f = tmp_path / "dispoplan.js"
