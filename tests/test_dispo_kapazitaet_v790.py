@@ -17,24 +17,42 @@ def _pure(index_html, name):
     return index_html[i:j]
 
 
-def test_dispo_normfrei_pins(index_html, node_exe, tmp_path):
-    """Die 3 Freigabe-Zahlen-Pins + Hart-Regel (frei in [0,Norm]) + kein Doppel-Abzug."""
+def test_handwand_pins_auf_dem_laufenden_code(index_html, node_exe, tmp_path):
+    """Die 3 Freigabe-Zahlen-Pins + Hart-Regel + kein Doppel-Abzug - jetzt an dem
+    Code, der wirklich rechnet.
+
+    v3.9.899 NACHGEZOGEN, nicht abgeschwaecht: bis hierher standen sieben ok()
+    auf _dispoNormFrei. Diese Funktion hatte genau EINEN Aufrufer - eine Zuweisung
+    ohne Leser - und wurde von der Hand-Wand nie gerufen, obwohl ihr Kopf genau das
+    behauptete. Der Drop rechnet frei=(norm-used)+eigen im Drag-Handler und reicht
+    es an _dispoDropOk; dieselbe Groesse bildet _dispoAblehnGrund fuer den Toast.
+    Beide sind pur und node-testbar - die Pins wandern also auf sie um, mit
+    denselben Freigabe-Zahlen. Von den alten sieben Zusicherungen sicherte genau
+    EINE eine Eigenschaft des laufenden Codes (die _dispoDropOk-Zeile); sie steht
+    unveraendert wieder da, mit 150 statt der Variablen f1.
+    """
     puf = re.search(r"var PUFFER_JE_STOPP=\d+", index_html).group(0)
-    js = puf + ";\n" + _pure(index_html, "_dispoNormFrei") + "\n" + _pure(index_html, "_dispoDropOk") + u"""
+    js = puf + ";\n" + _pure(index_html, "_dispoDropOk") + "\n" + _pure(index_html, "_dispoAblehnGrund") + u"""
 function ok(c,n){ if(!c){ console.error('FAIL '+n); process.exit(1);} }
 // Pin 1 (Freigabe): Do norm 510 (8,5h), Abwesenheit 0, Belegung 360 (6h) -> frei 150 (2,5h)
-var f1=_dispoNormFrei(510,0,360);
-ok(f1===150,'Do 510-0-360=150');
-ok(_dispoDropOk('a','a',false,f1,90)===true,'1,5h(90)+Puffer passt in 150');
-// Pin 2: Fr norm 270 (4,5h), Belegung 180 -> frei 90
-ok(_dispoNormFrei(270,0,180)===90,'Fr 270-0-180=90');
-// Pin 3: Halbtag ZA (abwAbz 240) + belegt 120 -> frei 150
-ok(_dispoNormFrei(510,240,120)===150,'Halbtag 510-240-120=150');
-// Hart-Regel (15.07.): frei nie > Norm, nie negativ
-ok(_dispoNormFrei(510,0,0)===510,'leer=Norm');
-ok(_dispoNormFrei(510,0,600)===0,'ueberbucht=0');
-// alter Doppel-Abzug (510-360)-360=-210->0 waere falsch; jetzt 150
-ok(_dispoNormFrei(510,0,360)===150,'kein Doppel-Abzug');
+ok(_dispoDropOk('a','a',false,150,90)===true,'1,5h(90)+Puffer passt in 150');
+ok(_dispoAblehnGrund('',510,360,90,0)===null,'510-360=150 frei -> kein Ablehn-Grund');
+// Pin 2: Fr norm 270 (4,5h), Belegung 180 -> frei 90; 1,5h+Puffer passt NICHT
+ok(_dispoDropOk('a','a',false,90,90)===false,'90+Puffer passt nicht in 90');
+ok(String(_dispoAblehnGrund('',270,180,90,0)).indexOf('1,5h frei')>0,'Ablehn-Text beziffert 1,5h frei');
+// Pin 3: Halbtag ZA -> data-norm ist 510-240=270, belegt 120 -> frei 150
+ok(_dispoAblehnGrund('',270,120,90,0)===null,'Halbtag 270-120=150, 1,5h passt');
+// KEIN Doppel-Abzug: die Belegung geht genau EINMAL ab. Gegenprobe mit dem alten
+// Fehler von v790: (510-360)-360 = -210 haette denselben Drop abgelehnt.
+ok(_dispoDropOk('a','a',false,-210,90)===false,'alter Doppel-Abzug haette abgelehnt');
+// eigen: liegt der gezogene Chip schon auf dem Tag, zaehlt seine Dauer nicht doppelt.
+// Gleicher Tag, gleicher Chip - nur eigen entscheidet ueber passt / passt nicht.
+ok(_dispoAblehnGrund('',510,420,90,90)===null,'eigene Dauer wird herausgerechnet');
+ok(_dispoAblehnGrund('',510,420,90,0)!==null,'ohne eigen waere derselbe Tag zu voll');
+// harte Waende der Hand
+ok(_dispoDropOk('a','a',true,510,60)===false,'hardBlock schlaegt jede Kapazitaet');
+ok(_dispoDropOk('a','b',false,510,60)===false,'fremde Monteurszeile');
+ok(String(_dispoAblehnGrund('Urlaub',510,0,60,0))==='Urlaub','hardLabel dominiert');
 console.log('ALL-OK');
 """
     f = tmp_path / "d790.js"; f.write_text(js, encoding="utf-8")
@@ -58,8 +76,24 @@ def test_abwabzug_gebaut_ohne_belegung(index_html):
 def test_handwand_nutzt_abwabz(index_html):
     """Die Zelle/Hand-Wand rechnet data-norm + frei gegen abwAbz (nicht kapAbzug) -> Belegung nur einmal."""
     assert "var _abwAbz=((((_built.cfg||{}).abwAbzug)||{})[m.id]||{})[t.key];" in index_html
-    assert "var _normFrei=_dispoNormFrei(t.normMin,_abwAbz,usedMin);" in index_html
+    #
+    # v3.9.899 NACHGEZOGEN - nicht abgeschwaecht: die Zeile
+    #     assert "var _normFrei=_dispoNormFrei(t.normMin,_abwAbz,usedMin);" in index_html
+    # ist ersatzlos entfallen. Sie sicherte die blosse EXISTENZ einer Zuweisung mit
+    # NULL Lesern - derselbe Fall wie _kapReal in v3.9.896, und derselbe Schaden: sie
+    # hat den Ausbau toten Codes verhindert, ohne eine Eigenschaft zu sichern.
+    # Die Aussage dieses Tests (die Zelle reicht abwAbz durch, nicht kapAbzug) haengt
+    # an den data-Attributen darunter - und die liest der Drag-Handler wirklich.
     assert "'data-norm':(t.normMin-_abwAbz)" in index_html
+    assert "'data-used':usedMin" in index_html, (
+        "Ohne data-used hat der Drag-Handler keine Belegung - frei=(norm-used) "
+        "wuerde NaN."
+    )
+    assert index_html.count("frei=(norm-used)+eigen;") == 2, (
+        "Die Hand-Wand rechnet nicht mehr an beiden Stellen (pointermove = "
+        "Live-Feedback, pointerup = Schreiben) gleich - genau dort entsteht der "
+        "Fall gruen angezeigt, aber abgelehnt."
+    )
     # der alte Doppel-Abzug in der Anzeige ist weg
     assert "'data-norm':(t.normMin-_abz)" not in index_html
 

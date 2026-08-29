@@ -9,7 +9,7 @@ StempelTafel (ab Z.5774):
   2) Rollout-Haertung in StempelTafel: Inter-Key-Timeout (Puffer verwirft sich bei Luecke
      > STEMPEL_HID_GAP_MS, NICHT bei Enter selbst), Entfernen des lokalen _uuid-Schattens
      (der einen Nicht-UUID-Fallback 'st_'+Date.now()+... hatte -> 22P02 in Postgres ->
-     Stempel landet still in syncQueueFailed), _evCache als Offline-Richtungsquelle, und der
+     Stempel landet still in syncQueueFailed) und der
      Netzfehler-Pfad, der (anders als 'missing') KEIN return vor dem SQ.push hat.
 """
 import re
@@ -130,21 +130,25 @@ def test_st_id_fallback_string_lebt_nur_noch_in_kommentaren(index_html):
     assert "const row={id:_uuid(),worker_id:worker.id,direction:dir,ts:nowIso,device:_dev};" in index_html
 
 
-# ═══════════════════════════════════════════════════════════════════
-# 4) _evCache — Read UND Write befuellen ihn
-# ═══════════════════════════════════════════════════════════════════
-def test_evcache_existiert_als_ref(index_html):
-    assert "const _evCache=_react.useRef.call(void 0, {});" in index_html
-
-
-@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
-def test_evcache_wird_aus_read_befuellt(index_html):
-    assert "_evCache.current[worker.id]=events.map(x=>({direction:x.direction,ts:x.ts}));" in index_html
-
-
-@pytest.mark.skip(reason="v3.9.769 Stufe 1 Weg B: der alte Client-INSERT-Scanpfad (Lookup+Read+direkter stempel_log-POST, evCache, SQ.push-Offline-Puffer, Client-Cooldown/Uebernacht/Netto am Panel) ist durch den SECURITY-DEFINER-RPC stempel_terminal_stempel ersetzt. Richtung/Doppel-Scan/Uebernacht leben jetzt im RPC (sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769), kein-falsches-gruen + Client-Cooldown + unknown-Chip im neuen App-Pfad (ebd.). Dieser Pin testet toten Code.")
-def test_evcache_wird_nach_sq_push_befuellt(index_html):
-    assert "_evCache.current[worker.id]=(events||[]).concat([{direction:dir,ts:nowIso}]);" in index_html
+# ===============================================================
+# 4) _evCache - v3.9.899 ENTFERNT, samt der Ref selbst
+# ===============================================================
+# Dieser Abschnitt hatte DREI Zusicherungen. Zwei davon sicherten eine echte
+# Eigenschaft (die Ref wird aus dem Read befuellt / nach dem Schreiben
+# nachgefuehrt) - sie wurden in v3.9.769 korrekt stillgelegt, mit der
+# Begruendung: der Pin testet toten Code. Die dritte,
+#
+#     def test_evcache_existiert_als_ref(index_html):
+#         assert "const _evCache=_react.useRef.call(void 0, {});" in index_html
+#
+# sicherte nur die EXISTENZ und blieb aktiv. Sie hat damit ein Jahr lang eine
+# Ref am Leben gehalten, in die nichts schreibt und aus der niemand liest -
+# und mit ihr den Kommentar daneben, der drei Zusagen machte, die es nie gab.
+# Genau wie _kapReal in v3.9.896: die Existenz toter Zeilen ist keine
+# Eigenschaft. Die Nachfolge-Zusicherung steht in test_niegelesen_v899.py -
+# sie prueft, dass die Richtung weiter vom Server kommt (RPC
+# stempel_terminal_stempel) und der Lesepfad bei 401/403 abbricht, statt
+# offline zu raten. Das ist die Eigenschaft; die Ref war nur ihr Schatten.
 
 
 # ═══════════════════════════════════════════════════════════════════
