@@ -145,6 +145,44 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
+## Lektionen 29.08.2026 (Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+
+**Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
+`index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
+fehlerfrei und hat ausgeglichene Klammern, und `() 0` sieht sogar **besser** aus als die
+erwartete Basislinie `-1`. Wer nur auf die Zahlen schaut, hält den Totalverlust für eine
+Verbesserung. Beide haben jetzt eine Lebenszeichen-Prüfung.
+→ **Für jede Änderung an `index.html` `scripts/safe_edit.py` benutzen** (Anker müssen genau
+einmal treffen, Ergebnisgröße wird geprüft, Schreiben in eine Nebendatei mit Rücklese-
+Vergleich, erst dann ersetzen). Die Zieldatei wird gar nicht angefasst, solange nicht
+feststeht, dass der neue Inhalt vollständig ist.
+
+**Drei Fehlerklassen, die fast jeden Befund dieser Sitzung erklären.** Wer in `index.html`
+sucht, findet damit schneller etwas als über einen Feature-Namen:
+
+1. *Eine Größe wird an zwei Stellen unterschiedlich gerechnet.* Erkennungsmerkmal: zwei
+   Zahlen auf einem Bildschirm, die sich widersprechen — und jemand entscheidet nach einer
+   davon. **Vor jedem Fix die anderen Verbraucher derselben Größe auflisten.**
+2. *Etwas wird berechnet und nie gelesen.* Dreimal in einer Datei gefunden.
+   **`grep` nach Variablen ohne Leser lohnt sich als eigener Durchgang** — vier Treffer.
+3. *Ein Riegel, der nicht zumachen kann.* Gefährlicher als der offene Riegel ist das
+   **Versprechen daneben**: ein Text, der eine Prüfung behauptet, die es nicht gibt.
+
+**Ein Riegel, der auf Zeichenzahl, Zeilennummer oder Wortlaut prüft, misst früher oder
+später den Kommentar mit.** Neunmal an zwei Tagen — zweimal davon in meinen eigenen neuen
+Tests, und einmal hat ein Kommentar, der eine Muster-Kollision *erklärte*, sie damit
+ausgelöst. Keinen abgeschwächt, alle auf die Eigenschaft gezogen.
+
+**`git add -A` ist gefährlich, solange Agenten laufen** — zweimal landeten rote
+Testdateien auf `main`. Nur explizite Dateilisten, und die Verfolgung an
+`git ls-tree -r HEAD` prüfen, nie an `git status`.
+
+**Backslashes in Bash-Heredocs: sechsmal**, einmal mit zerstörtem Code. Die Regel stand
+schon zweimal in den Notizen. Wenn sie sechsmal nicht greift, ist das Werkzeug falsch —
+`chr(92)`/`chr(10)` oder die Edit/Write-Werkzeuge.
+
+---
+
 ## Lektionen 28.08.2026 (Details: `docs/handoffs/HANDOFF_2026-08-28.md`)
 
 **Ein Riegel, der die Lücke des Geprüften teilt, misst nichts.** `test_feiertag_v3996`
