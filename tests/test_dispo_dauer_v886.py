@@ -60,14 +60,27 @@ def test_der_aufruf_ist_gegen_fehlendes_built_abgesichert(index_html):
 
 
 def test_der_plan_rechnet_unveraendert(index_html):
-    """Gegenprobe: der Plan-Pfad darf sich NICHT geaendert haben - sonst haette
-    ich die Dauern auf beiden Seiten verschoben statt sie anzugleichen."""
-    assert "var d=_dispoDauer(s,null,_gelernt,_typMed).min;" in index_html, (
-        "Der Plan-Aufruf hat sich veraendert. Ziel war, die Warteliste an den "
-        "Plan anzugleichen - nicht beide zu verschieben."
+    """Gegenprobe: der Plan-Pfad darf die QUELLENKETTE nicht geaendert haben -
+    sonst haette ich die Dauern auf beiden Seiten verschoben statt sie anzugleichen.
+
+    v3.9.892 NACHGEZOGEN - und das war MEIN eigener Fehler von v886: der Riegel
+    hielt den WORTLAUT fest (`_dispoDauer(...).min` direkt an der Zuweisung) statt
+    der Eigenschaft. v892 faengt das Ergebnis in einer Variablen ab, um ausser `min`
+    auch `geschaetzt` zu bekommen - dieselbe Rechnung, andere Schreibweise. Geprueft
+    wird jetzt, worauf es ankommt: beide Plan-Stellen rufen VIERARMIG auf.
+    """
+    ohne_komm = re.sub(r"/\*.*?\*/", "", index_html, flags=re.S)
+    ohne_komm = "\n".join(l for l in ohne_komm.splitlines()
+                          if not l.startswith("const APP_VERSION="))
+    vierarmig = re.findall(r"_dispoDauer\(s,null,_gelernt,_typMed\)", ohne_komm)
+    assert len(vierarmig) == 2, (
+        "Erwartet genau 2 vierarmige Plan-Aufrufe (Vorschlaege + fixe Termine), "
+        "gefunden %d. Ziel war, die Warteliste an den Plan anzugleichen - nicht "
+        "den Plan zu verschieben." % len(vierarmig)
     )
-    assert "dauerMin:_dispoDauer(s,null,_gelernt,_typMed).min," in index_html, (
-        "Der zweite Plan-Aufruf (dauerMin je Schein) hat sich veraendert."
+    assert "var d=_ddf.min;" in index_html and "dauerMin:_dd.min," in index_html, (
+        "Die Plan-Stellen reichen das Ergebnis nicht mehr ueber eine Variable "
+        "durch - dann kommen min und geschaetzt womoeglich aus zwei Rechnungen."
     )
 
 
