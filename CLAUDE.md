@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-902, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-906, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,28 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Zaehl ERST, raeum DANN.** Auf „die Liste ist zu mächtig“ war die Versuchung, sofort
+aufzuräumen. Das Zählen hat die Antwort geliefert und zugleich die Priorität umgedreht:
+6 Bedienelemente in der Kopfzeile, aber **6 Editoren je ZEILE** — bei dreißig Zeilen 180
+aktive Bedienelemente. Die Kopfzeile war das kleinere Problem, und die Doppelung dort
+(jeder Filter steht als Feldwert UND als Chip darunter) hätte ich nie geraten.
+
+**Ein Auswahlfeld feuert `change` bei JEDEM Pfeiltasten-Schritt.** Gemessen: vier
+Pfeiltasten → vier Ereignisse, vier Werte. In der Arbeitsschein-Liste hängt an jedem
+Zeilen-Auswahlfeld ein sofortiges Schreiben, und vier davon pushen nach OFFA — wer mit
+der Tastatur zum gewünschten Monteur navigiert, hängt den Schein unterwegs an **jeden
+dazwischen**, mit einem Push je Schritt.
+→ Der Fix ist NICHT trivial, und das gehört dazugesagt: Schreiben auf `blur` verschieben
+scheitert daran, dass das Feld **kontrolliert** ist (die Anzeige springt zurück);
+Pfeiltasten abfangen ist ein Rückschritt für die Tastaturbedienung; Entprellen braucht
+ein Nachziehen beim Verlassen und beim Auskängen. **Lieber belegt offen lassen als
+halb reparieren.**
+
+**Ein widerlegter Verdacht spart einen Riegel.** Mausrad über einem Auswahlfeld ändert
+den Wert nicht — in beide Richtungen gemessen, mit Gegenprobe, dass das Feld überhaupt
+änderbar ist. Ohne die Messung hätte ich einen `onWheel`-Schutz an 131 Auswahlfelder
+geschrieben, gegen ein Nicht-Problem.
 
 **Ein Riegel misst ANKUNFT oder er misst WIRKUNG — das ist nicht dasselbe.** Beim Bau des
 Datenmodus für `tab_sweep.py` hatte ich zwei Nachweise eingebaut: die Saat liegt in der
