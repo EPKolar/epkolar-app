@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-906, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-908, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,32 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Eine Null, die ein Fehlschlag ist, sieht aus wie ein Ergebnis.** Ein Auffangzweig mit
+`catch(_){return 0;}` liefert eine Zahl, nach der jemand HANDELT: „niemand abwesend“ heisst,
+die Woche wird mit voller Mannschaft geplant. „Die Rechnung ist fehlgeschlagen“ ist keine
+Auskunft und gehoert auch nicht als Zahl auf den Schirm. Dritter Fall dieser Familie:
+v3.9.898 („Alle bearbeitet“, ohne je gemessen zu haben), v3.9.892 (geschaetzte Dauer sah
+aus wie vereinbarte), v3.9.908 (`absThisWeek`).
+→ **Pruefe bei jedem Auffangzweig: landet der Wert vor einem Menschen?** Wenn ja, muss er
+NICHT GEMESSEN sagen koennen. In diesem Repo kann die Anzeigefunktion `_metric` das
+laengst (`null` → drei Punkte) — bei v908 war der Fix deshalb EINE Zeile. **Die
+Faehigkeit war da, sie wurde nur nicht benutzt**; das ist der haeufigere Fall, nicht die
+fehlende Faehigkeit.
+
+**Zeitfenster: nachrechnen, nicht dem Namen glauben.** Die Klasse hat an einem Tag DREIMAL
+zugeschlagen — `from + 32*TIME_DAY` als „Monat“ (Kilometergeld zweimal ausgewiesen,
+v897), ein Fenster bei HEUTE abgeschnitten waehrend das Nachbarfenster voll war (v901),
+und `+(14-day)` als „sieben Tage“ (der Sonntag fiel heraus, v907).
+→ **Ein Fenster misst man, indem man den ersten und den letzten enthaltenen Tag ausgibt**
+— gegen einen Montag, einen Sonntag, einen Monatsersten, ein Schaltjahr und eine
+Zeitumstellung. Und: die Grenze bleibt HALBOFFEN, sonst gehoert ein Tag zwei Fenstern.
+
+**Mein blinder Fleck bei Zaehl-Riegeln: die zweite Verwendung IM SELBEN AUSDRUCK.**
+Dreimal an einem Tag hat ein selbstgeschriebener Zaehl-Riegel die falsche Zahl erwartet
+— die `useMemo`-Abhaengigkeit (v907), die Farbbedingung, die denselben Wert noch einmal
+liest (v908). Jedes Mal wurde er zu Recht rot und hat seinen eigenen Fehler gezeigt.
+→ Vor jedem `count(...) == N`: alle Vorkommen einmal ausgeben lassen, nicht schaetzen.
 
 **Zaehl ERST, raeum DANN.** Auf „die Liste ist zu mächtig“ war die Versuchung, sofort
 aufzuräumen. Das Zählen hat die Antwort geliefert und zugleich die Priorität umgedreht:
