@@ -8,6 +8,7 @@ MCP-Befunde @360/390px (live vermessen + Fixes per Injection validiert):
 - Chef "Kritisch überfällige AS"-Zeile lief @360 21px über. Fix: kundName ellipsis.
 - Projekt-Header: Name auf 62px gequetscht. Fix: minWidth 170 (mobile) → rechte Gruppe bricht um.
 """
+from _hilfen import nur_code
 
 
 def test_mob_shell_nav_wraps(index_html):
@@ -69,8 +70,20 @@ def test_mobile_mehr_shows_all_tabs(index_html):
     assert "const moreActive=tabs.filter(t=>t.g>=4).some(t=>tabs.indexOf(t)===safeKat);" in index_html, (
         "moreActive bleibt auf g>=4 bezogen (sonst dauerhaft markiert)"
     )
-    # beide Mehr-Dropdowns brauchen maxHeight+Scroll für 14 Einträge
-    assert index_html.count('overflowY:"auto"}}/* v3.9.118') == 2, "beide Mehr-Dropdowns brauchen maxHeight+scroll"
+    # v3.9.905 NACHGEZOGEN. Hier stand:
+    #     index_html.count('overflowY:"auto"}}/* v3.9.118') == 2
+    # Der Anker nahm ein KOMMENTARFRAGMENT als Unterscheider mit hinein. Jede
+    # Umformulierung des Erklaertexts haette ihn rot gemacht - und ein
+    # geloeschtes maxHeight bei stehengebliebenem Kommentar waere gruen
+    # geblieben. Jetzt kommentarblind und jedes Dropdown einzeln benannt: das
+    # sichert zusaetzlich, dass beide ihre EIGENE Hoehe behalten.
+    _code = nur_code(index_html)
+    for _wo, _kette in (("Desktop", 'maxHeight:"min(70vh,560px)",overflowY:"auto"}}'),
+                        ("Mobil", 'maxHeight:"min(65dvh,520px)",overflowY:"auto"}}')):
+        assert _code.count(_kette) == 1, (
+            "Das Mehr-Dropdown (%s) hat maxHeight oder Scroll verloren - bei 14 "
+            "Eintraegen laeuft es dann aus dem Schirm." % _wo
+        )
 
 
 def test_chef_kundname_min_width(index_html):

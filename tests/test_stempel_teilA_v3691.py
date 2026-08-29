@@ -16,6 +16,7 @@ import re
 import json
 import pytest
 from conftest import run_node_snippet, _extract_fn
+from _hilfen import nur_code
 
 
 def _helpers(index_html):
@@ -119,13 +120,29 @@ def test_st_id_fallback_string_lebt_nur_noch_in_kommentaren(index_html):
     wuerde daher fehlschlagen, obwohl der Bug behoben ist. Diese Tests pruefen stattdessen
     das, was wirklich zaehlt: der String kommt nirgends mehr als CODE vor, das heisst nicht
     mehr in einer Zuweisung/als Objekt-Property, die daraus eine id baut."""
-    assert index_html.count("'st_'+Date.now()") == 2, (
-        "Erwartet: Fallback-String kommt genau in den zwei bekannten Kommentaren vor "
-        "(Selbsttest-Titel + Erklaerkommentar) — Anzahl hat sich veraendert, bitte pruefen."
+    # v3.9.905 NACHGEZOGEN. Hier stand:
+    #     assert index_html.count("'st_'+Date.now()") == 2
+    # Das zaehlte PROSA - genau die zwei erklaerenden Kommentare. Der Riegel war
+    # damit an den Wortlaut der Doku gebunden: wer einen der beiden Kommentare
+    # umformuliert oder einen dritten schreibt, macht ihn rot, ohne dass sich am
+    # Code irgendetwas geaendert haette. Und die eigentliche Aussage - "kommt
+    # nicht mehr als CODE vor" - stand nur im Docstring.
+    # Jetzt wird genau diese Aussage gemessen, kommentarblind. Das ist strenger
+    # als vorher: es faengt jede Code-Verwendung, nicht nur die zwei Formen, die
+    # der Regex-Riegel darunter kennt.
+    _code = nur_code(index_html)
+    assert _code.count("'st_'+Date.now()") == 0, (
+        "Der Fallback-String kommt wieder als CODE vor. Er erzeugt "
+        "kollisionsanfaellige ids; die id-Erzeugung laeuft ueber _uuid()."
     )
-    # Kein Code-Muster, das aus dem String eine id baut (z.B. `id:'st_'+Date.now()` oder
-    # `='st_'+Date.now()` als Zuweisung).
-    assert re.search(r"[:=]\s*'st_'\+Date\.now\(\)", index_html) is None
+    # Die zwei erklaerenden Kommentare duerfen bleiben - sie dokumentieren, WARUM
+    # der Schatten weg ist. Dass es sie gibt, wird bewusst NICHT gezaehlt.
+    assert "'st_'+Date.now()" in index_html, (
+        "Auch die Erklaerung ist verschwunden - dann weiss niemand mehr, wovor "
+        "der Riegel darueber schuetzt."
+    )
+    # Zusaetzlich das engere Muster, das aus dem String eine id baut.
+    assert re.search(r"[:=]\s*'st_'\+Date\.now\(\)", _code) is None
     # Die tatsaechlich verwendete id-Erzeugung ist das globale _uuid().
     assert "const row={id:_uuid(),worker_id:worker.id,direction:dir,ts:nowIso,device:_dev};" in index_html
 
