@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-896, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-897, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,39 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Ein Messgerät, dessen Werte nicht auseinandergehen KÖNNEN, misst nichts.** Am 29.08.
+ist `scripts/perf_live.py` **dreimal an sich selbst gescheitert**, bevor es zum ersten Mal
+etwas gemessen hat — und jedes Mal sahen die Zahlen brauchbar aus:
+
+| Was herauskam | Warum es Unsinn war |
+|---|---|
+| 18 Ansichten, 18× exakt `12.8 MB` Heap | Chromium rundet `performance.memory` grob, solange `--enable-precise-memory-info` fehlt |
+| 18 Umschaltzeiten zwischen 460 und 468 ms | mein eigener `wait_for_timeout(450)` — **ich habe meinen Sleep gemessen, nicht die App** |
+| danach 14× `-1` („nichts gerührt") | ab Runde 2 wurde auf den **bereits offenen** Tab geklickt |
+
+Keiner der drei hätte einen Absturz erzeugt; alle drei hätten eine Tabelle geliefert, die
+man in einen Handoff schreibt. Gefunden nur, weil eine Spalte ohne Streuung misstrauisch
+macht. → **Prüffrage bei jeder neuen Messung: welcher Wert wäre auffällig, und kann er
+überhaupt auftreten?** Streuen die Werte über sehr unterschiedliche Fälle kaum, misst man
+den Aufbau. `perf_live.py` meldet solche Spalten seither **selbst als ungültig**.
+
+**Die Transkription eines Laufs ist kein ausgeführter Lauf.** `scripts/tab_sweep.py` stand
+drei Handoffs lang als „nie ausgeführt" im Repo. Beim ersten echten Start starb es an der
+**ersten** Ansicht — nicht an der App, an sich selbst: Emoji-Tabnamen auf cp1252-stdout.
+Der Fehler saß nicht im Messen, sondern im **Berichten**. Ein Werkzeug gilt erst als
+vorhanden, wenn es einmal echt gelaufen ist.
+
+**`scripts/safe_edit.py` gilt für JEDE Datei, nicht nur `index.html`.** Am 29.08. hat
+dasselbe Surrogatpaar (ein Emoji als `📌` im Python-Quelltext) **zweimal** eine
+Datei auf 0 Bytes geleert: erst `index.html`, später einen Handoff — beim zweiten Mal
+genau deshalb, weil ich das Schutzmodul nur für `index.html` benutzt habe. Der Mechanismus
+ist immer derselbe: `io.open(p,"w")` leert die Datei, und die Kodierausnahme fliegt erst
+danach. → `ersetze(pfad, paare, min_bytes=5_000)` auch für Handoffs und Skripte. Das
+Modul weist einzelne Surrogate jetzt **vor** dem Öffnen ab und nennt den Grund.
+
+Im Kleinen ist das dieselbe Krankheit wie „eine Reparatur an einer von vier Stellen ist
+keine": ein Schutz, der nur an einer Stelle angewandt wird, ist keiner.
 
 **Backslashes in Bash-Heredocs: achtmal**, einmal mit zerstörtem Code. Die Regel stand
 schon dreimal in den Notizen. Wenn sie achtmal nicht greift, ist das Werkzeug falsch —

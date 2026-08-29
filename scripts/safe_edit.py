@@ -15,6 +15,13 @@ angefasst, solange nicht feststeht, dass der neue Inhalt vollstaendig ist.
 
     from safe_edit import ersetze
     ersetze("index.html", [(alt1, neu1, "Beschreibung"), ...])
+    ersetze("docs/handoffs/HANDOFF.md", paare, min_bytes=5_000)
+
+FUER JEDE DATEI, NICHT NUR index.html. Am 29.08.2026 wurde dieses Modul fuer
+index.html benutzt und fuer einen Handoff nicht - und derselbe Surrogat-Fehler
+hat die Handoff-Datei auf 0 Bytes geleert. Der Schutz ist nichts wert, solange
+er nur an einer Stelle angewandt wird; das ist im Kleinen dieselbe Krankheit
+wie "eine Reparatur an einer von vier Stellen ist keine".
 
 Ablauf: lesen -> alle Anker pruefen (jeder GENAU einmal) -> ersetzen -> Groesse
 pruefen -> in eine Nebendatei schreiben -> zurueckgelesen vergleichen -> erst
@@ -24,6 +31,10 @@ import io
 import os
 
 MIN_BYTES = 1_000_000
+
+# Fuer kleinere Dateien (Handoffs, Skripte) beim Aufruf mitgeben, z.B.
+# ersetze(pfad, paare, min_bytes=5_000). Das Modul ist NICHT auf index.html
+# beschraenkt - genau diese Annahme hat am 29.08. einen Handoff gekostet.
 
 
 def ersetze(pfad, paare, min_bytes=MIN_BYTES):
@@ -56,6 +67,26 @@ def ersetze(pfad, paare, min_bytes=MIN_BYTES):
             "Ergebnis waere nur %d Bytes gross (vorher %d) - das ist Datenverlust. "
             "NICHTS geschrieben." % (len(s), ausgang)
         )
+
+    # SURROGAT-RIEGEL. Am 29.08.2026 hat dieselbe Ursache ZWEIMAL eine Datei
+    # geleert: ein Emoji, das als Surrogatpaar (\ud83d\udccc) im Python-String
+    # landet. `str` haelt das aus, UTF-8 kann es nicht kodieren - und die
+    # Ausnahme fliegt ERST beim Schreiben, also nachdem `io.open(p,"w")` die
+    # Datei bereits geleert hat. Beim zweiten Mal traf es einen Handoff, weil
+    # dieses Modul nur fuer index.html benutzt wurde.
+    #
+    # Der Nebendatei-Umweg unten faengt das ohnehin ab. Diese Pruefung steht
+    # trotzdem davor, weil sie den GRUND nennt statt eines Kodierfehlers -
+    # und weil sie greift, bevor auch nur eine Nebendatei entsteht.
+    for _i, _z in enumerate(s):
+        if 0xD800 <= ord(_z) <= 0xDFFF:
+            raise SystemExit(
+                "Ein einzelnes Surrogat (U+%04X) an Position %d - das laesst "
+                "sich nicht als UTF-8 schreiben. Ursache ist fast immer ein "
+                "Emoji, das als \\ud83d\\udxxx im Quelltext steht. Schreib das "
+                "Zeichen direkt hin oder lass es weg. NICHTS geschrieben."
+                % (ord(_z), _i)
+            )
 
     tmp = pfad + ".tmp_safe_edit"
     io.open(tmp, "w", encoding="utf-8", newline="").write(s)
