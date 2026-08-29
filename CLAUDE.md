@@ -145,7 +145,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-896, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -177,9 +177,32 @@ ausgelöst. Keinen abgeschwächt, alle auf die Eigenschaft gezogen.
 Testdateien auf `main`. Nur explizite Dateilisten, und die Verfolgung an
 `git ls-tree -r HEAD` prüfen, nie an `git status`.
 
-**Backslashes in Bash-Heredocs: sechsmal**, einmal mit zerstörtem Code. Die Regel stand
-schon zweimal in den Notizen. Wenn sie sechsmal nicht greift, ist das Werkzeug falsch —
-`chr(92)`/`chr(10)` oder die Edit/Write-Werkzeuge.
+**Ein Riegel darf die EIGENSCHAFT festhalten, nie die SCHREIBWEISE.** Die andere Hälfte
+derselben Krankheit — v896 hat vier Fälle an einem Nachmittag gebracht. Der schlimmste:
+ein Test verlangte die **Existenz** von `var _kapReal=…`, einer Zuweisung mit **null
+Lesern**. Er hat damit keine Eigenschaft gesichert, sondern toten Code *beschützt* und
+dessen Ausbau verhindert — kein Schutz, ein Denkmal; seine eigentliche Aussage stand in
+der Zeile darunter. Die anderen drei wären **rot geworden, obwohl der Code besser ist
+als gefordert**: ein Zeichenfenster `-1200/+400` um einen Namen, ein Variablenname statt
+des strengeren echten, und `@media print` in einem Fenster, das ein *eigenständiges*
+Druckdokument schreibt — dort wäre es wirkungslos.
+→ **Prüffrage vor jedem neuen Riegel: welche Aussage wäre falsch, wenn er rot wird?**
+Lässt sie sich nicht in einem Satz über das *Verhalten* sagen, misst der Riegel Form.
+
+**Ein Bestandstest, den man nicht anfassen will, ist kein Grund, eine Lüge im Code
+stehenzulassen.** `wocheKm` hieß km, enthielt Fahrminuten, summierte über den ganzen
+Horizont statt eine Woche und ließ die fixen Termine aus. Ich hatte umbenannt und den
+alten Namen als **Zwilling** danebenstehen lassen, um den einzigen Riegel für eine
+andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende Name
+blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
+Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
+ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Backslashes in Bash-Heredocs: achtmal**, einmal mit zerstörtem Code. Die Regel stand
+schon dreimal in den Notizen. Wenn sie achtmal nicht greift, ist das Werkzeug falsch —
+`chr(92)`/`chr(10)`/`chr(34)` oder die Edit/Write-Werkzeuge. **Dazu neu: Python-Code
+über stdin-Heredoc wird nach cp1252 dekodiert** — Umlaute zerbrechen dann die Quelle.
+Skript in eine Datei schreiben und diese aufrufen.
 
 ---
 
