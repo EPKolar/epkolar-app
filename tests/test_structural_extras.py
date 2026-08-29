@@ -64,8 +64,25 @@ def test_38_5h_basis_present(index_html):
     assert "38,5h" in index_html or "38.5h" in index_html
 
 
-def test_38_5h_basis_in_dashboard_text(index_html):
-    assert "Basis 38,5h" in index_html
+# v3.9.898 ENTFALLEN - nicht abgeschwaecht. Hier stand:
+#     def test_38_5h_basis_in_dashboard_text(index_html):
+#         assert "Basis 38,5h" in index_html
+#
+# Der Riegel schrieb die EXISTENZ der SCHWAECHEREN von zwei Rechnungen fest.
+# Die Karte "Zeit & Personal" rechnete die Auslastung gegen feste 38,5 h und
+# ohne obere Datumsgrenze; die Geschwister-Karte "Auslastung / Kapazitaet"
+# direkt darunter - immer gleichzeitig sichtbar - gegen das feiertagskorrekte
+# Tages-Soll (30,0 h in der Woche mit dem Nationalfeiertag). Derselbe Monteur
+# mit 30 h stand oben auf 78 %, unten auf 100 % "am Anschlag".
+#
+# Damit haette dieser Riegel die Reparatur ROT gemeldet - kein Schutz, ein
+# Denkmal. Dritter Fall dieser Art an zwei Tagen (vgl. _kapReal in v3.9.896).
+#
+# Die Wochennorm 38,5 selbst bleibt geprueft (test_38_5h_basis_present eine
+# Zeile weiter); dass sie kein fester Auslastungs-Nenner mehr ist, sichert
+# tests/test_auslastung_eine_rechnung_v898.py.
+def _entfallen_38_5h_basis_in_dashboard_text():
+    pass
 
 
 # Datum-Parsing ------------------------------------------------------------
