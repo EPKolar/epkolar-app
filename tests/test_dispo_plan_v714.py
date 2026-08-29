@@ -44,7 +44,7 @@ var r=_dispoPlan(cfg);
 function findScheinPos(id){for(var m in r.plan)for(var t in r.plan[m])for(var i=0;i<r.plan[m][t].length;i++)if(r.plan[m][t][i].scheinId===id)return m+'/'+t;return null;}
 ok(findScheinPos('S1')===findScheinPos('S2'),'S1+S2 gebuendelt gleicher Monteur/Tag');
 ok(r.warteliste.length===0,'alles verplant');
-ok(typeof r.wocheKm==='number','wocheKm zahl');
+ok(typeof r.fahrtMinHorizont==='number','fahrtMinHorizont zahl');
 // WAND: ein Schein mit 500min auf 510-Norm (kap 510-60=450) passt nicht -> Warteliste
 var cfg2={monteure:[{id:'M1',name:'A'}],tage:[{key:'Mo',normMin:510}],firma:firma,dist:dist,kapAbzug:{},hatFz:function(){return true;},
   scheine:[{id:'X',bvh:'X',adrKey:'x',plz:'A',dauerMin:500,alterMs:1,monteurId:'M1'}]};

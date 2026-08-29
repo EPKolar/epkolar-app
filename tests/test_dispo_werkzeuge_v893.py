@@ -59,12 +59,25 @@ Loeschen waere aber auch falsch - und das ist erst beim Nachmessen aufgefallen:
 ist der **einzige** Riegel, der belegt, dass die Tagesroute an der Firma anfaengt
 *und* aufhoert.
 
-Deshalb: umbenannt auf `fahrtMinHorizont`, der alte Name bleibt uebergangsweise
-als Zwilling stehen. Dann heisst die Zahl, was sie ist, kein Bestandstest geht
-still kaputt, und niemand baut ein km-Feld in die Oberflaeche, das keine km
-enthaelt.
+Deshalb: umbenannt auf `fahrtMinHorizont`. Der alte Name blieb zunaechst als
+Zwilling daneben stehen, damit der Bestandstest nicht still kaputtgeht.
+
+NACHTRAG v3.9.896 - DER ZWILLING WAR DIE FALSCHE LOESUNG. Er hat den
+irrefuehrenden Namen am Leben gehalten: `wocheKm` war weiter Teil der Rueckgabe,
+also weiter benutzbar, und der naechste Leser haette ihn genommen. Ein zweiter
+Name fuer dieselbe Zahl ist ausserdem genau die Krankheit, die diese Datei
+aufraeumt (eine Groesse, zwei Rechnungen - hier: eine Zahl, zwei Namen).
+
+Richtig ist, was mehr Arbeit macht: der alte Name ist ersatzlos entfallen, und
+die zwei Tests, die ihn lasen, sind mitgezogen worden -
+`test_dispo_horizont_v722:95` und `test_dispo_plan_v714:47`. Beide pruefen
+unveraendert dieselbe Eigenschaft, nur unter dem richtigen Namen. Ein
+Bestandstest, den man nicht anfassen will, ist kein Grund, eine Luege im Code
+stehenzulassen.
 """
 import re
+
+from _hilfen import nur_code
 
 
 # ══ (a) Telefon am Chip ═════════════════════════════════════════════════════
@@ -196,13 +209,19 @@ def test_die_zahl_heisst_wie_sie_rechnet(index_html):
     )
 
 
-def test_der_alte_name_bleibt_uebergangsweise(index_html):
-    """Bewusste Grenze: test_dispo_horizont_v722 ist der EINZIGE Riegel, der
-    belegt, dass die Tagesroute an der Firma beginnt UND endet. Ihn still
-    kaputtzumachen waere schlimmer als ein doppelter Name."""
-    assert "wocheKm:Math.round(fahrtMinHorizont)" in index_html, (
-        "Der Zwilling wocheKm ist weg - dann faellt der einzige Riegel fuer die "
-        "Rundfahrt-Eigenschaft still aus."
+def test_der_alte_name_ist_weg(index_html):
+    """v3.9.896 UMGEDREHT: bis v895 forderte dieser Riegel das GEGENTEIL - der
+    Zwilling `wocheKm` musste dableiben, damit test_dispo_horizont_v722 nicht
+    still ausfaellt. Das war ein Ausweichmanoever: es hielt einen Namen am
+    Leben, der km behauptet und Minuten enthaelt, und liess ihn benutzbar.
+
+    Der Riegel, der die Rundfahrt-Eigenschaft sichert, faellt dabei NICHT weg -
+    er liest jetzt `r.fahrtMinHorizont` (v722:95). Die Eigenschaft ist dieselbe,
+    gemessen wird unter dem richtigen Namen."""
+    assert "wocheKm" not in nur_code(index_html), (
+        "wocheKm ist wieder da. Der Name behauptet km und Woche; die Zahl sind "
+        "Fahrminuten ueber den ganzen Horizont, ohne die fixen Termine - drei "
+        "Aussagen, drei mal falsch."
     )
 
 

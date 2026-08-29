@@ -92,7 +92,7 @@ var cfg={monteure:[{id:'M1',name:'A'}],tage:[{key:'w0',woche:0,normMin:510}],
   firma:{plz:'F'},dist:dist,kapAbzug:{},hatFz:function(){return true;},horizont:1,
   scheine:[{id:'S1',adrKey:'a',plz:'A',dauerMin:60,monteurId:'M1',alterMs:1}]};
 var r=_dispoPlan(cfg);
-ok(r.wocheKm===20,'Route [A] = Firma->A->Firma = 10+10 = 20 km');
+ok(r.fahrtMinHorizont===20,'Route [A] = Firma->A->Firma = 10+10 = 20 Fahrminuten');
 console.log('OK');
 """
     _run(node_exe, tmp_path, js)

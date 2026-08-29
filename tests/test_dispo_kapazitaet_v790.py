@@ -69,6 +69,16 @@ def test_dispoplan_kern_byte_identisch(index_html):
     # der Kern liest kapAbzug byte-gleich
     assert "var abz=(kapAbzug[mon[mi].id]&&kapAbzug[mon[mi].id][tage[ti].key])||0;" in index_html
     assert "kap[mon[mi].id][tage[ti].key]=_dispoKapazitaet(tage[ti].normMin,abz);" in index_html
-    # _hard/_kapReal der Zelle bleiben auf kapAbzug (voll-belegt = harte Wand korrekt)
-    assert "var _kapReal=_dispoKapazitaet(t.normMin,_abz);" in index_html
-    assert "var _hard=((t.normMin-_abz)<=0);" in index_html
+    # _hard der Zelle bleibt auf kapAbzug (voll-belegt = harte Wand korrekt)
+    #
+    # v3.9.896 NACHGEZOGEN - nicht abgeschwaecht: die Zeile
+    #     assert "var _kapReal=_dispoKapazitaet(t.normMin,_abz);" in index_html
+    # ist ersatzlos entfallen. _kapReal war eine Zuweisung mit NULL Lesern - dieser
+    # Riegel sicherte also keine Eigenschaft, sondern die blosse EXISTENZ toten
+    # Codes, und hat damit dessen Ausbau verhindert. Die eigentliche Aussage des
+    # Tests ("die harte Wand der Zelle rechnet auf kapAbzug") haengt an der Zeile
+    # darunter und wird unveraendert geprueft.
+    assert "var _hard=((t.normMin-_abz)<=0);" in index_html, (
+        "Die harte Wand der Zelle rechnet nicht mehr auf kapAbzug - ein voll "
+        "belegter Tag waere dann nicht mehr als harte Wand erkennbar."
+    )
