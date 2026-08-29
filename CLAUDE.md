@@ -244,9 +244,22 @@ aktive Bedienelemente. Die Kopfzeile war das kleinere Problem, und die Doppelung
 
 **Ein Auswahlfeld feuert `change` bei JEDEM Pfeiltasten-Schritt.** Gemessen: vier
 Pfeiltasten → vier Ereignisse, vier Werte. In der Arbeitsschein-Liste hängt an jedem
-Zeilen-Auswahlfeld ein sofortiges Schreiben, und vier davon pushen nach OFFA — wer mit
-der Tastatur zum gewünschten Monteur navigiert, hängt den Schein unterwegs an **jeden
-dazwischen**, mit einem Push je Schritt.
+Zeilen-Auswahlfeld ein sofortiges Schreiben.
+
+🔴 **RICHTIGSTELLUNG (selbe Sitzung).** Ich hatte daraus geschlossen, der Schein werde
+unterwegs an jeden Monteur dazwischen gehängt, mit einem Push je Schritt. **Das ist
+falsch**, am Code nachgemessen:
+* `updAs` aktualisiert den Zustand **sofort und lokal** — die Anzeige stimmt immer.
+* `SQ.push` setzt bei jedem Schreiben den Sammel-Zeitgeber zurück; alle vier landen in
+  **einem** Stapel, und der letzte Wert gewinnt.
+* Der OFFA-Push läuft seit v3.9.756 über eine **per-Schein-Debounce-Klammer**, die
+  ausdrücklich zusammenfasst (Kommentar dort: *10 Writes/1s = 1 Tick*).
+
+Es bleibt: **vier PUTs an die eigene API statt einem** — Rauschen, kein Datenfehler.
+→ Die Lehre ist nicht die Zahl, sondern der Reflex: **eine gemessene Ereigniszahl ist
+noch keine gemessene Wirkung.** Ich hatte vier `change` gezählt und daraus vier Pushes
+geschlossen, statt den Schreibpfad zu Ende zu lesen — dieselbe Lücke wie zwischen
+ANKUNFT und WIRKUNG beim Datenmodus.
 → Der Fix ist NICHT trivial, und das gehört dazugesagt: Schreiben auf `blur` verschieben
 scheitert daran, dass das Feld **kontrolliert** ist (die Anzeige springt zurück);
 Pfeiltasten abfangen ist ein Rückschritt für die Tastaturbedienung; Entprellen braucht
