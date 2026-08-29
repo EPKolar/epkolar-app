@@ -47,9 +47,15 @@ def test_alert_erklaert_statt_zu_mahnen(index_html):
 def test_kpi_kachel_faerbt_sich_nicht_mehr_rot(index_html):
     """Die Kachel darf bei einer Differenz NICHT mehr rot werden. Gelb bei OFFENEN
     Abrechnungen bleibt — das ist liegengebliebene Arbeit und damit ein echter Hinweis."""
-    m = re.search(r"finkStats\.abgeglichen, \"/\", finkStats\.total", index_html)
-    assert m, "Monatsabrechnungs-Kachel nicht gefunden"
-    umfeld = index_html[max(0, m.start() - 400):m.end() + 400]
+    # v3.9.909 NACHGEZOGEN: der Anker war die exakte SCHREIBWEISE der Argumente
+    #     finkStats.abgeglichen, "/", finkStats.total
+    # Seit die Kachel bei ungemessenen Daten drei Punkte zeigt, setzt sie den
+    # Wert als EINE Zeichenkette zusammen - der Riegel wurde rot, obwohl seine
+    # Aussage (keine rote Faerbung bei Differenz) unveraendert erfuellt ist.
+    # Verankert jetzt an der Kachel selbst, nicht an ihrer Argumentform.
+    i = index_html.find("finkStats.abgeglichen")
+    assert i != -1, "Monatsabrechnungs-Kachel nicht gefunden"
+    umfeld = index_html[max(0, i - 400):i + 500]
     assert "diffWarn>0?COLORS.ERROR" not in umfeld, \
         "Die Kachel faerbt sich bei einer Differenz weiterhin rot — das behauptet einen Fehler."
     assert "finkStats.offen>0?COLORS.WARNING" in umfeld, \

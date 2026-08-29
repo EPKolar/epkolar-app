@@ -3,6 +3,7 @@
 Verifiziert dass TIME_* Millisekunden-Konstanten existieren und
 die Magic-Numbers 3600000 / 86400000 im Code eliminiert sind.
 """
+from _hilfen import nur_code
 import re
 
 
@@ -34,9 +35,27 @@ def test_magic_3600000_eliminated(index_html):
 
 
 def test_magic_86400000_eliminated(index_html):
-    """Regression-Guard: keine hardgecodete Tag-ms mehr."""
-    assert "86400000" not in index_html, (
-        "86400000 (1d in ms) sollte durch TIME_DAY ersetzt sein"
+    """Regression-Guard: keine hardgecodete Tag-ms mehr IM CODE.
+
+    v3.9.909 NACHGEZOGEN - kommentarblind. Vorher stand hier
+        assert "86400000" not in index_html
+    also gegen die ROHE Datei. Damit schlug der Riegel an, sobald ein
+    Erklaerkommentar die Zahl NENNT - und genau das ist passiert: der Kommentar
+    zur Zeitumstellungs-Reparatur beschreibt, dass das Fenster frueher auf
+    "bis-Mitternacht plus 86400000 Millisekunden" endete. Er dokumentiert also
+    die Beseitigung der Zahl und wurde dafuer bestraft.
+
+    Zaehlung zum Zeitpunkt der Umstellung: 1x roh, 0x im Code.
+
+    Dieselbe Falle wie in diesem Repo mehrfach zuvor - ein Riegel, der auf
+    Wortlaut prueft, misst frueher oder spaeter den Kommentar mit. Die Aussage
+    ist unveraendert und sogar schaerfer: die Zahl darf im CODE nicht vorkommen,
+    im Erklaertext sehr wohl."""
+    code = nur_code(index_html)
+    assert "86400000" not in code, (
+        "86400000 (1d in ms) steht wieder im Code - es gibt TIME_DAY. "
+        "Und Vorsicht: ein Tag ist nicht immer 86400000 ms lang; ueber die "
+        "Zeitumstellung gehoert kalendarisch gerechnet (siehe v3.9.909)."
     )
 
 
