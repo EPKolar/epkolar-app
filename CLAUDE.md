@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-897, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-901, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,46 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Ein Riegel, der eine Schreibweise zählt, kann einen Fehler im Rumpf nicht sehen.** Am
+29.08. stand ein Live-Absturz in der Dispo: ein Rückruf war als `tf` deklariert und als
+`f` gelesen — unter `"use strict"` ein `ReferenceError` im Render, also Fehlerseite. Er
+kam mit v3.9.894 herein, ausgerechnet mit dem Umbau, dessen Kommentar eine Zeile darüber
+erklärt, *warum* der Parameter `tf` heißen muss; die Umbenennung wurde an **einer von vier**
+Verwendungen vergessen. Alle drei Tore waren grün:
+
+| Tor | Warum es blind war |
+|---|---|
+| `node_check.py` | **parst** nur — ein freier Name ist syntaktisch fehlerfrei |
+| `tab_sweep.py` | meldet sich ohne echte Zugangsdaten an → alle Abrufe 401 → die datenabhängigen Renderpfade werden nie betreten |
+| der Riegel daneben | prüfte die **Eindeutigkeit einer Schnittmarke** und konnte den falschen Namen im Rumpf prinzipiell nicht sehen |
+
+→ **Für jeden Renderblock, der Daten braucht, gilt: schneiden und AUSFÜHREN, nicht
+suchen.** Ein `assert "muster" in index_html` sichert die Schreibweise, nie das Verhalten.
+Vorbild: `tests/test_dispo_tagesplan_freier_name_v899.py` — schneidet den echten Block aus
+`index.html`, lässt ihn in Node gegen gestellte Daten laufen, und die Umkehrprobe baut den
+alten Namen zurück und besteht darauf, dass es dann wirft.
+
+**Der Tab-Durchlauf sieht nur, was ohne Anmeldung rendert.** Das steht seit v3.9.897 in
+den Notizen — und hat noch am selben Tag etwas gekostet. Eine bekannte Grenze macht ein
+Messgerät nicht harmlos: sie muss **bei jedem grünen Lauf mitgelesen** werden. „18/18
+sauber" heißt „18 Ansichten starten leer", nicht „die App ist heil".
+
+**Der Datenfall entscheidet, wann ein Fehler sichtbar wird — nicht die Ansicht.** Der
+Absturz zeigte sich als „nächste Woche", weil `fixMap` nur Termine ab heute aufnimmt und
+die Startwoche an einem Samstag komplett Vergangenheit war. Ab Montag hätte dieselbe Zelle
+auch die laufende Woche zerrissen. **Wenn ein Nutzer einen Auslöser nennt, prüfe erst, ob
+er die Ursache ist oder nur der heutige Kalender.**
+
+**Ein Test, der die Existenz einer ungelesenen Größe fordert, konserviert sie.** Inzwischen
+**fünf** belegte Fälle: `_kapReal` (v896), `Basis 38,5h` (v898), `_normFrei` und `_evCache`
+(v900) — und bei `_evCache` besonders lehrreich: von drei Pins wurden die zwei mit echter
+Aussage in v3.9.769 korrekt stillgelegt (*„dieser Pin testet toten Code"*), der dritte
+sicherte nur die Existenz und blieb aktiv. Er hat die tote Referenz **samt ihrem lügenden
+Kommentar** am Leben gehalten.
+→ Bei `_normFrei` kam etwas hinzu, das die Klasse erweitert: die Funktion hieß „Rest-
+Kapazität der **Hand-Wand**", aber die Hand-Wand rechnet an **drei anderen** Stellen. Der
+Riegel war also nicht nur nutzlos — **er vermaß seit v3.9.790 einen Weg, den niemand geht.**
 
 **Ein Messgerät, dessen Werte nicht auseinandergehen KÖNNEN, misst nichts.** Am 29.08.
 ist `scripts/perf_live.py` **dreimal an sich selbst gescheitert**, bevor es zum ersten Mal
