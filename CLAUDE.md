@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-901, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-902, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,40 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Ein Riegel misst ANKUNFT oder er misst WIRKUNG — das ist nicht dasselbe.** Beim Bau des
+Datenmodus für `tab_sweep.py` hatte ich zwei Nachweise eingebaut: die Saat liegt in der
+Datenbank (zurückgelesen), und die Saat erscheint in der Oberfläche (Text gefunden). Beide
+waren grün. Der Lauf blieb trotzdem blind, weil die Saat `scheinstatus:"offen"` trug — **den
+Status gibt es nicht**, die Dispo filtert über `AS_GRP_OFFEN`. `fixMap` blieb leer, die
+fehlerhafte Schleife wurde nie betreten.
+→ **Frag bei jedem Messaufbau: weise ich nach, dass die Daten ANGEKOMMEN sind, oder dass sie
+GEWIRKT haben?** Der vierte Riegel rechnet `fixMap` jetzt mit `window._dispoBuildInput`
+nach. Bewusst *gerechnet* statt im DOM gesucht: gegen eine kaputte Fassung stürzt genau
+dieses Rendern ab, ein DOM-Riegel würde den Fund als eigenen Defekt ausgeben.
+
+**`indexedDB.open` legt eine fehlende Datenbank wortlos neu an.** Ein Tippfehler im Namen
+(`epkolar` statt `epkolar_offline`) erzeugt keinen Fehler, sondern eine leere Datenbank —
+und jede folgende Prüfung ist grün und wertlos. Dieselbe Klasse wie `_ymd` gegen
+`toISOString`: eine falsche Wahl, die sich nicht beschwert.
+
+**Ein Messgerät darf nicht ausgeben, was man ihm gegeben hat.** Meine erste Saat meldete
+„2 Monteure gesät" aus `mon.length` — aus der EINGABE. Sie hätte das bei jedem denkbaren
+Fehler gesagt. Jetzt wird zurückgelesen und die tatsächlich gespeicherte Zahl gemeldet.
+
+**Der einzige Riegel, der einen Syntaxfehler mitten im Render gefangen hat, war der, der
+jeden `<script>`-Block EINZELN prüft** (`test_integration_smoke`). Ein Anwender-Skript zog
+eine Trennzeile aus einer Paardatei (`# ==== OPTION B ====`) in eine Ersetzung — die App
+wäre gar nicht gestartet. `node_check` blieb grün (es prüft die Datei anders), und die
+Klammerbilanz blieb grün, **weil der Changelog-Text zufällig eine Klammer beisteuerte, die
+die fehlende ausglich**. Zwei Tore grün, eines rot — und nur das rote hatte recht.
+→ Merksatz: **ein Tor, das den ganzen Kessel prüft, kann von einem Fehler an anderer Stelle
+ausgeglichen werden.** Deshalb bleibt die blockweise Prüfung Pflicht.
+
+**Vier freie Namen sind noch in der Datei** (`ev`, `_built`, `_user`, `A` — Handoff 7j),
+gefunden mit echtem Parser und einer Mutationsprobe: 40 verbogene Referenzen, 40 erkannt.
+Zwei davon sind **stille Denkmäler** — ein `catch` fängt den ReferenceError, und der
+Kommentar daneben verspricht eine Wirkung, die es seit der Einführung nie gab.
 
 **Ein Riegel, der eine Schreibweise zählt, kann einen Fehler im Rumpf nicht sehen.** Am
 29.08. stand ein Live-Absturz in der Dispo: ein Rückruf war als `tf` deklariert und als
