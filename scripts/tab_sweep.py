@@ -36,12 +36,32 @@ Exit 0 = alle Ansichten sauber. Exit 1 = mindestens eine Ansicht ist kaputt.
 
 HINWEIS ZUR HERKUNFT
 --------------------
-Die Abfolge hier ist eine Transkription genau des Laufs, der am 25.08.2026 gegen
-v3.9.874 live durchgefuehrt wurde (alle 18 Ansichten ok). Das SKRIPT selbst
-wurde in der Sitzung nicht ausgefuehrt, weil im Arbeitsklon kein Playwright
-installiert war - beim ersten Lauf also mit einem kritischen Blick draufschauen.
+Die Abfolge war zunaechst eine Transkription des Laufs, der am 25.08.2026 gegen
+v3.9.874 live durchgefuehrt wurde (alle 18 Ansichten ok). Das SKRIPT selbst lief
+drei Handoffs lang nie, weil im Arbeitsklon kein Playwright installiert war.
+
+Am 29.08.2026 ist es zum ersten Mal echt gelaufen - gegen v3.9.896 live, wieder
+alle 18 Ansichten sauber. Der erste Lauf starb allerdings an der ERSTEN Ansicht,
+und zwar an sich selbst: siehe die stdout-Umstellung unten. Der Fehler sass
+nicht im Messen, sondern im Berichten. Merksatz fuer das naechste Werkzeug:
+die Transkription eines Laufs ist kein ausgefuehrter Lauf.
 """
 import sys
+
+# ERSTER LAUF, 29.08.2026 - UND DAS GATE STARB AN SICH SELBST, NICHT AN DER APP.
+# Die Tab-Namen der App tragen Emoji ("\U0001f3e0 Home"). Windows-stdout ist
+# cp1252, und `print("  %-20s ok" % name)` warf beim ERSTEN Tab
+# UnicodeEncodeError. Das Skript ist also nie ueber Ansicht 1 hinausgekommen -
+# ein Gate, das abstuerzt, bevor es etwas melden kann, ist kein Gate.
+#
+# Bemerkenswert: der Fehler steckte nicht im Messen, sondern im BERICHTEN. Genau
+# deshalb steht in der Kopfnotiz "beim ersten Lauf mit kritischem Blick
+# draufschauen" - die Transkription eines Laufs ist eben kein ausgefuehrter Lauf.
+for _strom in (sys.stdout, sys.stderr):
+    try:
+        _strom.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 LIVE = "https://epkolar.github.io/epkolar-app/index.html"
 

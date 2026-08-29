@@ -116,12 +116,24 @@ einzige Gate, das diese Fehlerklasse sehen kann. Kostet zwei Minuten.
 
 Braucht einmalig `pip install playwright && playwright install chromium`.
 
-> **Noch nie ausgefuehrt.** Das Skript ist die Transkription genau des Laufs, der
-> am 25.08. live gegen v3.9.874 sauber durchlief — aber im Arbeitsklon war kein
-> Playwright installiert, also lief das Skript selbst nie. Geprueft sind nur
-> `py_compile` und der Abhaengigkeits-Riegel. **Beim ersten echten Lauf mit
-> kritischem Blick draufschauen**: ein Gate, das faelschlich gruen meldet, ist in
-> diesem Repo schon dreimal teurer gewesen als gar kein Gate.
+**Seit 29.08.2026 tatsaechlich ausgefuehrt** — gegen die Live-App, v3.9.896:
+**alle 18 Ansichten sauber**. Davor stand es drei Handoffs lang als „nie
+ausgefuehrt“ im Repo.
+
+> **Und der erste Lauf ist an der ERSTEN Ansicht gestorben — nicht an der App,
+> an sich selbst.** Die Tab-Namen tragen Emoji („🏠 Home“), Windows-stdout
+> ist cp1252, und `print("%-20s ok" % name)` warf `UnicodeEncodeError`. Der
+> Fehler sass nicht im **Messen**, sondern im **Berichten**: Ansicht 1 war
+> korrekt geprueft, das Gate fiel beim Ausgeben des Ergebnisses um. Es haette
+> nie einen Befund melden koennen.
+>
+> Dieselbe Krankheit wie die geloeschte `index.html`, nur andersherum: dort
+> meldete ein Gate **gruen**, wo alles weg war; hier konnte eines **gar nichts**
+> melden. Beide Male war das Messgeraet das Problem, nicht das Gemessene.
+> → **Die Transkription eines Laufs ist kein ausgefuehrter Lauf.** Ein Werkzeug
+> gilt erst als vorhanden, wenn es einmal echt gelaufen ist.
+> Abgesichert durch `tests/test_tab_sweep_v897.py` (mit Umkehrprobe: ohne die
+> Reparatur stirbt derselbe `print` nachweislich).
 
 **Warum das ein Pflicht-Gate ist — teuer gelernt am 14.07.2026:** v3.9.691 hinterließ
 `window._stUuid=_stUuid;` in der Export-Zeile, obwohl `_stUuid` gelöscht war. Ergebnis:
