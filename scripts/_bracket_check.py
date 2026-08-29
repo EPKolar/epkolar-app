@@ -19,6 +19,17 @@ from pathlib import Path
 target = Path(sys.argv[1] if len(sys.argv) > 1 else "index.html")
 src = target.read_text(encoding="utf-8")
 
+# v3.9.894 LEBENSZEICHEN: Am 29.08. hat ein abgebrochener Schreibvorgang
+# index.html auf 0 Bytes gekuerzt - und DIESER Riegel meldete '() 0 / {} 0 /
+# [] 0', also eine scheinbar SAUBERE Bilanz statt der erwarteten -1. Eine leere
+# Datei hat eben ausgeglichene Klammern. Wer nur auf die Zahlen schaut, haelt
+# den Totalverlust fuer eine Verbesserung.
+if len(src) < 1_000_000:
+    print("index.html ist nur %d Bytes gross - das ist Datenverlust, keine"
+          " Klammerbilanz. NICHT committen: git checkout -- index.html"
+          % len(src))
+    sys.exit(1)
+
 # Order matters: STRINGS before COMMENTS so that '//' inside string literals
 # (e.g. URLs like "https://...") is not mis-stripped as a line comment.
 # Python re alternation uses leftmost-first match per position, so listing
