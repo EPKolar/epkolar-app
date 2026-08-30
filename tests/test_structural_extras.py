@@ -157,9 +157,27 @@ def test_fixb_drain_guard_before_idb_wipe(index_html):
 
 
 def test_fixb_logout_guard_untouched(index_html):
-    """Die bestehende Logout-Absicherung (Vorlage) muss unveraendert bleiben."""
-    assert "const cnt=await SQ.count();const _pcnt=await PhotoQ.count()" in index_html
-    assert "werden VERWORFEN. Trotzdem abmelden" in index_html
+    """Die bestehende Logout-Absicherung muss erhalten bleiben.
+
+    v3.9.912 NACHGEZOGEN. Hier stand:
+        assert "const cnt=await SQ.count();const _pcnt=await PhotoQ.count()" in ...
+    Das verlangte, dass die beiden Zaehlungen unmittelbar NEBENEINANDER stehen -
+    eine Aussage ueber die Schreibweise, nicht ueber den Schutz. v3.9.912 setzt
+    zwischen sie das Auslesen des Lesefehler-Merkers, weil eine 0 aus dem
+    Auffangzweig auch "nicht lesbar" heissen kann. Der Riegel wurde rot, obwohl
+    die Absicherung nicht nur erhalten, sondern staerker geworden ist.
+
+    Geprueft werden jetzt die drei Bestandteile einzeln: beide Warteschlangen
+    werden gezaehlt, und vor dem Verwerfen wird gefragt."""
+    assert "const logout=async()=>{const cnt=await SQ.count();" in index_html, (
+        "Das Abmelden zaehlt die Sync-Warteschlange nicht mehr."
+    )
+    assert "await PhotoQ.count()" in index_html, (
+        "Das Abmelden zaehlt die Foto-Warteschlange nicht mehr."
+    )
+    assert "werden VERWORFEN. Trotzdem abmelden" in index_html, (
+        "Vor dem Verwerfen wird nicht mehr gefragt."
+    )
 
 
 # 0-rows-Safeguard (v3.9.306 #3) — RLS-Silent-Denial bei Fahrzeug-/Tank-Save -
