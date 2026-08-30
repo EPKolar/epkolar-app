@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29./30.08.2026 (v3.9.884-918, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29./30.08.2026 (v3.9.884-920, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -233,6 +233,38 @@ Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne 
 und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
 abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
 jetzt, statt ein leeres Dokument zu erzeugen.
+
+**Manche Fehler sind nie zählbar, nur sichtbar.** Alle Riegel waren grün, als der Blick
+in den Browser zwei echte Fehler fand: ein Schein OHNE Priorität stand als
+„aufgeschoben“ in der Liste (der Wert fiel auf „keine“, die Option war herausgefiltert,
+und ein select ohne passende Option zeigt die ERSTE), und der Monteursname brach bei
+90 px stumm ab. **Eine abgeschnittene Lesung sieht aus wie eine vollständige.**
+Wer eine Oberfläche ändert, muss sie ansehen — ein grüner Riegel ist kein Ersatz.
+
+**Das Messwerkzeug ist die häufigste Fehlerquelle, nicht der Code.** Vier Fehlalarme an
+einem Nachmittag, jeder eine saubere Zahl, die nichts maß:
+
+| Fehlalarm | Ursache |
+|---|---|
+| Kontrast 1,25:1 statt 15,76:1 | Alpha nicht verrechnet — `rgba(0,0,0,0.03)` als reines Schwarz gelesen |
+| „0 von 6 abgeschnitten“ | das Status- statt des Monteur-Feldes vermessen |
+| „passt: ja“ für jeden Namen | `scrollWidth > clientWidth` — ein `select` läuft nie über, es schneidet |
+| drei gefüllte Knöpfe im Bild | ein **48 Minuten altes** Bild gelesen |
+
+→ **Eine Entwarnung aus der falschen Spalte ist schlimmer als keine Messung.** Und
+Bilder gehören nicht ins Repo: wer sie aufhebt, hebt eine Behauptung ohne Datum auf.
+
+**Wenn zwei Zeilen dieselbe Größe prüfen, müssen sie dasselbe prüfen.** Die eine fragte
+den ZUSTAND (`a.prioritaet||"keine"`), die andere die ZEICHENKETTE
+(`a.prioritaet==="keine"`). Leer kommt in drei Formen vor — Feld fehlt, `null`, leerer
+Text — und nur eine davon ist die Zeichenkette. Die Invariante, die daraus wurde:
+**der gewählte Wert muss unter den angebotenen Optionen sein.**
+
+**Ein Warnzeichen wird lauter, wenn seine Nachbarn leiser werden.** Der rote
+Storno-Knopf trug 22 % der gefüllten Fläche und trägt jetzt 46 % — ohne dass an ihm
+ein einziger Wert geändert wurde. **Rot warnt nur, solange es die Ausnahme ist.**
+Und was nie gerendert wurde, wird nicht angefasst: der Push-Knopf erscheint nur bei
+`push_pending`, war in keiner Messung auf dem Schirm und blieb deshalb unberührt.
 
 **Wenn „weniger Elemente“ nicht geht, ist die Antwort Rangordnung, nicht Amputation.**
 Auf „die Liste ist überladen“ hat das Messen den Auftrag umgedreht: die Zeile hat bis zu
