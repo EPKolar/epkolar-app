@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-908, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-911, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,34 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**Ein leeres Ergebnis auf dem ERFOLGSPFAD ist die gefährlichste Form von Nichtwissen.**
+`_sbGet` gab bei 401/403 ein leeres Array zurück — nicht als Fehler, sondern als Erfolg.
+Für rund 150 Aufrufer ununterscheidbar von „die Tabelle ist leer“, und **kein
+Auffangzweig kann es je sehen**: es kommt gar kein Fehler an. Alles, was an einem Tag
+unter „eine Null, die ein Fehlschlag ist“ gefunden wurde (v898, v908, v909), waren die
+AUSWIRKUNGEN dieser einen Stelle.
+→ **Such die Quelle, nicht nur die Kachel.** Wenn dieselbe Krankheit dreimal an
+verschiedenen Orten auftritt, liegt sie meistens in einem gemeinsamen Helfer.
+→ Und der Umbau muss **additiv** sein: das Array trägt jetzt seinen Grund
+(`__rlsFehler`), `.length` bleibt 0, `Array.isArray` bleibt wahr — **kein Aufrufer ändert
+sein Verhalten**. Ein `return null` hätte hunderte mit `.filter is not a function`
+zerrissen; genau deshalb blieb die Wurzel jahrelang liegen. Nachsehen: `window.__EP_RLS`.
+
+**Eine Marke ohne Leser ändert nichts.** v910 markierte, v911 las — und erst dann stand
+etwas anderes auf dem Schirm. Die drei Kacheln standen bei einem *Fehler* längst richtig
+auf `null`; **ein 403 war für sie aber gar kein Fehler**. Wer eine Diagnose einbaut, muss
+im selben Zug prüfen, ob irgendjemand sie liest — sonst ist sie ein Denkmal wie jedes
+andere.
+
+**Keine Gesamtzahl behaupten, wo benannte Stellen genügen.** An einem Tag lag ein
+selbstgeschriebener Riegel **viermal** mit einer Fundstellen-Summe daneben — übersehen
+wurden die `useMemo`-Abhängigkeit (v907), die Farbbedingung, die denselben Wert noch
+einmal liest (v908), und der `window`-Export, der **keine Klammer trägt** (v911). Jedes
+Mal wurde der Riegel zu Recht rot und zeigte seinen eigenen Fehler.
+→ In v911 ist die Summe **ersatzlos entfallen**; geprüft werden die drei Stellen
+namentlich. **Eine Zahl, die man beim Hinzufügen einer Zeile nachziehen muss, misst die
+Buchhaltung und nicht die Eigenschaft.**
 
 **Eine Null, die ein Fehlschlag ist, sieht aus wie ein Ergebnis.** Ein Auffangzweig mit
 `catch(_){return 0;}` liefert eine Zahl, nach der jemand HANDELT: „niemand abwesend“ heisst,
