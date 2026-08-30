@@ -49,7 +49,35 @@ def test_verdrahtung_pull_pfad(index_html):
     assert "const _dr=await _juprowaDrainPending(10);" in index_html, "Drain-Aufruf veraendert (Sonder-Push-Weg?)"
 
 
+# v3.9.919 NACHGEZOGEN - nicht abgeschwaecht. Hier stand:
+#     assert 'filter(([k])=>k!="keine"||a.prioritaet==="keine")' in index_html
+#     assert 'filter(([k])=>k!="keine"||form.prioritaet==="keine")' in index_html
+#
+# Das war GENAU die kaputte Bedingung: sie prueft die ZEICHENKETTE, waehrend
+# die Wertzeile darueber den ZUSTAND prueft (a.prioritaet||"keine"). Bei einem
+# Schein ohne Prioritaet - Feld fehlt, null oder leerer Text, alle drei kommen
+# vor - stand der Wert damit auf einer Option, die herausgefiltert war, und das
+# Auswahlfeld zeigte die erste Stufe aus AS_PRIO: "aufgeschoben". Ein Schein
+# ohne Prioritaet sah aus wie ein ruhender Auftrag.
+#
+# Der Riegel haette das nie gefunden, aber er waere gegen die Reparatur ROT
+# geworden - er hielt den Fehler fest. Der dritte dieser Art an einem Tag.
+#
+# Die Absicht (v3.9.798 d3) bleibt unveraendert und wird jetzt AUSGEFUEHRT:
+# tests/test_prio_leer_v919.py schickt beide Fundorte mit sechs Faellen durch
+# Node und prueft die Eigenschaft, aus der der Fehler entstand -
+#     DER GEWAEHLTE WERT MUSS UNTER DEN ANGEBOTENEN OPTIONEN SEIN -
+# plus, dass "keine" bei einem Schein MIT Prioritaet nicht waehlbar ist.
 def test_keine_aus_selects_raus(index_html):
-    # Liste + Formular: "keine" nur noch sichtbar, wenn der Schein ihn noch traegt.
-    assert 'filter(([k])=>k!=="keine"||a.prioritaet==="keine")' in index_html, "Listen-Select filtert keine nicht"
-    assert 'filter(([k])=>k!=="keine"||form.prioritaet==="keine")' in index_html, "Formular-Select filtert keine nicht"
+    """Beide Auswahlen filtern "keine" heraus, solange der Schein sie nicht traegt.
+
+    Gemessen wird die Bedingung am ZUSTAND, nicht an der Zeichenkette.
+    """
+    for name, ausdruck in (("Liste", "a.prioritaet"),
+                           ("Formular", "form.prioritaet")):
+        muster = ("filter(([k])=>k!==\"keine\"||(" + ausdruck
+                  + "||\"keine\")===\"keine\")")
+        assert index_html.count(muster) == 1, (
+            "%s prueft nicht den ZUSTAND, sondern wieder die Zeichenkette - "
+            "genau daraus entstand v3.9.919: ein Schein OHNE Prioritaet zeigte "
+            "die erste Stufe aus AS_PRIO, also aufgeschoben." % name)

@@ -86,7 +86,7 @@ _LAUT = {
         'React.createElement(\'input\', { type: "date", '
         'value: (_hasTermin(a.terminBestaetigt)',
     "monteur":
-        'React.createElement(\'select\', { value: a.monteur||"", onChange:',
+        'React.createElement(\'select\', { value: a.monteur||"",',
 }
 
 # Die sechs Schreibwege. Sie sind der eigentliche Gegenstand des Riegels:
@@ -299,16 +299,24 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
     )
 
     # 2. Die Klasse wandert an den Monteur -> der Laut-Riegel muss anschlagen.
-    z2 = index_html.replace(
-        "React.createElement('select', { value: a.monteur||\"\", onChange:",
-        "React.createElement('select', { className: \"epk-ruhig\", "
-        "value: a.monteur||\"\", onChange:", 1)
-    assert z2 != index_html, "Rueckbau 2 griff nicht"
-    i = z2.find("React.createElement('select', { className: \"epk-ruhig\", "
-                "value: a.monteur||\"\", onChange:")
-    assert i != -1 and "epk-ruhig" in z2[i:i + 260], (
-        "Umkehrprobe: der Laut-Riegel wuerde eine Daempfung am Monteur nicht "
-        "bemerken."
+    #    v3.9.919 NACHGEZOGEN: der Rueckbau suchte den Kopf samt ", onChange:" und
+    #    griff nicht mehr, als das Feld ein title bekam - das steht zwischen
+    #    value und onChange. Der Selbsttest meldete dann "Rueckbau griff nicht",
+    #    also immerhin laut. Waere er still durchgelaufen, haette der
+    #    Laut-Riegel ab sofort GAR NICHTS mehr belegt - ein Selbsttest, der
+    #    nicht mehr greift, ist schlimmer als keiner.
+    _kopf = ('React.createElement(' + chr(39) + 'select' + chr(39) + ', { value: a.monteur||' + chr(34)*2 + ',')
+    assert index_html.count(_kopf) == 1, (
+        'Der Monteur-Editor ist nicht mehr eindeutig zu finden (%dx) - '
+        'dieser Selbsttest misst dann nichts.' % index_html.count(_kopf))
+    _gedaempft = ('React.createElement(' + chr(39) + 'select' + chr(39) + ', { className: ' + chr(34) + 'epk-ruhig' + chr(34) + ', '
+                  'value: a.monteur||' + chr(34)*2 + ',')
+    z2 = index_html.replace(_kopf, _gedaempft, 1)
+    assert z2 != index_html, 'Rueckbau 2 griff nicht'
+    i = z2.find(_gedaempft)
+    assert i != -1 and 'epk-ruhig' in z2[i:i + 260], (
+        'Umkehrprobe: der Laut-Riegel wuerde eine Daempfung am Monteur nicht '
+        'bemerken.'
     )
 
     # 3. Die :hover-Regel faellt weg -> der gefaehrlichste Fall (rahmenlos fuer

@@ -33,7 +33,22 @@ import re
 # Eng gefasst: nur ein `/*`, das direkt hinter einem Buchstaben steht UND
 # direkt von Anfuehrungszeichen/Komma gefolgt wird - am Bestand exakt die 33
 # `image/*`-Stellen und keine einzige echte Kommentarklammer.
-_MIME_STERN = re.compile(r"(?<=[A-Za-z])/\*(?=[\"',])")
+#
+# NACHTRAG 30.08.2026 - DIESELBE KRANKHEIT, EINE STELLE WAR NOCH OFFEN:
+# in der CSP steht `https://*.tile.openstreetmap.org` (index.html:8). Das `/*`
+# darin steht hinter einem SCHRAEGSTRICH, nicht hinter einem Buchstaben - die
+# obere Regel griff also nicht. Verschluckt wurden dadurch weitere 1.049
+# Zeichen ECHTER Kopf: der Rest der CSP (connect-src, font-src, worker-src,
+# manifest-src, frame-src, object-src), der `<title>` und beide Icon-Links.
+# Belegbar: `nur_code(index_html).count("manifest-src")` war 0, roh ist es 1.
+# Jeder `not in nur_code(...)`-Riegel ueber CSP-Direktiven, Titel oder Icons
+# war damit STILL GRUEN.
+#
+# Zweite Regel genauso eng: ein `/*` direkt hinter einem `/` UND direkt vor
+# einem Punkt - am Bestand exakt diese eine Wildcard-Hostzeile. Gemessen:
+# 33 Treffer vorher, 34 nachher, Zahl der erkannten Kommentarbloecke
+# unveraendert 3022 (es geht also KEIN echter Kommentar verloren).
+_MIME_STERN = re.compile(r"(?<=[A-Za-z])/\*(?=[\"',])|(?<=/)/\*(?=\.)")
 _MASKE = chr(1)  # index.html nutzt chr(1) zwar als Map-Schluessel-Trenner (1x),
 #                  aber NIE hinter einem "/" - und nur diese Folge wird
 #                  zurueckgetauscht (gemessen: "/"+chr(1) kommt 0x vor).
