@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-911, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.2026 (v3.9.884-913, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -209,6 +209,30 @@ andere Eigenschaft nicht kaputtzumachen. Das war Ausweichen: der irreführende N
 blieb Teil der Rückgabe und damit benutzbar, und eine Zahl mit zwei Namen ist dieselbe
 Krankheit wie eine Größe mit zwei Rechnungen. Richtig ist, was mehr Arbeit macht:
 ersatzlos wegnehmen und **die lesenden Tests mitziehen**.
+
+**WIE man Nichtwissen zeigt, hängt davon ab, was der Verbraucher liest.** Derselbe
+Befund — eine Null, die ein Fehlschlag ist — brauchte an einem Tag DREI verschiedene
+Reparaturen, und wer die falsche wählt, baut etwas, das gefährlich aussieht und nichts
+ändert:
+
+| Lage | richtige Reparatur |
+|---|---|
+| Die Anzeige versteht `null` (`_metric` → drei Punkte) | `null` zurückgeben — v908/909/911 |
+| **Alle** Verbraucher fragen `>0` | **zweiter Weg** neben dem Rückgabewert — v912. `null > 0` ist ebenfalls falsch, `null` hätte hier NICHTS geändert |
+| Es gibt gar keine Darstellung für Nichtwissen | eigener Zustand — v913. Und dann gehört der **Export** dazu, nicht nur der Bildschirm |
+
+→ **Prüffrage vor dem Fix: liest der Verbraucher meinen neuen Wert überhaupt?** Bei
+v912 hätte ein `return null` vier Stellen still gelassen, die `>0` fragen — der Umbau
+hätte ausgesehen wie eine Reparatur und wäre keine gewesen.
+
+**Eine Warnung, die nicht mehr weggeht, wird genauso ignoriert wie eine, die nie kommt.**
+Jeder Fehlermerker gehört zu Beginn des nächsten Versuchs zurückgesetzt.
+
+**Bei einem Beleg zählt der Export mehr als der Bildschirm.** Das Fahrtenbuch ist ein
+Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne Fahrten
+und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
+abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
+jetzt, statt ein leeres Dokument zu erzeugen.
 
 **Ein leeres Ergebnis auf dem ERFOLGSPFAD ist die gefährlichste Form von Nichtwissen.**
 `_sbGet` gab bei 401/403 ein leeres Array zurück — nicht als Fehler, sondern als Erfolg.
