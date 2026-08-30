@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.08.2026 (v3.9.884-913, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29./30.08.2026 (v3.9.884-918, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -233,6 +233,78 @@ Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne 
 und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
 abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
 jetzt, statt ein leeres Dokument zu erzeugen.
+
+**Wenn „weniger Elemente“ nicht geht, ist die Antwort Rangordnung, nicht Amputation.**
+Auf „die Liste ist überladen“ hat das Messen den Auftrag umgedreht: die Zeile hat bis zu
+**14** Klickziele (6 Editoren, 5 gefüllte Knöpfe, 3 klickbare Zellen), und **keiner der
+sechs Editoren darf sie verlassen** — einer ist nur dort bearbeitbar, die anderen fünf
+kosten im Formular vier Schritte statt einem. Was blieb, war die Lautstärke: vier
+Editoren im Ruhezustand rahmenlos, zwei laut. **Welche zwei, sagt der Code** — das
+Dispo-Brett schreibt Termin+Monteur in EINEM `updAs`.
+
+**Ein Bedienelement, dem man Rahmen UND Symbol nimmt, ist nicht ruhig, sondern
+unauffindbar.** Beim Leisermachen bleibt immer ein Hinweis stehen, DASS die Zelle
+bedienbar ist — Pfeil, Kalendersymbol, Tastaturfokus.
+
+**Eine Zahl im Riegel ist nur so gut wie ihre Zähleinheit.** Der v906-Riegel sprach von
+180 Bedienelementen und hatte die Knöpfe und die klickbaren Zellen nicht mitgezählt.
+
+**Ein Riegel, der die Schreibweise abschreibt, kann einen Fehler FESTHALTEN.**
+Das ist nicht dasselbe wie ein Riegel, der nichts misst — es ist schlimmer.
+`test_dispo_asfrische_abw_v767` verlangte wörtlich
+
+```js
+if(absAbz>=t.normMin){gruende.push(_dispoAbwLabel(ab.type));}
+```
+
+also genau die Zeile, die am Feiertag abstürzte. Er hätte den Fehler nie gefunden,
+aber er wäre gegen die Reparatur ROT geworden. So werden Riegel abgeschaltet statt
+repariert.
+
+**Die Eigenschaft hört irgendwo auf — alles danach ist Rumpf.**
+`test_hunt_v3997` sicherte, dass ein Knopf auf `isAdmin` gegatet ist, und notierte
+dabei den halben Knopfrumpf mit. Als dort eine Speichersperre dazukam, wurde er rot,
+**obwohl der Code besser geworden war.** Vor jedem `assert "..." in index_html`:
+wo genau endet die Aussage, die ich sichern will?
+
+**Ein Zähler sieht nur, was gleich geschrieben ist.**
+`count("frei=(norm-used)+eigen;") == 2` sicherte zwei von DREI Stellen, die dieselbe
+Größe rechnen — die dritte ist anders geschrieben und kam in der Zählung gar nicht
+vor. Verstellt man nur sie, bleibt der Zähler grün.
+
+**Ein Fenster, dessen Breite man frei wählt, misst die Fensterbreite mit.**
+Feste Zeichenfenster (`index_html[start:start+7500]`) mussten im Bestand mehrfach
+geweitet werden, weil ein Umbau die gesuchte Zeile hinausschob. Ein Erklärkommentar
+reicht dafür aus. Statt zu weiten: den Block **schneiden und ausführen**.
+
+**Zwei Dinge sind zu tun, wenn ein Wurf eine Zelle hart sperrt: den Wurf beseitigen
+UND den Grund benennen.** Nur `if(ab && ...)` hätte den Feiertags-Absturz behoben und
+eine gesperrte Zelle **ohne Beschriftung** hinterlassen — eine Wand, bei der niemand
+erfährt, warum dort nichts geht. Und wenn die App den Begriff schon kennt, bekommt er
+**dasselbe Zeichen**: zwei Symbole für dieselbe Sache sind eine Sprache, die man
+zweimal lernen muss.
+
+**Ein widerlegter Auftrag ist ein Ergebnis, kein Ausweichen.**
+Zwei Agenten sollten umbauen und haben belegt, dass der Umbau falsch wäre — einmal
+über 227.700 gemessene Fälle ohne eine einzige Abweichung, einmal weil im Portal ein
+Rechtefehler als **HTTP 200 mit 0 Zeilen** ankommt und der geplante Merker dort nie
+angeschlagen hätte. Beide Male war der Nebenbefund mehr wert als der Auftrag.
+
+**Eine falsche Begründung neben einer richtigen Warnung ist eine Falle.**
+Der Kommentar, der davor warnte, drei Formeln zusammenzulegen, begründete das mit
+einem Beispiel, das nachgerechnet nicht stimmt. Die Warnung blieb richtig, der Grund
+war ein anderer — und wer sich auf den falschen Grund verlässt, baut das Falsche.
+
+**Ein Werkzeug, das nur im eigenen Klon läuft, ist kein Werkzeug.**
+Beim Einchecken des Variablen-Scanners verschluckte die `dist/`-Regel genau die vier
+Dateien, in denen der Parser steckt. Bei `.gitignore` gewinnt die SPÄTERE Regel →
+Ausnahmen gehören ans Ende. Nach dem `git add`: **zählen**, ob so viele Dateien
+vorgemerkt sind, wie auf der Platte liegen.
+
+**Eine leere Basislinie ist ein Ziel, kein Mangel.**
+Wird ein Altfund repariert, MUSS er aus der Basislinie raus — sonst deckt die Liste
+künftige Rückfälle zu. `BASISLINIE = {}` heißt: ab jetzt ist jeder freie Name in
+`index.html` ein Fehler.
 
 **Ein leeres Ergebnis auf dem ERFOLGSPFAD ist die gefährlichste Form von Nichtwissen.**
 `_sbGet` gab bei 401/403 ein leeres Array zurück — nicht als Fehler, sondern als Erfolg.
