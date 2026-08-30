@@ -14,6 +14,7 @@ import re
 import json
 import datetime
 import pytest
+from _hilfen import nur_code, fundstellen
 from conftest import run_node_snippet, _extract_fn
 
 
@@ -51,10 +52,37 @@ def test_wochenplantafel_poll_bleibt_bei_60s(index_html):
 
 
 def test_flotte_poll_ms_wird_nur_fuer_live_poll_referenziert(index_html):
-    """FLOTTE_POLL_MS taucht im ganzen File nur 3x auf: die Konstante selbst, ein
-    erklaerender Kommentar direkt davor, und der eine setInterval-Aufruf der Live-Karte.
-    Kein Fahrtenbuch-/Analyse-Fetch referenziert sie."""
-    assert index_html.count("FLOTTE_POLL_MS") == 3
+    """FLOTTE_POLL_MS hat GENAU EINEN Leser: den setInterval der Live-Karte.
+    Kein Fahrtenbuch-/Analyse-Fetch referenziert sie.
+
+    v3.9.913 - DIE ZAHL BLEIBT, WIRD ABER KOMMENTARBLIND. Sie war 3 und hat
+    dabei ausdruecklich den erklaerenden KOMMENTAR ueber der Konstante
+    mitgezaehlt ("die Konstante selbst, ein erklaerender Kommentar direkt davor,
+    und der eine setInterval-Aufruf"). Das ist die Krankheit in Reinform: haette
+    jemand den setInterval-Aufruf entfernt und den Kommentar stehengelassen,
+    waere der Riegel GRUEN geblieben - obwohl die Konstante dann null Leser hat
+    und der Live-Poll tot ist. Umformulieren des Kommentars haette ihn umgekehrt
+    grundlos rot gemacht.
+
+    Neue Zahl: 2 (Definition + der eine setInterval). Der Unterschied 3->2 ist
+    genau der weggefallene Kommentar - der Code hat sich nicht geaendert.
+
+    Die Zahl bleibt, weil sie hier die Aussage IST: "nur" ist ein Verbot. Die
+    beiden Stellen sind zusaetzlich benannt, damit eine rote Meldung sagt,
+    welche der beiden verschwunden ist statt nur eine Zahl zu nennen.
+    """
+    code = nur_code(index_html)
+    assert "const FLOTTE_POLL_MS=10*TIME_SECOND;" in code, "Die Konstante selbst ist weg."
+    assert "setInterval(load,FLOTTE_POLL_MS)" in code, (
+        "Der Live-Poll der Flotte-Karte liest FLOTTE_POLL_MS nicht mehr - die "
+        "Konstante haette dann null Leser."
+    )
+    assert code.count("FLOTTE_POLL_MS") == 2, (
+        "FLOTTE_POLL_MS hat einen weiteren Leser bekommen (gefunden %d statt 2: "
+        "Definition + der eine setInterval). Fahrtenbuch-/Analyse-Fetches sollen "
+        "bewusst NICHT am Live-Takt haengen.\n%s"
+        % (code.count("FLOTTE_POLL_MS"), fundstellen(code, "FLOTTE_POLL_MS"))
+    )
 
 
 def test_fahrtenbuch_fetch_haengt_nicht_an_flotte_poll_ms(index_html):

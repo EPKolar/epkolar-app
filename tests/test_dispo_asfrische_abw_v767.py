@@ -110,11 +110,59 @@ console.log(JSON.stringify(out));
         "beantragt+ausstehend+abgelehnt=0, fehlender Status blockt weiter (480). Bekommen: " + got)
 
 
-def test_overlay_folgt_der_kapazitaet(index_html):
+# v3.9.915: FRUEHER stand hier ein Textvergleich auf zwei woertliche Zeilen,
+# gesucht in einem festen Fenster von 7500 Zeichen. Beides war falsch.
+#
+# Der Textvergleich verlangte GENAU die Zeile, die am Feiertag abgestuerzt ist:
+#     if(absAbz>=t.normMin){gruende.push(_dispoAbwLabel(ab.type));}
+# Bei normMin 0 und fehlendem Eintrag ist 0>=0 wahr und ab undefined - der
+# Riegel hat den Fehler also nicht gefunden, sondern FESTGEHALTEN, und waere
+# gegen seine Reparatur rot geworden. Ein Riegel, der die Schreibweise
+# abschreibt, misst die Schreibweise.
+#
+# Und das Fenster musste in v3.9.807 schon einmal von 6000 auf 7500 geweitet
+# werden, weil ein Umbau die gesuchte Zeile hinausgeschoben hatte. Ein Fenster,
+# dessen Breite man frei waehlt, misst die Fensterbreite mit.
+#
+# Die ABSICHT bleibt unveraendert - sie wird jetzt AUSGEFUEHRT statt gelesen.
+def test_overlay_folgt_der_kapazitaet(index_html, tmp_path):
     """Anzeige == Kapazitaet: der Grund-Chip haengt an absAbz, nicht an einer zweiten Statusregel."""
-    start = index_html.index("function _dispoBuildInput(")
-    blk = index_html[start:start + 7500]  # v3.9.807: Fenster geweitet (6000->7500) — der 3B-_typMed-Build schob die absAbz-Zeile knapp ueber 6000 (Offset 6003); Inhalt unveraendert.
-    assert "if(absAbz>=t.normMin){gruende.push(_dispoAbwLabel(ab.type));}" in blk, \
-        "Overlay-Chip haengt nicht mehr an absAbz — Anzeige koennte von der Kapazitaet abweichen"
-    assert "if(absAbz>0)gruende.push(_dispoAbwLabel(ab.type));" in blk, \
-        "Teiltag-Chip haengt nicht mehr an absAbz"
+    from _hilfen import dispo_zelle_programm, dispo_zelle_lauf
+
+    werktag = {"key": "d", "iso": "2026-09-15", "wtag": "Di", "normMin": 510, "feiertag": False}
+    feiertag = {"key": "d", "iso": "2026-10-26", "wtag": "Mo", "normMin": 0, "feiertag": True}
+
+    def abw(**kw):
+        eintrag = {"type": "urlaub", "status": "genehmigt", "hours": 0}
+        eintrag.update(kw)
+        return {"Huber_2026-09-15": eintrag}
+
+    faelle = [
+        {"t": werktag, "absMap": {}},
+        {"t": werktag, "absMap": abw()},
+        {"t": werktag, "absMap": abw(hours=4)},
+        {"t": werktag, "absMap": abw(status="beantragt")},
+        {"t": werktag, "absMap": abw(type="krankenstand")},
+        {"t": feiertag, "absMap": {}},
+    ]
+    aus = dispo_zelle_lauf(dispo_zelle_programm(index_html), tmp_path, faelle, "v767.js")
+
+    for i, r in enumerate(aus):
+        assert r["ok"], "Fall {} wirft: {}".format(i, r.get("fehler"))
+
+    # DIE Eigenschaft: am Werktag steht genau dann ein Abwesenheits-Chip da,
+    # wenn auch Kapazitaet abgezogen wurde. Anzeige und Kapazitaet duerfen nicht
+    # auseinanderlaufen - das war der ganze Sinn dieses Riegels.
+    for i, r in enumerate(aus[:5]):
+        assert bool(r["labels"]) == (r["abw"] > 0), (
+            "Fall {}: Chip {} passt nicht zum Kapazitaetsabzug {} - "
+            "Anzeige und Kapazitaet laufen auseinander".format(i, r["labels"], r["abw"]))
+
+    assert aus[0]["labels"] == [] and aus[0]["abw"] == 0
+    assert aus[1]["labels"] == ["Urlaub"] and aus[1]["abw"] == 510, "Volltag: voller Abzug"
+    assert aus[2]["labels"] == ["Urlaub"] and aus[2]["abw"] == 240, "Teiltag: 4h = 240 min"
+    assert aus[3]["labels"] == [] and aus[3]["abw"] == 0, \
+        "Ein BEANTRAGTER Urlaub ist keine Abwesenheit - weder in der Anzeige noch in der Kapazitaet"
+    assert aus[4]["labels"] == ["Krankenstand"], "Der Chip nennt den Typ, nicht 'abwesend'"
+    assert aus[5]["labels"] == ["Feiertag"], \
+        "Am Feiertag nennt die Zelle den Feiertag (v3.9.915) - vorher warf sie hier"

@@ -422,15 +422,30 @@ def test_der_chip_hat_einen_tel_link(index_html):
 def test_der_tel_link_reisst_weder_drag_noch_oeffnen_mit(index_html):
     """Der Chip haengt an onPointerDown (Drag) und onClick (Schein oeffnen).
     Ein Link darin muss BEIDE stoppen, sonst waehlt ein Fingertipp die Nummer
-    und verschiebt den Termin."""
+    und verschiebt den Termin.
+
+    v3.9.913 - KEINE ZAHL MEHR. Vorher: `block.count("stopPropagation") >= 2`
+    auf einem +/-400-Zeichen-Fenster. Zwei Fehler in einem: das Fenster reichte
+    weit in Nachbar-Elemente (gemessen 4 Treffer statt der gesuchten 2, davon 2
+    fremde), und die Summe sagte nicht, WELCHE Geste gestoppt wird. Zwei
+    stopPropagation am onClick und keines am onPointerDown haetten sie erfuellt
+    - also genau der Fall, den der Riegel verhindern soll. Jetzt wird der
+    Link-Kopf selbst geschnitten und je Geste benannt nachgesehen.
+    """
     panel = _panel(index_html)
     i = panel.find('href:"tel:"')
     assert i != -1, "kein tel:-Link im DispoPanel"
-    block = panel[max(0, i - 400):i + 400]
-    assert block.count("stopPropagation") >= 2, (
-        "Der tel:-Link stoppt nicht beides (onPointerDown UND onClick) - "
-        "dann loest ein Anruf-Tipp zugleich Drag oder Oeffnen aus."
-    )
+    kopf = panel[i:panel.index(",style:", i)]
+    for geste, muster in (
+        ("onPointerDown (Drag)",
+         "onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();}"),
+        ("onClick (Schein oeffnen)",
+         "onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();}"),
+    ):
+        assert muster in kopf, (
+            "Der tel:-Link stoppt %s nicht - dann loest ein Anruf-Tipp zugleich "
+            "Drag oder Oeffnen aus.\n%s" % (geste, kopf)
+        )
 
 
 # ══ B(c) - Tagesplan-Ausdruck ═══════════════════════════════════════════════

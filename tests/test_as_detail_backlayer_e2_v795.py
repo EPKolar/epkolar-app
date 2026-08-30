@@ -12,16 +12,23 @@ untereinander) ist NICHT E2 -> genau EIN useBackLayer in der AS-View, und zwar d
 form-Layer. popstate-Verhalten ist nicht statisch testbar (Sebastians Live-Klick ist
 die Abnahme) — hier wird die Verdrahtung gepinnt.
 """
-import re
+from _hilfen import nur_code
 
 
 def _as(index_html):
     # ACHTUNG: die AS-View enthaelt einen PDF-Template-String mit eingebettetem
     # "function sharePdf(){" (Spalte 0 im String) -> "\nfunction " als Grenze wuerde
     # zu frueh schneiden. Echte naechste Top-Level-Komponente = EZKalender.
-    a = index_html.index("function ArbeitsscheinView({")
-    b = index_html.index("function EZKalender(props){", a)
-    return index_html[a:b]
+    #
+    # KOMMENTARBLIND seit v3.9.913: geschnitten wird auf nur_code(), EINE Stelle
+    # fuer alle Riegel dieser Datei. Unten stehen zwei ZAHLEN (useBackLayer==1,
+    # openEdit(_a,"liste")==2). Ein Versionskommentar in der AS-View, der eine
+    # dieser Zeichenfolgen zitiert, haette sie verfaelscht - und, gefaehrlicher,
+    # eine geloeschte Verdrahtung durch den zurueckgebliebenen Kommentar ersetzt.
+    quelle = nur_code(index_html)
+    a = quelle.index("function ArbeitsscheinView({")
+    b = quelle.index("function EZKalender(props){", a)
+    return quelle[a:b]
 
 
 def test_backlayer_einzeiler(index_html):
@@ -33,6 +40,12 @@ def test_backlayer_einzeiler(index_html):
 
 def test_nur_ein_backlayer_in_as(index_html):
     # Scope: NUR der form-Detail-Layer. Die Sub-Tab-Leiste bekommt in E2 KEINEN eigenen Layer.
+    #
+    # DIE ZAHL BLEIBT: sie IST die Aussage. Die benannte Verdrahtung selbst steht
+    # schon in test_backlayer_einzeiler; hier geht es um das GEGENTEIL - dass es
+    # keine ZWEITE gibt. Ein Verbot laesst sich nicht benennen, nur zaehlen.
+    # Gemessen kommentarblind (v3.9.913): 1 (vorher ebenfalls 1 - heute zitiert
+    # kein Kommentar in der AS-View "useBackLayer("; dateiweit waeren es 13 statt 11).
     c = _as(index_html)
     assert c.count("useBackLayer(") == 1, "AS-View hat != 1 useBackLayer (Scope: nur der form-Layer)"
 
@@ -62,8 +75,11 @@ def test_direkte_ui_aufrufer_ohne_origin(index_html):
 
 
 def test_kein_system_b_kein_hash_write(index_html):
-    # /* ... */-Kommentare strippen -> nur echter CODE (Kommentare nennen Tokens bewusst).
-    c = re.sub(r"/\*.*?\*/", "", _as(index_html), flags=re.S)
+    # v3.9.913: der eigene re.sub hier ist entfallen - _as() liefert bereits nur
+    # Code. Zwei Kopien derselben Strippregel waeren die naechste Groesse mit
+    # zwei Rechnungen, und die hiesige war die schwaechere (sie kannte den
+    # image/*-Falschoeffner nicht, s. tests/_hilfen.py).
+    c = _as(index_html)
     for bad in ("_navPush", "_regSubView", "_subViewRef", "_navSubResolve"):
         assert bad not in c, "System-B-Rueckfall in AS-View-Code: " + bad
     assert "location.hash=" not in c, "unerlaubter Hash-Write in AS-View (Kiosk-Tabu)"

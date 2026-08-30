@@ -20,7 +20,21 @@ def test_drag_unterdrueckt_globale_textauswahl(index_html):
     # BEIDE Drags (Pin/Reschedule _chipDrag UND Hoehen-Griff _dauerDrag) unterdruecken die Textauswahl.
     # v3.9.737: refactored in den geteilten Helfer _dragSelOff() (setzt body userSelect none) — beide rufen ihn.
     assert 'document.body.style.userSelect="none"' in body, "kein globales userSelect none beim Drag"
-    assert body.count("_dragSelOff()") >= 2, "nicht beide Drags rufen den Selektions-Aus-Helfer"
+    # KEINE ZAHL MEHR (v3.9.913). Vorher: `body.count("_dragSelOff()") >= 2`.
+    # "Beide Drags rufen ihn" ist eine Aussage ueber ZWEI BENANNTE Handler, nicht
+    # ueber eine Summe: zweimal _chipDrag und kein _dauerDrag haette die Zahl
+    # ebenso erfuellt. Jetzt wird je Handler geschnitten und dort nachgesehen -
+    # damit faellt auch die Anfaelligkeit gegen Kommentartext weg.
+    for anker, wer in (
+        ("var _chipDrag=function(scheinId,mid,label,dauerMin,opts){return function(e){",
+         "der Chip-Drag (Pin/Verschieben)"),
+        ("var _dauerDrag=function(scheinId,baseMin,normMin){return function(e){",
+         "der Hoehen-Griff (Dauer ziehen)"),
+    ):
+        i = body.find(anker)
+        assert i != -1, "Handler nicht mehr auffindbar: " + wer
+        assert "_dragSelOff();" in body[i:i + 600], \
+            wer + " ruft den Selektions-Aus-Helfer nicht - dort markiert der Browser weiter Text"
 
 
 def test_kacheln_userselect_none(index_html):

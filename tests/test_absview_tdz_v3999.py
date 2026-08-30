@@ -7,11 +7,20 @@ Deklarations-Reihenfolge: jede const, die isAdmin/absTabIds nutzt, muss NACH der
 """
 
 
+from _hilfen import nur_code
+
+
 def _absview(index_html):
-    start = index_html.index("function AbsView(")
+    # KOMMENTARBLIND seit v3.9.913: geschnitten und gezaehlt wird auf nur_code().
+    # Grund: unten steht eine ZAHL. Ein erklaerender Kommentar in AbsView, der
+    # "const isAdmin=" zitiert, haette sie auf 2 gehoben (falsch rot) - und
+    # umgekehrt bliebe sie 1, wenn die echte Deklaration verschwindet und nur
+    # der Kommentar stehenbleibt (falsch gruen). Beides ist im Repo passiert.
+    code = nur_code(index_html)
+    start = code.index("function AbsView(")
     # bis zur nächsten Top-Level-Funktion grob begrenzen
-    end = index_html.index("\nfunction ", start + 10)
-    return index_html[start:end], start
+    end = code.index("\nfunction ", start + 10)
+    return code[start:end], start
 
 
 def test_isadmin_declared_before_abstabids(index_html):
@@ -25,6 +34,12 @@ def test_isadmin_declared_before_abstabids(index_html):
 
 def test_single_isadmin_in_absview(index_html):
     body, _ = _absview(index_html)
+    # DIE ZAHL BLEIBT: hier IST sie die Aussage. "Genau eine Deklaration" laesst
+    # sich nicht durch benannte Stellen ersetzen - wo eine zweite auftaucht,
+    # weiss man vorher nicht, und genau das soll der Riegel finden.
+    # Gemessen kommentarblind (v3.9.913): 1 - unveraendert gegenueber vorher,
+    # weil heute kein Kommentar in AbsView den Text zitiert. Der Umbau ist hier
+    # Vorsorge, keine Korrektur.
     assert body.count("const isAdmin=") == 1, (
         "AbsView darf isAdmin nur EINMAL deklarieren (Doppel-Deklaration = SyntaxError)"
     )

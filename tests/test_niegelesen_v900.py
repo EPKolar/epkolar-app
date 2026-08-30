@@ -64,12 +64,26 @@ def test_die_handwand_rechnet_weiter_an_ihrer_echten_stelle(index_html):
 # == 2 - asNextWeek: die fehlende Kachel =====================================
 
 def test_asnextweek_wird_endlich_gezeigt(index_html):
+    # v3.9.913 - DIE ZAHL IST WEG. Vorher stand hier zusaetzlich
+    # `code.count("asNextWeek") >= 2`. Sie war kommentarblind (nur_code), aber
+    # ueberfluessig: die Aussage lautet "asNextWeek hat einen LESER", und der
+    # Leser steht eine Zeile weiter unten beim Namen. Zwei Vorkommen haetten
+    # auch zwei Berechnungen ohne jeden Leser sein koennen - die Zahl war der
+    # schwaechere von zwei Riegeln am selben Gegenstand.
+    #
+    # Nebenbefund fuer die Buchhaltung: kommentarblind sind es heute 3 (die
+    # Definition + zweimal in der _metric-Zeile), dateiweit 5. Genau solche
+    # Zahlen muss man beim Umbenennen einer Farbbedingung nachziehen - deshalb
+    # steht sie hier nicht mehr als Zusicherung.
     code = nur_code(index_html)
-    assert code.count("asNextWeek") >= 2, (
-        "asNextWeek wird wieder nur berechnet. %s" % fundstellen(code, "asNextWeek")
+    assert "const asNextWeek=" in code, (
+        "asNextWeek wird gar nicht mehr berechnet. %s" % fundstellen(code, "asNextWeek")
     )
     assert ("_metric('Geplant nächste Woche',asNextWeek,"
-            "asNextWeek>0?'#3b82f6':V.dm)") in index_html
+            "asNextWeek>0?'#3b82f6':V.dm)") in index_html, (
+        "asNextWeek wird wieder nur berechnet und nie angezeigt - die Kachel im "
+        "Chef-Portal fehlt. %s" % fundstellen(code, "asNextWeek")
+    )
 
 
 def test_die_kachel_steht_in_der_arbeitsscheine_karte(index_html):

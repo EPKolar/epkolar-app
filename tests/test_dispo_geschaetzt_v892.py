@@ -94,16 +94,46 @@ def test_der_dauer_griff_hebt_die_markierung_auf(index_html):
 
 
 def test_die_quellenkette_selbst_ist_unveraendert(index_html):
-    """Gegenprobe: nur die Anzeige wurde geheilt, nicht die Rechnung."""
+    """Gegenprobe: nur die Anzeige wurde geheilt, nicht die Rechnung.
+
+    v3.9.913 - ZWEI Umbauten hier:
+
+    1. Das Fenster war 2000 Zeichen ab dem Funktionskopf. _dispoDauer ist aber
+       nur ~800 Zeichen lang; die restlichen 1200 gehoerten _dispoHaversine und
+       _dispoStrecke. Ein Fenster, dessen Groesse man frei waehlt, misst die
+       Fensterbreite mit. Jetzt endet der Block an der schliessenden Klammer.
+
+    2. Die ZAHL ist weg. Vorher: `block.count("geschaetzt:true") >= 4`. Die
+       Aussage war "die Schaetz-Stufen sind vollstaendig" - aber jede Stufe hat
+       einen Namen, und eine Summe sagt nicht, WELCHE fehlt. Vier Vorkommen
+       haetten auch gestimmt, wenn der Typ-Median doppelt und der Text-Keyword-
+       Zweig gar nicht dastuende. Und ein Kommentar mit "geschaetzt:true" haette
+       eine geloeschte Stufe ersetzt. Jetzt: fuenf benannte Stufen, einzeln.
+    """
     i = index_html.find("function _dispoDauer(schein,regeln,gelernt,typMedian){")
     assert i != -1, "_dispoDauer nicht gefunden"
-    block = index_html[i:i + 2000]
+    ende = index_html.find("\n}", i)
+    assert ende != -1, "_dispoDauer hat kein Funktionsende auf Spalte 0"
+    block = index_html[i:ende]
     assert "if(mn!=null)return {min:mn,geschaetzt:false};" in block, (
         "Stufe 1 (gesetzte Dauer schlaegt alles) hat sich veraendert."
     )
-    assert block.count("geschaetzt:true") >= 4, (
-        "Die Schaetz-Stufen der Quellenkette sind nicht mehr vollstaendig."
-    )
+    for stufe, zeile in (
+        ("2 Klassen-Median (n>=8)",
+         "if(g&&g.n>=8)return {min:g.median,geschaetzt:true};"),
+        ("3 Typ-Median (n>=8)",
+         "if(t&&t.n>=8)return {min:t.median,geschaetzt:true};"),
+        ("4 Typ-Fallback",
+         "if(DISPO_TYP_DAUER_FALLBACK[_ta])return {min:DISPO_TYP_DAUER_FALLBACK[_ta],geschaetzt:true};"),
+        ("5 Text-Keyword",
+         "if(_regelMin!=null)return {min:_regelMin,geschaetzt:true};"),
+        ("6 Default",
+         "return {min:DISPO_DAUER_DEFAULT,geschaetzt:true};"),
+    ):
+        assert zeile in block, (
+            "Schaetz-Stufe %s fehlt in der Quellenkette - dann liefert _dispoDauer "
+            "an dieser Stelle etwas anderes als gemessen." % stufe
+        )
 
 
 def test_das_schreibgesetz_bleibt_unberuehrt(index_html):

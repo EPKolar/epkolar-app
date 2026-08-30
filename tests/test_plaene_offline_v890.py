@@ -109,6 +109,8 @@ Teil D - Umkehrprobe.
 """
 import re
 
+from _hilfen import nur_code, fundstellen
+
 
 # ══ TEIL A - VERTRAG: der Update-Weg bleibt unangetastet ════════════════════
 
@@ -220,13 +222,26 @@ def test_befund_der_pdf_zwischenspeicher_lebt_nur_im_arbeitsspeicher(index_html)
 
 def test_befund_es_gibt_keine_groessenpruefung_beim_plan_upload(index_html):
     """MAX_FILE_MB steht in APP_LIMITS und hat null Leser - die einzige echte
-    Grenze ist das 50-MiB-Limit des Buckets (serverseitig gemessen)."""
-    # v3.9.890: gezaehlt wird OHNE Kommentare - der erklaerende Kommentar am
-    # Plan-Cache nennt MAX_FILE_MB woertlich und wurde sonst mitgezaehlt.
-    _code = re.sub(r"/\*[\s\S]*?\*/", "", index_html)
+    Grenze ist das 50-MiB-Limit des Buckets (serverseitig gemessen).
+
+    v3.9.913 - DIE ZAHL BLEIBT (1), die eigene Strippregel geht.
+
+    Warum die Zahl bleibt: "null Leser" ist eine Abwesenheit. Abwesenheit laesst
+    sich nicht benennen - man kann nicht aufzaehlen, wo etwas NICHT steht. Genau
+    hier verdient eine Gesamtzahl ihren Platz, und nur hier.
+
+    Warum die Strippregel geht: sie war die zweite Kopie von nur_code() und
+    kannte den image/*-Falschoeffner nicht (s. tests/_hilfen.py) - sie hat rund
+    50.000 Zeichen echten Code weggeworfen, und in diesem Riegel heisst weg-
+    geworfener Code: ein Leser, den er nicht sehen kann. Neue Zahl: 1 - gleich
+    wie vorher, aber jetzt zu Recht.
+    """
+    _code = nur_code(index_html)
+    assert "MAX_FILE_MB:10," in _code, "MAX_FILE_MB steht nicht mehr in APP_LIMITS."
     assert _code.count("MAX_FILE_MB") == 1, (
         "MAX_FILE_MB hat jetzt Leser - dann ist die Aussage 'keine Grenze im "
-        "Code' ueberholt und die Groessenrechnung muss neu gemacht werden."
+        "Code' ueberholt und die Groessenrechnung muss neu gemacht werden.\n%s"
+        % fundstellen(_code, "MAX_FILE_MB")
     )
 
 

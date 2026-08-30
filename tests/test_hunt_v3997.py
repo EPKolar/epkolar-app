@@ -13,10 +13,31 @@ def test_juprowa_scheintyp_string_compare(index_html):
 
 
 def test_kontingent_save_gated_isadmin(index_html):
-    # Speichern-Button muss isAdmin (admin/PL/urlaub_edit) nutzen, nicht role==="admin".
-    assert 'isAdmin&&React.createElement(\'button\', { onClick: ()=>{if(editKontingent)' in index_html, (
-        "Kontingent-Speichern muss auf isAdmin gegated sein (sonst PL/urlaub_edit editiert ohne Speichern)"
-    )
+    """Der Kontingent-Knopf haengt an isAdmin (admin/PL/urlaub_edit), nicht an role==="admin".
+
+    v3.9.916: FRUEHER stand hier ein Textvergleich, der den halben Knopfrumpf
+    mitnotierte -
+        isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent)
+    Als v3.9.914 im Rumpf eine Speichersperre einbaute, wurde er rot, obwohl die
+    Rechtepruefung unveraendert davorsteht. Ein Riegel, der ueber die Eigenschaft
+    hinaus abschreibt, wird rot, wenn der Code BESSER wird.
+
+    Gemessen wird jetzt die Eigenschaft: der Knopf mit der Beschriftung
+    Speichern/Bearbeiten wird nur dann erzeugt, wenn isAdmin gilt.
+    """
+    marke = 'editKontingent?"\U0001F4BE Speichern":"\u270F\uFE0F Bearbeiten"'
+    assert index_html.count(marke) == 1, (
+        "Der Kontingent-Knopf ist nicht mehr eindeutig zu finden - dieser Riegel misst dann nichts")
+
+    ende = index_html.index(marke)
+    anfang = index_html.rindex("React.createElement('button'", 0, ende)
+    vorspann = index_html[max(0, anfang - 40):anfang]
+
+    assert vorspann.endswith("isAdmin&&"), (
+        "Der Kontingent-Knopf ist nicht mehr auf isAdmin gegated. Davor steht: "
+        + repr(vorspann))
+    assert 'role==="admin"' not in index_html[anfang:ende], (
+        "Der Knopf prueft wieder role==='admin' statt isAdmin - PL und urlaub_edit koennten dann bearbeiten, aber nicht speichern")
 
 
 def test_uebersicht_gated(index_html):

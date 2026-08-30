@@ -14,6 +14,7 @@ import tempfile
 
 import pytest
 
+from _hilfen import nur_code
 from conftest import _extract_fn
 
 
@@ -109,6 +110,31 @@ def test_inverse_transform_beispiel(node_exe, index_html):
 
 
 def test_planzoomat_in_index(index_html):
-    # Reine Funktion existiert top-level und wird von den Zoom-Wegen genutzt.
-    assert "function _planZoomAt(state, mid, faktor, minS, maxS){" in index_html
-    assert index_html.count("_planZoomAt(") >= 4  # Definition + >=3 Aufrufstellen
+    """Reine Funktion existiert top-level und wird von JEDEM Zoom-Weg genutzt.
+
+    v3.9.913 - DIE ZAHL IST WEG. Vorher: `index_html.count("_planZoomAt(") >= 4`
+    (Definition + >=3 Aufrufstellen), roh gezaehlt.
+
+    Die Zahl war in beide Richtungen unbrauchbar:
+      - roh 5, kommentarblind 4 - ein Kommentar zaehlte mit. Haette jemand einen
+        der drei Aufrufe entfernt und den Kommentar stehengelassen, waere der
+        Riegel GRUEN geblieben. Genau dieser Fall ist im Repo mehrfach eingetreten.
+      - `>= 4` sagt nicht, WELCHER Weg noch zoomt. Drei Aufrufe am Doppeltipp und
+        keiner am Mausrad haetten sie ebenso erfuellt.
+    Jetzt: die Definition und die drei Aufrufstellen einzeln beim Namen.
+    """
+    code = nur_code(index_html)
+    assert "function _planZoomAt(state, mid, faktor, minS, maxS){" in code, \
+        "Die reine Zoom-Funktion _planZoomAt gibt es nicht mehr top-level."
+    for weg, ruf in (
+        ("Doppeltipp (Zoom auf den getippten Punkt)",
+         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,0.4,6);"),
+        ("Pinch / _zoomCenter (Fingermitte bzw. Viewport-Mitte)",
+         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},z>0?nz/z:1,0.4,6);"),
+        ("Mausrad (Zoom auf den Zeiger)",
+         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},factor,0.4,6);"),
+    ):
+        assert ruf in code, (
+            "%s rechnet den Zoom nicht mehr ueber _planZoomAt - dort wandert der "
+            "Plan dann unter dem Finger weg (%r fehlt)." % (weg, ruf)
+        )

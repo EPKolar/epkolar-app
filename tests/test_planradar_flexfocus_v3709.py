@@ -14,6 +14,7 @@ world-Layout-Ursprung via _worldOrigin() heraus. `_planZoomAt` selbst bleibt unv
 Aufrufstellen.
 """
 import json
+from _hilfen import nur_code
 from conftest import run_node_snippet, _extract_fn
 
 
@@ -89,8 +90,37 @@ def test_pinch_uses_world_frame_but_keeps_locked_formula(index_html):
 
 
 def test_all_four_paths_call_worldorigin(index_html):
-    # Pinch + Doppeltipp + _zoomCenter + Mausrad ziehen alle den world-Ursprung heraus
-    assert index_html.count("_worldOrigin()") >= 4
+    """Pinch + Doppeltipp + _zoomCenter + Mausrad ziehen alle den world-Ursprung heraus.
+
+    v3.9.913 - DIE ZAHL IST WEG. Vorher: `index_html.count("_worldOrigin()") >= 4`.
+
+    Der Docstring dieser Datei nennt die vier Pfade beim Namen - die Zahl war
+    also von Anfang an nur ihr Stellvertreter, und ein schlechter: roh 6,
+    kommentarblind 4. Zwei der sechs Treffer waren Prosa. Waere einer der vier
+    Pfade auf den alten Viewport-Frame zurueckgefallen (genau der Fehler, den
+    v3.9.709 behoben hat), haetten die zwei Kommentar-Treffer die Zahl bei >=4
+    gehalten - der Riegel waere GRUEN geblieben, waehrend der Pinch auf dem Handy
+    wieder driftet. Jetzt wird je Pfad an seinem Anker nachgesehen.
+    """
+    code = nur_code(index_html)
+    for pfad, anker, fenster in (
+        ("Pinch (Fingermitte)",
+         "const _mx=(pts[0].x+pts[1].x)/2, _my=(pts[0].y+pts[1].y)/2;", 260),
+        ("Doppeltipp (<300ms, <28px)",
+         "Math.hypot(e.clientX-_last.x, e.clientY-_last.y) < 28){", 260),
+        ("_zoomCenter (Buttons, Viewport-Mitte)",
+         "const _fx = _vr ? _vr.width/2 : 0, _fy = _vr ? _vr.height/2 : 0;", 260),
+        # Anker bewusst der Handler-Kopf, NICHT die gesuchte Zeile selbst -
+        # sonst meldet der Riegel "Anker nicht auffindbar" statt zu sagen, dass
+        # dieser Pfad den Ursprung nicht mehr zieht.
+        ("Mausrad", "const _wh = (e) => {", 200),
+    ):
+        i = code.find(anker)
+        assert i != -1, "Anker des Pfades %s nicht mehr auffindbar: %r" % (pfad, anker)
+        assert "_worldOrigin()" in code[i:i + fenster], (
+            "Fokus-Pfad %s zieht den world-Layout-Ursprung nicht mehr heraus - dort "
+            "driftet der Zoom wieder um den Flex-Offset (v3.9.709)." % pfad
+        )
 
 
 def test_zoomcenter_keeps_locked_center_line(index_html):

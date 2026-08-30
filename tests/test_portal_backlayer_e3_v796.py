@@ -12,6 +12,8 @@ Verdrahtung gepinnt.
 """
 import re
 
+from _hilfen import nur_code
+
 
 def _chef(index_html):
     a = index_html.index("function ChefDashboard({")
@@ -70,10 +72,22 @@ def test_scope_guard_keine_neue_verdrahtung_ausserhalb(index_html):
     # (Versions-Kommentare erwaehnen useBackLayer(...) -> sonst bruechig), dann Call-Sites zaehlen.
     # Ist-Stand v3.9.796: 10 Call-Sites + 1 Definition = 11. Aendert sich das ohne neue Etappe,
     # ist irgendwo eine ungewollte useBackLayer-Verdrahtung dazugekommen/verschwunden.
-    code = re.sub(r"/\*.*?\*/", "", index_html, flags=re.S)
+    #
+    # v3.9.913 - DIE ZAHL BLEIBT (11), die eigene Strippregel geht.
+    # Warum die Zahl bleibt: das hier ist ein VERBOT ("nirgendwo sonst"), und ein
+    # Verbot laesst sich nicht durch benannte Stellen ersetzen - man kann die
+    # Stelle, die es nicht geben darf, nicht vorher benennen. Dass die Zahl beim
+    # Bau einer neuen Etappe nachgezogen werden muss, ist hier kein Mangel,
+    # sondern der Zweck: sie soll dann rot werden.
+    # Warum die Strippregel geht: sie war die zweite Kopie von nur_code() und
+    # kannte den image/*-Falschoeffner nicht (s. tests/_hilfen.py). Neue Zahl:
+    # 11 - unveraendert, denn keine der 11 Stellen lag im verschluckten Bereich.
+    # Dateiweit ohne Strippen waeren es 13; die zwei Zusatztreffer sind Prosa.
+    code = nur_code(index_html)
     assert code.count("useBackLayer(") == 11, (
-        "useBackLayer-Gesamtzahl != 11 (10 Call-Sites + 1 Definition). E3 darf NUR Chef/Buero "
-        "verdrahten — pruefen, wo eine useBackLayer-Verdrahtung dazu/weg ist."
+        "useBackLayer-Gesamtzahl ist %d statt 11 (10 Call-Sites + 1 Definition). E3 darf NUR "
+        "Chef/Buero verdrahten — pruefen, wo eine useBackLayer-Verdrahtung dazu/weg ist."
+        % code.count("useBackLayer(")
     )
 
 

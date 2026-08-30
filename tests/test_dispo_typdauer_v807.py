@@ -8,6 +8,7 @@ Typ-Signal nur bei uebergebenem typMedian (Wiring-Stellen); ohne typMedian = alt
 node-eval mit den ECHTEN _dispoDauer/_dispoMedianJeTyp + Konstanten aus index.html; die schwer extrahierbaren
 Text-Regel-Deps (_dispoParseDauer/_dispoMengeFaktor/DISPO_DAUER_REGELN) werden minimal gestubbt.
 """
+from _hilfen import nur_code
 from conftest import run_node_snippet
 
 
@@ -115,19 +116,30 @@ def test_verdrahtung_und_kerne(index_html):
     assert "var DISPO_TYP_DAUER_FALLBACK={reparatur:120,montage:180,mangelbehebung:90,garantie:90,lieferung:30};" in index_html
     assert "function _dispoDauer(schein,regeln,gelernt,typMedian){" in index_html
     assert "var _typMed=_dispoMedianJeTyp(scheine);" in index_html
-    # v3.9.886: gezaehlt wird jetzt OHNE Kommentare. Der Riegel war rot, weil ein
+    # v3.9.886: gezaehlt wurde OHNE Kommentare. Der Riegel war rot, weil ein
     # erklaerender Kommentar und der APP_VERSION-Changelog den Aufruf woertlich
-    # nennen - er mass also die Prosa mit. In diesem Repo ist das heute die vierte
-    # Wiederholung derselben Falle.
-    import re as _re
-    _code = _re.sub(r'/\*.*?\*/', '', index_html, flags=_re.S)
-    _code = chr(10).join(l for l in _code.splitlines()
-                         if not l.startswith("const APP_VERSION="))
-    assert _code.count("_dispoDauer(s,null,_gelernt,_typMed)") == 2, (
-        "Planner-Aufrufe nicht beide verdrahtet (gefunden %d) - der Plan muss die "
-        "gelernten Mediane an BEIDEN Stellen durchreichen."
-        % _code.count("_dispoDauer(s,null,_gelernt,_typMed)")
-    )
+    # nennen - er mass also die Prosa mit (dateiweit 4 statt 2).
+    #
+    # v3.9.913 - ZWEI Umbauten:
+    # 1. Die eigene Strippregel ist weg; sie war die zweite Kopie von nur_code()
+    #    und die schwaechere (sie kannte den image/*-Falschoeffner nicht).
+    # 2. DIE ZAHL IST WEG. "Beide Planner-Aufrufe" heisst: die Kapazitaets-
+    #    Schleife UND die Plan-Abbildung. Beide haben einen Namen (_ddf/_dd).
+    #    Die Summe 2 haette auch gestimmt, wenn eine Stelle doppelt und die
+    #    andere gar nicht verdrahtet waere - und sie musste bei jeder neuen
+    #    Aufrufstelle nachgezogen werden. Benannt sagt der Riegel, WELCHE fehlt.
+    _code = nur_code(index_html)
+    for wo, ruf in (
+        ("die Kapazitaets-Schleife (kapAbzug je Monteur/Tag)",
+         "var _ddf=_dispoDauer(s,null,_gelernt,_typMed);"),
+        ("die Plan-Abbildung (Chip-Datensatz)",
+         "var _dd=_dispoDauer(s,null,_gelernt,_typMed);"),
+    ):
+        assert ruf in _code, (
+            "%s reicht die gelernten Mediane nicht durch (%r fehlt) - dort rechnet "
+            "der Plan dann wieder mit dem Typ-Fallback statt mit dem Gelernten."
+            % (wo, ruf)
+        )
     # Kerne unberuehrt.
     for k in ("function _dispoMedianJeKlasse(", "function _dispoParseDauer(", "function _dispoMengeFaktor("):
         assert k in index_html, "Kern veraendert/entfernt: " + k

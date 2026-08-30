@@ -89,11 +89,19 @@ def test_handwand_nutzt_abwabz(index_html):
         "Ohne data-used hat der Drag-Handler keine Belegung - frei=(norm-used) "
         "wuerde NaN."
     )
-    assert index_html.count("frei=(norm-used)+eigen;") == 2, (
-        "Die Hand-Wand rechnet nicht mehr an beiden Stellen (pointermove = "
-        "Live-Feedback, pointerup = Schreiben) gleich - genau dort entsteht der "
-        "Fall gruen angezeigt, aber abgelehnt."
-    )
+    # v3.9.916 NACHGEZOGEN - nicht abgeschwaecht: hier stand
+    #     assert index_html.count("frei=(norm-used)+eigen;") == 2
+    # Der Zaehler mass die SCHREIBWEISE von ZWEI der DREI Stellen, die diese
+    # Groesse rechnen. Die dritte steht in _dispoAblehnGrund (:5576) und ist
+    # anders geschrieben, kommt in der Zaehlung also gar nicht vor. Belegt:
+    # verstellt man NUR sie, bleibt dieser Riegel gruen - der Benutzer bekaeme
+    # dann eine falsche Restzeit im Ablehn-Text, und nichts haette angeschlagen.
+    #
+    # Die Aussage bleibt und wird jetzt AUSGEFUEHRT statt gezaehlt:
+    # tests/test_dispo_handwand_eine_rechnung_v916.py schneidet alle DREI
+    # Ausdruecke aus index.html und vergleicht ueber die erreichbare Domaene
+    # Entscheidung UND bezifferte Restzeit (227.700 Faelle, 0 Abweichungen),
+    # mit einer Mutations-Batterie als Gegenprobe.
     # der alte Doppel-Abzug in der Anzeige ist weg
     assert "'data-norm':(t.normMin-_abz)" not in index_html
 

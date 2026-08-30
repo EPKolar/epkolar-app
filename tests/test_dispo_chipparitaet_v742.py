@@ -18,8 +18,16 @@ def _panel(index_html):
 def test_gemeinsame_render_funktion(index_html):
     body = _panel(index_html)
     assert "var _chipBox=" in body or "_chipBox=function" in body, "keine gemeinsame Chip-Render-Funktion"
-    # Ein Name, zwei Aufrufe (fix + vorschlag).
-    assert body.count("_chipBox(") >= 2, "die Chip-Render-Funktion wird nicht fuer beide Arten aufgerufen"
+    # KEINE ZAHL MEHR (v3.9.913). Vorher: `body.count("_chipBox(") >= 2`.
+    # Die Aussage ist nicht "zwei Aufrufe irgendwo", sondern "beide ARTEN gehen
+    # durch dieselbe Funktion" - und beide Arten haben einen Namen. Die Zahl war
+    # dafuer nur ein Stellvertreter: zwei fixe Aufrufe und kein Vorschlags-Aufruf
+    # haetten sie ebenso erfuellt, und ein Kommentar, der "_chipBox(" zitiert,
+    # auch. Benannt gemessen ist der Riegel strenger UND unbestechlich.
+    assert 'return _chipBox({kind:"fix"' in body, \
+        "der fixe (📌) Chip geht nicht durch die gemeinsame Render-Funktion"
+    assert 'return _chipBox({kind:"vorschlag"' in body, \
+        "der Vorschlags-Chip geht nicht durch die gemeinsame Render-Funktion"
 
 
 def test_fixer_chip_traegt_arbeit_und_km(index_html):

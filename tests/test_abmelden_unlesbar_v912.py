@@ -122,11 +122,22 @@ def test_die_anderen_verbraucher_bleiben_unangetastet(index_html):
             "Diese Stelle setzt den Merker nicht: " + stelle
         )
     # Abgrenzung: nur das Abmelden LIEST ihn.
-    assert code.count("!!SQ._leseFehler") == 1 and code.count("!!PhotoQ._leseFehler") == 1, (
-        "Der Merker wird an mehr als einer Stelle gelesen. Bei Banner und "
-        "Auto-Sync ist die Folge eines Lesefehlers ein fehlender Hinweis, kein "
-        "Datenverlust - dort waere eine Rueckfrage laestig statt hilfreich. "
-        "Das ist eine eigene Entscheidung."
+    # v3.9.914: aus 1 wird 2 - BEWUSST, nicht um den Riegel wegzuraeumen. Die
+    # Abgrenzung von v912 lautete: nur dort lesen, wo Datenverlust droht. Sie
+    # hat eine zweite solche Stelle uebersehen - der Knopf "Lokale Daten
+    # loeschen" ruft indexedDB.deleteDatabase und loescht damit haerter als das
+    # Abmelden. Beide Leser werden hier NAMENTLICH festgehalten, damit aus der
+    # Zahl 2 nicht spaeter stillschweigend eine 3 an einer harmlosen Stelle wird.
+    assert code.count("!!SQ._leseFehler") == 2 and code.count("!!PhotoQ._leseFehler") == 2, (
+        "Der Merker wird an einer anderen Zahl von Stellen gelesen als den zwei "
+        "vorgesehenen (Abmelden, Lokale-Daten-loeschen). Bei Banner und Auto-Sync "
+        "ist die Folge eines Lesefehlers ein fehlender Hinweis, kein Datenverlust "
+        "- dort waere eine Rueckfrage laestig statt hilfreich."
+    )
+    assert "const _sqUnlesbar=!!SQ._leseFehler;" in code, "Leser 1 (Abmelden) fehlt."
+    assert "const _wipeUnlesbar=(!!SQ._leseFehler)||(!!PhotoQ._leseFehler);" in code, (
+        "Leser 2 (Lokale Daten loeschen) fehlt - dann loescht der Knopf wieder "
+        "mit dem weichen Confirm, obwohl die Anzahl nie gemessen wurde."
     )
 
 

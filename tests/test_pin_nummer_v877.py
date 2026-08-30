@@ -101,8 +101,13 @@ def test_tickets_werden_sortiert_geladen(index_html):
 def test_beide_zweige_von_getTickets_sortieren(index_html):
     """getTickets hat zwei Zweige (mit/ohne pid). Der Boot-Load ruft den OHNE
     pid auf - genau der darf nicht vergessen werden."""
+    # v3.9.913 - DIE ZAHL IST WEG. Vorher: `zeile.count("order=id.asc") >= 1`.
+    # `>= 1` ist woertlich dasselbe wie `"order=id.asc" in zeile` - und genau
+    # das steht schon im Test darueber. Eine Zahl, die nichts einschraenkt, ist
+    # keine Zusicherung, sondern Buchhaltung: sie sah nach Messung aus und mass
+    # nichts. Die eigentliche Aussage dieses Riegels ("auch der pid-LOSE Zweig
+    # sortiert") steht in den benannten Zeilen darunter und bleibt.
     zeile = _zeile(index_html, "getTickets: function(pid)")
-    assert zeile.count("order=id.asc") >= 1
     ohne_pid = re.search(r":_sbGet\(\"tickets\"([^)]*)\)", zeile)
     assert ohne_pid, "Der pid-lose Zweig von getTickets ist nicht mehr auffindbar:\n" + zeile
     assert "order" in ohne_pid.group(1), (

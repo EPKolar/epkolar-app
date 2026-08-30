@@ -29,6 +29,8 @@ betroffen.
 """
 import re
 
+from _hilfen import nur_code
+
 
 # -- (1) Projekt-Bottom-Nav --------------------------------------------------
 
@@ -90,16 +92,37 @@ def test_stop_nur_bei_echtem_wechsel(index_html):
 
 
 def test_abs_callbacks_melden_den_wechsel(index_html):
-    m = re.search(r"const absSwipe=useSwipe\(.*?\n  \);", index_html, re.S)
+    """v3.9.913 - DIE ZAHLEN SIND WEG. Vorher: `body.count("return true;") == 2`
+    und `body.count("return false;") == 2` im absSwipe-Block.
+
+    Die Aussage sind ZWEI benannte Callbacks (vor / zurueck), und beide muessen
+    BEIDES melden - `true` beim echten Wechsel, `false` am Rand. Die zwei Summen
+    konnten das nicht auseinanderhalten: ein Callback mit zwei `return true;`
+    und einer ganz ohne haette sie erfuellt. Und beide zaehlten roh - ein
+    Kommentar mit `return true;` haette eine fehlende Meldung gedeckt.
+
+    Jetzt steht jede Kette ganz da: Index suchen, Grenze pruefen, umschalten,
+    `true`; sonst `false`. Damit haengt auch die Bedingung mit im Riegel - ein
+    `>=` statt `<` an der oberen Grenze faellt jetzt auf, vorher nicht.
+    """
+    code = nur_code(index_html)
+    m = re.search(r"const absSwipe=useSwipe\(.*?\n  \);", code, re.S)
     assert m, "absSwipe nicht gefunden"
     body = m.group(0)
-    assert body.count("return true;") == 2, (
-        "Die Abwesenheits-Callbacks melden den Wechsel nicht:\n" + body
-    )
-    assert body.count("return false;") == 2, (
-        "Sie melden auch nicht, wenn nichts zu tun war - dann bliebe die aeussere "
-        "Flaeche faelschlich blockiert:\n" + body
-    )
+    for richtung, kette in (
+        ("vor (naechster Unter-Tab)",
+         "()=>{const i=absTabIds.indexOf(subView);"
+         "if(i<absTabIds.length-1){setSubView(absTabIds[i+1]);return true;}return false;}"),
+        ("zurueck (voriger Unter-Tab)",
+         "()=>{const i=absTabIds.indexOf(subView);"
+         "if(i>0){setSubView(absTabIds[i-1]);return true;}return false;}"),
+    ):
+        assert kette in body, (
+            "Der Abwesenheits-Callback '%s' meldet den Wechsel nicht mehr genau so "
+            "(true beim echten Wechsel, false am Rand) - je nach Richtung wechselt "
+            "ein Wisch dann Unter- UND Haupt-Tab zugleich, oder die aeussere "
+            "Flaeche bleibt faelschlich blockiert:\n%s" % (richtung, body)
+        )
 
 
 def test_aeussere_flaechen_bleiben_unveraendert(index_html):
