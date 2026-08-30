@@ -72,12 +72,115 @@ def test_terminal_zweig_ist_nur_insert_beantragt():
     assert m and "UPDATE" not in m.group(1) and "DELETE" not in m.group(1)
 
 
-def test_abschnitt_B_hat_alle_sieben_kiosk_sperren():
+# ---------------------------------------------------------------------------
+# DIE ZWEITE RECHNUNG IST WEG (v3.9.922)
+#
+# Hier standen ZWEI Pruefungen derselben sieben Sperren untereinander:
+#   1. je Tabelle `f"{tbl}_no_kiosk" in doc`
+#   2. `doc.count("AS RESTRICTIVE") == 7`
+#
+# Nachgemessen, und die namentliche war die SCHLECHTERE von beiden: `in doc`
+# trifft auch die Zeile `DROP POLICY IF EXISTS x_no_kiosk ON ...`, die direkt
+# ueber jedem CREATE steht. Eine Sperre, die nur noch gedroppt und nicht mehr
+# angelegt wird, waere durchgerutscht - genau das, was das Paket verhindern
+# soll. Die Festzahl 7 hat das aufgefangen, aber blind: sie sagt nicht, WELCHE
+# fehlt, und beim TAUSCH (eine Sperre umbenannt oder auf eine andere Tabelle
+# gelegt) bleibt sie gruen.
+#
+# Deshalb jetzt EINE Rechnung: die MENGE der aktiven RESTRICTIVE-Policies wird
+# gegen die sieben erwarteten Tripel (Policy-Name, Tabelle, Bedingung)
+# verglichen. Das deckt alle Richtungen ab - fehlende Sperre, ueberzaehlige,
+# vertauschte, und die mit richtigem Namen aber falscher Bedingung - und die
+# Festzahl entfaellt ERSATZLOS, weil `==` auf Mengen die Vollzaehligkeit schon
+# enthaelt.
+#
+# `-- `-Zeilen werden vorher entfernt: die Datei enthaelt einen komplett
+# auskommentierten ROLLBACK-Block (Abschnitt A). Gemessen v3.9.922: dort steht
+# heute keine Policy (0 CREATE POLICY in kommentierten Zeilen), aber ein Riegel,
+# der auskommentierten Text mitzaehlt, ist genau der Fehler aus tests/_hilfen.py.
+# ---------------------------------------------------------------------------
+_KIOSK_TABELLEN = ("fz_fahrten", "fz_positions", "geo_cache", "kunden",
+                   "time_entries", "forms", "bautagebuch")
+
+
+# Mitgeprueft wird die BEDINGUNG: eine Policy, die `x_no_kiosk` heisst, aber
+# auf etwas anderes gatet als die Kiosk-Rolle, waere ein Loch mit richtigem
+# Namen. Das hat bisher NICHTS geprueft - `is_kiosk_role` kam in tests/ 0x vor.
+_BEDINGUNG = "NOT public.is_kiosk_role()"
+
+
+def _aktive_restriktive_policies(doc):
+    """(Policy-Name, Tabelle, Bedingung) je AS-RESTRICTIVE-Policy.
+    Auskommentierte Zeilen zaehlen NICHT mit."""
+    aktiv = "\n".join(z for z in doc.splitlines() if not z.lstrip().startswith("--"))
+    roh = re.findall(r"CREATE POLICY\s+(\S+)\s+ON\s+(\S+)\s+AS RESTRICTIVE"
+                     r"\s+FOR ALL USING\s*\((.*?)\)\s*;", aktiv, re.S)
+    return {(name, tab, " ".join(bed.split())) for name, tab, bed in roh}
+
+
+def _erwartete_policies():
+    return {("%s_no_kiosk" % t, "public.%s" % t, _BEDINGUNG)
+            for t in _KIOSK_TABELLEN}
+
+
+def test_abschnitt_B_hat_genau_die_sieben_kiosk_sperren():
     doc = _read("sql/TERMINAL_FINAL_v3.sql")
-    for tbl in ("fz_fahrten", "fz_positions", "geo_cache", "kunden",
-                "time_entries", "forms", "bautagebuch"):
-        assert f"{tbl}_no_kiosk" in doc, f"Kiosk-Sperre {tbl}_no_kiosk fehlt in Abschnitt B"
-    assert doc.count("AS RESTRICTIVE") == 7
+    assert _aktive_restriktive_policies(doc) == _erwartete_policies()
+
+
+def test_umkehrprobe_nur_gedroppt_wird_rot():
+    """Eine Sperre, die nur noch gedroppt und nicht mehr angelegt wird, muss
+    auffallen. Der alte namentliche Riegel (`"kunden_no_kiosk" in doc`) war
+    hier GRUEN - die DROP-Zeile enthaelt den Namen ja weiterhin."""
+    doc = _read("sql/TERMINAL_FINAL_v3.sql")
+    kaputt = doc.replace("CREATE POLICY kunden_no_kiosk",
+                         "-- CREATE POLICY kunden_no_kiosk", 1)
+    assert "kunden_no_kiosk" in kaputt, (
+        "Vorbedingung der Probe: der Name MUSS in der DROP-Zeile stehen "
+        "bleiben - sonst zeigt die Probe nicht, was sie zeigen soll"
+    )
+    assert _aktive_restriktive_policies(kaputt) != _erwartete_policies()
+
+
+def test_umkehrprobe_tausch_wird_rot():
+    """DER GRUND DER UMSTELLUNG. Eine Sperre wird auf eine andere Tabelle
+    gelegt: `count("AS RESTRICTIVE")` bleibt 7 (die alte Zahl WAERE gruen),
+    die Menge stimmt nicht mehr."""
+    doc = _read("sql/TERMINAL_FINAL_v3.sql")
+    kaputt = doc.replace("CREATE POLICY geo_cache_no_kiosk ON public.geo_cache",
+                         "CREATE POLICY geo_cache_no_kiosk ON public.geo_cache_alt", 1)
+    assert kaputt.count("AS RESTRICTIVE") == doc.count("AS RESTRICTIVE"), \
+        "Vorbedingung: die Gesamtzahl MUSS beim Tausch gleich bleiben"
+    assert _aktive_restriktive_policies(kaputt) != _erwartete_policies()
+
+
+def test_umkehrprobe_falsche_bedingung_wird_rot():
+    """Eine Sperre mit richtigem NAMEN, aber falscher Bedingung: Gesamtzahl
+    und Namensmenge bleiben unveraendert - nur die Bedingung verraet das Loch.
+    Beide Vorgaenger-Riegel (Name `in doc` und `count == 7`) waeren gruen."""
+    doc = _read("sql/TERMINAL_FINAL_v3.sql")
+    kaputt = doc.replace(
+        "CREATE POLICY forms_no_kiosk ON public.forms AS RESTRICTIVE\n"
+        "  FOR ALL USING ( NOT public.is_kiosk_role() );",
+        "CREATE POLICY forms_no_kiosk ON public.forms AS RESTRICTIVE\n"
+        "  FOR ALL USING ( true );", 1)
+    assert kaputt != doc, "Umkehrprobe hat nichts veraendert"
+    assert kaputt.count("AS RESTRICTIVE") == doc.count("AS RESTRICTIVE"), \
+        "Vorbedingung: die Gesamtzahl MUSS gleich bleiben"
+    assert "forms_no_kiosk" in kaputt, "Vorbedingung: der Name bleibt stehen"
+    assert _aktive_restriktive_policies(kaputt) != _erwartete_policies()
+
+
+def test_umkehrprobe_kommentar_zaehlt_nicht_mit():
+    """Eine Policy im auskommentierten ROLLBACK-Block darf NICHT als aktive
+    Sperre gelten - sonst zaehlt der Riegel wieder Prosa."""
+    doc = _read("sql/TERMINAL_FINAL_v3.sql")
+    getarnt = (doc + "\n-- CREATE POLICY schein_no_kiosk ON public.schein AS RESTRICTIVE\n"
+               "--   FOR ALL USING ( NOT public.is_kiosk_role() );\n")
+    assert _aktive_restriktive_policies(getarnt) == _erwartete_policies()
+    # Gegenrichtung: ohne den Kommentar-Filter WAERE sie mitgezaehlt worden.
+    assert "schein_no_kiosk" in getarnt, \
+        "Umkehrprobe traegt nicht - der getarnte Text ist gar nicht da"
 
 
 def test_rollback_enthaelt_den_livebody():

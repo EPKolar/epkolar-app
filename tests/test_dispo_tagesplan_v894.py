@@ -160,15 +160,28 @@ def test_die_sammelmappe_kollidiert_nicht_mit_den_bestandstests(index_html):
     )
 
 
-def test_die_rohe_klammerbilanz_ist_unveraendert(index_html):
-    """test_invariants misst die Klammern OHNE Strings und Kommentare zu
-    entfernen - Prosatext zaehlt also mit. Beim Bauen ist das gekippt, weil ein
-    Erklaerkommentar unbalancierte Klammern enthielt."""
-    auf = index_html.count("(") - index_html.count(")")
-    assert auf == -7, (
-        "Rohe Klammerbilanz ist %d statt -7. Meist ein neuer Kommentar mit "
-        "unbalancierten Klammern im Fliesstext." % auf
-    )
+# ── GESTRICHEN v3.9.921: test_die_rohe_klammerbilanz_ist_unveraendert ───────
+# Hier stand `assert index_html.count("(") - index_html.count(")") == -7`.
+# Die eigene Docstring gab den Fehler schon zu ("Prosatext zaehlt also mit") -
+# und zog daraus den falschen Schluss, naemlich die Zahl festzuschreiben,
+# statt sie loszuwerden.
+#
+# WARUM ERSATZLOS WEG (damit es niemand wieder einbaut):
+# Gemessen an v3.9.920 stehen 6.879 "(" und 6.998 ")" in den JS-Blockkommentaren
+# (Saldo -119). Der Riegel hat also gemessen, wie jemand FLIESSTEXT formuliert,
+# und war beim Erweitern regelmaessig im Weg - der Sollwert wurde deshalb schon
+# von -5 auf -7 nachgezogen. Ein Sollwert, den man nachzieht, ist kein Riegel.
+# Wer beim Bauen eine Zahl anpasst, findet damit nie einen Fehler.
+#
+# Das Echte misst NUR Code und liegt woanders:
+#   scripts/_bracket_check.py -> tests/test_bracket_drift_guard.py  (() -1/{}0/[]0)
+#   node --check je Skriptblock -> tests/test_integration_smoke.py
+# Belegt statt behauptet: test_bracket_drift_guard.py hat seit v3.9.921 zwei
+# Umkehrproben - fehlende Klammer im CODE macht den Riegel rot, ueberzaehlige
+# Klammer im KOMMENTAR laesst ihn gruen. Die zweite Probe ist genau der Beweis,
+# dass diese Zeile hier Prosa gemessen hat.
+#
+# Der Schwesterriegel in tests/test_invariants.py ist aus demselben Grund weg.
 
 
 # ══ Umkehrprobe ═════════════════════════════════════════════════════════════
