@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29./30.08.2026 (v3.9.884-920, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.-31.08.2026 (v3.9.884-922, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -233,6 +233,35 @@ Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne 
 und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
 abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
 jetzt, statt ein leeres Dokument zu erzeugen.
+
+**Eine Zahl, die man beim Bauen nachzieht, misst den Ist-Zustand — nie die
+Eigenschaft.** Ein Riegel behauptete, alle Antwort-Wuerfe trugen den HTTP-Status, und
+zaehlte dazu `== 9`. Gemessen: **76 Wuerfe, 49 aus einem Antwort-Pruefzweig, 9 gesehen**
+— Faktor 5 daneben, und gruen. Bei jeder Erweiterung war er um +1 hochgezaehlt worden
+(8 → 9). So ein Riegel kann nie rot werden, weil man ihn anpasst, statt ihn ernst zu
+nehmen. Nach dem Umbau auf die Eigenschaft fand er sofort eine echte Luecke: die
+Anmeldung schrieb den Status ins Konsolenprotokoll statt in den Fehler — ein **403
+sah aus wie ein Serverausfall**.
+
+**Bei jeder Umstellung von Zahl auf benannte Stellen gehoert die TAUSCH-PROBE dazu:**
+Stelle A weg, Stelle B dazu. Genau dort bleibt eine Festzahl gruen — in allen sieben
+Faellen dieser Runde blieb sie es. Ohne diese Probe belegt die Umstellung nichts.
+
+**Eine Ausnahmeliste ist eine FRIST, keine Buchhaltung.** Ein Eintrag darin braucht
+einen Riegel, der ihn zum Ablaufen zwingt: sobald der Eintrag keine Luecke mehr IST,
+muss er umfallen. Sonst deckt er die naechste zu.
+
+**Die naheliegende Verbesserung kann die schlechtere sein.** Ich hielt bei sieben
+SQL-Sperren die namentliche Pruefung fuer besser als die Zahl. Sie war schlechter:
+`"…_no_kiosk" in doc` trifft auch die `DROP POLICY`-Zeile darueber — **eine Sperre,
+die nur noch gedroppt und nicht mehr angelegt wird, waere durchgerutscht.** Ein
+Mengenvergleich aus Name, Tabelle UND Bedingung ersetzt beide. Nebenbei: die
+Bedingung (`is_kiosk_role`) war in `tests/` ueberhaupt nie geprueft worden.
+
+**Ein Filter in einem Sicherheitsriegel wirft Treffer weg.** Vor `eval(` stand eine
+Anfuehrungszeichen-Paritaetspruefung; belegt an `var s="Sebastian's Wert"; eval(boese);`
+— alter Filter 0 Treffer, neuer 1. **Ein Apostroph entschied, ob der Riegel etwas
+sieht.** Wo heute 0 = 0 gilt, ist die Umstellung billig und deshalb sofort faellig.
 
 **Manche Fehler sind nie zählbar, nur sichtbar.** Alle Riegel waren grün, als der Blick
 in den Browser zwei echte Fehler fand: ein Schein OHNE Priorität stand als
