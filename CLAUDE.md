@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.-31.08.2026 (v3.9.884-922, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.-31.08.2026 (v3.9.884-924, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -233,6 +233,34 @@ Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne 
 und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
 abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
 jetzt, statt ein leeres Dokument zu erzeugen.
+
+**Eine Invariante findet mehr als den Fall, aus dem sie entstand.** Aus einer falsch
+angezeigten Prioritaet wurde die Regel „der gewaehlte Wert muss unter den angebotenen
+Optionen sein“. App-weit angewendet fand sie einen Schein, der **eingefroren** war: das
+Feld zeigte „aufgenommen“, der Zustand blieb `undefined`, und `_isLegalAsTransition`
+verbietet fuer `undefined` JEDEN Wechsel. Aus einem Anzeigefehler wurde eine Sperre.
+
+**Reparier nicht die Auswahlfelder, sondern die GROESSE.** Derselbe Fehler sass an drei
+Stellen, und die dritte war der **Wischgriff am Handy, der gar kein Auswahlfeld hat**.
+Wer nur nach `select` gesucht haette, haette zwei von drei erwischt.
+
+**Manchmal vernichtet der Messvorgang den Beweis.** Passt der Wert eines `select` zu
+keiner Option, setzt React keine auf `selected`, der Browser nimmt die erste — und
+danach sieht das Feld gesund aus. Der DOM kann die Frage also **nicht** beantworten.
+Gemessen wird sie, indem man `React.createElement` umhuellt und `value` mit den schon
+erzeugten `option`-Kindern vergleicht: **dasselbe Paar, das React gleich selbst
+vergleicht.**
+
+**Pruef die Frage, bevor du sie beantwortest.** Ich habe gefragt, welche Kennzahl-Kachel
+*filtert* und welche nur *anzeigt* — und damit unterstellt, es gaebe Dekoration. Die
+Klickprobe sagte: **alle elf sind Knoepfe**, und sie setzen genau die elf Werte, die das
+Auswahlfeld drei Zeilen tiefer ohnehin anbietet. Die Reihe war kein Schmuck, sondern ein
+**Bild eines anderen Bedienelements** — 405 px teuer statt 44.
+
+**Die Identitaet eines Editors ist das FELD, das er bearbeitet** — nicht der Ausdruck,
+mit dem sein Wert gewonnen wird. Zum zweiten Mal an einem Tag wurden Riegel rot, weil
+der Code besser wurde: erst wegen `", onChange:"`, dann wegen des Kommas nach dem
+Feldnamen.
 
 **Eine Zahl, die man beim Bauen nachzieht, misst den Ist-Zustand — nie die
 Eigenschaft.** Ein Riegel behauptete, alle Antwort-Wuerfe trugen den HTTP-Status, und
