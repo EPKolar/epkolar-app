@@ -77,7 +77,11 @@ import re
 from _hilfen import nur_code
 
 # Der Anker des Kachelblocks - ab hier bis zur Reiterzeile stehen die elf.
-BLOCK_START = 'className: "kpi-grid epk-leiste"'
+# v3.9.926: ohne Schlussanfuehrungszeichen. Der Block traegt seit
+# v3.9.926 zusaetzlich epk-kachelband, und die Eigenschaft ist "er traegt
+# epk-leiste" - nicht "er traegt ausschliesslich epk-leiste". Zum vierten
+# Mal an zwei Tagen wurde hier ein Riegel rot, WEIL DER CODE BESSER WURDE.
+BLOCK_START = 'className: "kpi-grid epk-leiste'
 BLOCK_ENDE = 'className: "tab-bar"'
 
 
@@ -99,7 +103,11 @@ def test_die_klasse_gibt_es_und_sie_ist_an_kpi_grid_gebunden(index_html):
     ELF Stellen der App benutzt, und mehrere Breiten-Regeln setzen fuer sie
     !important. Ohne Vorsatz haetten die neuen Regeln dieselbe Spezifitaet und
     wuerden dort verlieren - lautlos, und nur auf manchen Schirmbreiten."""
-    treffer = re.findall(r"[^\s,{]*\.epk-leiste", index_html)
+    # v3.9.926: lief auf dem ROHEN index_html und hat den Erklaerkommentar
+    # von .epk-kachelband mitgelesen, der ".epk-leiste (v924)" erwaehnt.
+    # Ein Riegel, der Kommentare mitmisst, meldet den naechsten
+    # Erklaertext als Fehler.
+    treffer = re.findall(r"[^\s,{]*\.epk-leiste", nur_code(index_html))
     assert treffer, "Die Klasse .epk-leiste steht nirgends im CSS."
     ohne_vorsatz = [t for t in treffer if not t.startswith(".kpi-grid")]
     assert not ohne_vorsatz, (
@@ -113,7 +121,7 @@ def test_die_klasse_wird_genau_einmal_angewendet(index_html):
     """GEGENPROBE gegen das Ueberlaufen. Es gibt elf kpi-grid-Bloecke in der
     App (Projekte, Fahrzeuge, Plaene, Chef-Portal ...). Eine zweite Anwendung
     waere eine Aenderung an einem Reiter, der hier gar nicht gemessen wurde."""
-    n = nur_code(index_html).count('"kpi-grid epk-leiste"')
+    n = nur_code(index_html).count('"kpi-grid epk-leiste')
     assert n == 1, (
         "epk-leiste ist %d mal angewendet, erwartet wird genau einmal "
         "(die Arbeitsschein-Liste). Jede weitere Stelle aendert einen "
@@ -126,7 +134,7 @@ def test_die_klasse_verbirgt_nichts(index_html):
     Weg 'wir blenden die Nullen aus' waere billig gewesen und haette dem Chef
     die Information genommen, dass da nichts liegt. Die Klasse darf deshalb
     NICHTS auf display:none setzen - sie darf nur kleiner machen."""
-    regeln = re.findall(r"\.kpi-grid\.epk-leiste[^{}]*\{[^{}]*\}", index_html)
+    regeln = re.findall(r"\.kpi-grid\.epk-leiste[^{}]*\{[^{}]*\}", nur_code(index_html))
     assert len(regeln) >= 5, (
         "Nur %d epk-leiste-Regeln gefunden - der Block sieht unvollstaendig "
         "aus, dann misst dieser Riegel womoeglich gar nichts." % len(regeln)
@@ -143,7 +151,7 @@ def test_die_unterzeile_bleibt_und_wird_nur_kleiner(index_html):
     gemessen 50 px gebracht. Sie ist aber Text, und 50 px sind kein Grund."""
     regel = re.search(
         r"\.kpi-grid\.epk-leiste > div > div:nth-child\(4\)[^{}]*\{([^{}]*)\}",
-        index_html)
+        nur_code(index_html))
     assert regel, "Die Regel fuer die Unterzeile fehlt."
     assert "font-size" in regel.group(1), (
         "Die Unterzeile wird nicht verkleinert - dann traegt der Block "
@@ -279,9 +287,9 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
     nicht bemerkt, ist im Bestand dieses Repos mehrfach gruen gewesen und hat
     nichts gemessen."""
     # 1. Klasse wieder abgenommen
-    z1 = index_html.replace('"kpi-grid epk-leiste"', '"kpi-grid"', 1)
+    z1 = index_html.replace('"kpi-grid epk-leiste', '"kpi-grid', 1)
     assert z1 != index_html, "Rueckbau 1 griff nicht"
-    assert nur_code(z1).count('"kpi-grid epk-leiste"') == 0, (
+    assert nur_code(z1).count('"kpi-grid epk-leiste') == 0, (
         "Umkehrprobe: der Anwendungs-Riegel wuerde eine abgenommene Klasse "
         "nicht bemerken"
     )
@@ -291,7 +299,7 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
                             'className: "kpi-grid epk-leiste", '
                             'style: {marginBottom:16}', 1)
     assert z2 != index_html, "Rueckbau 2 griff nicht"
-    assert nur_code(z2).count('"kpi-grid epk-leiste"') == 2, (
+    assert nur_code(z2).count('"kpi-grid epk-leiste') == 2, (
         "Umkehrprobe: eine zweite Anwendung wuerde unbemerkt bleiben"
     )
 
