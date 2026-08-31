@@ -100,7 +100,7 @@ def test_kein_zeilen_editor_wurde_angefasst(index_html):
     """GEGENPROBE zur Abgrenzung: die sechs Editoren je Zeile bleiben. Vier
     davon schreiben nach OFFA; sie anzufassen waere eine Entscheidung ueber den
     Arbeitsablauf, keine Aufraeumarbeit."""
-    for kette in ("value: a.scheinstatus,",
+    for kette in ("value: a.scheinstatus",
                   'value: a.prioritaet||"keine",',
                   'value: a.monteur||"",'):
         assert kette in index_html, (

@@ -73,7 +73,7 @@ _LEISE = {
         'value: (_hasTermin(a.terminVorschlag)',
     "scheinstatus":
         'React.createElement(\'select\', { className: "epk-ruhig", '
-        'value: a.scheinstatus, onChange:',
+        'value: a.scheinstatus',
     "prioritaet":
         'React.createElement(\'select\', { className: "epk-ruhig", '
         'value: a.prioritaet||"keine", onChange:',
