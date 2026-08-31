@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.-31.08.2026 (v3.9.884-924, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.-31.08.2026 (v3.9.884-926, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -233,6 +233,37 @@ Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne 
 und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
 abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
 jetzt, statt ein leeres Dokument zu erzeugen.
+
+**Ein Klick auf die Stufe, die schon dazustehen scheint, kann etwas ausloesen.**
+Wenn ein Auswahlfeld einen Wert zeigt, den niemand gesetzt hat, ist das nicht nur eine
+falsche Anzeige — im Ticket-Formular **legte genau dieser Klick einen Mangel an**, samt
+Spiegel ins Kundenportal, und beim Nachbarfeld eine Eskalation. **Eine Handlung, die
+aussieht wie ein Nichts.** Bei jedem falsch angezeigten Wert ist die naechste Frage:
+was passiert, wenn jemand ihn *bestaetigt*?
+
+**Ein Auffangzweig, der IMMER greift, ist schlimmer als der Fehler, den er behebt.**
+Die Zeiterfassung faellt jetzt bei einem Rechtefehler auf den Geraetespeicher zurueck —
+aber eine WIRKLICH leere Woche darf er nicht fuellen, sonst behauptet die Ansicht
+Stunden, die es nicht gibt. Der zweite Fall gehoert in den Riegel, und er ist der
+wichtigere.
+
+**Miss gegen die wirklich geaenderte Datei, nicht gegen eine ins Fenster eingespielte
+Fassung.** Der Mobil-Umbau meldete eingespielt 64 px und wirklich gepatcht 166 — weil
+eine Bestandsregel (`content-visibility:auto` mit 148 px Platzhalter) fuer jedes
+`div[role=button][aria-label]` gilt und die quer stehenden Kacheln nie gerendert worden
+waeren. **Den eingespielten Zustand gibt es beim Laden nie.** Die Aenderung waere ohne
+diesen Fund schlechter gewesen als der Zustand davor.
+
+**Eine Null braucht eine Positivprobe, sonst ist sie keine Aussage.** „Null Stellen mit
+Ueberbreite“ ist wertlos, solange `overflow-x:hidden` alles Herausragende lautlos
+schluckt — gemessen wurde deshalb erst, dass der Melder ueberhaupt anschlagen KANN.
+Dasselbe bei `-webkit-line-clamp`: `scrollHeight > clientHeight` findet sie NICHT,
+Chromium meldet beide gleich. Der erste Durchgang sagte „0 Beschnitt“.
+
+**Gemessen ist immer nur die Datenlage der Saat.** Ein Fundort war mit
+`priority:"mittel"` gruen und erst mit `"normal"` rot. Wer 42 von 118 Feldern misst und
+„keine Funde“ schreibt, muss die Liste der gemessenen Stellen dazuschreiben — sonst
+liest der Naechste „geprueft“.
 
 **Eine Invariante findet mehr als den Fall, aus dem sie entstand.** Aus einer falsch
 angezeigten Prioritaet wurde die Regel „der gewaehlte Wert muss unter den angebotenen
