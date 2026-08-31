@@ -13,7 +13,25 @@ def test_backfill_waits_for_load(index_html):
 
 def test_ebene_edit_sets_gewerk(index_html):
     # P1 (Auditor B): Ebene-Edit setzt gewerk (kanonisch) + value gewerk||layer
-    assert "value: ed.gewerk||ed.layer, onChange: e=>setEd(p=>({...p,layer:e.target.value,gewerk:e.target.value}))" in index_html
+    # v3.9.925 NACHGEZOGEN - nicht abgeschwaecht. Hier stand der Wert-Ausdruck
+    # woertlich, samt onChange. v3.9.925 hat ihn zu `ed.gewerk||ed.layer||""`
+    # gemacht, weil ein Ticket mit einem Gewerk-FREITEXT (z.B. "Elektro
+    # komplett") im Feld die erste Ebene zeigte, waehrend Liste, PDF-Report und
+    # XLS-Export die Spalte LEER liessen - der Bildschirm widersprach dem
+    # abgelegten Beleg. Der Riegel wurde dadurch rot, obwohl seine Aussage
+    # unveraendert gilt: das dritte Mal an einem Tag, dass ein Riegel rot wird,
+    # WEIL DER CODE BESSER WIRD.
+    #
+    # Gesichert wird jetzt die Eigenschaft, nicht die Schreibweise:
+    #   der Wert liest gewerk ZUERST, dann layer  (kanonische Reihenfolge)
+    #   der onChange setzt BEIDE Felder            (sonst driften sie)
+    i = index_html.index("value: ed.gewerk")
+    zelle = index_html[i:i + 220]
+    assert zelle.startswith("value: ed.gewerk||ed.layer"), (
+        "Der Ebenen-Wert liest nicht mehr gewerk zuerst: " + zelle[:60])
+    assert "setEd(p=>({...p,layer:e.target.value,gewerk:e.target.value}))" in zelle, (
+        "Der Ebenen-Wechsel setzt nicht mehr BEIDE Felder - gewerk und layer "
+        "wuerden auseinanderlaufen.")
     # updateTicket PUT persistiert gewerk+layer
     # v3.9.180: updateTicket-Rewrite (Journal-Auto-Log) nutzt _u statt u; Ebene wird weiterhin persistiert.
     assert 'gewerk:_u.gewerk||_u.layer||"",layer:_u.layer||""' in index_html
