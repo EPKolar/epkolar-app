@@ -1,8 +1,14 @@
-# Offene Entscheidungen — acht Fragen an Sebastian
+# Offene Entscheidungen — dreizehn Fragen an Sebastian
 
-**Stand: 31.08.2026, v3.9.924.** Diese Seite fasst zusammen, was seit dem 28.08. als
-`xfail(strict)` im Testlauf steht. Jede dieser Marken ist **kein Fehler im Code**,
-sondern eine Frage, die niemand außer dir beantworten kann.
+**Stand: 01.09.2026, v3.9.928.** Diese Seite sammelt alles, was ich gemessen, aber
+nicht entschieden habe. Die Fragen 1–8 stehen seit dem 28.08. als `xfail(strict)` im
+Testlauf; 9–13 sind in der Woche danach dazugekommen. Jede davon ist **kein Fehler im
+Code**, sondern eine Frage, die niemand außer dir beantworten kann.
+
+Die drei schärfsten, falls du nur drei beantworten willst: **Nummer 3** (Beweiskraft der
+Mangel-Fotos — Faktor 6 im Speicher), **Nummer 11** (was passiert, wenn ein Beleg die
+Cloud nicht erreicht — heute geht er verloren) und **Nummer 13** (müssen Dokumente auf
+der Baustelle nur sichtbar oder auch zu öffnen sein).
 
 > **Warum sie als Tests dastehen und nicht als Notiz:** `strict=True` heißt, sie
 > werden **rot**, sobald jemand sie unbemerkt behebt. Sie sind der einzige Ort, an
