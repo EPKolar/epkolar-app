@@ -157,7 +157,7 @@ statisch ab (mit Selbsttest: kaputte Zeile → rot, gesunde → grün).
 
 `git push origin main`. KEIN `gh`. Remote-Verify per `curl raw.githubusercontent.com/EPKolar/epkolar-app/main/sw.js` nach jedem Push.
 
-## Lektionen 29.-31.08.2026 (v3.9.884-926, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
+## Lektionen 29.08.-01.09.2026 (v3.9.884-928, Details: `docs/handoffs/HANDOFF_2026-08-29.md`)
 
 **Ein Gate, das auf NICHTS besteht, ist kein Gate.** Ein abgebrochener Schreibvorgang hat
 `index.html` auf 0 Bytes gekürzt — und beide Gates meldeten grün: eine leere Datei parst
@@ -233,6 +233,43 @@ Steuerbeleg; ein leeres Blatt aus einem Netzfehler sieht aus wie ein Monat ohne 
 und wird genauso abgelegt und vorgelegt. Der Bildschirmtext ist ärgerlich — das
 abgelegte Blatt ist eine Falschaussage mit Folgen. Deshalb **verweigert** der Export
 jetzt, statt ein leeres Dokument zu erzeugen.
+
+**Eine Absicherung, die im `catch` liegt, hoert auf zu schuetzen, sobald die Wurzel
+aufhoert zu werfen — und sie meldet dabei nichts.** Der Seed-Waechter aus v3.9.208 war
+seit v3.9.910 tot: sein fail-closed-Zweig WAR der `catch`, und ein Rechtefehler wirft
+seither nicht mehr. Ein 403 sah damit aus wie „Tabelle wirklich leer“ — also **genau wie
+der Ausloeser**, gegen den er schuetzen sollte. Wer im Bestand nach `catch`-basierten
+Absicherungen sucht, findet vermutlich mehr.
+
+**Vier Verbraucher derselben Wurzel einzeln und zufaellig zu finden, ist kein
+Verfahren.** v911, v912, v913, v926 — jeder kam bei anderer Arbeit ans Licht. Erst der
+Durchgang durch ALLE 151 Aufrufer, sortiert nach FOLGE (Loeschen / Export / Beleg /
+Absenden / Freigabe gegen blossen Bildschirmtext), hat die sechs schweren an einem Stueck
+geliefert. **Eine Wurzel gehoert einmal vollstaendig abgearbeitet, nicht viermal
+zufaellig.**
+
+**Der naheliegende Umbau kann gruen sein und nichts aendern.** Die Dokumente offline zu
+bringen hiess nicht „Speicher anlegen, Aufrufe umhaengen“ — so gebaut waren es gemessen
+**0 von 3** ohne Netz, weil die Speicher-Wirkung beim Einhaengen mit leerer Liste losläuft,
+waehrend die Lade-Wirkung noch am `fetch` haengt. Und der erste Entwurf der Gegensperre
+war **gruen in drei Messrunden** und fiel erst in der vierten, die zuletzt dazukam.
+
+**Eine gekuerzte Liste sieht aus wie geloeschte Dateien.** Beim Groessendeckel wird
+deshalb GAR NICHT geschrieben statt gekuerzt — ein halber Vorrat ist schlimmer als
+keiner, weil er wie ein vollstaendiger gelesen wird.
+
+**Wie eine Funktion heisst, ist nicht ihre Eigenschaft.** Der Schreibvorgang des
+Foto-Vorrats hiess binnen EINER Stunde `ODB.saveProj`, dann `ODB.save`, dann wieder
+`ODB.saveProj`. Derselbe Riegel wurde zweimal rot, ohne dass sich am Verhalten etwas
+geaendert haette. Ein Riegel gehoert an das, was passiert — nicht an den Namen dessen,
+was es tut.
+
+**Zwei Agenten auf derselben Datei sind ein Fehler in der Aufgabenteilung.** Wer den
+Auftrag „miss gegen die wirklich geaenderte Datei“ bekommt, schreibt in die Arbeitsdatei
+— und der zweite Lauf hat am Ende `index.html` auf HEAD zurueckgesetzt, samt der
+vierzehn bereits angewendeten Paare des ersten. Wiederhergestellt wurde nicht aus der
+Sicherung, sondern **von HEAD neu aufgebaut**, in der richtigen Reihenfolge. Dass ein
+Agent den Kommentar des anderen widerlegt hat, war dagegen der Gewinn dieser Aufstellung.
 
 **Ein Klick auf die Stufe, die schon dazustehen scheint, kann etwas ausloesen.**
 Wenn ein Auswahlfeld einen Wert zeigt, den niemand gesetzt hat, ist das nicht nur eine

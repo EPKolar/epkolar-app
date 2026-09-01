@@ -172,6 +172,45 @@ euren echten Kunden vorkommt, ist ohne Kundendaten nicht messbar.
 
 ---
 
+### 11. 🔴 Was soll passieren, wenn ein Beleg die Cloud nicht erreicht? (Punkt 34)
+
+**Heute:** bei Serviceheft, Tank-/KM-Log, KM-Korrektur und Werkzeug-Serviceheft fällt bei
+einem Rechtefehler die Schreibung aus, **die Route meldet trotzdem Erfolg, und die
+Warteschlange löscht den Eintrag.** Der Beleg ist weg.
+
+**Warum ich das nicht allein entschieden habe:** ein neuer Fehler an dieser Stelle müsste
+das Muster `5xx|408|429|offline` treffen, damit die Warteschlange den Eintrag behält 
+— dann bleibt er bei dauerhaft dichtem RLS aber **für immer** darin stehen und wird bei
+jedem Start erneut versucht. Die Alternative ist ein eigener Zustand „nicht zustellbar“,
+den jemand ansehen muss.
+
+**Antwortmöglichkeiten:** `im Versuch behalten` (nichts geht verloren, kann sich stauen) ·
+`eigener Zustand` (braucht eine Ansicht dafür) · `so lassen` (der seltene Fall kostet
+einen Beleg).
+
+### 12. Sollen die Chef-Kacheln bei einem Rechtefehler Punkte zeigen? (Punkt 35)
+
+**Heute:** rund 60 Stellen zeigen bei einem Rechtefehler eine **0**, die wie eine Tatsache
+aussieht — Chef-/Admin-Kacheln, Projekt-Abzeichen, gesperrte Mitarbeiter erscheinen
+verfügbar, die Attest-Spalte meldet „fehlt“ für alle. **Geschrieben wird dabei nichts.**
+
+Nach der Linie aus v3.9.912/913 sind das keine Belege, deshalb sind sie unangetastet
+geblieben. Der Umbau wäre jeweils eine Zeile (`_rlsLeer` lesen, drei Punkte statt Null).
+
+**Frage an dich:** Ist eine 0, die in Wahrheit „nicht lesbar“ heißt, auf deinen
+Chef-Kacheln ein Problem? Wenn ja, ist es ein Nachmittag Arbeit.
+
+### 13. Dokumente offline ÖFFNEN, nicht nur sehen (Punkt 36)
+
+**Seit v3.9.928** sind Projektdokumente, Ordner, Fotos und das Bautagebuch offline
+**sichtbar** — vorher waren sie es nie, seit es diese Reiter gibt. Aber die Datei selbst
+liegt nicht im Gerät: ein Klick springt **stumm** zurück, nicht einmal ein Hinweis.
+
+**Frage an dich:** Reicht es, auf der Baustelle zu **sehen**, welche Dokumente es gibt —
+oder müssen die Pläne und Datenblätter dort auch zu **öffnen** sein? Das zweite ist
+Etappe 2 nach dem Muster der Pläne (ausdrücklich „mitnehmen“, mit Deckel), und es
+hängt an derselben Frage wie Punkt 19: **wie groß sind eure Dokumente wirklich?**
+
 ## Und zwei, die nicht mir gehören — sondern der Datenbank
 
 Beide gemessen, beide **nicht angefasst**: Schreibzugriffe auf die
