@@ -19,7 +19,10 @@ WARUM ES NOCH NIEMAND GESEHEN HAT
 Es trifft nur Feiertage von Montag bis Freitag - am Wochenende gibt es keine
 Tagesspalte. Mit der echten Funktion `_isATFeiertag` gemessen, kommen in den
 naechsten zwoelf Monaten NEUN solche Tage; der erste ist Montag, 26.10.2026,
-im Vier-Wochen-Horizont sichtbar ab etwa 28.09.2026. Zwischen v3.9.884 und
+im Vier-Wochen-Horizont sichtbar ab Mo 05.10.2026 - am 25.09.2026 mit
+`_isATFeiertag` und dem echten Horizont nachgerechnet; die urspruengliche
+Angabe "ab etwa 28.09." war eine Woche zu frueh, denn dort endet der
+Horizont am 25.10., einen Tag VOR dem Feiertag. Zwischen v3.9.884 und
 heute ist keiner hineingerutscht. Es war kein Glueck, sondern ein Kalender.
 
 WARUM DER BESTEHENDE RIEGEL IHN NICHT SEHEN KONNTE
