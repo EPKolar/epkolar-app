@@ -55,10 +55,7 @@ def ersetze(pfad, paare, min_bytes=MIN_BYTES):
     for alt, neu, name in paare:
         n = s.count(alt)
         if n != 1:
-            raise SystemExit(
-                "Anker '%s' trifft %d mal statt genau einmal. NICHTS geschrieben."
-                % (name, n)
-            )
+            raise SystemExit(_warum(s, alt, name, n))
         s = s.replace(alt, neu, 1)
         getan.append(name)
 
@@ -101,3 +98,96 @@ def ersetze(pfad, paare, min_bytes=MIN_BYTES):
         )
     os.replace(tmp, pfad)
     return getan
+
+
+def _warum(s, alt, name, n):
+    """Sagt, WARUM ein Anker nicht genau einmal trifft.
+
+    Das ist die haeufigste Fehlerquelle dieses Werkzeugs, und die alte Meldung
+    ("trifft 0 mal") nannte nur das Ergebnis. Geprueft werden der Reihe nach
+    die vier Ursachen, die im Bestand tatsaechlich vorgekommen sind.
+    """
+    kopf = "Anker '%s' trifft %d mal statt genau einmal. NICHTS geschrieben." % (name, n)
+
+    if n > 1:
+        stellen = []
+        i = 0
+        while len(stellen) < 3:
+            i = s.find(alt, i)
+            if i < 0:
+                break
+            zeile = s.count(chr(10), 0, i) + 1
+            stellen.append("Zeile %d" % zeile)
+            i += 1
+        return (kopf + chr(10) +
+                "  Er kommt an mehreren Stellen vor (%s ...). Nimm die Zeile DAVOR"
+                % ", ".join(stellen) + chr(10) +
+                "  mit in den Anker - meist unterscheidet der Kommentar die Faelle.")
+
+    # --- Ursache 1: Zeilenenden ------------------------------------------
+    crlf, lf = chr(13) + chr(10), chr(10)
+    if s.replace(crlf, lf).count(alt.replace(crlf, lf)) == 1:
+        hat = "CRLF" if crlf in s else "LF"
+        will = "CRLF" if crlf in alt else "LF"
+        return (kopf + chr(10) +
+                "  URSACHE: ZEILENENDEN. Die Datei ist %s, dein Anker %s." % (hat, will) + chr(10) +
+                "  Schneide den Anker aus der Datei (safe_edit.schneide), statt ihn" + chr(10) +
+                "  zu tippen - dann kann das nicht passieren.")
+
+    # --- Ursache 2: Leerraum ----------------------------------------------
+    def eng(t):
+        return " ".join(t.split())
+    if eng(alt) and eng(s).count(eng(alt)) == 1:
+        return (kopf + chr(10) +
+                "  URSACHE: LEERRAUM. Ohne Ruecksicht auf Leerzeichen/Umbrueche" + chr(10) +
+                "  traefe er genau einmal - die Einrueckung oder ein Umbruch weicht ab.")
+
+    # --- Ursache 3: ein Zeichen daneben ----------------------------------
+    # Den laengsten Anfang suchen, der noch in der Datei steht. Was danach
+    # kommt, ist die Stelle, an der Anker und Datei auseinandergehen.
+    lo, hi = 0, len(alt)
+    while lo < hi:
+        mitte = (lo + hi + 1) // 2
+        if alt[:mitte] in s:
+            lo = mitte
+        else:
+            hi = mitte - 1
+    if lo >= 12:
+        i = s.find(alt[:lo])
+        echt = s[i + lo:i + lo + 24].replace(crlf, "\\r\\n").replace(lf, "\\n")
+        meins = alt[lo:lo + 24].replace(crlf, "\\r\\n").replace(lf, "\\n")
+        return (kopf + chr(10) +
+                "  URSACHE: AB ZEICHEN %d GEHT ES AUSEINANDER." % lo + chr(10) +
+                "    in der Datei: ...%r" % echt + chr(10) +
+                "    in deinem Anker: ...%r" % meins + chr(10) +
+                "  (Zeile %d)" % (s.count(lf, 0, i) + 1))
+
+    return (kopf + chr(10) +
+            "  Auch der Anfang des Ankers steht nirgends in der Datei - er gehoert" + chr(10) +
+            "  vermutlich zu einer anderen Fassung. Schneide ihn aus der Datei.")
+
+
+def schneide(pfad, von, bis, einschliesslich=True):
+    """Gibt den woertlichen Text zwischen zwei Marken zurueck - als ANKER.
+
+    Nachgebaute Anker sind die haeufigste Fehlerquelle dieses Werkzeugs
+    (Zeilenenden, Escape-Folgen, ein Zeichen daneben). Was geschnitten wird,
+    kann nicht anders geschrieben sein als das Original.
+
+        from safe_edit import schneide, ersetze
+        alt = schneide("index.html", "function _tuWas(", "}")
+        ersetze("index.html", [(alt, alt + "/* Notiz */", "Notiz")])
+    """
+    s = io.open(pfad, encoding="utf-8", newline="").read()
+    i = s.find(von)
+    if i < 0:
+        raise SystemExit("schneide: Anfang %r steht nicht in %s" % (von[:40], pfad))
+    if s.count(von) > 1:
+        raise SystemExit(
+            "schneide: Anfang %r kommt %d mal vor - nimm mehr Umfeld mit."
+            % (von[:40], s.count(von)))
+    j = s.find(bis, i + len(von))
+    if j < 0:
+        raise SystemExit("schneide: Ende %r steht nicht nach dem Anfang" % (bis[:40],))
+    return s[i:j + len(bis)] if einschliesslich else s[i:j]
+
