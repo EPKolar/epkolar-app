@@ -60,13 +60,21 @@ def test_bereits_zugewiesener_bleibt_sichtbar(index_html):
 
 
 def test_alle_zuweisungs_stellen_umgestellt(index_html):
-    """18 Callsites + 1 Definition. Kommt eine Zuweisung dazu, muss sie hier
-    auftauchen - sonst schleicht sich eine ungefilterte Stelle ein."""
+    """21 Callsites + 1 Definition. Kommt eine Zuweisung dazu, muss sie hier
+    auftauchen - sonst schleicht sich eine ungefilterte Stelle ein.
+
+    v3.9.931: 18 -> 21. Drei Zuweisungen hatten den Helfer nie bekommen und
+    boten Ausgetretene weiter an:
+      - WerkzeugView, Umbuchen an einen anderen Monteur (die Ausgabeliste
+        direkt darueber zog seit v3.9.874, diese nicht),
+      - FahrzeugView, Fahrer der Bescheinigung nach VO 561/2006,
+      - Arbeitsschein-Kommentare, Vorschlagsliste der Erwaehnungen.
+    """
     # Der Versions-Kommentar erwaehnt den Helfer im Fliesstext - der zaehlt nicht mit.
     zeilen = [l for l in index_html.splitlines() if not l.startswith("const APP_VERSION=")]
     n = len(re.findall(r"_maWaehlbar\(", "\n".join(zeilen)))
-    assert n == 19, (
-        "Erwartet 1 Definition + 18 Zuweisungs-Auswahlen = 19 '_maWaehlbar('; "
+    assert n == 22, (
+        "Erwartet 1 Definition + 21 Zuweisungs-Auswahlen = 22 '_maWaehlbar('; "
         "gefunden %d. Neue Zuweisung dazugekommen oder eine entfernt?" % n
     )
 

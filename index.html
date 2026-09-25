@@ -14748,6 +14748,16 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   // Lohn-, Audit-, Admin-only KPIs bleiben isAdmin. isOps = isAdmin || isBuero für operationale Kennzahlen.
   const _isBuero=_optionalChain([curUser, 'optionalAccess', _928 => _928.role])==="buero";
   const isOps=isAdmin||_isBuero;
+  /* v3.9.931 LIVE-BELEGSCHAFT. Der Block Team und die Kachel Team aktiv zeigten Ausgetretene
+     als aktuelle Teammitglieder, samt Fahrzeug-Chip, und zaehlten sie in ... gesamt mit. Das
+     ist keine Filter- und keine Reportliste, sondern die Anzeige der heutigen Mannschaft.
+     Gefiltert wird ueber das BESTEHENDE Praedikat _maIstEhemalig aus v3.9.866 - keine zweite
+     Datumslogik. Das Wiener Datum wird wie in _sichtbareMA EINMAL berechnet, nicht pro Zeile.
+     Namensaufloesung ueber monteure.find und alle Filter-/Reportlisten bleiben unberuehrt: an
+     Ausgetretenen haengen Zeiteintraege und Scheine, die Worker-Zeile ist die einzige
+     Namensquelle. */
+  const _hkHV=_ezHeuteISO();
+  const _teamAktiv=(monteure||[]).filter(m=>!_maIstEhemalig(m,_hkHV));
   const [now,setNow]=_react.useState.call(void 0, new Date());
   const [weather,setWeather]=_react.useState.call(void 0, null);
   const [weatherErr,setWeatherErr]=_react.useState.call(void 0, false);
@@ -15280,7 +15290,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         , isOps&&React.createElement('div', { style: {...CC(),padding:isMob?"10px":"14px",borderLeft:"4px solid "+COLORS.EP_GREEN}}
           , React.createElement('div', { style: {fontSize:11,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "👥 Team aktiv" )
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:"#a855f7",fontFamily:mono}}, liveKpis.actToday==null?"…":liveKpis.actToday)
-          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "heute aktiv · " , monteure.length, " gesamt" )
+          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "heute aktiv · " , _teamAktiv.length, " gesamt" )
         )
       )
       , dv('kpis')&&lastRefresh&&React.createElement('div', { style: {textAlign:"right",fontSize:10,color:V.mt,marginTop:-10,marginBottom:8,fontFamily:mono}}, liveKpis.loading?"⟳ Aktualisiere...":"🟢 Live · "+lastRefresh.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit",second:"2-digit"}))
@@ -15373,7 +15383,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         , React.createElement('div', { style: CC()}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "👷 Team" )
           , React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:8}}
-            , monteure.map(m=>{
+            , _teamAktiv.map(m=>{
               // v3.8.74 Hunt B-004: exact-match statt startsWith — sonst Namens-Kollision bei "Max" + "Max Mueller"
               const _absKey=m.n+"_"+td2();const absToday=Object.entries(abs).find(([k])=>k===_absKey);
               const at2=absToday?AT_T[_optionalChain([absToday, 'access', _288 => _288[1], 'optionalAccess', _289 => _289.type])]:null;
@@ -22365,6 +22375,16 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const [editKontingent,setEditKontingent]=_react.useState.call(void 0, false);
   const [kontExpanded,setKontExpanded]=_react.useState.call(void 0, false);
   const names=monteure.map(m=>m.n);
+  /* v3.9.931 EIN ANSPRUCH FUER JEMANDEN, DER NICHT MEHR DA IST, IST KEINE HISTORIE. Das
+     Urlaubskontingent fuehrte fuer Ausgetretene weiter einen Jahresanspruch samt Resturlaub -
+     in der Kompaktliste, in der Detailtabelle und im Excel-Blatt, dessen Gesamt-Zeile ihn
+     mitsummierte. _kontNames ist dieselbe Namensliste ohne Ausgetretene, gemessen mit dem
+     BESTEHENDEN Praedikat _maIstEhemalig aus v3.9.866. names bleibt unveraendert: Kalender,
+     Krankenstandsliste, Jahresuebersicht, Team-Timeline und der Abwesenheits-Export sind
+     Filter- bzw. Reportlisten - wer die alten Krankenstaende eines Ausgetretenen sucht, muss
+     ihn dort weiter finden. */
+  const _hkAK=_ezHeuteISO();
+  const _kontNames=monteure.filter(m=>!_maIstEhemalig(m,_hkAK)).map(m=>m.n);
   const wks=weeksOf(yr,mo);
   const dim=new Date(yr,mo+1,0).getDate();
   const isMob=ww<600;
@@ -22674,7 +22694,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
           , isAdmin&&React.createElement('button', { onClick: ()=>{setEditMode(!editMode);if(editMode)setEditEntry(null);}, style: editMode?{...bdS,fontSize:12}:{...xBtn("csv"),fontSize:12}}, editMode?"✕ Beenden":"✏️ Bearbeiten")
           , editMode&&isAdmin&&pendingCount>0&&React.createElement('button', { onClick: bulkApprove, style: {...bsS(),fontSize:12,background:"rgba(34,197,94,.15)",border:"2px solid rgba(34,197,94,.4)",color:_okG("#22c55e")}}, "✅ Alle genehmigen (",pendingCount,")")
-          , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>{const hdrs=["Nr","Mitarbeiter","Std/Wo","Anspruch h","Vorjahr h","Gesamt h","Urlaub h","Krank h","ZA h","Rest h","ÜS h"];const data=[];names.forEach(function(m,i){const ks=kontingent[m]||{stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};const ys=yearSt(m);const rest=resturlaub(m);data.push([i+1,m,ks.woche||38.5,_n((ks.stunden||192.5),1),_n((ks.vorjahr||0),1),_n(((ks.stunden||192.5)+(ks.vorjahr||0)),1),_n(ys.urlaubStd,1),_n(ys.krankenstandStd,1),_n(ys.zeitausgleichStd,1),_n(rest,1),_n(ks.ueberstunden||0,1)]);});genXls("📊 Urlaubskontingent "+yr,COMPANY_FOOTER.name+" · "+names.length+" Mitarbeiter · Std/Woche-basiert",hdrs,data,"Kontingent_"+yr+".xls",{colWidths:[35,130,55,65,60,60,60,60,55,60,55],leftCols:[0,1],boldCols:[1],sumCol:9});}, style: {...xBtn("xls"),fontSize:12}}, "📊 Excel Export")
+          , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>{const hdrs=["Nr","Mitarbeiter","Std/Wo","Anspruch h","Vorjahr h","Gesamt h","Urlaub h","Krank h","ZA h","Rest h","ÜS h"];const data=[];_kontNames.forEach(function(m,i){const ks=kontingent[m]||{stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};const ys=yearSt(m);const rest=resturlaub(m);data.push([i+1,m,ks.woche||38.5,_n((ks.stunden||192.5),1),_n((ks.vorjahr||0),1),_n(((ks.stunden||192.5)+(ks.vorjahr||0)),1),_n(ys.urlaubStd,1),_n(ys.krankenstandStd,1),_n(ys.zeitausgleichStd,1),_n(rest,1),_n(ks.ueberstunden||0,1)]);});genXls("📊 Urlaubskontingent "+yr,COMPANY_FOOTER.name+" · "+_kontNames.length+" Mitarbeiter · Std/Woche-basiert",hdrs,data,"Kontingent_"+yr+".xls",{colWidths:[35,130,55,65,60,60,60,60,55,60,55],leftCols:[0,1],boldCols:[1],sumCol:9});}, style: {...xBtn("xls"),fontSize:12}}, "📊 Excel Export")
           , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>window.print(), style: {...xBtn("pdf"),fontSize:12}, title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.319 */
         )
       )
@@ -22717,7 +22737,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         )
         , kontUnlesbar?React.createElement('div', { style: {padding:"8px 12px",marginBottom:8,borderRadius:8,border:"1px solid #ef4444",background:"rgba(239,68,68,.10)",color:"#ef4444",fontSize:12,fontWeight:700,lineHeight:1.5}}, "⚠️ Kontingente konnten NICHT gelesen werden (Rechte oder Netz). Anspruch, Vorjahr und Überstunden stehen auf den eingebauten Werten 192,5 / 0 / 0 — der angezeigte Resturlaub ist NICHT GEMESSEN. Speichern ist gesperrt."):null
         /* Compact card view (default) */
-        , !kontExpanded&&(React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}, (isAdmin?names:names.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
+        , !kontExpanded&&(React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}, (isAdmin?_kontNames:_kontNames.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
           return (React.createElement('div', { key: m, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}, style: {display:"flex",alignItems:"center",gap:isMob?8:12,padding:isMob?"8px":"8px 12px",borderRadius:8,background:sel===m?"rgba(34,197,94,.08)":"transparent",border:sel===m?"1px solid rgba(34,197,94,.3)":"1px solid "+V.bd,cursor:isAdmin?"pointer":"default"}}
             , React.createElement('div', { style: {flex:1,minWidth:0}}
               , React.createElement('div', { style: {fontWeight:700,fontSize:isMob?12:13,color:sel===m?_okG("#22c55e"):V.tx,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, m)
@@ -22748,7 +22768,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
             , React.createElement('th', { style: {...thS(),fontSize:10,color:_okG("#22c55e"),fontWeight:800}, title: "Resturlaub: Anspruch + Vorjahr − Urlaubs-Stunden (genehmigt + ausstehend). Abgelehnte und Krankenstand/ZA/Sonder/Pflege werden NICHT abgezogen (separate Konten)."}, "Rest Urlaub" )
             , React.createElement('th', { style: {...thS(),fontSize:10,color:"#f59e0b"}}, "ÜS h")
           ))
-          , React.createElement('tbody', {}, (isAdmin?names:names.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
+          , React.createElement('tbody', {}, (isAdmin?_kontNames:_kontNames.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=(ks.stunden||192.5)+(ks.vorjahr||0);
             return (React.createElement('tr', { key: m, style: {borderBottom:"1px solid "+V.bd}}
               , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:sel===m?700:500,color:sel===m?_okG("#22c55e"):V.tx,cursor:isAdmin?"pointer":"default"}, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}}, m)
               , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.woche||38.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), style: {...II(),width:44,padding:"2px 4px",fontSize:11,textAlign:"center"}} ):(ks.woche||38.5))
@@ -24038,7 +24058,7 @@ function ASKommentarePanel({asId,curUser,monteure,users}){
     catch(e){window._showToast?.('Löschen fehlgeschlagen: '+e.message,'error');}
   };
   if(loading)return _Skeleton(3);
-  const fieldMA=(monteure||[]).filter(m=>(m.n||'').toLowerCase().includes(mentionFilter));
+  const fieldMA=_maWaehlbar(monteure,null).filter(m=>(m.n||'').toLowerCase().includes(mentionFilter));/* v3.9.931: wer erwaehnt wird, wird ausgewaehlt - Ausgetretene stehen nicht mehr im Vorschlag. */
   return React.createElement('div',{style:{padding:12}}
     ,kommentare.length===0
       ?React.createElement('div',{style:{textAlign:'center',padding:20,color:V.dm,fontSize:12}},'Noch keine Kommentare.')
@@ -28780,7 +28800,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             , showBesch&&(React.createElement('div', {}
               , React.createElement('div', { style: {fontSize:10,color:V.dm,marginBottom:8}}, "VO (EG) Nr. 561/2006 · Wird automatisch mit EP Kolar CI und GF-Unterschrift erstellt"  )
               , React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:8}}
-                , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Fahrer (Name, Vorname)"), React.createElement('select', { value: beschForm.fahrer, onChange: e=>{const v=e.target.value;const m=monteure.find(x=>x.n===v);setBeschForm(f=>({...f,fahrer:v,gebDat:m&&m.gebDat||"",fsNr:m&&m.fsNr||"",seitDat:m&&m.eintritt||""}));}, style: {...II(),fontSize:11,padding:4}}, React.createElement('option', { value: ""}, "— Fahrer wählen —" ), monteure.filter(m=>(m.fs||"").includes("C")).map(m=>React.createElement('option', { key: m.id, value: m.n}, m.n, " (FS: ", m.fs, ")"))))
+                , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Fahrer (Name, Vorname)"), React.createElement('select', { value: beschForm.fahrer, onChange: e=>{const v=e.target.value;const m=monteure.find(x=>x.n===v);setBeschForm(f=>({...f,fahrer:v,gebDat:m&&m.gebDat||"",fsNr:m&&m.fsNr||"",seitDat:m&&m.eintritt||""}));}, style: {...II(),fontSize:11,padding:4}}, React.createElement('option', { value: ""}, "— Fahrer wählen —" ), _maWaehlbar(monteure.filter(m=>(m.fs||"").includes("C")),((monteure||[]).find(x=>x.n===beschForm.fahrer)||{}).id||"")/* v3.9.931: eine Bescheinigung wird fuer einen AKTUELLEN Fahrer ausgestellt. Der getragene Wert reist mit, damit eine aus der Historie geladene Bescheinigung ihren Fahrer im eigenen Feld behaelt - das Feld fuehrt den NAMEN, der Vergleich braucht darum die id dazu. */.map(m=>React.createElement('option', { key: m.id, value: m.n}, m.n, " (FS: ", m.fs, ")"))))
                 , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Geburtsdatum ", React.createElement('span', { style: {fontSize:7,color:_okG("#22c55e")}}, "auto")), React.createElement('input', { type: "date", value: beschForm.gebDat, onChange: e=>setBeschForm(p=>({...p,gebDat:e.target.value})), style: {...II(),fontSize:11,padding:4,background:beschForm.gebDat?"rgba(34,197,94,.06)":"transparent"}} ))
                 , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Führerschein-Nr. ", React.createElement('span', { style: {fontSize:7,color:_okG("#22c55e")}}, "auto")), React.createElement('input', { value: beschForm.fsNr, onChange: e=>setBeschForm(p=>({...p,fsNr:e.target.value})), style: {...II(),fontSize:11,padding:4,background:beschForm.fsNr?"rgba(34,197,94,.06)":"transparent"}, placeholder: "z.B. 4491"} ))
                 , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:9}}, "Im Unternehmen seit ", React.createElement('span', { style: {fontSize:7,color:_okG("#22c55e")}}, "auto")), React.createElement('input', { type: "date", value: beschForm.seitDat, onChange: e=>setBeschForm(p=>({...p,seitDat:e.target.value})), style: {...II(),fontSize:11,padding:4,background:beschForm.seitDat?"rgba(34,197,94,.06)":"transparent"}} ))
@@ -29857,7 +29877,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                 , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}
                   , React.createElement('button', { onClick: ()=>scanCheckin(scannedWz.id), style: {...bgS,width:"100%",padding:"14px 18px",fontSize:14}}, "📥 Zurück ins Lager"   )
                   , React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:6,marginBottom:4}}, "Oder an anderen Monteur umbuchen:"    )
-                  , monteure.filter(m=>m.id!==scannedWz.zugewiesen).map(m=>(React.createElement('button', { key: m.id, onClick: ()=>scanCheckout(scannedWz.id,m.id), style: {...bsS(),width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}
+                  , /* v3.9.931: Umbuchen ist eine ZUWEISUNG - die Ausgabeliste direkt darueber zieht seit v3.9.874 ueber _maWaehlbar, diese hier nicht. Der aktuelle Traeger wird wie bisher ausgenommen. */ _maWaehlbar(monteure,scannedWz.zugewiesen).filter(m=>m.id!==scannedWz.zugewiesen).map(m=>(React.createElement('button', { key: m.id, onClick: ()=>scanCheckout(scannedWz.id,m.id), style: {...bsS(),width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}
                     , React.createElement('span', { style: {fontSize:16}}, "👷")
                     , React.createElement('div', { style: {flex:1}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, m.n))
                     , React.createElement('span', { style: {color:"#f97316",fontSize:11}}, "🔄 Umbuchen" )
