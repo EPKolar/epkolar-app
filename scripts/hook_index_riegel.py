@@ -67,7 +67,17 @@ def betrifft_index(eingabe):
         teil = eingabe.get(quelle) or {}
         if isinstance(teil, dict) and teil.get(schluessel):
             pfade.append(str(teil[schluessel]))
-    return any(os.path.basename(p).lower() == "index.html" for p in pfade)
+    # Nur Dateien DIESES Repos. Der Hook haengt (bis zum naechsten Neustart)
+    # in den Benutzereinstellungen und laeuft damit in JEDER Sitzung mit -
+    # ohne diese Schranke wuerde er die Tore dieses Repos auf eine fremde
+    # index.html loslassen und dort unsinnig sperren.
+    wurzel = os.path.normcase(os.path.abspath(WURZEL))
+    for p in pfade:
+        if os.path.basename(p).lower() != "index.html":
+            continue
+        if os.path.normcase(os.path.abspath(p)).startswith(wurzel + os.sep):
+            return True
+    return False
 
 
 def main():
