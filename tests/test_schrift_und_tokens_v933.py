@@ -174,7 +174,11 @@ def test_die_drei_regeln_stehen_als_kommentar_am_objekt(roh):
     das mal Logo und mal 'in Ordnung' heisst - und dann keines von beidem.
     """
     i = roh.find("const UI={")
-    umfeld = roh[max(0, i - 1600):i]
+    # v3.9.934: Fenster von 1600 auf 4000 erweitert. Zwischen den Regeln
+    # und `const UI={` steht seit Stufe 2b der Ikonen-Helfer mit eigener
+    # Begruendung. Die gemessene Eigenschaft ist unveraendert: die Regeln
+    # stehen BEIM Token-Objekt und nicht irgendwo in der Datei.
+    umfeld = roh[max(0, i - 4000):i]
     for wort in ("NIE Statusampel", "HELLIGKEIT", "tabular-nums"):
         assert wort in umfeld, (
             "Die Regel %r steht nicht am Token-Objekt." % wort)

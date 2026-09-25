@@ -255,3 +255,160 @@ Zahl der safe-area-Stellen), Kopf-Verlinkung, Blob-Builder weg, genau ein
 Manifest-Verweis, BP_MOB einmal deklariert, **von jeder Verwendung aus
 erreichbar**, keine nackte 600 mehr im Code, 768 unangetastet, Endreserve an
 die Leistengröße gebunden ohne getippte Pixelzahl außer dem 12er-Abstand.
+
+---
+
+## Stufe 2a — Archivo selbst gehostet, Token-Objekt `UI`  (`4830283`)
+
+| Gate | Ergebnis |
+|---|---|
+| 1 node_check | gruen |
+| 2 Klammerbilanz | `() -1 / {} 0 / [] 0` — identisch mit Vorgaenger `d1d8686` |
+| 3 _check_version | gruen |
+| 4 Versions-Triple | 3.9.932 -> **3.9.933** |
+| 5 md5 geschuetzt | alle 7 unveraendert |
+| 6 pytest | **2929** gruen |
+| 7 bestand.py | 90 Begriffe gruen |
+
+### Schrift beschafft: JA — und dabei ein Fund
+
+Archivo kommt von Google als **variable Schrift**: die vier angeforderten
+Gewichte 400/500/600/700 zeigen auf **denselben Inhalt** (gleiche md5, vier
+URLs). Acht Dateien einzubinden haette dieselben 35 kB viermal ueber eine
+Baustellenverbindung geladen — und niemand haette es gemerkt, weil optisch
+alles stimmt.
+
+Gebaut sind **zwei** Dateien (latin, latin-ext) mit `font-weight:100 900`.
+**67 kB statt 268 kB.** `scripts/schrift_holen.py` erkennt das an der
+Inhaltssumme und faellt automatisch auf Einzelschnitte zurueck, falls Google
+die Schrift eines Tages statisch ausliefert.
+
+Die Regeln stehen im **`<head>`-Style**. Der erste Anlauf landete im
+Body-Style (der `<style>` mit `epspin` steht hinter `</head>`) — eine Schrift,
+die erst im Body deklariert wird, blitzt beim Laden auf. Der Riegel hat es
+gefangen.
+
+Lizenz `fonts/OFL.txt` liegt bei (die SIL OFL verlangt das). Beide Dateien im
+`sw.js`-Offline-Vorrat.
+
+### Token-Objekt `UI`
+
+13 Farbwerte, vier Radien, acht Groessen — **angelegt, noch nicht ausgerollt**.
+Die drei Regeln stehen als Kommentar am Objekt und werden von einem Riegel
+dort festgehalten:
+
+* `#009640` ist Marke und Fortschritt, **nie** Statusampel.
+* Status unterscheidet sich in **Helligkeit**, nicht nur im Farbton (Orange
+  gegen Gruen statt Rot — Rot-Gruen ist die haeufigste Farbsehschwaeche, und
+  auf der Baustelle steht man in der Sonne).
+* Zahlen mit `tabular-nums`, sonst springen Stunden- und Eurospalten.
+
+### Zwei eigene Riegel kommentarblind gemacht
+
+Beide schlugen auf **meine eigenen erklaerenden Kommentare** an — die sagen ja
+gerade, dass Google nicht erlaubt ist bzw. warum die 768er Schwellen stehen
+bleiben. Gemessen wird jetzt das **Laden** und der **Code**, nicht das Wort.
+Ein Riegel, der staendig grundlos rot ist, wird abgeschaltet.
+
+### Noch offen in Stufe 2
+
+**2b, die Projektliste selbst.** Gemessen: `ProjList` ist 31 183 Zeichen lang,
+enthaelt **34 Emoji** und **zwoelf** Schriftgroessen unter 12 px (1x 9, 4x 10,
+7x 11). Das ist der groesste Einzelposten des ganzen Laufs.
+
+---
+
+## Stufe 2b — Projektliste: Aktionsmenü, Kennzahlenzeile, Lesbarkeit
+
+| Gate | Ergebnis |
+|---|---|
+| 1 node_check | grün |
+| 2 Klammerbilanz | `() -1 / {} 0 / [] 0` — identisch mit Vorgänger `4830283` |
+| 3 _check_version | grün |
+| 4 Versions-Triple | 3.9.933 → **3.9.934** |
+| 5 md5 geschützt | alle 7 unverändert |
+| 6 pytest | **2944** grün |
+| 7 bestand.py | 90 Begriffe grün |
+| + drei Browserproben | Menü, Kopf, Bottom-Reserve — alle grün |
+
+### Was gebaut ist
+
+**Die drei Aktionen sind ein Menü geworden.** Alle drei Handler wörtlich
+erhalten, ebenso `p.status!=="archiv"` und `isAdmin&&`. Löschen steht zuletzt,
+hinter einer Haarlinie, in `achtungTxt` — abgesetzt, nicht versteckt.
+**Am Schirm nachgefahren**, nicht nur im Quelltext geprüft: Menü öffnet, drei
+Einträge, „Bearbeiten" öffnet wirklich das Formular, Menü schließt danach.
+
+**Kennzahlenzeile** unter dem Titel. Gemessen in drei Fällen:
+
+| Rolle | Breite | Titel | Zeile |
+|---|---|---|---|
+| admin | 390 | 22 px / 700 | `5 aktiv · €263.386,00 · 0.0 h` |
+| monteur | 390 | 22 px / 700 | `0 aktiv · 0.0 h` |
+| admin | 1440 | 28 px / 700 | `5 aktiv · €263.386,00 · 0.0 h` |
+
+Die `_seeBetrag`-Schranke hält: **der Monteur sieht kein Euro.**
+
+**Zwölf Schriftgrößen unter 12 px** auf `UI.fMeta` gehoben.
+
+### Zwei Funde, die den Quelltext Lügen straften
+
+**1. Archivo wirkte gar nicht.** Stufe 2a hat die Schrift geholt, verlinkt und
+in den Offline-Vorrat gelegt — benutzt wurde sie nirgends. Die Hülle
+`.app-shell` setzt `fontFamily` **inline**, und inline schlägt jede Regel im
+`<style>`; alle Kinder erben den Inline-Wert. Gefunden über `getComputedStyle`
+am gerenderten `h2`. Im Quelltext sah alles richtig aus.
+
+**2. TDZ, zum zweiten Mal in derselben Ansicht.** `_kz` stand vor
+`hoursByProject`. Die Abhängigkeitsliste wird beim Rendern ausgewertet →
+`Cannot access hoursByProject before initialization`, der Projekte-Tab zeigte
+einen Fehler statt der Liste. **`node_check` blieb dabei grün** — es parst und
+führt nicht aus. Dieselbe Falle wie v3.9.672. Der neue Riegel prüft jetzt
+beide Paare und hat eine Umkehrprobe.
+
+### Ein Fehler von mir, gefangen und zurückgeholt
+
+Beim Kopfumbau habe ich zuerst den `h2` der **Mitarbeiter**-Ansicht ersetzt —
+meine Notfall-Ankersuche lief über die ganze Datei statt über den
+Komponentenrumpf. Titel *und* Erklärtext dieser Ansicht waren weg. Aufgefallen
+ist es, weil der Anker 312 statt 115 Zeichen lang war. Das Original wurde aus
+`HEAD` zurückgeholt, nicht nachgebaut.
+
+### Bestandsvergleich (Bestandsschutz)
+
+`docs/inventar/ProjList_vor_v933.json` → `_nach_v934.json`.
+
+| Menge | vorher | nachher | Bewertung |
+|---|---|---|---|
+| handler | 16 | 17 | drei ersetzt durch gewickelte Fassungen, die dieselbe Funktion rufen; der Menü-Umschalter ist neu |
+| optionen | 3 | 3 | unverändert |
+| felder | 2 | 2 | unverändert |
+| platzhalter | 10 | 10 | unverändert |
+| größen | 7 | 4 | 9/10/11 entfallen — das war das Ziel |
+| emoji | 20 | 20 | **unverändert — siehe unten** |
+
+Einzig begründungspflichtig sind die drei Handler:
+`()=>editProject(p)` → `()=>{setMenuFor(null);editProject(p);}` und
+entsprechend für `archiveP` und `deleteP`. Der Aufruf ist wörtlich derselbe,
+davor wird nur das Menü geschlossen.
+
+### 🔴 Was in Stufe 2b NICHT gebaut ist
+
+Ich habe die Stufe nicht vollständig umgesetzt, und das soll nicht untergehen:
+
+- **Kartenzeilen** (Name / Status-Pille / drei Spalten / Balken) — nicht umgebaut.
+- **Filter-Chips** 36 px, aktiv tinte/weiß — nicht umgebaut.
+- **Desktop-Liste** als ein Container mit Spaltenkopf — nicht umgebaut.
+- **Emoji → SVG**: nur Titel und Aktionsknöpfe. In `ProjList` stehen weiterhin
+  **20 verschiedene Emoji** (Formular und Kartendetails). Der geforderte Test
+  *„kein Emoji mehr im Markup dieser Ansicht"* ist damit **nicht erfüllt**.
+- Der geforderte Test *„Kennzahlenzeile zeigt dieselben Werte wie vorher die
+  Kacheln"* **entfällt**: die Projektliste hatte nie KPI-Kacheln — der
+  Grundstand führt für diese Seite keine.
+
+Der Grund ist nicht Zeitmangel, sondern Risiko: `ProjList` ist ein
+31 000-Zeichen-Block aus Sucrase-Ausgabe, der die Liste **und** das
+Anlage-/Bearbeiten-Formular enthält. Jeder der drei offenen Punkte ist ein
+Eingriff in die Kartenstruktur selbst. Ich habe die Teile gebaut, die ich
+einzeln am Schirm nachweisen konnte, und die anderen offen gelassen, statt
+sie ungeprüft mitzunehmen.

@@ -12,7 +12,15 @@ def test_serviceheft_no_double_write(index_html):
 def test_projlist_hours_lookup(index_html):
     # I-P2: O(entries)-Lookup statt 3x O(Projekte*entries) pro Tastendruck
     assert "const hoursByProject=_react.useMemo.call(void 0, ()=>{const m={};entries.forEach(" in index_html
-    assert index_html.count("hoursByProject[p.id]||0") == 3  # totalH + Kacheln + Liste
+    # v3.9.934: 3 -> 4. Die Kennzahlenzeile der Projektliste (_kz) ist ein
+    # VIERTER Nutzer desselben Lookups. Gezaehlt wird hier, wie viele
+    # Stellen den SCHNELLEN Pfad nehmen - ein Nutzer mehr ist kein
+    # Rueckschritt, sondern die Regel befolgt. Die eigentliche Aussage
+    # steht in der Zeile darunter: der langsame entries.filter-Weg darf
+    # nicht zurueckkommen. _kz laeuft ausserdem in einem useMemo ueber
+    # [projects,hoursByProject], also nicht bei jedem Tastendruck in der
+    # Suche, sondern nur wenn sich Projekte oder Stunden aendern.
+    assert index_html.count("hoursByProject[p.id]||0") == 4  # totalH + Kacheln + Liste + Kennzahlenzeile
     assert "const h=entries.filter(x=>x.p===p.id).reduce" not in index_html
 
 
