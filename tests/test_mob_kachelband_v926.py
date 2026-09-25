@@ -265,26 +265,50 @@ def test_die_klasse_verbirgt_nichts(index_html):
     )
 
 
-def test_der_block_rollt_quer_statt_umzubrechen(index_html):
-    """Die eigentliche Geometrie. Ohne overflow-x waeren die elf Kacheln in
-    einer nicht rollbaren Zeile - und die hinteren acht waeren weg, weil
-    html/body bei <=600px overflow-x:hidden tragen (:254). Das waere kein
-    Aufraeumen, sondern Datenverlust."""
-    regel = re.search(
-        r"\.kpi-grid\.epk-kachelband\s*\{([^{}]*)\}", index_html)
+# v3.9.930 UMGEDREHT - und dabei strenger geworden. Dieser Riegel verlangte
+# `overflow-x: auto` und `nowrap`. Genau diese Regel hat am Telefon den WISCH
+# GETOETET: ein quer rollbarer Kasten verbraucht die waagrechte Geste selbst,
+# der Browser rollt ihn, statt sie nach oben durchzureichen. Mit echten
+# Touch-Ereignissen gemessen (scripts/wisch_flaechen_messen.py, 390x844):
+#     ueber der Kachelreihe, wie ausgeliefert     TOT
+#     dieselbe Stelle ohne overflow-x:auto        WECHSELT
+# Der Riegel haette den Fehler nie gefunden, waere aber gegen seine Reparatur
+# rot geworden - der sechste dieser Art in vier Tagen.
+#
+# Seine Begruendung war aber nicht falsch, nur unvollstaendig: mit `nowrap`
+# UND ohne `overflow-x` waeren die hinteren acht Kacheln wirklich weg, weil
+# html/body bei <=600px overflow-x:hidden tragen. Die Regel, die wirklich
+# gilt, ist ein PAAR:
+#     nowrap ohne overflow-x  -> Kacheln abgeschnitten  (verboten)
+#     nowrap mit overflow-x   -> Wisch tot              (verboten)
+#     wrap                    -> beides in Ordnung
+def test_der_block_rollt_nicht_quer_und_schneidet_nichts_ab(index_html):
+    """Das Paar aus Umbruch und Querrollen - keine Haelfte allein.
+
+    Ein quer rollbarer Kasten toetet den Wisch; eine nicht umbrechende Zeile
+    ohne Querrollen schneidet Kacheln ab. Beides ist verboten.
+    """
+    regel = re.search(r"\.kpi-grid\.epk-kachelband\s*\{([^{}]*)\}", index_html)
     assert regel, "Die Grundregel fuer .kpi-grid.epk-kachelband fehlt."
     inhalt = regel.group(1)
     assert "display: flex" in inhalt or "display:flex" in inhalt, (
-        "Der Kachelblock steht nicht auf display:flex - dann bleibt das "
-        "vierzeilige Raster und die Messung von 259 -> 64 px gilt nicht."
+        "Der Kachelblock steht nicht auf display:flex - dann gelten die "
+        "gemessenen Hoehen nicht."
     )
-    assert "nowrap" in inhalt, (
-        "Ohne flex-wrap:nowrap bricht die Zeile wieder um und der Block ist "
-        "so hoch wie vorher."
+
+    rollt = ("overflow-x: auto" in inhalt or "overflow-x:auto" in inhalt
+             or "overflow-x: scroll" in inhalt or "overflow-x:scroll" in inhalt)
+    bricht_um = "nowrap" not in inhalt
+
+    assert not rollt, (
+        "Die Kachelreihe rollt quer. Das TOETET den Wisch: ein quer rollbarer "
+        "Kasten verbraucht die waagrechte Geste selbst. Gemessen ueber der "
+        "Reihe TOT, ohne die Regel WECHSELT (v3.9.930). Regel: %s" % inhalt.strip()
     )
-    assert "overflow-x: auto" in inhalt or "overflow-x:auto" in inhalt, (
-        "Ohne overflow-x:auto sind die hinteren Kacheln nicht erreichbar - "
-        "html/body tragen bei <=600px overflow-x:hidden."
+    assert bricht_um, (
+        "Die Reihe bricht nicht um UND rollt nicht - dann sind die hinteren "
+        "Kacheln abgeschnitten, weil html/body bei <=600px overflow-x:hidden "
+        "tragen. Das waere Datenverlust, nicht Aufraeumen."
     )
 
 
@@ -311,10 +335,19 @@ def test_die_kacheln_haben_eine_mindestbreite(index_html):
         "Die Mindestbreite ist %s px. Gemessen wurde, dass 111 px auf einem "
         "360-px-Schirm 'erledigt+abgerechnet' abschneiden." % m.group(1)
     )
-    assert "flex: 0 0 auto" in inhalt or "flex:0 0 auto" in inhalt, (
-        "Ohne flex:0 0 auto darf die Kachel schrumpfen und die "
-        "Mindestbreite ist wirkungslos."
-    )
+    # v3.9.930: die Forderung nach `flex: 0 0 auto` ist raus. Sie gehoerte zur
+    # nicht umbrechenden Zeile; seit die Reihe umbricht, waere sie falsch.
+    # Die EIGENSCHAFT haengt ohnehin nicht daran: min-width ist eine harte
+    # Untergrenze, unter die flex-shrink nicht geht. Gesichert wird deshalb,
+    # dass die Mindestbreite nicht durch eine kleinere flex-basis unterlaufen
+    # wird.
+    mb = re.search(r"flex:\s*\d+\s+\d+\s+(\d+)px", inhalt)
+    if mb:
+        assert int(mb.group(1)) >= int(m.group(1)), (
+            "Die flex-basis (%s px) liegt unter der Mindestbreite (%s px) - "
+            "dann waechst die Kachel erst gar nicht auf ihre Breite."
+            % (mb.group(1), m.group(1))
+        )
 
 
 def test_die_kacheln_werden_nicht_als_platzhalter_gerechnet(index_html):
@@ -463,12 +496,24 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
         "Umkehrprobe: eine fehlende Mindestbreite bliebe unbemerkt"
     )
 
-    # 4. Quer-Rollen entfernt - die hinteren acht Kacheln waeren weg
-    z4 = index_html.replace("overflow-x: auto !important;", "", 1)
+    # 4. v3.9.930 UMGEDREHT: frueher wurde geprueft, dass ein FEHLENDES
+    #    overflow-x auffaellt. Heute ist das Querrollen der Fehler (es toetet
+    #    den Wisch), also wird geprueft, dass sein WIEDEREINBAU auffaellt -
+    #    und dass ein `nowrap` ohne Querrollen ebenfalls auffaellt.
+    z4 = index_html.replace(".kpi-grid.epk-kachelband { display: flex !important;",
+                            ".kpi-grid.epk-kachelband { display: flex !important;"
+                            " overflow-x: auto !important;", 1)
     assert z4 != index_html, "Rueckbau 4 griff nicht"
     r4 = re.search(r"\.kpi-grid\.epk-kachelband\s*\{([^{}]*)\}", z4)
-    assert r4 and "overflow-x" not in r4.group(1), (
-        "Umkehrprobe: ein fehlendes overflow-x bliebe unbemerkt"
+    assert r4 and "overflow-x" in r4.group(1), (
+        "Umkehrprobe: ein wieder eingebautes Querrollen bliebe unbemerkt - und damit der Wisch-Tod."
+    )
+
+    z4b = index_html.replace("flex-wrap: wrap !important;", "flex-wrap: nowrap !important;", 1)
+    assert z4b != index_html, "Rueckbau 4b griff nicht"
+    r4b = re.search(r"\.kpi-grid\.epk-kachelband\s*\{([^{}]*)\}", z4b)
+    assert r4b and "nowrap" in r4b.group(1), (
+        "Umkehrprobe: eine nicht umbrechende Zeile ohne Querrollen bliebe unbemerkt - die hinteren Kacheln waeren abgeschnitten."
     )
 
     # 5. content-visibility zurueckgenommen - der Block waere 166 statt 64 px
