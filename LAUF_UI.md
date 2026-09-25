@@ -143,3 +143,115 @@ angefasst**, wie beauftragt.
    neuen `apple-touch-icon` stehen — ein zweiter `rel="icon"` wäre ein
    Eingriff außerhalb des Auftrags gewesen.
 4. **🟡 Fünf unbeschriftete Icon-Reiter in Werkzeuge** — Vorarbeit zu Stufe 4.
+
+---
+
+## Stufe 1 — Mobil-Fundament (kein Aussehen)
+
+| Gate | Ergebnis |
+|---|---|
+| 1 `node_check.py` | 🟢 exit 0 |
+| 2 Klammerbilanz | 🟢 `() -1 / {} 0 / [] 0` — **identisch** mit Vorgänger `1a97936` |
+| 3 `_check_version.js` | 🟢 synchron |
+| 4 Versions-Triple | 🟢 3.9.931 → **3.9.932** |
+| 5 md5 geschützte Funktionen | 🟢 alle 7 unverändert |
+| 6 pytest | 🟢 **2917** passed, 11 skipped, 8 xfailed |
+| 7 `bestand.py` | 🟢 90 Begriffe, 12 Gruppen |
+
+### a) Viewport — vorgezogen in Stufe 0, dort beschrieben
+
+### b) Endreserve — hier weiche ich bewusst von der Auftragsformel ab
+
+**Zuerst gemessen** (`scripts/bottom_reserve_messen.py`, 390×844, is_mobile,
+has_touch, sechs Ansichten, jeweils bis ganz unten gescrollt):
+
+```
+Leiste .bottom-nav   Oberkante y=786, Höhe 58 px   (gemessen — die Regel
+                     trägt gar keine Höhenangabe)
+.main-pad            padding-bottom 80 px
+verdeckte Bedienelemente:  0 von 135
+```
+
+Der **Köder** (ein Knopf fest am unteren Rand) wurde in jedem Durchgang
+erkannt — das Werkzeug sieht also sehr wohl etwas. **Die gemeldeten „28 px
+unter der Leiste" ließen sich in diesem Aufbau nicht nachstellen.**
+
+**Warum ich die Formel nicht wörtlich nehme:** `calc(<Bar-Höhe> + env(…) + 12px)`
+ergäbe mit der gemessenen Höhe **58 + 12 = 70 px**. Dort stehen heute **80 px**.
+Die Formel wörtlich anzuwenden hätte die Reserve **verkleinert** — das Gegenteil
+der Absicht. Eine Anweisung, die im gemessenen Bestand das Gegenteil bewirkt,
+wende ich nicht blind an.
+
+**Was stattdessen gebaut ist** — die Absicht („Bar-Höhe nicht hart eintippen,
+damit beides zusammenbleibt") wird erfüllt, und die Reserve wird **größer**:
+
+```css
+:root{--epk-bar-h:58px;--epk-bar-warn:24px}
+padding-bottom: calc(var(--epk-bar-h) + var(--epk-bar-warn)
+                     + env(safe-area-inset-bottom,0px) + 12px)   /* 94px */
+```
+
+`--epk-bar-warn` ist der wahrscheinliche Ursprung der gemeldeten 28 px: in der
+Leiste sitzt ein Sync-/Offline-Streifen als `position:absolute; top:-24px`. Er
+ragt **über** die Leiste hinaus, aber das Rechteck der Leiste enthält ihn nicht
+— ein Kind, das aus seinem Elter herausragt, zählt in dessen
+`getBoundingClientRect()` nicht mit. **Mein erstes Messgerät hatte genau diesen
+blinden Fleck**; es misst jetzt die *Deckkante* aller unten klebenden Dinge,
+nicht die Leistenkante. Auch danach: 0 verdeckt.
+
+Beide Größen stehen **direkt neben der Leistenregel**. Wer die Leiste ändert,
+sieht die Reserve daneben.
+
+### c) Statisches Manifest
+
+Kopf verlinkt `./manifest.json` und `./icon-192.png`; der Laufzeit-Blob-Builder
+ist **raus**. Er hängte sein eigenes `<link rel="manifest">` an und hätte das
+statische überstimmt — die neuen Icon-Dateien wären da, aber nie geladen worden.
+Genau **ein** Manifest-Verweis ist übrig (Riegel darauf).
+
+Manifest, Icons und `sw.js`-ASSETS kamen aus dem Parallel-Lauf (`f5e632f`):
+vier PNG statt zwei, weil „any" und „maskable" **nicht dieselbe Datei** sein
+dürfen — sonst wäre die Doppeleintragung genau die widersprüchliche Zusage,
+die repariert werden sollte.
+
+### d) BP_MOB
+
+27 Code-Stellen umgestellt, **positionsgenau statt per Suchen-Ersetzen**: die
+vier `ww<600` in Changelog-Blockkommentaren bleiben unangetastet, dort steht
+dokumentiert, *warum* eine Schwelle einmal von 700 auf 600 ging.
+
+**Die entscheidende Messung vorab:** alle 27 Stellen **und** `COLORS` liegen im
+selben `<script>`-Block (Block 9, 3,55 MB von 12 Blöcken). Das musste gemessen
+werden — `node_check.py` *parst* die Blöcke und führt sie nicht aus. Eine
+Konstante im falschen Block wäre syntaktisch tadellos und zur Laufzeit ein
+ReferenceError **an 27 Stellen gleichzeitig, bei grünem Tor**. Ein eigener
+Riegel misst diese Blockzugehörigkeit jetzt dauerhaft.
+
+Die sieben `ww<768` sind unangetastet.
+
+### Ein Riegel bewusst geändert — mit Begründung
+
+`tests/test_projlist_ismob_tdz_v3672.py` wurde rot. Er sichert, dass
+`const isMob=…` **vor** `_gridCols=isMob` steht (sonst TDZ-Absturz; der
+Projekte-Tab zeigte einmal einen Fehler statt der Liste). Er suchte die Zeile
+**wörtlich** als `const isMob=ww<600;`.
+
+Die Eigenschaft, die er sichert, ist unverändert erfüllt — nur die Schreibweise
+der Schwelle hat sich geändert. Das Muster nimmt jetzt jede Schwelle an
+(`ww<[A-Za-z0-9_]+`), die Reihenfolge-Aussage ist wörtlich dieselbe, und
+fail-closed bleibt er auch: verschwindet die Deklaration, ist er rot.
+
+**Das ist keine Aufweichung.** Er pinnte eine Schreibweise statt einer
+Eigenschaft — die häufigste Krankheit der Riegel in diesem Bestand.
+
+Ebenso kommentarblind gemacht: mein eigener neuer 768er-Riegel stand auf 9
+statt 7, weil **ich selbst** `ww<768` zweimal in den BP_MOB-Kommentar
+geschrieben hatte.
+
+### Neue Riegel
+
+`tests/test_mobil_fundament_v932.py`, 9 Fälle: Viewport (mit Köder auf die
+Zahl der safe-area-Stellen), Kopf-Verlinkung, Blob-Builder weg, genau ein
+Manifest-Verweis, BP_MOB einmal deklariert, **von jeder Verwendung aus
+erreichbar**, keine nackte 600 mehr im Code, 768 unangetastet, Endreserve an
+die Leistengröße gebunden ohne getippte Pixelzahl außer dem 12er-Abstand.
