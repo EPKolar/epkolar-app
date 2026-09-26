@@ -254,10 +254,36 @@ def test_stz_save_timers_unmount_cleanup():
 
 
 def test_mobshellnav_aria_label():
-    """P3 Positiv: mob-shell-nav Icon-Buttons haben aria-label."""
+    """v3.9.937 - DIE ABSICHT BLEIBT, DER WEG IST EIN BESSERER.
+
+    Vorher verlangte dieser Riegel ein aria-label an den Knoepfen der
+    Projekt-Bottom-Nav. Das war richtig, solange dort 13 reine Emoji standen:
+    ein Bildschirmleser liest sonst nur "Schaltflaeche", und ein title sieht
+    niemand, der mit dem Finger bedient.
+
+    Diese Leiste gibt es nicht mehr. Die Navigation der Projektakte traegt
+    jetzt SICHTBAREN TEXT - fuenf Reiter mit Beschriftung und darunter eine
+    Liste, in der jeder Eintrag Ikone UND Text hat. Ein Knopf mit sichtbarem
+    Text braucht kein aria-label: sein Text IST sein Name, und er hilft
+    zusaetzlich allen, die sehen, aber die Piktogramme nicht kennen.
+
+    Gemessen wird deshalb die Absicht - jedes Navigationsziel ist benannt -
+    und nicht mehr das Attribut, mit dem das einmal erreicht wurde.
+    """
     text = _txt()
-    assert "onClick: ()=>doNav(n.id), title: n.l, 'aria-label': n.l" in text, \
-        'v3.9.413 Regression: mob-shell-nav aria-label fehlt'
+    assert "const _pfReiter=[" in text,         'Die Reiterliste der Projektakte fehlt - dann ist nichts benannt'
+    import re as _re
+    i = text.index("const _pfReiter=[")
+    paare = _re.findall(r'\["([^"]+)","([^"]+)"\]', text[i:text.index("];", i)])
+    assert len(paare) == 5, 'Erwartet fuenf beschriftete Reiter, gefunden %d' % len(paare)
+    for _id, label in paare:
+        assert label.strip(), 'Der Reiter %s hat keine Beschriftung' % _id
+    assert "_pfMehr.map(n=>React.createElement('button'" in text,         'Die Mehr-Liste wird nicht gerendert'
+    j = text.index("_pfMehr.map(n=>React.createElement('button'")
+    block = text[j:j + 900]
+    assert "n.l" in block, (
+        "Die Mehr-Eintraege tragen keinen sichtbaren Text - dann liest "
+        "ein Bildschirmleser wieder nur Schaltflaeche")
 
 
 # ── v3.9.414: Pickerl-Zaehler TZ-Konsistenz (Nachzug adversariale Review) ──

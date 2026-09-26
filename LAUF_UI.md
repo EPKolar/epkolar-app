@@ -412,3 +412,85 @@ Anlage-/Bearbeiten-Formular enthält. Jeder der drei offenen Punkte ist ein
 Eingriff in die Kartenstruktur selbst. Ich habe die Teile gebaut, die ich
 einzeln am Schirm nachweisen konnte, und die anderen offen gelassen, statt
 sie ungeprüft mitzunehmen.
+
+---
+
+## Stufe 3 — Projektakte-Navigation
+
+| Gate | Ergebnis |
+|---|---|
+| 1 node_check | grün |
+| 2 Klammerbilanz | `() -1 / {} 0 / [] 0` — identisch mit Vorgänger `d7ff6df` |
+| 3 _check_version | grün |
+| 4 Versions-Triple | 3.9.936 → **3.9.937** |
+| 5 md5 geschützt | alle 7 unverändert |
+| 6 pytest | **3004** grün |
+| 7 bestand.py | 90 Begriffe grün |
+| + fünf Browserproben | Navigation, Abschnitte, Karte, Chips, Bottom-Reserve |
+
+### Der Befund war in einem Punkt anders als beschrieben
+
+Es gab **zwei** Leisten, beide am falschen Platz: oben die Hauptnavigation der
+App (das ist die „Desktop-Topnav auf Mobil"), unten fix die 13 Unterseiten als
+reine Emoji in **zwei Reihen**, Bedeutung nur im `title`. Sie haben Platz
+getauscht.
+
+### Am Schirm belegt
+
+Reiterzeile 40 px, `nowrap`, `overflow-x: auto`; **5 direkt + 8 unter „Mehr" =
+alle 13 Ziele**, jedes einzeln angetippt und die Ansicht wechselt jedes Mal.
+Hauptnavigation y=802–860 bei 860 px Fensterhöhe, `position: fixed`.
+
+### Abweichung: keine Kopie der Fünf-Gruppen-Leiste
+
+„Bottom-Bar bleibt wie im Rest der App" wörtlich hieße, die Leiste aus `App` zu
+kopieren. Die hängt an `kat`, `setKat`, `moreOpen`, `setMoreOpen`, `safeKat` und
+trägt eigene Logik (leere Gruppen nicht rendern, eine Gruppe darf ihr Ziel
+benennen, zweiter Tipp blättert in der Gruppe). Zwei Wahrheiten, die driften —
+v3.9.887 hat sie schon einmal geändert. Stattdessen wandert die **vorhandene**
+Leiste nach unten.
+
+### `_allNav` umsortiert — Verhaltensänderung, keine Kosmetik
+
+Aus der Liste entsteht auch `navIds` und damit die **Wischreihenfolge**. Vorher
+sprang ein Wisch Dashboard → Zeiterfassung → Berichte, während die Reiterzeile
+Übersicht, Pläne, Mängel, Fotos, Zeiten zeigte. Jetzt blättert der Wisch genau
+die Reiterzeile durch. Einträge wörtlich übernommen samt `pm`-Berechtigungen.
+
+### Die zwei Abschneidefehler, unter Last belegt
+
+**Material-Unterreiter:** hatten `overflowX:auto` **und** `nowrap` und waren
+trotzdem beschnitten — es fehlte `flexShrink:0`. Ohne das *schrumpfen*
+Flex-Kinder statt überzulaufen; der Text kann nicht umbrechen und wird
+abgeschnitten, während der Rollbalken nie entsteht. Nicht der Text sprengte
+seine Box — die Box wurde kleiner als der Text.
+
+**Wochenbericht:** Tabelle 640 → 720 px, `tableLayout:fixed`, Summenzelle
+`nowrap` + `tabular-nums`. Die Testdaten liefern nur `0.0` — damit ist nichts
+belegt, also setzt die Probe selbst lange Werte ein: **18,0 / 188,5 / 1888,0
+passen alle**.
+
+### Vier Bestandsriegel umgeschrieben — und einer hatte recht
+
+Alle vier pinnten die *Schreibweise* der entfernten Emoji-Leiste. Der
+Wischflächen-Riegel hatte dabei **sachlich recht**: die neue untere Leiste hatte
+zuerst keine Wischfläche, dort wäre die Daumenzone tot gewesen. `shellNavSwipe`
+lag nach dem Ausbau ungenutzt da und ist jetzt angehängt — drei Riegel haben das
+sofort gemeldet.
+
+### Drei eigene Fehlgriffe, alle vom Prüfstand gefangen
+
+1. Ein Anker nach `}}` statt klammerbilanziert griff **2847 statt 159 Zeichen**
+   weit — die Ankerlängenprüfung hat es gefangen.
+2. Beim Entfernen der Emoji-Leiste habe ich das **Komma** vor dem Element
+   mitgeschluckt; node meldete den Fehler 30 Zeilen weiter oben.
+3. Die Klasse `pf-hauptnav` gesetzt und die **CSS-Regel dazu nicht
+   geschrieben**. Der Quelltext sah richtig aus, die Leiste stand weiter oben —
+   gefunden hat es die Browserprobe (Mitte y=187 von 860). Eine Klasse ohne
+   Regel ist eine Absicht ohne Wirkung; es gibt jetzt einen Riegel darauf.
+
+### Bestandsvergleich
+
+`ProjectShell_vor_v936.json` → `_nach_v937.json`: **keine Handlung entfernt**,
+keine Option, kein Feld, kein Platzhalter. Neu sind zwei Handler
+(`_pfTippe`, `setPfMehrAuf`); „Zurück" heißt jetzt „Alle Projekte".

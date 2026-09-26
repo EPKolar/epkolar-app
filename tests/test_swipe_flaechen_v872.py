@@ -35,10 +35,39 @@ from _hilfen import nur_code
 # -- (1) Projekt-Bottom-Nav --------------------------------------------------
 
 def test_projekt_bottom_nav_ist_eine_wischflaeche(index_html):
-    assert 'className: "mob-shell-nav", style: {touchAction:"pan-y"}, ...shellNavSwipe}' in index_html, (
-        "Die Projekt-Bottom-Nav traegt keine Wisch-Handler. Sie ist position:fixed "
-        "und Geschwister des Wisch-Containers - unten waere in jeder Projektansicht "
-        "wieder die Daumenzone tot."
+    """v3.9.937 - DIE EIGENSCHAFT BLEIBT, DAS ELEMENT HAT SICH GEAENDERT.
+
+    Vorher pinnte dieser Riegel eine Schreibweise:
+
+        'className: "mob-shell-nav", style: {touchAction:"pan-y"}, ...shellNavSwipe}'
+
+    Die Leiste `.mob-shell-nav` gibt es nicht mehr - sie trug 13 unbeschriftete
+    Emoji in zwei Reihen und ist durch eine Reiterzeile mit TEXT ersetzt. An
+    ihrer Stelle unten sitzt jetzt die Hauptnavigation (`.pf-hauptnav`), und
+    zwar genauso `position:fixed; bottom:0` und genauso Geschwister des
+    Wisch-Containers. Die Gefahr ist also unveraendert: ohne eigene
+    Wischflaeche waere unten in jeder Projektansicht die Daumenzone tot.
+
+    Gemessen wird deshalb die EIGENSCHAFT - die fixe untere Leiste der
+    Projektakte traegt Wisch-Handler und gibt die waagrechte Geste frei - und
+    nicht mehr der Name des Elements, das sie zufaellig gerade ist.
+
+    Dass die Leiste wirklich unten liegt, prueft
+    tests/test_projektakte_nav_v937.py an der CSS-Regel; dass alle 13 Ziele
+    erreichbar bleiben, prueft scripts/projektakte_nav_probe.py am gerenderten
+    Schirm.
+    """
+    m = re.search(r'className: "tab-bar"\+\(isMob\?" pf-hauptnav":""\)'
+                  r'.{0,800}?\.\.\.shellNavSwipe\}', index_html, re.S)
+    assert m, (
+        "Die fixe untere Leiste der Projektakte traegt keine Wisch-Handler "
+        "(...shellNavSwipe). Sie ist position:fixed und Geschwister des "
+        "Wisch-Containers - unten waere in jeder Projektansicht wieder die "
+        "Daumenzone tot."
+    )
+    assert 'touchAction:"pan-y"' in m.group(0), (
+        "Die untere Leiste gibt die waagrechte Geste nicht frei "
+        "(touch-action:pan-y fehlt) - dann faengt der Browser sie ab."
     )
 
 
@@ -138,12 +167,20 @@ def test_aeussere_flaechen_bleiben_unveraendert(index_html):
 
 
 def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
-    ohne_nav = index_html.replace(
-        'className: "mob-shell-nav", style: {touchAction:"pan-y"}, ...shellNavSwipe}',
-        'className: "mob-shell-nav"}', 1)
-    assert ohne_nav != index_html, "Rueckbau der Projekt-Nav griff nicht"
-    assert '...shellNavSwipe' not in ohne_nav.split('className: "mob-shell-nav"')[1][:120], (
-        "Umkehrprobe: der Projekt-Nav-Riegel wuerde nicht anschlagen"
+    """Umkehrprobe, auf das neue Element umgestellt (v3.9.937).
+
+    Ein Riegel, der eine Wischflaeche verlangt, muss anschlagen, wenn man sie
+    entfernt - sonst prueft er nichts.
+    """
+    ohne_nav = re.sub(r'(className: "tab-bar"\+\(isMob\?" pf-hauptnav":""\)'
+                      r'.{0,800}?'
+                      r'),touchAction:"pan-y"\}, \.\.\.shellNavSwipe\}',
+                      lambda m: m.group(1) + "}", index_html, count=1,
+                      flags=re.S)
+    assert ohne_nav != index_html, "Rueckbau der unteren Leiste griff nicht"
+    assert "...shellNavSwipe" not in ohne_nav, (
+        "Umkehrprobe: nach dem Rueckbau steht die Wischflaeche noch da - dann "
+        "sagt der Riegel darueber nichts aus."
     )
 
     ohne_stop = index_html.replace("if(_gefeuert&&e.stopPropagation)e.stopPropagation();", "", 1)

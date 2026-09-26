@@ -12,12 +12,51 @@ from _hilfen import nur_code
 
 
 def test_mob_shell_nav_wraps(index_html):
-    assert ".mob-shell-nav{display:flex;flex-wrap:wrap;" in index_html, (
-        "mob-shell-nav braucht flex-wrap — sonst sind hintere Projekt-Nav-Icons auf Mobile unerreichbar"
+    """v3.9.937 - DIE ABSICHT BLEIBT: kein Navigationsziel darf unerreichbar
+    werden.
+
+    Vorher verlangte dieser Riegel flex-wrap und flex-basis 44px an der
+    Projekt-Bottom-Nav. Der Grund war richtig: 13 Ikonen in EINER Zeile ohne
+    Umbruch und ohne Rollen liessen die hinteren unerreichbar.
+
+    Die Leiste gibt es nicht mehr. Die Navigation ist jetzt eine Reiterzeile,
+    die NICHT umbricht, sondern ROLLT - und dahinter eine Liste ("Mehr") mit
+    dem Rest. Umbruch war ein Weg, Rollen ist ein anderer; unerreichbar wird
+    so oder so nichts.
+
+    Gemessen wird deshalb das Ziel und nicht das Mittel: die Reiterzeile
+    rollt, und was nicht hineinpasst, steht vollstaendig unter "Mehr".
+    """
+    i = index_html.find("isMob&&React.createElement('div', { style: {display:\"flex\",gap:0,"
+                        "height:40,minHeight:40")
+    assert i > 0, (
+        "Die Reiterzeile der Projektakte wurde nicht gefunden - dann ist ueber "
+        "die Erreichbarkeit nichts gesagt."
     )
-    assert 'flex:"1 1 44px"' in index_html, "Bottom-Nav-Buttons brauchen flex-basis 44px für sauberes Wrapping"
-    assert 'padding:isMob?"10px 8px 110px":"20px"' in index_html, (
-        "Shell-Content braucht 110px Bottom-Padding (2-reihige Bottom-Nav ~94px)"
+    kopf = index_html[i:i + 320]
+    assert 'overflowX:"auto"' in kopf, (
+        "Die Reiterzeile rollt nicht quer. Ohne Umbruch UND ohne Rollen sind "
+        "die hinteren Reiter unerreichbar."
+    )
+    assert "const _pfMehr=navItems.filter(n=>_pfHauptIds.indexOf(n.id)<0)" in index_html, (
+        "Die Mehr-Liste wird nicht aus dem REST gebildet - dann koennte ein "
+        "Ziel durchfallen, das weder Reiter noch Mehr-Eintrag ist."
+    )
+    # v3.9.937: die 110 px waren fuer die ZWEIREIHIGE Emoji-Leiste (~94 px)
+    # gerechnet. Die gibt es nicht mehr; unten sitzt jetzt die einreihige
+    # Hauptnavigation. Die Reserve kommt deshalb aus derselben Groesse wie
+    # die Leistenhoehe selbst (--epk-bar-h) plus Safe-Area - so koennen sie
+    # nicht auseinanderlaufen, und eine getippte Zahl steht nicht mehr an
+    # zwei Stellen. Die gesicherte Eigenschaft ist unveraendert: der Inhalt
+    # reserviert Platz fuer die fixe Leiste, sonst liegt die letzte Karte
+    # darunter.
+    i2 = index_html.find('padding:isMob?"10px 8px calc(var(--epk-bar-h')
+    assert i2 > 0, (
+        "Die Endreserve des Projektinhalts nimmt die Leistenhoehe nicht "
+        "ueber --epk-bar-h - dann laufen Leiste und Reserve auseinander."
+    )
+    assert "env(safe-area-inset-bottom" in index_html[i2:i2 + 200], (
+        "Die Endreserve beruecksichtigt die Safe-Area nicht."
     )
 
 
