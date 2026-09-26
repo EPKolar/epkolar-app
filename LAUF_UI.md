@@ -494,3 +494,92 @@ sofort gemeldet.
 `ProjectShell_vor_v936.json` → `_nach_v937.json`: **keine Handlung entfernt**,
 keine Option, kein Feld, kein Platzhalter. Neu sind zwei Handler
 (`_pfTippe`, `setPfMehrAuf`); „Zurück" heißt jetzt „Alle Projekte".
+
+---
+
+## Phase B1 — Wandtafel: Stand ist Datenalter, Netzfehler wird markiert  (`c57a1bd`, v3.9.939, **live**)
+
+### S1 — „Stand HH:MM" war die Uhr, nicht das Datenalter
+
+`setStand(new Date())` stand **vor** dem Abruf und unbedingt. Über 80 Sekunden
+gemessen: der Stand wanderte 09:42 → 09:43, während die Aktualisierung mit
+HTTP 500 scheiterte. Wer die Tafel fotografiert, sah eine frische Uhrzeit über
+möglicherweise stundenalten Daten.
+
+Gebaut sind zwei getrennte Merker. `stand` ist der Zeitpunkt des letzten
+**erfolgreichen** Abrufs und bewegt sich nur innerhalb von
+`if(Array.isArray(raw))`; `jetzt` ist die Uhr und läuft weiter, damit der
+Alterstext mitwächst. Vorher war beides dasselbe — deshalb konnte die Tafel
+Frische behaupten, die sie nie geprüft hatte.
+
+Die Anzeige sagt „Daten von 09:14" und ab der Schwelle zusätzlich
+„seit 2 h nicht aktualisiert". Schwelle als benannte Konstante
+`KIOSK_STAND_WARN_MS = 15 * 60 * 1000`: der Abruf läuft alle 60 Sekunden,
+15 verpasste Umläufe sind kein Zufall mehr.
+
+Die Warnung hängt **nicht** an der Farbe allein — 20 px statt 14, fett statt
+normal, plus zusätzlicher Text. Auf einer Baustelle steht man in der Sonne, und
+Rot-Grün ist die häufigste Farbsehschwäche. Es bleibt bei **einem** Umlauf.
+
+### A1 — der abgebrochene fetch setzte den Marker nicht
+
+Unter Node mit fünf fetch-Attrappen gemessen:
+
+| Fall | `window.__kioskAsErr` vorher |
+|---|---|
+| HTTP 500 | `'HTTP500'` |
+| HTTP 401 | `'HTTP401'` |
+| kaputtes JSON | `'parse'` |
+| Erfolg | `null` |
+| **abgebrochen** | **`undefined`** |
+
+Genau im häufigsten Ausfall blieb der Marker leer und die Tafel zeigte stumm
+die Vorwoche. Ursache: `_authRetry` macht `const r = await fn();` — ein
+werfendes `fetch` wickelt alles ab, bevor `if(!r||!r.ok)` erreicht wird. Der
+Kommentar darunter versprach „RLS/Netz"; die Netz-Hälfte fehlte. Der Zwilling
+`_loadKioskFahrzeuge` hatte den try/catch längst.
+
+Geprüft wird durch **Ausführen**: `tests/test_kiosk_stand_v939.py` (12 Fälle)
+schneidet die Funktion wörtlich aus `index.html` und fährt sie unter Node. Ein
+Riegel, der nur nach `'net'` sucht, könnte nicht unterscheiden, ob der Zweig
+auch **erreicht** wird — und genau darum ging es. Der Erfolgsfall ist der Köder.
+
+### Der Hellmodus-Befund — drei eigene Messfehler, kein Anwendungsfehler
+
+Nutzermeldung: „mobil hell ist auch sehr dunkel". Meine Sonde meldete zuerst
+„BEFUND BESTÄTIGT auf beiden Breiten" — und die einzige dunkle Fläche war
+`<html>` mit `rgba(0,0,0,0)`. Durchsichtigkeit, keine Farbe; meine
+Helligkeitsformel las die drei Nullen als Schwarz.
+
+1. Durchsichtig ohne deckenden Vorfahren gilt jetzt als **unbestimmt** und
+   fällt aus der Wertung — getrennt ausgewiesen, damit das Weglassen sichtbar
+   bleibt.
+2. Die nächste Fassung fand neun dunkle Großflächen — acht davon Tönungen mit
+   `rgba(..., 0.067)`, also 6,7 % Deckung über Weiß. Derselbe Fehler eine Ebene
+   tiefer. Jetzt wird gegen den ersten deckenden Vorfahren **gemischt**.
+3. Fünf benannte Flächen können den Befund verfehlen. Jetzt wird jedes
+   sichtbare Element ab 8000 px² abgetastet und nach **Anteil am Schirm**
+   geurteilt (ab 25 % = tragende Fläche). Nach Farbe zu filtern wäre Blindheit
+   auf Bestellung.
+
+Gemessen, OS auf dunkel, `epk_theme` ausdrücklich gesetzt:
+
+| | 390 px | 1440 px |
+|---|---|---|
+| App-Hülle | `rgb(240,242,245)` **0,886** | 0,886 |
+| Fußleiste | `rgb(255,255,255)` **1,000** | 0,886 |
+| tragende dunkle Flächen | **keine** | **keine** |
+| Köder (Dunkelmodus) | 42 dunkle, 5 tragend | 51 dunkle |
+
+Übrig bleiben zwei Kleinflächen von 6 % — die Warnbänder, die es nur gibt, weil
+die Sonde jede Anfrage abbricht. **Der Befund ist mit diesem Aufbau nicht
+nachstellbar.** Nicht abgedeckt: ein echtes Gerät, ein gespeicherter
+Dienstarbeiter mit älterer Fassung, und jede Ansicht außer der beim Start
+gezeigten. Es wird keine Farbe auf Verdacht geändert.
+
+### Nebenbefund: `node sql/_check_version.js` prüft nur drei von vier Stellen
+
+Es kennt `APP_VERSION`, die sw.js-Kopfzeile und `CACHE_NAME` — aber **nicht**
+`var SW_VER` in `index.html`. Nach dem Bump meldete es grün, während `SW_VER`
+noch 3.9.938 trug. Gefunden hat es `tests/test_version_triple_sync.py`. Die
+Prüfung hatte recht, nicht das Werkzeug.

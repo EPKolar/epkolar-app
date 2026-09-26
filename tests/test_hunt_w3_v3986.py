@@ -31,7 +31,18 @@ def test_photoq_backdrop_below_panel(index_html):
 
 
 def test_fabn_grid_mobile(index_html):
-    assert 'gridTemplateColumns:window.innerWidth<600?"1fr":"1fr 1fr 1fr"' in index_html
+    # v3.9.940: die Schwelle heisst jetzt BP_MOB statt der nackten 600.
+    # Dieser Riegel prueft weiterhin GENAU DASSELBE - die Werte links und
+    # rechts vom Fragezeichen sind unveraendert. Nur die ZIFFERN der Schwelle
+    # sind zur Schreibweise geworden, und die Schreibweise war nie die
+    # geschuetzte Eigenschaft. Dass BP_MOB gleich 600 ist, haelt
+    # tests/test_mobil_fundament_v932.py fest (`const BP_MOB=600;`, genau
+    # einmal) - ohne diesen Nachweis waere die Lockerung hier unzulaessig.
+    import re as _re
+    assert _re.search(
+        r'gridTemplateColumns:window\.innerWidth<(?:600|BP_MOB)'
+        r'\?"1fr":"1fr 1fr 1fr"', index_html), (
+        "Das Fahrtenbuch-Gitter stapelt auf dem Handy nicht mehr auf 1fr.")
 
 
 def test_ii_colorscheme_central(index_html):

@@ -9,7 +9,13 @@ def test_fahrtenbuch_month_padding():
     """v3.8.86 S4-N Regression: Fahrtenbuch month-picker muss isMob-padding tragen
     (10px 10px mobile / 4px 8px desktop) damit Tap-Target ≥44px erreicht wird."""
     text = INDEX.read_text(encoding='utf-8')
-    pattern = r"padding:window\.innerWidth<600\?'10px 10px':'4px 8px'"
+    # v3.9.940: die Schwelle heisst jetzt BP_MOB statt der nackten 600. Das
+    # geschuetzte Polster ('10px 10px' auf dem Handy, damit 44 px Beruehrflaeche
+    # zustande kommen) ist unveraendert; nur die ZIFFERN der Schwelle sind zur
+    # Schreibweise geworden. Dass BP_MOB gleich 600 ist, haelt
+    # tests/test_mobil_fundament_v932.py fest (`const BP_MOB=600;`, genau
+    # einmal) - ohne diesen Nachweis waere die Lockerung unzulaessig.
+    pattern = r"padding:window\.innerWidth<(?:600|BP_MOB)\?'10px 10px':'4px 8px'"
     hits = re.findall(pattern, text)
     assert len(hits) >= 1, (
         "v3.8.86 S4-N Regression: Fahrtenbuch month-picker fehlt isMob-padding "

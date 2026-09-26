@@ -228,7 +228,13 @@ def test_die_material_unterreiter_schrumpfen_nicht(rumpf):
 
 def test_die_summenspalte_des_wochenberichts_hat_platz():
     roh = io.open(str(WURZEL / "index.html"), encoding="utf-8", newline="").read()
-    m = re.search(r"width:window\.innerWidth<600\?(\d+):", roh)
+    # v3.9.940: die Schwelle heisst jetzt BP_MOB statt der nackten 600. Die
+    # geschuetzte Groesse ist die TABELLENBREITE (>= 700), und die wird
+    # unveraendert geprueft; nur die ZIFFERN der Schwelle sind zur Schreibweise
+    # geworden. Dass BP_MOB gleich 600 ist, haelt
+    # tests/test_mobil_fundament_v932.py fest (`const BP_MOB=600;`, genau
+    # einmal) - ohne diesen Nachweis waere die Lockerung unzulaessig.
+    m = re.search(r"width:window\.innerWidth<(?:600|BP_MOB)\?(\d+):", roh)
     assert m, "Die Tabellenbreite des Wochenberichts wurde nicht gefunden."
     assert int(m.group(1)) >= 700, (
         "Die Tabelle ist auf dem Handy nur %s px breit. Bei neun Spalten "
