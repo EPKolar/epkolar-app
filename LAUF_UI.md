@@ -678,3 +678,119 @@ zurücksetzte; ab jetzt ist sie brauchbar.
 19 Prüffälle, alle grün. Vorher 7 davon rot; dass sie erfüllbar sind, wurde am
 Prüfstand gegengemessen, und drei Gegenmutationen bleiben gezielt rot (ohne
 `Prefer: count` → 2 rot, Auftrag als `POST` → 1 rot, Projekt im Pfad → 1 rot).
+
+---
+
+## v3.9.942 — der Nutzerbefund, gefunden. Und vier B3-Befunde.  (`e081ea0`, **live**)
+
+### „mobil hell ist auch sehr dunkel" — meine erste Antwort war zu früh
+
+Auf der **Startansicht** hatte ich gemessen und gemeldet, der Befund sei nicht
+nachstellbar (App-Hülle 0,886, Fußleiste weiß, keine tragende dunkle Fläche bei
+390 und 1440 px). Das war richtig — *für die Startansicht*, und so gekennzeichnet.
+
+Der Durchgang durch **alle 31 Ansichten** (18 Hauptreiter aus `_allTabs`, 13
+Projekt-Unterseiten aus `_allNav`, 248 Messpunkte) hat ihn gefunden:
+
+| Projekt / Pläne, Hellmodus | vorher | nachher |
+|---|---|---|
+| 390 px | **57,5 %** des Schirms dunkel, 1 tragend | **7,6 %**, 0 tragend |
+| 1440 px | **72,7 %**, 1 tragend | **5,1 %**, 0 tragend |
+| 390 px dunkel (Köder) | 85,1 %, 5 tragend | **85,1 %, 5 tragend** |
+| 1440 px dunkel (Köder) | 100,0 %, 4 tragend | **100,0 %, 4 tragend** |
+
+Die Dunkelmodus-Zahlen sind **ziffergleich** — das ist die Gegenprobe zu
+„bleibt bytegleich". Träger war ein `div` mit `#1a1a1a`, **fest eingetragen**:
+der Hellmodus konnte die Farbe gar nicht erreichen. Jetzt
+`_dark?"#1a1a1a":V.bd` — ein vorhandenes Token, keine neue Farbe.
+
+### B2, B3, B4, B5 — je bei 375, 390 und 1440 px gegengemessen
+
+| Befund | Messwert vorher | nachher |
+|---|---|---|
+| **B2** Kopfknöpfe 40 px hoch, 10 px Schrift | Werkzeuge 4, AS-Formular 1 | **0 bei 375 und 390 px** |
+| **B3** fünf Icon-Reiter ohne Text/title/aria | 5 (390) / 6 (1440) | **0** |
+| **B5** sieben Symbol-Knöpfe ohne Bedeutung | 2+2 je Ansicht | **0** |
+| **B4** Home rollt quer | `.main-pad` 460/390 | **kein Roller** |
+
+Bei **B2 waren es drei Regeln, nicht zwei**: `@media (max-width: 380px)` setzt
+`min-height: 36px` — diese Breite hatte niemand gemessen. Die Hausregel trägt
+`!important` und verliert trotzdem, weil `.header-row .mob-stack button` die
+Spezifität 0,2,1 gegen 0,0,1 hat; zwei `!important` entscheiden nach
+Spezifität, nicht nach Reihenfolge. Die Sonde nimmt jetzt `EPK_BREITEN`.
+
+### B7 bleibt unentschieden — und da wird nichts repariert
+
+`scrollWidth > clientWidth` findet einen **Kastenüberlauf** und sagt nicht, ob
+ein Pixel verloren geht: der Knopf hat `overflow: visible`, und `text-overflow`
+greift nur bei `hidden`. Die neue Sonde misst das Rechteck des **Textes** gegen
+den ersten wirklich beschneidenden Vorfahren — und stellt fest, dass der Fall in
+diesem Aufbau gar nicht auftritt (der Knopf bräuchte „offline **und** vier
+ausstehende Aufträge"). Sie verweigert deshalb ein Urteil.
+
+Zwei eigene Fehler dabei, beide gefangen: sie suchte den Beschneider erst beim
+**Elternteil** (der Köder beschnitt sich selbst und meldete 0 px), und sie
+behauptete etwas über „die Kopfknöpfe", während die Liste **leer** war — die
+leere Grundgesamtheit, in diesem Lauf zum dritten Mal.
+
+---
+
+## v3.9.943 — Schrift unter 10 px, die Wetterkarte, die Medienmulden
+
+### 36 Codestellen standen auf 7 oder 8 px
+
+Der kleinste Wert der ganzen App war **7 px**. Alle 36 auf `UI.fMeta`.
+Die **138** Stellen mit 9 px und die 11er bleiben absichtlich stehen: sie sind
+die Masse (49 allein in Werkzeuge bei 390 px), jede steckt in einer Kachel oder
+Tabellenzelle, deren Höhe mitwandert — eigener Schritt, eigene Messung.
+
+| Schrift < 12 px | 390 px | 1440 px |
+|---|---|---|
+| Home | 78 → **69** | 120 → **111** |
+| Werkzeuge | 60 → **55** | 32 → **25** |
+| Planung | 50 → **49** | 43 → **42** |
+| AS bearbeiten | 45 → **43** | — |
+
+**Ein eigener Fehlgriff, zurückgenommen:** mein erstes Muster war
+`fontSize:[789]` und hat dabei `fontSize:9.5` zerschnitten — node_check meldete
+„Unexpected number". `git checkout -- index.html`, Muster auf `(?![\d.])`
+verengt, Umfang auf 7 und 8 begrenzt.
+
+### Die Wetterkarte: weniger Tage, nicht kleinere Schrift
+
+Nach dem Heben der 7-px-Schrift stieg der Beschnitt auf Home von **5 auf 11**.
+Sieben Zellen auf 374 px lassen je 46 px Inhalt; „Bedeckt" braucht bei 12 px
+rund 48 — gemessen als 2 px Beschnitt in einer 44-px-Zelle. Am Telefon stehen
+jetzt **vier** Tage statt sieben (am Schreibtisch weiter sieben), und der
+Beschnitt ist zurück auf die **fünf vorbestehenden** Stellen. Der Ersatzvorrat
+kürzt genauso — sonst zeigt derselbe Bildschirm sieben gequetschte Zellen,
+sobald die Wetterabfrage nicht antwortet.
+
+### Die Fußleiste: 10 → 12 px, und die Höhe gemessen
+
+Sie ist die einzige Fläche, die in **jeder** Ansicht und bei **jeder** Breite im
+Bild ist. Nach dem Wechsel: Höhe weiter **58 px**, **0 verdeckte
+Bedienelemente** von 128 in sechs Ansichten. `--epk-bar-h` muss also nicht
+nachwandern — das war zu messen, nicht zu glauben.
+
+### Die vier Schwestern der Planfläche — gemessen, nicht vermutet
+
+| Stelle | Urteil |
+|---|---|
+| `PlanViewer` (17154) | **toter Code** — `createElement(PlanViewer, …)` kommt **0×** vor, gezeichnet wird `PlanViewerCanvas`. Farbe erscheint im Hellmodus in keinem Element. **Benannt, nicht geändert.** |
+| Planvorschau (18439) | im Hellmodus sichtbar, **14,2 %** (390) / 4,0 % (1440) — Letterbox neben dem Planblatt |
+| Fotokachelwand (19191) | unsichtbar (`objectFit: cover` deckt vollständig) |
+| Fotoliste (19207) | unsichtbar |
+
+Die drei **lebenden** folgen jetzt dem Thema wie der große Betrachter — es wäre
+eine Regel zu viel, wenn der Betrachter hell wird und die Vorschaukachel
+**desselben Plans** schwarz bleibt.
+
+**Meine Vermutung zu `#0f172a` war falsch.** Es ist kein Tor vor dem Anmelden
+(Anmeldeschirm gemessen: 0,0 % dunkel), sondern die **Stempeluhr-Tafel** — 100 %
+Schirm dunkel bei beiden Breiten und in **beiden** Themen, mit eigener heller
+Schrift. Ein eigenständig gestalteter Wandbildschirm, kein Hellmodus-Fehler.
+
+**Nicht gemessen und bleibt es:** die Auffangfläche der Fehlergrenze (erscheint
+nur bei einem Absturz) und der PDF-Grund `#525659` (braucht ein PDF in
+Serviceheft, Personaldokument oder Fahrbewilligung).

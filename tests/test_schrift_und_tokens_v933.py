@@ -160,11 +160,43 @@ def test_das_token_objekt_traegt_genau_die_vorgegebenen_werte(roh):
 
 
 def test_keine_schriftgroesse_unter_zwoelf_im_token_objekt(roh):
-    m = re.search(r"const UI=\{(.*?)\};", roh, re.S)
-    groessen = [int(x) for x in re.findall(r"\bf[A-Za-z]+:(\d+)", m.group(1))]
-    assert groessen, "Keine Schriftgroessen im Token-Objekt."
+    """KOMMENTARBLIND, seit v3.9.943.
+
+    Vorher las dieser Riegel den ganzen Bereich zwischen `const UI={` und `};`
+    als Text. In v3.9.943 ist dort ein erklaerender Kommentar dazugekommen, der
+    woertlich `fontSize:9.5` und `fontSize:[789]` nennt - er beschreibt einen
+    Fehlgriff, bei dem ein zu weites Muster genau diese Dezimalzahl
+    zerschnitten hat. Der Riegel schlug auf den Kommentar an und meldete "die
+    kleinste Groesse ist 9", waehrend im Token-Objekt selbst nichts unter 12
+    steht.
+    Das ist in diesem Umbau der fuenfte Fall, in dem ein erklaerender Kommentar
+    seinen eigenen Riegel auslost. Genau dafuer gibt es scripts/code_scan.py -
+    es trennt Code von Kommentar, Zeichenkette, Vorlagenliteral und
+    Regex-Literal und hat eine Eichung, die VERWEIGERT, wenn sie scheitert.
+    Die geprueft Eigenschaft ist unveraendert: keine Schriftgroesse im
+    Token-Objekt unter 12 px.
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(WURZEL / "scripts"))
+    from code_scan import ist_code as _ist_code, eichen as _eichen
+
+    ok, gefunden, erwartet = _eichen(roh)
+    assert ok, (
+        "Die Eichung von code_scan ist gescheitert (%d von %d) - ohne sie "
+        "sagt dieser Riegel nichts." % (gefunden, erwartet))
+    feld = _ist_code(roh)
+
+    a = roh.index("const UI={")
+    e = roh.index("};", a)
+    groessen = [int(m.group(1))
+                for m in re.finditer(r"\bf[A-Za-z]+:(\d+)", roh[a:e])
+                if feld[a + m.start()]]
+    assert groessen, (
+        "KOEDER STUMM: keine Schriftgroesse im Token-Objekt gefunden. Ohne "
+        "Grundgesamtheit ist die Aussage darunter wertlos.")
     assert min(groessen) >= 12, (
-        "Die kleinste Groesse ist %d - 12 ist die Untergrenze." % min(groessen))
+        "Die kleinste Groesse ist %d - 12 ist die Untergrenze. Gefunden: %s"
+        % (min(groessen), sorted(groessen)))
 
 
 def test_die_drei_regeln_stehen_als_kommentar_am_objekt(roh):
