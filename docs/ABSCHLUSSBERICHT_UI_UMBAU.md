@@ -508,6 +508,39 @@ wird zur stillen Erlaubnis.
 **Kein Pixel Änderung.** `tests/test_symbolknoepfe_haben_namen_v957.py`,
 Mutationsprobe 4 von 4 erkannt.
 
+### Und die zweite Hälfte: 32 Emoji-Knöpfe (v3.9.958)
+
+v3.9.957 hatte die Knöpfe mit **Emoji**-Inhalt (🖨️ ✏️ 🗑️ ✅) ausdrücklich
+ausgeschlossen — sie seien eine eigene Menge. Gemessen: **150** solche
+Knöpfe, 118 trugen einen Namen, **32 nicht**. Jetzt alle 150.
+
+Ein Schirmleser sagt bei einem Emoji den Namen des **Bildes** an,
+„Papierkorb" — das sagt nicht, **was** gelöscht wird. Die Namen sind aus dem
+`onClick` abgelesen, der Wortschatz von den 118 bereits benannten
+übernommen; ein eigener Riegel wird rot, wenn ein zweites Wort für dieselbe
+Handlung dazukommt.
+
+🔴 **Mein erster Abtaster hat gelogen, und das ist der eigentliche Fund.** Er
+suchte den Knopfinhalt mit `re.search` im Umfeld nach `}, "..."` — und fand
+ein **späteres** Literal, wenn der Inhalt eine Variable ist. Drei Stellen
+standen damit als „namenloser Emoji-Knopf" in der Liste, deren Inhalt Text
+ist: `_navBtn` (Inhalt `text`) und zwei Reiterzeilen (Inhalt `f.l`,
+„Offen"/„Erledigt"). Die Liste sah vollständig und glaubwürdig aus.
+Aufgefallen ist es nur, weil ich **vor dem Bauen** die drei unklarsten
+Stellen im Zusammenhang gelesen habe. Die Zahl fiel von 44 auf 32.
+
+🔴 **Zwei Rechte-Riegel wurden rot, und sie hatten nicht recht.** Die
+`canDo`-Riegel für `deleteSuppOrd` und `deleteCatalog` verlangten `{`
+**unmittelbar** gefolgt von `onClick:`. Meine `title`-Eigenschaft steht davor
+— sie haben also die **Reihenfolge der Eigenschaften** gemessen, nicht die
+Rechteprüfung. Am Quelltext nachgemessen: `canDo("material_delete",curUser)&&`
+steht unverändert vor beiden Knöpfen. Gelockert genau so weit, dass andere
+Eigenschaften davorstehen dürfen — höchstens 300 Zeichen und **kein**
+`createElement` dazwischen, sonst könnte das Muster die Prüfung des einen
+Knopfes mit dem `onClick` eines **anderen** verbinden und wäre grün, während
+der Löschknopf offensteht. Dazu eine Selbstprobe — und die Selbstprobe selbst
+ist geprüft: mit dem zu weiten Muster wird sie rot, mit dem engen grün.
+
 ## Die Projekt-Reiterzeile rollt auch am Schreibtisch
 
 Neu gegen den Stand dieses Berichts: die Reiterzeile der Projektakte rollt
