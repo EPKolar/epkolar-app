@@ -172,8 +172,20 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
                if not _im_kommentar(spannen, m.start())]
     assert not im_code, (
         "%d nackte ww<600 stehen noch im Code." % len(im_code))
-    assert roh.count("ww<BP_MOB") == 27, (
-        "Erwartet 27 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # v3.9.936: 27 -> 28. Eine Stelle (WerkzeugView) blieb in v3.9.932 auf
+    # der nackten 600 stehen, und ich habe sie ZWEIMAL als "steht im
+    # Kommentar" gemeldet. Ursache war mein Zaehler: er suchte Blockkommentare
+    # per Regex und hielt dabei das Sternchen in
+    # accept:"application/pdf,image/*" fuer einen Kommentaranfang. Der wird
+    # nie geschlossen - also galt alles dahinter als Kommentar, die letzten
+    # 80 kB der Datei mitsamt dieser Funktion. Ein Zaehler, der zu WENIG
+    # findet, meldet ein gruenes Ergebnis.
+    # Gefunden hat es Sebastian, indem er die Zeile hereinkopiert hat.
+    # Gezaehlt wird seither mit scripts/code_scan.py, das eine EICHPROBE
+    # bestehen muss (jede `const isMob=ww<...`-Deklaration ist Code) und die
+    # Auskunft verweigert, wenn es sie nicht besteht.
+    assert roh.count("ww<BP_MOB") == 28, (
+        "Erwartet 28 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 def test_die_tablet_schwellen_sind_unangetastet(roh):
