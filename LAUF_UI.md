@@ -1217,3 +1217,95 @@ heißt. Sechs andere Stellen mit `ww<768` nennen die Variable `isTab`.
 **Was daran hängt:** auf einem Tablet rendert `VBautag` die Handy-Fassung,
 während der Rest der App die Desktop-Fassung zeigt — ein Bautagebuch mit viel
 Text kann das wollen. Nicht geändert, weil nicht entschieden.
+
+---
+
+## v3.9.954 — Grundstand neu erhoben, Bestandsprüfung nachgezogen
+
+### Der alte Grundstand ist überholt, aber nicht gelöscht
+
+`GRUNDSTAND_UI_v3.9.930.md` trägt jetzt eine Kopfzeile: **überholt am
+26.09.2026, Grund genannt**. Zwischen v3.9.930 und v3.9.954 liegen
+fünfundzwanzig Versionen, und die Stufen haben genau das verändert, was er
+festhält — ein Unterschied zu ihm ist kein Regressionsfehler, sondern das
+beabsichtigte Ergebnis.
+
+Er bleibt stehen, weil er der **Beleg** ist, was der Lauf verändert hat. Wer
+wissen will, ob eine Handlung unterwegs verloren ging, vergleicht die beiden
+Dateien. Genau dafür wurde er aufgenommen.
+
+### Der neue ist gemessen, nicht beschrieben
+
+`scripts/grundstand_erheben.py` fährt die **22 messbaren Ansichten** über die
+drei vorhandenen Sondengruppen (4–7, 8–11, 12–15) und liest je Ansicht und
+Breite ab: jeden sichtbaren Knopf mit Text, `title` und `aria-label`, jedes
+Eingabefeld mit Typ und Platzhalter, jedes Auswahlfeld mit seinen Optionen,
+jede Überschrift, jeden Tabellenkopf.
+
+Gelesen wird über `INVENTAR_JS` **aus** der 12–15er Sonde — dieselbe
+Vorschrift, mit der die Stufen gemessen wurden, damit die Zahlen vergleichbar
+bleiben.
+
+Der Kopf der neuen Datei sagt in einem eigenen Abschnitt, was sie **nicht**
+abdeckt: Unterzustände (Chef hat fünf, Admin sechs, Büro-Portal fünf —
+aufgenommen ist jeweils der erste), alle Rollen außer `admin`, serverleere
+Ansichten, alles hinter einem Klick. Und: **die Saaten der drei Gruppen sind
+nicht gleich** (12–15 führt fünf Monteure, davon zwei ausgetretene; 4–7 drei),
+weshalb bei jeder Ansicht ihre Gruppe dabeisteht.
+
+### `bestand.py`: nichts entfernt, fünf Gruppen dazu
+
+**Keiner der 90 bisherigen Begriffe ist verschwunden** — die Prüfung stand vor
+dem Nachziehen auf 90 von 90. Das ist die wichtigere Aussage: wäre ein Begriff
+weg, wäre das ein Fehler des Umbaus und kein veralteter Eintrag. Es wurde also
+**nichts entfernt**, und deshalb gibt es auch keine Entfernung zu begründen.
+
+Dazugekommen sind **fünf Gruppen** (118 Begriffe in 17 Gruppen), und zwar
+genau die Reiterzeilen, die der Umbau angefasst hat — dort wäre ein verlorener
+Eintrag am wenigsten aufgefallen:
+
+* Chef-Portal, fünf Unterreiter
+* Admin, sechs Unterreiter **und** neun Rollenfilter
+* Material, fünf Unterreiter
+* Arbeitsscheine, vier Unterreiter
+
+Alle Beschriftungen sind **am Schirm gemessen**, nicht aus dem Quelltext
+abgeschrieben.
+
+### 🔴 Ein Fund in meinem eigenen Werkzeug
+
+Der Dateikopf von `bestand.py` verspricht seit der ersten Fassung: *„Findet die
+Prüfung keine einzige Gruppe vor, meldet sie ROT, nicht grün."*
+**Der Code tat das nicht.** Wäre `BESTAND` leer, wäre `fehlt` leer, und die
+Prüfung hätte „BESTAND GRUEN — 0 Begriffe in 0 Gruppen" gemeldet und 0
+zurückgegeben.
+
+Gefunden, weil der Auftrag verlangte, den Fall einmal zu **belegen** statt ihn
+zu behaupten. Das ist derselbe Fehler, gegen den diese Datei gebaut ist:
+nichts gemessen ist kein Ergebnis.
+
+**Beide Eichproben sind jetzt belegt:**
+
+| Probe | Ergebnis |
+|---|---|
+| drei Begriffe aus einer Kopie entfernt | **dreimal rot** |
+| leere Begriffsliste | **rot**, Rückgabe 2 |
+| abgeschnittene Datei (20 Bytes) | **rot** — `_lies` fing das schon vorher: „das ist Datenverlust, keine Bestandsfrage" |
+
+---
+
+## Abschlussbericht
+
+`docs/ABSCHLUSSBERICHT_UI_UMBAU.md` — für Sebastian ohne Codelektüre lesbar.
+Darin: die sechs Funde, die keine Optik waren, jeder mit „seit wann" · was
+gebaut und was bewusst **nicht** gebaut wurde, je mit Grund · die fünf
+Entscheidungen, die auf ihn warten · die eigenen Fehlgriffe nach Fehlerklasse
+sortiert · und die vier Dinge, die ein Quelltext-Prüfstand grundsätzlich nicht
+fangen kann, alle vier in diesem Lauf bei grünem `node_check` vorhanden.
+
+**Datierung, so weit sie geht:** die Historie von `index.html` beginnt in
+diesem Repository am **21.08.2026** (115 Commits). Der Austritts-Fehler, das
+Alles-löschen bei `worker_projects` und der Resturlaub für Ausgetretene stehen
+**alle drei im ältesten Stand** — älter lässt es sich hier nicht datieren.
+Archivo gab es dort noch nicht; es kam in diesem Lauf herein und war vom ersten
+Moment an unwirksam.

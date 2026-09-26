@@ -1,4 +1,25 @@
-# Grundstand vor dem UI-Umbau
+# 🔴 UEBERHOLT — Grundstand vor dem UI-Umbau (v3.9.930)
+
+> **Ueberholt am 26.09.2026 durch `GRUNDSTAND_UI_v3.9.954.md`.**
+>
+> **Grund:** zwischen v3.9.930 und v3.9.954 liegen fuenfundzwanzig
+> Versionen, und die Stufen des UI-Umbaus haben genau das veraendert, was
+> diese Datei festhaelt — Schriftgroessen, Beschriftungen, Reiterzeilen,
+> Navigationsformen. Als Vergleichsbasis ist sie damit wertlos: ein
+> Unterschied zu ihr ist kein Regressionsfehler, sondern das beabsichtigte
+> Ergebnis.
+>
+> **Sie wird NICHT geloescht.** Sie ist der Beleg dafuer, was der Lauf
+> veraendert hat — wer wissen will, ob eine Handlung unterwegs verloren ging,
+> vergleicht diese Datei mit der neuen. Genau dafuer wurde sie aufgenommen.
+>
+> **Der Nachtrag am Ende** (Arbeitsschein bearbeiten, offene Stelle
+> „Vorlage") ist an v3.9.942 gemessen und gehoert sachlich in die neue
+> Datei; er bleibt hier stehen, weil er dort entstanden ist.
+
+---
+
+## Die Aufnahme vom 25.09.2026
 
 Aufgenommen am 25.09.2026 an der Live-App **v3.9.930** (`f77b53f`),
 Mobil-Viewport 390x844 (iframe derselben Origin, weil `resize_window`

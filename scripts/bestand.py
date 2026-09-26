@@ -9,8 +9,24 @@ eine Auswahloption mit Zaehler 0, ein Filter, ein Sortierkriterium, eine
 Unterseite. Der faellt niemandem auf, weil nichts kaputt aussieht - bis
 jemand ihn braucht.
 
-Grundlage ist der Live-Stand v3.9.930, aufgenommen im 390px-Viewport
-(docs/GRUNDSTAND_UI_v3.9.930.md).
+Grundlage waren bis v3.9.953 die Live-Stand-Aufnahmen aus
+docs/GRUNDSTAND_UI_v3.9.930.md (390px-Viewport). Diese Datei ist seit dem
+26.09.2026 als UEBERHOLT gekennzeichnet: zwischen v3.9.930 und v3.9.954 hat
+der UI-Umbau genau das veraendert, was sie festhaelt.
+
+MASSGEBLICH IST JETZT docs/GRUNDSTAND_UI_v3.9.954.md - an der gerenderten
+Seite erhoben, 22 Ansichten, je 390 und 1440 px.
+
+WAS BEIM NACHZIEHEN AM 26.09.2026 GEPRUEFT WURDE
+Keiner der 90 bisherigen Begriffe ist verschwunden - die Pruefung stand vor
+dem Nachziehen auf 90 von 90. Es wurde also NICHTS entfernt, und das ist die
+wichtigere Aussage: waere ein Begriff weg, waere das ein Fehler des Umbaus
+und kein veralteter Eintrag.
+DAZUGEKOMMEN sind fuenf Gruppen, die der alte Grundstand nicht kannte, weil er
+nur acht Ansichten abdeckte. Es sind genau die Reiterzeilen, die der Umbau
+angefasst hat (Admin und Material brechen seit v3.9.948 um statt zu rollen,
+die Plan- und Abwesenheits-Reiter haben in v3.9.945/946 Beschriftungen
+bekommen) - dort waere ein verlorener Eintrag am wenigsten aufgefallen.
 
 WAS DIESE PRUEFUNG IST - UND WAS NICHT
 ──────────────────────────────────────
@@ -98,6 +114,28 @@ BESTAND = {
     "Mitarbeiter": [
         "Mein Profil", "Nur Aktive", "Neuer Mitarbeiter",
         "Stempel-Pausenregeln", "KV-Konstanten",
+    ],
+    # ── Ab hier am 26.09.2026 dazugekommen (v3.9.954) ─────────────────────
+    # Fuenf Reiterzeilen, die der alte Grundstand nicht kannte - und genau
+    # die, die der Umbau angefasst hat. Alle Beschriftungen sind am Schirm
+    # gemessen (scripts/c_reste_messen.py, scripts/grundstand_erheben.py),
+    # nicht aus dem Quelltext abgeschrieben.
+    "Chef-Portal: fuenf Unterreiter": [
+        "Ueberblick", "Projekte", "Arbeit", "Personal", "Ressourcen",
+    ],
+    "Admin: sechs Unterreiter": [
+        "Benutzer", "Aktivitaet", "Statistiken", "Haendler", "Juprowa",
+        "System",
+    ],
+    "Admin: neun Rollenfilter": [
+        "Administrator", "Projektleiter", "Buero", "Obermonteur",
+        "Techniker", "Monteur", "Helfer", "Nur Lesen",
+    ],
+    "Material: fuenf Unterreiter": [
+        "Warenkorb", "Verlauf", "Lager", "Bestellungen", "Katalog",
+    ],
+    "Arbeitsscheine: vier Unterreiter": [
+        "Liste", "QR Scan", "Kalender", "Dispo",
     ],
 }
 
@@ -206,8 +244,29 @@ def main(argv):
     if "--selbst" in argv:
         return selbstprobe()
     s = _lies(ZIEL)
-    fehlt = pruefe(s)
+
+    # ── LEERE GRUNDGESAMTHEIT ─────────────────────────────────────────────
+    # Der Dateikopf verspricht das seit der ersten Fassung; der Code tat es
+    # NICHT. Waere BESTAND leer, waere `fehlt` leer, und die Pruefung haette
+    # "BESTAND GRUEN - 0 Begriffe in 0 Gruppen" gemeldet und 0 zurueckgegeben.
+    # Gefunden am 26.09.2026, beim Nachziehen des Grundstands - also von einer
+    # Aufgabe, die ausdruecklich verlangte, den Fall einmal zu BELEGEN.
+    # Das ist derselbe Fehler, gegen den diese Datei gebaut ist: nichts
+    # gemessen ist kein Ergebnis.
     gesamt = sum(len(v) for v in BESTAND.values())
+    if gesamt < 50 or len(BESTAND) < 5:
+        print("BESTAND ROT - die Begriffsliste ist leer oder verstuemmelt: "
+              "%d Begriffe in %d Gruppen." % (gesamt, len(BESTAND)))
+        print("Nichts gemessen ist kein Ergebnis. Eine Pruefung ohne "
+              "Grundgesamtheit kann nicht gruen sein.")
+        return 2
+    if len(s) < 1_000_000:
+        print("BESTAND ROT - die gepruefte Datei hat nur %d Zeichen. "
+              "index.html ist ueber 3 MB gross; das ist nicht die richtige "
+              "Datei oder sie ist abgeschnitten." % len(s))
+        return 2
+
+    fehlt = pruefe(s)
     if not fehlt:
         print("BESTAND GRUEN - %d Begriffe in %d Gruppen gefunden."
               % (gesamt, len(BESTAND)))
