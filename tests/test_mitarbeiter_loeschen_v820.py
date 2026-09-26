@@ -68,13 +68,25 @@ def test_austritt_praedikat_logik(node_exe):
 
 
 def test_austritt_in_beiden_filtern_verdrahtet(index_html):
+    # v3.9.952: geprueft wird die EIGENSCHAFT, nicht die Schreibweise. Hier
+    # stand der Filter woertlich als `(!m.austritt||slice>=_hkMA)` - die
+    # ausgeschriebene Umkehrung von `_maIstEhemalig`. Seit v3.9.952 benutzen
+    # beide Stellen das Praedikat selbst, weil vier Schreibweisen derselben
+    # Regel vier Gelegenheiten sind, sie falsch abzuschreiben; genau das ist in
+    # v3.9.950 passiert, und es hat die Kapazitaetsliste des ChefDashboards
+    # getroffen. Geschuetzt bleibt unveraendert: beide Filter grenzen
+    # Ausgetretene aus, und beide nehmen das Wiener Datum.
     # WeekPlan-MA-Picker
     assert ('const fieldMA=monteure.filter(m=>!["Backoffice","Verkauf/Buchhaltung","Geschäftsführer"].includes(m.r)'
-            '&&(!m.austritt||String(m.austritt).slice(0,10)>=_hkMA));' in index_html), "fieldMA ohne Austritts-Filter"
+            '&&!_maIstEhemalig(m,_hkMA));' in index_html), "fieldMA ohne Austritts-Filter"
     assert "const _hkMA=_ezHeuteISO();" in index_html, "WeekPlan nutzt nicht den Wiener-Datum-Helper"
     # Dispo-Rasterzeilen
-    assert ('var feld=(monteure||[]).filter(function(m){return !["Backoffice","Verkauf/Buchhaltung","Geschäftsführer"].includes(m.r)'
-            '&&(!m.austritt||String(m.austritt).slice(0,10)>=_heute);});' in index_html), "Dispo-feld ohne Austritts-Filter"
+    _i = index_html.index('var feld=(monteure||[]).filter(function(m){return !["Backoffice"')
+    _zeile = index_html[_i:index_html.index(";});", _i) + 4]
+    assert "!_maIstEhemalig(m,_heute)" in _zeile, (
+        "Dispo-feld ohne Austritts-Filter: " + _zeile[:200])
+    assert '"Geschäftsführer"].includes(m.r)' in _zeile, (
+        "Dispo-feld: die Rollenabgrenzung ist weg: " + _zeile[:200])
     # _heute muss VOR feld stehen (now-treu, kein zweiter Zeit-Begriff).
     assert index_html.index("var _heute;try{_heute=new Intl.DateTimeFormat") < index_html.index("var feld=(monteure||[]).filter"), \
         "_heute steht nicht vor feld -> Austritts-Filter waere undefined"

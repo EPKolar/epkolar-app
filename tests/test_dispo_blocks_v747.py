@@ -8,11 +8,19 @@ worker_id_ISO -> grund) und blockiert die betroffenen Tage. Client liest die Spe
 """
 import subprocess
 
+from _hilfen import funktion
+
 
 def _block(index_html):
     start = index_html.index("var DISPO_RESERVE_MIN=60;")
     end = index_html.index("if(typeof window!=='undefined'){window._dispoAdrKey", start)
-    return index_html[start:end]
+    # v3.9.952: `_maIstEhemalig` WOERTLICH mitschneiden. Seit dieser
+    # Version benutzt `_dispoBuildInput` das Praedikat statt einer
+    # eigenen Datumsrechnung - ohne den Schnitt wirft Node
+    # "_maIstEhemalig is not defined". Bewusst die ECHTE Funktion und
+    # keine Attrappe: sonst prueft der Pruefstand eine Regel, die es
+    # in der App nicht gibt.
+    return funktion(index_html, "_maIstEhemalig") + index_html[start:end]
 
 
 _ISOW = (u"var AS_GRP_OFFEN=['aufgenommen','freigegeben','in_bearbeitung','aufgeschoben'];\n"

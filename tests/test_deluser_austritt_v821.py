@@ -81,9 +81,14 @@ def test_nologin_austritt_logik(node_exe):
 
 
 def test_beide_filter_verdrahtet(index_html):
+    # v3.9.952: Eigenschaft statt Schreibweise. Beide Stellen benutzen jetzt
+    # `_maIstEhemalig` statt der ausgeschriebenen Umkehrung - gleichwertig (in
+    # v3.9.950 unter Node gegen fuenf Faelle gemessen), aber EINE Regel statt
+    # vier Schreibweisen. Geschuetzt bleibt: beide Filter grenzen Ausgetretene
+    # aus, und beide nehmen das Wiener Datum.
     assert ('const fieldMA=monteure.filter(m=>m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung"'
-            '&&(!m.austritt||String(m.austritt).slice(0,10)>=_hkZE));' in index_html), "ZE-fieldMA ohne Austritts-Filter"
+            '&&!_maIstEhemalig(m,_hkZE));' in index_html), "ZE-fieldMA ohne Austritts-Filter"
     assert ('const _noLogin=(monteure||[]).filter(w=>!(users||[]).some(u=>u.monteurId===w.id)'
-            '&&(!w.austritt||String(w.austritt).slice(0,10)>=_hkNL));' in index_html), "_noLogin ohne Austritts-Filter"
+            '&&!_maIstEhemalig(w,_hkNL));' in index_html), "_noLogin ohne Austritts-Filter"
     assert "const _hkZE=_ezHeuteISO();" in index_html and "const _hkNL=_ezHeuteISO();" in index_html, \
         "Wiener-Datum-Helper nicht genutzt (kein rohes new Date())"
