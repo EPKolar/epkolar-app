@@ -583,3 +583,98 @@ Es kennt `APP_VERSION`, die sw.js-Kopfzeile und `CACHE_NAME` — aber **nicht**
 `var SW_VER` in `index.html`. Nach dem Bump meldete es grün, während `SW_VER`
 noch 3.9.938 trug. Gefunden hat es `tests/test_version_triple_sync.py`. Die
 Prüfung hatte recht, nicht das Werkzeug.
+
+---
+
+## v3.9.940 — die Schwelle 600 stand an 38 weiteren Stellen nackt im Code  (`4139c0c`, **live**)
+
+Zweimal hatte ich gemeldet, es gebe keine nackte 600 mehr (v3.9.932, v3.9.936).
+Beide Male falsch: 38 Stellen schrieben `window.innerWidth<600`. Mein Zähler
+suchte die Variable `ww` — **die Schreibweise mit `window.innerWidth` kam in
+seiner Grundgesamtheit nicht vor.** Dieselbe Fehlerform wie mehrfach in diesem
+Lauf. Gefunden habe ich sie zufällig, beim Suchen nach etwas anderem.
+
+Dazu: die Seitenüberschrift stand an 22 Stellen als nacktes `?18:22` — 44 Zahlen
+ohne Namen, jetzt `UI.fSeiteMob` / `UI.fSeite` mit **denselben Werten**, damit
+sich nichts sichtbar ändert.
+
+Offen und benannt: 2× 768, 5× 700 (Tankbeleg-Modal), 1× 400.
+
+### Vier Bestandsriegel waren rot — und sie prüften Schreibweise
+
+Die geschützten Eigenschaften (`"1fr"` mobil, `"120px 1fr"`, `'10px 10px'`
+Polster, 720 px Tabellenbreite) sind unverändert. Gelockert ist nur die
+Schwelle auf `(?:600|BP_MOB)` — und **belegt**, nicht behauptet:
+`tests/test_bpmob_riegel_koeder_v940.py` fährt jedes der vier Muster gegen eine
+absichtlich kaputte Fassung und verlangt, dass es dort ins Leere greift. Alle
+vier unterscheiden weiter.
+
+### Ein eigener Verdacht, gemessen und widerlegt
+
+Ich hielt es für wahrscheinlich, dass diese Stellen auf eine Drehung nicht
+reagieren — `window.innerWidth` wird beim Zeichnen gelesen. Gemessen
+(`scripts/innerwidth_reaktion_messen.py`, 1440 → 390 ohne Neuladen, ohne Klick):
+die Überschrift wandert **22 px → 18 px**. Ein resize-Lauscher an anderer Stelle
+zeichnet den Baum neu. Gemessen wurde **genau eine** Überschrift — ein Befund
+von einer Stelle, nicht von 22. Die Abhängigkeit bleibt eine Zerbrechlichkeit.
+
+---
+
+## Phase B2 — Zuweisungen als Einzelzeilen  (v3.9.941)
+
+### Der Schaden, am ausgeführten Code gemessen
+
+`PUT /api/worker-projects/<mid>` trug die **ganze** Projektliste im Rumpf; der
+Übersetzer löschte alle Zeilen des Mitarbeiters und fügte neu ein.
+
+| Fall | Messung vorher |
+|---|---|
+| Parallel: A am Server, lokal unbekannt, B gesetzt | Endzustand `['B']` — **A ist weg** |
+| Leeres Fenster | Verlauf `['A'] → ['A'] → [] → ['A','B']` |
+| Abwählen eines von zwei | Endzustand `[]` — A mitgerissen |
+| DELETE-Filter | 6 von 6 filtern nur auf `worker_id` |
+| Löschzahl | 6 von 6 senden `prefer=''` |
+
+Ein **dritter, bisher unbenannter** Kanal: die Spalte `role` (live gemessen, sie
+existiert) wird vom Code nie mitgeschickt — jedes Umlegen eines Hakens setzte
+also jede `role` dieses Mitarbeiters zurück. Das endet mit dem Umbau von selbst.
+
+### Gebaut
+
+Ein Auftrag je Griff mit **einem** Paar und der Richtung. Gesetzt → ein `POST`
+mit einer Zeile. Entfernt → ein `DELETE`, das auf `worker_id` **und**
+`project_id` eingeengt ist, mit `Prefer: count=exact`.
+
+Zwei Dinge sind absichtlich **nicht** geändert, beide Risiken wären lautlos:
+
+1. **Der alte Zweig bleibt.** In den IndexedDB-Warteschlangen der Geräte liegen
+   Aufträge mit `{projects:[…]}`. Wer ihn ersetzt, lässt genau die
+   Offline-Änderungen fallen, um deren Schutz es geht — und das sieht aus wie
+   ein normales Verwerfen nach fünf Versuchen. Der neue Zweig steht **davor**
+   und spricht nur auf `body.project_id` an.
+2. **Pfad und Verb bleiben.** Der Ausstehend-Schutz aus v3.9.938 erkennt den
+   Auftrag an `_m==="PUT"` und holt die Mitarbeiter-Id mit
+   `_u.split("/").pop()`. Als `POST` sähe er ihn nicht; mit dem Projekt im Pfad
+   merkte er sich die **Projekt**-Id und bliebe dabei grün.
+
+Die Löschzahl: `Prefer: count=exact` ist auf GET/HEAD dieser Instanz gemessen,
+auf DELETE **nicht** (das wäre ein Schreibzugriff). Fehlt der Kopf, heißt das
+**„unbekannt"**, nicht „0 Zeilen" — ein Fehlalarm bei jedem Haken wird nach
+drei Tagen weggeklickt. `N === 0` ist der normale Wettlauf und wird als solcher
+gemeldet; `N > 1` bedeutet Doppelzeilen und wird laut.
+
+### Schema, live gemessen (nur GET/HEAD, kein DDL, kein Schreibzugriff)
+
+Spalten `id, worker_id, project_id, assigned_at, role` — 38 andere Namen gaben
+`42703`, der Köder (erfundene Spalte) schlug an. **Keine Fremdschlüssel** zu
+`workers`/`projects` (`PGRST200`) — das erklärt die verwaisten Zeilen. RLS ist
+aktiv (anon bekommt `[]` mit `Content-Range: */0`). `assigned_at` ist
+`timestamptz` und war bisher als Beweismittel wertlos, weil jedes Speichern sie
+zurücksetzte; ab jetzt ist sie brauchbar.
+
+**Kein DDL nötig** — Filterspalten existieren live (gemessen), und dass
+`merge-duplicates` ohne `on_conflict` durchgeht, ist ebenfalls gemessen.
+
+19 Prüffälle, alle grün. Vorher 7 davon rot; dass sie erfüllbar sind, wurde am
+Prüfstand gegengemessen, und drei Gegenmutationen bleiben gezielt rot (ohne
+`Prefer: count` → 2 rot, Auftrag als `POST` → 1 rot, Projekt im Pfad → 1 rot).
