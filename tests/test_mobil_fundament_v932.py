@@ -184,27 +184,66 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # Gezaehlt wird seither mit scripts/code_scan.py, das eine EICHPROBE
     # bestehen muss (jede `const isMob=ww<...`-Deklaration ist Code) und die
     # Auskunft verweigert, wenn es sie nicht besteht.
-    assert roh.count("ww<BP_MOB") == 28, (
-        "Erwartet 28 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # v3.9.955: 28 -> 29. VBautag ist von ww<768 auf ww<BP_MOB umgestellt
+    # worden - die Entscheidung, die der Riegel darunter bis dahin als offen
+    # festgehalten hat. Die Zahl STEIGT, weil eine Stelle dazukam; das ist die
+    # Gegenrichtung zu "eine Pruefung anpassen, damit sie gruen wird". Waere
+    # sie gesunken, waere eine Umstellung verlorengegangen.
+    assert roh.count("ww<BP_MOB") == 29, (
+        "Erwartet 29 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+
+
+# Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
+# Namentlich statt als Zahl - Begruendung im Riegel darunter.
+_TABLET_ERLAUBT = ["ProjectShell", "VDash", "VPlan", "VFotos",
+                   "WerkzeugView", "WerkzeugView"]
 
 
 def test_die_tablet_schwellen_sind_unangetastet(roh):
-    """768 war NICHT Teil des Auftrags - sechsmal isTab, einmal VBautag.
+    """Die sechs bewussten isTab-Stellen, jede mit ihrer Ansicht benannt.
 
     Kommentarblind gezaehlt, aus gemessenem Anlass: die Deklaration von
     BP_MOB traegt einen Kommentar, der erklaert, WARUM die 768er Stellen
     stehen bleiben - und nennt `ww<768` dabei zweimal. Ein roher Zaehler
     stand deshalb auf 9 statt 7 und haette einen Fehler gemeldet, den es
     nicht gibt. Gemessen wird der Code, nicht der Text ueber dem Code.
+
+    v3.9.955 - WARUM AUS SIEBEN SECHS WURDEN
+    ────────────────────────────────────────
+    Dieser Riegel hielt fest, die siebte Stelle (VBautag) sei "eine offene
+    Entscheidung fuer Sebastian". Sie ist getroffen: dort hing `isMob` an der
+    TABLETBREITE, womit ein Tablet im Hochformat im Bautagebuch die
+    Handy-Fassung zeigte und im Rest derselben App die Desktop-Fassung. Seit
+    v3.9.955 steht dort BP_MOB.
+
+    Eine Zahl von 7 auf 6 zu senken, damit ein Riegel gruen wird, waere genau
+    der schwerste Fehler. Deshalb wird hier nicht die Zahl gesenkt, sondern
+    die Pruefung VERSCHAERFT: sie nennt die sechs Ansichten einzeln. Eine
+    Zahl allein hat nie unterschieden, ob eine erlaubte Stelle verschwand und
+    dafuer eine neue, unerlaubte dazukam - beides ergibt wieder sechs.
+
+    Die Verhaltensaenderung selbst, ihre Messung und der Koeder liegen in
+    tests/test_eine_mobilschwelle_v955.py.
     """
     spannen = _komm_spannen(roh)
     im_code = [m.start() for m in re.finditer(r"ww\s*<\s*768", roh)
                if not _im_kommentar(spannen, m.start())]
-    assert len(im_code) == 7, (
-        "Die sieben ww<768-Stellen im CODE wurden angefasst (gefunden %d). "
-        "Sechs davon sind bewusste Tabletschwellen, die siebte (VBautag) ist "
-        "eine offene Entscheidung fuer Sebastian - keine davon gehoerte in "
-        "diese Stufe." % len(im_code))
+    assert im_code, (
+        "Keine einzige ww<768-Stelle im Code gefunden. Das ist kein gruenes "
+        "Ergebnis: die sechs bewussten Tabletschwellen MUESSEN da sein. "
+        "Entweder sind sie verlorengegangen, oder der Kommentarzaehler irrt "
+        "wieder wie in v3.9.936 und haelt die halbe Datei fuer Kommentar.")
+    ansichten = []
+    for p in im_code:
+        treffer = list(re.finditer(r"function\s+([A-Za-z_]\w*)\s*\(", roh[:p]))
+        ansichten.append(treffer[-1].group(1) if treffer else "?")
+    assert ansichten == _TABLET_ERLAUBT, (
+        "Die Tablet-Schwellen `ww<768` stehen nicht mehr dort, wo sie erlaubt "
+        "sind.\n  erwartet: %s\n  gemessen: %s\n"
+        "Ist eine DAZUGEKOMMEN: sie meint vermutlich die Mobilschwelle, dann "
+        "gehoert dort BP_MOB hin. Ist eine WEGGEFALLEN: pruefen, ob die "
+        "Tablet-Fassung dieser Ansicht verlorenging, und diese Liste erst "
+        "danach nachziehen." % (_TABLET_ERLAUBT, ansichten))
 
 
 # ── 4. Die Endreserve haengt an der Leistenhoehe ──────────────────────────
