@@ -948,3 +948,58 @@ Zwei Funde derselben Familie wie die Ausgetretenen: die Auswahl-Pille in
 `AbsView` zeigt einem Ausgetretenen einen **Resturlaub**, und `ChefDashboard`
 benutzt eine **dritte** Datumslogik — für einen Austritt in der Zukunft
 widersprechen sich die beiden. 🔴 Nur im Quelltext gelesen, **nicht gemessen**.
+
+---
+
+## v3.9.947 — die andere Hälfte der bedingten Angaben, und Phase B4
+
+### Dieselbe Fehlerform, zum dritten Mal an einem Tag
+
+Mein Muster in v3.9.943/944 suchte die kleine Zahl **links** vom Doppelpunkt
+(`fontSize:isMob?9:14`). Die Fälle mit der kleinen Zahl **rechts** — also dem
+*Schreibtisch*-Wert unter 12, `fontSize:isMob?12:10` — kamen in seiner
+Grundgesamtheit überhaupt nicht vor. Gefunden hat sie der Bestandslauf, der
+`ArbeitsscheinView` mit „fontSize < 12: 6 Stellen" meldete, **nachdem** ich die
+Ansicht für erledigt hielt.
+
+Dateiweit sind es **54**. Gehoben sind die **6** in `ArbeitsscheinView` — nur
+diese Ansicht lässt sich messen. `WeekPlan` bleibt draußen.
+
+Dieselbe Form wie bei der nackten 600 (v3.9.940) und bei der Leistenhöhe gegen
+die Leistenbreite (v3.9.946): **aus einer Menge geschlossen, die den Fall
+nicht enthält.** Dreimal an einem Tag.
+
+### Phase B4
+
+**VBautag** ist unverändert, wie beauftragt: `const isMob = ww < 768;` steht
+unberührt da — die einzige Stelle, an der Tabletbreite „mobil" heißt. *(Meine
+erste Suche danach meldete 0 Treffer; die Ursache war ein Zeilenumbruch in
+meiner einzeiligen Suchzeichenkette, nicht der Code.)*
+
+**`docs/GRUNDSTAND_UI_v3.9.947.md`** hält fest, was nach neun Versionen
+dasteht — gemessen statt beschrieben. Er deckt **22 von 31** Ansichten ab (die
+31 sind aus dem Baum aufgezählt, nicht aus dem Gedächtnis), nennt in einem
+eigenen Abschnitt, was er **nicht** abdeckt, und listet **sieben offene
+Punkte, die jemand entscheiden muss** — keinen davon habe ich selbst
+entschieden.
+
+---
+
+## Bilanz des Laufs
+
+Neun Versionen live: **v3.9.939 → v3.9.947**.
+
+**Die vier Befunde, die etwas wert waren:** die Wandtafel behauptete Frische,
+die sie nie geprüft hatte · die Schwelle 600 stand an 38 weiteren Stellen
+nackt im Code · der Datenverlust bei Projektzuweisungen · und „mobil hell ist
+auch sehr dunkel" war echt, nur nicht dort, wo ich zuerst gemessen habe.
+
+**Fünf eigene Fehlgriffe, alle vom Prüfstand oder vom nächsten Durchgang
+gefangen und alle zurückgenommen statt abgeschwächt:** ein zu weites Muster
+zerschnitt `fontSize:9.5` · eine Klammerzählung lief davon und änderte 1744
+Stellen quer durch die Datei · ein Kommentar mit offener Klammer machte das
+Klammer-Tor rot · die Fußleiste gemessen in der Höhe, nicht in der Breite ·
+und fünfmal löste ein erklärender Kommentar seinen eigenen Riegel aus.
+
+**Die Leitregel des Tages:** eine Messung auf einer Ansicht ist eine Aussage
+über **diese** Ansicht. Der echte Hellmodus-Befund lag in Ansicht 31 von 31.
