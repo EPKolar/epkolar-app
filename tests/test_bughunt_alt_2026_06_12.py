@@ -83,13 +83,35 @@ def test_notifs_clear_all_button_uses_confirmModal(index_html):
 
 # v3.9.328 — Material deleteSuppOrd + deleteCatalog --------------------------
 
+# v3.9.958 — WARUM DIE ZWEI RENDER-MUSTER GELOCKERT WURDEN
+# ────────────────────────────────────────────────────────
+# Sie verlangten `{` UNMITTELBAR gefolgt von `onClick:`. In v3.9.958 haben beide
+# Knoepfe ein `title` und ein `aria-label` bekommen — sie trugen als ganzen
+# Inhalt ein 🗑 und hatten fuer eine Vorlesehilfe keinen Namen. Damit steht
+# zwischen `{` und `onClick:` jetzt etwas, und beide Riegel wurden rot, OBWOHL
+# die geschuetzte Eigenschaft unveraendert ist:
+#
+#   canDo("material_delete",curUser)&&React.createElement('button',
+#     { title: "Bestellung löschen", 'aria-label': …, onClick: ()=>deleteSuppOrd(…
+#
+# Sie haben also die REIHENFOLGE DER EIGENSCHAFTEN gemessen, nicht die
+# Rechtepruefung. Gelockert wird genau so weit, dass andere Eigenschaften
+# davorstehen duerfen — und nicht weiter:
+#   * hoechstens 300 Zeichen zwischen `{` und `onClick`
+#   * KEIN `createElement` darin. Ohne diese Schranke koennte das Muster die
+#     Pruefung des einen Knopfes mit dem onClick eines ANDEREN verbinden und
+#     waere gruen, waehrend der Loeschknopf offensteht.
+# `test_die_gelockerten_rechtemuster_unterscheiden_noch` belegt, dass beide
+# nach der Lockerung rot werden, wenn die Rechtepruefung fehlt. Ohne diesen
+# Beleg waere das hier "eine Pruefung anpassen, damit sie gruen wird".
+_MAT_GATE = (r'canDo\("material_delete",curUser\)\s*&&React\.createElement'
+             r"\('button',\s*\{(?:(?!createElement)[\s\S]){0,300}?"
+             r"onClick:\s*\(\)=>%s")
+
+
 def test_deleteSuppOrd_render_has_canDo_guard(index_html):
     """deleteSuppOrd-Render-Button muss canDo('material_delete')-gated sein."""
-    # Pattern: canDo("material_delete",curUser)&&React.createElement('button', { onClick: ()=>deleteSuppOrd
-    m = re.search(
-        r'canDo\("material_delete",curUser\)\s*&&React\.createElement\(\'button\',\s*\{\s*onClick:\s*\(\)=>deleteSuppOrd',
-        index_html,
-    )
+    m = re.search(_MAT_GATE % "deleteSuppOrd", index_html)
     assert m, "deleteSuppOrd-Render ohne canDo-Guard — Bug-Regression v3.9.328"
 
 
@@ -104,11 +126,61 @@ def test_deleteCatalog_handler_has_canDo_guard(index_html):
 
 def test_deleteCatalog_render_has_canDo_guard(index_html):
     """deleteCatalog-Render-Button muss canDo-gated sein."""
-    m = re.search(
-        r'canDo\("material_delete",curUser\)\s*&&React\.createElement\(\'button\',\s*\{\s*onClick:\s*\(\)=>deleteCatalog',
-        index_html,
-    )
+    m = re.search(_MAT_GATE % "deleteCatalog", index_html)
     assert m, "deleteCatalog-Render ohne canDo-Guard — Bug-Regression v3.9.328"
+
+
+def test_die_gelockerten_rechtemuster_unterscheiden_noch(index_html):
+    """SELBSTPROBE zur Lockerung oben.
+
+    Ein Muster, das nach einer Lockerung auf alles passt, meldet gruen und
+    misst nichts mehr — und bei einer RECHTEPRUEFUNG heisst das: der
+    Loeschknopf steht offen und niemand erfaehrt es. Also wird jedes der zwei
+    Muster gegen eine absichtlich kaputte Fassung gefahren, in der die
+    Rechtepruefung entfernt ist. Es MUSS dort ins Leere greifen.
+
+    Zwei Mutationen je Knopf:
+      (a) `canDo(...)&&` faellt weg          -> Knopf ohne Pruefung
+      (b) ein createElement dazwischen       -> die Pruefung gehoert zu einem
+                                                ANDEREN Element
+    """
+    for name in ("deleteSuppOrd", "deleteCatalog"):
+        muster = _MAT_GATE % name
+        assert re.search(muster, index_html), (
+            "%s: das Muster findet den heilen Stand nicht — dann ist die "
+            "Aussage unten wertlos." % name)
+
+        # (a) Rechtepruefung entfernen
+        kaputt_a = re.sub(
+            r'canDo\("material_delete",curUser\)\s*&&(React\.createElement'
+            r"\('button',\s*\{(?:(?!createElement)[\s\S]){0,300}?"
+            r"onClick:\s*\(\)=>" + name + r")",
+            r"\1", index_html, count=1)
+        assert kaputt_a != index_html, (
+            "%s: die Mutation (a) hat nichts geaendert — der Koeder greift "
+            "nicht." % name)
+        assert not re.search(muster, kaputt_a), (
+            "%s: OHNE canDo-Pruefung meldet das Muster weiter einen Treffer. "
+            "Die Lockerung in v3.9.958 hat ihm die Unterscheidungskraft "
+            "genommen, und dieser Riegel wuerde einen offenen Loeschknopf "
+            "durchlassen." % name)
+
+        # (b) ein fremdes Element zwischen Pruefung und onClick
+        kaputt_b = re.sub(
+            r"(canDo\(\"material_delete\",curUser\)\s*&&React\.createElement"
+            r"\('button',\s*\{)",
+            r"\1 x:React.createElement('span',null,'y'),", index_html, count=1)
+        assert kaputt_b != index_html, (
+            "%s: die Mutation (b) hat nichts geaendert." % name)
+        # Fuer den ERSTEN Treffer im Text muss das Muster jetzt scheitern.
+        erster = re.search(
+            r"canDo\(\"material_delete\",curUser\)\s*&&React\.createElement"
+            r"\('button',\s*\{[\s\S]{0,400}", kaputt_b)
+        assert erster and not re.search(
+            r"^" + _MAT_GATE % r"\w+", erster.group(0)), (
+            "Die Schranke \"kein createElement dazwischen\" greift nicht. "
+            "Dann kann das Muster die Pruefung eines Knopfes mit dem onClick "
+            "eines anderen verbinden.")
 
 
 # Hygiene: Logout-Warning + AS-Duplikat sind dokumentierte legacy native-confirm-Stellen.
