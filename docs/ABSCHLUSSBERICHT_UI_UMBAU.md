@@ -322,3 +322,185 @@ statt Wirkung misst**, ist grün, während der Fehler ausliefert. Deshalb ist
 jeder neue Riegel dieses Laufs entweder **ausführend** (der Code wird
 geschnitten und unter Node gefahren) oder er misst **am gerenderten Schirm** —
 und jeder zählende hat einen **Köder**, der beweist, dass er finden *kann*.
+
+---
+
+# Nachtrag 26.09.2026 — die drei Entscheidungen, umgesetzt
+
+Der Lauf war beendet. Er wurde für **genau drei Punkte** wieder geöffnet und
+danach wieder geschlossen. Was hier steht, ist alles, was seit
+`docs/GRUNDSTAND_UI_v3.9.954.md` passiert ist.
+
+## Punkt 1 — VBautag hängt an der einen Mobilschwelle (v3.9.955)
+
+**Was falsch war.** `VBautag` war die einzige Stelle der App, an der eine
+Variable namens `isMob` an die **Tabletbreite** gebunden war: `ww < 768`.
+Überall sonst heißt die Mobilschwelle `BP_MOB` und ist 600. Die Folge war kein
+Schönheitsfehler: zwischen 600 und 767 px — ein Tablet im Hochformat — zeigte
+das Bautagebuch die **Handy**-Fassung, während jede andere Ansicht derselben
+App die Desktop-Fassung zeigte. Und es war eine Falle mit Ansage: wer `BP_MOB`
+anfasst, ändert 28 Stellen und diese eine nicht.
+
+**Die sechs übrigen `ww<768` bleiben.** Sie heißen `isTab` oder vergleichen
+absichtlich inline, und zwei davon — `VPlan` und `VFotos` — führen `isMob` und
+`isTab` in **derselben Zeile**. Das ist der Beleg, dass die beiden Schwellen
+dort absichtlich verschieden sind und 768 kein vergessenes 600 ist.
+
+Der Riegel nennt sie **einzeln mit ihrer umschließenden Ansicht**, nicht als
+Obergrenze: „höchstens sechs" wäre grün geblieben, wenn eine erlaubte Stelle
+verschwindet und eine unerlaubte dazukommt.
+
+> 🔴 **Eine Korrektur am Auftrag, sichtbar statt stillschweigend.** Der Auftrag
+> nannte für die erste Ausnahme `HomeView`. Gemessen liegt sie in
+> `ProjectShell` (Deklaration Z15748; HomeView endet bei ProjList@15562). Die
+> Liste folgt der Messung.
+
+### Die Vorher/Nachher-Messung — und warum der erste Durchgang verworfen wurde
+
+Weil es eine **Verhaltensänderung** ist, wurde bei 390, 640, 767 und 1440 px
+vorher **und** nachher am Schirm gemessen. Vorher-Stand: `_mess_stand_954.html`,
+md5 `359be144407d9b033949cbeccd866892`.
+
+🔴 **Der erste Durchgang meldete „null Unterschiede an allen vier Breiten" — und
+war wertlos.** Die Köder bei 640 und 767 px blieben **stumm**, das Urteil war
+deshalb *nicht gemessen*, nicht *kein Befund*. Der Grund, aus der Datei
+gelesen: **alle 29 `isMob`-Stellen in VBautag liegen im Bearbeitungsformular
+oder in einer Eintragskarte.** Ohne Server ist die Eintragsliste leer, und mit
+geschlossenem Formular kann die Änderung überhaupt nicht sichtbar werden. Eine
+leere Grundgesamtheit, die sich als sauberes Ergebnis ausgibt — die Fehlerform
+dieses Laufs, diesmal in der Messung des Umbaus selbst.
+
+Zweiter Durchgang mit **geöffnetem Formular**: alle vier Köder schlagen an.
+
+**Drei Stände statt zwei, und das musste so sein.** Beim Messen trug
+`index.html` bereits v3.9.956 (die D9-Überschriften). 954 gegen 956 hätte zwei
+Änderungen in einen Topf geworfen und die Köder bei 390/1440 entwertet. Das
+Beweispaar ist deshalb **954 (`359be144`) gegen 955 (`24d8565d`)** — sie
+unterscheiden sich in genau drei Zeilen. v3.9.956 (`51f140dd`) ist zusätzlich
+gemessen und in allen Größen mit 955 identisch.
+
+| Größe | 390 | 640 · v954 → v955 | 767 · v954 → v955 | 1440 |
+|---|---|---|---|---|
+| Knöpfe | 50 = 50 | 56 → 56 | 56 → 56 | 56 = 56 |
+| Felder / Auswahl / Optionen | 5/2/10 gleich | gleich | gleich | gleich |
+| **Schrift < 12 px** | 13 = 13 | **33 → 15** | **33 → 15** | 15 = 15 |
+| wirklich gekürzt | 0 = 0 | 1 → 1 | 1 → 1 | 0 = 0 |
+| nur Kastenüberlauf | 0 | 0 → 0 | 0 → 0 | 0 |
+| Tabellen > Schirm | 0 | 0 → 0 | 0 → 0 | 0 |
+| Tippziele < 44 px | 0 | 0 → 0 | 0 → 0 | 0 |
+
+**In Worten:** bei 640 und 767 px ändert sich genau **eine** Größe, und sie wird
+**besser** — 18 Textstellen verlassen den Bereich unter 12 px, weil die
+Formular-Chips `fontSize: isMob?11:12` tragen. **Nichts bricht um, nichts geht
+verloren:** kein Knopf und kein Feld verschwindet, keine neue Kürzung, kein
+neuer Roller, kein Tippziel unter 44 px. Bei 390 und 1440 px null Unterschiede
+— das war der Köder, und er hält.
+
+Die **eine** Kürzung bei 640/767 ist **nicht** VBautag: es ist der Projektname
+in der Kopfzeile der Projekt-Hülle (202 px Text in 84 px),
+`overflow:hidden`+`ellipsis` — in **beiden** Ständen mit denselben Zahlen.
+
+Die drei Formen getrennt: (1) hidden+ellipsis → 1 Stelle, in beiden Ständen
+dieselbe. (2) Kastenüberlauf ohne Verlust → **0** in allen acht Aufnahmen.
+(3) **in JavaScript gekappter Text → kann diese Sonde nicht sehen**, der volle
+Wert steht nie im Baum. Ergebnis dafür: *nicht gemessen*, nicht 0.
+
+## Punkt 2 — D9: Seitenüberschriften (v3.9.956)
+
+**Fünf Ansichten, nicht drei.** Der Befund D9 nannte drei ohne `h1`/`h2`/`h3`,
+weil er die dreizehn Ansichten der Stufen 12–15 gemessen hatte. Der
+Schluss-Grundstand über alle 22 findet zwei weitere: **Wochenplanung** und
+**Startseite**. Wieder ein Schluss aus einer Menge, die den Fall nicht enthält —
+die Leitkrankheit dieses Laufs.
+
+**Gebaut: nur Fall (a).** Bauprovisorien, und zwar in **beiden**
+Seitenzuständen — die Liste (20 px) und das **Formular** (18 px). Der zweite war
+nie gemessen: die Sonde hat das Formular nie geöffnet, es liegt hinter einem
+Klick. Beide jetzt `h2` mit `margin:0`, **pixelneutral** (`fontSize` und
+`fontWeight` bleiben inline; die einzige `h2`-Regel der Hülle verlangt
+`.header-row` und `@media max-width:340px`, die übrigen stehen in
+Druck-Stylesheets, die als Zeichenkette gebaut werden). Ein bedingter Titel in
+einem `h2` ist die Hausform — `VBautag` macht es so.
+
+**Nicht gebaut, Fall (c):** Wochenplanung, Zeiterfassung, Flotte, Startseite.
+Der Grund je Ansicht und die Frage an Sebastian stehen in
+`docs/ENTSCHEIDUNGEN-OFFEN.md` als **Nummer 14**.
+
+**Fall (b) — oberster Panel-Titel mit Text — hat keinen einzigen Vertreter.**
+Das ist ein Messergebnis, kein Versäumnis.
+
+## Punkt 3 — SM-02: nichts gebaut, nur aufgeschrieben (v3.9.954)
+
+`docs/BERECHTIGUNG_AUSWERTUNGEN.md`. Vier von acht Rollen haben
+`auswertungen` im Standard; die Übersteuerung je Benutzer ist **zweistufig**
+und nur für Administratoren. Zwei Fallen: ein Rollenwechsel schreibt
+`permsOverride: null` und **löscht damit stillschweigend alle
+Übersteuerungen**, und `locked` verweigert alles. Und `_canSeeVolume` ist
+**rollenfest, nicht übersteuerbar** — ein Obermonteur sieht den Reiter, aber
+weder Auftragsvolumen noch KV-Zuschlagreport.
+
+---
+
+# Was in derselben Nacht dazu gefunden wurde, ohne gebaut zu werden
+
+## 🔴 Das Klammertor beurteilt 28 % von `index.html`
+
+Ausgelöst durch einen eigenen Fehler: zwei Backticks in einem Kommentar — die
+übliche Zitierweise dieser Datei — ließen den Streicher in
+`_bracket_check.py` **375.741 Zeichen echten Code** als Template-Literal
+verschlucken. Beim Nachmessen: **72,1 % der Datei werden gestrichen**, und
+40,0 % gehen auf 22 Backtick-Treffer, denen deutsche Kommentar-Prosa folgt. Die
+Grundlinie `() -1` ist die Restsumme, keine Aussage über die Klammern des Codes.
+
+Das Tor ist **nicht geändert**. Vollständig mit Zahlen in
+`docs/ENTSCHEIDUNGEN-OFFEN.md` **Nummer 15**; `test_klammertor_blindheit_v956`
+nagelt die Blindheit fest, damit sie nicht wächst.
+
+## 🔴 S-1: zwei Bedienelemente ohne jede Beschriftung
+
+`FahrzeugView` führt `☰` und `⊞` (Listen-/Kachelumschalter), beide 44×44,
+**`title: null, aria: null`** — bei 375, 390 **und** 1440 px. Das ist D3 aus
+`B3_STUFEN_12_15` und es ist offen: v3.9.942 („sieben Symbol-Knöpfe
+beschriftet") und v3.9.946 („acht Pfeile") haben diese zwei nicht erwischt. Im
+selben Lauf tragen die Kopfzeilen-Symbole je einen `title` — der Melder ist
+also nicht blind.
+
+**Kosten: zwei `title`-Attribute, kein Pixel Änderung.** Nicht gebaut, weil der
+Lauf für drei Punkte geöffnet war und dies keiner davon ist.
+
+## Die Projekt-Reiterzeile rollt auch am Schreibtisch
+
+Neu gegen den Stand dieses Berichts: die Reiterzeile der Projektakte rollt
+**auch bei 1440 px** waagrecht (+158 px), nicht nur am Telefon (+586 bei 390).
+Die Entscheidung „bleibt rollbar, 13 Reiter wären drei Zeilen auf jeder
+Projektseite" war für das Telefon begründet — für den Schreibtisch war sie nie
+gemessen.
+
+## Drei Zusagen, die die eigenen Beschlüsse nicht hergeben
+
+Die Schlussmessung hat die sieben Zusagen des Laufs geprüft. **Vier halten**
+(Tippziele, Fußleisten-Verdeckung, feste dunkle Farben im Hellmodus,
+waagrechter Roller außerhalb der Projekt-Hülle — jede mit angeschlagenem
+Köder). **Drei nicht**, und zwei davon nur dem **Wortlaut** nach:
+
+* **„Tabellen > Schirm bei 390: 0"** — Projektakte/Berichte führt 720 px gegen
+  390. Das ist der bewusste Beschluss „bleibt eine 720-px-Tabelle", der
+  Behälter rollt, der Inhalt ist erreichbar. Die **Zusage** ist trotzdem falsch.
+* **„Wirklich gekürzt bei 1440: 0"** — die Arbeitsscheine-Liste kürzt 6 `<td>`
+  der Spalte „Durchzuführende Arbeit" um bis zu **493,6 px**. Das ist wörtlich
+  Entscheidung 5 dieses Berichts.
+* **„Bedienelemente ohne Beschriftung: 0"** — S-1 oben, ein schlichtes Versehen.
+
+**Was daraus folgt:** eine Zusage muss „0 **außer diesen beiden, namentlich**"
+lauten. Sonst wird ein Riegel darauf beim nächsten Lauf **grün gemacht** statt
+der Code repariert — und genau das ist der schwerste Fehler, den dieser Lauf
+kennt.
+
+## Und ein Beleg, der gut ausgegangen ist
+
+Der Grundstand `docs/GRUNDSTAND_UI_v3.9.954.md` wurde unabhängig neu erhoben:
+44 Aufnahmen, 22 Ansichten × 2 Breiten, **`diff -u` gibt 0 Zeilen** — bytegleich,
+nicht nur im Mengengerüst, sondern in jeder Überschrift, jedem Tabellenkopf,
+jedem Platzhalter und jeder Auswahloption. Drei Köder haben dabei angeschlagen
+(Knopfzahl verändert, Zeile entfernt, Wort in eine Überschrift eingefügt), sonst
+wäre die Null wertlos.

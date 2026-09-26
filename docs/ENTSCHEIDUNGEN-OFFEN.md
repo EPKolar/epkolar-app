@@ -1,6 +1,8 @@
-# Offene Entscheidungen — dreizehn Fragen an Sebastian
+# Offene Entscheidungen — fünfzehn Fragen an Sebastian
 
-**Stand: 01.09.2026, v3.9.928.** Diese Seite sammelt alles, was ich gemessen, aber
+**Stand: 26.09.2026, v3.9.956.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen und stehen als Nachtrag am Ende.
+
+**Stand der Fragen 1–13: 01.09.2026, v3.9.928.** Diese Seite sammelt alles, was ich gemessen, aber
 nicht entschieden habe. Die Fragen 1–8 stehen seit dem 28.08. als `xfail(strict)` im
 Testlauf; 9–13 sind in der Woche danach dazugekommen. Jede davon ist **kein Fehler im
 Code**, sondern eine Frage, die niemand außer dir beantworten kann.
@@ -229,3 +231,103 @@ Produktions-Datenbank passieren nur auf deine ausdrückliche Anweisung.
 * **Der Checklisten-Block im Kundenportal ist tot** — `portal_fetch` liefert keine
   `checklists`, eine anon-Regel dafür gibt es nicht. Entweder Regel nachziehen
   oder den Block entfernen.
+
+---
+
+# Nachtrag 26.09.2026, v3.9.956 — zwei neue Fragen aus dem UI-Umbau
+
+Der Kopf dieser Seite sagt „dreizehn Fragen" und ist damit überholt. Die beiden
+hier sind **nicht** als `xfail` im Testlauf hinterlegt, sondern als Riegel, die
+**rot werden, wenn jemand sie unbemerkt entscheidet** — das ist bei diesen
+beiden die passendere Form, weil eine falsche Antwort schlimmer ist als keine.
+
+### 14. 🔴 Vier Ansichten haben keine Überschrift — wie sollen sie heißen?
+
+**Gemessen** am Schluss-Grundstand v3.9.954: von 22 Ansichten liefern **fünf**
+keine einzige `h1`/`h2`/`h3`. Für eine Vorlesehilfe ist das eine Seite ohne
+Gliederung — sie kann nicht sagen, wo man ist.
+
+Eine davon ist behoben (Bauprovisorien, die Überschrift war fertig und stand
+nur in einem `div`). Bei den vier anderen habe ich **absichtlich nichts
+gebaut**, weil es keinen geeigneten Text gibt:
+
+| Ansicht | Was oben steht | Warum das kein Titel ist |
+|---|---|---|
+| **Wochenplanung** | ◀ · `KW 39 / 2026` · ▶ · `23.09. – 28.09.` | Ein **Zeitraum** zwischen zwei Pfeilknöpfen. Er wechselt beim Blättern |
+| **Zeiterfassung** | formgleich, derselbe Wochenschalter | dasselbe |
+| **Flotte / Fuhrpark-GPS** | nichts mit Titelgewicht | Das „📖 Fahrtenbuch" gehört zu `FahrtenbuchView`, und die rendert laut eigenem Kommentar **als Overlay innerhalb** von FlotteView — ein Fenstertitel |
+| **Startseite** | „Guten Abend, Sebastian ☀️" | Text ist da, aber es ist eine **Begrüßung**. Als Überschrift gehoben würde eine Vorlesehilfe den **Leser** ansagen, nicht die Seite |
+
+**Warum ich nicht selbst einen erfunden habe:** eine erfundene Überschrift
+sieht richtig aus und behauptet etwas, das niemand entschieden hat. Ein Titel
+aus dem Bauteilnamen („FlotteView" → „Flotte"), aus dem Reiter oder frei
+formuliert ist genau das. Und sie stünde dann als `h2` an der obersten Stelle
+der Seite — die auffälligste Stelle, die es gibt.
+
+**Frage an dich:** vier Wörter, eines je Ansicht. Mein Vorschlag wäre je der
+Reitertext, aber das ist eine Vermutung und keine Messung — deshalb steht er
+hier nicht als Empfehlung.
+
+**Was daran hängt:** `tests/test_d9_seitenueberschriften_v956.py` macht jede
+neue `h1`/`h2`/`h3` in diesen vier Ansichten **rot**, auch wenn es nach einer
+Verbesserung aussieht. Wer eine setzt, nennt dort den Text und woher er kommt.
+Das ist kein Verbot von Überschriften, sondern ein Verbot von Überschriften
+**ohne Herkunft**.
+
+### 15. 🔴 Das Klammertor beurteilt 28 % von `index.html` — soll es reparariert werden?
+
+**Gefunden durch einen eigenen Fehler.** Ich habe in einen Blockkommentar ein
+Paar Backticks geschrieben — `` `ueberschriften: []` ``, die übliche
+Zitierweise dieser Datei. Danach meldete `scripts/_bracket_check.py` `() -4`
+statt der Grundlinie `() -1`, und der Riegel daneben wurde rot. **Am Quelltext
+war nichts falsch.**
+
+Der Streicher in `_bracket_check.py` setzt das Template-Literal-Muster
+(`` `…` ``) **vor** das Kommentarmuster. Mein Backtick wurde deshalb als
+**Ende** eines viel früher geöffneten Template-Literals gelesen: ein einzelner
+Treffer lief über **375.741 Zeichen echten Code** und nahm dessen Klammern mit
+aus der Bilanz.
+
+**Beim Nachmessen kam das Größere heraus.** Am heilen Stand:
+
+```
+Datei        3.663.123 Zeichen
+gestrichen   2.640.833  = 72,1 %
+beurteilt    1.022.290  = 27,9 %
+```
+
+Davon gehen **1.466.372 Zeichen (40,0 % der Datei)** auf 22 Treffer, die mit
+einem Backtick beginnen und länger als 20.000 Zeichen sind. Bei den meisten
+folgt dem Backtick **deutsche Kommentar-Prosa**:
+
+```
+"` wird BENUTZT, nicht nachgebaut; die Funktion bleibt bytegleich. */..."
+"` war immer truthy -> ALLE FS-Chips hatten blauen Rand */,cursor:..."
+```
+
+Das sind keine Template-Literale. Diese Datei zitiert in Kommentaren mit
+Backticks, und **jeder einzelne verschiebt die Paarung**. Die Grundlinie
+`() -1` ist damit die Restsumme dessen, was übrig bleibt — **keine Aussage über
+die Klammern des Codes**. In den blinden Bereichen liegen
+Klammer-Ungleichgewichte im Umfang von 52.
+
+**Das Tor ist nicht geändert, und das ist Absicht.** Ein besserer Streicher
+ergibt eine andere Grundlinie, und ob eine neue Zahl ein echter Fund oder ein
+Artefakt ist, kann ich nicht allein entscheiden. Ein Tor anzupassen, weil man
+es besser zu wissen glaubt, ist dieselbe Bewegung wie es grün zu machen.
+
+**Frage an dich:** soll der Streicher zustandsbasiert neu gebaut werden — so
+wie `scripts/code_scan.py`, das eine Eichprobe bestehen muss und die Auskunft
+verweigert, wenn es sie nicht besteht? Das wäre ein halber Tag, und das
+Ergebnis ist eine **neue Grundlinie**, die erst einmal geprüft werden muss.
+
+**Was in der Zwischenzeit schützt:**
+`tests/test_klammertor_blindheit_v956.py` nagelt die Blindheit fest, damit sie
+nicht weiter wächst — gestrichener Anteil höchstens 73 %, kein
+**Backtick**-Treffer über 250.000 Zeichen (der längste echte ist 196.656, ein
+HTML-Bericht als Template-Literal). Ausdrücklich nicht der längste Treffer
+überhaupt: das ist der Changelog-Kommentar hinter `APP_VERSION` mit 256.069
+Zeichen, und der wächst mit jeder Version.
+
+**Und die praktische Regel für jeden, der hier schreibt:** in `index.html`
+gehört **kein Backtick in einen Kommentar**, solange das Tor so gebaut ist.
