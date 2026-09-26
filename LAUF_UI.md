@@ -1111,3 +1111,109 @@ Zeichen**, und mein Kommentar hat den `tank`-Abschnitt hinausgeschoben. Eine
 Längengrenze ist keine Abgrenzung. Dieselbe Lehre wie bei der davongelaufenen
 Klammerzählung in v3.9.944 — nur in die andere Richtung: dort war das Fenster
 zu groß, hier zu klein.
+
+---
+
+## v3.9.952 — Austritt: eine Regel, Grenzfall gepinnt
+
+Alle **22** direkten `.austritt`-Zugriffe eingeordnet, keiner fehlt:
+**6 DATEN** (Feldabbildung), **4 ANZEIGE** (Datum zeigen, danach färben),
+**2** die Definition selbst, **0 SORTIER**, und **5 ENTSCHEID** — die wurden
+umgestellt: Dispo, Monteurliste, Login-Bedarf, Wochenplan, Zeiterfassung.
+
+Der Riegel führt eine **namentliche** Ausnahmeliste. Ein Muster wie „alles in
+`MitarbeiterView` ist erlaubt" hätte die nächste Entscheid-Stelle dort
+durchgelassen; umgekehrt macht ein Eintrag, den es im Code nicht mehr gibt, den
+Riegel ebenfalls rot — sonst wächst die Liste blind.
+
+### 🔴 Dabei hat sich die Vorgabe korrigiert — um einen Tag
+
+Der Auftrag sagte: „mit `austritt = heute` **nicht** (heute ist der erste Tag
+danach — so ist die Regel definiert)". **Gemessen ist sie anders definiert:**
+`slice(0,10) < heute` ist bei Gleichheit falsch, also zählt der Austrittstag
+**selbst noch als aktiv**.
+
+Und das ist keine offene Frage: `test_mitarbeiter_loeschen_v820` prüft seit
+v3.9.820 **ausführend** „Austritt exakt heute → noch drin" und nennt es
+*„letzter Tag zählt"*. Der Code ist richtig, die Beschreibung war verschoben.
+Geändert wurde nichts — eine Verschiebung von `<` auf `<=` träfe alle 17
+Aufrufstellen.
+
+Gepinnt ist jetzt, unter Node an der echten Kapazitätsliste ausgeführt:
+ohne Datum → drin · **morgen → drin** · Monatsende → drin · **heute → drin** ·
+gestern → nicht drin · Backoffice → nicht drin (Köder für die zweite Hälfte).
+
+---
+
+## v3.9.953 — stille Kappungen sichtbar gemacht
+
+256 programmatische Kürzungen durchgesehen. Die meisten sind **keine**
+Anzeigekürzung: 65 Datumsschnitte, Konsolenmeldungen, Dateinamenlängen,
+Listenbegrenzungen. **45** werden gerendert, **12** davon kürzten Anzeigetext
+ohne Zeichen **und** ohne Zugang — die schädliche Kombination.
+
+Der schlimmste Fall: der **Monteursname im Wochenplan auf 6 Zeichen**. Zwei
+Kollegen mit gleichem Vornamen sind dort nicht unterscheidbar.
+
+`_kurz(text,n)` hängt ein Auslassungszeichen an — **nur** bei echter Kürzung,
+sonst glaubt ihm niemand mehr. Wo ein eigenes Element steht, kommt der volle
+Wert in den `title`; bei einem Textstück mitten in einer Verkettung gibt es
+kein Element, und dann ist das Zeichen alles, was bleibt. Das ist eine Grenze
+des Verfahrens und keine vergessene Stelle.
+
+Der Riegel schließt drei Arten aus — **nach Art, nicht nach Namen**: Zuweisung
+an eine Variable, Konsolenmeldung, Zustandssetzer. Jede Ausnahme ist eine
+Gelegenheit, zu viel auszuschließen, deshalb **setzt die Selbstprobe eine
+stille Kappung ein** und verlangt, dass der Sucher genau eine mehr findet.
+
+---
+
+## C — die offenen Reste, gemessen
+
+### C1 — ist Umbrechen die richtige Lösung? Ja, und der Preis ist benannt
+
+| | 390 px | 1440 px |
+|---|---|---|
+| Admin, 6 Unterreiter | **2 Zeilen, 96 px** | 1 Zeile, 41 px |
+| Material, Statuszeile | 1 Zeile, 46 px, `scroll 374/374` | 1 Zeile, 38 px |
+
+Zwei Zeilen sind ein Preis, fünf wären ein Befund. Die Alternative — rollen —
+versteckte **3 von 6** Reitern und verbrauchte die waagrechte Wischgeste, die
+in dieser App der Reiterwechsel ist. Die Zeile trägt also nicht „zu viele
+Einträge": sechs Reiter in zwei Zeilen sind normal.
+
+**Nebenbefund, nicht gebaut:** die Rollenfilter-Zeile in Admin steht bei 390 px
+in **3 Zeilen, 140 px** (neun Knöpfe: Alle · Administrator · Projektleiter ·
+Büro · Obermonteur · Techniker · Monteur · Helfer · Nur Lesen). Das ist viel,
+aber es rollt nicht und nichts ist verdeckt — eine Gestaltungsfrage, keine
+Erreichbarkeitsfrage.
+
+### C2 — die Überschrift-Kandidaten, gemessen statt geraten
+
+**Nicht gebaut**, wie beauftragt. Die Sonde listet, was im oberen Drittel
+steht, fett ist und keine reine Zahl trägt:
+
+| Ansicht | Kandidat | Messwert | Was dafür spricht |
+|---|---|---|---|
+| **Bauprovisorien** | `🚧 Bauprovisorien` | `div`, **20 px, Gewicht 800**, y=210 (390) / y=267 (1440) | Eindeutig. Größte und fetteste Schrift der Ansicht, steht allein in seiner Zeile, trägt den Ansichtsnamen. Eine Umwandlung in `h2` mit `margin:0` kostet **kein Pixel**. |
+| **Zeiterfassung** | `KW 39 / 2026` | `span`, 18 px, Gewicht 700, y=219 | Der einzige Kandidat — aber es ist ein **Zeitraum**, kein Titel. Ein Seitentitel steht dort gar nicht im Bild; ihn als `h2` zu deklarieren würde „KW 39 / 2026" zur Überschrift der Seite machen. |
+| **Flotte** | **keiner** | im oberen Drittel nur Sync-Band und Avatar | Dort gibt es überhaupt keinen Überschriftstext. Eine Überschrift wäre **neuer Text** — und welches Wort, ist deine Entscheidung. |
+
+Damit ist die Lage schärfer als gemeldet: **eine** der drei Ansichten hat eine
+fertige Überschrift, die nur im falschen Element steht. Bei den anderen zwei
+geht es nicht um das Element, sondern um Text, den es noch nicht gibt.
+
+### C3 — D6 bleibt erledigt
+
+Das eine Element unter 44 px ist der **Leaflet-Zuschreibungslink**
+(51,4 × 14 px). Rechtlich nötig, kein Bedienelement, nicht angefasst — und der
+Melder wurde ausdrücklich **nicht** um `.leaflet-control-attribution`
+erleichtert: das wäre Blindheit auf Bestellung.
+
+### C4 — VBautag, unverändert
+
+`const isMob = ww < 768;` — die **einzige** Stelle, an der Tabletbreite „mobil"
+heißt. Sechs andere Stellen mit `ww<768` nennen die Variable `isTab`.
+**Was daran hängt:** auf einem Tablet rendert `VBautag` die Handy-Fassung,
+während der Rest der App die Desktop-Fassung zeigt — ein Bautagebuch mit viel
+Text kann das wollen. Nicht geändert, weil nicht entschieden.
