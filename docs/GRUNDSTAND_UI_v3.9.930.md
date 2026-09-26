@@ -171,3 +171,69 @@ entfernt**, bis ihr Zweck geklärt ist. Offen, siehe
 Diese Datei ist die Abnahmegrundlage. Bei einer Abweichung gilt die Reihenfolge
 aus dem Bestandsschutz-Zusatz: **zurückrollen statt nachbessern.** Eine
 Abweichung ohne Begründung ist ein Fehler, kein Detail.
+
+---
+
+# NACHTRAG, 26.09.2026 — „Arbeitsschein bearbeiten"
+
+🔴 **Dies ist NICHT Teil des ursprünglichen Grundstands.** Die Aufnahme oben
+wurde am 25.09. an v3.9.930 gemacht, *vor* dem Umbau. Der folgende Abschnitt
+ist an **v3.9.942** gemessen, also *mitten im* Umbau, und **niemand hat ihn
+abgenommen**. Er steht hier, weil die inhaltsreichste Ansicht der App sonst
+überhaupt keine Abnahmegrundlage hätte — nicht, weil er denselben Rang hätte
+wie der Rest dieser Datei.
+
+Wer damit vergleicht, vergleicht gegen einen Stand, der schon Änderungen
+enthält. Das ist besser als nichts und schlechter als ein echter Grundstand.
+
+Erreicht über den Deep-Link `window.__asOpenId` (v3.9.489, derselbe Weg, den
+das Chef-Portal benutzt), die Ansicht belegt über `.as-form-grid` **und** einen
+Speichern-Knopf — nicht über den Klickweg, der in dieser Sitzung schon einmal
+die falsche Seite bewiesen hat.
+
+## Oberhalb des Formulars (deckungsgleich mit der Liste)
+
+* **11 Statuskacheln**: Gesamt · Offen (alle) · aufgenommen · freigegeben ·
+  in Bearbeitung · aufgeschoben · erledigt · abgerechnet · bar bezahlt ·
+  storniert · Fertig (alle)
+* **4 Unterreiter**: Liste · QR Scan · Kalender · Dispo
+* `OFFA Excel`
+
+## Das Formular, in beiden Breiten gleich
+
+* **22 Eingabefelder / Textbereiche.** Platzhalter: `Uhrzeit`, `z.B. 03:00`,
+  `z.B. 01:30` (2×), `Was wurde erledigt?`, `Interne Notizen, Anmerkungen...`,
+  `Neuer Punkt… (Enter)`, `Kommentar… (@Name = Mention, Ctrl+Enter = Senden)`;
+  dazu `date`- und `time`-Felder.
+* **4 Auswahlfelder mit zusammen 21 Optionen**:
+  * Monteur (3)
+  * Priorität (6): aufgeschoben · niedrig · normal · hoch · sehr hoch · FIXTERMIN
+  * Scheinstatus (8)
+  * Verrechnung (4): — · verrechenbar · nicht verrechenbar · Garantiefall
+* **Aktionsknöpfe**: Abbrechen · Verschieben · −/+ (Fahrzeit) · −/+ (Arbeitszeit) ·
+  Diktat (3×) · + Material · Aktualisieren · PDF · Storno · Löschen ·
+  Speichern & PDF erstellen · Vorschau · + (Checkliste) · Senden (Kommentar)
+* **22 Feldbeschriftungen**: Kunden-Nr. · Kundenname \* · Straße · PLZ · Ort ·
+  Bestätigt · Vorschlag · Dauer (hh:mm) · Monteur · Fahrzeit (hh:mm) ·
+  Arbeitszeit (hh:mm) · Gesamtzeit · Störungsmelder · Durchzuführen \* ·
+  Kontakt · Notizen · Projektnr. · Priorität · Scheinstatus ·
+  Auftragstyp (OFFA) · Verrechnung · Sachbearbeiter
+
+**Rohzahlen:** 44 Knöpfe / 22 Felder / 4 Auswahlfelder bei 390 px,
+59 / 22 / 4 bei 1440 px. Die *Knopfzahlen* sind nur eingeschränkt vergleichbar
+— die Zählvorschrift ist nirgends festgelegt, und der Datenbestand der
+Messumgebung ist ein anderer als der echte. **Hart sind die benannten Stücke**:
+die 21 Auswahloptionen, die 22 Beschriftungen, die 11 Statuskacheln.
+
+---
+
+# OFFENE STELLE IM BESTANDSSCHUTZ (26.09.2026)
+
+**Planung: der Knopf „Vorlage" erscheint in keiner gemessenen Breite.**
+Im Grundstand oben steht er (Zeile „+ Zeile · Vorlage · Vorwoche"), und im
+Quelltext steht er genau einmal — am Schirm war er bei 375, 390 und 1440 px
+nicht zu sehen. Vermutung: er hängt an einer leeren `wpHistory`.
+
+🔴 **Vermutung, nicht Messung.** Damit ist dieser Punkt **nicht bestanden**,
+sondern **nicht gemessen** — und ein „nicht gemessen" darf nicht als „in
+Ordnung" durchgehen. Was fehlt: ein Lauf mit gefüllter `wpHistory`.
