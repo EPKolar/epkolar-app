@@ -123,10 +123,48 @@ def test_definition_steht_hinter_kapids(index_html):
 # == 5 - Gegenprobe: die staerkere Seite wurde nicht angefasst ===============
 
 def test_die_kapazitaets_abgrenzung_bleibt_wie_sie_war(index_html):
-    assert ("const _kapMont=monteure.filter(m=>!String(m.austritt||'').trim()"
-            "&&!_kapNonField(m));") in index_html, (
-        "Die Kapazitaets-Abgrenzung hat sich veraendert. Ziel war, die "
-        "schwaechere Seite nachzuziehen - nicht die staerkere anzufassen.")
+    """Geprueft wird die EIGENSCHAFT, nicht die Schreibweise.
+
+    v3.9.950: hier stand die Abgrenzung woertlich als
+    `!String(m.austritt||'').trim()&&!_kapNonField(m)`. Diese Schreibweise war
+    eine von DREI im Dokument und die einzige, die JEDEN mit einem
+    Austrittsdatum ausschliesst - auch einen, der erst naechsten Monat geht.
+    Unter Node gegen die kanonische Form gefahren
+    (tests/test_austritt_eine_regel_v950.py): bei Austritt MORGEN sagt
+    `_maIstEhemalig` "noch da", diese Form sagte "weg". Wer am 20. zum
+    Monatsletzten kuendigt, fehlte in der KAPAZITAETSPLANUNG fuer die zehn
+    Arbeitstage, die er noch arbeitet.
+
+    Der Kopf dieser Datei beschreibt die Kapazitaetskarte selbst mit
+    "_kapNonField + Ausgetretene raus" - und Ausgetretene sind Menschen, die
+    GEGANGEN sind, nicht die, die gehen werden. Die Umstellung auf
+    `_maIstEhemalig` bringt den Code also naeher an diese Beschreibung; sie
+    schwaecht die staerkere Seite nicht, sondern nimmt ihr einen Sonderfall,
+    in dem sie falsch lag.
+
+    Was UNVERAENDERT geprueft wird und der eigentliche Zweck dieses Riegels
+    ist: die Kapazitaetsliste laesst Ausgetretene UND Nicht-Feldrollen heraus.
+    Faellt eine der beiden Haelften weg, zaehlt die Karte wieder Menschen mit,
+    die sie nicht zaehlen soll - genau das, was v3.9.898 abgeschafft hat.
+    """
+    i = index_html.find("const _kapMont=monteure.filter(")
+    assert i > 0, (
+        "KOEDER STUMM: `_kapMont` wurde nicht gefunden. Dann sagt dieser "
+        "Riegel nichts - und die Kapazitaetskarte ist die einzige Quelle der "
+        "Auslastung, seit die zweite Rechnung entfernt ist.")
+    zeile = index_html[i:index_html.index(";", i) + 1]
+    assert "_kapNonField(m)" in zeile, (
+        "Die Kapazitaetsliste grenzt die Nicht-Feldrollen nicht mehr aus "
+        "(Backoffice, Verkauf/Buchhaltung, Lagerleitung, Geschaeftsfuehrung). "
+        "Gefunden: " + zeile)
+    assert "_maIstEhemalig(m)" in zeile, (
+        "Die Kapazitaetsliste grenzt Ausgetretene nicht mehr ueber "
+        "`_maIstEhemalig` aus. Erwartet ist genau dieses Praedikat - nicht "
+        "eine dritte, eigene Datumsrechnung. Gefunden: " + zeile)
+    assert "austritt" not in zeile, (
+        "In der Kapazitaetsliste steht wieder eine eigene Austrittsrechnung. "
+        "Es gibt dafuer EINE Regel, und sie heisst `_maIstEhemalig`. "
+        "Gefunden: " + zeile)
 
 
 def test_die_ampelschwellen_bleiben_70_90_100(index_html):

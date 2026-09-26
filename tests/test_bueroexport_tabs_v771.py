@@ -10,8 +10,28 @@ import re
 
 
 def _vbuero(index_html):
+    """Den Rumpf an der NAECHSTEN Funktionsdeklaration abgrenzen, nicht an
+    einer festen Laenge.
+
+    v3.9.950: hier stand `index_html[a:a + 95000]`. In v3.9.950 ist in
+    `_kapMont` ein erklaerender Kommentar dazugekommen, und der hat den
+    Abschnitt `_bxTab==='tank'` aus dem Fenster geschoben - der Riegel meldete
+    "Tank nicht an Tab", obwohl an der Bindung nichts falsch war. Eine
+    Laengengrenze ist keine Abgrenzung: sie verschiebt sich mit jedem Zeichen,
+    das irgendwo davor dazukommt, und der Riegel wird rot, ohne dass die
+    geprueft Sache sich geaendert hat.
+    Dieselbe Lehre wie bei einer davongelaufenen Klammerzaehlung, nur in die
+    andere Richtung - dort war das Fenster zu GROSS, hier zu klein.
+    """
     a = index_html.index("function VBueroExport({")
-    return index_html[a:a + 95000]
+    weiter = [m.start() for m in
+              re.finditer(r"\n\s*function\s+[A-Za-z_$][\w$]*\s*\(", index_html)
+              if m.start() > a]
+    e = weiter[0] if weiter else len(index_html)
+    assert 20_000 < e - a < 400_000, (
+        "Der Rumpf von VBueroExport umfasst %d Zeichen - das ist keine "
+        "Komponente, sondern eine verfehlte Abgrenzung." % (e - a))
+    return index_html[a:e]
 
 
 def test_tabs_definiert(index_html):
