@@ -153,8 +153,23 @@ laufen, `tests/test_ausgetretene_live_v931.py`):
 
 - Der Arbeitsschein eines Ausgetretenen zeigt seinen Namen weiter — keine
   Fragezeichen, kein leeres Feld. Historie verliert niemanden.
-- Die Filter-, Report- und Kalenderlisten führen ihn weiter (Arbeitsschein-
-  Filter, Mängel-Filter, Stundenzettel, Auswertung, Abwesenheits-Kalender).
+- Die **Auswahl- und Filterlisten** führen ihn weiter (Arbeitsschein-Filter,
+  Mängel-Filter, Stundenzettel, Auswertung, Abwesenheits-Kalender).
+
+  🟡 **Präzisiert am 26.09.2026.** Hier stand „Filter-, Report- und
+  Kalenderlisten“, und „Auswertung“ in dieser Aufzählung liest sich, als
+  müssten auch die **Diagramme** jeden Ausgetretenen zeigen. Gemeint waren
+  **Listen, aus denen man auswählt** — und gemessen hat `AuswertungView`
+  überhaupt keine: *„Auswahlfelder mit dem ausgetretenen M5: 0 von 0“*. Die
+  Mitarbeiterliste speist dort ausschließlich zwei Balkendiagramme.
+  Seit v3.9.946 zeigen diese beiden einen Ausgetretenen nur noch, wenn er im
+  Zeitraum auch einen **Beitrag** hat. Ein Ausgetretener **mit** Beitrag
+  bleibt (Historie verliert niemanden), ein **aktiver** mit 0 bleibt
+  („diese Woche nichts“ ist eine Aussage über jemanden, der da ist).
+  Die Entscheidung aus v3.9.874 ist damit **nicht** berührt.
+  🔴 `tests/test_ausgetretene_live_v931.py` prüft die Auswertungen
+  übrigens **nicht** (`grep -ic auswert` = 0) — das war eine Absicht ohne
+  Riegel. Seit v3.9.946 gibt es einen.
 - Eine **bestehende** Zuweisung bleibt wählbar: der eigene Schein, die
   geladene Fahrerbescheinigung, das getragene Werkzeug.
 

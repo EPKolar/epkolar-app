@@ -136,12 +136,23 @@ def test_die_fussleiste_ist_nicht_mehr_zehn_px():
     """Die Leiste ist die einzige Flaeche, die in JEDER Ansicht und bei JEDER
     Breite im Bild ist. Gemessen nach dem Wechsel: Hoehe weiter 58 px, 0
     verdeckte Bedienelemente - --epk-bar-h muss nicht nachwandern."""
+    # v3.9.946: der Riegel suchte die Eigenschaften in EINER festen
+    # Reihenfolge (`{ style: {fontSize:...`). In v3.9.946 ist dem span ein
+    # `title` vorangestellt worden - der volle Reitername, weil der 74 px
+    # breite Schlitz ihn bei 12 px abschneidet. Damit traf die getippte
+    # Fassung nicht mehr, obwohl an der Schriftgroesse nichts falsch war.
+    # Die geschuetzte Eigenschaft ist "nicht mehr 10 px", nicht die
+    # Reihenfolge der Eigenschaften.
     roh = _roh()
-    assert ("React.createElement('span', { style: {fontSize:10,"
-            "fontWeight:isActive?700:400}}") not in roh, (
+    i = roh.find("fontWeight:isActive?700:400")
+    assert i > 0, (
+        "KOEDER STUMM: die Beschriftung der Fussleiste wurde nicht gefunden "
+        "(Anker `fontWeight:isActive?700:400`). Ohne sie sagt dieser Riegel "
+        "nichts.")
+    block = roh[max(0, i - 260):i + 60]
+    assert "fontSize:10," not in block, (
         "Die Beschriftungen der Fussleiste stehen wieder auf 10 px.")
-    assert ("React.createElement('span', { style: {fontSize:UI.fMeta,"
-            "fontWeight:isActive?700:400}}") in roh, (
+    assert "fontSize:UI.fMeta" in block, (
         "Die Beschriftung der Fussleiste haengt nicht an UI.fMeta.")
 
 

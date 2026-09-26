@@ -857,3 +857,94 @@ Eine **zusätzliche** Beschnittstelle in den Arbeitsscheinen bei 390 px (1 → 2
 🔴 **Welche, ist nicht gemessen.** Das Mengengerüst ist unverändert, es ist also
 kein Bedienelement betroffen — mehr lässt sich ohne eine Detailsonde für diese
 Ansicht nicht sagen, und die gibt es nur für Home.
+
+---
+
+## v3.9.945 / v3.9.946 — Stufen 8–15: Bedeutung statt Symbol, und Ausgetretene nur mit Beitrag
+
+### Ein Rückschlag aus v3.9.943, den ich verursacht habe
+
+Dort habe ich die Fußleisten-Beschriftung von 10 auf 12 px gehoben und die
+**Höhe** der Leiste gemessen (58 px, unverändert). Die **Breite** nicht.
+Der Schlitz ist **74 px**:
+
+| Reiter | bei 12 px | verloren | bei 10 px (gemessen) |
+|---|---|---|---|
+| Monatsabrechnung | 112 px | −37,5 | 93 px, −19 |
+| Abwesenheiten | 89 px | −15,3 | **74 px, 0** |
+| Bauprovisorien | 88 px | −13,7 | **73 px, 0** |
+| Gefahrenstoffe | 86 px | −11,9 | **72 px, 0** |
+| Zeiterfassung | 80 px | −5,6 | **66 px, 0** |
+
+Vorher war **ein** Name gekürzt, jetzt sind es **fünf** — in jeder Ansicht.
+12 px können diese Wörter in 74 px nicht tragen; das ist Arithmetik, keine
+Einstellung. Gebaut ist der Weg, der kein Pixel kostet: der volle Name steht
+im `title`. **Das löst es am Telefon nur halb**, und der richtige Weg wäre ein
+Kurzname je Reiter — der erfindet Wörter und ist deshalb eine Entscheidung für
+Sebastian, keine für mich.
+
+### Bedeutung statt Symbol — dateiweit statt je Ansicht
+
+Das Muster „Pfeilknopf ohne Beschriftung" ist zum **dritten Mal** aufgetaucht.
+Diesmal per Dateisuche: die Ansichtsmessung meldete **sechs**, die Suche fand
+**acht**. Wer je Ansicht sucht, findet immer nur die, in die er gerade sieht.
+
+Gegengemessen (20 Läufe, 13 Köder je Lauf):
+
+| Bedienelemente ohne Buchstaben, ohne title/aria | vorher | jetzt |
+|---|---|---|
+| Pläne 390 px | 5 | **0** |
+| Berichte 390 / 1440 px | 3 / 2 | **0 / 0** |
+| Bautagebuch, Material 390 px | je 1 | **0** |
+
+Dazu Schrift unter 12 px in Pläne **39 → 25** (390) und **56 → 42** (1440).
+
+### Ausgetretene nur mit Beitrag — gemessen, nicht vermutet
+
+Aus dem SVG gelesen (`innerText` ist blind für SVG — der erste Namensmelder
+des Agenten meldete deshalb, **kein** Name stehe im Bild, und die Antwort wäre
+gewesen „das Problem gibt es nicht"):
+
+| Fall | vorher | jetzt |
+|---|---|---|
+| ausgetreten **ohne** Beitrag | in beiden Diagrammen mit `0` | **weg** |
+| ausgetreten **mit** Beitrag | `2` / `1` | **bleibt** (Historie) |
+| **aktiv** mit `0` | `0` | **bleibt** |
+
+Eine Nullzeile ist keine leere Zeile: `Math.max(2, 0)` zeichnet einen Stummel
+plus Beschriftung plus „0" in voller 18-px-Zeilenhöhe.
+
+Gefiltert wird **an der Quelle** (`asMont`, `absPerName`), nicht in der
+`charts`-Aufzählung — dann zieht der Excel-Export dieselbe Zahl, ohne dass es
+jemand nachträgt. `_maIstEhemalig` bleibt bytegleich und wird **benutzt**, nicht
+nachgebaut; es gibt keine zweite Datumslogik.
+
+**Der gemeldete Widerspruch war sprachlich, nicht sachlich.** Der Grundstand
+nannte „Auswertung" unter den Listen, die Ausgetretene weiterführen müssen —
+gemeint waren **Auswahllisten**, und gemessen hat `AuswertungView` überhaupt
+keine („Auswahlfelder mit dem ausgetretenen M5: 0 von 0"). Die Entscheidung
+aus v3.9.874 ist nicht berührt. Der Satz im Grundstand ist präzisiert, und den
+Riegel, den es dort nie gab (`grep -ic auswert` = 0), gibt es jetzt.
+
+### Ein Prüfstand nachgezogen, nicht abgeschwächt
+
+`test_b6_schrift_und_medien_v943` suchte die Eigenschaften der
+Fußleisten-Beschriftung in **einer festen Reihenfolge**; das vorangestellte
+`title` ließ die getippte Fassung ins Leere greifen. Geprüft wird jetzt die
+Eigenschaft („nicht mehr 10 px"), nicht die Reihenfolge.
+
+### Offen aus Stufe 8–15, nicht gebaut
+
+**C3** Wochenbericht bei 390 px eine fest 720 px breite Tabelle in 374 px ·
+**C4/D5** in der Projektakte ist die Fußleiste eine *andere* als im Rest der
+App (13 Ziele statt 5 Gruppen, 586 px verborgen), die Admin-Reiterzeile rollt
+quer, 3 von 6 unsichtbar · **C5** Material-Unterreiter · **D6** ein zu kleines
+Tippziel in Flotte, gezählt aber nicht benannt · **D8** `SvgHBar` kappt
+Beschriftungen bei 14 Zeichen **in JavaScript** — eine dritte Form des
+Beschnitts, die kein Melder sehen kann · **D9** drei Ansichten haben keine
+einzige Überschrift.
+
+Zwei Funde derselben Familie wie die Ausgetretenen: die Auswahl-Pille in
+`AbsView` zeigt einem Ausgetretenen einen **Resturlaub**, und `ChefDashboard`
+benutzt eine **dritte** Datumslogik — für einen Austritt in der Zukunft
+widersprechen sich die beiden. 🔴 Nur im Quelltext gelesen, **nicht gemessen**.
