@@ -456,17 +456,57 @@ Das Tor ist **nicht geändert**. Vollständig mit Zahlen in
 `docs/ENTSCHEIDUNGEN-OFFEN.md` **Nummer 15**; `test_klammertor_blindheit_v956`
 nagelt die Blindheit fest, damit sie nicht wächst.
 
-## 🔴 S-1: zwei Bedienelemente ohne jede Beschriftung
+## 🔴 S-1: nicht zwei Bedienelemente ohne Namen, sondern 33 — gebaut in v3.9.957
 
-`FahrzeugView` führt `☰` und `⊞` (Listen-/Kachelumschalter), beide 44×44,
-**`title: null, aria: null`** — bei 375, 390 **und** 1440 px. Das ist D3 aus
-`B3_STUFEN_12_15` und es ist offen: v3.9.942 („sieben Symbol-Knöpfe
-beschriftet") und v3.9.946 („acht Pfeile") haben diese zwei nicht erwischt. Im
-selben Lauf tragen die Kopfzeilen-Symbole je einen `title` — der Melder ist
-also nicht blind.
+> **Dieser Abschnitt stand hier zuerst als „zwei Knöpfe, nicht gebaut".** Beides
+> war falsch. Er ist am 27.09. berichtigt, nicht überschrieben: was daneben lag,
+> steht dabei.
 
-**Kosten: zwei `title`-Attribute, kein Pixel Änderung.** Nicht gebaut, weil der
-Lauf für drei Punkte geöffnet war und dies keiner davon ist.
+Gemeldet war: `FahrzeugView` führt `☰` und `⊞` (Listen-/Kachelumschalter), beide
+44×44, **`title: null, aria: null`** — bei 375, 390 **und** 1440 px. Richtig,
+aber zu klein. Über die ganze Datei gemessen sind es **33**:
+
+| | Knöpfe |
+|---|---|
+| Ansichtsumschalter `☰`/`⊞` | **4** — Fahrzeugverwaltung **und** Fotos |
+| Schließen/Entfernen `✕` | **27** — Fotos, Zeilen, Termine, Fenster |
+| Abbrechen `✕` | **2** — Tank- und Schadensdialog |
+
+Die Sonde hatte die Fotos-Ansicht in einer anderen Gruppe gemessen und dort
+nicht gemeldet; v3.9.942 („sieben Symbol-Knöpfe beschriftet") und v3.9.946
+(„acht Pfeile") hatten diese Menge nie erfasst. **Wieder ein Schluss aus einer
+Menge, die den Fall nicht enthält** — zum vierten Mal in diesem Lauf.
+
+**Jeder Name ist abgelesen, keiner formuliert:** aus dem `onClick`
+(`delWzPhoto` → „Foto entfernen", `delTermin` → „Termin löschen",
+`setShowTank(null)` neben „💾 Speichern" → „Abbrechen") oder aus dem Text, den
+derselbe Knopf im anderen Zustand trägt.
+
+🔴 **Sechs sind Umschalter, und dort wäre ein fester Name falsch:**
+
+```
+showUp        ? "✕" : "📤 Hochladen"
+sa            ? "✕" : "+ Zeile"
+showAdd       ? "✕" : "+ Fahrzeug"
+showNewFolder ? "✕" : "+ Neu"
+showAddTermin ? "✕" : "+ Termin"
+isRemoved     ? "↩" : "✕"
+```
+
+Ein fester `title:"Abbrechen"` hätte im geschlossenen Zustand „Abbrechen"
+angesagt, wo „Hochladen" steht. Der Name hängt deshalb an derselben Bedingung
+wie der Inhalt. Sichtbar wurde das nur, weil der **Inhalt** jedes Knopfes
+gemessen wurde und nicht bloß seine Anwesenheit.
+
+🔴 **Eine Stelle ist gar kein Knopf.** `SmokeTestPanel` führt
+`(x.pass||x.ok)?"✓":"✗"` — eine **Statusanzeige** in einer Ergebniszeile. Mein
+erster Zähler hat sie einem benachbarten Knopf zugeschlagen und als 34. Fund
+gemeldet. Sie steht namentlich als Ausnahme mit diesem Grund, und ein eigener
+Riegel wird rot, wenn ihr **Anlass** verschwindet: eine Ausnahme ohne Prüfung
+wird zur stillen Erlaubnis.
+
+**Kein Pixel Änderung.** `tests/test_symbolknoepfe_haben_namen_v957.py`,
+Mutationsprobe 4 von 4 erkannt.
 
 ## Die Projekt-Reiterzeile rollt auch am Schreibtisch
 
@@ -489,12 +529,31 @@ Köder). **Drei nicht**, und zwei davon nur dem **Wortlaut** nach:
 * **„Wirklich gekürzt bei 1440: 0"** — die Arbeitsscheine-Liste kürzt 6 `<td>`
   der Spalte „Durchzuführende Arbeit" um bis zu **493,6 px**. Das ist wörtlich
   Entscheidung 5 dieses Berichts.
-* **„Bedienelemente ohne Beschriftung: 0"** — S-1 oben, ein schlichtes Versehen.
+* **„Bedienelemente ohne Beschriftung: 0"** — war ein schlichtes Versehen und
+  ist seit v3.9.957 **eingelöst**, mit einer namentlichen Ausnahme (siehe S-1
+  oben). Diese Zusage ist damit keine mehr, die man umschreiben muss.
 
-**Was daraus folgt:** eine Zusage muss „0 **außer diesen beiden, namentlich**"
-lauten. Sonst wird ein Riegel darauf beim nächsten Lauf **grün gemacht** statt
-der Code repariert — und genau das ist der schwerste Fehler, den dieser Lauf
-kennt.
+### Der Wortlaut, den die beiden übrigen Zusagen ab jetzt haben
+
+Nicht „0", sondern 0 **außer diesen, namentlich** — sonst wird ein Riegel darauf
+beim nächsten Lauf **grün gemacht** statt der Code repariert, und genau das ist
+der schwerste Fehler, den dieser Lauf kennt:
+
+> **Tabellen breiter als der Schirm bei 390 px: 0 — außer der
+> Wochenbericht-Tabelle in Projektakte/Berichte (720 px).** Sie ist ein
+> Beschluss, nicht ein Versehen: die 720 kamen aus einer Messung, der Behälter
+> trägt `overflow-x:auto` und rollt +346 px, es geht nichts verloren. Eine neue
+> zu breite Tabelle an einer anderen Stelle ist ein Fehler.
+
+> **Wirklich gekürzte Textstellen bei 1440 px: 0 — außer den `<td>` der Spalte
+> „Durchzuführende Arbeit" in der Arbeitsscheine-Liste** (6 Stellen, bis zu
+> 493,6 px). Das ist Entscheidung 5: die Spalte bleibt 220 px breit, weil eine
+> breitere Spalte die übrigen acht zusammenschiebt. Eine neue Kürzung an einer
+> anderen Stelle ist ein Fehler.
+
+Beide Ausnahmen nennen **wo** und **wie viel**. Eine Ausnahme ohne Zahl ist
+keine Ausnahme, sondern eine Lücke — und sie wächst, weil niemand merkt, wenn
+sie größer wird.
 
 ## Und ein Beleg, der gut ausgegangen ist
 
