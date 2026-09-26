@@ -794,3 +794,66 @@ Schrift. Ein eigenständig gestalteter Wandbildschirm, kein Hellmodus-Fehler.
 **Nicht gemessen und bleibt es:** die Auffangfläche der Fehlergrenze (erscheint
 nur bei einem Absturz) und der PDF-Grund `#525659` (braucht ein PDF in
 Serviceheft, Personaldokument oder Fahrbewilligung).
+
+---
+
+## v3.9.944 — B6 Stufe 3: die 9er, 10er und 11er, ansichtsweise
+
+Im ganzen Dokument stehen rund **1150** Stellen auf 9, 10 oder 11 px. Messbar
+sind mit den vorhandenen Sonden **vier Ansichten von 31**. Ein Griff, dessen
+Wirkung man zu 87 % nicht sieht, ist kein Bauschritt, sondern eine Wette —
+also eine Ansicht nach der anderen, jede mit eigener Messung.
+
+**170 Stellen gehoben** (WerkzeugView 52, HomeView 63, ArbeitsscheinView 55).
+Gemessen bei 375, 390 und 1440 px, zwölf Läufe, alle acht Köder je Lauf:
+
+| Textstellen < 12 px | 375 px | 390 px | 1440 px |
+|---|---|---|---|
+| Werkzeuge | 20 → 20 | **55 → 15** | **25 → 15** |
+| Home | **69 → 7** | **69 → 2** | **111 → 26** |
+| Arbeitsscheine | 43 → 29 | **43 → 24** | 43 → 30 |
+| Planung | unverändert 49 | unverändert 44 | unverändert 42 |
+
+Kein neuer Querroller, keine Tabelle über Schirmbreite, Tippziele unter 44 px
+bei 375 und 390 px weiterhin 0. Das Mengengerüst der Arbeitsscheine ist
+unverändert (**44 Knöpfe / 22 Felder / 4 Auswahlfelder** — genau der
+Grundstand-Nachtrag), es ist also kein Bedienelement verschwunden.
+
+### WeekPlan ist draußen — und das ist ein Messergebnis
+
+Mit gehobener Schrift rollte Planung bei 1440 px **7 px quer** (1398 von 1405),
+und der Beschnitt stieg dort **von 1 auf 13** Stellen. Am Telefon wäre es der
+größte Einzelgewinn der Stufe gewesen (**49 → 2** bei 390 px) — dreizehn
+abgeschnittene Texte am Schreibtisch sind kein Preis dafür. Die Tabelle führt
+feste Spaltenbreiten (`width:130` sechsmal, `minWidth:800` sechsmal); wer sie
+hebt, muss dort zuerst Platz schaffen. Der Griff wurde **zurückgenommen**,
+nicht abgeschwächt.
+
+### Ein eigener Fehlgriff, zurückgenommen
+
+Mein erster Versuch grenzte die Komponenten über eine **Klammerzählung** ab und
+lief davon: er meldete für `HomeView` einen „Rumpf" von **1 769 509 Zeichen**
+und hob **1744** Stellen quer durch die Datei. node_check wurde rot,
+`git checkout -- index.html`. Danach Abgrenzung an der **nächsten
+Funktionsdeklaration**, mit einer Obergrenze — eine Komponente dieser App ist
+88 bis 160 kB groß, alles darüber ist kein Rumpf mehr, sondern ein Messfehler.
+
+### Drei Prüfstände nachgezogen, keiner abgeschwächt
+
+* `test_kalib_eine_quelle_v901` verlangte `fontSize:10` im Hinweis der
+  Ausgabeliste. Geschützt ist der **sichtbare Hinweis in Warnfarbe**, nicht
+  seine Ziffer — die Warnfarbe `#eab308` wird weiter unverändert verlangt.
+* `test_ausgetretene_live_v931` benutzte `fontSize:11` als **Suchanker**. Die
+  geprüfte Eigenschaft (Ausgetretene erscheinen nicht im Team, der Zähler
+  zählt sie nicht mit) ist unverändert.
+* `test_ausgetretene_live_v931` und `test_werkzeuge_vorbereitet_v940`
+  **führen** geschnittenen Code unter Node aus. Ihnen fehlte `UI` in der
+  Attrappe — ohne sie wirft Node „UI is not defined", und der Riegel wäre rot,
+  ohne dass an der Sache etwas falsch wäre.
+
+### Offen
+
+Eine **zusätzliche** Beschnittstelle in den Arbeitsscheinen bei 390 px (1 → 2).
+🔴 **Welche, ist nicht gemessen.** Das Mengengerüst ist unverändert, es ist also
+kein Bedienelement betroffen — mehr lässt sich ohne eine Detailsonde für diese
+Ansicht nicht sagen, und die gibt es nur für Home.

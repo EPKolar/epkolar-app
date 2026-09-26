@@ -325,6 +325,13 @@ def ausleihknopf(quelle, node_exe, tmp_path, name="ausleihen.js"):
     code = (
         'const React={createElement:(t,p,...c)=>({t:t,c:c})};\n'
         'const bpS={},bgS={},isMob=false;\n'
+        # v3.9.944: UI als Attrappe, dieselbe Art wie bpS. Seit die
+        # Schriftgroessen aus dem Token-Objekt kommen, steht im geschnittenen
+        # Code `fontSize:UI.fMeta`, und ohne diese Zeile wirft Node
+        # "UI is not defined" - der Riegel waere rot, ohne dass am
+        # Ausleihknopf etwas falsch waere.
+        'const UI={fMeta:12,fKlein:13,fText:14,fTitel:15,fTitelGross:17,'
+        'fSeiteMob:18,fZahl:20,fSeite:22,fZahlGross:24,fUeber:28};\n'
         'const _myMid="M1";\n'
         'const curUser={role:"monteur"};\n'
         'function canDo(){return false;}\n'

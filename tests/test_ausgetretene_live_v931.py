@@ -81,7 +81,13 @@ S_TEAM = {
               "  const _teamAktiv=(monteure||[]).filter(m=>!_maIstEhemalig(m,_hkHV));"),
     "hvTeam": ("            , _teamAktiv.map(m=>{",
                "              ));\n            })"),
-    "hvZaehler": ("          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "
+    # v3.9.944: die Schriftgroesse heisst hier jetzt UI.fMeta statt 11 -
+    # HomeView gehoert zu den drei Ansichten, in denen die 9er/10er/11er
+    # gehoben wurden. Der SUCHANKER hat sich geaendert, die geprueft
+    # EIGENSCHAFT nicht: dieser Riegel misst, dass Ausgetretene nicht im
+    # Team erscheinen und der Zaehler sie nicht mitzaehlt. Die Ziffer 11 war
+    # nie Teil davon.
+    "hvZaehler": ("          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "
                   "\"heute aktiv · \" , _teamAktiv.length, \" gesamt\" )",
                   "\" gesamt\" )"),
 }
@@ -122,7 +128,7 @@ UMKEHR_TEAM = [("_teamAktiv.map(m=>{", "monteure.map(m=>{"),
 S_TEAM_ALT = {
     "hvTeam": ("            , monteure.map(m=>{",
                "              ));\n            })"),
-    "hvZaehler": ("          , React.createElement('div', { style: {fontSize:11,color:V.dm}}, "
+    "hvZaehler": ("          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "
                   "\"heute aktiv · \" , monteure.length, \" gesamt\" )",
                   "\" gesamt\" )"),
 }
@@ -158,6 +164,15 @@ S_ZUW_ALT["zuwMention"] = ("(monteure||[]).filter(m=>(m.n||'').toLowerCase()",
 # ------------------------------------------------------------------ Node-Kopf
 KOPF = """
 "use strict";
+/* v3.9.944: UI ist jetzt eine Attrappe wie V oder bpS. Seit die
+   Schriftgroessen aus dem Token-Objekt kommen, steht im geschnittenen Code
+   `fontSize:UI.fMeta` - ohne diese Attrappe wirft Node "UI is not defined",
+   und der Riegel waere rot, ohne dass an der geprueften Eigenschaft etwas
+   falsch waere. Was die Attrappe unsichtbar macht: ob die Zahlen im echten
+   Token-Objekt noch stimmen. Das haelt
+   tests/test_schrift_und_tokens_v933.py fest, nicht diese Datei. */
+var UI={fMeta:12,fKlein:13,fText:14,fTitel:15,fTitelGross:17,
+        fSeiteMob:18,fZahl:20,fSeite:22,fZahlGross:24,fUeber:28};
 %(ezHeute)s
 %(istEhemalig)s
 %(waehlbar)s

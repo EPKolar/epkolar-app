@@ -193,5 +193,14 @@ def test_ausgabe_warnt_bei_faelliger_kalibrierung(index_html):
     zeile = _zeile_mit(index_html, 'document.getElementById("co_"+w.id)')
     assert "_wzKalibFaellig(w)" in zeile, (
         "Der Ausgabe-Knopf fragt nicht nach der Kalibrierung:" + chr(10) + zeile)
-    assert 'React.createElement(\'div\', { style: {fontSize:10,color:"#eab308"' in code, \
+    # v3.9.944: die Schriftgroesse heisst hier jetzt UI.fMeta statt 10 -
+    # WerkzeugView gehoert zu den Ansichten, in denen die kleinen Groessen
+    # gehoben wurden. Die geschuetzte Eigenschaft ist der SICHTBARE HINWEIS in
+    # Warnfarbe, nicht seine Ziffer; dass UI.fMeta gleich 12 ist, haelt
+    # tests/test_schrift_und_tokens_v933.py fest. Die Warnfarbe #eab308 wird
+    # weiter unveraendert verlangt - ohne sie ist der Hinweis kein Hinweis.
+    import re as _re
+    assert _re.search(
+        r"React\.createElement\('div', \{ style: \{fontSize:(?:10|UI\.fMeta),"
+        r'color:"#eab308"', code), \
         "Der sichtbare Hinweis in der Ausgabeliste fehlt."
