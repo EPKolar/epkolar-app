@@ -1003,3 +1003,111 @@ und fünfmal löste ein erklärender Kommentar seinen eigenen Riegel aus.
 
 **Die Leitregel des Tages:** eine Messung auf einer Ansicht ist eine Aussage
 über **diese** Ansicht. Der echte Hellmodus-Befund lag in Ansicht 31 von 31.
+
+---
+
+## v3.9.948 — Restarbeiten: kein Resturlaub für Ausgetretene, zwei Reiterzeilen brechen um
+
+### E2 — die Pille zeigte einem Ausgetretenen einen Anspruch
+
+Drei Dinge müssen gleichzeitig stimmen, und alle drei sind gemessen
+(`scripts/abs_pille_messen.py`, 390 und 1440 px):
+
+| | |
+|---|---|
+| `Gerhard Steinbichler 193h Rest · 0K` | aktiv → Anspruch **bleibt** |
+| `Ferdinand Aschenbrenner ausgetreten · 0K` | ausgetreten → Anspruch **weg** |
+| `Roswitha Puchleitner ausgetreten · 0K` | ausgetreten → Anspruch **weg** |
+
+Der **Name** bleibt in allen Fällen — v3.9.931 verlangt diese Liste
+ausdrücklich vollständig: wer die alten Krankenstände eines Ausgetretenen
+sucht, muss ihn hier finden. Der **Krankenstand** bleibt auch: der ist
+Historie und keine Zusage. Der **Anspruch** geht weg, und das sagt derselbe
+Kommentar mit denselben Worten: *„Ein Anspruch für jemanden, der nicht mehr da
+ist, ist keine Historie."*
+
+**Ein eigener Messfehler, gefangen bevor er eine Zahl wurde.** Der erste Lauf
+nahm die Standardsaat — darin ist **niemand** ausgetreten. Die Sonde meldete
+„kein Ausgetretener in der Liste" und hätte fast wie ein Befund ausgesehen
+(„die Auswahl hat ihn verloren"). Es war eine **leere Grundgesamtheit**.
+
+### D5 / C5 — umbrechen statt rollen
+
+Admin bei 390 px: **562 gegen 374 px**, drei der sechs Unterreiter nicht im
+Bild — der **einzige** tatsächliche Querroller in 26 Läufen. Material:
+**467 gegen 354 px**, „Katalog" gar nicht da. Beide brechen jetzt um.
+Gegengemessen: Admin meldet „kein waagrechter Roller überhaupt".
+
+Die **Projekt**-Reiterzeile bleibt absichtlich rollbar: dort sind es
+**dreizehn** Reiter, ein Umbruch kostet drei Zeilen auf jeder Projektseite.
+Ein Riegel hält das fest, damit es niemand für einen vergessenen Fall hält.
+
+### D6 — ein Nicht-Befund, benannt statt weggezählt
+
+Das eine Bedienelement unter 44 px war „gezählt, aber nicht benannt". Es ist
+der **Leaflet-Zuschreibungslink** (51,4 × 14 px, `title` „A JavaScript library
+for interactive maps"). Eine rechtlich nötige Kartenzuschreibung ist kein
+Bedienelement; sie zu vergrößern würde die Karte verdecken. **Nichts
+geändert** — und ausdrücklich auch nicht der Melder um
+`.leaflet-control-attribution` erleichtert: das wäre Blindheit auf Bestellung.
+
+---
+
+## v3.9.949 — D8: die dritte Form des Beschnitts
+
+Der Beschnitt-Melder kennt zwei Formen: `overflow:hidden` mit `ellipsis`, und
+Kastenüberlauf bei `overflow:visible`. Die Balkenbeschriftung ist eine
+**dritte**: der Text wird **in JavaScript** gekappt, bevor er ins DOM kommt —
+kein `overflow`, kein `ellipsis`, kein Kasten. Der Melder meldete „0 wirklich
+gekürzt", korrekt nach seiner Vorschrift und trotzdem die falsche Antwort.
+
+**Zwei Kappungen hintereinander, und die erste machte den Fix wirkungslos.**
+`prjFort` schnitt den Projektnamen auf 12 Zeichen, bevor das Diagramm ihn sah,
+und das Diagramm schnitt noch einmal auf 8. Mein erster Griff gab dem SVG-Text
+einen `<title>` — und der trug dann `DR.-GSCHMEID`. Gemessen, nicht geraten.
+
+Jetzt: `maxChars` 14 → 16 (die Beschriftungsspalte darf 140 px, 14 Zeichen
+waren nur 122), voller Wert im `<title>` **nur** wo wirklich gekappt wird, die
+Vorab-Kappung weg (davon profitiert auch der Excel-Export), und die 8/9 px der
+Balkenbeschriftung gehoben.
+
+---
+
+## v3.9.950 — eine Regel für den Austritt
+
+`.austritt` wurde an **24 Stellen** in **drei** Schreibweisen gelesen. Die
+drei Prädikate sind unter Node **ausgeführt** worden, gegen fünf Fälle:
+
+| Fall | `_maIstEhemalig` | ausgeschriebene Umkehrung | `!String(m.austritt\|\|'').trim()` |
+|---|---|---|---|
+| kein Datum | nicht ehemalig | noch da | noch da |
+| Austritt gestern | ehemalig | weg | weg |
+| **Austritt morgen** | **nicht ehemalig** | **noch da** | **weg** |
+| **Austritt nächster Monat** | **nicht ehemalig** | **noch da** | **weg** |
+
+Die beiden Stellen mit der dritten Form sind keine Randnotiz: die
+Spaltenquelle für Inline, Modal **und** Excel im Stundenzettel, und
+`_kapMont` — die Kapazitätsliste im ChefDashboard, seit v3.9.898 die
+**einzige** Quelle der Auslastung. Wer am 20. zum Monatsletzten kündigt,
+fehlte dort ab sofort in der Planung für die zehn Arbeitstage, die er noch
+arbeitet.
+
+### Zwei Bestandsriegel waren rot, und der erste hatte fast recht
+
+`test_die_kapazitaets_abgrenzung_bleibt_wie_sie_war` (v3.9.898) nagelte die
+Abgrenzung **wörtlich** fest, mit der Begründung „die schwächere Seite
+nachziehen, nicht die stärkere anfassen" — ein Riegel, der genau meine Stelle
+schützt. Gelesen statt weggeklickt: der **Kopf derselben Datei** beschreibt
+die Karte mit „`_kapNonField` + **Ausgetretene** raus", und Ausgetretene sind
+Menschen, die *gegangen* sind. Die Umstellung bringt den Code also **näher** an
+die Beschreibung, die der Riegel verteidigt. Er prüft jetzt die Eigenschaft —
+und zwar **strenger**: Nicht-Feldrollen raus, Ausgetretene über
+`_maIstEhemalig` raus, und **keine** eigene Austrittsrechnung in derselben
+Zeile.
+
+`test_sektionen_haengen_am_tab` (v3.9.771) war ein reiner Messfehler meines
+eigenen Kommentars: der Auszieher nahm ein **festes Fenster von 95 000
+Zeichen**, und mein Kommentar hat den `tank`-Abschnitt hinausgeschoben. Eine
+Längengrenze ist keine Abgrenzung. Dieselbe Lehre wie bei der davongelaufenen
+Klammerzählung in v3.9.944 — nur in die andere Richtung: dort war das Fenster
+zu groß, hier zu klein.

@@ -116,7 +116,15 @@ nach ausgeschriebener Gleichsetzung: „Listen-/Kachelumschalter" = `☰`/`⊞`,
    (`!String(m.austritt||'').trim()` statt `austritt < heute`). Für einen
    Austritt in der **Zukunft** widersprechen sich die beiden.
    🔴 Nur im Quelltext gelesen, **nicht gemessen**.
-7. **Planung, Knopf „Vorlage"** erscheint in keiner gemessenen Breite, steht
+7. **Drei Ansichten ohne Überschrift.** `Zeiterfassung`, `Flotte` und
+   `Bauprovisorien` liefern `ueberschriften: []`; die anderen zehn tragen
+   genau eine `h2`. Im Bild steht dort eine Überschrift, sie sitzt nur in
+   einem `div`. Für eine Vorlesehilfe ist eine Seite ohne Überschrift eine
+   Seite ohne Gliederung. **Welches** Element die Seitenüberschrift sein
+   soll, ist eine Gestaltungsfrage — die dort vorhandenen Kandidaten sind
+   Panel-Titel in verschachtelten Kästen (14 px, `fontWeight:700`).
+   Nicht geraten, nicht gebaut.
+8. **Planung, Knopf „Vorlage“** erscheint in keiner gemessenen Breite, steht
    aber im Quelltext. Vermutlich an leerer `wpHistory`. 🔴 **Nicht gemessen,
    nicht bestanden.**
 
