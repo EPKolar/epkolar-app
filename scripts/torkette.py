@@ -19,11 +19,37 @@ WAS SIE FAEHRT
     1  scripts/node_check.py        jeder <script>-Block parst
     2  scripts/_bracket_check.py    Klammerbilanz () -1 / {} 0 / [] 0
     3  node sql/_check_version.js   die vier Versionsstellen stimmen ueberein
-    4  pytest tests/                der gesamte Riegelbestand
+    4  scripts/md5_geschuetzt.py    die sieben TABU-Funktionen sind bytegleich
+    5  scripts/bestand.py           118 Begriffe in 17 Gruppen sind noch da
+    6  scripts/icons_erzeugen.py    die vier PWA-Icons sind aktuell (--pruefen)
+    7  pytest tests/                der gesamte Riegelbestand
+
+🔴 WARUM 4 BIS 6 AM 27.09.2026 DAZUGEKOMMEN SIND
+────────────────────────────────────────────────
+Alle drei gab es schon, und KEINER lief irgendwo. Der Dateikopf von
+`md5_geschuetzt.py` beginnt sogar mit den Worten "Gate 5" - es war als Tor
+gedacht und ist nie eines geworden.
+
+Das wiegt bei ihm am schwersten: es haelt die Byte-Identitaet von sieben
+Funktionen mit Lohn- und Eskalationslogik (`_ezEffTage`, `_asEskalierbar`,
+`_dispoPlan`, `_maIstEhemalig`, `_maWaehlbar`, `_juprowaPush`,
+`_juprowaSanitize`). Gemessen: **keine einzige der sieben Pruefsummen stand in
+irgendeiner Testdatei** - und ZWEI Tests verwiesen ausdruecklich darauf ("das
+haelt scripts/md5_geschuetzt.py fest"). Die Zusicherung war an etwas delegiert,
+das nie gefahren wurde. Sie lief nur, weil ich sie im Lauf vom 26./27.09. nach
+jeder Stufe von Hand getippt habe - und Disziplin ist kein Riegel.
+
+Kosten: zusammen rund EINE Sekunde. Die schnelle Kette 3 -> 4 s, die ganze
+283 -> 284 s. Ein Tor, das die Kette merklich bremst, wird irgendwann
+uebersprungen; diese drei tun das nicht.
+
+🔴 `icons_erzeugen.py` braucht ZWINGEND `--pruefen`. Ohne das Argument SCHREIBT
+es vier PNG ins Repo. Belegt vor dem Einhaengen: mit `--pruefen` rc 0 und
+`git status` unveraendert.
 
 AUFRUF
 ──────
-    python scripts/torkette.py              alle vier
+    python scripts/torkette.py              alle sieben
     python scripts/torkette.py --schnell    ohne pytest (Zwischenstand)
 
 Rueckgabewert: 0 nur, wenn ALLE gefahrenen Tore gruen waren.
@@ -39,6 +65,11 @@ TORE = [
     ("node_check", [sys.executable, "scripts/node_check.py"], False),
     ("Klammerbilanz", [sys.executable, "scripts/_bracket_check.py"], False),
     ("Versionsabgleich", ["node", "sql/_check_version.js"], False),
+    ("Tabu-Funktionen", [sys.executable, "scripts/md5_geschuetzt.py"], False),
+    ("Bestand", [sys.executable, "scripts/bestand.py"], False),
+    # --pruefen ist NICHT optional: ohne das Argument schreibt das Skript.
+    ("PWA-Icons", [sys.executable, "scripts/icons_erzeugen.py", "--pruefen"],
+     False),
     ("pytest", [sys.executable, "-m", "pytest", "tests/", "-q"], True),
 ]
 

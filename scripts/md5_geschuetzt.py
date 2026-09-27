@@ -40,6 +40,7 @@ AUFRUF
 """
 import hashlib
 import io
+import re
 import os
 import sys
 
@@ -61,13 +62,30 @@ LAENGE = 4000
 
 
 def summen(quelle):
-    """Gibt {name: md5} zurueck; fehlende Funktionen als None."""
+    """Gibt {name: md5} zurueck; fehlende Funktionen als None.
+
+    🔴 v3.9.961 MIT WORTGRENZE. Vorher stand hier ein schlichtes
+    `quelle.find("function " + name)` - und das trifft auch
+    `function _maWaehlbarX`. Eine Umbenennung, die den Namen VERLAENGERT,
+    wurde damit nicht als "NICHT GEFUNDEN" gemeldet, sondern als "VERAENDERT":
+    es wurde ein anderer Rumpf gehasht, und die Summe wich ab. Der Schutz hielt
+    also in der Wirkung - die Diagnose war falsch. Stuende neben einer
+    geloeschten Funktion eine aehnlich benannte, waere die Meldung vollends
+    irrefuehrend gewesen.
+    Gefunden von einem Koeder, der genau das nachstellte
+    (tests/test_geschuetzte_funktionen_v961.py).
+
+    Die Fundstellen der sieben echten Funktionen aendern sich NICHT - hinter
+    ihrem Namen steht immer eine oeffnende Klammer. Gegengemessen beim Umbau:
+    alle sieben Summen unveraendert.
+    """
     ergebnis = {}
     for name in SOLL:
-        i = quelle.find("function " + name)
-        if i < 0:
+        m = re.search(r"function\s+" + re.escape(name) + r"\s*\(", quelle)
+        if m is None:
             ergebnis[name] = None
             continue
+        i = m.start()
         ergebnis[name] = hashlib.md5(
             quelle[i:i + LAENGE].encode("utf-8")).hexdigest()
     return ergebnis
