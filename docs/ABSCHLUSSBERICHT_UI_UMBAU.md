@@ -939,3 +939,130 @@ wurde.
 Beide sind gemessen und **nicht gebaut**: bei 16 fehlt mir der Lesezugang zu
 `pg_proc`, bei 17 lädt eine falsche Prüfsumme die Datei nicht — die App wäre
 weiß. Das entscheidet Sebastian.
+
+---
+
+# Nachtrag 27.09.2026 — die Saat war zu dünn, aber nicht überall
+
+## 🔴 Stufe 0a ist offen
+
+Der git-add-Riegel feuert seit über zwanzig Commits nicht. **Sebastian muss
+einmal `/hooks` öffnen.** Bis dahin liegen mehrere MB große Messkopien im Baum,
+und ein versehentliches `git add -A` nähme sie mit. Es ist nicht passiert —
+jeder Commit nennt seine Dateien einzeln — aber das war Disziplin, kein Riegel.
+
+## Die Frage
+
+Sebastian hat v3.9.961 an seinem **echten** Bestand gemessen (185
+Arbeitsscheine, 296 Werkzeuge, 21 Fahrzeuge, 9 aktive Mitarbeiter). Home,
+Zeiterfassung und Projekte gehen dort auf **0**; Planung, Fahrzeuge und
+Arbeitsscheine liegen praktisch auf dem Ausgangswert. Seine Vermutung: nicht der
+Bericht ist falsch, sondern die **Saat** — `GRUNDSTAND_UI_v3.9.954` hält selbst
+fest, dass eine Sondengruppe **drei** Monteure führt und eine andere **fünf**.
+
+Neue Saat: **9 aktive Mitarbeiter plus 2 ausgetretene · 21 Fahrzeuge · 300
+Werkzeuge · 185 Scheine · 3 Projekte**, erfundene Namen — darunter zwei Paare,
+die auf sechs Zeichen ununterscheidbar werden, und zwei mit 24 Zeichen. Alle 22
+Ansichten bei 390 **und** 1440 px, **zweimal** gefahren: neue und alte Saat,
+gleiches Skript, gleiche Datei. 88 Aufnahmen, keine unerreicht.
+
+## Die Antwort ist dreigeteilt
+
+| Ansicht | Vermutung | Zahlen (alt → neu) |
+|---|---|---|
+| **Fahrzeuge** | **trägt** | < 12 px **12 → 39** (390) und **17 → 44** (1440) · Tippziele **11 → 27** |
+| **Arbeitsscheine** | **trägt — bei einer anderen Größe** | Tippziele bei 1440 **47 → 733** · Zeilen **8 → 185** · Emoji im Knopftext bei 390 **35 → 212**. Die Elemente unter 12 px bleiben **exakt gleich** (24 / 29) |
+| **Planung** | **trägt NICHT** | jede Größe byte-identisch: 44 → 44, 42 → 42, Tippziele 31 → 31, Zeilen 15 → 15 |
+
+**Fahrzeuge:** die Ursache sind die Kennzeichnungs-Chips je Karte (`⛽ 1
+Tankungen`, `⚠️ 1 Schaden`, beide 10 px). Bei drei Fahrzeugen unauffällig, bei
+21 der Befund. Genau der Fall, den Sebastian vermutet hat.
+
+**Arbeitsscheine:** die Saat *ist* die Ursache — aber für die Tippziele, nicht
+für die Schriftgrößen. Die kleinen Schriften der AS-Liste sitzen in der
+**Kopfleiste** (`Arbeitsscheine`, `zu erledigen`, `offen` bei 10 px), und die
+gibt es einmal, egal wie viele Scheine dahinter liegen.
+
+**Planung: die Ursache ist aus `index.html` geschnitten.** `const W0=[…]` ist
+ein **fest eingebauter Vorgabe-Wochenplan** von 902 Zeichen mit fünf Zeilen und
+den Monteur-Kürzeln `w1·w2·w3·w5` — nicht `M1…M11`. **Die Wochenplanung wird von
+der Saat überhaupt nicht gespeist.** Die 44 bzw. 42 Fundstellen sind echt
+(`3 MA` und `Bedeckt` bei 9 px), haben aber mit der Bestandsgröße nichts zu tun.
+
+Die Gegenprobe dazu ist gefahren: eine eigene Sonde sucht zusätzlich nach den
+**auf sechs Zeichen gekürzten** Namen. Planung bei 390 px zeigt weder
+`Steinbichler` noch `Steinb` — der Bestand kommt dort gar nicht an.
+
+## 🔴 Zwei Tore auf die Saat selbst — und was sie über v3.9.954 sagen
+
+Die neuen Tore können nur **„nicht aussagekräftig"** stempeln, nie „bestanden".
+Tor A hat **zwei** Köder: eine leere Saat (7 von 7 gemeldet) und — der
+wichtigere — **die alte Saat aus v3.9.954** (6 von 7). Ohne den zweiten hätte
+das Tor auf *„überhaupt Daten"* geprüft statt auf *„genug Daten"*.
+
+**Die Folge ist unbequem und gehört hierher:** der komplette Vergleichslauf mit
+der alten Saat ist in **allen 44 Aufnahmen** „nicht aussagekräftig". *Die
+Messanordnung, mit der `GRUNDSTAND_UI_v3.9.954` abgenommen wurde, würde heute
+keine einzige Aufnahme bestehen.*
+
+Und die Planung ist auch mit der **neuen** Saat so gestempelt — das Tor weigert
+sich, sie gemessen zu nennen, und hat damit recht.
+
+## Die Gesamtzahlen, alt → neu über alle 44 Aufnahmen
+
+| | alt | neu |
+|---|---|---|
+| Elemente < 12 px | 1036 | 1354 |
+| Tippziele < 44 px | 550 | **1952** |
+| Emoji im Knopftext | 1049 | 1444 |
+| Tabellenzeilen | 31 | 502 |
+| Knöpfe gesamt | 1583 | 3513 |
+| **Icon-Knöpfe ohne `aria-label` und `title`** | **0** | **0** |
+
+Die letzte Zeile ist eine **gemessene** Null: der Köder schlug in jedem Lauf in
+beiden Formen an. Die Arbeit aus v3.9.960/961 hält auch bei 3513 Knöpfen.
+
+**Neu und saatverursacht:** Werkzeuge bei 390 px rollt **+23 px**, breitestes
+Kind ist ein langer Werkzeugname. Unter der alten Saat rollt dort nichts.
+**Überlauf mit Verlust:** genau zwei Funde in 44 Aufnahmen, beide
+Leaflet-Kartenkacheln — kein Befund.
+
+## Wo die neue Saat NICHT mehr findet
+
+Byte-identisch: Planung · AS-Formular · Bautagebuch · Material · Pläne ·
+Abwesenheiten · Monatsabrechnung · Mitarbeiter · Chef · Einstellungen ·
+Gefahrenstoffe · Bauprovisorien · Flotte.
+
+Besonders **Abwesenheiten** und **Mitarbeiter**: dort stehen nachweislich alle
+9–10 Namen, und es bewegt sich trotzdem nichts. Für diese beiden ist *„die Saat
+war zu dünn"* **widerlegt**.
+
+## Zwei Selbstmeldungen des Messenden, beide gegen sich selbst
+
+🔴 **Tor B ist für Aggregat-Ansichten blind.** Das Chef-Dashboard zeigt die
+volle Grundgesamtheit als **Zahl** (`185 gesamt`, `0/9 Monteure`) statt als
+Namen — der Melder sucht Namen. Er misst einwandfrei, nur eine **andere**
+Grundgesamtheit, und eine Abwesenheit darin belegt nichts. Die belastbare
+Vorschrift wäre *„ändern sich ihre Zahlen, wenn sich der Bestand ändert?"*, und
+die braucht **zwei** Läufe. Nicht behoben — kein Fix in diesem Block.
+
+🔴 **Der Auftrag nannte „alle elf Status" — die App kennt acht.** Selbst
+nachgemessen: `AS_STATUS` (Z3702) führt `aufgenommen · freigegeben ·
+in_bearbeitung · aufgeschoben · erledigt · abgerechnet · bar_bezahlt ·
+storniert`. Eine frühere Messung zählte „11/11 Statuskacheln" **am Schirm** —
+das sind vermutlich acht Status plus drei Sammelkacheln. **Beide Zahlen können
+stimmen, sie meinen Verschiedenes.** Ein Riegel auf „elf" wäre falsch.
+
+## Und eine dritte Zahl, die ich selbst geprüft habe
+
+Der Baubefehl nennt „drei Knöpfe in ProjList ohne `aria-label` und ohne
+`title`". Am Quelltext gemessen finde ich dort **acht** Knöpfe ohne diese
+Attribute — **aber alle acht tragen sichtbaren Text** („Bearbeiten",
+„Archivieren", „Löschen", „Abbrechen"), und Text **ist** der Name.
+
+Was ich stattdessen finde: **23 Bedienelemente mit `onClick`, die keine Knöpfe
+sind** — `div`, `span`, `td` —, und **keines** davon hat `role` und `tabIndex`.
+Für die Tastatur und für eine Vorlesehilfe sind das keine Bedienelemente. Das
+ist dieselbe Klasse, die app-weit mit **133** Stellen gemessen ist, und sie ist
+größer als drei Knöpfe. Der Baubefehl sagt es selbst: *die Lücke im Suchmuster
+ist wichtiger als die drei Knöpfe.*
