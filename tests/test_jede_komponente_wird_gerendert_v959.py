@@ -106,36 +106,26 @@ def _komponenten(text, feld):
     return aus
 
 
-def _renderstellen(text, feld, name):
-    """BEIDE Schreibweisen: React.createElement(Name UND h(Name.
+def _renderstellen(text, name):
+    """Beide Schreibweisen - ueber code_scan, damit das Alphabet EINEN Ort hat.
 
-    Das `(?<![A-Za-z0-9_$.])` vor dem h verhindert, dass `search(`, `_ch(`
-    oder `.h(` als Aufruf des Kuerzels gelesen werden.
+    Vorher stand das Muster hier ein zweites Mal. Genau die Doppelung ist der
+    Grund, warum der Fehler vom 27.09. dreimal auftreten konnte: jeder Riegel
+    hatte sein eigenes, unvollstaendiges Alphabet. `code_scan.element_stellen`
+    verweigert die Auskunft, wenn seine Formen-Eichung scheitert.
     """
-    n = re.escape(name)
-    muster = (r"createElement\(\s*" + n + r"\b"
-              r"|(?<![A-Za-z0-9_$.])h\(\s*" + n + r"\b"
-              r"|<" + n + r"\b")
-    return [m.start() for m in re.finditer(muster, text) if feld[m.start()]]
+    return code_scan.element_stellen(text, name)
 
 
-# EIN Durchgang fuer alle Namen. Die erste Fassung rief `_renderstellen` je
-# Komponente - 95 Regex-Laeufe ueber 3,6 MB, 28 s fuer diese Datei. Ein Riegel,
-# der die Kette messbar verlangsamt, wird irgendwann uebersprungen; dann misst
-# er nichts mehr.
-_GERENDERT = re.compile(
-    r"(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*([A-Z]\w+)\b"
-    r"|<([A-Z]\w+)\b")
-
-
-def _gerenderte_namen(text, feld):
-    aus = set()
-    for m in _GERENDERT.finditer(text):
-        if feld[m.start()]:
-            aus.add(m.group(1) or m.group(2))
-    return aus
-
-
+# v3.9.959: die Suche liegt jetzt in code_scan (`alle_elementnamen`, EIN
+# Durchgang) und nicht mehr hier. Zwei Gruende:
+#   * Die erste Fassung rief die Suche je Komponente - 95 Regex-Laeufe ueber
+#     3,6 MB, 28 s fuer diese eine Datei. Ein Riegel, der die Kette messbar
+#     verlangsamt, wird irgendwann uebersprungen; dann misst er nichts mehr.
+#   * Das ALPHABET gehoert an EINE Stelle. Dass es beide Erzeuger und beide
+#     Anfuehrungszeichen kennt, belegt `code_scan.eichen_elemente()` mit einer
+#     Probe, die auch eine Nicht-Form (`search(`, `.h(`) NICHT mitzaehlen darf -
+#     zu viel ist hier genauso falsch wie zu wenig.
 def _waisen(text):
     feld = _feld(text)
     komp = _komponenten(text, feld)
@@ -143,9 +133,35 @@ def _waisen(text):
         "Nur %d Komponenten gefunden. Das ist kein gruenes Ergebnis - die "
         "Datei fuehrt um 95. Entweder irrt der Zaehler, oder die Deklarationen "
         "sind anders geschrieben." % len(komp))
-    erzeugt = _gerenderte_namen(text, feld)
+    erzeugt = set(code_scan.alle_elementnamen(text))
     return {n: text.count("\n", 0, p) + 1
             for n, p in komp.items() if n not in erzeugt}, len(komp)
+
+
+def test_diese_datei_kennt_kein_JSX():
+    """Warum `<Name ...>` nicht mitgesucht wird - gemessen, nicht angenommen.
+
+    Die Suche kennt nur `createElement(Name` und `h(Name`. Gaebe es hier JSX,
+    waere jede JSX-gerenderte Komponente eine falsche Waise. Es gibt keins:
+    diese Datei ist Sucrase-AUSGABE, und die schreibt jedes Element als
+    createElement-Aufruf. Das wird hier gemessen, damit die Auslassung
+    begruendet ist und nicht bloss gut geht.
+    """
+    roh = _lies()
+    feld = _feld(roh)
+    komp = _komponenten(roh, feld)
+    # EIN Durchgang, nicht einer je Name: 95 Laeufe ueber 3,6 MB haben diese
+    # Datei von 5 s auf 23 s gebracht - derselbe Fehler, den der Umbau oben
+    # gerade beseitigt hat, von mir eine Funktion weiter neu gemacht.
+    jsx = []
+    for m in re.finditer(r"<([A-Z]\w+)[\s/>]", roh):
+        if m.group(1) in komp and feld[m.start()]:
+            jsx.append((m.group(1), roh.count("\n", 0, m.start()) + 1))
+    assert not jsx, (
+        "%d JSX-Stellen gefunden: %s.\nDann muss die Suche in "
+        "code_scan.alle_elementnamen die JSX-Form mit aufnehmen - sonst gilt "
+        "jede so gerenderte Komponente als Waise."
+        % (len(jsx), jsx[:5]))
 
 
 def test_keine_neue_waise():
@@ -182,15 +198,14 @@ def test_der_zaehler_kennt_BEIDE_schreibweisen():
     nicht kennt, meldet "kommt nicht vor", und das sieht aus wie ein Befund.
     """
     roh = _lies()
-    feld = _feld(roh)
-    # Zwei Komponenten, von denen bekannt ist, WIE sie erzeugt werden.
+    # Drei Komponenten, von denen bekannt ist, WIE sie erzeugt werden.
     faelle = [
         ("EZKalender", "h("),               # h(EZKalender,{...}) in Z12271
         ("FahrtenbuchView", "h("),          # h(FahrtenbuchView,{...}) Z27781
         ("PlanViewerCanvas", "createElement("),
     ]
     for name, form in faelle:
-        st = _renderstellen(roh, feld, name)
+        st = _renderstellen(roh, name)
         assert st, (
             "KOEDER AUSGEFALLEN: %s wird nachweislich ueber %s%s erzeugt, "
             "diese Messung findet es aber nicht. Dann waere jede gemeldete "

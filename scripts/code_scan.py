@@ -58,8 +58,38 @@ import sys
 CODE, EINF, DOPP, VORL, ZEILE, BLOCK = range(6)
 
 
+# v3.9.959 ZWISCHENSPEICHER, mit Begruendung und mit Grenze.
+# `ist_code` laeuft zeichenweise ueber 3,6 MB. Riegel, die mehrere Namen
+# nachsehen, riefen es mehrfach: eine Datei mit zehn Abfragen brauchte 23 s.
+# Ein Riegel, der die Kette messbar bremst, wird irgendwann uebersprungen -
+# und ein uebersprungener Riegel meldet gruen, ohne zu messen.
+#
+# Der Schluessel ist Laenge UND md5, nicht die Laenge allein: Koeder-Faelle
+# unterscheiden sich oft nur um wenige Zeichen, und ein Zwischenspeicher, der
+# dem kaputten Text das Feld des heilen gibt, macht jede Probe gruen. Das waere
+# schlimmer als der langsame Lauf.
+# Hoechstens drei Eintraege (je ~3,6 MB), aelteste fallen heraus.
+# Die Rueckgabe ist ein bytearray - wer es AENDERT, verdirbt den Speicher.
+# Kein Aufrufer tut das; sie lesen nur.
+_CODEFELD = {}
+_CODEFELD_MAX = 3
+
+
 def ist_code(text):
     """Bytefeld gleicher Laenge: True, wo das Zeichen CODE ist."""
+    import hashlib
+    _k = (len(text), hashlib.md5(text.encode("utf-8", "replace")).hexdigest())
+    if _k in _CODEFELD:
+        return _CODEFELD[_k]
+    _feld = _ist_code_roh(text)
+    if len(_CODEFELD) >= _CODEFELD_MAX:
+        _CODEFELD.pop(next(iter(_CODEFELD)))
+    _CODEFELD[_k] = _feld
+    return _feld
+
+
+def _ist_code_roh(text):
+    """Die eigentliche Abtastung, ohne Zwischenspeicher."""
     n = len(text)
     aus = bytearray(n)
     zustand = CODE
@@ -265,6 +295,122 @@ def _komponente(text, pos):
         if t and t[-1].start() > best:
             best, name = t[-1].start(), t[-1].group(1)
     return name
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# ELEMENTE FINDEN - und zwar in ALLEN Schreibweisen, die diese Datei benutzt
+#
+# 🔴 WARUM DAS HIER STEHT UND NICHT IN JEDEM RIEGEL NEU
+# Am 27.09.2026 hat mich das Alphabet DREIMAL an einem Tag getaeuscht:
+#
+#   1. `createElement("h2"` fand 0 Stellen. Die Datei schreibt `'h2'` mit
+#      EINFACHEN Anfuehrungszeichen - es sind 28.
+#   2. Ein Riegel suchte `createElement('h2'` und meldete eine neu gebaute
+#      Ueberschrift als fehlend. Dort steht der lokale Kuerzel `h('h2'`.
+#   3. Eine Waisensuche meldete DREI nie gerenderte Komponenten, darunter eine
+#      mit 35 kB. ZWEI davon waren falsch: sie werden ueber `h(Name,{...})`
+#      erzeugt. Fast waere daraus der Schluss geworden, ein ganzes Overlay
+#      erscheine nie.
+#
+# Ein Muster, das eine Schreibweise nicht kennt, meldet "kommt nicht vor" - und
+# das ist von einem echten Befund nicht zu unterscheiden. Deshalb gibt es diese
+# Stelle: EIN Ort, der alle Formen kennt, und eine Eichung, die es BELEGT statt
+# es zu behaupten.
+#
+# Die Formen in index.html:
+#   React.createElement('div', ...)   Element mit Tag, Tag in Anfuehrungszeichen
+#   h('div', ...)                     dasselbe ueber `const h=React.createElement`
+#   React.createElement(VView, ...)   Komponente, Name NACKT
+#   h(VView, ...)                     dasselbe ueber den Kuerzel
+# Das `(?<![A-Za-z0-9_$.])` vor dem h ist noetig, sonst treffen `search(`,
+# `_ch(` und `.h(` mit.
+# ───────────────────────────────────────────────────────────────────────────
+
+_ERZEUGER = r"(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*"
+
+
+def _element_muster(name, als_tag):
+    n = re.escape(name)
+    if als_tag:
+        return _ERZEUGER + r"['\"]" + n + r"['\"]"
+    return _ERZEUGER + n + r"\b"
+
+
+def eichen_elemente():
+    """Belegt, dass das Muster ALLE VIER Formen kennt - und nur die.
+
+    Bewusst an einem SELBSTGEBAUTEN Text und nicht an index.html: eine Eichung,
+    die auf bestimmte Bauteilnamen zeigt, geht kaputt, sobald eines umbenannt
+    wird - und dann faellt ein Werkzeug aus, das mit der Umbenennung nichts zu
+    tun hat. Geprueft wird die Faehigkeit des Musters, nicht der Bestand der App.
+
+    Gibt (bestanden, gefunden, erwartet) zurueck.
+    """
+    probe = (
+        "React.createElement('div', {a:1}, 'x');"          # Tag, createElement
+        "h('div', {b:2}, 'y');"                            # Tag, Kuerzel
+        "React.createElement(MeineAnsicht, {c:3});"        # Komponente, lang
+        "h(MeineAnsicht, {d:4});"                          # Komponente, Kuerzel
+        # Diese drei duerfen NICHT mitzaehlen - sonst zaehlt das Muster zu viel,
+        # und zu viel ist bei einer Waisensuche genauso falsch wie zu wenig:
+        "search('div');"                                   # kein Kuerzel
+        "obj.h('div');"                                    # Methode
+        "_ch('div');"                                      # anderer Name
+    )
+    tag = len(re.findall(_element_muster("div", True), probe))
+    komp = len(re.findall(_element_muster("MeineAnsicht", False), probe))
+    return (tag == 2 and komp == 2, tag + komp, 4)
+
+
+def element_stellen(text, name, als_tag=False):
+    """Positionen im CODE, an denen `name` als Element erzeugt wird.
+
+    `als_tag=True` fuer HTML-Namen ('div', 'h2' - in Anfuehrungszeichen),
+    `False` fuer Komponenten (nackter Bezeichner).
+
+    Verweigert die Auskunft, wenn eine der beiden Eichungen scheitert: die
+    Zeichenketten-Eichung (`eichen`, ueber `nur_code_stellen`) und die
+    Formen-Eichung (`eichen_elemente`). Eine Zahl aus einem nachweislich
+    irrenden Abtaster ist schlimmer als keine Zahl.
+    """
+    ok, gef, erw = eichen_elemente()
+    if not ok:
+        raise SystemExit(
+            "code_scan: FORMEN-EICHUNG GESCHEITERT - %d von %d Formen "
+            "erkannt.\n"
+            "  Das Muster kennt nicht alle Schreibweisen (oder zaehlt zu viel) "
+            "und wuerde\n"
+            "  'kommt nicht vor' melden, wo etwas vorkommt. Genau das hat am "
+            "27.09.2026\n"
+            "  dreimal zu einem falschen Befund gefuehrt, einmal fast zu "
+            "'eine 35-kB-Ansicht ist tot'." % (gef, erw))
+    return nur_code_stellen(text, _element_muster(name, als_tag), regex=True)
+
+
+def alle_elementnamen(text, als_tag=False):
+    """Alle Namen, die in diesem Text als Element erzeugt werden - EIN Lauf.
+
+    Fuer Fragen der Form "welche Komponente wird nie gerendert?". Ein Lauf je
+    Name waere bei 95 Komponenten 95 Durchgaenge ueber 3,6 MB; genau das hat
+    einen Riegel von 4 s auf 28 s gebracht - und ein Riegel, der die Kette
+    bremst, wird irgendwann uebersprungen. Dann misst er nichts mehr.
+
+    Gibt {Name: [Positionen]} zurueck.
+    """
+    ok, gef, erw = eichen_elemente()
+    if not ok:
+        raise SystemExit("code_scan: FORMEN-EICHUNG GESCHEITERT (%d/%d)"
+                         % (gef, erw))
+    feld = ist_code(text)
+    if als_tag:
+        muster = _ERZEUGER + r"['\"]([A-Za-z][\w-]*)['\"]"
+    else:
+        muster = _ERZEUGER + r"([A-Z]\w+)\b"
+    aus = {}
+    for m in re.finditer(muster, text):
+        if feld[m.start()]:
+            aus.setdefault(m.group(1), []).append(m.start())
+    return aus
 
 
 def main(argv):
