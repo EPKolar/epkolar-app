@@ -94,7 +94,8 @@ def _nur_symbole(kinder):
     Ternaer aus zwei Literalen zeigt in BEIDEN Zustaenden kein Wort.
 
     Die Bedingung eines Ternaers wird mitgestrichen: `imeiBusy?'…':'✓'` zeigt
-    nie ein Wort, obwohl `imeiBusy` ein Bezeichner ist.
+    nie ein Wort, obwohl `imeiBusy` ein Bezeichner ist. Seit v3.9.963 gilt
+    das auch, wenn die Bedingung ein AUFRUF ist - `isPlanFreigegeben(id)?`.
     """
     kern = kinder.strip()
     if kern.startswith(","):
@@ -102,7 +103,14 @@ def _nur_symbole(kinder):
     if not kern:
         return False, []
     # Bedingung eines Ternaers abtrennen, wenn danach nur Literale stehen.
-    ohne_bed = re.sub(r"^[A-Za-z_$][\w$.]*\s*\?", "?", kern)
+    # v3.9.963: die Bedingung darf ein AUFRUF sein. Vorher stand hier nur
+    # der nackte Bezeichner, und `isPlanFreigegeben(pl.id)?"A":"B"` fiel
+    # durch - ein Knopf, der nie ein Wort zeigt, galt als benannt.
+    # Eine Ebene Verschachtelung in den Argumenten ist abgedeckt; tiefer
+    # verschachtelte Bedingungen bleiben eine bekannte Grenze.
+    ohne_bed = re.sub(
+        r"^!?[A-Za-z_$][\w$.]*\s*"
+        r"(?:\((?:[^()]|\([^()]*\))*\))?\s*\?", "?", kern)
     rest = LITERAL.sub("", ohne_bed).replace("?", "").replace(":", "")
     rest = rest.replace(",", "").strip()
     if TRAEGER.search(rest):
@@ -235,3 +243,37 @@ def test_hat_namen_liest_nur_die_oberste_ebene():
         "Ein title INNERHALB des onClick-Rumpfes gilt als Name des Knopfes. "
         "Dann ist jeder Knopf benannt, der irgendwo das Wort title enthaelt.")
     assert not code_scan.hat_namen('{ onClick: ()=>0 }')
+
+
+def test_koeder_bedingung_ist_ein_aufruf():
+    """🔴 Der Koeder, den es bis v3.9.962 nicht gab.
+
+    Der alte Koeder benutzte `imeiBusy?'…':'✓'` - einen nackten Bezeichner,
+    also die Form, die der Riegel ohnehin kannte. Er hat die Blindheit
+    BESTAETIGT statt sie aufzudecken, und dahinter stand ein echter Knopf:
+    der Freigabe-Umschalter der Planliste in VPlan, reines Symbol, ohne Text
+    und ohne Attribut, gefunden erst am 27.09.2026 mit einem fremden Messgeraet.
+
+    Dieser Koeder traegt die Form, an der der Riegel gescheitert ist.
+    """
+    fall = ("h('button',{onClick:x},"
+            "istFrei(pl.id)?'\U0001F517':'\U0001F4E4')")
+    fund = _namenlos(fall)
+    assert fund, (
+        "\U0001F534 Ein Knopf mit einem AUFRUF als Ternaer-Bedingung und zwei "
+        "reinen Symbolen wurde NICHT gemeldet.\n"
+        "  Genau daran ist der Riegel aus v3.9.961 vorbeigelaufen."
+    )
+
+
+def test_gegenprobe_aufruf_mit_sichtbarem_wort():
+    """Und die andere Richtung: mit einem Wort darf er NICHT anschlagen.
+
+    Ohne diese Probe waere ein Melder, der jeden Ternaer meldet, gruen - und
+    ein Riegel, der alles meldet, misst so wenig wie einer, der schweigt.
+    """
+    fall = ("h('button',{onClick:x},"
+            "istFrei(pl.id)?'\U0001F517 Freigegeben':'\U0001F4E4 Freigeben')")
+    assert not _namenlos(fall), (
+        "\U0001F534 Ein Knopf mit sichtbarem Wort wurde als namenlos gemeldet."
+    )
