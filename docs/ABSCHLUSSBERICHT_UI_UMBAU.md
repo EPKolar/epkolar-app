@@ -781,3 +781,161 @@ Wahl wäre:
 * **10 Bedienelemente, die mit `document.createElement` gebaut werden** statt
   über React — außerhalb jeder React-Messung: die PDF-Blätterknöpfe und acht
   Felder in Dialogen und Tabellenzellen.
+
+---
+
+# Nachtrag 27.09.2026, Abend — der Prüfstand hat sich selbst geprüft
+
+Vier Messungen liefen parallel. Drei ihrer Ergebnisse betreffen **meine eigene
+Arbeit**, und eines davon ist das teuerste des Tages.
+
+## 🔴 Ein Köder, der die Lücke des Riegels teilt, bestätigt die Blindheit
+
+Gemessen (`docs/befunde/DIE_31_VERDACHTE.md`):
+
+| Riegel | sah | von |
+|---|---|---|
+| `test_symbolknoepfe_haben_namen_v957` | **74** | 79 Symbolknöpfen |
+| `test_zusammengesetzte_knopfnamen_v960` | **698** | 797 Knöpfen |
+
+Beide suchten allein den langen Erzeuger mit **doppelten** Anführungszeichen und
+kannten die 97 Stellen mit dem Kürzel `h` nicht.
+
+**Und beide hatten eine Selbstprobe.** Sie hat nicht geholfen — sie hat
+geschadet: der Köder wurde in genau der Schreibweise eingesetzt, die der Riegel
+kannte. Ein solcher Köder **bestätigt die Blindheit statt sie aufzudecken**, und
+er erzeugt Zutrauen.
+
+Damit fällt eine Vermutung, die ich vormittags noch für tragfähig hielt:
+*„Selbstprobe vorhanden ⇒ Leermenge berechtigt"* ist **falsch**, und zwar in
+beide Richtungen. Zwei Fälle **ohne** Selbstprobe bestehen die Mutationsprobe;
+zwei **mit** Selbstprobe fallen durch. Was trägt, ist nicht *ob* es einen Köder
+gibt, sondern **ob es einen je Form gibt**. Alle drei gefundenen Ausfälle
+scheitern genau daran, alle 30 berechtigten bestehen ihn.
+
+Beide Riegel fahren jetzt über `code_scan.knopf_stellen` (Eichung 4/4 Formen),
+und beim Umstellen fielen **sofort zwei namenlose Knöpfe** heraus, die vorher
+unsichtbar waren: der Entfernen-Knopf der Arbeitsschein-Checkliste (Inhalt nur
+ein Malzeichen — von v958 auch deshalb nicht gesehen, weil `0x00D7` in seiner
+Zeichenklasse fehlt) und der siebte Umschalter im Fahrtenbuch-Panel, der
+bedingt benannt ist.
+
+*(Nebenbei widerlegt: die Zahl „31 ungeprüfte Verdachte" war eine
+Verschreibung — 28 am damaligen Stand, heute 33. Vermutlich aus der 31.495
+daneben.)*
+
+## 🔴 Die Mutationsprobe: zwei Schadensklassen sieht keine Prüfung
+
+`docs/befunde/MUTATIONSPROBE_v3.9.961.md`. Vierzehn Mutationen an vierzehn
+einzeln benannten Stellen, jede auf einer Kopie, `index.html` nachweislich
+unberührt.
+
+| | rote Fälle |
+|---|---|
+| Austrittsfilter `<` → `<=` | **11** in 5 Dateien (stärkste Reaktion) |
+| **Median aller Schadensmutationen** | **2** |
+| `h2`→`div` · Versionsdreiklang · Schrift unter 12 px · dunkle Farbe im Hellmodus | je **1**, in je *einer* Datei |
+| **ein `catch`, der schluckt statt zu melden** | **0** |
+| **ein entfernter Null-Schutz** (`?.` weg) | **0** |
+| *Gegenprobe:* nur Kommentartext geändert | **0** — richtig |
+
+Die beiden Nullen sind die eigentliche Aussage. Bei `catch` gibt es **355**
+Blöcke in der Datei und gepinnt ist **einer**, namentlich. Beim Null-Schutz ist
+der Prüfstand grundsätzlich schwach: eine Mutation, die Zeichen **wegnimmt**,
+sieht im Quelltext aufgeräumter aus, und „kommt nicht mehr vor" bemerkt ein
+Anwesenheitsriegel nicht.
+
+**Und die Gegenprobe hält** — der Prüfstand wird nicht bei jeder Änderung rot.
+Das ist genauso wichtig: einer, der immer rot ist, wird abgeschaltet.
+
+**Umfang, ausdrücklich:** für Klassen mit vielen Vertretern (26× `ww<BP_MOB`,
+22× `h2`, 355× `catch`) ist **eine** Stelle gemessen. Die Null steht je blinder
+Klasse auf *einer* Stelle.
+
+## 🔴 „Gate 5" ist nie ein Tor geworden
+
+`scripts/md5_geschuetzt.py` hält die Byte-Identität von sieben Funktionen mit
+Lohn- und Eskalationslogik. Sein Dateikopf beginnt mit den Worten **„Gate 5"**.
+
+Gemessen: kein Skript ruft es auf, keine Kette führt es, und **keine einzige der
+sieben Prüfsummen stand in irgendeiner Testdatei** — während **zwei** Tests
+ausdrücklich darauf verweisen („das hält `scripts/md5_geschuetzt.py` fest"). Die
+Zusicherung war an etwas delegiert, das nie gefahren wurde. Sie lief in diesem
+ganzen Lauf nur, weil ich sie nach jeder Stufe von Hand getippt habe — **und
+Disziplin ist kein Riegel.**
+
+Der Mutationsagent hat es im selben Lauf unabhängig bestätigt: auf dem Stand
+davor konnte er `_maWaehlbar` — TABU, lohnnah — anfassen, **ohne einen einzigen
+roten Fall**.
+
+Jetzt läuft es an zwei Stellen: als eigenes Tor und als Test. Und der Köder dazu
+hat eine Schwäche im Werkzeug aufgedeckt: `find("function " + name)` trifft auch
+`function _maWaehlbarX`, eine Umbenennung mit **längerem** Namen wurde also als
+„verändert" und nicht als „nicht gefunden" gemeldet. Jetzt mit Wortgrenze; alle
+sieben Summen unverändert.
+
+## Die Kette hat jetzt sieben Tore statt vier
+
+`docs/befunde/DIE_FUENFZEHN_LESER.md`. Von 15 reinen Lesern, die in keiner Kette
+hingen, gehören **drei** hinein — gemessene Kosten **+1,8 s**:
+
+`md5_geschuetzt.py` · `bestand.py` · `icons_erzeugen.py --pruefen`
+
+🔴 Das `--pruefen` ist **nicht optional**: ohne das Argument schreibt das Skript
+vier PNG ins Repo. Vor dem Einhängen belegt, und die ganze Kette danach
+gegengemessen — sie schreibt nichts.
+
+**Jedes neue Tor muss rot werden können, sonst ist es keins.** Für die Icons
+habe ich ein Byte in `icon-192.png` gekippt: `rc 1` mit „Nicht aktuell:
+icon-192.png", danach bytegleich wiederhergestellt (md5 vorher = nachher).
+
+### Zwei Attrappen, nicht eingehängt
+
+`a2_dryrun.mjs` und `verify_sync_behavior.cjs` nennen `index.html` zwei- bzw.
+viermal — **kommentarblind gemessen null mal**. Sie tragen ihren Gegenstand
+*abgeschrieben* im eigenen Quelltext. An der Kopie belegt: mit zerstörtem
+Original bleiben beide auf `rc 0`. Als Tor würden sie grün melden, während ihr
+Gegenstand rot ist.
+
+## Vier wirkungslose Prüfungen sind jetzt wirksam
+
+`docs/befunde/WIRKUNGSLOSE_RIEGEL_REPARIERT.md`. Der wichtigste: zwei Dateien
+prüften `_sbPatch('tickets', …)` mit `[^)]+` — das überquert keine innere
+Klammer, die Schleife lief über einer **leeren** Menge, **null** Zusicherungen.
+Jetzt werden Klammern gezählt, Kommentare ausgenommen (3 der 23 Nennungen
+stehen in Kommentaren), und der Riegel **belegt zuerst seine Grundgesamtheit**
+(20 Aufrufe) und behauptet erst dann die Abwesenheit.
+
+**Selbst gegengemessen**, weil ich eine fremde Reparatur an einer Prüfung nicht
+ungeprüft übernehme: `_sbPatch("tickets", String(t.id), {xPct:1})` in eine
+Kopie eingesetzt → der neue Riegel findet sie, das alte Muster hatte **0**
+Treffer.
+
+Dazu: eine strukturell nie erfüllbare Bedingung (7 Zeilen mit dem einen Begriff,
+2 mit dem anderen, 0 gemeinsam), eine Prüfung ohne jedes `assert` — deren
+Docstring-Begründung nicht trug, weil der genannte Ersatz nur `App` deckt und
+die anderen **86** Komponenten nicht —, und eine still aussteigende
+Umkehrprobe, deren Anker nachweislich **nirgends sonst** geschützt ist.
+
+## Und mein eigener Konstruktionsfehler
+
+`test_jede_datei_wird_eingesammelt_v961` hält sich bei *wenigen* beitragenden
+Dateien zurück. Bei `--ignore` tragen die über 300 anderen aber weiter bei — die
+Schwelle greift nicht, und die ausgeschlossene Datei sieht wie eine stumme aus.
+
+Folge: bei einem Agenten war die Prüfung in **allen fünfzehn Läufen** rot und
+musste aus jeder Zeile seiner Messung herausgerechnet werden. Ein Riegel, der
+dauernd grundlos rot ist, wird abgeschaltet. Jetzt wird pytest selbst gefragt,
+was ihm per `--ignore`, `--ignore-glob`, `-k` oder `--deselect` ausgeschlossen
+wurde.
+
+## Zwei neue Fragen
+
+**16** — elf übersprungene Prüfungen verweisen auf einen Nachfolger, der nur die
+**Datei im Repo** prüft, nicht den Rumpf, der in der Datenbank läuft.
+**17** — sieben Skripte kommen von cdnjs **ohne `integrity`**, darunter
+`bcryptjs`, das die Passwörter hasht.
+
+Beide sind gemessen und **nicht gebaut**: bei 16 fehlt mir der Lesezugang zu
+`pg_proc`, bei 17 lädt eine falsche Prüfsumme die Datei nicht — die App wäre
+weiß. Das entscheidet Sebastian.
