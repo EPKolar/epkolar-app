@@ -86,6 +86,24 @@ def test_die_dezimalgroessen_sind_unberuehrt():
 
     Dieser Riegel haelt fest, dass die Dezimalwerte noch da sind - sie sind
     der Beleg, dass das Muster eng genug ist.
+
+    🔴 v3.9.967: DER ZEUGE HAT GEWECHSELT, DIE ABSICHT NICHT.
+    `fontSize:9.5` gibt es nicht mehr. Die zwei Vorkommen sassen in WeekPlan
+    und sind am 27.09.2026 zusammen mit den uebrigen 48 kleinen Groessen der
+    Wochenplanung auf UI.fMeta gehoben worden - absichtlich, gemessen, mit
+    Gegenprobe am Querlauf. Die Datei kann also nicht mehr bezeugen, dass das
+    Muster eng genug ist.
+    Statt den Riegel zu loeschen, ist der Zeuge ersetzt: der BELEG steht jetzt
+    als KOEDER hier drin, an einem selbstgebauten Text. Das ist die stabilere
+    Form - er haengt nicht mehr davon ab, dass irgendwo im Haus eine bestimmte
+    Kommazahl ueberlebt.
+    Die Probe, dass es UEBERHAUPT noch Kommazahlen gibt, bleibt: sie belegt,
+    dass kein Rundumschlag sie alle verschluckt hat.
+
+    Dabei mitgefunden und behoben: `fontSize:11.5` (zweimal) und
+    `fontSize:10.5` in BauprovisorienView standen UNTER 12 px, und das Muster
+    dieses Riegels - `(?:9|10|11)(?![\\d.])` - kann sie prinzipiell nicht
+    sehen. Ein Muster, das auf Ganzzahlen endet, ist fuer Kommazahlen blind.
     """
     roh = _roh()
     feld = _code_feld(roh)
@@ -95,9 +113,24 @@ def test_die_dezimalgroessen_sind_unberuehrt():
         "Keine Dezimal-Schriftgroesse mehr im Code. Entweder sind sie "
         "absichtlich verschwunden - dann gehoert dieser Riegel angepasst - "
         "oder ein zu weites Muster hat sie zerschnitten.")
-    assert "fontSize:9.5" in dez, (
-        "fontSize:9.5 ist verschwunden. Genau diesen Wert hat mein erstes, zu "
-        "weites Muster zerstoert. Gefunden: %s" % sorted(set(dez)))
+    # 🔴 KOEDER: genau der Fehler, der v3.9.943 einmal passiert ist. Das zu
+    # weite Muster zerschneidet die Kommazahl, das enge nicht.
+    probe = 'h("div",{style:{fontSize:9.5,color:V.dm}})'
+    zu_weit = re.compile(r"fontSize:[789]")
+    eng = re.compile(r"fontSize:(?:9|10|11)(?![\d.])")
+    assert zu_weit.sub("fontSize:UI.fMeta", probe) == \
+        'h("div",{style:{fontSize:UI.fMeta.5,color:V.dm}})', (
+        "Das zu weite Muster zerschneidet die Kommazahl NICHT mehr - dann "
+        "belegt dieser\n  Koeder nichts, und die Begruendung des Riegels ist "
+        "hinfaellig.")
+    assert eng.sub("fontSize:UI.fMeta", probe) == probe, (
+        "Das enge Muster mit (?![\\d.]) fasst fontSize:9.5 an. Genau daran ist "
+        "der erste\n  Griff in v3.9.943 gescheitert: node_check meldete "
+        "'Unexpected number'.")
+    # Und die Gegenrichtung: an einer GANZZAHL muss das enge Muster greifen.
+    assert eng.sub("X", 'fontSize:9,') == "X,", (
+        "Das enge Muster greift nicht mehr an einer Ganzzahl - dann ist es zu "
+        "eng und\n  haette die 138 Stellen von v3.9.943 nie gefunden.")
 
 
 # ── Die Wetterkarte ───────────────────────────────────────────────────────

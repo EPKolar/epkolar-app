@@ -50,8 +50,20 @@ from pathlib import Path
 
 WURZEL = Path(__file__).resolve().parents[1]
 
-GEHOBEN = ["WerkzeugView", "HomeView", "ArbeitsscheinView"]
-AUSGENOMMEN = ["WeekPlan"]
+# 🔴 v3.9.967: WeekPlan ist von AUSGENOMMEN nach GEHOBEN gewandert, und das
+# ist gemessen, nicht beschlossen. Die Ausnahme stand hier, weil v3.9.943 den
+# Rundumschlag abgelehnt hatte: "bei 1440 px rollte Planung 7 px quer (1398 von
+# 1405) und der Beschnitt stieg dort von 1 auf 13 Stellen".
+# Am 27.09.2026 wurde beides nachgemessen. Nach dem Heben rollte Planung
+# tatsaechlich wieder 7 px quer - das ueberstehende Element war namentlich
+# bestimmt (der Loeschknopf der Zeile, rechte Kante bei 1405). Es wurden 8 px
+# Polsterung zurueckgenommen (td 2->1 px, drei nicht zerstoerende Knoepfe
+# 0 1px -> 0; der Loeschknopf behielt seine). Danach: Querlauf 0, Beschnitt 0,
+# Elemente unter 12 px von 44 auf 2 bei 390 px und von 42 auf 9 bei 1440 px.
+# Der damalige Preis faellt damit weg - der Beschnitt ist NULL, nicht 13, weil
+# die Monteursnamen jetzt umbrechen statt gekuerzt zu werden.
+GEHOBEN = ["WerkzeugView", "HomeView", "ArbeitsscheinView", "WeekPlan"]
+AUSGENOMMEN = []
 
 MUSTER = re.compile(r"fontSize:(?:isMob\?(?:9|10|11):\d+|(?:9|10|11)(?![\d.]))")
 
@@ -111,31 +123,78 @@ def test_die_drei_gehobenen_ansichten_sind_frei_von_kleiner_schrift():
         "UI.fMeta ist der Boden der App." % rest)
 
 
-def test_weekplan_ist_ausgenommen_und_das_ist_gemessen():
-    """KOEDER UND ENTSCHEIDUNG IN EINEM.
+def test_der_zaehler_findet_ueberhaupt_etwas():
+    """🔴 DER KOEDER, DER VORHER DIE DATEI WAR.
 
-    Traegt WeekPlan keine kleinen Groessen mehr, ist eine von zwei Dingen
-    passiert: jemand hat die Tabelle breiter gemacht und die Schrift danach
-    gehoben (dann gehoert dieser Riegel weg, samt der Begruendung an der
-    Token-Deklaration) - oder jemand hat den Rundumschlag doch gemacht, und
-    dann rollt Planung bei 1440 px wieder 7 px quer mit 13 abgeschnittenen
-    Texten. Das soll auffallen.
+    Bis v3.9.966 war die Ausnahme WeekPlan selbst der Koeder fuer die Zaehlung
+    darueber: fand sie dort nichts, fand sie nirgends etwas, und die Null bei
+    den gehobenen Ansichten waere keine Aussage gewesen.
 
-    Gleichzeitig ist dieser Riegel der Koeder fuer den darueber: findet er
-    hier NICHTS, dann findet die Zaehlung ueberhaupt nichts, und die Null bei
-    den drei gehobenen Ansichten waere keine Aussage.
+    Seit v3.9.967 ist WeekPlan gehoben, und damit ist dieser Zeuge weg. Er wird
+    NICHT ersatzlos gestrichen - der Beleg steht jetzt an einem selbstgebauten
+    Text, und das ist die stabilere Form: der Koeder haengt nicht mehr davon
+    ab, dass irgendeine Ansicht einen Mangel behaelt. Ein Riegel, dessen
+    Nachweis vom Fortbestehen des Mangels lebt, wird bei der naechsten Kur
+    entweder rot oder blind.
+
+    Alle drei Formen, die MUSTER kennt, werden geprueft - eine Form, die es
+    nicht kann, meldet 'kommt nicht vor', und das ist von einem echten Befund
+    nicht zu unterscheiden.
+    """
+    for fall, wie in (("fontSize:9,", "Ganzzahl 9"),
+                      ("fontSize:10}", "Ganzzahl 10"),
+                      ("fontSize:11 ", "Ganzzahl 11"),
+                      ("fontSize:isMob?9:14", "mobil-abhaengig")):
+        assert MUSTER.findall(fall), (
+            "Die Form %r (%s) wird von MUSTER nicht erkannt - dann ist jede "
+            "Null dieses\n  Riegels geschenkt." % (fall, wie))
+    # Gegenprobe: was NICHT gemeldet werden darf.
+    for fall, warum in ((" fontSize:12,", "12 ist der Boden, kein Befund"),
+                        ("fontSize:9.5,", "Kommazahl - das Muster endet auf "
+                                          "Ganzzahl und darf sie nicht "
+                                          "anfassen"),
+                        ("fontSize:UI.fMeta,", "Token")):
+        assert not MUSTER.findall(fall), (
+            "%r wurde gemeldet (%s) - ein Riegel, der alles meldet, misst so "
+            "wenig wie einer,\n  der schweigt." % (fall, warum))
+
+
+def test_die_ausnahme_ist_aufgehoben_und_das_ist_GEMESSEN():
+    """Die Entscheidung, die vorher als Ausnahme hier stand.
+
+    v3.9.943 hatte den Rundumschlag in der Wochenplanung abgelehnt, mit einer
+    Messung: "bei 1440 px rollte Planung 7 px quer (1398 von 1405) und der
+    Beschnitt stieg dort von 1 auf 13 Stellen". Diese Begruendung war richtig
+    und hat drei Wochen gehalten.
+
+    Am 27.09.2026 wurde sie nachgemessen statt uebergangen. Nach dem Heben
+    rollte Planung tatsaechlich wieder 7 px quer. Das ueberstehende Element
+    wurde NAMENTLICH bestimmt - der Loeschknopf der Zeile, rechte Kante bei
+    1405 - und es wurden 8 px Polsterung zurueckgenommen. Danach:
+    Querlauf 0, Beschnitt 0, Elemente unter 12 px von 44 auf 2 (390 px) und von
+    42 auf 9 (1440 px). Der Beschnitt ist NULL statt 13, weil die
+    Monteursnamen jetzt umbrechen statt gekuerzt zu werden.
+
+    Diese Probe haelt fest, dass der Platz auch WIRKLICH geschaffen wurde -
+    ohne ihn kehrt der Querlauf zurueck, und dann war die Aufhebung der
+    Ausnahme falsch.
     """
     roh = _roh()
     ber = _bereiche(roh)
     a, b, feld = ber["WeekPlan"]
-    t = [m.start() for m in MUSTER.finditer(roh)
-         if a <= m.start() < b and feld[m.start()]]
-    assert t, (
-        "WeekPlan traegt keine Schriftgroesse unter 12 px mehr. Entweder ist "
-        "die Tabelle jetzt breit genug und die Ausnahme aufgehoben - dann "
-        "gehoert dieser Riegel weg - oder es wurde ohne Messung gehoben, und "
-        "Planung rollt bei 1440 px wieder quer (gemessen: 1398 von 1405, "
-        "Beschnitt 1 -> 13).")
+    seg = roh[a:b]
+    assert 'padding:"1px",textAlign:"center",whiteSpace:"nowrap"' in seg, (
+        "Das td der Zeilenknoepfe steht nicht mehr auf 1 px. Ohne die "
+        "zurueckgenommene\n  Polsterung rollt Planung bei 1440 px wieder 7 px "
+        "quer - genau der Grund, aus dem\n  v3.9.943 diese Ansicht "
+        "ausgenommen hat.")
+    assert seg.count('color:V.dm,padding:0}') >= 2, (
+        "Die Polsterung der Zeilenknoepfe Hoch/Runter ist zurueck. Sie war die "
+        "Haelfte der\n  8 px, die den Querlauf aufgehoben haben.")
+    assert 'color:COLORS.ERROR,padding:"0 2px"' in seg, (
+        "Der LOESCHKNOPF hat seine Polsterung verloren. Sie steht dort "
+        "absichtlich: ein\n  zerstoerender Knopf, der die Nachbarn beruehrt, "
+        "wird verklickt.")
 
 
 def test_die_begruendung_steht_an_der_deklaration():
