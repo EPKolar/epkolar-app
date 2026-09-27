@@ -541,6 +541,67 @@ Knopfes mit dem `onClick` eines **anderen** verbinden und wäre grün, während
 der Löschknopf offensteht. Dazu eine Selbstprobe — und die Selbstprobe selbst
 ist geprüft: mit dem zu weiten Muster wird sie rot, mit dem engen grün.
 
+
+## 🔴 Sechzehn Kommentare behaupteten vierzehn Monate lang das Gegenteil (v3.9.959)
+
+`FINKZEIT_ENABLED` schaltet den Reiter **Monatsabrechnung**. Am 04.06.2026
+hat Sebastian ihn geparkt; in **v3.9.204** ist er reaktiviert worden, und die
+Fahne steht seither auf `true`. Die Kommentare sind nie nachgezogen worden.
+
+Bis v3.9.958 sagten **sechzehn** Stellen auf dreizehn Zeilen weiter
+„FINKZEIT STANDBY", „Tab geparkt", „UI-ausgeblendet" — und direkt über
+`StundenzettelView`: „komplette View geparkt: diese Komponente wird nicht
+mehr gerendert."
+
+Gemessen war zur gleichen Zeit: die Fahne `true`, `"stunden"` in `_navIds`
+**und** in der Reiterliste, und der Aufruf der Komponente hängt nur noch an
+`hasPerm(curUser,"stunden")`. **Der Weg ist offen, der Kommentar war falsch.**
+
+Aufgefallen war es schon einmal: ein Kommentar aus v3.9.864 hält selbst fest
+„und FINKZEIT_ENABLED=true, der Tab war für alle live". Nachgezogen wurde
+damals nichts. Und in dieser Sitzung ist genau das passiert, wovor es
+schützen soll: ein Befund wurde wegen dieses Satzes fast falsch einsortiert
+— lebender Code galt als stillgelegt.
+
+**Nur Kommentare geändert, kein Verhalten.** Und getrennt behandelt, weil
+nicht alle sechzehn falsch waren:
+
+| | |
+|---|---|
+| **sieben** Behauptungen über den **heutigen** Zustand | richtiggestellt; die Geschichte bleibt drin, gelöscht wird nichts |
+| **sechs** Beschriftungen des `!FINKZEIT_ENABLED`-Zweigs | behalten — ihr Text ist **für diesen Zweig** richtig. Nur der Titel „STANDBY" liest sich als Zustandsaussage und heißt jetzt „FINKZEIT-SCHALTER" |
+
+**Der Riegel misst ein Verhältnis, keine Wortliste.** Er liest den *Wert* der
+Fahne aus der Deklaration und verlangt erst dann, dass kein Kommentar das
+Gegenteil behauptet. Bei `false` schweigt er — wer den Reiter wieder parkt,
+wird nicht behindert. Vier Proben, alle vier richtig; die entscheidende ist
+die zweite: **dieselbe Behauptung bei Fahne `false` bleibt grün.**
+
+Und: ein **Zitat** der alten Formulierung ist keine Behauptung. Ohne diese
+Unterscheidung wäre die Richtigstellung selbst rot — und am Ende hätte man
+die Erklärung gelöscht statt des Fehlers. Eine eigene Probe belegt es.
+
+### Zwei eigene Fehler, beide von fremden Riegeln gefunden
+
+1. **Mein Changelog-Text enthielt die Phrase wieder** — und nahm damit einem
+   Riegel, der die Marken zählt, seine Vorbedingung (`assert 1 >= 6`).
+2. **Mein neuer Riegel ließ das durch.** Sein Zitat-Test fragte, ob im
+   umgebenden Kommentar *irgendwo* vor und *irgendwo* nach der Phrase ein
+   Anführungszeichen steht — und der Changelog-Kommentar ist 256.000 Zeichen
+   lang mit Tausenden davon. Dort galt **jede** Phrase als zitiert. Jetzt
+   werden die Zitatbereiche paarweise ausgerechnet und gefragt, ob die Phrase
+   **in** einem liegt. „Irgendwo im Umfeld" statt „innerhalb" ist dieselbe
+   Fehlerform wie ein Anker, der zu weit schneidet.
+
+### Und ein Riegel, der halb recht hatte
+
+`test_finkzeit_standby_v3991` wurde rot. Seine geschützte Eigenschaft — **jede
+FinkZeit-Fläche trägt ihre eigene Marke** — ist richtig und bleibt unberührt.
+Nicht recht hatte er im Wortlaut: er pinnte „STANDBY" und schrieb damit einen
+Widerspruch zu seinem **eigenen** ersten Riegel fest, der `FINKZEIT_ENABLED=`
+`true` verlangt. Geändert wurde nur `_MARKE`; beide Umkehrproben laufen
+unverändert, weil sie gegen `_MARKE` fahren und nicht gegen einen festen Text.
+
 ## Die Projekt-Reiterzeile rollt auch am Schreibtisch
 
 Neu gegen den Stand dieses Berichts: die Reiterzeile der Projektakte rollt
