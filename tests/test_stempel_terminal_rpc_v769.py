@@ -8,6 +8,29 @@ Richtung server-seitig und bucht in stempel_log. Das Panel bekommt nur {worker_n
 Diese Tests prüfen die APP-Seite statisch (der RPC selbst ist SQL/Human-Run-Gate, seine Härte wird
 im Endreport Zeile für Zeile belegt). Zusätzlich: der SQL-File-Vertrag (die Härte-Auflagen als
 Text-Pins, damit der committete RPC-Body nicht unbemerkt aufweicht).
+
+🔴 WAS HIER NICHT GEPRUEFT WIRD — nachgetragen am 27.09.2026
+────────────────────────────────────────────────────────────
+ELF uebersprungene Faelle in drei anderen Dateien nennen diese Datei als ihren
+Nachfolger: `test_stempel_blocker_v3699`, `test_stempel_hardening_v3662` und
+`test_stempel_teilA_v3691` pinnen den alten Client-Pfad und ueberspringen mit
+der Begruendung, Richtung, Doppel-Scan und Uebernacht lebten "jetzt im RPC
+(sql/STEMPEL_TERMINAL_RPC_v3.sql, gepinnt in test_stempel_terminal_rpc_v769)".
+
+Das ist genau bis hierher richtig: gepinnt wird die **Datei im Repo**. Der
+Rumpf, der in der Datenbank LAEUFT, wird von keiner Pruefung angesehen.
+
+Warum das kein Kleingedrucktes ist: im Repo stehen Fassungen, die nicht laufen -
+das ist in diesem Projekt schon vorgekommen. Die Logik ist mit v3.9.769 von der
+App (dort gepinnt, seither uebersprungen) in eine DB-Funktion gewandert, deren
+ausgelieferten Zustand niemand gegenmisst. Elf Faelle verweisen also auf einen
+Nachfolger, dessen Zusage ein Stueck kleiner ist als die Erwartung.
+
+Mit dem hier verfuegbaren Zugang ist es NICHT messbar: im Repo gibt es kein
+lesendes Werkzeug fuer Funktionsrumpfe, und der Anon-Schluessel kommt an
+`pg_proc` nicht heran. Dafuer braucht es Sebastians angemeldete Sitzung. Steht
+als Frage 16 in `docs/ENTSCHEIDUNGEN-OFFEN.md`, samt der fertigen, rein lesenden
+Abfrage.
 """
 import re
 import os

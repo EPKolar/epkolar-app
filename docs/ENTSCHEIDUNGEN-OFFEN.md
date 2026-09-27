@@ -1,6 +1,6 @@
-# Offene Entscheidungen — fünfzehn Fragen an Sebastian
+# Offene Entscheidungen — sechzehn Fragen an Sebastian
 
-**Stand: 26.09.2026, v3.9.956.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen und stehen als Nachtrag am Ende.
+**Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16** am 27.09. — alle drei stehen als Nachtrag am Ende.
 
 **Stand der Fragen 1–13: 01.09.2026, v3.9.928.** Diese Seite sammelt alles, was ich gemessen, aber
 nicht entschieden habe. Die Fragen 1–8 stehen seit dem 28.08. als `xfail(strict)` im
@@ -331,3 +331,60 @@ Zeichen, und der wächst mit jeder Version.
 
 **Und die praktische Regel für jeden, der hier schreibt:** in `index.html`
 gehört **kein Backtick in einen Kommentar**, solange das Tor so gebaut ist.
+
+### 16. 🔴 Elf übersprungene Prüfungen verweisen auf einen Nachfolger, der nur die *Datei* prüft
+
+**Gemessen am 27.09.2026.** Die Stempeluhr hat mit v3.9.769 ihre Logik
+umgezogen: Richtung, Doppel-Scan und Übernacht lagen vorher in der App und
+liegen jetzt im Datenbank-RPC `stempel_terminal_stempel`.
+
+Die alten Prüfungen sind dabei nicht gelöscht, sondern **übersprungen** worden —
+elf Fälle in drei Dateien, jeder mit einer sauberen Begründung, die sogar den
+Nachfolger nennt:
+
+> „Richtung/Doppel-Scan/Übernacht leben jetzt im RPC
+> (`sql/STEMPEL_TERMINAL_RPC_v3.sql`, gepinnt in
+> `test_stempel_terminal_rpc_v769`). Dieser Pin testet toten Code."
+
+**Das ist bis hierher richtig — und eine Stufe kleiner, als es klingt.**
+`test_stempel_terminal_rpc_v769` prüft: die App ruft den RPC (13 Fälle am
+`StempelTafel`-Rumpf), und die **Datei im Repo** trägt ihre Härte-Auflagen
+(`SECURITY DEFINER`, `SET search_path = public`, `REVOKE ALL … FROM PUBLIC`).
+
+Was **niemand** prüft: den Rumpf, der in der Datenbank tatsächlich **läuft**.
+
+**Warum das in diesem Projekt kein Kleingedrucktes ist:** es ist schon
+vorgekommen, dass im Repo eine Fassung steht, die nicht läuft. Eine über die
+Management-API gefahrene Migration erscheint außerdem nicht im
+Migrationsregister. Die Logik ist also von einem Ort, an dem sie gepinnt war
+(die App), an einen Ort gewandert, an dem sie **nicht** gepinnt ist — und die
+elf Skips lesen sich, als sei sie weiter abgedeckt.
+
+**Warum ich es nicht selbst gemessen habe:** im Repo gibt es kein lesendes
+Werkzeug für Funktionsrümpfe (das einzige DB-Werkzeug ist ein *schreibender*
+Migrationsläufer), und der ausgelieferte Anon-Schlüssel kommt an `pg_proc`
+nicht heran. Eine Zahl hätte ich hier nur erfinden können.
+
+**Frage an dich:** einmal die laufende Fassung gegenlesen. Rein lesend, in
+deiner angemeldeten Sitzung im Supabase-SQL-Editor:
+
+```sql
+select p.proname,
+       p.prosecdef                              as security_definer,
+       p.proconfig                              as gesetzte_einstellungen,
+       pg_get_functiondef(p.oid)                as rumpf
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'stempel_terminal_stempel';
+```
+
+Drei Dinge daran sind die Antwort: `security_definer` muss `true` sein,
+`gesetzte_einstellungen` muss `search_path=public` enthalten, und der `rumpf`
+muss mit `sql/STEMPEL_TERMINAL_RPC_v3.sql` übereinstimmen. Weicht er ab, sind
+die elf Skips ohne Deckung.
+
+**Und wenn du es beantwortet hast:** dann lohnt ein Prüfer, der das regelmäßig
+gegenmisst. Er braucht aber eine Sitzung mit Leserecht auf `pg_proc` — mit dem
+Anon-Schlüssel geht es nicht, und ein Prüfer, der aus Mangel an Rechten nichts
+findet, meldet grün.
