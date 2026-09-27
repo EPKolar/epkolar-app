@@ -413,6 +413,156 @@ def alle_elementnamen(text, als_tag=False):
     return aus
 
 
+# ───────────────────────────────────────────────────────────────────────────
+# EIN BEDIENELEMENT SAMT EIGENSCHAFTEN UND KINDERN
+#
+# 🔴 WARUM DAS HIER STEHT: die Riegel aus v3.9.957 und v3.9.958 haben jeder
+# seinen eigenen Knopf-Abtaster mitgebracht, und beide hatten dieselben drei
+# Luecken. Gemessen am 27.09.2026:
+#   * sie suchten nur `createElement('button'`. Die Datei fuehrt 97 Stellen
+#     `h('button'` - die wurden NIE angesehen.
+#   * sie lasen den Inhalt nur in DOPPELTEN Anfuehrungszeichen; sieben Stellen
+#     stehen in einfachen.
+#   * die Zeichenklasse von v958 kennt 0x229E (Kachel) und 0x00D7 (Malzeichen)
+#     nicht.
+# Folge: SIEBZEHN Knoepfe, die nie ein Wort zeigen und keinen Namen tragen,
+# waren fuer beide Riegel unsichtbar - trotz der Regel, die genau davor warnt
+# und die einen Tag vorher aufgeschrieben wurde.
+#
+# Deshalb liegt der Abtaster ab v3.9.961 hier, EINMAL, mit Eichung.
+# ───────────────────────────────────────────────────────────────────────────
+
+def _zeichenkette_ueberspringen(text, i):
+    """Hinter das schliessende Anfuehrungszeichen. i zeigt auf das oeffnende."""
+    q, n = text[i], len(text)
+    i += 1
+    while i < n and text[i] != q:
+        i += 2 if text[i] == "\\" else 1
+    return i + 1
+
+
+def _klammer_zu(text, i, auf, zu):
+    """Hinter die passende schliessende Klammer. i zeigt auf die oeffnende.
+
+    Ueberspringt Zeichenketten - ohne das laeuft die Zaehlung an jeder Klammer
+    in einem Text aus dem Tritt, und alles danach ist verschoben.
+    """
+    tiefe, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'`":
+            i = _zeichenkette_ueberspringen(text, i)
+            continue
+        if c == auf:
+            tiefe += 1
+        elif c == zu:
+            tiefe -= 1
+            if tiefe == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def eichen_knoepfe():
+    """Belegt, dass der Knopf-Abtaster alle Formen dieser Datei kennt.
+
+    An einem selbstgebauten Text: beide Erzeuger, beide Anfuehrungszeichen um
+    das Tag, und ein Nicht-Treffer, der nicht mitzaehlen darf.
+    Gibt (bestanden, gefunden, erwartet) zurueck.
+    """
+    probe = (
+        "React.createElement('button', {a:1}, \"x\");"
+        "h('button',{b:2},'y');"
+        "React.createElement(\"button\", {c:3}, 'z');"
+        "h(\"button\", {d:4}, \"w\");"
+        "search('button');"          # kein Erzeuger
+        "obj.h('button');"           # Methode
+    )
+    n = len(list(_KNOPF.finditer(probe)))
+    return (n == 4, n, 4)
+
+
+_KNOPF = re.compile(
+    r"(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*['\"]button['\"]\s*,")
+
+
+def knopf_stellen(text):
+    """Jedes button-Element im CODE als (start, eigenschaften, kinder).
+
+    `eigenschaften` ist der Text des Objektliterals einschliesslich der
+    Klammern, `kinder` alles danach bis zur schliessenden Klammer des Aufrufs.
+    Knoepfe ohne Objektliteral als Eigenschaften (z.B. `null`) werden mit
+    eigenschaften="" gemeldet - sie tragen dann sicher keinen Namen.
+    """
+    ok, gef, erw = eichen_knoepfe()
+    if not ok:
+        raise SystemExit(
+            "code_scan: KNOPF-EICHUNG GESCHEITERT - %d von %d Formen erkannt.\n"
+            "  Der Abtaster kennt nicht alle Schreibweisen und wuerde Knoepfe "
+            "uebersehen.\n"
+            "  Genau daran sind v3.9.957 und v3.9.958 vorbeigelaufen: 17 "
+            "namenlose Knoepfe\n"
+            "  blieben unsichtbar, weil `h('button'` und einfache "
+            "Anfuehrungszeichen fehlten." % (gef, erw))
+    feld = ist_code(text)
+    aus = []
+    for m in _KNOPF.finditer(text):
+        if not feld[m.start()]:
+            continue
+        i = m.end()
+        while i < len(text) and text[i] in " \t\r\n":
+            i += 1
+        if i < len(text) and text[i] == "{":
+            pe = _klammer_zu(text, i, "{", "}")
+            props = text[i:pe] if pe > 0 else ""
+        else:
+            pe, props = i, ""
+        if pe <= 0:
+            continue
+        # Kinder: ab hinter den Eigenschaften bis zum Ende des Aufrufs.
+        auf = text.rfind("(", m.start(), m.end())
+        ende = _klammer_zu(text, auf, "(", ")")
+        kinder = text[pe:ende - 1] if ende > pe else text[pe:pe + 1500]
+        aus.append((m.start(), props, kinder))
+    return aus
+
+
+def hat_namen(eigenschaften):
+    """Traegt dieses Element einen zugaenglichen Namen?
+
+    Gemessen auf der OBERSTEN Ebene des Eigenschaftenobjekts. Eine flache
+    Suche zaehlt ein `title:` mit, das in einem onClick-Rumpf steht - die
+    Abtaster von v957/v958 haben diese Schwaeche, und einmal hat sie dort drei
+    Knoepfe falsch als benannt gefuehrt.
+    """
+    tiefe, i, n = 0, 0, len(eigenschaften)
+    while i < n:
+        c = eigenschaften[i]
+        if c in "\"'`":
+            # 🔴 ERST HINEINSEHEN, DANN UEBERSPRINGEN. Die erste Fassung hat
+            # jede Zeichenkette uebersprungen - und `'aria-label'` IST eine.
+            # Damit galt ein Knopf mit 'aria-label' als namenlos. Gefunden von
+            # einem Fall, der es ausdruecklich geprueft hat; ohne den waere
+            # der Fehler in die Zaehlung eingegangen und haette dort Knoepfe
+            # gemeldet, die einen Namen tragen.
+            ende = _zeichenkette_ueberspringen(eigenschaften, i)
+            inhalt = eigenschaften[i + 1:ende - 1]
+            if tiefe == 1 and inhalt in ("aria-label", "title") and \
+                    re.match(r"\s*:", eigenschaften[ende:]):
+                return True
+            i = ende
+            continue
+        if c in "{([":
+            tiefe += 1
+        elif c in "})]":
+            tiefe -= 1
+        elif tiefe == 1 and re.match(r"(?:title|aria-label)\s*:",
+                                     eigenschaften[i:]):
+            return True
+        i += 1
+    return False
+
+
 def main(argv):
     if not argv:
         raise SystemExit('Aufruf: python scripts/code_scan.py "<muster>" [--alle]')
