@@ -133,6 +133,19 @@ def _rumpf(text, name):
 # eine Form nicht kennt, meldet "keine erfundene Ueberschrift gefunden".
 # Das `(?<![A-Za-z0-9_$.])` verhindert, dass `search(`, `_ch(` oder `.h(`
 # als Aufruf des Kuerzels gelesen werden.
+#
+# 🔴 v3.9.959: DIESES Muster bleibt hier, obwohl das Alphabet seit v3.9.959 in
+# `code_scan.element_stellen` liegt und die Gesamtzahl weiter unten dort
+# gezaehlt wird. Der Grund ist kein Versaeumnis:
+#   `element_stellen` arbeitet auf einem GANZEN Text und rechnet sich dafuer
+#   das Code-Feld aus. Hier wird aber ein AUSSCHNITT durchsucht (der Rumpf
+#   einer Komponente), und ein Code-Feld ueber einen Ausschnitt ist falsch:
+#   der Ausschnitt kann mitten in einer Zeichenkette oder einem Kommentar
+#   beginnen, und dann verschiebt sich alles dahinter.
+#   Diese Datei macht es richtig - sie sucht im Ausschnitt und fragt das Feld
+#   des VOLLEN Textes an der zurueckgerechneten Stelle (`feld[a + m.start()]`).
+# Wer hier "aufraeumt" und auf element_stellen umstellt, muss den Ausschnitt
+# mitdenken; sonst entsteht genau der Fehler, den diese Datei dokumentiert.
 UEBERSCHRIFT = re.compile(
     r"""(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*['"](h[123])['"]""")
 
@@ -339,9 +352,15 @@ def test_die_gesamtzahl_der_seitenueberschriften():
     roh = _lies()
     # Nur h2 - h1/h3 zaehlen hier nicht mit, sonst misst die Zahl etwas
     # anderes als sie behauptet.
-    st = code_scan.nur_code_stellen(
-        roh, r"""(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*'h2'""",
-        regex=True)
+    #
+    # v3.9.959: gezaehlt wird ueber code_scan.element_stellen statt mit einem
+    # eigenen Muster. Das Alphabet gehoert an EINEN Ort: dass hier zuerst nur
+    # `createElement('h2'` stand und der Kuerzel `h('h2'` fehlte, hat diesen
+    # Riegel schon einmal rot gemacht, obwohl alles stimmte. `element_stellen`
+    # kennt beide Erzeuger UND beide Anfuehrungszeichen und verweigert die
+    # Auskunft, wenn seine Formen-Eichung scheitert - eine Zahl aus einem
+    # nachweislich irrenden Abtaster ist schlimmer als keine.
+    st = code_scan.element_stellen(roh, "h2", als_tag=True)
     assert len(st) == 30, (
         "%d h2-Aufrufe im Code, erwartet 30. Sinkt die Zahl, ist eine "
         "Seitenueberschrift verschwunden - das ist ein Fehler und kein "
