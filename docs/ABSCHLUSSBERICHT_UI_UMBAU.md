@@ -1063,6 +1063,176 @@ Attribute — **aber alle acht tragen sichtbaren Text** („Bearbeiten",
 Was ich stattdessen finde: **23 Bedienelemente mit `onClick`, die keine Knöpfe
 sind** — `div`, `span`, `td` —, und **keines** davon hat `role` und `tabIndex`.
 Für die Tastatur und für eine Vorlesehilfe sind das keine Bedienelemente. Das
-ist dieselbe Klasse, die app-weit mit **133** Stellen gemessen ist, und sie ist
+ist dieselbe Klasse, die app-weit mit **133** Stellen gemessen ist — *diese Zahl ist am 27.09. abends nachgemessen und korrigiert worden: mit der Abgrenzung des Riegels sind es **126** vor der Kur und **124** danach, und **29** der Kandidaten sind gar keine Bedienelemente, sondern reine Weiterleitungssperren. Siehe den Nachtrag am Ende.*, und sie ist
 größer als drei Knöpfe. Der Baubefehl sagt es selbst: *die Lücke im Suchmuster
 ist wichtiger als die drei Knöpfe.*
+
+---
+
+# Nachtrag 27.09.2026, Abend — die fünf Punkte, und viermal war meine eigene Messung falsch
+
+## 🔴 Stufe 0a ist offen
+
+Der git-add-Riegel feuert seit über dreißig Commits nicht. **Sebastian muss
+einmal `/hooks` öffnen.** Bis dahin ist es Disziplin, kein Riegel: jeder Commit
+nennt seine Dateien einzeln, `-A` und `-u` kommen nicht vor.
+
+## Was ausgeliefert ist
+
+`origin/main = 732924d`, **v3.9.967**. Fünf Commits, jeder mit den sieben Toren
+grün, jeder einzeln geschoben.
+
+| | Punkt | Version |
+|---|---|---|
+| 1 | Wochenplanung — Lesbarkeit bei echter Monteurszahl | v3.9.967 |
+| 2 | Fahrzeuge — Lesbarkeit bei 21 Fahrzeugen | v3.9.965 |
+| 3 | Arbeitsscheine — Lesbarkeit | v3.9.966 |
+| 4 | Emoji im Knopf-Markup | v3.9.963 |
+| 5 | Die drei übersehenen Symbol-Knöpfe der Projektliste | v3.9.964 |
+
+## Punkt 4 — die Zahl war irreführend, und das steht hier so
+
+Der Auftrag verlangt ausdrücklich: *„wenn sich zeigt, dass der Großteil (b) oder
+(c) ist, war meine Zahl irreführend und der Befund kleiner als er aussieht. Das
+dann so schreiben."* Es hat sich gezeigt.
+
+| Klasse | | Anteil | |
+|---|---|---|---|
+| **(a) im Knopf-Markup** | 671 | **24 %** | anzufassen |
+| (b) Teil eines Datenwerts | 1880 | 66 % | bleibt |
+| (c) Meldungstext | 289 | 10 % | bleibt |
+
+Je Ansicht (a/b/c): Fahrzeuge 66/131/26 · Abwesenheiten 49/75/17 ·
+Arbeitsscheine 34/118/14 · Planung 16/68/6 · Zeiterfassung 15/62/11 ·
+Home 8/74/0 · Projekte 1/14/1.
+
+**Drei Viertel sind (b) oder (c).** Und von den 671 Knöpfen der Klasse (a)
+tragen **668 bereits einen Namen**. Übrig blieb **einer**: der
+Freigabe-Umschalter der Planliste.
+
+## 🔴 Vier eigene Widerrufe, chronologisch
+
+**1. Die Emoji-Zählung war ZWEIMAL falsch, und das zweite Mal war das
+gefährlichere.** Beide Fassungen suchten die Zeichenketten mit einer Regex. Eine
+Regex kennt keine Kommentare; ein Apostroph in deutscher Prosa eröffnet eine
+Schein-Zeichenkette bis zum nächsten Apostroph.
+* Fassung 1 meldete Kommentarsätze als Emoji-Datenwerte.
+* Fassung 2 meldete für `FahrzeugView` **„keine Emoji-Literale"** — während in
+  der Spanne **331 Emoji-Zeichen** stehen. *Eine leere Menge, die wie ein Befund
+  aussieht, ist von einem echten Befund nicht zu unterscheiden.*
+* Kur: die Literale werden aus dem geeichten Abtaster `ist_code` **abgeleitet**
+  statt gesucht. Der Köder trägt genau den Apostroph im Kommentar. 5/5.
+
+**2. Von drei gemeldeten namenlosen Emoji-Knöpfen waren zwei meine eigenen
+Fehlmeldungen.** `VOffa` (Name in `x.t`) und `ChefDashboard` (Name in `label`)
+tragen ihren Namen in einer **Variablen**, und meine Sichtbarkeitsprüfung las nur
+Literale.
+
+**3. Die „133 Stellen" im Abschnitt davor sind zu hoch.** Mit der Abgrenzung des
+Riegels gemessen: **126** vor der Kur, **124** danach. Und von 154 Kandidaten
+sind **29 gar keine Bedienelemente** — `onClick: e=>e.stopPropagation()` ist
+Installation. Hätte ich denen `role="button"` gegeben, wären 29 Phantom-Knöpfe in
+die Tab-Reihenfolge gewandert: die Kur wäre schlimmer als der Mangel gewesen.
+
+**4. Bei der Namenskürzung der Wochenplanung habe ich aus der falschen Menge
+geschlossen.** Ich suchte `slice(0,N)` und `substr(0,N)`, fand nichts und schloss
+auf CSS. Der Hausname der Kürzung heißt **`_kurz`**. Dieselbe Alphabet-Lücke, die
+diesen ganzen Lauf trägt.
+
+## 🔴 Und ein Riegel hat meinen eigenen einen Commit später widerlegt
+
+`test_fahrzeuge_schriftgroesse_v965` misst den **Quelltext**: keine feste
+Schriftgröße unter 12 px in `FahrzeugView`. Grün. Und die Arbeitsscheinliste
+zeigte trotzdem 24 Stellen unter 12 px, obwohl ihr Quelltext **null** solche
+Werte führt.
+
+Am laufenden Element gemessen: **inline `font-size: 12px`, berechnet `10px`.**
+Inline 13, berechnet 11. Die Ursache:
+
+```
+.kpi-grid.epk-leiste > div > div:nth-child(4) { font-size: 10px !important }
+```
+
+**Zehn CSS-Regeln** erzwangen Schriften unter 12 px, und `!important`
+übersteuert **jede** Inline-Angabe — also auch alle 115, die v3.9.965 gehoben
+hatte. Ein Riegel, der nur den Quelltext liest, bleibt dabei grün. Das ist
+*Anwesenheit statt Wirkung, an meinem eigenen Werk.*
+
+Neun sind jetzt auf 12 px. `svg text` (10 px, Diagramm-Achsen) bleibt
+**absichtlich** stehen: Achsenschriften stehen dicht nebeneinander. Eigener
+Schritt, eigene Messung — der Riegel hält die Ausnahme **namentlich** fest.
+
+Und beim Zählen der Regeln derselbe Fehler noch einmal: mein erster Zähler las
+rohen Dateitext und fand **vier statt drei** — die vierte war mein **eigener
+Änderungstext**, in dem die Regel zitiert steht. Gezählt wird jetzt nur noch
+*innerhalb* der `<style>`-Blöcke.
+
+## Punkt 5 — die Lücke ist größer als die Knöpfe, nur an anderer Stelle
+
+Der Auftrag nennt drei namenlose Symbol-Knöpfe in `ProjList`. Gemessen hat
+`ProjList` **null**. Was dort steht, sind fünf anklickbare `div`-Elemente — und
+die kann ein Knopf-Abtaster **prinzipiell** nicht finden: seine Grundgesamtheit
+ist `button`, der Mangel lebt außerhalb. Das ist nicht mehr *zu kleines
+Alphabet*, es ist ein **blindes Messgerät**.
+
+App-weit: 237 Nicht-Knopf-Elemente mit `onClick`, 58 haben `role` und `tabIndex`
+schon, nativ Erreichbare abgezogen bleiben 154, davon 29 reine Sperren →
+**124 echte Bedienelemente ohne Tastaturzugang** (81 div, 16 span, 15 th, 7 td,
+5 tr). Klinke bei 124: sie darf fallen, nie steigen.
+
+Gebaut: die zwei echten Fälle der Projektliste. **Kein `role="button"`** — beide
+enthalten selbst den Menü-Knopf, und ein Knopf im Knopf ist ungültiges ARIA.
+Fokussierbar plus Tastenbehandler wirkt, ohne zu lügen.
+
+## Punkt 1 — der Befund, den keine Messung finden KONNTE
+
+Der Monteursname der Tageszelle stand auf `_kurz(nm,6)` bei 9 px. `_kurz`
+schneidet hart: aus *Steinbichler* wird *Steinb…*.
+
+**Warum das unsichtbar war:** der fest eingebaute Vorgabeplan `W0` führt die
+Kürzel `w1·w2·w3·w5` — **zwei Zeichen**. Daran kürzt `_kurz(nm,6)` nichts. Jede
+Messung auf `W0` ist für diesen Mangel prinzipiell blind. Und die echte Saat
+erreicht die Wochenplanung nicht: der Offline-Speicher führt **21 Speicher und
+keinen für den Wochenplan**; `rows` kommt aus `_wpGet(kw)||W0`, `_wpGet` liest
+`wpHistory`, und das füllt allein der Server über einen Weg, der in diesem Lauf
+**TABU** ist. Die Ansicht bleibt am Schirm zu Recht **„nicht aussagekräftig"** —
+das ist keine Nebenbemerkung, das ist die halbe Aussage.
+
+**Der Querlauf, den ich erzeugt und wieder weggemacht habe:** nach dem Heben
+rollte Planung bei 1440 px 7 px quer. v3.9.943 hatte genau diese 7 px benannt
+und den Rundumschlag deshalb abgelehnt — damals stieg der Beschnitt von 1 auf 13
+Stellen. Heute ist der Beschnitt **null**, weil die Namen umbrechen. Ich habe
+das überstehende Element **namentlich** bestimmt (Löschknopf der Zeile, rechte
+Kante 1405 gegen 1398) und 8 px Polsterung zurückgenommen. Der Löschknopf behält
+seine: *ein zerstörender Knopf, der die Nachbarn berührt, wird verklickt.*
+
+**Zwei bestehende Riegel wurden dabei rot, und sie hatten recht zu sprechen.**
+Beide sehen ihre eigene Ablösung ausdrücklich vor und nennen die Bedingung; sie
+ist gemessen. Aber v944s Ausnahme war **gleichzeitig der Köder** für die Zählung
+darüber — sie ist deshalb nicht ersatzlos gestrichen, der Köder steht jetzt an
+einem selbstgebauten Text. *Ein Riegel, dessen Nachweis vom Fortbestehen des
+Mangels lebt, wird bei der nächsten Kur entweder rot oder blind.*
+
+## Die Zahlen, vorher → nachher
+
+| Ansicht | < 12 px bei 390 | < 12 px bei 1440 | sonst |
+|---|---|---|---|
+| **Fahrzeuge** | 39 → **2** | 44 → **7** | Karte 109→112 px / 128→136 px |
+| **Arbeitsscheine** | 24 → **2** | 29 → **7** | Überlauf unverändert |
+| **Planung** | 44 → **2** | 42 → **9** | Querlauf 0, Beschnitt 0 |
+| **Berichte** | 29 → **7** | 26 → 26 | |
+| Monatsabrechnung | 2 → 2 | 7 → 7 | lag schon am Boden |
+
+## Warum keine Zahl auf 0 geht — benannt, nicht weggerechnet
+
+* **Die übrigen 2 bzw. 7 sitzen in der App-Hülle**: `header` (Firmenzeile,
+  Server-Anzeige, Strg-K, Abmelden), `div.bottom-nav`, Sync-Banner. Aus dem
+  Inhalt der gehobenen Ansichten selbst: **null**. Die Hülle trägt jede der 22
+  Ansichten — eigener Schritt mit eigener Messung.
+* **Berichte bei 1440 fällt nicht**, weil es sieben `span` **innerhalb** von
+  `th` sind (die Datumsspalten 21.09.–27.09.) mit eigener Inline-Größe 10 px.
+  Der gehobene `th`-Wert erreicht sie nicht, weil das Kind seinen eigenen trägt.
+* **`svg text` bleibt bei 10 px**, absichtlich und namentlich festgehalten.
+* **Die Tageszelle zeigt drei Monteure und dann `+N`.** Bei neun aktiven steht
+  dort `+6`. Das ist eine Zahl, keine Kürzung, und ein eigener Schritt: es
+  verdreifacht die Zellenhöhe.

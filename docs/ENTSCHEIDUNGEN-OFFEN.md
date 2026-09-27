@@ -1,4 +1,4 @@
-# Offene Entscheidungen — siebzehn Fragen an Sebastian
+# Offene Entscheidungen — einundzwanzig Fragen an Sebastian
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -443,3 +443,98 @@ Aktualisierungsschritt bei jedem Versionswechsel.
 **Nicht gemessen:** ob cdnjs für alle sieben Versionen einen SRI-Hash anbietet
 (ich war nicht im Netz), und wie groß die sieben Dateien zusammen wirklich sind.
 Die 1,5 MB sind geschätzt und als Schätzung gekennzeichnet.
+
+---
+
+# Nachtrag 27.09.2026, v3.9.967 — vier neue Fragen aus den fuenf Lesbarkeits-Punkten
+
+Alle vier sind **gemessen** und alle vier sind **aufgeschoben**, nicht vergessen: jede
+verlangt einen eigenen Schritt mit eigener Messung, und drei davon haben einen
+Preis, der erst gemessen werden muss.
+
+### 18. Soll die App-Hülle auf 12 px gehoben werden? (27.09.2026)
+
+**Was gemessen ist:** nach dem Heben von Fahrzeugen, Arbeitsscheinen und
+Planung bleiben bei 390 px **zwei** und bei 1440 px **sieben** Stellen unter
+12 px — und **alle** sitzen in der Hülle, nicht im Inhalt einer Ansicht:
+
+* `header`: die Firmenzeile („Der Haustechnikprofi · Visionen – Konzepte – …"),
+  die Server-Anzeige, `⌘K`, `Administrator · KW 39`, der Abmelde-Knopf
+* `div.bottom-nav`: die Beschriftungen unter den Symbolen
+* das Sync-Banner (`🔄 Jetzt sync`, `18 ausstehend`)
+
+**Warum es nicht einfach mitgemacht wurde:** die Hülle trägt **jede** der 22
+Ansichten. Ein Griff dort verändert 22 Messwerte gleichzeitig, und dann lässt
+sich nicht mehr sagen, welche Zahl von wo kommt. Bei den CSS-Regeln wurde die
+Fußnavigation schon von 9 auf 12 px gehoben (v3.9.966) — was jetzt noch
+übrigbleibt, sind **Inline**-Werte, die die mobile CSS-Stufe vorher verdeckt
+hat und die bei 1440 px sichtbar werden.
+
+**Die Frage:** eigener Schritt mit eigener Messung über alle 22 Ansichten —
+oder bleibt die Hülle bewusst kompakt, weil sie dauerhaft sichtbar ist und
+Platz kostet? Die Kopfleiste hat am 26.09. schon einmal einen Zwilling
+gehabt; sie ist die empfindlichste Stelle der App.
+
+**Nicht gemessen:** ob die Kopfleiste bei 12 px in zwei Zeilen umbricht. Genau
+das war der Grund für die v3.8.81-Zweizeiligkeit.
+
+---
+
+### 19. Soll `svg text` in den Diagrammen auf 12 px? (27.09.2026)
+
+Es ist die **einzige** CSS-Regel, die noch eine Schrift unter 12 px erzwingt —
+10 px, für die Achsenbeschriftungen der Diagramme. Sie steht absichtlich, und
+der Riegel `test_css_boden_12px_v966` hält sie **namentlich** fest: verschiebt
+sich die Ausnahme oder wächst die Liste, schlägt er an.
+
+**Warum sie steht:** Achsenbeschriftungen stehen dicht nebeneinander. 10 → 12 px
+kann sie zum Überlappen bringen, und ein überlappender Text ist schlechter
+lesbar als ein kleiner.
+
+**Was zu messen wäre:** die Diagramme bei 390 und 1440 px, mit der echten Saat
+(185 Arbeitsscheine liefern deutlich mehr Datenpunkte als drei), und zwar auf
+**Überlappung** — nicht auf Schriftgröße. Dafür gibt es noch keinen Melder.
+
+---
+
+### 20. Sollen die 124 anklickbaren Nicht-Knöpfe Tastaturzugang bekommen? (27.09.2026)
+
+**Gemessen:** 237 Elemente mit `onClick`, die keine `button` sind. 58 haben
+`role` und `tabIndex` schon — das Muster ist im Haus etabliert. Nativ
+erreichbare (`a`, `input`, `select`, `textarea`) und `img`/`canvas` abgezogen
+bleiben 154, davon **29 reine Weiterleitungssperren**
+(`onClick: e=>e.stopPropagation()`, kein Bedienelement) →
+**124 echte Bedienelemente ohne Tastaturzugang**: 81 `div`, 16 `span`, 15 `th`,
+7 `td`, 5 `tr`. Dicht: `ArbeitsscheinView` (29), `WeekPlan` (19), `VPlan` (11).
+
+**Warum nicht im Rundumschlag:** die 15 `th` sind Sortierköpfe — dort gehört
+ein echter Knopf hinein, nicht ein `role` auf die Zelle. Die `div`, die eine
+ganze Karte oder Zeile anklickbar machen, enthalten selbst Knöpfe, und ein
+Knopf in einem Knopf ist ungültiges ARIA; dort ist `tabIndex` + Tastenbehandler
+ohne `role` die richtige Form (so gebaut in `ProjList`, v3.9.964). Das sind
+**drei verschiedene Kuren** für eine Zahl.
+
+**Die Klinke steht bei 124** und darf fallen, nie steigen.
+
+---
+
+### 21. Soll die Tageszelle der Wochenplanung mehr als drei Monteure zeigen? (27.09.2026)
+
+`maIds.slice(0,3)` — die Tageszelle zeigt drei Namen und dann `+N`. Bei neun
+aktiven Monteuren steht dort `+6`, und wer den Tag planen will, muss die Zelle
+öffnen.
+
+**Warum nicht einfach gehoben:** neun Namen in einer Zelle verdreifachen deren
+Höhe, und die Wochenplanung hat sechs Tagesspalten. Seit v3.9.967 umbrechen die
+Namen außerdem (statt auf sechs Zeichen gekürzt zu werden), also wächst jede
+Zeile ohnehin schon.
+
+**Nicht gemessen — und mit diesem Aufbau NICHT messbar:** wie hoch eine Zeile
+mit echten Namen wirklich wird. Der Wochenplan liegt nicht im Offline-Speicher
+(21 Speicher, keiner davon), `rows` kommt aus `_wpGet(kw)||W0`, und `W0` führt
+die Kürzel `w1…w5` mit zwei Zeichen. Die echte Saat erreicht diese Ansicht
+nicht, und der Server-Weg ist in diesem Lauf TABU.
+
+**Die Vorfrage ist deshalb wichtiger:** soll der Wochenplan in den
+Offline-Speicher aufgenommen werden? Ohne das bleibt die Wochenplanung bei
+jeder Messung „nicht aussagekräftig" gestempelt — zu Recht.
