@@ -76,7 +76,31 @@ def test_jede_testdatei_hat_faelle_beigetragen(request):
             "Lauf fahren: pytest tests/ -q"
             % (len(mit_faellen), len(auf_platte), VOLLLAUF_AB))
 
-    stumm = sorted(auf_platte - mit_faellen - set(OHNE_FAELLE))
+    # 🔴 v3.9.962 - WAS DIE SCHWELLE NICHT FAENGT: `--ignore`.
+    # Wer `pytest tests --ignore=tests/x.py` fahrt, schliesst absichtlich eine
+    # Datei aus - und die ueber 300 anderen tragen weiter bei, die Schwelle
+    # oben greift also NICHT. Die ausgeschlossene Datei sah dann wie eine
+    # stumme aus.
+    # Das ist kein gedachter Fall: ich habe am 27.09.2026 selbst fuenf Dateien
+    # per --ignore ausgelassen, weil ein anderer Vorgang darin schrieb, und
+    # diese Pruefung wurde dadurch rot. Bei einem Agenten war sie aus demselben
+    # Grund in ALLEN FUENFZEHN Laeufen rot und musste aus jeder Zeile seiner
+    # Messung herausgerechnet werden - ein Riegel, der dauernd grundlos rot
+    # ist, wird abgeschaltet, und dann misst er nichts mehr.
+    # Gefragt wird deshalb pytest selbst, was ihm ausgeschlossen wurde.
+    ausgeschlossen = set()
+    for wert in (request.config.getoption("ignore", default=None) or []):
+        ausgeschlossen.add(os.path.basename(str(wert)))
+    for wert in (request.config.getoption("ignore_glob", default=None) or []):
+        ausgeschlossen.add(os.path.basename(str(wert)))
+    if request.config.getoption("keyword", default="") or \
+            request.config.getoption("deselect", default=None):
+        pytest.skip(
+            "TEILLAUF: dieser Lauf hat -k oder --deselect benutzt und sammelt "
+            "damit absichtlich nur einen Teil ein. Hier wird NICHT geurteilt.")
+
+    stumm = sorted(auf_platte - mit_faellen - set(OHNE_FAELLE)
+                   - ausgeschlossen)
     assert not stumm, (
         "%d Testdatei(en) liegen in tests/, tragen aber KEINEN Fall bei:\n%s\n\n"
         "Eine solche Datei ist eine gruene Pruefung, die nichts messen kann - "

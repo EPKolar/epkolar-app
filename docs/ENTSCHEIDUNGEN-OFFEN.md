@@ -1,6 +1,6 @@
-# Offene Entscheidungen — sechzehn Fragen an Sebastian
+# Offene Entscheidungen — siebzehn Fragen an Sebastian
 
-**Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16** am 27.09. — alle drei stehen als Nachtrag am Ende.
+**Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
 **Stand der Fragen 1–13: 01.09.2026, v3.9.928.** Diese Seite sammelt alles, was ich gemessen, aber
 nicht entschieden habe. Die Fragen 1–8 stehen seit dem 28.08. als `xfail(strict)` im
@@ -388,3 +388,58 @@ die elf Skips ohne Deckung.
 gegenmisst. Er braucht aber eine Sitzung mit Leserecht auf `pg_proc` — mit dem
 Anon-Schlüssel geht es nicht, und ein Prüfer, der aus Mangel an Rechten nichts
 findet, meldet grün.
+
+### 17. 🔴 Sieben Skripte kommen von einer fremden CDN — ohne Prüfsumme
+
+**Gemessen am 27.09.2026.** Der Kopf von `index.html` lädt sieben Bibliotheken
+von `cdnjs.cloudflare.com`. **Keine einzige** trägt ein `integrity`-Attribut:
+
+| | |
+|---|---|
+| `react` 18.2.0 · `react-dom` 18.2.0 | die ganze Oberfläche |
+| **`bcryptjs` 2.4.3** | **hasht die Passwörter** |
+| `pdf.js` 3.11.174 | Planansicht |
+| `qrcode-generator` 1.4.4 | Bauprovisorien-Aufkleber |
+| `jspdf` 2.5.1 | PDF-Erzeugung |
+| `leaflet` 1.9.4 | Flottenkarte |
+
+**Was das bedeutet.** Ohne `integrity` prüft der Browser nicht, *was* er
+ausführt — nur *von wo*. Liefert cdnjs eines dieser Dateien verändert aus (weil
+die CDN kompromittiert ist, ein Konto übernommen oder ein Zwischenspeicher
+vergiftet), führt jeder Browser den fremden Code mit allen Rechten der App aus.
+Bei `bcryptjs` heißt das: die Passwörter laufen durch fremden Code.
+
+Die CSP erlaubt `cdnjs` ausdrücklich (`script-src 'self' cdnjs`) — sie schützt
+also gegen *andere* Herkünfte, nicht gegen eine veränderte Datei von cdnjs.
+
+**Warum ich es nicht gebaut habe.** Ein `integrity`-Attribut mit einer falschen
+Prüfsumme lädt die Datei **nicht** — die App wäre weiß. Sieben Hashes müssen
+alle stimmen, und ich müsste sie aus dem Netz holen. Das ist kein Aufräumen,
+das ist eine Änderung, die die App beim ersten Fehler unbenutzbar macht. Sowas
+entscheidest du.
+
+**Wenn du willst, ist es ein überschaubarer Schritt** — und zwar einer mit einer
+klaren Gegenmessung:
+
+1. Für jede der sieben Dateien den Hash holen. cdnjs liefert ihn selbst mit,
+   pro Version, in seiner API:
+   `https://api.cdnjs.com/libraries/react?fields=sri` (und so für jede).
+2. Ins Skript-Tag: `integrity="sha384-…" crossorigin="anonymous"`. Das
+   `crossorigin` ist nicht optional — ohne es kann der Browser die Prüfung
+   nicht durchführen.
+3. **Gegenmessung, und die ist der eigentliche Punkt:** die App einmal laden und
+   in der Konsole nachsehen, dass *keine* der sieben Dateien blockiert wurde.
+   Ein Tippfehler in einem Hash sieht genauso aus wie ein Angriff — die Datei
+   lädt nicht. Ein Riegel danach ist leicht: „jedes absolute `<script src>` im
+   Kopf trägt `integrity` und `crossorigin`", mit einem Köder je Form.
+
+**Die dritte Möglichkeit, und vielleicht die bessere:** die sieben Dateien ins
+Repo legen, so wie es mit Archivo schon gemacht wurde (v3.9.933, aus demselben
+Grund — eine Schrift von Google scheiterte still an der CSP). Dann hängt die App
+an keiner fremden Verfügbarkeit, funktioniert offline vollständig, und die Frage
+nach der Prüfsumme erledigt sich. Kosten: rund 1,5 MB im Repo und ein
+Aktualisierungsschritt bei jedem Versionswechsel.
+
+**Nicht gemessen:** ob cdnjs für alle sieben Versionen einen SRI-Hash anbietet
+(ich war nicht im Netz), und wie groß die sieben Dateien zusammen wirklich sind.
+Die 1,5 MB sind geschätzt und als Schätzung gekennzeichnet.

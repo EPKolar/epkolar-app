@@ -73,6 +73,15 @@ REST_IMMER_TEXT = {
     "VMaterial": "Anzahl plus festen Text",
     "VOffa": "x.t aus einer festen Liste im Code",
     "WerkzeugView": 'editId?"Aktualisieren":"Speichern"',
+    # v3.9.962 dazugekommen, weil der Riegel sie vorher NICHT SAH: zwei
+    # Knoepfe in der h(-Form (Z7669/7670, Urlaubsantrag). Ihr Rest ist ein
+    # eigenes div mit sichtbarem Text - h('div',{...},'Urlaub') bzw.
+    # 'Zeitausgleich' -, das nirgends ausgeblendet wird.
+    # 🔴 Der Schluessel ist die naechste Funktionsdeklaration VOR der Stelle,
+    # und das ist hier `_submitAntrag` - eine innere Hilfsfunktion, nicht die
+    # Ansicht. Die ZEILE stimmt, der Name nicht. Das gilt fuer jeden Eintrag
+    # dieser Liste und ist beim Lesen mitzudenken.
+    "_submitAntrag": "Rest ist ein div mit 'Urlaub' bzw. 'Zeitausgleich'",
 }
 
 
@@ -119,28 +128,43 @@ def _props_ende(text, start):
 
 
 def _klasse(text):
-    """(Ansicht, Zeile, Symbol, Rest, hat_namen, rest_kann_wegfallen)."""
-    feld = code_scan.ist_code(text)
+    """(Ansicht, Zeile, Symbol, Rest, hat_namen, rest_kann_wegfallen).
+
+    🔴 v3.9.962 - DIESE FUNKTION WAR BLIND, und der Koeder daneben hat es nicht
+    gemerkt, weil er DIESELBE Schreibweise benutzte.
+
+    Sie suchte `createElement\\('button'` und sah damit **698 von 797** Knoepfen:
+    99 lagen draussen, fast alle in der Form `h('button',`. Zwei
+    Klassenmitglieder wurden nie angesehen (14 statt 16).
+
+    Dass die Datei eine Selbstprobe TRAEGT, hat nicht geholfen - im Gegenteil:
+    `test_der_riegel_wird_bei_einem_leeren_ast_rot` setzte den Koeder als
+    `createElement('button'` ein, also in genau der Form, die der Riegel
+    ohnehin kennt. **Ein Koeder, der die Luecke des Riegels teilt, bestaetigt
+    die Blindheit, statt sie aufzudecken.** Die Regel dagegen ("ein Koeder JE
+    FORM") stand zu diesem Zeitpunkt schon im Gedaechtnis - und diese Datei ist
+    am Tag danach entstanden.
+
+    Gemessen wird jetzt ueber `code_scan.knopf_stellen`, das mit
+    `eichen_knoepfe()` 4/4 Formen belegt: beide Erzeuger, beide
+    Anfuehrungszeichen. Und `code_scan.hat_namen` liest nur die OBERSTE Ebene
+    der Eigenschaften - die flache Suche hier zaehlte ein `title:` mit, das im
+    Rumpf eines `onClick` steht.
+    """
     aus = []
-    for m in re.finditer(r"createElement\('button'\s*,", text):
-        if not feld[m.start()]:
-            continue
-        a = m.end()
-        pe = _props_ende(text, a)
-        if pe is None:
-            continue
-        props = text[a:pe]
-        rest = text[pe:pe + 600]
+    for a, props, kinder in code_scan.knopf_stellen(text):
+        rest = kinder
         rest = re.sub(r"^\s*,\s*", "", rest, count=1)
         rest = re.sub(r"^/\*.*?\*/\s*", "", rest, count=1, flags=re.S)
-        mk = re.match(r'"((?:[^"\\]|\\.)*)"\s*,', rest)   # Literal, dann KOMMA
+        mk = re.match(r'"((?:[^"\\]|\\.)*)"\s*,|\'((?:[^\'\\]|\\.)*)\'\s*,',
+                      rest)     # Literal, dann KOMMA - BEIDE Anfuehrungszeichen
         if not mk:
             continue
-        sym = mk.group(1)
-        if not sym.strip() or not SYMBOL.match(sym):
+        sym = mk.group(1) if mk.group(1) is not None else mk.group(2)
+        if not sym or not sym.strip() or not SYMBOL.match(sym):
             continue
         weiter = rest[mk.end():mk.end() + 160]
-        hat = bool(re.search(r"\btitle\s*:", props)) or "aria-label" in props
+        hat = code_scan.hat_namen(props)
         # Kann der Rest wegfallen? Zwei Formen, beide gemessen:
         leerer_ast = bool(re.search(r"\?\s*(?:\"[^\"]*\"|'[^']*')\s*:\s*(?:\"\"|'')",
                                     weiter))
@@ -214,18 +238,46 @@ def test_wer_immer_text_traegt_braucht_keinen(  ):
 
 
 def test_der_riegel_wird_bei_einem_leeren_ast_rot():
-    """KOEDER 1: ein Knopf mit leerem Ast und ohne Namen MUSS auffallen."""
+    """KOEDER 1 - und zwar EINER JE SCHREIBWEISE.
+
+    🔴 WARUM DAS HIER STEHT UND NICHT EIN EINZIGER KOEDER. Bis v3.9.961 setzte
+    diese Probe ihren Koeder ausschliesslich als `createElement('button'` ein -
+    also in genau der Form, die der Riegel damals als EINZIGE kannte. Sie war
+    gruen, der Riegel war blind (698 von 797 Knoepfen), und die Probe hat es
+    nicht gemerkt.
+
+    **Ein Koeder, der die Luecke des Riegels teilt, bestaetigt die Blindheit,
+    statt sie aufzudecken.** Er ist dann schlimmer als keiner: er erzeugt
+    Zutrauen.
+
+    Deshalb vier Faelle. Der Anker schliesst `, React.` mit ein, damit aus
+    `h(` nicht `React.h(` wird - die Sperre vor dem Kuerzel wuerde dann zu
+    Recht greifen und der Koeder meldete "nicht gefunden", obwohl der Abtaster
+    in Ordnung ist.
+    """
     roh = _lies()
-    anker = "createElement('button', { title: \"Alle Projekte\""
+    anker = ", React.createElement('button', { title: \"Alle Projekte\""
     assert anker in roh, "Anker fuer den Koeder fehlt."
-    kaputt = roh.replace(
-        anker,
-        "createElement('button', {onClick:()=>0}, \"\U0001F5D1️ \", "
-        "istDa?\"Weg\":\"\"), React." + anker, 1)
-    fehlt = [t for t in _klasse(kaputt) if t[5] and not t[4]]
-    assert fehlt, (
-        "KOEDER NICHT GEFUNDEN: ein eingesetzter Knopf mit Symbol, leerem Ast "
-        "und ohne Namen wird nicht erkannt. Der Zaehler ist blind.")
+    korb = "\U0001F5D1️ "
+    faelle = [
+        ("createElement, doppelt",
+         "React.createElement('button',{onClick:()=>0},\"%s\",istDa?\"Weg\":\"\")" % korb),
+        ("createElement, einfach",
+         "React.createElement('button',{onClick:()=>0},'%s',istDa?'Weg':'')" % korb),
+        ("Kuerzel h(, doppelt",
+         "h('button',{onClick:()=>0},\"%s\",istDa?\"Weg\":\"\")" % korb),
+        ("Kuerzel h(, einfach",
+         "h('button',{onClick:()=>0},'%s',istDa?'Weg':'')" % korb),
+    ]
+    for name, code in faelle:
+        kaputt = roh.replace(anker, ", " + code + anker, 1)
+        assert kaputt != roh, "%s: die Einfuegung hat nichts geaendert." % name
+        fehlt = [t for t in _klasse(kaputt) if t[5] and not t[4]]
+        assert fehlt, (
+            "KOEDER '%s' NICHT GEFUNDEN: %s wird nicht erkannt.\n"
+            "Genau diese Form ist dem Riegel bis v3.9.961 durchgegangen - und "
+            "die damalige Selbstprobe hat es nicht gemerkt, weil sie dieselbe "
+            "Schreibweise benutzte." % (name, code))
 
 
 def test_der_riegel_erkennt_auch_den_versteckbaren_text():

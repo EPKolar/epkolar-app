@@ -63,12 +63,64 @@ def test_die_schrift_kommt_aus_dem_repo_und_nicht_von_google(kopf):
     # dass sie NICHT erlaubt sind. Ein Riegel auf die blosse Zeichenfolge
     # waere hier ein Dauer-Fehlalarm, und ein Riegel, der staendig grundlos
     # rot ist, wird abgeschaltet.
-    geladen = re.findall(r"(?:src:\s*)?url\(['\"]?(https?://[^'\")]+)", kopf)
-    fremd = [u for u in geladen
-             if "fonts.googleapis.com" in u or "fonts.gstatic.com" in u]
+    # 🔴 v3.9.962 - ES WAR NUR EINE DER VIER FORMEN GEMESSEN.
+    # Bis hierher stand nur die `url(...)`-Suche. Gegengemessen mit einem
+    # Koeder: ein
+    #     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?...">
+    # im Kopf liess diesen Fall GRUEN - und genau so bindet man Google Fonts
+    # ueblicherweise ein. Die haeufigere Form war die ungemessene.
+    # Die Grundgesamtheit war dabei NICHT leer: der Kopf fuehrt heute acht
+    # absolute Quellen (sieben script src, ein link href, alle cdnjs). Es
+    # fehlte also nicht an Material, sondern an der Form.
+    fremd = _google_quellen(kopf)
     assert not fremd, (
         "Es wird von Google geladen: %s - die CSP erlaubt das nicht, und der "
         "Fehler ist unsichtbar." % fremd)
+
+
+def _google_quellen(text):
+    """Absolute Quellen von Google, in ALLEN vier Einbindungsformen."""
+    g = re.findall(r"(?:src:\s*)?url\(['\"]?(https?://[^'\")]+)", text)
+    g += re.findall(r"<link[^>]+href=['\"](https?://[^'\"]+)", text)
+    g += re.findall(r"<script[^>]+src=['\"](https?://[^'\"]+)", text)
+    g += re.findall(r"@import\s+(?:url\()?['\"](https?://[^'\"]+)", text)
+    return [u for u in g
+            if "fonts.googleapis.com" in u or "fonts.gstatic.com" in u]
+
+
+def test_der_riegel_faengt_JEDE_form_des_google_ladens(kopf):
+    """KOEDER JE FORM - und der Grund, warum es mehr als einen gibt.
+
+    Bis v3.9.961 hat der Fall darueber nur `url(...)` gemessen und damit die
+    haeufigste Einbindung von Google Fonts uebersehen. Ein einziger Koeder auf
+    die bekannte Form haette das nie gezeigt: er teilt die Luecke des Riegels
+    und bestaetigt sie, statt sie aufzudecken.
+    """
+    assert not _google_quellen(kopf), (
+        "Der heile Kopf meldet schon eine Google-Quelle - dann ist der Koeder "
+        "unten wertlos, weil er nichts unterscheiden kann.")
+    formen = [
+        ("link rel=stylesheet",
+         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto">'),
+        ("script src",
+         '<script src="https://fonts.gstatic.com/x.js"></script>'),
+        ("@import",
+         '@import url("https://fonts.googleapis.com/css2?family=Roboto");'),
+        ("src:url im @font-face",
+         "@font-face{font-family:X;src:url('https://fonts.gstatic.com/x.woff2')}"),
+    ]
+    for name, code in formen:
+        assert _google_quellen(kopf + code), (
+            "KOEDER '%s' NICHT GEFUNDEN: %s wird nicht erkannt.\n"
+            "Diese Form laedt von Google, und die CSP laesst sie STILL "
+            "scheitern - kein Fehler im Bild, keine Schrift." % (name, code))
+    # GEGENPROBE: cdnjs ist erlaubt und darf NICHT gemeldet werden. Ein Riegel,
+    # der jede absolute Quelle meldet, waere ein Dauer-Fehlalarm - der Kopf
+    # fuehrt heute acht davon - und wuerde abgeschaltet.
+    assert not _google_quellen(
+        kopf + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/x.css">'), (
+        "Eine cdnjs-Quelle wird als Google-Quelle gemeldet. Dann meldet der "
+        "Riegel zu viel.")
 
 
 def test_jede_genannte_schriftdatei_existiert_und_ist_ein_woff2(kopf):

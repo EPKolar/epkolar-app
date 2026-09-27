@@ -62,6 +62,11 @@ mitzuzaehlen haette die Zahl vergroessert und die Aussage verwaessert.
 import io
 import os
 import re
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "scripts"))
+import code_scan  # noqa: E402
 
 PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 
@@ -96,21 +101,41 @@ def _ansicht(text, p):
 
 
 def _symbolknoepfe(text):
-    """(Ansicht, Zeile, Symbol, hat_namen) je Symbol in Knopfstellung."""
+    """(Ansicht, Zeile, Symbol, hat_namen) je Symbol in Knopfstellung.
+
+    🔴 v3.9.962 - UMGESTELLT, WEIL DIESE FUNKTION BLIND WAR.
+
+    Sie suchte das Symbol in DOPPELTEN Anfuehrungszeichen und danach rueckwaerts
+    die letzte `createElement('button'` innerhalb von 900 Zeichen. Damit fehlten
+    drei Dinge:
+      * die Form `h('button'` (97 Stellen in der Datei),
+      * einfache Anfuehrungszeichen um das Symbol,
+      * und der 900-Zeichen-Griff nach hinten konnte den FALSCHEN Knopf
+        erwischen, wenn zwei in einer Zeile stehen.
+    Gemessen: der Riegel sah 74 statt 79 Symbolknoepfe.
+
+    Dass diese Datei eine Selbstprobe TRAEGT, hat nicht geholfen - sie setzte
+    ihren Koeder in genau der Form ein, die der Riegel kannte. **Ein Koeder, der
+    die Luecke des Riegels teilt, bestaetigt die Blindheit.**
+
+    Jetzt ueber `code_scan.knopf_stellen` (Eichung 4/4 Formen) und
+    `code_scan.hat_namen` (liest nur die OBERSTE Ebene der Eigenschaften - die
+    flache Suche hier zaehlte ein `title:` im Rumpf eines `onClick` mit).
+
+    Die vollstaendige Fassung dieser Aussage - ueber alle 797 Knoepfe und alle
+    Inhaltsformen einschliesslich der Ternaere - liegt in
+    tests/test_symbolknoepfe_vollstaendig_v961.py. Diese Datei bleibt, weil sie
+    die NAMENTLICHE Ausnahme und die Geschichte der 33 Umbenennungen traegt.
+    """
     aus = []
-    for sym in SYMBOLE:
-        for m in re.finditer(r'"' + re.escape(sym) + r'"', text):
-            p = m.start()
-            # Der Knopf, zu dem das Zeichen gehoert: die letzte
-            # createElement('button' davor, hoechstens 900 Zeichen entfernt.
-            # Weiter weg heisst: das Zeichen gehoert nicht zu einem Knopf.
-            vor = text[max(0, p - 900):p]
-            k = vor.rfind("createElement('button'")
-            if k < 0:
-                continue
-            props = vor[k:]
-            hat = bool(re.search(r"\btitle\s*:", props)) or "aria-label" in props
-            aus.append((_ansicht(text, p), text.count("\n", 0, p) + 1, sym, hat))
+    for start, props, kinder in code_scan.knopf_stellen(text):
+        hat = code_scan.hat_namen(props)
+        for sym in SYMBOLE:
+            # BEIDE Anfuehrungszeichen, und nur in den KINDERN des Knopfes -
+            # nicht irgendwo im Umfeld.
+            if ('"%s"' % sym) in kinder or ("'%s'" % sym) in kinder:
+                aus.append((_ansicht(text, start),
+                            text.count("\n", 0, start) + 1, sym, hat))
     return aus
 
 
