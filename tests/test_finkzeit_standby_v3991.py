@@ -1,10 +1,36 @@
-"""v3.9.114 — FINKZEIT STANDBY (Sebastian-Entscheidung 04.06.2026).
+"""v3.9.114 — der FinkZeit-Schalter. Jede Flaeche traegt ihre Marke.
 
-Alles FinkZeit-bezogene im Frontend hinter EINEM zentralen Flag geparkt (Code NICHT gelöscht).
-Reaktivierung: FINKZEIT_ENABLED = true. DB/Schema unberührt. hasPerm('stunden') unverändert.
+Alles FinkZeit-bezogene im Frontend haengt an EINEM zentralen Flag (Code NICHT
+gelöscht). Am 04.06.2026 hat Sebastian es geparkt (Flag false); in v3.9.204 ist
+es REAKTIVIERT worden und steht seither auf true. DB/Schema unberührt,
+hasPerm('stunden') unverändert.
+
+🔴 v3.9.959 — DIE MARKE HIESS BIS DAHIN "FINKZEIT STANDBY", UND DAS WAR FALSCH
+──────────────────────────────────────────────────────────────────────────────
+Diese Datei pinnte den Wortlaut "FINKZEIT STANDBY" an vier Flaechen — vierzehn
+Monate nach der Reaktivierung. Sie hat damit einen Satz festgehalten, den ihr
+eigener erster Riegel widerlegt: `test_flag_exists_and_enabled` verlangt
+`FINKZEIT_ENABLED=true`. Ein Riegel, der gleichzeitig "die Fahne ist true" und
+"die Kommentare muessen STANDBY sagen" verlangt, schreibt einen Widerspruch fest.
+
+Am schaedlichsten war die Marke ueber `StundenzettelView`: "komplette View
+geparkt … wird nicht mehr gerendert". In der Sitzung vom 26./27.09.2026 ist
+deswegen ein Befund fast falsch einsortiert worden — lebender Code galt als
+stillgelegt.
+
+GEAENDERT wurde nur der WORTLAUT der Marke: `FINKZEIT-SCHALTER` statt
+`FINKZEIT STANDBY`. Der neue Name stimmt bei JEDEM Wert der Fahne, der alte nur
+bei false. Die geschuetzte Eigenschaft ist unberuehrt: **jede FinkZeit-Flaeche
+traegt weiterhin ihre eigene Marke**, und die beiden Umkehrproben unten laufen
+unveraendert weiter — sie fahren gegen `_MARKE`, nicht gegen einen festen Text.
+
+Dass Fahne und Kommentare nicht wieder auseinanderlaufen, haelt
+`tests/test_finkzeit_kommentar_stimmt_v959.py` fest: es liest den WERT der Fahne
+und verlangt erst dann, dass kein Kommentar das Gegenteil behauptet. Bei
+`false` schweigt es.
 
 !!! WARNMARKE - DIESE DATEI ZAEHLT BEWUSST ROH (v3.9.922) !!!
-Der Begriff "FINKZEIT STANDBY" steht 9x in KOMMENTAREN und 0x im Code.
+Die Marke steht mehrfach in KOMMENTAREN und 0x im Code.
 Wer diese Datei bei einem Kommentarblind-Durchgang mitnimmt, misst 0 - und
 darf die Erwartung dann NICHT "nachziehen": eine auf 0 nachgezogene Zahl
 misst gar nichts mehr. Die Marke IST Dokumentation, sie gehoert in den
@@ -82,7 +108,9 @@ def test_hasperm_stunden_still_clean(index_html):
 # Flaeche: es ist Dokumentation, und ein Riegel, der die Zahl der Kommentare
 # festschreibt, misst die Schreibweise (tests/_hilfen.py).
 # ---------------------------------------------------------------------------
-_MARKE = "FINKZEIT STANDBY"
+# v3.9.959: Wortlaut geaendert, Eigenschaft unveraendert. Begruendung im
+# Dateikopf. Der alte Wortlaut stimmte nur bei Fahne=false.
+_MARKE = "FINKZEIT-SCHALTER"
 _GEMARKTE_FLAECHEN = ("AdminPanel", "HomeView", "StundenzettelView", "ChefDashboard")
 
 
