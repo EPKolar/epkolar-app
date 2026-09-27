@@ -657,3 +657,127 @@ nicht nur im Mengengerüst, sondern in jeder Überschrift, jedem Tabellenkopf,
 jedem Platzhalter und jeder Auswahloption. Drei Köder haben dabei angeschlagen
 (Knopfzahl verändert, Zeile entfernt, Wort in eine Überschrift eingefügt), sonst
 wäre die Null wertlos.
+
+---
+
+# Nachtrag 27.09.2026 — v3.9.960 und v3.9.961: die Knöpfe, und drei Messungen
+
+## Was drei parallele Messungen ergeben haben
+
+**Alle drei Pixelneutralitäts-Behauptungen halten** (`docs/befunde/PIXELNEUTRALITAET_v3.9.959.md`).
+Gemessen an 340, 375, 390 und 1440 px gegen den jeweils **richtigen** Vorgänger:
+
+> 🔴 Der von mir genannte Vergleichsstand `84b8e72` war **falsch** — ein
+> Doku-Commit, dessen `index.html` schon v3.9.957 trug. Dagegen gemessen wäre
+> bei zwei von drei Behauptungen „null Unterschied" herausgekommen: **dieselbe
+> Änderung auf beiden Seiten, eine leere Grundgesamtheit.** Gemessen wurde
+> gegen `11e365a`, `a4b50e5` und `a34d535`.
+
+Der 340-px-Fall ist mit Ködern in **beide** Richtungen belegt: die Regel
+`.header-row h2{font-size:16px!important}` ist nachweislich wirksam (angehängtes
+`header-row` lässt das `h2` von 20 auf 16 px fallen) und greift am echten Baum
+nur nicht, weil dieser Kopf kein `header-row` trägt.
+
+## 🔴 v3.9.961 — 18 namenlose Knöpfe, die **beide** alten Riegel nicht sehen konnten
+
+Die Riegel aus v3.9.957 und v3.9.958 haben je einen **eigenen** Knopf-Abtaster
+mitgebracht, und beide hatten dieselben drei Lücken:
+
+| | |
+|---|---|
+| nur der lange Erzeuger | die **97** Stellen mit dem Kürzel `h` wurden nie angesehen |
+| nur **doppelte** Anführungszeichen | sieben Stellen stehen in einfachen |
+| nur **ein** Literal als Inhalt | jedes Ternär aus zwei Literalen fiel durch; die Zeichenklasse kennt weder `⊞` (0x229E) noch `×` (0x00D7) |
+
+**Der Beleg ist die Eichung, nicht die Behauptung:** die Messung hat beide
+Suchlogiken zeichengenau nachgebildet, und die nachgebildete v958-Logik findet
+**genau 150** Knöpfe — dieselbe Zahl, die der Riegel nennt. Erst damit ist
+„nicht gesehen" eine Aussage.
+
+**Das bitterste daran:** die Regel dagegen ist **einen Tag vorher**
+aufgeschrieben worden — *ein Zähler, der eine Schreibweise nicht kennt, meldet
+„kommt nicht vor"*. Und am selben Abend sind zwei Riegel entstanden, die genau
+daran vorbeilaufen. Eine Regel, die man kennt, ist keine Regel, die wirkt; erst
+ein **gemeinsamer Abtaster mit Eichung** ist eine. Er liegt jetzt einmal in
+`scripts/code_scan.py` (`knopf_stellen`, `hat_namen`, `eichen_knoepfe`) und
+sieht alle **797** Knöpfe statt 174.
+
+Vier Köder — **einer je Schreibweise**, nicht einer für den Zähler — plus vier
+Gegenproben: ein Knopf *mit* Wort darf nicht gemeldet werden. Ein Zähler, der
+alles meldet, schlägt bei jedem Köder an und ist trotzdem kaputt.
+
+## v3.9.960 — zwei Knöpfe, deren Text wegfallen kann
+
+Gefunden am gerenderten Baum, nicht von einem Zähler: der Löschknopf der
+Bautagebuch-Karte ist `"🗑️ " + isMob?"Löschen":""` — ab 600 px bleibt nur das
+Symbol. Und der Zurück-Knopf der Projektakte hat seinen Text in einem
+`span.sb-text`, für das `display:none` in `@media(max-width:768px)` gilt: die
+eingeklappte 56-px-Leiste liest nur „◀".
+
+**Beide sind älter als dieser Lauf.** Am Schreibtisch war der Löschknopf schon
+vor v3.9.955 namenlos; die Mobilschwellen-Umstellung hat den Mangel nur auf
+600–767 px ausgeweitet. Ein Befund, der durch eine Änderung *sichtbarer* wird,
+ist nicht durch sie entstanden.
+
+## 🔴 Riegel-Hygiene: eine lief 29 Tage nie, eine war tot, eine war eine Falle
+
+Aus `docs/befunde/WAS_LAEUFT_WIRKLICH.md`, behoben in `2449db2`:
+
+* **`test_nichtgemessen_v909.py` hat 29 Tage und 75 Commits nichts gemessen.**
+  Dateiname `test_*`, in `tests/`, fehlerfrei, meldet von Hand grün 18/18 — und
+  enthielt keine einzige `def test_`. pytest sammelte **null** Fälle. Von innen
+  sieht so eine Datei richtig aus; gefunden wurde sie nur von **außen**, durch
+  den Vergleich von Platte gegen `--collect-only`. Ihre 18 Fälle prüfen eine
+  echte Eigenschaft: eine ausgebliebene Messung darf nicht als **Zahl**
+  erscheinen. Jetzt einzeln parametrisiert, mit Köder.
+* Eine **tote Zusicherung** ohne `in index_html` — entfernt, nicht ergänzt: die
+  Zeile darunter prüft strenger.
+* **`sql/_check_brackets.js` war eine Falle**, nicht nur ungenutzt: RC 1, und
+  README, RUNBOOK und ARCHITECTURE wiesen alle an, es zu fahren. Es zählt rohe
+  Zeichen, seine Grundlinie wandert mit jedem Kommentar. Es bleibt liegen, sagt
+  jetzt dass es abgelöst ist, und ruft das gültige Werkzeug auf.
+
+Und der Fund verhindert sich künftig selbst:
+`test_jede_datei_wird_eingesammelt_v961` fragt pytest **im Lauf**, aus welchen
+Dateien Fälle gekommen sind. Bei einem **Teillauf** hält sie sich mit Begründung
+zurück — eine Prüfung, die bei `-k` rot wird, wird abgeschaltet, und
+abgeschaltet ist sie wieder nichts wert.
+
+## 🔴 Eine Erkenntnis über die Tore selbst
+
+Die Klammerbilanz gegen den Vorgänger habe ich in diesem ganzen Lauf **naiv**
+gerechnet — über den rohen Text. In v3.9.961 wanderte sie um +2, weil mein
+eigener Changelog `createElement(` mit offener Klammer nannte. Mit dem richtigen
+Instrument (Zeichenketten und Kommentare zuerst gestrichen, wie in
+`scripts/_bracket_check.py`) ist die Bilanz **identisch** bei `(0, -1, 0)`.
+
+Der naive Vergleich ging bisher nur gut, solange meine Kommentare ausgeglichene
+Klammern hatten — also **aus Glück, nicht aus Konstruktion**. Es ist dasselbe
+Instrument, an dem `sql/_check_brackets.js` gescheitert ist.
+
+## Zwei strukturelle Tatsachen, die Sebastian kennen sollte
+
+1. **Es gibt keine `package.json` und keine CI** — und laut `git log --all` hat
+   es nie eine gegeben. `.github/workflows/` existiert nicht. Die 3210 Fälle und
+   der Versionsabgleich laufen **nur**, wenn jemand die Torkette von Hand tippt.
+   Kein Automatismus erzwingt das.
+2. **62 von 76 Prüfern hängen in keiner Kette.** Davon brauchen 32 einen
+   Browser, 5 die Datenbank, 1 das Netz — das sind Einmal-Messgeräte und zu
+   Recht nicht verdrahtet. Nur 15 sind reine Leser.
+
+## Was gemessen ist und auf eine Entscheidung wartet
+
+Aus `docs/befunde/BEDIENELEMENTE_OHNE_NAMEN.md`, mit Zeilennummer und
+abgelesenem Vorschlag je Stelle — **nicht gebaut**, weil jeder Name dort eine
+Wahl wäre:
+
+* **133 Klickflächen** auf `div`, `th`, `span`, `img`, `td`, `tr`, `canvas` mit
+  `onClick`, aber **ohne `role` und `tabIndex`** — für die Tastatur und für eine
+  Vorlesehilfe sind das keine Bedienelemente. (29 reine Klick-Schlucker
+  `e=>e.stopPropagation()` sind abgezogen; dort wäre ein `role` falsch.)
+* **461 Eingabefelder ohne Namen** (315 `input`, 117 `select`, 29 `textarea`).
+  161 haben nur einen `placeholder` — das ist kein Name. `htmlFor` kommt in der
+  ganzen Datei 20 mal vor.
+* **10 Bedienelemente, die mit `document.createElement` gebaut werden** statt
+  über React — außerhalb jeder React-Messung: die PDF-Blätterknöpfe und acht
+  Felder in Dialogen und Tabellenzellen.
