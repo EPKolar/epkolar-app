@@ -1236,3 +1236,40 @@ Mangels lebt, wird bei der nächsten Kur entweder rot oder blind.*
 * **Die Tageszelle zeigt drei Monteure und dann `+N`.** Bei neun aktiven steht
   dort `+6`. Das ist eine Zahl, keine Kürzung, und ein eigener Schritt: es
   verdreifacht die Zellenhöhe.
+
+## 🔴 Nachtrag zum Nachtrag: der Umfang meiner eigenen Aussage
+
+Oben steht: *„Die übrigen 2 bzw. 7 sitzen in der App-Hülle … Aus dem Inhalt der
+gehobenen Ansichten selbst: **null**."*
+
+Das war eine Aussage über **fünf** Ansichten — die, die ich in diesem Block
+gemessen hatte (Fahrzeuge, Arbeitsscheine, Planung, Berichte, Monatsabrechnung).
+Als Aussage über die **App** ist sie falsch, und der Abschlusslauf über alle 22
+Ansichten sagt es:
+
+| Ansicht | 390 | 1440 | woraus |
+|---|---|---|---|
+| **auswertungen** | **264** | **338** | SVG-Diagrammtext, 8–10 px |
+| **plaene** | 12 | **42** | Ebenen- und Gewerke-Chips, 10–11 px |
+| **home** | 2 | **26** | Wochentagskürzel der Wetterzeile, 10 px |
+| einstell | 8 | 13 | `Gesamt`/`Ausstehend`, 9 px |
+| material · bautagebuch · flotte | 1 · 0 · 2 | 15 · 14 · 13 | Inline-Werte |
+
+**Gesamt 1354 → 911**, davon `auswertungen` allein **602**. Achtzehn von 22
+Ansichten liegen bei 390 px auf ≤ 2 und tragen dort wirklich nur die Hülle — aber
+**vier nicht**, und eine davon ist der größte Einzelblock der ganzen App.
+
+Die Regel dahinter ist die, die am 26.09. aufgeschrieben wurde: *eine Messung auf
+einer Auswahl von Ansichten ist eine Aussage über DIESE Ansichten.* Ich habe sie
+in derselben Datei aufgeschrieben und einen Tag später wieder verletzt, indem ich
+„aus dem Inhalt der gehobenen Ansichten" im Satz stehen ließ und der Leser
+daraus „aus dem Inhalt der App" macht. Der vollständige Stand steht in
+`docs/GRUNDSTAND_UI_v3.9.967.md`.
+
+Und eine zweite Einschränkung derselben Art: **`svg text` habe ich als „eine
+benannte Ausnahme" geführt.** Gemessen sind es **602 von 911 Stellen** — zwei
+Drittel des Rests. Die Begründung (Achsenschriften stehen dicht nebeneinander)
+halte ich für richtig; die Größenordnung habe ich unterschätzt. Bei 1440 px sind
+es außerdem **8 px und 9 px**, also inline gesetzte SVG-Größen, die meine
+CSS-Regel gar nicht erklärt. Frage **19** ist damit die gewichtigste der vier
+neuen.
