@@ -22,7 +22,7 @@ HANDOFF_v3.8.20.md         # Aktueller Handoff-Stand (neuer Versions-Handoff üb
 
 sql/                       # Aktive SQL-Scripts + Helpers + Referenz-Docs
 ├── _check_syntax.js       # Extrahiert <script>-Body aus index.html -> node --check
-├── _check_brackets.js     # Bracket-Balance-Check (() -2 {} 0 [] 0 ist erwartete Baseline)
+├── _check_brackets.js     # ABGELOEST v3.9.960 - ruft scripts/_bracket_check.py auf
 ├── _deep_scan_nullable.js # Null-Safety-Scan
 ├── _b022_sweep.js         # Stale-Closure-Pattern-Scan (B-022)
 ├── _wrap_viewboundaries.js# Automatisches ViewBoundary-Wrapping
@@ -44,8 +44,9 @@ _archiv/                   # Historische Artefakte (abgeschlossene Bug-Bs, alte 
 
 ```bash
 node sql/_check_syntax.js    # -> "syntax OK" wenn index.html parsed
-node sql/_check_brackets.js  # -> "brackets () -2 {} 0 [] 0" (die -2 ist False-Positive
-                             #    aus Template-Literals, ist die gewünschte Baseline)
+python scripts/_bracket_check.py  # -> "() -1 / {} 0 / [] 0". sql/_check_brackets.js ist
+                             #    seit v3.9.960 abgeloest (zaehlte ROHE Zeichen, Grundlinie
+                             #    -2 wanderte mit jedem Kommentar) und ruft dieses hier auf.
 ```
 
 ## Deploy

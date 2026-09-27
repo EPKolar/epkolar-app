@@ -1,23 +1,45 @@
 # -*- coding: utf-8 -*-
-"""Riegel-Entwurf v3.9.909: eine ausgebliebene Messung darf nicht als Zahl erscheinen.
+"""v3.9.909 - eine ausgebliebene Messung darf nicht als ZAHL erscheinen.
 
-Vorgesehener Ort im Repo: tests/test_nichtgemessen_v909.py
-Alle Pruefungen laufen KOMMENTARBLIND ueber tests/_hilfen.nur_code - sonst misst
-der Riegel die Erklaerkommentare mit, die neben der Reparatur stehen (im Repo
-inzwischen zehnmal passiert).
+Achtzehn Faelle: wo ein Abruf fehlschlaegt oder noch laeuft, muss der Zustand
+`null` sein und die Kachel "nicht gemessen" bzw. "…" zeigen - nicht `0`. Eine
+0 behauptet ein Messergebnis, das es nicht gibt. Das war die Wurzel des
+Befundes vom 29.08.2026.
 
-Aufruf hier (ausserhalb des Repos, zur Umkehrprobe):
-    python riegel_v3_9_909.py <pfad-zu-index.html>
-Exit 0 = gruen, Exit 1 = rot.
+🔴 DIESE DATEI HAT 29 TAGE UND 75 COMMITS LANG NICHTS GEMESSEN
+──────────────────────────────────────────────────────────────
+Sie kam am 29.08.2026 mit v3.9.909 herein - als ENTWURF, geschrieben als
+eigenstaendiges Programm mit `main(pfad)` und `sys.exit`. Der Dateiname beginnt
+mit `test_`, sie liegt in `tests/`, sie ist fehlerfrei, und von Hand meldet sie
+GRUEN 18/18. Nur: **sie enthielt keine einzige `def test_`-Funktion.** pytest
+hat daraus null Faelle eingesammelt, und kein Skript hat sie aufgerufen.
+
+Ein funktionsfaehiger, gruener, wirkungsloser Riegel. Gefunden am 27.09.2026
+von einer Messung, die die Dateien auf der Platte mit dem verglich, was
+`pytest --collect-only` tatsaechlich einsammelt - nicht von einem Blick in die
+Datei, denn von innen sieht sie richtig aus.
+
+Dieselbe Krankheit wie ein Pruefer, der in keiner Kette haengt: die ANWESENHEIT
+einer Pruefung ist kein Beleg, dass sie laeuft.
+
+v3.9.960: in pytest-Faelle umgeschrieben, mit Koeder. Der alte `main(pfad)`
+bleibt erhalten - er ist die Form, in der die Datei ausserhalb des Repos gegen
+eine fremde Kopie gefahren werden kann, und genau so ist die Umkehrprobe
+entstanden.
+
+Kommentarblind ueber `tests/_hilfen.nur_code`. Der alte Kopf behauptete das
+schon, waehrend die Datei ihre EIGENE Fassung mitbrachte - noch eine
+Behauptung, die der Code nicht hielt. Gegengemessen, bevor umgestellt wurde:
+beide Streicher geben fuer alle 18 Faelle dasselbe Ergebnis.
 """
-import re
+import io
+import os
 import sys
 
+import pytest
 
-def nur_code(index_html):
-    ohne = re.sub(r"/\*[\s\S]*?\*/", "", index_html)
-    return "\n".join(l for l in ohne.splitlines()
-                     if not l.lstrip().startswith("const APP_VERSION="))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _hilfen import nur_code  # noqa: E402
 
 
 # (Name, muss_vorkommen, darf_nicht_vorkommen)
@@ -54,14 +76,89 @@ FAELLE = [
 ]
 
 
-def main(pfad):
-    code = nur_code(open(pfad, encoding="utf-8").read())
+def _befunde(code):
+    """Die Beurteilung eines Standes. Leere Liste = gruen."""
     rot = []
     for name, muss, darf_nicht in FAELLE:
         if muss not in code:
             rot.append(name + ": FEHLT -> " + muss[:70])
         if darf_nicht and darf_nicht in code:
             rot.append(name + ": STEHT NOCH DA -> " + darf_nicht[:70])
+    return rot
+
+
+# ── ab v3.9.960: pytest sammelt das hier wirklich ein ──────────────────────
+
+def test_die_fallliste_ist_nicht_leer():
+    """Ohne diese Pruefung ist alles darunter wertlos.
+
+    `_befunde` gibt bei leerer Fallliste eine leere Liste zurueck - also GRUEN,
+    ohne eine einzige Messung. Genau diese Form (eine Schleife ueber einer
+    leeren Menge, die als Erfolg gilt) ist der Grund, warum diese Datei
+    ueberhaupt existiert.
+    """
+    assert len(FAELLE) == 18, (
+        "Die Fallliste fuehrt %d Faelle, erwartet 18. Sinkt die Zahl, ist eine "
+        "Kachel aus der Aufsicht gefallen - und dann meldet dieser Riegel "
+        "gruen fuer etwas, das er nicht mehr ansieht." % len(FAELLE))
+    for name, muss, _ in FAELLE:
+        assert muss and name, "Fall %r hat kein Suchmuster." % name
+
+
+@pytest.mark.parametrize("fall", FAELLE, ids=[f[0] for f in FAELLE])
+def test_eine_ausgebliebene_messung_ist_null_und_keine_null(fall, index_html):
+    """Je Fall einzeln, damit im roten Fall die KACHEL in der Meldung steht.
+
+    Ein einziger Sammelfall haette denselben Schutz, aber die Meldung waere
+    "18 Faelle, einer rot" - und man muesste erst suchen, welcher.
+    """
+    name, muss, darf_nicht = fall
+    code = nur_code(index_html)
+    assert muss in code, (
+        "%s: die gehaertete Form fehlt.\n  erwartet: %s\n"
+        "Steht dort wieder eine 0 statt null, behauptet die Kachel ein "
+        "Messergebnis, das es nicht gibt - ein fehlgeschlagener Abruf sieht "
+        "dann aus wie 'nichts offen'." % (name, muss[:100]))
+    if darf_nicht:
+        assert darf_nicht not in code, (
+            "%s: die alte, falsche Form steht noch da.\n  gefunden: %s"
+            % (name, darf_nicht[:100]))
+
+
+def test_der_riegel_wird_bei_einer_zurueckgedrehten_kachel_rot(index_html):
+    """KOEDER - und zwar genau die Mutation, mit der die Wirkung dieser Datei
+    am 27.09. von Hand belegt wurde: setMatOpen(null) -> setMatOpen(0).
+
+    Ohne diesen Fall waere "18 gruen" die Aussage eines Riegels, von dem
+    niemand weiss, ob er ueberhaupt rot werden kann. Vier Wochen lang war er
+    genau das.
+    """
+    code = nur_code(index_html)
+    anker = "catch(_){if(a)setMatOpen(null);}"
+    assert anker in code, (
+        "Der Anker fuer den Koeder fehlt. Dann gehoert der Koeder an einen "
+        "anderen der 18 Faelle - nicht weggelassen.")
+    kaputt = code.replace(anker, "catch(_){if(a)setMatOpen(0);}", 1)
+    rot = _befunde(kaputt)
+    assert rot, (
+        "KOEDER NICHT GEFUNDEN: eine zurueckgedrehte Kachel (0 statt null) "
+        "wird nicht erkannt. Dann ist die Liste der 18 gruenen Faelle die "
+        "Aussage eines Riegels, der nicht rot werden kann.")
+    assert any(r.startswith("kachel_matOpen") for r in rot), (
+        "Der Koeder wird gemeldet, aber unter dem falschen Namen: %s" % rot[:3])
+
+
+def main(pfad):
+    """Der eigenstaendige Aufruf, erhalten und bewusst.
+
+    So ist diese Datei am 27.09. gegen eine KOPIE gefahren worden, um zu
+    belegen, dass sie wirkt - pytest sammelte sie damals nicht ein. Ein
+    Werkzeug, mit dem man einen fremden Stand pruefen kann, ist es wert,
+    behalten zu werden. Es ersetzt aber die Faelle oben nicht: genau das war
+    der Fehler.
+    """
+    code = nur_code(io.open(pfad, encoding="utf-8", newline="").read())
+    rot = _befunde(code)
     for z in rot:
         print("ROT " + z)
     print(("GRUEN %d/%d" % (len(FAELLE), len(FAELLE))) if not rot

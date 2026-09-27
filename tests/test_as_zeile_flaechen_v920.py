@@ -268,7 +268,16 @@ def test_der_wolkenknopf_bleibt_die_ausnahme(index_html):
     nur, wenn etwas offen ist. Genau das macht ihn zum Warnzeichen und nicht
     zum Zeilenmoebel. Faellt eine der drei Bedingungen weg, stuende er in
     JEDER Zeile und waere die fuenfte gefuellte Flaeche."""
-    assert "canSync&&a.juprowa_id&&a.push_pending&&React.createElement("
+    # v3.9.960: hier stand eine TOTE Zusicherung -
+    #     assert "canSync&&a.juprowa_id&&a.push_pending&&React.createElement("
+    # ohne `in index_html`. Ein nichtleeres Zeichenketten-Literal ist immer
+    # wahr, die Zeile hat also nie etwas geprueft. Sie ist ENTFERNT und nicht
+    # ergaenzt worden: die Zeile darunter prueft dieselbe Kette strenger
+    # (genau einmal, mit 'button' dahinter). Zwei Zusicherungen auf dasselbe
+    # waeren keine doppelte Sicherheit, sondern eine Stelle mehr, die beim
+    # naechsten Umbau nachgezogen werden muss.
+    # Gefunden am 27.09.2026 von einem Laufzeitzaehler, der jede ausgefuehrte
+    # Zusicherung mitschreibt - im Text sieht so eine Zeile richtig aus.
     kette = "canSync&&a.juprowa_id&&a.push_pending&&React.createElement('button'"
     assert index_html.count(kette) == 1, (
         "Die Erscheinungsbedingung des Wolken-Knopfes "

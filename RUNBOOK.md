@@ -23,8 +23,11 @@ node sql/_check_version.js
 # Erwartet: ✓ versions synced: <NEW>
 
 # 4. Bracket-Check (falls index.html geändert)
-node sql/_check_brackets.js
-# Erwartet: () -2 {} 0 [] 0
+python scripts/_bracket_check.py
+# Erwartet: () -1 {} 0 [] 0   (sql/_check_brackets.js ist seit v3.9.960
+#   abgeloest: es zaehlte ROHE Zeichen, seine Grundlinie -2 wanderte mit jedem
+#   Kommentar und stand am 27.09.2026 bei -6. Es ruft jetzt dieses Werkzeug
+#   auf, der alte Aufruf funktioniert also weiter.)
 
 # 5. Syntax-Check (falls index.html geändert)
 node sql/_check_syntax.js
@@ -78,13 +81,13 @@ DevTools → Console:
 
 **Fix:**
 ```bash
-node sql/_check_brackets.js           # sollte () -2 {} 0 [] 0
+python scripts/_bracket_check.py      # sollte () -1 {} 0 [] 0
 node sql/_check_syntax.js             # sollte "syntax OK"
 git diff HEAD~1 -- index.html         # letzten Edit inspizieren
 git revert <bad-commit>               # im Zweifel zurück
 ```
 
-### 3.3 · Bracket-Baseline drift (`() -2 {} 0 [] 0`)
+### 3.3 · Bracket-Baseline drift (`() -1 {} 0 [] 0`)
 
 **Warum -2?** Historisch: 2 JSX-ähnliche Template-Strings enthalten unbalancierte `(`.
 Das ist der Baseline-Wert, NICHT Null.

@@ -104,7 +104,7 @@ epkolar-app/
 │   ├── Testkonzept_EPKolar_v5_0.md
 │   ├── SELFTEST_USAGE.md
 │   ├── WHATSAPP_INTEGRATION_PLAN.md
-│   ├── _check_brackets.js        # Node: Bracket-Balance-Check
+│   ├── _check_brackets.js        # ABGELOEST v3.9.960 -> scripts/_bracket_check.py
 │   ├── _check_syntax.js          # Node: <script>-Body syntax
 │   ├── _check_version.js         # Node: APP_VERSION↔CACHE_NAME↔sw.js
 │   └── sql-runner.mjs            # Node pg direct runner
