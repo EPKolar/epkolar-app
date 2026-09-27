@@ -137,6 +137,45 @@ _PDF_KNOPF_ALT = (
     'style: xBtn("pdf"), title: "Drucken / als PDF speichern"}'
 )
 
+# ══════════════════════════════════════════════════════════════════════════
+# v3.9.961 - DIE UMKEHRPROBE WAR STILL, UND SIE WAR DER EINZIGE BELEG
+#
+# Riegel 1 behauptet eine ABWESENHEIT: `_PDF_KNOPF_ALT not in index_html`.
+# Eine Abwesenheitsaussage ist nur so viel wert wie der Beleg, dass ihr Anker
+# eine Rueckkehr ueberhaupt erkennen wuerde. Diesen Beleg lieferte
+# `test_umkehrprobe_anker_des_alten_knopfes_ist_echt` - solange der Patch
+# fehlte. Seit `_genBautagPdf` existiert, stieg sie mit `return` aus und
+# fuehrte NULL Zusicherungen aus (docs/befunde/WAS_LAEUFT_WIRKLICH.md §2 A4).
+#
+# GEMESSEN, ob der Anker woanders geschuetzt ist - er ist es NICHT:
+#   * `_PDF_KNOPF_ALT` kommt in genau EINER Datei vor, dieser.
+#   * `tests/test_company_footer_v3920.py` prueft alle `xBtn('pdf')`-Knoepfe,
+#     erlaubt aber ausdruecklich `window.print()` ODER einen eigenen Erzeuger
+#     (`_wpPrintPlan`, `_genBautagPdf`). Ein Rueckfall des Bautagebuch-Knopfes
+#     auf `window.print()` waere dort also GRUEN.
+#   * Kein weiterer Riegel im Bestand nennt den Knopf.
+# Riegel 1 ist damit der einzige Schutz - und stand ohne lebenden Beleg.
+#
+# Was die Umkehrprobe jetzt statt des Ausstiegs tut: sie misst, ob der Anker
+# noch zur SCHREIBWEISE der Datei passt. Der Anker ist ein woertliches
+# Zeichenkettenstueck; wird der Knopf kuenftig als `h('button',{onClick:...`
+# geschrieben oder das Leerzeichen hinter `{` entfernt, dann trifft er nie
+# mehr - und Riegel 1 waere fuer immer gruen, ohne dass sich etwas gebessert
+# haette. Gemessen am 27.09.2026 gegen den Bestand: Rumpf 1x, Stil 5x,
+# `window.print()` 18x, ganzer Anker 0x.
+#
+# Was das NICHT leistet: es belegt nicht, dass der Knopf heute
+# `_genBautagPdf` ruft - nur dass der Anker fuer den alten Knopf noch
+# treffsicher ist. index.html wurde nicht angefasst.
+# ══════════════════════════════════════════════════════════════════════════
+
+_ANKER_TEILE = (
+    ("Rumpf bis zum onClick-Koerper",
+     "btEntries.length>0&&React.createElement('button', { onClick: ()=>"),
+    ("Stil-Schwanz", 'style: xBtn("pdf")'),
+    ("der Handler, der zurueckkehren koennte", "window.print()"),
+)
+
 
 def _print_regel(index_html):
     m = _PRINT_REGEL.search(index_html)
@@ -443,12 +482,69 @@ def test_umkehrprobe_druck_riegel_schlagen_an():
 def test_umkehrprobe_anker_des_alten_knopfes_ist_echt(index_html):
     """Der Riegel 1 haengt an einem woertlichen Anker. Faellt der Anker
     auseinander, wuerde er GRUEN werden, ohne dass sich etwas gebessert hat.
-    Hier wird belegt, dass der Anker heute wirklich trifft."""
+    Hier wird belegt, dass der Anker heute wirklich treffen WUERDE.
+
+    Bis v3.9.960 stieg dieser Fall aus, sobald der Patch da war - und war
+    damit still. Die Begruendung steht oben bei `_ANKER_TEILE`.
+    """
+    # (a) Die Teile muessen aus dem Anker stammen, sonst messen sie etwas
+    #     anderes als das, was Riegel 1 sucht.
+    for name, teil in _ANKER_TEILE:
+        assert teil in _PDF_KNOPF_ALT, (
+            "Ankerteil '" + name + "' steht nicht mehr im Anker selbst - die "
+            "Umkehrprobe misst dann an einem anderen Gegenstand als Riegel 1."
+        )
+
     treffer = index_html.count(_PDF_KNOPF_ALT)
-    if "_genBautagPdf" in index_html:
-        return  # Patch ist da, der alte Knopf darf fehlen
-    assert treffer == 1, (
-        "Der Anker des alten window.print()-Knopfes trifft " + str(treffer) +
-        "x statt 1x. Damit ist Riegel 1 nicht mehr aussagekraeftig - Anker "
-        "nachziehen."
+
+    if "_genBautagPdf" not in index_html:
+        # Patch fehlt: der alte Knopf MUSS genau einmal dastehen, sonst ist
+        # Riegel 1 nicht aussagekraeftig.
+        assert treffer == 1, (
+            "Der Anker des alten window.print()-Knopfes trifft " + str(treffer) +
+            "x statt 1x. Damit ist Riegel 1 nicht mehr aussagekraeftig - Anker "
+            "nachziehen."
+        )
+        return
+
+    # Patch ist da. Riegel 1 behauptet jetzt eine ABWESENHEIT, und die ist nur
+    # so viel wert wie der Beleg, dass der Anker eine Rueckkehr erkennen wuerde.
+    assert treffer == 0, (
+        "Der alte window.print()-Knopf steht wieder in index.html, obwohl "
+        "_genBautagPdf existiert - Riegel 1 muesste hier rot sein."
+    )
+    for name, teil in _ANKER_TEILE:
+        assert teil in index_html, (
+            "Ankerteil '" + name + "' kommt in index.html NICHT MEHR VOR:\n  "
+            + repr(teil) + "\n"
+            "Der Anker von Riegel 1 ist damit veraltet: er ist in einer "
+            "Schreibweise gefasst, die die Datei nicht mehr benutzt, und "
+            "wuerde eine Rueckkehr des alten Knopfes NIE erkennen. Riegel 1 "
+            "waere ab jetzt dauerhaft gruen, ohne etwas zu messen. Anker an "
+            "der heutigen Schreibweise des Knopfes nachziehen (Bautagebuch, "
+            "xBtn(\"pdf\")) - und dann diese Umkehrprobe mit."
+        )
+
+
+def test_umkehrprobe_riegel_1_unterscheidet_alt_und_neu(index_html):
+    """Gegenprobe zur Umkehrprobe: das Kriterium von Riegel 1 darf nicht
+    alles melden.
+
+    Ein Kriterium, das bei jedem Koeder anschlaegt, ist genauso kaputt wie
+    eines, das nie anschlaegt. Deshalb beide Richtungen an einem Text, der
+    nicht aus index.html stammt.
+    """
+    alt = "x=" + _PDF_KNOPF_ALT + ", 'PDF');"
+    assert _PDF_KNOPF_ALT in alt, (
+        "Das Kriterium von Riegel 1 erkennt den alten Knopf nicht einmal in "
+        "einem Text, der ihn woertlich enthaelt."
+    )
+    neu = (
+        "btEntries.length>0&&React.createElement('button', { onClick: "
+        "()=>_genBautagPdf(sorted,p,MONT,curUser,entries), "
+        "style: xBtn(\"pdf\"), title: \"Bautagesberichte als A4-Protokoll\"}"
+    )
+    assert _PDF_KNOPF_ALT not in neu, (
+        "Das Kriterium von Riegel 1 meldet den REPARIERTEN Knopf - dann "
+        "wuerde es bei jedem Stand anschlagen und belegte nichts."
     )
