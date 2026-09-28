@@ -76,12 +76,31 @@ def test_beide_hooks_sind_verdrahtet_und_ihre_skripte_existieren():
         for gruppe in d["hooks"][ereignis]:
             for h in gruppe["hooks"]:
                 befehle.append((ereignis, gruppe["matcher"], h["command"]))
-    assert len(befehle) == 2, befehle
+    # 🔴 v3.9.968: hier stand `len(befehle) == 2`. Eine Klinke auf eine ZAHL
+    # geht bei rechtmaessigem Wachstum rot - am 28.09.2026 durch zwei neue
+    # Haken (CRLF-Riegel und Shell-Fallen), die beide ihre eigene Selbstprobe
+    # mit Koeder UND Gegenprobe mitbringen. Gemeint war nie die Zahl, sondern
+    # die EIGENSCHAFT: die zwei benannten Haken sind da, und kein Haken zeigt
+    # ins Leere. Genau so steht es jetzt da.
+    # Die Vollstaendigkeit in der anderen Richtung - kein Hakenskript liegt
+    # unverdrahtet herum - prueft `test_haken_verdrahtet_v968.py`.
+    assert len(befehle) >= 2, befehle
     assert any(e == "PostToolUse" and "Edit" in m and "hook_index_riegel" in b
                for e, m, b in befehle), befehle
     assert any(e == "PreToolUse" and m == "Bash" and "hook_git_add_riegel" in b
                for e, m, b in befehle), befehle
     assert INDEX_HOOK.exists() and GIT_HOOK.exists()
+    # Kein Haken darf ins Leere zeigen: ein Befehl, dessen Skript fehlt,
+    # meldet nichts - und sieht von aussen aus wie einer, der nichts zu
+    # melden hat.
+    skripte = EINSTELLUNGEN.parent.parent / "scripts"
+    for ereignis, matcher, befehl in befehle:
+        for stueck in befehl.replace("\\", "/").split("/"):
+            name = stueck.strip('"')
+            if name.startswith("hook_") and name.endswith(".py"):
+                assert (skripte / name).exists(), (
+                    "Der Haken %s/%s zeigt auf %s - die Datei fehlt."
+                    % (ereignis, matcher, name))
 
 
 def test_der_bash_hook_laeuft_ohne_if_filter():
