@@ -178,23 +178,54 @@ def test_die_ausnahme_ist_aufgehoben_und_das_ist_GEMESSEN():
     Diese Probe haelt fest, dass der Platz auch WIRKLICH geschaffen wurde -
     ohne ihn kehrt der Querlauf zurueck, und dann war die Aufhebung der
     Ausnahme falsch.
+
+    🔴 28.09.2026 - DER ZEUGE IST GETAUSCHT, DIE ABSICHT NICHT.
+    Bis heute prueften die Behauptungen unten die 1-px-Polsterung des td und
+    die Polsterung der einzelnen Knoepfe. Das war der MECHANISMUS, mit dem
+    v3.9.967 die 8 px zurueckgewonnen hat - nicht die Absicht. v3.9.976 hat
+    den Mechanismus ersetzt, weil dieselben vier Knoepfe zu KLEIN waren:
+    10.3x14, 10.3x14, 8.4x14 und 13.8x14 bei 1440 px, gemessen ueber alle 44
+    Aufnahmen; die kleinsten Bedienelemente des ganzen Bestands. Vier Knoepfe
+    zu je 24 px NEBENEINANDER waeren 96 statt 43 px gewesen - ein sicherer
+    Ueberlauf, und genau der Grund, aus dem v3.9.943 diese Ansicht ausnahm.
+    Sie stehen jetzt als 2x2-Raster mit 2 px Abstand (50x50) in einer Spalte
+    von 54 px; die Polsterung des td ist 0.
+
+    Der Platz ist also anders geschaffen, aber er IST geschaffen - und das ist
+    nachgemessen, nicht gerechnet:
+
+        python scripts/echtmengen_messen.py --nur planung
+        planung 1440 px: verl=0 roll=0
+        Zwischenstand mit 50-px-Spalte: roll=1, Ueberschuss 5 px
+        (scrollWidth 1403 gegen clientWidth 1398) - deshalb 54.
+
+    Ein Riegel, der nach dem Ersetzen des Mechanismus auf dem alten Zeugen
+    bestuende, wuerde die richtige Loesung fuer falsch erklaeren. Das ist mir
+    am 25./26.09. zweimal passiert; deshalb steht der neue Zeuge hier MIT der
+    Messung, die ihn traegt.
     """
     roh = _roh()
     ber = _bereiche(roh)
     a, b, feld = ber["WeekPlan"]
     seg = roh[a:b]
-    assert 'padding:"1px",textAlign:"center",whiteSpace:"nowrap"' in seg, (
-        "Das td der Zeilenknoepfe steht nicht mehr auf 1 px. Ohne die "
-        "zurueckgenommene\n  Polsterung rollt Planung bei 1440 px wieder 7 px "
-        "quer - genau der Grund, aus dem\n  v3.9.943 diese Ansicht "
-        "ausgenommen hat.")
-    assert seg.count('color:V.dm,padding:0}') >= 2, (
-        "Die Polsterung der Zeilenknoepfe Hoch/Runter ist zurueck. Sie war die "
-        "Haelfte der\n  8 px, die den Querlauf aufgehoben haben.")
-    assert 'color:COLORS.ERROR,padding:"0 2px"' in seg, (
-        "Der LOESCHKNOPF hat seine Polsterung verloren. Sie steht dort "
-        "absichtlich: ein\n  zerstoerender Knopf, der die Nachbarn beruehrt, "
-        "wird verklickt.")
+    # 🔴 `gap:2` ist hier NICHT weglassbar. v3.9.967 gab dem Loeschknopf als
+    #    einzigem der vier eine Polsterung, mit Begruendung: ein zerstoerender
+    #    Knopf, der die Nachbarn beruehrt, wird verklickt. Im lueckenlosen
+    #    Raster stand er wieder Kante an Kante an 🗑 und ▼ - der Abstand ist
+    #    vom Knopf ins Raster umgezogen, nicht verschwunden.
+    assert 'gridTemplateColumns:"24px 24px",gap:2,width:50' in seg, (
+        "Das 2x2-Raster der Zeilenknoepfe ist weg oder hat seinen Abstand "
+        "verloren.\n  Ohne Raster stehen die vier wieder nebeneinander und "
+        "sind entweder unter 24 px\n  breit oder die Tabelle rollt quer - "
+        "beides ist gemessen, keines ist hinnehmbar.\n  Ohne `gap:2` beruehrt "
+        "der Loeschknopf seine Nachbarn.")
+    assert seg.count('width:24,height:24') >= 4, (
+        "Weniger als vier Zeilenknoepfe stehen auf 24x24. Genau diese vier "
+        "waren bei\n  1440 px 10.3x14, 10.3x14, 8.4x14 und 13.8x14.")
+    assert "React.createElement('col', { style: {width:54}}))" in seg, (
+        "Die Knopfspalte steht nicht mehr auf 54 px. Mit 50 px rollte die "
+        "Tabelle bei\n  1440 px um 5 px quer (scrollWidth 1403 gegen "
+        "clientWidth 1398, gemessen).")
 
 
 def test_die_begruendung_steht_an_der_deklaration():

@@ -68,14 +68,27 @@ Fehler nicht.*
   Bestand als Zahl oder erreichen ihn gar nicht.
 * **Die Wochenplanung erreicht die Saat prinzipiell nicht.** Der Wochenplan
   liegt in keinem der 21 Offline-Speicher.
-* **1939 Tippziele unter 44 px, alle bei 1440 px.** Bei 390 px sind es 0 in 21
-  von 22 Ansichten. Das ist ein **Schreibtisch**-Befund und war nie Gegenstand
-  dieser Reihe — es ist jetzt die größte offene Zahl des Bestands.
+* **1956 Tippziele unter 44 px, alle bei 1440 px** — davon liegen seit
+  v3.9.976 noch **zwei** unter **24** px, und beide sind derselbe fremde
+  Verweis (Leaflet-Urheberhinweis der Kartenansicht, bei 390 und 1440 px).
+  Vorher waren es **50** in sechs Gruppen. Bei 390 px greift
+  `@media (pointer: coarse)` und hebt auf 44; am Schreibtisch stand nichts an
+  ihrer Stelle. Die verbleibenden 1954 liegen zwischen 24 und 44 px: das ist
+  ein **Schreibtisch**-Befund und eine Gestaltungsfrage, keine Messung.
+  Befund: `docs/befunde/UNTER24.md`.
 * **Die `pt`-Größen im Druck- und Export-HTML** (8pt, 9pt). Sie betreffen
   Papier, nicht den Schirm, und sind von keiner Messung dieser Reihe erfasst.
 * **Kein Melder für Überlappung.** Die Ausdünnung in `SvgLine` ist aus der
   `viewBox`-Arithmetik gerechnet, nicht am Schirm gemessen.
-* **Keine geöffneten Dialoge.** Die Messreihe misst Ansichten im Ruhezustand;
-  Modale, Schubladen und Detailfenster sind nie erfasst worden. Ein
-  erheblicher Teil des Bestands ist damit ungemessen — das gilt für die Null
-  oben genauso wie für alles andere.
+* **Die geöffneten Dialoge sind seit 28.09.2026 teilweise gemessen — und der
+  Satz, der hier stand, war irreführend.** Er las sich wie „ein großer Teil des
+  Bestands ist ungemessen". Die Erkundung
+  (`scripts/dialoge_erkunden.py`) zeigt: **die App benutzt Inline-Bereiche,
+  keine Modale.** Als echte Überlagerung fanden sich genau vier, und alle vier
+  gehören zur Hülle — Suchpalette, Benachrichtigungen, Sync-Fenster,
+  Foto-Warteschlange. Aus den Ansichten selbst kam keine einzige.
+  `scripts/dialog_messen.py` misst in allen vier mit denselben Meldern:
+  **0 unter 12 px, 0 unter 24 px, 0 namenlose Knöpfe.** Befund:
+  `docs/befunde/DIALOGE.md`.
+  **Offen bleibt der größere Teil:** die Inline-Bereiche der Ansichten werden
+  gemessen, *wenn sie offen sind* — die Messreihe klappt sie nicht auf.
