@@ -60,13 +60,13 @@ ist dadurch von 1882 auf **1894** gewachsen - exakt um die zwoelf.
 
 | Klasse | Anzahl |
 |---|---|
-| BEDIENELEMENT | 68 |
-| DOPPELWEG | 35 |
+| BEDIENELEMENT | 67 |
+| DOPPELWEG | 34 |
 | UNSICHER | 5 |
 | KEIN ELEMENT | 2 |
-| **gesamt** | **110** |
+| **gesamt** | **108** |
 
-## BEDIENELEMENT (68)
+## BEDIENELEMENT (67)
 
 | Ansicht | Tag | eigener Knopf | `onClick` | Begruendung |
 |---|---|---|---|---|
@@ -109,7 +109,6 @@ ist dadurch von 1882 auf **1894** gewachsen - exakt um die zwoelf.
 | StundenzettelView | `div` | nein | `()=>setFinkStatusFilter(finkStatusFilter===k.f?"alle":k.f)` | Loest setFinkStatusFilter aus; kein Knopf in der Naehe ruft dasselbe. |
 | StundenzettelView | `span` | nein | `()=>setFinkStunden(z.id,0)` | Loest setFinkStunden aus; kein Knopf in der Naehe ruft dasselbe. |
 | TicketListItem | `div` | nein | `()=>onClick(ticket)` | Loest onClick aus; kein Knopf in der Naehe ruft dasselbe. |
-| VBueroExport | `div` | ja | `(e)=>e.stopPropagation()` | Loest eine Handlung aus; kein Knopf in der Naehe ruft dasselbe. |
 | VBueroExport | `td` | nein | `()=>openMultiEntryEdit(w,ds,projId)` | Loest openMultiEntryEdit aus; kein Knopf in der Naehe ruft dasselbe. |
 | VBueroExport | `tr` | nein | `function(){_setKrOpen(function(pp){var mm=Object.assign({},pp);if(mm[b` | Loest _setKrOpen aus; kein Knopf in der Naehe ruft dasselbe. |
 | VDoku | `div` | nein | `e=>{e.stopPropagation();if(hasKids)toggleExpand(folder.id);}` | Loest toggleExpand aus; kein Knopf in der Naehe ruft dasselbe. |
@@ -129,6 +128,7 @@ ist dadurch von 1882 auf **1894** gewachsen - exakt um die zwoelf.
 | WeekPlan | `span` | nein | `()=>toggleFZMulti(r.id,pickDays,f.id)` | Loest toggleFZMulti aus; kein Knopf in der Naehe ruft dasselbe. |
 | WeekPlan | `span` | nein | `()=>toggleFZMulti(r.id,pickDays,f.id)` | Loest toggleFZMulti aus; kein Knopf in der Naehe ruft dasselbe. |
 | WeekPlan | `span` | nein | `(e)=>{e.stopPropagation();toggleFZWeek(r.id,f.id);}` | Loest toggleFZWeek aus; kein Knopf in der Naehe ruft dasselbe. |
+| WeekPlan | `div` | ja | `()=>{if(cellPick)setCellPick(null);setSelCells(null);}` | Loest setCellPick, setSelCells aus; kein Knopf in der Naehe ruft dasselbe. |
 | WeekPlan | `div` | nein | `isAdmin?()=>setCellPick({rowId:r.id,days:[d],type:'ma'}):undefined` | Loest setCellPick aus; kein Knopf in der Naehe ruft dasselbe. |
 | WeekPlan | `div` | nein | `isAdmin?()=>setCellPick({rowId:r.id,days:['_bem'],type:'bem'}):undefin` | Loest setCellPick aus; kein Knopf in der Naehe ruft dasselbe. |
 | WeekPlan | `th` | nein | `(isAdmin&&isTgt)?()=>_wpPasteDay(d):undefined` | Loest _wpPasteDay aus; kein Knopf in der Naehe ruft dasselbe. |
@@ -137,9 +137,8 @@ ist dadurch von 1882 auf **1894** gewachsen - exakt um die zwoelf.
 | WerkzeugView | `span` | nein | `onChange?()=>onChange(i):undefined` | Loest onChange aus; kein Knopf in der Naehe ruft dasselbe. |
 | WerkzeugView | `div` | nein | `()=>{if(isAdmin)openEdit(w);}` | Loest openEdit aus; kein Knopf in der Naehe ruft dasselbe. |
 | WorkerKompetenzenPanel | `span` | nein | `editable?e=>{e.stopPropagation();setLevel(key,lvl);}:null` | Loest setLevel aus; kein Knopf in der Naehe ruft dasselbe. |
-| ZeiterfassungView | `div` | ja | `e=>e.stopPropagation()/* v3.9.416: Klicks im Panel schließen nicht */` | Loest eine Handlung aus; kein Knopf in der Naehe ruft dasselbe. |
 
-## DOPPELWEG (35)
+## DOPPELWEG (34)
 
 | Ansicht | Tag | eigener Knopf | `onClick` | Begruendung |
 |---|---|---|---|---|
@@ -171,7 +170,6 @@ ist dadurch von 1882 auf **1894** gewachsen - exakt um die zwoelf.
 | VPlan | `div` | ja | `()=>setTplEdit(null)` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: setTplEdit |
 | VZeit | `span` | nein | `function(){setEditEntryId(entry.id);setAddWorker(entry.worker\|\|entry` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: setAddBemerkung, setAddBis, setAddDay |
 | WeekPlan | `td` | nein | `e=>{e.stopPropagation();if(isMob&&isAdmin){setCellPick(isPickCell?null` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: setCellPick |
-| WeekPlan | `div` | ja | `()=>{if(cellPick)setCellPick(null);setSelCells(null);}` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: setCellPick, setSelCells |
 | WeekPlan | `div` | ja | `()=>{setCellPick(null);setSelCells(null);}` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: setCellPick, setSelCells |
 | WerkzeugView | `tr` | ja | `()=>{if(isAdmin)openEdit(w);}` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: openEdit |
 | WerkzeugView | `span` | nein | `()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w` | Ein echter Knopf in der Naehe ruft dieselbe Funktion: _pushWzSh, setWerkzeuge |

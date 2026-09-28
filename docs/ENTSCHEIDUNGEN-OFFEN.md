@@ -1,4 +1,4 @@
-# Offene Entscheidungen — sechsundzwanzig Fragen an Sebastian
+# Offene Entscheidungen — siebenundzwanzig Fragen an Sebastian
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -670,3 +670,44 @@ App.
 **Die Frage:** wenn die Anbindung kommt, vorher festlegen — und dann entweder
 den Trigger-Eintrag anpassen oder die Spalte auf w-IDs festlegen. Eine leere
 Tabelle ist der billigste Zeitpunkt dafür.
+
+---
+
+### 27. 🔴 Die Kiosk-Wochenplantafel hat denselben Austrittsfehler — gemessen, nicht gefixt
+
+Der Auftrag zu v3.9.970 hat die Kiosk-Tafel **zweimal ausdrücklich ausgenommen**
+(„falls sie denselben Fehler hat: NUR melden"). Hier ist die Messung.
+
+**`WochenplanTafel` (Zeile 7242–7350) prüft den Austritt an keiner Stelle.**
+Gezählt im Bauteil: `austritt` **0 mal**, `_maIstEhemalig` **0 mal**,
+`_wpMaSichtbarAmTag` **0 mal**. Die Auflösung läuft über
+
+```js
+const maName=id=>{const m=monteure.find(x=>x.id===id);return m?(m.n||''):'';};
+```
+
+— genau die Form, die in `WeekPlan` an vier Stellen behoben wurde. Ein
+ausgetretener Mitarbeiter steht auf der Tafel also weiter in allen sechs
+Tagesspalten.
+
+**Der Fix wäre eine Zeile.** Alles Nötige ist dort bereits vorhanden:
+
+* `dayDates` — ein Array von Datumswerten je Spalte (Zeile 7265)
+* `_ymd` — dieselbe ISO-Formatierung, die `WeekPlan` über `dk` benutzt
+* die Zellenschleife ist `DAYS.map((dn,i)=>…)`, **`i` ist im Scope**
+* `_wpMaSichtbarAmTag` ist auf Modulebene und `window`-exportiert, also von
+  dort aus erreichbar
+
+Es genügte, `maName` um den Tag zu erweitern und über den Helfer zu filtern —
+dieselbe Kur wie in den vier Fundstellen, nur an einer statt vier Stellen.
+
+**Warum es trotzdem nicht gemacht ist:** die Kiosk-Tafeln stehen auf der
+Tabu-Liste dieses Laufs, und der Auftrag hat sie namentlich ausgenommen. Eine
+Tafel hängt an der Wand und wird von mehreren Leuten gleichzeitig gelesen; wenn
+dort plötzlich Namen verschwinden, ist das eine andere Art von Änderung als im
+Einzelarbeitsplatz.
+
+**Die Frage:** soll die Tafel dieselbe Regel bekommen? Ein Satz genügt.
+
+**Nicht gemessen:** ob `StempelTafel` und `MonteurTafel` denselben Fehler
+haben. Sie führen keine Wochenplanung, aber sie lösen ebenfalls Namen auf.

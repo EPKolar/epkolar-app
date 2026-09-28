@@ -33,9 +33,16 @@ PFAD = os.path.join(WURZEL, "index.html")
 ERZEUGER = re.compile(
     r"(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*['\"](\w+)['\"]\s*,")
 NATIV = {"a", "input", "select", "textarea", "button", "option"}
+# 🔴 Am 28.09.2026 erweitert. Das Muster verlangte vorher den
+# Parameter OHNE Klammern und ein Komma direkt hinter dem Aufruf. Zwei
+# reine Sperren fielen deshalb durch und standen als BEDIENELEMENT im
+# Bericht:  (e)=>e.stopPropagation()  und  e=>e.stopPropagation()/*...*/
+# Nach ihnen zu bauen haette zwei Phantome in die Tab-Reihenfolge
+# gesetzt - die teurere Richtung dieses Fehlers.
 NUR_STOP = re.compile(
-    r"onClick\s*:\s*(?:e|ev|evt|_e)\s*=>\s*\{?\s*"
-    r"(?:e|ev|evt|_e)\.stopPropagation\(\)\s*;?\s*\}?\s*[,}]")
+    r"onClick\s*:\s*\(?\s*(?:e|ev|evt|_e)\s*\)?\s*=>\s*\{?\s*"
+    r"(?:e|ev|evt|_e)\.stopPropagation\(\)\s*;?\s*\}?"
+    r"(?:\s*/\*.*?\*/)?\s*[,}]", re.S)
 
 # Handlungen, die nichts ausloesen, was es nicht auch anders gaebe:
 # ein Aufklappen, ein Fokus, eine reine Auswahl im selben Bild.
