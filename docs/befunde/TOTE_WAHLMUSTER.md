@@ -97,3 +97,62 @@ geöffnete Dialoge erweitert, oder es bleibt eine Entscheidung mit Augenschein.
 **In beiden Fällen gilt:** die zweite Schreibweise wird **ergänzt**, nicht
 ersetzt. Ein `[style*="fontSize:24"]` schadet nicht, es trifft nur nichts —
 und wer weiß, ob nicht irgendwo doch ein Element den Text so trägt.
+
+---
+
+## 🔴 Korrektur derselben Aufnahme, wenige Stunden später
+
+Oben steht: *„Der Bestand zählt 1952 Tippziele unter 44 px — es ist plausibel,
+dass ein erheblicher Teil davon genau hier hängt."*
+
+**Das ist falsch, und es war in derselben Messreihe nachzulesen, die ich
+zitiert habe.**
+
+### Warum
+
+Die toten Wahlmuster stehen alle in einem Block:
+
+```css
+@media (pointer: coarse), (max-width: 768px) { … }
+```
+
+Der gilt auf **Berührungsgeräten und schmalen Schirmen**. Und dort sind die
+Tippziele längst in Ordnung — gemessen über alle 22 Ansichten:
+
+| Breite | Tippziele unter 44 px |
+|---|---|
+| **390 px** | **0** in 21 von 22 Ansichten (`flotte`: 1) |
+| 1440 px | **1939** |
+
+**Alle 1939 sitzen am Schreibtisch**, wo dieser Media-Block gar nicht gilt. Die
+Regeln zu reparieren kann dort nichts bewirken — und tut es auch nicht:
+
+| | vorher | nach der Reparatur |
+|---|---|---|
+| `as_liste` @1440 | 733 | **733** |
+| `werkzeuge` @1440 | 715 | **715** |
+| beide @390 | 0 | **0** |
+
+### Was daraus folgt
+
+1. **Die Reparatur ist trotzdem richtig** — die Regeln sollen auf echten
+   Telefonen greifen, und ein Wahlmuster, das nie trifft, ist eine Attrappe.
+   Sie ist gebaut, mit ergänzter statt ersetzter Schreibweise.
+2. **Sie ist auf der gemessenen Fläche wirkungslos**, und das steht hier, statt
+   als Erfolg verbucht zu werden. Der Grund ist, dass die Nachbarregel
+   `button, [role="button"], .clickable { min-height: 44px !important }` im
+   selben Block längst greift — sie braucht kein `[style*=…]`.
+3. **Die 1939 Tippziele sind ein Schreibtisch-Befund**, kein Telefon-Befund.
+   Wer sie angehen will, muss außerhalb dieses Media-Blocks ansetzen. Das ist
+   eine andere Frage als die, die ich hier gestellt hatte.
+
+### Der Fehler dahinter
+
+Ich hatte zwei Zahlen nebeneinandergelegt — „1952 Tippziele" und „206 Behälter,
+die eine tote Regel treffen würde" — und daraus einen Zusammenhang geschlossen,
+ohne zu prüfen, ob sie **auf derselben Fläche** gemessen sind. Sie sind es
+nicht: die eine stammt von 1440 px, die andere gilt nur unter 768 px.
+
+Dieselbe Form wie am Vortag bei den Diagramm-Achsen, wo ich 264 (bei 390 px)
+und „8 und 9 px" (bei 1440 px) als eine Aussage geführt habe. Zwei Aufnahmen,
+eine Behauptung — und beide Male hat erst das Nachmessen es aufgedeckt.
