@@ -55,23 +55,43 @@ def test_keine_schriftgroesse_unter_zehn_px_im_code():
     """36 Codestellen standen auf 7 oder 8 px - Groessen, die man nicht mehr
     liest, nicht bloss schwer. Der kleinste Wert der ganzen App war 7 px.
 
-    Der KOEDER sind die 9er und die 11er: die gibt es weiter (absichtlich, sie
-    sind ein eigener Schritt). Findet der Zaehler die nicht, ist seine Null bei
-    7 und 8 kein Befund, sondern sein eigener Ausfall.
+    🔴 DER KOEDER HAT AM 28.09.2026 DEN ZEUGEN GEWECHSELT - und dieser Riegel
+    hat es selbst angekuendigt: „(Sind sie absichtlich alle gehoben worden,
+    muss der Koeder hier nachgezogen werden.)"
+
+    Bis v3.9.971 waren die 9er und 11er der Datei der Koeder: es gab sie
+    absichtlich weiter, also musste der Zaehler sie finden. Mit v3.9.972 sind
+    sie GEHOBEN - alle 513 Stellen in fuenf Schreibweisen - und der Koeder
+    wurde stumm, obwohl der Zaehler einwandfrei arbeitet.
+
+    Das ist die Bauform, an der schon zwei andere Riegel dieses Bestands
+    gescheitert sind: *ein Riegel, dessen Nachweis vom FORTBESTEHEN des
+    Mangels lebt, wird bei der naechsten Kur entweder rot oder blind.* Der
+    Beleg steht deshalb jetzt an einem selbstgebauten Text - er haengt nicht
+    mehr davon ab, dass irgendwo im Haus eine bestimmte Zahl ueberlebt.
     """
     roh = _roh()
     feld = _code_feld(roh)
 
-    def zaehl(rx):
-        return [m.start() for m in re.finditer(rx, roh) if feld[m.start()]]
+    def zaehl(rx, text=None, f=None):
+        t = roh if text is None else text
+        ff = feld if f is None else f
+        return [m.start() for m in re.finditer(rx, t) if ff[m.start()]]
 
-    koeder = {"9": len(zaehl(r"fontSize:9(?![\d.])")),
-              "11": len(zaehl(r"fontSize:11(?![\d.])"))}
-    assert all(v > 0 for v in koeder.values()), (
-        "KOEDER STUMM: %r. Der Zaehler findet die 9er und 11er nicht mehr - "
-        "dann ist seine Null bei 7 und 8 keine Aussage. (Sind sie absichtlich "
-        "alle gehoben worden, muss der Koeder hier nachgezogen werden.)"
-        % koeder)
+    # 🔴 KOEDER am selbstgebauten Text, beide Richtungen.
+    from code_scan import ist_code
+    probe = ('h("div",{style:{fontSize:9}},"a");'
+             'h("div",{style:{fontSize:11}},"b");'
+             'h("div",{style:{fontSize:12}},"c");')
+    pf = ist_code(probe)
+    assert len(zaehl(r"fontSize:9(?![\d.])", probe, pf)) == 1, (
+        "KOEDER STUMM: der Zaehler findet eine 9 im Pruefstueck nicht - dann "
+        "ist seine Null\n  bei 7 und 8 keine Aussage.")
+    assert len(zaehl(r"fontSize:11(?![\d.])", probe, pf)) == 1, (
+        "KOEDER STUMM: der Zaehler findet eine 11 im Pruefstueck nicht.")
+    assert not zaehl(r"fontSize:(?:isMob\?7:[89]|[78])(?![\d.])", probe, pf), (
+        "GEGENPROBE ROT: der Zaehler meldet 7/8, wo keine stehen - dann meldet "
+        "er alles.")
 
     klein = zaehl(r"fontSize:(?:isMob\?7:[89]|[78])(?![\d.])")
     assert not klein, (

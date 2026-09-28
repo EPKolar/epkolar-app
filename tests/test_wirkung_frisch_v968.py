@@ -75,10 +75,20 @@ def test_die_messung_passt_noch_zu_den_schriftquellen():
 
 
 def test_die_messung_hat_ueberhaupt_etwas_gesehen():
-    """Gegenprobe auf die Grundgesamtheit.
+    """Gegenprobe auf die EMPFINDLICHKEIT, nicht auf den Mangel.
 
-    Eine Messung ueber null Aufnahmen meldet null Stellen - und das sieht aus
-    wie ein makelloses Ergebnis.
+    🔴 BIS v3.9.971 STAND HIER: „mindestens eine Aufnahme muss etwas gefunden
+    haben - die App-Huelle traegt in jeder Ansicht Stellen unter 12 px." Das
+    war richtig, solange es sie gab. Mit v3.9.972 sind es NULL, und der
+    Nachweis wurde stumm, obwohl der Melder einwandfrei arbeitet.
+
+    Genau die Bauform, die dieser Bestand schon zweimal gefunden hat: *ein
+    Riegel, dessen Nachweis vom FORTBESTEHEN des Mangels lebt, wird bei der
+    naechsten Kur entweder rot oder blind.*
+
+    Der Melder beweist seine Empfindlichkeit jetzt SELBST: er setzt je
+    Aufnahme ein 9-px-Element ein, muss es finden und danach restlos
+    entfernen. Beide Flaggen stehen im Bericht.
     """
     b = _bericht()
     a = b.get("aufnahmen") or []
@@ -86,12 +96,19 @@ def test_die_messung_hat_ueberhaupt_etwas_gesehen():
         "\U0001F534 Nur %d Aufnahmen im Bericht. Erwartet sind mindestens "
         "sechs (drei\n  Ansichten mal zwei Breiten) - sonst ist jede Zahl "
         "darin geschenkt." % len(a))
-    assert any(x.get("anzahl", 0) > 0 for x in a), (
-        "\U0001F534 KEINE einzige Aufnahme hat eine Stelle unter 12 px "
-        "gefunden.\n"
-        "  Das ist zu gut: die App-Huelle traegt in jeder Ansicht welche. "
-        "Vermutlich hat\n"
-        "  der Melder nichts gesehen statt nichts gefunden.")
+    blind = [(x.get("kuerzel"), x.get("breite")) for x in a
+             if not x.get("koeder_gefunden")]
+    assert not blind, (
+        "\U0001F534 In diesen Aufnahmen hat der Melder seinen eigenen Koeder "
+        "nicht gefunden: %s\n"
+        "  Dann ist jede Null darin kein Ergebnis, sondern sein Ausfall."
+        % blind)
+    rest = [(x.get("kuerzel"), x.get("breite")) for x in a
+            if not x.get("koeder_restlos_weg")]
+    assert not rest, (
+        "\U0001F534 In diesen Aufnahmen ist der Koeder NICHT restlos entfernt "
+        "worden: %s\n"
+        "  Dann misst die Aufnahme ihren eigenen Koeder mit." % rest)
 
 
 def test_keine_inline_angabe_wird_mehr_uebersteuert():

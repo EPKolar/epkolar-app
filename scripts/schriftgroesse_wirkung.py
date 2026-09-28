@@ -57,6 +57,28 @@ BREITEN = [390, 1440]
 # 🔴 Gemessen wird die BERECHNETE Groesse. Zusaetzlich wird je Fundstelle
 # festgehalten, was INLINE dransteht - nur so ist der Unterschied sichtbar,
 # um den es geht.
+# 🔴 DER KOEDER DER MESSUNG SELBST. Bis v3.9.971 galt als Beleg, dass der
+# Melder etwas GEFUNDEN hat - die App-Huelle trug ja in jeder Ansicht Stellen
+# unter 12 px. Mit v3.9.972 sind es NULL, und damit war der Beleg weg, obwohl
+# der Melder einwandfrei arbeitet. Ein Nachweis, der vom Fortbestehen des
+# Mangels lebt, wird bei der naechsten Kur entweder rot oder blind.
+# Der Melder beweist seine Empfindlichkeit jetzt SELBST: ein eingesetztes
+# 9-px-Element muss gefunden und danach restlos entfernt werden.
+KOEDER_JS = r"""() => {
+  const d = document.createElement('div');
+  d.id = '_koeder_schrift';
+  d.textContent = 'Koeder';
+  d.style.fontSize = '9px';
+  document.body.appendChild(d);
+  return true;
+}"""
+
+KOEDER_WEG_JS = r"""() => {
+  const d = document.getElementById('_koeder_schrift');
+  if (d) d.remove();
+  return !document.getElementById('_koeder_schrift');
+}"""
+
 JS = r"""() => {
   const aus = [];
   for (const el of document.querySelectorAll('*')) {
@@ -110,14 +132,29 @@ def messen(kuerzel_liste):
                     (f(seite, kuerzel, breite, []) if argzahl == 4
                      else f(seite, kuerzel, breite))
                     seite.wait_for_timeout(1600)
+                    # 🔴 Erst die Selbstprobe: ein eingesetztes 9-px-Element
+                    # MUSS gefunden werden. Ohne sie waere eine Null nicht von
+                    # einem blinden Melder zu unterscheiden.
+                    seite.evaluate(KOEDER_JS)
+                    mit = seite.evaluate(JS)
+                    seite.evaluate(KOEDER_WEG_JS)
                     erg = seite.evaluate(JS)
+                    erg["koeder_gefunden"] = any(
+                        x.get("text") == "Koeder" and x.get("px") == 9
+                        for x in (mit.get("stellen") or []))
+                    erg["koeder_restlos_weg"] = not any(
+                        x.get("text") == "Koeder"
+                        for x in (erg.get("stellen") or []))
                 finally:
                     ctx.close()
                 erg.update({"kuerzel": kuerzel, "breite": breite})
                 aufnahmen.append(erg)
-                print("  %-12s %5d px   unter 12 px: %3d   davon inline >= 12 "
-                      "(also UEBERSTEUERT): %d"
-                      % (kuerzel, breite, erg["anzahl"], erg["uebersteuert"]))
+                print("  %-12s %5d px   unter 12 px: %3d   uebersteuert: %d"
+                      "   Koeder: %s"
+                      % (kuerzel, breite, erg["anzahl"], erg["uebersteuert"],
+                         "gefunden+weg" if (erg["koeder_gefunden"]
+                                            and erg["koeder_restlos_weg"])
+                         else "🔴 ROT"))
         browser.close()
     return aufnahmen
 
