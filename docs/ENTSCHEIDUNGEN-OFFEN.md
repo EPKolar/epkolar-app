@@ -764,3 +764,56 @@ Messfrage — **die bleibt bei dir**.
   Tabellen). Sie betreffen Papier, nicht den Schirm, und sind von dieser
   Messreihe nie erfasst worden. Ob 8pt auf Papier zu klein ist, ist eine
   eigene Frage — und eine, die man nicht am Bildschirm beantwortet.
+
+---
+
+### 20b. 🔴 Präzisierung: die 67 offenen Bedienelemente sind **zwei** Fragen, nicht eine
+
+Frage 20 sagte: „drei verschiedene Kuren für eine Zahl". Nach dem Bau der
+Sortierköpfe und der Projektliste ist die Zahl auf **67** gesunken, und beim
+Durchsehen zeigt sich: der größere Teil ist gar keine Attributfrage.
+
+**Verteilung:** 67 Stellen in **27 Bauteilen**, davon 22 mit ein bis drei
+Stellen. Konzentriert sind nur `WeekPlan` (12), `ArbeitsscheinView` (7) und
+`AbsView` (6).
+
+#### Klasse A — einfache Flächen, eindeutig (rund 40 Stellen)
+
+Eine Karte, eine Zeile, ein Eintrag, der etwas öffnet. Behandlung ist
+entschieden und in `ProjList` (v3.9.964) und den Sortierköpfen (v3.9.969)
+vorgeführt: `tabIndex`, Enter und Leertaste, `role="button"` **nur wenn das
+Element nicht selbst einen Knopf enthält**.
+
+Beispiel: die Fahrzeugkarte (`setSel(f.id)`) — 21 Instanzen, ein Stopp je
+Karte. Die Ansicht hat heute 51 Tab-Stopps; 21 mehr sind unauffällig.
+
+#### Klasse B — **Raster**, und das ist eine Navigationsfrage (rund 27 Stellen)
+
+`WeekPlan` und die Arbeitsscheinliste sind **Gitter**. Dort führt „ein
+Tab-Stopp je Zelle" in die Irre:
+
+* Die Zellen-Auswahl der Wochenplanung (`setCellPick`) steht in **5 Zeilen ×
+  6 Tagen = 30 Zellen**, dazu die Bemerkungsspalte. Die Ansicht hat heute **54**
+  Tab-Stopps — mit einem Stopp je Zelle würden es rund **130**.
+* Die Arbeitsscheinliste hat bei 1440 px **1894** Stopps bei 185 Zeilen. Drei
+  anklickbare Zellen je Zeile wären **555** weitere.
+
+Für Gitter ist der übliche Weg ein **einziger** Tab-Stopp auf das Gitter und
+danach **Pfeiltasten** zwischen den Zellen. Das ist kein Attribut mehr, das ist
+ein Stück Tastaturführung mit eigenem Zustand — und eine eigene Messung.
+
+**Die Frage an dich:** sollen die beiden Gitter Pfeiltasten-Navigation
+bekommen? Das ist der einzige Weg, der sie mit der Tastatur wirklich bedienbar
+macht, ohne die Reihenfolge unbrauchbar zu machen.
+
+Bis dahin bleibt Klasse B **unverändert**, und das ist Absicht: *lieber ein
+fehlender Zugang als ein Phantom in der Tab-Reihenfolge* — dein Satz aus dem
+ursprünglichen Auftrag.
+
+#### Was dabei noch aufgefallen ist
+
+Eine der 67 ist gar kein Bedienelement: ein `div` von **56 150 Zeichen** in
+`WeekPlan`, dessen `onClick` nur die Zellenauswahl aufhebt, wenn man daneben
+klickt. Das ist eine Fläche, kein Knopf — sie hat nur deshalb nicht in der
+Klasse „keine Bedienelemente" gelandet, weil ihr Behandler mehr tut als
+`stopPropagation`. Ein `role="button"` auf 56 kB Fläche wäre genau das Phantom.
