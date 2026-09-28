@@ -58,7 +58,10 @@ NUR_STOP = re.compile(
     r"onClick\s*:\s*(?:e|ev|evt|_e)\s*=>\s*\{?\s*"
     r"(?:e|ev|evt|_e)\.stopPropagation\(\)\s*;?\s*\}?\s*[,}]")
 
-GRENZE = 124  # gemessen an v3.9.964. Vor der Kur waren es 126.
+GRENZE = 110  # gemessen an v3.9.969. 126 vor der ersten Kur, 124 nach
+#               v3.9.964, 110 nachdem v3.9.969 die vierzehn Sortierkoepfe
+#               erreichbar gemacht hat. Sie darf fallen, nie steigen -
+#               und sie MELDET, wenn sie nachgezogen werden muss.
 
 
 def _lies():
