@@ -167,7 +167,10 @@ def _warum(s, alt, name, n):
             "  vermutlich zu einer anderen Fassung. Schneide ihn aus der Datei.")
 
 
-def schneide(pfad, von, bis, einschliesslich=True):
+HOECHSTENS = 1200
+
+
+def schneide(pfad, von, bis, einschliesslich=True, hoechstens=HOECHSTENS):
     """Gibt den woertlichen Text zwischen zwei Marken zurueck - als ANKER.
 
     Nachgebaute Anker sind die haeufigste Fehlerquelle dieses Werkzeugs
@@ -177,6 +180,17 @@ def schneide(pfad, von, bis, einschliesslich=True):
         from safe_edit import schneide, ersetze
         alt = schneide("index.html", "function _tuWas(", "}")
         ersetze("index.html", [(alt, alt + "/* Notiz */", "Notiz")])
+
+    🔴 DIE OBERGRENZE IST AM 28.09.2026 DAZUGEKOMMEN, nach einem
+    Beinahe-Unfall. Der Endmarker war ein einzelner Backtick; der naechste
+    stand erst zweitausend Zeichen weiter, mitten in der uebernaechsten
+    Funktion. Der Schnitt nahm alles mit, `ersetze` fand den Anker
+    pflichtgemaess genau EINMAL und schrieb ihn brav weg - und `SvgLine` war
+    geloescht. Aufgefallen ist es an `node_check`, nicht an diesem Werkzeug.
+
+    `ersetze` schuetzt vor MEHRDEUTIGEN Ankern. Gegen einen zu GIERIGEN Schnitt
+    gab es nichts: ein zu weit geschnittener Anker ist ja gerade eindeutig.
+    Wer wirklich so viel braucht, sagt es mit `hoechstens=`.
     """
     s = io.open(pfad, encoding="utf-8", newline="").read()
     i = s.find(von)
@@ -189,5 +203,26 @@ def schneide(pfad, von, bis, einschliesslich=True):
     j = s.find(bis, i + len(von))
     if j < 0:
         raise SystemExit("schneide: Ende %r steht nicht nach dem Anfang" % (bis[:40],))
-    return s[i:j + len(bis)] if einschliesslich else s[i:j]
+    stueck = s[i:j + len(bis)] if einschliesslich else s[i:j]
+    if len(stueck) > hoechstens:
+        zeile = s.count("\n", 0, i) + 1
+        raise SystemExit(
+            "schneide: der Schnitt waere %d Zeichen lang, die Grenze ist %d.\n"
+            "  Anfang: Zeile %d, %r\n"
+            "  Ende  : %r\n"
+            "  Das ist fast immer ein zu weiter Endmarker. Ein einzelner "
+            "Backtick, eine\n"
+            "  geschweifte Klammer oder ein Anfuehrungszeichen als Ende "
+            "schneiden bis in die\n"
+            "  uebernaechste Funktion - und `ersetze` merkt davon NICHTS, weil "
+            "so ein Anker\n"
+            "  ja gerade eindeutig ist. Genau so ist am 28.09.2026 beinahe "
+            "`SvgLine`\n"
+            "  verschwunden.\n"
+            "  Nimm einen laengeren, eindeutigen Endmarker. Brauchst du "
+            "wirklich so viel:\n"
+            "      schneide(..., hoechstens=%d)"
+            % (len(stueck), hoechstens, zeile, von[:60], bis[:40],
+               len(stueck) + 100))
+    return stueck
 

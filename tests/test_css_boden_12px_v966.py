@@ -49,14 +49,18 @@ REGEL = re.compile(
 # Wahlmuster, die unter 12 px bleiben duerfen - jedes mit Begruendung und
 # Messdatum. Eine Ausnahme ohne Begruendung ist eine Attrappe.
 #
-#   `svg text` (10 px, 27.09.2026)
-#       Die Achsenbeschriftungen der Diagramme. Sie stehen dicht nebeneinander;
-#       10 auf 12 px kann sie zum Ueberlappen bringen. 🔴 Nachgemessen am
-#       28.09.: die Regel steht INNERHALB von `@media (max-width: 600px)` und
-#       gilt damit NUR am Telefon - am Schreibtisch wirken dort die inline
-#       gesetzten 8 und 9 px, die diese Regel gar nicht erklaert. Der Bericht
-#       dazu ist `docs/befunde/DIAGRAMM_ACHSEN.md`; entschieden wird es von
-#       Sebastian.
+#   🔴 `svg text` IST AM 28.09.2026 WEGGEFALLEN - die Ausnahme wurde nicht
+#       gehoben, sondern ENTFERNT. Sie stand innerhalb von
+#       `@media (max-width: 600px)`, galt also nur am Telefon, und dort wo es
+#       weh tat (8 px am Schreibtisch) gar nicht. Vor allem NAHM sie zurueck:
+#       die x-Achse von SvgBar steht im Quelltext auf UI.fMeta (12) und wurde
+#       auf 10 gedrueckt, die Ringsumme von 15 auf 10. Eine Ausnahme, die zwei
+#       richtige Werte verschlechtert, ist keine.
+#       Die sechs SVG-Schriften sind jetzt im QUELLTEXT auf 12, mit zwei
+#       gerechneten Nebenbedingungen (breitere SvgPie-viewBox, Zwei-Reihen-
+#       Versatz der Wertzahl) und einer Ausduennung in SvgLine.
+#       Gemessen: `auswertungen` von 264 auf 2 (390 px) und von 338 auf 7
+#       (1440 px). Bericht: `docs/befunde/DIAGRAMM_ACHSEN.md`.
 #
 #   `.header-row .mob-stack button` (0, 28.09.2026)
 #       Bei hoechstens 340 px, mit dem Kommentar „Text weg, Icon bleibt".
@@ -64,7 +68,7 @@ REGEL = re.compile(
 #       Wahlausdruck 16 px, gleiche Spezifitaet, spaeter im Text - die Null
 #       verliert. Die Ausnahme gilt nur, SOLANGE das Gegenstueck dasteht;
 #       `test_die_null_regel_ist_UND_BLEIBT_neutralisiert` prueft genau das.
-AUSNAHMEN = ("svg text", ".header-row .mob-stack button")
+AUSNAHMEN = (".header-row .mob-stack button",)
 
 
 def _lies():
@@ -184,15 +188,20 @@ def test_kein_css_erzwingt_schrift_unter_12px():
 
 
 def test_die_ausnahmen_sind_noch_die_benannten():
-    """ZWEI Regeln duerfen drunter bleiben, und nur die zwei benannten.
+    """EINE Regel darf drunter bleiben, und nur die benannte.
 
     Ohne diese Probe koennte die Ausnahmeliste wachsen, bis der Riegel nichts
     mehr misst.
 
-    🔴 Die zweite ist am 28.09.2026 dazugekommen, und zwar nicht durch eine
-    Aenderung am Code, sondern weil das Muster endlich weit genug war: es
-    verlangte frueher `px` und war damit fuer `font-size: 0 !important`
-    blind - den KLEINSTEN erzwungenen Wert, den diese Datei fuehrt.
+    🔴 Es waren zwei. `svg text` ist am 28.09.2026 WEGGEFALLEN - nicht
+    gehoben, sondern entfernt: sie galt nur unter 600 px und nahm dort zwei
+    bereits richtige Werte zurueck (SvgBar-x-Achse 12 -> 10, Ringsumme
+    15 -> 10). Die sechs SVG-Schriften stehen jetzt im Quelltext auf 12.
+
+    🔴 Die verbliebene ist erst am 28.09. SICHTBAR geworden, und zwar nicht
+    durch eine Aenderung am Code, sondern weil das Muster endlich weit genug
+    war: es verlangte frueher `px` und war damit fuer `font-size: 0
+    !important` blind - den KLEINSTEN erzwungenen Wert, den diese Datei fuehrt.
     """
     css = stilbloecke(_lies())
     drunter = [(px, " ".join(sel.split()))
@@ -200,18 +209,19 @@ def test_die_ausnahmen_sind_noch_die_benannten():
                                for m in REGEL.finditer(css)]
                if float(px) < 12]
     namen = [s for _, s in drunter]
-    assert len(drunter) == 2, (
-        "\U0001F534 %d Regeln unter 12 px in den CSS-Quellen, erwartet sind "
-        "genau zwei\n  (svg text und die neutralisierte Null der "
-        "Kopfzeilen-Knoepfe):\n    %s" % (len(drunter), drunter))
-    assert any("svg text" in s for s in namen), (
-        "\U0001F534 `svg text` ist nicht mehr dabei - die Ausnahme hat sich "
-        "verschoben\n  und braucht eine eigene Begruendung. Gefunden: %r"
-        % namen)
+    assert len(drunter) == 1, (
+        "\U0001F534 %d Regeln unter 12 px in den CSS-Quellen, erwartet ist "
+        "genau eine\n  (die neutralisierte Null der Kopfzeilen-Knoepfe). "
+        "Steht `svg text` wieder da,\n  nimmt sie erneut zwei richtige Werte "
+        "zurueck:\n    %s" % (len(drunter), drunter))
+    assert not any("svg text" in s for s in namen), (
+        "\U0001F534 Die `svg text`-Regel ist zurueck. Sie galt nur unter "
+        "600 px und drueckte\n  dort die x-Achse von SvgBar von 12 auf 10 und "
+        "die Ringsumme von 15 auf 10.\n  Gefunden: %r" % namen)
     assert any(".header-row .mob-stack button" in s for s in namen), (
         "\U0001F534 Die Null-Regel der Kopfzeilen-Knoepfe ist nicht mehr "
         "dabei. Gefunden: %r" % namen)
-    assert len(AUSNAHMEN) == 2, (
+    assert len(AUSNAHMEN) == 1, (
         "\U0001F534 Die Ausnahmeliste ist gewachsen (%s). Jede Ausnahme braucht "
         "ein Messdatum\n  im Kopf dieser Datei, sonst misst der Riegel "
         "irgendwann nichts mehr." % (AUSNAHMEN,))
