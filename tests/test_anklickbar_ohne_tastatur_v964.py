@@ -54,14 +54,40 @@ ERZEUGER = re.compile(
 NATIV = {"a", "input", "select", "textarea", "button", "option"}
 
 # Reine Weiterleitungssperre - kein Bedienelement.
+#
+# 🔴 28.09.2026: DIESES MUSTER KANNTE NUR DIE PFEILFORM, und das hat einen
+#    echten Schaden angerichtet. Der Ziehgriff eines Dispo-Blocks traegt
+#
+#        onClick: function(e){ if(e&&e.stopPropagation) e.stopPropagation(); }
+#
+#    Das ist dieselbe Weiterleitungssperre, nur als `function` geschrieben und
+#    mit einer Existenzpruefung davor. Das alte Muster sah sie nicht, hielt
+#    den Griff fuer ein Bedienelement - und das Bauwerkzeug aus v3.9.975 gab
+#    ihm `role="button"`, `tabIndex` und einen Tastenbehandler, dessen Rumpf
+#    NICHTS tut. Ein Tab-Stopp ohne Wirkung, drei Versionen lang, gefunden
+#    erst durch eine Messung, die den Bereich geoeffnet hat
+#    (`scripts/inline_bereiche_messen.py`).
+#    Die Zaehlung "29 von 154 sind stopPropagation" war also um mindestens
+#    einen zu niedrig.
+#
+#    Das Muster steht deshalb auf der FORM statt auf einer Schreibweise:
+#    beliebiger Parametername, Pfeil ODER `function`, mit oder ohne
+#    Existenzpruefung, mit oder ohne Block. `test_phantom_tabstopp_v978`
+#    prueft die andere Haelfte - dass kein gebauter Behandler leer laeuft.
 NUR_STOP = re.compile(
-    r"onClick\s*:\s*(?:e|ev|evt|_e)\s*=>\s*\{?\s*"
-    r"(?:e|ev|evt|_e)\.stopPropagation\(\)\s*;?\s*\}?\s*[,}]")
+    r"onClick\s*:\s*(?:function\s*)?\(?\s*(?P<p>\w+)\s*\)?\s*(?:=>)?\s*\{?\s*"
+    r"(?:if\s*\(\s*(?P=p)\s*&&\s*(?P=p)\.stopPropagation\s*\)\s*)?"
+    r"(?P=p)\.stopPropagation\(\)\s*;?\s*\}?\s*[,}]")
 
-GRENZE = 69  # gemessen an v3.9.975. 126 vor der ersten Kur, 124 nach
+GRENZE = 68  # gemessen an v3.9.978. 126 vor der ersten Kur, 124 nach
 #               v3.9.964, 110 nachdem v3.9.969 die vierzehn Sortierkoepfe
-#               erreichbar gemacht hat. Sie darf fallen, nie steigen -
-#               und sie MELDET, wenn sie nachgezogen werden muss.
+#               erreichbar gemacht hat, 69 nach v3.9.975.
+#               🔴 Von 69 auf 68 NICHT durch eine Kur: `NUR_STOP` kennt seit
+#               v3.9.978 auch die `function`-Schreibweise und erkennt damit
+#               zwei weitere Weiterleitungssperren als das, was sie sind -
+#               keine Bedienelemente. Die Zahl ist also nicht gesunken, sie
+#               war vorher FALSCH. Sie darf fallen, nie steigen - und sie
+#               MELDET, wenn sie nachgezogen werden muss.
 
 
 def _lies():
@@ -209,6 +235,44 @@ def test_gegenprobe_stoppropagation_schweigt():
         "\U0001F534 Ein Element, das nach dem stopPropagation noch etwas TUT, "
         "wurde\n  uebersehen - die Sperre darf nicht zum Freibrief werden."
     )
+
+
+def test_koeder_stoppropagation_JE_SCHREIBWEISE():
+    """\U0001F534 28.09.2026 - die Luecke, die drei Versionen lang wirkte.
+
+    Das alte Muster kannte nur `onClick: e => ... e.stopPropagation()`. Der
+    Ziehgriff eines Dispo-Blocks schreibt dieselbe Sperre als
+
+        onClick: function(e){ if(e&&e.stopPropagation) e.stopPropagation(); }
+
+    Er galt damit als Bedienelement, bekam in v3.9.975 `role="button"`,
+    `tabIndex` und einen Tastenbehandler, der NICHTS tut - und stand so drei
+    Versionen lang als Phantom in der Tab-Reihenfolge.
+
+    Ein Koeder JE SCHREIBWEISE, nicht einer fuer das Muster insgesamt: ein
+    Koeder, der die Luecke des Musters teilt, bestaetigt nur die Blindheit.
+    """
+    stumm = [
+        ("h('div',{onClick:e=>e.stopPropagation()},'a')", "Pfeil ohne Block"),
+        ("h('div',{onClick:e=>{e.stopPropagation();}},'a')",
+         "Pfeil mit Block"),
+        ("h('div',{onClick:function(e){if(e&&e.stopPropagation)"
+         "e.stopPropagation();}},'a')", "function MIT Existenzpruefung"),
+        ("h('div',{onClick:function(e){e.stopPropagation();}},'a')",
+         "function ohne Pruefung"),
+        ("h('div',{onClick:ev=>ev.stopPropagation()},'a')",
+         "anderer Parametername"),
+    ]
+    for text, warum in stumm:
+        assert not ohne_tastatur(text), (
+            "\U0001F534 Die Schreibweise %r wird NICHT als Weiterleitungs"
+            "sperre erkannt.\n  Sie gilt damit als Bedienelement - und das "
+            "naechste Bauwerkzeug macht daraus\n  einen Tab-Stopp, der nichts "
+            "tut." % warum)
+    # Gegenprobe: das Muster darf nicht alles verschlucken.
+    assert ohne_tastatur("h('div',{onClick:function(e){oeffne(p);}},'a')"), (
+        "\U0001F534 Ein `function`-Behandler mit echter Wirkung wird "
+        "verschluckt - die\n  Verbreiterung des Musters ist zu weit geraten.")
 
 
 def test_natives_element_schweigt():

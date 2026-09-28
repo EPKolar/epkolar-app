@@ -817,3 +817,68 @@ Eine der 67 ist gar kein Bedienelement: ein `div` von **56 150 Zeichen** in
 klickt. Das ist eine Fläche, kein Knopf — sie hat nur deshalb nicht in der
 Klasse „keine Bedienelemente" gelandet, weil ihr Behandler mehr tut als
 `stopPropagation`. Ein `role="button"` auf 56 kB Fläche wäre genau das Phantom.
+
+---
+
+### 28. Tippziele zwischen 24 und 44 px — 1954 Stück, und das ist eine Gestaltungsfrage
+
+**Der Stand nach v3.9.976/977.** Unter **24 px** liegt im Ruhezustand noch
+genau ein Element, und das gehört uns nicht (der Urheberhinweis der
+Kartenbibliothek Leaflet, 51.4×14, Lizenzbedingung). Das war vorher **50** in
+sechs Gruppen. Auch in den geöffneten Bereichen — den vier Überlagerungen der
+Hülle und den 20 Inline-Bereichen der Fahrzeugansicht — ist nichts mehr
+darunter.
+
+**Was bleibt:** 1954 Tippziele zwischen 24 und 44 px, **alle bei 1440 px**.
+Bei 390 px sind es null, weil `@media (pointer: coarse)` dort alles auf 44
+hebt.
+
+**Warum das keine Messung mehr entscheidet.** 44 px ist die Marke für einen
+**Finger**. 24 px ist die Marke, die unabhängig vom Zeigegerät gilt. Am
+Schreibtisch mit einer Maus ist die Lücke dazwischen kein Fehler, sondern eine
+Wahl: mehr Zeilen auf den Schirm gegen größere Ziele.
+
+**Die Frage an dich:** Wird der Baumanagement-Schreibtisch je mit einem
+**Touchscreen** bedient — Laptop mit Touch, Surface, ein Monitor in der
+Werkstatt? Dann greift dort dieselbe Begründung wie am Telefon, und die 44 px
+gehören auch ans breite Fenster.
+
+* **Nein, nur Maus und Tastatur** → nichts zu tun. Die Zahl wandert aus den
+  offenen Punkten in den Grundstand, mit dieser Begründung.
+* **Ja, es gibt Touch-Geräte in Schreibtischbreite** → dann ist die
+  Grobzeiger-Regel heute *unvollständig*: sie hängt an `pointer: coarse`
+  **oder** `max-width: 768px`. Ein Touch-Laptop bei 1440 px meldet
+  `pointer: fine` (Maus vorhanden) und fällt durch beide Bedingungen. Der
+  saubere Weg wäre `any-pointer: coarse` statt `pointer: coarse` — eine
+  einzeilige Änderung mit großer Wirkung, die vorher gemessen gehört.
+
+Messungen dazu: `docs/befunde/UNTER24.md`, `docs/befunde/DIALOGE.md`,
+`docs/befunde/INLINE_BEREICHE.json`.
+
+---
+
+### 29. Die Dauer eines Dispo-Blocks lässt sich nur mit der Maus ändern
+
+**Gefunden am 28.09.2026** beim ersten Öffnen der Dispo-Ansicht durch eine
+Messung (`scripts/inline_bereiche_messen.py`).
+
+Ein Zeitblock in der Dispo hat unten eine Griffzone von 10 px Höhe. Ziehen
+ändert die Dauer in 15-Minuten-Schritten. Das hängt an `onPointerDown` und hat
+**keinen Tastenweg** — mit der Tastatur allein ist die Dauer nicht änderbar.
+
+v3.9.975 hatte dem Griff versehentlich `role="button"`, `tabIndex` und einen
+Tastenbehandler gegeben, dessen Rumpf nichts tut. Das ist in v3.9.978 wieder
+entfernt: **lieber ein fehlender Zugang als ein Phantom in der
+Tab-Reihenfolge** — dein Satz aus dem ursprünglichen Auftrag.
+
+Die Lücke ist damit ehrlich, aber sie ist noch da.
+
+**Die Frage an dich:** soll die Dauer per Tastatur änderbar werden? Der übliche
+Weg wäre: der Block bekommt einen Tab-Stopp, und dort ändern **Pfeil hoch/
+runter** die Dauer um je 15 Minuten, mit einer Ansage („90 Minuten"). Das ist
+dieselbe Bauart wie die Pfeiltasten-Navigation, die Frage 20b für die beiden
+Gitter offen hält — es wäre sinnvoll, beides zusammen zu entscheiden.
+
+Solange das nicht entschieden ist, bleibt der Griff wie er ist: 242.6×10 px,
+Maus und Finger, keine Tastatur, und **keine Attrappe, die etwas anderes
+behauptet**.
