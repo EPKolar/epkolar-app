@@ -89,6 +89,18 @@ GEHOBEN = [
      "Tagesknoepfe des Stundenzettel-Exports", "rund 68x22"),
     ("width:36,height:24,borderRadius:12", 1,
      "Diagramm-Schalter der Auswertungen", "36x20"),
+    # ── v3.9.977: die ersten zwei Funde aus einem INLINE-BEREICH ───────────
+    #    `scripts/inline_bereiche_messen.py` hat in der Fahrzeugansicht 20
+    #    aufklappbare Bereiche gefunden - 18 Detailansichten, ein
+    #    Batch-Fenster, ein Erfassungsformular. In der Detailansicht standen
+    #    zwei Elemente unter 24 px. Kein Werkzeug konnte sie vorher sehen:
+    #    sie erscheinen erst nach einem Klick, und die Messreihe misst den
+    #    Ruhezustand.
+    ('fontSize:20,padding:0,minWidth:24,color:isFav(sel)', 1,
+     "Favoritenstern in der Fahrzeug-Detailansicht (der DRITTE seiner Art)",
+     "16.7x27"),
+    ('cursor:"pointer",userSelect:"none",minHeight:24', 1,
+     "Zulassungsschein-Zeile der Fahrzeug-Detailansicht", "1340x19.5"),
     ('width:20,height:20,borderRadius:"50%",background:"#fff",'
      'position:"absolute",top:2,left:visible?14:2', 1,
      "Knauf des Diagramm-Schalters (waechst mit der Huelle)",
