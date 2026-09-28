@@ -1,4 +1,4 @@
-# Offene Entscheidungen — fuenfundzwanzig Fragen an Sebastian
+# Offene Entscheidungen — sechsundzwanzig Fragen an Sebastian
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -645,3 +645,28 @@ Verluste, und eine über das ganze Lese-Schreib-Fenster sperrt die zweite
 Sitzung stundenlang aus.
 
 **Deine Entscheidung.** Das ist Datenrichtigkeit, kein Aufräumen.
+
+---
+
+### 26. Trägt `finkzeit.worker_id` künftig worker- oder users-IDs? (28.09.2026)
+
+**Gemessen:** die Tabelle `finkzeit` ist **leer — 0 Zeilen**. Der Eintrag
+`finkzeit.worker_id` im Lösch-Trigger `trg_workers_block_delete` ist damit
+heute **wirkungslos**. Kein Fehler, nur folgenlos.
+
+**Warum es trotzdem hier steht:** sobald FinkZeit-Daten hereinkommen, entscheidet
+diese Spalte mit, ob ein Mitarbeiter gelöscht werden darf. Trägt sie
+**u-IDs** statt **w-IDs**, prüft der Trigger gegen die falsche Menge — er
+findet keine Referenz, lässt das Löschen durch, und die FinkZeit-Zeilen zeigen
+danach ins Leere. Das ist genau die Form, die man erst merkt, wenn jemand
+gelöscht ist.
+
+Der Verdacht aus der Analyse lautet: **u-IDs**.
+
+**Nicht gemessen** — und mit leerer Tabelle auch nicht messbar: welche Form die
+Spalte tatsächlich bekommt. Das entscheidet die FinkZeit-Anbindung, nicht diese
+App.
+
+**Die Frage:** wenn die Anbindung kommt, vorher festlegen — und dann entweder
+den Trigger-Eintrag anpassen oder die Spalte auf w-IDs festlegen. Eine leere
+Tabelle ist der billigste Zeitpunkt dafür.
