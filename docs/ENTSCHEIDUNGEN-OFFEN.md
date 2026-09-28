@@ -1,4 +1,4 @@
-# Offene Entscheidungen — siebenundzwanzig Fragen an Sebastian
+# Offene Entscheidungen — siebenundzwanzig Fragen, davon DREI am 28.09. durch Messen erledigt
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -711,3 +711,56 @@ Einzelarbeitsplatz.
 
 **Nicht gemessen:** ob `StempelTafel` und `MonteurTafel` denselben Fehler
 haben. Sie führen keine Wochenplanung, aber sie lösen ebenfalls Namen auf.
+
+---
+
+# Nachtrag 28.09.2026, spät — vier Fragen haben sich durch Messen erledigt
+
+Sebastians Vorgabe war „forcieren und machen". Vier der offenen Fragen sind
+damit **nicht beantwortet, sondern gebaut** — und zwar so, dass die Antwort
+gemessen ist statt behauptet. Sie bleiben hier stehen, durchgestrichen, mit
+dem Ergebnis: eine entfernte Frage ist nicht nachprüfbar.
+
+## ~~18. App-Hülle auf 12 px~~ — **erledigt in v3.9.972**
+
+Die Hülle war Teil der 513 gehobenen Stellen. Die Sorge im Text („bricht die
+Kopfleiste bei 12 px in zwei Zeilen um?") ist gemessen: **kein `roll` ist
+gestiegen, kein `verl`** — in keiner der 44 Aufnahmen.
+
+## ~~19. `svg text` in den Diagrammen~~ — **erledigt in v3.9.971, anders als gedacht**
+
+Die Frage lautete „auf 12 heben oder so lassen". Die Antwort war eine dritte:
+**entfernen**. Die Regel stand innerhalb von `@media (max-width: 600px)`, galt
+nur am Telefon, und dort wo es weh tat (8 px am Schreibtisch) gar nicht — vor
+allem aber *nahm sie zurück*: die x-Achse von `SvgBar` steht im Quelltext auf
+12 und wurde auf 10 gedrückt, die Ringsumme von 15 auf 10.
+
+`auswertungen`: **264 → 0** bei 390 px, **338 → 0** bei 1440 px.
+
+## ~~23. Das Ringdiagramm verliert Einträge~~ — **erledigt in v3.9.971**
+
+`SvgPie` zeichnete Legendenzeile *i* bei `y=i*18+16` in eine `viewBox` der Höhe
+150 — sichtbar waren acht Zeilen. `absTyp` verlor 7 von 15, `asArt` 1 von 9.
+Die Höhe wächst jetzt mit der Legende, die Breite ist mitgewachsen (bei 12 px
+braucht `Pflegefreistellung (3)` 126 von 114 verfügbaren Pixeln, und der äußere
+`svg` hat `overflow:hidden`).
+
+## ~~24. Drei CSS-Regeln pflegen Bauteile, die es nicht gibt~~ — **bleibt offen**
+
+`.ber-table`, `.badge` und das Sync-Banner-Muster treffen weiterhin nichts. Sie
+sind **harmlos geworden** (alle drei stehen auf 12 px), aber sie stehen noch da
+und täuschen den nächsten Leser. Löschen ist eine Aufräumfrage, keine
+Messfrage — **die bleibt bei dir**.
+
+---
+
+## Was in der Schriftfrage NICHT erledigt ist
+
+* **`tipp44` = 1952 Tippziele unter 44 px.** Unverändert, und nie Gegenstand
+  gewesen. Das ist jetzt die größte offene Zahl des Bestands.
+* **Die Tab-Reihenfolge der Arbeitsscheinliste**: 1894 Stopps bei 1440 px.
+  Siehe Frage 20.
+* **Die `pt`-Größen im Druck- und Export-HTML** (9pt, 8pt in den erzeugten
+  Tabellen). Sie betreffen Papier, nicht den Schirm, und sind von dieser
+  Messreihe nie erfasst worden. Ob 8pt auf Papier zu klein ist, ist eine
+  eigene Frage — und eine, die man nicht am Bildschirm beantwortet.
