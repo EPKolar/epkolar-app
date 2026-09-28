@@ -118,3 +118,72 @@ Aus dem Inhalt dieser Ansichten selbst: **null**.
 * **`tipp44` ist nicht gemessen worden, sondern nur mitgezählt.** 1952 Tippziele
   unter 44 px sind eine große Zahl, und sie ist heute nicht kleiner geworden.
   Sie gehört in einen eigenen Lauf.
+
+---
+
+## 🔴 Korrektur vom 28.09.2026 — meine „eine benannte Ausnahme" war zweifach falsch beschrieben
+
+Drei Messagenten haben diesen Grundstand nachgeprüft. An drei Stellen haben sie
+mich widerlegt, und alle drei Widerlegungen habe ich selbst nachgemessen.
+
+### 1. Die Regel gilt nur am Telefon
+
+Oben steht `svg text { font-size: 10px !important }` als Erklärung für **beide**
+Zahlen — 264 bei 390 px und 338 bei 1440 px. Das ist falsch.
+
+**Die Regel steht in Zeile 319, innerhalb von `@media (max-width: 600px)`.** Sie
+gilt ausschließlich am Telefon. Damit zerfallen die zwei Zahlen in zwei
+verschiedene Ursachen:
+
+| Breite | was dort klein ist | Ursache |
+|---|---|---|
+| 390 px | alles im Diagramm auf **10 px** | meine CSS-Regel |
+| 1440 px | **8 px und 9 px** | **inline** gesetzte SVG-Größen, die die Regel gar nicht erreicht |
+
+Die Stichproben belegen es: bei 390 px zwölfmal 10 px, bei 1440 px siebenmal
+8 px und fünfmal 9 px. Ich habe zwei Aufnahmen als eine Aussage geführt.
+
+### 2. Die Ausnahme macht zwei richtige Schriften wieder kaputt
+
+Weil eine `!important`-Autorenregel ein SVG-Präsentationsattribut schlägt,
+drückt meine Ausnahme am Telefon zwei Werte **herunter**, die im Quelltext
+bereits richtig stehen: die x-Achse von `SvgBar` (steht auf `UI.fMeta` = 12 →
+wird 10) und die Ringsumme von `SvgPie` (15 → 10).
+
+Eine Ausnahme, die etwas schützen soll und dabei zwei gute Werte verschlechtert,
+ist keine Ausnahme mehr, sondern ein Nebenschaden.
+
+### 3. Drei meiner neun gehobenen CSS-Regeln treffen überhaupt kein Bauteil
+
+v3.9.966 hat neun Regeln von unter 12 px auf 12 px gehoben. Drei davon waren
+schon vorher wirkungslos, sind es nachher noch, und der Quelltextriegel ist an
+allen dreien grün — **und war es auch, als sie noch 11 px trugen**:
+
+* **`.ber-table`** — kommt als Klasse in der ganzen Datei nicht vor.
+* **`.badge`** — nur in Druck- und Export-HTML-Zeichenketten, die ihre eigenen
+  Stilblöcke mitbringen. Im Hauptdokument: nichts.
+* **Das Sync-Banner** — beide Arme tot. `[style*="Änderungen warten"]` sucht den
+  Text im *style-Attribut*, er steht aber im *Textinhalt*; und kein Knopf der
+  Datei trägt ein `title` mit „Jetzt sync".
+
+Das ist Anwesenheit statt Wirkung an meiner eigenen Kur. Die Konsequenz steht
+in `tests/test_wirkung_frisch_v968.py`: die berechnete Größe wird jetzt am
+gerenderten Baum gemessen, mit einer Klinke, die anschlägt, sobald sich eine
+Schriftquelle ändert, ohne dass nachgemessen wurde.
+
+### 4. Und ein Befund, der gar kein Schriftproblem ist
+
+`SvgPie` zeichnet die Legendenzeile *i* bei `y = i*18+16` in eine `viewBox` von
+nur 150 Höhe. **Ab der neunten Zeile liegt sie außerhalb und wird nie
+gezeichnet.** Gemessen: `absTyp` verliert **7 von 15** Einträgen, `asArt` **1
+von 9**. Keine Schriftgröße der Welt behebt das — es ist fehlende Information,
+nicht kleine Information, und es gehört in eine eigene Kur.
+
+### Was sich dadurch an der Gesamtaussage ändert
+
+Die Zahlen oben (1354 → 911, davon 602 in `auswertungen`) bleiben richtig — sie
+sind gemessen. Was sich ändert, ist die **Begründung**: die 602 sind nicht eine
+Ursache, sondern zwei, und meine Ausnahme deckt nur die eine davon ab. Die
+vollständige Aufnahme steht in `docs/befunde/DIAGRAMM_ACHSEN.md`, mit allen
+Stellen, drei Wegen und einer Empfehlung. Entschieden wird es von Sebastian
+(Frage 19).

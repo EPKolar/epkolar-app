@@ -1,4 +1,4 @@
-# Offene Entscheidungen — einundzwanzig Fragen an Sebastian
+# Offene Entscheidungen — fuenfundzwanzig Fragen an Sebastian
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -538,3 +538,110 @@ nicht, und der Server-Weg ist in diesem Lauf TABU.
 **Die Vorfrage ist deshalb wichtiger:** soll der Wochenplan in den
 Offline-Speicher aufgenommen werden? Ohne das bleibt die Wochenplanung bei
 jeder Messung „nicht aussagekräftig" gestempelt — zu Recht.
+
+---
+
+# Nachtrag 28.09.2026 — vier Fragen aus der Gegenprüfung
+
+Drei Messagenten haben die Arbeit vom 27.09. nachgeprüft. Diese vier Fragen
+sind dabei entstanden; alle vier sind **gemessen** und keine ist ein
+Aufräumwunsch.
+
+### 22. 🔴 Bei ≤ 340 px sollen die Kopfzeilen-Knöpfe ihren Text verlieren — sie tun es nicht
+
+Im Stilblock steht für sehr schmale Telefone (iPhone SE 1. Generation):
+
+```css
+.header-row .mob-stack button {
+  font-size: 0 !important;   /* Text weg, Icon (Emoji) bleibt */
+}
+.header-row .mob-stack button::first-letter,
+.header-row .mob-stack button { font-size: 16px !important; }
+```
+
+**Gleiche Spezifität, drei Zeilen später — die Null verliert.** Die Absicht
+wirkt nicht und hat vermutlich nie gewirkt: bei 340 px steht der volle Text mit
+16 px im Knopf, und das ist einer der Gründe, warum die Kopfzeile dort eng ist.
+
+**Die Frage:** soll die ursprüngliche Absicht hergestellt werden (Text weg,
+Symbol bleibt) — oder war sie von Anfang an falsch und die Null gehört
+gelöscht? Beides ist vertretbar; ein Knopf ohne Text braucht dann aber ein
+`aria-label`, sonst ist er für eine Vorlesehilfe stumm.
+
+**Nicht gemessen:** wie viele Knöpfe die Kopfzeile bei 340 px trägt und wie
+breit sie mit vollem Text zusammen sind. Dafür braucht es eine Aufnahme bei
+340 px, und die Messreihe fährt 390 und 1440.
+
+Bis zur Antwort ist die Null als **neutralisiert** im Riegel geführt: fällt die
+16-px-Zeile weg, wird sie scharf und der Riegel geht rot.
+
+---
+
+### 23. 🔴 Das Ringdiagramm verliert Einträge — und das ist kein Schriftproblem
+
+`SvgPie` zeichnet die Legendenzeile *i* bei `y = i*18+16` in eine `viewBox` von
+nur 150 Höhe. **Ab der neunten Zeile liegt sie außerhalb und wird nie
+gezeichnet.**
+
+Gemessen: **`absTyp` verliert 7 von 15 Einträgen, `asArt` 1 von 9.**
+
+Das ist fehlende Information, nicht kleine Information. Keine Schriftgröße
+behebt es. Drei Wege: die `viewBox` mitwachsen lassen · die Legende neben statt
+unter den Ring setzen · ab der neunten Zeile zusammenfassen („+7 weitere").
+
+**Die Frage an dich:** welcher — und ist es dringend? Es betrifft die
+Abwesenheitsarten, also eine Auswertung, die du vermutlich regelmäßig ansiehst.
+
+---
+
+### 24. Drei CSS-Regeln pflegen Bauteile, die es nicht gibt
+
+`.ber-table`, `.badge` und das Sync-Banner-Muster treffen im Hauptdokument
+**nichts**. Ich habe sie am 27.09. von 11 px auf 12 px gehoben — richtig
+gedacht, wirkungslos.
+
+* `.ber-table` kommt als Klasse in der ganzen Datei nicht vor.
+* `.badge` nur in Druck- und Export-HTML, das eigene Stilblöcke mitbringt.
+* Das Sync-Banner sucht `[style*="Änderungen warten"]` im *style-Attribut*,
+  der Text steht aber im *Textinhalt*; und kein Knopf trägt ein `title` mit
+  „Jetzt sync".
+
+**Die Frage:** löschen oder reparieren? Löschen ist ehrlicher — eine Regel für
+ein Bauteil, das es nicht gibt, täuscht den nächsten Leser. Reparieren wäre
+richtig, wenn die Bauteile eigentlich gemeint sind und nur anders heißen.
+
+**Nicht gemessen:** ob `.ber-table` früher existiert hat und umbenannt wurde.
+Dafür müsste man die Historie durchgehen.
+
+---
+
+### 25. 🔴 MEMORY.md hat mehrere Schreiber und keine Sperre
+
+Das ist keine Frage zur App, aber sie gehört hierher, weil sie die Grundlage
+aller anderen betrifft: **die Lektionen, aus denen die Riegel entstehen.**
+
+Gemessen (`docs/befunde/MEMORY_RISIKO.md`):
+
+* `MEMORY.md` wird **ganz gelesen und ganz zurückgeschrieben**, ohne zu prüfen,
+  ob sich die Datei seit dem Lesen geändert hat. Die Lücke zwischen Lesen und
+  Schreiben ist **Minuten bis Stunden**, nicht Millisekunden.
+* Der Speicherordner ist **nicht versioniert**. Es gibt keine Sicherungskopien.
+* **Achtzehn** verschiedene Sitzungen haben hineingeschrieben; **zwei liefen
+  heute gleichzeitig**.
+* Über die Strecke, für die eine Historie existiert (18.–27.09.), ist **kein
+  Verlust nachweisbar**. Davor gibt es keine Historie — und *das ist selbst der
+  Befund*.
+* **Ein harter Fund:** `mlg_regel_agenten_bei_freier_last.md` — deine
+  Dauervorgabe, Agenten zu benutzen, wenn die Last es erlaubt — wird vom Index
+  in **keiner** Schreibweise genannt. Ob nie eingetragen oder herausgefallen:
+  nicht feststellbar. Die Wirkung ist dieselbe.
+
+**Empfehlung:** zuerst `git init` im Speicherordner, mit einem Commit nach
+jeder Verdichtung — alles, was sich oben überhaupt belegen ließ, ließ sich nur
+belegen, weil zufällig eine Versionshistorie an anderer Stelle mitläuft. Danach
+„nur anhängen, getrennt verdichten". Eine Sperrdatei löst das Problem **nicht**:
+eine Sperre nur während des Schreibens verhindert keinen der konstruierten
+Verluste, und eine über das ganze Lese-Schreib-Fenster sperrt die zweite
+Sitzung stundenlang aus.
+
+**Deine Entscheidung.** Das ist Datenrichtigkeit, kein Aufräumen.
