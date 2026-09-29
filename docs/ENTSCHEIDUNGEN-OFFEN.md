@@ -1,4 +1,4 @@
-# Offene Entscheidungen — dreißig Fragen, davon FÜNF durch Messen erledigt
+# Offene Entscheidungen — dreißig Fragen, davon SECHS erledigt
 
 > **Stand 29.09.2026, v3.9.986.** Seit dem 28.09. hat sich dreierlei geändert,
 > und zwar durch Messen, nicht durch Nachdenken:
@@ -15,6 +15,8 @@
 >   Leaflet-Urheberhinweis. Offen bleibt nur noch der Touch-Laptop.
 > * Die Zählung im Titel oben war seit dem 28.09. **falsch** (sie sagte
 >   siebenundzwanzig, es waren schon neunundzwanzig). Das ist behoben.
+> * **Frage 27 (Wandtafel zeigt Ausgetretene) ist in v3.9.988 gebaut** — auf
+>   deinen Zuruf, samt Messung am Schirm vor und nach der Kur.
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -723,7 +725,34 @@ Tabelle ist der billigste Zeitpunkt dafür.
 
 ---
 
-### 27. 🔴 Die Kiosk-Wochenplantafel hat denselben Austrittsfehler — gemessen, nicht gefixt
+### ~~27. Die Kiosk-Wochenplantafel hat denselben Austrittsfehler~~ — **erledigt in v3.9.988 (29.09.2026)**
+
+> **Auf deinen Zuruf gebaut.** `maName` in `WochenplanTafel` bekommt jetzt den
+> ISO-Tag der Spalte und fragt `_wpMaSichtbarAmTag` — dieselbe Form wie in
+> `WeekPlan` an seinen vier Stellen, **kein** eigener Vergleich auf
+> `.austritt`. `_maIstEhemalig` wurde nur gerufen, nicht angefasst.
+>
+> **Am Schirm gemessen** (`scripts/tafel_austritt_wirkung.py`), mit drei
+> erfundenen Leuten:
+>
+> | | vorher | nachher |
+> |---|---|---|
+> | aktiv, kein Austritt | steht da | steht da |
+> | Austritt in 400 Tagen | steht da | steht da |
+> | **Austritt vorige Woche** | **steht da** | **weg** |
+>
+> Die ersten beiden Zeilen sind die Selbstprobe — ohne sie wäre „der
+> Ausgetretene ist weg" von „es wurde gar nichts gezeichnet" nicht zu
+> unterscheiden.
+>
+> Der Riegel `tests/test_tafel_austritt_v988.py` misst die **Klasse**, nicht
+> diese eine Stelle: jede Stelle, die aus einer Monteur-Kennung den *Namen*
+> holt, muss im selben Block (per Klammerabgleich, nicht per Ausschnitt) die
+> Prüfung stellen. Heute vier Auflösungen, drei davon Namensstellen; die
+> vierte holt nur die Rolle für den Farbbalken und ist als Ausnahme
+> **gebucht und mitgezählt**. Mutationsprobe an der echten Datei bestanden.
+
+Der ursprüngliche Befund, unverändert:
 
 Der Auftrag zu v3.9.970 hat die Kiosk-Tafel **zweimal ausdrücklich ausgenommen**
 („falls sie denselben Fehler hat: NUR melden"). Hier ist die Messung.
