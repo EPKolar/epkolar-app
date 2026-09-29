@@ -1,4 +1,20 @@
-# Offene Entscheidungen — siebenundzwanzig Fragen, davon DREI am 28.09. durch Messen erledigt
+# Offene Entscheidungen — dreißig Fragen, davon FÜNF durch Messen erledigt
+
+> **Stand 29.09.2026, v3.9.986.** Seit dem 28.09. hat sich dreierlei geändert,
+> und zwar durch Messen, nicht durch Nachdenken:
+>
+> * **Frage 17 (Prüfsummen) ist erledigt** — acht cdnjs-Tags tragen einen
+>   geprüften Abdruck, und die Wirkung ist am Schirm belegt, samt Köderlauf
+>   mit verdorbenem Abdruck. Daraus ist die **neue Frage 30** entstanden: die
+>   Dateien ganz ins Repo holen? Das löst drei Dinge, die ein Abdruck nicht
+>   löst.
+> * **Frage 28 ist fast beantwortet.** Die 1954 Tippziele stammten aus einer
+>   Liste, die nach *Höhe* sortiert und auf zwölf geschnitten war — für die
+>   *Breite* war sie blind. Neu gemessen, ungekappt, 22 Ansichten: auf dem
+>   Handy sind **2099 von 2100** Zielen auf 44×44, der eine Rest ist der
+>   Leaflet-Urheberhinweis. Offen bleibt nur noch der Touch-Laptop.
+> * Die Zählung im Titel oben war seit dem 28.09. **falsch** (sie sagte
+>   siebenundzwanzig, es waren schon neunundzwanzig). Das ist behoben.
 
 **Stand: 27.09.2026, v3.9.961.** Die Fragen 1–13 stammen vom 01.09.2026 (v3.9.928) und sind unverändert; **14 und 15** sind am 26.09. dazugekommen, **16 und 17** am 27.09. — alle vier stehen als Nachtrag am Ende.
 
@@ -389,7 +405,41 @@ gegenmisst. Er braucht aber eine Sitzung mit Leserecht auf `pg_proc` — mit dem
 Anon-Schlüssel geht es nicht, und ein Prüfer, der aus Mangel an Rechten nichts
 findet, meldet grün.
 
-### 17. 🔴 Sieben Skripte kommen von einer fremden CDN — ohne Prüfsumme
+### ~~17. Sieben Skripte kommen von einer fremden CDN — ohne Prüfsumme~~ — **erledigt in v3.9.986 (29.09.2026)**
+
+> **Das war keine Entscheidung, sondern ein Mangel** — deshalb ist es gebaut
+> und nicht gefragt worden. Alle acht Tags (sieben Skripte **und** das
+> Leaflet-Stilblatt) tragen jetzt `integrity` neben dem `crossorigin`, das
+> schon da war.
+>
+> Die Abdrücke stammen von `api.cdnjs.com` — und weil das **selbst cdnjs**
+> ist, wäre das ein Zirkel gewesen: jede der acht Dateien wurde zusätzlich
+> abgerufen und ihr sha512 selbst gebildet. Acht von acht stimmten überein.
+> `scripts/cdn_abdruecke_setzen.py --nachrechnen` wiederholt genau das vor
+> jedem Schreiben und schreibt **nichts**, wenn einer abweicht.
+>
+> **Am Schirm belegt, nicht nur im Quelltext**
+> (`scripts/cdn_abdruecke_wirkung.py`): echter Lauf 8/8 HTTP 200, keine
+> Konsolenmeldung, React hängt im Baum. Köderlauf mit einem absichtlich
+> verdorbenen Abdruck: *„Failed to find a valid digest"*, React `undefined`,
+> `#root` leer — **weiße Seite**. Ohne diesen Köderlauf wäre die grüne
+> Meldung wertlos gewesen.
+>
+> **Eine Stelle bleibt und wird benannt:** `index.html:4304` weist
+> `workerSrc` zur **Laufzeit** eine Adresse zu. Die Norm kennt SRI nur für
+> Tags — dort gibt es kein Attribut, an das man etwas schreiben könnte.
+> Gemessen wird trotzdem, dass der Arbeiter dieselbe pdf.js-Fassung trägt wie
+> das Skript im Kopf und dass es bei **genau einer** solchen Ausnahme bleibt.
+>
+> **Was offen bleibt, ist die größere Frage dahinter:** sollen die Dateien
+> ganz ins Repo, wie es mit der Schrift Archivo in v3.9.933 gemacht wurde?
+> Das löst zusätzlich Offline-Betrieb, fremde Verfügbarkeit **und** den
+> Arbeiter oben. Das ist eine Entscheidung — siehe unten, Frage 30.
+>
+> Riegel: `tests/test_cdn_integrity_v986.py` (8 Fälle, drei Köder).
+> Messung: `docs/befunde/CDN_ABDRUECKE.md`.
+
+Der ursprüngliche Befund, unverändert:
 
 **Gemessen am 27.09.2026.** Der Kopf von `index.html` lädt sieben Bibliotheken
 von `cdnjs.cloudflare.com`. **Keine einzige** trägt ein `integrity`-Attribut:
@@ -820,7 +870,7 @@ Klasse „keine Bedienelemente" gelandet, weil ihr Behandler mehr tut als
 
 ---
 
-### 28. Tippziele zwischen 24 und 44 px — 1954 Stück, und das ist eine Gestaltungsfrage
+### 28. Tippziele zwischen 24 und 44 px — am 29.09. nachgemessen, es bleibt **eine** Frage: gibt es Touch-Geräte in Schreibtischbreite?
 
 **Der Stand nach v3.9.976/977.** Unter **24 px** liegt im Ruhezustand noch
 genau ein Element, und das gehört uns nicht (der Urheberhinweis der
@@ -911,3 +961,42 @@ Gitter offen hält — es wäre sinnvoll, beides zusammen zu entscheiden.
 Solange das nicht entschieden ist, bleibt der Griff wie er ist: 242.6×10 px,
 Maus und Finger, keine Tastatur, und **keine Attrappe, die etwas anderes
 behauptet**.
+
+---
+
+# Nachtrag 29.09.2026, v3.9.986 — eine neue Frage aus einer erledigten
+
+### 30. Sollen die neun fremden Dateien ganz ins Repo?
+
+**Der Anlass.** Frage 17 (Prüfsummen) ist in v3.9.986 erledigt: acht Tags
+tragen jetzt einen geprüften Abdruck. Beim Bauen ist aber sichtbar geworden,
+dass das die *kleinere* Hälfte des Themas war.
+
+**Was der Abdruck löst:** eine veränderte Datei von cdnjs wird nicht mehr
+ausgeführt. **Was er nicht löst**, drei Dinge:
+
+1. **`pdf.worker.min.js` bleibt ungeschützt.** Es wird zur Laufzeit als
+   Adresse zugewiesen (`index.html:4304`), und die Norm kennt `integrity`
+   nur für Tags. Ein Abdruck kann dort nicht stehen.
+2. **Ohne Netz zu cdnjs startet die App nicht.** Kein React, keine
+   Oberfläche. Auf einer Baustelle ohne Empfang ist das nicht theoretisch.
+3. **Ist cdnjs weg, ist die App weg.** Der Abdruck macht die Lage dann sogar
+   strenger: eine *ersetzte* Datei wird verweigert statt ausgeführt — richtig
+   für die Sicherheit, aber die App bleibt trotzdem weiß.
+
+**Der Weg ist im Haus schon gegangen worden:** die Schrift Archivo liegt seit
+v3.9.933 im Repo statt bei Google. Dasselbe mit den neun Dateien löst alle
+drei Punkte auf einmal.
+
+* **Aufwand:** die Dateien holen und ablegen (rund 3,5 MB zusammen, das
+  meiste `pdf.min.js` und sein Arbeiter), die neun Adressen umstellen, die
+  CSP um die cdnjs-Einträge erleichtern. Ein Riegel, der prüft, dass keine
+  cdnjs-Adresse mehr im Quelltext steht, ist dann einfacher als der heutige.
+* **Preis:** das Repo wächst; ein Versionswechsel wird ein Commit statt einer
+  Zeile. Bei sieben Bibliotheken, die seit Monaten stillstehen, ist das
+  wenig.
+* **Meine Empfehlung:** ja. Der einzige Grund dagegen wäre, dass jemand die
+  Bibliotheken häufig hebt — das ist hier nicht der Fall.
+
+Das ist eine Entscheidung und kein Mangel, deshalb steht sie hier und ist
+nicht einfach gebaut worden. Messung dazu: `docs/befunde/CDN_ABDRUECKE.md`.
