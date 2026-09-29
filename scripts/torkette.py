@@ -18,11 +18,15 @@ WAS SIE FAEHRT
 ──────────────
     1  scripts/node_check.py        jeder <script>-Block parst
     2  scripts/_bracket_check.py    Klammerbilanz () -1 / {} 0 / [] 0
-    3  node sql/_check_version.js   die vier Versionsstellen stimmen ueberein
-    4  scripts/md5_geschuetzt.py    die sieben TABU-Funktionen sind bytegleich
-    5  scripts/bestand.py           118 Begriffe in 17 Gruppen sind noch da
-    6  scripts/icons_erzeugen.py    die vier PWA-Icons sind aktuell (--pruefen)
-    7  pytest tests/                der gesamte Riegelbestand
+                                    🔴 beurteilt nur 27,9 % - siehe Tor 3
+    3  scripts/klammerbilanz.py     dieselbe Frage zustandsbasiert: 54,9 %
+                                    beurteilt, () 0 / [] 0 / {} 0, und es
+                                    sagt WO
+    4  node sql/_check_version.js   die vier Versionsstellen stimmen ueberein
+    5  scripts/md5_geschuetzt.py    die sieben TABU-Funktionen sind bytegleich
+    6  scripts/bestand.py           118 Begriffe in 17 Gruppen sind noch da
+    7  scripts/icons_erzeugen.py    die vier PWA-Icons sind aktuell (--pruefen)
+    8  pytest tests/                der gesamte Riegelbestand
 
 🔴 WARUM 4 BIS 6 AM 27.09.2026 DAZUGEKOMMEN SIND
 ────────────────────────────────────────────────
@@ -64,6 +68,19 @@ WURZEL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TORE = [
     ("node_check", [sys.executable, "scripts/node_check.py"], False),
     ("Klammerbilanz", [sys.executable, "scripts/_bracket_check.py"], False),
+    # 🔴 29.09.2026 (Frage 15): das Tor darueber beurteilt nur 27,9 % der Datei.
+    #    Sein Vorlagenliteral-Muster steht VOR dem Kommentarmuster, und diese
+    #    Datei zitiert in Kommentaren mit Backticks - jeder einzelne wird als
+    #    ENDE eines viel frueher geoeffneten Literals gelesen. BELEGT: eine
+    #    einzelne unpaarige `(` in echten Code bei Zeile 11380 gesetzt ->
+    #    altes Tor GRUEN (Rueckgabe 0), neues Tor rot MIT Zeilenangabe. Der
+    #    Beleg laeuft auf einer Kopie und vergleicht den Abdruck der echten
+    #    Datei davor und danach: scripts/klammertor_vergleich.py
+    #    Das alte bleibt trotzdem stehen: test_klammertor_blindheit_v956 misst
+    #    es und haelt seine Blindheit fest, damit sie nicht weiter waechst.
+    #    Hier kommt ein Tor DAZU, es wird keines ersetzt.
+    ("Klammern zustandsbasiert",
+     [sys.executable, "scripts/klammerbilanz.py"], False),
     ("Versionsabgleich", ["node", "sql/_check_version.js"], False),
     ("Tabu-Funktionen", [sys.executable, "scripts/md5_geschuetzt.py"], False),
     ("Bestand", [sys.executable, "scripts/bestand.py"], False),

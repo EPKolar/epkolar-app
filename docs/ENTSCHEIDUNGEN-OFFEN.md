@@ -1,4 +1,4 @@
-# Offene Entscheidungen — dreißig Fragen, davon SECHS erledigt
+# Offene Entscheidungen — dreißig Fragen, davon SIEBEN erledigt
 
 > **Stand 29.09.2026, v3.9.986.** Seit dem 28.09. hat sich dreierlei geändert,
 > und zwar durch Messen, nicht durch Nachdenken:
@@ -292,7 +292,53 @@ Verbesserung aussieht. Wer eine setzt, nennt dort den Text und woher er kommt.
 Das ist kein Verbot von Überschriften, sondern ein Verbot von Überschriften
 **ohne Herkunft**.
 
-### 15. 🔴 Das Klammertor beurteilt 28 % von `index.html` — soll es reparariert werden?
+### ~~15. Das Klammertor beurteilt 28 % von `index.html`~~ — **erledigt am 29.09.2026**
+
+> **Das war keine Entscheidung.** Die Frage lautete „soll der Streicher neu
+> gebaut werden, das Ergebnis ist eine neue Grundlinie, die erst geprüft
+> werden muss". Genau das ist jetzt passiert — und die neue Grundlinie
+> brauchte keine Prüfung durch dich, sie ist **null**.
+>
+> `scripts/klammerbilanz.py` benutzt `code_scan.ist_code`, denselben
+> zustandsbasierten Abtaster, der schon fünf andere Riegel trägt und eine
+> Eichprobe bestehen muss:
+>
+> | | altes Tor | neues Tor |
+> |---|---:|---:|
+> | beurteilter Anteil | 27,9 % | **54,9 %** |
+> | Bilanz `()` | −1 | **0** |
+> | Bilanz `[]` / `{}` | 0 / 0 | 0 / 0 |
+> | nennt die Stelle | nein | **ja, mit Zeile** |
+>
+> **Die alte Grundlinie war ein Artefakt** — und das ist nachgerechnet, nicht
+> vermutet. Der Kopftext des alten Tors behauptete seit dem 18.05.2026 das
+> Gegenteil („*confirmed it is NOT a stripper artifact … a real, stable
+> code-level imbalance*"). Gegengerechnet: die Klammern, die **nur** das alte
+> Tor zählt, sind netto 0; die, die **nur** das neue zählt, sind netto **+1**.
+> Das `−1` ist also das Spiegelbild eines `+1` in der eigenen blinden Zone
+> des alten Streichers. Die falsche Notiz steht jetzt richtiggestellt in
+> `scripts/_bracket_check.py`.
+>
+> 🔴 **Das Argument ist nicht die schönere Zahl.** Ein Tor auszutauschen,
+> weil die neue Zahl gefälliger aussieht, ist dieselbe Bewegung wie eine
+> Prüfung anzupassen, damit sie grün wird. Das Argument ist, dass das neue
+> Tor einen Fehler findet, den das alte nicht findet — belegt an `index.html`
+> selbst: eine einzelne unpaarige `(` in echten Code bei Zeile 11380 gesetzt,
+> **altes Tor grün, neues Tor rot mit Zeilenangabe**
+> (`scripts/klammertor_vergleich.py`; arbeitet auf einer Kopie und vergleicht
+> den Abdruck des Originals davor und danach).
+>
+> **Das alte Tor bleibt in der Kette**, mit unveränderter Grundlinie. Es
+> kommt eines **dazu**, es wird keines ersetzt — `test_klammertor_blindheit_v956`
+> misst den alten Streicher weiter und hält seine Blindheit fest.
+>
+> **Die praktische Regel unten gilt trotzdem weiter:** kein Backtick in einen
+> Kommentar von `index.html`, solange das alte Tor so gebaut ist. Es ist
+> immer noch in der Kette, und es wird immer noch rot davon.
+
+Der ursprüngliche Befund, unverändert:
+
+#### 15. 🔴 Das Klammertor beurteilt 28 % von `index.html` — soll es repariert werden?
 
 **Gefunden durch einen eigenen Fehler.** Ich habe in einen Blockkommentar ein
 Paar Backticks geschrieben — `` `ueberschriften: []` ``, die übliche

@@ -4,13 +4,39 @@
 Baseline (v3.9.12): ( ) -1 / { } 0 / [ ] 0
 Strips strings, template literals, comments before counting.
 
-NOTE on the -1 paren drift: investigated 2026-05-18 and confirmed it is NOT
-a stripper artifact. The combined-alternation regex correctly removes all
-33k+ string literals including those containing '[' or '('. Both pattern
-orderings (strings-first vs comments-first) yield the same -1, and the sum
-of paren-imbalance inside string literals is +8 (not -1). The drift is a
-real, stable code-level imbalance in index.html and should only be touched
-if a future audit shows it changed.
+🔴 DIE NOTIZ VOM 18.05.2026 WAR FALSCH. WIDERLEGT AM 29.09.2026.
+
+Sie lautete: "investigated 2026-05-18 and confirmed it is NOT a stripper
+artifact ... The drift is a real, stable code-level imbalance in index.html
+and should only be touched if a future audit shows it changed."
+
+Der Audit hat stattgefunden. Zustandsbasiert nachgerechnet
+(`scripts/klammerbilanz.py`, auf `code_scan.ist_code`):
+
+    alte Maske, Netto ()                     -1
+    neue Maske, Netto ()                      0
+    NUR vom alten Tor gezaehlt, Netto ()      0
+    NUR vom neuen Tor gezaehlt, Netto ()     +1
+
+Das `-1` ist das Spiegelbild eines `+1`, das in der EIGENEN blinden Zone
+dieses Streichers liegt. Bei richtiger Zerlegung verschwinden beide.
+
+WARUM DIESER STREICHER BLIND IST: das Vorlagenliteral-Muster steht VOR dem
+Kommentarmuster. `index.html` zitiert in Kommentaren mit Backticks, und jeder
+einzelne wird als ENDE eines viel frueher geoeffneten Literals gelesen. 24
+solche Treffer decken 39,6 % der Datei zu; beurteilt werden 27,9 %.
+
+BELEGT, nicht behauptet: eine einzelne unpaarige `(` in echten Code bei
+Zeile 11380 gesetzt -> DIESES Tor bleibt GRUEN (Rueckgabe 0), das
+zustandsbasierte findet sie mit Zeilenangabe. Der Beleg laeuft auf einer
+Kopie und vergleicht den Abdruck des Originals davor und danach:
+`scripts/klammertor_vergleich.py`.
+
+DIESE DATEI BLEIBT TROTZDEM, mit unveraenderter Grundlinie:
+`tests/test_klammertor_blindheit_v956.py` misst sie und haelt ihre Blindheit
+fest, damit sie nicht weiter waechst. Wer hier am Streicher etwas aendert,
+macht jenen Riegel bedeutungslos. Das neue Tor steht DANEBEN in der Kette -
+es ersetzt dieses nicht.
 """
 import re
 import sys
