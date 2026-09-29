@@ -115,6 +115,53 @@ Rand eines Zeitblocks, dessen Höhe die **Dauer** kodiert; ein 24 px hoher
 Griff würde auf einem 40-Minuten-Block ein Viertel der Fläche verdecken und
 den Block selbst unklickbar machen. Die Größe ist hier Teil der Funktion.
 
+## Zweiter Durchgang: die übrigen 15 Ansichten (29.09.2026)
+
+**125 echte Bereiche in 13 Ansichten.** Schrift unter 12 px: **0**. Knopf ohne
+Namen: **0**. Tippziele unter 24 px: **63**.
+
+🔴 **Die 63 sind nicht 63 Aufgaben.** Es sind wenige geteilte Bauteile,
+die in fünf Ansichten auftauchen — wer sie an einer Stelle hebt, hebt sie
+überall. Eine Zahl, die nach Menge klingt und in Wahrheit eine Handvoll ist,
+ist selbst ein Messfehler in der Darstellung.
+
+| Bauteil | gemessen | erscheint in | Kur |
+|---|---|---|---|
+| Mängel-Filterpillen (Status + Priorität) | 74–117 × **22** | bautagebuch, berichte, home, material, plaene | `minHeight:24`, **4 Stellen** |
+| admin: Textknöpfe der Kopfzeile | 32–43 × **14–15** | admin | `minHeight:24`, 3 Stellen |
+| Zeiterfassung ✏️ / ✕ (**zweite** Fassung) | 24.5×22 / 17.8×22 | bautagebuch, material | `inline-flex`, 24×24 |
+| „🔄 Aus Zeiterfassung übernehmen" | 186 × **16** | bautagebuch | `minHeight:24` |
+| „+ Neu" (Ordner anlegen) | 33 × **14** | material, home | 24×24 |
+| `<summary>` „Kunde nicht im Stamm?" | 1362 × **18** | baupro | `minHeight:24` |
+| Leaflet-Urheberhinweis | 51.4 × 14 | flotte, bautagebuch | **keine** — fremd |
+
+### 🔴 Zwei eigene Fehler in dieser Runde
+
+**Eine Reparatur an einer von zwei Stellen ist keine.** Ich habe das ✏️ der
+zweiten Zeiterfassungs-Fassung gehoben und sein ✕ **daneben stehen lassen** —
+zwei Geschwister mit derselben Form, eines gekurt. Gefunden hat es die
+Gegenmessung, nicht ich.
+
+**Vier gleiche Stellen brauchten ein neues Werkzeug.** Die Filterpillen stehen
+viermal im Code. `safe_edit.ersetze` verlangt zu Recht Eindeutigkeit; vier
+künstlich verlängerte Anker wären vier Gelegenheiten gewesen, einen falsch
+abzuschreiben. Neu: **`safe_edit.ersetze_alle`** — ersetzt mehrere Stellen,
+aber nur die **vorher genannte Zahl**. Wer „vier" sagt und fünf trifft, hat
+eine Stelle übersehen, die er nicht kennt, und genau dann bricht es ab. Fünf
+Prüfungen, darunter die Gegenprobe, dass `ersetze` weiter auf Eindeutigkeit
+besteht.
+
+### Was der Durchgang nicht abdeckt
+
+* **`gefahr` war nicht messbar**: der Inhaltsbereich trug im Ruhezustand nur
+  zwei verschiedene Knopf-Beschriftungen. Der Melder verweigert dort die
+  Messung, statt eine Null zu melden — das ist eine benannte Lücke, kein
+  Ergebnis.
+* **`home` und `berichte` sind Kachelwände**: ≥71 % ihrer Klicks tauschen den
+  Inhalt vollständig aus, ihre Kacheln *sind* die Navigation. Ihre Messungen
+  sind richtig, messen aber eine andere Ansicht — als „Bereich" wären sie
+  falsch beschriftet. `scripts/inline_bereiche_auswerten.py` trennt das.
+
 ## 🔴 Sechs Anläufe, und fünfmal sah der Fehlgriff aus wie ein Ergebnis
 
 Dieses Werkzeug ist sechsmal umgebaut worden. Jeder Zwischenstand hätte sich

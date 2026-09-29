@@ -37,7 +37,38 @@ MIN_BYTES = 1_000_000
 # beschraenkt - genau diese Annahme hat am 29.08. einen Handoff gekostet.
 
 
-def ersetze(pfad, paare, min_bytes=MIN_BYTES):
+def ersetze_alle(pfad, alt, neu, name, erwartet, min_bytes=MIN_BYTES):
+    """Ein Anker an MEHREREN Stellen - aber die Zahl muss VORHER genannt sein.
+
+    🔴 WARUM ES DAS GIBT, OBWOHL `ersetze` auf Eindeutigkeit besteht.
+    Der Kopf dieses Moduls sagt selbst: "eine Reparatur an einer von vier
+    Stellen ist keine". Am 29.09.2026 stand genau dieser Fall an: dieselbe
+    Filterpille viermal im Code, dieselbe Kur. `ersetze` verweigerte zu Recht,
+    und vier kuenstlich verlaengerte Anker waeren vier Gelegenheiten gewesen,
+    einen davon falsch abzuschreiben.
+
+    🔴 UND WARUM ES TROTZDEM KEIN BLINDES ERSETZEN IST: `erwartet` muss
+    stimmen. Wer "vier" sagt und fuenf trifft, hat eine Stelle uebersehen, die
+    er nicht kennt - und genau dann bricht das hier ab, bevor etwas
+    geschrieben wird. Die Zahl kommt aus einer MESSUNG, nicht aus dem Gefuehl.
+    """
+    s = io.open(pfad, encoding="utf-8", newline="").read()
+    n = s.count(alt)
+    if n != erwartet:
+        raise SystemExit(
+            "Anker %r trifft %d mal, erwartet waren %d. NICHTS geschrieben.\n"
+            "  Entweder ist eine Stelle dazugekommen, die du nicht kennst, "
+            "oder eine ist\n  weggefallen. Beides gehoert angesehen, bevor "
+            "hier etwas ersetzt wird." % (name, n, erwartet))
+    if n == 0:
+        raise SystemExit("Anker %r trifft gar nicht." % name)
+    # Ab hier dieselbe Maschinerie wie `ersetze` - inklusive Surrogat-Riegel,
+    # Groessenpruefung, Nebendatei und Ruecklesen.
+    return ersetze(pfad, [(alt, neu, name)], min_bytes=min_bytes,
+                   _alle=n)
+
+
+def ersetze(pfad, paare, min_bytes=MIN_BYTES, _alle=0):
     """Wendet (alt, neu, name)-Paare an. Jeder Anker muss GENAU einmal treffen.
 
     Gibt die Liste der angewandten Namen zurueck. Wirft, bevor irgendetwas
@@ -54,10 +85,13 @@ def ersetze(pfad, paare, min_bytes=MIN_BYTES):
     getan = []
     for alt, neu, name in paare:
         n = s.count(alt)
-        if n != 1:
+        # `_alle` wird NUR von `ersetze_alle` gesetzt und traegt die dort
+        # gepruefte Zahl. Ohne diesen Weg bleibt es bei genau einem Treffer.
+        soll = _alle or 1
+        if n != soll:
             raise SystemExit(_warum(s, alt, name, n))
-        s = s.replace(alt, neu, 1)
-        getan.append(name)
+        s = s.replace(alt, neu, soll)
+        getan.append(name if soll == 1 else "%s (%dx)" % (name, soll))
 
     if len(s) < min_bytes:
         raise SystemExit(
