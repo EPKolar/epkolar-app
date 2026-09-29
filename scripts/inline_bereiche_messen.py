@@ -27,6 +27,18 @@ oeffnet ein Download-Fenster, das den Browser anhaelt. Die Sperrliste steht
 unten als NAMEN, nicht als Zahl. Sie faellt zur sicheren Seite: lieber ein
 Bereich ungemessen als eine Messreihe, die sich selbst zerstoert.
 
+🔴 DIE EINENGUNG AUF DEN INHALTSBEREICH IST STARK, ABER NICHT ABSOLUT.
+Die Annahme "ein Klick im Inhalt kann keine Ansichtsnavigation sein" traegt
+fuer die Fachansichten. Sie traegt NICHT fuer `home`: dessen Kacheln SIND die
+Navigation. Ein Lauf ueber `home` meldet deshalb 27 "Bereiche", von denen die
+meisten Wechsel in andere Ansichten sind.
+
+Das macht die Messungen nicht falsch - was danach gemessen wird, ist wirklich
+da -, aber die BESCHRIFTUNG waere falsch. Der Bericht fuehrt `home` darum
+getrennt, und die Auswertung vergleicht den Zustand nach dem Klick mit dem
+Ruhezustand der ANDEREN gemessenen Ansichten: stimmen sie ueberein, war es
+eine Navigation und kein aufgeklappter Bereich.
+
 🔴 NACH JEDEM KLICK WIRD DIE ANSICHT NEU AUFGEBAUT. Sonst misst der zweite
 Klick den Zustand, den der erste hinterlassen hat, und der Bericht nennt
 Bereiche, die es so nie gab.
@@ -422,7 +434,22 @@ def main(argv):
     ziel = os.path.join(WURZEL, "docs", "befunde", "INLINE_BEREICHE.json")
     io.open(ziel, "w", encoding="utf-8", newline="").write(
         json.dumps(bericht, ensure_ascii=False, indent=1))
-    ges = sum(len(v["bereiche"]) for v in bericht["ansichten"].values())
+    # 🔴 EIN EIGENER ABSTURZ, UND ER HAT EINEN GANZEN DURCHGANG GEKOSTET.
+    #    Eine Ansicht, deren Ruhezustand nicht belegt war, wird oben mit
+    #    `{"messbar": False}` gebucht - ohne Schluessel `bereiche`. Der
+    #    Zaehler hier griff direkt zu und stuerzte mit KeyError ab, NACHDEM
+    #    vierzehn von fuenfzehn Ansichten gemessen waren. Die Rohdaten waren
+    #    geschrieben, der Bericht kam nie.
+    #    Ein Melder, der eine Ausnahme sauber bucht und dann am Aufsummieren
+    #    stirbt, verliert genau das, was er gemessen hat. Die uebersprungenen
+    #    Ansichten werden deshalb GEZAEHLT und GENANNT, nicht stillschweigend
+    #    als Null behandelt.
+    ohne = [k for k, v in bericht["ansichten"].items() if "bereiche" not in v]
+    ges = sum(len(v.get("bereiche") or ())
+              for v in bericht["ansichten"].values())
+    if ohne:
+        print("   \U0001F534 NICHT gemessen (Ruhezustand nicht belegt): %s"
+              % ", ".join(sorted(ohne)))
     # 🔴 Dieser Eimer MUSS leer bleiben, und das ist eine Strukturprobe, kein
     #    Zierrat: geklickt wird nur im Inhaltsbereich, dort steht kein
     #    Navigationsknopf. Ist er je gefuellt, greift die Einengung nicht mehr

@@ -128,7 +128,13 @@ def main(argv):
         if wert != neu:
             print("\U0001F534 %s steht danach auf %r statt %r." % (name, wert, neu))
             return 2
-    print("\nAlle drei Marken auf %s. Aenderungsvermerke unberuehrt." % neu)
+    # 🔴 DIE ZAHL KOMMT AUS DER LISTE, NICHT AUS DEM TEXT. Hier stand "Alle
+    #    drei Marken", waehrend das Werkzeug schon vier setzte - der
+    #    Abschlusstext behauptete eine Grundgesamtheit, die er nicht kannte.
+    #    Genau der Fehler, den dieses Werkzeug verhindern soll, in seiner
+    #    eigenen letzten Zeile.
+    print("\nAlle %d Marken auf %s. Aenderungsvermerke unberuehrt."
+          % (len(MARKEN), neu))
     return 0
 
 
