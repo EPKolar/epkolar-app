@@ -41,8 +41,23 @@ PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 
 # Die Bauform aus v3.9.975: ein Tastenbehandler, der EINEN Ausdruck aufruft.
 # Beide Auspraegungen - mit und ohne Bedingung - in EINEM Muster.
+# 🔴 DAS `(?:if\(e\.target...\)return;)?` HAT EINE GESCHICHTE, und sie ist der
+#    Grund, warum `test_es_gibt_ueberhaupt_gebaute_behandler` hier steht.
+#    v3.9.985 hat allen 97 gebauten Behandlern einen Waechter VORANGESTELLT:
+#
+#        onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key===...
+#
+#    Damit traf dieses Muster auf einen Schlag NULL Stellen - und die beiden
+#    Pruefungen darunter ("kein leerer Rumpf", "kein Objektliteral") waeren
+#    ab sofort LEER GRUEN gewesen. Kein Riegel waere rot geworden, nichts
+#    haette gemeldet, dass sie nichts mehr messen.
+#
+#    Gefangen hat es ausschliesslich die Gegenprobe auf die Grundgesamtheit.
+#    Eine Null ist erst dann ein Ergebnis, wenn die Menge, ueber der sie
+#    steht, nachweislich nicht leer ist.
 BEHANDLER = re.compile(
-    r'onKeyDown:\s*e=>\{(?:const _h=\((?P<bed>.{0,400}?)\);)?'
+    r'onKeyDown:\s*e=>\{(?:if\(e\.target!==e\.currentTarget\)return;)?'
+    r'(?:const _h=\((?P<bed>.{0,400}?)\);)?'
     r'if\((?:_h&&)?\(?e\.key==="Enter"\|\|e\.key===" "\)?\)'
     r'\{e\.preventDefault\(\);(?:_h\(e\)|\((?P<ausdruck>.{0,400}?)\)\(e\));\}\}',
     re.S)
