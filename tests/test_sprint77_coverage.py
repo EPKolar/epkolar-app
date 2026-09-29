@@ -252,12 +252,34 @@ def test_sprint49_mehr_button_render_uses_guard(index_html):
         "v3.9.371: Top-Mehr-Button darf auf Tablet nicht mehr rendern (alle Tabs im Wrap)"
 
 
-def test_sprint49_mehr_popup_uses_guard(index_html):
-    m = re.search(
-        r"moreOpen&&isMob&&moreTabs\.length>0&&React\.createElement",
-        index_html,
-    )
-    assert m, "Sprint-49: moreOpen&&isMob&&moreTabs.length>0 guard missing for Mehr-Popup"
+def test_sprint49_mehr_popup_ist_nie_leer(index_html):
+    """29.09.2026 - Zeuge getauscht, Absicht behalten.
+
+    Bis v3.9.980 stand hier `moreOpen&&isMob&&moreTabs.length>0`. Die Absicht
+    von Sprint-49 war: KEIN leeres Mehr-Menue. Der Zeuge dafuer war die
+    Bedingung auf die Reiterzahl.
+
+    v3.9.981 stellt den Darstellungs-Schalter (Hell/Dunkel/Auto) an den Kopf
+    dieses Menues - Sebastian hat dreimal gemeldet, dass der unbeschriftete
+    Kopfknopf ihn nicht ans Ziel bringt. Haengt das Menue weiter an
+    `moreTabs.length>0`, saehe eine Rolle ohne zusaetzliche Reiter den
+    Schalter nie.
+
+    Die Absicht bleibt erfuellt, nur anders: das Menue kann gar nicht mehr
+    leer sein, weil der Darstellungs-Schalter immer darin steht. Genau das
+    wird hier geprueft - eine Bedingung wegzunehmen, ohne den Grund dafuer zu
+    ersetzen, waere ein Rueckschritt.
+    """
+    assert "moreOpen&&isMob&&React.createElement" in index_html, \
+        "Sprint-49: das mobile Mehr-Menue rendert nicht mehr"
+    assert "moreOpen&&isMob&&moreTabs.length>0&&" not in index_html, \
+        ("Das Menue haengt wieder an der Reiterzahl - dann verschwindet der "
+         "Darstellungs-Schalter fuer Rollen ohne zusaetzliche Reiter.")
+    i = index_html.index("moreOpen&&isMob&&React.createElement")
+    assert "\U0001F3A8 Darstellung" in index_html[i:i + 900], \
+        ("Das Mehr-Menue rendert unbedingt, enthaelt aber den "
+         "Darstellungs-Schalter\n  nicht mehr - damit kann es wieder LEER "
+         "sein, und genau das sollte\n  Sprint-49 verhindern.")
 
 
 def test_sprint48_gewerk_filter_auto_detect_present(index_html):

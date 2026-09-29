@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Die Version setzen - und NUR die drei Marken, nicht jeden Treffer.
+"""Die Version setzen - und NUR die Versionsmarken, nicht jeden Treffer.
 
 🔴 WARUM ES DIESES WERKZEUG GIBT. Bis zum 29.09.2026 habe ich die Version mit
 einem blinden Ersetzen gestempelt:
@@ -47,7 +47,20 @@ WURZEL = os.path.dirname(HIER)
 #    `APP_VERSION=` steht ausserdem DREIMAL in der Datei; zwei davon im
 #    Aenderungsprotokoll. Die Zuweisung erkennt man am Anfuehrungszeichen
 #    unmittelbar davor - in der Prosa steht dort ein Leerzeichen oder nichts.
+#
+# 🔴 UND ES SIND VIER MARKEN, NICHT DREI. Der erste Entwurf dieses Werkzeugs
+#    hat die drei genommen, die `sql/_check_version.js` prueft - und beim
+#    ersten echten Einsatz (v3.9.981) `SW_VER` in index.html liegen lassen.
+#    Gefangen hat es `tests/test_version_triple_sync.py`, das eine ANDERE
+#    Dreiergruppe prueft: SW_VER, APP_VERSION, CACHE_NAME. Die Vereinigung
+#    beider Pruefungen sind vier Marken.
+#    Das ist dieselbe Fehlerform wie ueberall: ich habe die Grundgesamtheit
+#    aus EINEM Pruefwerkzeug abgeleitet, statt sie zu zaehlen. Und der
+#    Abschlusstext des Werkzeugs sagte dabei ausdruecklich "Alle drei Marken".
 MARKEN = [
+    ("index.html",
+     re.compile(r"(var SW_VER\s*=\s*['\"]epkolar-v)(\d+\.\d+\.\d+)(['\"])"),
+     "index.html SW_VER"),
     ("index.html",
      re.compile(r"(const APP_VERSION\s*=\s*[\"'])(\d+\.\d+\.\d+)([-\w]*[\"'])"),
      "index.html APP_VERSION"),
