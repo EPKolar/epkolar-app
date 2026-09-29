@@ -38,11 +38,24 @@ def test_der_sucher_besteht_seine_eigene_eichung():
         % "\n".join("   " + s for s in schief))
 
 
-def test_der_index_ist_in_ordnung():
+def test_der_index_hat_keine_WAISEN_und_keine_toten_zeiger():
+    """🔴 NUR diese beiden - die GROESSE steht hier bewusst NICHT.
+
+    Der erste Entwurf prueft auch die Groesse, und eine Stunde spaeter war
+    die Freigabekette von epkolar-app rot, weil eine Sitzung an einem
+    ANDEREN Projekt 1,4 KB in die geteilte `MEMORY.md` geschrieben hatte.
+
+    **Ein Riegel muss fuer etwas rot werden, das dieser Arbeitsbaum auch
+    beheben kann.** Sonst lernt man, ihn zu uebergehen - und dann misst er
+    nie wieder etwas. Die Groesse ist eine Beobachtung ueber eine geteilte
+    Datei; sie gehoert in den Stop-Haken, der MELDET, nicht in ein Tor, das
+    BLOCKIERT. Waisen und tote Zeiger bleiben hier, weil sie auf einen
+    Fehler in dieser Sitzung zeigen und sofort behebbar sind.
+    """
     ordner = G._ordner()
     if ordner is None:
         return                     # nicht anwendbar, siehe Kopftext
-    befunde = G.pruefe(ordner)
+    befunde = [(a, m) for a, m in G.pruefe(ordner) if a != "groesse"]
     assert not befunde, (
         "%d Befunde am Gedaechtnis-Index:\n\n%s"
         % (len(befunde), "\n\n".join(m for _a, m in befunde)))

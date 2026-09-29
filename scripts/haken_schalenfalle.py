@@ -196,12 +196,33 @@ def pruefe(befehl):
     #    Operator von `jq`, nicht der der Schale. Ein Haken, der richtige
     #    Arbeit anhaelt, wird abgeschaltet - also wird der Quotierzustand
     #    mitgelesen, so wie bei den drei Pruefungen darueber auch.
+    # 🔴 UND DER ZWEITE FEHLALARM, am selben Abend: ich hatte
+    #        python version_stempeln.py | tail -2 && python torkette.py > log
+    #        2>&1; echo "[Code $?]"
+    #    Die Pipe gehoert zum ERSTEN Befehl, das `$?` zum zweiten - der ist
+    #    in eine Datei umgeleitet, nicht gepipet. Der Haken hat trotzdem
+    #    angehalten, weil er nur fragte "gibt es irgendwo vorher eine Pipe".
+    #    Gefragt werden muss: steht in dem Befehl, der UNMITTELBAR vor
+    #    diesem `$?` gelaufen ist, eine Pipe? Zwei Fehlalarme in wenigen
+    #    Stunden, und jeder ist eine Gelegenheit, den Haken abzuschalten.
     echte_pipes = [i for i in range(n)
                    if befehl[i] == "|" and z[i] == NORMAL
                    and not (i + 1 < n and befehl[i + 1] == "|")
                    and not (i > 0 and befehl[i - 1] == "|")]
+    trenner = [i for i in range(n)
+               if z[i] == NORMAL and (
+                   befehl[i] in ";\n"
+                   or befehl.startswith("&&", i)
+                   or befehl.startswith("||", i))]
     if echte_pipes and "$?" in befehl:
-        if echte_pipes[0] < befehl.rindex("$?"):
+        fp = befehl.rindex("$?")
+        # Die Grenzen des Befehls, der vor diesem `$?` gelaufen ist.
+        davor = [t for t in trenner if t < fp]
+        ende = davor[-1] if davor else 0
+        anfang = davor[-2] if len(davor) > 1 else 0
+        vorheriger = befehl[anfang:ende]
+        if any(anfang <= p < ende for p in echte_pipes) or (
+                not davor and echte_pipes):
             befunde.append((
                 "pipe",
                 "`$?` steht hinter einer Pipe - das ist der Rueckgabewert "
@@ -236,6 +257,10 @@ GEGENPROBEN = [
     "| .hooks[] | .command' ~/.claude/settings.json; echo \"[jq $?]\"",
     # Und die verwandte Form: `||` ist keine Pipe.
     "python x.py 2>/dev/null || true; echo $?",
+    # 🔴 DER ZWEITE FEHLALARM vom 29.09.: die Pipe gehoert zum ERSTEN
+    #    Befehl, das `$?` zum zweiten - der ist umgeleitet, nicht gepipet.
+    "python version_stempeln.py 3.9.989 | tail -2 && "
+    "python torkette.py > log 2>&1; echo \"[Code $?]\"",
 ]
 
 

@@ -100,14 +100,16 @@ TORE = [
     #    wenn der Zaehler selbst seine Eichung nicht besteht.
     ("Werkzeuge geeicht",
      [sys.executable, "scripts/werkzeug_eichung.py"], False),
-    # 🔴 29.09.2026: MEMORY.md wird zu Beginn JEDER Sitzung geladen. Zu gross
-    #    -> abgeschnitten, und alle Regeln darin sind wirkungslos, ohne dass
-    #    irgendwo etwas rot wird. Dazu ZWEI Waisen an einem Tag, beide von
-    #    anderen Sitzungen geschrieben. Auf einer fremden Maschine meldet das
-    #    Tor "nicht anwendbar" und bleibt gruen - ein Tor, das dort grundlos
-    #    rot wird, wird uebersprungen und misst nie wieder etwas.
-    ("Gedaechtnis-Index",
-     [sys.executable, "scripts/gedaechtnis_pruefen.py"], False),
+    # 🔴 HIER STAND EINE STUNDE LANG DAS TOR "Gedaechtnis-Index", UND DAS WAR
+    #    EIN FEHLER. `MEMORY.md` liegt ausserhalb dieses Repos und wird von
+    #    MEHREREN Sitzungen beschrieben. Noch am selben Abend hat eine
+    #    Sitzung an einem ANDEREN Projekt dort 1,4 KB ergaenzt - und die
+    #    Freigabekette von epkolar-app wurde rot. Ein Tor muss fuer etwas rot
+    #    werden, das die Freigabe auch beheben kann; sonst lernt man, es zu
+    #    uebergehen, und dann misst es nie wieder etwas.
+    #    Das Werkzeug bleibt (scripts/gedaechtnis_pruefen.py) und laeuft als
+    #    Stop-HAKEN: es meldet, es blockiert nicht. Das ist der richtige Ort
+    #    fuer eine Beobachtung ueber eine geteilte Datei.
     ("Versionsabgleich", ["node", "sql/_check_version.js"], False),
     ("Tabu-Funktionen", [sys.executable, "scripts/md5_geschuetzt.py"], False),
     ("Bestand", [sys.executable, "scripts/bestand.py"], False),
