@@ -666,9 +666,34 @@ Symbol bleibt) — oder war sie von Anfang an falsch und die Null gehört
 gelöscht? Beides ist vertretbar; ein Knopf ohne Text braucht dann aber ein
 `aria-label`, sonst ist er für eine Vorlesehilfe stumm.
 
-**Nicht gemessen:** wie viele Knöpfe die Kopfzeile bei 340 px trägt und wie
-breit sie mit vollem Text zusammen sind. Dafür braucht es eine Aufnahme bei
-340 px, und die Messreihe fährt 390 und 1440.
+**Nachgemessen am 29.09.2026** (`python scripts/kopfzeile_340_messen.py 340`),
+in **allen** Ansichten mit einer `.header-row`, nicht nur in der ersten:
+
+| Ansicht | Knöpfe | zusammen | Überlauf |
+|---|---:|---:|---:|
+| werkzeuge | 4 | 416 px | **+0** |
+| mitarbeiter | 3 | 352 px | +0 |
+| zeit | 3 | 221 px | +0 |
+| plaene | 2 | 226 px | +0 |
+| as_liste | 1 | 104 px | +0 |
+
+Die Zeile ist 324 px breit, die Knöpfe zusammen bis zu 416 — und trotzdem
+**kein Querlauf**: sie brechen um. **Die tote Regel kostet Höhe, nicht
+Richtigkeit.** Das ist der Grund, warum sie jahrelang niemandem aufgefallen
+ist. Jeder Knopf misst 104 × 44 px und trägt 16 px Schrift; die Null ist am
+Schirm bestätigt wirkungslos.
+
+**Was die Entscheidung kostet, in Zahlen:** in `werkzeuge` bräuchten vier
+Knöpfe statt 416 px nur noch rund 160 px und passten in *eine* Zeile — die
+Kopfzeile wäre eine Zeile flacher. Dem stehen vier Knöpfe gegenüber, die dann
+nur noch `+`, `🏷️`, `📊` und `🖨️` heißen. Ein Symbol bleibt jedem,
+**ein `aria-label` hat keiner**. Wer die Absicht herstellt, muss die Namen
+vorher vergeben — sonst heißt der Knopf für eine Vorlesehilfe „Drucker".
+
+Der Riegel `tests/test_kopfzeile_340_v990.py` hält **nicht** fest, dass die
+Regel tot ist — das würde bei der Kur rot. Er hält fest, was in beiden Fällen
+gelten muss: bei 340 px läuft nichts quer aus dem Bild, und jeder
+Kopfzeilen-Knopf behält ohne Text noch ein Zeichen oder einen Namen.
 
 Bis zur Antwort ist die Null als **neutralisiert** im Riegel geführt: fällt die
 16-px-Zeile weg, wird sie scharf und der Riegel geht rot.
