@@ -42,9 +42,45 @@ def test_toggle_hat_reentry_guard(index_html):
     assert "_themeTapAllowed(now,_themeLastTapMs)" in index_html
 
 
-def test_zyklus_reihenfolge_unveraendert(index_html):
-    # Header-Button bleibt Zyklus Hell->Dunkel->Auto->Hell
-    assert 'cur==="light"?"dark":cur==="dark"?"system":"light"' in index_html
+def test_header_knopf_aendert_bei_jedem_tipp_das_AUSSEHEN(index_html):
+    """29.09.2026 - der Zeuge ist getauscht, die Absicht dieses Riegels nicht.
+
+    Bis v3.9.978 stand hier: "Header-Button bleibt Zyklus
+    Hell->Dunkel->Auto->Hell", festgenagelt als `cur==="light"?"dark":...`.
+    Das war v3.9.721s ausdrueckliche Entscheidung - und der Kopf dieser Datei
+    nennt den Grund, aus dem sie zurueckgenommen werden musste, selbst schon:
+
+        "(b) Auto und Dunkel am OS-dunklen Handy optisch ununterscheidbar,
+         keine Rueckmeldung."
+
+    v3.9.721 hat das mit einem Toast beantwortet und den Ring stehen lassen.
+    Sebastian hat denselben Mangel am 29.09.2026 erneut gemeldet: "wenn ich
+    mobil auf hell schalte bleibt es dunkel und wird nicht weiss". Ein Toast
+    von 1,5 Sekunden traegt den dritten Zustand nicht - der Schirm sieht
+    gleich aus, und danach urteilt ein Mensch.
+
+    Nachgemessen bei 390 px, OS dunkel, ohne gespeicherte Wahl
+    (`scripts/thema_schalter_ring_messen.py`):
+
+        Tipp 2  dark    rgb(15,17,23)   DUNKEL
+        Tipp 3  system  rgb(15,17,23)   DUNKEL   <- keine sichtbare Aenderung
+
+    Seit v3.9.979 entscheidet der Kopfknopf nach `isDark`, also nach dem
+    Zustand, den man SIEHT. Damit aendert jeder Tipp sichtbar etwas. Nach der
+    Kur: alle sechs Tippen wechseln die Helligkeit.
+
+    WAS v3.9.721 GEBRACHT HAT, BLEIBT UNANGETASTET: die 350-ms-Sperre gegen
+    Geisterklicks, die Segmented Control in den Einstellungen und der Toast.
+    Nur der Ring ist weg - und Auto lebt dort, wo es sichtbar auswaehlbar ist.
+    """
+    assert 'setThemeMode(isDark?"light":"dark");' in index_html, (
+        "Der Kopfknopf entscheidet nicht mehr nach dem SICHTBAREN Zustand.")
+    assert ('cur==="light"?"dark":cur==="dark"?"system":"light"'
+            not in index_html), (
+        "Der Ringtausch ist zurueck. Auf einem Telefon mit dunklem "
+        "Betriebssystem sehen\n  Dunkel und Auto gleich aus - das steht im "
+        "Kopf dieser Datei seit v3.9.721 und\n  wurde am 29.09.2026 erneut "
+        "gemeldet.")
 
 
 def test_setthememode_direkt(index_html):
