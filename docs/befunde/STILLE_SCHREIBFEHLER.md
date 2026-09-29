@@ -22,22 +22,22 @@ umschliessende `try` und meldete dadurch zu VIELE Faelle.
 
 | Zeile | Ziel | catch | Urteil |
 |---:|---|---|---|
-| 5344 | `plz_geo` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer eine Geokodierung. Die ARBEIT steht seit v3.9.987 vor dem Versuch - vorher riss der fehlgeschlagene Cache-Schreibvorgang den ganzen Lauf mit. Beleg: scripts/geo_nachzieh_wirkung.py |
-| 5357 | `plz_distanz` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer die Entfernungsmatrix. `distMatrix` und `matrixRows` stehen seit v3.9.987 vor dem Versuch. Beleg: scripts/geo_nachzieh_wirkung.py |
-| 19670 | `plz_geo` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer eine Geokodierung. Die ARBEIT steht seit v3.9.987 vor dem Versuch - vorher riss der fehlgeschlagene Cache-Schreibvorgang den ganzen Lauf mit. Beleg: scripts/geo_nachzieh_wirkung.py |
+| 5362 | `plz_geo` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer eine Geokodierung. Die ARBEIT steht seit v3.9.987 vor dem Versuch - vorher riss der fehlgeschlagene Cache-Schreibvorgang den ganzen Lauf mit. Beleg: scripts/geo_nachzieh_wirkung.py |
+| 5375 | `plz_distanz` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer die Entfernungsmatrix. `distMatrix` und `matrixRows` stehen seit v3.9.987 vor dem Versuch. Beleg: scripts/geo_nachzieh_wirkung.py |
+| 19687 | `plz_geo` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer eine Geokodierung. Die ARBEIT steht seit v3.9.987 vor dem Versuch - vorher riss der fehlgeschlagene Cache-Schreibvorgang den ganzen Lauf mit. Beleg: scripts/geo_nachzieh_wirkung.py |
 
 ## Lesevorgaenge (zur Einordnung, kein Befund)
 
 | Zeile | Ziel | catch | Urteil |
 |---:|---|---|---|
-| 2364 | `system_config` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
-| 2484 | `system_config` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
-| 9946 | `system_config` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
-| 9950 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
-| 10449 | `dispo_blocks` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
-| 12373 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
-| 12538 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
-| 13800 | `activity_log` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
-| 19659 | `plz_geo` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer eine Geokodierung. Die ARBEIT steht seit v3.9.987 vor dem Versuch - vorher riss der fehlgeschlagene Cache-Schreibvorgang den ganzen Lauf mit. Beleg: scripts/geo_nachzieh_wirkung.py |
-| 24174 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
+| 2382 | `system_config` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
+| 2502 | `system_config` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
+| 9963 | `system_config` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
+| 9967 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
+| 10466 | `dispo_blocks` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
+| 12390 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
+| 12555 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
+| 13817 | `activity_log` | nur Kommentar | **UNBEURTEILT** — noch niemand angesehen |
+| 19676 | `plz_geo` | nur Kommentar | **berechtigt** — Zwischenspeicher fuer eine Geokodierung. Die ARBEIT steht seit v3.9.987 vor dem Versuch - vorher riss der fehlgeschlagene Cache-Schreibvorgang den ganzen Lauf mit. Beleg: scripts/geo_nachzieh_wirkung.py |
+| 24191 | `workers` | leer | **UNBEURTEILT** — noch niemand angesehen |
 
