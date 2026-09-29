@@ -829,9 +829,38 @@ sechs Gruppen. Auch in den geöffneten Bereichen — den vier Überlagerungen de
 Hülle und den 20 Inline-Bereichen der Fahrzeugansicht — ist nichts mehr
 darunter.
 
-**Was bleibt:** 1954 Tippziele zwischen 24 und 44 px, **alle bei 1440 px**.
-Bei 390 px sind es null, weil `@media (pointer: coarse)` dort alles auf 44
-hebt.
+**Nachgemessen am 29.09.2026 mit einem Werkzeug, das nicht kappt.** Die Zahl
+1954 stammte aus einer Liste, die nach **Höhe** sortiert und auf zwölf
+geschnitten war — für die **Breite** war sie blind: ein hohes, schmales Ziel
+fiel systematisch heraus. `scripts/tippziel_histogramm.py` zählt stattdessen
+über die ganze Menge, Höhe und Breite getrennt, mit drei Ködern (20×200,
+200×20, 200×200), von denen jeder genau einen Zähler auslösen darf.
+
+22 Ansichten, beide Breiten, **ungekappt**:
+
+| | Ziele | <24 nur hoch | <24 nur **breit** | <44 nur hoch | <44 nur **breit** | <44 beides |
+|---|---:|---:|---:|---:|---:|---:|
+| **1440 px** (Maus) | 2506 | 1 | **0** | 390 | **335** | 1233 |
+| **390 px** (Finger) | 2100 | 1 | **0** | 1 | **0** | 0 |
+
+Die Zahlen sind **Vorkommen**, nicht verschiedene Stellen: Kopf- und
+Fußleiste zählen in jeder Ansicht mit.
+
+**Zwei Dinge sind damit belegt, die vorher nur behauptet waren.**
+
+1. *„Bei 390 px sind es null"* stimmt fast: es ist **eins**, und zwar
+   dasselbe eine wie unter 24 px — der Urheberhinweis von Leaflet
+   (`51.4×14`), kein Bedienelement, sondern eine Lizenzbedingung. Die
+   Grobzeiger-Regel bei `index.html:514` hebt also **2099 von 2100** Zielen
+   auf 44×44, und sie setzt `min-height` **und** `min-width`. Das ist ihre
+   gemessene Wirkung, nicht mehr ihre Anwesenheit im Quelltext.
+2. **335 Ziele sind hoch genug und zu schmal.** Diese Gruppe hat das alte
+   Werkzeug nie gezeigt. Sie ändert nichts an der Antwort unten — aber sie
+   hätte jede Kur unterlaufen, die nur `min-height` hebt. Wer die 44 px je
+   ans breite Fenster holt, muss beide Maße heben; die Hausregel tut das
+   bereits richtig.
+
+Berichte: `docs/befunde/TIPPZIEL_HISTOGRAMM_1440.md` und `_390.md`.
 
 **Warum das keine Messung mehr entscheidet.** 44 px ist die Marke für einen
 **Finger**. 24 px ist die Marke, die unabhängig vom Zeigegerät gilt. Am
