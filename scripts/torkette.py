@@ -100,6 +100,14 @@ TORE = [
     #    wenn der Zaehler selbst seine Eichung nicht besteht.
     ("Werkzeuge geeicht",
      [sys.executable, "scripts/werkzeug_eichung.py"], False),
+    # 🔴 29.09.2026: MEMORY.md wird zu Beginn JEDER Sitzung geladen. Zu gross
+    #    -> abgeschnitten, und alle Regeln darin sind wirkungslos, ohne dass
+    #    irgendwo etwas rot wird. Dazu ZWEI Waisen an einem Tag, beide von
+    #    anderen Sitzungen geschrieben. Auf einer fremden Maschine meldet das
+    #    Tor "nicht anwendbar" und bleibt gruen - ein Tor, das dort grundlos
+    #    rot wird, wird uebersprungen und misst nie wieder etwas.
+    ("Gedaechtnis-Index",
+     [sys.executable, "scripts/gedaechtnis_pruefen.py"], False),
     ("Versionsabgleich", ["node", "sql/_check_version.js"], False),
     ("Tabu-Funktionen", [sys.executable, "scripts/md5_geschuetzt.py"], False),
     ("Bestand", [sys.executable, "scripts/bestand.py"], False),
