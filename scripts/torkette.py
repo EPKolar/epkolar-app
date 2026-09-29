@@ -93,6 +93,13 @@ TORE = [
     #    anhaelt, besteht jede Koederprobe.
     ("Schalen-Haken geeicht",
      [sys.executable, "scripts/haken_schalenfalle.py", "--eichen"], False),
+    # 🔴 29.09.2026: zaehlt, welche MESSWERKZEUGE ihren eigenen Ausfall nicht
+    #    bemerken koennen. Vier Faelle an EINEM Tag, jeder sah aus wie ein
+    #    Ergebnis. Das Tor verlangt keine Nachruestung von 45 Skripten - es
+    #    haelt die Zahl fest (Sperrklinke im Riegel v990) und faellt rot,
+    #    wenn der Zaehler selbst seine Eichung nicht besteht.
+    ("Werkzeuge geeicht",
+     [sys.executable, "scripts/werkzeug_eichung.py"], False),
     ("Versionsabgleich", ["node", "sql/_check_version.js"], False),
     ("Tabu-Funktionen", [sys.executable, "scripts/md5_geschuetzt.py"], False),
     ("Bestand", [sys.executable, "scripts/bestand.py"], False),

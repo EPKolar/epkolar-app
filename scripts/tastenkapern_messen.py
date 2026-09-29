@@ -50,6 +50,13 @@ NUTZER = ("try{var u=JSON.parse(localStorage.getItem('epkolar_user')||'{}');"
 SUCHE_JS = r"""() => {
   const innen = 'button,a[href],input,select,textarea,summary,[role="button"]';
   const aus = [];
+  // 🔴 Container OHNE inneres Bedienelement werden GESAMMELT, nicht
+  //    weggeworfen. Sie sind die Selbstprobe: an ihnen MUSS der Container
+  //    selbst reagieren. Tut er das nicht, misst der ganze Melder nichts,
+  //    und seine gruenen Ergebnisse an den anderen belegen nichts.
+  //    (Bis 29.09.2026 stand diese Probe nur im Kopftext dieser Datei und
+  //     war nie gebaut - gefunden von scripts/werkzeug_eichung.py.)
+  const allein = [];
   document.querySelectorAll('[role="button"],[role="checkbox"],'
                             + '[role="menuitem"]').forEach((c, i) => {
     const r = c.getBoundingClientRect();
@@ -58,7 +65,15 @@ SUCHE_JS = r"""() => {
       const q = x.getBoundingClientRect();
       return q.width && q.height;
     });
-    if (!k.length) return;
+    if (!k.length) {
+      if (allein.length < 3 && (c.getAttribute('tabindex') !== null)) {
+        c.dataset.kapernAllein = 'a' + i;
+        allein.push({id: 'a' + i,
+                     text: (c.innerText || '').replace(/\s+/g, ' ')
+                           .trim().slice(0, 30)});
+      }
+      return;
+    }
     c.dataset.kapernId = 'c' + i;
     k[0].dataset.kapernZiel = 'c' + i;
     aus.push({id: 'c' + i,
@@ -68,7 +83,19 @@ SUCHE_JS = r"""() => {
               tag: k[0].tagName.toLowerCase(),
               anzahl: k.length});
   });
-  return aus;
+  return {faelle: aus, allein: allein};
+}"""
+
+# Die Selbstprobe: an einem Container OHNE inneres Bedienelement MUSS der
+# Container selbst auf Enter reagieren.
+SELBSTPROBE_JS = r"""(id) => {
+  window.__allein = [];
+  const c = document.querySelector('[data-kapern-allein="' + id + '"]');
+  if (!c) return null;
+  c.addEventListener('keydown', () => window.__allein.push('CONTAINER-keydown'));
+  c.addEventListener('click', () => window.__allein.push('CONTAINER-click'));
+  c.focus();
+  return document.activeElement === c;
 }"""
 
 LAUSCHER_JS = r"""(id) => {
@@ -112,9 +139,43 @@ def main(argv):
             seite.evaluate(HA.WAEHLEN_JS, ansicht)
             seite.wait_for_timeout(2000)
 
-            faelle = seite.evaluate(SUCHE_JS)
-            print("%s bei %d px: %d Container mit innerem Bedienelement"
-                  % (ansicht, breite, len(faelle)))
+            gefunden = seite.evaluate(SUCHE_JS)
+            faelle = gefunden["faelle"]
+            allein = gefunden["allein"]
+            print("%s bei %d px: %d Container mit innerem Bedienelement, "
+                  "%d ohne" % (ansicht, breite, len(faelle), len(allein)))
+
+            # 🔴 SELBSTPROBE ZUERST. Ohne sie waere jedes gruene Ergebnis
+            #    unten von „der Melder misst gar nichts" nicht zu
+            #    unterscheiden. Sie stand bis 29.09.2026 nur im Kopftext.
+            if not allein:
+                print("\U0001F534 Kein Container OHNE inneres Bedienelement "
+                      "in dieser Ansicht -\n   die Selbstprobe kann hier "
+                      "nicht laufen. NICHT GEMESSEN.")
+                return 2
+            geprobt = False
+            for a in allein:
+                if not seite.evaluate(SELBSTPROBE_JS, a["id"]):
+                    continue
+                seite.keyboard.press("Enter")
+                seite.wait_for_timeout(300)
+                wer = seite.evaluate("() => window.__allein")
+                print("   Selbstprobe an %-24r -> %s"
+                      % (a["text"][:24], wer or ["NICHTS"]))
+                if wer:
+                    geprobt = True
+                    break
+            if not geprobt:
+                print("\U0001F534 An KEINEM Container ohne inneres "
+                      "Bedienelement hat der Container\n   selbst auf Enter "
+                      "reagiert. Dann misst dieser Melder nichts, und seine\n"
+                      "   Ergebnisse unten belegen nichts. NICHT GEMESSEN.")
+                return 2
+            print("   \U0001F7E2 Selbstprobe bestanden - der Melder sieht "
+                  "einen Tastendruck.\n")
+            seite.evaluate(HA.WAEHLEN_JS, ansicht)
+            seite.wait_for_timeout(1200)
+
             if not faelle:
                 print("\U0001F534 Keiner gefunden. Das ist kein Ergebnis - "
                       "entweder gibt es hier\n   keine, oder der Sucher "
