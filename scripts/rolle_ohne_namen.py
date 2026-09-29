@@ -106,6 +106,27 @@ def _eigenschaft(props, name):
 WORTZEICHEN = re.compile(r"[^\W\d_]|\d", re.UNICODE)
 
 
+# 🔴 DIE GRUNDGESAMTHEIT WAR ZU KLEIN, und das hat einen Befund fuenf Tage
+#    lang unsichtbar gemacht. Dieser Melder kannte nur `role="button"`. Ein
+#    Messagent fand am 29.09.2026 zwei `role="menu"` ohne jeden Namen - und
+#    die sind schlimmer als ein namenloser Knopf:
+#
+#    `menu` ist **nameFrom: author**. Anders als `button` oder `menuitem`
+#    darf es seinen Namen NICHT aus dem Inhalt nehmen. Dass im Projektmenue
+#    "Bearbeiten / Archivieren / Loeschen" steht, benennt das Menue nicht -
+#    eine Vorlesehilfe sagt "Menue" und sonst nichts.
+#
+#    Deshalb zwei Listen statt einer. Fuer die zweite zaehlt der Inhalt
+#    ausdruecklich NICHT: dort ist nur `aria-label`/`aria-labelledby`/`title`
+#    ein Name.
+NAME_AUS_INHALT = ("button", "menuitem", "link", "option", "checkbox",
+                   "radio", "switch", "tab", "treeitem", "gridcell")
+NAME_NUR_VOM_AUTOR = ("menu", "menubar", "dialog", "alertdialog", "region",
+                      "navigation", "tablist", "listbox", "combobox", "grid",
+                      "table", "toolbar", "tree", "group", "form", "search")
+ALLE_ROLLEN = NAME_AUS_INHALT + NAME_NUR_VOM_AUTOR
+
+
 def _teile(ausdruck, trenner):
     """Zerlegt auf der OBERSTEN Ebene an `trenner` (ein Zeichen)."""
     aus, letzt, t, i, n = [], 0, 0, 0, len(ausdruck)
@@ -149,6 +170,25 @@ def _werte(ausdruck):
     a = ausdruck.strip()
     if not a:
         return []
+    # 🔴 DRITTE KORREKTUR AN DIESER FUNKTION, gefunden von einem Messagenten.
+    #    Ein GEKLAMMERTER Bedingungsausdruck `(a?"x":"y")` wurde nicht
+    #    zerlegt: `_teile` trennt nur auf oberster Ebene, und in Klammern ist
+    #    das `?` nicht oben. Der Ausdruck fiel bis zur Literalpruefung durch
+    #    und kam als UNBEKANNT zurueck.
+    #    Folge: ein Aufklapp-Pfeil mit `hasKids?(isExp?"▼":"▶"):""` - also
+    #    lauter Literale ohne Wortzeichen - galt als UNSICHER statt als
+    #    NAMENLOS. Die Richtung war die sichere (kein Befund verschwiegen,
+    #    nur die Liste verlaengert), aber ein Befund, der in einer Liste von
+    #    38 "bitte ansehen" liegt, ist so gut wie nicht gemeldet.
+    #    Der Koeder-Satz deckte die Form nicht ab: er kannte nur FLACHE
+    #    Ternaere. Genau die zweite Schreibweise, diesmal in der Struktur.
+    while len(a) > 1 and a[0] == "(":
+        zu = code_scan._klammer_zu(a, 0, "(", ")")
+        if zu != len(a):
+            break                 # nicht die ganze Klammer - nicht anfassen
+        a = a[1:-1].strip()
+        if not a:
+            return []
     frage = _teile(a, "?")
     if len(frage) > 1:
         rest = "?".join(frage[1:])
@@ -220,7 +260,11 @@ def einordnen(text):
         rolle = _eigenschaft(props, "role")
         if rolle is None:
             rolle = _eigenschaft(props, '"role"') or _eigenschaft(props, "'role'")
-        if not rolle or '"button"' not in rolle and "'button'" not in rolle:
+        if not rolle:
+            continue
+        welche = next((r for r in ALLE_ROLLEN
+                       if '"%s"' % r in rolle or "'%s'" % r in rolle), None)
+        if welche is None:
             continue
         zeile = text.count("\n", 0, m.start()) + 1
         if code_scan.hat_namen(props):
@@ -229,6 +273,14 @@ def einordnen(text):
         auf = text.rfind("(", m.start(), m.end())
         ende = code_scan._klammer_zu(text, auf, "(", ")")
         kinder = text[pe:ende - 1] if ende > pe else ""
+        if welche in NAME_NUR_VOM_AUTOR:
+            # Kein aria-label/title (das haette `hat_namen` oben gefangen),
+            # und der Inhalt zaehlt fuer diese Rollen nicht. Also namenlos -
+            # ohne Umweg ueber "unsicher".
+            namenlos.append((zeile, tag,
+                             'role="%s" (nameFrom:author, Inhalt zaehlt nicht)'
+                             % welche))
+            continue
         lit, unbekannt = _kinder_literale(kinder)
         if any(WORTZEICHEN.search(s) for s in lit):
             benannt.append((zeile, tag, "Inhalt: " + "/".join(lit)[:40]))
@@ -259,8 +311,23 @@ KOEDER = [
     ("h('div',{role:'button'}, x.t)", "unsicher"),
     # Gegenprobe: ein echtes button-Element gehoert NICHT hierher.
     ("h('button',{},'★')", None),
-    # Gegenprobe: role=listbox ist kein Knopf.
-    ("h('div',{role:'listbox'},'★')", None),
+    # 🔴 HIER STAND EIN FALSCHER KOEDER, und er wurde rot, als die
+    #    Grundgesamtheit wuchs. Er hiess "role=listbox ist kein Knopf" und
+    #    erwartete None. Seit der Erweiterung auf nameFrom:author IST
+    #    `listbox` in der Menge - und ohne aria-label zu Recht NAMENLOS.
+    #    Der KOEDER war falsch, nicht der Melder. Das ist mir am 27.09. schon
+    #    zweimal passiert; die Eichung hat es beide Male gefangen, bevor eine
+    #    Zahl entstanden ist.
+    ("h('div',{role:'listbox'},'★')", "namenlos"),
+    ("h('div',{role:'listbox','aria-label':\"Auswahl\"},'★')", "benannt"),
+    # Ein Menue nimmt seinen Namen NICHT aus dem Inhalt - Text darin
+    # benennt es nicht.
+    ("h('div',{role:'menu'}, h('button',{},'Bearbeiten'))", "namenlos"),
+    ("h('div',{role:'menu','aria-label':\"Projektmenü\"}, "
+     "h('button',{},'Bearbeiten'))", "benannt"),
+    # Gegenprobe: `status` braucht keinen Namen und gehoert NICHT in die Menge.
+    ("h('div',{role:'status'},'★')", None),
+    ("h('div',{role:'presentation'},'★')", None),
     # 🔴 DER FEHLALARM, den die erste Fassung erzeugt hat. Der Name steht in
     #    der VARIABLEN `h.l`; das einzige Literal ist das leere `""` aus dem
     #    anderen Zweig eines Bedingungsausdrucks. Wer Literale zaehlt statt
@@ -272,6 +339,17 @@ KOEDER = [
     # 🔴 Der Fehlalarm der ZWEITEN Fassung: ein wortfuehrendes Literal neben
     #    einem unbekannten Teil ist SICHER benannt, nicht unsicher.
     ("h('th',{role:'button'}, \"Nummer\", pfeil(\"nummer\"))", "benannt"),
+    # 🔴 Die GESCHACHTELTE Form, an der die dritte Fassung dieses Melders
+    #    scheiterte: `hasKids?(isExp?"▼":"▶"):""`. Alle Blaetter sind
+    #    Literale ohne Wortzeichen, also NAMENLOS - der Melder gab aber
+    #    UNSICHER zurueck, weil die innere Klammer das `?` verbarg. Ein
+    #    Koeder mit nur FLACHEN Ternaeren deckt diese Form nicht ab, und
+    #    genau das war der Fall.
+    ("h('div',{role:'button'}, hasKids?(isExp?\"▼\":\"▶\"):\"\")",
+     "namenlos"),
+    # Dieselbe Schachtelung, aber ein Zweig traegt ein Wort: benannt.
+    ("h('div',{role:'button'}, offen?(viele?\"Mehr\":\"▼\"):\"\")",
+     "benannt"),
     # Ein Bedingungsausdruck, dessen einer Zweig Buchstaben traegt: benannt.
     ("h('span',{role:'button'}, a?\"Mehr\":\"▼\")", "benannt"),
 ]
@@ -303,8 +381,14 @@ def main():
     text = io.open(os.path.join(WURZEL, "index.html"),
                    encoding="utf-8", newline="").read()
     nl, un, be = einordnen(text)
-    print("\nrole=\"button\" auf Nicht-Knoepfen: %d"
-          % (len(nl) + len(un) + len(be)))
+    # 🔴 Die Ueberschrift sagte bis v3.9.984 "role=button auf Nicht-Knoepfen"
+    #    und war damit selbst eine falsche Angabe ueber die Grundgesamtheit -
+    #    seit der Erweiterung sind es %d Rollen, nicht eine.
+    print("\nARIA-Rollen mit Namensbedarf auf Nicht-Knoepfen "
+          "(%d Rollenarten): %d Elemente"
+          % (len(ALLE_ROLLEN), len(nl) + len(un) + len(be)))
+    print("   davon nameFrom:author (Inhalt zaehlt NICHT): %s"
+          % ", ".join(NAME_NUR_VOM_AUTOR[:6]) + " …")
     print("   \U0001F534 NAMENLOS : %d" % len(nl))
     print("   ❓ UNSICHER : %d  (Inhalt ist kein Literal - ansehen)"
           % len(un))

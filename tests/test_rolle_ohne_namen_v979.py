@@ -105,3 +105,51 @@ def test_die_grundgesamtheit_ist_nicht_leer():
         "41 Flaechen\n  gebaut; bei so wenigen Treffern misst das Muster nicht "
         "mehr die Bauform, und\n  die Null der anderen Pruefung ist wertlos."
         % gesamt)
+
+
+def test_die_rollen_die_ihren_namen_NICHT_aus_dem_inhalt_nehmen():
+    """🔴 v3.9.984 - die Grundgesamtheit war zu klein, fuenf Tage lang.
+
+    Bis dahin kannte der Melder nur `role="button"`. Ein Messagent fand zwei
+    `role="menu"` ohne jeden Namen - und die sind schlimmer als ein namenloser
+    Knopf:
+
+    **`menu` ist nameFrom: author.** Anders als `button` oder `menuitem` darf
+    es seinen Namen NICHT aus dem Inhalt nehmen. Dass im Projektmenue
+    "Bearbeiten / Archivieren / Loeschen" steht, benennt das Menue nicht -
+    eine Vorlesehilfe sagt "Menue" und sonst nichts.
+
+    Ein Melder, dessen Grundgesamtheit `button` ist, kann das PRINZIPIELL
+    nicht finden. Das ist kein zu kleines Alphabet, das ist ein blindes
+    Messgeraet - dieselbe Krankheit wie `code_scan.knopf_stellen` gegenueber
+    `<span role="button">`, nur eine Ebene weiter.
+    """
+    assert len(R.NAME_NUR_VOM_AUTOR) >= 10, (
+        "Die Liste der nameFrom:author-Rollen ist geschrumpft. Jede Rolle, "
+        "die hier\n  fehlt, kann namenlos dastehen, ohne dass es jemand "
+        "meldet.")
+    for r in ("menu", "dialog", "navigation", "region"):
+        assert r in R.NAME_NUR_VOM_AUTOR, (
+            "`%s` fehlt in NAME_NUR_VOM_AUTOR. Diese Rolle nimmt ihren Namen "
+            "nicht\n  aus dem Inhalt - ohne aria-label ist sie namenlos, und "
+            "Text darin\n  taeuscht darueber hinweg." % r)
+    # Und die Trennung muss halten: ein Knopf DARF seinen Namen aus dem
+    # Inhalt nehmen.
+    for r in ("button", "menuitem", "link"):
+        assert r in R.NAME_AUS_INHALT and r not in R.NAME_NUR_VOM_AUTOR, (
+            "`%s` ist in die falsche Liste gewandert - dann meldet der Melder "
+            "jeden\n  beschrifteten Knopf als namenlos." % r)
+
+
+def test_die_beiden_menues_tragen_einen_namen():
+    """Die zwei Fundstellen namentlich - nicht nur 'die Zahl ist null'."""
+    t = R.io.open(os.path.join(HIER, "..", "index.html"),
+                  encoding="utf-8", newline="").read()
+    for marke, wo in (('role:"menu","aria-label":"Projektmenü"',
+                       "Projekt-Kontextmenue"),
+                      ('role: "menu", "aria-label": "Weitere Ansichten"',
+                       "mobiles Mehr-Menue")):
+        assert marke in t, (
+            "Das %s hat seinen Namen verloren. `role=\"menu\"` nimmt seinen "
+            "Namen\n  NICHT aus dem Inhalt - ohne aria-label heisst es nur "
+            "'Menue'." % wo)

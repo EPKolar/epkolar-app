@@ -69,6 +69,37 @@ def _rumpf(ausdruck):
     return inner.strip().strip(";").strip()
 
 
+def _ist_objektliteral(ausdruck):
+    """Ruft der Behandler ein OBJEKT auf statt einer Funktion?
+
+    🔴 DIESER RIEGEL HAT EINEN ECHTEN FEHLER DURCHGELASSEN, und der Grund ist
+    lehrreich. Er prueft, ob der Rumpf des aufgerufenen Ausdrucks LEER ist -
+    "tut nichts". Ein Messagent fand am 29.09.2026 eine Stelle, die etwas
+    ganz anderes tut: sie ruft das STIL-OBJEKT als Funktion auf.
+
+        onKeyDown: e=>{...e.preventDefault();
+          ({marginBottom: 8, cursor: "pointer", ...})(e);}
+
+    Enter oder Leertaste auf der Seitenvorschau eines Plans wirft damit
+    `TypeError: ... is not a function`. Der Mausweg (`onClick`) ist nicht
+    betroffen - deshalb faellt es beim Klicken nie auf, und deshalb hat es
+    niemand gemeldet.
+
+    URSACHE: an dieser Stelle steht `onClick` als KURZSCHREIBWEISE
+    (`onClick,` statt `onClick: <ausdruck>`). Das Bauwerkzeug aus v3.9.975
+    suchte `onClick` und dann den naechsten Doppelpunkt - und fand den von
+    `style:`. Es hat also das falsche Feld kopiert.
+
+    „Leerer Rumpf" und „gar nicht aufrufbar" sind zwei verschiedene Mangel.
+    Der erste war geprueft, der zweite nicht.
+    """
+    k = ausdruck.strip()
+    if not k.startswith("{"):
+        return False
+    # Ein Objektliteral erkennt man am `schluessel:` auf der obersten Ebene.
+    return bool(re.match(r'^\{\s*[A-Za-z_$][\w$]*\s*:', k))
+
+
 def _text():
     return io.open(PFAD, encoding="utf-8", newline="").read()
 
@@ -130,3 +161,41 @@ def test_es_gibt_ueberhaupt_gebaute_behandler():
         "Nur %d gebaute Tastenbehandler gefunden. v3.9.975 hat 41 Flaechen "
         "gebaut;\n  bei so wenigen Treffern misst das Muster nicht mehr die "
         "Bauform, und die\n  Null der anderen Pruefung ist wertlos." % n)
+
+
+def test_kein_behandler_ruft_ein_OBJEKT_auf():
+    """🔴 Enter auf der Seitenvorschau warf eine Ausnahme - drei Versionen lang.
+
+    Gefunden am 29.09.2026 von einem Messagenten, nicht von diesem Riegel:
+    er prueft "tut nichts", und ein Stil-Objekt tut nicht nichts, es ist nur
+    nicht aufrufbar. Zwei verschiedene Mangel, einer davon ungeprueft.
+    """
+    t = _text()
+    fund = []
+    for m in BEHANDLER.finditer(t):
+        a = m.group("ausdruck")
+        if a and _ist_objektliteral(a):
+            fund.append((t.count("\n", 0, m.start()) + 1, a.strip()[:60]))
+    assert not fund, (
+        "%d Tastenbehandler rufen ein OBJEKTLITERAL als Funktion auf:\n%s\n"
+        "Enter oder Leertaste wirft dort `TypeError: ... is not a function`.\n"
+        "Der Mausweg ist nicht betroffen - deshalb faellt es beim Klicken nie\n"
+        "auf. Ursache ist fast immer eine KURZSCHREIBWEISE (`onClick,` statt\n"
+        "`onClick: <ausdruck>`): wer `onClick` sucht und dann den naechsten\n"
+        "Doppelpunkt nimmt, erwischt das Feld DANACH."
+        % (len(fund), "\n".join("   Zeile %d: %s..." % f for f in fund)))
+
+
+def test_koeder_objektliteral_wird_erkannt():
+    """🔴 Selbstprobe mit Gegenproben - sonst ist die Null oben wertlos."""
+    faelle = [
+        ('{marginBottom: 8, cursor: "pointer"}', True, "Stil-Objekt"),
+        ('{a:1}', True, "kurzes Objekt"),
+        ('()=>setSel(f.id)', False, "Pfeilfunktion"),
+        ('function(e){go();}', False, "function-Ausdruck"),
+        ('moveRow(r.id,-1)', False, "Aufruf"),
+        ('{...spread}', False, "Spread - kein Schluessel:Wert"),
+    ]
+    for text, soll, warum in faelle:
+        assert _ist_objektliteral(text) is soll, (
+            "%s (%r): erwartet %s" % (warum, text, soll))
