@@ -60,7 +60,19 @@ ZAEHLEN_JS = r"""() => {
     banner: z('header, [role="banner"]'),
     fuss: z('footer, [role="contentinfo"]'),
     main_leer: [...document.querySelectorAll('main, [role="main"]')]
-      .filter(m => (m.innerText || '').trim().length < 20).length};
+      .filter(m => (m.innerText || '').trim().length < 20).length,
+    // 🔴 Die entscheidende Zahl fuer die Frage, ob `nav` eine NAMENSFRAGE
+    //    ist: sind je Ansicht mehrere Navigationsleisten SICHTBAR? Wenn
+    //    immer nur eine, genuegt ein <nav> ohne Namen und es gibt nichts zu
+    //    entscheiden. Sind es mehrere, braucht jede einen Namen - und den
+    //    erfindet kein Skript.
+    tabbars: [...document.querySelectorAll('.tab-bar')]
+      .filter(e => { const r = e.getBoundingClientRect();
+                     return r.width > 0 && r.height > 0; }).length,
+    tabbar_texte: [...document.querySelectorAll('.tab-bar')]
+      .filter(e => { const r = e.getBoundingClientRect();
+                     return r.width > 0 && r.height > 0; })
+      .map(e => (e.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60))};
 }"""
 
 KOEDER_EIN_JS = r"""() => {
@@ -155,14 +167,16 @@ def main(argv):
         print("\U0001F534 KEINE Ansicht gemessen. Das ist kein Ergebnis.")
         return 2
 
-    print("%-14s %-6s %-5s %-7s %-6s %s"
-          % ("Ansicht", "main", "nav", "banner", "fuss", "main leer"))
+    print("%-14s %-6s %-5s %-7s %-6s %-10s %s"
+          % ("Ansicht", "main", "nav", "banner", "fuss", "main leer",
+             "sichtbare tab-bars"))
     schief = []
     for k in sorted(bericht["ansichten"]):
         z = bericht["ansichten"][k]
-        print("%-14s %-6d %-5d %-7d %-6d %d"
+        print("%-14s %-6d %-5d %-7d %-6d %-10d %d  %s"
               % (k, z["main"], z["nav"], z["banner"], z["fuss"],
-                 z["main_leer"]))
+                 z["main_leer"], z.get("tabbars", -1),
+                 " | ".join(t[:34] for t in (z.get("tabbar_texte") or []))))
         if z["main"] != 1:
             schief.append("%s hat %d `main` statt genau einem"
                           % (k, z["main"]))
