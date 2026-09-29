@@ -22,11 +22,13 @@ WAS SIE FAEHRT
     3  scripts/klammerbilanz.py     dieselbe Frage zustandsbasiert: 54,9 %
                                     beurteilt, () 0 / [] 0 / {} 0, und es
                                     sagt WO
-    4  node sql/_check_version.js   die vier Versionsstellen stimmen ueberein
-    5  scripts/md5_geschuetzt.py    die sieben TABU-Funktionen sind bytegleich
-    6  scripts/bestand.py           118 Begriffe in 17 Gruppen sind noch da
-    7  scripts/icons_erzeugen.py    die vier PWA-Icons sind aktuell (--pruefen)
-    8  pytest tests/                der gesamte Riegelbestand
+    4  haken_schalenfalle --eichen  der Schalen-Haken sieht, was er sehen
+                                    soll - und laesst durch, was laufen darf
+    5  node sql/_check_version.js   die vier Versionsstellen stimmen ueberein
+    6  scripts/md5_geschuetzt.py    die sieben TABU-Funktionen sind bytegleich
+    7  scripts/bestand.py           118 Begriffe in 17 Gruppen sind noch da
+    8  scripts/icons_erzeugen.py    die vier PWA-Icons sind aktuell (--pruefen)
+    9  pytest tests/                der gesamte Riegelbestand
 
 🔴 WARUM 4 BIS 6 AM 27.09.2026 DAZUGEKOMMEN SIND
 ────────────────────────────────────────────────
@@ -81,6 +83,16 @@ TORE = [
     #    Hier kommt ein Tor DAZU, es wird keines ersetzt.
     ("Klammern zustandsbasiert",
      [sys.executable, "scripts/klammerbilanz.py"], False),
+    # 🔴 29.09.2026: der Schalen-Haken haelt Befehle an, in denen die Schale
+    #    den Text frisst (zwei Backslashes, nackter Backtick, Commit-Meldung
+    #    mit Anfuehrungszeichen, `$?` hinter einer Pipe). Er laeuft bei JEDEM
+    #    Bash-Aufruf mit - ein kaputter Haken faellt also entweder gar nicht
+    #    auf oder legt die Arbeit lahm. Beides gehoert vor der Freigabe
+    #    gemessen. Die Eichung faehrt 6 Koeder und 8 Gegenproben; die
+    #    Gegenproben sind der wichtigere Teil, denn ein Haken, der ALLES
+    #    anhaelt, besteht jede Koederprobe.
+    ("Schalen-Haken geeicht",
+     [sys.executable, "scripts/haken_schalenfalle.py", "--eichen"], False),
     ("Versionsabgleich", ["node", "sql/_check_version.js"], False),
     ("Tabu-Funktionen", [sys.executable, "scripts/md5_geschuetzt.py"], False),
     ("Bestand", [sys.executable, "scripts/bestand.py"], False),
