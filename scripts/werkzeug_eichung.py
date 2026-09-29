@@ -77,6 +77,36 @@ ABBRUCH = re.compile(r"\breturn\s+2\b|sys\.exit\(\s*2\s*\)|raise\s+SystemExit")
 #    SELBSTPROBE in Grossbuchstaben oder "Selbstprobe:" mit Doppelpunkt.
 VERSPRECHEN = re.compile(r"\bSELBSTPROBE\b|\bSelbstprobe\s*:")
 
+# 🔴 UND EINE ZWEITE KORREKTUR, SOFORT NACH DEM ERSTEN LAUF. Der Sucher
+#    entfernt Kommentare - richtig, sonst erfuellt die Begruendung die
+#    Pruefung. Aber eine Selbstprobe, die als schlichtes `if ...: return 2`
+#    gebaut ist und nur im KOMMENTAR darueber so heisst, wird dadurch
+#    unsichtbar. `thema_cssvariablen_messen.py` hat genau das:
+#        # 🔴 SELBSTPROBE ZUERST.
+#        if hell.get("modus") != "light" or ...:
+#            print(...); return 2
+#    Das IST die Probe. Sie als "Versprechen ohne Deckung" zu melden heisst,
+#    ein Werkzeug zu beschuldigen, das es richtig macht - und ein Zaehler,
+#    dessen Befunde man verwerfen muss, wird nicht mehr gelesen.
+#    Gezaehlt wird deshalb als GEBAUT: eine Marke als INLINE-Kommentar, der
+#    innerhalb der naechsten Zeilen ein Abbruch folgt. Ein Kommentar ALLEIN
+#    genuegt weiterhin nicht - das bleibt die Regel.
+MARKE_INLINE = re.compile(r"^[ \t]*#[^\n]*"
+                          r"(SELBSTPROBE|Selbstprobe|Koeder|KOEDER)[^\n]*$",
+                          re.M)
+FENSTER_ZEILEN = 12
+
+
+def probe_als_kommentar_mit_abbruch(quelle):
+    """Marke als Inline-Kommentar, und kurz darauf ein Abbruch."""
+    zeilen = quelle.split("\n")
+    for m in MARKE_INLINE.finditer(quelle):
+        nr = quelle.count("\n", 0, m.start())
+        fenster = "\n".join(zeilen[nr + 1:nr + 1 + FENSTER_ZEILEN])
+        if ABBRUCH.search(fenster):
+            return True
+    return False
+
 
 def ohne_worte(quelle):
     """Quelltext ohne Kommentare und ohne Dokumentationstexte.
@@ -118,6 +148,8 @@ def beurteile(quelle):
     if code is None:
         return None, None, ["NICHT ZERLEGBAR"]
     formen = [n for n, r in PROBE_FORMEN.items() if r.search(code)]
+    if probe_als_kommentar_mit_abbruch(quelle):
+        formen.append("Marke+Abbruch")
     return bool(formen), bool(ABBRUCH.search(code)), formen
 
 

@@ -37,12 +37,18 @@ sys.path.insert(0, os.path.join(HIER, "..", "scripts"))
 
 import werkzeug_eichung as W  # noqa: E402
 
-# Stand 29.09.2026, gemessen und im selben Lauf schon einmal nachgezogen:
-# `tastenkapern_messen.py` hat seine versprochene Selbstprobe bekommen (18 ->
-# 17 ohne, 4 -> 3 versprochen). Die Klinken duerfen nur FALLEN.
-ERWARTET_OHNE = 17
+# Stand 29.09.2026, im selben Lauf ZWEIMAL nachgezogen:
+#  * `tastenkapern_messen.py` hat seine versprochene Selbstprobe bekommen;
+#  * 🔴 und der SUCHER war zu streng. Er entfernt Kommentare - richtig -, und
+#    dadurch wurde eine Probe unsichtbar, die als schlichtes `if ...: return 2`
+#    gebaut ist und nur im Kommentar darueber so heisst. Er hat damit
+#    `thema_cssvariablen_messen.py` und `thema_echter_tipp_messen.py`
+#    beschuldigt, die es richtig machen. Ein Zaehler, dessen Befunde man
+#    verwerfen muss, wird nicht mehr gelesen.
+# Die Klinken duerfen nur FALLEN.
+ERWARTET_OHNE = 16
 ERWARTET_HALB = 2
-ERWARTET_VERSPROCHEN = 3
+ERWARTET_VERSPROCHEN = 2
 
 
 def _zaehlung():
