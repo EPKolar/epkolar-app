@@ -74,6 +74,17 @@ GRUND = {
     "ezHeute": ("function _ezHeuteISO(){", "\n}"),
     "istEhemalig": ("function _maIstEhemalig(m,heute){", "\n}"),
     "waehlbar": ("function _maWaehlbar(liste,aktuell){", "\n}"),
+    # 🔴 v3.9.992 DAZUGEKOMMEN, und zwar GESCHNITTEN statt nachgebaut.
+    #    Das Urlaubskontingent rechnet seit v3.9.992 mit `_ktgStd(x)` statt
+    #    `x||192.5` - die alte Form las eine ausdrueckliche 0 als FEHLEND und
+    #    zeigte 192,5 Stunden an. Der ausgeschnittene Code ruft den Helfer,
+    #    also muss er hier sein: ohne ihn stirbt der Lauf mit
+    #    `ReferenceError: _ktgStd is not defined`. Genau so ist dieser Riegel
+    #    beim Einbau der Kur rot geworden, und das war richtig - er laesst
+    #    den Code WIRKLICH laufen.
+    #    Abschreiben waere eine Attrappe, die auseinanderlaeuft; `_schnitt`
+    #    holt die echte Fassung und besteht auf Eindeutigkeit.
+    "ktgStd": ("function _ktgStd(v){", "return isNaN(_k)?192.5:_k;}"),
 }
 
 S_TEAM = {
@@ -176,6 +187,7 @@ var UI={fMeta:12,fKlein:13,fText:14,fTitel:15,fTitelGross:17,
 %(ezHeute)s
 %(istEhemalig)s
 %(waehlbar)s
+%(ktgStd)s
 
 function _tag(off){
   var d = new Date(_ezHeuteISO() + "T12:00:00Z");

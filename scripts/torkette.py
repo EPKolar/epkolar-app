@@ -124,10 +124,28 @@ def fahre(name, befehl):
     """Faehrt EIN Tor und gibt (gruen, dauer, ausgabe) zurueck.
 
     Kein `shell=True`, keine Pipe: der Rueckgabewert kommt vom Riegel selbst.
+
+    🔴 `encoding="utf-8"` IST HIER KEINE STILFRAGE, und der Fehler stand
+    monatelang drin. Ohne die Angabe liest Python die Ausgabe mit dem
+    Zeichensatz der KONSOLE - auf Windows cp1252. Am 30.09.2026 hat das das
+    pytest-Tor gefaellt:
+
+        UnicodeDecodeError: 'charmap' codec can't decode byte 0x90
+        ...
+        pytest   ROT   314.6 s
+
+    **Kein einziger Test war rot.** Die Torkette ist beim LESEN der Ausgabe
+    abgestuerzt, der Leser-Faden starb, und das Tor galt als gefallen. Ein
+    Tor, dessen Urteil vom Zeichensatz der Konsole abhaengt, ist kein Tor -
+    und es haette im umgekehrten Fall genauso gut GRUEN melden koennen.
+
+    `errors="replace"` dazu: eine unlesbare Stelle in der Ausgabe darf das
+    Urteil nicht kippen. Der Rueckgabewert bleibt die einzige Quelle.
     """
     t0 = time.time()
     try:
         r = subprocess.run(befehl, cwd=WURZEL, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace",
                            timeout=1800)
     except FileNotFoundError as e:
         # Ein Tor, das gar nicht startet, ist NICHT gruen. Genau diese
