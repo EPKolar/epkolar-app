@@ -53,6 +53,24 @@ ZERSTOEREND = ["lösch", "entfern", "verwerf", "zurücksetz",
                "genehmig", "bestätig", "archivier", "übertrag"]
 
 KNOEPFE_JS = r"""() => {
+  // 🔴 Der WEG gehoert dazu. Der erste Lauf nahm nur die Beschriftung mit,
+  //    und "Zeile loeschen" gibt es an DREI Quellstellen - welche gerendert
+  //    war, liess sich hinterher nicht mehr sagen. Ein Befund ohne Ort ist
+  //    ein halber.
+  const weg = e => {
+    const t = [];
+    let x = e;
+    while (x && x.nodeType === 1 && t.length < 6) {
+      let s = x.tagName.toLowerCase();
+      if (x.id) { t.unshift(s + '#' + x.id); break; }
+      const k = (x.className && typeof x.className === 'string')
+        ? x.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+      if (k) s += '.' + k;
+      t.unshift(s);
+      x = x.parentElement;
+    }
+    return t.join('>');
+  };
   const aus = [];
   document.querySelectorAll('button,[role="button"]').forEach(b => {
     const r = b.getBoundingClientRect();
@@ -60,7 +78,7 @@ KNOEPFE_JS = r"""() => {
     const t = ((b.getAttribute('aria-label') || '')
                + ' ' + (b.getAttribute('title') || '')
                + ' ' + (b.innerText || '')).replace(/\s+/g, ' ').trim();
-    if (t) aus.push(t.slice(0, 48));
+    if (t) aus.push(t.slice(0, 48) + ' │ ' + weg(b));
   });
   return aus;
 }"""
