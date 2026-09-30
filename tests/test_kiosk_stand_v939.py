@@ -191,8 +191,20 @@ def test_die_uhr_und_das_datenalter_sind_zwei_merker(roh):
         "Es gibt keinen getrennten Uhr-Merker - dann kann der Alterstext nicht "
         "mitwachsen, ohne den Stand zu verschieben.")
     assert "setJetzt(Date.now());" in roh, "Die Uhr wird nicht fortgeschrieben."
-    assert roh.count("setJetzt(Date.now())") == 1, (
-        "Die Uhr wird an %d Stellen gestellt." % roh.count("setJetzt(Date.now())"))
+    # 🔴 v3.9.998 — HIER STAND `== 1`. Die Zahl war richtig, solange es EINE
+    # Tafel mit dieser Kur gab. Am 30.09. hat eine Messung AM SCHIRM gezeigt,
+    # dass die ZWEITE Tafel (Wochenplan) weiter eine blosse Uhr als "Stand"
+    # ausgab: 40 Minuten ohne Netz, und sie zeigte trotzdem die aktuelle
+    # Uhrzeit. Die Kur ist dorthin uebertragen worden - und damit wurde
+    # dieser Riegel ROT. Er hielt genau das fest, was er verhindern will.
+    # Jetzt eine Sperrklinke statt einer festen Zahl: mehr Tafeln mit
+    # getrennten Merkern sind die Richtung, in die er zeigt; weniger nicht.
+    n = roh.count("setJetzt(Date.now())")
+    assert n >= 2, (
+        "Nur %d Tafel(n) trennen Uhr und Datenalter, erwartet sind "
+        "mindestens 2\n  (MonteurTafel seit v3.9.939, WochenplanTafel seit "
+        "v3.9.998). Faellt eine\n  zurueck, behauptet sie an der Wand "
+        "Frische, die sie nie geprueft hat." % n)
 
 
 def test_die_schwelle_ist_eine_benannte_konstante(roh):
