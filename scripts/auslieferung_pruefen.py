@@ -130,4 +130,15 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    # v3.9.999: DIESES WERKZEUG IST AN SEINER EIGENEN ERFOLGSMELDUNG
+    # GESTORBEN - auf dem gruenen Zweig, nach einer einwandfreien Messung.
+    # Es steht in keiner Torkette und war deshalb von der Kur aus v3.9.995
+    # nicht erfasst; es ist eines der 43 Skripte aus
+    # docs/befunde/AUSGABE_CP1252.md. Wer die Auslieferung prueft, braucht
+    # als letztes ein Werkzeug, das beim Melden abstuerzt.
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
     sys.exit(main(sys.argv[1:]))
