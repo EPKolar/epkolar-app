@@ -27,7 +27,20 @@ def test_iso_week_year_helper(node_exe, index_html):
     assert res == [2026, 2026, 2026], f"isoWY falsch: {res}"
     # v3.9.670: WochenplanTafel-Kiosk nutzt jetzt isoWYof(today) (ISO-Wochenjahr des um den Auto-Offset
     # verschobenen Datums) statt isoWY() → 3x isoWY() (die uebrigen KW-Views) + 1x isoWYof(today) (Kiosk).
-    assert index_html.count("const yr=isoWY();") == 3, "die uebrigen KW-Views muessen isoWY nutzen"
+    #
+    # 🔴 v3.9.993: AUS `== 3` WURDE EINE SPERRKLINKE `>= 5`, und das ist kein Aufweichen.
+    #    Der ZWECK dieses Riegels ist "die KW-Views muessen isoWY nutzen" - je MEHR, desto
+    #    besser. Die Gleichheit hat das Gegenteil bewirkt: sie wurde rot, als in der
+    #    Bughunt-Nacht ZWEI WEITERE Views von `new Date().getFullYear()` auf `isoWY()`
+    #    umgestellt wurden (ProjectShell und VZeit). Beide reichen ihr `yr` zusammen mit
+    #    einer ISO-Kalenderwoche weiter bzw. rechnen selbst damit; vorher zeigten sie an
+    #    20 von 4380 Tagen eine Woche aus einem ANDEREN Jahr, und wer dort buchte, schrieb
+    #    das Datum dorthin.
+    #    Eine Klinke nach unten faengt die Rueckkehr genauso ab - nur eine Verbesserung
+    #    nicht mehr. Der Gegenriegel steht in tests/test_nachtjagd_v993.py: dort wird
+    #    gezaehlt, dass GENAU DREI getFullYear()-Stellen uebrig bleiben (die finkzeit-
+    #    Jahresfilter und das Monatsgitter - dort ist das Kalenderjahr richtig).
+    assert index_html.count("const yr=isoWY();") >= 5, "die KW-Views muessen isoWY nutzen"
     assert "const yr=isoWYof(today);" in index_html, "WochenplanTafel-Kiosk nutzt isoWYof(today) fuer den Wochen-Offset"
 
 

@@ -36,6 +36,30 @@ import os
 import re
 import sys
 
+
+def _ins_sperrprotokoll(grund):
+    """Schreibt eine Sperre ins gemeinsame Protokoll unter ~/.claude/hooks/.
+
+    🔴 30.09.2026 — Punkt 3 des Regelwerk-Auftrags: „Das Sperrprotokoll zaehlt
+       den ersten echten Stop-Stopp mit." Bis heute protokollierte KEIN Haken
+       etwas; auf die Frage „wie oft hat er gegriffen" war die einzige ehrliche
+       Antwort: unbekannt.
+
+    🔴 FAELLT NIE AUS. Liegt das Protokoll nicht da (anderer Rechner, anderes
+       Projekt), passiert nichts. Ein Haken, der wegen eines fehlenden
+       Protokolls abstuerzt, sperrt beim naechsten Mal aus dem falschen Grund —
+       und das waere schlimmer als ein ungezaehltes Ereignis.
+    """
+    try:
+        ort = os.path.join(os.path.expanduser("~"), ".claude", "hooks")
+        if ort not in sys.path:
+            sys.path.insert(0, ort)
+        from sperrprotokoll import notiere  # noqa: PLC0415
+        notiere("gedaechtnis-index", "sperre", grund, "Stop")
+    except Exception:
+        pass
+
+
 # Die Grenze, ab der der Index nicht mehr verlaesslich gelesen wird.
 # 17,1 KB in der strengeren Lesart (1 KB = 1024 Bytes).
 GRENZE = 17510
@@ -167,6 +191,16 @@ def main(argv):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+    # 🔴 30.09.2026 — STDERR FEHLTE HIER, UND GENAU DORT STEHT JETZT DIE
+    #    SPERRBEGRUENDUNG. Gemessen beim ersten Koederlauf: die Meldung kam als
+    #    `\U0001f534 GEDAECHTNIS-INDEX ...` heraus statt mit dem roten Punkt —
+    #    Pythons Vorgabe fuer stderr ist `backslashreplace`, und die Windows-
+    #    Konsole (cp1252) kann das Zeichen nicht. Eine Sperrbegruendung, die
+    #    als Zeichenfolge-Muell ankommt, wird nicht gelesen.
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     haken = "--haken" in argv
 
     schief = eichen()
@@ -176,6 +210,25 @@ def main(argv):
             for s in schief:
                 print("   \U0001F534 " + s)
             print("\nNICHT GEMESSEN.")
+        else:
+            # 🔴 30.09.2026 — DIE SPERRE WAR STUMM.
+            #    Bis heute war dieser Haken als `... 2>/dev/null || true`
+            #    registriert: `|| true` machte den Ausgang 2 WIRKUNGSLOS, der
+            #    Haken konnte also gar nicht sperren. Nach dem Entfernen sperrt
+            #    er wirklich — und dann muss dabeistehen, WARUM, sonst endet ein
+            #    Zug ohne Begruendung und der Naechste sucht im Dunkeln.
+            #    Gemessen am 30.09.: Koeder mit verbogener Eichung -> Ausgang 2,
+            #    und KEINE Zeile Ausgabe. Das ist hiermit behoben.
+            sys.stderr.write(
+                "\U0001F534 GEDAECHTNIS-INDEX: NICHT GEMESSEN - der Pruefer "
+                "ist nicht geeicht.\n"
+                + "".join("   - " + s + "\n" for s in schief)
+                + "Angehalten wird, WEIL die Pruefung selbst nicht traegt. Das "
+                "ist kein Befund am Gedaechtnis, sondern einer am Werkzeug:\n"
+                "nicht gemessen ist nicht bestanden.\n"
+                "Nachsehen mit:  python scripts/gedaechtnis_pruefen.py\n")
+            _ins_sperrprotokoll("Eichung gescheitert: "
+                                + "; ".join(schief)[:200])
         return 2
 
     ordner = _ordner()
