@@ -1100,3 +1100,67 @@ drei Punkte auf einmal.
 
 Das ist eine Entscheidung und kein Mangel, deshalb steht sie hier und ist
 nicht einfach gebaut worden. Messung dazu: `docs/befunde/CDN_ABDRUECKE.md`.
+
+---
+
+# Nachtrag 30.09.2026, v3.9.996 — drei Fragen aus dem Bughunt, die keine Messung beantworten kann
+
+Die elf Befunde der Bughunt-Nacht sind kuriert (`docs/befunde/BUGHUNT_2026-09-30.md`).
+Drei weitere sind **gemessen und nicht gebaut**, weil sie Entscheidungen sind
+und keine Mängel. Sie stehen hier, statt still nach meinem Gutdünken gelöst zu
+werden.
+
+### 31. 🔴 Welche Pausenregel gilt? — es sind zwei, und sie stehen nebeneinander
+
+In einer Datei liegen **zwei** Regeln für den Pausenabzug:
+
+* `_stPauseAbzug` zieht **pauschal 60 Minuten je Rolle** ab;
+* der KV-Block rechnet **30 Minuten ab 6 Stunden** (`pauseAbStd:6, pauseMin:30`).
+
+Beide sind in Gebrauch. Welche gilt, hängt davon ab, über welchen Weg eine
+Stunde gebucht wird — nicht davon, was arbeitsrechtlich richtig ist.
+
+**Der Unterschied ist Geld.** Bei einem Acht-Stunden-Tag sind es 30 Minuten je
+Mann und Tag. Bei 15 Leuten und 250 Arbeitstagen rund **940 Stunden im Jahr**
+— ausdrücklich eine Rechnung und keine Messung.
+
+**Das ist eine kollektivvertragliche Frage**, keine Quelltextfrage. Ich kann
+messen, welche Regel wo greift; ich kann nicht entscheiden, welche gelten
+soll. Sag mir die richtige, dann wird die andere entfernt — nicht
+danebengestellt.
+
+### 32. Die Nachtschicht ergibt −17 Stunden
+
+Wer um 22:00 beginnt und um 06:00 endet, bekommt **minus 17 Stunden**
+gutgeschrieben: gerechnet wird Ende minus Beginn innerhalb **eines** Tages,
+und über Mitternacht gibt es keinen Weg.
+
+Das ist **kein Flicken, sondern ein Umbau**: ein Eintrag müsste ein Ende am
+Folgetag tragen können, und alles, was darauf rechnet (Wochensumme,
+Monatsabrechnung, Export), müsste das mitmachen.
+
+**Die Frage an dich ist eine andere:** *gibt es bei EP Kolar überhaupt
+Nachtarbeit?* Wenn nein, ist der richtige Schritt, die Eingabe zu **sperren**
+und es zu sagen — eine Zeile Arbeit statt eines Umbaus. Wenn ja, gehört der
+Umbau geplant. Ich habe bewusst nichts gebaut, bevor das geklärt ist.
+
+### 33. Der Jahreswechsel — 23 Ersetzungen liegen fertig, ich habe sie nicht angewandt
+
+Vorbereitet in `docs/befunde/bughunt/z2_jahreswechsel.md`: der Wochenplan
+rechnet an der Jahresgrenze mit dem Kalenderjahr statt dem ISO-Jahr. In der
+Woche zwischen den Jahren zeigt er dann die falsche Woche.
+
+**Warum es liegen bleibt:** mit der Kur bekäme die Spalte
+`weekplan_rows.year` zum ersten Mal Werte des **Folgejahres**. Ob der
+Primärschlüssel und der Zeilenschutz das tragen, ist eine Frage an die
+Datenbank — und in dieser Umgebung gibt es keinen Zugang. Eine Kur, die die
+Anzeige richtigstellt und dabei das Speichern bricht, ist schlimmer als der
+Fehler.
+
+**Was ich brauche:** einmal den Aufbau von `weekplan_rows` (Primärschlüssel,
+Beschränkungen, Zeilenschutz-Regeln). Dann wird es angewandt — die Änderungen
+liegen fertig, samt der Reihenfolge-Bedingung, dass eine bestimmte Stelle vor
+einer anderen dran muss, sonst passt ein Anker zweimal.
+
+**Zeitpunkt:** das drängt bis Ende Dezember. Danach ist es kein Befund mehr,
+sondern ein Vorfall.
