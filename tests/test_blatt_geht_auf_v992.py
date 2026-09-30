@@ -56,18 +56,40 @@ import re
 HIER = os.path.dirname(os.path.abspath(__file__))
 PFAD = os.path.join(HIER, "..", "index.html")
 
-# Die vier Vorkommen des Blattes, an eindeutigen Ankern. Die Zahl dahinter
-# ist die erwartete Haeufigkeit - weicht sie ab, wird der Riegel rot statt
+# Die Vorkommen des Blattes, an eindeutigen Ankern. Die Zahl dahinter ist die
+# erwartete Haeufigkeit - weicht sie ab, wird der Riegel rot statt
 # stillschweigend weniger zu pruefen.
+#
+# 🔴 UND GENAU HIER HAT ER VERSAGT, v3.9.997: die Liste fuehrte VIER Stellen,
+# das Blatt hatte FUENF. `eventuelle Minderstunden` stand eine Zeile unter der
+# vierten und blieb auf EINER Nachkommastelle - `38.5 - 36.42 = 2.08` wurde
+# auf demselben UNTERSCHRIEBENEN Blatt als `2.1` gedruckt. Eine Liste
+# benannter Anker kann eine fuenfte Stelle nicht sehen; sie wird gruen,
+# solange die vier bekannten stimmen. Gefunden hat es ein Messagent, nicht
+# dieser Riegel.
+#
+# 🔴 EIN ZWEITER ANLAUF AUF DIE KLASSENREGEL IST AM 30.09. GESCHEITERT, und
+# das steht hier, damit es niemand zum dritten Mal versucht: ein Werkzeug
+# sollte alle Zahlen des Blattes ueber die umgebenden Template-Literale
+# einsammeln. Backticks lassen sich in dieser Datei aber nicht naiv paaren -
+# Zeichenketten, verschachtelte `${}` und Backticks in Kommentaren reissen
+# Scheinliterale auf. Das Werkzeug meldete 42 Zahlen quer durch die Datei als
+# EIN Blatt. Es ist wieder entfernt worden, statt falsche Zahlen zu liefern.
+# Die Klassenregel bleibt offen, bis es einen verlaesslichen Klammer- UND
+# Literalabgleich gibt.
 GEKURT = [
     ('dt>0?_n(dt,2):""', 2, "die beiden Tageszellen"),
     ("_n(weekTotal,2)}", 1, "die Wochensumme"),
     ('"eventuelle Mehrstunden: "+_n(diff,2)+"h"', 1, "die Mehrstunden"),
+    ('"eventuelle Minderstunden: "+_n(Math.abs(diff),2)+"h"', 1,
+     "die Minderstunden"),
 ]
 ALT = [
     ('dt>0?_n(dt,1):""', "die Tageszelle"),
     ("_n(weekTotal,1)}", "die Wochensumme"),
     ('"eventuelle Mehrstunden: "+_n(diff,1)+"h"', "die Mehrstunden"),
+    ('"eventuelle Minderstunden: "+_n(Math.abs(diff),1)+"h"',
+     "die Minderstunden"),
 ]
 
 

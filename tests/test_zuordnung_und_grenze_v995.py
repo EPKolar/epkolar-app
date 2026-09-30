@@ -101,7 +101,14 @@ def test_b1_die_kennung_hat_vorrang_statt_eines_oder():
         "zugehoerig, wenn\n  ihre KENNUNG widerspricht - bei zwei "
         "Mitarbeitern gleichen Namens sieht jeder\n  die Krankmeldungen des "
         "anderen.")
-    assert "r&&r.worker_id?String(r.worker_id)===String(workerId)" in code, (
+    # 🔴 v3.9.997 — ZEUGE GETAUSCHT, ZWECK UNVERAENDERT. Hier stand
+    # `r&&r.worker_id?…`. Diese Form war selbst fehlerhaft: sie fragte, ob
+    # die ZEILE eine Kennung hat, nicht ob ICH eine zum Vergleichen habe. Bei
+    # leerem `workerId` blieb die Attestliste LEER. Der Vorrang der Kennung
+    # gilt weiter - er beginnt jetzt nur dort, wo es eine Kennung gibt.
+    # Die eigene Probe dazu steht in tests/test_nebenwirkungen_997.py.
+    assert "(workerId&&r&&r.worker_id)?String(r.worker_id)===String(workerId)" \
+        in code, (
         "Der Vorrang der Kennung fehlt. Eine Zeile MIT Kennung muss ueber "
         "die Kennung\n  passen; nur eine Altzeile ohne Kennung darf auf den "
         "Namen zurueckfallen.")
