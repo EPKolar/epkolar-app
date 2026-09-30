@@ -89,7 +89,26 @@ def test_rls_silent_denial_labels_map(index_html):
         "Map-Konstante fehlt — wurde fahrzeuge-Hardcode-Check noch nicht generalisiert?"
     )
     # Pflicht-Eintraege fuer Welle-1-Tabellen mit PATCH-Pfad
-    for table in ("fahrzeuge", "time_entries", "forms", "bautagebuch", "fz_schaeden"):
+    #
+    # 🔴 v3.9.994: `fz_schaeden` IST HIER RAUS, weil die Bedingung dieser
+    #    Liste - "mit PATCH-Pfad" - fuer sie nicht mehr gilt. Die Tabelle ist
+    #    in v3.9.432 abgeschafft worden; der Uebersetzer faengt sie ab und
+    #    gibt `{ok:1,skipped:"fz_schaeden_removed"}` zurueck, es gibt keine
+    #    Route dorthin. Ihr Eintrag in der Waechter-Tafel konnte also NIE
+    #    feuern und taeuschte eine Deckung vor: die Tafel fuehrte elf Namen,
+    #    aber nur zehn wirkten. Gefunden beim Nachzaehlen der 27 ueber die
+    #    Warteschlange beschreibbaren Tabellen.
+    #    Der ZWECK dieser Pruefung bleibt: die Welle-1-Tabellen, die WIRKLICH
+    #    einen PATCH-Pfad haben, muessen in der Tafel stehen. Die Gegenprobe
+    #    darunter haelt fest, dass der Abfang noch da ist - kommt die Tabelle
+    #    je zurueck, gehoert auch ihr Tafel-Eintrag zurueck.
+    assert 'skipped:"fz_schaeden_removed"' in index_html, (
+        "Der Abfang fuer die abgeschaffte Tabelle `fz_schaeden` ist weg.\n"
+        "  Dann gibt es dort wieder einen Schreibweg - und dann gehoert sie "
+        "auch wieder\n  in _RLS_SILENT_DENIAL_LABELS und in die Liste "
+        "darunter."
+    )
+    for table in ("fahrzeuge", "time_entries", "forms", "bautagebuch"):
         assert f"{table}:" in index_html, (
             f"_RLS_SILENT_DENIAL_LABELS fehlt Eintrag fuer Tabelle '{table}'"
         )
