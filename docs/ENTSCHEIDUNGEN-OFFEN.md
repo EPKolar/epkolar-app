@@ -1,4 +1,9 @@
-# Offene Entscheidungen — dreißig Fragen, davon SIEBEN erledigt
+# Offene Entscheidungen — 28 offene Fragen (Stand 30.09.2026)
+
+> **Entrümpelt am 30.09.2026** — hier steht nur noch, was OFFEN ist.
+> Die 9 erledigten Abschnitte sind entfernt; sie stehen unverändert
+> in der git-Historie, zuletzt vollständig unter `c2ad00f`.
+
 
 > **Stand 29.09.2026, v3.9.986.** Seit dem 28.09. hat sich dreierlei geändert,
 > und zwar durch Messen, nicht durch Nachdenken:
@@ -292,110 +297,6 @@ Verbesserung aussieht. Wer eine setzt, nennt dort den Text und woher er kommt.
 Das ist kein Verbot von Überschriften, sondern ein Verbot von Überschriften
 **ohne Herkunft**.
 
-### ~~15. Das Klammertor beurteilt 28 % von `index.html`~~ — **erledigt am 29.09.2026**
-
-> **Das war keine Entscheidung.** Die Frage lautete „soll der Streicher neu
-> gebaut werden, das Ergebnis ist eine neue Grundlinie, die erst geprüft
-> werden muss". Genau das ist jetzt passiert — und die neue Grundlinie
-> brauchte keine Prüfung durch dich, sie ist **null**.
->
-> `scripts/klammerbilanz.py` benutzt `code_scan.ist_code`, denselben
-> zustandsbasierten Abtaster, der schon fünf andere Riegel trägt und eine
-> Eichprobe bestehen muss:
->
-> | | altes Tor | neues Tor |
-> |---|---:|---:|
-> | beurteilter Anteil | 27,9 % | **54,9 %** |
-> | Bilanz `()` | −1 | **0** |
-> | Bilanz `[]` / `{}` | 0 / 0 | 0 / 0 |
-> | nennt die Stelle | nein | **ja, mit Zeile** |
->
-> **Die alte Grundlinie war ein Artefakt** — und das ist nachgerechnet, nicht
-> vermutet. Der Kopftext des alten Tors behauptete seit dem 18.05.2026 das
-> Gegenteil („*confirmed it is NOT a stripper artifact … a real, stable
-> code-level imbalance*"). Gegengerechnet: die Klammern, die **nur** das alte
-> Tor zählt, sind netto 0; die, die **nur** das neue zählt, sind netto **+1**.
-> Das `−1` ist also das Spiegelbild eines `+1` in der eigenen blinden Zone
-> des alten Streichers. Die falsche Notiz steht jetzt richtiggestellt in
-> `scripts/_bracket_check.py`.
->
-> 🔴 **Das Argument ist nicht die schönere Zahl.** Ein Tor auszutauschen,
-> weil die neue Zahl gefälliger aussieht, ist dieselbe Bewegung wie eine
-> Prüfung anzupassen, damit sie grün wird. Das Argument ist, dass das neue
-> Tor einen Fehler findet, den das alte nicht findet — belegt an `index.html`
-> selbst: eine einzelne unpaarige `(` in echten Code bei Zeile 11380 gesetzt,
-> **altes Tor grün, neues Tor rot mit Zeilenangabe**
-> (`scripts/klammertor_vergleich.py`; arbeitet auf einer Kopie und vergleicht
-> den Abdruck des Originals davor und danach).
->
-> **Das alte Tor bleibt in der Kette**, mit unveränderter Grundlinie. Es
-> kommt eines **dazu**, es wird keines ersetzt — `test_klammertor_blindheit_v956`
-> misst den alten Streicher weiter und hält seine Blindheit fest.
->
-> **Die praktische Regel unten gilt trotzdem weiter:** kein Backtick in einen
-> Kommentar von `index.html`, solange das alte Tor so gebaut ist. Es ist
-> immer noch in der Kette, und es wird immer noch rot davon.
-
-Der ursprüngliche Befund, unverändert:
-
-#### 15. 🔴 Das Klammertor beurteilt 28 % von `index.html` — soll es repariert werden?
-
-**Gefunden durch einen eigenen Fehler.** Ich habe in einen Blockkommentar ein
-Paar Backticks geschrieben — `` `ueberschriften: []` ``, die übliche
-Zitierweise dieser Datei. Danach meldete `scripts/_bracket_check.py` `() -4`
-statt der Grundlinie `() -1`, und der Riegel daneben wurde rot. **Am Quelltext
-war nichts falsch.**
-
-Der Streicher in `_bracket_check.py` setzt das Template-Literal-Muster
-(`` `…` ``) **vor** das Kommentarmuster. Mein Backtick wurde deshalb als
-**Ende** eines viel früher geöffneten Template-Literals gelesen: ein einzelner
-Treffer lief über **375.741 Zeichen echten Code** und nahm dessen Klammern mit
-aus der Bilanz.
-
-**Beim Nachmessen kam das Größere heraus.** Am heilen Stand:
-
-```
-Datei        3.663.123 Zeichen
-gestrichen   2.640.833  = 72,1 %
-beurteilt    1.022.290  = 27,9 %
-```
-
-Davon gehen **1.466.372 Zeichen (40,0 % der Datei)** auf 22 Treffer, die mit
-einem Backtick beginnen und länger als 20.000 Zeichen sind. Bei den meisten
-folgt dem Backtick **deutsche Kommentar-Prosa**:
-
-```
-"` wird BENUTZT, nicht nachgebaut; die Funktion bleibt bytegleich. */..."
-"` war immer truthy -> ALLE FS-Chips hatten blauen Rand */,cursor:..."
-```
-
-Das sind keine Template-Literale. Diese Datei zitiert in Kommentaren mit
-Backticks, und **jeder einzelne verschiebt die Paarung**. Die Grundlinie
-`() -1` ist damit die Restsumme dessen, was übrig bleibt — **keine Aussage über
-die Klammern des Codes**. In den blinden Bereichen liegen
-Klammer-Ungleichgewichte im Umfang von 52.
-
-**Das Tor ist nicht geändert, und das ist Absicht.** Ein besserer Streicher
-ergibt eine andere Grundlinie, und ob eine neue Zahl ein echter Fund oder ein
-Artefakt ist, kann ich nicht allein entscheiden. Ein Tor anzupassen, weil man
-es besser zu wissen glaubt, ist dieselbe Bewegung wie es grün zu machen.
-
-**Frage an dich:** soll der Streicher zustandsbasiert neu gebaut werden — so
-wie `scripts/code_scan.py`, das eine Eichprobe bestehen muss und die Auskunft
-verweigert, wenn es sie nicht besteht? Das wäre ein halber Tag, und das
-Ergebnis ist eine **neue Grundlinie**, die erst einmal geprüft werden muss.
-
-**Was in der Zwischenzeit schützt:**
-`tests/test_klammertor_blindheit_v956.py` nagelt die Blindheit fest, damit sie
-nicht weiter wächst — gestrichener Anteil höchstens 73 %, kein
-**Backtick**-Treffer über 250.000 Zeichen (der längste echte ist 196.656, ein
-HTML-Bericht als Template-Literal). Ausdrücklich nicht der längste Treffer
-überhaupt: das ist der Changelog-Kommentar hinter `APP_VERSION` mit 256.069
-Zeichen, und der wächst mit jeder Version.
-
-**Und die praktische Regel für jeden, der hier schreibt:** in `index.html`
-gehört **kein Backtick in einen Kommentar**, solange das Tor so gebaut ist.
-
 ### 16. 🔴 Elf übersprungene Prüfungen verweisen auf einen Nachfolger, der nur die *Datei* prüft
 
 **Gemessen am 27.09.2026.** Die Stempeluhr hat mit v3.9.769 ihre Logik
@@ -453,147 +354,11 @@ gegenmisst. Er braucht aber eine Sitzung mit Leserecht auf `pg_proc` — mit dem
 Anon-Schlüssel geht es nicht, und ein Prüfer, der aus Mangel an Rechten nichts
 findet, meldet grün.
 
-### ~~17. Sieben Skripte kommen von einer fremden CDN — ohne Prüfsumme~~ — **erledigt in v3.9.986 (29.09.2026)**
-
-> **Das war keine Entscheidung, sondern ein Mangel** — deshalb ist es gebaut
-> und nicht gefragt worden. Alle acht Tags (sieben Skripte **und** das
-> Leaflet-Stilblatt) tragen jetzt `integrity` neben dem `crossorigin`, das
-> schon da war.
->
-> Die Abdrücke stammen von `api.cdnjs.com` — und weil das **selbst cdnjs**
-> ist, wäre das ein Zirkel gewesen: jede der acht Dateien wurde zusätzlich
-> abgerufen und ihr sha512 selbst gebildet. Acht von acht stimmten überein.
-> `scripts/cdn_abdruecke_setzen.py --nachrechnen` wiederholt genau das vor
-> jedem Schreiben und schreibt **nichts**, wenn einer abweicht.
->
-> **Am Schirm belegt, nicht nur im Quelltext**
-> (`scripts/cdn_abdruecke_wirkung.py`): echter Lauf 8/8 HTTP 200, keine
-> Konsolenmeldung, React hängt im Baum. Köderlauf mit einem absichtlich
-> verdorbenen Abdruck: *„Failed to find a valid digest"*, React `undefined`,
-> `#root` leer — **weiße Seite**. Ohne diesen Köderlauf wäre die grüne
-> Meldung wertlos gewesen.
->
-> **Eine Stelle bleibt und wird benannt:** `index.html:4304` weist
-> `workerSrc` zur **Laufzeit** eine Adresse zu. Die Norm kennt SRI nur für
-> Tags — dort gibt es kein Attribut, an das man etwas schreiben könnte.
-> Gemessen wird trotzdem, dass der Arbeiter dieselbe pdf.js-Fassung trägt wie
-> das Skript im Kopf und dass es bei **genau einer** solchen Ausnahme bleibt.
->
-> **Was offen bleibt, ist die größere Frage dahinter:** sollen die Dateien
-> ganz ins Repo, wie es mit der Schrift Archivo in v3.9.933 gemacht wurde?
-> Das löst zusätzlich Offline-Betrieb, fremde Verfügbarkeit **und** den
-> Arbeiter oben. Das ist eine Entscheidung — siehe unten, Frage 30.
->
-> Riegel: `tests/test_cdn_integrity_v986.py` (8 Fälle, drei Köder).
-> Messung: `docs/befunde/CDN_ABDRUECKE.md`.
-
-Der ursprüngliche Befund, unverändert:
-
-**Gemessen am 27.09.2026.** Der Kopf von `index.html` lädt sieben Bibliotheken
-von `cdnjs.cloudflare.com`. **Keine einzige** trägt ein `integrity`-Attribut:
-
-| | |
-|---|---|
-| `react` 18.2.0 · `react-dom` 18.2.0 | die ganze Oberfläche |
-| **`bcryptjs` 2.4.3** | **hasht die Passwörter** |
-| `pdf.js` 3.11.174 | Planansicht |
-| `qrcode-generator` 1.4.4 | Bauprovisorien-Aufkleber |
-| `jspdf` 2.5.1 | PDF-Erzeugung |
-| `leaflet` 1.9.4 | Flottenkarte |
-
-**Was das bedeutet.** Ohne `integrity` prüft der Browser nicht, *was* er
-ausführt — nur *von wo*. Liefert cdnjs eines dieser Dateien verändert aus (weil
-die CDN kompromittiert ist, ein Konto übernommen oder ein Zwischenspeicher
-vergiftet), führt jeder Browser den fremden Code mit allen Rechten der App aus.
-Bei `bcryptjs` heißt das: die Passwörter laufen durch fremden Code.
-
-Die CSP erlaubt `cdnjs` ausdrücklich (`script-src 'self' cdnjs`) — sie schützt
-also gegen *andere* Herkünfte, nicht gegen eine veränderte Datei von cdnjs.
-
-**Warum ich es nicht gebaut habe.** Ein `integrity`-Attribut mit einer falschen
-Prüfsumme lädt die Datei **nicht** — die App wäre weiß. Sieben Hashes müssen
-alle stimmen, und ich müsste sie aus dem Netz holen. Das ist kein Aufräumen,
-das ist eine Änderung, die die App beim ersten Fehler unbenutzbar macht. Sowas
-entscheidest du.
-
-**Wenn du willst, ist es ein überschaubarer Schritt** — und zwar einer mit einer
-klaren Gegenmessung:
-
-1. Für jede der sieben Dateien den Hash holen. cdnjs liefert ihn selbst mit,
-   pro Version, in seiner API:
-   `https://api.cdnjs.com/libraries/react?fields=sri` (und so für jede).
-2. Ins Skript-Tag: `integrity="sha384-…" crossorigin="anonymous"`. Das
-   `crossorigin` ist nicht optional — ohne es kann der Browser die Prüfung
-   nicht durchführen.
-3. **Gegenmessung, und die ist der eigentliche Punkt:** die App einmal laden und
-   in der Konsole nachsehen, dass *keine* der sieben Dateien blockiert wurde.
-   Ein Tippfehler in einem Hash sieht genauso aus wie ein Angriff — die Datei
-   lädt nicht. Ein Riegel danach ist leicht: „jedes absolute `<script src>` im
-   Kopf trägt `integrity` und `crossorigin`", mit einem Köder je Form.
-
-**Die dritte Möglichkeit, und vielleicht die bessere:** die sieben Dateien ins
-Repo legen, so wie es mit Archivo schon gemacht wurde (v3.9.933, aus demselben
-Grund — eine Schrift von Google scheiterte still an der CSP). Dann hängt die App
-an keiner fremden Verfügbarkeit, funktioniert offline vollständig, und die Frage
-nach der Prüfsumme erledigt sich. Kosten: rund 1,5 MB im Repo und ein
-Aktualisierungsschritt bei jedem Versionswechsel.
-
-**Nicht gemessen:** ob cdnjs für alle sieben Versionen einen SRI-Hash anbietet
-(ich war nicht im Netz), und wie groß die sieben Dateien zusammen wirklich sind.
-Die 1,5 MB sind geschätzt und als Schätzung gekennzeichnet.
-
----
-
 # Nachtrag 27.09.2026, v3.9.967 — vier neue Fragen aus den fuenf Lesbarkeits-Punkten
 
 Alle vier sind **gemessen** und alle vier sind **aufgeschoben**, nicht vergessen: jede
 verlangt einen eigenen Schritt mit eigener Messung, und drei davon haben einen
 Preis, der erst gemessen werden muss.
-
-### 18. Soll die App-Hülle auf 12 px gehoben werden? (27.09.2026)
-
-**Was gemessen ist:** nach dem Heben von Fahrzeugen, Arbeitsscheinen und
-Planung bleiben bei 390 px **zwei** und bei 1440 px **sieben** Stellen unter
-12 px — und **alle** sitzen in der Hülle, nicht im Inhalt einer Ansicht:
-
-* `header`: die Firmenzeile („Der Haustechnikprofi · Visionen – Konzepte – …"),
-  die Server-Anzeige, `⌘K`, `Administrator · KW 39`, der Abmelde-Knopf
-* `div.bottom-nav`: die Beschriftungen unter den Symbolen
-* das Sync-Banner (`🔄 Jetzt sync`, `18 ausstehend`)
-
-**Warum es nicht einfach mitgemacht wurde:** die Hülle trägt **jede** der 22
-Ansichten. Ein Griff dort verändert 22 Messwerte gleichzeitig, und dann lässt
-sich nicht mehr sagen, welche Zahl von wo kommt. Bei den CSS-Regeln wurde die
-Fußnavigation schon von 9 auf 12 px gehoben (v3.9.966) — was jetzt noch
-übrigbleibt, sind **Inline**-Werte, die die mobile CSS-Stufe vorher verdeckt
-hat und die bei 1440 px sichtbar werden.
-
-**Die Frage:** eigener Schritt mit eigener Messung über alle 22 Ansichten —
-oder bleibt die Hülle bewusst kompakt, weil sie dauerhaft sichtbar ist und
-Platz kostet? Die Kopfleiste hat am 26.09. schon einmal einen Zwilling
-gehabt; sie ist die empfindlichste Stelle der App.
-
-**Nicht gemessen:** ob die Kopfleiste bei 12 px in zwei Zeilen umbricht. Genau
-das war der Grund für die v3.8.81-Zweizeiligkeit.
-
----
-
-### 19. Soll `svg text` in den Diagrammen auf 12 px? (27.09.2026)
-
-Es ist die **einzige** CSS-Regel, die noch eine Schrift unter 12 px erzwingt —
-10 px, für die Achsenbeschriftungen der Diagramme. Sie steht absichtlich, und
-der Riegel `test_css_boden_12px_v966` hält sie **namentlich** fest: verschiebt
-sich die Ausnahme oder wächst die Liste, schlägt er an.
-
-**Warum sie steht:** Achsenbeschriftungen stehen dicht nebeneinander. 10 → 12 px
-kann sie zum Überlappen bringen, und ein überlappender Text ist schlechter
-lesbar als ein kleiner.
-
-**Was zu messen wäre:** die Diagramme bei 390 und 1440 px, mit der echten Saat
-(185 Arbeitsscheine liefern deutlich mehr Datenpunkte als drei), und zwar auf
-**Überlappung** — nicht auf Schriftgröße. Dafür gibt es noch keinen Melder.
-
----
 
 ### 20. Sollen die 124 anklickbaren Nicht-Knöpfe Tastaturzugang bekommen? (27.09.2026)
 
@@ -700,23 +465,6 @@ Bis zur Antwort ist die Null als **neutralisiert** im Riegel geführt: fällt di
 
 ---
 
-### 23. 🔴 Das Ringdiagramm verliert Einträge — und das ist kein Schriftproblem
-
-`SvgPie` zeichnet die Legendenzeile *i* bei `y = i*18+16` in eine `viewBox` von
-nur 150 Höhe. **Ab der neunten Zeile liegt sie außerhalb und wird nie
-gezeichnet.**
-
-Gemessen: **`absTyp` verliert 7 von 15 Einträgen, `asArt` 1 von 9.**
-
-Das ist fehlende Information, nicht kleine Information. Keine Schriftgröße
-behebt es. Drei Wege: die `viewBox` mitwachsen lassen · die Legende neben statt
-unter den Ring setzen · ab der neunten Zeile zusammenfassen („+7 weitere").
-
-**Die Frage an dich:** welcher — und ist es dringend? Es betrifft die
-Abwesenheitsarten, also eine Auswertung, die du vermutlich regelmäßig ansiehst.
-
----
-
 ### 24. Drei CSS-Regeln pflegen Bauteile, die es nicht gibt
 
 `.ber-table`, `.badge` und das Sync-Banner-Muster treffen im Hauptdokument
@@ -796,104 +544,12 @@ Tabelle ist der billigste Zeitpunkt dafür.
 
 ---
 
-### ~~27. Die Kiosk-Wochenplantafel hat denselben Austrittsfehler~~ — **erledigt in v3.9.988 (29.09.2026)**
-
-> **Auf deinen Zuruf gebaut.** `maName` in `WochenplanTafel` bekommt jetzt den
-> ISO-Tag der Spalte und fragt `_wpMaSichtbarAmTag` — dieselbe Form wie in
-> `WeekPlan` an seinen vier Stellen, **kein** eigener Vergleich auf
-> `.austritt`. `_maIstEhemalig` wurde nur gerufen, nicht angefasst.
->
-> **Am Schirm gemessen** (`scripts/tafel_austritt_wirkung.py`), mit drei
-> erfundenen Leuten:
->
-> | | vorher | nachher |
-> |---|---|---|
-> | aktiv, kein Austritt | steht da | steht da |
-> | Austritt in 400 Tagen | steht da | steht da |
-> | **Austritt vorige Woche** | **steht da** | **weg** |
->
-> Die ersten beiden Zeilen sind die Selbstprobe — ohne sie wäre „der
-> Ausgetretene ist weg" von „es wurde gar nichts gezeichnet" nicht zu
-> unterscheiden.
->
-> Der Riegel `tests/test_tafel_austritt_v988.py` misst die **Klasse**, nicht
-> diese eine Stelle: jede Stelle, die aus einer Monteur-Kennung den *Namen*
-> holt, muss im selben Block (per Klammerabgleich, nicht per Ausschnitt) die
-> Prüfung stellen. Heute vier Auflösungen, drei davon Namensstellen; die
-> vierte holt nur die Rolle für den Farbbalken und ist als Ausnahme
-> **gebucht und mitgezählt**. Mutationsprobe an der echten Datei bestanden.
-
-Der ursprüngliche Befund, unverändert:
-
-Der Auftrag zu v3.9.970 hat die Kiosk-Tafel **zweimal ausdrücklich ausgenommen**
-(„falls sie denselben Fehler hat: NUR melden"). Hier ist die Messung.
-
-**`WochenplanTafel` (Zeile 7242–7350) prüft den Austritt an keiner Stelle.**
-Gezählt im Bauteil: `austritt` **0 mal**, `_maIstEhemalig` **0 mal**,
-`_wpMaSichtbarAmTag` **0 mal**. Die Auflösung läuft über
-
-```js
-const maName=id=>{const m=monteure.find(x=>x.id===id);return m?(m.n||''):'';};
-```
-
-— genau die Form, die in `WeekPlan` an vier Stellen behoben wurde. Ein
-ausgetretener Mitarbeiter steht auf der Tafel also weiter in allen sechs
-Tagesspalten.
-
-**Der Fix wäre eine Zeile.** Alles Nötige ist dort bereits vorhanden:
-
-* `dayDates` — ein Array von Datumswerten je Spalte (Zeile 7265)
-* `_ymd` — dieselbe ISO-Formatierung, die `WeekPlan` über `dk` benutzt
-* die Zellenschleife ist `DAYS.map((dn,i)=>…)`, **`i` ist im Scope**
-* `_wpMaSichtbarAmTag` ist auf Modulebene und `window`-exportiert, also von
-  dort aus erreichbar
-
-Es genügte, `maName` um den Tag zu erweitern und über den Helfer zu filtern —
-dieselbe Kur wie in den vier Fundstellen, nur an einer statt vier Stellen.
-
-**Warum es trotzdem nicht gemacht ist:** die Kiosk-Tafeln stehen auf der
-Tabu-Liste dieses Laufs, und der Auftrag hat sie namentlich ausgenommen. Eine
-Tafel hängt an der Wand und wird von mehreren Leuten gleichzeitig gelesen; wenn
-dort plötzlich Namen verschwinden, ist das eine andere Art von Änderung als im
-Einzelarbeitsplatz.
-
-**Die Frage:** soll die Tafel dieselbe Regel bekommen? Ein Satz genügt.
-
-**Nicht gemessen:** ob `StempelTafel` und `MonteurTafel` denselben Fehler
-haben. Sie führen keine Wochenplanung, aber sie lösen ebenfalls Namen auf.
-
----
-
 # Nachtrag 28.09.2026, spät — vier Fragen haben sich durch Messen erledigt
 
 Sebastians Vorgabe war „forcieren und machen". Vier der offenen Fragen sind
 damit **nicht beantwortet, sondern gebaut** — und zwar so, dass die Antwort
 gemessen ist statt behauptet. Sie bleiben hier stehen, durchgestrichen, mit
 dem Ergebnis: eine entfernte Frage ist nicht nachprüfbar.
-
-## ~~18. App-Hülle auf 12 px~~ — **erledigt in v3.9.972**
-
-Die Hülle war Teil der 513 gehobenen Stellen. Die Sorge im Text („bricht die
-Kopfleiste bei 12 px in zwei Zeilen um?") ist gemessen: **kein `roll` ist
-gestiegen, kein `verl`** — in keiner der 44 Aufnahmen.
-
-## ~~19. `svg text` in den Diagrammen~~ — **erledigt in v3.9.971, anders als gedacht**
-
-Die Frage lautete „auf 12 heben oder so lassen". Die Antwort war eine dritte:
-**entfernen**. Die Regel stand innerhalb von `@media (max-width: 600px)`, galt
-nur am Telefon, und dort wo es weh tat (8 px am Schreibtisch) gar nicht — vor
-allem aber *nahm sie zurück*: die x-Achse von `SvgBar` steht im Quelltext auf
-12 und wurde auf 10 gedrückt, die Ringsumme von 15 auf 10.
-
-`auswertungen`: **264 → 0** bei 390 px, **338 → 0** bei 1440 px.
-
-## ~~23. Das Ringdiagramm verliert Einträge~~ — **erledigt in v3.9.971**
-
-`SvgPie` zeichnete Legendenzeile *i* bei `y=i*18+16` in eine `viewBox` der Höhe
-150 — sichtbar waren acht Zeilen. `absTyp` verlor 7 von 15, `asArt` 1 von 9.
-Die Höhe wächst jetzt mit der Legende, die Breite ist mitgewachsen (bei 12 px
-braucht `Pflegefreistellung (3)` 126 von 114 verfügbaren Pixeln, und der äußere
-`svg` hat `overflow:hidden`).
 
 ## ~~24. Drei CSS-Regeln pflegen Bauteile, die es nicht gibt~~ — **bleibt offen**
 
