@@ -145,6 +145,64 @@ def test_b2_die_anmeldewege_bleiben_ohne_melder():
         "oder weggefallen." % (n, ERWARTET_OHNE))
 
 
+def test_b2_eine_eigene_grenze_wird_nicht_gemeldet():
+    """🔴 v3.9.996 — EIGENER FEHLER AUS v3.9.995, und der Riegel hat ihn
+    nicht gesehen, weil er die falsche Frage stellte.
+
+    Der Melder verglich die Zeilenzahl mit der Grenze, die im Filter STAND -
+    auch wenn der Aufrufer sie selbst gesetzt hatte. **Zehn Leseaufrufe
+    setzen `limit=1`**, um genau eine Zeile zu holen. Die liefern im
+    Erfolgsfall exakt eine Zeile: `1 >= 1`, und der Hinweis feuerte. **Bei
+    jedem normalen Einzelabruf.** Dazu `window._perfBench()` mit neun
+    Messabfragen, deren Grenzen beim Messen absichtlich erreicht werden.
+
+    Die Unterscheidung, die gefehlt hat: der Befund war die **stille**
+    Kappung - die Grenze, die der Helfer von sich aus anhaengt, ohne dass
+    der Aufrufer davon weiss. Wer selbst `limit=1` schreibt, kappt mit
+    Absicht und weiss es.
+
+    🔴 **Die alten Proben blieben dabei gruen.** Sie massen, DASS gemeldet
+    wird, und die Mutationsprobe deckte es auch nicht ab - eine Mutation
+    nimmt die Kur weg, sie erfindet keine Faelle. Gefunden hat es Sebastian,
+    indem er eine Zeile aus dem Benchmark hereingereicht hat. Deshalb steht
+    hier jetzt eine Probe auf das WANN.
+    """
+    t = _text()
+    i = t.find("function _sbGrenzeMelden(")
+    assert i > 0, "Der Melder ist weg."
+    rumpf = t[i:i + 2600]
+    ohne_k = _ohne_kommentare(rumpf)
+    assert 'if(/(^|&)limit=/.test(filter||""))return rows;' in ohne_k, (
+        "\U0001F534 Die Frueh-Rueckgabe fehlt. Dann meldet der Melder wieder "
+        "bei jedem\n  Aufruf mit eigener Grenze - und zehn davon holen mit "
+        "`limit=1` genau EINE\n  Zeile. Der Hinweis feuert dann bei jedem "
+        "normalen Einzelabruf.")
+    assert "_gm" not in ohne_k, (
+        "\U0001F534 Die Grenze wird wieder aus dem FILTER gelesen. Damit "
+        "zaehlt die Grenze des\n  Aufrufers mit, und genau das war der "
+        "Fehler.")
+    assert "var _grenze=5000;" in ohne_k, (
+        "\U0001F534 Die Grenze ist nicht mehr fest auf 5000. Gemeldet werden "
+        "soll NUR die\n  Grenze, die der Helfer selbst anhaengt - jede "
+        "andere hat der Aufrufer gewollt.")
+
+
+def test_b2_koeder_die_zehn_einzelabrufe_gibt_es_wirklich():
+    """🔴 Gegenprobe zur Begruendung: stimmt die Praemisse ueberhaupt?
+
+    Ein Riegel, der sich auf "zehn Aufrufe mit `limit=1`" beruft, muss das
+    nachsehen. Waere die Zahl null, waere die ganze Nachbesserung auf eine
+    Behauptung gebaut.
+    """
+    code = _ohne_kommentare(_text())
+    n = len(re.findall(r"limit=1(?![0-9])", code))
+    assert n >= 5, (
+        "Nur %d Aufrufe mit `limit=1` gefunden. Die Begruendung der "
+        "Nachbesserung beruft\n  sich auf rund zehn - entweder ist "
+        "aufgeraeumt worden oder die Zaehlung greift\n  daneben. Beides "
+        "gehoert angesehen." % n)
+
+
 def test_b2_der_melder_nennt_seine_unsicherheit():
     """Eine Meldung, die mehr behauptet als sie weiss, ist schlimmer als
     keine."""
