@@ -121,4 +121,15 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    # v3.9.995: DIE KONSOLE VERTRAEGT NICHT JEDES ZEICHEN. Auf Windows
+    # laeuft sie auf cp1252; ein Symbol in der Ausgabe beendet das Tor
+    # dann mit einem UnicodeEncodeError - und zwar oft auf dem
+    # ERFOLGSZWEIG, beim Hinschreiben des gruenen Punktes. Die Torkette
+    # liest den Rueckgabewert und meldet ROT, obwohl die Messung selbst
+    # in Ordnung war. Am 30.09.2026 ist genau das zwei Toren passiert.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     sys.exit(main(sys.argv[1:]))

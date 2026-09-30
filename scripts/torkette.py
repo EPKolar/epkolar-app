@@ -190,4 +190,32 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    # v3.9.995: DIE KETTE SELBST DARF NICHT AN IHRER AUSGABE STERBEN.
+    # Am 30.09.2026 ist genau das passiert: pytest war rot, und beim
+    # Hinschreiben der Begruendung starb die Kette an einem Zeichen, das
+    # cp1252 nicht kennt. Der Befund war damit UNSICHTBAR - schlimmer als
+    # ein rotes Tor, denn ein rotes Tor sagt wenigstens, welches.
+    # Die Ausgabe eines Tores wird mit errors='replace' gelesen; darin
+    # steht dann U+FFFD, und auch das kennt cp1252 nicht.
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+    if "--ausgabeprobe" in sys.argv[1:]:
+        # Selbstprobe fuer genau den Ausgabeweg, an dem die Kette am
+        # 30.09.2026 gestorben ist - OHNE die Tore zu fahren. Ein Riegel, der
+        # dafuer die ganze Kette startet, laeuft in pytest in sich selbst und
+        # braucht Minuten; das war mein erster Versuch und er hat fuenf
+        # Minuten gekostet, ohne etwas zu messen.
+        # Hier stehen die drei Zeichenklassen, die cp1252 nicht kennt:
+        # U+FFFD (entsteht beim LESEN mit errors="replace" - die Vorsorge
+        # beim Lesen erzeugt also genau das Zeichen, an dem das SCHREIBEN
+        # scheitert), ein Symbol als Escape, und ein Symbol roh.
+        print("--- Ausgabeprobe " + "-" * 40)
+        print("U+FFFD aus errors='replace': �")
+        print("Symbol als Escape          : \U0001F7E2")
+        print("Symbol roh                 : " + chr(0x1F534))
+        print("Ausgabeprobe ueberstanden.")
+        sys.exit(0)
     sys.exit(main(sys.argv[1:]))

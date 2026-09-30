@@ -91,15 +91,26 @@ def test_die_grundgesamtheit_ist_nicht_leer():
 
 def test_kein_neues_werkzeug_ohne_selbstprobe():
     _v, _h, ohne, _p = _zaehlung()
+    # 🔴 v3.9.995: HIER STAND "Neu dazugekommen" mit `sorted(ohne)[-3:]`.
+    # Das sind die drei ALPHABETISCH LETZTEN, nicht die neuen - die Meldung
+    # behauptete etwas, das sie nicht wissen konnte. Am 30.09.2026 hat sie
+    # mich prompt in die falsche Richtung geschickt: sie nannte drei
+    # `thema_*`-Werkzeuge, die seit Tagen unveraendert so daliegen, waehrend
+    # der wirkliche Zuwachs `ausgabe_ueberlebt_messen.py` hiess. Eine
+    # Meldung, die mehr behauptet als ihre Messung hergibt, kostet genau die
+    # Zeit, die der Riegel sparen sollte. Jetzt steht die ganze Liste da -
+    # und dabei, dass sie eine Liste ist und keine Neuigkeit.
     assert len(ohne) <= ERWARTET_OHNE, (
         "%d Messwerkzeuge ohne Selbstprobe, gebucht sind hoechstens %d.\n"
-        "  Neu dazugekommen: %s\n"
+        "  Die VOLLSTAENDIGE Liste - welches davon neu ist, weiss dieser "
+        "Riegel NICHT,\n  er zaehlt nur:\n%s\n"
         "  Ein Messwerkzeug ohne Koeder kann seinen eigenen Ausfall nicht "
         "bemerken -\n  es meldet dann eine Null, die von „es gibt "
         "keine“ nicht zu unterscheiden ist.\n"
         "  Muster: `def eichen()` mit Koedern UND Gegenproben, und `return 2` "
         "wenn eine\n  Probe scheitert. Beispiel: scripts/klammerbilanz.py"
-        % (len(ohne), ERWARTET_OHNE, sorted(ohne)[-3:]))
+        % (len(ohne), ERWARTET_OHNE,
+           "\n".join("      " + n for n in sorted(ohne))))
 
 
 def test_keine_neue_probe_die_nur_warnt():

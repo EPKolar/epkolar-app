@@ -65,9 +65,27 @@ def main():
             "sag im Kommentar,\n"
             "  warum. Wenn nicht: newline='' ergaenzen."
             % (os.path.basename(pfad), len(fund), liste),
-        "suppressOutput": True}, ensure_ascii=False))
+        "suppressOutput": True}, ensure_ascii=True))
     return 0
 
 
 if __name__ == "__main__":
+    # 🔴 v3.9.995: DIESER HAKEN IST AN SEINER EIGENEN MELDUNG ABGESTUERZT.
+    # Die Windows-Konsole laeuft auf cp1252; das 🔴 in der Meldung liess sich
+    # dort nicht schreiben, `ensure_ascii=False` gab es roh aus, und der Haken
+    # endete mit einem UnicodeEncodeError STATT mit einer Warnung. Ein Haken,
+    # der beim Melden stirbt, meldet NIE - und das faellt nur auf, wenn ihn
+    # jemand misst. Hier hat es der eigene Riegel gefunden, nicht ein Nutzer.
+    # Zwei Schutzschichten, wie bei haken_schalenfalle.py und
+    # gedaechtnis_pruefen.py: der Strom wird auf utf-8 umgestellt, UND die
+    # Ausgabe bleibt reines ASCII, falls sich der Strom nicht umstellen laesst
+    # (umgeleitet, eingebettet, fremde Schale).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     sys.exit(main())
