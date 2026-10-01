@@ -309,6 +309,35 @@ Am Schirm, Rolle `lager_display`, 1920×1080 — was tatsächlich im Kopf steht:
 > und ohne jeden Hinweis daneben.
 
 > **B8 ✅ — `#stempel` unterscheidet sauber, und zwar in beide Richtungen.**
+>
+> 🔴 **NACHTRAG 01.10.2026 — ich habe diesen Befund am 30.09.
+> abends WIEDER AUFGEMACHT, und das war falsch.** Mein Beleg: unter der
+> echten Rolle `stempel_terminal` lieferten alle drei Netzlagen denselben
+> Text mit 113 Zeichen — kein Unterschied zwischen „keine
+> Verbindung“, „leer“ und „abgewiesen“. Daraus habe ich
+> geschlossen, die Unterscheidung gelte nur in der Vorschau-Rolle `admin`.
+>
+> **Die Messung stimmt, die Schlussfolgerung nicht.** Das ECHTE Terminal
+> (`props.terminal`) laedt beim Start bauartbedingt KEINE Liste —
+> `if(props.terminal){return ...}`, begruendet bei v3.9.769: der Stempelweg
+> schickt die rohe `nfc_uid` an eine DEFINER-RPC, die den Mitarbeiter selbst
+> nachschlaegt. Ein anon-Panel am Werkstor duerfte die Liste gar nicht lesen
+> und soll keine Sozialversicherungsnummern im Speicher halten.
+>
+> Mein Pruefstand hat also die ANTWORTEN AUF LESEZUGRIFFE veraendert, und
+> das echte Terminal macht beim Start keine. **Es gab dort nichts zu
+> unterscheiden** — die drei gleichen Texte sind richtig, nicht blind.
+> Die Lehre ist nicht „die Rolle ist ein anderer Datenweg“ (das bleibt
+> wahr), sondern: **eine Messung an einem Weg, den es nicht gibt, belegt
+> nichts.** Ich habe aus einer leeren Grundgesamtheit geschlossen.
+>
+> Der Weg, der hier wirklich zaehlt, ist der SCAN — und der ist seit
+> v3.9.699 ausdruecklich gegen genau diese Krankheit gehaertet: der
+> Richtungs-Leser WIRFT bei 401/403, statt ein leeres Array zu liefern.
+> Sonst saehe eine Abweisung aus wie „heute kein Stempel“, jeder Scan
+> wuerde als „kommen“ gebucht, und der ganze Tag zaehlte null Stunden
+> — mit gruenem Haekchen. Der Abbruch meldet getrennt nach Netz, Trigger
+> und Sonstigem, je mit eigenem Text. **B8 bleibt erledigt.**
 > Kein Befund, steht hier, damit niemand zweimal sucht. `StempelTafel` führt
 > einen eigenen Zustand `tblErr` (`7469`) mit drei getrennten Texten nach
 > `_stErrKind` (`7569`–`7571`): `missing` → „RPC … fehlt", `net` → „Keine
