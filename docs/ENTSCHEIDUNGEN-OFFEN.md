@@ -1,4 +1,4 @@
-# Offene Entscheidungen — 28 offene Fragen (Stand 30.09.2026)
+# Offene Entscheidungen — 31 offene Fragen (Stand 01.10.2026)
 
 > **Entrümpelt am 30.09.2026** — hier steht nur noch, was OFFEN ist.
 > Die 9 erledigten Abschnitte sind entfernt; sie stehen unverändert
@@ -820,3 +820,61 @@ einer anderen dran muss, sonst passt ein Anker zweimal.
 
 **Zeitpunkt:** das drängt bis Ende Dezember. Danach ist es kein Befund mehr,
 sondern ein Vorfall.
+
+---
+
+# Nachtrag 01.10.2026, v3.9.1003 — drei Fragen aus dem Hellmodus-Fehler
+
+### 34. 🔴 Die Anmeldemaske hat keinen Umschalter — wer dunkel feststeckt, kommt nicht heraus
+
+**Gemessen am 01.10.** beim Suchen nach deinem Hellmodus-Fehler: auf der
+Anmeldemaske gibt es **keinen** Schalter für Hell/Dunkel. Wer dort landet,
+sieht, was seine gespeicherte Wahl sagt — und hat keine Möglichkeit, sie zu
+ändern.
+
+**Wann das zuschlägt:** auf einem neuen Gerät, nach gelöschten Browserdaten,
+in einem privaten Fenster, oder genau in dem Fall, der heute kuriert wurde —
+wenn der Speicher nicht schreiben kann. Dann steht man vor einer dunklen
+Anmeldemaske und kommt vor dem Anmelden nicht heraus.
+
+**Warum ich es nicht gebaut habe:** die Anmeldemaske gehört zu den
+Auth-Pfaden, und die sind in deinen Vorgaben **tabu**. Ein Schalter dort ist
+eine Zeile Arbeit und harmlos — aber er gehört in eine Maske, die ich nicht
+ohne deine Freigabe anfasse.
+
+**Meine Empfehlung:** ja. Derselbe Zweiwegschalter wie in der Kopfzeile, oben
+rechts auf der Anmeldemaske.
+
+### 35. Die Anmeldemaske zeigt keine Versionsnummer
+
+Heute habe ich dich fragen müssen, welche Version auf deinem Handy läuft —
+weil man das nur sieht, wenn man **angemeldet** ist und in die Einstellungen
+geht. Bei einem Fehler, der am Anmelden hängt oder an einem alten Stand aus
+dem Zwischenspeicher, ist genau das die erste Frage.
+
+**Eine kleine graue Zeile unten auf der Anmeldemaske** („v3.9.1003") macht sie
+in fünf Sekunden beantwortbar — von jedem Gerät, ohne Anmeldung, für immer.
+
+**Meine Empfehlung:** ja. Reine Anzeige, kein Eingriff in den Anmeldeweg —
+aber wieder dieselbe tabu-Maske, deshalb fragst du und nicht ich.
+
+### 36. Soll die App melden, wenn ein Löschvorgang null Zeilen trifft?
+
+**Gemessen:** 41 Löschwege auf 29 Tabellen meldeten Erfolg, ohne je
+nachzusehen — darunter Stundeneinträge und Atteste. Seit **v3.9.999** *weiß*
+die App, wie viele Zeilen wirklich weg sind, und legt es ab.
+
+**Gemeldet wird bewusst nichts**, und das ist die Frage an dich. Zwei
+Messungen sprechen dagegen:
+
+* Der Warteschlangen-Weg **wird wiederholt**. Ging die erste Antwort auf der
+  Leitung verloren, findet der zweite Versuch null Zeilen — und die Zeile ist
+  trotzdem korrekt gelöscht. Eine Meldung wäre dort schlicht falsch.
+* Die Lösch-Kaskade räumt Kind-Datensätze ab. Ein Projekt ohne Dokumente
+  trifft null Zeilen, und das ist der **Normalfall**.
+
+**Was ginge, wenn du es willst:** nur dort melden, wo jemand bewusst auf
+„Löschen" tippt und die Zeile danach noch da ist — also nicht im
+Hintergrundabgleich und nicht in der Kaskade. Das ist mehr Arbeit als eine
+Zeile, aber es wäre ehrlich. Sag Bescheid, dann messe ich zuerst, wie viele
+der 41 Wege überhaupt von einem Knopf ausgehen.
