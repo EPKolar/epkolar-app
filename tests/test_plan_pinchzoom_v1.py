@@ -126,13 +126,15 @@ def test_planzoomat_in_index(index_html):
     code = nur_code(index_html)
     assert "function _planZoomAt(state, mid, faktor, minS, maxS){" in code, \
         "Die reine Zoom-Funktion _planZoomAt gibt es nicht mehr top-level."
+    # Maengel Stufe 2 (1): umgestellt - die Untergrenze ist zMinRef.current statt fest 0.4
+    # (Start 0.4; nach dem Einpassen eines grossen Plans tiefer). Der Weg ueber _planZoomAt bleibt Pflicht.
     for weg, ruf in (
         ("Doppeltipp (Zoom auf den getippten Punkt)",
-         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,0.4,6);"),
+         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,zMinRef.current,6);"),
         ("Pinch / _zoomCenter (Fingermitte bzw. Viewport-Mitte)",
-         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},z>0?nz/z:1,0.4,6);"),
+         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},z>0?nz/z:1,zMinRef.current,6);"),
         ("Mausrad (Zoom auf den Zeiger)",
-         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},factor,0.4,6);"),
+         "const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},factor,zMinRef.current,6);"),
     ):
         assert ruf in code, (
             "%s rechnet den Zoom nicht mehr ueber _planZoomAt - dort wandert der "

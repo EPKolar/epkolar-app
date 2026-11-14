@@ -122,8 +122,11 @@ def test_b_textfeld_hat_den_fokus_und_speichern_nutzt_add(src):
 def test_b_kein_base64_in_der_hauptwarteschlange(src):
     vm = _fn(src, "VMang", code_only=True)
     add = _zwischen(vm, "const add=()=>", "const _DEF2TICKET_ST=")
-    assert "images:_ohneVorschau?[]:" in add, "Foto-zuerst schickt wieder Bilddaten in die Defect-Zeile."
-    assert "const _ohneVorschau=mgFotoAuf;" in add
+    # Maengel Stufe 2 (2): umgestellt - vorher galt images:[] nur im Foto-zuerst-Weg
+    # (images:_ohneVorschau?[]:...). Jetzt schickt KEIN Formular Bilddaten in die Defect-Zeile.
+    assert "images:[]," in add, "Ein Formular schickt wieder Bilddaten in die Defect-Zeile."
+    assert "_ohneVorschau" not in add, "Die Weiche Foto-Weg/altes Formular fuer images ist zurueck."
+    assert "ph.thumb)" not in add.split("SQ.push(", 1)[1].split("});", 1)[0], "Vorschaubild im POST-Koerper."
     assert 'captureAndQueue(ph.file,"defect",mid,p.id,"Mangel-Foto")' in add
 
 

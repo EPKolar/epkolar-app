@@ -17068,6 +17068,23 @@ function _mgZuweisungMelden(zuweisungen,projName){
    kein zweites Koordinatensystem. Gespeichert wird in die vorhandenen Spalten defects.x/y/plan_id/page
    (_mapDefect liest sie zurueck), keine neue Spalte. Ein zweiter Tipp versetzt den Vorschau-Pin. Als Portal an
    document.body: im Projekt-Detail sitzen sticky/transform-Vorfahren, an denen ein fixed-Overlay sonst klebt. */
+/* Maengel Stufe 2 (4): Status-Farben der Mangel-Karte NUR SEMANTISCH, aus der CI-Tafel (UI, folgt dem Thema).
+   offen = Achtung (Orange), in Behebung = neutral (laeuft), behoben = Marke/Erfolg, ueberfaellig = Fehler (Rot -
+   Rot ist nach der Tafel Gefahr/Fehler/ueberfaellig vorbehalten), abgelehnt = gedaempft (v3.9.895: NIE die
+   Erledigt-Farbe). c = Rand/Punkt, tx = Schrift (Kontrast >= 4,5:1 laut Tafel), bg = Flaeche. Vorher: COLORS.ERROR
+   fuer offen, #ef4444/#eab308/#22c55e fuer Prio, #0ea5e9 fuer 'auf Plan', Blau-Verlauf am Avatar. */
+function _mgStFarbe(st, ueberfaellig){
+  if(ueberfaellig) return {c:UI.fehler, tx:UI.fehler, bg:UI.fehlerBg};
+  if(st==="offen") return {c:UI.achtung, tx:UI.achtungTxt, bg:UI.achtungBg};
+  if(st==="in Behebung") return {c:UI.neutralTxt, tx:UI.neutralTxt, bg:UI.neutralBg};
+  if(st==="behoben") return {c:UI.marke, tx:UI.markeTxt, bg:UI.markeBg};
+  return {c:V.dm, tx:V.dm, bg:"transparent"};
+}
+/* Maengel Stufe 2 (4): Prio ist KEIN Status - nur 'hoch' hebt sich ab (Achtung), sonst neutral. */
+function _mgPrioFarbe(pr){
+  if(pr==="hoch") return {c:UI.achtung, tx:UI.achtungTxt, bg:UI.achtungBg};
+  return {c:UI.linie, tx:UI.neutralTxt, bg:UI.neutralBg};
+}
 function MangelPlanSetzen({plaene,start,titel,monteure,onSetzen,onEntfernen,onClose}){
   const _liste=plaene||[];
   const [planId,setPlanId]=_react.useState.call(void 0, ()=>{const s=start&&start.planId;return (s&&_liste.some(pl=>pl.id===s))?s:((_liste[0]&&_liste[0].id)||"");});
@@ -17131,7 +17148,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
   const _msPrioBasis=_msWS.filter(m=>fSt==="alle"||m.status===fSt);
   const kundenMeldungen=_react.useMemo.call(void 0, ()=>ms.filter(m=>m.melder==="Kunde"),[ms]);
   const neueMeldungen=_react.useMemo.call(void 0, ()=>kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet"),[kundenMeldungen]);
-  const [name,setName]=_react.useState.call(void 0, "");const [ebene,setEbene]=_react.useState.call(void 0, "EG");const [worker,setWorker]=_react.useState.call(void 0, "");const [frist,setFrist]=_react.useState.call(void 0, _mgFristVorschlag());const [mgFormAuf,setMgFormAuf]=_react.useState.call(void 0, false);const [mgFotoAuf,setMgFotoAuf]=_react.useState.call(void 0, false);const [mgPlanZiel,setMgPlanZiel]=_react.useState.call(void 0, null);const [neuPos,setNeuPos]=_react.useState.call(void 0, null);const [mgFotoLaeuft,setMgFotoLaeuft]=_react.useState.call(void 0, 0);/* v3.9.1004 B: mgFotoLaeuft = Fotos in Aufbereitung - solange > 0 ist Speichern gesperrt, sonst landet ein spaet fertiges Foto im NAECHSTEN Formular statt am Mangel. */ /* v3.9.1004 A/B: mgFotoAuf = Foto-zuerst-Formular offen; mgPlanZiel = {mid} (Mangel-id oder "neu") fuer das Plan-Setzen; neuPos = Plan-Position des noch nicht angelegten Mangels. *//* PROJ-HANDY PR11: HIER STAND worker=(monteure[0]||{}).id und frist=td2(). monteure[0] ist der ERSTE Eintrag der Mitarbeiterliste (live: "Aliti", nicht im aktuellen Team) - eine stille Vorbelegung, die man beim schnellen Erfassen mitspeichert, ohne sie gewaehlt zu haben; _maWaehlbar haelt einen ehemaligen MA sogar in der Auswahl, WEIL er der aktuelle Wert ist. Jetzt leer mit "— wählen —" (leer = nicht zugewiesen; zugewiesen:"" schreibt add() schon heute). Frist: heute bedeutete, jeder neue Mangel ist ab morgen ueberfaellig und loest die Fristen-Glocke (frist=lt.heute) aus. Vorschlag +7 Tage, sichtbar im Feld und aenderbar; leer bliebe NIE eskaliert. Formular erst hinter "+ Mangel" (mgFormAuf), die Liste kommt zuerst. */const [prio,setPrio]=_react.useState.call(void 0, "mittel");
+  const [name,setName]=_react.useState.call(void 0, "");const [ebene,setEbene]=_react.useState.call(void 0, "EG");const [worker,setWorker]=_react.useState.call(void 0, "");const [frist,setFrist]=_react.useState.call(void 0, _mgFristVorschlag());const [mgFormAuf,setMgFormAuf]=_react.useState.call(void 0, false);const [mgFotoAuf,setMgFotoAuf]=_react.useState.call(void 0, false);const [mgPlanZiel,setMgPlanZiel]=_react.useState.call(void 0, null);const [neuPos,setNeuPos]=_react.useState.call(void 0, null);const [mgFotoLaeuft,setMgFotoLaeuft]=_react.useState.call(void 0, 0);const [mgNochEins,setMgNochEins]=_react.useState.call(void 0, false);/* Maengel Stufe 2 (3): nach dem Speichern im Foto-Weg 'Noch einen Mangel per Foto?' anbieten *//* v3.9.1004 B: mgFotoLaeuft = Fotos in Aufbereitung - solange > 0 ist Speichern gesperrt, sonst landet ein spaet fertiges Foto im NAECHSTEN Formular statt am Mangel. */ /* v3.9.1004 A/B: mgFotoAuf = Foto-zuerst-Formular offen; mgPlanZiel = {mid} (Mangel-id oder "neu") fuer das Plan-Setzen; neuPos = Plan-Position des noch nicht angelegten Mangels. *//* PROJ-HANDY PR11: HIER STAND worker=(monteure[0]||{}).id und frist=td2(). monteure[0] ist der ERSTE Eintrag der Mitarbeiterliste (live: "Aliti", nicht im aktuellen Team) - eine stille Vorbelegung, die man beim schnellen Erfassen mitspeichert, ohne sie gewaehlt zu haben; _maWaehlbar haelt einen ehemaligen MA sogar in der Auswahl, WEIL er der aktuelle Wert ist. Jetzt leer mit "— wählen —" (leer = nicht zugewiesen; zugewiesen:"" schreibt add() schon heute). Frist: heute bedeutete, jeder neue Mangel ist ab morgen ueberfaellig und loest die Fristen-Glocke (frist=lt.heute) aus. Vorschlag +7 Tage, sichtbar im Feld und aenderbar; leer bliebe NIE eskaliert. Formular erst hinter "+ Mangel" (mgFormAuf), die Liste kommt zuerst. */const [prio,setPrio]=_react.useState.call(void 0, "mittel");
   const [reviewId,setReviewId]=_react.useState.call(void 0, null);const [reviewNote,setReviewNote]=_react.useState.call(void 0, "");const [reviewWorker,setReviewWorker]=_react.useState.call(void 0, "");/* PROJ-HANDY PR11: dieselbe stille Vorbelegung monteure[0] wie beim Erfassen - jetzt leer, reviewAccept verlangt eine Wahl. */
   /* v3.9.464 (BLOCK C): Bulk-Auswahl (Admin/PL) für Sammel-Status/-Zuweisung. */
   const [_bulkSel,_setBulkSel]=_react.useState.call(void 0, {});const [_bulkSt,_setBulkSt]=_react.useState.call(void 0, "");const [_bulkWid,_setBulkWid]=_react.useState.call(void 0, "");
@@ -17148,6 +17165,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
   const [newPhotos,setNewPhotos]=_react.useState.call(void 0, []); // photos for new defect creation
   const photoRef=_react.useRef.call(void 0, null);
   const fotoZuerstRef=_react.useRef.call(void 0, null);/* v3.9.1004 B */
+  const nochEinsRef=_react.useRef.call(void 0, null);/* Maengel Stufe 2 (3) */
   /* v3.9.1004 B: Foto zuerst. Ein Tipp auf "📷 Mangel per Foto" oeffnet direkt die Kamera (capture=environment);
      kommt ein Bild zurueck, oeffnet das kurze Formular mit Vorschau und dem Textfeld im Fokus. Aufbereitung wie im
      alten Formular (_fotoAufbereiten + createThumbnail -> newPhotos); der Upload passiert erst beim Speichern in
@@ -17157,7 +17175,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     const fls=[...((e&&e.target&&e.target.files)||[])];
     try{e.target.value="";}catch(_e){}
     if(!fls.length)return;
-    setName("");setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setNewPhotos([]);setMgFormAuf(false);setMgFotoAuf(true);
+    setName("");setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setNewPhotos([]);setMgFormAuf(false);setMgNochEins(false);setMgFotoAuf(true);
     _mgFotoRein(fls);
   };
 
@@ -17237,14 +17255,15 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     if(_isMonteurAdd&&_effWorker!==_vmMid){_optionalChain([window,'access',_g324c=>_g324c.__toast,'optionalCall',_g324d=>_g324d("⚠️ Keine Berechtigung — Monteure können Mängel nur sich selbst zuweisen","warn")]);return;}
     /* v3.9.1004 A: Plan-Position (per Tipp gesetzt) gleich beim Anlegen mitschreiben - dieselben Spalten wie createTicket (defects.x/y/plan_id/page). */
     const _pos=(neuPos&&neuPos.planId&&neuPos.x!=null&&neuPos.y!=null)?neuPos:null;
-    /* v3.9.1004 B: im Foto-zuerst-Weg KEIN Base64 in der DB-Zeile/Haupt-Warteschlange - das Foto geht allein ueber captureAndQueue (Storage + PhotoQ), die Liste laedt es per API.getPhotos("defect",id). Das alte Formular schickt weiter seine 120-px-Vorschau mit (unveraendert, siehe Bericht). */
-    const _ohneVorschau=mgFotoAuf;
-    const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:_effWorker,zugewiesen:_effWorker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full})),...(_pos?{x:_pos.x,y:_pos.y,planId:_pos.planId,plan_id:_pos.planId,page:_pos.page||1}:{})};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:_ohneVorschau?[]:newPhotos.map(ph=>ph.thumb),zugewiesen:_effWorker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||"",...(_pos?{x:_pos.x,y:_pos.y,plan_id:_pos.planId,page:_pos.page||1}:{})}});
+    /* v3.9.1004 B: im Foto-zuerst-Weg KEIN Base64 in der DB-Zeile/Haupt-Warteschlange - das Foto geht allein ueber captureAndQueue (Storage + PhotoQ), die Liste laedt es per API.getPhotos("defect",id).
+       Maengel Stufe 2 (2): jetzt auch das alte "+ Mangel"-Formular - es schickte bis hier seine 120-px-Vorschauen als Base64 in defects.images (Regel: rohe Base64 nie in SyncQueue/DB-Zeile, ein zu grosser POST blockiert die GANZE Warteschlange). images ist IMMER []. Die Fotos gehen fuer beide Formulare nur ueber captureAndQueue (unten). Alte Zeilen mit Base64 in images werden nicht angefasst und weiter angezeigt (getPhotos liest m.photos lesend). */
+    const _ausFoto=mgFotoAuf;/* Maengel Stufe 2 (3): kam der Mangel aus dem Foto-Weg, folgt das Angebot 'Noch einen?' */
+    const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:_effWorker,zugewiesen:_effWorker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full})),...(_pos?{x:_pos.x,y:_pos.y,planId:_pos.planId,plan_id:_pos.planId,page:_pos.page||1}:{})};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:[],zugewiesen:_effWorker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||"",...(_pos?{x:_pos.x,y:_pos.y,plan_id:_pos.planId,page:_pos.page||1}:{})}});
     // Queue photos for server upload
     newPhotos.forEach(ph=>{if(ph.file)captureAndQueue(ph.file,"defect",mid,p.id,"Mangel-Foto");});
     /* v3.9.1004 C: der Verantwortliche erfaehrt davon (nicht, wenn man sich selbst eintraegt). */
     if(_effWorker)_mgZuweisungMelden([{wid:_effWorker,name:name}],p.name);
-    setName("");setNewPhotos([]);setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setMgFotoAuf(false);setMgFormAuf(false);if(window.__toast)window.__toast("✅ Mangel angelegt"+(_effWorker?"":" (noch niemand zugewiesen)"),"success");};/* PROJ-HANDY PR11: nach dem Anlegen zurueck zur Liste - der neue Mangel steht dort in "offen". Verantwortlich/Frist zuruecksetzen, damit der naechste nicht still die Wahl des vorigen erbt. */
+    setName("");setNewPhotos([]);setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setMgFotoAuf(false);setMgNochEins(_ausFoto);setMgFormAuf(false);if(window.__toast)window.__toast("✅ Mangel angelegt"+(_effWorker?"":" (noch niemand zugewiesen)"),"success");};/* PROJ-HANDY PR11: nach dem Anlegen zurueck zur Liste - der neue Mangel steht dort in "offen". Verantwortlich/Frist zuruecksetzen, damit der naechste nicht still die Wahl des vorigen erbt. */
   /* v3.9.231 #2: Inverse Mangel→Plan-Ticket-Status-Sync. Gespiegelte Tickets (type==="mangel") teilen die id mit ihrem Mangel; freie Mängel haben kein Ticket → kein Geister-PUT (_tks.some-Guard). */
   const _DEF2TICKET_ST=_MANGEL2TICKET_ST;
   const _syncTicketStatus=(id,st)=>{
@@ -17337,9 +17356,16 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
         , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:0,flex:"1 1 180px",minWidth:0}}, "Mängel erfassen, Prio/Status setzen und zuweisen." )
         , !mgFormAuf&&!mgFotoAuf&&React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}}
           , React.createElement('label', { role: "button", tabIndex: 0, 'aria-label': "Mangel per Foto erfassen - öffnet die Kamera", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();try{fotoZuerstRef.current&&fotoZuerstRef.current.click();}catch(_e){}}}, style: {...bsS(),minHeight:44,padding:"0 16px",display:"inline-flex",alignItems:"center",gap:6,borderColor:V.ac,color:V.acTx,fontWeight:700,cursor:"pointer"}}/* v3.9.1004 B: Foto zuerst - EIN Tipp bis zur Kamera */, "📷 Mangel per Foto", React.createElement('input', { ref: fotoZuerstRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: _mgFotoZuerst} ))
-          , React.createElement('button', { onClick: ()=>{setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setMgFormAuf(true);}, style: {...bpS,minHeight:44,padding:"0 18px",display:"inline-flex",alignItems:"center",gap:6}}/* PROJ-HANDY PR11: die Liste kommt zuerst, das Formular erst auf Wunsch. Beim Oeffnen frisch vorbelegt: niemand gewaehlt, Frist +7 Tage. */, "+ Mangel"))
+          , React.createElement('button', { onClick: ()=>{setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setMgNochEins(false);setMgFormAuf(true);}, style: {...bpS,minHeight:44,padding:"0 18px",display:"inline-flex",alignItems:"center",gap:6}}/* PROJ-HANDY PR11: die Liste kommt zuerst, das Formular erst auf Wunsch. Beim Oeffnen frisch vorbelegt: niemand gewaehlt, Frist +7 Tage. */, "+ Mangel"))
       )
 
+      /* Maengel Stufe 2 (3): Begehung - nach dem Speichern im Foto-Weg EIN Tipp bis zur naechsten Kamera. Der Knopf ist
+         ein label um das Datei-Feld (wie "📷 Mangel per Foto"): so bleibt der Tipp eine echte Nutzergeste, sonst
+         blockt der Browser das Oeffnen der Kamera. Bricht man die Kamera ab, bleibt das Angebot stehen. */
+      , mgNochEins&&!mgFormAuf&&!mgFotoAuf&&React.createElement('div', { role: "status", 'data-mg-noch-eins': "1", style: {...CC(),display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"10px 12px",marginBottom:12,borderColor:UI.marke,background:UI.markeBg}}
+        , React.createElement('span', { style: {flex:"1 1 180px",minWidth:0,fontSize:UI.fText,fontWeight:600,color:V.tx}}, "✓ Gespeichert. Noch einen Mangel per Foto?")
+        , React.createElement('label', { role: "button", tabIndex: 0, 'aria-label': "Noch einen Mangel per Foto - öffnet die Kamera", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();try{nochEinsRef.current&&nochEinsRef.current.click();}catch(_e){}}}, style: {...bpS,minHeight:44,padding:"0 16px",display:"inline-flex",alignItems:"center",gap:6,boxSizing:"border-box"}}, "📷 Noch einen", React.createElement('input', { ref: nochEinsRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: _mgFotoZuerst} ))
+        , React.createElement('button', { type: "button", onClick: ()=>setMgNochEins(false), style: {...bsS(),minHeight:44,padding:"0 14px"}}, "Fertig"))
       /* ── Kundenmeldungen Review ── */
       , kundenMeldungen.length>0&&(React.createElement('div', { style: {...CC(),border:neueMeldungen.length>0?"2px solid #f97316":"1px solid "+V.bd,marginBottom:16}}
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
@@ -17432,9 +17458,9 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
         , React.createElement('button', { onClick: ()=>{const hdrs=["Mangel","Ebene","Prio","Status","Verantwortlich","Frist","Ort"];const data=msV.map(m=>{const w=(monteure||MONT).find(x=>x.id===(m.worker||m.zugewiesen||m.assignee));return [m.name||"",m.ebene||"",m.prio||"",m.status||"",(w&&w.n)||"",m.frist?fdt(m.frist):"",m.ort||""];});if(!data.length){window.__toast&&window.__toast("Keine Mängel zum Export","warn");return;}genXls("⚠️ Mängelliste — "+(p.name||""),(p.nr||"")+" · "+data.length+" Mängel",hdrs,data,"Maengel_"+((p.nr||p.name||"x")+"").replace(/[^a-zA-Z0-9]/g,"_")+".xls",{colWidths:[200,90,60,90,110,70,120],leftCols:[0,1,4,6]});}, style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta}}, "📥 Export")
         , React.createElement('button', { onClick: genMangelPdf, title: "Mängel-Report als PDF drucken oder speichern — mit Fotos und EP-Kolar-CI", style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta,borderColor:"#ef4444",color:"#ef4444"}}, "📄 PDF-Report")
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginRight:2,marginLeft:4}}, "Status:" )
-        , ["alle"].concat(MANGEL_ST_SICHT).map(s=>{const cnt=s==="alle"?msF.length:msF.filter(m=>m.status===s).length;const sc=s==="alle"?V.ac:s==="offen"?COLORS.ERROR:s==="in Behebung"?COLORS.WARNING:s==="abgelehnt"?V.dm:COLORS.SUCCESS;const _on=fSt===s;return React.createElement('button', { key: s, onClick: ()=>setFSt(s), title: "Filter: "+s, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?sc+"28":sc+"12",color:sc,fontSize:UI.fMeta,fontWeight:700,border:(_on?"2px solid "+sc:"1px solid "+sc+"40"),display:"inline-flex",gap:5,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:sc,display:"inline-block"}} ), s, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
+        , ["alle"].concat(MANGEL_ST_SICHT).map(s=>{const cnt=s==="alle"?msF.length:msF.filter(m=>m.status===s).length;const sc=s==="alle"?V.acTx:_mgStFarbe(s,false).tx;/* Maengel Stufe 2 (4): Legende der Karte - dieselbe Quelle _mgStFarbe (abgelehnt gedaempft, v3.9.895) */const _on=fSt===s;return React.createElement('button', { key: s, onClick: ()=>setFSt(s), title: "Filter: "+s, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?sc+"28":sc+"12",color:sc,fontSize:UI.fMeta,fontWeight:700,border:(_on?"2px solid "+sc:"1px solid "+sc+"40"),display:"inline-flex",gap:5,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:sc,display:"inline-block"}} ), s, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginLeft:8}}, "Prio:" )
-        , ["alle","hoch","mittel","niedrig"].map(pr=>{const cnt=pr==="alle"?_msPrioBasis.length:_msPrioBasis.filter(m=>m.prio===pr).length;const pc=pr==="alle"?V.ac:pr==="hoch"?COLORS.ERROR:pr==="mittel"?"#eab308":COLORS.SUCCESS;const _on=fPr===pr;return React.createElement('button', { key: pr, onClick: ()=>setFPr(pr), title: "Prio: "+pr, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?pc+"25":pc+"10",color:pc,fontSize:UI.fMeta,fontWeight:600,border:(_on?"2px solid "+pc:"1px solid "+pc+"35"),display:"inline-flex",gap:4,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:pc,display:"inline-block"}} ), pr, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
+        , ["alle","hoch","mittel","niedrig"].map(pr=>{const cnt=pr==="alle"?_msPrioBasis.length:_msPrioBasis.filter(m=>m.prio===pr).length;const pc=pr==="alle"?V.acTx:_mgPrioFarbe(pr).tx;/* Maengel Stufe 2 (4) */const _on=fPr===pr;return React.createElement('button', { key: pr, onClick: ()=>setFPr(pr), title: "Prio: "+pr, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?pc+"25":pc+"10",color:pc,fontSize:UI.fMeta,fontWeight:600,border:(_on?"2px solid "+pc:"1px solid "+pc+"35"),display:"inline-flex",gap:4,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:pc,display:"inline-block"}} ), pr, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
       )
       /* v3.9.464 (BLOCK C): Bulk-Aktionsleiste (sticky), sichtbar wenn ≥1 ausgewählt (Admin/PL). */
       , isAdmin&&(()=>{const _sel=Object.keys(_bulkSel).filter(k=>_bulkSel[k]);if(!_sel.length)return null;return React.createElement('div', { style: {position:"sticky",bottom:0,zIndex:30,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",padding:"10px 14px",margin:"4px 0 10px",background:V.ac+"1f",border:"2px solid "+V.ac,borderRadius:10,boxShadow:"0 -2px 10px rgba(0,0,0,.12)"}}
@@ -17449,24 +17475,24 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
         if(fSt!=="alle"&&st!==fSt)return null;
         const items=msF.filter(m=>m.status===st).slice().sort((a,b)=>{const _fa=a.frist||"9999-99-99";const _fb=b.frist||"9999-99-99";return _fa<_fb?-1:_fa>_fb?1:0;});if(!items.length)return null;const icon=st==="offen"?"🔴":st==="in Behebung"?"🟡":"✅";/* v3.9.269 W1.7: Frist aufsteigend → überfällige/nächstfällige zuerst */
         /* v3.9.49 S34-2: Status-Color-System für Card-Akzent (linker Border) und Status-Badge. */
-        const stC=st==="offen"?COLORS.ERROR:st==="in Behebung"?COLORS.WARNING:st==="abgelehnt"?V.dm:COLORS.SUCCESS;/* v3.9.895: abgelehnt bekommt eine NEUTRALE Farbe - mit der Erledigt-Farbe saehe eine abgelehnte Kundenmeldung aus wie ein behobener Mangel. */
-        return (React.createElement('div', { key: st, style: {marginBottom:14}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:stC,marginBottom:8,display:"flex",alignItems:"center",gap:6}}, React.createElement('span', { style: {width:10,height:10,borderRadius:"50%",background:stC,boxShadow:"0 0 6px "+stC+"60",display:"inline-block"}} ), icon, " " , st, " ", React.createElement('span', { style: {padding:"1px 8px",borderRadius:10,background:stC+"22",color:stC,fontSize:UI.fMeta,fontFamily:mono}}, items.length)), items.map(m=>{const w=(monteure||MONT).find(x=>x.id===m.worker);const pi=m.prio==="hoch"?"🔴":m.prio==="mittel"?"🟡":"🟢";const piC=m.prio==="hoch"?"#ef4444":m.prio==="mittel"?"#eab308":"#22c55e";const mPh=getPhotos(m);const overdue=m.frist&&_dueIsPast(m.frist)&&st!=="behoben";const initials=w&&w.n?(w.n.split(" ").map(s=>s[0]).join("").slice(0,2).toUpperCase()):"";return (React.createElement('div', { key: m.id, style: {...CC(),padding:12,marginBottom:7,borderLeft:"4px solid "+stC,boxShadow:"0 2px 6px rgba(0,0,0,.06)",transition:"transform .15s ease, box-shadow .15s ease"}, onMouseOver: e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,.10)";}, onMouseOut: e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 6px rgba(0,0,0,.06)";}}
+        const _stF=_mgStFarbe(st,false);const stC=_stF.c;/* Maengel Stufe 2 (4): aus _mgStFarbe - abgelehnt bleibt gedaempft (v3.9.895) *//* v3.9.895: abgelehnt bekommt eine NEUTRALE Farbe - mit der Erledigt-Farbe saehe eine abgelehnte Kundenmeldung aus wie ein behobener Mangel. */
+        return (React.createElement('div', { key: st, style: {marginBottom:14}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,color:_stF.tx,marginBottom:8,display:"flex",alignItems:"center",gap:6}}, React.createElement('span', { style: {width:10,height:10,borderRadius:"50%",background:stC,display:"inline-block"}} ), st, " ", React.createElement('span', { style: {padding:"1px 8px",borderRadius:UI.rChip,background:_stF.bg,color:_stF.tx,fontSize:UI.fMeta,...UI.zahlen}}, items.length)), items.map(m=>{const w=(monteure||MONT).find(x=>x.id===m.worker);const _prF=_mgPrioFarbe(m.prio);const mPh=getPhotos(m);const overdue=m.frist&&_dueIsPast(m.frist)&&st!=="behoben";const initials=w&&w.n?(w.n.split(" ").map(s=>s[0]).join("").slice(0,2).toUpperCase()):"";return (React.createElement('div', { key: m.id, style: {...CC(),padding:12,marginBottom:7,borderLeft:"4px solid "+(overdue?UI.fehler:stC)}/* Maengel Stufe 2 (4): Karte = CC() wie die Projektliste; kein Hover-Huepfer (transform macht einen Stapelkontext) */}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}
-            , isAdmin&&React.createElement('input', { type: "checkbox", checked: !!_bulkSel[m.id], onChange: ()=>_bulkToggle(m.id), onClick: e=>e.stopPropagation(), title: "Für Sammelaktion auswählen", style: {width:24,height:24,cursor:"pointer",flexShrink:0,marginTop:2,accentColor:"#009640"}} )/* v3.9.464 (BLOCK C): Bulk-Checkbox */
-            , React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:3,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}, React.createElement('span', null, m.name), React.createElement('span', { style: {padding:"1px 7px",borderRadius:8,background:piC+"18",color:piC,fontSize:UI.fMeta,fontWeight:700,border:"1px solid "+piC+"40"}}, pi, " ", m.prio||"mittel"), overdue&&React.createElement('span', { style: {padding:"1px 7px",borderRadius:8,background:"#ef444418",color:COLORS.ERROR,fontSize:UI.fMeta,fontWeight:700}}, "⏰ überfällig" ), (m.plan_id&&m.x!=null)&&React.createElement('span', { style: {padding:"1px 7px",borderRadius:8,background:"#0ea5e918",color:"#0ea5e9",fontSize:UI.fMeta,fontWeight:700,border:"1px solid #0ea5e940"}, title: "Auf einem Plan platziert"}, "📍 auf Plan" )), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}, React.createElement('span', null, "📍 ", m.ebene||"—"), React.createElement('span', null, "· 📅 ", fdt(m.frist)), m.melder==="Kunde"&&React.createElement('span', { style: {color:"#f97316",fontWeight:700}}, "· 📩 Kunde")))
+            , isAdmin&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:44,minHeight:44,margin:"-10px 0 -10px -10px",flexShrink:0,cursor:"pointer"}, title: "Für Sammelaktion auswählen"}, React.createElement('input', { type: "checkbox", checked: !!_bulkSel[m.id], onChange: ()=>_bulkToggle(m.id), onClick: e=>e.stopPropagation(), 'aria-label': "Für Sammelaktion auswählen: "+(m.name||"Mangel"), style: {width:24,height:24,cursor:"pointer",margin:0,accentColor:UI.marke}} ))/* Maengel Stufe 2 (4): Tippziel 44 px um den 24-px-Haken *//* v3.9.464 (BLOCK C): Bulk-Checkbox */
+            , React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:3,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}, React.createElement('span', null, m.name), React.createElement('span', { style: {padding:"1px 7px",borderRadius:UI.rChip,background:_prF.bg,color:_prF.tx,fontSize:UI.fMeta,fontWeight:m.prio==="hoch"?700:600,border:"1px solid "+_prF.c}}, "Prio ", m.prio||"mittel"), overdue&&React.createElement('span', { style: {padding:"1px 7px",borderRadius:UI.rChip,background:UI.fehlerBg,color:UI.fehler,fontSize:UI.fMeta,fontWeight:700,border:"1px solid "+UI.fehler}}, "überfällig" ), (m.plan_id&&m.x!=null)&&React.createElement('span', { style: {padding:"1px 7px",borderRadius:UI.rChip,background:UI.neutralBg,color:UI.neutralTxt,fontSize:UI.fMeta,fontWeight:600}, title: "Auf einem Plan platziert"}, "📍 auf Plan" )), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}, React.createElement('span', null, "📍 ", m.ebene||"—"), React.createElement('span', null, "· 📅 ", fdt(m.frist)), m.melder==="Kunde"&&React.createElement('span', { style: {color:UI.achtungTxt,fontWeight:700}}, "· 📩 Kunde")))
             , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",flexShrink:0}}
               /* Quick-Status-Pills statt Dropdown — schneller PlanRadar-Workflow */
-              , MANGEL_ST.map(ns=>{const isCur=m.status===ns;const nsC=ns==="offen"?COLORS.ERROR:ns==="in Behebung"?COLORS.WARNING:COLORS.SUCCESS;return React.createElement('button', { key: ns, onClick: ()=>{if(!isCur)updSt(m.id,ns);}, title: "Status: "+ns, style: {padding:"3px 8px",borderRadius:12,border:isCur?"2px solid "+nsC:"1px solid "+V.bd,background:isCur?nsC+"22":"transparent",color:isCur?nsC:V.dm,fontSize:UI.fMeta,fontWeight:isCur?700:500,cursor:isCur?"default":"pointer",fontFamily:"inherit",opacity:isCur?1:.7,transition:"all .15s ease"}}, ns==="offen"?"🔴":ns==="in Behebung"?"🟠":"✅");})
-              , isAdmin&&React.createElement('button', { onClick: ()=>_placeOnPlan(m), style: {padding:"0 10px",minHeight:44,borderRadius:12,border:"1px solid "+((m.plan_id&&m.x!=null)?"#0ea5e9":V.bd),background:"transparent",color:(m.plan_id&&m.x!=null)?"#0ea5e9":V.dm,fontSize:UI.fMeta,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}, title: (m.plan_id&&m.x!=null)?"Pin auf dem Plan versetzen oder entfernen":"Auf dem Plan per Tipp an die richtige Stelle setzen"}, (m.plan_id&&m.x!=null)?"📍 Pin ändern":"📍 Auf Plan setzen")/* v3.9.1004 A: oeffnet MangelPlanSetzen statt blind 50/50 - und Entfernen ist kein Ein-Tipp-Unfall mehr, es steht im Dialog */
-              , isAdmin&&React.createElement('button', { onClick: ()=>delM(m.id), style: {...bdS,padding:"2px 7px",fontSize:UI.fMeta}, title: "Löschen"}, "🗑️")
+              , MANGEL_ST.map(ns=>{const isCur=m.status===ns;const _nsF=_mgStFarbe(ns,false);return React.createElement('button', { key: ns, onClick: ()=>{if(!isCur)updSt(m.id,ns);}, title: "Status: "+ns, 'aria-label': "Status: "+ns, 'aria-pressed': isCur, style: {...bsS(),minHeight:44,minWidth:44,padding:"0 10px",fontSize:UI.fKlein,border:isCur?"2px solid "+_nsF.c:"1px solid "+V.bdK,background:isCur?_nsF.bg:"transparent",color:isCur?_nsF.tx:V.tx,fontWeight:isCur?700:500,cursor:isCur?"default":"pointer"}}, ns==="offen"?"Offen":ns==="in Behebung"?"In Arbeit":"Erledigt");})/* Maengel Stufe 2 (4): Text statt Farb-Emoji, 44 px, CI-Sekundaerknopf; der aktuelle Status traegt seine semantische Farbe */
+              , isAdmin&&React.createElement('button', { onClick: ()=>_placeOnPlan(m), style: {...bsS(),minHeight:44,padding:"0 10px",fontSize:UI.fKlein}/* Maengel Stufe 2 (4): CI-Sekundaerknopf statt Hellblau */, title: (m.plan_id&&m.x!=null)?"Pin auf dem Plan versetzen oder entfernen":"Auf dem Plan per Tipp an die richtige Stelle setzen"}, (m.plan_id&&m.x!=null)?"📍 Pin ändern":"📍 Auf Plan setzen")/* v3.9.1004 A: oeffnet MangelPlanSetzen statt blind 50/50 - und Entfernen ist kein Ein-Tipp-Unfall mehr, es steht im Dialog */
+              , isAdmin&&React.createElement('button', { onClick: ()=>delM(m.id), 'aria-label': "Mangel löschen", style: {...bdS,minWidth:44,minHeight:44,padding:"0 10px",fontSize:UI.fKlein}, title: "Löschen"}, "🗑️")
             )
           )
           , React.createElement('div', { style: {display:"flex",gap:6,marginTop:10,flexWrap:"wrap",alignItems:"center"}}
             , mPh.map((ph,i)=>React.createElement('div', { key: i, onClick: ()=>setLightbox({src:ph,title:m.name+" — Foto "+(i+1)}), style: {width:52,height:52,borderRadius:6,overflow:"hidden",cursor:"pointer",border:"2px solid transparent",transition:"all .15s ease",boxShadow:"0 1px 3px rgba(0,0,0,.1)"}, onMouseOver: e=>{e.currentTarget.style.borderColor=V.ac;e.currentTarget.style.transform="scale(1.06)";}, onMouseOut: e=>{e.currentTarget.style.borderColor="transparent";e.currentTarget.style.transform="scale(1)";}}, React.createElement('img', { src: ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} )))
-            , React.createElement('label', { style: {width:36,height:36,borderRadius:6,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:V.dm,transition:"all .15s ease"}, onMouseOver: e=>{e.currentTarget.style.borderColor=V.ac;e.currentTarget.style.color=V.ac;}, onMouseOut: e=>{e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.color=V.dm;}, title: "Foto hinzufügen"}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{[...(e.target.files||[])].forEach(file=>uploadDefectPhoto(m.id,file));}} ), "📷")
+            , React.createElement('label', { style: {width:44,height:44,boxSizing:"border-box",borderRadius:UI.rChip,border:"2px dashed "+V.bdK,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:V.tx}, 'aria-label': "Foto hinzufügen", title: "Foto hinzufügen"}/* Maengel Stufe 2 (4): 44 px statt 36 */, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{[...(e.target.files||[])].forEach(file=>uploadDefectPhoto(m.id,file));}} ), "📷")
             , React.createElement('div', { style: {flex:1}} )
             /* Worker-Avatar in Card-Footer */
-            , w&&React.createElement('div', { style: {display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px 3px 3px",borderRadius:16,background:V.bg,border:"1px solid "+V.bd}, title: "Zugewiesen an: "+w.n}, React.createElement('div', { style: {width:24,height:24,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:UI.fMeta,fontWeight:700}}, initials||"?"), React.createElement('span', { style: {fontSize:UI.fMeta,fontWeight:600,color:V.tx}}, w.n))
+            , w&&React.createElement('div', { style: {display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px 3px 3px",borderRadius:16,background:V.bg,border:"1px solid "+V.bd}, title: "Zugewiesen an: "+w.n}, React.createElement('div', { style: {width:24,height:24,borderRadius:"50%",background:UI.neutralBg,color:UI.neutralTxt,border:"1px solid "+UI.linie,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",fontSize:UI.fMeta,fontWeight:700}}, initials||"?")/* Maengel Stufe 2 (4): neutral statt Blau-Verlauf */, React.createElement('span', { style: {fontSize:UI.fMeta,fontWeight:600,color:V.tx}}, w.n))
           )
         ));})));
       })
@@ -18192,6 +18218,30 @@ function _planZoomAt(state, mid, faktor, minS, maxS){
   var mx=(mid&&mid.x)||0, my=(mid&&mid.y)||0;
   return { s:ns, tx:mx-(mx-tx)*r, ty:my-(my-ty)*r };
 }
+/* Maengel Stufe 2 (1): Plan beim Oeffnen EINPASSEN statt 100 %. Vorher stand jeder Plan in 100 % (PDF in
+   1-pt-Groesse, Bild in Pixelgroesse) - am Handy sah man nur eine Ecke. Rein rechnend, damit der node-Riegel
+   es pruefen kann. vw/vh = Viewport, w/h = ungezoomte Layout-Groesse des Plans, ox/oy = Layout-Ursprung des
+   world-Divs relativ zur Viewport-Ecke OHNE Pan (der world-Div ist flex-zentriert, siehe v3.9.709 - der alte
+   _fitWidth rechnete ohne diesen Versatz und landete bei breiten Plaenen neben dem Bild). modus "breite" oder
+   "seite" (ganz sichtbar). zMin: wie weit man danach herauszoomen darf - bis zur Haelfte der Einpassung,
+   nie unter 0,02, nie ueber die alte Grenze 0,4. Pins bleiben unberuehrt: x/y sind Prozent der Planflaeche,
+   der Zoom aendert nur die Darstellung (_planPctAusKlick misst am gerenderten Rechteck). */
+function _planEinpassen(vw, vh, w, h, ox, oy, modus){
+  if(!(vw>0)||!(vh>0)||!(w>0)||!(h>0)) return null;
+  var zW=(vw-24)/w, zH=(vh-24)/h;
+  var z=(modus==="breite")?zW:Math.min(zW,zH);
+  z=Math.max(0.02,Math.min(6,z));
+  var zMin=Math.max(0.02,Math.min(0.4,z*0.5));
+  var links=(vw-w*z)/2;
+  var oben=(h*z<=vh)?(vh-h*z)/2:12;
+  return {zoom:z, zMin:zMin, panX:links-(ox||0), panY:oben-(oy||0)};
+}
+/* Maengel Stufe 2 (1): Bildschirmpunkt -> Plan-Prozent (0-100) am GERENDERTEN Plan-Rechteck. Haengt nicht
+   von Zoom/Pan ab - genau darum aendert das Einpassen keine gespeicherte Position. */
+function _planPctAusKlick(cx, cy, rect){
+  if(!rect||!(rect.width>0)||!(rect.height>0)) return null;
+  return {x:((cx-rect.left)/rect.width)*100, y:((cy-rect.top)/rect.height)*100};
+}
 function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pendingPin, onPlanClick, onPinClick, onPendingPinMove, selectedTicket, pendingIds, onPinMove}) {
   const [isFs, setIsFs] = _react.useState.call(void 0, false);/* v3.9.184 Vollbild/immersiv */
   const [pageNum, setPageNum] = _react.useState.call(void 0, 1);
@@ -18216,6 +18266,10 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   const viewportRef = _react.useRef.call(void 0, null);/* v3.9.136 Liste↔Plan-Sync */
   const worldRef = _react.useRef.call(void 0, null);/* v3.9.709 world-Container (transform-Div) — für Flex-Offset-korrekten Fokus-Zoom */
   const _lastCenteredRef = _react.useRef.call(void 0, null);
+  const zMinRef = _react.useRef.call(void 0, 0.4);/* Maengel Stufe 2 (1): Zoom-Untergrenze - 0,4 wie bisher, beim Einpassen eines grossen Plans tiefer (sonst klemmte der erste Pinch die Einpassung auf 0,4) */
+  const panRef = _react.useRef.call(void 0, {x: 0, y: 0}); panRef.current = pan;/* Maengel Stufe 2 (1): aktueller Pan fuer die Ursprungsmessung beim Einpassen */
+  const _fitKeyRef = _react.useRef.call(void 0, "");/* Maengel Stufe 2 (1): plan.id|Seite, fuer die schon eingepasst (oder ein frischer Blick wiederhergestellt) wurde - danach bleiben Zoom/Pan beim Nutzer */
+  const [_imgReady, _setImgReady] = _react.useState.call(void 0, "");/* Maengel Stufe 2 (1): src des fertig geladenen Bild-Plans */
   /* v3.9.709 Flex-Offset-Fix (Handy-Pinch driftete): der world-Div ist per flex align/justify-center im Gesten-Div
      zentriert → sein transform-origin (0,0) sitzt NICHT an der Viewport-Ecke, sondern um den Flex-Offset o versetzt
      (gemessen: kleiner Plan +30/+235px, A4 −448/−538px). Fokus-Zoom braucht den Fokuspunkt relativ zu DIESEM Ursprung,
@@ -18248,7 +18302,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
     setLoading(true);
     _planRenderPage(plan.id, pageNum, canvasRef.current, scale).then(dims => {
       if(!active) return;
-      setPageDims(dims);
+      setPageDims({...dims, _plan: plan.id, _pg: pageNum});/* Maengel Stufe 2 (1): Einpassen nur mit den Massen DIESER Seite */
       setLoading(false);
       setLoadError(null);/* v3.9.141: erfolgreicher Render → evtl. transienten Fehler löschen */
     }).catch(e => {
@@ -18302,7 +18356,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         const _wo=_worldOrigin();
         const _vr=viewportRef.current?viewportRef.current.getBoundingClientRect():null;
         const _fx=_wo?(_mx-_wo.x+pan.x):(_vr?(_mx-_vr.left):_mx), _fy=_wo?(_my-_wo.y+pan.y):(_vr?(_my-_vr.top):_my);
-        setZoom(z=>{const nz=Math.max(0.4,Math.min(6,z*ratio));const r=z>0?nz/z:1;setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r}));return nz;});
+        setZoom(z=>{const nz=Math.max(zMinRef.current,Math.min(6,z*ratio));const r=z>0?nz/z:1;setPan(pp=>({x:_fx-(_fx-pp.x)*r, y:_fy-(_fy-pp.y)*r}));return nz;});
       }
       lastPinchDistRef.current = dist;
       return;
@@ -18326,7 +18380,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
             const _wo = _worldOrigin();/* v3.9.709 Flex-Offset-korrekter Fokus */
             const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
             const fx = _wo ? e.clientX-_wo.x+pan.x : (_vr ? e.clientX-_vr.left : 0), fy = _wo ? e.clientY-_wo.y+pan.y : (_vr ? e.clientY-_vr.top : 0);
-            setZoom(z=>{const nz = z<1.8?2.5:1; setPan(pp=>{ if(nz===1) return {x:0,y:0}; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,0.4,6); return {x:_o.tx,y:_o.ty}; }); return nz;});
+            if(zoom>=1.8){ _einpassen("seite"); } else { setZoom(z=>{const nz = 2.5; setPan(pp=>{ const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:fx,y:fy},nz/z,zMinRef.current,6); return {x:_o.tx,y:_o.ty}; }); return nz;}); }/* Maengel Stufe 2 (1): zurueck heisst eingepasst, nicht 100 % */
             _tapRef.current = null;
           } else { _tapRef.current = {t:_now, x:e.clientX, y:e.clientY}; }
         }
@@ -18358,9 +18412,10 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
     if(!pinMode) return;
     const target = canvasRef.current || e.currentTarget;
     if(!target) return;
-    const rect = target.getBoundingClientRect();
-    const xBase = ((e.clientX - rect.left) / rect.width) * 100;
-    const yBase = ((e.clientY - rect.top) / rect.height) * 100;
+    const _pc = _planPctAusKlick(e.clientX, e.clientY, target.getBoundingClientRect());/* Maengel Stufe 2 (1): dieselbe Rechnung, als Helfer pruefbar */
+    if(!_pc) return;
+    const xBase = _pc.x;
+    const yBase = _pc.y;
     // v3.9.136 KORREKTUR (Chat-Claude live-DB): tickets.x/y sind PROZENT (0-100), KEINE Pixel. Direkt %% speichern.
     if(onPlanClick) onPlanClick({x: xBase, y: yBase, xPct: xBase, yPct: yBase, page: pageNum});
   };
@@ -18372,7 +18427,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
     const _vr = viewportRef.current ? viewportRef.current.getBoundingClientRect() : null;
     const _fx = _vr ? _vr.width/2 : 0, _fy = _vr ? _vr.height/2 : 0;
     const _wo = _worldOrigin();/* v3.9.709 Flex-Offset abziehen: Viewport-Mitte in den world-Layout-Frame übersetzen (sonst springt der Plan pro Klick um o·(r−1)) */
-    setZoom(z => { const nz = Math.max(0.4, Math.min(6, z + delta)); setPan(pp=>{const _mx=(_wo&&_vr)?(_vr.left+_fx-_wo.x+pp.x):_fx, _my=(_wo&&_vr)?(_vr.top+_fy-_wo.y+pp.y):_fy; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},z>0?nz/z:1,0.4,6);return {x:_o.tx,y:_o.ty};}); return nz; });
+    setZoom(z => { const nz = Math.max(zMinRef.current, Math.min(6, z + delta)); setPan(pp=>{const _mx=(_wo&&_vr)?(_vr.left+_fx-_wo.x+pp.x):_fx, _my=(_wo&&_vr)?(_vr.top+_fy-_wo.y+pp.y):_fy; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},z>0?nz/z:1,zMinRef.current,6);return {x:_o.tx,y:_o.ty};}); return nz; });
   };
   /* v3.9.184 Pin-Drag: Bildschirm-Koordinaten → Plan-Prozent (0-100), via gerenderter Plan-Element-Rect (zoom/pan-korrekt, da Element im transformierten world-div liegt). */
   const pctFromClient = (cx, cy) => {
@@ -18381,18 +18436,20 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
     let x = ((cx - r.left) / r.width) * 100, y = ((cy - r.top) / r.height) * 100;
     return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
   };
-  /* v3.9.184 Fit-to-Width: Plan auf Viewport-Breite einpassen (offsetWidth = ungescalte Layout-Breite). */
-  const _fitWidth = () => {
-    const el = canvasRef.current || imgElRef.current; if(!el || !viewportRef.current) return;
-    const vr = viewportRef.current.getBoundingClientRect(); const w = el.offsetWidth || el.width || 0; if(!w) return;
-    const nz = Math.max(0.4, Math.min(6, (vr.width - 24) / w)); setZoom(nz); setPan({ x: (vr.width - w*nz)/2, y: 12 });
+  /* Maengel Stufe 2 (1): EINE Einpass-Funktion fuer Oeffnen, ↔, ⬚, ⊡, Taste 0 und Doppeltipp. Misst den
+     Layout-Ursprung des world-Divs (Rechteck minus aktuellem Pan) - v3.9.184/187 rechneten ohne den Flex-Versatz.
+     Vorher: v3.9.184 Fit-to-Width, v3.9.187 Fit-to-Page. */
+  const _einpassen = (modus) => {
+    const el = canvasRef.current || imgElRef.current; const vp = viewportRef.current; const wd = worldRef.current;
+    if(!el || !vp || !wd) return false;
+    const vr = vp.getBoundingClientRect(); const wr = wd.getBoundingClientRect(); const pp = panRef.current || {x: 0, y: 0};
+    const w = el.offsetWidth || el.width || 0, h = el.offsetHeight || el.height || 0;
+    const r = _planEinpassen(vr.width, vr.height, w, h, wr.left - vr.left - pp.x, wr.top - vr.top - pp.y, modus);
+    if(!r) return false;
+    zMinRef.current = r.zMin; setZoom(r.zoom); setPan({x: r.panX, y: r.panY}); return true;
   };
-  /* v3.9.187 Fit-to-Page: ganzen Plan in den Viewport einpassen (beide Achsen). */
-  const _fitPage = () => {
-    const el = canvasRef.current || imgElRef.current; if(!el || !viewportRef.current) return;
-    const vr = viewportRef.current.getBoundingClientRect(); const w = el.offsetWidth || el.width || 0, h = el.offsetHeight || el.height || 0; if(!w || !h) return;
-    const nz = Math.max(0.4, Math.min(6, Math.min((vr.width-24)/w, (vr.height-24)/h))); setZoom(nz); setPan({ x: (vr.width - w*nz)/2, y: (vr.height - h*nz)/2 });
-  };
+  const _fitWidth = () => { _einpassen("breite"); };
+  const _fitPage = () => { _einpassen("seite"); };
   /* v3.9.184 Mausrad-Zoom (Fokuspunkt unter dem Cursor) — non-passiver Listener (React onWheel ist passiv → preventDefault wirkungslos). */
   _react.useEffect.call(void 0, () => {
     const el = viewportRef.current; if(!el) return;
@@ -18411,7 +18468,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
       _accum *= (e.deltaY>0 ? 0.9 : 1.1);
       if(!_raf) _raf = requestAnimationFrame(() => {
         _raf = null; const factor = _accum; _accum = 1;
-        setZoom(z => { const _ns = Math.max(0.4, Math.min(6, z*factor)); setPan(pp=>{const _mx=_haveW?(_fx-_wl+pp.x):_fx, _my=_haveW?(_fy-_wt+pp.y):_fy; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},factor,0.4,6);return {x:_o.tx,y:_o.ty};}); return _ns; });
+        setZoom(z => { const _ns = Math.max(zMinRef.current, Math.min(6, z*factor)); setPan(pp=>{const _mx=_haveW?(_fx-_wl+pp.x):_fx, _my=_haveW?(_fy-_wt+pp.y):_fy; const _o=_planZoomAt({s:z,tx:pp.x,ty:pp.y},{x:_mx,y:_my},factor,zMinRef.current,6);return {x:_o.tx,y:_o.ty};}); return _ns; });
       });
     };
     el.addEventListener("wheel", _wh, { passive: false }); return () => { if(_raf) cancelAnimationFrame(_raf); el.removeEventListener("wheel", _wh); };
@@ -18423,7 +18480,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
       if(e.key==="Escape"){ if(isFs) setIsFs(false); return; }
       if(e.key==="+"||e.key==="="){ _zoomCenter(0.25); }
       else if(e.key==="-"||e.key==="_"){ _zoomCenter(-0.25); }
-      else if(e.key==="0"){ setZoom(1); setPan({x:0,y:0}); }
+      else if(e.key==="0"){ _einpassen("seite"); }
       else if(e.key==="f"||e.key==="F"){ setIsFs(v=>!v); }
       else if(e.key==="h"||e.key==="H"){ setShowTickets(s=>!s); }
       else if(e.key==="ArrowRight"){ setPageNum(p=>Math.min(pageCount, p+1)); }
@@ -18436,14 +18493,34 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   _react.useEffect.call(void 0, () => {
     if(!plan || !plan.id || selectedTicket) return;
     const _s = _safeJsonParse((typeof localStorage!=="undefined"&&localStorage.getItem("epk_pv_"+plan.id))||"", null);
-    if(_s && typeof _s.zoom==="number" && _s.pan){ setZoom(Math.max(0.4,Math.min(6,_s.zoom))); setPan({x:Number(_s.pan.x)||0, y:Number(_s.pan.y)||0}); }
-    else { setZoom(1); setPan({x:0,y:0}); }
+    /* Maengel Stufe 2 (1): nur ein FRISCHER Blick (<15 min, gleiche Viewer-Breite) wird wiederhergestellt - wer kurz
+       ins Ticket schaut und zurueckkommt, steht wieder an derselben Stelle. Alles andere (auch jeder alte Eintrag
+       ohne Zeitstempel, also der 100-%-Stand von frueher) wird beim Oeffnen eingepasst. Der Dialog "Auf Plan setzen"
+       hat eine andere Breite als der Plan-Viewer und bekommt darum nie den Blick des anderen. */
+    const _vw = viewportRef.current ? Math.round(viewportRef.current.getBoundingClientRect().width) : 0;
+    if(_s && typeof _s.zoom==="number" && _s.pan && typeof _s.t==="number" && (Date.now()-_s.t) < 15*60*1000 && _vw > 0 && Math.abs((Number(_s.vw)||0)-_vw) <= 2){ zMinRef.current = (typeof _s.zMin==="number" && _s.zMin>0) ? Math.min(0.4, _s.zMin) : 0.4; setZoom(Math.max(zMinRef.current,Math.min(6,_s.zoom))); setPan({x:Number(_s.pan.x)||0, y:Number(_s.pan.y)||0}); _fitKeyRef.current = plan.id + "|1"; }
+    else { zMinRef.current = 0.4; setZoom(1); setPan({x:0,y:0}); _fitKeyRef.current = ""; }
   }, [plan && plan.id]);
   _react.useEffect.call(void 0, () => {
     if(!plan || !plan.id) return;
-    const _t = setTimeout(()=>{ try{ localStorage.setItem("epk_pv_"+plan.id, JSON.stringify({zoom:zoom, pan:pan})); }catch(_e){} }, 400);
+    if(!_fitKeyRef.current) return;/* Maengel Stufe 2 (1): den 100-%-Zwischenstand vor dem Einpassen nicht als 'frischen Blick' merken */
+    const _t = setTimeout(()=>{ try{ const _vw = viewportRef.current ? Math.round(viewportRef.current.getBoundingClientRect().width) : 0; localStorage.setItem("epk_pv_"+plan.id, JSON.stringify({zoom:zoom, pan:pan, zMin:zMinRef.current, vw:_vw, t:Date.now()})); }catch(_e){} }, 400);
     return () => clearTimeout(_t);
   }, [plan && plan.id, zoom, pan]);
+  /* Maengel Stufe 2 (1): beim Oeffnen (und je neuer Seite) EINMAL ganz sichtbar einpassen, sobald die Masse DIESER
+     Seite feststehen (PDF: pageDims mit _plan/_pg; Bild: onLoad). Danach gehoeren Zoom/Pan dem Nutzer. Ist beim
+     Oeffnen ein Ticket gewaehlt, gewinnt die Pin-Zentrierung (v3.9.136) - dann wird nicht eingepasst. */
+  _react.useEffect.call(void 0, () => {
+    if(!plan || !plan.id || loading || loadError) return;
+    const _key = plan.id + "|" + pageNum;
+    if(_fitKeyRef.current === _key) return;
+    if(selectedTicket && selectedTicket.x != null) { _fitKeyRef.current = _key; return; }
+    if(_isPdf ? !(pageDims && pageDims._plan === plan.id && pageDims._pg === pageNum) : _imgReady !== _planSrc) return;
+    let _ab = false;
+    const _raf = (typeof requestAnimationFrame === "function") ? requestAnimationFrame : (f => setTimeout(f, 16));
+    _raf(() => { if(_ab) return; if(_einpassen("seite")) _fitKeyRef.current = _key; });
+    return () => { _ab = true; };
+  }, [plan && plan.id, pageNum, pageDims, _imgReady, loading, loadError]);
   const _hiddenLy = new Set((layers||[]).filter(l=>l.visible===false).map(l=>l.id));/* v3.9.161 FIX Mängel#1: explizit ausgeblendete Ebenen */
   const ticketsOnPage = (tickets || []).filter(t => {
     const planMatch = t.planId === (plan && plan.id) || t.plan_id === (plan && plan.id);
@@ -18510,7 +18587,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         React.createElement('button', {onClick: () => _zoomCenter(-0.25), title: "Zoom raus", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "−"),
         React.createElement('span', {style: {padding: "4px 8px", fontSize:UI.fMeta, color: V.tx, minWidth: 50, textAlign: "center"}}, Math.round(zoom * 100) + "%"),
         React.createElement('button', {onClick: () => _zoomCenter(0.25), title: "Zoom rein", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "+"),
-        React.createElement('button', {onClick: () => { setZoom(1); setPan({x: 0, y: 0}); }, title: "Auf Bildschirmgröße zurücksetzen (0)", "aria-label": "Zoom zurücksetzen", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⊡"),
+        React.createElement('button', {onClick: () => { _einpassen("seite"); }/* Maengel Stufe 2 (1): Bildschirmgroesse = eingepasst, nicht 100 % */, title: "Auf Bildschirmgröße zurücksetzen (0)", "aria-label": "Zoom zurücksetzen", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⊡"),
         React.createElement('button', {onClick: _fitWidth, title: "Auf Breite einpassen", "aria-label": "Auf Breite einpassen", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "↔"),/* v3.9.184 Fit-to-Width */
         React.createElement('button', {onClick: _fitPage, title: "Auf Seite einpassen", "aria-label": "Auf Seite einpassen", style: {padding: "4px 8px", background: V.cd, color: V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, "⬚"),/* v3.9.187 Fit-to-Page */
         React.createElement('button', {onClick: () => setIsFs(v=>!v), title: isFs?"Vollbild verlassen (Esc/f)":"Vollbild (f)", "aria-label": "Vollbild umschalten", style: {padding: "4px 8px", background: isFs?V.ac:V.cd, color: isFs?"#fff":V.tx, border: "1px solid " + V.bd, borderRadius: 4, cursor: "pointer", fontFamily: "inherit"}}, isFs?"🗗":"⛶"),/* v3.9.184 Vollbild-Toggle */
@@ -18564,6 +18641,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
           }) : (plan ? React.createElement('img', {
             src: _planSrc,
             ref: imgElRef,
+            onLoad: () => _setImgReady(_planSrc),/* Maengel Stufe 2 (1): erst jetzt kennt das Bild seine Groesse */
             alt: (plan&&plan.name)||"Plan",
             onClick: handleCanvasClick,
             style: {display: "block", boxShadow: "0 4px 16px rgba(0,0,0,.4)", maxWidth: "none"}

@@ -13,7 +13,10 @@ def test_world_div_transform(index_html):
 def test_pinch_and_buttons_use_css_zoom(index_html):
     # Pinch + Buttons ändern CSS-zoom, NICHT den pdf-Render-scale (kein async-Render-Drift)
     # v3.9.142: Pinch-Clamp im Fokuspunkt-setZoom, Buttons via _zoomCenter (Zentrum-fokussiert)
-    assert "const nz=Math.max(0.4,Math.min(6,z*ratio));" in index_html
+    # Maengel Stufe 2 (1): umgestellt - die Untergrenze ist zMinRef.current (Start 0.4, beim
+    # Einpassen grosser Plaene tiefer, siehe test_maengel_stufe2_plan_einpassen.py)
+    assert "const nz=Math.max(zMinRef.current,Math.min(6,z*ratio));" in index_html
+    assert "const zMinRef = _react.useRef.call(void 0, 0.4);" in index_html
     assert "onClick: () => _zoomCenter(-0.25), title: \"Zoom raus\"" in index_html
     assert "onClick: () => _zoomCenter(0.25), title: \"Zoom rein\"" in index_html
     # die alte pdf-rerender-zoom-Logik ist weg
