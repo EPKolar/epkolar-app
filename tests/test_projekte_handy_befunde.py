@@ -79,8 +79,12 @@ def test_p4_balken_mit_prozent_bleibt_als_anzeige(src):
 
 def test_p6_suchfeld_laesst_der_lupe_platz(src):
     rumpf = _fn(src, "ProjList")
-    m = re.search(r'placeholder: "Projekt, Kunde\.\.\."\s*, style: \{([^}]*)\}', rumpf)
-    assert m and "paddingLeft:34" in m.group(1)
+    # v3.9.1006: paddingLeft:34 wirkte am Geraet NIE - die Handy-Regel
+    # input:not([type=checkbox]):not([type=radio]){padding:8px !important} schlug es.
+    # Jetzt traegt das Feld das Suchfeld-Muster epk-suche (Lupe als Hintergrund, 38 px,
+    # Selektor 0,3,1); gemessen 360/412 px: Lupe endet 11 px vor dem Text.
+    assert "React.createElement('input', { className: \"epk-suche\", value: q," in rumpf
+    assert 'input.epk-suche:not([type="checkbox"]):not([type="radio"]){padding-left:38px !important}' in src
 
 
 def test_p8_kennzahlen_nur_einmal(src):

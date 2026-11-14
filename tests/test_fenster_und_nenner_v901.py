@@ -206,7 +206,8 @@ def test_lagersuche_hat_eigenen_state(index_html):
     UMKEHRPROBE: das Lager-Suchfeld zurueck auf matQuery -> rot.
     """
     code = nur_code(index_html)
-    feld = _zeile_mit(index_html, 'placeholder: "\U0001f50d Bestellungen suchen')
+    # v3.9.1006: die Lupe kommt aus dem Suchfeld-Muster epk-suche, nicht mehr als Emoji im Platzhalter
+    feld = _zeile_mit(index_html, 'placeholder: "Bestellungen suchen')
     assert "matQueryLg" in feld and "value: matQuery," not in feld, (
         "Das Lager-Suchfeld haengt weiter am Warenkorb-State:" + chr(10) + feld)
     assert "return matTokensLg.every(" in code, \

@@ -133,8 +133,12 @@ def test_die_werkzeug_reiter_tragen_ihre_beschriftung():
     Zeiterfassung, einmal Werkzeuge) und waere hier falsch.
     """
     roh = _roh()
-    i = roh.find('color:sub===t.id?"#d97706":V.dm')
-    assert i > 0, (
+    # v3.9.1006 CI: die Werkzeug-Eigenfarbe #d97706 ist weg (aktiver Reiter
+    # ueberall Markengruen). Neuer eindeutiger Anker: die Werkzeug-Reiterliste,
+    # danach die Farbangabe des aktiven Reiters in derselben Zeile.
+    _a = roh.find('{id:"scan",i:"\U0001f4f7",l:"QR Scan",k:"Scan"}')
+    i = roh.find('color:sub===t.id?V.acTx:V.dm', _a) if _a > 0 else -1
+    assert i > 0 and i - _a < 2000, (
         "KOEDER STUMM: die Reiterzeile in Werkzeuge wurde nicht gefunden "
         "(Anker: die Werkzeug-Farbe #d97706).")
     block = roh[max(0, i - 700):i]
