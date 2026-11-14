@@ -25,7 +25,9 @@ def test_kontingent_save_gated_isadmin(index_html):
     Gemessen wird jetzt die Eigenschaft: der Knopf mit der Beschriftung
     Speichern/Bearbeiten wird nur dann erzeugt, wenn isAdmin gilt.
     """
-    marke = 'editKontingent?"\U0001F4BE Speichern":"\u270F\uFE0F Bearbeiten"'
+    # Handy-Befund AB5 (14.11.2026): Beschriftung eindeutig ("Kontingent ...") - zwei
+    # gleichlautende "Bearbeiten"-Knoepfe standen in derselben Ansicht.
+    marke = 'editKontingent?"\U0001F4BE Kontingent speichern":"\u270F\uFE0F Kontingent bearbeiten"'
     assert index_html.count(marke) == 1, (
         "Der Kontingent-Knopf ist nicht mehr eindeutig zu finden - dieser Riegel misst dann nichts")
 

@@ -862,6 +862,12 @@ const BYTES_MB=1024*1024;
 /* v3.9.18 B-014: zentraler Pickerl/Frist-Status. Returns 'ok'|'warn'|'overdue'|null.
    warnDays default 30 (überall genutzte Schwelle). Pure function, kein State. */
 window._pickerlStatus=(datum,warnDays)=>{if(!datum)return null;const w=(warnDays==null)?30:warnDays;const d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(datum)?datum+"T00:00:00":datum);/* v3.9.224 #5: date-only lokal parsen (sonst UTC-Mitternacht → Pickerl/Vignette ab ~02:00 lokal falsch 'overdue') */if(isNaN(d))return null;const diff=(d-new Date())/TIME_DAY;if(diff<0)return 'overdue';if(diff<w)return 'warn';return 'ok';};
+/* Handy-Befund F1 (14.11.2026): Pickerl-Toleranzfrist nach Paragraph 57a KFG. Die Begutachtung ist bis
+   Ende des 4. Monats nach dem gelochten Monat erlaubt. Abgelaufene Pickerl standen ORANGE in der Liste,
+   weil das Abzeichen 'warn' und 'overdue' gleich faerbte. Rueckgabe {st:'ok'|'warn'|'toleranz'|'overdue',
+   tolBis:'JJJJ-MM-TT'|null} oder null. NUR fuers Pickerl - Vignette/Service haben keine Toleranz und
+   bleiben bei _pickerlStatus. Liste, Kachel-Abzeichen, QR-Abzeichen und Home-Banner nutzen diese Regel. */
+window._pickerlFrist=(datum)=>{const st=window._pickerlStatus(datum);if(!st)return null;if(st!=='overdue')return {st:st,tolBis:null};const m=/^(\d{4})-(\d{2})/.exec(String(datum));if(!m)return {st:'overdue',tolBis:null};const tb=new Date(+m[1],(+m[2]-1)+5,0);const tbIso=tb.getFullYear()+'-'+String(tb.getMonth()+1).padStart(2,'0')+'-'+String(tb.getDate()).padStart(2,'0');const h=new Date();h.setHours(0,0,0,0);return {st:tb>=h?'toleranz':'overdue',tolBis:tbIso};};
 window._fmtDate=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();};
 window._fmtDatetime=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return window._fmtDate(d)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
 /* v3.9.92 Sprint-71.4 Unit-Consistency: Std → Std. */ window._fmtRelative=(d)=>{if(!d)return '—';const diff=(Date.now()-new Date(d).getTime())/1000;if(isNaN(diff))return '—';if(diff<60)return 'gerade eben';if(diff<3600)return 'vor '+Math.floor(diff/60)+' Min';if(diff<86400)return 'vor '+Math.floor(diff/3600)+' Std.';if(diff<604800)return 'vor '+Math.floor(diff/86400)+' Tagen';return window._fmtDate(d);};
@@ -10484,7 +10490,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
           /* v3.9.866: Schalter "Nur Aktive" <-> "Auch Ehemalige". Die Ansicht hat keine eigene
              Filter-/Suchzeile, deshalb sitzt er hier in der bestehenden Kopf-Button-Zeile, direkt
              vor "Neuer Mitarbeiter". State lokal (showEhem), bewusst NICHT persistiert. */
-          , React.createElement('button', { onClick: ()=>setShowEhem(!showEhem), style: showEhem?bpS:bdS, 'aria-pressed': showEhem?"true":"false", title: showEhem?"Ausgetretene werden mitangezeigt — klicken für nur aktive":"Nur aktive Mitarbeiter — klicken um Ehemalige einzublenden"}, showEhem?"Auch Ehemalige":"Nur Aktive")
+          , React.createElement('button', { onClick: ()=>setShowEhem(!showEhem), style: showEhem?{...bsS(),border:"1px solid #0ea5e9",color:"#0ea5e9"}:bsS()/* Handy-Befund MA1 (14.11.2026): "Nur Aktive" stand im Gefahren-Stil bdS (rot) - ein Filter ist keine Gefahr. Neutral (bsS), eingeschaltet mit blauem Rand. */, 'aria-pressed': showEhem?"true":"false", title: showEhem?"Ausgetretene werden mitangezeigt — klicken für nur aktive":"Nur aktive Mitarbeiter — klicken um Ehemalige einzublenden"}, showEhem?"Auch Ehemalige":"Nur Aktive")
           , isAdmin&&React.createElement('button', { onClick: ()=>setShowNew(!showNew), style: showNew?bdS:bpS}, showNew?"✕ Abbrechen":"+ Neuer Mitarbeiter")
         )
       )
@@ -15264,9 +15270,15 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   /* v3.9.18 B-014: zentraler Helper _pickerlStatus + 365d-Tail-Filter beibehalten. */
   const pickerFaellig=_alertFz.filter(f=>{const st=window._pickerlStatus(f.pickerl);if(!st||st==='ok')return false;const d=new Date(f.pickerl+"T00:00:00");return (d-new Date())/TIME_DAY>-365;});
   if(pickerFaellig.length>0){
-    const abgelaufen=pickerFaellig.filter(f=>window._pickerlStatus(f.pickerl)==='overdue').length;
-    const text=abgelaufen>0?`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${abgelaufen} abgelaufen / ${pickerFaellig.length-abgelaufen} bald fällig`:`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl bald fällig`;
-    alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>({label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl),status:window._pickerlStatus(f.pickerl)}))});
+    /* Handy-Befund F1: dieselbe Regel wie die Fahrzeugliste (window._pickerlFrist) - innerhalb der
+       Toleranzfrist zaehlt ein Pickerl NICHT als abgelaufen, sondern eigens als "in Toleranzfrist". */
+    const _pkFr=f=>window._pickerlFrist(f.pickerl)||{};
+    const abgelaufen=pickerFaellig.filter(f=>_pkFr(f).st==='overdue').length;
+    const inToleranz=pickerFaellig.filter(f=>_pkFr(f).st==='toleranz').length;
+    const _pkBald=pickerFaellig.length-abgelaufen-inToleranz;
+    const _pkTeile=[abgelaufen>0?abgelaufen+" abgelaufen":null,inToleranz>0?inToleranz+" in Toleranzfrist":null,_pkBald>0?_pkBald+" bald fällig":null].filter(Boolean).join(" / ");
+    const text=`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${_pkTeile}`;
+    alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
   }
   const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date());/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
   if(serviceFaellig.length>0){
@@ -15580,7 +15592,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
              und Anwesenheit ist normal (Zwei-Domaenen-Entscheid) — rot war hier eine Falschaussage.
              Offene Abrechnungen bleiben gelb: DAS ist echte Arbeit, die liegenbleibt. */
           , React.createElement('div', { style: {fontSize:isMob?20:24,fontWeight:800,color:finkStats.offen>0?COLORS.WARNING:"#8b5cf6",fontFamily:mono}}, finkStats.geladen?(finkStats.abgeglichen+"/"+finkStats.total):"…")
-          , React.createElement('div', { style: {fontSize:UI.fMeta,color:finkStats.offen>0?COLORS.WARNING:V.dm}}, finkStats.diffWarn>0?finkStats.diffWarn+" mit Differenz":finkStats.offen>0?finkStats.offen+" offen":finkStats.geladen?"Alle abgeglichen":"nicht gemessen")
+          , React.createElement('div', { style: {fontSize:UI.fMeta,color:finkStats.offen>0?COLORS.WARNING:V.dm}}, finkStats.diffWarn>0?finkStats.diffWarn+" mit Differenz":finkStats.offen>0?finkStats.offen+" offen":(finkStats.geladen&&finkStats.total===0)?"Noch keine Zettel"/* Handy-Befund H8 (14.11.2026): bei 0 Zetteln im Jahr stand "0/0 - Alle abgeglichen" - ohne Zettel ist nichts abgeglichen. */:finkStats.geladen?"Alle abgeglichen":"nicht gemessen")
         )
         , hasPerm(curUser,"fahrzeuge")&&React.createElement('div', { style: {...CC(),padding:isMob?"10px":"14px",borderLeft:"4px solid #6366f1"}}
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Tankkosten Monat" )
@@ -22749,6 +22761,10 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
      Filter- bzw. Reportlisten - wer die alten Krankenstaende eines Ausgetretenen sucht, muss
      ihn dort weiter finden. */
   const _hkAK=_ezHeuteISO();
+  /* Handy-Befund AB2 (14.11.2026): Stunden in der ANZEIGE mit Komma ("192,5h" statt "192.5h"). Nur Anzeige - Excel/CSV-Exporte behalten _n. Tage werden bewusst NICHT umgerechnet: _stdVonTagK rechnet wochentagsgenau (Mo-Do 8,5 / Fr 4,5, Sebastian-Entscheid 03.07.2026 "NICHT auf pauschal 7,7"), eine Tagesnorm fuer Reststunden gibt es also nicht. */
+  const _absH=(v,d)=>String(_n(v,d)).replace(".",",");
+  /* Handy-Befund AB4: Ausgetretene in der Mitarbeiter-Auswahl ans Ende und gedimmt (Liste bleibt vollstaendig, v3.9.931). */
+  const _absEhem=nm=>{const o=(monteure||[]).find(x=>x.n===nm);return !!(o&&_maIstEhemalig(o,_hkAK));};
   const _kontNames=monteure.filter(m=>!_maIstEhemalig(m,_hkAK)).map(m=>m.n);
   const wks=weeksOf(yr,mo);
   const dim=new Date(yr,mo+1,0).getDate();
@@ -22791,7 +22807,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     const k=sel+"_"+dk(d);
     const isDelete=_optionalChain([abs, 'access', _535 => _535[k], 'optionalAccess', _536 => _536.type])===typ;
     /* v3.9.786 Konflikt-Warnung (nicht-blockierend): Abwesenheit auf einem Tag mit bereits erfasster Projektzeit? */
-    if(!isDelete){var _teH=_teAmTag(sel,dk(d));if(_teH>0){if(!await _confirmModal('⚠ An diesem Tag ist bereits Projektzeit erfasst ('+_n(_teH,1)+' h). Abwesenheit trotzdem eintragen?',{confirmLabel:'Trotzdem eintragen',cancelLabel:'Abbrechen'}))return;}}
+    if(!isDelete){var _teH=_teAmTag(sel,dk(d));if(_teH>0){if(!await _confirmModal('⚠ An diesem Tag ist bereits Projektzeit erfasst ('+_absH(_teH,1)+' h). Abwesenheit trotzdem eintragen?',{confirmLabel:'Trotzdem eintragen',cancelLabel:'Abbrechen'}))return;}}
     setAbs(p=>{const c={...p};if(_optionalChain([c, 'access', _537 => _537[k], 'optionalAccess', _538 => _538.type])===typ){delete c[k];}else{c[k]={type:typ,date:td2(),by:_optionalChain([curUser, 'optionalAccess', _539 => _539.name])||"",hours:stdVonTag(d,_wocheOf(sel))};}return c;});
     if(isDelete){setApprovals(p=>{const _c={...p};delete _c[k];return _c;});/* v3.9.107 Hunt: beim Abwählen die Approval-Eintragung ENTFERNEN (vorher blieb sie als "ausstehend" hängen → Anträge-offen-Zähler zu hoch). */SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});}
     /* v3.9.100 Sprint-81.1 B5-Fix: worker_id muss wX (worker.id) sein, nicht NAME (sel). Lookup über monteure-Prop (.id+.n), Fallback auf sel falls nicht gefunden (Legacy-Kompat). id-Key bleibt NAME_DATE (localStorage-Kompat — Migration separat). */
@@ -22824,7 +22840,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     if(isNaN(start.getTime())||isNaN(end.getTime())){window.__toast&&window.__toast("⚠️ Ungültiges Datum","warn");return;}
     const _selWorker=(monteure||[]).find(m=>m.n===who||m.name===who);const _workerId=(_selWorker&&_selWorker.id)||who;
     /* v3.9.786 Konflikt-Warnung (nicht-blockierend): Werktage im Bereich mit bereits erfasster Projektzeit auflisten. */
-    var _konflTage=[];for(let _cd=new Date(start);_cd<=end;_cd.setDate(_cd.getDate()+1)){if(stdVonTag(_cd,_wocheOf(who))<=0)continue;var _cth=_teAmTag(who,dk(_cd));if(_cth>0)_konflTage.push(fdt(dk(_cd))+' ('+_n(_cth,1)+'h)');}
+    var _konflTage=[];for(let _cd=new Date(start);_cd<=end;_cd.setDate(_cd.getDate()+1)){if(stdVonTag(_cd,_wocheOf(who))<=0)continue;var _cth=_teAmTag(who,dk(_cd));if(_cth>0)_konflTage.push(fdt(dk(_cd))+' ('+_absH(_cth,1)+'h)');}
     if(_konflTage.length){if(!await _confirmModal('⚠ An diesen Tagen ist bereits Projektzeit erfasst: '+_konflTage.join(', ')+'. Abwesenheit trotzdem eintragen?',{confirmLabel:'Trotzdem eintragen',cancelLabel:'Abbrechen'}))return;}
     const newAbs={},newAppr={};let cnt=0,skipped=0;
     for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
@@ -22872,7 +22888,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
      an ALLE User mit absence_approval=true = jeder Field-Worker bekam eine Notif pro Aktion). Sebastian's
      "kommt immer wieder" Bug = 9 identische Notifs in der DB für jeden User-ID einzeln. */
   const _absTargetUid=(m)=>{try{const _wk=(monteure||[]).find(mm=>(mm.n||mm.name)===m);if(!_wk)return null;const _au=(window._allUsers||[]).find(u=>u.monteurId===_wk.id);return _au?[_au.id]:null;}catch(e){return null;}};
-  const approve=async(m,d)=>{if(!isAdmin)return;/* v3.9.786: Konflikt-Hinweis, wenn am Tag bereits Projektzeit erfasst ist */var _apTeH=_teAmTag(m,dk(d));var _apMsg="Urlaub für "+m+" am "+fdt(dk(d))+" wirklich GENEHMIGEN?"+(_apTeH>0?"  ·  ⚠ Konflikt: an diesem Tag sind bereits "+_n(_apTeH,1)+" h Projektzeit erfasst.":"");if(!await _confirmModal(_apMsg))return;const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_at:new Date().toISOString(),approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);const _tg=_absTargetUid(m);if(_tg)_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt",_tg)]);};
+  const approve=async(m,d)=>{if(!isAdmin)return;/* v3.9.786: Konflikt-Hinweis, wenn am Tag bereits Projektzeit erfasst ist */var _apTeH=_teAmTag(m,dk(d));var _apMsg="Urlaub für "+m+" am "+fdt(dk(d))+" wirklich GENEHMIGEN?"+(_apTeH>0?"  ·  ⚠ Konflikt: an diesem Tag sind bereits "+_absH(_apTeH,1)+" h Projektzeit erfasst.":"");if(!await _confirmModal(_apMsg))return;const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"genehmigt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"genehmigt",approved_at:new Date().toISOString(),approved_by:_optionalChain([curUser, 'optionalAccess', _557 => _557.name])}});_optionalChain([window, 'access', _558 => _558.__toast, 'optionalCall', _559 => _559("✅ Urlaub genehmigt")]);const _tg=_absTargetUid(m);if(_tg)_optionalChain([pushNotif, 'optionalCall', _560 => _560("absence_approval","✅ Antrag genehmigt",m+": "+fdt(dk(d))+" genehmigt",_tg)]);};
   const reject=async(m,d)=>{if(!isAdmin)return;if(!await _confirmModal("Urlaub für "+m+" am "+fdt(dk(d))+" wirklich ABLEHNEN?",{variant:"danger"}))return;const k=m+"_"+dk(d);setApprovals(p=>({...p,[k]:"abgelehnt"}));SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"PUT",body:{status:"abgelehnt",approved_at:new Date().toISOString(),approved_by:_optionalChain([curUser, 'optionalAccess', _561 => _561.name])}});_optionalChain([window, 'access', _562 => _562.__toast, 'optionalCall', _563 => _563("❌ Antrag abgelehnt")]);const _tg=_absTargetUid(m);if(_tg)_optionalChain([pushNotif, 'optionalCall', _564 => _564("absence_approval","❌ Antrag abgelehnt",m+": "+fdt(dk(d))+" abgelehnt",_tg)]);};
   const getApproval=(m,d)=>_resolveAppr(m+"_"+dk(d));
   const delEntry=async(m,d)=>{/* v3.9.10 Modal-Migration Round-3 */ if(!isAdmin)return;if(!await _confirmModal("Abwesenheit wirklich löschen?",{variant:"danger"}))return;const k=m+"_"+dk(d);setAbs(p=>{const c={...p};delete c[k];return c;});setApprovals(p=>{const c={...p};delete c[k];return c;});SQ.push({url:"/api/absences/"+encodeURIComponent(k),method:"DELETE"});};
@@ -22984,7 +23000,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     const _row = (icon, label, valH, tg, color) => React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 4px",fontSize:12,borderTop:"1px solid rgba(255,255,255,.04)"}}
       , React.createElement('span', null, icon+" "+label)
       , valH>0
-          ? React.createElement('span', { style: {fontFamily:mono} }, React.createElement('span', { style: {color:color,fontWeight:700}}, _n(valH,1)+"h"), tg>0?React.createElement('span', { style: {color:V.dm,fontSize:UI.fMeta,marginLeft:6}}, tg+" Tg"):null)
+          ? React.createElement('span', { style: {fontFamily:mono} }, React.createElement('span', { style: {color:color,fontWeight:700}}, _absH(valH,1)+"h"), tg>0?React.createElement('span', { style: {color:V.dm,fontSize:UI.fMeta,marginLeft:6}}, tg+" Tg"):null)
           : React.createElement('span', { style: {color:V.dm} }, "—")
     );
     return React.createElement('div', { style: CC() }
@@ -22994,7 +23010,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       )
       , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10} }
         , React.createElement('div', { style: {background:"rgba(110,168,255,.10)",borderRadius:8,padding:10,textAlign:"center"} }
-          , React.createElement('div', { style: {fontSize:18,fontWeight:700,color:"#6ea8ff",fontFamily:mono} }, (typeof rest==="number"?_n(rest,1):rest)+"h")/* v3.9.354 #7: 1 Dezimale (konsistent mit Kontingent „192,5h" statt gerundet „193h") */
+          , React.createElement('div', { style: {fontSize:18,fontWeight:700,color:"#6ea8ff",fontFamily:mono} }, (typeof rest==="number"?_absH(rest,1):rest)+"h")/* v3.9.354 #7: 1 Dezimale (konsistent mit Kontingent „192,5h" statt gerundet „193h") */
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,textTransform:"uppercase",marginTop:2,letterSpacing:.5} }, "Resturlaub")
         )
         , React.createElement('div', { style: {background:"rgba(255,107,107,.10)",borderRadius:8,padding:10,textAlign:"center"} }
@@ -23046,7 +23062,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:10} }, "📥 Export")
       , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6} }
         , _btn(exportAbsCsv, "#6ee7a8", "rgba(110,231,168,.10)", "rgba(110,231,168,.30)", "📊", "Excel")
-        , _btn(exportToServer, V.tx, "rgba(255,255,255,.04)", V.bd, "🖥️", "Server (SRVDC02)")
+        , _btn(exportToServer, V.tx, "rgba(255,255,255,.04)", V.bd, "🖥️", "Auf Firmenserver speichern")
       )
     );
   };
@@ -23057,7 +23073,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         , React.createElement('h2', { style: {fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite,fontWeight:800,margin:0}}, "📅 Abwesenheiten"   )
         , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:0}}, "Urlaubstage, Krankenstand & ZA eintragen. Kalenderansicht und Excel-Export." )
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
-          , isAdmin&&React.createElement('button', { onClick: ()=>{setEditMode(!editMode);if(editMode)setEditEntry(null);}, style: editMode?{...bdS,fontSize:12}:{...xBtn("csv"),fontSize:12}}, editMode?"✕ Beenden":"✏️ Bearbeiten")
+          , isAdmin&&React.createElement('button', { onClick: ()=>{setEditMode(!editMode);if(editMode)setEditEntry(null);}, style: editMode?{...bdS,fontSize:12}:{...xBtn("csv"),fontSize:12}}, editMode?"✕ Bearbeiten beenden":"✏️ Einträge bearbeiten")
           , editMode&&isAdmin&&pendingCount>0&&React.createElement('button', { onClick: bulkApprove, style: {...bsS(),fontSize:12,background:"rgba(34,197,94,.15)",border:"2px solid rgba(34,197,94,.4)",color:_okG("#22c55e")}}, "✅ Alle genehmigen (",pendingCount,")")
           , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>{const hdrs=["Nr","Mitarbeiter","Std/Wo","Anspruch h","Vorjahr h","Gesamt h","Urlaub h","Krank h","ZA h","Rest h","ÜS h"];const data=[];_kontNames.forEach(function(m,i){const ks=kontingent[m]||{stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};const ys=yearSt(m);const rest=resturlaub(m);data.push([i+1,m,ks.woche||38.5,_n(_ktgStd(ks.stunden),1),_n((ks.vorjahr||0),1),_n((_ktgStd(ks.stunden)+(ks.vorjahr||0)),1),_n(ys.urlaubStd,1),_n(ys.krankenstandStd,1),_n(ys.zeitausgleichStd,1),_n(rest,1),_n(ks.ueberstunden||0,1)]);});genXls("📊 Urlaubskontingent "+yr,COMPANY_FOOTER.name+" · "+_kontNames.length+" Mitarbeiter · Std/Woche-basiert",hdrs,data,"Kontingent_"+yr+".xls",{colWidths:[35,130,55,65,60,60,60,60,55,60,55],leftCols:[0,1],boldCols:[1],sumCol:9});}, style: {...xBtn("xls"),fontSize:12}}, "📊 Excel Export")
           , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>window.print(), style: {...xBtn("pdf"),fontSize:12}, title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.319 */
@@ -23097,23 +23113,25 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , React.createElement('div', { style: {fontSize:13,fontWeight:700}}, "🎯 Urlaubskontingent "  , yr)
           , React.createElement('div', { style: {display:"flex",gap:4}}
             , React.createElement('button', { onClick: ()=>setKontExpanded(!kontExpanded), style: {...bsS(),padding:isMob?"8px 12px":"3px 10px",fontSize:isMob?12:UI.fMeta,minHeight:isMob?38:0,touchAction:"manipulation"}}, kontExpanded?"▲ Kompakt":"▼ Details")
-            , isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent&&kontUnlesbar){/* v3.9.914 DER TEURE TEIL: dieser Knopf schreibt den GANZEN kontingent-Zustand fuer JEDEN Monteur per Upsert zurueck. Konnte er nie gelesen werden, steht dort die eingebaute Voreinstellung 192,5h / Vorjahr 0 / Ueberstunden 0 - ein einziger Klick haette damit die echten Werte aller Mitarbeiter ueberschrieben. Ein nie gemessener Wert darf nicht zurueckgeschrieben werden. */if(window.__toast)window.__toast("⛔ Die Kontingente konnten nie gelesen werden (Rechte oder Netz). Speichern würde 192,5h / Vorjahr 0 / Überstunden 0 über die echten Werte schreiben — NICHT gespeichert.","error",9000);setEditKontingent(false);return;}if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{/* v3.8.78 Hunt B-022: ID-Lookup ZUERST, Name-Fallback nur falls Legacy-Daten — verhindert Namens-Kollision (z.B. "Hans" matched "Hans Mueller") */const mon=monteure.find(m=>m.id===worker)||monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:_ktgStd(ks.stunden),ueberstunden:ks.ueberstunden||0/* v3.9.648 KV-V2: urlaub-Spalte DEPRECATED seit v3.9.647 - Resturlaub laeuft ausschliesslich in Stunden (_resturlaubK); nicht mehr serialisieren. Upsert OHNE das Feld laesst die DB-Spalte bei UPDATE unveraendert (kein Bruch fuer alte App-Staende). */}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:isMob?"8px 12px":"3px 10px",fontSize:isMob?12:UI.fMeta,minHeight:isMob?38:0,touchAction:"manipulation"}}, editKontingent?"💾 Speichern":"✏️ Bearbeiten")
+            , isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent&&kontUnlesbar){/* v3.9.914 DER TEURE TEIL: dieser Knopf schreibt den GANZEN kontingent-Zustand fuer JEDEN Monteur per Upsert zurueck. Konnte er nie gelesen werden, steht dort die eingebaute Voreinstellung 192,5h / Vorjahr 0 / Ueberstunden 0 - ein einziger Klick haette damit die echten Werte aller Mitarbeiter ueberschrieben. Ein nie gemessener Wert darf nicht zurueckgeschrieben werden. */if(window.__toast)window.__toast("⛔ Die Kontingente konnten nie gelesen werden (Rechte oder Netz). Speichern würde 192,5h / Vorjahr 0 / Überstunden 0 über die echten Werte schreiben — NICHT gespeichert.","error",9000);setEditKontingent(false);return;}if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{/* v3.8.78 Hunt B-022: ID-Lookup ZUERST, Name-Fallback nur falls Legacy-Daten — verhindert Namens-Kollision (z.B. "Hans" matched "Hans Mueller") */const mon=monteure.find(m=>m.id===worker)||monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:_ktgStd(ks.stunden),ueberstunden:ks.ueberstunden||0/* v3.9.648 KV-V2: urlaub-Spalte DEPRECATED seit v3.9.647 - Resturlaub laeuft ausschliesslich in Stunden (_resturlaubK); nicht mehr serialisieren. Upsert OHNE das Feld laesst die DB-Spalte bei UPDATE unveraendert (kein Bruch fuer alte App-Staende). */}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:isMob?"8px 12px":"3px 10px",fontSize:isMob?12:UI.fMeta,minHeight:isMob?38:0,touchAction:"manipulation"}}, editKontingent?"💾 Kontingent speichern":"✏️ Kontingent bearbeiten")
           )
         )
         , kontUnlesbar?React.createElement('div', { style: {padding:"8px 12px",marginBottom:8,borderRadius:8,border:"1px solid #ef4444",background:"rgba(239,68,68,.10)",color:"#ef4444",fontSize:12,fontWeight:700,lineHeight:1.5}}, "⚠️ Kontingente konnten NICHT gelesen werden (Rechte oder Netz). Anspruch, Vorjahr und Überstunden stehen auf den eingebauten Werten 192,5 / 0 / 0 — der angezeigte Resturlaub ist NICHT GEMESSEN. Speichern ist gesperrt."):null
+        /* Handy-Befund AB3: die Kategorien standen nur als Emoji - eine Zeile Legende. */
+        , !kontExpanded&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:6,lineHeight:1.4}}, "🏖️ Urlaub · 🤒 Krankenstand · ⏰ Zeitausgleich (in Stunden) · rechts: Resturlaub")
         /* Compact card view (default) */
         , !kontExpanded&&(React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:6}}, (isAdmin?_kontNames:_kontNames.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=_ktgStd(ks.stunden)+(ks.vorjahr||0);
           return (React.createElement('div', { key: m, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{if(isAdmin){setSel(m);setSubView("kalender");}})(e);}}, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}, style: {display:"flex",alignItems:"center",gap:isMob?8:12,padding:isMob?"8px":"8px 12px",borderRadius:8,background:sel===m?"rgba(34,197,94,.08)":"transparent",border:sel===m?"1px solid rgba(34,197,94,.3)":"1px solid "+V.bd,cursor:isAdmin?"pointer":"default"}}
             , React.createElement('div', { style: {flex:1,minWidth:0}}
               , React.createElement('div', { style: {fontWeight:700,fontSize:isMob?12:13,color:sel===m?_okG("#22c55e"):V.tx,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, m)
-              , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Gesamt: " , _n(total,1), "h")
+              , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Gesamt: " , _n(total,1).replace(".",","), "h")
             )
             , React.createElement('div', { style: {display:"flex",gap:isMob?6:10,flexShrink:0,alignItems:"center",fontSize:isMob?UI.fMeta:UI.fMeta}}
-              , ys.urlaubStd>0&&React.createElement('span', { style: {color:"#3b82f6",fontWeight:600}}, "🏖️", _n(ys.urlaubStd,1), "h")
-              , ys.krankenstandStd>0&&React.createElement('span', { style: {color:COLORS.ERROR,fontWeight:600}}, "🤒", _n(ys.krankenstandStd,1), "h")
-              , ys.zeitausgleichStd>0&&React.createElement('span', { style: {color:"#a855f7",fontWeight:600}}, "⏰", _n(ys.zeitausgleichStd,1), "h")
+              , ys.urlaubStd>0&&React.createElement('span', { title: "Urlaub", style: {color:"#3b82f6",fontWeight:600}}, "🏖️", _n(ys.urlaubStd,1).replace(".",","), "h")
+              , ys.krankenstandStd>0&&React.createElement('span', { title: "Krankenstand", style: {color:COLORS.ERROR,fontWeight:600}}, "🤒", _n(ys.krankenstandStd,1).replace(".",","), "h")
+              , ys.zeitausgleichStd>0&&React.createElement('span', { title: "Zeitausgleich", style: {color:"#a855f7",fontWeight:600}}, "⏰", _n(ys.zeitausgleichStd,1).replace(".",","), "h")
             )
-            , React.createElement('div', { style: {padding:"4px 10px",borderRadius:8,fontWeight:800,fontSize:isMob?12:13,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e"),background:rest<=20?"rgba(239,68,68,.08)":rest<=50?"rgba(234,179,8,.08)":"rgba(34,197,94,.08)",flexShrink:0,minWidth:55,textAlign:"center"}}, _n(rest,1), "h")
+            , React.createElement('div', { style: {padding:"4px 10px",borderRadius:8,fontWeight:800,fontSize:isMob?12:13,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e"),background:rest<=20?"rgba(239,68,68,.08)":rest<=50?"rgba(234,179,8,.08)":"rgba(34,197,94,.08)",flexShrink:0,minWidth:55,textAlign:"center"}}, _n(rest,1).replace(".",","), "h")
           ));
         })))
         /* Expanded full table */
@@ -23139,14 +23157,14 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.woche||38.5, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), style: {...II(),width:44,padding:"2px 4px",fontSize:UI.fMeta,textAlign:"center"}} ):(ks.woche||38.5))
               , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: _ktgStd(ks.stunden), onChange: e=>setKontingent(p=>({...p,[m]:{...ks,stunden:_ktgStd(e.target.value)}})), style: {...II(),width:50,padding:"2px 4px",fontSize:UI.fMeta,textAlign:"center"}} ):_ktgStd(ks.stunden))
               , React.createElement('td', { style: tdSt()}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.vorjahr||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}})), style: {...II(),width:44,padding:"2px 4px",fontSize:UI.fMeta,textAlign:"center"}} ):(ks.vorjahr||0))
-              , React.createElement('td', { style: {...tdSt(),fontWeight:700}}, _n(total,1))
-              , React.createElement('td', { style: {...tdSt(),color:"#3b82f6",fontWeight:ys.urlaubStd>0?700:400}, title: ys.urlaubStdAusstehend>0?(_n(ys.urlaubStdGen,1)+"h genehmigt + "+_n(ys.urlaubStdAusstehend,1)+"h ausstehend"):(ys.urlaubStd>0?_n(ys.urlaubStdGen||ys.urlaubStd,1)+"h genehmigt":"")}, ys.urlaubStd>0?_n(ys.urlaubStd,1):"—", ys.urlaubStdAusstehend>0?React.createElement('sup', { style: {fontSize:UI.fMeta,marginLeft:2,opacity:.75}}, "+"+_n(ys.urlaubStdAusstehend,1)):null)
-              , React.createElement('td', { style: {...tdSt(),color:COLORS.ERROR,fontWeight:ys.krankenstandStd>0?700:400}}, ys.krankenstandStd>0?_n(ys.krankenstandStd,1):"—")
-              , React.createElement('td', { style: {...tdSt(),color:"#a855f7",fontWeight:ys.zeitausgleichStd>0?700:400}}, ys.zeitausgleichStd>0?_n(ys.zeitausgleichStd,1):"—")
-              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.sonderStdGes>0?700:400}}, ys.sonderStdGes>0?_n(ys.sonderStdGes,1):"—")
-              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.pflegeStdGes>0?700:400}}, ys.pflegeStdGes>0?_n(ys.pflegeStdGes,1):"—")
-              , React.createElement('td', { style: {...tdSt(),fontWeight:800,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e")}}, rest.toFixed?_n(rest,1):rest, "h")
-              , React.createElement('td', { style: {...tdSt(),color:"#f59e0b",fontWeight:(ks.ueberstunden||0)!==0?700:400}}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.ueberstunden||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), style: {...II(),width:50,padding:"2px 4px",fontSize:UI.fMeta,textAlign:"center"}} ):(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_n(ks.ueberstunden,1)):"—")
+              , React.createElement('td', { style: {...tdSt(),fontWeight:700}}, _absH(total,1))
+              , React.createElement('td', { style: {...tdSt(),color:"#3b82f6",fontWeight:ys.urlaubStd>0?700:400}, title: ys.urlaubStdAusstehend>0?(_absH(ys.urlaubStdGen,1)+"h genehmigt + "+_absH(ys.urlaubStdAusstehend,1)+"h ausstehend"):(ys.urlaubStd>0?_absH(ys.urlaubStdGen||ys.urlaubStd,1)+"h genehmigt":"")}, ys.urlaubStd>0?_absH(ys.urlaubStd,1):"—", ys.urlaubStdAusstehend>0?React.createElement('sup', { style: {fontSize:UI.fMeta,marginLeft:2,opacity:.75}}, "+"+_absH(ys.urlaubStdAusstehend,1)):null)
+              , React.createElement('td', { style: {...tdSt(),color:COLORS.ERROR,fontWeight:ys.krankenstandStd>0?700:400}}, ys.krankenstandStd>0?_absH(ys.krankenstandStd,1):"—")
+              , React.createElement('td', { style: {...tdSt(),color:"#a855f7",fontWeight:ys.zeitausgleichStd>0?700:400}}, ys.zeitausgleichStd>0?_absH(ys.zeitausgleichStd,1):"—")
+              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.sonderStdGes>0?700:400}}, ys.sonderStdGes>0?_absH(ys.sonderStdGes,1):"—")
+              , React.createElement('td', { style: {...tdSt(),color:"#f97316",fontWeight:ys.pflegeStdGes>0?700:400}}, ys.pflegeStdGes>0?_absH(ys.pflegeStdGes,1):"—")
+              , React.createElement('td', { style: {...tdSt(),fontWeight:800,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e")}}, rest.toFixed?_absH(rest,1):rest, "h")
+              , React.createElement('td', { style: {...tdSt(),color:"#f59e0b",fontWeight:(ks.ueberstunden||0)!==0?700:400}}, editKontingent?React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: ks.ueberstunden||0, onChange: e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), style: {...II(),width:50,padding:"2px 4px",fontSize:UI.fMeta,textAlign:"center"}} ):(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_absH(ks.ueberstunden,1)):"—")
             ));
           }))
         )
@@ -23156,7 +23174,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
         , React.createElement(Kpi, { label: "Ausstehend", value: pendingUnklar?(pendingCount+" + ?"):pendingGesamt, sub: pendingUnklar?"Kalender-Anträge — Panel ungezählt":"warten auf Freigabe", title: pendingUnklar?"Gezählt sind nur Kalender-/Terminal-Anträge (absences). Die Anträge im Panel des Tabs „Anträge“ sind noch nicht gemessen.":"Kalender-/Terminal-Anträge plus offene Anträge aus dem Panel", color: "#eab308", i: 0} )
         , React.createElement(Kpi, { label: "Genehmigt", value: approvedEntries.length, sub: "freigegeben", color: _okG("#22c55e"), i: 1} )
-        , React.createElement(Kpi, { label: "Rest "+sel, value: (typeof resturlaub(sel)==="number"?_n(resturlaub(sel),1):resturlaub(sel))+"h", sub: "von "+_n((_ktgStd(_optionalChain([kontingent, 'access', _576 => _576[sel], 'optionalAccess', _577 => _577.stunden]))+(_optionalChain([kontingent, 'access', _578 => _578[sel], 'optionalAccess', _579 => _579.vorjahr])||0)),1)+"h", color: resturlaub(sel)<=20?"#ef4444":"#3b82f6", i: 2} )
+        , React.createElement(Kpi, { label: "Rest "+sel, value: (typeof resturlaub(sel)==="number"?_absH(resturlaub(sel),1):resturlaub(sel))+"h", sub: "von "+_absH((_ktgStd(_optionalChain([kontingent, 'access', _576 => _576[sel], 'optionalAccess', _577 => _577.stunden]))+(_optionalChain([kontingent, 'access', _578 => _578[sel], 'optionalAccess', _579 => _579.vorjahr])||0)),1)+"h", color: resturlaub(sel)<=20?"#ef4444":"#3b82f6", i: 2} )
         , React.createElement(Kpi, { label: "Krank "+sel, value: yearSt(sel).krankenstand, sub: yr+" gesamt", color: "#ef4444", i: 3} )
       )
 
@@ -23177,7 +23195,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       /* ═══ KALENDER ═══ */
       , subView==="kalender"&&(React.createElement('div', {}
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}
-          , (isAdmin?names:names.filter(m=>m===myMonteurName)).map(m=>{const s=st(m);const a=sel===m;const ys=yearSt(m);const rest=resturlaub(m);const mp=allEntries.filter(e=>e.name===m&&e.approval==="ausstehend").length;return (React.createElement('button', { key: m, onClick: ()=>setSel(m), style: {padding:isMob?"5px 7px":"8px 14px",borderRadius:8,border:a?"2px solid #22c55e":"2px solid "+V.bd,background:a?"rgba(34,197,94,.1)":"transparent",color:a?_okG("#22c55e"):V.tx,cursor:"pointer",fontWeight:600,fontSize:isMob?9.5:12,fontFamily:"inherit",position:"relative",minHeight:44}}, m, React.createElement('span', { style: {display:"block",fontSize:UI.fMeta,opacity:.85,fontFamily:mono}}/* v3.9.948 E2: die Pille zeigte einem AUSGETRETENEN einen Resturlaub - gemessen bei 390 und 1440 px stand unter allen fuenf Namen "193h Rest · 0K", auch unter den beiden Ausgetretenen. Der NAME gehoert dorthin: die Pille ist die Auswahl, ueber die man Kalender und Krankenstaende einer Person ansieht, und v3.9.931 haelt ausdruecklich fest, dass diese Liste vollstaendig bleiben muss - wer die alten Krankenstaende eines Ausgetretenen sucht, muss ihn hier finden. Der ANSPRUCH gehoert nicht dorthin, und das sagt derselbe Kommentar mit denselben Worten: "Ein Anspruch fuer jemanden, der nicht mehr da ist, ist keine Historie." v3.9.931 hat Kompaktliste, Detailtabelle und Excel versorgt - die Pille nicht. Aufgeloest wird ueber den Namen, weil `names` genau `monteure.map(m=>m.n)` ist; denselben Namensabgleich macht `resturlaub(m)` schon, also keine neue Klasse von Risiko. Der Krankenstand BLEIBT stehen - der ist Historie und keine Zusage. Schriftgroesse dabei von 9 auf UI.fMeta (D7, Anker c). */, (function(){var _maObj=(monteure||[]).find(x=>x.n===m);if(_maObj&&_maIstEhemalig(_maObj))return React.createElement(React.Fragment,null,"ausgetreten · ",ys.krankenstand,"K");return React.createElement(React.Fragment,null,(resturlaub(m).toFixed?_n(resturlaub(m),0):resturlaub(m)),(isMob?"h · ":"h Rest · "),ys.krankenstand,"K");})())/* v3.9.118 Mobile: kürzerer Text — Pill clippte sonst 4px */, mp>0&&React.createElement('span', { style: {position:"absolute",top:-4,right:-4,background:"#eab308",color:"#000",borderRadius:"50%",width:16,height:16,fontSize:UI.fMeta,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}, mp)));})
+          , (isAdmin?names:names.filter(m=>m===myMonteurName)).map(m=>{const s=st(m);const a=sel===m;const ys=yearSt(m);const rest=resturlaub(m);const mp=allEntries.filter(e=>e.name===m&&e.approval==="ausstehend").length;return (React.createElement('button', { key: m, onClick: ()=>setSel(m), style: {padding:isMob?"5px 7px":"8px 14px",borderRadius:8,border:a?"2px solid #22c55e":"2px solid "+V.bd,background:a?"rgba(34,197,94,.1)":"transparent",color:a?_okG("#22c55e"):V.tx,cursor:"pointer",fontWeight:600,fontSize:isMob?9.5:12,fontFamily:"inherit",position:"relative",minHeight:44,opacity:_absEhem(m)&&!a?.6:1}}, m, React.createElement('span', { style: {display:"block",fontSize:UI.fMeta,opacity:.85,fontFamily:mono}}/* v3.9.948 E2: die Pille zeigte einem AUSGETRETENEN einen Resturlaub - gemessen bei 390 und 1440 px stand unter allen fuenf Namen "193h Rest · 0K", auch unter den beiden Ausgetretenen. Der NAME gehoert dorthin: die Pille ist die Auswahl, ueber die man Kalender und Krankenstaende einer Person ansieht, und v3.9.931 haelt ausdruecklich fest, dass diese Liste vollstaendig bleiben muss - wer die alten Krankenstaende eines Ausgetretenen sucht, muss ihn hier finden. Der ANSPRUCH gehoert nicht dorthin, und das sagt derselbe Kommentar mit denselben Worten: "Ein Anspruch fuer jemanden, der nicht mehr da ist, ist keine Historie." v3.9.931 hat Kompaktliste, Detailtabelle und Excel versorgt - die Pille nicht. Aufgeloest wird ueber den Namen, weil `names` genau `monteure.map(m=>m.n)` ist; denselben Namensabgleich macht `resturlaub(m)` schon, also keine neue Klasse von Risiko. Der Krankenstand BLEIBT stehen - der ist Historie und keine Zusage. Schriftgroesse dabei von 9 auf UI.fMeta (D7, Anker c). */, (function(){var _maObj=(monteure||[]).find(x=>x.n===m);var _kt=ys.krankenstand===1?" Krankentag":" Krankentage";/* Handy-Befund AB4: das Kuerzel K war kryptisch. K = ys.krankenstand = Anzahl Krankenstandstage (_yearStK zaehlt je Tag-Schluessel). */if(_maObj&&_maIstEhemalig(_maObj))return React.createElement(React.Fragment,null,"ausgetreten · ",ys.krankenstand,_kt);return React.createElement(React.Fragment,null,"Rest ",(resturlaub(m).toFixed?_n(resturlaub(m),0):resturlaub(m))," h · ",ys.krankenstand,_kt);})())/* v3.9.118 Mobile: kürzerer Text — Pill clippte sonst 4px */, mp>0&&React.createElement('span', { style: {position:"absolute",top:-4,right:-4,background:"#eab308",color:"#000",borderRadius:"50%",width:16,height:16,fontSize:UI.fMeta,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}, mp)));}).sort((x,y)=>(_absEhem(x.key)?1:0)-(_absEhem(y.key)?1:0))/* Handy-Befund AB4: Ausgetretene ans Ende (stabil sortiert nach key = Name) */
         )
 
         , React.createElement('div', {}
@@ -23228,7 +23246,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
                   React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid "+V.bd,fontSize:12,flexWrap:"wrap"}}
                     , React.createElement('span', {}, _optionalChain([at2, 'optionalAccess', _589 => _589.i]))
                     , React.createElement('span', { style: {flex:1,minWidth:80}}, fdt(dk(e.day)), " — "  , _optionalChain([at2, 'optionalAccess', _590 => _590.l]))
-                    , React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,color:V.dm,minWidth:40,textAlign:"right"}}, _n((e.hours||0),1),"h")
+                    , React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,color:V.dm,minWidth:40,textAlign:"right"}}, _absH((e.hours||0),1),"h")
                     , e.note&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontStyle:"italic"}}, "📝 ",e.note)
                     , React.createElement('span', { style: {padding:"3px 8px",borderRadius:4,fontSize:UI.fMeta,fontWeight:600,background:e.approval==="genehmigt"?"rgba(34,197,94,.1)":e.approval==="abgelehnt"?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:e.approval==="genehmigt"?_okG("#22c55e"):e.approval==="abgelehnt"?"#ef4444":"#eab308"}}, e.approval==="genehmigt"?"✅ Genehmigt":e.approval==="abgelehnt"?"❌ Abgelehnt":"⏳ Ausstehend")
                     , isAdmin && e.approval==="ausstehend" && (React.createElement('div', { style: {display:"flex",gap:3}}
@@ -23288,14 +23306,14 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               , React.createElement('summary', { style: {display:"flex",alignItems:"center",gap:10,padding:"8px 4px",cursor:"pointer"} }
                 , React.createElement('span', { style: {fontWeight:700,flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} }, m)
                 , React.createElement('span', { style: {fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:700} }, _kt+(_kt===1?" Tag":" Tage"))
-                , React.createElement('span', { style: {fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:600} }, "🤒 "+_n(ys.krankenstandStd||0,1)+"h")
+                , React.createElement('span', { style: {fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:600} }, "🤒 "+_absH(ys.krankenstandStd||0,1)+"h")
                 , atts.length>0&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.acTx,fontWeight:600} }, "📎 "+atts.length)
               )
               , React.createElement('div', { style: {padding:"4px 4px 12px 20px"} }
                 , kd.length>0&&React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:3,marginBottom:10} }
                   , kd.map(d=>React.createElement('div', { key: d.key, style: {display:"flex",alignItems:"center",gap:8,fontSize:UI.fMeta} }
                     , React.createElement('span', { style: {fontFamily:mono,color:V.tx} }, fdt(d.date))
-                    , React.createElement('span', { style: {color:V.dm} }, _n(d.hours,1)+"h")
+                    , React.createElement('span', { style: {color:V.dm} }, _absH(d.hours,1)+"h")
                     , React.createElement('span', { style: {fontSize:UI.fMeta,fontWeight:700,color:d.status==="genehmigt"?_okG("#22c55e"):d.status==="abgelehnt"?"#ef4444":"#eab308"} }, d.status==="genehmigt"?"✓ genehmigt":d.status==="abgelehnt"?"✕ abgelehnt":"⏳ ausstehend")
                   ))
                 )
@@ -23319,8 +23337,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , names.map(m=>{const ys=yearSt(m);const rest=resturlaub(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;
             return (React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:isMob?"90px 1fr":"120px 60px 60px 1fr",gap:6,padding:"10px 8px",borderBottom:"1px solid "+V.bd,alignItems:"center",fontSize:12,background:names.indexOf(m)%2===0?V.rowAlt:"transparent",borderRadius:4}}
               , React.createElement('div', { style: {fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",minHeight:24}, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{setSel(m);setSubView("kalender");})(e);}}, onClick: ()=>{setSel(m);setSubView("kalender");}}, m)
-              , !isMob&&React.createElement(React.Fragment, null, React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e")}}, rest.toFixed?_n(rest,0):rest, "h"), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Rest" ))
-              , React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:COLORS.ERROR}}, _n((ys.krankenstandStd||0),0), "h"), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Krank" )))
+              , !isMob&&React.createElement(React.Fragment, null, React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e")}}, rest.toFixed?_absH(rest,0):rest, "h"), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Rest" ))
+              , React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:COLORS.ERROR}}, _absH((ys.krankenstandStd||0),0), "h"), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Krank" )))
               , React.createElement('div', { style: {display:"flex",gap:1}}
                 , Array.from({length:12},(_,mi)=>{const dim2=new Date(yr,mi+1,0).getDate();let u=0,k=0,z=0;
                   for(let di=1;di<=dim2;di++){const d=new Date(yr,mi,di);const ab=ga(m,d);if(ab){if(ab.type==="urlaub")u++;if(ab.type==="krankenstand")k++;if(ab.type==="zeitausgleich")z++;}}
@@ -23342,7 +23360,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
             , React.createElement('button', { onClick: exportAbsCsv, style: xBtn("xls")}, "📊 Excel" )
             , React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.318 */
-            , React.createElement('button', { onClick: exportToServer, style: xBtn("server")}, "📤 Server" )
+            , React.createElement('button', { onClick: exportToServer, style: xBtn("server")}, "📤 Auf Firmenserver speichern" )
           )
         )
       ))
@@ -23420,7 +23438,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
                 return React.createElement('div', { key: m, style: {display:"flex",borderBottom:"1px solid "+V.bd,background:mi%2===0?"transparent":V.rowAlt}}
                   , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, role: "button", tabIndex: 0, "aria-label": "Kalender für "+m+" öffnen", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setSel(m);setSubView("kalender");}}, style: {width:nameW,minWidth:nameW,position:"sticky",left:0,zIndex:2,background:mi%2===0?V.cd:V.rowAlt,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?UI.fMeta:UI.fMeta,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:2}}
                     , React.createElement('span', { style: {overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:isMob?UI.fMeta:13}}, m)
-                    , React.createElement('span', { style: {fontSize:isMob?UI.fMeta:UI.fMeta,color:mRest<=20?"#ef4444":_okG("#22c55e"),fontWeight:700,flexShrink:0}}, _n(mRest,0),"h")
+                    , React.createElement('span', { style: {fontSize:isMob?UI.fMeta:UI.fMeta,color:mRest<=20?"#ef4444":_okG("#22c55e"),fontWeight:700,flexShrink:0}}, _absH(mRest,0),"h")
                   )
                   , React.createElement('div', { style: {display:"flex",flexDirection:"column"}}
                     , React.createElement('div', { style: {display:"flex"}}, _dayRow("gen"))
@@ -28729,13 +28747,13 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                     , React.createElement('div', { style: {fontSize:13,color:V.dm}}, fzScannedItem.marke, " " , fzScannedItem.modell, " " , fzScannedItem.baujahr?"("+fzScannedItem.baujahr+")":"")
                   )
                   , React.createElement('div', { style: {textAlign:"right"}}
-                    , React.createElement('div', { style: {fontFamily:mono,fontSize:18,fontWeight:800,color:V.acTx}}, (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
+                    , React.createElement('div', { style: {fontFamily:mono,fontSize:18,fontWeight:800,color:V.acTx}}, (+fzScannedItem.kmStand>0)?(+fzScannedItem.kmStand).toLocaleString("de-AT")+" km":"—"/* Handy-Befund F4 */)
                     , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _optionalChain([(monteure||MONT), 'access', _688 => _688.find, 'call', _689 => _689(m=>m.id===fzScannedItem.fahrer), 'optionalAccess', _690 => _690.n])||"kein Fahrer")
                   )
                 )
                 /* Badges */
                 , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap"}}
-                  , fzScannedItem.pickerl&&React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl), color: new Date(fzScannedItem.pickerl+"T00:00:00")>new Date()?_okG("#22c55e"):"#ef4444"/* v3.9.417: date-only lokal parsen */} )
+                  , fzScannedItem.pickerl&&(()=>{/* Handy-Befund F1: QR-Abzeichen nach derselben Toleranzregel wie die Liste (window._pickerlFrist parst date-only lokal) */const _qFr=window._pickerlFrist(fzScannedItem.pickerl)||{};return React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl)+(_qFr.st==='overdue'?" · abgelaufen":_qFr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_qFr.tolBis):""), color: _qFr.st==='overdue'?"#ef4444":(_qFr.st==='toleranz'||_qFr.st==='warn')?"#f97316":_okG("#22c55e")} );})()
                   , (fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length>0&&React.createElement(Badge, { text: "⚠️ "+(fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length+" offene Schäden", color: "#ef4444"} )
                   , _optionalChain([fzScannedItem, 'access', _691 => _691.tankLog, 'optionalAccess', _692 => _692.length])>0&&React.createElement(Badge, { text: "⛽ Letzte Tankung: "+fdt(_optionalChain([fzScannedItem, 'access', _693 => _693.tankLog, 'access', _694 => _694[0], 'optionalAccess', _695 => _695.datum])), color: "#f97316"} )
                 )
@@ -28890,7 +28908,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , batchRows.length>0&&(React.createElement('div', { style: {...CC(),marginBottom:14}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
             , React.createElement('div', { style: {fontSize:14,fontWeight:700}}, "📋 Diese Sitzung"  )
-            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, " Tankungen · "   , React.createElement('strong', { style: {color:"#f97316"}}, _n(batchTotal.liter,1), " L" ), " · "  , React.createElement('strong', { style: {color:"#f97316"}}, "€", _n(batchTotal.preis,2)))
+            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, batchTotal.count===1?" Tankung · ":" Tankungen · "   , React.createElement('strong', { style: {color:"#f97316"}}, _n(batchTotal.liter,1), " L" ), " · "  , React.createElement('strong', { style: {color:"#f97316"}}, "€", _n(batchTotal.preis,2)))
           )
           , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:4}}
             , batchRows.map((r,i)=>{
@@ -29004,6 +29022,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           const _pkSt=window._pickerlStatus(f.pickerl);
           const pickerlOk=_pkSt==='ok';
           const pickerlWarn=_pkSt==='warn'||_pkSt==='overdue';
+          /* Handy-Befund F1: Farbe und Text nach der Toleranzregel (window._pickerlFrist) - abgelaufen = rot, in Toleranzfrist = orange mit Datum. pickerlWarn bleibt die Zaehlregel der Kachel "Pickerl faellig". */
+          const _pkFr=window._pickerlFrist(f.pickerl)||{};
+          const pickerlRot=_pkFr.st==='overdue';
+          /* Handy-Befund F4: ohne Kilometerstand (Anhaenger, Geraete) "—" statt "0 km". */
+          const _kmTxt=(+f.kmStand>0)?(+f.kmStand).toLocaleString("de-AT")+" km":"—";
+          const _tkN=(f.tankLog||[]).length;
           const serviceWarn=f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date();/* v3.9.407: date-only lokal parsen, konsistent mit Dashboard Z9521 */
           const offSch=(f.schaeden||[]).filter(s=>s.status==="offen").length;
           const isMine=f.id===myFzId;
@@ -29012,17 +29036,17 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             , React.createElement('div', { style: {fontSize:13,fontWeight:800,marginBottom:2,paddingRight:isMine?40:0,wordBreak:"break-word",lineHeight:1.25}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗", " ", f.kennzeichen)
             , isMine&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#dcfce7",color:_okG("#16a34a"),fontWeight:700,position:"absolute",top:4,right:4,zIndex:2}}, "MEIN")
             , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:4}}, f.marke," ",f.modell)
-            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:12,fontWeight:700,marginBottom:4}}, (f.kmStand||0).toLocaleString("de-AT")," km")
+            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:12,fontWeight:700,marginBottom:4}}, _kmTxt)
             , fahrer&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.acTx}}, "👤 ",fahrer.n)
             , React.createElement('div', { style: {display:"flex",gap:3,marginTop:4,flexWrap:"wrap"}}
-              , pickerlWarn&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#fef3c7",color:"#d97706",fontWeight:600}}, "📋")
+              , pickerlWarn&&React.createElement('span', { title: pickerlRot?"Pickerl abgelaufen":_pkFr.st==='toleranz'?"Pickerl in Toleranzfrist bis "+fdt(_pkFr.tolBis):"Pickerl bald fällig", style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:pickerlRot?"#fee2e2":"#fef3c7",color:pickerlRot?"#dc2626":"#d97706",fontWeight:600}}, "📋")
               , serviceWarn&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "🔧")
               , offSch>0&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️",offSch)
             )
-          )):(React.createElement('div', { key: f.id, style: {...CC(),cursor:"pointer",borderLeft:"4px solid "+(isMine?"#22c55e":offSch>0?"#ef4444":pickerlWarn?"#f97316":"#0ea5e9"),position:"relative"}, tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>setSel(f.id))(e);}}, onClick: ()=>setSel(f.id)}
+          )):(React.createElement('div', { key: f.id, style: {...CC(),cursor:"pointer",borderLeft:"4px solid "+(isMine?"#22c55e":offSch>0?"#ef4444":pickerlRot?"#ef4444":pickerlWarn?"#f97316":"#0ea5e9"),position:"relative"}, tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>setSel(f.id))(e);}}, onClick: ()=>setSel(f.id)}
             /* Fav star */
-            , React.createElement('button', { onClick: e=>{e.stopPropagation();toggleFav(f.id);}, style: {position:"absolute",top:8,right:8,border:"none",background:"transparent",cursor:"pointer",fontSize:18,padding:4,minWidth:24,zIndex:2,color:isFav(f.id)?"#eab308":"#555",filter:isFav(f.id)?"drop-shadow(0 0 2px rgba(234,179,8,.4))":"none"}, title: isFav(f.id)?"Favorit entfernen":"Als Favorit markieren"}, isFav(f.id)?"★":"☆")
-            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingRight:28}}
+            , React.createElement('button', { onClick: e=>{e.stopPropagation();toggleFav(f.id);}, style: {position:"absolute",top:0,right:0,border:"none",background:"transparent",cursor:"pointer",fontSize:20,padding:0,minWidth:44,minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,/* Handy-Befund F6: Tippziel 44x44 statt 24 */color:isFav(f.id)?"#eab308":"#555",filter:isFav(f.id)?"drop-shadow(0 0 2px rgba(234,179,8,.4))":"none"}, title: isFav(f.id)?"Favorit entfernen":"Als Favorit markieren"}, isFav(f.id)?"★":"☆")
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingRight:40}}
               , React.createElement('div', {}
                 , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                   , React.createElement('span', { style: {fontSize:16,fontWeight:800}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗", " " , f.kennzeichen)
@@ -29032,16 +29056,16 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 , React.createElement('div', { style: {fontSize:13,color:V.dm}}, f.marke, " " , f.modell, " " , f.baujahr?"("+f.baujahr+")":"", f.farbe?" · "+f.farbe:"")
               )
               , React.createElement('div', { style: {textAlign:"right"}}
-                , React.createElement('div', { style: {fontFamily:"monospace",fontSize:14,fontWeight:700}}, (f.kmStand||0).toLocaleString("de-AT"), " km" )
+                , React.createElement('div', { style: {fontFamily:"monospace",fontSize:14,fontWeight:700}}, _kmTxt)
                 , fahrer&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.acTx}}, "👤 " , fahrer.n)
               )
             )
             , React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}
-              , f.pickerl&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:pickerlOk&&!pickerlWarn?"#dcfce7":pickerlWarn?"#fef3c7":"#fee2e2",color:pickerlOk&&!pickerlWarn?_okG("#16a34a"):pickerlWarn?"#d97706":"#dc2626",fontWeight:600}}, "📋 Pickerl: "  , fdt(f.pickerl))
+              , f.pickerl&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:pickerlRot?"#fee2e2":pickerlOk&&!pickerlWarn?"#dcfce7":pickerlWarn?"#fef3c7":"#fee2e2",color:pickerlRot?"#dc2626":pickerlOk&&!pickerlWarn?_okG("#16a34a"):pickerlWarn?"#d97706":"#dc2626",fontWeight:600}}, "📋 Pickerl: "  , fdt(f.pickerl), pickerlRot?" · abgelaufen":_pkFr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_pkFr.tolBis):"")
               , f.naechstService&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:serviceWarn?"#fee2e2":"#e0f2fe",color:serviceWarn?"#dc2626":"#0284c7",fontWeight:600}}, "🔧 Service: "  , fdt(f.naechstService))
-              , offSch>0&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️ " , offSch, " Schaden" )
+              , offSch>0&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️ " , offSch, offSch===1?" Schaden":" Schäden" )
               , f.reifen&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#f3f4f6",color:"#4b5563",fontWeight:500}}, "🛞 " , f.reifen)
-              , React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#f0f0f0",color:"#666"}}, "⛽ " , (f.tankLog||[]).length, " Tankungen" )
+              , React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#f0f0f0",color:"#666"}}, "⛽ " , _tkN, _tkN===1?" Tankung":" Tankungen" )
             )
           ));
         })
@@ -29059,7 +29083,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
               )
               , React.createElement('div', { style: {fontSize:14,color:V.dm}}, selFz.marke, " " , selFz.modell, " " , selFz.baujahr?"("+selFz.baujahr+")":"")
             )
-            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:20,fontWeight:800,color:V.acTx}}, (selFz.kmStand||0).toLocaleString("de-AT"), " km" )
+            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:20,fontWeight:800,color:V.acTx}}, (+selFz.kmStand>0)?(+selFz.kmStand).toLocaleString("de-AT")+" km":"—"/* Handy-Befund F4 */)
             /* v3.9.680: Auf Mobile faellt der Barcode aus der Kopfzeile heraus — als drittes Flex-Kind
                neben Kennzeichen und km-Stand quetschte er beides zusammen und ragte an den Rand
                (Screenshot Sebastian 14.07.). Desktop behaelt ihn hier, unveraendert. */
@@ -29999,6 +30023,12 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const stCounts={};Object.keys(WZ_STATUS).forEach(k=>{stCounts[k]=werkzeuge.filter(w=>w.status===k).length;});
   const totalWert=_react.useMemo.call(void 0, ()=>werkzeuge.reduce((s,w)=>s+(w.wert||0),0),[werkzeuge]);
   const kalibFaellig=werkzeuge.filter(w=>_wzKalibFaellig(w)).length;
+  /* Handy-Befund W2 (14.11.2026): Gesamt 296, Verfuegbar 289, Ausgegeben 0, "2 in Reparatur" - der Rest fehlte in der Rechnung.
+     Ursache: die Kacheln zeigen nur drei der sechs WZ_STATUS-Werte; kalibrierung/verloren/stillgelegt (und Eintraege mit
+     unbekanntem Status) wurden nirgends genannt. "Service faellig" zaehlt nach DATUM (_wzKalibFaellig) und ueberlappt mit
+     den Status - es ist kein Summand. Die Zeile unter den Kacheln nennt jetzt jeden Status mit Bestand, damit Gesamt aufgeht. */
+  const _wzOhneStatus=werkzeuge.filter(w=>!WZ_STATUS[w.status]).length;
+  const _wzRestTeile=[["kalibrierung","Status Kalibrierung"],["verloren","verloren/defekt"],["stillgelegt","stillgelegt"]].filter(([k])=>(stCounts[k]||0)>0).map(([k,l])=>(stCounts[k]||0)+" "+l).concat(_wzOhneStatus>0?[_wzOhneStatus+" ohne gültigen Status"]:[]);
 
 
   // Role-based pre-filter: Monteur sees only assigned tools, Lagerleiter+Admin see all
@@ -30166,28 +30196,33 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
   return (React.createElement('div', {}
     , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
-      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geraete erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
+      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geräte erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}
         , isAdmin&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neues Gerät"  )
         /* v3.9.340: Werkzeug-Labels-Button — Render-Gate (admin/PL/buero/lagerleitung), Status-Filter (stillgelegt+verloren raus per default), Toggle "Stillgelegte/verlorene einblenden" daneben. */
         , _isVAdminWz&&React.createElement('button', { onClick: ()=>{const _list=wzShowDecommissioned?werkzeuge:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status));printLabels(_list.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels");}, style: bsS(), title: "🏷️ "+(wzShowDecommissioned?werkzeuge.length:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status)).length)+" Werkzeuge werden gedruckt"+(wzShowDecommissioned?" (inkl. stillgelegt/verloren)":" (ohne stillgelegt/verloren)")+". Count wird beim Klick im Toast angezeigt."}, "🏷️ Labels" )
-        , _isVAdminWz&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fMeta,color:V.dm,cursor:"pointer",padding:"4px 6px"}, title: "Wenn aktiviert, werden auch stillgelegte/verlorene Werkzeuge gedruckt."}
-          , React.createElement('input', { type: "checkbox", checked: wzShowDecommissioned, onChange: e=>setWzShowDecommissioned(e.target.checked), style: {cursor:"pointer"}} )
-          , "Stillgelegte/verlorene einblenden"
+        /* Handy-Befund W3 (14.11.2026): der Schalter stand als nackter Text da und versprach "einblenden" - er wirkt aber NUR auf den Label-Druck (wzShowDecommissioned wird ausschliesslich im Labels-Knopf gelesen). Jetzt als Schalter-Chip mit 44 px und ehrlicher Beschriftung. */
+        , _isVAdminWz&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,color:wzShowDecommissioned?"#d97706":V.tx,cursor:"pointer",padding:"6px 10px",minHeight:44,boxSizing:"border-box",borderRadius:8,border:"1px solid "+(wzShowDecommissioned?"#d97706":V.bd),background:wzShowDecommissioned?"rgba(217,119,6,.12)":"transparent"}, title: "Wenn aktiviert, werden beim Label-Druck auch stillgelegte/verlorene Werkzeuge gedruckt."}
+          , React.createElement('input', { type: "checkbox", checked: wzShowDecommissioned, onChange: e=>setWzShowDecommissioned(e.target.checked), style: {cursor:"pointer",width:18,height:18,margin:0,accentColor:"#d97706"}} )
+          , "Labels inkl. stillgelegter/verlorener"
         )
         , React.createElement('button', { onClick: exportWz, style: xBtn("xls")}, "📊 Excel" )
         , React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.318 */
       )
     )
-    , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
+    , React.createElement('div', { className: "kpi-grid", style: {marginBottom:_wzRestTeile.length?6:14}}
       /* v3.9.81 SPRINT-60 F-9 Tooltips-R2: KPI-Hover-Tooltips (Sprint 44 standard). */
       , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: "€"+totalWert.toLocaleString("de-AT")+" Wert", color: "#d97706", i: 0, title: "Gesamtanzahl aller im Inventar erfassten Werkzeuge inkl. ausgegebener und reparaturbedürftiger Geräte."} )
       , React.createElement(Kpi, { label: "Verfügbar", value: stCounts.verfuegbar||0, sub: "im Lager" , color: _okG("#22c55e"), i: 1, title: "Werkzeuge im Lager, sofort einsatzbereit (Status: verfügbar)."} )
       , React.createElement(Kpi, { label: "Ausgegeben", value: stCounts.ausgegeben||0, sub: "auf Baustellen" , color: "#f97316", i: 2, title: "Werkzeuge aktuell auf Baustellen oder bei Mitarbeitern (Status: ausgegeben)."} )
-      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":_okG("#22c55e"), i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung."} )
+      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":_okG("#22c55e"), i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung (nach Datum - zählt unabhängig vom Status, ist also kein Teil der Summe)."} )
     )
-    , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
-      , [{id:"scan",i:"📷",l:"QR Scan"},{id:"liste",i:"📋",l:"Liste"},...(canDo("wz_edit",curUser)?[{id:"checkout",i:"📤",l:"Check-In/Out"}]:[]),{id:"kalib",i:"🔧",l:"Service"},...(isAdmin?[{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}]:[])].map(t=>React.createElement('button', { key: t.id,/* v3.9.942: title und aria-label aus t.l. Gemessen tragen diese fuenf Reiter bei 390 px NULL Text und in BEIDEN Breiten kein title und kein aria-label - die Bedeutung lag allein im Emoji. Die Beschriftung stand schon im Objekt; hier wird kein Wort erfunden und keines umbenannt. Kosten: null Pixel. */ title: t.l, 'aria-label': t.l, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?UI.fMeta:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+    /* Handy-Befund W2: die Summe sichtbar machen - Gesamt = Verfuegbar + Ausgegeben + In Reparatur + diese Zeile. */
+    , _wzRestTeile.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:14,lineHeight:1.4}}, "Außerdem im Gesamtbestand: ", _wzRestTeile.join(" · "))
+    /* Handy-Befund W4: am Telefon trugen die Reiter nur ein Emoji. Jetzt mit Kurztext (t.k) und Umbruch statt Querrollen
+       (eine quer rollende Leiste verbraucht die Wischgeste, siehe v3.9.948 D5). title/aria-label bleiben der volle Name. */
+    , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14,flexWrap:"wrap",overflowX:"visible"}}
+      , [{id:"scan",i:"📷",l:"QR Scan",k:"Scan"},{id:"liste",i:"📋",l:"Liste",k:"Liste"},...(canDo("wz_edit",curUser)?[{id:"checkout",i:"📤",l:"Check-In/Out",k:"Ein/Aus"}]:[]),{id:"kalib",i:"🔧",l:"Service",k:"Service"},...(isAdmin?[{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu",k:editId?"Bearb.":"Neu"}]:[])].map(t=>React.createElement('button', { key: t.id,/* v3.9.942: title und aria-label aus t.l. Gemessen tragen diese fuenf Reiter bei 390 px NULL Text und in BEIDEN Breiten kein title und kein aria-label - die Bedeutung lag allein im Emoji. Die Beschriftung stand schon im Objekt; hier wird kein Wort erfunden und keines umbenannt. Kosten: null Pixel. */ title: t.l, 'aria-label': t.l, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?UI.fMeta:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?t.k:t.l))
     )
 
     /* ═══ QR SCAN ═══ */

@@ -364,8 +364,12 @@ def test_pickerl_badges_local_parse():
     text = _txt()
     assert 'const pickerl=myFz.pickerl?new Date(myFz.pickerl+"T00:00:00"):null;' in text, \
         'v3.9.417 Regression: Dashboard-Pickerl-Badge braucht +"T00:00:00"'
-    assert 'new Date(fzScannedItem.pickerl+"T00:00:00")>new Date()' in text, \
-        'v3.9.417 Regression: QR-Pickerl-Badge braucht +"T00:00:00"'
+    # Handy-Befund F1 (14.11.2026): das QR-Abzeichen laeuft jetzt ueber window._pickerlFrist,
+    # das ueber _pickerlStatus date-only lokal parst ('T00:00:00'). Kein nacktes new Date(...pickerl).
+    assert 'window._pickerlFrist(fzScannedItem.pickerl)' in text, \
+        'v3.9.417 Regression: QR-Pickerl-Badge braucht die lokale Pickerl-Regel'
+    assert 'new Date(fzScannedItem.pickerl)' not in text, \
+        'v3.9.417 Regression: QR-Pickerl-Badge parst wieder UTC'
 
 
 # ── v3.9.418: DB-Schema-Mismatch (schema-verifiziert gegen jiggujpruejkaomgxarp) ──
