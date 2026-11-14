@@ -647,18 +647,20 @@ def test_der_reiter_form_beschriftet_sich_nach_editid(wz, node_exe, tmp_path):
     assert passt("Bearbeiten", bearb[-1][2]), bearb[-1]
 
 
-def test_die_reiter_tragen_am_telefon_nur_die_ikone(wz):
-    """DER IST-ZUSTAND, festgehalten - nicht gefordert.
-
-    Die Beschriftung existiert im Code (`l`), wird unter BP_MOB aber
-    weggelassen. Das ist der Grund fuer diese ganze Vorarbeit. Der Riegel
-    prueft NICHT, dass das so bleibt - er haelt fest, dass die Beschriftung
-    im Code vorhanden ist und die Unterdrueckung an EINER Stelle sitzt.
+def test_die_reiter_tragen_am_telefon_einen_kurztext(wz):
+    """Frueher festgehaltener IST-ZUSTAND (`isMob?"":t.l` = am Telefon nur das
+    Emoji). Handy-Befund W4 (14.11.2026) hat ihn behoben: am Telefon steht der
+    Kurztext `t.k`, am Rechner weiter `t.l`. Jeder Reiter muss einen `k` tragen,
+    sonst stuende dort am Telefon `undefined`.
     """
-    assert nur_code_treffer(wz, 'isMob?"":t.l'), (
-        "die Stelle, an der die Reiterbeschriftung am Telefon unterdrueckt "
-        "wird, ist nicht mehr auffindbar - entweder behoben oder verschoben. "
-        "Beides will nachgesehen werden.")
+    assert not nur_code_treffer(wz, 'isMob?"":t.l'), (
+        "die Reiterbeschriftung wird am Telefon wieder unterdrueckt (W4)")
+    assert nur_code_treffer(wz, 'isMob?t.k:t.l'), (
+        "die Stelle mit dem Telefon-Kurztext ist nicht mehr auffindbar")
+    i = wz.index('[{id:"scan"')
+    liste = wz[i:wz.index("].map(t=>", i)]
+    assert liste.count("{id:") == liste.count(",k:"), (
+        "nicht jeder Werkzeug-Reiter traegt einen Kurztext k: " + liste[:300])
     assert nur_code_treffer(wz, "const isMob=ww<BP_MOB;"), (
         "WerkzeugView misst die Breite nicht mehr ueber BP_MOB")
 
@@ -701,7 +703,7 @@ def test_koeder_ein_fehlender_chip_wird_gefunden(wz, node_exe, tmp_path):
 
 
 def test_koeder_ein_verlorener_reiter_wird_gefunden(wz, node_exe, tmp_path):
-    kaputt = wz.replace('{id:"kalib",i:"🔧",l:"Service"},', "", 1)
+    kaputt = wz.replace('{id:"kalib",i:"🔧",l:"Service",k:"Service"},', "", 1)
     assert kaputt != wz, "der Koeder konnte nichts verstuemmeln"
     ist = reiter(kaputt, node_exe, tmp_path, name="koeder_reiter.js")
     assert [k for k, _i, _l in ist] != [k for k, _i, _l, _a in REITER_SOLL], (

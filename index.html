@@ -29891,6 +29891,12 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const stCounts={};Object.keys(WZ_STATUS).forEach(k=>{stCounts[k]=werkzeuge.filter(w=>w.status===k).length;});
   const totalWert=_react.useMemo.call(void 0, ()=>werkzeuge.reduce((s,w)=>s+(w.wert||0),0),[werkzeuge]);
   const kalibFaellig=werkzeuge.filter(w=>_wzKalibFaellig(w)).length;
+  /* Handy-Befund W2 (14.11.2026): Gesamt 296, Verfuegbar 289, Ausgegeben 0, "2 in Reparatur" - der Rest fehlte in der Rechnung.
+     Ursache: die Kacheln zeigen nur drei der sechs WZ_STATUS-Werte; kalibrierung/verloren/stillgelegt (und Eintraege mit
+     unbekanntem Status) wurden nirgends genannt. "Service faellig" zaehlt nach DATUM (_wzKalibFaellig) und ueberlappt mit
+     den Status - es ist kein Summand. Die Zeile unter den Kacheln nennt jetzt jeden Status mit Bestand, damit Gesamt aufgeht. */
+  const _wzOhneStatus=werkzeuge.filter(w=>!WZ_STATUS[w.status]).length;
+  const _wzRestTeile=[["kalibrierung","Status Kalibrierung"],["verloren","verloren/defekt"],["stillgelegt","stillgelegt"]].filter(([k])=>(stCounts[k]||0)>0).map(([k,l])=>(stCounts[k]||0)+" "+l).concat(_wzOhneStatus>0?[_wzOhneStatus+" ohne gültigen Status"]:[]);
 
 
   // Role-based pre-filter: Monteur sees only assigned tools, Lagerleiter+Admin see all
@@ -30058,28 +30064,33 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
   return (React.createElement('div', {}
     , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
-      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geraete erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
+      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, "🔧 Werkzeuge & Geräte"   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geräte erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}
         , isAdmin&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neues Gerät"  )
         /* v3.9.340: Werkzeug-Labels-Button — Render-Gate (admin/PL/buero/lagerleitung), Status-Filter (stillgelegt+verloren raus per default), Toggle "Stillgelegte/verlorene einblenden" daneben. */
         , _isVAdminWz&&React.createElement('button', { onClick: ()=>{const _list=wzShowDecommissioned?werkzeuge:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status));printLabels(_list.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels");}, style: bsS(), title: "🏷️ "+(wzShowDecommissioned?werkzeuge.length:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status)).length)+" Werkzeuge werden gedruckt"+(wzShowDecommissioned?" (inkl. stillgelegt/verloren)":" (ohne stillgelegt/verloren)")+". Count wird beim Klick im Toast angezeigt."}, "🏷️ Labels" )
-        , _isVAdminWz&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fMeta,color:V.dm,cursor:"pointer",padding:"4px 6px"}, title: "Wenn aktiviert, werden auch stillgelegte/verlorene Werkzeuge gedruckt."}
-          , React.createElement('input', { type: "checkbox", checked: wzShowDecommissioned, onChange: e=>setWzShowDecommissioned(e.target.checked), style: {cursor:"pointer"}} )
-          , "Stillgelegte/verlorene einblenden"
+        /* Handy-Befund W3 (14.11.2026): der Schalter stand als nackter Text da und versprach "einblenden" - er wirkt aber NUR auf den Label-Druck (wzShowDecommissioned wird ausschliesslich im Labels-Knopf gelesen). Jetzt als Schalter-Chip mit 44 px und ehrlicher Beschriftung. */
+        , _isVAdminWz&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,color:wzShowDecommissioned?"#d97706":V.tx,cursor:"pointer",padding:"6px 10px",minHeight:44,boxSizing:"border-box",borderRadius:8,border:"1px solid "+(wzShowDecommissioned?"#d97706":V.bd),background:wzShowDecommissioned?"rgba(217,119,6,.12)":"transparent"}, title: "Wenn aktiviert, werden beim Label-Druck auch stillgelegte/verlorene Werkzeuge gedruckt."}
+          , React.createElement('input', { type: "checkbox", checked: wzShowDecommissioned, onChange: e=>setWzShowDecommissioned(e.target.checked), style: {cursor:"pointer",width:18,height:18,margin:0,accentColor:"#d97706"}} )
+          , "Labels inkl. stillgelegter/verlorener"
         )
         , React.createElement('button', { onClick: exportWz, style: xBtn("xls")}, "📊 Excel" )
         , React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, "🖨️ PDF" )/* v3.9.318 */
       )
     )
-    , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
+    , React.createElement('div', { className: "kpi-grid", style: {marginBottom:_wzRestTeile.length?6:14}}
       /* v3.9.81 SPRINT-60 F-9 Tooltips-R2: KPI-Hover-Tooltips (Sprint 44 standard). */
       , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: "€"+totalWert.toLocaleString("de-AT")+" Wert", color: "#d97706", i: 0, title: "Gesamtanzahl aller im Inventar erfassten Werkzeuge inkl. ausgegebener und reparaturbedürftiger Geräte."} )
       , React.createElement(Kpi, { label: "Verfügbar", value: stCounts.verfuegbar||0, sub: "im Lager" , color: _okG("#22c55e"), i: 1, title: "Werkzeuge im Lager, sofort einsatzbereit (Status: verfügbar)."} )
       , React.createElement(Kpi, { label: "Ausgegeben", value: stCounts.ausgegeben||0, sub: "auf Baustellen" , color: "#f97316", i: 2, title: "Werkzeuge aktuell auf Baustellen oder bei Mitarbeitern (Status: ausgegeben)."} )
-      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":_okG("#22c55e"), i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung."} )
+      , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":_okG("#22c55e"), i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung (nach Datum - zählt unabhängig vom Status, ist also kein Teil der Summe)."} )
     )
-    , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14}}
-      , [{id:"scan",i:"📷",l:"QR Scan"},{id:"liste",i:"📋",l:"Liste"},...(canDo("wz_edit",curUser)?[{id:"checkout",i:"📤",l:"Check-In/Out"}]:[]),{id:"kalib",i:"🔧",l:"Service"},...(isAdmin?[{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu"}]:[])].map(t=>React.createElement('button', { key: t.id,/* v3.9.942: title und aria-label aus t.l. Gemessen tragen diese fuenf Reiter bei 390 px NULL Text und in BEIDEN Breiten kein title und kein aria-label - die Bedeutung lag allein im Emoji. Die Beschriftung stand schon im Objekt; hier wird kein Wort erfunden und keines umbenannt. Kosten: null Pixel. */ title: t.l, 'aria-label': t.l, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?UI.fMeta:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?"":t.l))
+    /* Handy-Befund W2: die Summe sichtbar machen - Gesamt = Verfuegbar + Ausgegeben + In Reparatur + diese Zeile. */
+    , _wzRestTeile.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:14,lineHeight:1.4}}, "Außerdem im Gesamtbestand: ", _wzRestTeile.join(" · "))
+    /* Handy-Befund W4: am Telefon trugen die Reiter nur ein Emoji. Jetzt mit Kurztext (t.k) und Umbruch statt Querrollen
+       (eine quer rollende Leiste verbraucht die Wischgeste, siehe v3.9.948 D5). title/aria-label bleiben der volle Name. */
+    , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14,flexWrap:"wrap",overflowX:"visible"}}
+      , [{id:"scan",i:"📷",l:"QR Scan",k:"Scan"},{id:"liste",i:"📋",l:"Liste",k:"Liste"},...(canDo("wz_edit",curUser)?[{id:"checkout",i:"📤",l:"Check-In/Out",k:"Ein/Aus"}]:[]),{id:"kalib",i:"🔧",l:"Service",k:"Service"},...(isAdmin?[{id:"form",i:"✏️",l:editId?"Bearbeiten":"Neu",k:editId?"Bearb.":"Neu"}]:[])].map(t=>React.createElement('button', { key: t.id,/* v3.9.942: title und aria-label aus t.l. Gemessen tragen diese fuenf Reiter bei 390 px NULL Text und in BEIDEN Breiten kein title und kein aria-label - die Bedeutung lag allein im Emoji. Die Beschriftung stand schon im Objekt; hier wird kein Wort erfunden und keines umbenannt. Kosten: null Pixel. */ title: t.l, 'aria-label': t.l, onClick: ()=>{if(t.id==="scan")switchToScan();else{stopScan();setSub(t.id);}}, style: {padding:isMob?"8px 10px":"10px 18px",border:"none",background:"transparent",color:sub===t.id?"#d97706":V.dm,fontSize:isMob?UI.fMeta:13,fontWeight:sub===t.id?700:500,borderBottom:"3px solid "+(sub===t.id?"#d97706":"transparent"),marginBottom:-2,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:44}}, t.i, " " , isMob?t.k:t.l))
     )
 
     /* ═══ QR SCAN ═══ */
