@@ -7292,7 +7292,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   );
 }
 
-function LoginScreen({onLogin,onPortal,projects}){
+function LoginScreen({onLogin,onPortal,projects,isDark,setThemeMode}){
   const [user,setUser]=_react.useState.call(void 0, "");
   const [pw,setPw]=_react.useState.call(void 0, "");
   const [err,setErr]=_react.useState.call(void 0, "");
@@ -7334,6 +7334,10 @@ function LoginScreen({onLogin,onPortal,projects}){
     React.createElement('div', { style: {minHeight:"100dvh",background:V.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,-apple-system,sans-serif",backgroundImage:"radial-gradient(circle at 20% 0%,rgba(0,150,64,.08),transparent 50%),radial-gradient(circle at 80% 100%,rgba(14,165,233,.06),transparent 50%)"}}
       , React.createElement('style', {}, GCSS())
       , React.createElement('div', { className: "fade-in", style: {width:"100%",maxWidth:420,padding:20}}
+        /* v3.9.1004 Frage 34: Hell/Dunkel AUF DER ANMELDEMASKE. Wer dunkel feststeckt (Speicher voll), sieht zuerst diese Maske - der in v3.9.1003 reparierte Schalter lag nur im eingeloggten Zustand. KEIN zweiter Mechanismus: DERSELBE setThemeMode aus App (Anzeige vor Speicher, getrennte catches, Hinweis bei Speicher-Fehlschlag), als Prop hereingereicht. Abseits von Passwortfeld und Anmeldeknopf; Tippziel 44 px explizit. Auth-Logik unberuehrt. */
+        , (typeof setThemeMode==="function")&&React.createElement('div', { role:"group", 'aria-label':"Darstellung", style: {display:"flex",justifyContent:"flex-end",gap:8,marginBottom:12}}
+          , [["light","\u2600\ufe0f Hell",false],["dark","\ud83c\udf19 Dunkel",true]].map(o=>React.createElement('button', { key:o[0], type:"button", 'data-login-theme':o[0], onClick: ()=>{setThemeMode(o[0]);}, 'aria-pressed': (!!isDark)===o[2], style: {minHeight:44,minWidth:44,padding:"8px 14px",borderRadius:10,border:"1px solid "+V.bd,background:((!!isDark)===o[2])?"rgba(0,150,64,.18)":V.cd,color:V.tx,fontWeight:((!!isDark)===o[2])?700:500,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}, o[1]))
+        )
         , React.createElement('div', { style: {textAlign:"center",marginBottom:32}}
           , React.createElement('div', { style: {display:"inline-block",padding:6,borderRadius:14,background:"linear-gradient(135deg,rgba(0,150,64,.12),rgba(0,110,48,.04))",marginBottom:16,boxShadow:"0 4px 12px rgba(0,150,64,.12)"}}
             , React.createElement('img', { src: LOGO_MD, alt: "EP: Kolar & Sohn"   , style: {height:64,borderRadius:8,display:"block"}} )
@@ -7387,7 +7391,7 @@ function LoginScreen({onLogin,onPortal,projects}){
           )):React.createElement('div', { style: {fontSize:12,color:V.dm}}, "Nach dem Login erscheint die Installations-Aufforderung — einfach bestätigen." )
         ))
         , _isStandalone&&React.createElement('div', { style: {marginTop:14,textAlign:"center",fontSize:12,color:_okG(COLORS.SUCCESS),fontWeight:600}}, "✅ App installiert — Vollbild-Modus aktiv"    )
-        , React.createElement('div', { style: {textAlign:"center",marginTop:12,fontSize:UI.fMeta,color:V.mt,opacity:.6}}, "v", APP_VERSION)
+        , React.createElement('div', { 'data-login-version':"1", style: {textAlign:"center",marginTop:12,fontSize:UI.fMeta,color:V.dm}}, "Version ", APP_VERSION)
       )
     )
   );
@@ -9673,7 +9677,7 @@ function MonteurTafel(props){
       , React.createElement('style', {}, `@keyframes spin{to{transform:rotate(360deg)}}`)
     )
   );
-  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: async u=>{/* v3.9.127 F6: ODB-Purge bei User-Wechsel — Session-Ablauf umgeht den Logout-Cleanup */try{const _lu=localStorage.getItem('epk_last_login_uid');const _nu=String(u.id||u.username||'');if(_lu&&_nu&&_lu!==_nu){for(const _s of _USER_SCOPED_ODB_STORES){try{await ODB.del(_s,'data');}catch(_){}}try{await ODB.clear("planFiles");}catch(_){}try{await ODB.clear(PROJ_CACHE_STORE);}catch(_){}/* v3.9.927: dasselbe fuer den Projekt-Zwischenspeicher. Der Purge darueber macht ODB.del(store,'data') und trifft die Schluessel "docs_<projekt>" nicht - auf einem geteilten Baustellen-Tablet blieben sonst Dokument- und Ordnernamen fremder Projekte des Vorgaengers stehen. *//* v3.9.890: mitgenommene Plaene beim Nutzerwechsel raeumen. Der Purge oben macht ODB.del(store,'data') und wuerde die Plan-Schluessel gar nicht treffen - auf einem geteilten Baustellen-Tablet blieben sonst fremde Plaene liegen. */try{await ODB.del('meta','data');await ODB.del('meta','notifPrefs');}catch(_){}/* v3.9.223 #9: userspezifische meta-Keys (wpHistory/notifPrefs) bei User-Wechsel raeumen; lastUser/offlinePwHash bleiben (andere Keys) */}if(_nu)localStorage.setItem('epk_last_login_uid',_nu);}catch(_){}if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(e){console.warn('[silent-global]',e&&e.message||e);}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects} ));
+  if(!curUser&&!portalProj) return (React.createElement(LoginScreen, { onLogin: async u=>{/* v3.9.127 F6: ODB-Purge bei User-Wechsel — Session-Ablauf umgeht den Logout-Cleanup */try{const _lu=localStorage.getItem('epk_last_login_uid');const _nu=String(u.id||u.username||'');if(_lu&&_nu&&_lu!==_nu){for(const _s of _USER_SCOPED_ODB_STORES){try{await ODB.del(_s,'data');}catch(_){}}try{await ODB.clear("planFiles");}catch(_){}try{await ODB.clear(PROJ_CACHE_STORE);}catch(_){}/* v3.9.927: dasselbe fuer den Projekt-Zwischenspeicher. Der Purge darueber macht ODB.del(store,'data') und trifft die Schluessel "docs_<projekt>" nicht - auf einem geteilten Baustellen-Tablet blieben sonst Dokument- und Ordnernamen fremder Projekte des Vorgaengers stehen. *//* v3.9.890: mitgenommene Plaene beim Nutzerwechsel raeumen. Der Purge oben macht ODB.del(store,'data') und wuerde die Plan-Schluessel gar nicht treffen - auf einem geteilten Baustellen-Tablet blieben sonst fremde Plaene liegen. */try{await ODB.del('meta','data');await ODB.del('meta','notifPrefs');}catch(_){}/* v3.9.223 #9: userspezifische meta-Keys (wpHistory/notifPrefs) bei User-Wechsel raeumen; lastUser/offlinePwHash bleiben (andere Keys) */}if(_nu)localStorage.setItem('epk_last_login_uid',_nu);}catch(_){}if(u&&(u.monteurId||u.monteur_id)&&!u.rolle){const _mid3=u.monteurId||u.monteur_id;const _w3=MONT.find(m=>m.id===_mid3);if(_w3)u.rolle=_w3.r;}setCurUser(u);/* v3.8.7 B-017: admin-gated Exposure der Debug-Helper (statt unbedingt beim Module-Load) */if(u&&u.role==='admin'){try{window._sbH=_sbH;window._sbAuthLogin=_sbAuthLogin;window._sbAuthRefresh=_sbAuthRefresh;window._silentReAuth=_silentReAuth;}catch(e){console.warn('[silent-global]',e&&e.message||e);}}setTimeout(()=>_optionalChain([window, 'access', _66 => _66.__toast, 'optionalCall', _67 => _67("👋 Willkommen, "+u.name)]),500);}, onPortal: p=>{setPortalProj(p);}, projects: projects, isDark: isDark, setThemeMode: setThemeMode} ));
   if(portalProj) return (React.createElement(KundenPortal, { project: portalProj, forms: forms, setForms: setForms, monteure: monteure, onClose: ()=>setPortalProj(null)} ));
 
   const mainTabs=tabs.filter(t=>t.g<4);
