@@ -16976,6 +16976,61 @@ function _dueIsPast(ds){if(!ds)return false;try{return new Date(String(ds).lengt
 // ═══════════ KOSTEN & NACHKALKULATION ═══════════
 /* PROJ-HANDY PR11: Frist-Vorschlag fuer einen neuen Mangel = heute + 7 Tage (_ymd wie td2, erst beim Rendern aufgerufen). Funktionsdeklaration, gehoben. */
 function _mgFristVorschlag(){var d=new Date();d.setDate(d.getDate()+7);return _ymd(d);}
+/* v3.9.1004 C (Maengel besser als PlanRadar): Zuweisungs-Nachricht fuer Maengel. VORHER ging "mangel_assigned"
+   NUR beim Annehmen einer Kundenmeldung raus (reviewAccept); wer einen Mangel normal anlegte oder per Sammelaktion
+   zuwies, informierte niemanden. Derselbe Weg wie dort: window.__pushNotif (lokal + SQ /api/notifications/batch,
+   also offline-fest), Empfaenger = Benutzer mit monteurId === Mangel-Verantwortlicher. KEINE neue Tabelle, KEINE
+   Edge Function. Gruppiert je Empfaenger: Sammel-Zuweisen von 12 Maengeln an Mario = EINE Nachricht, nicht 12.
+   Nie an sich selbst. dedupKey mit Zeitstempel: pushNotif bildet die id sonst aus Titel+Text, und derselbe Mangel,
+   der von A zu B und wieder zu A wandert, kaeme beim zweiten Mal still nicht an. Rueckgabe = Zahl der Nachrichten. */
+function _mgZuweisungMelden(zuweisungen,projName){
+  try{
+    if(typeof window==="undefined"||!window.__pushNotif)return 0;
+    var cu=(window._curUser&&window._curUser())||{};
+    var grp={},reihe=[];
+    (zuweisungen||[]).forEach(function(z){if(!z||!z.wid)return;if(!grp[z.wid]){grp[z.wid]=[];reihe.push(z.wid);}grp[z.wid].push(String(z.name||"Mangel"));});
+    var n=0,st=Date.now();
+    reihe.forEach(function(wid){
+      var au=(window._allUsers||[]).find(function(u){return u&&u.monteurId===wid;});
+      if(!au||!au.id||au.id===cu.id)return;
+      var nm=grp[wid];
+      var titel=nm.length===1?"📍 Mangel zugewiesen":"📍 "+nm.length+" Mängel zugewiesen";
+      var text=(nm.length===1?nm[0]:nm.slice(0,3).join(", ")+(nm.length>3?" und "+(nm.length-3)+" weitere":""))+(projName?" — "+projName:"");
+      window.__pushNotif("mangel_assigned",titel,text,[au.id],"mgz:"+wid+":"+nm.length+":"+st);
+      n++;
+    });
+    return n;
+  }catch(e){console.warn('[mg-zuweis-notif]',e&&e.message||e);return 0;}
+}
+/* v3.9.1004 A (Maengel besser als PlanRadar): Mangel per TIPP auf den Plan setzen. VORHER legte _placeOnPlan jeden
+   Mangel mittig 50/50 auf den ERSTEN Plan - man musste ihn danach im Plan-Viewer suchen und hinziehen. Jetzt:
+   Plan waehlen -> auf die Stelle tippen -> "Hier setzen". Der Plan wird mit DEMSELBEN PlanViewerCanvas gezeigt
+   wie beim Ticket-Platzieren (pinMode, onPlanClick liefert x/y in PROZENT 0-100 + Seite) - kein zweiter Viewer,
+   kein zweites Koordinatensystem. Gespeichert wird in die vorhandenen Spalten defects.x/y/plan_id/page
+   (_mapDefect liest sie zurueck), keine neue Spalte. Ein zweiter Tipp versetzt den Vorschau-Pin. Als Portal an
+   document.body: im Projekt-Detail sitzen sticky/transform-Vorfahren, an denen ein fixed-Overlay sonst klebt. */
+function MangelPlanSetzen({plaene,start,titel,monteure,onSetzen,onEntfernen,onClose}){
+  const _liste=plaene||[];
+  const [planId,setPlanId]=_react.useState.call(void 0, ()=>{const s=start&&start.planId;return (s&&_liste.some(pl=>pl.id===s))?s:((_liste[0]&&_liste[0].id)||"");});
+  const [pend,setPend]=_react.useState.call(void 0, null);
+  const plan=_liste.find(pl=>pl.id===planId)||null;
+  _react.useEffect.call(void 0, ()=>{try{_scrollLock.acquire();}catch(_e){}const h=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",h);return ()=>{window.removeEventListener("keydown",h);try{_scrollLock.release();}catch(_e){}};},[]);
+  const _bisher=(start&&start.planId===planId&&start.x!=null&&start.y!=null)?[{id:"_mg_bisher",x:start.x,y:start.y,page:start.page||1,planId:planId,plan_id:planId,type:"mangel",status:"offen",priority:"mittel",title:(titel||"Mangel")+" (bisher)"}]:[];
+  const _k44={minHeight:44,minWidth:44,boxSizing:"border-box"};
+  const inhalt=React.createElement('div', { role: "dialog", 'aria-modal': "true", 'aria-label': "Mangel auf Plan setzen", style: {position:"fixed",inset:0,zIndex:3000,background:V.bg,color:V.tx,display:"flex",flexDirection:"column",gap:8,padding:"10px 12px",paddingBottom:"calc(10px + env(safe-area-inset-bottom,0px))",boxSizing:"border-box",overflow:"hidden"}}
+    , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
+      , React.createElement('div', { style: {flex:1,minWidth:0,fontSize:15,fontWeight:800,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "📍 Auf Plan setzen: ", titel||"Mangel")
+      , React.createElement('button', { onClick: onClose, 'aria-label': "Schließen", title: "Schließen", style: {...bsS(),..._k44,padding:"0 12px",fontSize:16}}, "✕"))
+    , _liste.length>1&&React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}, _liste.map(pl=>{const sel=pl.id===planId;return React.createElement('button', { key: pl.id, onClick: ()=>{setPlanId(pl.id);setPend(null);}, 'aria-pressed': sel, style: {..._k44,padding:"0 12px",borderRadius:8,border:sel?"2px solid "+V.ac:"1px solid "+V.bd,background:sel?V.ac+"22":V.cd,color:sel?V.acTx:V.tx,fontWeight:sel?700:500,fontSize:13,cursor:"pointer",fontFamily:"inherit",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, pl.geschoss?("🏢 "+pl.geschoss+" · "+(pl.name||"Plan")):("📐 "+(pl.name||"Plan")));}))
+    , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"6px 10px",borderRadius:10,background:V.ac+"1a",border:"1px solid "+V.ac}}
+      , React.createElement('span', { style: {flex:"1 1 160px",minWidth:0,fontSize:13,fontWeight:600}}, pend?"Pin gesetzt. Passt die Stelle? Sonst nochmal tippen.":"👆 Tippe auf den Plan — genau dort, wo der Mangel ist.")
+      , pend&&React.createElement('button', { onClick: ()=>{if(!plan)return;onSetzen({x:pend.x,y:pend.y,planId:plan.id,page:pend.page||1},plan);}, style: {...bpS,..._k44,padding:"0 16px",fontSize:14}}, "✓ Hier setzen")
+      , onEntfernen&&!pend&&React.createElement('button', { onClick: onEntfernen, style: {...bsS(),..._k44,padding:"0 12px",fontSize:13}}, "Vom Plan entfernen"))
+    , React.createElement('div', { style: {flex:1,minHeight:0,overflow:"hidden",borderRadius:8}}
+      , plan?React.createElement(PlanViewerCanvas, { plan: plan, pinNr: null, tickets: _bisher, layers: [], monteure: monteure, pinMode: true, pendingPin: pend, onPlanClick: pos=>{if(!pos)return;setPend({x:pos.x,y:pos.y,xPct:pos.xPct,yPct:pos.yPct,page:pos.page||1});}, onPinClick: ()=>{}, selectedTicket: null, pendingIds: new Set()} )
+        :React.createElement('div', { style: {padding:24,textAlign:"center",color:V.dm,fontSize:13}}, "Kein Plan im Projekt.")));
+  return (typeof ReactDOM!=="undefined"&&ReactDOM.createPortal&&typeof document!=="undefined")?ReactDOM.createPortal(inhalt,document.body):inhalt;
+}
 function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
   const isAdmin=_optionalChain([curUser, 'optionalAccess', _vmg1 => _vmg1.role])==="admin"||_optionalChain([curUser, 'optionalAccess', _vmg2 => _vmg2.role])==="projektleiter";
   const isMob=(ww||999)<600;
@@ -17017,7 +17072,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
   const _msPrioBasis=_msWS.filter(m=>fSt==="alle"||m.status===fSt);
   const kundenMeldungen=_react.useMemo.call(void 0, ()=>ms.filter(m=>m.melder==="Kunde"),[ms]);
   const neueMeldungen=_react.useMemo.call(void 0, ()=>kundenMeldungen.filter(m=>!m.kundeStatus||m.kundeStatus==="gemeldet"),[kundenMeldungen]);
-  const [name,setName]=_react.useState.call(void 0, "");const [ebene,setEbene]=_react.useState.call(void 0, "EG");const [worker,setWorker]=_react.useState.call(void 0, "");const [frist,setFrist]=_react.useState.call(void 0, _mgFristVorschlag());const [mgFormAuf,setMgFormAuf]=_react.useState.call(void 0, false);/* PROJ-HANDY PR11: HIER STAND worker=(monteure[0]||{}).id und frist=td2(). monteure[0] ist der ERSTE Eintrag der Mitarbeiterliste (live: "Aliti", nicht im aktuellen Team) - eine stille Vorbelegung, die man beim schnellen Erfassen mitspeichert, ohne sie gewaehlt zu haben; _maWaehlbar haelt einen ehemaligen MA sogar in der Auswahl, WEIL er der aktuelle Wert ist. Jetzt leer mit "— wählen —" (leer = nicht zugewiesen; zugewiesen:"" schreibt add() schon heute). Frist: heute bedeutete, jeder neue Mangel ist ab morgen ueberfaellig und loest die Fristen-Glocke (frist=lt.heute) aus. Vorschlag +7 Tage, sichtbar im Feld und aenderbar; leer bliebe NIE eskaliert. Formular erst hinter "+ Mangel" (mgFormAuf), die Liste kommt zuerst. */const [prio,setPrio]=_react.useState.call(void 0, "mittel");
+  const [name,setName]=_react.useState.call(void 0, "");const [ebene,setEbene]=_react.useState.call(void 0, "EG");const [worker,setWorker]=_react.useState.call(void 0, "");const [frist,setFrist]=_react.useState.call(void 0, _mgFristVorschlag());const [mgFormAuf,setMgFormAuf]=_react.useState.call(void 0, false);const [mgFotoAuf,setMgFotoAuf]=_react.useState.call(void 0, false);const [mgPlanZiel,setMgPlanZiel]=_react.useState.call(void 0, null);const [neuPos,setNeuPos]=_react.useState.call(void 0, null);const [mgFotoLaeuft,setMgFotoLaeuft]=_react.useState.call(void 0, 0);/* v3.9.1004 B: mgFotoLaeuft = Fotos in Aufbereitung - solange > 0 ist Speichern gesperrt, sonst landet ein spaet fertiges Foto im NAECHSTEN Formular statt am Mangel. */ /* v3.9.1004 A/B: mgFotoAuf = Foto-zuerst-Formular offen; mgPlanZiel = {mid} (Mangel-id oder "neu") fuer das Plan-Setzen; neuPos = Plan-Position des noch nicht angelegten Mangels. *//* PROJ-HANDY PR11: HIER STAND worker=(monteure[0]||{}).id und frist=td2(). monteure[0] ist der ERSTE Eintrag der Mitarbeiterliste (live: "Aliti", nicht im aktuellen Team) - eine stille Vorbelegung, die man beim schnellen Erfassen mitspeichert, ohne sie gewaehlt zu haben; _maWaehlbar haelt einen ehemaligen MA sogar in der Auswahl, WEIL er der aktuelle Wert ist. Jetzt leer mit "— wählen —" (leer = nicht zugewiesen; zugewiesen:"" schreibt add() schon heute). Frist: heute bedeutete, jeder neue Mangel ist ab morgen ueberfaellig und loest die Fristen-Glocke (frist=lt.heute) aus. Vorschlag +7 Tage, sichtbar im Feld und aenderbar; leer bliebe NIE eskaliert. Formular erst hinter "+ Mangel" (mgFormAuf), die Liste kommt zuerst. */const [prio,setPrio]=_react.useState.call(void 0, "mittel");
   const [reviewId,setReviewId]=_react.useState.call(void 0, null);const [reviewNote,setReviewNote]=_react.useState.call(void 0, "");const [reviewWorker,setReviewWorker]=_react.useState.call(void 0, "");/* PROJ-HANDY PR11: dieselbe stille Vorbelegung monteure[0] wie beim Erfassen - jetzt leer, reviewAccept verlangt eine Wahl. */
   /* v3.9.464 (BLOCK C): Bulk-Auswahl (Admin/PL) für Sammel-Status/-Zuweisung. */
   const [_bulkSel,_setBulkSel]=_react.useState.call(void 0, {});const [_bulkSt,_setBulkSt]=_react.useState.call(void 0, "");const [_bulkWid,_setBulkWid]=_react.useState.call(void 0, "");
@@ -17033,6 +17088,19 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
   const [defectPhotos,setDefectPhotos]=_react.useState.call(void 0, {}); // {defectId: [photoUrls]}
   const [newPhotos,setNewPhotos]=_react.useState.call(void 0, []); // photos for new defect creation
   const photoRef=_react.useRef.call(void 0, null);
+  const fotoZuerstRef=_react.useRef.call(void 0, null);/* v3.9.1004 B */
+  /* v3.9.1004 B: Foto zuerst. Ein Tipp auf "📷 Mangel per Foto" oeffnet direkt die Kamera (capture=environment);
+     kommt ein Bild zurueck, oeffnet das kurze Formular mit Vorschau und dem Textfeld im Fokus. Aufbereitung wie im
+     alten Formular (_fotoAufbereiten + createThumbnail -> newPhotos); der Upload passiert erst beim Speichern in
+     add() ueber captureAndQueue. Bricht man die Kamera ab, kommt kein change - es oeffnet sich nichts. */
+  const _mgFotoRein=(fls)=>{fls.forEach(file=>{setMgFotoLaeuft(n=>n+1);_fotoAufbereiten(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewPhotos(prev=>[...prev,{thumb,full:ph.dataUrl,file}]))).catch(err=>{console.warn('[mg-foto-zuerst]',err&&err.message||err);if(window.__toast)window.__toast("⚠️ Foto konnte nicht gelesen werden","warn");}).then(()=>setMgFotoLaeuft(n=>Math.max(0,n-1)));});};
+  const _mgFotoZuerst=(e)=>{
+    const fls=[...((e&&e.target&&e.target.files)||[])];
+    try{e.target.value="";}catch(_e){}
+    if(!fls.length)return;
+    setName("");setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setNewPhotos([]);setMgFormAuf(false);setMgFotoAuf(true);
+    _mgFotoRein(fls);
+  };
 
   // Load photos from server for all defects in this project
   _react.useEffect.call(void 0, ()=>{
@@ -17108,10 +17176,16 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     const _isMonteurAdd=_vmIsField&&!isAdmin;
     const _effWorker=_isMonteurAdd?(_vmMid||worker):worker;
     if(_isMonteurAdd&&_effWorker!==_vmMid){_optionalChain([window,'access',_g324c=>_g324c.__toast,'optionalCall',_g324d=>_g324d("⚠️ Keine Berechtigung — Monteure können Mängel nur sich selbst zuweisen","warn")]);return;}
-    const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:_effWorker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full}))};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:newPhotos.map(ph=>ph.thumb),zugewiesen:_effWorker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||""}});
+    /* v3.9.1004 A: Plan-Position (per Tipp gesetzt) gleich beim Anlegen mitschreiben - dieselben Spalten wie createTicket (defects.x/y/plan_id/page). */
+    const _pos=(neuPos&&neuPos.planId&&neuPos.x!=null&&neuPos.y!=null)?neuPos:null;
+    /* v3.9.1004 B: im Foto-zuerst-Weg KEIN Base64 in der DB-Zeile/Haupt-Warteschlange - das Foto geht allein ueber captureAndQueue (Storage + PhotoQ), die Liste laedt es per API.getPhotos("defect",id). Das alte Formular schickt weiter seine 120-px-Vorschau mit (unveraendert, siehe Bericht). */
+    const _ohneVorschau=mgFotoAuf;
+    const mid=uid();const m={id:mid,pid:p.id,name:name,ebene:ebene,worker:_effWorker,zugewiesen:_effWorker,frist:frist,prio:prio,status:"offen",date:td2(),photos:newPhotos.map(ph=>({thumb:ph.thumb,full:ph.full})),...(_pos?{x:_pos.x,y:_pos.y,planId:_pos.planId,plan_id:_pos.planId,page:_pos.page||1}:{})};setForms(prev=>({...prev,maengel:[...(prev.maengel||[]),m]}));SQ.push({url:"/api/defects",method:"POST",body:{id:mid,projectId:p.id,title:name,description:"",ebene:ebene,status:"offen",gewerk:"",prio:prio,images:_ohneVorschau?[]:newPhotos.map(ph=>ph.thumb),zugewiesen:_effWorker||"",frist:frist||"",melder:_optionalChain([curUser, 'optionalAccess', _add1 => _add1.name])||"",...(_pos?{x:_pos.x,y:_pos.y,plan_id:_pos.planId,page:_pos.page||1}:{})}});
     // Queue photos for server upload
     newPhotos.forEach(ph=>{if(ph.file)captureAndQueue(ph.file,"defect",mid,p.id,"Mangel-Foto");});
-    setName("");setNewPhotos([]);setWorker("");setFrist(_mgFristVorschlag());setMgFormAuf(false);if(window.__toast)window.__toast("✅ Mangel angelegt"+(_effWorker?"":" (noch niemand zugewiesen)"),"success");};/* PROJ-HANDY PR11: nach dem Anlegen zurueck zur Liste - der neue Mangel steht dort in "offen". Verantwortlich/Frist zuruecksetzen, damit der naechste nicht still die Wahl des vorigen erbt. */
+    /* v3.9.1004 C: der Verantwortliche erfaehrt davon (nicht, wenn man sich selbst eintraegt). */
+    if(_effWorker)_mgZuweisungMelden([{wid:_effWorker,name:name}],p.name);
+    setName("");setNewPhotos([]);setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setMgFotoAuf(false);setMgFormAuf(false);if(window.__toast)window.__toast("✅ Mangel angelegt"+(_effWorker?"":" (noch niemand zugewiesen)"),"success");};/* PROJ-HANDY PR11: nach dem Anlegen zurueck zur Liste - der neue Mangel steht dort in "offen". Verantwortlich/Frist zuruecksetzen, damit der naechste nicht still die Wahl des vorigen erbt. */
   /* v3.9.231 #2: Inverse Mangel→Plan-Ticket-Status-Sync. Gespiegelte Tickets (type==="mangel") teilen die id mit ihrem Mangel; freie Mängel haben kein Ticket → kein Geister-PUT (_tks.some-Guard). */
   const _DEF2TICKET_ST=_MANGEL2TICKET_ST;
   const _syncTicketStatus=(id,st)=>{
@@ -17121,13 +17195,29 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     SQ.push({url:"/api/tickets/"+id,method:"PUT",body:{status:_tst}});
   };
   /* v3.9.280 W2.2 Increment 2: Mangel auf den (ersten) Projektplan platzieren (mittig 50/50) bzw. wieder entfernen. Schreibt defects.x/y/plan_id/page (spalten-scoped). Im Plan-Viewer dann frei verschiebbar. */
+  /* v3.9.1004 A: VORHER setzte dieser Knopf den Mangel blind auf 50/50 des ERSTEN Plans ((planData.plans)[0] - nicht
+     einmal nach Projekt gefiltert). Jetzt oeffnet er MangelPlanSetzen: Plan waehlen, auf die Stelle tippen. Nur
+     Plaene DIESES Projekts, archivierte Revisionen nicht (wie VPlan). */
+  const _mgPlaene=((planData&&planData.plans)||[]).filter(pl=>pl&&pl.pid===p.id&&!pl.archived);
   const _placeOnPlan=(m)=>{
-    const _pl=((planData&&planData.plans)||[])[0];
-    const _on=m.plan_id&&m.x!=null;
-    if(!_on&&!_pl){if(window.__toast)window.__toast("⚠️ Kein Plan im Projekt — zuerst einen Plan hochladen","warn");return;}
-    setForms(f=>({...f,maengel:(f.maengel||[]).map(x=>x.id===m.id?(_on?{...x,x:null,y:null,planId:"",plan_id:""}:{...x,x:50,y:50,planId:_pl.id,plan_id:_pl.id,page:1}):x)}));
-    SQ.push({url:"/api/defects/"+m.id,method:"PUT",body:(_on?{x:null,y:null,plan_id:"",page:1}:{x:50,y:50,plan_id:_pl.id,page:1})});
-    if(window.__toast)window.__toast(_on?"📍 Vom Plan entfernt":"📍 Auf Plan platziert — im Plan-Viewer frei verschiebbar","success");
+    if(!_mgPlaene.length){if(window.__toast)window.__toast("⚠️ Kein Plan im Projekt — zuerst unter „Pläne“ einen Plan hochladen","warn");return;}
+    setMgPlanZiel({mid:m.id});
+  };
+  /* v3.9.1004 A: Position schreiben. Ist der Mangel der Spiegel eines Plan-Tickets (gleiche id, type mangel), wandert
+     das Ticket mit - sonst zeigte der Plan den Ticket-Pin an der alten Stelle (VPlan blendet den Defect-Pin dann aus). */
+  const _mgPosSchreiben=(mid,pos)=>{
+    const _b={x:pos.x,y:pos.y,plan_id:pos.planId,page:pos.page||1};
+    setForms(f=>({...f,maengel:(f.maengel||[]).map(x=>x.id===mid?{...x,x:pos.x,y:pos.y,planId:pos.planId,plan_id:pos.planId,page:pos.page||1}:x)}));
+    SQ.push({url:"/api/defects/"+mid,method:"PUT",body:_b});
+    if(planData&&planData.tickets&&planData.tickets.some(t=>t.id===mid)){
+      setPlanData(prev=>({...prev,tickets:(prev.tickets||[]).map(t=>t.id===mid?{...t,x:pos.x,y:pos.y,planId:pos.planId,plan_id:pos.planId,page:pos.page||1}:t)}));
+      SQ.push({url:"/api/tickets/"+mid,method:"PUT",body:_b});
+    }
+  };
+  const _mgVomPlan=(m)=>{
+    setForms(f=>({...f,maengel:(f.maengel||[]).map(x=>x.id===m.id?{...x,x:null,y:null,planId:"",plan_id:""}:x)}));
+    SQ.push({url:"/api/defects/"+m.id,method:"PUT",body:{x:null,y:null,plan_id:"",page:1}});
+    if(window.__toast)window.__toast("📍 Vom Plan entfernt","success");
   };
   const _DEF2KUNDE={offen:"angenommen","in Behebung":"in_bearbeitung",behoben:"behoben"};/* v3.9.573 #5: Mangel-Status → Kunde-Portal-Status (Spiegel wie reviewAccept :12324 / reviewProgress :12342 / reviewDone :12347) */
   const updSt=(id,st)=>{
@@ -17140,7 +17230,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
   /* v3.9.464 (BLOCK C): Bulk-Helfer — Toggle, Alle (über sichtbare msF), Anwenden (Status via updSt inkl. Ticket-Sync; Zuweisung via defects-PUT). */
   const _bulkToggle=(id)=>_setBulkSel(p=>{const n={...p};if(n[id])delete n[id];else n[id]=true;return n;});
   const _bulkAll=()=>{const ids=msV.map(m=>m.id);const allSel=ids.length>0&&ids.every(id=>_bulkSel[id]);if(allSel){_setBulkSel({});}else{const n={};ids.forEach(id=>{n[id]=true;});_setBulkSel(n);}};
-  const _bulkApply=async()=>{if(!isAdmin)return;const ids=Object.keys(_bulkSel).filter(k=>_bulkSel[k]);if(!ids.length)return;if(!_bulkSt&&!_bulkWid){if(window.__toast)window.__toast("⚠️ Status oder Zuweisung wählen","warn");return;}ids.forEach(id=>{if(_bulkSt)updSt(id,_bulkSt);if(_bulkWid){setForms(prev=>({...prev,maengel:(prev.maengel||[]).map(m=>m.id===id?{...m,zugewiesen:_bulkWid,worker:_bulkWid}:m)}));SQ.push({url:"/api/defects/"+id,method:"PUT",body:{zugewiesen:_bulkWid,worker:_bulkWid}});}});if(window.__toast)window.__toast("✅ "+ids.length+" Mängel aktualisiert","success");_setBulkSel({});_setBulkSt("");_setBulkWid("");};
+  const _bulkApply=async()=>{if(!isAdmin)return;const ids=Object.keys(_bulkSel).filter(k=>_bulkSel[k]);if(!ids.length)return;if(!_bulkSt&&!_bulkWid){if(window.__toast)window.__toast("⚠️ Status oder Zuweisung wählen","warn");return;}/* v3.9.1004 C: EINE Nachricht an den neuen Verantwortlichen fuer alle Maengel, die ihm wirklich NEU zufallen (war er es schon, kommt nichts). */if(_bulkWid){const _neu=ids.map(id=>(forms.maengel||[]).find(x=>x.id===id)).filter(x=>x&&(x.zugewiesen||x.worker||"")!==_bulkWid).map(x=>({wid:_bulkWid,name:x.name||"Mangel"}));if(_neu.length)_mgZuweisungMelden(_neu,p.name);}ids.forEach(id=>{if(_bulkSt)updSt(id,_bulkSt);if(_bulkWid){setForms(prev=>({...prev,maengel:(prev.maengel||[]).map(m=>m.id===id?{...m,zugewiesen:_bulkWid,worker:_bulkWid}:m)}));SQ.push({url:"/api/defects/"+id,method:"PUT",body:{zugewiesen:_bulkWid,worker:_bulkWid}});}});if(window.__toast)window.__toast("✅ "+ids.length+" Mängel aktualisiert","success");_setBulkSel({});_setBulkSt("");_setBulkWid("");};
   const delM=async id=>{if(!isAdmin)return;if(!await _confirmModal("Mangel wirklich löschen?",{variant:"danger"}))return;setForms(prev=>({...prev,maengel:(prev.maengel||[]).filter(m=>m.id!==id)}));SQ.push({url:"/api/defects/"+id,method:"DELETE"});if(planData&&planData.tickets&&planData.tickets.some(t=>t.id===id)){setPlanData(prev=>({...prev,tickets:(prev.tickets||[]).filter(t=>t.id!==id)}));SQ.push({url:"/api/tickets/"+id,method:"DELETE"});}/* v3.9.231 #2: gespiegeltes Plan-Ticket mitlöschen (sonst Geister-Pin) */};
 
   const reviewAccept=(id)=>{
@@ -17172,13 +17262,23 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===id?{...m,kundeStatus:"behoben",status:"behoben"}:m)}));
     SQ.push({url:"/api/defects/"+id,method:"PUT",body:{status:"behoben",kunde_status:"behoben"}});_syncTicketStatus(id,"behoben");
     _optionalChain([window, 'access', _366h => _366h.__toast, 'optionalCall', _366i => _366i("✅ Mangel behoben — wartet auf Kundenabnahme")]);};
+  /* v3.9.1004 B: Verantwortlich-Feld EINMAL, fuer beide Erfassungsformulare - sonst laufen Rechte-Regel (Monteur nur
+     sich selbst) und die Auswahl (_maWaehlbar, keine Ehemaligen) in zwei Abschriften auseinander. */
+  const _mgWerFeld=()=>React.createElement('select', { value: (_vmIsField&&!isAdmin)?(_vmMid||worker):worker, onChange: e=>{if(_vmIsField&&!isAdmin)return;setWorker(e.target.value);}, disabled: _vmIsField&&!isAdmin, 'aria-label': "Verantwortlich", title: (_vmIsField&&!isAdmin)?"Monteure weisen Mängel nur sich selbst zu":"", style: {...II(),opacity:(_vmIsField&&!isAdmin)?0.7:1,cursor:(_vmIsField&&!isAdmin)?"not-allowed":"pointer"}}, !(_vmIsField&&!isAdmin)&&React.createElement('option', { value: ""}, "— wählen —"), _maWaehlbar((monteure||MONT),(_vmIsField&&!isAdmin)?(_vmMid||worker):worker).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n))));
+  /* v3.9.1004 A: "📍 Auf Plan setzen" im Erfassungsformular. Ohne Plan im Projekt gibt es den Knopf nicht. */
+  const _mgPosKnopf=()=>{if(!_mgPlaene.length)return null;const _pl=neuPos&&_mgPlaene.find(x=>x.id===neuPos.planId);return React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}
+    , React.createElement('button', { type: "button", onClick: ()=>setMgPlanZiel({mid:"neu"}), style: {...bsS(),minHeight:44,padding:"0 14px",fontSize:13,display:"inline-flex",alignItems:"center",gap:6,borderColor:neuPos?"#0ea5e9":V.bd,color:neuPos?"#0ea5e9":V.tx}}, neuPos?"📍 Pin ändern":"📍 Auf Plan setzen")
+    , neuPos&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,minWidth:0}}, "auf ", (_pl&&(_pl.geschoss||_pl.name))||"Plan", (Number(neuPos.page)>1?" · Seite "+neuPos.page:""))
+    , neuPos&&React.createElement('button', { type: "button", onClick: ()=>setNeuPos(null), 'aria-label': "Plan-Position verwerfen", title: "Plan-Position verwerfen", style: {...bsS(),minHeight:44,minWidth:44,padding:"0 10px",fontSize:14}}, "✕"));};
 
   return (
     React.createElement('div', {}
       , React.createElement('h2', { style: {fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite,fontWeight:800,marginBottom:14}}, "⚠️ Mängelliste" )
       , React.createElement('div', { style: {display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",margin:"0 0 12px"}}
         , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:0,flex:"1 1 180px",minWidth:0}}, "Mängel erfassen, Prio/Status setzen und zuweisen." )
-        , !mgFormAuf&&React.createElement('button', { onClick: ()=>{setWorker("");setFrist(_mgFristVorschlag());setMgFormAuf(true);}, style: {...bpS,minHeight:44,padding:"0 18px",display:"inline-flex",alignItems:"center",gap:6}}/* PROJ-HANDY PR11: die Liste kommt zuerst, das Formular erst auf Wunsch. Beim Oeffnen frisch vorbelegt: niemand gewaehlt, Frist +7 Tage. */, "+ Mangel")
+        , !mgFormAuf&&!mgFotoAuf&&React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}}
+          , React.createElement('label', { role: "button", tabIndex: 0, 'aria-label': "Mangel per Foto erfassen - öffnet die Kamera", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();try{fotoZuerstRef.current&&fotoZuerstRef.current.click();}catch(_e){}}}, style: {...bsS(),minHeight:44,padding:"0 16px",display:"inline-flex",alignItems:"center",gap:6,borderColor:V.ac,color:V.acTx,fontWeight:700,cursor:"pointer"}}/* v3.9.1004 B: Foto zuerst - EIN Tipp bis zur Kamera */, "📷 Mangel per Foto", React.createElement('input', { ref: fotoZuerstRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: _mgFotoZuerst} ))
+          , React.createElement('button', { onClick: ()=>{setWorker("");setFrist(_mgFristVorschlag());setNeuPos(null);setMgFormAuf(true);}, style: {...bpS,minHeight:44,padding:"0 18px",display:"inline-flex",alignItems:"center",gap:6}}/* PROJ-HANDY PR11: die Liste kommt zuerst, das Formular erst auf Wunsch. Beim Oeffnen frisch vorbelegt: niemand gewaehlt, Frist +7 Tage. */, "+ Mangel"))
       )
 
       /* ── Kundenmeldungen Review ── */
@@ -17231,7 +17331,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
         , React.createElement('div', { className: "form-grid-4", style: {gridTemplateColumns:isMob?"1fr 1fr":"2fr 1fr 1fr 1fr 1fr auto",alignItems:"end"}}
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Mangel 🎤" ), React.createElement(SpeechWrap, { value: name, onChange: v=>setName(v)}, React.createElement('input', { value: name, onChange: e=>setName(e.target.value), style: II()} )))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Ebene"), React.createElement('input', { value: ebene, onChange: e=>setEbene(e.target.value), style: II()} ))
-          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantwortlich"), React.createElement('select', { value: (_vmIsField&&!isAdmin)?(_vmMid||worker):worker, onChange: e=>{if(_vmIsField&&!isAdmin)return;setWorker(e.target.value);}, disabled: _vmIsField&&!isAdmin, title: (_vmIsField&&!isAdmin)?"Monteure weisen Mängel nur sich selbst zu":"", style: {...II(),opacity:(_vmIsField&&!isAdmin)?0.7:1,cursor:(_vmIsField&&!isAdmin)?"not-allowed":"pointer"}}, !(_vmIsField&&!isAdmin)&&React.createElement('option', { value: ""}, "— wählen —"), _maWaehlbar((monteure||MONT),(_vmIsField&&!isAdmin)?(_vmMid||worker):worker).map(w=>(React.createElement('option', { key: w.id, value: w.id}, w.n)))))
+          , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Verantwortlich"), _mgWerFeld())
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: frist, onChange: e=>setFrist(e.target.value), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Prio"), React.createElement('select', { value: prio, onChange: e=>setPrio(e.target.value), style: II()}, React.createElement('option', {}, "mittel"), React.createElement('option', {}, "hoch"), React.createElement('option', {}, "niedrig")))
           /* v3.9.61 S40 F-4: disabled-state when name empty (consistency mit AS-Form Sprint 27) */
@@ -17242,6 +17342,24 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
           , newPhotos.map((ph,i)=>React.createElement('div', { key: i, style: {width:40,height:40,borderRadius:4,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: ph.thumb, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { title: "Foto entfernen", 'aria-label': "Foto entfernen", onClick: ()=>setNewPhotos(p=>p.filter((_,j)=>j!==i)), style: {position:"absolute",top:-2,right:-2,width:14,height:14,borderRadius:"50%",background:COLORS.ERROR,color:"#fff",border:"none",fontSize:UI.fMeta,cursor:"pointer"}}, "✕")))
           , newPhotos.length>0&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, newPhotos.length, " Foto", newPhotos.length>1?"s":"")
         )
+        , _mgPlaene.length>0&&React.createElement('div', { style: {marginTop:8}}, _mgPosKnopf())/* v3.9.1004 A */
+      )
+      /* v3.9.1004 B: Foto-zuerst-Formular. Tipp 1 = "📷 Mangel per Foto" (Kamera), dann tippen/diktieren, Tipp 2 = Speichern.
+         Verantwortlich und Frist (+7 Tage) stehen schon da, Plan-Position ist freiwillig. */
+      , mgFotoAuf&&React.createElement('div', { style: {...CC(),border:"2px solid "+V.ac,marginBottom:12}}
+        , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}, React.createElement('div', { style: {fontSize:14,fontWeight:700}}, "📷 Neuer Mangel per Foto"), React.createElement('button', { onClick: ()=>{setMgFotoAuf(false);setNewPhotos([]);setName("");setNeuPos(null);}, 'aria-label': "Erfassen abbrechen", style: {...bsS(),minHeight:44,padding:"0 14px",fontSize:UI.fKlein}}, "Abbrechen"))
+        , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:10}}
+          , newPhotos.length===0&&mgFotoLaeuft>0&&React.createElement('div', { style: {width:96,height:96,borderRadius:8,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:UI.fMeta,color:V.dm,textAlign:"center",padding:6,boxSizing:"border-box"}}, "Foto wird vorbereitet …")
+          , newPhotos.map((ph,i)=>React.createElement('div', { key: i, style: {width:96,height:96,borderRadius:8,overflow:"hidden",position:"relative",border:"1px solid "+V.bd}}, React.createElement('img', { src: ph.full||ph.thumb, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: "Foto "+(i+1)} ), React.createElement('button', { title: "Foto entfernen", 'aria-label': "Foto "+(i+1)+" entfernen", onClick: ()=>setNewPhotos(pp=>pp.filter((_,j)=>j!==i)), style: {position:"absolute",top:0,right:0,width:44,height:44,border:"none",background:"transparent",cursor:"pointer",padding:0,display:"flex",alignItems:"flex-start",justifyContent:"flex-end"}}, React.createElement('span', { style: {display:"inline-flex",width:24,height:24,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",fontSize:13,alignItems:"center",justifyContent:"center",margin:3}}, "✕"))))
+          , React.createElement('label', { style: {minHeight:44,minWidth:44,padding:"0 12px",borderRadius:8,border:"2px dashed "+V.bd,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:V.dm,boxSizing:"border-box"}, title: "Weiteres Foto"}, "+ 📷", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const _f=[...(e.target.files||[])];try{e.target.value="";}catch(_e){}_mgFotoRein(_f);}} ))
+        )
+        , React.createElement('span', { style: LL()}, "Was ist der Mangel? 🎤")
+        , React.createElement(SpeechWrap, { value: name, onChange: v=>setName(v)}, React.createElement('input', { value: name, autoFocus: true, onChange: e=>setName(e.target.value), onKeyDown: e=>{if(e.key==="Enter"&&(name||"").trim()&&mgFotoLaeuft===0){e.preventDefault();add();}}, placeholder: "z. B. Steckdose locker, Kabel offen", 'aria-label': "Mangel-Beschreibung", enterKeyHint: "done", style: {...II(),fontSize:16,minHeight:44}} ))
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)",gap:8,marginTop:10}}
+          , React.createElement('div', { style: {minWidth:0}}, React.createElement('span', { style: LL()}, "Verantwortlich"), _mgWerFeld())
+          , React.createElement('div', { style: {minWidth:0}}, React.createElement('span', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: frist, onChange: e=>setFrist(e.target.value), 'aria-label': "Frist", style: {...II(),minWidth:0}} )))
+        , _mgPlaene.length>0&&React.createElement('div', { style: {marginTop:10}}, _mgPosKnopf())
+        , React.createElement('button', { onClick: ()=>{if(mgFotoLaeuft>0)return;add();}, disabled: !(name||"").trim()||mgFotoLaeuft>0, style: {...bpS,width:"100%",minHeight:48,marginTop:12,fontSize:15,opacity:((name||"").trim()&&mgFotoLaeuft===0)?1:.5}}, mgFotoLaeuft>0?"⏳ Foto wird vorbereitet …":"✓ Mangel speichern")
       )
       /* v3.9.49 S34-2 VMang Premium-Polish: Filter-Chips Top-Bar, Status-Color-System pro Card, Worker-Avatar im Footer. */
       , (()=>{
@@ -17280,7 +17398,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
             , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",flexShrink:0}}
               /* Quick-Status-Pills statt Dropdown — schneller PlanRadar-Workflow */
               , MANGEL_ST.map(ns=>{const isCur=m.status===ns;const nsC=ns==="offen"?COLORS.ERROR:ns==="in Behebung"?COLORS.WARNING:COLORS.SUCCESS;return React.createElement('button', { key: ns, onClick: ()=>{if(!isCur)updSt(m.id,ns);}, title: "Status: "+ns, style: {padding:"3px 8px",borderRadius:12,border:isCur?"2px solid "+nsC:"1px solid "+V.bd,background:isCur?nsC+"22":"transparent",color:isCur?nsC:V.dm,fontSize:UI.fMeta,fontWeight:isCur?700:500,cursor:isCur?"default":"pointer",fontFamily:"inherit",opacity:isCur?1:.7,transition:"all .15s ease"}}, ns==="offen"?"🔴":ns==="in Behebung"?"🟠":"✅");})
-              , isAdmin&&React.createElement('button', { onClick: ()=>_placeOnPlan(m), style: {padding:"3px 9px",borderRadius:12,border:"1px solid "+((m.plan_id&&m.x!=null)?"#0ea5e9":V.bd),background:"transparent",color:(m.plan_id&&m.x!=null)?"#0ea5e9":V.dm,fontSize:UI.fMeta,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}, title: (m.plan_id&&m.x!=null)?"Vom Plan entfernen":"Auf Projektplan platzieren (mittig, dann verschiebbar)"}, (m.plan_id&&m.x!=null)?"📍 vom Plan":"📍 auf Plan")
+              , isAdmin&&React.createElement('button', { onClick: ()=>_placeOnPlan(m), style: {padding:"0 10px",minHeight:44,borderRadius:12,border:"1px solid "+((m.plan_id&&m.x!=null)?"#0ea5e9":V.bd),background:"transparent",color:(m.plan_id&&m.x!=null)?"#0ea5e9":V.dm,fontSize:UI.fMeta,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}, title: (m.plan_id&&m.x!=null)?"Pin auf dem Plan versetzen oder entfernen":"Auf dem Plan per Tipp an die richtige Stelle setzen"}, (m.plan_id&&m.x!=null)?"📍 Pin ändern":"📍 Auf Plan setzen")/* v3.9.1004 A: oeffnet MangelPlanSetzen statt blind 50/50 - und Entfernen ist kein Ein-Tipp-Unfall mehr, es steht im Dialog */
               , isAdmin&&React.createElement('button', { onClick: ()=>delM(m.id), style: {...bdS,padding:"2px 7px",fontSize:UI.fMeta}, title: "Löschen"}, "🗑️")
             )
           )
@@ -17293,6 +17411,8 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
           )
         ));})));
       })
+      /* v3.9.1004 A: Plan-Setzen-Dialog - fuer einen bestehenden Mangel (mid) oder den, der gerade erfasst wird ("neu"). */
+      , mgPlanZiel&&(()=>{const _isNeu=mgPlanZiel.mid==="neu";const _m=_isNeu?null:(forms.maengel||[]).find(x=>x.id===mgPlanZiel.mid);if(!_isNeu&&!_m)return null;const _start=_isNeu?neuPos:(((_m.plan_id||_m.planId)&&_m.x!=null&&_m.y!=null)?{planId:_m.plan_id||_m.planId,x:_m.x,y:_m.y,page:_m.page||1}:null);const _spiegel=!_isNeu&&!!(planData&&planData.tickets&&planData.tickets.some(t=>t.id===_m.id));return React.createElement(MangelPlanSetzen, { plaene: _mgPlaene, start: _start, titel: _isNeu?((name||"").trim()||"Neuer Mangel"):(_m.name||"Mangel"), monteure: monteure, onClose: ()=>setMgPlanZiel(null), onSetzen: (pos,pl)=>{if(_isNeu){setNeuPos(pos);if(pl&&pl.geschoss)setEbene(pl.geschoss);}else{_mgPosSchreiben(_m.id,pos);if(window.__toast)window.__toast("📍 Auf Plan gesetzt — im Plan-Viewer weiter verschiebbar","success");}setMgPlanZiel(null);}, onEntfernen: (_start&&!_spiegel)?(()=>{if(_isNeu)setNeuPos(null);else _mgVomPlan(_m);setMgPlanZiel(null);}):null/* Spiegel eines Plan-Tickets: Entfernen nur im Plan-Viewer (sonst bliebe der Ticket-Pin stehen) */} );})()
       /* ── Lightbox Overlay ── */
       , lightbox&&React.createElement('div', { onClick: ()=>setLightbox(null), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setLightbox(null);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",cursor:"zoom-out"}}
         , React.createElement('div', { style: {position:"absolute",top:16,right:16,display:"flex",gap:8}}
@@ -18720,7 +18840,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
 
       /* v3.9.49 S34-1 Mobile-Bottom-Sheet Drag-Handle (visueller Hint für Bottom-Sheet) */
       , quickTicket&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, onSave: u=>{updateTicket(u);setQuickTicket(null);}, onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}, onClose: ()=>setQuickTicket(null), onComment: (c)=>{const _u={...quickTicket,comments:[...(quickTicket.comments||[]),c],updatedAt:td2()};updateTicket(_u);setQuickTicket(_u);}/* v3.9.180: Kommentar im Quick-Popup → persistiert + Popup bleibt offen */, onPhotos: (arr)=>{const _u2={...quickTicket,photos:arr,updatedAt:td2()};updateTicket(_u2);setQuickTicket(_u2);}/* v3.9.181: Fotos im Quick-Popup → persistiert */} )
-      , quickDefect&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickDefect, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, statusOptions: [["offen",TICKET_STATUS.offen],["in_bearbeitung",TICKET_STATUS.in_bearbeitung],["erledigt",TICKET_STATUS.erledigt]], hideJournal: true, onSave: u=>{/* v3.9.829 PlanRadar ②: Defect-Pin editierbar → kanonische defects-Felder (status/prio/frist/zugewiesen), Status ticket→mangel rueckgemappt (MANGEL_ST). */const _dst=_TICKET2MANGEL_ST[u.status]||"offen";const _prio=(["kritisch","hoch","mittel","niedrig"].indexOf(u.priority)>=0?u.priority:"mittel");const _frist=u.dueDate||"";const _zug=u.assignee||"";setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===u.id?{...m,status:_dst,prio:_prio,frist:_frist,zugewiesen:_zug,worker:_zug}:m)}));SQ.push({url:"/api/defects/"+u.id,method:"PUT",body:{status:_dst,prio:_prio,frist:_frist,zugewiesen:_zug}});if(window.__toast)window.__toast("✅ Mangel aktualisiert ("+_dst+")","success",2000);setQuickDefect(null);}, onOpen: ()=>{setQuickDefect(null);if(window.__toast)window.__toast("ℹ️ Vollständige Bearbeitung (Fotos, Beschreibung) im Mängel-Tab","info",3200);}, onClose: ()=>setQuickDefect(null)} )
+      , quickDefect&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickDefect, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, statusOptions: [["offen",TICKET_STATUS.offen],["in_bearbeitung",TICKET_STATUS.in_bearbeitung],["erledigt",TICKET_STATUS.erledigt]], hideJournal: true, onSave: u=>{/* v3.9.829 PlanRadar ②: Defect-Pin editierbar → kanonische defects-Felder (status/prio/frist/zugewiesen), Status ticket→mangel rueckgemappt (MANGEL_ST). */const _dst=_TICKET2MANGEL_ST[u.status]||"offen";const _prio=(["kritisch","hoch","mittel","niedrig"].indexOf(u.priority)>=0?u.priority:"mittel");const _frist=u.dueDate||"";const _zug=u.assignee||"";setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===u.id?{...m,status:_dst,prio:_prio,frist:_frist,zugewiesen:_zug,worker:_zug}:m)}));SQ.push({url:"/api/defects/"+u.id,method:"PUT",body:{status:_dst,prio:_prio,frist:_frist,zugewiesen:_zug}});/* v3.9.1004 C: Wechsel des Verantwortlichen am Mangel-Pin meldet sich wie im Maengel-Reiter */if(_zug&&_zug!==((quickDefect&&quickDefect.assignee)||""))_mgZuweisungMelden([{wid:_zug,name:u.title||(quickDefect&&quickDefect.title)||"Mangel"}],p.name);if(window.__toast)window.__toast("✅ Mangel aktualisiert ("+_dst+")","success",2000);setQuickDefect(null);}, onOpen: ()=>{setQuickDefect(null);if(window.__toast)window.__toast("ℹ️ Vollständige Bearbeitung (Fotos, Beschreibung) im Mängel-Tab","info",3200);}, onClose: ()=>setQuickDefect(null)} )
       , isMob&&selTicket&&subView==="viewer"&&(React.createElement('div', { onClick: ()=>setSelTicket(null), style: {position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease-out"}}, React.createElement('div', { onClick: e=>e.stopPropagation(), style: {width:"100%",maxHeight:"80vh",overflowY:"auto",borderRadius:"16px 16px 0 0",background:V.cd,boxShadow:"0 -8px 32px rgba(0,0,0,.4)"}}, React.createElement('div', { className: "epk-tap", role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>setSelTicket(null))(e);}}, onClick: ()=>setSelTicket(null), style: {display:"flex",justifyContent:"center",padding:"10px 0 6px",cursor:"pointer",touchAction:"manipulation"}, title: "Schließen"}, React.createElement('div', { style: {width:48,height:5,borderRadius:3,background:V.dm,opacity:.55,boxShadow:"0 1px 2px rgba(0,0,0,.2)"}} )), React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>setSelTicket(null), ww: ww, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid} ))))
       , pendingPin&&!newTicket?React.createElement('div', { style: {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:V.bg,border:"1px solid "+V.bd,borderRadius:12,padding:"10px 16px",display:"flex",gap:10,zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,.4)"}}, React.createElement('span', { style: {color:V.tx,fontSize:13,padding:"8px 4px",alignSelf:"center"}}, "📍 Passt die Position?" ), React.createElement('button', { onClick: confirmPendingPin, style: {background:V.ac,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}, "✓ Ja — Ticket ausfüllen" ), React.createElement('button', { onClick: cancelPendingPin, style: {background:COLORS.ERROR,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit"}}, "✗ Abbrechen" )):null
       /* v3.9.472 (#3): Admin-Editor für Ticket-Vorlagen (system_config). */
