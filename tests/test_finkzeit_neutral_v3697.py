@@ -58,5 +58,6 @@ def test_kpi_kachel_faerbt_sich_nicht_mehr_rot(index_html):
     umfeld = index_html[max(0, i - 400):i + 500]
     assert "diffWarn>0?COLORS.ERROR" not in umfeld, \
         "Die Kachel faerbt sich bei einer Differenz weiterhin rot — das behauptet einen Fehler."
-    assert "finkStats.offen>0?COLORS.WARNING" in umfeld, \
-        "Offene Abrechnungen sollen weiterhin gelb bleiben (echte liegengebliebene Arbeit)."
+    # v3.9.1007 CI: Achtung-Token (AA) statt COLORS.WARNING (#f97316 als Schrift 2,8:1) - offen bleibt Achtung-Farbe.
+    assert "finkStats.offen>0?UI.achtungTxt" in umfeld, \
+        "Offene Abrechnungen sollen weiterhin in der Achtung-Farbe stehen (echte liegengebliebene Arbeit)."

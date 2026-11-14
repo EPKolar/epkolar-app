@@ -190,7 +190,11 @@ def test_bauprovisorien_traegt_eine_echte_ueberschrift():
     # Baustellenzeichen beginnt - und ein Riegel, der auf einen Teilstring
     # prueft, wuerde auch eine geaenderte Beschriftung durchlassen.
     ERWARTET = [("Formular", "fontSize:18", "Bauprovisorium bearbeiten"),
-                ("Liste", "fontSize:20", "\U0001f6a7 Bauprovisorien")]
+                # v3.9.1007: die Liste traegt jetzt die Haus-Titelgroesse wie alle
+                # anderen Seitentitel (gemessen 412 px: 14 Titel 18 px, nur Chef-Portal
+                # und Bauprovisorien 20) - eine GEWOLLTE Geometrieaenderung; die
+                # Eigenschaft "echte h2, Gewicht 800, margin:0, Text drin" bleibt.
+                ("Liste", "fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite", "\U0001f6a7 Bauprovisorien")]
     h2s = list(re.finditer(
         r"""(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*'h2'\s*,"""
         r"""\s*\{\s*style:\s*\{([^}]*)\}""", r))

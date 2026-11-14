@@ -29,7 +29,7 @@ def test_kachel_rahmen_nicht_mehr_rot_bei_differenz(index_html):
     """Die dritte, in v3.9.697 übersehene Stelle: der borderLeft der Monatsabrechnungs-Kachel."""
     assert 'borderLeft:"4px solid "+(finkStats.diffWarn>0?COLORS.ERROR' not in index_html, \
         "Der Kachel-Rahmen färbt sich bei einer Projektzeit/Anwesenheit-Differenz weiterhin rot"
-    assert 'borderLeft:"4px solid "+(finkStats.offen>0?COLORS.WARNING:"#8b5cf6")' in index_html
+    assert 'borderLeft:"4px solid "+(finkStats.offen>0?UI.achtung:UI.marke)' in index_html  # v3.9.1007 CI: offen = Achtung, sonst Markengruen statt Violett
 
 
 def test_kein_diffwarn_error_mehr_in_der_finkzeit_kachel(index_html):
