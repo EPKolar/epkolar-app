@@ -72,12 +72,25 @@ def test_gruppen_und_filter_zeigen_abgelehnte(index_html):
 def test_abgelehnt_ist_nicht_gruen(index_html):
     """Mit der Erledigt-Farbe saehe eine abgelehnte Kundenmeldung aus wie ein
     behobener Mangel - das ist eine Aussage, keine Kosmetik."""
-    assert 'st==="abgelehnt"?V.dm:COLORS.SUCCESS' in index_html, (
-        "Die Gruppenfarbe fuer 'abgelehnt' ist nicht neutral."
+    # Maengel Stufe 2 (4): umgestellt - Gruppe und Chips holen die Farbe jetzt aus EINER
+    # Quelle _mgStFarbe (CI-Tafel). Geprueft wird, dass beide sie benutzen und dass
+    # 'abgelehnt' dort gedaempft (V.dm) und NICHT die Erledigt-Farbe ist.
+    import re as _re
+    assert "const _stF=_mgStFarbe(st,false);const stC=_stF.c;" in index_html, (
+        "Die Gruppenfarbe kommt nicht mehr aus _mgStFarbe."
     )
-    assert 's==="abgelehnt"?V.dm:COLORS.SUCCESS' in index_html, (
-        "Die Chip-Farbe fuer 'abgelehnt' ist nicht neutral."
+    assert 'const sc=s==="alle"?V.acTx:_mgStFarbe(s,false).tx;' in index_html, (
+        "Die Chip-Farbe kommt nicht mehr aus _mgStFarbe."
     )
+    i = index_html.index("function _mgStFarbe(")
+    body = index_html[i:index_html.index("\n}", i)]
+    zeilen = {m.group(1): m.group(2) for m in _re.finditer(r'st==="([^"]+)"\) return \{c:([^,]+),', body)}
+    assert zeilen.get("behoben"), "behoben hat keine eigene Farbe."
+    assert "abgelehnt" not in zeilen, "abgelehnt hat eine eigene (moeglicherweise gruene) Farbe."
+    assert body.rstrip().endswith('return {c:V.dm, tx:V.dm, bg:"transparent"};'), (
+        "Die Farbe fuer 'abgelehnt' (Rueckfall) ist nicht neutral."
+    )
+    assert zeilen["behoben"] != "V.dm"
 
 
 def test_der_triage_weg_ist_unveraendert(index_html):

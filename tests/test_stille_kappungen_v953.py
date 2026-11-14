@@ -66,6 +66,10 @@ BEWUSST = {
         "Kennung eines Protokolleintrags - eine volle UUID ist unlesbar",
     'jupCfg.passport.slice(0,8)':
         "Anfang eines Geheimnisses, TRAEGT bereits ein Auslassungszeichen",
+    '.map(s=>s[0]).join("").slice(0,2)':
+        "Initialen im Verantwortlichen-Kreis der Mangel-Karte - zwei Buchstaben sind der "
+        "Zweck, der volle Name steht direkt daneben und im title. Der Code ist unveraendert; "
+        "er fiel erst auf, als Maengel Stufe 2 die Prio-Farbkonstanten davor entfernte.",
 }
 
 # Datums- und Zeitschnitte: das ist Formatierung, kein Beschnitt.
