@@ -80,7 +80,7 @@ GEHOBEN = [
      "ESC-Knopf der Suchpalette", "42x22"),
     ("flexShrink:0,minHeight:28,minWidth:24,lineHeight:1", 1,
      "Favoritenstern in der Fahrzeugliste", "23x32"),
-    ("padding:4,minWidth:24,zIndex:2", 1,
+    ("padding:0,minWidth:44,minHeight:44,display:\"flex\",alignItems:\"center\",justifyContent:\"center\",zIndex:2", 1,  # v3.9.1004 F6: auf 44x44 gehoben
      "Favoritenstern auf der Fahrzeugkarte", "23x32"),
     ('display:"inline-flex",alignItems:"center",justifyContent:"center",'
      'minWidth:24,minHeight:24', 2,

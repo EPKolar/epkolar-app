@@ -30,12 +30,12 @@ def test_b_absence_guard(index_html):
     # tog (Einzeltag) + submitRequest (Bereich) sind async und warnen; approve haengt Konflikt-Hinweis an
     assert "const tog=async d=>{" in index_html
     assert "const submitRequest=async()=>{" in index_html
-    assert "'⚠ An diesem Tag ist bereits Projektzeit erfasst ('+_n(_teH,1)+' h). Abwesenheit trotzdem eintragen?'" in index_html
+    assert "'⚠ An diesem Tag ist bereits Projektzeit erfasst ('+_absH(_teH,1)+' h). Abwesenheit trotzdem eintragen?'" in index_html
     # Mehrtages listet die betroffenen Tage
     assert "'⚠ An diesen Tagen ist bereits Projektzeit erfasst: '+_konflTage.join(', ')" in index_html
-    assert "_konflTage.push(fdt(dk(_cd))+' ('+_n(_cth,1)+'h)')" in index_html
+    assert "_konflTage.push(fdt(dk(_cd))+' ('+_absH(_cth,1)+'h)')" in index_html
     # Genehmigung: Konflikt-Hinweis in der Bestaetigung
-    assert "⚠ Konflikt: an diesem Tag sind bereits \"+_n(_apTeH,1)+\" h Projektzeit erfasst." in index_html
+    assert "⚠ Konflikt: an diesem Tag sind bereits \"+_absH(_apTeH,1)+\" h Projektzeit erfasst." in index_html
 
 
 def test_c_loesen_nur_isstaff(index_html):
