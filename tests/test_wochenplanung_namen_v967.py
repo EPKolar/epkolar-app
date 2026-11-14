@@ -126,25 +126,50 @@ def test_der_monteursname_wird_nicht_gekuerzt():
         "kuerzen." % fund)
 
 
-def test_der_name_bricht_um_statt_zu_kuerzen():
-    """Die WIRKUNG, nicht die Abwesenheit: die Zelle muss umbrechen duerfen."""
+def test_der_name_bricht_nicht_mitten_im_wort():
+    """Die WIRKUNG, nicht die Abwesenheit - Fassung v3.9.1004.
+
+    v3.9.967 liess den vollen Namen UMBRECHEN (overflowWrap:'anywhere'). Am
+    echten Telefon (Samsung A55, 6 Tagesspalten von rund 50 px) brach er damit
+    MITTEN IM WORT: "Riedma|nn", "Paschin|ger" (Befund Sebastian, PL2). Jetzt:
+    kein Umbruch, dafuer ein KUERZESTES EINDEUTIGES Praefix (maKurz) - nicht
+    das blinde `_kurz(nm,6)`, gegen das v967 zu Recht stand. Der volle Name
+    steht im title/aria-label.
+    """
     text = _lies()
     a, b = _spanne(text)
     seg = text[a:b]
-    # Die Namens-Spanne der Tageszelle, an ihrem title=nm erkennbar.
-    m = re.search(r"React\.createElement\('span',\{key:id,title:nm,style:\{[^}]*\}\}",
+    # Die Namens-Spanne der Tageszelle, an ihrem aria-label=_lab erkennbar.
+    m = re.search(r"React\.createElement\('span',\{key:id,title:_lab,'aria-label':_lab,style:\{[^}]*\}\},\(maKurz\[id\]\|\|nm\)\)",
                   seg)
     assert m, (
-        "\U0001F534 Die Namens-Spanne der Tageszelle ist nicht mehr "
-        "auffindbar - der Riegel\n  misst dann nichts.")
+        "🔴 Die Namens-Spanne der Tageszelle ist nicht mehr "
+        "auffindbar - der Riegel misst dann nichts.")
     stil = m.group(0)
-    assert "nowrap" not in stil, (
-        "\U0001F534 Der Monteursname steht wieder auf nowrap: %s" % stil[:160])
-    assert "ellipsis" not in stil, (
-        "\U0001F534 Der Monteursname steht wieder auf ellipsis: %s" % stil[:160])
-    assert ("overflowWrap" in stil or "wordBreak" in stil), (
-        "\U0001F534 Der Monteursname darf nicht umbrechen - dann laeuft er "
-        "aus der Spalte,\n  statt in zwei Zeilen zu passen: %s" % stil[:160])
+    for bruch in ("overflowWrap:'anywhere'", "wordBreak:'break-word'",
+                  "wordBreak:'break-all'"):
+        assert bruch not in stil, (
+            "🔴 Der Monteursname darf wieder mitten im Wort brechen "
+            "(%s): %s" % (bruch, stil[:200]))
+    assert "whiteSpace:'nowrap'" in stil, (
+        "🔴 Ohne nowrap bricht der Name wieder in der Zelle um: %s"
+        % stil[:200])
+    # Der volle Name bleibt erreichbar.
+    assert "const _lab=nm+" in seg, "Der volle Name fehlt im title/aria-label."
+
+
+def test_kurzname_ist_eindeutiges_praefix():
+    """maKurz kuerzt nicht blind: das Praefix waechst, bis es eindeutig ist."""
+    text = _lies()
+    a, b = _spanne(text)
+    seg = text[a:b]
+    i = seg.index("const maKurz=")
+    blk = seg[i:i + 900]
+    assert "n.length<=6" in blk, "Kurze Namen muessen voll bleiben."
+    assert "for(let L=5;" in blk and "o.id!==a.id" in blk, (
+        "🔴 maKurz prueft die Eindeutigkeit gegen die anderen "
+        "Monteure nicht mehr - dann sind Steinbichler/Steinbach wieder "
+        "ununterscheidbar.")
 
 
 def test_koeder_alle_drei_kuerzungsformen():
