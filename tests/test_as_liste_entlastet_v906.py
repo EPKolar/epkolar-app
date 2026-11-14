@@ -56,9 +56,22 @@ def test_der_knopf_nennt_die_zahl_der_aktiven_filter(index_html):
             "Der Zaehler am Filter-Knopf beruecksichtigt %s nicht - dann kann "
             "ein aktiver Filter unsichtbar bleiben." % feld
         )
-    assert '_n?(" ("+_n+")"):""' in block, (
-        "Die Zahl wird nicht angezeigt."
-    )
+    # 14.11.2026 (Handy-Befund A3): derselbe Filter stand DREIFACH da -
+    # "Filter (1)", "1 Filter zuruecksetzen" und der Chip. Die Zahl am Knopf
+    # ist weg; die Eigenschaft dieses Riegels (ein aktiver Filter bleibt
+    # SICHTBAR) traegt jetzt der Chip-Block, der UNABHAENGIG vom Aufklappen
+    # gerendert wird und jeden Filter einzeln nennt. Der Knopf bleibt
+    # hervorgehoben, solange gefiltert wird.
+    assert "fontWeight:_n?700:400,color:_n?V.ac:V.tx" in block, (
+        "Der Filter-Knopf zeigt nicht mehr an, DASS gefiltert wird.")
+    j = index_html.find('"aria-label":"Aktive Filter"')
+    assert j != -1, "Der Block der aktiven Filter-Chips fehlt."
+    chips = index_html[index_html.rfind("const chips=[];", 0, j):j]
+    for f in ('filterStatus!=="alle"', 'filterArt!=="alle"', 'filterMonteur!=="alle"', 'filterSB!=="alle"'):
+        assert f in chips, "Der Chip-Block nennt %s nicht." % f
+    assert "_fltOffen" not in chips, (
+        "Die Chips haengen am Aufklappen - dann ist ein aktiver Filter im "
+        "zugeklappten Zustand unsichtbar.")
 
 
 def test_alle_vier_felder_haengen_an_derselben_bedingung(index_html):

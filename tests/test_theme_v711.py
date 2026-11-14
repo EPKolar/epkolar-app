@@ -41,4 +41,7 @@ def test_hard_choice_ignores_matchmedia(index_html):
 
 def test_colorscheme_follows_app(index_html):
     # native Inputs/Scrollbars folgen der App-Wahl (color-scheme am <html>).
-    assert 'document.documentElement.style.colorScheme=dark?"dark":"light"' in index_html
+    # 14.11.2026: `only` dazu - verbietet dem Browser das eigenmaechtige Umfaerben
+    # (Samsung Internet/Chrome Dunkelmodus fuer Webseiten). Die Eigenschaft bleibt:
+    # das Schema folgt der App-Wahl.
+    assert 'document.documentElement.style.colorScheme=dark?"only dark":"only light"' in index_html
