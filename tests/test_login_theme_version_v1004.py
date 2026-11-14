@@ -65,6 +65,7 @@ def test_speicher_fehlschlag_auf_der_maske_wechselt_trotzdem():
         "function resolveTheme(m,s){return m==='dark'?true:m==='light'?false:s;}"
         "function _systemDark(){return true;}"
         "function setIsDark(d){dark.push(d);}"
+        "function setThemeWahl(m){}"
         "function applyTheme(d){applied.push(d);}"
         "var _themeToast=function(){toasts.push('ok');};"
         + _set_theme_mode()

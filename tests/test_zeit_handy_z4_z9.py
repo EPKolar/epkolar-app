@@ -151,8 +151,9 @@ def test_z9_anzeige_hat_keinen_punkt_formatierer_mehr(index_html):
 # ── Z1 ────────────────────────────────────────────────────────────────────────
 
 def test_z1_fussleiste_zeigt_zeit_title_bleibt_voll(index_html):
-    neu = 'isActive&&gr.g<4&&tabs[safeKat]?(tabs[safeKat].perm==="zeiterfassung"?"Zeit":tabs[safeKat].l)'
-    assert index_html.count(neu) == 1
+    # v3.9.1004 Merge mit der Huelle (A2/C1): sichtbar steht IMMER die Slot-Beschriftung gr.l -
+    # der Zeit-Slot heisst damit immer "Zeit", nie "Zeiterfass..." (Z1 bleibt erfuellt, allgemeiner geloest).
+    assert ", gr.l/* Handy-Befund A2/C1" in index_html
     # der volle Name bleibt im title (Riegel v3.9.946)
     assert "title: (isActive&&gr.g<4&&tabs[safeKat]?tabs[safeKat].l:gr.l)" in index_html
     # die Gruppe heisst weiterhin "Zeit" und zielt auf die Zeiterfassung
