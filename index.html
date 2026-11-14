@@ -861,6 +861,12 @@ const BYTES_MB=1024*1024;
 /* v3.9.18 B-014: zentraler Pickerl/Frist-Status. Returns 'ok'|'warn'|'overdue'|null.
    warnDays default 30 (überall genutzte Schwelle). Pure function, kein State. */
 window._pickerlStatus=(datum,warnDays)=>{if(!datum)return null;const w=(warnDays==null)?30:warnDays;const d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(datum)?datum+"T00:00:00":datum);/* v3.9.224 #5: date-only lokal parsen (sonst UTC-Mitternacht → Pickerl/Vignette ab ~02:00 lokal falsch 'overdue') */if(isNaN(d))return null;const diff=(d-new Date())/TIME_DAY;if(diff<0)return 'overdue';if(diff<w)return 'warn';return 'ok';};
+/* Handy-Befund F1 (14.11.2026): Pickerl-Toleranzfrist nach Paragraph 57a KFG. Die Begutachtung ist bis
+   Ende des 4. Monats nach dem gelochten Monat erlaubt. Abgelaufene Pickerl standen ORANGE in der Liste,
+   weil das Abzeichen 'warn' und 'overdue' gleich faerbte. Rueckgabe {st:'ok'|'warn'|'toleranz'|'overdue',
+   tolBis:'JJJJ-MM-TT'|null} oder null. NUR fuers Pickerl - Vignette/Service haben keine Toleranz und
+   bleiben bei _pickerlStatus. Liste, Kachel-Abzeichen, QR-Abzeichen und Home-Banner nutzen diese Regel. */
+window._pickerlFrist=(datum)=>{const st=window._pickerlStatus(datum);if(!st)return null;if(st!=='overdue')return {st:st,tolBis:null};const m=/^(\d{4})-(\d{2})/.exec(String(datum));if(!m)return {st:'overdue',tolBis:null};const tb=new Date(+m[1],(+m[2]-1)+5,0);const tbIso=tb.getFullYear()+'-'+String(tb.getMonth()+1).padStart(2,'0')+'-'+String(tb.getDate()).padStart(2,'0');const h=new Date();h.setHours(0,0,0,0);return {st:tb>=h?'toleranz':'overdue',tolBis:tbIso};};
 window._fmtDate=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();};
 window._fmtDatetime=(d)=>{if(!d)return '—';const dt=new Date(d);if(isNaN(dt))return '—';return window._fmtDate(d)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
 /* v3.9.92 Sprint-71.4 Unit-Consistency: Std → Std. */ window._fmtRelative=(d)=>{if(!d)return '—';const diff=(Date.now()-new Date(d).getTime())/1000;if(isNaN(diff))return '—';if(diff<60)return 'gerade eben';if(diff<3600)return 'vor '+Math.floor(diff/60)+' Min';if(diff<86400)return 'vor '+Math.floor(diff/3600)+' Std.';if(diff<604800)return 'vor '+Math.floor(diff/86400)+' Tagen';return window._fmtDate(d);};
@@ -15256,9 +15262,15 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   /* v3.9.18 B-014: zentraler Helper _pickerlStatus + 365d-Tail-Filter beibehalten. */
   const pickerFaellig=_alertFz.filter(f=>{const st=window._pickerlStatus(f.pickerl);if(!st||st==='ok')return false;const d=new Date(f.pickerl+"T00:00:00");return (d-new Date())/TIME_DAY>-365;});
   if(pickerFaellig.length>0){
-    const abgelaufen=pickerFaellig.filter(f=>window._pickerlStatus(f.pickerl)==='overdue').length;
-    const text=abgelaufen>0?`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${abgelaufen} abgelaufen / ${pickerFaellig.length-abgelaufen} bald fällig`:`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl bald fällig`;
-    alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>({label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl),status:window._pickerlStatus(f.pickerl)}))});
+    /* Handy-Befund F1: dieselbe Regel wie die Fahrzeugliste (window._pickerlFrist) - innerhalb der
+       Toleranzfrist zaehlt ein Pickerl NICHT als abgelaufen, sondern eigens als "in Toleranzfrist". */
+    const _pkFr=f=>window._pickerlFrist(f.pickerl)||{};
+    const abgelaufen=pickerFaellig.filter(f=>_pkFr(f).st==='overdue').length;
+    const inToleranz=pickerFaellig.filter(f=>_pkFr(f).st==='toleranz').length;
+    const _pkBald=pickerFaellig.length-abgelaufen-inToleranz;
+    const _pkTeile=[abgelaufen>0?abgelaufen+" abgelaufen":null,inToleranz>0?inToleranz+" in Toleranzfrist":null,_pkBald>0?_pkBald+" bald fällig":null].filter(Boolean).join(" / ");
+    const text=`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${_pkTeile}`;
+    alerts.push({type:"warning",icon:"📋",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
   }
   const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date());/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
   if(serviceFaellig.length>0){
@@ -28597,13 +28609,13 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                     , React.createElement('div', { style: {fontSize:13,color:V.dm}}, fzScannedItem.marke, " " , fzScannedItem.modell, " " , fzScannedItem.baujahr?"("+fzScannedItem.baujahr+")":"")
                   )
                   , React.createElement('div', { style: {textAlign:"right"}}
-                    , React.createElement('div', { style: {fontFamily:mono,fontSize:18,fontWeight:800,color:V.acTx}}, (fzScannedItem.kmStand||0).toLocaleString("de-AT"), " km" )
+                    , React.createElement('div', { style: {fontFamily:mono,fontSize:18,fontWeight:800,color:V.acTx}}, (+fzScannedItem.kmStand>0)?(+fzScannedItem.kmStand).toLocaleString("de-AT")+" km":"—"/* Handy-Befund F4 */)
                     , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _optionalChain([(monteure||MONT), 'access', _688 => _688.find, 'call', _689 => _689(m=>m.id===fzScannedItem.fahrer), 'optionalAccess', _690 => _690.n])||"kein Fahrer")
                   )
                 )
                 /* Badges */
                 , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:"wrap"}}
-                  , fzScannedItem.pickerl&&React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl), color: new Date(fzScannedItem.pickerl+"T00:00:00")>new Date()?_okG("#22c55e"):"#ef4444"/* v3.9.417: date-only lokal parsen */} )
+                  , fzScannedItem.pickerl&&(()=>{/* Handy-Befund F1: QR-Abzeichen nach derselben Toleranzregel wie die Liste (window._pickerlFrist parst date-only lokal) */const _qFr=window._pickerlFrist(fzScannedItem.pickerl)||{};return React.createElement(Badge, { text: "📋 Pickerl: "+fdt(fzScannedItem.pickerl)+(_qFr.st==='overdue'?" · abgelaufen":_qFr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_qFr.tolBis):""), color: _qFr.st==='overdue'?"#ef4444":(_qFr.st==='toleranz'||_qFr.st==='warn')?"#f97316":_okG("#22c55e")} );})()
                   , (fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length>0&&React.createElement(Badge, { text: "⚠️ "+(fzScannedItem.schaeden||[]).filter(s=>s.status==="offen").length+" offene Schäden", color: "#ef4444"} )
                   , _optionalChain([fzScannedItem, 'access', _691 => _691.tankLog, 'optionalAccess', _692 => _692.length])>0&&React.createElement(Badge, { text: "⛽ Letzte Tankung: "+fdt(_optionalChain([fzScannedItem, 'access', _693 => _693.tankLog, 'access', _694 => _694[0], 'optionalAccess', _695 => _695.datum])), color: "#f97316"} )
                 )
@@ -28758,7 +28770,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , batchRows.length>0&&(React.createElement('div', { style: {...CC(),marginBottom:14}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
             , React.createElement('div', { style: {fontSize:14,fontWeight:700}}, "📋 Diese Sitzung"  )
-            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, " Tankungen · "   , React.createElement('strong', { style: {color:"#f97316"}}, _n(batchTotal.liter,1), " L" ), " · "  , React.createElement('strong', { style: {color:"#f97316"}}, "€", _n(batchTotal.preis,2)))
+            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, batchTotal.count===1?" Tankung · ":" Tankungen · "   , React.createElement('strong', { style: {color:"#f97316"}}, _n(batchTotal.liter,1), " L" ), " · "  , React.createElement('strong', { style: {color:"#f97316"}}, "€", _n(batchTotal.preis,2)))
           )
           , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:4}}
             , batchRows.map((r,i)=>{
@@ -28872,6 +28884,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           const _pkSt=window._pickerlStatus(f.pickerl);
           const pickerlOk=_pkSt==='ok';
           const pickerlWarn=_pkSt==='warn'||_pkSt==='overdue';
+          /* Handy-Befund F1: Farbe und Text nach der Toleranzregel (window._pickerlFrist) - abgelaufen = rot, in Toleranzfrist = orange mit Datum. pickerlWarn bleibt die Zaehlregel der Kachel "Pickerl faellig". */
+          const _pkFr=window._pickerlFrist(f.pickerl)||{};
+          const pickerlRot=_pkFr.st==='overdue';
+          /* Handy-Befund F4: ohne Kilometerstand (Anhaenger, Geraete) "—" statt "0 km". */
+          const _kmTxt=(+f.kmStand>0)?(+f.kmStand).toLocaleString("de-AT")+" km":"—";
+          const _tkN=(f.tankLog||[]).length;
           const serviceWarn=f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date();/* v3.9.407: date-only lokal parsen, konsistent mit Dashboard Z9521 */
           const offSch=(f.schaeden||[]).filter(s=>s.status==="offen").length;
           const isMine=f.id===myFzId;
@@ -28880,17 +28898,17 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             , React.createElement('div', { style: {fontSize:13,fontWeight:800,marginBottom:2,paddingRight:isMine?40:0,wordBreak:"break-word",lineHeight:1.25}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗", " ", f.kennzeichen)
             , isMine&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#dcfce7",color:_okG("#16a34a"),fontWeight:700,position:"absolute",top:4,right:4,zIndex:2}}, "MEIN")
             , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:4}}, f.marke," ",f.modell)
-            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:12,fontWeight:700,marginBottom:4}}, (f.kmStand||0).toLocaleString("de-AT")," km")
+            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:12,fontWeight:700,marginBottom:4}}, _kmTxt)
             , fahrer&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.acTx}}, "👤 ",fahrer.n)
             , React.createElement('div', { style: {display:"flex",gap:3,marginTop:4,flexWrap:"wrap"}}
-              , pickerlWarn&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#fef3c7",color:"#d97706",fontWeight:600}}, "📋")
+              , pickerlWarn&&React.createElement('span', { title: pickerlRot?"Pickerl abgelaufen":_pkFr.st==='toleranz'?"Pickerl in Toleranzfrist bis "+fdt(_pkFr.tolBis):"Pickerl bald fällig", style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:pickerlRot?"#fee2e2":"#fef3c7",color:pickerlRot?"#dc2626":"#d97706",fontWeight:600}}, "📋")
               , serviceWarn&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "🔧")
               , offSch>0&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 4px",borderRadius:3,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️",offSch)
             )
-          )):(React.createElement('div', { key: f.id, style: {...CC(),cursor:"pointer",borderLeft:"4px solid "+(isMine?"#22c55e":offSch>0?"#ef4444":pickerlWarn?"#f97316":"#0ea5e9"),position:"relative"}, tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>setSel(f.id))(e);}}, onClick: ()=>setSel(f.id)}
+          )):(React.createElement('div', { key: f.id, style: {...CC(),cursor:"pointer",borderLeft:"4px solid "+(isMine?"#22c55e":offSch>0?"#ef4444":pickerlRot?"#ef4444":pickerlWarn?"#f97316":"#0ea5e9"),position:"relative"}, tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>setSel(f.id))(e);}}, onClick: ()=>setSel(f.id)}
             /* Fav star */
-            , React.createElement('button', { onClick: e=>{e.stopPropagation();toggleFav(f.id);}, style: {position:"absolute",top:8,right:8,border:"none",background:"transparent",cursor:"pointer",fontSize:18,padding:4,minWidth:24,zIndex:2,color:isFav(f.id)?"#eab308":"#555",filter:isFav(f.id)?"drop-shadow(0 0 2px rgba(234,179,8,.4))":"none"}, title: isFav(f.id)?"Favorit entfernen":"Als Favorit markieren"}, isFav(f.id)?"★":"☆")
-            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingRight:28}}
+            , React.createElement('button', { onClick: e=>{e.stopPropagation();toggleFav(f.id);}, style: {position:"absolute",top:0,right:0,border:"none",background:"transparent",cursor:"pointer",fontSize:20,padding:0,minWidth:44,minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,/* Handy-Befund F6: Tippziel 44x44 statt 24 */color:isFav(f.id)?"#eab308":"#555",filter:isFav(f.id)?"drop-shadow(0 0 2px rgba(234,179,8,.4))":"none"}, title: isFav(f.id)?"Favorit entfernen":"Als Favorit markieren"}, isFav(f.id)?"★":"☆")
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingRight:40}}
               , React.createElement('div', {}
                 , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                   , React.createElement('span', { style: {fontSize:16,fontWeight:800}}, f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗", " " , f.kennzeichen)
@@ -28900,16 +28918,16 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 , React.createElement('div', { style: {fontSize:13,color:V.dm}}, f.marke, " " , f.modell, " " , f.baujahr?"("+f.baujahr+")":"", f.farbe?" · "+f.farbe:"")
               )
               , React.createElement('div', { style: {textAlign:"right"}}
-                , React.createElement('div', { style: {fontFamily:"monospace",fontSize:14,fontWeight:700}}, (f.kmStand||0).toLocaleString("de-AT"), " km" )
+                , React.createElement('div', { style: {fontFamily:"monospace",fontSize:14,fontWeight:700}}, _kmTxt)
                 , fahrer&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.acTx}}, "👤 " , fahrer.n)
               )
             )
             , React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}
-              , f.pickerl&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:pickerlOk&&!pickerlWarn?"#dcfce7":pickerlWarn?"#fef3c7":"#fee2e2",color:pickerlOk&&!pickerlWarn?_okG("#16a34a"):pickerlWarn?"#d97706":"#dc2626",fontWeight:600}}, "📋 Pickerl: "  , fdt(f.pickerl))
+              , f.pickerl&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:pickerlRot?"#fee2e2":pickerlOk&&!pickerlWarn?"#dcfce7":pickerlWarn?"#fef3c7":"#fee2e2",color:pickerlRot?"#dc2626":pickerlOk&&!pickerlWarn?_okG("#16a34a"):pickerlWarn?"#d97706":"#dc2626",fontWeight:600}}, "📋 Pickerl: "  , fdt(f.pickerl), pickerlRot?" · abgelaufen":_pkFr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_pkFr.tolBis):"")
               , f.naechstService&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:serviceWarn?"#fee2e2":"#e0f2fe",color:serviceWarn?"#dc2626":"#0284c7",fontWeight:600}}, "🔧 Service: "  , fdt(f.naechstService))
-              , offSch>0&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️ " , offSch, " Schaden" )
+              , offSch>0&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",fontWeight:600}}, "⚠️ " , offSch, offSch===1?" Schaden":" Schäden" )
               , f.reifen&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#f3f4f6",color:"#4b5563",fontWeight:500}}, "🛞 " , f.reifen)
-              , React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#f0f0f0",color:"#666"}}, "⛽ " , (f.tankLog||[]).length, " Tankungen" )
+              , React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:"#f0f0f0",color:"#666"}}, "⛽ " , _tkN, _tkN===1?" Tankung":" Tankungen" )
             )
           ));
         })
@@ -28927,7 +28945,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
               )
               , React.createElement('div', { style: {fontSize:14,color:V.dm}}, selFz.marke, " " , selFz.modell, " " , selFz.baujahr?"("+selFz.baujahr+")":"")
             )
-            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:20,fontWeight:800,color:V.acTx}}, (selFz.kmStand||0).toLocaleString("de-AT"), " km" )
+            , React.createElement('div', { style: {fontFamily:"monospace",fontSize:20,fontWeight:800,color:V.acTx}}, (+selFz.kmStand>0)?(+selFz.kmStand).toLocaleString("de-AT")+" km":"—"/* Handy-Befund F4 */)
             /* v3.9.680: Auf Mobile faellt der Barcode aus der Kopfzeile heraus — als drittes Flex-Kind
                neben Kennzeichen und km-Stand quetschte er beides zusammen und ragte an den Rand
                (Screenshot Sebastian 14.07.). Desktop behaelt ihn hier, unveraendert. */
