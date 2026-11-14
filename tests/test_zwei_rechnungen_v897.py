@@ -164,7 +164,9 @@ def test_die_kachel_bleibt_auf_aktiven_fahrzeugen(index_html):
     """Gegenprobe: der Nenner war schon richtig und darf sich NICHT aendern -
     sonst waere die Kachel wieder in sich widerspruechlich, nur andersherum."""
     assert ('value: (fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").length, '
-            'sub: "€"+Math.round(totalTankKosten)') in index_html, (
+            'sub: _eur0(totalTankKosten)') in index_html, (
+        # v3.9.1004 (AU1): nur die Anzeige geht jetzt ueber den lokalen
+        # Formatierer ("€ 3.142" statt "€3142") - die Summe bleibt dieselbe.
         "Zaehler und Summe der Fahrzeug-Kachel stehen nicht mehr beisammen "
         "oder rechnen wieder verschieden."
     )
