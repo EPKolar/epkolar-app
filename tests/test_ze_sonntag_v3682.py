@@ -16,8 +16,14 @@ Muster uebernommen von exportWochenStz (v3.9.661), das genau dieselbe Regel scho
 
 
 def _ze_body(index_html):
+    # Bis zur naechsten Funktion der obersten Ebene statt eines festen
+    # Zeichenfensters (90000) - das Fenster mass die Kommentarlaenge mit und
+    # lag nach den Z4-Z9-Aenderungen (14.11.2026) nur noch ~5000 Zeichen ueber
+    # dem letzten geprueften Ausdruck.
     start = index_html.index("function ZeiterfassungView({")
-    return index_html[start : start + 90000]
+    ende = index_html.find("\nfunction ", start + 10)
+    assert ende > start, "KOEDER STUMM: Ende von ZeiterfassungView nicht gefunden."
+    return index_html[start:ende]
 
 
 def test_days_bleibt_siebentaegig(index_html):
@@ -64,7 +70,9 @@ def test_summenleiste_sonntag_bedingt_aber_wochensumme_vollstaendig(index_html):
     assert "if(isSo&&!(dt>0))return null;" in body
     # ... die Wochensumme bleibt aber unangetastet (kein Filter auf weekTotal).
     assert '"Σ Woche"' in body
-    assert "_n(weekTotal,1)" in body
+    # Seit Z9 (14.11.2026) zeigt die Ansicht mit Dezimalkomma ueber den lokalen
+    # Formatierer _hK - die Eigenschaft ist "weekTotal wird ungefiltert angezeigt".
+    assert "_hK(weekTotal,1)" in body
     assert "weekTotal" in body
 
 

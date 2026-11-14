@@ -10048,7 +10048,7 @@ function MonteurTafel(props){
                 else{setKat(grFirst);setMoreOpen(false);}
               }, title: gr.l, 'aria-current': isActive||(gr.g===4&&moreOpen)?"page":undefined, 'aria-label': gr.l, style: {border:"none",background:"transparent",color:isActive||(gr.g===4&&moreOpen)?gr.c:V.dm,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"6px 2px",minWidth:0,flex:1,position:"relative",fontFamily:"inherit",gap:2}}
                 , React.createElement('span', { style: {fontSize:20,lineHeight:1}}, gr.i)
-                , React.createElement('span', { title: (isActive&&gr.g<4&&tabs[safeKat]?tabs[safeKat].l:gr.l),/* v3.9.946 D1 - EIN RUECKSCHLAG AUS v3.9.943, DEN ICH VERURSACHT HABE. Dort ist diese Beschriftung von 10 auf 12 px gehoben worden, und ich habe die HOEHE der Leiste gemessen (58 px, unveraendert) - die BREITE nicht. Der Schlitz ist 74 px. Gemessen: bei 10 px war genau EIN Name gekuerzt (Monatsabrechnung, 93 px), bei 12 px sind es FUENF - Monatsabrechnung 112 px (-37,5), Abwesenheiten 89 (-15,3), Bauprovisorien 88 (-13,7), Gefahrenstoffe 86 (-11,9), Zeiterfassung 80 (-5,6). In JEDER Ansicht. 12 px koennen diese Woerter in 74 px nicht tragen; das ist keine Einstellung, sondern Arithmetik. Der title kostet kein Pixel und macht den ganzen Namen wenigstens erreichbar - er LOEST es am Telefon nur halb. Der richtige Weg waere ein Kurzname je Reiter, und der erfindet Woerter: das ist eine Textentscheidung und liegt bei Sebastian. Die Alternative, wieder die Gruppenbeschriftung zu zeigen, nimmt die Information, WELCHER Reiter offen ist - und genau dafuer ist der Ausdruck gebaut. */ style: {fontSize:UI.fMeta,fontWeight:isActive?700:400}}/* v3.9.943: die fuenf Beschriftungen der Fussleiste standen auf 10 px - und die Leiste ist die einzige Flaeche, die in JEDER Ansicht und bei JEDER Breite im Bild ist. 12 px, der Boden der App. Ob die Leiste dadurch ueber --epk-bar-h:58px hinauswaechst, ist GEMESSEN und nicht angenommen: die Endreserve des Inhalts haengt seit v3.9.932 an diesem Wert, und waechst die Leiste ohne ihn, verschwindet das letzte Bedienelement darunter. */, isActive&&gr.g<4&&tabs[safeKat]?tabs[safeKat].l:gr.l)
+                , React.createElement('span', { title: (isActive&&gr.g<4&&tabs[safeKat]?tabs[safeKat].l:gr.l),/* v3.9.946 D1 - EIN RUECKSCHLAG AUS v3.9.943, DEN ICH VERURSACHT HABE. Dort ist diese Beschriftung von 10 auf 12 px gehoben worden, und ich habe die HOEHE der Leiste gemessen (58 px, unveraendert) - die BREITE nicht. Der Schlitz ist 74 px. Gemessen: bei 10 px war genau EIN Name gekuerzt (Monatsabrechnung, 93 px), bei 12 px sind es FUENF - Monatsabrechnung 112 px (-37,5), Abwesenheiten 89 (-15,3), Bauprovisorien 88 (-13,7), Gefahrenstoffe 86 (-11,9), Zeiterfassung 80 (-5,6). In JEDER Ansicht. 12 px koennen diese Woerter in 74 px nicht tragen; das ist keine Einstellung, sondern Arithmetik. Der title kostet kein Pixel und macht den ganzen Namen wenigstens erreichbar - er LOEST es am Telefon nur halb. Der richtige Weg waere ein Kurzname je Reiter, und der erfindet Woerter: das ist eine Textentscheidung und liegt bei Sebastian. Die Alternative, wieder die Gruppenbeschriftung zu zeigen, nimmt die Information, WELCHER Reiter offen ist - und genau dafuer ist der Ausdruck gebaut. */ style: {fontSize:UI.fMeta,fontWeight:isActive?700:400}}/* v3.9.943: die fuenf Beschriftungen der Fussleiste standen auf 10 px - und die Leiste ist die einzige Flaeche, die in JEDER Ansicht und bei JEDER Breite im Bild ist. 12 px, der Boden der App. Ob die Leiste dadurch ueber --epk-bar-h:58px hinauswaechst, ist GEMESSEN und nicht angenommen: die Endreserve des Inhalts haengt seit v3.9.932 an diesem Wert, und waechst die Leiste ohne ihn, verschwindet das letzte Bedienelement darunter. */, isActive&&gr.g<4&&tabs[safeKat]?(tabs[safeKat].perm==="zeiterfassung"?"Zeit":tabs[safeKat].l)/* Z1 (14.11.2026): aktiv stand "Zeiterfass…" (80 px im 74-px-Schlitz), inaktiv "Zeit" - jetzt einheitlich "Zeit"; der volle Name bleibt im title. */:gr.l)
                 , isActive&&React.createElement('div', { style: {position:"absolute",top:0,left:"20%",right:"20%",height:2,borderRadius:1,background:gr.c}} )
               );
             })
@@ -25500,7 +25500,16 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const [saving,setSaving]=_react.useState.call(void 0, false);
   const [saved,setSaved]=_react.useState.call(void 0, false);
   const stzSaveTimers=_react.useRef.call(void 0, {});
-  const [viewAll,setViewAll]=_react.useState.call(void 0, false);
+  /* Z4 (Handy-Befund 14.11.2026): der Admin landete auf SEINER eigenen, leeren Woche. Wer die Uebersicht
+     sehen darf (isAdmin = admin/projektleiter, dasselbe Tor wie der Umschaltknopf), startet jetzt dort.
+     Die letzte bewusste Wahl am Knopf wird je Benutzer gemerkt; Monteure bleiben in ihrer Einzelansicht. */
+  const _zeAnsichtKey="epk_ze_ansicht_"+((curUser&&curUser.id)||"");
+  const [viewAll,setViewAll]=_react.useState.call(void 0, ()=>{if(!isAdmin)return false;try{return localStorage.getItem(_zeAnsichtKey)!=="einzel";}catch(_){return true;}});
+  const _zeAnsichtMerken=(alle)=>{try{localStorage.setItem(_zeAnsichtKey,alle?"alle":"einzel");}catch(_){}};
+  /* Z9: Stunden in der ANZEIGE mit Dezimalkomma. Bewusst lokal: _n bleibt der Punkt-Formatierer fuer
+     Excel/Stundenbestaetigung/Bauwochenbericht - die Exporte werden hier nicht angefasst. */
+  const _hK=(v,d)=>String(_n(v,d)).replace(".",",");
+  const _zeAus={opacity:.45,cursor:"not-allowed"};/* Z7: gesperrter Exportknopf */
   const [allData,setAllData]=_react.useState.call(void 0, []);
   const [addDay,setAddDay]=_react.useState.call(void 0, null);
   const [addType,setAddType]=_react.useState.call(void 0, "projekt");
@@ -25593,16 +25602,28 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const loadAllOverview=()=>{
     if(!isAdmin){return;}
     const from=isoDate(0);const to=isoDate(6);/* v3.9.546: bis Sonntag (Zeit#2) */
+    const _heuteUe=_ezHeuteISO();/* Z6 */
     const result=fieldMA.map(m=>{
       const mine=(entries||[]).filter(e=>{const wid=e.worker||e.w||e.worker_id||"";const dt=(e.datum||e.date||"").split("T")[0];return wid===m.id&&dt>=from&&dt<=to;});
       const dayTotals={};
       DAYS.forEach((_,i)=>{const iso=isoDate(i);dayTotals[DAYS[i]]=mine.filter(e=>(e.datum||e.date||"").split("T")[0]===iso).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);});
       const total=Object.values(dayTotals).reduce((s,v)=>s+v,0);
-      return{...m,dayTotals,total};
+      /* Z6: vergangene Werktage ohne Buchung. Werktag = Tagesnorm > 0 (Mo-Fr, kein Feiertag), nur Tage VOR heute,
+         nicht vor Eintritt / nach Austritt. Genehmigte Abwesenheit (_ezAbsSet) ist kein Fehltag. Nur Anzeige. */
+      const _absSet=(typeof _ezAbsSet==="function")?_ezAbsSet(abs||{},approvals,m.n||""):{};
+      const fehlt={},absTyp={};
+      DAYS.forEach((d,i)=>{if(dayTotals[d]>0)return;const iso=isoDate(i);
+        if(_absSet[iso]){const _r=(abs||{})[(m.n||"")+"_"+iso];const _t=_r&&AT_T[_r.type];absTyp[d]={i:_t?_t.i:"📌",l:_t?_t.l:"Abwesenheit"};return;}
+        if(!(iso<_heuteUe))return;
+        const _dd=dayDate(i);if(!(_kvTagesnorm(_dd.getDay(),_isATFeiertag(_dd))>0))return;
+        if(m.eintritt&&iso<String(m.eintritt).slice(0,10))return;
+        if(m.austritt&&iso>String(m.austritt).slice(0,10))return;
+        fehlt[d]=true;});
+      return{...m,dayTotals,total,fehlt,absTyp,fehlTage:Object.keys(fehlt).length};
     });
     setAllData(result);
   };
-  _react.useEffect.call(void 0, ()=>{if(viewAll)loadAllOverview();},[viewAll,kw,entries]);
+  _react.useEffect.call(void 0, ()=>{if(viewAll)loadAllOverview();},[viewAll,kw,entries,abs,approvals]);/* Z6: abs/approvals fuer die Fehltage-Markierung */
 
   // Update hours for an entry (with debounced auto-save)
   const updateEntryHours=(iso,entryIdx,newHours)=>{
@@ -25725,7 +25746,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     var _exTag=(dayEntries[addDay]||[]).filter(function(e){return e&&(!editEntry||e.id!==editEntry.id);});
     var _plz=_zeTagPlausi(_exTag,h,_rVon,_rBis);
     if(_plz.over24||_plz.overlap){
-      var _plMsg=_plz.over24?('⚠ Tagessumme '+_n(_plz.sum,1)+'h fuer diesen Tag uebersteigt 24h — Doppelerfassung?'):'⚠ Diese Zeit ueberlappt einen bestehenden Eintrag am selben Tag — Doppelbuchung?';
+      var _plMsg=_plz.over24?('⚠ Tagessumme '+_hK(_plz.sum,1)+'h fuer diesen Tag uebersteigt 24h — Doppelerfassung?'):'⚠ Diese Zeit ueberlappt einen bestehenden Eintrag am selben Tag — Doppelbuchung?';
       var _plOk=await _confirmModal(_plMsg+' Trotzdem buchen?',{confirmLabel:'Trotzdem buchen',cancelLabel:'Abbrechen'});
       if(!_plOk){_addEntryInFlightRef.current=0;return;}
     }
@@ -25763,13 +25784,15 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     setEntries(prev=>[...prev,globalEntry]);
     // Push to API
     SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,taetigkeit:taet,gewerk:"elektro",von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});
-    if(window.__toast)window.__toast("✅ "+_n(h,1)+"h gespeichert");
+    if(window.__toast)window.__toast("✅ "+_hK(h,1)+"h gespeichert");
     setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
   };
 
   // Totals
   const dayTotal=(off)=>{const iso=isoDate(off);return(dayEntries[iso]||[]).reduce((s,e)=>s+(e.hours||0),0);};
   const weekTotal=DAYS.reduce((s,_,i)=>s+dayTotal(i),0);
+  const _nEintrZE=Object.values(dayEntries).reduce((s,a)=>s+((a&&a.length)||0),0);/* Z7 */
+  const _gesZE=allData.reduce((s,m)=>s+(m.total||0),0);/* Z6/Z7: Wochensumme der Uebersicht */
 
   // Entry type badge
   const typeBadge=(t)=>{
@@ -26219,7 +26242,7 @@ ${dayRowsHtml}
             "↶ Heute")
         ),
         React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap"}},
-          isAdmin&&React.createElement('button',{onClick:()=>setViewAll(!viewAll),style:viewAll?bgS:bsS()},viewAll?"👤 Einzelansicht":"👥 Alle Monteure"),
+          isAdmin&&React.createElement('button',{onClick:()=>{const _nv=!viewAll;setViewAll(_nv);_zeAnsichtMerken(_nv);},style:viewAll?bgS:bsS()},viewAll?"👤 Einzelansicht":"👥 Alle Monteure"),
           React.createElement('span',{style:{fontSize:UI.fMeta,color:saving?"#f59e0b":saved?_okG("#22c55e"):V.dm,fontWeight:600,padding:"6px 10px",display:"flex",alignItems:"center",gap:4}},saving?React.createElement("span",{},React.createElement("span",{className:"epk-spin",style:{marginRight:6}})," Speichert..."):saved?"✓ Gespeichert":"")
         )
       )
@@ -26236,37 +26259,50 @@ ${dayRowsHtml}
         ):(
           React.createElement('span',{style:{fontSize:14,fontWeight:700,color:_okG("#10b981")}},workerName)
         ),
-        selWorker&&weekTotal>0&&React.createElement('span',{style:{fontSize:13,fontWeight:700,color:_okG("#10b981"),background:"rgba(16,185,129,.1)",padding:"4px 10px",borderRadius:6}},_n(weekTotal,1),"h / Woche")
+        selWorker&&weekTotal>0&&React.createElement('span',{style:{fontSize:13,fontWeight:700,color:_okG("#10b981"),background:"rgba(16,185,129,.1)",padding:"4px 10px",borderRadius:6}},_hK(weekTotal,1),"h / Woche")
       )
 
-      /* All workers overview - keep unchanged */
+      /* All workers overview */
+      /* Z6 (Handy-Befund 14.11.2026, A55): 6 von 7 Mitarbeitern standen die ganze Woche auf „—“, ohne Hinweis -
+         und die Wochensumme lag auf 412 px hinter dem Querwischen. Jetzt: (a) Σ direkt nach dem Namen,
+         (b) vergangene Werktage ohne Buchung als „fehlt“, oben die Zahl. Genehmigte Abwesenheiten (_ezAbsSet,
+         nur gelesen) und Feiertage/Wochenende (_kvTagesnorm = 0) zaehlen NICHT als fehlend. Reine Anzeige -
+         keine Lohn- oder Summenrechnung beruehrt, der Export (exportAllXls) behaelt seine Spaltenfolge. */
       ,viewAll&&React.createElement('div',{style:{...CC(),padding:12}},
-        React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+        React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}},
           React.createElement('div',{style:{fontSize:16,fontWeight:800}},"👥 Monteur-Übersicht KW ",kw),
           React.createElement('div',{style:{display:"flex",gap:6}},
-            React.createElement('button',{onClick:exportAllXls,style:xBtn("xls")},"📊 Excel"),
-            React.createElement('button',{onClick:()=>window.print(),style:xBtn("pdf"),title:"Drucken / als PDF speichern"},"🖨️ PDF")/* v3.9.318 */
+            React.createElement('button',{onClick:exportAllXls,disabled:!(_gesZE>0),title:_gesZE>0?undefined:"In dieser Woche ist noch nichts gebucht",style:{...xBtn("xls"),...(_gesZE>0?{}:_zeAus)}},"📊 Excel"),
+            React.createElement('button',{onClick:()=>window.print(),disabled:!(_gesZE>0),style:{...xBtn("pdf"),...(_gesZE>0?{}:_zeAus)},title:_gesZE>0?"Drucken / als PDF speichern":"In dieser Woche ist noch nichts gebucht"},"🖨️ PDF")/* v3.9.318 */
           )
         ),
+        (()=>{const _mitF=allData.filter(m=>m.fehlTage>0);if(!_mitF.length)return null;const _tageF=_mitF.reduce((s,m)=>s+m.fehlTage,0);
+          return React.createElement('div',{role:"status",style:{margin:"0 0 10px",padding:"8px 10px",borderRadius:8,border:"1px solid rgba(245,158,11,.45)",background:_dark?"rgba(245,158,11,.12)":"rgba(245,158,11,.08)",color:V.tx,fontSize:13,lineHeight:1.45}},
+            React.createElement('b',{},"⚠️ "+_mitF.length+" von "+allData.length+" Mitarbeitern"),
+            (_mitF.length===1?" hat":" haben")+" vergangene Werktage ohne Buchung ("+_tageF+(_tageF===1?" Tag":" Tage")+" zusammen).",
+            React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},"„fehlt“ = Werktag vorbei, keine Stunden gebucht. Genehmigte Abwesenheiten und Feiertage zählen nicht als fehlend, noch nicht genehmigte schon."));})(),
         React.createElement('div',{style:{overflowX:"auto"}},
         React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",minWidth:700}},
           React.createElement('thead',{},React.createElement('tr',{style:{background:"linear-gradient(135deg,#009640,#006e30)"}},
             React.createElement('th',{style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 6px",textAlign:"left"}},"Mitarbeiter"),
-            DAYS.map((d,i)=>React.createElement('th',{key:d,style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 4px",textAlign:"center"}},d,React.createElement('br',{}),React.createElement('span',{style:{fontSize:UI.fMeta,opacity:.7}},dateFmt(i)))),
-            React.createElement('th',{style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 6px",textAlign:"center"}},"Σ")
+            React.createElement('th',{style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 6px",textAlign:"center"}},"Σ Woche"),
+            DAYS.map((d,i)=>React.createElement('th',{key:d,style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 4px",textAlign:"center"}},d,React.createElement('br',{}),React.createElement('span',{style:{fontSize:UI.fMeta,opacity:.7}},dateFmt(i))))
           )),
           React.createElement('tbody',{},allData.map((m,idx)=>{
             const hasHours=m.total>0;
-            return React.createElement('tr',{key:m.id,style:{borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent",cursor:"pointer",opacity:hasHours?1:0.5},onClick:()=>{setSelWorker(m.id);setViewAll(false);}},
+            return React.createElement('tr',{key:m.id,style:{borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent",cursor:"pointer",opacity:(hasHours||m.fehlTage>0)?1:0.5},onClick:()=>{setSelWorker(m.id);setViewAll(false);}},
               React.createElement('td',{style:{padding:"8px 6px",fontWeight:700,fontSize:14,color:V.tx}},m.n,React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:400,marginLeft:6}},m.r)),
-              DAYS.map(d=>React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:m.dayTotals[d]>0?700:400,color:m.dayTotals[d]>=8?_okG("#10b981"):m.dayTotals[d]>0?V.tx:V.mt}},m.dayTotals[d]>0?_n(m.dayTotals[d],1):"—")),
-              React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:15,fontWeight:800,color:m.total>=40?_okG("#10b981"):m.total>0?"#3b82f6":V.mt}},m.total>0?_n(m.total,1):"—")
+              React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:15,fontWeight:800,color:m.total>=40?_okG("#10b981"):m.total>0?"#3b82f6":V.mt}},m.total>0?_hK(m.total,1):"—"),
+              DAYS.map(d=>{const _h=m.dayTotals[d]||0;
+                if(!(_h>0)&&m.absTyp&&m.absTyp[d])return React.createElement('td',{key:d,title:m.absTyp[d].l+" (genehmigt)",'aria-label':m.absTyp[d].l,style:{padding:"6px 4px",textAlign:"center",fontSize:15}},m.absTyp[d].i);
+                if(!(_h>0)&&m.fehlt&&m.fehlt[d])return React.createElement('td',{key:d,title:"Werktag vorbei – keine Stunden gebucht",style:{padding:"6px 4px",textAlign:"center",fontSize:UI.fMeta,fontWeight:700,color:_dark?"#fbbf24":"#b45309",background:_dark?"rgba(245,158,11,.12)":"rgba(245,158,11,.10)"}},"fehlt");
+                return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:_h>0?700:400,color:_h>=8?_okG("#10b981"):_h>0?V.tx:V.mt}},_h>0?_hK(_h,1):"—");})
             );
           })),
           React.createElement('tfoot',{},React.createElement('tr',{style:{background:_dark?"rgba(16,185,129,.1)":"rgba(16,185,129,.06)",borderTop:"2px solid #10b981"}},
             React.createElement('td',{style:{padding:"8px 6px",fontWeight:800,fontSize:14,color:_okG("#10b981")}},"SUMME"),
-            DAYS.map(d=>{const t=allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0);return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:800,color:_okG("#10b981")}},t>0?_n(t,1):"—");}),
-            React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_n(allData.reduce((s,m)=>s+m.total,0),1),"h")
+            React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(_gesZE,1),"h"),
+            DAYS.map(d=>{const t=allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0);return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:800,color:_okG("#10b981")}},t>0?_hK(t,1):"—");})
           ))
         ))
       )
@@ -26307,7 +26343,7 @@ ${dayRowsHtml}
                 dt>0&&React.createElement('span',{style:{
                   color:"#fff",fontWeight:800,fontSize:13,fontFamily:mono,
                   background:"rgba(255,255,255,.15)",padding:"2px 8px",borderRadius:4
-                }},_n(dt,1),"h")
+                }},_hK(dt,1),"h")
               ),
 
               /* Entry list */
@@ -26362,7 +26398,7 @@ ${dayRowsHtml}
           isMob?
             React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
               React.createElement('span',{style:{fontWeight:800,fontSize:14,color:_okG("#10b981")}},"WOCHENSUMME"),
-              React.createElement('span',{style:{fontFamily:mono,fontSize:18,fontWeight:800,color:_okG("#10b981")}},_n(weekTotal,1),"h")
+              React.createElement('span',{style:{fontFamily:mono,fontSize:18,fontWeight:800,color:_okG("#10b981")}},_hK(weekTotal,1),"h")
             )
           :
             React.createElement(React.Fragment,{},
@@ -26373,22 +26409,24 @@ ${dayRowsHtml}
                 if(isSo&&!(dt>0))return null;
                 return React.createElement('div',{key:d,style:{textAlign:"center",padding:"4px 0"}},
                 React.createElement('div',{style:{fontSize:UI.fMeta,color:isSo?"#f97316":V.dm,fontWeight:600}},d),
-                React.createElement('div',{style:{fontFamily:mono,fontSize:14,fontWeight:800,color:dt>=8?_okG("#10b981"):dt>0?"#3b82f6":V.mt}},dt>0?_n(dt,1)+"h":"—")
+                React.createElement('div',{style:{fontFamily:mono,fontSize:14,fontWeight:800,color:dt>=8?_okG("#10b981"):dt>0?"#3b82f6":V.mt}},dt>0?_hK(dt,1)+"h":"—")
               );}),
               React.createElement('div',{style:{textAlign:"center",padding:"4px 8px",background:"rgba(16,185,129,.15)",borderRadius:6,minWidth:70}},
                 React.createElement('div',{style:{fontSize:UI.fMeta,color:_okG("#10b981"),fontWeight:600}},"Σ Woche"),
-                React.createElement('div',{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_n(weekTotal,1),"h")
+                React.createElement('div',{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(weekTotal,1),"h")
               )
             )
         ),
 
         /* Export buttons */
         React.createElement('div',{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
-          React.createElement('button',{onClick:exportWochenStz,style:xBtn("xls")},"📋 Wochen-Stundenbestätigung"),
-          React.createElement('button',{onClick:exportXls,style:xBtn("xls")},"📊 Übersicht Excel"),
-          React.createElement('button',{onClick:()=>window.print(),style:xBtn("pdf"),title:"Drucken / als PDF speichern"},"🖨️ PDF"),/* v3.9.315 */
+          /* Z7 (Handy-Befund 14.11.2026): bei "0 Einträge · 0,0h" standen alle drei Knoepfe aktiv da. Jetzt gesperrt mit Grund
+             daneben; die Waechter in exportWochenStz/exportXls bleiben als zweite Linie stehen. */
+          React.createElement('button',{onClick:exportWochenStz,disabled:!(weekTotal>0),title:weekTotal>0?undefined:"Noch keine Stunden in dieser Woche",style:{...xBtn("xls"),...(weekTotal>0?{}:_zeAus)}},"📋 Wochen-Stundenbestätigung"),
+          React.createElement('button',{onClick:exportXls,disabled:!_nEintrZE,title:_nEintrZE?undefined:"Noch keine Einträge in dieser Woche",style:{...xBtn("xls"),...(_nEintrZE?{}:_zeAus)}},"📊 Übersicht Excel"),
+          React.createElement('button',{onClick:()=>window.print(),disabled:!_nEintrZE,style:{...xBtn("pdf"),...(_nEintrZE?{}:_zeAus)},title:_nEintrZE?"Drucken / als PDF speichern":"Noch keine Einträge in dieser Woche"},"🖨️ PDF"),/* v3.9.315 */
           React.createElement('span',{style:{color:V.dm,fontSize:12,marginLeft:4}},
-            Object.values(dayEntries).reduce((s,a)=>s+a.length,0)," Einträge · ",_n(weekTotal,1),"h gesamt"
+            _nEintrZE," Einträge · ",_hK(weekTotal,1),"h gesamt",_nEintrZE?"":" – Export erst mit Einträgen möglich"
           )
         ),
         /* Per-day Tages-Stundenbestätigung export */
