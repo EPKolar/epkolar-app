@@ -107,7 +107,9 @@ def test_die_stunden_stehen_in_ihrer_eigenen_spalte(rumpf):
     # In der Projektzelle darf _n(h,1) nicht mehr neben p.nr stehen.
     assert 'p.nr, " · " , _n(h,1), "h"' not in rumpf, (
         "Die Stunden stehen noch in der Projektzelle.")
-    assert '_n(h,1), " h")' in rumpf, "Die Stundenspalte rechnet nichts."
+    # PROJ-HANDY PR6: die Spalte formatiert seit dem Handy-Befund mit Komma
+    # (_projStdDE, de-AT) statt _n (toFixed, Punkt). Gleiche Quelle h.
+    assert '_projStdDE(h), " h")' in rumpf, "Die Stundenspalte rechnet nichts."
 
 
 def test_die_kopfzeile_ist_ruhig(rumpf):
