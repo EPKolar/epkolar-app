@@ -17,13 +17,13 @@ def test_wraphrs_behavior(node_exe, index_html):
     snippet = fn + (
         "process.stdout.write(JSON.stringify(["
         "_wrapHrs('08:00','16:30'),"   # same-day 8.5h
-        "_wrapHrs('22:00','06:00'),"   # overnight 8h
-        "_wrapHrs('07:00','07:00'),"   # 0
+        "_wrapHrs('22:00','06:00'),"   # v3.9.1005: keine Nachtarbeit -> null (vorher +24h = 8)
+        "_wrapHrs('07:00','07:00'),"   # v3.9.1005: Gehen == Kommen -> null (vorher 0)
         "_wrapHrs('06:00','14:30')"    # 8.5
         "]));"
     )
     res = json.loads(run_node_snippet(node_exe, snippet))
-    assert res == [8.5, 8.0, 0.0, 8.5], f"_wrapHrs falsch: {res}"
+    assert res == [8.5, None, None, 8.5], f"_wrapHrs falsch: {res}"
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +53,9 @@ _KOMPONENTEN = ("VZeit", "ZeiterfassungView")
 # Der Helfer, der Anzeige und Speichern aus EINER Quelle speist (v3.9.885) -
 # er BENUTZT _wrapHrs, ist also kein Verstoss, sondern der Beleg dafuer.
 _HELFER = "_zeitEffektiveStunden"
+# v3.9.1005: die Pruefung "Gehen <= Kommen" - ebenfalls genau EIN Aufruf, keine
+# eigene Uhrzeit-Arithmetik.
+_HELFER_WEITERE = ("_zeitDauerUngueltig",)
 
 # Geschnitten wird an den Feld-Ankern; jeder kommt in seiner Komponente GENAU
 # EINMAL vor (gemessen v3.9.922) - der Schnitt ist damit eindeutig. Es sind
@@ -110,6 +113,15 @@ def _mangel(code):
         summe += ist
         if ist != 1:
             aus.append("%s: %d _wrapHrs-Aufrufe statt 1" % (_HELFER, ist))
+    for name in _HELFER_WEITERE:
+        rumpf_h = _extract_fn(code, name)
+        if not rumpf_h:
+            aus.append("Helfer %s nicht gefunden" % name)
+            continue
+        ist = rumpf_h.count("_wrapHrs(")
+        summe += ist
+        if ist != 1:
+            aus.append("%s: %d _wrapHrs-Aufrufe statt 1" % (name, ist))
 
     for komp in _KOMPONENTEN:
         region = _extract_fn(code, komp)

@@ -99,8 +99,9 @@ def test_der_helfer_rechnet_wie_addEntry(node_exe, index_html):
         "Bei leerem von/bis MUSS der Helfer null liefern - sonst faellt die "
         "Hintertuer fuer die Handeingabe weg. War: %s / %s" % (res[3], res[4])
     )
-    assert res[5] == 8, (
-        "Nachtschicht 22:00-06:00 muss 8 ergeben (ueber Mitternacht), war %s" % res[5]
+    assert res[5] is None, (  # v3.9.1005 Entscheidung Sebastian: keine Nachtarbeit
+        "22:00-06:00 ist ein Tippfehler (Gehen vor Kommen) und darf KEINE "
+        "Stundenzahl ergeben - vorher +24h = 8. War %s" % res[5]
     )
 
 
