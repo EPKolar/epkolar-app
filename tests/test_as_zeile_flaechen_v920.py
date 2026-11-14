@@ -94,8 +94,8 @@ _UMRISS = {
     "qr_mobil":
         'React.createElement(\'button\', { className: "epk-flach", '
         'onClick: e=>{e.stopPropagation();setAsShowQR(asShowQR===a.id?null:a.id);}, '
-        'style: {background:"#8b5cf6",color:"#8b5cf6",'
-        'border:"1px solid currentColor",borderRadius:6,padding:"5px 11px"',
+        # v3.9.1008 CI: Umriss ueber die CI-Hilfe bsS() statt Lila; Polsterung und Klasse unveraendert
+        'style: {...bsS(),borderRadius:6,padding:"5px 11px"',
 }
 
 # Die Knoepfe, die ihre Fuellung BEHALTEN. Zwei Gruende, die nicht derselbe
@@ -107,8 +107,8 @@ _VORGABEHANDLUNG = {
         'border:"none",borderRadius:4,padding:"4px 7px"',
     "bearbeiten_mobil":
         'React.createElement(\'button\', { onClick: e=>{e.stopPropagation();'
-        'openEdit(a);}, style: {background:"#3b82f6",color:"#fff",'
-        'border:"none",borderRadius:6,padding:"6px 12px"',
+        # v3.9.1008 CI: gefuellt ueber die CI-Hilfe bpS (Markengruen) statt Blau - bleibt FLAECHE
+        'openEdit(a);}, style: {...bpS,borderRadius:6,padding:"6px 12px"',
 }
 _WARNZEICHEN = {
     "storno_rechner":
