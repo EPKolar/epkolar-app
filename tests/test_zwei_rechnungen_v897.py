@@ -135,7 +135,7 @@ def test_sie_benutzt_dieselbe_funktion_wie_das_buchen(index_html):
 
 
 def test_die_karte_zeigt_werktage(index_html):
-    assert "+_antragWerktage(a.von,a.bis)+' Werktag(e)')" in index_html, (
+    assert "+_nWort(_antragWerktage(a.von,a.bis),'Werktag','Werktage'))" in index_html, (
         "Die Antragskarte zeigt die Werktage nicht - der Genehmiger sieht "
         "wieder eine andere Zahl, als sein Klick abbucht."
     )
@@ -211,10 +211,10 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
         "Umkehrprobe: der Fahrtenbuch-Riegel wuerde nicht anschlagen"
     )
 
-    z2 = index_html.replace("+_antragWerktage(a.von,a.bis)+' Werktag(e)')",
+    z2 = index_html.replace("+_nWort(_antragWerktage(a.von,a.bis),'Werktag','Werktage'))",
                             "+'7 Tag(e)')", 1)
     assert z2 != index_html, "Rueckbau 2 griff nicht"
-    assert "+_antragWerktage(a.von,a.bis)+' Werktag(e)')" not in z2, (
+    assert "+_nWort(_antragWerktage(a.von,a.bis),'Werktag','Werktage'))" not in z2, (
         "Umkehrprobe: der Werktage-Riegel wuerde nicht anschlagen"
     )
 

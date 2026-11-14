@@ -4268,6 +4268,8 @@ function _juprowaSanitize(s){
     .replace(/\u201C|\u201D/g,'"').replace(/\u20AC/g,'EUR').replace(/\u2026/g,'...')
     .replace(/\u00A0/g,' ');
 }
+/* v3.9.1007 EINZAHL/MEHRZAHL - EINE Quelle statt "Schein(e)", "offene(r)", "Datei(en)". Die Klammerform ist eine Verlegenheit des Schreibers, nicht der Sprache: die App kennt die Zahl im Moment der Anzeige. _nWort(1,"offener Schein","offene Scheine") -> "1 offener Schein", _nWort(11,...) -> "11 offene Scheine". Die Zahl steht IMMER davor, die Form haengt NUR an ===1 (0 ist im Deutschen Mehrzahl: "0 Scheine"). Reine Anzeige, keine Rechnung. */
+function _nWort(n,ein,mehr){return n+" "+(Number(n)===1?ein:mehr);}
 /* v3.9.303: Sprach-Transkript Satz-Gro\u00DFschreibung (Web-Speech liefert oft alles klein). Gro\u00DFschreibt Satzanf\u00E4nge (Start + nach .!?). Nomen-Gro\u00DFschreibung br\u00E4uchte NLP \u2014 nicht client-seitig machbar; Satz-Case ist die praktikable Verbesserung. */
 function _capSent(s){if(!s)return s;return String(s).replace(/(^\s*|[.!?]\s+)([a-z\u00E4\u00F6\u00FC\u00DF])/g,function(m,p,c){return p+c.toUpperCase();});}
 /* v3.9.335: Title-Case fuer Eigennamen / Orte / Strassen aus der Spracherkennung. Web-Speech liefert
@@ -11731,7 +11733,7 @@ function sharePdf(){
 
       , sub==="liste"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-liste", ref: _scheinListRef }
         /* v3.9.728 #18a: Sammel-Hinweis auf verwaiste OFFA-Scheine (offen, aber seit >Tagen kein Feed-Update trotz Pull). */
-        , (_verwaisteN>0&&canSync)&&React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:12,color:_dark?"#fbbf24":"#92400e"}}, "⚠ "+_verwaisteN+" offene(r) Schein(e) evtl. in OFFA abgeschlossen — bitte in OFFA prüfen (kein Feed-Update seit >"+OFFA_VERWAIST_TAGE+" Tagen trotz Pull; die App ändert den Status NICHT selbst)." )
+        , (_verwaisteN>0&&canSync)&&React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:12,color:_dark?"#fbbf24":"#92400e"}}, "⚠ "+_nWort(_verwaisteN,"offener Schein","offene Scheine")+" evtl. in OFFA abgeschlossen — bitte in OFFA prüfen (kein Feed-Update seit >"+OFFA_VERWAIST_TAGE+" Tagen trotz Pull; die App ändert den Status NICHT selbst)." )
         /* v3.5.74 Block 8: Schnell-Filter-Chips */
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",paddingBottom:4}}/* v3.9.930 TOTE WISCH-ZONE, und sie ist aelter als die aus v3.9.926: diese Chip-Leiste rollt quer, und ein quer rollbarer Kasten verbraucht die waagrechte Geste SELBST - der Browser rollt ihn, statt sie nach oben durchzureichen. Mit echten Touch-Ereignissen gemessen (390x844): der 48 px hohe Streifen war TOT, waehrend darueber und darunter der Reiter wechselte. Sebastian: "swipen muss auf der kompletten bildschirmflaeche laufen". Die Chips brechen jetzt UM statt zu rollen - das kostet eine zweite Zeile und nimmt dafuer die tote Zone weg. WebkitOverflowScrolling faellt mit weg, es hatte ohne overflowX keine Bedeutung. Gefunden wurde die Stelle nicht ueber ihren Namen, sondern ueber die EIGENSCHAFT: scripts/wisch_flaechen_messen.py sucht JEDEN Bereich mit berechnetem overflow-x auto/scroll, der breiter ist als sein Kasten - so kam die zweite Leiste ueberhaupt mit. */
           , [
@@ -13523,10 +13525,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     }
     if(cnt>0&&_skipNote>0){
       /* Zusätzlicher Hinweis falls einige neue Zeilen gespeichert wurden, andere aber wegen Pflichtfeld-Mangel skip */
-      window.__toast&&window.__toast("ℹ️ "+_skipNote+" neue Zeile(n) übersprungen: Stunden + Datum Pflicht","warn");
+      window.__toast&&window.__toast("ℹ️ "+_nWort(_skipNote,"neue Zeile","neue Zeilen")+" übersprungen: Stunden + Datum Pflicht","warn");
     }
     if(_skipEdit>0){
-      window.__toast&&window.__toast("ℹ️ "+_skipEdit+" geänderte(r) Eintrag nicht gespeichert: Stunden müssen zwischen 0 und 24 liegen","warn");
+      window.__toast&&window.__toast("ℹ️ "+_nWort(_skipEdit,"geänderter Eintrag","geänderte Einträge")+" nicht gespeichert: Stunden müssen zwischen 0 und 24 liegen","warn");
     }
   };
   /* v3.9.334: Monteur-Übersicht — pro Monteur aggregierte Daten (Std., Projekte, Berichte). */
@@ -14268,9 +14270,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       if(_scR&&_scR[0]&&_scR[0].id)_suppId=_scR[0].id;
       else{setDnUploadStatus("❌ Lieferant ohne gültige UUID — bitte Händler oben speichern/aktualisieren, dann erneut importieren");setDnUploadProgress(0);if(window.__toast)window.__toast("❌ Lieferant-ID ungültig (Kurz-ID) — bitte den Händler oben aktualisieren und erneut importieren.","error",7000);return;}
     }
-    setDnUploadStatus(_files.length+" Datei(en) lesen...");setDnUploadProgress(10);
+    setDnUploadStatus(_nWort(_files.length,"Datei","Dateien")+" lesen...");setDnUploadProgress(10);
     try{
-      setDnUploadStatus("DATANORM parsen ("+_files.length+" Datei(en))...");setDnUploadProgress(20);
+      setDnUploadStatus("DATANORM parsen ("+_nWort(_files.length,"Datei","Dateien")+")...");setDnUploadProgress(20);
       let articles=await _parseDatanormFiles(_files,0);
       if(!articles||articles.length===0){setDnUploadStatus("❌ Keine Artikel gefunden (A-Records fehlen?)");setDnUploadProgress(0);return;}
       const _dnSt=articles.stats||{};
@@ -18786,7 +18788,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
     SQ.push({url:"/api/plans/"+old.id,method:"PUT",body:{archived:true}});
     _migrateRevisionPins(old.id,np.id);
     setSelPlan(np);setSubView("viewer");setRevTarget(null);
-    if(window.__toast)window.__toast("🔄 Revision v"+np.version+" erstellt — "+_pins+" Pin(s) übernommen, alte Version archiviert");
+    if(window.__toast)window.__toast("🔄 Revision v"+np.version+" erstellt — "+_nWort(_pins,"Pin","Pins")+" übernommen, alte Version archiviert");
   };
   const handleRevisionFile=e=>{const f=_optionalChain([e,'access',_rv1=>_rv1.target,'optionalAccess',_rv2=>_rv2.files,'access',_rv3=>_rv3[0]]);if(!f||!revTarget){setRevTarget(null);try{e.target.value="";}catch(_){}return;}const isPdf=f.type==="application/pdf"||f.name.toLowerCase().endsWith(".pdf");if(isPdf){const r=new FileReader();r.onerror=()=>{if(window.__toast)window.__toast("❌ Revision-PDF konnte nicht gelesen werden","error",6000);setRevTarget(null);};r.onload=ev=>_commitRevision(f,ev.target.result,1200,850,true);r.readAsDataURL(f);}else{compressPhoto(f,4000,0.92).then(ph=>_commitRevision(f,ph.dataUrl,ph.width,ph.height,false)).catch(err=>{console.error('[PLAN-REVISION]',err&&err.message||err);if(window.__toast)window.__toast("❌ Revision-Upload fehlgeschlagen","error");setRevTarget(null);});}try{e.target.value="";}catch(_){}};
   const triggerRevision=(pl)=>{if(!isAdmin)return;setRevTarget(pl);setTimeout(()=>{try{_revRef.current&&_revRef.current.click();}catch(_){}},0);};
@@ -21133,7 +21135,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                     const _cv=_covOf(sid),_cvFull=_covFullOf(sid);/* v3.9.898 Abdeckung */
                     return React.createElement('th', { key: sid, style: {textAlign:"center",padding:"8px 6px",fontSize:UI.fMeta,color:V.dm,fontWeight:700,minWidth:110,borderLeft:"1px solid "+V.bd}}
                       , React.createElement('div', { style: {fontWeight:800,color:V.tx,fontSize:12}}, s.name)
-                      , activePos.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,marginTop:2,color:_cvFull?_okG("#22c55e"):"#f59e0b"}, title: _cvFull?"Hat für alle Positionen einen Preis":"Für "+(activePos.length-_cv)+" Position(en) hat dieser Händler KEINEN Preis — sie fehlen in seiner Spaltensumme"}, _cv, "/", activePos.length, " Pos.")
+                      , activePos.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,marginTop:2,color:_cvFull?_okG("#22c55e"):"#f59e0b"}, title: _cvFull?"Hat für alle Positionen einen Preis":"Für "+_nWort(activePos.length-_cv,"Position","Positionen")+" hat dieser Händler KEINEN Preis — "+((activePos.length-_cv)===1?"sie fehlt":"sie fehlen")+" in seiner Spaltensumme"}, _cv, "/", activePos.length, " Pos.")
                       , hasKond&&React.createElement('div', { style: {fontSize:UI.fMeta,color:"#f59e0b",fontWeight:500,marginTop:2}}, s.skonto>0?_n(s.skonto,1)+"% Sk":"", s.skonto>0&&s.jahresbonus>0?" + ":"", s.jahresbonus>0?_n(s.jahresbonus,1)+"% JB":"")
                     );
                   })
@@ -21199,7 +21201,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
                     },0);
                     /* v3.9.898: fehlende Preise zaehlten hier still als 0 — Teilsumme jetzt als solche kenntlich. */
                     const _cv=_covOf(sid),_cvFull=_covFullOf(sid);
-                    return React.createElement('td', { key: sid, style: {padding:"10px 6px",textAlign:"center",borderLeft:"1px solid "+V.bd,fontSize:UI.fMeta,fontWeight:600,color:suppTotal>0?(_cvFull?V.tx:"#f59e0b"):V.dm}, title: _cvFull?"":"Teilsumme — "+(activePos.length-_cv)+" Position(en) ohne Preis sind NICHT enthalten, nicht mit „Bester“ vergleichbar"}
+                    return React.createElement('td', { key: sid, style: {padding:"10px 6px",textAlign:"center",borderLeft:"1px solid "+V.bd,fontSize:UI.fMeta,fontWeight:600,color:suppTotal>0?(_cvFull?V.tx:"#f59e0b"):V.dm}, title: _cvFull?"":"Teilsumme — "+_nWort(activePos.length-_cv,"Position","Positionen")+" ohne Preis "+((activePos.length-_cv)===1?"ist":"sind")+" NICHT enthalten, nicht mit „Bester“ vergleichbar"}
                       , suppTotal>0?fmt$(suppTotal):"—"
                       , activePos.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:500,marginTop:2,color:_cvFull?V.dm:"#f59e0b"}}, _cvFull?("alle "+activePos.length+" Pos."):("nur "+_cv+"/"+activePos.length+" Pos."))
                     );
@@ -23016,7 +23018,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       cnt++;
     }
     if(!cnt){
-      if(skipped>0){window.__toast&&window.__toast("⚠️ Alle "+skipped+" Werktag(e) im Zeitraum sind bereits genehmigt — nichts beantragt","warn");}
+      if(skipped>0){window.__toast&&window.__toast("⚠️ "+(skipped===1?"Der Werktag im Zeitraum ist":"Alle "+skipped+" Werktage im Zeitraum sind")+" bereits genehmigt — nichts beantragt","warn");}
       else{window.__toast&&window.__toast("⚠️ Keine Werktage im Zeitraum (Sa/So/Feiertage zählen nicht)","warn");}
       return;
     }
@@ -23444,7 +23446,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               , pe.map((e,i)=>React.createElement(EntryRow, { key: i, e: e, showName: false, showActions: true} ))
             ));
           })
-        )):(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, antragOffen>0?"⏳":pendingUnklar?"📨":"✅"), React.createElement('div', { style: {fontSize:15,fontWeight:600,color:antragOffen>0?"#eab308":pendingUnklar?V.dm:_okG("#22c55e")}}, antragOffen>0?("Keine offenen Kalender-Anträge — aber "+antragOffen+" offene(r) Antrag/Anträge im Panel oben"):pendingUnklar?"Keine offenen Kalender-Anträge — Panel oben noch ungezählt":"Keine offenen Anträge"), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6}}, "Diese Zahl zählt nur, was als Abwesenheit im Kalender steht (absences)."   )))
+        )):(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40}}, React.createElement('div', { style: {fontSize:32,marginBottom:8}}, antragOffen>0?"⏳":pendingUnklar?"📨":"✅"), React.createElement('div', { style: {fontSize:15,fontWeight:600,color:antragOffen>0?"#eab308":pendingUnklar?V.dm:_okG("#22c55e")}}, antragOffen>0?("Keine offenen Kalender-Anträge — aber "+_nWort(antragOffen,"offener Antrag","offene Anträge")+" im Panel oben"):pendingUnklar?"Keine offenen Kalender-Anträge — Panel oben noch ungezählt":"Keine offenen Anträge"), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6}}, "Diese Zahl zählt nur, was als Abwesenheit im Kalender steht (absences)."   )))
 
         , approvedEntries.length>0&&(React.createElement('div', { style: {...CC(),marginTop:14}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:_okG("#22c55e"),marginBottom:10}}, "✅ Genehmigt ("  , approvedEntries.length, ")")
@@ -24900,7 +24902,7 @@ function UrlaubsantragPanel({curUser,monteure,users,onOffenCount}){
             ,React.createElement('span',{style:{fontSize:18}},STAT_I[a.status]||'•')
             ,React.createElement('div',{style:{flex:1,minWidth:0}}
               ,React.createElement('div',{style:{fontSize:13,fontWeight:700}},wName+' · '+a.art)
-              ,React.createElement('div',{style:{fontSize:12,color:V.dm}},window._fmtDate?.(a.von)+' — '+window._fmtDate?.(a.bis)+' · '+_antragWerktage(a.von,a.bis)+' Werktag(e)')
+              ,React.createElement('div',{style:{fontSize:12,color:V.dm}},window._fmtDate?.(a.von)+' — '+window._fmtDate?.(a.bis)+' · '+_nWort(_antragWerktage(a.von,a.bis),'Werktag','Werktage'))
               ,a.kommentar&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2,fontStyle:'italic'}},'„'+a.kommentar+'"')
               ,a.bescheid_von&&React.createElement('div',{style:{fontSize:UI.fMeta,color:STAT_C[a.status],marginTop:2,fontWeight:600}},STAT_I[a.status]+' '+a.status+' von '+a.bescheid_von+(a.bescheid?' — '+a.bescheid:''))
             )
