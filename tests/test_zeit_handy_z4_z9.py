@@ -90,7 +90,7 @@ def test_z6_fehltage_regel(index_html):
     rumpf = ov[ov.index("DAYS.forEach((d,i)=>{if(dayTotals[d]>0)return;"):]
     assert rumpf.index("if(dayTotals[d]>0)return;") < rumpf.index("_absSet[iso]") < rumpf.index("fehlt[d]=true")
     # Eintritt/Austritt begrenzen
-    assert "iso<String(m.eintritt).slice(0,10)" in ov and "iso>String(m.austritt).slice(0,10)" in ov
+    assert "iso<String(m.eintritt).slice(0,10)" in ov and "_maIstEhemalig(m,iso)" in ov
     # die bisherigen Summen bleiben unveraendert
     assert "const total=Object.values(dayTotals).reduce((s,v)=>s+v,0);" in ov
     # Effekt reagiert auf neue Abwesenheiten
