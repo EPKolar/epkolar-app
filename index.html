@@ -4270,6 +4270,8 @@ function _juprowaSanitize(s){
 }
 /* v3.9.1007 EINZAHL/MEHRZAHL - EINE Quelle statt "Schein(e)", "offene(r)", "Datei(en)". Die Klammerform ist eine Verlegenheit des Schreibers, nicht der Sprache: die App kennt die Zahl im Moment der Anzeige. _nWort(1,"offener Schein","offene Scheine") -> "1 offener Schein", _nWort(11,...) -> "11 offene Scheine". Die Zahl steht IMMER davor, die Form haengt NUR an ===1 (0 ist im Deutschen Mehrzahl: "0 Scheine"). Reine Anzeige, keine Rechnung. */
 function _nWort(n,ein,mehr){return n+" "+(Number(n)===1?ein:mehr);}
+/* v3.9.1007 GANZE EURO FUER KACHELN - dasselbe Bild wie AuswertungView (v3.9.1004 AU1, dort lokal als _eur0): "€ 16.490", Tausenderpunkt, keine Cent. Vorher stand auf Home "€16 490" und in Werkzeuge "€16 490 Wert" (de-AT-Zahl mit schmalem Leerzeichen, ohne Abstand zum Zeichen). NUR fuer diese Anzeigen - der globale _fmtEur, fmt$ und alle Exporte bleiben, wie sie sind. Unlesbar -> "—", keine erfundene Null. */
+function _eurKachel(n){var v=typeof n==="number"?n:parseFloat(n);return isFinite(v)?v.toLocaleString("de-AT",{style:"currency",currency:"EUR",minimumFractionDigits:0,maximumFractionDigits:0}):"—";}
 /* v3.9.303: Sprach-Transkript Satz-Gro\u00DFschreibung (Web-Speech liefert oft alles klein). Gro\u00DFschreibt Satzanf\u00E4nge (Start + nach .!?). Nomen-Gro\u00DFschreibung br\u00E4uchte NLP \u2014 nicht client-seitig machbar; Satz-Case ist die praktikable Verbesserung. */
 function _capSent(s){if(!s)return s;return String(s).replace(/(^\s*|[.!?]\s+)([a-z\u00E4\u00F6\u00FC\u00DF])/g,function(m,p,c){return p+c.toUpperCase();});}
 /* v3.9.335: Title-Case fuer Eigennamen / Orte / Strassen aus der Spracherkennung. Web-Speech liefert
@@ -15619,7 +15621,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         )
         , hasPerm(curUser,"werkzeuge")&&React.createElement('div', { onClick: ()=>onNav("werkzeuge"), role:"button", tabIndex:0, "aria-label":"Werkzeugwert", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav("werkzeuge");}}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #d97706",transition:"transform .15s"}}
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,textTransform:"uppercase",letterSpacing:1,fontWeight:600}}, "Werkzeugwert")
-          , React.createElement('div', { style: {fontSize:isMob?20:24,fontWeight:800,color:"#d97706",fontFamily:mono}}, "€", totalWert.toLocaleString("de-AT"))
+          , React.createElement('div', { style: {fontSize:isMob?20:24,fontWeight:800,color:"#d97706",fontFamily:mono,...UI.zahlen}}, _eurKachel(totalWert))
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, werkzeuge.length, " Geräte" )
         )
         , React.createElement('div', { onClick: ()=>onNav("urlaub"), role:"button", tabIndex:0, "aria-label":"Abwesenheiten", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav("urlaub");}}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid #22c55e",transition:"transform .15s"}}
@@ -30385,7 +30387,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     )
     , React.createElement('div', { className: "kpi-grid", style: {marginBottom:_wzRestTeile.length?6:14}}
       /* v3.9.81 SPRINT-60 F-9 Tooltips-R2: KPI-Hover-Tooltips (Sprint 44 standard). */
-      , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: "€"+totalWert.toLocaleString("de-AT")+" Wert", color: "#d97706", i: 0, title: "Gesamtanzahl aller im Inventar erfassten Werkzeuge inkl. ausgegebener und reparaturbedürftiger Geräte."} )
+      , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: _eurKachel(totalWert)+" Wert", color: "#d97706", i: 0, title: "Gesamtanzahl aller im Inventar erfassten Werkzeuge inkl. ausgegebener und reparaturbedürftiger Geräte."} )
       , React.createElement(Kpi, { label: "Verfügbar", value: stCounts.verfuegbar||0, sub: "im Lager" , color: _okG("#22c55e"), i: 1, title: "Werkzeuge im Lager, sofort einsatzbereit (Status: verfügbar)."} )
       , React.createElement(Kpi, { label: "Ausgegeben", value: stCounts.ausgegeben||0, sub: "auf Baustellen" , color: "#f97316", i: 2, title: "Werkzeuge aktuell auf Baustellen oder bei Mitarbeitern (Status: ausgegeben)."} )
       , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":_okG("#22c55e"), i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung (nach Datum - zählt unabhängig vom Status, ist also kein Teil der Summe)."} )
