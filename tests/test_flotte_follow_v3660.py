@@ -32,4 +32,4 @@ def test_row_follow_toggle(index_html):
 
 
 def test_follow_indicator(index_html):
-    assert "'⌖ folgt: '+((fahrzeuge.find(function(x){return x.id===followId;})||{}).kennzeichen||'?')" in index_html
+    assert "'folgt: '+((fahrzeuge.find(function(x){return x.id===followId;})||{}).kennzeichen||'?')" in index_html

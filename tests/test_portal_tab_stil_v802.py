@@ -40,7 +40,7 @@ def test_chef_flacher_admin_stil(index_html):
 
 def test_admin_tap_target(index_html):
     # Admin-Leiste hat jetzt auch minHeight:44 mobil (Referenz-Leiste pixelgleich zu Buero/Chef).
-    assert "minHeight:isMob?44:0,borderRadius:8,border:\"2px solid \"+(adminTab===t.id?t.c:\"transparent\")" in index_html, \
+    assert "minHeight:isMob?44:0,borderRadius:8,border:\"2px solid \"+(adminTab===t.id?V.ac:\"transparent\")" in index_html, \
         "Admin-Tab: minHeight:44 mobil fehlt (Tap-Target/Pixelgleichheit)"
 
 

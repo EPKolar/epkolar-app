@@ -136,7 +136,7 @@ def test_die_werkzeug_reiter_tragen_ihre_beschriftung():
     # v3.9.1006 CI: die Werkzeug-Eigenfarbe #d97706 ist weg (aktiver Reiter
     # ueberall Markengruen). Neuer eindeutiger Anker: die Werkzeug-Reiterliste,
     # danach die Farbangabe des aktiven Reiters in derselben Zeile.
-    _a = roh.find('{id:"scan",i:"\U0001f4f7",l:"QR Scan",k:"Scan"}')
+    _a = roh.find('{id:"scan",ik:"kamera",l:"QR Scan",k:"Scan"}')  # v3.9.1012: Ikonen-Schluessel statt Emoji
     i = roh.find('color:sub===t.id?V.acTx:V.dm', _a) if _a > 0 else -1
     assert i > 0 and i - _a < 2000, (
         "KOEDER STUMM: die Reiterzeile in Werkzeuge wurde nicht gefunden "
@@ -157,7 +157,7 @@ def test_die_symbolknoepfe_tragen_bedeutung():
     faelle = [
         ("Woche zurück", "()=>switchKw(Math.max(1,kw-1))"),
         ("Woche vor", "()=>switchKw(Math.min(_getMaxKW(yr),kw+1))"),
-        ("Bearbeiten", 'padding:"3px 8px",fontSize:12}}, "✏️"'),
+        ("Bearbeiten", 'padding:"3px 8px",fontSize:12}}, _ik("stift",16)'),  # v3.9.1012: Linien-Stift statt Emoji
         ("Arbeitsschein löschen", "()=>deleteAs(editId)"),
         ("Punkt hinzufügen", "style:{...bpS,padding:'7px 13px'}},'+')"),
     ]
