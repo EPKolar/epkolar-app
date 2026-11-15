@@ -262,7 +262,10 @@ def test_die_drei_regeln_stehen_als_kommentar_am_objekt(roh):
     # und `const UI={` steht seit Stufe 2b der Ikonen-Helfer mit eigener
     # Begruendung. Die gemessene Eigenschaft ist unveraendert: die Regeln
     # stehen BEIM Token-Objekt und nicht irgendwo in der Datei.
-    umfeld = roh[max(0, i - 4000):i]
+    # v3.9.1010: 4000 -> 12000. IKON ist um den Navigationssatz gewachsen
+    # (29 Ikonen, rund 6000 Zeichen Pfaddaten) und steht weiter zwischen den
+    # Regeln und `const UI={`. Die Regeln stehen unveraendert am Objekt.
+    umfeld = roh[max(0, i - 12000):i]
     for wort in ("NIE Statusampel", "HELLIGKEIT", "tabular-nums"):
         assert wort in umfeld, (
             "Die Regel %r steht nicht am Token-Objekt." % wort)

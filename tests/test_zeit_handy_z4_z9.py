@@ -157,4 +157,5 @@ def test_z1_fussleiste_zeigt_zeit_title_bleibt_voll(index_html):
     # der volle Name bleibt im title (Riegel v3.9.946)
     assert "title: (isActive&&gr.g<4&&tabs[safeKat]?tabs[safeKat].l:gr.l)" in index_html
     # die Gruppe heisst weiterhin "Zeit" und zielt auf die Zeiterfassung
-    assert '{i:"⏱️",l:"Zeit",g:2,c:"#3b82f6",ziel:"zeiterfassung"}' in index_html
+    # v3.9.1010: Ikonen-Schluessel statt Emoji
+    assert '{ik:"uhr",l:"Zeit",g:2,c:"#3b82f6",ziel:"zeiterfassung"}' in index_html

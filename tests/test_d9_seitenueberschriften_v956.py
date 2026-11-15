@@ -194,7 +194,11 @@ def test_bauprovisorien_traegt_eine_echte_ueberschrift():
                 # anderen Seitentitel (gemessen 412 px: 14 Titel 18 px, nur Chef-Portal
                 # und Bauprovisorien 20) - eine GEWOLLTE Geometrieaenderung; die
                 # Eigenschaft "echte h2, Gewicht 800, margin:0, Text drin" bleibt.
-                ("Liste", "fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite", "\U0001f6a7 Bauprovisorien")]
+                # v3.9.1010: das Baustellen-Emoji ist der Ikone gewichen - der Titel steht
+                # jetzt als zweites Argument von _ikT("absperrung","Bauprovisorien"). Gefordert
+                # wird weiter der VOLLE Wortlaut samt schliessendem Anfuehrungszeichen in
+                # Argumentstellung (hinter dem Komma), also kein Teilstring.
+                ("Liste", "fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite", 'Bauprovisorien")')]
     h2s = list(re.finditer(
         r"""(?:createElement|(?<![A-Za-z0-9_$.])h)\(\s*'h2'\s*,"""
         r"""\s*\{\s*style:\s*\{([^}]*)\}""", r))

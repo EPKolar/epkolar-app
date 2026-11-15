@@ -51,7 +51,8 @@ import re
 # ══ 1 - Der Zeit-Knopf ══════════════════════════════════════════════════════
 
 def test_die_zeit_gruppe_nennt_ihr_ziel(index_html):
-    assert '{i:"⏱️",l:"Zeit",g:2,c:"#3b82f6",ziel:"zeiterfassung"}' in index_html, (
+    # v3.9.1010: die Gruppe traegt den Ikonen-Schluessel ik:"uhr" statt des Emoji - die Eigenschaft (Ziel) ist dieselbe.
+    assert '{ik:"uhr",l:"Zeit",g:2,c:"#3b82f6",ziel:"zeiterfassung"}' in index_html, (
         "Die Zeit-Gruppe benennt ihr Ziel nicht mehr - dann springt sie wieder "
         "auf den ersten Reiter der Gruppe, und das ist die Planung."
     )
@@ -85,8 +86,9 @@ def test_gruppen_ohne_ziel_verhalten_sich_wie_bisher(index_html):
 def test_die_reiterleiste_bleibt_unveraendert(index_html):
     """Gegenprobe: die Reihenfolge oben wurde NICHT umsortiert. Sie zu drehen
     waere der groessere Eingriff gewesen und haette andere Ansichten getroffen."""
-    i_plan = index_html.find('{l:"Planung",i:"📅"')
-    i_zeit = index_html.find('{l:"Zeiterfassung",i:"⏱️"')
+    # v3.9.1010: Reiter tragen ik:"..." statt Emoji; gemessen wird weiter die Reihenfolge.
+    i_plan = index_html.find('{l:"Planung",ik:"kalender"')
+    i_zeit = index_html.find('{l:"Zeiterfassung",ik:"uhr"')
     assert i_plan != -1 and i_zeit != -1, "Reiter nicht gefunden"
     assert i_plan < i_zeit, (
         "Die Reiterleiste wurde umsortiert. Der Fix sollte das Gruppenziel "
