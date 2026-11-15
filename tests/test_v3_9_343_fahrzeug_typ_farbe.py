@@ -139,7 +139,8 @@ def test_listing_kachel_typ_emoji_anchor_unchanged(index_html):
     Emoji-Switch (f.typ==='Transporter'?'🚐'...). v3.9.343 darf NUR den Detail-View
     anfassen, nicht die Listen-Kachel."""
     block = _listing_block(index_html)
-    expected = 'f.typ==="Transporter"?"🚐":f.typ==="LKW"?"🚛":f.typ==="Anhänger"?"🔗":"🚗"'
+    # v3.9.1012 CI-Stufe 3: derselbe Typ-Schalter, jetzt mit IKON-Schluesseln statt Emoji
+    expected = 'f.typ==="Transporter"||f.typ==="LKW"?"transporter":f.typ==="Anhänger"?"verbindung":"auto"'
     assert expected in block, (
         "Listen-Kachel-Emoji-Anker (f.typ==='Transporter'?'🚐'...) ist nicht mehr "
         "im Listing-Block — v3.9.343 darf die Listen-Kachel NICHT anfassen."

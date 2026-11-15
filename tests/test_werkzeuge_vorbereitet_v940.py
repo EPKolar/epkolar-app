@@ -205,7 +205,7 @@ def node_json(node_exe, tmp_path, code, name="probe.js"):
 # ───────────────────────────────────────────────────────────────────────────
 A_STATUS = 'const WZ_STATUS={verfuegbar:'
 A_KAT = 'const WZ_KAT={elektro:'
-A_REITER = '[{id:"scan",i:'
+A_REITER = '[{id:"scan",ik:'  # v3.9.1012: Ikonen-Schluessel statt Emoji
 A_CHIPS = "{key:'alle',label:'Alle'}"
 A_CHIPZAEHLER = "const cnt={alle:_wzPool.length"
 A_QUICKBTN = 'const _wzQuickBtn=(w)=>{if(!w)return null;'
@@ -235,22 +235,22 @@ KAT_SOLL = [
 
 CHIPS_SOLL = [
     ("alle", "Alle"),
-    ("verfuegbar", "✅ Verfügbar"),
-    ("ausgegeben", "📤 Ausgegeben"),
-    ("kalib_faellig", "⚠️ Kalibrierung fällig"),
-    ("verloren", "❌ Defekt"),
+    ("verfuegbar", "Verfügbar"),  # v3.9.1012: Chips ohne Emoji
+    ("ausgegeben", "Ausgegeben"),
+    ("kalib_faellig", "Kalibrierung fällig"),
+    ("verloren", "Defekt"),
 ]
 
 # Kennung -> (Emoji, Beschriftung im Code OHNE editId, Anker der Zielansicht).
 # `form` heisst ohne editId "Neu" und mit editId "Bearbeiten" - beide Faelle
 # hat test_der_reiter_form_beschriftet_sich_nach_editid.
 REITER_SOLL = [
-    ("scan", "📷", "QR Scan", '"📷 QR-Code scannen"'),
-    ("liste", "📋", "Liste", A_CHIPS),
-    ("checkout", "📤", "Check-In/Out", '"📤 Werkzeug ausgeben"'),
-    ("kalib", "🔧", "Service", '"🔧 Geräte-Serviceheft"'),
-    ("form", "✏️", "Neu",
-     'editId?"✏️ Gerät bearbeiten":"🔧 Neues Gerät anlegen"'),
+    ("scan", "kamera", "QR Scan", '"QR-Code scannen"'),  # v3.9.1012: IKON-Schluessel statt Emoji
+    ("liste", "liste", "Liste", A_CHIPS),
+    ("checkout", "export", "Check-In/Out", '"Werkzeug ausgeben"'),
+    ("kalib", "werkzeug", "Service", '"Geräte-Serviceheft"'),
+    ("form", "plus", "Neu",
+     'editId?"Gerät bearbeiten":"Neues Gerät anlegen"'),
 ]
 
 
@@ -284,7 +284,7 @@ def reiter(quelle, node_exe, tmp_path, darf_checkout=True, ist_admin=True,
         'const isAdmin=%s;\n'
         'function canDo(p,u){return p==="wz_edit" ? %s : false;}\n'
         'const liste=%s;\n'
-        'console.log(JSON.stringify(liste.map(t=>[t.id,t.i,t.l])));\n'
+        'console.log(JSON.stringify(liste.map(t=>[t.id,t.ik,t.l])));\n'
         % (json.dumps(edit_id), "true" if ist_admin else "false",
            "true" if darf_checkout else "false", lit))
     return node_json(node_exe, tmp_path, code, name)
@@ -694,7 +694,7 @@ def test_koeder_eine_fehlende_kategorie_wird_gefunden(index_html, node_exe,
 
 
 def test_koeder_ein_fehlender_chip_wird_gefunden(wz, node_exe, tmp_path):
-    kaputt = wz.replace("{key:'verloren',label:'❌ Defekt'}", "", 1)
+    kaputt = wz.replace("{key:'verloren',label:'Defekt'}", "", 1)
     assert kaputt != wz, "der Koeder konnte nichts verstuemmeln"
     ist = chips(kaputt, node_exe, tmp_path, name="koeder_chips.js")
     assert len(ist) != 5, (
@@ -703,7 +703,7 @@ def test_koeder_ein_fehlender_chip_wird_gefunden(wz, node_exe, tmp_path):
 
 
 def test_koeder_ein_verlorener_reiter_wird_gefunden(wz, node_exe, tmp_path):
-    kaputt = wz.replace('{id:"kalib",i:"🔧",l:"Service",k:"Service"},', "", 1)
+    kaputt = wz.replace('{id:"kalib",ik:"werkzeug",l:"Service",k:"Service"},', "", 1)
     assert kaputt != wz, "der Koeder konnte nichts verstuemmeln"
     ist = reiter(kaputt, node_exe, tmp_path, name="koeder_reiter.js")
     assert [k for k, _i, _l in ist] != [k for k, _i, _l, _a in REITER_SOLL], (

@@ -32,7 +32,7 @@ def test_fit_all(index_html):
 
 def test_controls_render(index_html):
     assert "h('button',{onClick:_fitAll," in index_html
-    assert "'⌖ Alle'" in index_html
+    assert "_cbtn},'Alle')" in index_html  # v3.9.1012: ohne Zielkreuz-Zeichen
     # v3.9.683: der Button raeumt jetzt auch den Einzel-Fahrt-Trail weg und heisst dann "Fahrt ✕".
     assert "(trailFid||fahrtTrail)?h('button',{onClick:_clearTrail" in index_html
-    assert "'Verlauf ✕'" in index_html
+    assert "'Verlauf schließen'" in index_html  # v3.9.1012: Wort statt Kreuz

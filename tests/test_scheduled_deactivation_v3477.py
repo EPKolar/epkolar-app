@@ -27,4 +27,4 @@ def test_auto_flip_effect_present():
 
 def test_ui_date_input_and_plan_button():
     assert 'id: "_deactAt_"+selU.id' in HTML, "Datums-Input fehlt im Benutzer-Detail"
-    assert "📅 Geplante Deaktivierung (Kündigungsfrist)" in HTML
+    assert "Geplante Deaktivierung (Kündigungsfrist)" in HTML  # v3.9.1012: Kartenkopf ohne Emoji
