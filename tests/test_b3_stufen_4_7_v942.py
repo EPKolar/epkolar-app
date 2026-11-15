@@ -155,8 +155,8 @@ def test_die_symbolknoepfe_tragen_bedeutung():
     Tippziel war ueberall in Ordnung - es fehlte die Bedeutung."""
     roh = _roh()
     faelle = [
-        ("Woche zurück", "()=>switchKw(Math.max(1,kw-1))"),
-        ("Woche vor", "()=>switchKw(Math.min(_getMaxKW(yr),kw+1))"),
+        ("Woche zurück", "()=>switchKw(kw-1)"),  # v3.9.1012: Klemme in switchKw/_kwZiel
+        ("Woche vor", "()=>switchKw(kw+1)"),
         ("Bearbeiten", 'padding:"3px 8px",fontSize:12}}, "✏️"'),
         ("Arbeitsschein löschen", "()=>deleteAs(editId)"),
         ("Punkt hinzufügen", "style:{...bpS,padding:'7px 13px'}},'+')"),

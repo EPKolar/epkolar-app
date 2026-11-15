@@ -134,7 +134,7 @@ def test_die_alte_willkuerliche_kappung_ist_weg(index_html):
 # ══ 3 - Der Heute-Knopf ═════════════════════════════════════════════════════
 
 def test_es_gibt_einen_weg_zurueck(index_html):
-    assert "kw!==curKw&&React.createElement('button',{onClick:()=>switchKw(curKw)," in index_html, (
+    assert "(kw!==curKw||yr!==curYr)&&React.createElement('button',{onClick:()=>switchKw(curKw,curYr)," in index_html, (
         "Der Heute-Knopf fehlt - wer eine Woche zurueckblaettert und es vergisst, "
         "bucht in die falsche Lohnwoche."
     )
@@ -143,7 +143,7 @@ def test_es_gibt_einen_weg_zurueck(index_html):
 def test_er_erscheint_nur_wenn_er_etwas_tut(index_html):
     """Ein Knopf, der in der aktuellen Woche sichtbar ist und nichts bewirkt,
     ist schlechter als keiner."""
-    assert "kw!==curKw&&React.createElement('button'" in index_html, (
+    assert "(kw!==curKw||yr!==curYr)&&React.createElement('button'" in index_html, (
         "Der Heute-Knopf ist nicht mehr an die Bedingung geknuepft."
     )
 
@@ -174,9 +174,9 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
         "Umkehrprobe: der Kappungs-Riegel wuerde nicht anschlagen"
     )
 
-    z3 = index_html.replace("kw!==curKw&&React.createElement('button',{onClick:()=>switchKw(curKw),",
-                            "false&&React.createElement('button',{onClick:()=>switchKw(curKw),", 1)
+    z3 = index_html.replace("(kw!==curKw||yr!==curYr)&&React.createElement('button',{onClick:()=>switchKw(curKw,curYr),",
+                            "false&&React.createElement('button',{onClick:()=>switchKw(curKw,curYr),", 1)
     assert z3 != index_html, "Rueckbau 3 griff nicht"
-    assert "kw!==curKw&&React.createElement('button',{onClick:()=>switchKw(curKw)," not in z3, (
+    assert "(kw!==curKw||yr!==curYr)&&React.createElement('button',{onClick:()=>switchKw(curKw,curYr)," not in z3, (
         "Umkehrprobe: der Heute-Riegel wuerde nicht anschlagen"
     )
