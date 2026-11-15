@@ -27,7 +27,9 @@ def test_kontingent_save_gated_isadmin(index_html):
     """
     # Handy-Befund AB5 (14.11.2026): Beschriftung eindeutig ("Kontingent ...") - zwei
     # gleichlautende "Bearbeiten"-Knoepfe standen in derselben Ansicht.
-    marke = 'editKontingent?"\U0001F4BE Kontingent speichern":"\u270F\uFE0F Kontingent bearbeiten"'
+    # v3.9.1012 CI-Stufe 3: Beschriftung ohne Emoji (Ikone ueber _zpIk). Nachgezogen ist NUR der
+    # Fundort-Wortlaut; die Pruefung (genau 1 Knopf, isAdmin davor, kein role==="admin") bleibt.
+    marke = 'editKontingent?_zpIk("speichern","Kontingent speichern"):_zpIk("stift","Kontingent bearbeiten")'
     assert index_html.count(marke) == 1, (
         "Der Kontingent-Knopf ist nicht mehr eindeutig zu finden - dieser Riegel misst dann nichts")
 
