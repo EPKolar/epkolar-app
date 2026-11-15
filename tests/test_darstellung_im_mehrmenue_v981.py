@@ -39,8 +39,8 @@ import os
 
 PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 
-DREI = ('[["light","☀️ Hell"],["dark","🌙 Dunkel"],'
-        '["system","🅰️ Auto"]]')
+DREI = ('[["light","Hell"],["dark","Dunkel"],'
+        '["system","Auto"]]')
 
 
 def _text():

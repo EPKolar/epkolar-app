@@ -86,7 +86,7 @@ def test_header_knopf_aendert_bei_jedem_tipp_das_AUSSEHEN(index_html):
 def test_setthememode_direkt(index_html):
     assert "const setThemeMode=(mode)=>" in index_html
     # Segmented Control ruft setThemeMode direkt (kein toggleTheme)
-    assert '[["light","☀️ Hell"],["dark","🌙 Dunkel"],["system","🅰️ Auto"]]' in index_html
+    assert '[["light","Hell"],["dark","Dunkel"],["system","Auto"]]' in index_html
     assert "setThemeMode(o[0])" in index_html
 
 

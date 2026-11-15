@@ -65,7 +65,7 @@ ZWEIWEG = 'setThemeMode(isDark?"light":"dark");'
 RING = 'const next=cur==="light"?"dark":cur==="dark"?"system":"light";'
 
 # Die Segmented Control in den Einstellungen - der Ort, an dem Auto lebt.
-SEGMENTE = '[["light","☀️ Hell"],["dark","🌙 Dunkel"],["system","🅰️ Auto"]]'
+SEGMENTE = '[["light","Hell"],["dark","Dunkel"],["system","Auto"]]'
 
 
 def _text():
