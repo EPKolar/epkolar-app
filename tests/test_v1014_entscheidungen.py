@@ -198,8 +198,16 @@ def _fn(code, name):
     return code[a:e + len('setReviewId(null);setReviewNote("");};')]
 
 
-def _lauf(node_exe, fn_src, name):
-    js = STUBS + fn_src + "\n" + name + "('m1');console.log(JSON.stringify({m:state.maengel[0],puts}));"
+def _verlauf_helfer(code):
+    """v3.9.1018: reviewAccept/-Reject rufen die echten Statusverlauf-Helfer (_mgVerlaufFeld/_mgVerlaufPut)."""
+    a = code.index("function _mgVerlaufListe(m){")
+    e = code.index("function _mgStText(", a)
+    jp = "const _jp=(v)=>{if(typeof v==='string'){try{return JSON.parse(v);}catch(_e){return v;}}return v;};\n"
+    return jp + code[a:e]
+
+
+def _lauf(node_exe, fn_src, name, helfer=""):
+    js = STUBS + helfer + fn_src + "\n" + name + "('m1');console.log(JSON.stringify({m:state.maengel[0],puts}));"
     return json.loads(run_node_snippet(node_exe, js))
 
 
@@ -220,13 +228,13 @@ def _abweichungen(r):
 
 
 def test_review_accept_lokal_gleich_geschrieben(node_exe, index_html):
-    r = _lauf(node_exe, _fn(nur_code(index_html), "reviewAccept"), "reviewAccept")
+    r = _lauf(node_exe, _fn(nur_code(index_html), "reviewAccept"), "reviewAccept", _verlauf_helfer(nur_code(index_html)))
     assert _abweichungen(r) == [], _abweichungen(r)
     assert r["puts"][-1]["body"]["prio"] == "hoch" and r["m"]["prio"] == "hoch"
 
 
 def test_review_reject_lokal_gleich_geschrieben(node_exe, index_html):
-    r = _lauf(node_exe, _fn(nur_code(index_html), "reviewReject"), "reviewReject")
+    r = _lauf(node_exe, _fn(nur_code(index_html), "reviewReject"), "reviewReject", _verlauf_helfer(nur_code(index_html)))
     assert _abweichungen(r) == [], _abweichungen(r)
     assert r["m"]["status"] == "abgelehnt"
 
@@ -236,8 +244,8 @@ def test_review_umkehrprobe_alte_formen(node_exe, index_html):
     acc = _fn(code, "reviewAccept")
     neu_put = re.search(r'body:\{status:"offen",prio:"hoch",[^}]*\}', acc).group(0)
     alt_acc = acc.replace(neu_put, ALT_ACCEPT_PUT)
-    assert ("nur lokal", "prio", "hoch") in _abweichungen(_lauf(node_exe, alt_acc, "reviewAccept"))
+    assert ("nur lokal", "prio", "hoch") in _abweichungen(_lauf(node_exe, alt_acc, "reviewAccept", _verlauf_helfer(code)))
     rej = _fn(code, "reviewReject")
-    alt_rej = rej.replace('{...m,status:"abgelehnt",kundeStatus:"abgelehnt",reviewNote:reviewNote}', ALT_REJECT_LOKAL)
+    alt_rej = rej.replace('{...m,status:"abgelehnt",kundeStatus:"abgelehnt",reviewNote:reviewNote,..._vhR}', ALT_REJECT_LOKAL)
     assert alt_rej != rej
-    assert ("status", "abgelehnt", "offen") in [tuple(x) for x in _abweichungen(_lauf(node_exe, alt_rej, "reviewReject"))]
+    assert ("status", "abgelehnt", "offen") in [tuple(x) for x in _abweichungen(_lauf(node_exe, alt_rej, "reviewReject", _verlauf_helfer(code)))]
