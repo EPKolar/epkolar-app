@@ -19,4 +19,7 @@ def test_flush_uses_current_savedirty(index_html):
 
 
 def test_switchkw_capped(index_html):
-    assert "const switchKw=(newKw)=>{\n    newKw=Math.max(1,Math.min(_getMaxKW(yr),newKw));" in index_html
+    # v3.9.1012 Jahreswechsel: die Klemme sitzt jetzt in _kwZiel und gilt dem ZIELjahr - KW53 in
+    # einem 52-Wochen-Jahr bleibt unmoeglich (Misfile-Schutz unveraendert), die Grenze rollt nur.
+    assert "const switchKw=(newKw,newYr)=>{\n    const _z=_kwZiel(yr,newKw,newYr);const _tYr=_z[0];newKw=_z[1];" in index_html
+    assert "const _kwZiel=(y,k,ny)=>{if(typeof ny==='number'&&ny>0){return [ny,Math.max(1,Math.min(_getMaxKW(ny),k))];}if(k<1){return [y-1,_getMaxKW(y-1)];}if(k>_getMaxKW(y)){return [y+1,1];}return [y,k];};" in index_html

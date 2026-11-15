@@ -40,7 +40,10 @@ def test_iso_week_year_helper(node_exe, index_html):
     #    nicht mehr. Der Gegenriegel steht in tests/test_nachtjagd_v993.py: dort wird
     #    gezaehlt, dass GENAU DREI getFullYear()-Stellen uebrig bleiben (die finkzeit-
     #    Jahresfilter und das Monatsgitter - dort ist das Kalenderjahr richtig).
-    assert index_html.count("const yr=isoWY();") >= 5, "die KW-Views muessen isoWY nutzen"
+    # v3.9.1012 Jahreswechsel: in WeekPlan und ZeiterfassungView ist yr jetzt ZUSTAND, gestartet aus
+    #    `const curYr=isoWY();` - dieselbe ISO-Wochenjahr-Quelle, nur unter anderem Namen. Gezaehlt
+    #    werden beide Formen; die Klinke `>= 5` bleibt.
+    assert index_html.count("const yr=isoWY();") + index_html.count("const curYr=isoWY();const [yr,setYr]=") >= 5, "die KW-Views muessen isoWY nutzen"
     assert "const yr=isoWYof(today);" in index_html, "WochenplanTafel-Kiosk nutzt isoWYof(today) fuer den Wochen-Offset"
 
 

@@ -4901,6 +4901,7 @@ const isoW=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(
 const isoWY=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);return d.getFullYear();};/* v3.9.127 F2: ISO-Wochen-JAHR (Donnerstags-Regel) — 29.-31.12. gehört zu KW1 des Folgejahres */
 /* v3.9.483: höchste ISO-KW eines Jahres (52 oder 53). Der 28.12. liegt IMMER in der letzten ISO-Woche → dessen ISO-Wochennummer = max KW. Ersetzt hartes Math.min(52/53,…) in allen KW-Nav-Buttons. */
 const _getMaxKW=(year)=>{const d=new Date(year,11,28);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w=new Date(d.getFullYear(),0,4);return 1+Math.round(((d-w)/864e5-3+(w.getDay()+6)%7)/7);};
+const _kwZiel=(y,k,ny)=>{if(typeof ny==='number'&&ny>0){return [ny,Math.max(1,Math.min(_getMaxKW(ny),k))];}if(k<1){return [y-1,_getMaxKW(y-1)];}if(k>_getMaxKW(y)){return [y+1,1];}return [y,k];};/* v3.9.1012 Jahreswechsel: EINE Regel fuer jeden KW-Schritt (Planung, Zeiterfassung, Projekt-Zeiterfassung). Ergebnis [Jahr,KW]. Unter KW1 -> letzte Woche des Vorjahres, ueber _getMaxKW(y) -> KW1 des Folgejahres; ein ausdrueckliches Zieljahr ny (Rueckweg 'Diese Woche'/'Heute') wird gegen SEIN maxKW geklemmt. Vorher klemmte jede Ansicht gegen das laufende Jahr: in KW53/2026 war 'Woche vor' tot, KW1/2027 im Dezember nicht planbar. Die Schranke bleibt (kein 2027-53), sie steht nur am richtigen Jahr. */
 const kwD=(y,k)=>{const j=new Date(y,0,4),dw=j.getDay()||7,m=new Date(j);m.setDate(j.getDate()-dw+1+(k-1)*7);const o=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);o.push(_ymd(d));}return o;};
 //@KIOSK-WEEK-START
 /* v3.9.670 Lager-Display: ab Freitag 09:00 Wiener Zeit (bis So 23:59) zeigt der Kiosk automatisch die NAECHSTE KW.
@@ -7506,7 +7507,7 @@ function WochenplanTafel(props){
   const dayDates=DAYS.map((_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
   const todayIdx=dayDates.findIndex(d=>_ymd(d)===todayStr);
   const kw=isoWof(today);const yr=isoWYof(today);/* v3.9.670: KW/Jahr aus dem (ggf. +1 Woche verschobenen) today statt aus new Date() — sonst desynct das Label von den Spalten/Daten */
-  const rows=(wpHistory[yr+'-'+kw]||wpHistory[kw]||[]).slice().sort((a,b)=>(a._sortOrder||0)-(b._sortOrder||0));
+  const rows=(wpHistory[yr+'-'+kw]||(yr===isoWY()?wpHistory[kw]:null)||[]).slice()/* v3.9.1012 Jahreswechsel: jahrloser Rueckfall nur im laufenden ISO-Jahr - ab Fr 01.01.2027 09:00 zeigt die Tafel 2027-1, und dort darf kein alter jahrloser Eintrag '1' erscheinen. An allen anderen Tagen ist yr===isoWY() und nichts aendert sich. */.sort((a,b)=>(a._sortOrder||0)-(b._sortOrder||0));
 
   const _roleClr=r=>r==='Störungstechniker'?'#dc2626':r==='Techniker'?'#2563eb':r==='Monteur'?'#15803d':r==='Obermonteur'?'#c2410c':'#475569';
   const cellOf=(r,d)=>{const v=(r.z||{})[d];return (v&&typeof v==='object'&&Array.isArray(v.ma))?v:{ma:[],fz:[]};};
@@ -16395,7 +16396,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   const [selWorker,setSelWorker]=_react.useState.call(void 0, selW||_defW);
   const [filterW,setFilterW]=_react.useState.call(void 0, "alle");
   const pe=entries.filter(e=>e.pid===pid||e.p===pid);
-  const [calKw,setCalKw]=_react.useState.call(void 0, isoW());
+  const [calKw,setCalKw]=_react.useState.call(void 0, isoW());const [calYr,setCalYr]=_react.useState.call(void 0, isoWY());/* v3.9.1012 Jahreswechsel: die KW-Leiste hatte kein Jahr - kwMon rechnete immer im HEUTIGEN ISO-Jahr, Pfeile klemmten bei 1 und _getMaxKW(isoWY()). */
   const [addDay,setAddDay]=_react.useState.call(void 0, null);
   /* v3.9.129 O-P2: VZeit-Eintrag-Modal Esc-Close + Scroll-Lock (langes Formular, 90vh). Hook unconditional. */
   _react.useEffect.call(void 0, ()=>{if(!addDay)return;try{_scrollLock.acquire();}catch(_){}const _h=e=>{if(e.key==="Escape")setAddDay(null);};window.addEventListener("keydown",_h);return ()=>{window.removeEventListener("keydown",_h);try{_scrollLock.release();}catch(_){}};},[addDay]);
@@ -16410,7 +16411,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   _react.useEffect.call(void 0, ()=>setAddWorker(selWorker),[selWorker]);
 
   const yr=isoWY();/* v3.9.993 (Z1): HIER STAND `new Date().getFullYear()` - das KALENDERjahr, direkt neben einer ISO-KALENDERWOCHE. Beide fallen an 20 von 4380 Tagen (2024-2035) auseinander; zuletzt am 29.12.2025, als naechstes am 31.12.2026 und 1./2.1.2027. An diesen Tagen zeigte die Ansicht eine Woche aus einem ANDEREN JAHR (gemessen: +371 bzw. -364 Tage), und wer dort buchte, schrieb das Datum in dieses andere Jahr - mit gruenem Erfolgs-Toast. Die drei uebrigen getFullYear()-Stellen bleiben: sie filtern finkzeit nach Kalenderjahr bzw. bauen ein Monatsgitter, und dort ist es richtig. */
-  const kwMon=_react.useMemo.call(void 0, ()=>{const d=new Date(yr,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(calKw-1)*7);return d;},[calKw,yr]);
+  const kwMon=_react.useMemo.call(void 0, ()=>{const d=new Date(calYr,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(calKw-1)*7);return d;},[calKw,calYr]);/* v3.9.1012 Jahreswechsel: gewaehltes Jahr statt isoWY(); Datumsspalten und gebuchtes Datum folgen. */
   const dayDate=(off)=>{const dt=new Date(kwMon);dt.setDate(kwMon.getDate()+off);return dt;};
   const dateFmt=(off)=>{const dt=dayDate(off);return String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0")+".";};
   const isoDate=(off)=>_ymd(dayDate(off));
@@ -16504,11 +16505,11 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
       React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}},
         React.createElement('div', {}, React.createElement('h2', { style: {fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite,fontWeight:800,margin:0}}, _ikT("uhr","Zeiterfassung") ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, p.name, " · " , p.nr)),
         React.createElement('div', {style:{display:"flex",gap:4,alignItems:"center"}},
-          React.createElement('button', { onClick: ()=>setCalKw(k=>Math.max(1,k-1)), 'aria-label': "Vorherige Kalenderwoche", title: "Vorherige KW", style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:isMob?13:12,minHeight:isMob?38:0,touchAction:"manipulation"}}, "◀"),
-          React.createElement('span', { style: {fontSize:isMob?16:18,fontWeight:700,fontFamily:mono,...UI.zahlen,minWidth:60,textAlign:"center",color:V.tx}}, "KW ", String(calKw).padStart(2,"0"))/* v3.9.1007: KW-Kopf wie die uebrigen KW-Koepfe seit v3.9.1006 (Tinte, Hausschrift, ruhige Ziffern, zweistellig) - vorher 13 px und damit kleiner als die Pfeile daneben. Ohne "/ Jahr": die Pfeile blaettern nur im laufenden ISO-Jahr (_getMaxKW(isoWY())). */,
-          React.createElement('button', { onClick: ()=>setCalKw(k=>Math.min(_getMaxKW(isoWY()),k+1)), 'aria-label': "Nächste Kalenderwoche", title: "Nächste KW", style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:isMob?13:12,minHeight:isMob?38:0,touchAction:"manipulation"}}, "▶"),/* v3.9.483: _getMaxKW(isoWY()) statt hartem 53 */
-          calKw===isoW()&&React.createElement(Badge,{text:"Aktuell",color:_okG("#22c55e")}),
-          React.createElement('button', { onClick: ()=>setCalKw(isoW()), style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:UI.fMeta,marginLeft:4,minHeight:isMob?38:0,touchAction:"manipulation"}}, "Heute")
+          React.createElement('button', { onClick: ()=>{const _z=_kwZiel(calYr,calKw-1);setCalYr(_z[0]);setCalKw(_z[1]);}, 'aria-label': "Vorherige Kalenderwoche", title: "Vorherige KW", style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:isMob?13:12,minHeight:isMob?38:0,touchAction:"manipulation"}}, "◀"),
+          React.createElement('span', { style: {fontSize:isMob?16:18,fontWeight:700,fontFamily:mono,...UI.zahlen,minWidth:60,textAlign:"center",color:V.tx}}, "KW ", String(calKw).padStart(2,"0"), " / ", calYr)/* v3.9.1007: KW-Kopf wie die uebrigen KW-Koepfe seit v3.9.1006 (Tinte, Hausschrift, ruhige Ziffern, zweistellig) - vorher 13 px und damit kleiner als die Pfeile daneben. | v3.9.1012 Jahreswechsel: jetzt MIT "/ Jahr" - die Pfeile blaettern ueber die Jahresgrenze, ohne Jahr saehe KW 01/2027 aus wie KW 01/2026. */,
+          React.createElement('button', { onClick: ()=>{const _z=_kwZiel(calYr,calKw+1);setCalYr(_z[0]);setCalKw(_z[1]);}, 'aria-label': "Nächste Kalenderwoche", title: "Nächste KW", style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:isMob?13:12,minHeight:isMob?38:0,touchAction:"manipulation"}}, "▶"),/* v3.9.483: _getMaxKW statt hartem 53 | v3.9.1012 Jahreswechsel: ueber maxKW hinaus in KW1 des Folgejahres (_kwZiel) */
+          (calKw===isoW()&&calYr===isoWY())&&React.createElement(Badge,{text:"Aktuell",color:_okG("#22c55e")}),
+          React.createElement('button', { onClick: ()=>{setCalYr(isoWY());setCalKw(isoW());}, style: {...bsS(),padding:isMob?"8px 12px":"4px 8px",fontSize:UI.fMeta,marginLeft:4,minHeight:isMob?38:0,touchAction:"manipulation"}}, "Heute")
         )
       ),
 
@@ -21793,11 +21794,12 @@ function _zpIkI(n){return React.createElement('span',{'aria-hidden':"true",style
 function _zpWarn(lbl){return lbl?React.createElement('span',{role:"img",'aria-label':lbl,title:lbl,style:{display:"inline-flex",verticalAlign:"-0.14em",marginRight:4}},_ik("warnung","1em")):_zpIkI("warnung");}
 function _zpAbsK(k){return React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",minWidth:14,padding:"0 3px",marginRight:3,borderRadius:4,border:"1px solid "+V.bd,fontSize:UI.fMeta,fontWeight:800,lineHeight:"16px",textAlign:"center",color:V.tx}},k);}
 function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge,abs}){
-  const curKw=isoW();const yr=isoWY();/* v3.9.127 F2 */
+  const curKw=isoW();const curYr=isoWY();const [yr,setYr]=_react.useState.call(void 0, curYr);/* v3.9.127 F2 | v3.9.1012 Jahreswechsel: yr ist ZUSTAND statt Konstante. Vorher war das Jahr auf den Montage-Zeitpunkt festgenagelt: _wpKey, die Klemme in switchKw und die Server-Spalte `year` konnten die Jahresgrenze nicht ueberschreiten (KW1/2027 im Dezember nicht planbar, ab 04.01.2027 KW53/2026 nicht mehr erreichbar). curYr bleibt das Jahr von HEUTE (fuer die Abzeichen). Erste Anweisung des Rumpfs, also unbedingter erster Hook. */
   /* v3.9.482: wpHistory-Key jahr-präfixiert ("year-week", wie Server-id) gegen KW-Kollision über Jahresgrenzen.
      _wpKey = Schreib-Key (immer composite). _wpGet = Lese mit Legacy-Fallback auf bloße KW (offline/alt-gecachte Keys bleiben sichtbar). */
   const _wpKey=(k)=>yr+'-'+k;
-  const _wpGet=(k)=>wpHistory[_wpKey(k)]||wpHistory[k];
+  const _wpGetY=(y,k)=>wpHistory[y+'-'+k]||(y===isoWY()?wpHistory[k]:undefined);/* v3.9.1012 Jahreswechsel: der Rueckfall auf die blosse KW (Schluessel ohne Jahr, nur aus Altbestaenden vor v3.9.482) gilt NUR fuer das laufende ISO-Jahr. Bis heute war yr immer isoWY(), der Rueckfall also nie in einem anderen Jahr aktiv - fuer heutige Daten aendert sich nichts. Ohne die Bedingung zeigte ein Sprung nach 2027-1 einen jahrlosen Eintrag '1' aus einem beliebigen Jahr. */
+  const _wpGet=(k)=>_wpGetY(yr,k);
   // Migrate old string-format WP data to new {ma:[],fz:[]} format
   const migrateRow=(r)=>{
     if(!r||!r.z)return r;
@@ -21837,7 +21839,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       migrated.forEach((r,i)=>{if(r&&r.id&&!_isPaddingRow(r))newLast.set(r.id,JSON.stringify({bvh:r.bvh||"",projId:r.projId||"",bem:r.bem||"",z:r.z||{},_so:i*10}));});
       _wpLastSaved.current=newLast;
     }
-  },[wpHistory,kw]);
+  },[wpHistory,kw,yr]);
   const [sa,setSa]=_react.useState.call(void 0, false);const [nv,setNv]=_react.useState.call(void 0, "");const [nProjId,setNProjId]=_react.useState.call(void 0, "");
   const [editRow,setEditRow]=_react.useState.call(void 0, null);const [editBvh,setEditBvh]=_react.useState.call(void 0, "");
   const [saving,setSaving]=_react.useState.call(void 0, false);
@@ -22019,15 +22021,15 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     ,it.map(([k,l])=>React.createElement('span',{key:k,style:{display:'inline-flex',alignItems:'center',gap:5,fontWeight:700,color:f(k)}},React.createElement('span',{'aria-hidden':'true',style:{width:9,height:9,borderRadius:'50%',background:f(k),flexShrink:0}}),l))
     ,React.createElement('span',{style:{display:'inline-flex',alignItems:'center',gap:5}},React.createElement('span',{style:{fontWeight:700,padding:'0 4px',borderRadius:4,background:_dark?'rgba(251,191,36,.22)':'#FBEDE1',color:V.tx,textDecoration:'underline wavy',textDecorationColor:_dark?'#fbbf24':'#B4530A'}},'Name'),'= doppelt eingeplant'));};
 
-  const switchKw=(newKw)=>{
-    newKw=Math.max(1,Math.min(_getMaxKW(yr),newKw));/* v3.9.666 Bug-Hunt: KW-Cap via _getMaxKW(yr) wie ZeiterfassungView (v3.9.544). Der "Nächste Woche ▶"-Button war ungeklammert und konnte in einem 52-Wochen-Jahr KW53 setzen → Plan wurde unter "<yr>-53" gespeichert und war unter KW01 des Folgejahrs unsichtbar (Misfile). Zentral hier statt pro Call-Site. */
+  const switchKw=(newKw,newYr)=>{
+    const _z=_kwZiel(yr,newKw,newYr);const _tYr=_z[0];newKw=_z[1];/* v3.9.1012 Jahreswechsel: rollt ueber die Jahresgrenze; die Klemme gegen _getMaxKW sitzt jetzt in _kwZiel und gilt dem ZIELjahr. *//* v3.9.666 Bug-Hunt: KW-Cap via _getMaxKW(yr) wie ZeiterfassungView (v3.9.544). Der "Nächste Woche ▶"-Button war ungeklammert und konnte in einem 52-Wochen-Jahr KW53 setzen → Plan wurde unter "<yr>-53" gespeichert und war unter KW01 des Folgejahrs unsichtbar (Misfile). Zentral hier statt pro Call-Site. */
     /* v3.9.500: Vor KW-Wechsel pending Edits flushen — saveDirty pusht Dirty/Deleted statt
        altem weekplans-Blob. Danach _wpLastSaved für die neue KW frisch initialisieren. */
     if(wpSaveTimer.current){clearTimeout(wpSaveTimer.current);wpSaveTimer.current=null;saveDirty();}
     setWpHistory(h=>({...h,[_wpKey(kw)]:rows}));
-    setKw(newKw);
+    setKw(newKw);setYr(_tYr);
     wpInitRef.current=true;
-    const _newRows=padWpRows(migrateRows(_wpGet(newKw)||[]));
+    const _newRows=padWpRows(migrateRows(_wpGetY(_tYr,newKw)||[]));/* v3.9.1012 Jahreswechsel: NICHT _wpGet - das haengt am noch nicht umgesetzten yr dieses Renders. Zieljahr direkt. Sonst stuenden nach einem Jahressprung die Zeilen der falschen Woche da, und der 800-ms-Autosave schriebe sie in die Zielwoche. */
     setRows(_newRows);
     const newLast=new Map();
     _newRows.forEach((r,i)=>{if(r&&r.id&&!_isPaddingRow(r))newLast.set(r.id,JSON.stringify({bvh:r.bvh||"",projId:r.projId||"",bem:r.bem||"",z:r.z||{},_so:i*10}));});
@@ -22441,6 +22443,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     setTimeout(()=>{try{w.focus();w.print();}catch(e){console.warn("[wp-print]",e&&e.message||e);}setTimeout(()=>{try{document.body.removeChild(ifr);}catch(_){}}, 1200);},350);
   };
 
+  const _wpIstAktuell=(kw===curKw&&yr===curYr);const _wpNaechste=_kwZiel(curYr,curKw+1);/* v3.9.1012 Jahreswechsel: 'aktuell' ist (Jahr,KW), nicht KW allein; die naechste Woche kann im Folgejahr liegen. */
   const savedKws=Object.keys(wpHistory).filter(k=>(k+'').indexOf(yr+'-')===0).map(k=>parseInt((k+'').split('-')[1],10)).filter(n=>n>0).sort((a,b)=>a-b);/* v3.9.482: nur KWs des aktuellen Jahres (Keys sind jetzt "year-week") */
 
   // Render a cell with MA chips and FZ chips - supports multi-day drag selection
@@ -22549,23 +22552,23 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       /* Header with KW nav */
       , React.createElement('div', { className: "header-row", style: {marginBottom:6}}
         , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}/* v3.9.113 Mobile: flexWrap — KW-Sprung-Buttons (savedKws) brachen sonst die Seite quer auf (671px @ 390 Viewport). */
-          , React.createElement('button', { title: "Woche zurück", 'aria-label': "Woche zurück", onClick: ()=>switchKw(Math.max(1,kw-1)), style: {...bsS(),padding:isMob?"10px 16px":"5px 10px",fontSize:isMob?16:14,minHeight:isMob?44:0,touchAction:'manipulation'}/* v3.9.507 Mobile: größere Tap-Target */}, "◀")
+          , React.createElement('button', { title: "Woche zurück", 'aria-label': "Woche zurück", onClick: ()=>switchKw(kw-1)/* v3.9.1012 Jahreswechsel: keine Klemme mehr hier - switchKw rollt selbst ins Vorjahr */, style: {...bsS(),padding:isMob?"10px 16px":"5px 10px",fontSize:isMob?16:14,minHeight:isMob?44:0,touchAction:'manipulation'}/* v3.9.507 Mobile: größere Tap-Target */}, "◀")
           , React.createElement('span', { style: {fontFamily:mono,fontSize:isMob?20:18,fontWeight:700,color:V.tx,minWidth:130,textAlign:"center"}}, "KW " , String(kw).padStart(2,"0"), " / "  , yr)
-          , React.createElement('button', { title: "Woche vor", 'aria-label': "Woche vor", onClick: ()=>switchKw(Math.min(_getMaxKW(yr),kw+1)), style: {...bsS(),padding:isMob?"10px 16px":"5px 10px",fontSize:isMob?16:14,minHeight:isMob?44:0,touchAction:'manipulation'}/* v3.9.483 + v3.9.507 Mobile */}, "▶")
+          , React.createElement('button', { title: "Woche vor", 'aria-label': "Woche vor", onClick: ()=>switchKw(kw+1)/* v3.9.1012 Jahreswechsel: keine Klemme mehr hier - switchKw rollt selbst ins Folgejahr (KW53/2026 -> KW1/2027) */, style: {...bsS(),padding:isMob?"10px 16px":"5px 10px",fontSize:isMob?16:14,minHeight:isMob?44:0,touchAction:'manipulation'}/* v3.9.483 + v3.9.507 Mobile */}, "▶")
           , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, dateFmt(0), " – "  , dateFmt(5))
-          , kw===curKw&&React.createElement(Badge, { text: "Aktuell", color: _okG("#22c55e")} )
-          , kw>curKw&&React.createElement(Badge, { text: "Vorausplanung"+(kw===curKw+1?" (nächste Woche)":""), color: "#eab308"} )/* v3.9.471: klare Markierung Zukunfts-Woche */
-          , kw<curKw&&React.createElement(Badge, { text: "Vergangene Woche", color: V.dm} )
+          , _wpIstAktuell&&React.createElement(Badge, { text: "Aktuell", color: _okG("#22c55e")} )
+          , (yr*100+kw)>(curYr*100+curKw)&&React.createElement(Badge, { text: "Vorausplanung"+((_wpNaechste[0]===yr&&_wpNaechste[1]===kw)?" (nächste Woche)":""), color: "#eab308"} )/* v3.9.1012 Jahreswechsel: Vergleich ueber (Jahr,KW); yr*100+kw ist streng monoton, weil kw<=53<100. *//* v3.9.471: klare Markierung Zukunfts-Woche */
+          , (yr*100+kw)<(curYr*100+curKw)&&React.createElement(Badge, { text: "Vergangene Woche", color: V.dm} )
           /* v3.9.1004 PL1: am Telefon EINE Auswahl statt eines Rasters aus bis zu 20+ KW-Knoepfen - das Raster fuellte den ganzen ersten Schirm, die Planung begann unter der Falz. ◀ KW ▶ bleibt. Schreibtisch unveraendert. */
           , isMob&&savedKws.filter(k=>k!==kw).length>0&&React.createElement('select', { value: "", 'aria-label': "Andere gespeicherte Woche öffnen", title: "Andere gespeicherte Woche öffnen", onChange: e=>{const v=parseInt(e.target.value,10);if(v>0)switchKw(v);}, style: {...II(),minHeight:44,fontSize:14,padding:"8px 10px",maxWidth:"100%",boxSizing:"border-box"}}
             , React.createElement('option', { value: ""}, "Andere Woche …")
-            , savedKws.filter(k=>k!==kw).map(k=>React.createElement('option', { key: k, value: k}, "KW "+String(k).padStart(2,"0")+(k===curKw?" (aktuell)":"")))
+            , savedKws.filter(k=>k!==kw).map(k=>React.createElement('option', { key: k, value: k}, "KW "+String(k).padStart(2,"0")+(k===curKw&&yr===curYr?" (aktuell)":"")))
           )
           , !isMob&&savedKws.filter(k=>k!==kw).length>0&&savedKws.filter(k=>k!==kw).map(k=>(React.createElement('button', { key: k, onClick: ()=>switchKw(k), style: {padding:isMob?"8px 12px":"2px 8px",borderRadius:isMob?6:4,border:"1px solid "+V.bd,background:"transparent",color:V.dm,cursor:"pointer",fontWeight:600,fontSize:isMob?13:12,fontFamily:mono,minHeight:isMob?36:24,touchAction:'manipulation'}/* v3.9.507 Mobile: Tap-friendly */}, "KW", k)))
         )
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
           /* v3.9.471: 1-Klick Umschalter aktuelle ↔ kommende Woche (macht die ◀/▶-Vorausplanung auffindbar) */
-          , React.createElement('button', { onClick: ()=>switchKw(kw===curKw?curKw+1:curKw), style: kw===curKw?bpS:bgS, title: kw===curKw?"Kommende Woche vorausplanen (eigener Plan, aktuelle bleibt erhalten)":"Zurück zur aktuellen Woche"}, kw===curKw?_zpIk("kalender","Nächste Woche ▶"):"◀ Diese Woche")
+          , React.createElement('button', { onClick: ()=>{if(_wpIstAktuell)switchKw(curKw+1);else switchKw(curKw,curYr);}, style: _wpIstAktuell?bpS:bgS, title: _wpIstAktuell?"Kommende Woche vorausplanen (eigener Plan, aktuelle bleibt erhalten)":"Zurück zur aktuellen Woche"}, _wpIstAktuell?_zpIk("kalender","Nächste Woche ▶"):"◀ Diese Woche")
           , React.createElement('button', { title: sa?"Abbrechen":"Zeile hinzufügen", 'aria-label': sa?"Abbrechen":"Zeile hinzufügen", onClick: ()=>setSa(!sa), style: sa?bdS:bpS}, sa?"✕":"+ Zeile")
           /* v3.9.1004 PL7: der Knopf hiess nur "📋" (title "Vorlage"). Er uebernimmt NUR die Baustellen-Zeilen (BVH/Projekt/Bemerkung) der letzten gespeicherten KW davor - OHNE Mitarbeiter und Fahrzeuge (copyWeek). Jetzt steht das drauf, mit der Quell-KW. Nur Admin/PL (wie "KW … komplett"), sonst entstand eine lokale Phantom-Aenderung, die nie gespeichert wird. */
           , isAdmin&&_wpVorlageKw&&React.createElement('button', { onClick: ()=>copyWeek(_wpVorlageKw), style: beS, title: "Nur die Baustellen-Zeilen aus KW "+_wpVorlageKw+" übernehmen – ohne Mitarbeiter und Fahrzeuge", 'aria-label': "Nur Baustellen aus KW "+_wpVorlageKw+" übernehmen"}, _zpIk("kopie","Nur Baustellen aus KW "+_wpVorlageKw))
@@ -25873,7 +25876,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const isMob=ww<BP_MOB;/* v3.9.653 P3-D: Schwelle 700->600, konsistent zum App-Standard (600-699 rendert jetzt Desktop wie ueberall) */const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const _hkZE=_ezHeuteISO();/* v3.9.821: Wiener Datum (DST-sicher), kein rohes new Date() */
   const fieldMA=monteure.filter(m=>m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung"&&!_maIstEhemalig(m,_hkZE));/* v3.9.821: + Austritt (Praedikat woertlich wie fieldM). Geschaeftsfuehrer bewusst NICHT zusaetzlich ausgeschlossen — das waere eine Verhaltensaenderung an einer lohnnahen Ansicht. */
-  const curKw=isoW();const yr=isoWY();/* v3.9.127 F2 */
+  const curKw=isoW();const curYr=isoWY();const [yr,setYr]=_react.useState.call(void 0, curYr);/* v3.9.127 F2 | v3.9.1012 Jahreswechsel: yr ist ZUSTAND statt bei jedem Render isoWY(). Sonst endete die Navigation an der Jahresgrenze, und ein ueber den 04.01.2027 offener Tab stand auf kw=53 + yr=2027 - eine Woche, die es nicht gibt. curYr = Jahr von HEUTE (Abzeichen, Heute-Knopf). */
   const [kw,setKw]=_react.useState.call(void 0, curKw);
   const [selWorker,setSelWorker]=_react.useState.call(void 0, curUser.monteurId||"");
   const [dayEntries,setDayEntries]=_react.useState.call(void 0, {});
@@ -26503,7 +26506,7 @@ ${dayRowsHtml}
     genXls("⏱️ Zeiterfassung Übersicht — KW "+kw+"/"+yr,"Alle Monteure · KW "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_Alle_KW"+kw+"_"+yr+".xls",{colWidths:[35,160,70,70,70,70,70,70,70],leftCols:[0,1],boldCols:[1]});/* v3.9.253 FIX Doppel-Summe: sumCol:8 entfernt — die manuelle SUMME-Zeile (mit Tages-Spalten-Summen + Gesamt) ist die einzige Summe; sumCol hätte Spalte 8 inkl. dieser Zeile ein zweites Mal summiert → 2× + Doppelzeile. */
   };
 
-  const switchKw=(newKw)=>{setKw(Math.max(1,Math.min(_getMaxKW(yr),newKw)));};/* v3.9.544 Bug-Hunt: KW-Cap via _getMaxKW(yr) (52/53 je Jahr) statt hardcodiert 53 — in 52-Wochen-Jahren war KW53 fälschlich anwählbar (zeigte KW1 des Folgejahrs). Konsistent mit den anderen KW-Views. */
+  const switchKw=(newKw,newYr)=>{const _z=_kwZiel(yr,newKw,newYr);setKw(_z[1]);setYr(_z[0]);};/* v3.9.1012 Jahreswechsel: rollt ueber die Jahresgrenze (_kwZiel) statt bei 1/_getMaxKW(yr) stehenzubleiben. *//* v3.9.544 Bug-Hunt: KW-Cap via _getMaxKW(yr) (52/53 je Jahr) statt hardcodiert 53 — in 52-Wochen-Jahren war KW53 fälschlich anwählbar (zeigte KW1 des Folgejahrs). Konsistent mit den anderen KW-Views. */
   const workerName=(monteure.find(m=>m.id===selWorker)||{}).n||"";
 
   // ── Add Entry Modal ──
@@ -26608,7 +26611,7 @@ ${dayRowsHtml}
           React.createElement('span',{style:{fontFamily:mono,fontSize:18,fontWeight:700,color:V.tx,minWidth:130,textAlign:"center"}},"KW ",String(kw).padStart(2,"0")," / ",yr),
           React.createElement('button',{ title: "Woche vor", 'aria-label': "Woche vor",onClick:()=>switchKw(kw+1),style:{...bsS(),padding:"5px 10px"}},"▶"),
           React.createElement('span',{style:{fontSize:12,color:V.dm}},dateFmt(0)," – ",dateFmt(5)),
-          kw===curKw&&React.createElement(Badge,{text:"Aktuell",color:_okG("#22c55e")}),
+          (kw===curKw&&yr===curYr)&&React.createElement(Badge,{text:"Aktuell",color:_okG("#22c55e")}),
           /* v3.9.887: Ein Rueckweg zur aktuellen Woche fehlte. Die Tageskarten sehen in jeder
              KW gleich aus, und das "Aktuell"-Abzeichen zeigt nur an, dass man RICHTIG liegt -
              nicht, wie man zurueckkommt. Wer eine Woche zurueckblaettert und es vergisst, bucht
@@ -26616,7 +26619,7 @@ ${dayRowsHtml}
              Knopf laengst; nur die Hauptansicht, in der am meisten gebucht wird, hatte keinen.
              Er erscheint nur, wenn man NICHT in der aktuellen Woche steht - sonst waere er ein
              Knopf, der nichts tut. 44px hoch, weil er mit Handschuh getroffen werden muss. */
-          kw!==curKw&&React.createElement('button',{onClick:()=>switchKw(curKw),
+          (kw!==curKw||yr!==curYr)&&React.createElement('button',{onClick:()=>switchKw(curKw,curYr),
             title:"Zurueck zur laufenden Woche (KW "+String(curKw).padStart(2,"0")+")",
             style:{...bpS,padding:isMob?"10px 14px":"5px 12px",fontSize:isMob?14:12,
                    minHeight:isMob?44:0,touchAction:"manipulation",fontWeight:700}},

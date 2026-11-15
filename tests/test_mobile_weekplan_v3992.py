@@ -11,7 +11,7 @@ def test_weekplan_kw_nav_row_wraps(index_html):
     # Die flex-Zeile direkt vor dem switchKw(kw-1)-Button muss flexWrap:"wrap" haben
     # (Kommentar + Zeilenumbruch zwischen Style und Button erlaubt).
     m = re.search(
-        r'\{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"\}\}[\s\S]{0,400}?switchKw\(Math\.max\(1,kw-1\)\)',
+        r'\{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"\}\}[\s\S]{0,400}?switchKw\(kw-1\)',
         index_html,
     )
     assert m, (

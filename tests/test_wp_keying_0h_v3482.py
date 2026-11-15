@@ -13,7 +13,9 @@ def test_matrix_0h_deletes_existing_entry():
 
 def test_wphistory_composite_key_helpers():
     assert "const _wpKey=(k)=>yr+'-'+k;" in HTML, "_wpKey-Helper (Schreib-Key) fehlt"
-    assert "const _wpGet=(k)=>wpHistory[_wpKey(k)]||wpHistory[k];" in HTML, "_wpGet-Helper (Lesen + Legacy-Fallback) fehlt"
+    # v3.9.1012 Jahreswechsel: Legacy-Fallback bleibt, gilt aber nur im laufenden ISO-Jahr.
+    assert "const _wpGet=(k)=>_wpGetY(yr,k);" in HTML, "_wpGet-Helper fehlt"
+    assert "const _wpGetY=(y,k)=>wpHistory[y+'-'+k]||(y===isoWY()?wpHistory[k]:undefined);" in HTML, "_wpGetY (Lesen + Legacy-Fallback) fehlt"
 
 
 def test_wphistory_load_keys_with_year():
