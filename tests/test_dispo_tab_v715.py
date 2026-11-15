@@ -21,7 +21,7 @@ def test_buildinput_present_and_exported(index_html):
 
 def test_tab_gated_buero_pl_admin(index_html):
     # v3.9.738 #21: Tab heisst jetzt "Dispo" (Gate buero/pl/admin unveraendert).
-    assert '...((["admin","buero","projektleiter"].indexOf(curUser.role)>=0)?[{id:"dispo",i:"🗓",l:"Dispo"}]:[])' in index_html
+    assert '...((["admin","buero","projektleiter"].indexOf(curUser.role)>=0)?[{id:"dispo",ik:"raster",l:"Dispo"}]:[])' in index_html  # v3.9.1012: Ikone statt Emoji, Rollen-Gate unveraendert
 
 
 def test_render_wired(index_html):

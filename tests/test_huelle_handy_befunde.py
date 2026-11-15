@@ -76,6 +76,7 @@ def test_kein_rohwert_kein_und_kein_platzhalterdatum(index_html):
 
 def test_as_karte_knopfe_beschriftet_storno_abgesetzt(index_html):
     code = nur_code(index_html)
-    assert '"⊘ Storno")' in code
+    # v3.9.1012 CI-Stufe 3: Linien-Ikone statt Emoji/Zeichen vor der Beschriftung - die Beschriftung bleibt
+    assert '_asIk("verbot","Storno",14))' in code
     assert "minHeight:44,order:-1,marginRight:\"auto\"}, title: \"Stornieren\"" in code
-    assert '"✏️ Bearbeiten")' in code and '"📄 PDF")' in code and '"⬜ QR")' in code
+    assert '_asIk("stift","Bearbeiten",14))' in code and '_asIk("dokument","PDF",14))' in code and '_asIk("qr","QR",14))' in code

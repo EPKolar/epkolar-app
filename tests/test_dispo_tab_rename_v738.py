@@ -10,7 +10,7 @@ heisst Dispo).
 
 def test_tab_label_ist_dispo(index_html):
     # Der Sub-Tab (nur admin/buero/projektleiter) traegt jetzt l:"Dispo".
-    assert '{id:"dispo",i:"🗓",l:"Dispo"}' in index_html, "Tab-Label nicht auf 'Dispo' umgezogen"
+    assert '{id:"dispo",ik:"raster",l:"Dispo"}' in index_html  # v3.9.1012: Ikone statt Emoji, "Tab-Label nicht auf 'Dispo' umgezogen"
     assert '{id:"dispo",i:"🗓",l:"Vorschlag"}' not in index_html, "altes Tab-Label 'Vorschlag' noch da"
 
 

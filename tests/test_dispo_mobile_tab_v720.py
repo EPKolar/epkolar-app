@@ -16,7 +16,7 @@ def _as_view(index_html):
 
 def _as_tabbar(index_html):
     block = _as_view(index_html)
-    i = block.index('{id:"liste",i:"📋"')
+    i = block.index('{id:"liste",ik:"liste"')  # v3.9.1012 CI-Stufe 3: Anker auf IKON-Schluessel statt Emoji
     return block[i:i + 1400]
 
 
