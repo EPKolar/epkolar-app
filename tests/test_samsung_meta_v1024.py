@@ -80,7 +80,7 @@ def test_hinweis_nur_samsung_nur_hell_mit_pfad(index_html):
     assert code.count('className: "epk-samsung-hinweis"') == 1
     h = _hinweis(code)
     assert '!isDark&&/SamsungBrowser/.test(navigator.userAgent||"")&&' in h
-    assert "Webseitenansicht und Scrollen" in h and "Labs" in h
+    assert "Webseitenansicht und Bildlauf" in h and "Dark Mode für Webinhalt erzwingen" in h  # v3.9.1030: am A55 (Samsung Internet 30.0.5.27) abgelesener Wortlaut
     # der Hinweis liest nie die Geraete-Einstellung
     assert "prefers-color-scheme" not in h and "matchMedia" not in h
     # Umkehrprobe: ohne Bedingung waere er fuer alle sichtbar
