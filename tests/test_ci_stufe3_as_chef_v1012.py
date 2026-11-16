@@ -47,7 +47,7 @@ CHEF_ENDE = "function FahrtenbuchPanel("
 AS_REST = [
     # OFFA / Juprowa
     '"📊 OFFA Excel"',
-    '"⚠ "+"OFFA-Feed',  # v3.9.1016: Banner-Text sagt jetzt "Feed steht" (einziger verbleibender Fall)
+    # WARNUNGEN 16.11.: '"⚠ "+"OFFA-Feed' entfaellt - der Feed-Kasten ist jetzt eine Hinweis-Zeile mit Linien-Ikone (keine Emojis)
     '"⚠ "+um.length+" unbekannte Monteur-Codes: "',
     '"❌ ausgeschieden"',
     '_2("✅ "+code+" → "',

@@ -6919,6 +6919,47 @@ input:not(:disabled):hover,select:not(:disabled):hover,textarea:not(:disabled):h
 /* v3.9.1006 CI: Kachel-Oberkanten trugen sechs Farben (Gelb, Orange, Lila, Blau, Grau, Gruen) - Farbe ohne Bedeutung. Jetzt: Rot/Rosa bleibt FEHLER (storniert, ueberfaellig), alles andere ist Markengruen - auch Orange/Gelb, das an "Gesamt" und "Offen" hing und dort keine Warnung war. Klassifiziert ueber den Farbton, damit die Aufrufer unveraendert bleiben. */
 function _ciAkzent(c){var m=/^#?([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(String(c||""));if(!m)return UI.marke;var r=parseInt(m[1],16)/255,g=parseInt(m[2],16)/255,b=parseInt(m[3],16)/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;if(d<.15)return UI.marke;var h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;h=(h*60+360)%360;if(h<15||h>=330)return _dark?COLORS.ERROR_DARK:COLORS.ERROR;return UI.marke;}
 /* v3.9.1007 CI (Kpi-Beschriftung): Satzschreibung statt GROSSBUCHSTABEN - die Beschriftungen tragen ihre eigene Schreibweise ("Offen (alle)", "Werkzeugwert"); Versalien mit Sperrung waren eine zweite, lautere Stimme neben der Zahl. 12 px bleibt die Untergrenze. */
+/* WARNUNGEN 16.11. (GF Sebastian: "Dashboard - die Warnungen sind nicht schoen, das Rot und die Liste") - HINWEIS ist EIN Muster fuer Warnungen und Hinweise auf Home, im Chef-Portal und ueber der Arbeitsschein-Liste. Vorher: Home zeigte Kacheln mit Farbverlauf und roten Plaketten, die Arbeitsschein-Liste rote bzw. gelbe Vollflaechen mit einer langen Nummernkette, das Chef-Portal ein gelbes Abzeichen mit schwarzer Schrift und orange Monospace-Zahlen. Jetzt: eine ruhige Zeile auf der Kartenflaeche, Farbe nur als 3-px-Kante links, als Linien-Ikone und als Zahlplakette. TON: gefahr = UI.fehler (nur abgelaufen/ueberfaellig), achtung = UI.achtung (bitte pruefen), neutral = Grau (zur Kenntnis). Mehrere Hinweise sortiert _hinweisSort nach Ton (stabil). Listen sind ZUGEKLAPPT; aufgeklappt hoechstens 5 Zeilen plus 'alle N anzeigen'; eine Zeile mit Oeffnen-Weg ist ein Knopf mit mindestens 44 px. NUR ANZEIGE: welche Eintraege, Zaehlung und Bedingungen bleiben beim Aufrufer. Farben ausschliesslich ueber die Thema-Getter V.* und UI.* (Hell/Dunkel), keine Farbliterale. flach = ohne Rahmen fuer Zeilen innerhalb einer Karte. offen/onUmschalten = von aussen gesteuert (Home merkt sich den offenen Hinweis ueber _alertKey). */
+var HINWEIS_RANG={gefahr:0,achtung:1,neutral:2};
+function _hinweisFarbe(ton){if(ton==="gefahr")return {kante:UI.fehler,tx:UI.fehler,bg:UI.fehlerBg};if(ton==="achtung")return {kante:UI.achtung,tx:UI.achtungTxt,bg:UI.achtungBg};return {kante:V.bdK,tx:UI.neutralTxt,bg:UI.neutralBg};}
+function _hinweisSort(liste){return (liste||[]).map(function(h,i){return {h:h,i:i};}).sort(function(a,b){var ra=HINWEIS_RANG[a.h&&a.h.ton],rb=HINWEIS_RANG[b.h&&b.h.ton];ra=(ra==null)?2:ra;rb=(rb==null)?2:rb;return (ra-rb)||(a.i-b.i);}).map(function(x){return x.h;});}
+function _hinweisAusDetail(d,j,go){if(d&&typeof d==="object")return {k:j,haupt:d.label,neben:d.model||"",rechts:d.sub||"",rechtsTon:d.status==="overdue"?"gefahr":d.status==="warn"?"achtung":null,onOpen:go};var s=String(d==null?"":d),t=s.indexOf(" \u2014 ");return {k:j,haupt:t>0?s.slice(0,t):s,neben:t>0?s.slice(t+3):"",onOpen:go};}
+function _hinweisTaste(fn){return function(e){if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();fn();}};}
+function Hinweis(p){
+  var _o=_react.useState.call(void 0, false),offenEig=_o[0],setOffenEig=_o[1];
+  var _a=_react.useState.call(void 0, false),alle=_a[0],setAlle=_a[1];
+  var gesteuert=typeof p.offen==="boolean";var offen=gesteuert?p.offen:offenEig;
+  var f=_hinweisFarbe(p.ton),flach=!!p.flach,max=p.max||5;
+  var zeileStil=function(klick){return {display:"flex",alignItems:"center",gap:10,padding:"8px 12px",minHeight:44,boxSizing:"border-box",cursor:klick?"pointer":"default"};};
+  var zeilen=p.zeilen||(p.eintraege||[]).map(function(e,j){var klick=e.onOpen||null;var rt=e.rechtsTon?_hinweisFarbe(e.rechtsTon).tx:V.dm;
+    var kinder=[React.createElement('span',{key:'h',style:{...UI.zahlen,fontWeight:700,color:V.tx,fontSize:UI.fKlein,flex:"0 0 auto",whiteSpace:"nowrap"}},e.haupt)
+      ,React.createElement('span',{key:'n',style:{flex:1,minWidth:0,fontSize:UI.fMeta,color:V.dm,lineHeight:1.35,overflowWrap:"break-word"}},e.neben||"")
+      ,e.rechts?React.createElement('span',{key:'r',style:{...UI.zahlen,flex:"0 1 auto",maxWidth:"55%",textAlign:"right",fontSize:UI.fMeta,fontWeight:600,color:rt,lineHeight:1.35}},e.rechts):null
+      ,klick?React.createElement('span',{key:'p','aria-hidden':"true",style:{display:"inline-flex",color:V.dm,flex:"0 0 auto"}},_ik("pfeil",14)):null];
+    return klick?React.createElement('div',{role:"button",tabIndex:0,'aria-label':String(e.haupt==null?"":e.haupt)+(e.neben?" \u2013 "+e.neben:"")+(e.rechts?" \u2013 "+e.rechts:"")+" \u2013 \u00f6ffnen",onClick:klick,onKeyDown:_hinweisTaste(klick),style:zeileStil(true)},...kinder):React.createElement('div',{style:zeileStil(false)},...kinder);});
+  var n=zeilen.length,hatListe=n>0;
+  var umschalten=function(){if(p.onUmschalten)p.onUmschalten();if(!gesteuert)setOffenEig(!offen);};
+  var kopfAktion=hatListe?umschalten:(p.onGo||null);
+  var titelTxt=p.aria||p.titel;
+  var wurzel={'data-hinweis':p.ton||"neutral",title:p.title||undefined,style:{background:flach?V.bg:V.cd,border:flach?"none":"1px solid "+V.bd,borderLeft:flach?"none":"3px solid "+f.kante,borderRadius:flach?8:10,marginBottom:(p.mb==null)?8:p.mb,overflow:"hidden",color:V.tx}};
+  Object.keys(p).forEach(function(k){if(k.indexOf("data-")===0)wurzel[k]=p[k];});
+  if(p.role){wurzel.role=p.role;wurzel['aria-label']=titelTxt;}
+  var kopf=React.createElement('div',Object.assign({style:{...zeileStil(!!kopfAktion),alignItems:p.text?"flex-start":"center"}},kopfAktion?{role:"button",tabIndex:0,'aria-expanded':hatListe?offen:undefined,'aria-label':titelTxt+(p.text?". "+p.text:"")+(hatListe?(offen?" \u2013 Liste ausblenden":" \u2013 "+n+" anzeigen"):" \u2013 "+(p.goText||"Zur Detail-Ansicht")),onClick:kopfAktion,onKeyDown:_hinweisTaste(kopfAktion)}:{})
+    ,React.createElement('span',{'aria-hidden':"true",style:{display:"inline-flex",color:f.kante,flex:"0 0 auto",marginTop:p.text?1:0}},_ik(p.ik||"warnung",18))
+    ,React.createElement('span',{style:{flex:1,minWidth:0}}
+      ,React.createElement('span',{style:{display:"block",fontSize:UI.fText,fontWeight:600,color:V.tx,lineHeight:1.35}},p.titel)
+      ,p.text?React.createElement('span',{style:{display:"block",fontSize:UI.fMeta,color:V.dm,lineHeight:1.4,marginTop:2}},p.text):null)
+    ,(p.zahl!=null)?React.createElement('span',{style:{...UI.zahlen,flex:"0 0 auto",minWidth:26,boxSizing:"border-box",textAlign:"center",padding:"2px 8px",borderRadius:UI.rRund,background:f.bg,color:f.tx,fontSize:UI.fMeta,fontWeight:700}},p.zahl):null
+    ,hatListe?React.createElement('span',{style:{flex:"0 0 auto",display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fMeta,fontWeight:600,color:V.acTx,whiteSpace:"nowrap"}},offen?"ausblenden":n+" anzeigen",React.createElement('span',{'aria-hidden':"true",style:{display:"inline-flex",transform:offen?"rotate(-90deg)":"rotate(90deg)",transition:"transform .2s"}},_ik("pfeil",14)))
+      :(p.onGo?React.createElement('span',{'aria-hidden':"true",style:{display:"inline-flex",color:V.dm,flex:"0 0 auto"}},_ik("pfeil",16)):null));
+  var knopf=function(txt,fn){return React.createElement('button',{type:"button",onClick:fn,style:{background:"transparent",border:"none",color:V.acTx,fontWeight:600,fontSize:UI.fKlein,fontFamily:"inherit",minHeight:44,padding:"0 12px",cursor:"pointer",textAlign:"left"}},txt);};
+  var liste=(hatListe&&offen)?React.createElement('div',{style:{borderTop:"1px solid "+V.bd}}
+    ,...(alle?zeilen:zeilen.slice(0,max)).map(function(z,j){return React.createElement('div',{key:j,style:{borderTop:j>0?"1px solid "+V.bd:"none"}},z);})
+    ,(n>max||p.onGo)?React.createElement('div',{style:{display:"flex",flexWrap:"wrap",justifyContent:"space-between",borderTop:"1px solid "+V.bd}}
+      ,n>max?knopf(alle?"weniger anzeigen":"alle "+n+" anzeigen",function(){setAlle(!alle);}):React.createElement('span',null)
+      ,p.onGo?knopf((p.goText||"Zur Detail-Ansicht")+" \u2192",p.onGo):null):null):null;
+  return React.createElement('div',wurzel,kopf,liste);
+}
 function Kpi({label,value,sub,color,onClick,i,title,trend}){/* v3.9.788: optionales trend={color,text} — Trend-Pfeil neben dem Wert (fuer die Chef-Portal-Kacheln, die vorher bespoke waren). Ohne trend unveraendert (Admin/Home). */
   // v3.8.28 fade-in mit optionalem stagger: Kpi-Kacheln sanft einblenden, mit i={index} auch versetzt
   const _delay=typeof i==="number"?(i*40)+"ms":"0ms";
@@ -12032,10 +12073,10 @@ function sharePdf(){
 
       , sub==="liste"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-liste", ref: _scheinListRef }
         /* v3.9.728 #18a: Sammel-Hinweis auf verwaiste OFFA-Scheine (offen, aber seit >Tagen kein Feed-Update trotz Pull). */
-        , (canSync&&_offaFeed.zustand==="unbekannt"&&(arbeitsscheine||[]).some(a=>a&&a.juprowa_id))&&React.createElement('div', { style: {padding:"6px 12px",marginBottom:10,borderRadius:8,border:"1px solid "+V.bd,fontSize:12,color:V.dm}}, "OFFA-Feed: kein Abgleich-Zeitstempel geladen - Zustand unbekannt, keine Warnung." )
-        , (_pushGesperrtL.length>0&&canSync)&&React.createElement('div', { 'data-offa-push-gesperrt': _pushGesperrtL.length, role: "alert", style: {display:"flex",alignItems:"flex-start",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(239,68,68,.12)":"rgba(239,68,68,.08)",border:"1px solid #ef4444",fontSize:13,color:_dark?"#fca5a5":"#991b1b"}}, _ik("warnung",18), React.createElement('div', {style:{minWidth:0}}, React.createElement('div', {style:{fontWeight:700}}, _nWort(_pushGesperrtL.length,"Änderung wird","Änderungen werden")+" NICHT an OFFA gesendet"), React.createElement('div', {style:{marginTop:2}}, "Der Schein steht in OFFA anders (z. B. storniert oder abgerechnet) oder wird dort nicht mehr gelistet. Die App überschreibt OFFA nicht – bitte in OFFA prüfen."), React.createElement('div', {style:{marginTop:4,fontWeight:600,overflowWrap:"anywhere"}}, _pushGesperrtL.slice(0,30).map(x=>x.a.nummer+": "+x.g).join(" · ")+(_pushGesperrtL.length>30?" …":""))))/* v3.9.1026 OFFA-Push-Riegel - nur Anzeige */
-        , (_nichtImFeedL.length>0&&canSync)&&React.createElement('div', { 'data-offa-nicht-im-feed': _nichtImFeedL.length, style: {display:"flex",alignItems:"flex-start",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:13,color:_dark?"#fbbf24":"#92400e"}}, _ik("warnung",18), React.createElement('div', {style:{minWidth:0}}, React.createElement('div', {style:{fontWeight:700}}, _nWort(_nichtImFeedL.length,"Schein","Scheine")+" in OFFA nicht mehr gelistet"), React.createElement('div', {style:{marginTop:2}}, "Der OFFA-Abruf liefert sie nicht mehr (z. B. in OFFA storniert oder gelöscht). Bitte den Status in OFFA prüfen – die App ändert ihn NICHT selbst."), React.createElement('div', {style:{marginTop:4,fontWeight:600,overflowWrap:"anywhere"}}, _nichtImFeedL.slice(0,30).map(a=>a.nummer+" ("+((AS_STATUS[a.scheinstatus]||{}).l||a.scheinstatus)+")").join(" · ")+(_nichtImFeedL.length>30?" …":""))))/* v3.9.1024 OFFA: nicht mehr im Feed - nur Anzeige */
-         , (_verwaisteN>0&&canSync)&&React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:12,color:_dark?"#fbbf24":"#92400e"}}, "⚠ "+"OFFA-Feed steht seit über "+OFFA_VERWAIST_TAGE+" Tagen – keine neuen Daten aus OFFA. Bitte die Anbindung prüfen. Betroffen: "+_nWort(_verwaisteN,"offener Schein","offene Scheine")+" ohne Abgleich; die App ändert den Status NICHT selbst."/* v3.9.1017: Banner erscheint seit v1016 nur noch bei globalem Feed-Stillstand (_offaFeedStand) - Text sagt genau das. */ )
+        , (_pushGesperrtL.length>0&&canSync)&&React.createElement(Hinweis, { 'data-offa-push-gesperrt': _pushGesperrtL.length, role: "alert", ton: "achtung", ik: "senden", titel: _nWort(_pushGesperrtL.length,"Änderung wird","Änderungen werden")+" NICHT an OFFA gesendet", text: "Der Schein steht in OFFA anders (z. B. storniert oder abgerechnet) oder wird dort nicht mehr gelistet. Die App überschreibt OFFA nicht – bitte in OFFA prüfen.", eintraege: _pushGesperrtL.map(x=>({k:x.a.id||x.a.nummer,haupt:x.a.nummer,neben:x.g,onOpen:()=>openEdit(x.a)})) })/* v3.9.1026 OFFA-Push-Riegel - nur Anzeige. WARNUNGEN 16.11.: Hinweis zum Pruefen (Amber-Kante) statt roter Flaeche; Liste zugeklappt, Zeile oeffnet den Schein (openEdit) */
+        , (_nichtImFeedL.length>0&&canSync)&&React.createElement(Hinweis, { 'data-offa-nicht-im-feed': _nichtImFeedL.length, ton: "achtung", ik: "verbindung", titel: _nWort(_nichtImFeedL.length,"Schein","Scheine")+" in OFFA nicht mehr gelistet", text: "Der OFFA-Abruf liefert sie nicht mehr (z. B. in OFFA storniert oder gelöscht). Bitte den Status in OFFA prüfen – die App ändert ihn NICHT selbst.", eintraege: _nichtImFeedL.map(a=>({k:a.id||a.nummer,haupt:a.nummer,neben:((AS_STATUS[a.scheinstatus]||{}).l||a.scheinstatus),onOpen:()=>openEdit(a)})) })/* v3.9.1024 OFFA: nicht mehr im Feed - nur Anzeige */
+        , (_verwaisteN>0&&canSync)&&React.createElement(Hinweis, { ton: "achtung", ik: "uhr", titel: "OFFA-Feed steht seit über "+OFFA_VERWAIST_TAGE+" Tagen", text: "Keine neuen Daten aus OFFA. Bitte die Anbindung prüfen. Betroffen: "+_nWort(_verwaisteN,"offener Schein","offene Scheine")+" ohne Abgleich; die App ändert den Status NICHT selbst."/* v3.9.1017: Banner erscheint seit v1016 nur noch bei globalem Feed-Stillstand (_offaFeedStand) - Text sagt genau das. */ })
+        , (canSync&&_offaFeed.zustand==="unbekannt"&&(arbeitsscheine||[]).some(a=>a&&a.juprowa_id))&&React.createElement(Hinweis, { ton: "neutral", ik: "verbindung", titel: "OFFA-Feed: kein Abgleich-Zeitstempel geladen - Zustand unbekannt, keine Warnung." })
         /* v3.5.74 Block 8: Schnell-Filter-Chips */
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",paddingBottom:isMob?0:4}}/* v3.9.930 TOTE WISCH-ZONE, und sie ist aelter als die aus v3.9.926: diese Chip-Leiste rollt quer, und ein quer rollbarer Kasten verbraucht die waagrechte Geste SELBST - der Browser rollt ihn, statt sie nach oben durchzureichen. Mit echten Touch-Ereignissen gemessen (390x844): der 48 px hohe Streifen war TOT, waehrend darueber und darunter der Reiter wechselte. Sebastian: "swipen muss auf der kompletten bildschirmflaeche laufen". Die Chips brechen jetzt UM statt zu rollen - das kostet eine zweite Zeile und nimmt dafuer die tote Zone weg. WebkitOverflowScrolling faellt mit weg, es hatte ohne overflowX keine Bedeutung. Gefunden wurde die Stelle nicht ueber ihren Namen, sondern ueber die EIGENSCHAFT: scripts/wisch_flaechen_messen.py sucht JEDEN Bereich mit berechnetem overflow-x auto/scroll, der breiter ist als sein Kasten - so kam die zweite Leiste ueberhaupt mit. */
           , [
@@ -15679,19 +15720,19 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     const _pkBald=pickerFaellig.length-abgelaufen-inToleranz;
     const _pkTeile=[abgelaufen>0?abgelaufen+" abgelaufen":null,inToleranz>0?inToleranz+" in Toleranzfrist":null,_pkBald>0?_pkBald+" bald fällig":null].filter(Boolean).join(" / ");
     const text=`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${_pkTeile}`;
-    alerts.push({type:"warning",icon:"kalender",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
+    alerts.push({type:"warning",icon:"kalender",text,ton:abgelaufen>0?"gefahr":"achtung",go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
   }
   const serviceFaellig=_fzFk.service;/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
   if(serviceFaellig.length>0){
-    alerts.push({type:"warning",icon:"werkzeug",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,color:COLORS.ERROR,go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>({label:f.kennzeichen,model:f.modell||"",sub:fdt(f.naechstService),status:window._pickerlStatus(f.naechstService)}))});
+    alerts.push({type:"warning",icon:"werkzeug",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,ton:"gefahr",go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>({label:f.kennzeichen,model:f.modell||"",sub:fdt(f.naechstService),status:window._pickerlStatus(f.naechstService)}))});
   }
   const offeneSchaeden=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).reduce((s,f)=>s+(f.schaeden||[]).filter(x=>x.status==="offen").length,0),[fahrzeuge]);
-  if(offeneSchaeden>0)alerts.push({type:"info",icon:"warnung",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,color:COLORS.ERROR,go:()=>onNav("fahrzeuge")});
-  if(pendingAbs>0&&isAdmin)alerts.push({type:"info",icon:"brief",text:`${pendingAbs} ${pendingAbs===1?"Abwesenheitsantrag wartet":"Abwesenheitsanträge warten"} auf Genehmigung`,color:"#eab308",go:()=>onNav("urlaub")});
-  if(dringendeAS>0)alerts.push({type:"urgent",icon:"warnung",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,color:COLORS.ERROR,go:()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}});
+  if(offeneSchaeden>0)alerts.push({type:"info",icon:"warnung",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,ton:"achtung",go:()=>onNav("fahrzeuge")});
+  if(pendingAbs>0&&isAdmin)alerts.push({type:"info",icon:"brief",text:`${pendingAbs} ${pendingAbs===1?"Abwesenheitsantrag wartet":"Abwesenheitsanträge warten"} auf Genehmigung`,ton:"neutral",go:()=>onNav("urlaub")});
+  if(dringendeAS>0)alerts.push({type:"urgent",icon:"warnung",text:`${dringendeAS} ${dringendeAS===1?"dringender Arbeitsschein":"dringende Arbeitsscheine"}`,ton:"achtung",go:()=>{window.__asFilter="offen_bearb";onNav("arbeitsscheine");}});
   if(FINKZEIT_ENABLED&&finkStats.offen>0&&isAdmin){/* FINKZEIT-SCHALTER: dieser Hinweis erscheint nur bei true. Sie ist true seit v3.9.204. */
     const _details=(finkStats.pendingDetails||[]).map(p=>`${p.label} — ${p.workers.join(", ")}`);
-    alerts.push({type:"info",icon:"dokument",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben`,color:"#8b5cf6",go:()=>onNav("stunden"),details:_details});
+    alerts.push({type:"info",icon:"dokument",text:`${finkStats.offen} Monatsabrechnung${finkStats.offen>1?"en":""} noch nicht freigegeben`,ton:"neutral",go:()=>onNav("stunden"),details:_details});
   }
   /* v3.9.697 (Freigabe Sebastian, Frage 2): Die FinkZeit-Differenz ist KEIN Fehlerzustand mehr.
      Sie verglich time_entries (PROJEKTZEIT) mit den FinkZeit-Stunden (ANWESENHEIT) und schrie ab 1h
@@ -15700,7 +15741,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
      Verwaltungszeit fehlt in time_entries — das ist kein Buchungsfehler, das ist die Definition.
      Darum: type "info" statt "warning", neutrale Farbe, neutraler Text. Die Zahl BLEIBT sichtbar
      (das Buero will sie sehen), nur der Alarm ist weg — exakt wie die Projektzeit-Spalte in der PZE. */
-  if(FINKZEIT_ENABLED&&finkStats.diffWarn>0&&isAdmin)alerts.push({type:"info",icon:"diagramm",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Differenz zwischen Zeiterfassung und FinkZeit — Projektzeit und Anwesenheit messen Verschiedenes, eine Abweichung ist normal`,color:"#64748b",go:()=>onNav("stunden")});
+  if(FINKZEIT_ENABLED&&finkStats.diffWarn>0&&isAdmin)alerts.push({type:"info",icon:"diagramm",text:`${finkStats.diffWarn} Monatsabrechnung${finkStats.diffWarn>1?"en":""} mit Differenz zwischen Zeiterfassung und FinkZeit — Projektzeit und Anwesenheit messen Verschiedenes, eine Abweichung ist normal`,ton:"neutral",go:()=>onNav("stunden")});
   /* v3.9.23 KRITISCH Monteur-Permission: jupLinked aus _visibleAS (gefiltert für Monteure). */
   const jupLinked=_visibleAS.filter(a=>a.juprowa_id).length;
 
@@ -15771,33 +15812,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
       )
 
       /* ═══ ALERTS ═══ */
-      , alerts.length>0&&(React.createElement('div', { style: {marginBottom:14}}
-        /* v3.9.37 Sprint-22 H-M4 Mobile-Cascade: 380px→120px,340px→100px (Sebastian-Style 414/380/340) */
-        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:`repeat(auto-fit,minmax(${ww<340?"100px":ww<380?"120px":isMob?"140px":"180px"},1fr))`,gap:8,marginBottom:alertsExpanded!==null?8:0}}
-          , alerts.map((a,i)=>{const _ak=_alertKey(a);const _interactive=(a.go||a.details);return (React.createElement('div', { key: _ak||i, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{ if(a.details&&a.details.length){ setAlertsExpanded(prev=>prev===_ak?null:_ak); }else if(a.go){ a.go(); } })(e);}}, onClick: ()=>{ if(a.details&&a.details.length){ setAlertsExpanded(prev=>prev===_ak?null:_ak); }else if(a.go){ a.go(); } }, onMouseEnter: (_canHover&&_interactive)?e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 12px "+a.color+"22";e.currentTarget.style.background=a.color+"1a";}:undefined, onMouseLeave: (_canHover&&_interactive)?e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";e.currentTarget.style.background=a.color+"11";}:undefined, style: {display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:`linear-gradient(135deg,${a.color}11,${a.color}06)`,border:"1px solid "+a.color+"33",borderRadius:10,fontSize:12,color:a.color,fontWeight:600,cursor:_interactive?"pointer":"default",minHeight:48,transition:"all .2s ease"}}
-            , React.createElement('span', { style: {fontSize:18,width:34,height:34,borderRadius:"50%",background:a.color+"1f",color:a.color,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, _ik(a.icon,18))/* v3.9.1016 CI: Linien-Ikone in Statusfarbe statt Emoji */
-            , React.createElement('span', { style: {flex:1,lineHeight:1.3}}, a.text)
-            , (a.details&&a.details.length)?React.createElement('span', { style: {fontSize:12,opacity:.6,transform:alertsExpanded===_ak?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}, "▼"):a.go?React.createElement('span', { style: {fontSize:14,opacity:.6,transition:"transform .2s"}}, "→"):null
-          ));})
-        )
-        , (()=>{const _expA=alertsExpanded!==null?alerts.find(a=>_alertKey(a)===alertsExpanded):null;return _expA&&_expA.details&&React.createElement('div', { style: {background:_dark?_expA.color+"1a":_expA.color+"12"/* v3.9.497: 10%/7% statt 3% — Panel war quasi unsichtbar */,border:"1px solid "+_expA.color+"55"/* 33% statt 13% */,borderLeft:"4px solid "+_expA.color,borderRadius:10,padding:"12px 16px",fontSize:12,marginTop:6,boxShadow:"0 4px 16px "+_expA.color+"22"}}
-          , _expA.details.map((d,j)=>{
-            /* v3.9.518: d kann String (Legacy: Monatsabrechnung) ODER Objekt {label,model,sub,status} sein */
-            const _isObj=d&&typeof d==="object";
-            const _st=_isObj?d.status:null;
-            const _dotC=_st==="overdue"?COLORS.ERROR:_st==="warn"?COLORS.WARNING:_expA.color;
-            return React.createElement('div', { key: j, style: {padding:"8px 0",lineHeight:1.4,borderBottom:j<_expA.details.length-1?"1px solid "+_expA.color+"15":"none",display:"flex",alignItems:"center",gap:10}},
-              React.createElement('span', { style: {width:9,height:9,borderRadius:"50%",background:_dotC,flexShrink:0,boxShadow:"0 0 0 3px "+_dotC+"22"}}),
-              _isObj
-                ? React.createElement(React.Fragment, null,
-                    React.createElement('span', { style: {flex:1,color:V.tx,fontWeight:600,fontSize:13}}, d.label, d.model&&React.createElement('span', { style: {color:V.dm,fontWeight:400,fontSize:UI.fMeta,marginLeft:6}}, d.model)),
-                    d.sub&&React.createElement('span', { style: {flexShrink:0,fontSize:UI.fMeta,fontWeight:700,padding:"3px 10px",borderRadius:6,whiteSpace:"nowrap",background:_st==="overdue"?_dotC:_dotC+"1a",color:_st==="overdue"?"#fff":_dotC}}, (_st==="overdue"?"⚠ ":"")+d.sub)
-                  )
-                : React.createElement('span', { style: {color:V.tx} }, d)
-            );
-          })
-          , _expA.go&&React.createElement('div', { onClick: _expA.go, role: "button", tabIndex: 0, "aria-label": "Zur Detail-Ansicht", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();_expA.go();}}, style: {marginTop:10,display:"inline-flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:_expA.color+"1a",border:"1px solid "+_expA.color+"33",color:_expA.color,fontSize:12,fontWeight:600,cursor:"pointer"}}, "Zur Detail-Ansicht →")
-        );})()
+      /* WARNUNGEN 16.11.: gestapelte HINWEIS-Zeilen statt farbiger Kacheln; nach Ton sortiert, Liste zugeklappt. Welcher Hinweis offen ist, merkt sich weiter alertsExpanded ueber _alertKey (Hunt B-010). */
+      , alerts.length>0&&(React.createElement('div', { 'data-hinweise': "home", style: {marginBottom:14}}
+        , (()=>{const _expA=alertsExpanded!==null?alerts.find(a=>_alertKey(a)===alertsExpanded):null;return _hinweisSort(alerts).map((a,i)=>{const _ak=_alertKey(a);return React.createElement(Hinweis, { key: _ak||i, ton: a.ton, ik: a.icon, titel: a.text, offen: _expA===a, onUmschalten: ()=>setAlertsExpanded(prev=>prev===_ak?null:_ak), onGo: a.go, eintraege: (a.details||[]).map((d,j)=>_hinweisAusDetail(d,j,a.go))});});})()
       ))
 
       /* ═══ QUICK ACTIONS — v3.9.279: direkt unter Wetter platziert (Sebastian) ═══ */
@@ -26009,26 +26026,17 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
         return React.createElement(Kpi,{key:i,label:k.l,value:k.v,sub:k.sub+(tr?' · vs. Vorwoche':''),color:k.color,onClick:k.click,i:i,trend:tr?{color:tr.color,text:tr.icon+(k.trend.delta!==0?(' '+(k.trend.delta>0?'+':'')+k.trend.delta):'')}:null});
       })
     )
-    ,_cdTab==='ueberblick' && sorgenTotal>0&&_card('sorgen','warnung','Handlungsbedarf','#eab308',[
-      React.createElement('div',{key:'g',style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(2,1fr)',gap:10,fontSize:12}}
-        ,asOhneMonteur>0&&React.createElement('div',{onClick:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');},role:'button',tabIndex:0,onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();window.__asFilter='offen_bearb';onNav('arbeitsscheine');}},style:{cursor:'pointer',padding:isMob?'11px 12px':'6px 10px',minHeight:isMob?44:0,background:V.cd,borderRadius:6}}
-          ,React.createElement('span',{style:{color:V.dm}},'Scheine ohne Monteur: '),React.createElement('span',{style:{fontWeight:700,color:'#f97316',fontFamily:mono}},asOhneMonteur))
-        ,asOhneTermin>0&&React.createElement('div',{onClick:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');},role:'button',tabIndex:0,onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();window.__asFilter='offen_bearb';onNav('arbeitsscheine');}},style:{cursor:'pointer',padding:isMob?'11px 12px':'6px 10px',minHeight:isMob?44:0,background:V.cd,borderRadius:6}}
-          ,React.createElement('span',{style:{color:V.dm}},'Scheine ohne Termin: '),React.createElement('span',{style:{fontWeight:700,color:'#f97316',fontFamily:mono}},asOhneTermin))
-        ,asPushStau>0&&React.createElement('div',{onClick:function(){window.__asFilter='push_pending';onNav('arbeitsscheine');},role:'button',tabIndex:0,title:_asPushStauInfo?(asPushStau+' haengen'+(_asPushStauInfo.alter?(' · aeltester seit '+_asPushStauInfo.alter):'')+' · '+_asPushStauInfo.grund):'',onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();window.__asFilter='push_pending';onNav('arbeitsscheine');}},style:{cursor:'pointer',padding:isMob?'11px 12px':'6px 10px',minHeight:isMob?44:0,background:V.cd,borderRadius:6}}
-          ,React.createElement('span',{style:{color:V.dm}},'Juprowa Push-Stau: '),React.createElement('span',{style:{fontWeight:700,color:COLORS.ERROR,fontFamily:mono}},asPushStau)
-          ,_asPushStauInfo&&_asPushStauInfo.alter&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},'aeltester seit '+_asPushStauInfo.alter+' · '+_asPushStauInfo.grund))
-        ,projStill.length>0&&React.createElement('div',{style:{padding:'6px 10px',background:V.cd,borderRadius:6}}
-          ,React.createElement('span',{style:{color:V.dm}},'Projekte ohne Aktivität >14 Tage: '),React.createElement('span',{style:{fontWeight:700,color:'#f97316'}},projStill.length)
-          ,React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},projStill.slice(0,5).join(', ')+(projStill.length>5?' +'+(projStill.length-5):'')))
-        ,finkOpen&&finkOpen.length>0&&React.createElement('div',{onClick:function(){onNav('stunden');},role:'button',tabIndex:0,onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav('stunden');}},style:{cursor:'pointer',padding:isMob?'11px 12px':'6px 10px',minHeight:isMob?44:0,background:V.cd,borderRadius:6,gridColumn:isMob?'auto':'1 / -1'}}
-          ,React.createElement('span',{style:{color:V.dm}},'Monatsabrechnung nicht freigegeben: '),React.createElement('span',{style:{fontWeight:700,color:'#f97316'}},finkOpen.length)
-          ,React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},finkOpen.slice(0,6).join(', ')+(finkOpen.length>6?' +'+(finkOpen.length-6):'')))
-        ,asErledigtOffen>0&&React.createElement('div',{onClick:function(){onNav('arbeitsscheine');},role:'button',tabIndex:0,onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav('arbeitsscheine');}},style:{cursor:'pointer',padding:isMob?'11px 12px':'6px 10px',minHeight:isMob?44:0,background:V.cd,borderRadius:6,gridColumn:isMob?'auto':'1 / -1'}}
-          ,React.createElement('span',{style:{color:V.dm}},'Erledigt, noch nicht fakturiert: '),React.createElement('span',{style:{fontWeight:700,color:'#f97316'}},asErledigtOffen))
+    ,_cdTab==='ueberblick' && sorgenTotal>0&&_card('sorgen','warnung','Handlungsbedarf',UI.achtung,[/* WARNUNGEN 16.11.: HINWEIS-Zeilen (flach, in der Karte) statt Zahlenkacheln mit orange Monospace; gelbes Abzeichen mit schwarzer Schrift -> Achtung-Plakette. Zaehlung und Ziele unveraendert. */
+      React.createElement('div',{key:'g',style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(2,1fr)',gap:8,alignItems:'start'}}
+        ,asOhneMonteur>0&&React.createElement(Hinweis,{key:'om',flach:true,mb:0,ton:'achtung',ik:'person',titel:'Scheine ohne Monteur',zahl:asOhneMonteur,goText:'Zu den Arbeitsscheinen',onGo:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');}})
+        ,asOhneTermin>0&&React.createElement(Hinweis,{key:'ot',flach:true,mb:0,ton:'achtung',ik:'kalender',titel:'Scheine ohne Termin',zahl:asOhneTermin,goText:'Zu den Arbeitsscheinen',onGo:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');}})
+        ,asPushStau>0&&React.createElement(Hinweis,{key:'ps',flach:true,mb:0,ton:'achtung',ik:'senden',titel:'Juprowa Push-Stau',zahl:asPushStau,title:_asPushStauInfo?(asPushStau+' haengen'+(_asPushStauInfo.alter?(' · aeltester seit '+_asPushStauInfo.alter):'')+' · '+_asPushStauInfo.grund):'',text:(_asPushStauInfo&&_asPushStauInfo.alter)?('aeltester seit '+_asPushStauInfo.alter+' · '+_asPushStauInfo.grund):'',goText:'Zu den Arbeitsscheinen',onGo:function(){window.__asFilter='push_pending';onNav('arbeitsscheine');}})
+        ,projStill.length>0&&React.createElement(Hinweis,{key:'pa',flach:true,mb:0,ton:'neutral',ik:'helm',titel:'Projekte ohne Aktivität >14 Tage',zahl:projStill.length,eintraege:projStill.map(function(nm,j){return {k:j,haupt:nm};})})
+        ,finkOpen&&finkOpen.length>0&&React.createElement(Hinweis,{key:'mf',flach:true,mb:0,ton:'neutral',ik:'dokument',titel:'Monatsabrechnung nicht freigegeben',zahl:finkOpen.length,eintraege:finkOpen.map(function(nm,j){return {k:j,haupt:nm};}),goText:'Zur Monatsabrechnung',onGo:function(){onNav('stunden');}})
+        ,asErledigtOffen>0&&React.createElement(Hinweis,{key:'eo',flach:true,mb:0,ton:'neutral',ik:'bericht',titel:'Erledigt, noch nicht fakturiert',zahl:asErledigtOffen,goText:'Zu den Arbeitsscheinen',onGo:function(){onNav('arbeitsscheine');}})
       )
-    ],React.createElement('span',{style:{fontSize:UI.fMeta,fontWeight:800,background:'#eab308',color:'#000',borderRadius:10,padding:'1px 8px'}},sorgenTotal))
-    ,_cdTab==='ueberblick' && mtStats&&(mtStats.tOpen===null||mtStats.tOpen>0||mtStats.dOpen>0)&&_card('mt','checkliste','Mängel & Tickets',(mtStats.tOver+mtStats.dOver)>0?'#ef4444':V.acTx,[
+    ],React.createElement('span',{style:{...UI.zahlen,fontSize:UI.fMeta,fontWeight:700,background:UI.achtungBg,color:UI.achtungTxt,borderRadius:10,padding:'1px 8px'}},sorgenTotal))
+    ,_cdTab==='ueberblick' && mtStats&&(mtStats.tOpen===null||mtStats.tOpen>0||mtStats.dOpen>0)&&_card('mt','checkliste','Mängel & Tickets',(mtStats.tOver+mtStats.dOver)>0?UI.fehler:V.acTx,[
       _metricRow([
         _metric('Offene Tickets',mtStats.tOpen,'#f97316',function(){onNav('projekte');}),
         _metric('Überfällige Tickets',mtStats.tOver,mtStats.tOver>0?'#ef4444':V.dm),
@@ -26039,8 +26047,8 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
         ,React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600,marginBottom:2}},_cdPkt('#ef4444'),'Am längsten überfällig')
         ,mtStats.top.map(function(x,i){return React.createElement('div',{key:i,role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(function(){const _pp=(projects||[]).find(pr=>pr.id===x.pid);if(_pp&&onOpenP){onOpenP({..._pp,_initView:x.kind==='Mangel'?'maengel':'plaene'});}else onNav('projekte');}/* v3.9.476: Deep-Link zum Projekt-Tab (Mangel→maengel, Ticket→plaene) */)(e);}}, onClick:function(){const _pp=(projects||[]).find(pr=>pr.id===x.pid);if(_pp&&onOpenP){onOpenP({..._pp,_initView:x.kind==='Mangel'?'maengel':'plaene'});}else onNav('projekte');}/* v3.9.476: Deep-Link zum Projekt-Tab (Mangel→maengel, Ticket→plaene) */,role:'button',tabIndex:0,style:{display:'flex',justifyContent:'space-between',gap:8,fontSize:12,padding:'4px 8px',background:V.cd,borderRadius:6,cursor:'pointer'}}
           ,React.createElement('span',{style:{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}},(x.kind==='Mangel'?'Mangel · ':'Ticket · ')+x.title+(x.proj?(' · '+x.proj):''))
-          ,React.createElement('span',{style:{color:'#ef4444',fontWeight:700,fontFamily:mono,flexShrink:0}},x.days+'T überfällig'));}))
-    ],(mtStats.tOver+mtStats.dOver)>0?React.createElement('span',{style:{fontSize:UI.fMeta,fontWeight:800,background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 8px'}},mtStats.tOver+mtStats.dOver):null)
+          ,React.createElement('span',{style:{...UI.zahlen,color:UI.fehler,fontWeight:700,flexShrink:0}},x.days+'T überfällig'));}))
+    ],(mtStats.tOver+mtStats.dOver)>0?React.createElement('span',{style:{...UI.zahlen,fontSize:UI.fMeta,fontWeight:700,background:UI.fehlerBg,color:UI.fehler,borderRadius:10,padding:'1px 8px'}},mtStats.tOver+mtStats.dOver):null)
     ,_cdTab==='projekte' && _card('proj','helm','Projekte',V.acTx,[
       _metricRow([
         _metric('Aktive Projekte',aktivProj,V.acTx,function(){onNav('projekte');}),
@@ -26118,18 +26126,17 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
         _metric('Ohne Termin',asOhneTermin,asOhneTermin>0?'#f97316':V.dm),
         _metric('Push-Stau',asPushStau,asPushStau>0?'#ef4444':V.dm)
       ]),
-      topOver.length>0&&React.createElement('div',{key:'o',style:{display:'flex',flexDirection:'column',gap:4,marginTop:10}}
-        ,React.createElement('div',{style:{fontSize:UI.fMeta,fontWeight:700,color:COLORS.ERROR}},_cdPkt(COLORS.ERROR),'Kritisch überfällig ('+topOver.length+')')
-        ,topOver.map(function(a){
+      topOver.length>0&&React.createElement('div',{key:'o',style:{marginTop:10}},React.createElement(Hinweis,{ton:'gefahr',ik:'uhr',titel:'Kritisch überfällig',zahl:topOver.length,mb:0,aria:'Kritisch überfällig ('+topOver.length+')',/* WARNUNGEN 16.11.: als HINWEIS mit zugeklappter Liste; Zeile oeffnet den Schein ueber den bestehenden Deep-Link __asOpenId (v3.9.489) */zeilen:topOver.map(function(a){
           const w=monteure.find(function(m){return m.id===a.monteur;});
           const tage=Math.floor((Date.now()-new Date((a.terminBestaetigt||a.terminVorschlag)+"T00:00:00").getTime())/TIME_DAY);
-          return React.createElement('div',{key:a.id,role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(function(){window.__asFilter='alle';onNav('arbeitsscheine');})(e);}}, onClick:function(){window.__asFilter='alle';onNav('arbeitsscheine');},style:{display:'flex',gap:8,padding:'6px 10px',background:V.cd,borderRadius:6,border:'1px solid '+V.bd,fontSize:12,cursor:'pointer',alignItems:'center',flexWrap:'nowrap'}}/* P3-A55 Fund 3: die Zeile brach um (flexWrap) - bei 412 px rutschte die Tageszahl in eine eigene Zeile, die Zeilen wurden ungleich hoch. Jetzt drei feste Spalten: Nummer | Name + Monteur (zweizeilig, je Ellipsis) | Tage (nowrap, rechts). Jede Zeile hat dieselbe Hoehe. */
-            ,React.createElement('span',{style:{fontFamily:mono,color:'#f97316',minWidth:70,flex:'0 0 auto',whiteSpace:'nowrap'}},a.nummer||'—')
+          const _oeffnen=function(){window.__asFilter='alle';window.__asOpenId=a.id;onNav('arbeitsscheine');};
+          return React.createElement('div',{key:a.id,role: "button", tabIndex: 0, 'aria-label': (a.nummer||'')+' '+(a.kundName||'')+', '+tage+' Tage überfällig – öffnen', onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();_oeffnen();}}, onClick:_oeffnen,style:{display:'flex',gap:10,padding:'8px 12px',minHeight:44,boxSizing:'border-box',fontSize:UI.fKlein,cursor:'pointer',alignItems:'center',flexWrap:'nowrap'}}/* P3-A55 Fund 3: die Zeile brach um (flexWrap) - bei 412 px rutschte die Tageszahl in eine eigene Zeile, die Zeilen wurden ungleich hoch. Jetzt drei feste Spalten: Nummer | Name + Monteur (zweizeilig, je Ellipsis) | Tage (nowrap, rechts). Jede Zeile hat dieselbe Hoehe. */
+            ,React.createElement('span',{style:{...UI.zahlen,fontWeight:700,color:V.tx,minWidth:70,flex:'0 0 auto',whiteSpace:'nowrap'}},a.nummer||'—')
             ,React.createElement('span',{style:{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}
               ,React.createElement('span',{style:{flex:1,fontWeight:600,minWidth:110,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},a.kundName||'—')
               ,React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},w?w.n:'kein Monteur'))
-            ,React.createElement('span',{style:{fontFamily:mono,fontWeight:700,color:COLORS.ERROR,flex:'0 0 auto',whiteSpace:'nowrap',minWidth:44,textAlign:'right'}},tage+'d')
-          );})
+            ,React.createElement('span',{style:{...UI.zahlen,fontWeight:700,color:UI.fehler,flex:'0 0 auto',whiteSpace:'nowrap',minWidth:44,textAlign:'right'}},tage+'d')
+          );})})
       ),
       _drill('Arbeitsscheine','arbeitsscheine')
     ])
