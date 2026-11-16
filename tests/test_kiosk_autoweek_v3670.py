@@ -72,5 +72,8 @@ def test_wiring_fetch_ranges_shifted(index_html):
 
 
 def test_wiring_badges(index_html):
-    assert '"📋 Wochenplan · KW "+kw+(_kOff?"  ▶ nächste Woche":"")' in index_html
-    assert '_kOff?h(\'span\',{style:{marginLeft:8,fontSize:14,fontWeight:800,color:\'#0ea5e9\'' in index_html
+    # v3.9.1015 CI Display: Titel ohne Emoji, "naechste Woche" als eigenes
+    # Abzeichen in Markengruen statt Pfeil im Titeltext bzw. Himmelblau.
+    assert '"Wochenplan · KW "+kw,_kOff?h(\'span\'' in index_html
+    assert '"nächste Woche"):null)' in index_html
+    assert '_kOff?h(\'span\',{style:{marginLeft:8,fontSize:14,fontWeight:800,color:V.acTx' in index_html
