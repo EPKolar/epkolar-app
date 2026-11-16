@@ -210,7 +210,9 @@ def test_datanorm4_kennzeichen_a_und_x(index_html, node_exe, tmp_path):
     assert r["aend"]["arts"][0][1] == "Kugelhahn Messing Trinkwasser"
     assert abs(r["aend"]["arts"][0][2] - 24.5) < 1e-9
     assert r["neu"]["det"] == "v4ext" and r["v5"]["det"] == "v5"
-    assert index_html.count("/^[NUDÄLAX]$/i.test(") == 3
+    # v3.9.1031 Merge: der DATPREIS-Zweig nutzt seit v1030 /^[ANUDÄLXP]$/i (Spezifikation, kennt A und X ebenfalls)
+    assert index_html.count("/^[NUDÄLAX]$/i.test(") == 2
+    assert index_html.count("/^[ANUDÄLXP]$/i.test(") == 1
 
 
 def test_umkehrprobe_datanorm_ohne_a_x(index_html, node_exe, tmp_path):
