@@ -24,16 +24,19 @@ def test_frueh_skript_steht_direkt_hinter_dem_meta_vor_allem_anderen():
     early = SRC[j:k]
     assert 'localStorage.getItem("epk_theme")' in early
     assert '"only dark":"only light"' in early
-    assert 'setAttribute("content",cs)' in early
+    # v3.9.1024: das Meta bleibt statisch "light dark" (Samsung-Signal), nur die Wurzel folgt der Wahl.
+    assert 'setAttribute("content",cs)' not in early
+    assert "documentElement.style.colorScheme=cs" in early
     assert "setItem" not in early, "das Frueh-Skript darf nichts schreiben"
 
 
-def test_applyTheme_zieht_das_meta_mit():
+def test_applyTheme_laesst_das_meta_statisch():
+    # v3.9.1024: bis v1023 zog applyTheme das Meta auf only light/only dark - am A55 ohne Wirkung
+    # gegen Samsungs Zwangs-Dunkel. Jetzt traegt nur die Wurzel das Thema, das Meta bleibt "light dark".
     i = SRC.find('document.documentElement.style.colorScheme=dark?"only dark":"only light";')
     assert i > 0
-    nach = SRC[i:i + 300]
-    assert 'querySelector("meta[name=color-scheme]")' in nach
-    assert '_csm.setAttribute("content",dark?"only dark":"only light")' in nach
+    nach = SRC[i:i + 600]
+    assert '_csm.setAttribute(' not in nach
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node fehlt")
@@ -60,4 +63,4 @@ def test_frueh_skript_rechnet_richtig(gespeichert, system_dunkel, erwartet):
     )
     out = subprocess.run(["node", "-e", js], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.strip() == erwartet + "|" + erwartet
+    assert out.stdout.strip() == "light dark|" + erwartet
