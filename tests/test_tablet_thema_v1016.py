@@ -11,6 +11,8 @@ import re
 import shutil
 import subprocess
 
+SAMSUNG_REGEL = '@media (prefers-color-scheme: dark) { :root[data-epk-thema="hell"] { color-scheme: only light; background-color: #F2F4F2; } :root[data-epk-thema="hell"] body { background-color: #F2F4F2; } }'
+
 import pytest
 
 from _hilfen import nur_code
@@ -68,7 +70,11 @@ def test_deklaration_bleibt_gegen_zwangsabdunkelung(index_html):
 
 
 def test_kein_geraete_lauscher_mehr(index_html):
+    # v3.9.1020: genau EINE statische CSS-Regel darf die Medienabfrage nennen - sie bestaetigt bei
+    # Geraete-Dunkel nur die App-Wahl Hell (Samsung-Zwangsdunkel). Gelesen wird das Geraet nie.
     code = nur_code(index_html)
+    assert code.count(SAMSUNG_REGEL) == 1
+    code = code.replace(SAMSUNG_REGEL, "")
     assert "prefers-color-scheme" not in code
     assert "_systemDark" not in code
     assert '["system","Auto"]' not in code

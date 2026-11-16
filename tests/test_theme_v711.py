@@ -6,6 +6,8 @@ epk_theme {light,dark,system} (Default system = kein Bruch). resolveTheme pure, 
 import re
 import subprocess
 
+SAMSUNG_REGEL = '@media (prefers-color-scheme: dark) { :root[data-epk-thema="hell"] { color-scheme: only light; background-color: #F2F4F2; } :root[data-epk-thema="hell"] body { background-color: #F2F4F2; } }'
+
 
 def test_resolvetheme_behavior_executed(index_html, node_exe, tmp_path):
     m = re.search(r"function resolveTheme\(.*?\n\}", index_html, re.S)
@@ -39,6 +41,7 @@ def test_hard_choice_ignores_matchmedia(index_html):
     # Nur Code zaehlt (Kommentare duerfen den alten Weg erklaeren).
     import re as _re
     code = _re.sub(r"/\*.*?\*/", "", index_html, flags=_re.S)
+    code = code.replace(SAMSUNG_REGEL, "", 1)  # v3.9.1020: bestaetigt nur die App-Wahl Hell, liest das Geraet nicht
     assert "prefers-color-scheme" not in code, "die App liest wieder die OS-Einstellung"
     assert "_systemDark" not in code
     # Umkehrprobe: der alte Lauscher wuerde erkannt
