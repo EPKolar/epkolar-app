@@ -67,7 +67,8 @@ def test_fussleiste_markiert_den_gezeigten_reiter(index_html):
     code = nur_code(index_html)
     blk = _fussleiste(code)
     assert blk.count("_fussG(t)===gr.g") == 2, "Filter UND grTabs muessen dieselbe Fussleisten-Gruppe nutzen"
-    assert "const isActive=grTabs.some(t=>tabs.indexOf(t)===safeKat);" in blk
+    # A55-2 Fund 25: ueber die Mehr-Liste geoeffnet -> Mehr markiert; sonst die Gruppe des gezeigten Reiters (safeKat)
+    assert "const _viaMehr=_fussMehrKat!==null&&_fussMehrKat===safeKat;const isActive=gr.g===4?(_viaMehr||grTabs.some(t=>tabs.indexOf(t)===safeKat)):(!_viaMehr&&grTabs.some(t=>tabs.indexOf(t)===safeKat));" in blk
     assert "tabs.indexOf(t)===kat)" not in blk, "Markierung liest kat statt des gezeigten Reiters (safeKat)"
     # Am Chef-Portal ist NICHT Home markiert, sondern Mehr (wie NavMehr am Tablet)
     assert _aktive_slots(code, "_chef") == ["Mehr"]

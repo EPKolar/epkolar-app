@@ -75,9 +75,12 @@ def test_chef_kritisch_row_ellipsis(index_html):
 
 def test_project_header_name_min_width(index_html):
     # 230 (nicht 170): ◀36 + PA-Nr 70 + gaps ließen dem Namen bei 170 wieder nur 62px.
-    assert 'gap:6,minWidth:isMob?230:0,flex:1}}' in index_html, (
-        "Projekt-Header: linke Gruppe braucht minWidth 230 auf Mobile (Name war auf 62px gequetscht)"
-    )
+    # A55-2 Fund 7 (16.11.): der Name steht am Handy seit v3.9.937 in Zeile 2 (20px/700), Zeile 1 traegt nur
+    # Menue, Zurueck, PA-Nr, Monteurwahl, Kamera und bricht nicht mehr um - die 230 erzwangen den Umbruch.
+    # Gepinnt wird jetzt: keine Mindestbreite, kein Umbruch am Handy, Name in Zeile 2.
+    assert 'gap:6,minWidth:0,flex:1}}' in index_html
+    assert 'flexShrink:0,gap:6,flexWrap:isMob?"nowrap":"wrap"}' in index_html
+    assert "isMob&&React.createElement('div', { style: {flexShrink:0,background:UI.flaeche,borderBottom:\"1px solid \"+UI.linie,padding:\"8px 12px 10px\"}} , React.createElement('div', { style: {fontSize:20,fontWeight:700" in index_html
 
 
 def test_chef_kritisch_row_wraps(index_html):

@@ -78,5 +78,7 @@ def test_as_karte_knopfe_beschriftet_storno_abgesetzt(index_html):
     code = nur_code(index_html)
     # v3.9.1012 CI-Stufe 3: Linien-Ikone statt Emoji/Zeichen vor der Beschriftung - die Beschriftung bleibt
     assert '_asIk("verbot","Storno",14))' in code
-    assert "minHeight:44,order:-1,marginRight:\"auto\"}, title: \"Stornieren\"" in code
+    # A55-2 Fund 8 (16.11.): Storno stand links direkt neben 'Bearbeiten' - jetzt rechts am Ende, durch freien Raum abgesetzt
+    assert "minHeight:44,marginLeft:\"auto\"}" in code
+    assert "order:-1,marginRight:\"auto\"}, title: \"Stornieren\"" not in code
     assert '_asIk("stift","Bearbeiten",14))' in code and '_asIk("dokument","PDF",14))' in code and '_asIk("qr","QR",14))' in code
