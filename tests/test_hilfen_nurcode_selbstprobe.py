@@ -90,6 +90,13 @@ def test_umkehrprobe_ohne_maske_wird_der_riegel_rot(index_html):
         "Die Umkehrprobe traegt nicht: ohne Maskierung muesste jede Kopf-"
         "Stelle ihren Treffer verlieren. Unveraendert geblieben: %r" % (stumpf,)
     )
+    # v3.9.1023: ob die naive Regex den Reader in index.html verschluckt, haengt an der PARITAET der
+    # `image/*`-Stellen davor (25 -> 26 durch das Plan-Fotofeld: die Paarung kippt). Die Probe laeuft
+    # deshalb an einem gebauten Stueck mit bekannter Antwort - dieselbe Falle, unabhaengig vom Layout.
+    from _hilfen import nur_code as _nc
+    stueck = 'h("input",{accept:"image/*"});const r=' + _MIME_BEREICH + ';/* echter Kommentar */'
+    assert _MIME_BEREICH in _nc(stueck), "nur_code verschluckt den Reader im gebauten Stueck"
+    kaputt, index_html = _nur_code_ohne_maske(stueck), stueck
     assert kaputt.count(_MIME_BEREICH) < index_html.count(_MIME_BEREICH), (
         "Die Umkehrprobe traegt nicht: ohne Maskierung muesste auch mindestens "
         "ein image/*-Reader verschwinden (gefunden: %d von %d)."
