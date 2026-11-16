@@ -96,8 +96,9 @@ def test_restmenge_bleibt_begrenzt(index_html, name):
 
 def test_umkehrprobe_emoji_im_knopf_wird_erkannt(index_html):
     teil = _bereich(index_html, "Wochenplanung")
-    assert '_zpIk("kalender","Nächste Woche ▶")' in teil
-    kaputt = teil.replace('_zpIk("kalender","Nächste Woche ▶")', '"\U0001F4C5 Nächste Woche ▶"', 1)
+    # Planung P3 (16.11.2026): das Textzeichen ▶ ist raus (Linienikone), der Anker folgt
+    assert '_zpIk("kalender","Nächste Woche")' in teil
+    kaputt = teil.replace('_zpIk("kalender","Nächste Woche")', '"\U0001F4C5 Nächste Woche"', 1)
     assert _treffer(kaputt)[1], "eingesetztes Emoji im Knopf wurde nicht erkannt"
     toast = teil + '\nwindow.__toast("\U0001F4C5 nur ein Toast");'
     assert not _treffer(toast)[1], "Toast-Emoji darf nicht als Treffer zaehlen"

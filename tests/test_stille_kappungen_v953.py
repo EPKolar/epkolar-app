@@ -185,8 +185,10 @@ def test_die_zwoelf_stellen_benutzen_den_helfer():
         ("AS-Karte, Arbeitstext", '_kurz(a.arbeitsanweisungen,60)'),
         ("Regie, Arbeitstext", "_kurz(f.arbeit,60)"),
         ("Material, Artikelname", "_kurz(p.name,20)"),
-        ("Wochenplan, Bauvorhaben 22", "_kurz(rr.bvh,22)"),
-        ("Wochenplan, Bauvorhaben 18", "_kurz(rr.bvh,18)"),
+        # Planung P3 (16.11.2026): die beiden Spezialfahrzeug-Stellen kuerzen gar nicht mehr
+        # (voller Name, Umbruch, title) - die Marke ist jetzt die ungekuerzte Form.
+        ("Wochenplan, Bauvorhaben mobil ungekuerzt", "_wpNameLesbar(rr.bvh)||(rr.projId?'Projekt':'?')"),
+        ("Wochenplan, Bauvorhaben Tafel ungekuerzt", "_wpNameLesbar(rr.bvh)||(rr.projId?\"Projekt\":\"?\")"),
         ("Wochenplan, Monteursname", "_kurz(nm,6)"),
         ("Abwesenheiten, Art am Telefon", "_kurz(v.l,12)"),
         ("Admin, Datanorm-Adresse", "_kurz(s.datanorm_url"),
