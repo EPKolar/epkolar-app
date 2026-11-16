@@ -11,20 +11,20 @@ def _export_fn(src):
 
 
 def test_option_aktuelle_ansicht_steht_zuerst(index_html):
-    assert '[["ansicht","Aktuelle Ansicht ("+sorted.length+")"],["offen_bearb","Offen (alle)"],' in index_html
+    assert '[["ansicht","Aktuelle Ansicht ("+sorted.length+(sorted.length===1?" Schein)":" Scheine)")],["offen_bearb","Offen (alle)"],' in index_html
 
 
 def test_ansicht_nimmt_die_gefilterte_sortierte_liste(index_html):
     fn = _export_fn(index_html)
-    assert 'statusFilter==="ansicht"?sorted:' in fn
+    # v1017 GF: weiter die Bildschirmliste, in der Datei aber nach Scheinnummer sortiert
+    assert 'const _ansicht=statusFilter==="ansicht";' in fn and '_ansicht?[...sorted].sort(' in fn
     assert 'statusFilter==="ansicht"?"Aktuelle Ansicht":' in fn
 
 
 def test_bisherige_zweige_unveraendert(index_html):
     fn = _export_fn(index_html)
     alt_src = ('statusFilter==="alle"?arbeitsscheine:arbeitsscheine.filter(a=>statusFilter==="offen_bearb"?'
-               'AS_GRP_OFFEN.includes(a.scheinstatus):statusFilter==="fertig"?AS_GRP_FERTIG.includes(a.scheinstatus):'
-               'a.scheinstatus===statusFilter);')
+               'AS_GRP_OFFEN.includes(a.scheinstatus):a.scheinstatus===statusFilter);')  # v1017: toter Zweig "fertig" entfernt (Menue bot ihn nie an)
     assert alt_src in fn
     assert 'genXls("\U0001F4CB OFFA Export — "+lbl+" ("+data.length+")"' in fn, "Titel/OFFA-Weiche unveraendert"
     for k in ("offen_bearb", "aufgenommen", "freigegeben", "in_bearbeitung", "aufgeschoben", "erledigt",
@@ -40,5 +40,5 @@ def test_sorted_ist_die_bildschirmliste(index_html):
 
 
 def test_umkehrprobe(index_html):
-    kaputt = index_html.replace('statusFilter==="ansicht"?sorted:', "", 1)
-    assert 'statusFilter==="ansicht"?sorted:' not in _export_fn(kaputt)
+    kaputt = index_html.replace('_ansicht?[...sorted].sort(', "_ansicht?arbeitsscheine.sort(", 1)
+    assert '_ansicht?[...sorted].sort(' not in _export_fn(kaputt)
