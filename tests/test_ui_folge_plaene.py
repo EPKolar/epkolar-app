@@ -3,10 +3,10 @@
 
   1 Handy-Kopf    EINE Zeile ueber dem Plan (die Versionszeile schob ihn 364 -> 416 px); Version im Menue
   2 Status-Blatt  Raster mit 8 px Abstand und Spalten >= 120 px statt flex 30 % (abgeschnitten bei 360 px / im Tablet-Blatt)
-  3 Schnellfilter Offen / In Arbeit / Ueberfaellig mit EINEM Tipp im Handy-Kopf
+  3 Schnellfilter Offen / In Arbeit / Ueberfaellig mit EINEM Tipp - am Handy AUF dem Plan (statt des Dauer-Hinweises)
   4 Zentrieren    erneuter Tipp auf DASSELBE Ticket zentriert wieder (Sperre nur gegen Neuzeichnen)
   6 PDF-Seiten    am Handy keine 110-px-Seitenleiste, Umschalter "Seite n/m"
-  7 Manifest      background_color = helles V.bg (Standard-Thema hell)
+  7 Manifest      background_color = helles V.bg (Standard-Thema hell); Startanzeige folgt der App-Wahl
   8 AS-Deep-Link  Reiter-Index aus der gerenderten Reiterliste (mit Chef) - Node fuehrt die echte Rechnung aus
 
 Gemessen (Playwright, Offline-Sitzung, Schreibzugriffe abgefangen) - die Zahlen stehen im Bericht; hier wird
@@ -93,28 +93,41 @@ def test_status_raster_umkehrprobe(index_html, alt, neu):
     assert pruef_status_raster(index_html.replace(alt, neu, 1)), "Riegel blind fuer: " + alt
 
 
-# ── 3 Schnellfilter ────────────────────────────────────────────────────────
+# ── 3 Schnellfilter (Handy: AUF dem Plan, statt des Dauer-Hinweises) ────────
 def pruef_schnellfilter(src):
     v = _vplan(src)
     b = []
     i = v.find("'aria-label': \"Schnellfilter Status\"")
     if i < 0:
-        b.append("kein Schnellfilter im Kopf")
+        b.append("kein Schnellfilter")
         return b
-    kopf_a = v.index('subView==="viewer"&&React.createElement(\'div\', { style: {display:"flex",gap:8,alignItems:"center",marginBottom:8,position:"relative"}}')
-    kopf_e = v.index("/* Plaene Stufe 2 (2)(4): zweite Zeile")
-    if not (kopf_a < i < kopf_e):
-        b.append("Schnellfilter steht nicht in der Kopfzeile")
-    z = v[i:v.index("\n", i)]
+    box_a = v.index("React.createElement('div', { ref: _planBoxRef")
+    box_e = v.index("_rechts&&React.createElement('div', { ref: _spalteRef")
+    if not (box_a < i < box_e):
+        b.append("Schnellfilter steht nicht auf dem Plan")
+    if v.count("'aria-label': \"Schnellfilter Status\"") != 1:
+        b.append("Schnellfilter doppelt (Kopf und Plan)")
+    z = v[v.rindex("\n", 0, i):v.index("\n", i)]
+    if "isMob&&_schnellAufPlan&&" not in z:
+        b.append("Schnellfilter nicht auf das Handy beschraenkt")
     for soll in ('_fChip(filterStatus==="offen","Offen",()=>setFilterStatus(filterStatus==="offen"?"alle":"offen")',
                  '_fChip(filterStatus==="in_bearbeitung","In Arbeit",()=>setFilterStatus(filterStatus==="in_bearbeitung"?"alle":"in_bearbeitung")',
                  '_fChip(filterFrist==="ueberfaellig","Überfällig",()=>setFilterFrist(filterFrist==="ueberfaellig"?"alle":"ueberfaellig")'):
         if soll not in z:
             b.append("Schnellfilter fehlt/falsch: " + soll[:40])
-    if "'data-no-swipe': \"1\"" not in z:
-        b.append("Querrollen der Leiste loest die Reiter-Wischgeste aus")
-    if 'gridAutoColumns:"max-content"' not in z:
-        b.append("Knoepfe schrumpfen (flex drueckte sie auf 44 px)")
+    stil = v[v.index("const _schnellStil="):v.index("const _schnellStil=") + 200]
+    if z.count("_schnellStil(") != 3 or 'pointerEvents:"auto"' not in stil:
+        b.append("Knoepfe nicht tippbar (Leiste hat pointerEvents:none)")
+    if 'flexWrap:"nowrap"' not in z or "right:82" not in z:
+        b.append("Leiste bricht um oder laeuft unter die Werkzeugleiste")
+    if "const _schnellAufPlan=!!selPlan&&plans.length>0&&!_altPlan&&!placing&&_planAlle.length>0&&!quickTicket&&!quickDefect&&!newTicket;" not in v:
+        b.append("Knoepfe bleiben bei offenem Blatt (decken dann die obersten Pins)")
+    if "selPlan&&plans.length>0&&!_altPlan&&!(isMob&&_schnellAufPlan)&&React.createElement('div', { 'aria-live': \"polite\"" not in v:
+        b.append("Dauer-Hinweis und Knoepfe liegen uebereinander / Hinweis am Tablet weg")
+    if 'sessionStorage.getItem("epk_hinweis_langtipp")' not in v or '"Lange tippen = neues Ticket hier (oder Plus-Knopf)"' not in v:
+        b.append("Lange-Tipp-Hinweis am Handy nicht mehr auffindbar (einmal je Sitzung)")
+    if "minWidth:isMob&&_planAlle.length>0?128:0" in v:
+        b.append("Planwahl im Kopf wieder verkuerzt")
     return b
 
 
@@ -123,12 +136,69 @@ def test_schnellfilter(index_html):
 
 
 @pytest.mark.parametrize("alt,neu", [
-    ('()=>setFilterFrist(filterFrist==="ueberfaellig"?"alle":"ueberfaellig"),"sf_ue")', '()=>setFilterStatus("offen"),"sf_ue")'),
-    ('gridAutoFlow:"column",gridAutoColumns:"max-content",', ''),
+    ('()=>setFilterFrist(filterFrist==="ueberfaellig"?"alle":"ueberfaellig"),"sf_ue"', '()=>setFilterStatus("offen"),"sf_ue"'),
+    ('boxShadow:"0 2px 8px rgba(0,0,0,.25)",pointerEvents:"auto",flexShrink:0});', 'boxShadow:"0 2px 8px rgba(0,0,0,.25)",flexShrink:0});'),
+    ("&&_planAlle.length>0&&!quickTicket&&!quickDefect&&!newTicket;", "&&_planAlle.length>0;"),
+    ('try{if(sessionStorage.getItem("epk_hinweis_langtipp"))return;', "try{"),
+    ("selPlan&&plans.length>0&&!_altPlan&&!(isMob&&_schnellAufPlan)&&React.createElement('div', { 'aria-live'", "selPlan&&plans.length>0&&!_altPlan&&React.createElement('div', { 'aria-live'"),
 ])
 def test_schnellfilter_umkehrprobe(index_html, alt, neu):
     assert alt in index_html, alt
     assert pruef_schnellfilter(index_html.replace(alt, neu, 1)), "Riegel blind fuer: " + alt
+
+
+# ── 7b Startanzeige folgt der App-Wahl ──────────────────────────────────────
+def _kontrast(a, b):
+    def lum(h):
+        c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    x, y = sorted([lum(a), lum(b)])
+    return (y + 0.05) / (x + 0.05)
+
+
+def pruef_startanzeige(src):
+    b = []
+    a = src.index('<div id="ep-boot-indicator"')
+    kopf = src[:a]
+    boot = src[a:src.index("},8000);", a)]
+    m = re.search(r':root\[data-epk-thema="hell"\]\{([^}]*)\}</style>\s*$', kopf)
+    if not m:
+        b.append("keine helle Startanzeige direkt vor dem Element (Schluessel data-epk-thema aus Zeile 2)")
+        return b
+    var = dict(re.findall(r"(--epk-boot-[a-z0-9]+):(#[0-9A-Fa-f]{6})", m.group(1)))
+    if var.get("--epk-boot-bg", "").upper() != "#F2F4F2":
+        b.append("heller Grund nicht #F2F4F2")
+    # jede Schriftfarbe auf dem hellen Grund >= 4,5:1; weisse Knopfschrift auf dem Knopfgrund ebenso
+    for k in ("tx", "dm", "dm2", "fehler", "text", "orange", "klein", "warn"):
+        w = var.get("--epk-boot-" + k)
+        if not w or _kontrast(w, var.get("--epk-boot-bg", "#000000")) < 4.5:
+            b.append("Kontrast --epk-boot-%s < 4,5:1" % k)
+    if var.get("--epk-boot-orange") and _kontrast("#FFFFFF", var["--epk-boot-orange"]) < 4.5:
+        b.append("Knopfschrift auf --epk-boot-orange < 4,5:1")
+    if "prefers-color-scheme" in m.group(0):
+        b.append("Startanzeige liest die Geraete-Einstellung")
+    roh = re.findall(r"(?:color|background|border(?:-top-color)?):\s*(#[0-9a-fA-F]{3,6})", boot)
+    roh = [c for c in roh if c.lower() not in ("#fff",)]
+    if roh:
+        b.append("feste Farben in der Startanzeige: %s" % sorted(set(roh)))
+    if "background:var(--epk-boot-bg,#0f1117)" not in boot:
+        b.append("Dunkel nicht mehr die bisherige Farbe (Rueckfallwert)")
+    return b
+
+
+def test_startanzeige(index_html):
+    assert pruef_startanzeige(index_html) == []
+
+
+@pytest.mark.parametrize("alt,neu", [
+    ("--epk-boot-dm:#5B6660;", "--epk-boot-dm:#9AA39E;"),
+    ('color:var(--epk-boot-fehler,#ff6666);margin-bottom:8px">⚠️ App startet nicht', 'color:#ff6666;margin-bottom:8px">⚠️ App startet nicht'),
+    (':root[data-epk-thema="hell"]{--epk-boot-bg', ':root[data-x="hell"]{--epk-boot-bg'),
+])
+def test_startanzeige_umkehrprobe(index_html, alt, neu):
+    assert alt in index_html, alt
+    assert pruef_startanzeige(index_html.replace(alt, neu, 1)), "Riegel blind fuer: " + alt
 
 
 # ── 4 erneut tippen = wieder zentrieren ────────────────────────────────────
