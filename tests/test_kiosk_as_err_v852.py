@@ -12,7 +12,9 @@ blieb unerreicht. Der Zwilling `__kioskFzErr` zeigt es in der WochenplanTafel
 def test_kiosk_as_err_wird_gerendert(index_html):
     # __kioskAsErr wird jetzt im Render gelesen (nicht nur gesetzt)
     assert "window.__kioskAsErr&&window.__kioskAsErr!=='ok')?window.__kioskAsErr:null" in index_html
-    assert "'⚠️ AS:Fehler('+_asErr+')'" in index_html
+    # v3.9.1015 CI Display: das Warn-Emoji ist eine Linien-Ikone (_ik warnung)
+    # VOR dem Text geworden - der sichtbare Text bleibt im Knoten.
+    assert "_ik('warnung',16)),'AS:Fehler('+_asErr+')'" in index_html
 
 
 def test_marker_wird_weiterhin_gesetzt(index_html):

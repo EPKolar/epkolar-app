@@ -33,7 +33,8 @@ def test_tagesbelegung_aus_rows_z_fz(index_html):
 def test_doppelbelegung_rot_und_warn(index_html):
     t = _tafel(index_html)
     assert "var conflict=assigned.length>1;" in t
-    assert "conflict?'⚠️ '" in t
+    # v3.9.1015 CI Display: Warnzeichen als Linien-Ikone statt Emoji, Text bleibt.
+    assert "conflict?h('span'" in t and "_ik('warnung',14)),bvh):bvh" in t
     assert "conflict?'rgba(239,68,68,.12)'" in t
 
 
@@ -46,7 +47,8 @@ def test_fz_ohne_belegung_ausgeblendet(index_html):
 def test_zeilen_unter_zeitausgleich(index_html):
     t = _tafel(index_html)
     # Die 🚛-Zeilen hängen NACH den drei _absRow-Aufrufen im tbody.
-    assert re.search(r"_absRow\('⏰ Zeitausgleich',_zaMatch\)\s*,_spezVisible\.map\(_fzRow\)", t)
+    # v3.9.1015 CI Display: Beschriftung ohne Emoji, Ikone als drittes Argument.
+    assert re.search(r"_absRow\('Zeitausgleich',_zaMatch,'uhr'\)\s*,_spezVisible\.map\(_fzRow\)", t)
 
 
 def test_kein_neuer_fetch(index_html):
@@ -67,4 +69,6 @@ def test_hauptweekplan_spezfz_unveraendert(index_html):
 def test_label_stil_wie_absrow(index_html):
     """Gleiche Zeilen-Optik wie Krankenstand/Urlaub: Label-<td> links, DAYS-Zellen."""
     t = _tafel(index_html)
-    assert "'🚛 '+((f.kennzeichen||'').split(' ')[0]||f.kennzeichen||'')" in t
+    # v3.9.1015 CI Display: dieselbe Etikett-Funktion wie die _absRow-Zeilen.
+    assert "_tfEt('transporter',((f.kennzeichen||'').split(' ')[0]||f.kennzeichen||''))" in t
+    assert "_tfEt(ik,label)" in t
