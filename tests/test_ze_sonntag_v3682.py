@@ -72,7 +72,7 @@ def test_summenleiste_sonntag_bedingt_aber_wochensumme_vollstaendig(index_html):
     assert '"Σ Woche"' in body
     # Seit Z9 (14.11.2026) zeigt die Ansicht mit Dezimalkomma ueber den lokalen
     # Formatierer _hK - die Eigenschaft ist "weekTotal wird ungefiltert angezeigt".
-    assert "_hK(weekTotal,1)" in body
+    assert "_hK(weekTotal,2)" in body
     assert "weekTotal" in body
 
 
