@@ -40,7 +40,10 @@ def test_applyTheme_zieht_das_meta_mit():
 @pytest.mark.parametrize("gespeichert,system_dunkel,erwartet", [
     ("light", True, "only light"),   # der A55-Fall: App hell, System dunkel
     ("dark", False, "only dark"),
-    (None, True, "only dark"),
+    # v3.9.1016 GF-Entscheidung: die App ignoriert die Betriebssystem-Einstellung -
+    # ohne Wahl (oder mit altem "system") ist es hell, auch bei dunklem System.
+    (None, True, "only light"),
+    ("system", True, "only light"),
     (None, False, "only light"),
 ])
 def test_frueh_skript_rechnet_richtig(gespeichert, system_dunkel, erwartet):

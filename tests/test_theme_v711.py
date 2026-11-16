@@ -12,12 +12,13 @@ def test_resolvetheme_behavior_executed(index_html, node_exe, tmp_path):
     assert m, "resolveTheme nicht gefunden"
     js = m.group(0) + u"""
 function eq(g,e,n){ if(g!==e){ console.error('FAIL '+n+': '+g+' != '+e); process.exit(1);} }
+// v3.9.1016 GF-Entscheidung: nur die App-Wahl zaehlt, ohne Wahl hell.
 eq(resolveTheme('light', true),  false, 'light schlaegt OS-dunkel');
 eq(resolveTheme('dark',  false), true,  'dark schlaegt OS-hell');
-eq(resolveTheme('system',true),  true,  'system folgt OS (dunkel)');
-eq(resolveTheme('system',false), false, 'system folgt OS (hell)');
-eq(resolveTheme(null,    true),  true,  'fehlend = system (dunkel)');
-eq(resolveTheme(undefined,false),false, 'fehlend = system (hell)');
+eq(resolveTheme('system',true),  false, 'altes system = hell, OS egal');
+eq(resolveTheme('system',false), false, 'altes system = hell');
+eq(resolveTheme(null,    true),  false, 'fehlend = hell, auch bei OS-dunkel');
+eq(resolveTheme(undefined,false),false, 'fehlend = hell');
 console.log('OK');
 """
     f = tmp_path / "theme.js"
@@ -29,14 +30,20 @@ console.log('OK');
 
 def test_global_key_and_default_system(index_html):
     # GLOBALER Key epk_theme (nicht mehr per-user epk_theme_<username> in der Aufloesung)
-    assert 'resolveTheme(localStorage.getItem("epk_theme"),_systemDark())' in index_html
+    assert 'resolveTheme(localStorage.getItem("epk_theme"))' in index_html
     assert 'localStorage.setItem("epk_theme",mode)' in index_html
 
 
 def test_hard_choice_ignores_matchmedia(index_html):
-    # Der OS-Wechsel-Listener uebernimmt NUR bei 'system' — harte Wahl ignoriert matchMedia.
-    seg = index_html.split('mq=window.matchMedia("(prefers-color-scheme: dark)")', 1)[1][:400]
-    assert 'if(v==="light"||v==="dark")return;' in seg
+    # v3.9.1016 GF: die App liest und beobachtet die OS-Einstellung GAR NICHT mehr.
+    # Nur Code zaehlt (Kommentare duerfen den alten Weg erklaeren).
+    import re as _re
+    code = _re.sub(r"/\*.*?\*/", "", index_html, flags=_re.S)
+    assert "prefers-color-scheme" not in code, "die App liest wieder die OS-Einstellung"
+    assert "_systemDark" not in code
+    # Umkehrprobe: der alte Lauscher wuerde erkannt
+    alt = code + 'const mq=window.matchMedia("(prefers-color-scheme: dark)");'
+    assert "prefers-color-scheme" in alt
 
 
 def test_colorscheme_follows_app(index_html):

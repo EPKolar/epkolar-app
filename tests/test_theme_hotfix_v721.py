@@ -86,7 +86,9 @@ def test_header_knopf_aendert_bei_jedem_tipp_das_AUSSEHEN(index_html):
 def test_setthememode_direkt(index_html):
     assert "const setThemeMode=(mode)=>" in index_html
     # Segmented Control ruft setThemeMode direkt (kein toggleTheme)
-    assert '[["light","Hell"],["dark","Dunkel"],["system","Auto"]]' in index_html
+    # v3.9.1016 GF: zwei Knoepfe, Hell und Dunkel - Auto (System) ist abgeschafft
+    assert '[["light","Hell"],["dark","Dunkel"]]' in index_html
+    assert '["system","Auto"]' not in index_html
     assert "setThemeMode(o[0])" in index_html
 
 
@@ -97,4 +99,5 @@ def test_verbindungview_bekommt_setthememode(index_html):
 def test_toast_bei_wechsel(index_html):
     assert "Hell aktiv" in index_html
     assert "Dunkel aktiv — bleibt auch bei OS-Wechsel" in index_html
-    assert "Auto: folgt dem Gerät" in index_html
+    # v3.9.1016 GF: es gibt keinen Auto-Modus mehr, also auch keinen Auto-Toast
+    assert "Auto: folgt dem Gerät" not in index_html

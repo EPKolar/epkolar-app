@@ -82,8 +82,9 @@ GEHOBEN = [
      "Favoritenstern in der Fahrzeugliste", "23x32"),
     ("padding:0,minWidth:44,minHeight:44,display:\"flex\",alignItems:\"center\",justifyContent:\"center\",zIndex:2", 1,  # v3.9.1004 F6: auf 44x44 gehoben
      "Favoritenstern auf der Fahrzeugkarte", "23x32"),
+    # v3.9.1016 Tablet-Test: von 24 auf 44 px gehoben (Loeschknopf war am Tablet abgeschnitten)
     ('display:"inline-flex",alignItems:"center",justifyContent:"center",'
-     'minWidth:24,minHeight:24', 2,
+     'minWidth:44,minHeight:44,padding:"2px 4px",borderRadius:6', 2,
      "Zeiterfassung: Eintrag bearbeiten und loeschen", "24.5x22 und 17.8x22"),
     ('padding:"3px 8px",minHeight:24,borderRadius:4', 1,
      "Tagesknoepfe des Stundenzettel-Exports", "rund 68x22"),

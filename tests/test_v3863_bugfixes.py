@@ -76,7 +76,9 @@ def test_urlaub_mode_pills_use_V_tx():
     """Mode-Toggle-Pills (Urlaub/Krankenstand/Zeitausgleich) inactive nutzt V.tx (nicht V.fg/V.dm)."""
     text = INDEX.read_text(encoding='utf-8')
     # Suche nach AT_T-Filter-Block mit "urlaub|krank|za" Filter, dann color-typ-Pattern
-    m = re.search(r'AT_T[\s\S]{0,300}?v\.kat==="za"[\s\S]{0,800}?color:typ===k\?v\.c:(V\.\w+)', text)
+    # v3.9.1016 CI: aktiv jetzt Markengruen-Text (V.acTx) statt Typfarbe v.c - die Eigenschaft
+    # dieses Riegels (INAKTIV = V.tx) bleibt unveraendert gepruefte.
+    m = re.search(r'AT_T[\s\S]{0,300}?v\.kat==="za"[\s\S]{0,1000}?color:typ===k\?(?:v\.c|V\.acTx):(V\.\w+)', text)
     assert m, 'Mode-Pills-Pattern (AT_T+urlaub/krank/za + color:typ===k?v.c:V.X) nicht gefunden'
     assert m.group(1) == 'V.tx', f'Mode-Pills inactive muss color:V.tx sein, ist: {m.group(1)}'
 

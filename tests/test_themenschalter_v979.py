@@ -65,7 +65,8 @@ ZWEIWEG = 'setThemeMode(isDark?"light":"dark");'
 RING = 'const next=cur==="light"?"dark":cur==="dark"?"system":"light";'
 
 # Die Segmented Control in den Einstellungen - der Ort, an dem Auto lebt.
-SEGMENTE = '[["light","Hell"],["dark","Dunkel"],["system","Auto"]]'
+# v3.9.1016 GF-Entscheidung: nur Hell und Dunkel - Auto (System) ist abgeschafft.
+SEGMENTE = '[["light","Hell"],["dark","Dunkel"]]'
 
 
 def _text():
@@ -122,13 +123,17 @@ def test_der_ringtausch_ist_weg():
         % zeilen)
 
 
-def test_auto_bleibt_in_den_einstellungen_erreichbar():
+def test_darstellung_bleibt_in_den_einstellungen_erreichbar():
     """🔴 Eine Kur, die einen Zustand unerreichbar macht, ist keine.
 
     Der Kopfknopf kennt nur noch Hell und Dunkel. Auto MUSS deshalb anderswo
     stehen - sonst haette diese Aenderung eine Einstellung abgeschafft.
     """
     t = _text()
+    # v3.9.1016: der dritte Zustand ist ABSICHTLICH weg (GF: "es zaehlt was in
+    # der app gewaehlt wurde"). Hell und Dunkel muessen beide beschriftet
+    # erreichbar bleiben.
+    assert not _im_code(t, '["system","Auto"]'), "Auto ist zurueck - GF hat es abgeschafft"
     assert _im_code(t, SEGMENTE), (
         "Die Segmented Control in den Einstellungen ist weg. Damit gibt es "
         "KEINEN Weg\n  mehr zu 'Auto (System)': der Kopfknopf schaltet seit "

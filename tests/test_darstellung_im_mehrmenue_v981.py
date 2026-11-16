@@ -39,8 +39,8 @@ import os
 
 PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 
-DREI = ('[["light","Hell"],["dark","Dunkel"],'
-        '["system","Auto"]]')
+# v3.9.1016 GF-Entscheidung: nur noch Hell/Dunkel, kein Auto (System).
+DREI = '[["light","Hell"],["dark","Dunkel"]]'
 
 
 def _text():
