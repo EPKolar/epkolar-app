@@ -4122,6 +4122,17 @@ async function _asPullFresh(setArbeitsscheine){
   }catch(e){console.warn('[AS-PULL]',e&&e.message||e);return{ok:false,error:(e&&e.message)||String(e)};}
 }
 
+/* v3.9.1025 Status-Schutz: unbekannter AK_AUFSTATUS bei einem BESTEHENDEN Schein -> einmal je Sitzung (Nummer+Code)
+   console.warn + activity_log juprowa_status_unbekannt. Fire-and-forget, kann den Pull nie brechen. Schreibt NICHT auf arbeitsscheine. */
+var _jpStatusUnbekanntGemeldet={};
+function _juprowaStatusUnbekannt(nummer,code){
+  var _k=String(nummer||'')+'|'+String(code);
+  if(_jpStatusUnbekanntGemeldet[_k])return;
+  _jpStatusUnbekanntGemeldet[_k]=true;
+  console.warn('[JP-STATUS-UNBEKANNT]',nummer,code);
+  try{var _uS=JSON.parse(localStorage.getItem('epkolar_user')||'null');_sbPost('activity_log',{user_id:(_uS&&_uS.id)||'system',action:'juprowa_status_unbekannt',details:JSON.stringify({nummer:nummer,code:(code==null?null:String(code))})}).catch(function(){});}catch(_e){console.warn('[JP-STATUS-UNBEKANNT-LOG]',_e&&_e.message||_e);}
+}
+
 async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
   if(_juprowaSyncing)return{error:"Sync läuft bereits"};
   _juprowaSyncing=true;
@@ -4165,7 +4176,11 @@ async function _juprowaSync(arbeitsscheine,setArbeitsscheine,silent){
         if(mapped.kundTel&&mapped.kundTel!==existing.kundTel)upd.kundTel=mapped.kundTel;
         if(mapped.kundEmail&&mapped.kundEmail!==existing.kundEmail)upd.kundEmail=mapped.kundEmail;
         if(mapped.projektnr&&mapped.projektnr!==existing.projektnr)upd.projektnr=mapped.projektnr;
-        if(!isPending&&mapped.scheinstatus!==existing.scheinstatus)upd.scheinstatus=mapped.scheinstatus;
+        /* v3.9.1025 Status-Schutz: unbekannter OFFA-Statuscode -> _juprowaMapWorksheet faellt auf "aufgenommen" zurueck (fuer NEUE Scheine richtig).
+           Fuer BESTEHENDE Scheine ist das ein erfundener Wert, der spaeter als AK_AUFSTATUS 0 nach OFFA gehen kann -> alten scheinstatus behalten + einmal melden. */
+        const _stBekannt1025=JUPROWA_STATUS_MAP[String(jws.AK_AUFSTATUS)]!=null;
+        if(!_stBekannt1025)_juprowaStatusUnbekannt(mapped.nummer,jws.AK_AUFSTATUS);
+        if(!isPending&&_stBekannt1025&&mapped.scheinstatus!==existing.scheinstatus)upd.scheinstatus=mapped.scheinstatus;
         if(mapped.terminVorschlag&&mapped.terminVorschlag!==existing.terminVorschlag)upd.terminVorschlag=mapped.terminVorschlag;
         if(!isPending&&mapped.terminBestaetigt&&mapped.terminBestaetigt!==existing.terminBestaetigt)upd.terminBestaetigt=mapped.terminBestaetigt;
         if(!isPending&&mapped.arbeitsanweisungen&&mapped.arbeitsanweisungen!==existing.arbeitsanweisungen)upd.arbeitsanweisungen=mapped.arbeitsanweisungen;
