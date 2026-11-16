@@ -82,9 +82,14 @@ def test_project_header_name_min_width(index_html):
 
 def test_chef_kritisch_row_wraps(index_html):
     # v3.9.117: Zeile wrappt — Kundenname wurde sonst @360 auf 28px gequetscht (ellipsis allein reichte nicht)
-    assert "cursor:'pointer',alignItems:'center',flexWrap:'wrap'}}" in index_html, (
-        "Chef kritisch-AS-Zeile muss flexWrap haben"
+    # P3-A55 (16.11.) NACHGEZOGEN: genau das Umbrechen schob am A55 (412 px) die Tageszahl in eine
+    # eigene Zeile (Zeilen 58/44 px). Die Eigenschaft "Name wird nicht gequetscht" haelt jetzt eine
+    # eigene Spalte: Name+Monteur stehen untereinander (minWidth 110 bleibt, siehe unten), die
+    # Tageszahl hat eine feste, nicht umbrechende Spalte. Riegel: tests/test_p3_a55_befunde.py.
+    assert "cursor:'pointer',alignItems:'center',flexWrap:'nowrap'}}" in index_html, (
+        "Chef kritisch-AS-Zeile: drei feste Spalten, kein Umbruch"
     )
+    assert "{flex:1,minWidth:0,display:'flex',flexDirection:'column'}" in index_html
 
 
 def test_admin_subtabs_no_shrink(index_html):

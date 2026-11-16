@@ -85,6 +85,9 @@ GRUND = {
     #    Abschreiben waere eine Attrappe, die auseinanderlaeuft; `_schnitt`
     #    holt die echte Fassung und besteht auf Eindeutigkeit.
     "ktgStd": ("function _ktgStd(v){", "return isNaN(_k)?192.5:_k;}"),
+    # P3-A55 (16.11.): die Team-Kachel zeichnet ihre Ikone ueber `_teamIk(at2,m)`
+    # (Linien-Ikone statt Emoji). GESCHNITTEN wie _ktgStd, nicht nachgebaut.
+    "teamIk": ("const AT_KAT_IK={", 'return (m&&m.r==="Geschäftsführer")?"aktentasche":"person";}'),
 }
 
 S_TEAM = {
@@ -188,6 +191,9 @@ var UI={fMeta:12,fKlein:13,fText:14,fTitel:15,fTitelGross:17,
 %(istEhemalig)s
 %(waehlbar)s
 %(ktgStd)s
+%(teamIk)s
+/* P3-A55: _ik zeichnet im echten Code ein SVG; hier nur der Schluessel. */
+function _ik(n){ return {ik:n}; }
 
 function _tag(off){
   var d = new Date(_ezHeuteISO() + "T12:00:00Z");

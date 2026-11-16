@@ -225,8 +225,10 @@ def test_home_ohne_bedien_emoji(index_html):
     hv = nur_code(_fn(index_html, "HomeView"))
     rest = [e for e in HOME_WEG if e in hv]
     assert not rest, "Emoji auf Home: %r" % rest
-    # Wetter-Emoji bleiben (Regel): WMO-Symbole, Wind/Feuchte
-    assert "WMO[wcode]" in hv
+    # P3-A55 (16.11., Auftrag: Wetter -> Linien-Ikonen): die Wetterleiste zeichnet
+    # Linien-Ikonen aus IKON statt der WMO-Emoji; die Leiste selbst bleibt.
+    # Vorher stand hier: assert "WMO[wcode]" in hv (Wetter-Emoji bleiben).
+    assert "_ik(_wmoIk(wcode)" in hv
     kaputt = hv.replace('{i:"helm",l:"Neues Projekt"', '{i:"\U0001F3D7",l:"Neues Projekt"', 1)
     assert any(e in kaputt for e in HOME_WEG)
 
