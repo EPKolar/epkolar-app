@@ -39,5 +39,5 @@ def test_nur_anzeige_und_bestehendes_unberuehrt(index_html):
 
 
 def test_umkehrprobe(index_html):
-    kaputt = index_html.replace("return t<maxMs-36e5;", "return false;", 1)
-    assert "return t<maxMs-36e5;" not in kaputt
+    kaputt = index_html.replace("return t<maxMs-60*60*1000;", "return false;", 1)
+    assert "return t<maxMs-60*60*1000;" not in kaputt
