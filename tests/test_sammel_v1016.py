@@ -266,3 +266,11 @@ def test_umkehrprobe_layout_und_karten_riegel(index_html):
     alt_karte = index_html.replace("const lastSync=_supplierSyncText(s);",
                                    'const lastSync=s.last_sync?"x":"nie";', 1)
     assert ':"nie";' in alt_karte[alt_karte.index('adminTab==="haendler"&&('):][:60000]
+
+
+def test_offa_banner_sagt_feed_stillstand_v1017(index_html):
+    """Banner erscheint nur noch bei globalem Feed-Stillstand - der Text muss genau das sagen."""
+    i = index_html.index("(_verwaisteN>0&&canSync)")
+    fenster = index_html[i:i + 2500]
+    assert "OFFA-Feed steht seit über" in fenster
+    assert "evtl. in OFFA abgeschlossen" not in fenster, "alter, fuer diesen Fall falscher Wortlaut"
