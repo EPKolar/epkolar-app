@@ -47,7 +47,7 @@ CHEF_ENDE = "function FahrtenbuchPanel("
 AS_REST = [
     # OFFA / Juprowa
     '"📊 OFFA Excel"',
-    '"⚠ "+_nWort(_verwaisteN',
+    '"⚠ "+"OFFA-Feed',  # v3.9.1016: Banner-Text sagt jetzt "Feed steht" (einziger verbleibender Fall)
     '"⚠ "+um.length+" unbekannte Monteur-Codes: "',
     '"❌ ausgeschieden"',
     '_2("✅ "+code+" → "',
