@@ -135,8 +135,13 @@ def test_kein_emojiknopf_ohne_namen():
     """Jeder Knopf mit reinem Emoji-Inhalt traegt title oder aria-label."""
     roh = _lies()
     alle = _emojiknoepfe(roh)
-    assert len(alle) > 100, (
-        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 100. Das ist kein "
+    # Plaene Stufe 1 NACHGEZOGEN: 100 -> 60. Der Auftrag ersetzt im Plan-Bereich die Emoji-Knoepfe
+    # durch Linien-Ikonen (gemessen: 102 -> 80 im Abtaster). Die Untergrenze ist eine Eichung der
+    # GRUNDGESAMTHEIT, keine Zielzahl - sie darf mit jeder CI-Stufe sinken, aber nicht auf null fallen,
+    # sonst waere ein blinder Abtaster gruen. Die Eichung gegen die alten Fehlmeldungen steht unveraendert
+    # im Test darunter.
+    assert len(alle) > 60, (
+        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 60. Das ist kein "
         "gruenes Ergebnis: entweder ist der Abtaster blind, oder die Knoepfe "
         "sind anders geschrieben. Eine kleine Grundgesamtheit macht die "
         "Aussage unten wertlos." % len(alle))

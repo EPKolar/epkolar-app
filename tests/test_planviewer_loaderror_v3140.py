@@ -27,4 +27,5 @@ def test_load_error_state(index_html):
 
 def test_error_overlay_with_link(index_html):
     assert '"Plan konnte nicht angezeigt werden"' in index_html
-    assert '"📄 Plan im neuen Tab öffnen"' in index_html
+    # Plaene Stufe 1 NACHGEZOGEN: Wortlaut ohne Emoji (Linien-Ikonen statt Emoji im Plan-Bereich).
+    assert '"Plan im neuen Tab öffnen"' in index_html

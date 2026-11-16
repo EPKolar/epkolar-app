@@ -190,8 +190,15 @@ def test_pr11_review_verlangt_wahl(src):
 def test_pr9_unterreiter_beschriftet_und_ebenen_ohne_zaehler(src):
     rumpf = _fn(src, "VPlan", code_only=True)
     assert 'c:layers.length' not in rumpf, "Ebenen-Reiter zaehlt wieder die konfigurierten Ebenen."
-    assert 'isMob?t.k:t.l' in rumpf
-    assert 'plans.length>0&&React.createElement(\'div\', { style: {marginLeft:"auto"' in rumpf
+    # Plaene Stufe 1 NACHGEZOGEN: Unterreiter-Leiste und Ebenen-Chips ueber dem Plan sind auf Auftrag weg
+    # ("Plan zuerst": eine Kopfzeile, Ebenen im Menue). Die PR9-Zusagen bleiben geprueft: die Wege haben
+    # Worte (Menuepunkte mit Text) und Ebenen zaehlen nur, was dort liegt (Tickets je Ebene), nie die Zahl
+    # der konfigurierten Ebenen.
+    assert 'isMob?t.k:t.l' not in rumpf
+    assert '_mPunkt("liste","Alle Tickets (Liste)"' in rumpf and '_mPunkt("ordner","Planverwaltung"' in rumpf
+    assert '_mPunkt("ebenen","Ebenen verwalten"' in rumpf
+    assert "const cnt=allTickets.filter(t=>(t.gewerk||t.layer)===l.id).length" in rumpf
+    assert 'plans.length>0&&layers.map(' in rumpf, "Ebenen ohne Plan anzubieten waere wieder der PR9-Fehler."
 
 
 def test_pr2_reiter_heisst_uebersicht_mit_umlaut(src):
