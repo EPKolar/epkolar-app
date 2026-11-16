@@ -2564,6 +2564,15 @@ function _zeitEffektiveStunden(von,bis,pause){
 /* v3.9.1005: Meldung und Pruefung fuer Gehen <= Kommen an EINER Stelle. true nur, wenn BEIDE Zeiten da sind und
    nach dem 5-Minuten-Raster das Gehen nicht nach dem Kommen liegt. Leere Zeiten sind KEIN Fehler (Handeingabe). */
 var ZEIT_BIS_VOR_VON_MSG="Gehen-Zeit liegt vor Kommen-Zeit - bitte prüfen";
+/* v1016 Bedienung (Tablet-Test 16.11.): das Stundenfeld im Dialog sah beschreibbar aus, nahm aber nichts an, solange Von/Bis gesetzt sind (readOnly seit v3.9.885). Jetzt SIEHT es auch berechnet aus: grau, gestrichelt, kein Text-Cursor, darunter 'aus Von/Bis/Pause'. EINE Bedingung fuer Sperre, Aussehen und Hinweis: _zeitEffektiveStunden!=null. */
+function _zeitStdStil(von,bis,pause){return _zeitEffektiveStunden(von,bis,pause)==null?{}:{background:"transparent",borderStyle:"dashed",color:V.dm,cursor:"default",boxShadow:"none"};}
+function _zeitStdHinweis(von,bis,pause){return _zeitEffektiveStunden(von,bis,pause)==null?null:React.createElement('div',{'data-zeit-errechnet':"1",style:{fontSize:UI.fMeta,color:V.dm,marginTop:3}},"aus Von/Bis/Pause");}
+/* v1016 Bedienung: Pause lesbar auf der Karte ('1 h Pause'). Nur Anzeige; null/leer = keine Angabe (alte Eintraege ohne Pause-Spalte). */
+/* v1016 Bedienung: der Loeschdialog nennt den Eintrag ('Zeiteintrag Mo 16.11. · 8,00 h · BVH … löschen?') - vorher stand nur 'Zeiteintrag wirklich löschen?', und welcher, sah man hinter dem Dialog nicht. */
+/* v1016: Kamera-Fehler auf Deutsch. Vorher wurde err.message angehaengt - die kommt vom Browser auf Englisch ('Permission denied'). */
+function _kameraFehlerText(err){var n=err&&err.name||"";if(n==="NotAllowedError"||n==="SecurityError"||n==="PermissionDeniedError")return "Kamera-Zugriff verweigert – bitte in den Browser-Einstellungen erlauben";if(n==="NotFoundError"||n==="OverconstrainedError")return "Keine passende Kamera gefunden";if(n==="NotReadableError"||n==="AbortError")return "Kamera ist gerade belegt – andere App schließen und erneut versuchen";return "Kamera nicht verfügbar";}
+function _zeitEintragName(datum,stunden,was){var t=String(datum||"").slice(0,10);var d=new Date(t+"T00:00:00");var tag=isNaN(d.getTime())?t:(["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()]+" "+String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+".");var h=parseFloat(stunden);var teile=[tag];if(!isNaN(h))teile.push(String(h.toFixed(2)).replace(".",",")+" h");if(was)teile.push(String(was));return teile.filter(Boolean).join(" · ");}
+function _zeitPauseText(p){if(p===null||p===undefined||p==="")return "";var z=parseFloat(p);if(isNaN(z))return "";if(z<=0)return "ohne Pause";if(z===0.5)return "30 Min Pause";return String(Math.round(z*100)/100).replace(".",",")+" h Pause";}
 function _zeitDauerUngueltig(von,bis){
   var rv=_zeitRundVon(von), rb=_zeitRundBis(bis);
   if(!rv||!rb)return false;
@@ -3799,7 +3808,7 @@ const ROLES={
   viewer:{l:"Nur Lesen",c:"#71717a",i:"👁️",modules:["projekte","urlaub","stunden","fahrzeuge"]},
 };
 const PERMS_DESC={projekte:"Projekte anzeigen & bearbeiten",arbeitsscheine:"Arbeitsscheine & Störungen",wochenplanung:"Wochenplanung bearbeiten",zeiterfassung:"Zeiterfassung (Stunden buchen)",urlaub:"Urlaub-Tab sehen (eigene Anträge)",mitarbeiter:"Mitarbeiter verwalten & zuweisen",werkzeuge:"Werkzeug & Geräte verwalten",auswertungen:"Auswertungen & Diagramme",formulare:"Formulare erstellen & bearbeiten",maengel:"Mängel erfassen & verwalten",plaene:"Pläne & Tickets verwalten",export:"Export-Funktionen nutzen",offa:"OFFA Export nutzen",admin:"Benutzerverwaltung & Einstellungen",stunden:"Monatsabrechnung einsehen & freigeben",fahrzeuge:"Firmenfahrzeuge verwalten",bautagebuch:"Bautagebuch & Tagesberichte",material:"Material-Anforderung & Bestellliste",bueroexport:"Büro-Portal (Bauwochenberichte)",urlaub_edit:"Urlaub/Abwesenheit verwalten (bearbeiten + genehmigen)"};
-const _ROLE_CLR_MAP={"Geschäftsführer":COLORS.ERROR,"Projektleiter":"#f97316","Obermonteur":"#a855f7","Techniker":"#0ea5e9","Störungstechniker":"#0ea5e9","Monteur":"#3b82f6","Helfer":"#22c55e","Lehrling":"#84cc16","Praktikant":"#84cc16","Lagerleitung":"#f97316","Backoffice":"#6366f1","Verkauf/Buchhaltung":"#6366f1"};
+const _ROLE_CLR_MAP={"Geschäftsführer":"#00722F"/* v1016 CI: vorher Gefahr-Rot */,"Projektleiter":"#f97316","Obermonteur":"#a855f7","Techniker":"#0ea5e9","Störungstechniker":"#0ea5e9","Monteur":"#3b82f6","Helfer":"#22c55e","Lehrling":"#84cc16","Praktikant":"#84cc16","Lagerleitung":"#f97316","Backoffice":"#6366f1","Verkauf/Buchhaltung":"#6366f1"};
 const _ROLE_CLR=r=>_ROLE_CLR_MAP[r]||"#6b7280";
 const INIT_USERS=[
   {id:"u1",username:"guenther",name:"Günther Sebastian",email:"guenther@ep-kolar.at",role:"admin",active:true,monteurId:"w6",lastLogin:"2026-02-22",created:"2024-01-01",locked:false,permsOverride:null},
@@ -4889,7 +4898,13 @@ function _isValidKalibDate(s){if(!s||typeof s!=='string')return false;if(!/^\d{4
    Abzeichen und stand unveraendert in der Ausgabeliste.
    Entscheidung: der von Hand gesetzte Status ist die ausdrueckliche Aussage eines Menschen und zaehlt mit,
    auch wenn das Datum in der Zukunft liegt oder fehlt. Das Datum zaehlt nur mit gueltigem Wert. */
+/* v1016 Zahlen-Konsistenz (Tablet-Test 16.11.: Home 'Pickerl 7 Fahrzeuge', Seite Fahrzeuge 'Pickerl faellig 8'). Ursache: Home rechnete mit eigenem Praedikat - 365-Tage-Deckel (auf der Fahrzeug-Seite in v3.9.898 bewusst entfernt) und ohne Abzug der stillgelegten. EINE Definition fuer Home und Chef: zeichengleich mit den Kachel-Praedikaten pickerFaellig/serviceFaellig der Fahrzeug-Seite. Die Seite selbst ruft den Helfer NICHT, weil test_fuhrpark_kacheln_v898 ihre Zeilen woertlich ausschneidet und in Node ausfuehrt; die Gleichheit sichert test_v1016_bedienung. */
+function _fzPickerlFaellig(f){const _pkSt=window._pickerlStatus(f.pickerl);return _pkSt==='warn'||_pkSt==='overdue';}
+function _fzServiceFaellig(f){if(!f.naechstService)return false;const d=new Date(f.naechstService+"T00:00:00");return d<=new Date();}
+function _fzFaelligkeit(liste){var a=(liste||[]).filter(function(f){return f&&f.status!=="stillgelegt";});var pk=a.filter(_fzPickerlFaellig),sv=a.filter(_fzServiceFaellig);var ids=new Set(pk.concat(sv).map(function(f){return f.id||f.kennzeichen;}));return {pickerl:pk,service:sv,fahrzeuge:ids.size};}
 function _wzKalibFaellig(w){if(!w)return false;if(w.status==='kalibrierung')return true;return _isValidKalibDate(w.naechsteKalib)&&w.naechsteKalib<=td2();}
+/* v1016: ISO-Zeitstempel "2026-11-16 10:11" / "2026-11-16T10:11" als "16.11.2026 10:11" - nur Anzeige (Sync-Zeile, Suche). */
+const _datumDE=v=>{var t=String(v==null?"":v);var m=/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2}))?/.exec(t);if(!m)return t;return m[3]+"."+m[2]+"."+m[1]+(m[4]?" "+m[4]:"");};
 const _fdtC={};const fdt=d=>{if(!d)return"";if(_fdtC[d])return _fdtC[d];const r=new Date(d+"T00:00:00").toLocaleDateString("de-AT");_fdtC[d]=r;return r;};
 const fd=d=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");if(isNaN(dt.getTime()))return"—";return ["So","Mo","Di","Mi","Do","Fr","Sa"][dt.getDay()]+" "+String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0");};
 const dk=_ymd;
@@ -9811,7 +9826,7 @@ function MonteurTafel(props){
             if((cat==="alle"||cat==="fahrzeuge")&&hasPerm(curUser,"fahrzeuge")) (fahrzeuge||[]).filter(f=>_nrm(f.kennzeichen).includes(ql)||_nrm(f.marke).includes(ql)||_nrm(f.modell).includes(ql)).forEach(f=>{const fa=monteure.find(m=>m.id===f.fahrer);results.push({type:"fahrzeug",icon:"\uD83D\uDE90",title:f.kennzeichen+" \u2014 "+f.marke+" "+f.modell,sub:(_optionalChain([fa, 'optionalAccess', _74 => _74.n])||"kein Fahrer")+" \xb7 "+(f.kmStand||0).toLocaleString("de-AT")+" km",color:"#0ea5e9",action:()=>{const idx=tabs.findIndex(t=>t.perm==="fahrzeuge");if(idx>=0){window.__pendingFzSel=f.id;/* v3.9.455: Deeplink — Fahrzeug-Detail direkt oeffnen statt nur Liste */setOpenP(null);setKat(idx);}onClose();}});});
             if((cat==="alle"||cat==="werkzeuge")&&hasPerm(curUser,"werkzeuge")) werkzeuge.filter(w=>_nrm(w.name).includes(ql)||_nrm(w.marke).includes(ql)||_nrm(w.seriennr).includes(ql)||_nrm(w.barcode).includes(ql)).forEach(w=>results.push({type:"werkzeug",icon:"\uD83D\uDD27",title:w.name,sub:(w.marke||"")+(" \xb7 "+(_optionalChain([WZ_STATUS, 'access', _75 => _75[w.status], 'optionalAccess', _76 => _76.l])||"")),color:"#d97706",action:()=>{const idx=tabs.findIndex(t=>t.perm==="werkzeuge");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}}));
             if((cat==="alle"||cat==="mitarbeiter")&&hasPerm(curUser,"mitarbeiter")) monteure.filter(m=>(_maStaffRolle(curUser)||!_maIstEhemalig(m))&&(_nrm(m.n).includes(ql)||_nrm(m.r).includes(ql))).forEach(m=>{const fz=(fahrzeuge||[]).find(f=>f.fahrer===m.id);results.push({type:"monteur",icon:"\uD83D\uDC77",title:m.n,sub:(m.r||"")+(fz?" \xb7 \uD83D\uDE90 "+fz.kennzeichen:""),color:"#06b6d4",action:()=>{const idx=tabs.findIndex(t=>t.perm==="mitarbeiter");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
-            if((cat==="alle"||cat==="urlaub")&&hasPerm(curUser,"urlaub")) Object.entries(abs).filter(([k])=>_nrm(k).includes(ql)).slice(0,5).forEach(([k,v])=>{const nm=k.split("_")[0];results.push({type:"urlaub",icon:_optionalChain([AT_T, 'access', _77 => _77[v.type], 'optionalAccess', _78 => _78.i])||"\uD83D\uDCC5",title:nm+" \u2014 "+(_optionalChain([AT_T, 'access', _79 => _79[v.type], 'optionalAccess', _80 => _80.l])||""),sub:k.split("_").slice(1).join("_"),color:_okG(COLORS.SUCCESS),action:()=>{const idx=tabs.findIndex(t=>t.perm==="urlaub");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
+            if((cat==="alle"||cat==="urlaub")&&hasPerm(curUser,"urlaub")) Object.entries(abs).filter(([k])=>_nrm(k).includes(ql)).slice(0,5).forEach(([k,v])=>{const nm=k.split("_")[0];results.push({type:"urlaub",icon:_optionalChain([AT_T, 'access', _77 => _77[v.type], 'optionalAccess', _78 => _78.i])||"\uD83D\uDCC5",title:nm+" \u2014 "+(_optionalChain([AT_T, 'access', _79 => _79[v.type], 'optionalAccess', _80 => _80.l])||""),sub:_datumDE(k.split("_").slice(1).join("_")),color:_okG(COLORS.SUCCESS),action:()=>{const idx=tabs.findIndex(t=>t.perm==="urlaub");if(idx>=0){setOpenP(null);setKat(idx);}onClose();}});});
           }
           const _allCats=[{id:"alle",l:"Alle",i:"\uD83D\uDD0D"},{id:"projekte",l:"Projekte",i:"\uD83C\uDFD7\uFE0F",pm:"projekte"},{id:"scheine",l:"Scheine",i:"\uD83D\uDCCB",pm:"arbeitsscheine"},{id:"fahrzeuge",l:"Fahrzeuge",i:"\uD83D\uDE90",pm:"fahrzeuge"},{id:"werkzeuge",l:"Werkzeuge",i:"\uD83D\uDD27",pm:"werkzeuge"},{id:"mitarbeiter",l:"Mitarbeiter",i:"\uD83D\uDC77",pm:"mitarbeiter"},{id:"urlaub",l:"Urlaub",i:"\uD83C\uDFD6\uFE0F",pm:"urlaub"}];
           const cats=_allCats.filter(c=>!c.pm||hasPerm(curUser,c.pm));
@@ -9825,7 +9840,7 @@ function MonteurTafel(props){
                   , React.createElement('span', { style: {fontSize:20}}, "\uD83D\uDD0D")
                   , React.createElement('input', { ref: inputRef, value: query, onChange: e=>setQuery(e.target.value), placeholder: "Suchen: Projekte, Scheine, Fahrzeuge, Werkzeuge..."    , 'aria-label': "Globale Suche über Projekte, Scheine, Fahrzeuge und Werkzeuge", style: {flex:1,border:"none",background:"transparent",fontSize:16,fontWeight:500,color:V.tx,outline:"none",fontFamily:"inherit",padding:"8px 0"}} )
                   , query&&React.createElement('button', { onClick: ()=>setQuery(""), style: {border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:V.dm,padding:4}}, "\u2715")
-                  , React.createElement('button', { onClick: onClose, style: {border:"none",background:V.bd,cursor:"pointer",padding:"4px 10px",borderRadius:6,fontSize:UI.fMeta,color:V.dm,fontFamily:mono,fontWeight:600,minHeight:24}}, "ESC")
+                  , ((function(){try{return !!(window.matchMedia&&window.matchMedia("(pointer:fine)").matches);}catch(_e){return false;}})()/* v1016: am Tablet gibt es keine Esc-Taste - dort heisst der Knopf, was er tut */?React.createElement('button', { onClick: onClose, style: {border:"none",background:V.bd,cursor:"pointer",padding:"4px 10px",borderRadius:6,fontSize:UI.fMeta,color:V.dm,fontFamily:mono,fontWeight:600,minHeight:24}}, "ESC"):React.createElement('button', { onClick: onClose, style: {border:"none",background:V.bd,cursor:"pointer",padding:"4px 12px",borderRadius:6,fontSize:UI.fMeta,color:V.tx,fontWeight:600,minHeight:44}}, "Schließen"))
                 )
                 , React.createElement('div', { style: {display:"flex",gap:4,marginTop:8,overflowX:"auto",paddingBottom:4}}
                   , cats.map(c=>(React.createElement('button', { key: c.id, onClick: ()=>setCat(c.id), style: {padding:isMob?"8px 14px":"4px 10px",borderRadius:20,border:"1px solid "+(cat===c.id?V.ac+"66":"transparent"),background:cat===c.id?V.ac+"15":"transparent",color:cat===c.id?V.ac:V.dm,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:3,minHeight:isMob?40:28,touchAction:"manipulation"}}, c.i, " " , c.l)))
@@ -9862,7 +9877,7 @@ function MonteurTafel(props){
         return React.createElement(S, { onClose: ()=>setShowSearch(false)} );
       })()
       , openP ? (
-        React.createElement(ProjectShell, { key: openP.id/* v3.9.182 FIX Projekte#5: Remount bei Projektwechsel (Suche) → korrekte Sub-View */, p: openP, onBack: ()=>{if(history.state&&history.length>1){history.back();}else{_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(0);_lastKat.current=0;history.pushState({kat:0},'');}}, onHome: ()=>{_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(0);_lastKat.current=0;history.pushState({kat:0},'');}, onNav: (perm)=>{const idx=tabs.findIndex(t=>t.perm===perm);if(idx>=0){_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(idx);_lastKat.current=idx;history.pushState({kat:idx},'');}}, navTabs: mainTabs, entries: entries, setEntries: setEntries, forms: forms, setForms: setForms, ww: ww, curUser: curUser, planData: planData, setPlanData: setPlanData, projects: projects, monteure: monteure, monteurProjekte: monteurProjekte, _regProjView: _regProjView, _unregProjView: _unregProjView, _pushProjView: _pushProjView} )
+        React.createElement(ProjectShell, { key: openP.id/* v3.9.182 FIX Projekte#5: Remount bei Projektwechsel (Suche) → korrekte Sub-View */, p: openP, onBack: ()=>{/* v1016 Bedienung: 'Alle Projekte' fuehrt FEST zur Projektliste. Vorher history.back() - das sprang nur einen Reiter in der Akte zurueck (Tablet-Test 16.11.). Ohne Projekte-Reiter bleibt die Hauptansicht, aus der das Projekt geoeffnet wurde. _skipPush = Zahl der feuernden Effekte (openP immer, kat nur bei Wechsel). */const _pk=tabs.findIndex(t=>t.perm==="projekte");const _zk=_pk>=0?_pk:kat;_skipPush.current=1+(_zk!==kat?1:0);setOpenP(null);_lastOpenP.current=null;setKat(_zk);_lastKat.current=_zk;history.pushState({kat:_zk},'');}, onHome: ()=>{_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(0);_lastKat.current=0;history.pushState({kat:0},'');}, onNav: (perm)=>{const idx=tabs.findIndex(t=>t.perm===perm);if(idx>=0){_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(idx);_lastKat.current=idx;history.pushState({kat:idx},'');}}, navTabs: mainTabs, entries: entries, setEntries: setEntries, forms: forms, setForms: setForms, ww: ww, curUser: curUser, planData: planData, setPlanData: setPlanData, projects: projects, monteure: monteure, monteurProjekte: monteurProjekte, _regProjView: _regProjView, _unregProjView: _unregProjView, _pushProjView: _pushProjView} )
       ) : (
         React.createElement('div', { className: "app-col"}/* v3.9.873: Klasse, damit der Hauptbereich sein Scrollen selbst uebernehmen kann — siehe CSS */
           , React.createElement('header', { style: {padding:isMob?"10px 12px":"12px 20px",borderBottom:"1px solid "+V.bd,background:V.sb,display:"flex",justifyContent:"space-between",alignItems:"center"}}
@@ -9872,7 +9887,7 @@ function MonteurTafel(props){
             )
             , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
               /* Sync indicator */
-              , React.createElement('button', { onClick: ()=>{refreshPendingDetail();setShowSyncPanel(!showSyncPanel);}, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+syncStatus.lastSync, style: {border:"none",background:showSyncPanel?"rgba(14,165,233,.12)":syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s"}}
+              , React.createElement('button', { onClick: ()=>{refreshPendingDetail();setShowSyncPanel(!showSyncPanel);}, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+_datumDE(syncStatus.lastSync), style: {border:"none",background:showSyncPanel?"rgba(14,165,233,.12)":syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s"}}
                 , syncStatus.syncing?React.createElement('span', { style: {fontSize:14,animation:"spin .8s linear infinite",display:"inline-block"}}, "🔄"):React.createElement(WifiStatusIcon,{online:syncStatus.connected&&syncStatus.serverOk,size:18})/* v3.9.447: WLAN-Icon statt 3-Farben-Ampel-Punkt */
                 , pendingCount>0&&React.createElement('span', { style: {position:"absolute",top:-2,right:-4,background:"#f97316",color:"#fff",fontSize:UI.fMeta,fontWeight:800,borderRadius:10,padding:"1px 4px",minWidth:14,textAlign:"center"}}, pendingCount)
                 , !isMob&&React.createElement('span', { style: {fontSize:UI.fMeta,color:syncStatus.connected&&syncStatus.serverOk?V.dm:COLORS.ERROR}}, syncStatus.syncing?"Sync...":!syncStatus.connected?"Offline":!syncStatus.serverOk?"Server ❌":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN":syncStatus.netWeg==="cellular"?"Mobil":"Online")
@@ -9923,11 +9938,11 @@ function MonteurTafel(props){
                 , React.createElement('button', { onClick: doSync, disabled: syncStatus.syncing||!syncStatus.connected||!syncStatus.serverOk, style: {...bpS,padding:isMob?"7px 12px":"4px 10px",fontSize:UI.fMeta,opacity:syncStatus.syncing?.6:1,minHeight:isMob?38:28}}, syncStatus.syncing?"⏳":"🔄", " Sync" )
               )
             )
-            , syncStatus.lastSync&&React.createElement('div', { style: {padding:"4px 16px",fontSize:UI.fMeta,color:V.dm,borderBottom:"1px solid "+V.bd}}, "Letzter Sync: "  , syncStatus.lastSync)
+            , syncStatus.lastSync&&React.createElement('div', { style: {padding:"4px 16px",fontSize:UI.fMeta,color:V.dm,borderBottom:"1px solid "+V.bd}}, "Letzter Sync: "  , _datumDE(syncStatus.lastSync))
             /* Filter tabs */
             , React.createElement('div', { style: {display:"flex",padding:"6px 12px",gap:4,borderBottom:"1px solid "+V.bd,background:V.cd}}
               , [{id:"alle",l:"Alle",cnt:myNotifs.length},{id:"ungelesen",l:"Ungelesen",cnt:myNotifs.filter(n=>!n.read).length},{id:"eskalation",l:"🔺 Dringend",cnt:myNotifs.filter(n=>(n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick").length},/* v3.9.83 Sprint-62.1: Kunde-Filter-Pill (kunde_mangel / kunde_* types). */{id:"kunde",l:"👤 Kunde",cnt:myNotifs.filter(n=>(n.type||"").startsWith("kunde")).length}].map(f=>(
-                React.createElement('button', { key: f.id, onClick: ()=>setNotifFilter(f.id), style: {padding:"6px 12px",borderRadius:10,border:"1.5px solid "+(notifFilter===f.id?"#f97316":"transparent"),background:notifFilter===f.id?"rgba(249,115,22,.1)":"transparent",color:notifFilter===f.id?V.acTx:V.dm,fontSize:UI.fMeta,fontWeight:notifFilter===f.id?700:400,cursor:"pointer",fontFamily:"inherit",minHeight:36,touchAction:"manipulation"}}, f.l, f.cnt>0&&React.createElement('span', { style: {marginLeft:4,fontSize:UI.fMeta,fontWeight:700,background:f.id==="eskalation"?COLORS.ERROR:V.ac,color:"#fff",borderRadius:8,padding:"1px 5px"}}, f.cnt))
+                React.createElement('button', { key: f.id, onClick: ()=>setNotifFilter(f.id), style: {padding:"6px 12px",borderRadius:10,border:"1.5px solid "+(notifFilter===f.id?UI.marke:"transparent"),background:notifFilter===f.id?UI.markeBg:"transparent",/* v1016 CI: aktiv Markengruen statt Orange */color:notifFilter===f.id?V.acTx:V.dm,fontSize:UI.fMeta,fontWeight:notifFilter===f.id?700:400,cursor:"pointer",fontFamily:"inherit",minHeight:36,touchAction:"manipulation"}}, f.l, f.cnt>0&&React.createElement('span', { style: {marginLeft:4,fontSize:UI.fMeta,fontWeight:700,background:f.id==="eskalation"?COLORS.ERROR:V.ac,color:"#fff",borderRadius:8,padding:"1px 5px"}}, f.cnt))
               ))
             )
             /* v3.5.69 F-C: Kategorie-Filter (AS/Werkzeug/Fahrzeug/Material) */
@@ -10020,7 +10035,7 @@ function MonteurTafel(props){
                 , React.createElement('span', {}, "Sync: automatisch")/* v3.9.902 Option B: ehrliche Anzeige statt Wahl. Gesendet wird, sobald eine Verbindung besteht - ueber WLAN wie ueber Mobilfunk. */
                 , lastHeartbeat&&React.createElement('span', {}, "Ping: ", Math.round((Date.now()-lastHeartbeat)/1000), "s")
               )
-              , syncStatus.lastSync&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.mt,marginTop:4}}, "Letzter Sync: ", syncStatus.lastSync)
+              , syncStatus.lastSync&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.mt,marginTop:4}}, "Letzter Sync: ", _datumDE(syncStatus.lastSync))
             )
             /* Pending Queue */
             , React.createElement('div', { style: {padding:"10px 16px",borderBottom:"1px solid "+V.bd}}
@@ -10639,7 +10654,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
               , React.createElement('span', { style: {color:V.dm}}, "Rolle"), isAdmin?React.createElement('select', { value: selM.r, onChange: e=>updMonteur(selM.id,"r",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}}, ["Geschäftsführer","Projektleiter","Störungstechniker","Techniker","Obermonteur","Monteur","Helfer","Lehrling","Praktikant","Lagerleitung","Backoffice","Verkauf/Buchhaltung"].map(r=>React.createElement('option', { key: r}, r))):React.createElement('span', {}, selM.r)
               , React.createElement('span', { style: {color:V.dm}}, "Telefon"), isAdmin?React.createElement('input', { value: selM.tel||"", onChange: e=>updMonteur(selM.id,"tel",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "0664..."} ):React.createElement('span', {}, window._maskPhone?window._maskPhone(selM.tel,isAdmin):(selM.tel||"—"))
               , React.createElement('span', { style: {color:V.dm}}, "E-Mail"), isAdmin?React.createElement('input', { value: selM.email||"", onChange: e=>updMonteur(selM.id,"email",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "name@ep-kolar.at"} ):React.createElement('span', {}, selM.email||"—")
-              , React.createElement('span', { style: {color:V.dm,alignSelf:"start",paddingTop:4}}, "Führerschein"), isAdmin?React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:3}}, FS_KLASSEN.map(k=>{const has=(selM.fs||"").split(",").map(x=>x.trim()).includes(k);return React.createElement('label', { key: k, style: {display:"inline-flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:has?"rgba(59,130,246,.15)":"transparent",border:"1px solid "+(has?"#3b82f6":V.bd),cursor:"pointer",fontSize:UI.fMeta,fontWeight:has?700:400,transition:"all .15s"}}, React.createElement('input', { type: "checkbox", checked: has, onChange: ()=>{const cur=(selM.fs||"").split(",").map(x=>x.trim()).filter(Boolean);const nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];updMonteur(selM.id,"fs",nxt.join(","));}, style: {accentColor:"#3b82f6",width:24,height:24}} ), k);})):React.createElement('span', {}, selM.fs?(React.createElement('span', { style: {display:"inline-flex",gap:3,flexWrap:"wrap"}}, (selM.fs||"").split(",").map(k=>React.createElement('span', { key: k.trim(), style: {padding:"2px 6px",borderRadius:4,background:"rgba(59,130,246,.12)",color:COLORS.INFO,fontSize:UI.fMeta,fontWeight:700}}, k.trim())))):"—")
+              , React.createElement('span', { style: {color:V.dm,alignSelf:"start",paddingTop:4}}, "Führerschein"), isAdmin?React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:3}}, FS_KLASSEN.map(k=>{const has=(selM.fs||"").split(",").map(x=>x.trim()).includes(k);return React.createElement('label', { key: k, style: {display:"inline-flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:has?"rgba(0,150,64,.14)":"transparent",border:"1px solid "+(has?UI.marke:V.bd),color:V.tx,cursor:"pointer",fontSize:UI.fMeta,fontWeight:has?700:400,transition:"all .15s"}}, React.createElement('input', { type: "checkbox", checked: has, onChange: ()=>{const cur=(selM.fs||"").split(",").map(x=>x.trim()).filter(Boolean);const nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];updMonteur(selM.id,"fs",nxt.join(","));}, style: {accentColor:UI.marke,width:24,height:24}} ), k);})):React.createElement('span', {}, selM.fs?(React.createElement('span', { style: {display:"inline-flex",gap:3,flexWrap:"wrap"}}, (selM.fs||"").split(",").map(k=>React.createElement('span', { key: k.trim(), style: {padding:"2px 6px",borderRadius:4,background:"rgba(0,150,64,.14)",color:V.acTx,fontSize:UI.fMeta,fontWeight:700}}, k.trim())/* v1016 Kontrast+CI: vorher blau auf blau (Dunkel 3,9:1) */))):"—")
               , React.createElement('span', { style: {color:V.dm}}, "FS-Nr."), isAdmin?React.createElement('input', { value: selM.fsNr||"", onChange: e=>updMonteur(selM.id,"fsNr",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "z.B. 4491"} ):React.createElement('span', {}, selM.fsNr||"—")
               , React.createElement('span', { style: {color:V.dm}}, "SV-Nr."), isAdmin?React.createElement('input', { value: selM.svnr||"", onChange: e=>updMonteur(selM.id,"svnr",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "1234 010185"} ):React.createElement('span', {style:{fontFamily:mono}}, window._maskSVNR?window._maskSVNR(selM.svnr,isAdmin):(selM.svnr||"—"))
               , React.createElement('span', { style: {color:V.dm}}, "Reisepass-Nr."), isAdmin?React.createElement('input', { value: selM.reisepass||"", onChange: e=>updMonteur(selM.id,"reisepass",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}, placeholder: "P 1234567"} ):React.createElement('span', {}, isAdmin?(selM.reisepass||"—"):(selM.reisepass?"•••••••":"—"))
@@ -11223,7 +11238,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const [sortDir,setSortDir]=_react.useState.call(void 0, "desc");
   const [calMo,setCalMo]=_react.useState.call(void 0, new Date().getMonth());
   const [calYr,setCalYr]=_react.useState.call(void 0, new Date().getFullYear());
-  const [calMonteur,setCalMonteur]=_react.useState.call(void 0, curUser.monteurId||(monteure[0]||{}).id||"");
+  const [calMonteur,setCalMonteur]=_react.useState.call(void 0, isAdmin?"__alle__":(curUser.monteurId||(monteure[0]||{}).id||""));/* v1016 Bedienung: Chef/Buero/PL sehen im Kalender zuerst ALLE Monteure (vorher der erste Name der Liste - am Tablet stand Barger, und der Kalender sah leer aus). Nur Anzeige/Filter. */
   const [calView,setCalView]=_react.useState.call(void 0, "monat"); // monat|woche|tag
   const [calDate,setCalDate]=_react.useState.call(void 0, new Date());
   const [editId,setEditId]=_react.useState.call(void 0, null);
@@ -11281,7 +11296,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
           asScanTimerRef.current=requestAnimationFrame(tick);};
         asScanTimerRef.current=requestAnimationFrame(tick);
       }else{setAsScanMsg("⚠️ Kein QR-Scanner — bitte Scheinnummer manuell eingeben");}
-    }catch(err){setAsScanMsg("📷 Kamera-Zugriff verweigert: "+err.message);setAsScanning(false);}
+    }catch(err){setAsScanMsg("📷 "+_kameraFehlerText(err));setAsScanning(false);}
   };
   const asStopScan=()=>{if(asScanTimerRef.current){cancelAnimationFrame(asScanTimerRef.current);asScanTimerRef.current=null;}
     if(asStreamRef.current){asStreamRef.current.getTracks().forEach(t=>t.stop());asStreamRef.current=null;}setAsScanning(false);};
@@ -11699,7 +11714,7 @@ function sharePdf(){
   const calDays=weeksOf(calYr,calMo);
   /* v3.9.60 Sprint-39 F-4: useMemo — calAs ist Basis für getAsDay-Lookup im Render-Loop pro Tag.
      Re-Filter über arbeitsscheine bei jeder Render-Iteration unnötig. */
-  const calAs=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;return a.monteur===calMonteur;}),[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]);
+  const calAs=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;if(calMonteur==="__alle__")return isAdmin;/* v1016: Auswahl 'Alle Monteure' (nur Chef/Buero/PL) */return a.monteur===calMonteur;}),[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]);
   const getAsDay=d=>{const ds=dk(d);return calAs.filter(a=>{const tb=_hasTermin(a.terminBestaetigt)?a.terminBestaetigt:"";return tb===ds||(!tb&&a.aufgenommen===ds);});};/* v3.9.381 FIX: Sentinel-terminBestaetigt (0001-01-01) ist truthy → Schein verschwand aus dem Kalender (weder ===ds noch aufgenommen-Fallback). _hasTermin-Guard wie an den anderen Termin-Stellen. */
   // Week view helpers
   const getWeekDays=(d)=>{const mon=new Date(d);const dow=mon.getDay()||7;mon.setDate(mon.getDate()-(dow-1));return Array.from({length:7},(_,i)=>{const dd=new Date(mon);dd.setDate(mon.getDate()+i);return dd;});};
@@ -11936,7 +11951,7 @@ function sharePdf(){
             , ["tag","woche","monat"].map(v=>React.createElement('button', { key: v, onClick: ()=>setCalView(v), style: {padding:isMob?"8px 14px":"5px 10px",minHeight:isMob?40:0,touchAction:"manipulation",border:"none",borderRadius:6,background:calView===v?UI.knopf:"transparent",color:calView===v?"#fff":V.dm,fontSize:isMob?12:UI.fMeta,fontWeight:calView===v?700:400,cursor:"pointer",fontFamily:"inherit"}}, v==="tag"?"Tag":v==="woche"?"Woche":"Monat"))
           )
           , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center"}}
-            , isAdmin?React.createElement('select', { value: calMonteur, onChange: e=>setCalMonteur(e.target.value), style: {...II(),width:"auto",fontSize:13}}, monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))):React.createElement(Badge, { text: (_optionalChain([monteure, 'access', _176 => _176.find, 'call', _177 => _177(m=>m.id===calMonteur), 'optionalAccess', _178 => _178.n])||""), color: V.acTx} )
+            , isAdmin?React.createElement('select', { value: calMonteur, onChange: e=>setCalMonteur(e.target.value), 'aria-label': "Monteur im Kalender", style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { key: "__alle__", value: "__alle__"}, "Alle Monteure"), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))):React.createElement(Badge, { text: (_optionalChain([monteure, 'access', _176 => _176.find, 'call', _177 => _177(m=>m.id===calMonteur), 'optionalAccess', _178 => _178.n])||""), color: V.acTx} )
           )
         )
 
@@ -11976,7 +11991,7 @@ function sharePdf(){
                 return React.createElement('div', { key: di, style: {borderRight:di<6?"1px solid "+V.grid:"none",borderBottom:"1px solid "+V.grid,padding:"1px 2px",minHeight:48,background:today?UI.markeBg:we?V.weBg:"transparent",verticalAlign:"top"}}
                   , hourAs.map(a=>{const st=AS_STATUS[a.scheinstatus];const dur=parseFloat(a.dauer)||1;const mntName=_optionalChain([monteure, 'access', _wmnt1 => _wmnt1.find, 'call', _wmnt2 => _wmnt2(m=>m.id===a.monteur), 'optionalAccess', _wmnt3 => _wmnt3.n])||"?";
                     return React.createElement('div', { key: a.id, onClick: ()=>_openEditGuarded(a), title: a.nummer+" — "+(a.kundName||"?")+"\nMonteur: "+mntName+" · "+(_optionalChain([st, 'optionalAccess', _wt1 => _wt1.l])||a.scheinstatus)+"\nTermin: "+(a.terminBestaetigt||"")+(a.terminZeit?" "+a.terminZeit:"")+"\n"+(a.arbeitsanweisungen||"").substring(0,100), style: {fontSize:UI.fMeta,padding:"3px 5px",borderRadius:4,background:(_optionalChain([st, 'optionalAccess', _179b => _179b.c])||"#666")+"22",color:_optionalChain([st, 'optionalAccess', _180b => _180b.c])||"#666",marginBottom:2,cursor:"pointer",borderLeft:"3px solid "+(_optionalChain([st, 'optionalAccess', _181 => _181.c])||"#666"),minHeight:Math.max(22,dur*40),overflow:"hidden"}}
-                      , React.createElement('div', { style: {fontWeight:700,fontSize:UI.fMeta}}, (a.nummer||"").slice(-4), " ", a.terminZeit||"", a.dauer?(" · "+window._dauerToDisplay(a.dauer)):"")
+                      , React.createElement('div', { style: {fontWeight:700,fontSize:UI.fMeta}}, (a.nummer||"").slice(-4), " ", a.terminZeit||"", a.dauer?(" · "+window._dauerToDisplay(a.dauer)):"", calMonteur==="__alle__"?(" · "+mntName):"")
                       , React.createElement('div', { style: {fontSize:UI.fMeta,opacity:.8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.kundName||_kurz(a.arbeitsanweisungen,25))
                     );
                   })
@@ -12007,7 +12022,7 @@ function sharePdf(){
                           , React.createElement('span', { style: {fontWeight:700,fontSize:13,color:_optionalChain([st, 'optionalAccess', _181c => _181c.c])||"#666"}}, a.nummer)
                           , React.createElement(Badge, { text: _optionalChain([st, 'optionalAccess', _182 => _182.l])||a.scheinstatus, color: _optionalChain([st, 'optionalAccess', _183 => _183.c])||"#666"} )
                         )
-                        , React.createElement('div', { style: {fontSize:12,fontWeight:600,marginBottom:2}}, a.kundName||"—")
+                        , React.createElement('div', { style: {fontSize:12,fontWeight:600,marginBottom:2}}, a.kundName||"—", calMonteur==="__alle__"&&React.createElement('span', { style: {fontWeight:400,color:V.dm}}, " · ", (((monteure||[]).find(m=>m.id===a.monteur)||{}).n)||"ohne Monteur"))
                         , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, a.terminZeit||"", a.dauer?(" · "+window._dauerToDisplay(a.dauer)):"", " · ", _kurz(a.arbeitsanweisungen,60))
                       );
                     })
@@ -13580,10 +13595,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   const monteurStats=(monteure||[]).map(m=>{
     const myEntries=allEntries.filter(e=>e.monteur===m.id);
     const hrs=myEntries.reduce((s,e)=>s+(e.stunden||0),0);
-    const projSet=new Set();myEntries.forEach(e=>{if(e.projekt)projSet.add(e.projekt);});
+    const projSet=new Set();myEntries.forEach(e=>{if(e.projekt)projSet.add(e.projekt);});/* v1016: die Zahl zaehlt verschiedene project_id ALLER Zeiten - auch abgeschlossene/archivierte und nicht mehr vorhandene Projekte. Damit sie pruefbar ist, nennt der Tooltip die Namen. */const projNamen=[...projSet].map(function(_pid){var _pp=(projects||[]).find(function(p){return p.id===_pid;});return _pp?(_pp.name+(_pp.status&&_pp.status!=="aktiv"?" ("+_pp.status+")":"")):"Projekt nicht mehr vorhanden";});
     const myBT=allBT.filter(b=>{const wid=b.erstelltVon||b.created_by||b.worker_id||"";return wid===m.id||wid===m.n;}).length;
     const myRg=allRegie.filter(r=>r.monteur===m.id).length;
-    return {id:m.id,name:m.n,vorname:m.vorname||"",rolle:m.r||"",hrs,projCnt:projSet.size,btCnt:myBT,regCnt:myRg};
+    return {id:m.id,name:m.n,vorname:m.vorname||"",rolle:m.r||"",hrs,projCnt:projSet.size,projNamen,btCnt:myBT,regCnt:myRg};
   }).filter(s=>s.hrs>0||s.btCnt>0||s.regCnt>0).sort((a,b)=>b.hrs-a.hrs);
 
   /* v3.9.345: Matrix-Zelle direkt editieren (Worker w + Tag ds + Projekt showPreview).
@@ -13897,7 +13912,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
         React.createElement(Kpi, { label: "Buchungen", value: allEntries.length, sub: "Zeiterfassung gesamt", color: "#3b82f6", i: 0} ),
         React.createElement(Kpi, { label: "Tagesberichte", value: allBT.length, sub: "Bautagebuch", color: "#f97316", i: 1} ),
         React.createElement(Kpi, { label: "Projekte", value: activeProjects.length, sub: "aktiv", color: V.ac, i: 2} ),
-        React.createElement(Kpi, { label: "Stunden total", value: _n(allEntries.reduce((s,e)=>s+(e.stunden||0),0),1), sub: "alle Projekte", color: "#a855f7", i: 3} )
+        /* v1016 Ehrlichkeit (Tablet-Test 16.11.): hiess "Stunden total - alle Projekte", summierte aber ALLE Zeiteintraege, auch Scheine/Stoerungen und Freitext (Lager, Buero, Schulung) ohne Projekt. Jetzt aufgeteilt: die Zahl sind die Projektstunden, die Unterzeile nennt den Rest. Summe unveraendert (Projekt + Rest = vorher). Komma statt Punkt. */(function(){var _hP=allEntries.filter(function(e){return !!e.projekt;}).reduce(function(s,e){return s+(e.stunden||0);},0);var _hR=allEntries.filter(function(e){return !e.projekt;}).reduce(function(s,e){return s+(e.stunden||0);},0);return React.createElement(Kpi, { label: "Stunden auf Projekten", value: _projStdDE(_hP,1), sub: _hR>0?("+ "+_projStdDE(_hR,1)+" h Scheine/Freitext"):"keine Stunden ohne Projekt", color: V.acTx, i: 3, title: "Projektstunden aller Zeiteinträge; Arbeitsscheine, Störungen und Freitext (ohne Projekt) stehen in der Unterzeile."} );})()
       ),
 
       /* v3.9.355 G1: redundanter Projekt-Dropdown + globaler BWB-Download-Button entfernt \u2014 generateAll/per-Projekt nutzen denselben generateBWB (nur anderer Scope); globaler Download jetzt als "Alle als Excel" im Projekt\u00fcbersicht-Kopf (s.u.). selProj wird weiter via Projekt-Karten-Klick gesetzt. */
@@ -13907,12 +13922,12 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
         React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "\ud83d\udc65 Monteur-\u00dcbersicht (alle Daten)"),
         React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:6}}, "\ud83d\udca1 \u270f\ufe0f-Button \u00f6ffnet die letzten 50 Zeiteintr\u00e4ge des Monteurs zum Bearbeiten \u2014 \u00c4nderungen gehen direkt in die DB."),
         React.createElement('div', { style: {overflowX:"auto"}},
-          isMob?(React.createElement('div',{},monteurStats.map(function(ms){return React.createElement('div',{key:ms.id,style:{background:V.bg,border:"1px solid "+V.bd,borderRadius:8,padding:"10px 12px",marginBottom:8}},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}},React.createElement('div',{},React.createElement('div',{style:{fontWeight:700,fontSize:14}},(ms.vorname?ms.vorname+" ":"")+ms.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},ms.rolle||"—")),React.createElement('button',{onClick:function(){editMonteurEntries(ms);},style:{background:"rgba(59,130,246,.12)",color:"#3b82f6",border:"1px solid rgba(59,130,246,.3)",borderRadius:6,padding:"6px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit",minHeight:36,touchAction:"manipulation",flexShrink:0},title:"Letzte 50 Eintraege bearbeiten"},_ik("stift",16))),React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:"4px 16px",fontSize:12}},[["Std",_n(ms.hrs,1),"#a855f7"],["Projekte",ms.projCnt,V.tx],["Tagesber.",ms.btCnt,ms.btCnt>0?"#f97316":V.dm],["Regie",ms.regCnt,ms.regCnt>0?"#16a34a":V.dm]].map(function(pp){return React.createElement('span',{key:pp[0]},React.createElement('span',{style:{color:V.dm}},pp[0]+": "),React.createElement('span',{style:{fontWeight:700,fontFamily:mono,color:pp[2]}},pp[1]));})));}))):(React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}},
+          isMob?(React.createElement('div',{},monteurStats.map(function(ms){return React.createElement('div',{key:ms.id,style:{background:V.bg,border:"1px solid "+V.bd,borderRadius:8,padding:"10px 12px",marginBottom:8}},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}},React.createElement('div',{},React.createElement('div',{style:{fontWeight:700,fontSize:14}},(ms.vorname?ms.vorname+" ":"")+ms.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},ms.rolle||"—")),React.createElement('button',{onClick:function(){editMonteurEntries(ms);},style:{background:"rgba(59,130,246,.12)",color:"#3b82f6",border:"1px solid rgba(59,130,246,.3)",borderRadius:6,padding:"6px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit",minHeight:36,touchAction:"manipulation",flexShrink:0},title:"Letzte 50 Eintraege bearbeiten"},_ik("stift",16))),React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:"4px 16px",fontSize:12}},[["Std",_projStdDE(ms.hrs,1),"#a855f7"],["Projekte",ms.projCnt,V.tx],["Tagesber.",ms.btCnt,ms.btCnt>0?"#f97316":V.dm],["Regie",ms.regCnt,ms.regCnt>0?"#16a34a":V.dm]].map(function(pp){return React.createElement('span',{key:pp[0]},React.createElement('span',{style:{color:V.dm}},pp[0]+": "),React.createElement('span',{style:{fontWeight:700,fontFamily:mono,color:pp[2]}},pp[1]));})));}))):(React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}},
             React.createElement('thead', null, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd}},
               React.createElement('th', { style: {textAlign:"left",padding:"6px 8px",fontWeight:700}}, "Mitarbeiter"),
               React.createElement('th', { style: {textAlign:"left",padding:"6px 8px",fontWeight:700}}, "Rolle"),
               React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Std."),
-              React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Projekte"),
+              React.createElement('th', { title: "Verschiedene Projekte mit Buchungen, alle Zeiträume (auch abgeschlossene)", style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Projekte"),
               React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Tagesber."),
               React.createElement('th', { style: {textAlign:"right",padding:"6px 8px",fontWeight:700}}, "Regie"),
               React.createElement('th', { style: {textAlign:"center",padding:"6px 8px",fontWeight:700,width:60}}, "")
@@ -13920,8 +13935,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
             React.createElement('tbody', null, monteurStats.map(ms=>React.createElement('tr', { key: ms.id, style: {borderBottom:"1px solid "+V.bd}},
               React.createElement('td', { style: {padding:"6px 8px",fontWeight:600}}, (ms.vorname?ms.vorname+" ":"")+ms.name),
               React.createElement('td', { style: {padding:"6px 8px",color:V.dm}}, ms.rolle||"\u2014"),
-              React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,fontWeight:700,color:"#a855f7"}}, _n(ms.hrs,1)),
-              React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono}}, ms.projCnt),
+              React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,fontWeight:700,color:"#a855f7"}}, _projStdDE(ms.hrs,1)),
+              React.createElement('td', { title: (ms.projNamen||[]).join(" · "), style: {padding:"6px 8px",textAlign:"right",fontFamily:mono}}, ms.projCnt),
               React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,color:ms.btCnt>0?"#f97316":V.dm}}, ms.btCnt),
               React.createElement('td', { style: {padding:"6px 8px",textAlign:"right",fontFamily:mono,color:ms.regCnt>0?_okG("#22c55e"):V.dm}}, ms.regCnt),
               /* v3.9.337: Edit-Button \u00f6ffnet _exportReviewModal mit Monteur-Eintr\u00e4gen \u2014 \u00c4nderungen via SQ.push PUT. */
@@ -13946,7 +13961,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
               React.createElement('div', { style: {fontSize:12,color:V.dm}}, ps.kunde||"\u2014")
             ),
             React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
-              React.createElement(Badge, { text: ps.cnt+" Buchungen", color: "#3b82f6"} ),
+              React.createElement(Badge, { text: _nWort(ps.cnt,"Buchung","Buchungen"), color: V.acTx} ),
               React.createElement(Badge, { text: _n(ps.hrs,1)+" Std.", color: "#a855f7"} ),
               React.createElement(Badge, { text: ps.kws+" KWs", color: V.ac} ),
               ps.btCnt>0&&React.createElement(Badge, { text: ps.btCnt+" Tagesber.", color: "#f97316"} ),
@@ -13972,19 +13987,19 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
           )
         )
         ,React.createElement('div',{style:{...CC(),padding:12,overflowX:"auto"}}
-          ,isMob?(React.createElement('div',{},_absRows().map(function(r){return React.createElement('div',{key:r.name,style:{background:V.bg,border:"1px solid "+V.bd,borderRadius:8,padding:"10px 12px",marginBottom:8}},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6}},React.createElement('div',{style:{fontWeight:700,fontSize:14}},r.name),React.createElement('div',{style:{textAlign:"right"}},React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},"Rest Urlaub"),React.createElement('div',{style:{fontWeight:700,fontFamily:mono,color:_okG("#22c55e"),fontSize:15}},_n(r.rest,1)))),React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:"4px 16px",fontSize:12}},[["Gesamt",r.gesamt],["Urlaub",r.urlaub],["Krank",r.krank],["ZA",r.za],["Sonder",r.sonder]].map(function(pp){return React.createElement('span',{key:pp[0]},React.createElement('span',{style:{color:V.dm}},pp[0]+": "),React.createElement('span',{style:{fontWeight:700,fontFamily:mono,color:pp[1]>0?V.tx:V.mt}},pp[1]>0?_n(pp[1],1):"—"));})));}))):(React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:640}}
+          ,isMob?(React.createElement('div',{},_absRows().map(function(r){return React.createElement('div',{key:r.name,style:{background:V.bg,border:"1px solid "+V.bd,borderRadius:8,padding:"10px 12px",marginBottom:8}},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6}},React.createElement('div',{style:{fontWeight:700,fontSize:14}},r.name),React.createElement('div',{style:{textAlign:"right"}},React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},"Rest Urlaub"),React.createElement('div',{style:{fontWeight:700,fontFamily:mono,color:_okG("#22c55e"),fontSize:15}},_projStdDE(r.rest,1)))),React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:"4px 16px",fontSize:12}},[["Gesamt",r.gesamt],["Urlaub",r.urlaub],["Krank",r.krank],["ZA",r.za],["Sonder",r.sonder]].map(function(pp){return React.createElement('span',{key:pp[0]},React.createElement('span',{style:{color:V.dm}},pp[0]+": "),React.createElement('span',{style:{fontWeight:700,fontFamily:mono,color:pp[1]>0?V.tx:V.mt}},pp[1]>0?_projStdDE(pp[1],1):"—"));})));}))):(React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:640}}
             ,React.createElement('thead',{},React.createElement('tr',{},["Mitarbeiter","Gesamt","Urlaub","Krank","ZA","Sonder","Rest Urlaub"].map((h,i)=>React.createElement('th',{key:h,style:{padding:"6px 8px",fontSize:UI.fMeta,fontWeight:700,color:V.dm,borderBottom:"1px solid "+V.bd,textAlign:i===0?"left":"right",whiteSpace:"nowrap"}},h))))
             ,React.createElement('tbody',{},_absRows().map(r=>React.createElement('tr',{key:r.name}
               ,React.createElement('td',{style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,fontWeight:600,whiteSpace:"nowrap"}},r.name)
-              ,[r.gesamt,r.urlaub,r.krank,r.za,r.sonder].map((v,i)=>React.createElement('td',{key:i,style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono,color:v>0?V.tx:V.mt}},v>0?_n(v,1):"\u2014"))
-              ,React.createElement('td',{style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono,fontWeight:700,color:_okG("#22c55e")}},_n(r.rest,1))
+              ,[r.gesamt,r.urlaub,r.krank,r.za,r.sonder].map((v,i)=>React.createElement('td',{key:i,style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono,color:v>0?V.tx:V.mt}},v>0?_projStdDE(v,1):"\u2014"))
+              ,React.createElement('td',{style:{padding:"6px 8px",fontSize:12,borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono,fontWeight:700,color:_okG("#22c55e")}},_projStdDE(r.rest,1))
             )))
           ))
           ,React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8}},"Read-only-Spiegel des Urlaub-Moduls \u00b7 Stunden \u00b7 ZA reduziert den Resturlaub nicht \u00b7 Genehmigen/Bearbeiten nur im Urlaub-Modul.")
         )
       ),
       /* \u2550\u2550\u2550 v3.9.358 #4 Krankenstand 2026 (read-only + Attest-Status) \u2550\u2550\u2550 */
-      _bxTab==='abwesend' && (()=>{const _krAll=_krankRows();const _attOk=r=>(r.atts||[]).filter(a=>!_bxDelSet[a.id||a.name]).length>0;const noAtt=new Set(_krAll.filter(r=>!_attOk(r)).map(r=>r.name)).size;const _mNames=[...new Set(_krAll.map(r=>r.name))].sort((a,b)=>a.localeCompare(b,"de"));const _kTog=c=>{if(_kSortCol===c)_setKSortDir(d=>d==="asc"?"desc":"asc");else{_setKSortCol(c);_setKSortDir("asc");}};const _kArr=c=>_kSortCol===c?(_kSortDir==="asc"?" ▲":" ▼"):" ↕";const _kFil=_krAll.filter(r=>{if(_kSearch){const _t=_kSearch.toLowerCase().split(/\s+/).filter(Boolean);if(!_t.every(x=>(r.name||"").toLowerCase().includes(x)))return false;}if(_kfMonteur!=="alle"&&r.name!==_kfMonteur)return false;if(_kfAttest==="fehlt"&&_attOk(r))return false;if(_kfAttest==="vorhanden"&&!_attOk(r))return false;if(_kfMonat!=="alle"&&String(r.date).slice(5,7)!==_kfMonat)return false;return true;});const kr=[..._kFil].sort((a,b)=>{const d=_kSortDir==="asc"?1:-1;if(_kSortCol==="hours")return ((Number(a.hours)||0)-(Number(b.hours)||0))*d;if(_kSortCol==="attest"){const _x=((_attOk(a)?1:0)-(_attOk(b)?1:0))*d;return _x||String(a.date).localeCompare(String(b.date));}if(_kSortCol==="date"){const _x=String(a.date).localeCompare(String(b.date))*d;return _x||a.name.localeCompare(b.name,"de");}return String(a[_kSortCol]||"").localeCompare(String(b[_kSortCol]||""),"de")*d;});const _kActive=(_kSearch?1:0)+(_kfMonteur!=="alle"?1:0)+(_kfAttest!=="alle"?1:0)+(_kfMonat!=="alle"?1:0);;const _kDn=x=>{var q=String(x).slice(0,10).split("-");return q.length===3?(Date.UTC(+q[0],+q[1]-1,+q[2])/TIME_DAY):0;};const _kFd=x=>{var q=String(x).slice(0,10).split("-");return q.length===3?(q[2]+"."+q[1]+"."):x;};const _kDayTr=(r,i,kk)=>React.createElement("tr",{key:kk+"_"+i},React.createElement("td",{style:{padding:"5px 8px 5px 24px",borderBottom:"1px solid "+V.bd,whiteSpace:"nowrap",color:V.dm}},r.name),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd,fontFamily:mono,whiteSpace:"nowrap"}},r.date),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono}},_n(r.hours,1)),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd}},r.status),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd,fontWeight:700}},(function(){var _va=(r.atts||[]).filter(function(a){return !_bxDelSet[a.id||a.name];});if(!_va.length)return React.createElement("span",{style:{color:COLORS.ERROR}},"fehlt");return React.createElement("span",{style:{display:"inline-flex",gap:6,alignItems:"center"}},React.createElement("button",{onClick:function(){_bxOpenAttest(_va[0]);},style:{...bsS(),padding:"3px 10px",fontSize:UI.fMeta},title:"Attest ansehen"},"Ansehen"+(_va.length>1?" ("+_va.length+")":"")),_bxOffice?React.createElement("button",{onClick:function(){_bxDelAttest(_va[0]);},title:"Attest löschen",style:{...bdS,padding:"3px 8px",fontSize:UI.fMeta}},_ik("eimer",16)):null);})()));var _kBn={};kr.forEach(function(r){if(!_kBn[r.name])_kBn[r.name]=[];_kBn[r.name].push(r);});var _kBlocks=[];Object.keys(_kBn).forEach(function(nm){var ds=_kBn[nm].slice().sort(function(a,b){return _kDn(a.date)-_kDn(b.date);});var cur=null;ds.forEach(function(r){var dn=_kDn(r.date);if(cur){var gap=dn-cur._ln;var pwd=new Date(cur._ln*TIME_DAY).getUTCDay();if(gap===1||(gap===3&&pwd===5)){cur.days.push(r);cur._ln=dn;cur.to=r.date;cur.h+=(Number(r.hours)||0);}else{_kBlocks.push(cur);cur=null;}}if(!cur){cur={name:nm,from:r.date,to:r.date,days:[r],_ln:dn,h:(Number(r.hours)||0)};}});if(cur)_kBlocks.push(cur);});_kBlocks.forEach(function(b){b.count=b.days.length;b.hasAtt=b.days.some(function(r){return _attOk(r);});b.key=b.name+"_"+b.from;b.status=(b.days[0]||{}).status||"";});var _kbd=_kSortDir==="asc"?1:-1;_kBlocks.sort(function(a,b){if(_kSortCol==="hours")return (a.h-b.h)*_kbd;if(_kSortCol==="attest"){var x=((a.hasAtt?1:0)-(b.hasAtt?1:0))*_kbd;return x||(_kDn(a.from)-_kDn(b.from));}if(_kSortCol==="status")return (String(a.status).localeCompare(String(b.status),"de")*_kbd)||(_kDn(a.from)-_kDn(b.from));if(_kSortCol==="name")return (a.name.localeCompare(b.name,"de")*_kbd)||(_kDn(a.from)-_kDn(b.from));return (_kDn(a.from)-_kDn(b.from))*_kbd||a.name.localeCompare(b.name,"de");});
+      _bxTab==='abwesend' && (()=>{const _krAll=_krankRows();const _attOk=r=>(r.atts||[]).filter(a=>!_bxDelSet[a.id||a.name]).length>0;const noAtt=new Set(_krAll.filter(r=>!_attOk(r)).map(r=>r.name)).size;const _mNames=[...new Set(_krAll.map(r=>r.name))].sort((a,b)=>a.localeCompare(b,"de"));const _kTog=c=>{if(_kSortCol===c)_setKSortDir(d=>d==="asc"?"desc":"asc");else{_setKSortCol(c);_setKSortDir("asc");}};const _kArr=c=>_kSortCol===c?(_kSortDir==="asc"?" ▲":" ▼"):" ↕";const _kFil=_krAll.filter(r=>{if(_kSearch){const _t=_kSearch.toLowerCase().split(/\s+/).filter(Boolean);if(!_t.every(x=>(r.name||"").toLowerCase().includes(x)))return false;}if(_kfMonteur!=="alle"&&r.name!==_kfMonteur)return false;if(_kfAttest==="fehlt"&&_attOk(r))return false;if(_kfAttest==="vorhanden"&&!_attOk(r))return false;if(_kfMonat!=="alle"&&String(r.date).slice(5,7)!==_kfMonat)return false;return true;});const kr=[..._kFil].sort((a,b)=>{const d=_kSortDir==="asc"?1:-1;if(_kSortCol==="hours")return ((Number(a.hours)||0)-(Number(b.hours)||0))*d;if(_kSortCol==="attest"){const _x=((_attOk(a)?1:0)-(_attOk(b)?1:0))*d;return _x||String(a.date).localeCompare(String(b.date));}if(_kSortCol==="date"){const _x=String(a.date).localeCompare(String(b.date))*d;return _x||a.name.localeCompare(b.name,"de");}return String(a[_kSortCol]||"").localeCompare(String(b[_kSortCol]||""),"de")*d;});const _kActive=(_kSearch?1:0)+(_kfMonteur!=="alle"?1:0)+(_kfAttest!=="alle"?1:0)+(_kfMonat!=="alle"?1:0);;const _kDn=x=>{var q=String(x).slice(0,10).split("-");return q.length===3?(Date.UTC(+q[0],+q[1]-1,+q[2])/TIME_DAY):0;};const _kFd=x=>{var q=String(x).slice(0,10).split("-");return q.length===3?(q[2]+"."+q[1]+"."):x;};const _kDayTr=(r,i,kk)=>React.createElement("tr",{key:kk+"_"+i},React.createElement("td",{style:{padding:"5px 8px 5px 24px",borderBottom:"1px solid "+V.bd,whiteSpace:"nowrap",color:V.dm}},r.name),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd,fontFamily:mono,whiteSpace:"nowrap"}},r.date),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd,textAlign:"right",fontFamily:mono}},_projStdDE(r.hours,1)),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd}},r.status),React.createElement("td",{style:{padding:"5px 8px",borderBottom:"1px solid "+V.bd,fontWeight:700}},(function(){var _va=(r.atts||[]).filter(function(a){return !_bxDelSet[a.id||a.name];});if(!_va.length)return React.createElement("span",{style:{color:COLORS.ERROR}},"fehlt");return React.createElement("span",{style:{display:"inline-flex",gap:6,alignItems:"center"}},React.createElement("button",{onClick:function(){_bxOpenAttest(_va[0]);},style:{...bsS(),padding:"3px 10px",fontSize:UI.fMeta},title:"Attest ansehen"},"Ansehen"+(_va.length>1?" ("+_va.length+")":"")),_bxOffice?React.createElement("button",{onClick:function(){_bxDelAttest(_va[0]);},title:"Attest löschen",style:{...bdS,padding:"3px 8px",fontSize:UI.fMeta}},_ik("eimer",16)):null);})()));var _kBn={};kr.forEach(function(r){if(!_kBn[r.name])_kBn[r.name]=[];_kBn[r.name].push(r);});var _kBlocks=[];Object.keys(_kBn).forEach(function(nm){var ds=_kBn[nm].slice().sort(function(a,b){return _kDn(a.date)-_kDn(b.date);});var cur=null;ds.forEach(function(r){var dn=_kDn(r.date);if(cur){var gap=dn-cur._ln;var pwd=new Date(cur._ln*TIME_DAY).getUTCDay();if(gap===1||(gap===3&&pwd===5)){cur.days.push(r);cur._ln=dn;cur.to=r.date;cur.h+=(Number(r.hours)||0);}else{_kBlocks.push(cur);cur=null;}}if(!cur){cur={name:nm,from:r.date,to:r.date,days:[r],_ln:dn,h:(Number(r.hours)||0)};}});if(cur)_kBlocks.push(cur);});_kBlocks.forEach(function(b){b.count=b.days.length;b.hasAtt=b.days.some(function(r){return _attOk(r);});b.key=b.name+"_"+b.from;b.status=(b.days[0]||{}).status||"";});var _kbd=_kSortDir==="asc"?1:-1;_kBlocks.sort(function(a,b){if(_kSortCol==="hours")return (a.h-b.h)*_kbd;if(_kSortCol==="attest"){var x=((a.hasAtt?1:0)-(b.hasAtt?1:0))*_kbd;return x||(_kDn(a.from)-_kDn(b.from));}if(_kSortCol==="status")return (String(a.status).localeCompare(String(b.status),"de")*_kbd)||(_kDn(a.from)-_kDn(b.from));if(_kSortCol==="name")return (a.name.localeCompare(b.name,"de")*_kbd)||(_kDn(a.from)-_kDn(b.from));return (_kDn(a.from)-_kDn(b.from))*_kbd||a.name.localeCompare(b.name,"de");});
         return React.createElement('div',{style:{marginTop:16}}
           ,React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}
             ,React.createElement('div',{style:{fontSize:15,fontWeight:700}},"\ud83e\udd12 Krankenstand "+_abYr)
@@ -13999,7 +14014,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
             ,_krAll.length===0?React.createElement('div',{style:{fontSize:12,color:V.dm,textAlign:"center",padding:20}},"Keine Krankenst\u00e4nde "+_abYr):kr.length===0?React.createElement('div',{style:{fontSize:12,color:V.dm,textAlign:"center",padding:20}},"Keine Treffer \u2014 Filter anpassen")
             :React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:isMob?0:520}}
               ,React.createElement('thead',{},React.createElement('tr',{},[["name","Mitarbeiter"],["date","Datum"],["hours","Stunden"],["status","Status"],["attest","Attest"]].map((c,i)=>React.createElement('th',{key:c[0],role:"button",tabIndex:0,onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();_kTog(c[0]);}},onClick:()=>_kTog(c[0]),style:{padding:"6px 8px",fontSize:UI.fMeta,fontWeight:700,color:_kSortCol===c[0]?V.tx:V.dm,borderBottom:"1px solid "+V.bd,textAlign:i===2?"right":"left",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none"},title:"Sortieren"},c[1],_kArr(c[0])))))
-              ,React.createElement('tbody',{},_kBlocks.map(function(b){var _op=!!_krOpen[b.key];var _rng=b.from===b.to?_kFd(b.from):(_kFd(b.from)+"–"+_kFd(b.to));var _hd=React.createElement('tr',{key:b.key,onClick:function(){_setKrOpen(function(pp){var mm=Object.assign({},pp);if(mm[b.key])delete mm[b.key];else mm[b.key]=1;return mm;});},style:{cursor:"pointer",background:"rgba(239,68,68,.05)"}},React.createElement('td',{colSpan:5,style:{padding:"8px"}},React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,fontSize:13,minHeight:isMob?26:0,whiteSpace:"nowrap",overflow:"hidden"}},React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,flexShrink:0,width:12}},_op?"▼":"▶"),React.createElement('span',{style:{fontWeight:700,flexShrink:0}},b.name),React.createElement('span',{style:{color:V.dm,overflow:"hidden",textOverflow:"ellipsis"}}," · "+_rng+" · "+b.count+(b.count===1?" Tag":" Tage")+" · "+_n(b.h,1)+"h"),(function(){var _mo=monteure.find(function(x){return x.n===b.name;});var _ein=_mo&&_mo.eintritt;var _dj=_kvDienstjahre(_ein,Date.now());var _voll=_efzgVollWochen(_dj);/* v3.9.664 Bug-Hunt KV #2: Verbrauch aus ALLEN Krankdaten des MA (nicht dem gefilterten Block-Set — sonst haengt die Anzeige an den UI-Filtern) und nur im laufenden ARBEITSJAHR (EFZG-Anspruch ist arbeitsjahr-bezogen); volle Wochen ABrunden (Math.floor) statt jeden angebrochenen Tag auf eine ganze Woche aufzurunden. Bleibt Naeherung — Lohnverrechner massgeblich. */var _ajStart=_efzgArbeitsjahrStartMs(_ein,Date.now());var _td=_krAll.reduce(function(s,x){if(x.name!==b.name)return s;var _dm=_kDn(x.date)*TIME_DAY;return (_ajStart==null||_dm>=_ajStart)?s+1:s;},0);var _gen=Math.min(_voll,Math.floor(_td/5));return React.createElement('span',{title:"EFZG-Info: bei "+_dj+" Dienstjahren "+_voll+" Wochen volle + 4 Wochen halbe Entgeltfortzahlung pro Arbeitsjahr (Naeherung, volle Wochen im laufenden Arbeitsjahr). Lohnverrechner massgeblich.",style:{flexShrink:0,fontSize:UI.fMeta,fontWeight:600,color:(_gen>=_voll?COLORS.ERROR:V.dm),marginLeft:8}},"EFZG "+_gen+"/"+_voll+" Wo");})(),React.createElement('span',{style:{marginLeft:"auto",flexShrink:0,fontWeight:700,color:b.hasAtt?"#16a34a":COLORS.ERROR}},b.hasAtt?"Attest vorhanden":"Attest fehlt"))));return _op?[_hd].concat(b.days.map(function(r,i){return _kDayTr(r,i,b.key);})):_hd;}))
+              ,React.createElement('tbody',{},_kBlocks.map(function(b){var _op=!!_krOpen[b.key];var _rng=b.from===b.to?_kFd(b.from):(_kFd(b.from)+"–"+_kFd(b.to));var _hd=React.createElement('tr',{key:b.key,onClick:function(){_setKrOpen(function(pp){var mm=Object.assign({},pp);if(mm[b.key])delete mm[b.key];else mm[b.key]=1;return mm;});},style:{cursor:"pointer",background:"rgba(239,68,68,.05)"}},React.createElement('td',{colSpan:5,style:{padding:"8px"}},React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,fontSize:13,minHeight:isMob?26:0,whiteSpace:"nowrap",overflow:"hidden"}},React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,flexShrink:0,width:12}},_op?"▼":"▶"),React.createElement('span',{style:{fontWeight:700,flexShrink:0}},b.name),React.createElement('span',{style:{color:V.dm,overflow:"hidden",textOverflow:"ellipsis"}}," · "+_rng+" · "+b.count+(b.count===1?" Tag":" Tage")+" · "+_projStdDE(b.h,1)+"h"),(function(){var _mo=monteure.find(function(x){return x.n===b.name;});var _ein=_mo&&_mo.eintritt;var _dj=_kvDienstjahre(_ein,Date.now());var _voll=_efzgVollWochen(_dj);/* v3.9.664 Bug-Hunt KV #2: Verbrauch aus ALLEN Krankdaten des MA (nicht dem gefilterten Block-Set — sonst haengt die Anzeige an den UI-Filtern) und nur im laufenden ARBEITSJAHR (EFZG-Anspruch ist arbeitsjahr-bezogen); volle Wochen ABrunden (Math.floor) statt jeden angebrochenen Tag auf eine ganze Woche aufzurunden. Bleibt Naeherung — Lohnverrechner massgeblich. */var _ajStart=_efzgArbeitsjahrStartMs(_ein,Date.now());var _td=_krAll.reduce(function(s,x){if(x.name!==b.name)return s;var _dm=_kDn(x.date)*TIME_DAY;return (_ajStart==null||_dm>=_ajStart)?s+1:s;},0);var _gen=Math.min(_voll,Math.floor(_td/5));return React.createElement('span',{title:"EFZG-Info: bei "+_dj+" Dienstjahren "+_voll+" Wochen volle + 4 Wochen halbe Entgeltfortzahlung pro Arbeitsjahr (Naeherung, volle Wochen im laufenden Arbeitsjahr). Lohnverrechner massgeblich.",style:{flexShrink:0,fontSize:UI.fMeta,fontWeight:600,color:(_gen>=_voll?COLORS.ERROR:V.dm),marginLeft:8}},"EFZG "+_gen+"/"+_voll+" Wo");})(),React.createElement('span',{style:{marginLeft:"auto",flexShrink:0,fontWeight:700,color:b.hasAtt?"#16a34a":COLORS.ERROR}},b.hasAtt?"Attest vorhanden":"Attest fehlt"))));return _op?[_hd].concat(b.days.map(function(r,i){return _kDayTr(r,i,b.key);})):_hd;}))
             )
           )
         );
@@ -15354,7 +15369,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
 
   // Greeting
   const hour=now.getHours();
-  const greet=hour<10?"Guten Morgen":hour<14?"Mahlzeit":hour<18?"Guten Nachmittag":"Guten Abend";
+  const greet=hour<11?"Guten Morgen":hour<14?"Mahlzeit":/* v1016: "Mahlzeit" um 10:17 war zu frueh - erst ab 11:00 */hour<18?"Guten Nachmittag":"Guten Abend";
   // v3.8.28 Motto: kurze Tageszeit-abhängige Ermutigung unter dem Greeting
   const motto=hour<10?"Starte gut in den Tag":hour<14?"Stärk dich gut":hour<18?"Guter Fortschritt":"Feierabend winkt";/* v3.9.1016 CI: ohne Emoji (GF: "professionell und nicht verspielt") */
   const firstName=(()=>{const mid=_optionalChain([curUser, 'optionalAccess', _245 => _245.monteurId])||_optionalChain([curUser, 'optionalAccess', _245b => _245b.monteur_id]);const mon=mid&&monteure.find(m=>m.id===mid);if(mon&&mon.vorname)return mon.vorname;const nm=(_optionalChain([curUser, 'optionalAccess', _246 => _246.name])||"").trim();const parts=nm.split(" ");return parts[0]||(_optionalChain([curUser, 'optionalAccess', _246b => _246b.username])||"User");})();
@@ -15387,7 +15402,11 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _lastWeekDates=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-7);const s=new Set();for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(_ymd(x));}return s;})();
   let lastWeekH=0;
   entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(_lastWeekDates.has(dt))lastWeekH+=h;});
-  const weekTrend=lastWeekH>0?((weekH-lastWeekH)/lastWeekH*100):0;
+  /* v1016 (Tablet-Test Mo 10:17: 'KW: 0,0 h ↓100%'): verglichen wurde die angefangene Woche mit der GANZEN Vorwoche - am Montag frueh immer ein Absturz. Jetzt: Vorwoche nur bis zum selben Wochentag, und solange diese Woche noch nichts gebucht ist, gar kein Pfeil. Nur Anzeige. */
+  const _lwBisTag=(()=>{const d=new Date();const day=d.getDay()||7;const mon=new Date(d);mon.setDate(d.getDate()-(day-1)-7);const s=new Set();for(let i=0;i<day;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);s.add(_ymd(x));}return s;})();
+  let lastWeekHBisTag=0;
+  entries.forEach(e=>{const dt=e.datum||e.date||"";const h=parseFloat(e.hours||e.stunden)||0;if(_lwBisTag.has(dt))lastWeekHBisTag+=h;});
+  const weekTrend=lastWeekHBisTag>0?((weekH-lastWeekHBisTag)/lastWeekHBisTag*100):0;
   const totalWert=_react.useMemo.call(void 0, ()=>werkzeuge.reduce((s,w)=>s+(w.wert||0),0),[werkzeuge]);
   const aktivFz=(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").length;
   /* v3.9.492: pendingAbs defensiv — vergangene Daten + stale Approvals (ohne backing-abs) zählen NICHT mehr.
@@ -15403,7 +15422,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
   const _myMonteurId=_optionalChain([curUser, 'optionalAccess', _ffa2 => _ffa2.monteurId])||"";
   const _alertFz=_isFleetAdmin?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMonteurId);
   /* v3.9.18 B-014: zentraler Helper _pickerlStatus + 365d-Tail-Filter beibehalten. */
-  const pickerFaellig=_alertFz.filter(f=>{const st=window._pickerlStatus(f.pickerl);if(!st||st==='ok')return false;const d=new Date(f.pickerl+"T00:00:00");return (d-new Date())/TIME_DAY>-365;});
+  const _fzFk=_fzFaelligkeit(_alertFz);/* v1016: eine Definition mit der Fahrzeug-Seite (kein 365-Tage-Deckel, ohne stillgelegte) */const pickerFaellig=_fzFk.pickerl;
   if(pickerFaellig.length>0){
     /* Handy-Befund F1: dieselbe Regel wie die Fahrzeugliste (window._pickerlFrist) - innerhalb der
        Toleranzfrist zaehlt ein Pickerl NICHT als abgelaufen, sondern eigens als "in Toleranzfrist". */
@@ -15415,7 +15434,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     const text=`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${_pkTeile}`;
     alerts.push({type:"warning",icon:"kalender",text,color:abgelaufen>0?COLORS.ERROR:COLORS.WARNING,go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
   }
-  const serviceFaellig=_alertFz.filter(f=>f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date());/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
+  const serviceFaellig=_fzFk.service;/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
   if(serviceFaellig.length>0){
     alerts.push({type:"warning",icon:"werkzeug",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,color:COLORS.ERROR,go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>({label:f.kennzeichen,model:f.modell||"",sub:fdt(f.naechstService),status:window._pickerlStatus(f.naechstService)}))});
   }
@@ -15704,7 +15723,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:500}}, "Stunden heute" )
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:V.tx,fontFamily:mono,...UI.zahlen}}, _projStdDE(todayH,1), " h")
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,display:"flex",alignItems:"center",gap:4}}, "KW: " , _projStdDE(weekH,1), " h"
-            , lastWeekH>0&&React.createElement('span', { style: {fontSize:UI.fMeta,fontWeight:700,color:weekTrend>=0?V.acTx:UI.achtungTxt,marginLeft:2}}, weekTrend>=0?"↑":"↓", " ", _n(Math.abs(weekTrend),0), "%")
+            , lastWeekHBisTag>0&&weekH>0&&React.createElement('span', { title: "verglichen mit der Vorwoche bis zum selben Wochentag", style: {fontSize:UI.fMeta,fontWeight:700,color:weekTrend>=0?V.acTx:V.dm,marginLeft:2}}, weekTrend>=0?"↑":"↓", " ", _n(Math.abs(weekTrend),0), "%")
           )
         )
         , hasPerm(curUser,"fahrzeuge")&&React.createElement('div', { onClick: ()=>onNav("fahrzeuge"), role:"button", tabIndex:0, "aria-label":"Fahrzeuge", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();onNav("fahrzeuge");}}, style: {...CC(),cursor:"pointer",padding:isMob?"10px":"14px",borderLeft:"4px solid "+((pickerFaellig.length+serviceFaellig.length+offeneSchaeden)>0?COLORS.ERROR:COLORS.EP_GREEN),transition:"transform .15s"}}
@@ -15746,7 +15765,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, liveKpis.btWeek==null?"nicht gemessen":("diese Woche · "+liveKpis.btTotal+" gesamt"))
         )
         , isOps&&React.createElement('div', { style: {...CC(),padding:isMob?"10px":"14px",borderLeft:"4px solid "+COLORS.EP_GREEN}}
-          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:500,display:"flex",alignItems:"center",gap:6}}, _ik("personen",14), "Team aktiv" )
+          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:500,display:"flex",alignItems:"center",gap:6}}, _ik("personen",14), "In der App aktiv" )/* v1016: hiess 'Team aktiv' - gezaehlt werden Personen mit App-Aktivitaet heute (activity_log), nicht Monteure auf der Baustelle (Chef: 'Außendienst heute') */
           , React.createElement('div', { style: {fontSize:isMob?24:30,fontWeight:800,color:V.tx,fontFamily:mono,...UI.zahlen}}, liveKpis.actToday==null?"…":liveKpis.actToday)
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "heute aktiv · " , _teamAktiv.length, " gesamt" )
         )
@@ -15772,7 +15791,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
                 , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, pr.nr, " · "  , pr.kunde||"—")
               )
               , React.createElement('div', { style: {textAlign:"right"}}
-                , React.createElement('div', { style: {fontSize:12,fontWeight:700,fontFamily:mono,color:V.acTx}}, _n(prH,1), "h")
+                , React.createElement('div', { style: {fontSize:12,fontWeight:700,fontFamily:mono,color:V.acTx}}, _projStdDE(prH,1), " h")
                 , React.createElement('div', { style: {width:40,height:4,borderRadius:2,background:V.bd,marginTop:2}}
                   , React.createElement('div', { style: {height:"100%",borderRadius:2,background:pr.fortschritt>70?"#22c55e":pr.fortschritt>40?V.ac:"#f97316",width:Math.min(pr.fortschritt||0,100)+"%"}} )
                 )
@@ -15922,7 +15941,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           React.createElement('div', {}, items.map((it,i)=>(React.createElement('div', { key: i, style: {marginBottom:6}}
             , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",marginBottom:2}}
               , React.createElement('span', { style: {fontSize:UI.fMeta,fontWeight:600}}, it.label)
-              , React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,color:V.dm}}, unit==="€"?_n(it.value,0)+" €":_n(it.value,1)+" L")
+              , React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,color:V.dm}}, unit==="€"?_n(it.value,0)+" €":_projStdDE(it.value,1)+" L")
             )
             , React.createElement('div', { style: {height:6,background:V.bd,borderRadius:3}}
               /* v3.9.61 S40 F-5: maxVal=0 → NaN → invalid CSS width. Guard against div-by-0. */
@@ -15936,13 +15955,13 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           , React.createElement('div', { style: CC()}
             , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
               , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "Wochenvergleich Stunden"  )
-              , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _n(thisWH.reduce((a,b)=>a+b,0),1), "h / "  , _n(lastWH.reduce((a,b)=>a+b,0),1), "h")
+              , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _projStdDE(thisWH.reduce((a,b)=>a+b,0),1), " h / "  , _projStdDE(lastWH.reduce((a,b)=>a+b,0),1), " h")
             )
             , React.createElement(BarChart, { data: thisWH, data2: lastWH, labels: dayLabels, max: maxH, color: V.ac, color2: "#94a3b8", unit: "h",
               legend: [{l:"Diese Woche",c:V.ac},{l:"Letzte Woche",c:"#94a3b8"}]} )
-            , (()=>{const diff=thisWH.reduce((a,b)=>a+b,0)-lastWH.reduce((a,b)=>a+b,0);
-              return diff!==0?(React.createElement('div', { style: {marginTop:8,fontSize:UI.fMeta,fontWeight:600,color:diff>0?_okG("#22c55e"):"#f97316"}}
-                , diff>0?"▲":"▼", " " , _n(Math.abs(diff),1), "h " , diff>0?"mehr":"weniger", " als letzte Woche"
+            , (()=>{/* v1016: nur bis zum heutigen Wochentag vergleichen - am Montag frueh hiess es sonst immer '40 h weniger als letzte Woche' (orange). 'weniger' ist kein Alarm: neutrale Farbe. */const _bis=(new Date().getDay()||7);const diff=thisWH.slice(0,_bis).reduce((a,b)=>a+b,0)-lastWH.slice(0,_bis).reduce((a,b)=>a+b,0);
+              return (diff!==0&&thisWH.slice(0,_bis).some(x=>x>0))?(React.createElement('div', { style: {marginTop:8,fontSize:UI.fMeta,fontWeight:600,color:diff>0?_okG("#22c55e"):V.dm}}
+                , diff>0?"▲":"▼", " " , _projStdDE(Math.abs(diff),1), " h " , diff>0?"mehr":"weniger", " als letzte Woche bis "+dayLabels[_bis-1]
               )):null;
             })()
           )
@@ -16076,7 +16095,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
           /* v3.9.37 Sprint-22 P-M2: fontSize ≥16 mobile gegen iOS-Auto-Zoom; minWidth statt nur maxWidth damit auf 414/380 brauchbar. */
           , /* v3.9.935: die Lupe stand IM Platzhaltertext. Ein placeholder ist ein Attribut und nimmt keinen Knoten auf - dort kann kein SVG stehen, und ein Vorleseprogramm liest 'Lupe Projekt Komma Kunde'. Die Ikone sitzt jetzt als echtes Element vor dem Feld, der Text bleibt inhaltlich derselbe. */React.createElement('input', { className: "epk-suche", value: q, onChange: e=>setQ(e.target.value), 'aria-label': "Projekte durchsuchen", placeholder: "Projekt, Kunde..."  , style: {...II(),width:"auto",maxWidth:isMob?160:220,minWidth:isMob?120:0,fontSize:isMob?16:13}} )/* PROJ-HANDY P6: die Lupe davor zieht sich mit marginRight:-26 ins Feld (sie liegt bei 10..26 px), II() setzt aber nur 11 px Innenabstand - Lupe und Platzhalter lagen uebereinander. 34 px = Lupe + 8 px Luft. */
           /* v3.9.80 S56-1 A11Y: aria-label icon-only Toggle-Button */
-          , isAdmin&&React.createElement('button', { onClick: ()=>{setForm(emptyProj);setEditP(null);setShowNew(!showNew);}, 'aria-label': showNew?"Neues Projekt abbrechen":"Neues Projekt anlegen", title: showNew?"Abbrechen":"Neues Projekt", style: bpS}, showNew?_ik("kreuz",17):React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}} , _ik("plus",17) , "Neues Projekt" ))
+          , isAdmin&&React.createElement('button', { onClick: ()=>{setForm(emptyProj);setEditP(null);setShowNew(!showNew);}, 'aria-label': showNew?"Neues Projekt abbrechen":"Neues Projekt anlegen", title: showNew?"Abbrechen":"Neues Projekt", style: showNew?bsS():bpS}, showNew?React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}}, _ik("kreuz",17), "Schließen")/* v1016: vorher nur ein gruenes Kreuz ohne Text */:React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}} , _ik("plus",17) , "Neues Projekt" ))
         )
       )
 
@@ -16332,9 +16351,9 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
         )
       )
       , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
-        , React.createElement(Kpi, { label: "Heute", value: _projStdDE(tE.reduce((s,x)=>s+_h(x),0))+" h", sub: tE.length+" Buchungen", color: V.ac, i: 0} )
-        , React.createElement(Kpi, { label: "KW "+kw, value: _projStdDE(we.reduce((s,x)=>s+_h(x),0))+" h", sub: we.length+" Buchungen", color: "#3b82f6", i: 1} )
-        , React.createElement(Kpi, { label: "Gesamt Projekt" , value: _projStdDE(pe.reduce((s,x)=>s+_h(x),0))+" h", sub: pe.length+" Buchungen", color: _okG("#22c55e"), i: 2} )
+        , React.createElement(Kpi, { label: "Heute", value: _projStdDE(tE.reduce((s,x)=>s+_h(x),0))+" h", sub: _nWort(tE.length,"Buchung","Buchungen"), color: V.ac, i: 0} )
+        , React.createElement(Kpi, { label: "KW "+kw, value: _projStdDE(we.reduce((s,x)=>s+_h(x),0))+" h", sub: _nWort(we.length,"Buchung","Buchungen"), color: V.ac, i: 1} )
+        , React.createElement(Kpi, { label: "Gesamt Projekt" , value: _projStdDE(pe.reduce((s,x)=>s+_h(x),0))+" h", sub: _nWort(pe.length,"Buchung","Buchungen"), color: _okG("#22c55e"), i: 2} )
         , (((window._curUser&&window._curUser())||{}).role!=="monteur")&&React.createElement(Kpi, { label: "Auftragssumme", value: fmt$(p.betrag), sub: p.matchcode?("Matchcode: "+p.matchcode):undefined/* PROJ-HANDY PR12: hier stand der rohe Matchcode (z.B. DRGSCHMEIDLERS1) ohne Beschriftung. Das ist der Suchbegriff des Auftrags aus der Warenwirtschaft (kommt mit dem Projektimport, Feld projects.matchcode, steht auch im Zeiterfassungs-Export) - also beschriftet statt entfernt, das Buero sucht damit. Ohne Matchcode keine leere Zeile. */, color: "#eab308", i: 3} )/* v3.9.456 (Chef): Auftragssumme-KPI nicht fuer Monteure */
       )
       , React.createElement('div', { style: {display:"grid",gridTemplateColumns:ww<768?"1fr":"1fr 1fr",gap:14}}
@@ -16370,7 +16389,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
       , (matKpi.items>0||matKpi.openOrders>0)&&React.createElement('div', { style: {...CC(),marginTop:14}}
         , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:10}}, "Material" )
         , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,textAlign:"center"}}
-          , React.createElement('div', null, React.createElement('div', { style: {fontSize:20,fontWeight:800,color:V.acTx}}, matKpi.items), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Anforderungen"))
+          , React.createElement('div', null, React.createElement('div', { style: {fontSize:20,fontWeight:800,color:V.acTx}}, matKpi.items), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, matKpi.items===1?"Anforderung":"Anforderungen"))
           , React.createElement('div', null, React.createElement('div', { style: {fontSize:20,fontWeight:800,color:matKpi.openOrders>0?"#f59e0b":_okG("#22c55e")}}, matKpi.openOrders), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Offen"))
         )
       )
@@ -16408,12 +16427,12 @@ function VExport({p,entries,forms,monteure,ww,curUser}){
   return (
     React.createElement('div', {}
       , React.createElement('h2', { style: {fontSize:window.innerWidth<BP_MOB?UI.fSeiteMob:UI.fSeite,fontWeight:800,marginBottom:2}}, "Export & Serverablage"   )
-      , React.createElement('p', { style: {color:V.dm,fontSize:13,marginBottom:16}}, p.name, (p.nr?" ("+p.nr+")":""), " — Export auf "    , React.createElement('span', { style: {fontFamily:mono,color:V.acTx}}, "\\\\\\\\srvdc02\\\\Projekte"))
+      , React.createElement('p', { style: {color:V.dm,fontSize:13,marginBottom:16}}, p.name, (p.nr?" ("+p.nr+")":""), " — Export auf "    , React.createElement('span', { style: {fontFamily:mono,color:V.acTx}}, "\\\\srvdc02\\Projekte"))
       , React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Projektstatus"), React.createElement('div', { className: "form-grid-4"}, React.createElement('div', {}, React.createElement('span', { style: LL()}, "Status"), React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}, React.createElement('span', { style: {padding:"3px 10px",borderRadius:6,fontSize:12,fontWeight:600,background:sc.bg,color:sc.c}}, sc.i, " " , sc.l))), React.createElement('div', {}, React.createElement('span', { style: LL()}, "Fortschritt"), React.createElement('div', { style: {fontFamily:mono,fontSize:16,fontWeight:700,color:sc.c}}, p.fortschritt, "%")), React.createElement('div', {}, React.createElement('span', { style: LL()}, "Stunden gesamt" ), React.createElement('div', { style: {fontFamily:mono,fontSize:16,fontWeight:700}}, _projStdDE(totalH), " h")), React.createElement('div', {}, React.createElement('span', { style: LL()}, "Auftragssumme"), React.createElement('div', { style: {fontFamily:mono,fontSize:16,fontWeight:700,color:V.acTx}}, fmt$(p.betrag)))))
       /* Server Folder Structure */
       , React.createElement('div', { style: CC()}
         , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:4}}, "📁 Server-Ordnerstruktur" )
-        , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:12,fontFamily:mono}}, "Z:\\\\Projekte\\\\", p.nr, "_", (p.name||"").replace(/\s+/g,"_"), "\\\\")
+        , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:12,fontFamily:mono}}, "Z:\\Projekte\\", p.nr, "_", (p.name||"").replace(/\s+/g,"_"), "\\")/* v1016: nur Anzeige - zeigte doppelte Backslashes */
         , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}
           , srvFolders.map(f=>(React.createElement('div', { key: f.nr, style: {display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:4,background:f.cnt>0?"rgba(0,150,64,.06)":"transparent",border:f.cnt>0?"1px solid rgba(0,150,64,.2)":"1px solid transparent"}}
             , React.createElement('span', { style: {fontSize:13}}, "📂")
@@ -16516,7 +16535,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
       const _entWorker=_ent&&(_ent.worker||_ent.w||"");
       if(!_ent||_entWorker!==_vzMid){_optionalChain([window,'access',_g325c=>_g325c.__toast,'optionalCall',_g325d=>_g325d("⚠️ Keine Berechtigung — Monteure können nur eigene Zeiteinträge löschen","warn")]);return;}
     }
-    if(!await _confirmModal("Zeiteintrag wirklich löschen?",{variant:"danger"}))return;SQ.push({url:"/api/entries/"+id,method:"DELETE"});setEntries(prev=>prev.filter(x=>x.id!==id));if(window.__toast)window.__toast("🗑️ Eintrag gelöscht");};
+    const _eDel=entries.find(x=>x.id===id)||{};if(!await _confirmModal("Zeiteintrag "+_zeitEintragName(_eDel.datum||_eDel.date,_eDel.stunden||_eDel.hours,p.name)+" löschen?",{variant:"danger"}))return;SQ.push({url:"/api/entries/"+id,method:"DELETE"});setEntries(prev=>prev.filter(x=>x.id!==id));if(window.__toast)window.__toast("🗑️ Eintrag gelöscht");};
 
   const totalH=pe.reduce((s,e)=>s+(e.stunden||e.hours||0),0);
   const byWorker={};pe.forEach(e=>{const wid=e.worker||e.w||"?";byWorker[wid]=(byWorker[wid]||0)+(e.stunden||e.hours||0);});
@@ -16539,10 +16558,10 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
     return React.createElement('div',{style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.6)",zIndex:9999,display:"flex",alignItems:_im?"flex-end":"center",justifyContent:"center",padding:_im?0:16}},
       React.createElement('div',{style:{background:V.cd,borderRadius:_im?"16px 16px 0 0":12,border:"1px solid "+V.bd,padding:20,paddingBottom:_im?"calc(20px + env(safe-area-inset-bottom,0px))":20,width:"100%",maxWidth:_im?"100%":440,maxHeight:_im?"92dvh":"90vh",overflowY:"auto"}},
         React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
-          React.createElement('div',{style:{fontSize:16,fontWeight:800}},editEntryId?"Eintrag bearbeiten · ":"+ Eintrag · ",p.name),
+          React.createElement('div',{style:{minWidth:0}},/* v1016 Bedienung: Kopf wie in der Zeiterfassung - klein was/wo, gross WANN und FUER WEN (folgt der Monteur-Auswahl) */React.createElement('div',{style:{fontSize:UI.fMeta,fontWeight:600,color:V.dm}},(editEntryId?"Eintrag bearbeiten":"Neuer Eintrag")+" · "+p.name),React.createElement('div',{'data-dialog-wer':"projekt",style:{fontSize:20,fontWeight:800,color:V.tx,lineHeight:1.25}},dayLabel+(function(){var _wid=_vzIsField?_vzMid:addWorker;var _wn=((allWorkers||[]).find(function(w){return w.id===_wid;})||(monteure||MONT||[]).find(function(w){return w.id===_wid;})||{}).n;return _wn?" · "+_wn:"";})())),
           React.createElement('button',{onClick:()=>setAddDay(null),'aria-label':"Dialog schließen",title:"Schließen",style:{...bdS,padding:"4px 10px",fontSize:12}},"✕")
         ),
-        React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",background:"rgba(16,185,129,.1)",borderRadius:6,marginBottom:12,fontSize:13,fontWeight:600,color:_okG("#10b981")}},"📅 "+dayLabel),
+        /* v1016: Datum steht im Kopf (vorher eigene Plakette mit Emoji) */
         React.createElement('div',{style:{marginBottom:10}},
           React.createElement('label',{style:LL()},"Monteur"),
           /* v3.9.26 P2 (Fix-E): Field-User Worker-Select disabled + forced auf eigene mid. Admin/PL frei. */
@@ -16555,15 +16574,15 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
              Differenz zwischen dem angezeigten von/bis und den gebuchten Stunden geben. */
           React.createElement('div',{},React.createElement('label',{style:LL()},"Von"),React.createElement('input',{type:"time",value:addVon,onChange:e=>{setAddVon(e.target.value);if(e.target.value&&addBis){const d=_wrapHrs(e.target.value,addBis)-addPause;setAddHours(d>0?Math.round(d*2)/2:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const v=_zeitRundVon(e.target.value);setAddVon(v);if(v&&addBis){const b2=_zeitRundBis(addBis);setAddBis(b2);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})),
           React.createElement('div',{},React.createElement('label',{style:LL()},"Bis"),React.createElement('input',{type:"time",value:addBis,onChange:e=>{setAddBis(e.target.value);if(addVon&&e.target.value){const d=_wrapHrs(addVon,e.target.value)-addPause;setAddHours(d>0?Math.round(d*2)/2:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const b2=_zeitRundBis(e.target.value);setAddBis(b2);if(addVon&&b2){const v=_zeitRundVon(addVon);setAddVon(v);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})),
-          React.createElement('div',{},React.createElement('label',{style:LL()},"Pause"),React.createElement('select',{value:addPause,onChange:e=>{const pp=parseFloat(e.target.value);setAddPause(pp);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-pp;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*2)/2:0);}},style:{...II(),fontSize:13}},React.createElement('option',{value:1},"1h"),React.createElement('option',{value:0.5},"30min"),React.createElement('option',{value:0},"Keine"))),
-          React.createElement('div',{},React.createElement('label',{style:LL()},"Stunden"),_zeitDauerUngueltig(addVon,addBis)?React.createElement('div',{role:"alert",title:ZEIT_BIS_VOR_VON_MSG,style:{...II(),color:_dark?"#f87171":"#b91c1c",borderColor:_dark?"#f87171":"#b91c1c",fontWeight:700,textAlign:"center"}},"⚠️ "+ZEIT_BIS_VOR_VON_MSG)/* v3.9.1005: Gehen <= Kommen - keine Stundenzahl, sondern die Meldung */:React.createElement('input',{type:"number", inputMode:"decimal",step:"0.5",min:"0",max:"24",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?_zeitEffektiveStunden(addVon,addBis,addPause):addHours),readOnly:_zeitEffektiveStunden(addVon,addBis,addPause)!=null,title:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?"Errechnet aus Von/Bis minus Pause — zum Aendern die Zeiten anpassen":"Von/Bis sind leer — hier direkt eintragen"),onChange:e=>setAddHours(parseFloat(e.target.value)||0),/* v3.9.885 LOHN: das Feld war eine Attrappe. addEntry rechnet die Stunden IMMER aus von/bis minus Pause neu, und von/bis sind per Vorbelegung IMMER gesetzt - wer 10 tippte, buchte 8, ohne jeden Hinweis. Jetzt zeigt das Feld GENAU die Zahl, die gespeichert wird, und ist dann nicht beschreibbar. Sind von/bis leer, greift die Handeingabe weiter - das ist die bewusste Hintertuer, deshalb readOnly nicht hart. */ style:{...II(),fontSize:16,fontWeight:800,textAlign:"center",color:_okG("#10b981")}}))
+          React.createElement('div',{},React.createElement('label',{style:LL()},"Pause"),React.createElement('select',{value:addPause,onChange:e=>{const pp=parseFloat(e.target.value);setAddPause(pp);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-pp;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*2)/2:0);}},style:{...II(),fontSize:13}},React.createElement('option',{value:1},"1 h"),React.createElement('option',{value:0.5},"30 Min"),React.createElement('option',{value:0},"Keine")/* v1016: gleiche Beschriftung wie in der Zeiterfassung */)),
+          React.createElement('div',{},React.createElement('label',{style:LL()},"Stunden"),_zeitDauerUngueltig(addVon,addBis)?React.createElement('div',{role:"alert",title:ZEIT_BIS_VOR_VON_MSG,style:{...II(),color:_dark?"#f87171":"#b91c1c",borderColor:_dark?"#f87171":"#b91c1c",fontWeight:700,textAlign:"center"}},"⚠️ "+ZEIT_BIS_VOR_VON_MSG)/* v3.9.1005: Gehen <= Kommen - keine Stundenzahl, sondern die Meldung */:React.createElement('input',{type:"number", inputMode:"decimal",step:"0.5",min:"0",max:"24",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?_zeitEffektiveStunden(addVon,addBis,addPause):addHours),readOnly:_zeitEffektiveStunden(addVon,addBis,addPause)!=null,title:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?"Errechnet aus Von/Bis minus Pause — zum Aendern die Zeiten anpassen":"Von/Bis sind leer — hier direkt eintragen"),onChange:e=>setAddHours(parseFloat(e.target.value)||0),/* v3.9.885 LOHN: das Feld war eine Attrappe. addEntry rechnet die Stunden IMMER aus von/bis minus Pause neu, und von/bis sind per Vorbelegung IMMER gesetzt - wer 10 tippte, buchte 8, ohne jeden Hinweis. Jetzt zeigt das Feld GENAU die Zahl, die gespeichert wird, und ist dann nicht beschreibbar. Sind von/bis leer, greift die Handeingabe weiter - das ist die bewusste Hintertuer, deshalb readOnly nicht hart. */ style:{...II(),fontSize:16,fontWeight:800,textAlign:"center",color:_okG("#10b981"),..._zeitStdStil(addVon,addBis,addPause)}}),_zeitStdHinweis(addVon,addBis,addPause))
         ),
         /* v3.9.64 SPRINT-43 DATA-INTEGRITY-7: maxLength gegen Paste-Accidents (DB-Schutz). */
         React.createElement('div',{style:{marginBottom:8}},React.createElement('label',{style:LL()},"Tätigkeit"),React.createElement('textarea',{value:addTaetigkeit,onChange:e=>setAddTaetigkeit(e.target.value),placeholder:"z.B. Montage, Inbetriebnahme, Kabelverlegung EG",rows:3,maxLength:500,style:{...II(),fontSize:13,resize:"vertical",minHeight:60,fontFamily:"inherit"}})),
         React.createElement('div',{style:{marginBottom:14}},React.createElement('label',{style:LL()},"Bemerkung"),React.createElement('input',{value:addBemerkung,onChange:e=>setAddBemerkung(e.target.value),placeholder:"optional",maxLength:500,style:{...II(),fontSize:12}})),
         React.createElement('div',{style:{display:"flex",gap:8,justifyContent:"flex-end"}},
           React.createElement('button',{onClick:()=>setAddDay(null),style:{...bsS(),padding:"8px 18px"}},"Abbrechen"),
-          React.createElement('button',{onClick:addEntry,style:{...bpS,padding:"8px 24px",fontSize:13,fontWeight:700}},"✓ Speichern")
+          React.createElement('button',{onClick:addEntry,style:{...bpS,padding:"8px 24px",fontSize:13,fontWeight:700}},editEntryId?"Änderungen speichern":"Eintrag speichern")/* v1016: gleicher Knopftext wie in der Zeiterfassung */
         )
       )
     );
@@ -16605,17 +16624,17 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
           return React.createElement('div',{key:d,style:{borderRadius:8,border:"1px solid "+(today?"#10b981":V.bd),background:today?(_dark?"rgba(16,185,129,.06)":"rgba(16,185,129,.03)"):(isSa?(_dark?"rgba(239,68,68,.04)":"rgba(239,68,68,.02)"):V.cd),overflow:"hidden",minHeight:160,display:"flex",flexDirection:"column"}},
             React.createElement('div',{style:{background:today?"linear-gradient(135deg,#009640,#006e30)":"linear-gradient(135deg,"+(isSa?"#7f1d1d,#991b1b":"#1e293b,#334155")+")",padding:"8px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}},
               React.createElement('div',{},React.createElement('span',{style:{color:"#fff",fontWeight:700,fontSize:14}},d),React.createElement('span',{style:{color:"rgba(255,255,255,.7)",fontSize:UI.fMeta,marginLeft:6}},dateFmt(i))),
-              dt>0&&React.createElement('span',{style:{color:"#fff",fontWeight:800,fontSize:13,fontFamily:mono,...UI.zahlen,background:"rgba(255,255,255,.15)",padding:"2px 8px",borderRadius:4}},_projStdDE(dt,1)," h")
+              dt>0&&React.createElement('span',{style:{color:"#fff",fontWeight:800,fontSize:13,fontFamily:mono,...UI.zahlen,background:"rgba(255,255,255,.15)",padding:"2px 8px",borderRadius:4}},_projStdDE(dt,2)," h")
             ),
             React.createElement('div',{style:{flex:1,padding:6,display:"flex",flexDirection:"column",gap:4}},
               arr.map(function(entry,eIdx){
                 var wk=(monteure||MONT).find(function(m){return m.id===(entry.worker||entry.w);});
                 return React.createElement('div',{key:entry.id||eIdx,style:{background:_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)",border:"1px solid "+V.bd,borderRadius:6,padding:"6px 8px",borderLeft:"3px solid #009640"}},
                   React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-                    React.createElement('span',{style:{fontSize:14,fontWeight:700,color:V.acTx}},_projStdDE((entry.stunden||entry.hours||0),1)," h"),
+                    React.createElement('span',{style:{fontSize:14,fontWeight:700,color:V.acTx}},_projStdDE((entry.stunden||entry.hours||0),2)," h"),
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:2}},canDo("zeit_other",curUser)&&React.createElement('span',{onClick:function(){setEditEntryId(entry.id);setAddWorker(entry.worker||entry.w||"");setAddVon(entry.von||"07:00");setAddBis(entry.bis||"16:00");setAddPause(entry.pause!=null?entry.pause:1);setAddHours(entry.stunden||entry.hours||0);setAddTaetigkeit(entry.taetigkeit||entry.task||"");setAddBemerkung(entry.bemerkung||"");setAddDay(entry.datum||entry.date);},role:"button",tabIndex:0,"aria-label":"Eintrag bearbeiten",title:"Bearbeiten (Büro/Admin)",style:{cursor:"pointer",fontSize:isMob?14:12,color:V.acTx,padding:isMob?"6px 9px":"2px 4px",display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:isMob?0:24,minHeight:isMob?30:24,touchAction:"manipulation"}},"✏️"),_canDelZ&&React.createElement('span',{onClick:function(){delEntry(entry.id);/* v3.9.7 Modal-Migration: outer native confirm removed — delEntry hat eigenen _confirmModal */},role:"button",tabIndex:0,"aria-label":"Eintrag löschen",title:"Eintrag löschen",onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();delEntry(entry.id);}},style:{cursor:"pointer",fontSize:isMob?14:12,color:COLORS.ERROR,padding:isMob?"6px 9px":"2px 4px",display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:isMob?0:24,minHeight:isMob?30:24,touchAction:"manipulation"}},"✕"))
                   ),
-                  React.createElement('div',{style:{fontSize:12,color:V.dm}},(entry.von||""),"–",(entry.bis||"")," · ",(wk||{}).n||"?"),
+                  React.createElement('div',{style:{fontSize:12,color:V.dm}},(entry.von||""),"–",(entry.bis||""),(entry.von&&_zeitPauseText(entry.pause)?" · "+_zeitPauseText(entry.pause):"")/* v1016: Pause sichtbar wie in der Zeiterfassung */," · ",(wk||{}).n||"?"),
                   React.createElement('div',{style:{fontSize:UI.fMeta,color:V.mt,marginTop:1}},React.createElement('span',{style:{display:"inline-block",padding:"1px 5px",borderRadius:3,fontSize:UI.fMeta,fontWeight:600,background:_ROLE_CLR((wk||{}).r)||"rgba(100,100,100,.15)",color:"#fff",marginRight:4}},(wk||{}).r||"?")),
                   (entry.taetigkeit||entry.task)&&React.createElement('div',{style:{fontSize:12,color:V.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}},entry.taetigkeit||entry.task)
                 );
@@ -16631,11 +16650,11 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(6,1fr) auto",gap:6,background:_dark?"rgba(16,185,129,.08)":"rgba(16,185,129,.04)",borderRadius:8,border:"1px solid rgba(16,185,129,.2)",padding:"6px",minWidth:isMob?700:0}},
         DAYS.map(function(d,i){const dt=dayTotal(i);return React.createElement('div',{key:d,style:{textAlign:"center",padding:"4px 0"}},
           React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},d),
-          React.createElement('div',{style:{fontFamily:mono,fontSize:14,fontWeight:800,color:dt>=8?_okG("#10b981"):dt>0?V.tx:V.mt,...UI.zahlen}},dt>0?_projStdDE(dt,1)+" h":"—")
+          React.createElement('div',{style:{fontFamily:mono,fontSize:14,fontWeight:800,color:dt>=8?_okG("#10b981"):dt>0?V.tx:V.mt,...UI.zahlen}},dt>0?_projStdDE(dt,2)+" h":"—")
         );}),
         React.createElement('div',{style:{textAlign:"center",padding:"4px 8px",background:"rgba(16,185,129,.15)",borderRadius:6,minWidth:70}},
           React.createElement('div',{style:{fontSize:UI.fMeta,color:_okG("#10b981"),fontWeight:600}},"Σ Woche"),
-          React.createElement('div',{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981"),...UI.zahlen}},_projStdDE(weekTotal,1)," h")
+          React.createElement('div',{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981"),...UI.zahlen}},_projStdDE(weekTotal,2)," h")/* v1016: Tages-/Wochensummen mit 2 Nachkommastellen wie in der Zeiterfassung (8,75 statt 8,8) - nur Anzeige */
         )
       )),
 
@@ -17515,7 +17534,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Frist"), React.createElement('input', { type: "date", value: frist, onChange: e=>setFrist(e.target.value), style: II()} ))
           , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Prio"), React.createElement('select', { value: prio, onChange: e=>setPrio(e.target.value), style: II()}, React.createElement('option', {}, "mittel"), React.createElement('option', {}, "hoch"), React.createElement('option', {}, "niedrig")))
           /* v3.9.61 S40 F-4: disabled-state when name empty (consistency mit AS-Form Sprint 27) */
-          , React.createElement('button', { title: "Hinzufügen", 'aria-label': "Hinzufügen", onClick: add, disabled: !(name||"").trim(), style: {...bpS,opacity:(name||"").trim()?1:.5}}, "+")
+          , React.createElement('button', { title: "Hinzufügen", 'aria-label': "Hinzufügen", onClick: add, disabled: !(name||"").trim(), style: {...bpS,opacity:(name||"").trim()?1:.5,display:"inline-flex",alignItems:"center",gap:6}}, _ik("plus",16), "Hinzufügen")/* v1016: vorher nur '+' - am Tablet nicht als Speichern erkennbar */
         )
         , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",marginTop:6,flexWrap:"wrap"}}
           , React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:6,border:"2px dashed "+V.bd,cursor:"pointer",fontSize:UI.fMeta,color:V.dm}}, "📷 Foto"  , React.createElement('input', { ref: photoRef, type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{[...(e.target.files||[])].forEach(file=>{_fotoAufbereiten(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewPhotos(prev=>[...prev,{thumb,full:ph.dataUrl,file}])));});}} ))
@@ -18722,7 +18741,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
       ) : null,/* v3.9.140: Fehler-Fallback statt schwarzem Viewer */
       /* v3.9.184 PlanRadar-Status-Legende: Aufschlüsselung der sichtbaren Pins nach Status (oben links, read-only). */
       !loading && plan && ticketsOnPage.length > 0 ? React.createElement('div', {
-        style: {position: "absolute", top: 10, left: 10, zIndex: 10, background: V.bg + "f2", border: "1px solid " + V.bd, borderRadius: 10, padding: "6px 9px", display: "flex", flexDirection: "column", gap: 3, fontSize:UI.fMeta, color: V.tx, boxShadow: "0 4px 16px rgba(0,0,0,.4)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", pointerEvents: "none", maxWidth: 170}
+        /* v1016 Bedienung (Tablet 800 px): oben links lag die Legende UEBER dem "−"-Zoomknopf der Werkzeugleiste (oben rechts, reicht bei schmalem Plan bis nach links). Jetzt unten links, direkt ueber der Pin-Pille - dort liegt kein Bedienelement. */style: {position: "absolute", bottom: 48, left: 10, zIndex: 10, background: V.bg + "f2", border: "1px solid " + V.bd, borderRadius: 10, padding: "6px 9px", display: "flex", flexDirection: "column", gap: 3, fontSize:UI.fMeta, color: V.tx, boxShadow: "0 4px 16px rgba(0,0,0,.4)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", pointerEvents: "none", maxWidth: 170}
       },
         Object.entries(TICKET_STATUS).map(([k, v]) => { const c = ticketsOnPage.filter(t => t.status === k).length; if(!c) return null; return React.createElement('div', {key: k, style: {display: "flex", alignItems: "center", gap: 5}}, React.createElement('span', {style: {width: 9, height: 9, borderRadius: "50%", background: v.c, flexShrink: 0}}), React.createElement('span', {style: {flex: 1, whiteSpace: "nowrap"}}, v.l), React.createElement('span', {style: {fontFamily: mono, fontWeight: 700}}, c)); }).filter(Boolean)
       ) : null,
@@ -19039,7 +19058,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
       , subView==="viewer"&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:showSidebar&&!isMob?"1fr 320px":"1fr",gap:14,alignItems:"start"}}
         , React.createElement('div', {}
           /* v3.9.49 S34-1 Plan-Switch + Layer-Bar Premium-Polish: Plan-Pills mit Status-Dot, Layer-Pills mit Color-Indicator + Count + Eye-Toggle. */
-          , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center",padding:"6px 8px",background:V.bg,borderRadius:10,border:"1px solid "+V.bd}}, [...plans].sort((a,b)=>_floorRank(a.geschoss)-_floorRank(b.geschoss)||(a.name||"").localeCompare(b.name||"")).map(pl=>{const sel=_optionalChain([selPlan, 'optionalAccess', _398 => _398.id])===pl.id;const ptc=allTickets.filter(t=>t.planId===pl.id).length;return React.createElement('button', { key: pl.id, onClick: ()=>{setSelPlan(pl);setSelTicket(null);}, style: {padding:"6px 12px",borderRadius:8,border:sel?"2px solid "+V.ac:"1px solid "+V.bd,background:sel?"linear-gradient(135deg,rgba(0,150,64,.18),rgba(0,150,64,.06))":V.cd,color:sel?V.ac:V.tx,cursor:"pointer",fontWeight:sel?700:500,fontSize:UI.fMeta,fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6,transition:"all .2s ease",boxShadow:sel?"0 2px 8px rgba(0,150,64,.25)":"none"}/* v3.9.172: Plan-Pill EP-Grün statt Orange (Marken-Konsistenz) */}, React.createElement('span', { style: {fontSize:13}}, pl.geschoss?"🏢":"📐"), React.createElement('span', null, pl.geschoss||pl.name), pl.geschoss&&React.createElement('span', { style: {/* v3.9.945 C7: 9 px war der tiefste Wert der ganzen Messreihe - 14 Stellen in der Plan-Ansicht, bei BEIDEN Breiten. Auf UI.fMeta. Es sind Abzeichen in Pillen; 12 px kosten dort je rund 3 px Hoehe. C7a (die Unterreiter der Arbeitsschein-Liste) war schon in v3.9.944 mitgehoben - die Stelle lag in ArbeitsscheinView. */fontSize:UI.fMeta,opacity:.55,marginLeft:3,fontWeight:400}}, pl.name)/* v3.9.177: Geschoss prominent, Plan-Name klein — Viewer-Wechsel nach Geschoss */, ptc>0&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:8,background:sel?V.ac:V.bd,color:sel?"#fff":V.dm,fontSize:UI.fMeta,fontWeight:700,fontFamily:mono}}, ptc));}), !plans.length&&React.createElement('span', { style: {fontSize:12,color:V.dm,padding:"4px 8px"}}, "Noch keine Pläne"  ), /* PROJ-HANDY PR9: ohne Plan gibt es nichts ein- oder auszublenden - die Ebenen-Chips nur, wenn ein Plan da ist. */plans.length>0&&React.createElement('div', { style: {marginLeft:"auto",display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}, React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:600,marginRight:4}}, "Ebenen:"), layers.map(l=>{const cnt=allTickets.filter(t=>(t.gewerk||t.layer)===l.id).length/* v3.9.145: gewerk||layer (Werte sind Codes) — konsistent mit Pins/Sichtbarkeit/Liste */;return React.createElement('button', { key: l.id, onClick: ()=>toggleLayer(l.id), style: {padding:isMob?"7px 10px":"4px 8px",minHeight:isMob?32:0,touchAction:"manipulation",borderRadius:14,border:"1px solid "+(l.visible?l.color:V.bd),background:l.visible?l.color+"20":V.cd,fontSize:UI.fMeta,cursor:"pointer",opacity:l.visible?1:.45,display:"inline-flex",alignItems:"center",gap:4,color:l.visible?l.color:V.dm,fontWeight:600,fontFamily:"inherit",transition:"all .18s ease"}, title: (l.visible?"Ausblenden: ":"Einblenden: ")+l.name}, React.createElement('span', { style: {width:8,height:8,borderRadius:"50%",background:l.color,boxShadow:l.visible?"0 0 4px "+l.color+"80":"none",display:"inline-block"}} ), React.createElement('span', null, l.icon, " ", l.name), cnt>0&&React.createElement('span', { style: {padding:"0 5px",borderRadius:8,background:l.visible?l.color+"30":V.bd,fontSize:UI.fMeta,fontFamily:mono,fontWeight:700}}, cnt), React.createElement('span', { style: {fontSize:UI.fMeta,opacity:.65,marginLeft:2}}, l.visible?"👁️":"⊘"));})))
+          , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center",padding:"6px 8px",background:V.bg,borderRadius:10,border:"1px solid "+V.bd}}, [...plans].sort((a,b)=>_floorRank(a.geschoss)-_floorRank(b.geschoss)||(a.name||"").localeCompare(b.name||"")).map(pl=>{const sel=_optionalChain([selPlan, 'optionalAccess', _398 => _398.id])===pl.id;const ptc=allTickets.filter(t=>t.planId===pl.id).length;return React.createElement('button', { key: pl.id, onClick: ()=>{setSelPlan(pl);setSelTicket(null);}, style: {padding:"6px 12px",borderRadius:8,border:sel?"2px solid "+V.ac:"1px solid "+V.bd,background:sel?"linear-gradient(135deg,rgba(0,150,64,.18),rgba(0,150,64,.06))":V.cd,color:sel?V.acTx:V.tx/* v1016 Kontrast: V.ac auf Gruen-Hauch war im Dunkelmodus 2:1 */,cursor:"pointer",fontWeight:sel?700:500,fontSize:UI.fMeta,fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6,transition:"all .2s ease",boxShadow:sel?"0 2px 8px rgba(0,150,64,.25)":"none"}/* v3.9.172: Plan-Pill EP-Grün statt Orange (Marken-Konsistenz) */}, React.createElement('span', { style: {fontSize:13}}, pl.geschoss?"🏢":"📐"), React.createElement('span', null, pl.geschoss||pl.name), pl.geschoss&&React.createElement('span', { style: {/* v3.9.945 C7: 9 px war der tiefste Wert der ganzen Messreihe - 14 Stellen in der Plan-Ansicht, bei BEIDEN Breiten. Auf UI.fMeta. Es sind Abzeichen in Pillen; 12 px kosten dort je rund 3 px Hoehe. C7a (die Unterreiter der Arbeitsschein-Liste) war schon in v3.9.944 mitgehoben - die Stelle lag in ArbeitsscheinView. */fontSize:UI.fMeta,color:V.dm,marginLeft:3,fontWeight:400}}, pl.name)/* v1016: opacity .55 -> V.dm (Kontrast) *//* v3.9.177: Geschoss prominent, Plan-Name klein — Viewer-Wechsel nach Geschoss */, ptc>0&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:8,background:sel?V.ac:V.bd,color:sel?"#fff":V.dm,fontSize:UI.fMeta,fontWeight:700,fontFamily:mono}}, ptc));}), !plans.length&&React.createElement('span', { style: {fontSize:12,color:V.dm,padding:"4px 8px"}}, "Noch keine Pläne"  ), /* PROJ-HANDY PR9: ohne Plan gibt es nichts ein- oder auszublenden - die Ebenen-Chips nur, wenn ein Plan da ist. */plans.length>0&&React.createElement('div', { style: {marginLeft:"auto",display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}, React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:600,marginRight:4}}, "Ebenen:"), layers.map(l=>{const cnt=allTickets.filter(t=>(t.gewerk||t.layer)===l.id).length/* v3.9.145: gewerk||layer (Werte sind Codes) — konsistent mit Pins/Sichtbarkeit/Liste */;return React.createElement('button', { key: l.id, onClick: ()=>toggleLayer(l.id), style: {padding:isMob?"7px 10px":"4px 8px",minHeight:isMob?32:0,touchAction:"manipulation",borderRadius:14,border:"1px solid "+(l.visible?l.color:V.bd),background:l.visible?l.color+"20":V.cd,fontSize:UI.fMeta,cursor:"pointer",opacity:l.visible?1:.45,display:"inline-flex",alignItems:"center",gap:4,color:l.visible?l.color:V.dm,fontWeight:600,fontFamily:"inherit",transition:"all .18s ease"}, title: (l.visible?"Ausblenden: ":"Einblenden: ")+l.name}, React.createElement('span', { style: {width:8,height:8,borderRadius:"50%",background:l.color,boxShadow:l.visible?"0 0 4px "+l.color+"80":"none",display:"inline-block"}} ), React.createElement('span', null, l.icon, " ", l.name), cnt>0&&React.createElement('span', { style: {padding:"0 5px",borderRadius:8,background:l.visible?l.color+"30":V.bd,fontSize:UI.fMeta,fontFamily:mono,fontWeight:700}}, cnt), React.createElement('span', { style: {fontSize:UI.fMeta,opacity:.65,marginLeft:2}}, l.visible?"👁️":"⊘"));})))
           , React.createElement('div', { style: {display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}/* v3.9.173: Action-Bar ÜBER dem Plan */}, React.createElement('button', { onClick: ()=>{if(!selPlan)return;setPlacing(!placing);}, style: placing?{...bdS,padding:"10px 18px",fontSize:14}:{...bpS,opacity:selPlan?1:.5,padding:"10px 18px",fontSize:14}, disabled: !selPlan}, "📌 ", placing?"Abbrechen":"Ticket platzieren"), React.createElement('button', { onClick: ()=>{setSideMode("tickets");setShowSidebar(!showSidebar);}, style: {...bsS(),padding:"10px 16px"}}, showSidebar?"✕ Liste":"🎫 Ticket-Liste"), (isAdmin||(curUser&&curUser.role==="buero"))&&React.createElement('button', { onClick: ()=>{if(!selPlan){if(window.__toast)window.__toast("⚠️ Kein Plan gewählt","warn");return;}_genPlanReportPdf(selPlan,_nrBase.concat(_defectPins),monteure,layers,p,_ticketNr);}, disabled: !selPlan, title: "Gesamtplan mit allen nummerierten Pins + Legende (Nr/Titel/Status/Frist/Verantwortlich) als PDF", style: {...bsS(),padding:"10px 16px",opacity:selPlan?1:.5}}/* v3.9.828 PlanRadar ①: Plan-Gesamtreport-PDF */, "📄 Plan-Report"), !isMob&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:"auto"}}, "Mausrad/Doppeltipp = Zoom · Ziehen = Verschieben · Pin ziehen = Position"))
           /* v3.9.189 PlanRadar Pin-Suche: Eingabe filtert Pins+Liste (Titel/Beschreibung) und springt bei Pin-Nr / einzigem Treffer direkt hin. */
           , planTickets.length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}, React.createElement('input', { type: "search", value: filterSearch, onChange: e=>setFilterSearch(e.target.value), placeholder: "Pin-Nr oder Titel suchen…", className: "epk-suche", style: {...II(),flex:1,minWidth:isMob?0:220,fontSize:isMob?16:13} }), filterSearch&&React.createElement('button', { onClick: ()=>setFilterSearch(""), 'aria-label': "Suche leeren", style: {...bsS(),padding:"6px 10px",fontSize:12}}, "✕"), filterSearch&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap"}}, _vpFiltered.length, " Treffer"))
@@ -22673,8 +22692,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             return activeRows.filter(r=>((_optionalChain([r, 'access', _maO1 => _maO1.z, 'optionalAccess', _maO2 => _maO2[d], 'optionalAccess', _maO3 => _maO3.ma]))||[]).includes(m.id)).map(r=>({bvh:r.bvh,projId:r.projId}));
           });
           const daysPlanned=dayProjs.filter(p=>p.length>0).length;
-          const hasConflict=dayProjs.some(p=>p.length>1);
-          return {m,dayProjs,daysPlanned,hasConflict};
+          return {m,dayProjs,daysPlanned};
         });
         // Project colors
         const projColors=["#3b82f6","#22c55e","#f97316","#a855f7","#ef4444","#0ea5e9","#d97706","#6366f1","#14b8a6","#ec4899"];
@@ -22707,7 +22725,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             , React.createElement('span',{style:{fontSize:UI.fMeta,fontWeight:500,color:V.dm}}, assigned.length+' geplant · '+free.length+' frei')
           )
           , assigned.length>0&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:6}}
-            , assigned.map(md=>{const projs=md.dayProjs[di]||[];const hasConflict=projs.length>1;const accent=hasConflict?'#ef4444':(projColorMap[projs[0].bvh]||'#f97316');return React.createElement('div',{key:md.m.id,style:{display:'flex',alignItems:'center',gap:11,padding:'10px 12px',borderRadius:11,background:surf,border:'1px solid '+V.bd,boxShadow:'inset 3px 0 0 '+accent}}
+            , assigned.map(md=>{const projs=md.dayProjs[di]||[];const accent=(projColorMap[projs[0].bvh]||'#f97316');/* v1016: keine MA-Doppelmarkierung mehr (GF v3.9.1014: mehrere Baustellen am Tag sind normal) */return React.createElement('div',{key:md.m.id,style:{display:'flex',alignItems:'center',gap:11,padding:'10px 12px',borderRadius:11,background:surf,border:'1px solid '+V.bd,boxShadow:'inset 3px 0 0 '+accent}}
               , React.createElement('div',{style:{flex:'0 0 30%',minWidth:0}}
                 , React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}}
                   , React.createElement('span',{title:md.m.r,style:{width:7,height:7,borderRadius:'50%',background:roleClr(md.m.r),flexShrink:0}})
@@ -22716,7 +22734,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                 , React.createElement('div',{title:md.m.r,style:{fontSize:UI.fMeta,fontWeight:700,letterSpacing:'.4px',textTransform:'uppercase',color:V.dm,marginTop:3,marginLeft:13,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},roleShort[md.m.r]||md.m.r)
               )
               , React.createElement('div',{style:{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:1,justifyContent:'center'}}
-                , projs.map((p,pi)=>{const pc=projColorMap[p.bvh]||'#71717a';return React.createElement('div',{key:pi,title:p.bvh,style:{fontSize:12.5,fontWeight:700,color:pc,lineHeight:1.25,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},hasConflict&&pi===0?_zpWarn('Doppelbelegung'):null,p.bvh);})
+                , projs.map((p,pi)=>{const pc=projColorMap[p.bvh]||'#71717a';return React.createElement('div',{key:pi,title:p.bvh,style:{fontSize:12.5,fontWeight:700,color:pc,lineHeight:1.25,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},p.bvh);})
               )
               , React.createElement('div',{style:{flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}
                 , ribbon(md)
@@ -22735,25 +22753,25 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
           , React.createElement('div', { style: {overflowX:"auto"}}
           , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:700,tableLayout:"fixed"}}
             , React.createElement('colgroup', {}, React.createElement('col', { style: {width:"18%"}}), React.createElement('col', { style: {width:"8%"}}), DSHORT.map((_,i)=>(React.createElement('col', { key: i, style: {width:"11%"}}))), React.createElement('col', { style: {width:"6%"}}))
-            , React.createElement('thead', {}, React.createElement('tr', { style: {background:"linear-gradient(135deg,#f97316,#ea580c)"}}
-              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 8px",borderBottom:"2px solid #c2410c",textAlign:"left"}}, "Mitarbeiter")
-              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:UI.fMeta,padding:"10px 4px",borderBottom:"2px solid #c2410c",textAlign:"center"}}, "Rolle")
-              , DSHORT.map((d,i)=>(React.createElement('th', { key: d, style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 6px",borderBottom:"2px solid #c2410c",textAlign:"center"}}, d, React.createElement('br', {}), React.createElement('span', { style: {fontWeight:400,fontSize:UI.fMeta,opacity:.7}}, dateFmt(i)))))
-              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:UI.fMeta,padding:"10px 4px",borderBottom:"2px solid #c2410c",textAlign:"center"}}, "Tage")
+            , React.createElement('thead', {}, React.createElement('tr', { style: {background:"linear-gradient(135deg,#009640,#006e30)"}}/* v1016 CI: Kopf wie die Planungstabelle (vorher Orange) */
+              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 8px",borderBottom:"2px solid #006e30",textAlign:"left"}}, "Mitarbeiter")
+              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:UI.fMeta,padding:"10px 4px",borderBottom:"2px solid #006e30",textAlign:"center"}}, "Rolle")
+              , DSHORT.map((d,i)=>(React.createElement('th', { key: d, style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 6px",borderBottom:"2px solid #006e30",textAlign:"center"}}, d, React.createElement('br', {}), React.createElement('span', { style: {fontWeight:400,fontSize:UI.fMeta,opacity:.7}}, dateFmt(i)))))
+              , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:UI.fMeta,padding:"10px 4px",borderBottom:"2px solid #006e30",textAlign:"center"}}, "Tage")
             ))
             , React.createElement('tbody', {}
               , maData.map((md,idx)=>{
                 const roleC=md.m.r==="Monteur"?"#22c55e":md.m.r==="Techniker"?"#3b82f6":"#f97316";
-                return React.createElement('tr', { key: md.m.id, style: {borderBottom:"1px solid "+V.bd,background:md.hasConflict?"rgba(239,68,68,.06)":idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent"}}
+                return React.createElement('tr', { key: md.m.id, style: {borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent"}}
                   , React.createElement('td', { style: {padding:"8px 8px",fontWeight:700,fontSize:14,color:V.tx,borderRight:"1px solid "+V.bd,whiteSpace:"nowrap"}}, md.m.n)
                   , React.createElement('td', { style: {padding:"4px 4px",fontSize:UI.fMeta,color:roleC,fontWeight:600,textAlign:"center",borderRight:"1px solid "+V.bd}}, md.m.r)
                   , md.dayProjs.map((projs,di)=>{
-                    const isConflict=projs.length>1;
-                    return React.createElement('td', { key: di, style: {padding:"6px 6px",borderRight:"1px solid "+V.bd,verticalAlign:"top",background:isConflict?"rgba(239,68,68,.1)":projs.length===1?(_dark?"rgba(0,150,64,.06)":"rgba(0,150,64,.03)"):"transparent"}}
+                    /* v1016 GF-Entscheid v3.9.1014 auch in der MA-Uebersicht: ein MA auf mehreren Baustellen ist normal - keine rote Zelle, kein Warnzeichen. Fahrzeug-Konflikte bleiben (fzConflicts). */
+                    return React.createElement('td', { key: di, style: {padding:"6px 6px",borderRight:"1px solid "+V.bd,verticalAlign:"top",background:projs.length>0?(_dark?"rgba(0,150,64,.06)":"rgba(0,150,64,.03)"):"transparent"}}
                       , projs.length===0&&React.createElement('span', { style: {fontSize:12,color:V.mt}}, "—")
                       , projs.map((p,pi)=>{
                         const pc=projColorMap[p.bvh]||"#71717a";
-                        return React.createElement('div', { key: pi, style: {fontSize:12,fontWeight:600,padding:"3px 6px",borderRadius:4,marginBottom:pi<projs.length-1?3:0,background:pc+"18",color:pc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",border:isConflict?"1px solid "+pc+"40":"none"}}, isConflict&&pi===0?_zpWarn("Doppelbelegung"):null, p.bvh);
+                        return React.createElement('div', { key: pi, style: {fontSize:12,fontWeight:600,padding:"3px 6px",borderRadius:4,marginBottom:pi<projs.length-1?3:0,background:pc+"18",color:pc,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",border:"none"}}, p.bvh);
                       })
                     );
                   })
@@ -22761,9 +22779,9 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                 );
               })
               /* Summary row */
-              , React.createElement('tr', { style: {borderTop:"2px solid "+V.bd,background:_dark?"rgba(249,115,22,.08)":"rgba(249,115,22,.04)"}}
-                , React.createElement('td', { colSpan: 2, style: {padding:"8px 8px",fontWeight:700,fontSize:13,color:"#f97316"}}, "Σ Eingeteilt")
-                , dayTotals.map((t,di)=>(React.createElement('td', { key: di, style: {padding:"8px 6px",textAlign:"center",fontWeight:800,fontSize:15,color:t>0?"#f97316":"#999",fontFamily:mono}}, t, "/", fieldMA.length)))
+              , React.createElement('tr', { style: {borderTop:"2px solid "+V.bd,background:_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)"}}/* v1016 CI: Summenzeile Markengruen statt Orange */
+                , React.createElement('td', { colSpan: 2, style: {padding:"8px 8px",fontWeight:700,fontSize:13,color:V.acTx}}, "Σ Eingeteilt")
+                , dayTotals.map((t,di)=>(React.createElement('td', { key: di, style: {padding:"8px 6px",textAlign:"center",fontWeight:800,fontSize:15,color:t>0?V.acTx:V.mt,fontFamily:mono}}, t, "/", fieldMA.length)))
                 , React.createElement('td', { style: {padding:"8px 4px",textAlign:"center",fontSize:UI.fMeta,color:V.dm}})
               )
             )
@@ -22773,7 +22791,6 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
           , activeRows.length>0&&React.createElement('div', { style: {padding:"8px 12px",borderTop:"1px solid "+V.bd,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}
             , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:600}}, "Projekte:")
             , activeRows.map(r=>{const pc=projColorMap[r.bvh]||"#71717a";return React.createElement('span', { key: r.id, style: {fontSize:UI.fMeta,padding:"2px 8px",borderRadius:4,background:pc+"18",color:pc,fontWeight:600}}, r.bvh);})
-            , React.createElement('span', { style: {fontSize:UI.fMeta,color:(_dark?COLORS.ERROR_DARK:COLORS.ERROR),marginLeft:8}}, _zpWarn(),"= Doppelbelegung")
           )
         );
       })()
@@ -23797,7 +23814,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 function SvgBar({data,height=140,color="#f97316",fmt,maxH}){/* v3.9.366: kompakter (180→140) fürs dichtere Auswertungs-Raster · v3.9.702: optionaler maxH hebt den 240px-Deckel (Fahrtenbuch-Panel vergroesserbar) */
   const _fv=fmt||(v=>v);/* v3.9.401: optionaler Wert-Formatter (Default = roher Wert → keine Regression); z.B. kompakte €-Tausender im Auftragsvolumen-Trend, leere Monate ohne "0". */
   if(!data||!data.length)return null;const n=data.length;const mx=Math.max(...data.map(d=>d.v||0),1);const many=n>6;const bw=many?Math.max(18,Math.min(36,260/n)):Math.min(40,Math.floor(280/n));const pad=14;const w=Math.max(pad*2+n*(bw+6),260);const btm=many?40:24;/* v3.9.366: Mindest-viewBox-Breite 260 → wenige Balken strecken sich nicht mehr riesig hoch (breiteres Seitenverhältnis) */
-  return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${w} ${height+btm}`, style: {display:"block",maxHeight:((maxH&&maxH>0)?maxH:240)+"px",margin:"0 auto"}}/* v3.9.366: Höhe gedeckelt (Default 240) gegen überdimensionierte Balken; v3.9.702: maxH>0 hebt den Deckel */
+  return (React.createElement('svg', { width: "100%", viewBox: `0 -18 ${w} ${height+btm+18}`/* v1016: 18 Einheiten Kopfraum - die versetzte Zahl ueber dem hoechsten Balken (y-16) lag ausserhalb und wurde abgeschnitten ('€ 232,0k') */, style: {display:"block",maxHeight:((maxH&&maxH>0)?maxH:240)+"px",margin:"0 auto"}}/* v3.9.366: Höhe gedeckelt (Default 240) gegen überdimensionierte Balken; v3.9.702: maxH>0 hebt den Deckel */
     , data.map((d,i)=>{const bh=((d.v||0)/mx)*(height-20);const x=pad+i*(bw+6);const y=height-bh;const clr=d.c||color;const maxL=many?10:8;const _lbl=d.l||"";const lbl=_lbl.length>maxL?_lbl.slice(0,maxL)+"…":_lbl;const lblY=many?(i%2===0?height+12:height+26):height+12;return (React.createElement('g', { key: i}
       , React.createElement('rect', { x: x, y: y, width: bw, height: bh, rx: 3, fill: clr, opacity: .85}, React.createElement('animate', { attributeName: "height", from: "0", to: bh, dur: ".4s", fill: "freeze"}), React.createElement('animate', { attributeName: "y", from: height, to: y, dur: ".4s", fill: "freeze"}))
       , many&&React.createElement('line', { x1: x+bw/2, y1: height, x2: x+bw/2, y2: lblY-8, stroke: V.dm, strokeOpacity: .25, strokeWidth: .5})
@@ -23823,13 +23840,14 @@ function SvgPie({data,size=150,donut=false,fmt}){/* v3.9.366: kompakterer Donut/
   const slices=data.map(d=>{const _v=+d.v||0;const pct=_v/total;const a1=cum*Math.PI*2-Math.PI/2;cum+=pct;const a2=cum*Math.PI*2-Math.PI/2;const la=pct>0.5?1:0;
     const x1o=cx+r*Math.cos(a1),y1o=cy+r*Math.sin(a1),x2o=cx+r*Math.cos(a2),y2o=cy+r*Math.sin(a2);
     const x1i=cx+ir*Math.cos(a2),y1i=cy+ir*Math.sin(a2),x2i=cx+ir*Math.cos(a1),y2i=cy+ir*Math.sin(a1);
-    let path;if(donut){path=`M${x1o},${y1o} A${r},${r} 0 ${la} 1 ${x2o},${y2o} L${x1i},${y1i} A${ir},${ir} 0 ${la} 0 ${x2i},${y2i} Z`;}
+    let path;if(pct>=0.9999){/* v1016: Vollkreis. Ein Bogen von einem Punkt zum selben Punkt zeichnet SVG nicht - am Tablet stand bei 'Projekte Status' (nur Aktiv) ein senkrechter Strich statt eines Rings. */path=`M${cx-r},${cy} A${r},${r} 0 1 1 ${cx+r},${cy} A${r},${r} 0 1 1 ${cx-r},${cy} Z`+(donut?` M${cx-ir},${cy} A${ir},${ir} 0 1 0 ${cx+ir},${cy} A${ir},${ir} 0 1 0 ${cx-ir},${cy} Z`:"");}
+    else if(donut){path=`M${x1o},${y1o} A${r},${r} 0 ${la} 1 ${x2o},${y2o} L${x1i},${y1i} A${ir},${ir} 0 ${la} 0 ${x2i},${y2i} Z`;}
     else{path=`M${cx},${cy} L${x1o},${y1o} A${r},${r} 0 ${la} 1 ${x2o},${y2o} Z`;}
     return {path,color:d.c||"#666",label:d.l,value:_v,pct};
   });
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${size+160} ${Math.max(size, data.length*18+12)}`/* v3.9.971: Breite 120 -> 160. Die Legende beginnt bei x=size+21 und hatte damit 99 Einheiten fuer `Label (Wert)`; bei 12 px braucht `Pflegefreistellung (3)` rund 126 px von 114 verfuegbaren, und der aeussere svg hat overflow:hidden - es waere abgeschnitten worden. *//* v3.9.971: die Hoehe waechst mit der LEGENDE. Vorher stand hier ${size}, also 150. Legendenzeile i sitzt bei y=i*18+16, ihr Raehmchen reicht bis i*18+17 - sichtbar war damit nur i<=7, also ACHT Zeilen. Ab der neunten lag die Zeile ausserhalb der viewBox und wurde NIE gezeichnet: absTyp verliert 7 von 15 Eintraegen, asArt 1 von 9. Das ist FEHLENDE Information, nicht kleine - und niemand sieht sie fehlen, es steht ja nichts da. Der Ring bleibt bei size, die Legendenspalte laeuft weiter nach unten. */, style: {display:"block"}}
-    , slices.map((s,i)=>(React.createElement('path', { key: i, d: s.path, fill: s.color, opacity: .85, stroke: "#0f1117", strokeWidth: 1.5})))
-    , donut&&React.createElement('text', { x: cx, y: cy+5, textAnchor: "middle", fill: "#e4e4e7", fontSize: 15, fontWeight: 800}, (fmt||(v=>v))(total))/* v3.9.366: 18→15 · v3.9.412 fmt */
+    , slices.map((s,i)=>(React.createElement('path', { key: i, d: s.path, fill: s.color, fillRule: "evenodd", opacity: .85, stroke: V.cd, strokeWidth: 1.5})))
+    , donut&&React.createElement('text', { x: cx, y: cy+5, textAnchor: "middle", fill: V.tx/* v1016: vorher fest #e4e4e7 - im Hellmodus hellgrau auf weiss */, fontSize: 15, fontWeight: 800}, (fmt||(v=>v))(total))/* v3.9.366: 18→15 · v3.9.412 fmt */
     , slices.map((s,i)=>(React.createElement('g', { key: i}, React.createElement('rect', { x: size+8, y: i*18+8, width: 9, height: 9, rx: 2, fill: s.color}), React.createElement('text', { x: size+21, y: i*18+16, fill: V.dm, fontSize: UI.fMeta, fontFamily: "system-ui"/* v3.9.971: auf den Hausboden UI.fMeta (12). Siehe DIAGRAMM_ACHSEN.md - in 17 der 18 Diagramm-Instanzen faellt dabei KEINE Marke weg. */}, s.label, " (" , (fmt||(v=>v))(s.value), ")"))))/* v3.9.366: kompaktere Legende · v3.9.412 fmt */
   ));
 }
@@ -23857,8 +23875,9 @@ function ChartBox({title,data,defaultType="bar",visible,onToggle,chartType,onTyp
   return (React.createElement('div', { style: {...CC(),opacity:visible?1:.5,transition:"opacity .3s",width:"100%",maxWidth:isMob?"none":520,marginLeft:"auto",marginRight:"auto"}}/* v3.9.390: Chart-Karte deckelt bei 520px + zentriert sich in der (auf breiten Monitoren breiteren) 1fr-Grid-Spalte → kein Über-Strecken, Charts verteilen sich gleichmäßig statt links zu klumpen. */
     , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:visible?12:0,flexWrap:"wrap",gap:6}}
       , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8}}
-        , React.createElement('button', { onClick: onToggle, title: visible?"Diagramm ausblenden":"Diagramm einblenden", 'aria-label': visible?"Diagramm ausblenden":"Diagramm einblenden", style: {width:36,height:24,borderRadius:12,border:"none",background:visible?V.ac:"#2a2e3f",cursor:"pointer",position:"relative",transition:"background .2s"}}
-          , React.createElement('div', { style: {width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:visible?14:2,transition:"left .2s"}} )
+        , React.createElement('button', { onClick: onToggle, role: "switch", 'aria-checked': visible?"true":"false", title: visible?"Diagramm ausblenden":"Diagramm einblenden", 'aria-label': visible?"Diagramm ausblenden":"Diagramm einblenden", style: {width:44,height:44,padding:0,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}/* v1016 Tablet-Test: die Touch-Hausregel (min 44x44, !important) machte aus der 36x24-Schiene ein gruenes QUADRAT, der Knauf sass oben links daneben. Jetzt ist der Knopf die 44-px-Tippflaeche und die Schiene ein Kind darin. */
+          , React.createElement('span', { 'aria-hidden': "true", style: {width:36,height:24,borderRadius:12,background:visible?V.ac:V.bdK,position:"relative",display:"block",transition:"background .2s"}}
+          , React.createElement('span', { style: {width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:visible?14:2,transition:"left .2s"}} ))
         )
         , React.createElement('span', { style: {fontSize:13,fontWeight:700}}, title)
       )
@@ -24614,6 +24633,10 @@ function SmokeTestPanel(){
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.74 — Block 4: System-Config-Panel (admin only, im Einstellungs-Tab)
 // ═══════════════════════════════════════════════════════════════════
+/* v1016: Anzeige-Helfer der System-Konfiguration (nur Anzeige, keine Schreibwege). */
+function _sysCfgLabel(row){var d=row&&row.description?String(row.description):"";d=d.replace(/TÜV/g,"Pickerl");return d||String(row&&row.key||"").replace(/_/g," ");}
+function _sysCfgIstJson(v){var t=typeof v==="string"?v.trim():"";if(v&&typeof v==="object")return true;if(!(t.charAt(0)==="{"||t.charAt(0)==="["))return false;try{JSON.parse(t);return true;}catch(_e){return false;}}
+function _sysCfgJsonText(row){var v=row.value;try{if(typeof v==="string")v=JSON.parse(v);}catch(_e){return String(row.value);}if(Array.isArray(v))return v.length+" Einträge";var teile=[];Object.keys(v||{}).forEach(function(k){var w=v[k];var name=k==="default"?"Standard":k;teile.push(name+" "+((typeof w==="number"&&row.key==="stempel_pause_rules")?w+" min":String(w)));});return teile.join(" · ")||"leer";}
 function SystemConfigPanel({curUser}){
   const [cfg,setCfg]=_react.useState.call(void 0, []);
   const [loading,setLoading]=_react.useState.call(void 0, true);
@@ -24647,11 +24670,12 @@ function SystemConfigPanel({curUser}){
     ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:8}},cfg.map(row=>
       React.createElement('div',{key:row.key,style:{display:'flex',gap:8,alignItems:'center',padding:'8px 10px',background:V.bg,borderRadius:6,border:'1px solid '+V.bd}}
         ,React.createElement('div',{style:{flex:1,minWidth:0}}
-          ,React.createElement('div',{style:{fontWeight:700,fontSize:12,fontFamily:mono,color:V.acTx}},row.key)
-          ,row.description&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},row.description)
+          /* v1016 (Tablet-Test): der Schluesselname (km_ersatz, stempel_pause_rules) ist Entwicklertext - die Zeile fuehrt jetzt mit der Beschreibung, der Schluessel steht nur noch im title. 'TÜV' in den DB-Beschreibungen heisst in Oesterreich Pickerl (nur Anzeige, die DB bleibt unberuehrt). */
+          ,React.createElement('div',{title:row.key,style:{fontWeight:700,fontSize:13,color:V.tx}},_sysCfgLabel(row))
           ,row.updated_by&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.mt,marginTop:2}},'✏ '+row.updated_by+' · '+window._fmtDatetime?.(row.updated_at))
         )
-        ,React.createElement('input',{defaultValue:row.value||'',onBlur:e=>{if(e.target.value!==row.value){save(row.key,e.target.value);setCfg(p=>p.map(r=>r.key===row.key?{...r,value:e.target.value}:r));}},style:{...II(),width:window.innerWidth<BP_MOB?"100%":130,fontSize:12,padding:'6px 10px',textAlign:'right'}})
+        ,_sysCfgIstJson(row.value)?React.createElement('div',{'data-syscfg-lesbar':row.key,style:{fontSize:12,color:V.tx,textAlign:'right',maxWidth:260}},_sysCfgJsonText(row),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},row.key==='stempel_pause_rules'?'ändern unter „Stempel-Pausenregeln“':'nur lesbar'))/* v1016: Roh-JSON war als Textfeld editierbar - ein Tippfehler zerstoert die ganze Regel. Lesbar statt roh; bearbeitet wird im eigenen Formular. */
+        :React.createElement('input',{defaultValue:row.value||'',onBlur:e=>{if(e.target.value!==row.value){save(row.key,e.target.value);setCfg(p=>p.map(r=>r.key===row.key?{...r,value:e.target.value}:r));}},style:{...II(),width:window.innerWidth<BP_MOB?"100%":130,fontSize:12,padding:'6px 10px',textAlign:'right'}})
         ,saving[row.key]&&React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm}},'⏳')
       )
     ))
@@ -25227,6 +25251,8 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   /* C.4 Geplante AS nächste Woche: Termin im Bereich nextMon..nextMon+7 (halbopen) */
   /* v3.9.60 Sprint-39 F-1: useMemo — filter über arbeitsscheine bei jedem Render unnötig. */
   const asNextWeek=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{const t=(a.terminBestaetigt||a.terminVorschlag||'').slice(0,10);return t>=_nextMonStart&&t<_nextMonEnd;}).length,[arbeitsscheine,_nextMonStart,_nextMonEnd]);
+  /* v1016: dieselbe Faelligkeits-Zahl wie Home ('N mit Fälligkeit') - fzFaellig darunter ist eine ANDERE Frage (erst in den naechsten 14 Tagen faellig, Ueberfaellige zaehlen dort nicht) und heisst jetzt auch so. */
+  const _fzFkChef=_fzFaelligkeit(fahrzeuge);
   /* C.4 Fahrzeuge mit Service/Pickerl fällig in 14 Tagen (Aggregate-Count, keine Detail-Liste) */
   /* v3.9.60 Sprint-39 F-2: useMemo — fahrzeuge-filter+Date-parse pro Render. */
   const fzFaellig=_react.useMemo.call(void 0, ()=>fahrzeuge.filter(f=>{const ns=(f.naechstService||'').slice(0,10);const pk=(f.pickerl||'').slice(0,10);/* v3.9.622 #5: echte Felder (naechstService/pickerl) statt inexistenter next_service/pickerl_faellig_am -> KPI war konstant 0 */return (ns&&ns<=_in14d&&ns>=_td)||(pk&&pk<=_in14d&&pk>=_td);}).length,[fahrzeuge,_in14d,_td]);
@@ -25242,6 +25268,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
   const wzTotal=werkzeuge.length;
   const wzAusgegeben=werkzeuge.filter(w=>w.status==='ausgegeben').length;
   const wzService=werkzeuge.filter(w=>w.status==='reparatur'||w.status==='kalibrierung').length;
+  const wzKalibFaellig=werkzeuge.filter(w=>_wzKalibFaellig(w)).length;/* v1016: dieselbe Zahl wie die Kachel 'Service fällig' der Werkzeug-Seite (eine Quelle _wzKalibFaellig) */
   const wzWert=werkzeuge.reduce((s,w)=>s+(parseFloat(w.wert)||0),0);
   const fzAktiv=fahrzeuge.filter(f=>f.status!=='stillgelegt').length;
   const fzSchaeden=fahrzeuge.reduce((s,f)=>s+(f.schaeden||[]).filter(x=>x.status==='offen').length,0);
@@ -25354,7 +25381,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
       ,[
         {l:'Aktive Projekte',v:aktivProj,sub:projects.length+' gesamt',color:V.acTx,click:function(){onNav('projekte');}},
         {l:'Offene Scheine',v:offeneAS,sub:arbeitsscheine.length+' gesamt',color:'#f97316',click:function(){window.__asFilter='offen_bearb';onNav('arbeitsscheine');},trend:{delta:_delta(offeneAS,offeneAS_vor7d),invert:true}},
-        {l:'Monteure heute',v:activeWorkers+'/'+totalWorkers,sub:'mit Zeiteintrag',color:V.acTx,click:function(){onNav('mitarbeiter');}},
+        {l:'Außendienst heute',v:activeWorkers+'/'+totalWorkers,sub:'mit Zeiteintrag heute',/* v1016: hiess 'Monteure heute' - gezaehlt wird aber der ganze Aussendienst (_kapMont: alle ausser Buero/Lager/GF), die Seite Mitarbeiter zaehlt unter 'Monteure' nur Monteur+Obermonteur */color:V.acTx,click:function(){onNav('mitarbeiter');}},
         {l:'Scheine heute',v:heuteAS,sub:fdt(_td),color:V.acTx,click:function(){onNav('arbeitsscheine');},trend:{delta:_delta(heuteAS,heuteAS_vor7d),invert:false}},
         {l:'Überfällig',v:ueberfaellige,sub:ueberfaellige>0?'kritisch':'alle OK',color:ueberfaellige>0?'#ef4444':_okG('#22c55e'),click:function(){/* v3.9.489: bei genau 1 überfälligem AS direkt zum Detail (Deep-Link), sonst gefilterte Liste statt unfilterter Voll-Liste */if(_ueberfaelligeArr.length===1){window.__asOpenId=_ueberfaelligeArr[0].id;}else if(_ueberfaelligeArr.length>1){window.__asFilter='offen_bearb';}onNav('arbeitsscheine');},trend:{delta:_delta(ueberfaellige,ueberfaellige_vor7d),invert:true}}
       ].map(function(k,i){
@@ -25490,7 +25517,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     ])
     ,_cdTab==='personal' && _card('zeit','uhr','Zeit & Personal',V.acTx,[
       _metricRow([
-        _metric('Monteure heute',activeWorkers+'/'+totalWorkers,V.tx,function(){onNav('mitarbeiter');}),
+        _metric('Außendienst mit Zeit heute',activeWorkers+'/'+totalWorkers,V.tx,function(){onNav('mitarbeiter');}),
         _metric('Monatsabr. offen',finkOpen?finkOpen.length:null,(finkOpen&&finkOpen.length>0)?'#f97316':V.dm,function(){onNav('stunden');})
       ]),
       /* v3.9.898: hier stand eine ZWEITE „Auslastung diese Woche"-Liste (Basis 38,5 h, ohne obere Datumsgrenze,
@@ -25506,8 +25533,8 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
       React.createElement('div',{key:'gauge',style:{background:V.cd,borderRadius:8,padding:'12px 14px',marginBottom:10}}
         ,React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,flexWrap:'wrap'}}
           ,React.createElement('span',{style:{fontSize:30,fontWeight:800,fontFamily:mono,color:_ampTx(kapPct)}},kapPct+'%')
-          ,React.createElement('span',{style:{fontSize:13,color:V.tx,fontFamily:mono}},'Ist '+_n(kapIst,0)+' h / Ziel '+_n(kapSoll,0)+' h')
-          ,React.createElement('span',{style:{fontSize:12,fontWeight:700,color:_ampTx(kapPct),marginLeft:'auto'}},_cdPkt(_ampBar(kapPct)),_ampLbl(kapPct).replace(/^\S+\s/,''))/* v3.9.1012: Text ohne das fuehrende Ampel-Emoji, davor der Punkt in der Balkenfarbe; _ampLbl selbst (Schwellen 70/90/100) unveraendert */
+          ,React.createElement('span',{style:{fontSize:13,color:V.tx,fontFamily:mono}},'Ist '+_projStdDE(kapIst,0)+' h / Ziel '+_projStdDE(kapSoll,0)+' h')
+          ,kapIst>0?React.createElement('span',{style:{fontSize:12,fontWeight:700,color:_ampTx(kapPct),marginLeft:'auto'}},_cdPkt(_ampBar(kapPct)),_ampLbl(kapPct).replace(/^\S+\s/,'')):React.createElement('span',{style:{fontSize:12,fontWeight:600,color:V.dm,marginLeft:'auto'}},'noch keine Stunden im Zeitraum')/* v1016: am Montag frueh stand 0 % 'Luft fuer neue Auftraege' - das ist keine Aussage ueber Kapazitaet, sondern ueber noch nicht Gebuchtes *//* v3.9.1012: Text ohne das fuehrende Ampel-Emoji, davor der Punkt in der Balkenfarbe; _ampLbl selbst (Schwellen 70/90/100) unveraendert */
         )
         ,React.createElement('div',{style:{height:16,background:V.bd,borderRadius:8,overflow:'hidden',marginTop:10,position:'relative'}}
           ,React.createElement('div',{style:{height:'100%',width:Math.min(100,kapPct)+'%',background:_ampBar(kapPct),transition:'width .4s ease'}})
@@ -25519,7 +25546,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
         ,kapList.map(function(w){return React.createElement('div',{key:w.id,style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}}
           ,React.createElement('div',{style:{width:isMob?90:130,fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},w.name)
           ,React.createElement('div',{style:{flex:1,height:12,background:V.bd,borderRadius:6,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',width:Math.min(100,w.pct)+'%',background:_ampBar(w.pct),transition:'width .4s ease'}}))
-          ,React.createElement('div',{style:{minWidth:100,textAlign:'right',fontSize:UI.fMeta,fontFamily:mono,color:_ampTx(w.pct),fontWeight:700}},_n(w.hours,1)+'h · '+w.pct+'%')
+          ,React.createElement('div',{style:{minWidth:100,textAlign:'right',fontSize:UI.fMeta,fontFamily:mono,color:_ampTx(w.pct),fontWeight:700}},_projStdDE(w.hours,1)+' h · '+w.pct+' %')
         );})
       ),
       _drill('Zeiterfassung','zeiterfassung')
@@ -25537,7 +25564,8 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     ,_cdTab==='ressourcen' && _card('fz','transporter','Fahrzeuge',V.acTx,[
       _metricRow([
         _metric('Aktiv',fzAktiv,V.tx),
-        _metric('Service/Pickerl 14T',fzFaellig,fzFaellig>0?'#f97316':V.dm),
+        _metric('Mit Fälligkeit',_fzFkChef.fahrzeuge,_fzFkChef.fahrzeuge>0?'#ef4444':V.dm,function(){onNav('fahrzeuge');}),
+        _metric('Neu fällig in 14 Tagen',fzFaellig,fzFaellig>0?'#f97316':V.dm),
         _metric('Offene Schäden',fzSchaeden,fzSchaeden>0?'#ef4444':V.dm)
       ]),
       _drill('Fahrzeuge','fahrzeuge')
@@ -25546,7 +25574,8 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
       _metricRow([
         _metric('Gesamt',wzTotal,V.tx),
         _metric('Ausgegeben',wzAusgegeben,wzAusgegeben>0?'#f97316':V.dm),
-        _metric('Service/Reparatur',wzService,wzService>0?'#ef4444':V.dm),
+        _metric('Service fällig',wzKalibFaellig,wzKalibFaellig>0?'#ef4444':V.dm,function(){onNav('werkzeuge');}),
+        _metric('In Reparatur/Kalibrierung',wzService,wzService>0?'#f97316':V.dm),/* v1016: hiess 'Service/Reparatur' und zaehlt den STATUS - die Werkzeug-Seite zaehlt unter 'Service fällig' das DATUM. Zwei Fragen, zwei Namen. */
         _metric('Wert',fmt$(wzWert),V.tx)
       ]),
       _drill('Werkzeuge','werkzeuge')
@@ -25801,26 +25830,26 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
   const _eur0=n=>{const v=typeof n==="number"?n:parseFloat(n);return isFinite(v)?v.toLocaleString("de-AT",{style:"currency",currency:"EUR",minimumFractionDigits:0,maximumFractionDigits:0}):"—";};
 
   const charts=[
-    {key:"asStatus",title:"Arbeitsscheine nach Status",data:asStatus,def:"donut",color:"#f97316"},
-    {key:"asArt",title:"Arbeitsscheine nach Art",data:asArt,def:"pie",color:"#f97316"},
-    {key:"asMont",title:"Scheine pro Monteur",data:asMont,def:"hbar",color:"#f97316"},
-    {key:"prjStatus",title:"Projekte Status",data:prjStatus,def:"donut",color:_okG("#22c55e")},
-    {key:"prjFort",title:"Projektfortschritt (aktiv)",data:prjFort,def:"bar",color:"#3b82f6"},
-    {key:"absTyp",title:"Abwesenheiten nach Typ",data:absTyp,def:"pie",color:"#3b82f6"},
-    {key:"absPers",title:"Abwesenheit pro Person",data:absPerName,def:"hbar",color:"#3b82f6"},
-    {key:"wzStatus",title:"Werkzeuge nach Status",data:wzStatus,def:"donut",color:"#d97706"},
-    {key:"wzKat",title:"Werkzeuge nach Kategorie",data:wzKat,def:"hbar",color:"#d97706"},
-    {key:"wzWert",title:"Werkzeugwert (€) pro Kategorie",data:wzWert,def:"hbar",color:_okG("#22c55e")},
-    {key:"zeit7",title:"Stunden letzte 7 Tage",data:last7,def:"line",color:"#3b82f6"},
-    {key:"fzTank",title:"Tankkosten pro Fahrzeug (€)",data:fzTankProFz,def:"hbar",color:"#0ea5e9"},
-    {key:"fzLiter",title:"Liter pro Fahrzeug",data:fzLiterProFz,def:"hbar",color:"#f97316"},
-    {key:"fzKm",title:"km-Stand Fahrzeuge",data:fzKm,def:"hbar",color:_okG("#22c55e")},
+    {key:"asStatus",title:"Arbeitsscheine nach Status",data:asStatus,def:"donut",color:V.ac},
+    {key:"asArt",title:"Arbeitsscheine nach Art",data:asArt,def:"pie",color:V.ac},
+    {key:"asMont",title:"Scheine pro Monteur",data:asMont,def:"hbar",color:V.ac},
+    {key:"prjStatus",title:"Projekte Status",data:prjStatus,def:"donut",color:V.ac},
+    {key:"prjFort",title:"Projektfortschritt (aktiv)",data:prjFort,def:"bar",color:V.ac},
+    {key:"absTyp",title:"Abwesenheiten nach Typ",data:absTyp,def:"pie",color:V.ac},
+    {key:"absPers",title:"Abwesenheit pro Person",data:absPerName,def:"hbar",color:V.ac},
+    {key:"wzStatus",title:"Werkzeuge nach Status",data:wzStatus,def:"donut",color:V.ac},
+    {key:"wzKat",title:"Werkzeuge nach Kategorie",data:wzKat,def:"hbar",color:V.ac},
+    {key:"wzWert",title:"Werkzeugwert (€) pro Kategorie",data:wzWert,def:"hbar",color:V.ac},
+    {key:"zeit7",title:"Stunden letzte 7 Tage",data:last7,def:"line",color:V.ac},
+    {key:"fzTank",title:"Tankkosten pro Fahrzeug (€)",data:fzTankProFz,def:"hbar",color:V.ac},
+    {key:"fzLiter",title:"Liter pro Fahrzeug",data:fzLiterProFz,def:"hbar",color:V.ac},
+    {key:"fzKm",title:"km-Stand Fahrzeuge",data:fzKm,def:"hbar",color:V.ac},
     {key:"fzSchaden",title:"Offene Schäden pro Fahrzeug",data:fzSchaeden,def:"hbar",color:COLORS.ERROR},
   ];
 
   /* ── Grouped sections for clear structure ── */
   const sections=[
-    {id:"as",title:"Arbeitsscheine",color:"#f97316",keys:["asStatus","asArt","asMont"]},
+    {id:"as",title:"Arbeitsscheine",color:V.ac,keys:["asStatus","asArt","asMont"]},
     {id:"prj",title:"Projekte",color:_okG("#22c55e"),keys:["prjStatus","prjFort"]},
     {id:"zeit",title:"Zeiterfassung",color:"#3b82f6",keys:["zeit7"]},
     {id:"abs",title:"Abwesenheiten",color:"#3b82f6",keys:["absTyp","absPers"]},
@@ -26112,7 +26141,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     const entry=(dayEntries[iso]||[])[entryIdx];
     if(!entry)return;
     /* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */
-    if(!await _confirmModal("Zeiteintrag wirklich löschen?",{variant:"danger"}))return;
+    if(!await _confirmModal("Zeiteintrag "+_zeitEintragName(iso,entry.hours,entry.label)+" löschen?",{variant:"danger"}))return;
     if(entry.id)SQ.push({url:"/api/entries/"+entry.id,method:"DELETE",body:{}});
     // Also remove from global entries
     if(entry.id)setEntries(prev=>prev.filter(x=>x.id!==entry.id));
@@ -26183,7 +26212,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     var _exTag=(dayEntries[addDay]||[]).filter(function(e){return e&&(!editEntry||e.id!==editEntry.id);});
     var _plz=_zeTagPlausi(_exTag,h,_rVon,_rBis);
     if(_plz.over24||_plz.overlap){
-      var _plMsg=_plz.over24?('⚠ Tagessumme '+_hK(_plz.sum,1)+'h fuer diesen Tag uebersteigt 24h — Doppelerfassung?'):'⚠ Diese Zeit ueberlappt einen bestehenden Eintrag am selben Tag — Doppelbuchung?';
+      var _plMsg=_plz.over24?('⚠ Tagessumme '+_hK(_plz.sum,2)+'h fuer diesen Tag uebersteigt 24h — Doppelerfassung?'):'⚠ Diese Zeit ueberlappt einen bestehenden Eintrag am selben Tag — Doppelbuchung?';
       var _plOk=await _confirmModal(_plMsg+' Trotzdem buchen?',{confirmLabel:'Trotzdem buchen',cancelLabel:'Abbrechen'});
       if(!_plOk){_addEntryInFlightRef.current=0;return;}
     }
@@ -26221,7 +26250,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     setEntries(prev=>[...prev,globalEntry]);
     // Push to API
     SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,taetigkeit:taet,gewerk:"elektro",von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});
-    if(window.__toast)window.__toast("✅ "+_hK(h,1)+"h gespeichert");
+    if(window.__toast)window.__toast("✅ "+_hK(h,2)+"h gespeichert");
     setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
   };
 
@@ -26569,11 +26598,10 @@ ${dayRowsHtml}
     return React.createElement('div',{onClick:()=>{setAddDay(null);setEditEntry(null);}/* v3.9.416: Tap-outside schließt (Mobile hat kein ESC; ✕ macht dasselbe) */,style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.6)",zIndex:9999,display:"flex",alignItems:_im?"flex-end":"center",justifyContent:"center",padding:_im?0:16}},
       React.createElement('div',{onClick:e=>e.stopPropagation()/* v3.9.416: Klicks im Panel schließen nicht */,style:{background:V.cd,borderRadius:_im?"16px 16px 0 0":12,border:"1px solid "+V.bd,padding:20,paddingBottom:_im?"calc(20px + env(safe-area-inset-bottom,0px))":20,width:"100%",maxWidth:_im?"100%":480,maxHeight:_im?"92dvh":"90vh",overflowY:"auto"}},
         React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
-          React.createElement('div',{style:{fontSize:16,fontWeight:800,color:V.tx}},editEntry?"Eintrag bearbeiten":"+ Neuer Eintrag"),
+          React.createElement('div',{style:{minWidth:0}},/* v1016 Bedienung: der Kopf sagt, FUER WEN und WANN gebucht wird - am Tablet stand nur '+ Neuer Eintrag', der Mitarbeiter war hinter dem Dialog verdeckt. */React.createElement('div',{style:{fontSize:UI.fMeta,fontWeight:600,color:V.dm}},editEntry?"Eintrag bearbeiten":"Neuer Eintrag"),React.createElement('div',{'data-dialog-wer':"ze",style:{fontSize:20,fontWeight:800,color:V.tx,lineHeight:1.25}},dayLabel+(workerName?" · "+workerName:""))),
           React.createElement('button',{ title: "Schließen", 'aria-label': "Schließen",onClick:()=>{setAddDay(null);setEditEntry(null);},style:{...bdS,padding:"4px 10px",fontSize:12}},"✕")
         ),
-        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:14,flexWrap:"wrap"}},
-          React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",background:"rgba(16,185,129,.1)",borderRadius:6,fontSize:13,fontWeight:600,color:_okG("#10b981")}},dayLabel),
+        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,marginBottom:8,flexWrap:"wrap"}},/* v1016: das Datum steht jetzt im Kopf */
           /* v3.9.92 Sprint-71.2 Pro-Tip-Indicator: zeigt verfügbare Keyboard-Shortcuts dezent neben Datum-Badge. */
           (function(){try{return !!(window.matchMedia&&window.matchMedia("(pointer:fine)").matches);}catch(_e){return false;}})()&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,display:"flex",alignItems:"center",gap:4}},"Esc schließt")/* v3.9.1016: nur mit Maus/Tastatur - am Tablet gibt es kein Esc */
         ),
@@ -26627,14 +26655,14 @@ ${dayRowsHtml}
           React.createElement('div',{},
             React.createElement('label',{style:LL()},"Pause"),
             React.createElement('select',{value:addPause,onChange:e=>{const p=parseFloat(e.target.value);setAddPause(p);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-p;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*2)/2:0);}},style:{...II(),fontSize:13}},
-              React.createElement('option',{value:1},"1h (Standard)"),
+              React.createElement('option',{value:1},"1 h"),/* v1016: gleiche Beschriftung wie im Projekt-Dialog */
               React.createElement('option',{value:0.5},"30 Min"),
               React.createElement('option',{value:0},"Keine")
             )
           ),
           React.createElement('div',{},
             React.createElement('label',{style:LL()},"Stunden"),
-            _zeitDauerUngueltig(addVon,addBis)?React.createElement('div',{role:"alert",title:ZEIT_BIS_VOR_VON_MSG,style:{...II(),color:_dark?"#f87171":"#b91c1c",borderColor:_dark?"#f87171":"#b91c1c",fontWeight:700,textAlign:"center"}},"⚠️ "+ZEIT_BIS_VOR_VON_MSG)/* v3.9.1005: Gehen <= Kommen - keine Stundenzahl, sondern die Meldung */:React.createElement('input',{type:"number", inputMode:"decimal",step:"0.5",min:"0",max:"24",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?_zeitEffektiveStunden(addVon,addBis,addPause):addHours),readOnly:_zeitEffektiveStunden(addVon,addBis,addPause)!=null,title:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?"Errechnet aus Von/Bis minus Pause — zum Aendern die Zeiten anpassen":"Von/Bis sind leer — hier direkt eintragen"),onChange:e=>setAddHours(parseFloat(e.target.value)||0),/* v3.9.885 LOHN: das Feld war eine Attrappe. addEntry rechnet die Stunden IMMER aus von/bis minus Pause neu, und von/bis sind per Vorbelegung IMMER gesetzt - wer 10 tippte, buchte 8, ohne jeden Hinweis. Jetzt zeigt das Feld GENAU die Zahl, die gespeichert wird, und ist dann nicht beschreibbar. Sind von/bis leer, greift die Handeingabe weiter - das ist die bewusste Hintertuer, deshalb readOnly nicht hart. */ style:{...II(),fontSize:16,fontWeight:800,textAlign:"center",color:_okG("#10b981")}})
+            _zeitDauerUngueltig(addVon,addBis)?React.createElement('div',{role:"alert",title:ZEIT_BIS_VOR_VON_MSG,style:{...II(),color:_dark?"#f87171":"#b91c1c",borderColor:_dark?"#f87171":"#b91c1c",fontWeight:700,textAlign:"center"}},"⚠️ "+ZEIT_BIS_VOR_VON_MSG)/* v3.9.1005: Gehen <= Kommen - keine Stundenzahl, sondern die Meldung */:React.createElement('input',{type:"number", inputMode:"decimal",step:"0.5",min:"0",max:"24",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?_zeitEffektiveStunden(addVon,addBis,addPause):addHours),readOnly:_zeitEffektiveStunden(addVon,addBis,addPause)!=null,title:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?"Errechnet aus Von/Bis minus Pause — zum Aendern die Zeiten anpassen":"Von/Bis sind leer — hier direkt eintragen"),onChange:e=>setAddHours(parseFloat(e.target.value)||0),/* v3.9.885 LOHN: das Feld war eine Attrappe. addEntry rechnet die Stunden IMMER aus von/bis minus Pause neu, und von/bis sind per Vorbelegung IMMER gesetzt - wer 10 tippte, buchte 8, ohne jeden Hinweis. Jetzt zeigt das Feld GENAU die Zahl, die gespeichert wird, und ist dann nicht beschreibbar. Sind von/bis leer, greift die Handeingabe weiter - das ist die bewusste Hintertuer, deshalb readOnly nicht hart. */ style:{...II(),fontSize:16,fontWeight:800,textAlign:"center",color:_okG("#10b981"),..._zeitStdStil(addVon,addBis,addPause)}}),_zeitStdHinweis(addVon,addBis,addPause)
           )
         ),
         React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:8,fontStyle:"italic"}},"Mittagspause: 12:00–13:00 Uhr (Standard 1h). Bei Kurzeinsätzen auf 30 Min oder Keine reduzieren."),
@@ -26697,7 +26725,7 @@ ${dayRowsHtml}
         ):(
           React.createElement('span',{style:{fontSize:14,fontWeight:700,color:_okG("#10b981")}},workerName)
         ),
-        selWorker&&weekTotal>0&&React.createElement('span',{style:{fontSize:13,fontWeight:700,color:_okG("#10b981"),background:"rgba(16,185,129,.1)",padding:"4px 10px",borderRadius:6}},_hK(weekTotal,1),"h / Woche")
+        selWorker&&weekTotal>0&&React.createElement('span',{style:{fontSize:13,fontWeight:700,color:_okG("#10b981"),background:"rgba(16,185,129,.1)",padding:"4px 10px",borderRadius:6}},_hK(weekTotal,2),"h / Woche")
       )
 
       /* All workers overview */
@@ -26730,17 +26758,17 @@ ${dayRowsHtml}
             const hasHours=m.total>0;
             return React.createElement('tr',{key:m.id,style:{borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent",cursor:"pointer",opacity:(hasHours||m.fehlTage>0)?1:0.5},onClick:()=>{setSelWorker(m.id);setViewAll(false);}},
               React.createElement('td',{style:{padding:"8px 6px",fontWeight:700,fontSize:14,color:V.tx}},m.n,React.createElement('span',{style:{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}},", ")/* v3.9.1016 Barrierefreiheit: Vorlesehilfe las 'BargerMonteur' - unsichtbarer Trenner zwischen Name und Rolle */,React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:400,marginLeft:6}},m.r)),
-              React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:15,fontWeight:800,color:m.total>=40?_okG("#10b981"):m.total>0?"#3b82f6":V.mt}},m.total>0?_hK(m.total,1):"—"),
+              React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:15,fontWeight:800,color:m.total>=40?_okG("#10b981"):m.total>0?"#3b82f6":V.mt}},m.total>0?_hK(m.total,2):"—"),
               DAYS.map(d=>{const _h=m.dayTotals[d]||0;
                 if(!(_h>0)&&m.absTyp&&m.absTyp[d])return React.createElement('td',{key:d,title:m.absTyp[d].l+" (genehmigt)",'aria-label':m.absTyp[d].l,style:{padding:"6px 4px",textAlign:"center",fontSize:UI.fMeta,fontWeight:800,color:UI.neutralTxt}},m.absTyp[d].i);
                 if(!(_h>0)&&m.fehlt&&m.fehlt[d])return React.createElement('td',{key:d,title:"Werktag vorbei – keine Stunden gebucht",style:{padding:"6px 4px",textAlign:"center",fontSize:UI.fMeta,fontWeight:700,color:_dark?"#fbbf24":"#b45309",background:_dark?"rgba(245,158,11,.12)":"rgba(245,158,11,.10)"}},"fehlt");
-                return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:_h>0?700:400,color:_h>=8?_okG("#10b981"):_h>0?V.tx:V.mt}},_h>0?_hK(_h,1):"—");})
+                return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:_h>0?700:400,color:_h>=8?_okG("#10b981"):_h>0?V.tx:V.mt}},_h>0?_hK(_h,2):"—");})
             );
           })),
           React.createElement('tfoot',{},React.createElement('tr',{style:{background:_dark?"rgba(16,185,129,.1)":"rgba(16,185,129,.06)",borderTop:"2px solid #10b981"}},
             React.createElement('td',{style:{padding:"8px 6px",fontWeight:800,fontSize:14,color:_okG("#10b981")}},"SUMME"),
-            React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(_gesZE,1),"h"),
-            DAYS.map(d=>{const t=allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0);return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:800,color:_okG("#10b981")}},t>0?_hK(t,1):"—");})
+            React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(_gesZE,2),"h"),
+            DAYS.map(d=>{const t=allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0);return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:800,color:_okG("#10b981")}},t>0?_hK(t,2):"—");})
           ))
         ))
       )
@@ -26781,7 +26809,7 @@ ${dayRowsHtml}
                 dt>0&&React.createElement('span',{style:{
                   color:today?"#fff":V.tx,fontWeight:800,fontSize:13,fontFamily:mono,
                   background:today?"rgba(255,255,255,.15)":V.cd,padding:"2px 8px",borderRadius:4
-                }},_hK(dt,1),"h")
+                }},_hK(dt,2),"h")
               ),
 
               /* Entry list */
@@ -26806,10 +26834,14 @@ ${dayRowsHtml}
                     !entry.taetigkeit&&entry.type!=="frei"&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,fontStyle:"italic"}},"ohne Tätigkeit")/* v3.9.1016: leer bleibt leer - die Anzeige sagt es ehrlich, statt den Projektnamen als Taetigkeit zu zeigen */,
                     entry.taetigkeit&&entry.taetigkeit!==entry.label&&React.createElement('div',{title:entry.taetigkeit,/* v3.9.951: DIE EINE STELLE, DIE DAS SCHRIFTHEBEN GEKOSTET HAT. Gemessen bei 1440 px nach dem Heben von 10 auf 12 px: fuenf Zeilen verloren je 26,3 px an dieser Taetigkeitsbeschreibung ('Zaehlerkasten tauschen und Endpruefung'). Vorher passte sie - in allen dreizehn Ansichten der Stufen 12 bis 15 waren es 0 wirkliche Kuerzungen im Inhalt. Die Beschreibung bleibt auf 12 px, weil 10 px unter dem Boden der App liegen, und der ganze Text wird ueber den title erreichbar - dieselbe Antwort wie bei der Arbeitsschein-Spalte in v3.9.945. Kein Pixel Aenderung, und die Kuerzung ist damit keine verlorene Information mehr, sondern eine verkuerzte Anzeige. */style:{fontSize:UI.fMeta,color:V.dm,fontStyle:"italic",overflowWrap:"anywhere"}},entry.taetigkeit),
                     /* Hours input */
-                    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}},
-                      React.createElement('input',{type:"number", inputMode:"decimal",step:"0.5",min:"0",max:"24",value:entry.hours||"",onChange:e=>{var _roh=String(e.target.value==null?"":e.target.value).trim();/* v3.9.885 LOHN: parseFloat("")||0 machte aus einem GELEERTEN Feld eine glatte 0 - und 0 loescht den Eintrag (v3.9.437, Chef-Entscheid: "0 heisst, war an dem Tag nicht da"). Der Entscheid bleibt, aber Leeren ist nicht Nulleingabe: wer das Feld zum Korrigieren leert und dann abgelenkt wird - Handschuh, Anruf, Sonne - verlor nach 800 ms seinen Zeiteintrag, ohne Rueckfrage und ohne Hinweis. Der Weg ueber das Kreuz hat ein Bestaetigungsfenster, dieser hatte keines. Ein leeres Feld heisst jetzt "noch nichts eingegeben" und loest gar nichts aus; eine getippte 0 loescht weiterhin. Deutsche Tastatur: "8,5" liefert in vielen Browsern ebenfalls einen leeren Wert - auch das darf nicht loeschen. */if(_roh==="")return;var _z=parseFloat(_roh.replace(",","."));if(isNaN(_z))return;updateEntryHours(iso,eIdx,_z);},style:{...II(),textAlign:"center",fontSize:14,fontWeight:700,padding:"3px 4px",width:56,color:entry.hours>=8?_okG("#10b981"):entry.hours>0?V.tx:V.mt,background:"transparent",border:"1px solid "+(entry.hours>0?"rgba(16,185,129,.3)":"rgba(255,255,255,.1)"),borderRadius:4}}),
-                      React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},"h"),
-                      entry.von&&React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,marginLeft:"auto",whiteSpace:"nowrap"}},entry.von,"–",entry.bis)/* v3.9.1016: Zeitspanne bricht als Ganzes um, nie mitten in der Uhrzeit */
+                    /* v1016 Bedienung (Tablet-Test 16.11.): die Stunden-EINGABE auf der Karte war eine Fehltipp-Falle - ein Tipp ins Feld, eine 0, und nach 800 ms war der Eintrag weg (v3.9.437). Aendern geht jetzt nur ueber den Stift (Dialog). Das Feld bleibt als readOnly-Anzeige stehen, weil der Riegel test_zeit_lohn_v885 genau seinen Leer-/Komma-Schutz pinnt - er schuetzt diese Eingabe; Entfernen waere Riegel-Aufweichen. Die Zeile liest sich: 07:00–16:00 · 1 h Pause = 8,00 h. */
+                    React.createElement('div',{'data-ze-karte-zeit':"1",style:{display:"flex",alignItems:"baseline",gap:4,flexWrap:"wrap",fontSize:UI.fMeta,color:V.dm}},
+                      entry.von&&React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap"}},entry.von,"–",entry.bis)/* v3.9.1016: Zeitspanne bricht als Ganzes um, nie mitten in der Uhrzeit */,
+                      entry.von&&_zeitPauseText(entry.pause)&&React.createElement('span',{style:{whiteSpace:"nowrap"}},"· "+_zeitPauseText(entry.pause)),
+                      entry.von&&React.createElement('span',{'aria-hidden':"true"},"="),
+                      React.createElement('span',{style:{display:"inline-flex",alignItems:"baseline",gap:2,whiteSpace:"nowrap"}},
+                      React.createElement('input',{type:"text",readOnly:true,tabIndex:-1,"aria-label":"Stunden, ändern über Bearbeiten",title:"Ändern über den Stift (Bearbeiten)",value:entry.hours>0?_hK(entry.hours,2):"",onChange:e=>{var _roh=String(e.target.value==null?"":e.target.value).trim();/* v3.9.885 LOHN: parseFloat("")||0 machte aus einem GELEERTEN Feld eine glatte 0 - und 0 loescht den Eintrag (v3.9.437, Chef-Entscheid: "0 heisst, war an dem Tag nicht da"). Der Entscheid bleibt, aber Leeren ist nicht Nulleingabe: wer das Feld zum Korrigieren leert und dann abgelenkt wird - Handschuh, Anruf, Sonne - verlor nach 800 ms seinen Zeiteintrag, ohne Rueckfrage und ohne Hinweis. Der Weg ueber das Kreuz hat ein Bestaetigungsfenster, dieser hatte keines. Ein leeres Feld heisst jetzt "noch nichts eingegeben" und loest gar nichts aus; eine getippte 0 loescht weiterhin. Deutsche Tastatur: "8,5" liefert in vielen Browsern ebenfalls einen leeren Wert - auch das darf nicht loeschen. */if(_roh==="")return;var _z=parseFloat(_roh.replace(",","."));if(isNaN(_z))return;updateEntryHours(iso,eIdx,_z);},style:{textAlign:"right",fontSize:14,fontWeight:700,padding:0,width:"3.4em",color:entry.hours>=8?_okG("#10b981"):entry.hours>0?V.tx:V.mt,background:"transparent",border:"none",outline:"none",cursor:"default",fontFamily:"inherit"}}),
+                      React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},"h"))
                     )
                   )
                 ),
@@ -26837,7 +26869,7 @@ ${dayRowsHtml}
           isMob?
             React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
               React.createElement('span',{style:{fontWeight:800,fontSize:14,color:_okG("#10b981")}},"WOCHENSUMME"),
-              React.createElement('span',{style:{fontFamily:mono,fontSize:18,fontWeight:800,color:_okG("#10b981")}},_hK(weekTotal,1),"h")
+              React.createElement('span',{style:{fontFamily:mono,fontSize:18,fontWeight:800,color:_okG("#10b981")}},_hK(weekTotal,2),"h")
             )
           :
             React.createElement(React.Fragment,{},
@@ -26848,11 +26880,11 @@ ${dayRowsHtml}
                 if(isSo&&!(dt>0))return null;
                 return React.createElement('div',{key:d,style:{textAlign:"center",padding:"4px 0"}},
                 React.createElement('div',{style:{fontSize:UI.fMeta,color:isSo?"#f97316":V.dm,fontWeight:600}},d),
-                React.createElement('div',{style:{fontFamily:mono,fontSize:14,fontWeight:800,color:dt>=8?_okG("#10b981"):dt>0?"#3b82f6":V.mt}},dt>0?_hK(dt,1)+"h":"—")
+                React.createElement('div',{style:{fontFamily:mono,fontSize:14,fontWeight:800,color:dt>=8?_okG("#10b981"):dt>0?"#3b82f6":V.mt}},dt>0?_hK(dt,2)+"h":"—")
               );}),
               React.createElement('div',{style:{textAlign:"center",padding:"4px 8px",background:"rgba(16,185,129,.15)",borderRadius:6,minWidth:70}},
                 React.createElement('div',{style:{fontSize:UI.fMeta,color:_okG("#10b981"),fontWeight:600}},"Σ Woche"),
-                React.createElement('div',{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(weekTotal,1),"h")
+                React.createElement('div',{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(weekTotal,2),"h")
               )
             )
         ),
@@ -26865,7 +26897,7 @@ ${dayRowsHtml}
           React.createElement('button',{onClick:exportXls,disabled:!_nEintrZE,title:_nEintrZE?undefined:"Noch keine Einträge in dieser Woche",style:{...xBtn("xls"),...(_nEintrZE?{}:_zeAus)}},_ik("tabelle",16),"Übersicht Excel"),
           React.createElement('button',{onClick:()=>window.print(),disabled:!_nEintrZE,style:{...xBtn("pdf"),...(_nEintrZE?{}:_zeAus)},title:_nEintrZE?"Drucken / als PDF speichern":"Noch keine Einträge in dieser Woche"},_ik("drucker",16),"PDF"),/* v3.9.315 */
           React.createElement('span',{style:{color:V.dm,fontSize:12,marginLeft:4}},
-            _nWort(_nEintrZE,"Eintrag","Einträge")," · ",_hK(weekTotal,1),"h gesamt",_nEintrZE?"":" – Export erst mit Einträgen möglich"
+            _nWort(_nEintrZE,"Eintrag","Einträge")," · ",_hK(weekTotal,2),"h gesamt",_nEintrZE?"":" – Export erst mit Einträgen möglich"
           )
         ),
         /* Per-day Tages-Stundenbestätigung export */
@@ -28932,7 +28964,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   // ═══ FZ QR SCANNER ═══
   const fzLookup=(code)=>{const c=code.trim().toUpperCase();return fahrzeuge.find(f=>_optionalChain([f, 'access', _655 => _655.kennzeichen, 'optionalAccess', _656 => _656.toUpperCase, 'call', _657 => _657()])===c||f.id===code||_optionalChain([f, 'access', _658 => _658.kennzeichen, 'optionalAccess', _659 => _659.toUpperCase, 'call', _660 => _660(), 'access', _661 => _661.replace, 'call', _662 => _662(/[^A-Z0-9]/g,""), 'access', _663 => _663.includes, 'call', _664 => _664(c.replace(/[^A-Z0-9]/g,""))]));};
   const fzHandleScan=(code)=>{const found=fzLookup(code);if(found){setFzScannedItem(found);setFzScanMsg("");setFzQuickAction(null);fzStopScan();}else{setFzScanMsg("❌ Kein Fahrzeug gefunden: "+code);}};
-  const fzStartScan=async()=>{setFzScannedItem(null);setFzScanMsg("");setFzQuickAction(null);try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:640},height:{ideal:480}}});fzStreamRef.current=stream;if(fzVideoRef.current){fzVideoRef.current.srcObject=stream;fzVideoRef.current.play();}setFzScanning(true);if("BarcodeDetector"in window){const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8"]});const tick=async()=>{if(!fzVideoRef.current||fzVideoRef.current.readyState<2){fzScanTimer.current=requestAnimationFrame(tick);return;}try{const codes=await det.detect(fzVideoRef.current);if(codes.length>0){fzHandleScan(codes[0].rawValue);return;}}catch(e){}fzScanTimer.current=requestAnimationFrame(tick);};fzScanTimer.current=requestAnimationFrame(tick);}else{setFzScanMsg("⚠️ Kein Scanner — bitte Kennzeichen manuell eingeben");}}catch(err){setFzScanMsg("📷 Kamera-Zugriff verweigert: "+err.message);setFzScanning(false);}};
+  const fzStartScan=async()=>{setFzScannedItem(null);setFzScanMsg("");setFzQuickAction(null);try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:640},height:{ideal:480}}});fzStreamRef.current=stream;if(fzVideoRef.current){fzVideoRef.current.srcObject=stream;fzVideoRef.current.play();}setFzScanning(true);if("BarcodeDetector"in window){const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8"]});const tick=async()=>{if(!fzVideoRef.current||fzVideoRef.current.readyState<2){fzScanTimer.current=requestAnimationFrame(tick);return;}try{const codes=await det.detect(fzVideoRef.current);if(codes.length>0){fzHandleScan(codes[0].rawValue);return;}}catch(e){}fzScanTimer.current=requestAnimationFrame(tick);};fzScanTimer.current=requestAnimationFrame(tick);}else{setFzScanMsg("⚠️ Kein Scanner — bitte Kennzeichen manuell eingeben");}}catch(err){setFzScanMsg("📷 "+_kameraFehlerText(err));setFzScanning(false);}};
   const fzStopScan=()=>{if(fzScanTimer.current){cancelAnimationFrame(fzScanTimer.current);fzScanTimer.current=null;}if(fzStreamRef.current){fzStreamRef.current.getTracks().forEach(t=>t.stop());fzStreamRef.current=null;}if(fzVideoRef.current)fzVideoRef.current.srcObject=null;setFzScanning(false);};
   _react.useEffect.call(void 0, ()=>()=>fzStopScan(),[]);
   // Quick-action state for scan results
@@ -30029,7 +30061,7 @@ function BauprovisorienView({bauprovisorien,setBauprovisorien,bauproMieten,setBa
           _scTimer.current=requestAnimationFrame(tick);};
         _scTimer.current=requestAnimationFrame(tick);
       }else{setScanMsg("⚠️ Kein QR-Scanner im Browser — bitte Gerät/Browser aktualisieren.");}
-    }catch(err){setScanMsg("📷 Kamera-Zugriff verweigert: "+(err&&err.message||err));}
+    }catch(err){setScanMsg("📷 "+_kameraFehlerText(err));}
   };
   _react.useEffect.call(void 0, ()=>{return ()=>{_qrScanStop();};},[]);
   /* QR-Druck (CSP-sicher via iframe, Muster wie _wpPrintPlan) — Label zum Aufkleben auf den Kasten. */
@@ -30501,7 +30533,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         setScanMsg("⚠️ Kein QR-Scanner im Browser — bitte Code manuell eingeben");
       }
     }catch(err){
-      setScanMsg("📷 Kamera-Zugriff verweigert: "+err.message);
+      setScanMsg("📷 "+_kameraFehlerText(err));
       setScanning(false);
     }
   };

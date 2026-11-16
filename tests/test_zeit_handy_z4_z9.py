@@ -66,9 +66,9 @@ def test_z6_summe_steht_vor_den_tagen(index_html):
     assert kopf.index('"Σ Woche"') < kopf.index("DAYS.map("), (
         "Die Wochensumme steht wieder hinter den Tagen - auf 412 px nur per Querwischen erreichbar.")
     rumpf = u[u.index("React.createElement('tbody'"):u.index("React.createElement('tfoot'")]
-    assert rumpf.index("m.total>0?_hK(m.total,1)") < rumpf.index("DAYS.map("), rumpf[:400]
+    assert rumpf.index("m.total>0?_hK(m.total,2)") < rumpf.index("DAYS.map("), rumpf[:400]
     fuss = u[u.index("React.createElement('tfoot'"):]
-    assert fuss.index("_hK(_gesZE,1)") < fuss.index("DAYS.map(")
+    assert fuss.index("_hK(_gesZE,2)") < fuss.index("DAYS.map(")
 
 
 def test_z6_excel_export_behaelt_seine_spaltenfolge(index_html):

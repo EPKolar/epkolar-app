@@ -116,7 +116,7 @@ def test_ze_loeschen_im_dialog_mit_rueckfrage(index_html):
     # deleteEntry fragt weiter nach und meldet Erfolg
     i = ze.index("const deleteEntry=async(iso,entryIdx)=>{")
     rumpf = ze[i:i + 1200]
-    assert '_confirmModal("Zeiteintrag wirklich löschen?",{variant:"danger"})' in rumpf
+    assert '_confirmModal("Zeiteintrag "+_zeitEintragName(iso,entry.hours,entry.label)+" löschen?",{variant:"danger"})' in rumpf  # v1016: Dialog nennt den Eintrag
     assert "return true;" in rumpf
 
 
