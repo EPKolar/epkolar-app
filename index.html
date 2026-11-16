@@ -14662,15 +14662,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       let totalMatched=0;autoMap.forEach(s=>totalMatched+=s.size);
       _dnSet("","Speichere "+totalMatched+" von "+articles.length+" Artikeln...");setDnUploadProgress(60);
       // Build supplier_articles rows — only matched ones
-      const rows=[];
-      for(const art of articles){
-        let epSys=null,epGew=null;
-        for(const grp of EP_AUTO_FILTER){
-          if(autoMap.has(grp.id)&&autoMap.get(grp.id).has(art.artNr)){epSys=grp.system;epGew=grp.gewerk;break;}
-        }
-        if(!epSys)continue;// skip unmatched
-        rows.push({id:_uuid(),supplier_id:_suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew,listenpreis:art.preis||0,ek_preis:art.preis||0,rabatt_gruppe:art.rabGrp||""});
-      }
+      const rows=_dnUpsertZeilen(articles,autoMap,_suppId);
       // v3.9.595 Dedup auf (supplier_id, art_nr) — letzter gewinnt. Sonst "ON CONFLICT DO UPDATE command cannot
       // affect row a second time", falls eine DATANORM-Datei dieselbe Art-Nr doppelt enthält.
       const _dedup=new Map();for(const _r of rows){_dedup.set(_r.supplier_id+""+_r.art_nr,_r);}
@@ -19819,9 +19811,34 @@ function _fixCp850(t){
     .replace(/\u0084/g,'ä').replace(/\u0094/g,'ö').replace(/\u008E/g,'Ä').replace(/\u0099/g,'Ö').replace(/\u009A/g,'Ü')
     .replace(/\u00E1/g,'ß');/* v3.9.1016: CP850 0xE1 = ß kam als á an - der Kommentar oben nannte die Zuordnung, der Code fehlte. Sicher, weil _fixCp850 nur bei erkanntem CP850 laeuft; in CP850 gibt es kein á auf 0xE1. */
 }
-function _parseDatanorm(text,version){
+/* Datanorm-Client (16.11.2026): Zeichensatz BYTEWEISE wie der Server-Parser (supabase/functions/supplier-sync/datanorm.ts). FileReader.readAsText(f,'ISO-8859-1') ist laut WHATWG in Wahrheit windows-1252 und macht aus CP850-0xE1 (ss) ein 'a mit Akut' - die Nachbesserung per _fixCp850 erriet das nur an Ersatzzeichen. Jetzt: Entscheidung an der ERSTEN Zeile mit Bytes >= 0x80 (gueltiges UTF-8 mit Mehrbyte -> utf-8, sonst Mehrheit der typischen Umlautbytes CP850 gegen ISO-8859-1), danach fest fuer die ganze Datei. Unentscheidbare Zeilen davor: ISO-8859-1 (wie der Server). */
+function _dnZeichensatz(b){
+  let hoch=false;for(let i=0;i<b.length;i++)if(b[i]>=0x80){hoch=true;break;}
+  if(!hoch)return null;
+  let utf=true,mehr=false;
+  for(let i=0;i<b.length;){const c=b[i];if(c<0x80){i++;continue;}let n=0;if(c>=0xC2&&c<=0xDF)n=1;else if(c>=0xE0&&c<=0xEF)n=2;else if(c>=0xF0&&c<=0xF4)n=3;else{utf=false;break;}if(i+n>=b.length){utf=false;break;}for(let k=1;k<=n;k++){if((b[i+k]&0xC0)!==0x80){utf=false;break;}}if(!utf)break;mehr=true;i+=n+1;}
+  if(utf&&mehr)return"utf-8";
+  const CP=[0x81,0x84,0x8E,0x94,0x99,0x9A,0xE1],LA=[0xE4,0xF6,0xFC,0xC4,0xD6,0xDC,0xDF];let cp=0,la=0;
+  for(let i=0;i<b.length;i++){if(CP.indexOf(b[i])>=0)cp++;if(LA.indexOf(b[i])>=0)la++;}
+  return cp>la?"cp850":(la>cp?"iso-8859-1":null);
+}
+function _dnDekodieren(b,zs){
+  if(zs==="utf-8")return new TextDecoder("utf-8").decode(b);
+  const hoch=zs==="cp850"?"ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´\u00AD±‗¾¶§÷¸°¨·¹³²■\u00A0":null;/* CP850 0x80-0xFF, identisch mit CP850_HIGH im Server-Parser */
+  const t=new Array(256);for(let c=0;c<256;c++)t[c]=(c<0x80||!hoch)?String.fromCharCode(c):hoch.charAt(c-0x80);/* ohne Tafel: echtes ISO-8859-1 (Byte = Codepoint), NICHT windows-1252 */
+  let out="";const CH=65536;
+  for(let i=0;i<b.length;i+=CH){const e=Math.min(b.length,i+CH),a=new Array(e-i);for(let k=i;k<e;k++)a[k-i]=t[b[k]];out+=a.join("");}
+  return out;
+}
+function _dnBytesZuText(b){
+  let von=0,zs=null,ab=b.length;
+  for(let i=0;i<=b.length;i++){if(i===b.length||b[i]===0x0A){let n=i;if(n>von&&b[n-1]===0x0D)n--;if(n>von){const z=_dnZeichensatz(b.subarray(von,n));if(z){zs=z;ab=von;break;}}von=i+1;}}
+  const text=_dnDekodieren(b.subarray(0,ab),null)+(ab<b.length?_dnDekodieren(b.subarray(ab),zs):"");
+  return {text:text,zs:zs||"ascii"};
+}
+function _parseDatanorm(text,version,dekodiert){
   // Detect CP850: if text has „(U+201E) or "(U+201D) or U+0081 where Umlauts expected, fix encoding
-  if(/\u201E|\u201D|\u0081|\u017D|\u2122|\u0161/.test(text))text=_fixCp850(text);/* v3.9.1016: auch Ä/Ö/Ü (Ž ™ š) erkennen - ein Text nur mit Grossumlauten blieb vorher unerkannt */
+  if(!dekodiert&&/\u201E|\u201D|\u0081|\u017D|\u2122|\u0161/.test(text))text=_fixCp850(text);/* v3.9.1016: auch Ä/Ö/Ü (Ž ™ š) erkennen - ein Text nur mit Grossumlauten blieb vorher unerkannt. Datanorm-Client: dekodiert=true (Bytes schon richtig gelesen) -> nicht raten, sonst wuerden echte „“ und á in UTF-8 verbogen */
   const lines=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim());
   // fmt: "v4ext" = standard DATANORM 4 with Änderungskz (Holter/SHT/Richter)
   //      "v5"    = DATANORM 5 (empty Textschlüssel at p[2])
@@ -19900,7 +19917,7 @@ function _parseDatanorm(text,version){
     const name=(kt1+(kt2?" "+kt2:"")).trim();
     // Price: DATANORM stores in cents → divide by 100, then by PE for unit price
     const unitPreis=preis>0?(preis/100)/(pe||1):0;
-    articles.push({artNr,name,kt1,kt2,me:me||"Stk",preis:unitPreis,rabGrp});
+    articles.push({artNr,name,kt1,kt2,me:me||"Stk",preis:unitPreis,rabGrp,pe:pe||1});/* pe: DATANORM 4 kennt die Preiseinheit NUR im A-Satz (Feld 8) - der DATPREIS-P-Satz rechnet damit */
   }
   articles.detVer=fmt;
   return articles;
@@ -19908,7 +19925,8 @@ function _parseDatanorm(text,version){
 /* ═══ v3.9.261 DATANORM Multi-File Loader: Artikel (DATANORM.001/.002…) + DATPREIS-Preise + WRG-Warengruppen DATEIÜBERGREIFEND zusammenführen. Nutzt den bewährten _parseDatanorm für Artikel; DATPREIS füllt NUR fehlende Preise (kein Override → kein Korruptionsrisiko). Single-File bleibt kompatibel (1 Datei). ═══ */
 async function _parseDatanormFiles(fileList,version){
   const files=Array.prototype.slice.call(fileList||[]);
-  const readText=(file,enc)=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result||"");r.onerror=rej;r.readAsText(file,enc);});
+  /* Datanorm-Client: Bytes statt readAsText(...,'ISO-8859-1') - der Zeichensatz wird in _dnBytesZuText entschieden */
+  const readBytes=(file)=>(file&&typeof file.arrayBuffer==="function")?file.arrayBuffer().then(b=>new Uint8Array(b)):new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(new Uint8Array(r.result||new ArrayBuffer(0)));r.onerror=rej;r.readAsArrayBuffer(file);});
   const classify=(name,text)=>{
     const n=(name||"").toUpperCase();
     if(/DATPREIS/.test(n))return"price";
@@ -19919,21 +19937,24 @@ async function _parseDatanormFiles(fileList,version){
     if(s>a&&s>p)return"group";
     return"article";
   };
+  /* DATANORM 4 P-Satz (DATPREIS): P;Verarbeitungskz(A=Aenderung);dann bis zu DREI Artikelbloecke je 9 Felder: ArtNr;Preiskennzeichen(1 brutto/2 netto);Preis(Cent, ohne Komma);Rabattkennzeichen;Rabatt;... - Beispielzeile P;A;TREV;2;199;;;;;;;TREVNS10;1;870;1;5450;;;;;EV10;1;2010;1;4050;;;;; (Bloecke ab Feld 2, 11, 20). Eine Preiseinheit hat der P-Satz NICHT - sie steht nur im A-Satz (Feld 8, Code 0/1/2/3). Vorher: p[5] (Rabattkennzeichen) wurde als Preiseinheit gelesen, p[6] (Rabattwert) als Rabattgruppe, nur der erste Block, und Verarbeitungskz "A" fehlte in der Erkennung (die Zeile landete unter ArtNr "A"). Quellen: hilfe.comtech.at Datanorm-Datei (P-Satz-Felder), flace.de ?p=577 (Beispielzeile), docs.solutioo.de (V4: bis zu drei Artikel je P-Zeile). pe:null = Preiseinheit aus dem A-Satz. */
   const parsePriceText=(text)=>{
-    if(/„|”|/.test(text))text=_fixCp850(text);
     const out={};const lines=text.replace(/\r\n?/g,"\n").split("\n");
     for(const line of lines){
       if(!line||line.charAt(0).toUpperCase()!=="P")continue;
       const p=line.split(";");if(p.length<4)continue;
-      let artNr="",preis=0,pe=1,rabGrp="";const f1=(p[1]||"").trim();
-      if(f1.length===1&&/^[NUDÄL]$/i.test(f1)){artNr=(p[2]||"").trim();preis=parseFloat((p[4]||"0").replace(",","."))||0;pe=parseInt(p[5],10)||1;rabGrp=(p[6]||"").trim();}
-      else{artNr=f1;preis=parseFloat((p[3]||"0").replace(",","."))||0;pe=parseInt(p[4],10)||1;rabGrp=(p[5]||"").trim();}
-      if(artNr&&preis>0)out[artNr]={preis:preis,pe:pe,rabGrp:rabGrp};
+      const f1=(p[1]||"").trim();
+      if(f1.length===1&&/^[ANUDÄLXP]$/i.test(f1)){
+        for(let b=2;b<p.length;b+=9){const artNr=(p[b]||"").trim();const preis=parseFloat((p[b+2]||"0").replace(",","."))||0;if(artNr&&preis>0)out[artNr]={preis:preis,pe:null,rabGrp:""};}
+      }
+      else{/* einfache Form P;ArtNr;Preistyp;Preis;PE;RabGrp (wie der V5-Zweig in _parseDatanorm) - unveraendert */
+        const artNr=f1;const preis=parseFloat((p[3]||"0").replace(",","."))||0;const pe=parseInt(p[4],10)||1;const rabGrp=(p[5]||"").trim();
+        if(artNr&&preis>0)out[artNr]={preis:preis,pe:pe,rabGrp:rabGrp};
+      }
     }
     return out;
   };
   const parseGroupText=(text)=>{
-    if(/„|”|/.test(text))text=_fixCp850(text);
     const out={};const lines=text.replace(/\r\n?/g,"\n").split("\n");
     for(const line of lines){
       if(!line||line.charAt(0).toUpperCase()!=="S")continue;
@@ -19945,20 +19966,19 @@ async function _parseDatanormFiles(fileList,version){
   };
   const parts={article:[],price:{},group:{}};
   for(const file of files){
-    let text=await readText(file,"ISO-8859-1");
+    const text=_dnBytesZuText(await readBytes(file)).text;
     const kind=classify(file.name,text);
     if(kind==="price"){Object.assign(parts.price,parsePriceText(text));}
     else if(kind==="group"){Object.assign(parts.group,parseGroupText(text));}
     else{
-      let arts=_parseDatanorm(text,0);
-      if(!arts||arts.length===0){const u=await readText(file,"UTF-8");arts=_parseDatanorm(u,0);}
+      const arts=_parseDatanorm(text,0,true);
       if(arts&&arts.length){parts.article.push({arts:arts,ver:arts.detVer});}
     }
   }
   const byNr={};let detVer=null;
   for(const blk of parts.article){detVer=detVer||blk.ver;for(const a of blk.arts){byNr[a.artNr]=a;}}
   const merged=Object.keys(byNr).map(k=>byNr[k]);
-  for(const a of merged){if(a.preis>0)continue;const pp=parts.price[a.artNr];if(pp){const unit=pp.preis>0?(pp.preis/100)/(pp.pe||1):0;if(unit>0){a.preis=unit;if(pp.rabGrp&&!a.rabGrp)a.rabGrp=pp.rabGrp;}}}
+  for(const a of merged){if(a.preis>0)continue;const pp=parts.price[a.artNr];if(pp){const pe=pp.pe!=null?pp.pe:(a.pe||1);const unit=pp.preis>0?(pp.preis/100)/(pe||1):0;if(unit>0){a.preis=unit;if(pp.rabGrp&&!a.rabGrp)a.rabGrp=pp.rabGrp;}}}
   merged.detVer=detVer||"multi";
   merged.stats={files:files.length,articles:merged.length,prices:Object.keys(parts.price).length,groups:Object.keys(parts.group).length};
   return merged;
@@ -20374,6 +20394,19 @@ function _epAutoMatch(articles){
     if(hits.size>0)result.set(grp.id,hits);
   }
   return result;
+}
+/* Datanorm-Client (16.11.2026): supplier_articles-Zeilen fuer den Upsert OHNE id. Vorher id:_uuid() je Zeile - mit on_conflict=supplier_id,art_nr und resolution=merge-duplicates setzt PostgREST beim Konflikt ALLE gesendeten Spalten, also auch id: jeder Import tauschte die ids bestehender Artikel. Ohne id vergibt die DB sie beim Einfuegen (column_default gen_random_uuid(), read-only geprueft 16.11.) und beim Update bleibt sie stabil - wie zeilenFuerUpsert im Server-Parser. */
+function _dnUpsertZeilen(articles,autoMap,suppId){
+  const rows=[];
+  for(const art of articles){
+    let epSys=null,epGew=null;
+    for(const grp of EP_AUTO_FILTER){
+      if(autoMap.has(grp.id)&&autoMap.get(grp.id).has(art.artNr)){epSys=grp.system;epGew=grp.gewerk;break;}
+    }
+    if(!epSys)continue;// skip unmatched
+    rows.push({supplier_id:suppId,art_nr:art.artNr,bezeichnung:art.name,langtext:art.kt2||"",mengeneinheit:art.me||"STK",ep_system:epSys,ep_gewerk:epGew,listenpreis:art.preis||0,ek_preis:art.preis||0,rabatt_gruppe:art.rabGrp||""});
+  }
+  return rows;
 }
 const FOTO_CATS=[
   {id:"alle",l:"Alle",i:"📷",c:"#6b7280"},

@@ -50,7 +50,8 @@ def _funktion(src, name):
 
 def _helfer_quelle(src):
     return "\n".join(_funktion(src, n) for n in (
-        "_fixCp850", "_parseDatanorm", "_parseDatanormFiles",
+        "_fixCp850", "_dnZeichensatz", "_dnDekodieren", "_dnBytesZuText",
+        "_parseDatanorm", "_parseDatanormFiles",
         "_supplierSaveBody", "_supplierCredStand"))
 
 
@@ -88,7 +89,7 @@ NODE_PARSER = r"""
 const fs=require('fs');
 const src=fs.readFileSync(process.argv[2],'utf8');
 const dateien=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));
-class FileReader{readAsText(f,enc){try{this.result=new TextDecoder(enc).decode(Buffer.from(f.b64,'base64'));setTimeout(()=>this.onload&&this.onload(),0);}catch(e){setTimeout(()=>this.onerror&&this.onerror(e),0);}}}
+class FileReader{readAsArrayBuffer(f){const b=Buffer.from(f.b64,'base64');this.result=b.buffer.slice(b.byteOffset,b.byteOffset+b.length);setTimeout(()=>this.onload&&this.onload(),0);}readAsText(f,enc){try{this.result=new TextDecoder(enc).decode(Buffer.from(f.b64,'base64'));setTimeout(()=>this.onload&&this.onload(),0);}catch(e){setTimeout(()=>this.onerror&&this.onerror(e),0);}}}
 global.FileReader=FileReader;
 eval(src+"\n;global._parseDatanormFiles=_parseDatanormFiles;");
 (async()=>{
@@ -166,13 +167,43 @@ def test_parser_nur_grossumlaute_und_nur_preise(index_html, node_exe, tmp_path):
     assert r["leer"]["arts"] == []
 
 
+# Datanorm-Client (16.11.2026): der Haendler-Upload dekodiert jetzt BYTEWEISE (_dnBytesZuText) und
+# braucht _fixCp850 nicht mehr. _fixCp850 bleibt fuer den Textpfad (Material-Katalog, readAsText
+# 'ISO-8859-1' = windows-1252 -> _parseDatanorm ohne dekodiert-Flag). Die v1016-Umkehrprobe laeuft
+# deshalb auf genau diesem Textpfad weiter; die Umkehrprobe des Bytepfads steht in
+# test_datanorm_client_upload.py.
+NODE_TEXTPFAD = r"""
+const fs=require('fs');
+eval(fs.readFileSync(process.argv[2],'utf8')+"\n;global._parseDatanorm=_parseDatanorm;");
+const d=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));const aus={};
+for(const k of Object.keys(d)){const t=new TextDecoder('iso-8859-1').decode(Buffer.from(d[k],'base64'));aus[k]=_parseDatanorm(t,0).map(a=>({artNr:a.artNr,name:a.name}));}
+process.stdout.write(JSON.stringify(aus));
+"""
+
+
+def _textpfad_lauf(node_exe, tmp_path, quelle):
+    q = tmp_path / "tq.js"
+    q.write_text(quelle, encoding="utf-8")
+    d = tmp_path / "td.json"
+    d.write_text(json.dumps({"dn4": _b64(DN4), "gross": _b64(NUR_GROSS)}), encoding="utf-8")
+    s = tmp_path / "tl.js"
+    s.write_text(NODE_TEXTPFAD, encoding="utf-8")
+    p = subprocess.run([node_exe, str(s), str(q), str(d)], capture_output=True, timeout=EPK_TEST_TIMEOUT)
+    out = p.stdout.decode("utf-8", "replace")
+    assert p.returncode == 0, out + p.stderr.decode("utf-8", "replace")
+    return json.loads(out)
+
+
 def test_umkehrprobe_parser_ohne_v1016_ergaenzung(index_html, node_exe, tmp_path):
     q = _helfer_quelle(index_html)
+    r = _textpfad_lauf(node_exe, tmp_path, q)
+    assert r["gross"][0]["name"] == "ÖLWANNE ÜBERLAUF ÄUSSERE"
+    assert _nach_nr(r["dn4"])["1002"]["name"] == "Übergangsstück Größe Maße 1/2 Zoll"
     alt = q.replace("|\\u017D|\\u2122|\\u0161", "", 1).replace(".replace(/\\u00E1/g,'ß')", "", 1)
     assert alt != q
-    r = _parser_lauf(node_exe, tmp_path, alt)
-    assert r["gross"]["arts"][0]["name"] != "ÖLWANNE ÜBERLAUF ÄUSSERE"
-    assert _nach_nr(r["dn4"]["arts"])["1002"]["name"] != "Übergangsstück Größe Maße 1/2 Zoll"
+    r = _textpfad_lauf(node_exe, tmp_path, alt)
+    assert r["gross"][0]["name"] != "ÖLWANNE ÜBERLAUF ÄUSSERE"
+    assert _nach_nr(r["dn4"])["1002"]["name"] != "Übergangsstück Größe Maße 1/2 Zoll"
 
 
 # ── Leer-Ueberschreib-Riegel ────────────────────────────────────────────────
