@@ -4557,6 +4557,7 @@ async function _juprowaPushAll(){
   if(!rows||!rows.length)return{ok:true,count:0};
   let ok=0,fail=0;
   for(const row of rows){
+    if(await _juprowaPushSperreFuerId(row.id)){fail++;continue;}/* v3.9.1026 OFFA-Push-Riegel: gesperrt -> nicht senden, push_pending bleibt */
     const r=await _juprowaPush(row.id);
     if(r.ok)ok++;else fail++;
   }
@@ -4571,12 +4572,12 @@ async function _juprowaDrainPending(maxBatch){
   const _mb=(typeof maxBatch==='number'&&maxBatch>0)?maxBatch:10;
   if(!navigator.onLine)return{drained:0,skipped:'offline'};
   let pending;
-  try{pending=await _sbGet('arbeitsscheine','push_pending=eq.true&juprowa_id=not.is.null&select=id&limit='+_mb);}
+  try{pending=await _sbGet('arbeitsscheine','push_pending=eq.true&juprowa_id=not.is.null'+_jpGesperrtFilter()+'&select=id&limit='+_mb);}/* v3.9.1026: _jpGesperrtFilter nimmt in den letzten 30 Min gesperrte Scheine heraus, damit sie den Stapel nicht dauerhaft belegen */
   catch(e){return{drained:0,error:e&&e.message||String(e)};}
   if(!Array.isArray(pending)||pending.length===0)return{drained:0,batch:0};
   let ok=0,fail=0;
   for(const row of pending){
-    try{const r=await _juprowaPush(row.id);if(r&&r.ok)ok++;else fail++;}
+    try{if(await _juprowaPushSperreFuerId(row.id)){fail++;continue;}/* v3.9.1026 OFFA-Push-Riegel */const r=await _juprowaPush(row.id);if(r&&r.ok)ok++;else fail++;}
     catch(e){fail++;}
   }
   return{drained:ok,failed:fail,batch:pending.length};
@@ -4606,14 +4607,70 @@ function _juprowaSchedulePush(scheinId){
     var _ids=_jpPushSet?Array.from(_jpPushSet):[];
     if(_jpPushSet)_jpPushSet.clear();
     _ids.forEach(function(_id){
+      /* v3.9.1026 OFFA-Push-Riegel davor: gesperrt -> nicht senden, push_pending bleibt. */
+      (typeof _juprowaPushSperreFuerId==='function'?_juprowaPushSperreFuerId(_id):Promise.resolve(null)).then(function(_gr){
+      if(_gr)return;
       _juprowaPush(_id).then(function(r){
         if(r&&r.ok){try{if(typeof window!=='undefined'&&typeof window.__epkAsPushDone==='function')window.__epkAsPushDone(_id);}catch(_c){}}
         else if(!r||(!r.ok&&r.error))console.warn('[AUTOPUSH]',_id,(r&&r.error)||'unknown');
       }).catch(function(e){console.warn('[AUTOPUSH-EXC]',_id,e&&e.message||e);});
+      }).catch(function(e){console.warn('[AUTOPUSH-SPERRE-EXC]',_id,e&&e.message||e);});
     });
   },2000);
 }
 if(typeof window!=='undefined')window._juprowaSchedulePush=_juprowaSchedulePush;
+/* v3.9.1026 OFFA-Push-Riegel (Sebastian 16.11.: "GUARDS, kein Umbau des Push-Kerns"). Sitzt VOR jedem
+   _juprowaPush-Aufruf (PushAll, Drain, Klammer, Knopf). _juprowaPush/_juprowaReversMap/_juprowaSanitize bleiben byte-gleich.
+   Regeln (Rueckgabe = Grund-Text, sonst null):
+   1. juprowa_raw.AK_AUFSTATUS vorhanden, aber unbekannt -> "OFFA-Statuscode X unbekannt". Sonst schickte _juprowaReversMap
+      den App-Status zurueck und ueberschriebe den unbekannten Code in OFFA mit einem geratenen Wert.
+   2. Ein OFFA-Endstatus (storniert 20, abgerechnet 10, bar bezahlt 11/15) sperrt JEDEN Push, bei dem der App-Status davon
+      ABWEICHT, gleich welcher Endstatus -> "OFFA-Endstatus <Label> weicht ab". Stimmt der App-Status mit dem OFFA-Endstatus
+      ueberein, geht der Push durch: _juprowaReversMap schickt dann den Rohwert unveraendert zurueck, nichts wird ueberschrieben.
+   3. Schein vom letzten erfolgreichen OFFA-Abruf nicht mehr geliefert (_offaNichtImFeed gegen den Zeitpunkt dieses Abrufs,
+      window.__lastJuprowaPull bzw. epk_last_juprowa_pull) -> "in OFFA nicht mehr gelistet". Kein Abrufzeitpunkt bekannt -> Regel aus.
+      Bewusst NICHT das Maximum von juprowa_sync_at: ein erfolgreicher Push stempelt juprowa_sync_at ebenfalls und haette sonst
+      alle uebrigen Scheine als "nicht gelistet" gesperrt.
+   Gesperrt = nicht senden; push_pending bleibt stehen (KEIN arbeitsscheine-Write, Whitelist test_as_writers_whitelist),
+   Meldung einmal je Sitzung+Schein+Grund (console.warn + activity_log juprowa_push_gesperrt). Lesefehler = gesperrt (fail-closed). */
+var _JP_ENDSTATUS=["storniert","abgerechnet","bar_bezahlt"];
+function _jpStatusLabel(st){try{return (typeof AS_STATUS!=="undefined"&&AS_STATUS[st]&&AS_STATUS[st].l)||st;}catch(e){return st;}}
+function _juprowaPushSperre(schein,ctx){
+  if(!schein||!schein.juprowa_id)return null;
+  var raw=(schein.juprowa_raw&&typeof schein.juprowa_raw==="object"&&schein.juprowa_raw.AK_AUFSTATUS!=null)?String(schein.juprowa_raw.AK_AUFSTATUS):null;
+  if(raw!=null){
+    var m=JUPROWA_STATUS_MAP[raw];
+    if(m==null)return "OFFA-Statuscode "+(raw===""?"(leer)":raw)+" unbekannt";
+    if(_JP_ENDSTATUS.indexOf(m)>=0&&m!==schein.scheinstatus)return "OFFA-Endstatus "+_jpStatusLabel(m)+" weicht ab";
+  }
+  var lp=ctx&&ctx.letzterAbrufMs;
+  if(lp&&_offaNichtImFeed(schein,lp))return "in OFFA nicht mehr gelistet";
+  return null;
+}
+function _jpLetzterAbrufMs(){var v=0;try{v=(typeof window!=="undefined"&&window.__lastJuprowaPull)||parseInt(localStorage.getItem("epk_last_juprowa_pull"),10)||0;}catch(e){v=0;}return (typeof v==="number"&&v>0)?v:0;}
+var _jpGesperrt={};
+function _juprowaPushGesperrtMelden(schein,grund){
+  var _alt=_jpGesperrt[schein.id];
+  _jpGesperrt[schein.id]={nummer:schein.nummer,grund:grund,ts:Date.now()};
+  if(_alt&&_alt.grund===grund)return;
+  console.warn("[JP-PUSH-GESPERRT]",schein.nummer,grund);
+  try{var _uG=JSON.parse(localStorage.getItem("epkolar_user")||"null");_sbPost("activity_log",{user_id:(_uG&&_uG.id)||"system",action:"juprowa_push_gesperrt",details:JSON.stringify({nummer:schein.nummer,juprowa_id:schein.juprowa_id,grund:grund})}).catch(function(){});}catch(_e){console.warn("[JP-PUSH-GESPERRT-LOG]",_e&&_e.message||_e);}
+}
+async function _juprowaPushSperreFuerId(scheinId){
+  var rows;
+  try{rows=await _sbGet("arbeitsscheine","id=eq."+scheinId);}catch(e){console.warn("[JP-PUSH-SPERRE-LESEN]",scheinId,e&&e.message||e);return "OFFA-Pruefung nicht moeglich (Lesefehler)";}
+  if(!Array.isArray(rows)||!rows.length)return null;
+  var s=_mapArbeitsschein(rows[0]);
+  var g=_juprowaPushSperre(s,{letzterAbrufMs:_jpLetzterAbrufMs()});
+  if(g)_juprowaPushGesperrtMelden(s,g);else delete _jpGesperrt[s.id];
+  return g;
+}
+function _jpGesperrtFilter(){
+  var jetzt=Date.now(),ids=[];
+  Object.keys(_jpGesperrt).forEach(function(k){var e=_jpGesperrt[k];if(e&&jetzt-e.ts<30*60*1000&&/^[A-Za-z0-9_-]+$/.test(k))ids.push(k);});
+  return ids.length?"&id=not.in.("+ids.join(",")+")":"";
+}
+if(typeof window!=="undefined"){window._juprowaPushSperre=_juprowaPushSperre;window._jpLetzterAbrufMs=_jpLetzterAbrufMs;}
 
 // ═══ OFFA PDF IMPORT PARSER ═══
 if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -11324,6 +11381,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   const _isVerwaist=(a)=>{try{return _offaFeed.zustand==="still"&&!!(window._isOffaVerwaist&&window._isOffaVerwaist(a,_lastJupPull,Date.now()));}catch(e){return false;}};
   const _verwaisteN=(arbeitsscheine||[]).filter(_isVerwaist).length;
   const _nichtImFeed=(a)=>{try{return _offaFeed.zustand==="frisch"&&!!(window._offaNichtImFeed&&window._offaNichtImFeed(a,_offaFeed.maxMs));}catch(e){return false;}};/* v3.9.1024 */
+  const _pushGesperrtL=(arbeitsscheine||[]).filter(a=>a&&a.push_pending&&a.juprowa_id).map(a=>{let g=null;try{g=window._juprowaPushSperre?window._juprowaPushSperre(a,{letzterAbrufMs:_lastJupPull}):null;}catch(e){g=null;}return g?{a:a,g:g}:null;}).filter(Boolean).sort((x,y)=>String(x.a.nummer||"").localeCompare(String(y.a.nummer||""),"de",{numeric:true}));/* v3.9.1026 OFFA-Push-Riegel: nur Anzeige */
   const _nichtImFeedL=(arbeitsscheine||[]).filter(_nichtImFeed).sort((x,y)=>String(x.nummer||"").localeCompare(String(y.nummer||""),"de",{numeric:true}));
   /* v3.9.729 #19: Dispo-Geo-Kaskade laden (plz_geo Zentroide + plz_distanz Matrix, 42P01/leer-tolerant) ->
      window.__dispoGeo. Leer -> ~2 km/? km; sobald Chat-Claude die Tabellen fuellt, greifen echte km AUTOMATISCH
@@ -11352,7 +11410,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
 
   /* v3.9.581 dead-code entfernt: doJuprowaSync + doJuprowaFullSync (0 Aufrufe — manuelle Sync-Buttons seit v3.9.346 raus; Auto-Sync via _juprowaSync-Interval bleibt) */
   /* v3.9.581 dead-code entfernt: doJuprowaPushAll (0 Aufrufe; _juprowaPushAll-Helper + doSinglePush bleiben) */
-  const doSinglePush=async(id)=>{if(!confirm("Diesen Schein zur Juprowa Cloud senden?"))return;setJupPushing(true);const r=await _juprowaPush(id);setJupPushing(false);if(r.ok){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("☁️ "+r.nummer+" gesendet")]);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,push_pending:false,push_error:null,last_push_at:new Date().toISOString()}:a));}else{_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Push Fehler: "+r.error,"error")]);}};
+  const doSinglePush=async(id)=>{const _gr1026=(typeof _juprowaPushSperreFuerId==='function')?await _juprowaPushSperreFuerId(id):null;if(_gr1026){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("Nicht an OFFA gesendet: "+_gr1026+" – bitte in OFFA prüfen","error")]);return;}/* v3.9.1026 OFFA-Push-Riegel: gesperrt -> Meldung statt Senden, push_pending bleibt */if(!confirm("Diesen Schein zur Juprowa Cloud senden?"))return;setJupPushing(true);const r=await _juprowaPush(id);setJupPushing(false);if(r.ok){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("☁️ "+r.nummer+" gesendet")]);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,push_pending:false,push_error:null,last_push_at:new Date().toISOString()}:a));}else{_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Push Fehler: "+r.error,"error")]);}};
   _react.useEffect.call(void 0, ()=>{
     if(!canSync)return;
     /* v3.9.756 #31g-Konsolidierung: lokaler ↑-Clear nach erfolgreichem (debouncedem) Push — die per-Schein-
@@ -11975,6 +12033,7 @@ function sharePdf(){
       , sub==="liste"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-liste", ref: _scheinListRef }
         /* v3.9.728 #18a: Sammel-Hinweis auf verwaiste OFFA-Scheine (offen, aber seit >Tagen kein Feed-Update trotz Pull). */
         , (canSync&&_offaFeed.zustand==="unbekannt"&&(arbeitsscheine||[]).some(a=>a&&a.juprowa_id))&&React.createElement('div', { style: {padding:"6px 12px",marginBottom:10,borderRadius:8,border:"1px solid "+V.bd,fontSize:12,color:V.dm}}, "OFFA-Feed: kein Abgleich-Zeitstempel geladen - Zustand unbekannt, keine Warnung." )
+        , (_pushGesperrtL.length>0&&canSync)&&React.createElement('div', { 'data-offa-push-gesperrt': _pushGesperrtL.length, role: "alert", style: {display:"flex",alignItems:"flex-start",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(239,68,68,.12)":"rgba(239,68,68,.08)",border:"1px solid #ef4444",fontSize:13,color:_dark?"#fca5a5":"#991b1b"}}, _ik("warnung",18), React.createElement('div', {style:{minWidth:0}}, React.createElement('div', {style:{fontWeight:700}}, _nWort(_pushGesperrtL.length,"Änderung wird","Änderungen werden")+" NICHT an OFFA gesendet"), React.createElement('div', {style:{marginTop:2}}, "Der Schein steht in OFFA anders (z. B. storniert oder abgerechnet) oder wird dort nicht mehr gelistet. Die App überschreibt OFFA nicht – bitte in OFFA prüfen."), React.createElement('div', {style:{marginTop:4,fontWeight:600,overflowWrap:"anywhere"}}, _pushGesperrtL.slice(0,30).map(x=>x.a.nummer+": "+x.g).join(" · ")+(_pushGesperrtL.length>30?" …":""))))/* v3.9.1026 OFFA-Push-Riegel - nur Anzeige */
         , (_nichtImFeedL.length>0&&canSync)&&React.createElement('div', { 'data-offa-nicht-im-feed': _nichtImFeedL.length, style: {display:"flex",alignItems:"flex-start",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:13,color:_dark?"#fbbf24":"#92400e"}}, _ik("warnung",18), React.createElement('div', {style:{minWidth:0}}, React.createElement('div', {style:{fontWeight:700}}, _nWort(_nichtImFeedL.length,"Schein","Scheine")+" in OFFA nicht mehr gelistet"), React.createElement('div', {style:{marginTop:2}}, "Der OFFA-Abruf liefert sie nicht mehr (z. B. in OFFA storniert oder gelöscht). Bitte den Status in OFFA prüfen – die App ändert ihn NICHT selbst."), React.createElement('div', {style:{marginTop:4,fontWeight:600,overflowWrap:"anywhere"}}, _nichtImFeedL.slice(0,30).map(a=>a.nummer+" ("+((AS_STATUS[a.scheinstatus]||{}).l||a.scheinstatus)+")").join(" · ")+(_nichtImFeedL.length>30?" …":""))))/* v3.9.1024 OFFA: nicht mehr im Feed - nur Anzeige */
          , (_verwaisteN>0&&canSync)&&React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:12,color:_dark?"#fbbf24":"#92400e"}}, "⚠ "+"OFFA-Feed steht seit über "+OFFA_VERWAIST_TAGE+" Tagen – keine neuen Daten aus OFFA. Bitte die Anbindung prüfen. Betroffen: "+_nWort(_verwaisteN,"offener Schein","offene Scheine")+" ohne Abgleich; die App ändert den Status NICHT selbst."/* v3.9.1017: Banner erscheint seit v1016 nur noch bei globalem Feed-Stillstand (_offaFeedStand) - Text sagt genau das. */ )
         /* v3.5.74 Block 8: Schnell-Filter-Chips */
@@ -12224,7 +12283,7 @@ function sharePdf(){
 
       , sub==="form"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-form" }
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}/* v3.9.250 Mobile: Header umbrechen — Titel + Juprowa/Push-Badges + Buttons ragten sonst über den Rand */
-          , React.createElement('div', { style: {fontSize:16,fontWeight:800,minWidth:0,wordBreak:"break-word"}}, editId?"Schein bearbeiten":"Neuer Arbeitsschein", " " , React.createElement('span', { style: {color:"#f97316",fontFamily:mono}}, form.nummer), form.juprowa_id&&React.createElement('span', {style:{fontSize:UI.fMeta,color:"#06b6d4",marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"🔗 Juprowa #",form.juprowa_id, form.juprowa_sync_at&&React.createElement('span',{style:{color:V.dm,marginLeft:4}},"Sync: ",window._fmtStampLocal(form.juprowa_sync_at))), form.push_pending&&React.createElement('span',{style:{fontSize:UI.fMeta,color:"#f59e0b",marginLeft:8,fontWeight:600,verticalAlign:"middle"}},"⬆ Push ausstehend"), form.last_push_at&&!form.push_pending&&React.createElement('span',{style:{fontSize:UI.fMeta,color:_okG(COLORS.SUCCESS),marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"✓ Gepusht: ",window._fmtStampLocal(form.last_push_at)), form.push_error&&React.createElement('span',{style:{fontSize:UI.fMeta,color:COLORS.ERROR,marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"❌ ",_kurz(form.push_error,40)), _isVerwaist(form)&&React.createElement('span',{style:{fontSize:UI.fMeta,color:"#b45309",marginLeft:8,fontWeight:700,verticalAlign:"middle"}},"⚠ in OFFA prüfen"), _nichtImFeed(form)&&React.createElement('span',{'data-offa-nicht-im-feed-form':"1",style:{fontSize:UI.fMeta,color:"#b45309",marginLeft:8,fontWeight:700,verticalAlign:"middle"}},"nicht mehr in OFFA gelistet"))
+          , React.createElement('div', { style: {fontSize:16,fontWeight:800,minWidth:0,wordBreak:"break-word"}}, editId?"Schein bearbeiten":"Neuer Arbeitsschein", " " , React.createElement('span', { style: {color:"#f97316",fontFamily:mono}}, form.nummer), form.juprowa_id&&React.createElement('span', {style:{fontSize:UI.fMeta,color:"#06b6d4",marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"🔗 Juprowa #",form.juprowa_id, form.juprowa_sync_at&&React.createElement('span',{style:{color:V.dm,marginLeft:4}},"Sync: ",window._fmtStampLocal(form.juprowa_sync_at))), form.push_pending&&React.createElement('span',{style:{fontSize:UI.fMeta,color:"#f59e0b",marginLeft:8,fontWeight:600,verticalAlign:"middle"}},"⬆ Push ausstehend"), (()=>{try{if(!form.push_pending||!window._juprowaPushSperre)return null;const _g=window._juprowaPushSperre(form,{letzterAbrufMs:_lastJupPull});return _g?React.createElement('span',{'data-offa-push-gesperrt':"1",style:{fontSize:UI.fMeta,color:"#ef4444",marginLeft:8,fontWeight:700,verticalAlign:"middle"}},"Nicht an OFFA: "+_g):null;}catch(e){return null;}})(), (()=>{try{const _r=form.juprowa_raw;if(!_r||typeof _r!=="object"||_r.AK_AUFSTATUS==null)return null;const _c=String(_r.AK_AUFSTATUS);return JUPROWA_STATUS_MAP[_c]==null?React.createElement('span',{'data-offa-status-unbekannt':_c,style:{fontSize:UI.fMeta,color:"#ef4444",marginLeft:8,fontWeight:600,verticalAlign:"middle"}},"OFFA-Status: Code "+(_c===""?"(leer)":_c)+" (unbekannt)"):null;}catch(e){return null;}})()/* v3.9.1026 OFFA-Push-Riegel - nur Anzeige */, form.last_push_at&&!form.push_pending&&React.createElement('span',{style:{fontSize:UI.fMeta,color:_okG(COLORS.SUCCESS),marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"✓ Gepusht: ",window._fmtStampLocal(form.last_push_at)), form.push_error&&React.createElement('span',{style:{fontSize:UI.fMeta,color:COLORS.ERROR,marginLeft:8,fontWeight:400,verticalAlign:"middle"}},"❌ ",_kurz(form.push_error,40)), _isVerwaist(form)&&React.createElement('span',{style:{fontSize:UI.fMeta,color:"#b45309",marginLeft:8,fontWeight:700,verticalAlign:"middle"}},"⚠ in OFFA prüfen"), _nichtImFeed(form)&&React.createElement('span',{'data-offa-nicht-im-feed-form':"1",style:{fontSize:UI.fMeta,color:"#b45309",marginLeft:8,fontWeight:700,verticalAlign:"middle"}},"nicht mehr in OFFA gelistet"))
           , React.createElement('div',{style:{display:"flex",gap:6,alignItems:"center"}}, canSync&&editId&&form.juprowa_id&&form.push_pending&&React.createElement('button',{onClick:()=>doSinglePush(editId),disabled:jupPushing,style:{...bpS,background:jupPushing?"#6b7280":"linear-gradient(135deg,#f59e0b,#d97706)",fontSize:12,padding:"6px 12px",opacity:jupPushing?.7:1}},jupPushing?"⏳...":"☁️↑ Push"), React.createElement('button', { onClick: ()=>{setSub("liste");setEditId(null);}, style: bsS()}, _asIk("kreuz","Abbrechen") ))
         )
         /* v3.9.533: Hinweis-Banner wenn Grunddaten für Monteur gesperrt (abgeschlossener Schein). */
