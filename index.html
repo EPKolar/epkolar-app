@@ -2628,6 +2628,57 @@ function _zeitDauerUngueltig(von,bis){
   if(!rv||!rb)return false;
   return _wrapHrs(rv,rb)===null;
 }
+/* Schnellbuchung "Wie letzte Woche" (Auftrag GF, 16.11.2026). REIN - liest nur, schreibt nichts.
+   Nimmt die Eintraege der Vorwoche (zielMontag - 7 .. zielMontag - 1) und schiebt jeden um genau 7 Tage.
+   Gerechnet wird in UTC-Tagen, damit Sommerzeit und Jahreswechsel (KW 53 -> KW 1) keinen Tag verschieben.
+   Jede Zeile kommt zurueck - die uebersprungenen MIT Grund, damit die Vorschau sie zeigen kann:
+   Arbeitsschein-Buchung (keine arbeitsschein_id uebernehmen), ohne Bezeichnung, Projekt nicht aktiv,
+   Feiertag, Abwesenheit, Tag schon belegt, Zeit ungueltig (keine Nachtarbeit), keine Stunden, Dublette
+   (DB-Unique worker_id,date,von,bis - verglichen nach dem 5-Minuten-Raster, das addEntry anwendet).
+   Bemerkung wird bewusst NICHT uebernommen. Geschrieben wird ausschliesslich ueber addEntry. */
+function _wieLetzteWoche(eintraege,zielMontag,feiertage,abwesenheiten,bestehende,opt){
+  var o=opt||{};var TAG=864e5;
+  var _p=function(n){return (n<10?'0':'')+n;};
+  var _tag=function(s){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s||''));return m?Date.UTC(+m[1],+m[2]-1,+m[3]):NaN;};
+  var _iso=function(ms){var d=new Date(ms);return d.getUTCFullYear()+'-'+_p(d.getUTCMonth()+1)+'-'+_p(d.getUTCDate());};
+  var zm=_tag(zielMontag);if(isNaN(zm))return [];
+  var vm=zm-7*TAG;
+  var _rv=(typeof _zeitRundVon==='function')?_zeitRundVon:function(s){return s;};
+  var _rb=(typeof _zeitRundBis==='function')?_zeitRundBis:function(s){return s;};
+  var ft={};(feiertage||[]).forEach(function(d){ft[String(d).slice(0,10)]=true;});
+  var ab=abwesenheiten||{};
+  var belegt={},zeiten={};
+  var _key=function(d,v,b){return d+'|'+_rv(v)+'|'+_rb(b);};
+  (bestehende||[]).forEach(function(e){if(!e)return;var d=String(e.date||e.datum||'').slice(0,10);if(!d)return;belegt[d]=true;if(e.von&&e.bis)zeiten[_key(d,e.von,e.bis)]=true;});
+  var quelle=[];
+  (eintraege||[]).forEach(function(e){if(!e)return;var q=String(e.date||e.datum||'').slice(0,10);var t=_tag(q);if(isNaN(t))return;
+    var off=Math.round((t-vm)/TAG);if(off<0||off>6)return;quelle.push({e:e,q:q,off:off});});
+  quelle.sort(function(a,b){return a.off-b.off||String(a.e.von||'').localeCompare(String(b.e.von||''));});
+  return quelle.map(function(x){
+    var e=x.e;var ziel=_iso(zm+x.off*TAG);
+    var pid=e.project_id||e.p||e.pid||'';var asId=e.arbeitsschein_id||'';
+    var taet=String(e.taetigkeit||e.task||'').trim();
+    var von=String(e.von||''),bis=String(e.bis||'');
+    var pause=parseFloat(e.pause);if(isNaN(pause)||pause<0)pause=0;
+    var typ=asId?'schein':(pid?'projekt':'frei');
+    var hEff=(von&&bis&&typeof _zeitEffektiveStunden==='function')?_zeitEffektiveStunden(von,bis,pause):null;
+    var h=(von&&bis)?(hEff==null?0:hEff):(parseFloat(e.hours!=null?e.hours:e.stunden)||0);
+    var grund='';
+    if(asId)grund='Arbeitsschein-Buchung';
+    else if(typ==='frei'&&!taet)grund='ohne Bezeichnung';
+    else if(typ==='projekt'&&typeof o.projektAktiv==='function'&&!o.projektAktiv(pid))grund='Projekt nicht aktiv';
+    else if(ft[ziel])grund='Feiertag';
+    else if(ab[ziel])grund=String(ab[ziel]);
+    else if(belegt[ziel])grund='Tag schon gebucht';
+    else if(von&&bis&&(typeof _zeitDauerUngueltig==='function'?_zeitDauerUngueltig(von,bis):!(von<bis)))grund='Zeit ungültig';
+    else if(!(h>0&&h<=24))grund='keine Stunden';
+    else if(von&&bis&&zeiten[_key(ziel,von,bis)])grund='doppelt (gleiche Zeit)';
+    if(!grund&&von&&bis)zeiten[_key(ziel,von,bis)]=true;
+    return {quelle:x.q,datum:ziel,tag:x.off,typ:typ,project_id:pid,arbeitsschein_id:'',taetigkeit:taet,von:von,bis:bis,pause:pause,hours:h,
+      gewerk:e.gewerk||e.gw||'elektro',bemerkung:'',ok:!grund,grund:grund};
+  });
+}
+if(typeof window!=='undefined')window._wieLetzteWoche=_wieLetzteWoche;
 function _zeitRundVon(s){/* Kommen: AUF. Leer/ungueltig -> Eingabe unveraendert zurueck. */
   var v=_zeitParse(s);
   if(v===null)return s;
@@ -26327,6 +26378,12 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const [addTaetigkeit,setAddTaetigkeit]=_react.useState.call(void 0, "");
   const [editEntry,setEditEntry]=_react.useState.call(void 0, null);
   const [bwbProjId,setBwbProjId]=_react.useState.call(void 0, "");
+  /* Wie letzte Woche: wlw = null (zu) | {laden} | {zeilen,wahl,laeuft}. _wlwRef traegt EINE Zeile in addEntry
+     hinein - addEntry bleibt der einzige Anlegeweg (Rundung, Plausi, Abwesenheits-Warnung, SyncQueue). */
+  const [wlw,setWlw]=_react.useState.call(void 0, null);
+  const _wlwRef=_react.useRef.call(void 0, null);
+  const _zeForm=()=>({addDay,addType,addId,addFrei,addHours,addVon,addBis,addBemerkung,addPause,addTaetigkeit,editEntry});
+  _react.useEffect.call(void 0, ()=>{if(!wlw)return;try{_scrollLock.acquire();}catch(_){}const _h=e=>{if(e.key==="Escape"){e.preventDefault();setWlw(p=>(p&&p.laeuft)?p:null);}};window.addEventListener("keydown",_h);return ()=>{window.removeEventListener("keydown",_h);try{_scrollLock.release();}catch(_){}};},[!!wlw]);
 
   const kwMon=_react.useMemo.call(void 0, ()=>{const d=new Date(yr,0,4);d.setDate(d.getDate()-(d.getDay()||7)+1+(kw-1)*7);return d;},[kw,yr]);
   const dayDate=(off)=>{const dt=new Date(kwMon);dt.setDate(kwMon.getDate()+off);return dt;};
@@ -26400,6 +26457,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   };
 
   _react.useEffect.call(void 0, ()=>{loadWeek();},[selWorker,kw]);
+  _react.useEffect.call(void 0, ()=>{setWlw(null);},[selWorker,kw,yr]);/* Wie letzte Woche: Vorschau gehoert zu genau einer Woche */
 
   // All workers overview
   // v3.9.98 Sprint-78 P1-2 Fix: Defense-in-Depth Guard — UI-Button ist isAdmin-gegated, aber Console-Bypass moeglich. Early-return wenn !isAdmin.
@@ -26516,8 +26574,10 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   // Add a new entry to a specific day
   const _addEntryInFlightRef=_react.useRef.call(void 0, 0);/* v3.9.124: Doppel-Tap-Guard — zwei schnelle Taps erzeugten zwei Records */
   const addEntry=async()=>{/* v3.9.786: async fuer den nicht-blockierenden Konflikt-Bestaetigungsdialog */
+    /* Wie letzte Woche: kommt die Zeile aus _wlwUebernehmen, ersetzt sie die Formularwerte - sonst gilt das Formular. Gelesen wird SYNCHRON vor dem ersten await. Der Doppel-Tap-Waechter gilt nur fuer den Knopf (die Uebernahme ruft mehrmals hintereinander). */
+    const _wl=_wlwRef.current;const {addDay,addType,addId,addFrei,addHours,addVon,addBis,addBemerkung,addPause,addTaetigkeit,editEntry}=_wl||_zeForm();
     if(!addDay)return;
-    {const _n=Date.now();if(_n-_addEntryInFlightRef.current<800)return;_addEntryInFlightRef.current=_n;}
+    if(!_wl){const _n=Date.now();if(_n-_addEntryInFlightRef.current<800)return;_addEntryInFlightRef.current=_n;}
     let label="",projId="",asId="",type=addType;
     if(addType==="projekt"&&addId){
       const p=projects.find(x=>x.id===addId);if(p){label=p.name+" ("+p.nr+")";projId=p.id;}
@@ -26549,7 +26609,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     /* v3.9.817 Tages-Plausi (nicht-blockierend, alle Rollen): >24h/Tag ueber mehrere Eintraege ODER Zeit-Ueberlappung
        am selben Tag -> Warn-Confirm (wie die Abwesenheits-Warnung). Verhindert still aufgeblaehte Ist-Stunden, blockt
        aber nichts hart. Beim Editieren zaehlt der bearbeitete Eintrag nicht doppelt. */
-    var _exTag=(dayEntries[addDay]||[]).filter(function(e){return e&&(!editEntry||e.id!==editEntry.id);});
+    var _exTag=(dayEntries[addDay]||[]).concat((_wl&&_wl.tagBisher)||[]).filter(function(e){return e&&(!editEntry||e.id!==editEntry.id);});
     var _plz=_zeTagPlausi(_exTag,h,_rVon,_rBis);
     if(_plz.over24||_plz.overlap){
       var _plMsg=_plz.over24?('⚠ Tagessumme '+_hK(_plz.sum,2)+'h fuer diesen Tag uebersteigt 24h — Doppelerfassung?'):'⚠ Diese Zeit ueberlappt einen bestehenden Eintrag am selben Tag — Doppelbuchung?';
@@ -26578,20 +26638,100 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
       setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
       return;
     }
+    const _gw=(_wl&&_wl.gewerk)||"elektro";/* Wie letzte Woche: Gewerk der Vorwoche; das Formular bleibt bei elektro */
     const entryId="ze_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
-    const newEntry={id:entryId,type,project_id:projId,arbeitsschein_id:asId,label,hours:h,gewerk:"elektro",von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung,taetigkeit:taet};
+    const newEntry={id:entryId,type,project_id:projId,arbeitsschein_id:asId,label,hours:h,gewerk:_gw,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung,taetigkeit:taet};
     setDayEntries(prev=>{
       const copy={...prev};
       copy[addDay]=[...(copy[addDay]||[]),newEntry];
       return copy;
     });
     // Also add to global entries so project dashboard picks it up
-    const globalEntry={id:entryId,p:type==="projekt"?projId:"",pid:type==="projekt"?projId:"",w:selWorker,worker:selWorker,date:addDay,datum:addDay,hours:h,stunden:h,task:taet,taetigkeit:taet,gw:"elektro",gewerk:"elektro",von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung,arbeitsschein_id:asId};
+    const globalEntry={id:entryId,p:type==="projekt"?projId:"",pid:type==="projekt"?projId:"",w:selWorker,worker:selWorker,date:addDay,datum:addDay,hours:h,stunden:h,task:taet,taetigkeit:taet,gw:_gw,gewerk:_gw,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung,arbeitsschein_id:asId};
     setEntries(prev=>[...prev,globalEntry]);
     // Push to API
-    SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,taetigkeit:taet,gewerk:"elektro",von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});
+    SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,taetigkeit:taet,gewerk:_gw,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});
+    if(_wl)return true;/* Wie letzte Woche: Sammelmeldung statt einer Meldung je Zeile; das Formular ist nicht offen */
     if(window.__toast)window.__toast("✅ "+_hK(h,2)+"h gespeichert");
     setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
+  };
+
+  /* ── Wie letzte Woche ── Vorschau der Vorwoche, Uebernahme Zeile fuer Zeile ueber addEntry. */
+  const _wlwAbs=()=>{/* Abwesenheiten der Zielwoche: genehmigt ODER beantragt ueberspringen, abgelehnt nicht. Nur gelesen. */
+    const _m=(monteure||[]).find(x=>x.id===selWorker);const _nm=_m?(_m.n||""):"";const out={};if(!_nm)return out;
+    DAYS.forEach((_,i)=>{const iso=isoDate(i);const k=_nm+"_"+iso;const r=(abs||{})[k];if(!r||!r.type)return;
+      const ap=(approvals||{})[k];const st=(ap==="genehmigt"||ap==="abgelehnt")?ap:(r.status||ap||"");if(st==="abgelehnt")return;
+      const l=(typeof AT_T!=="undefined"&&AT_T[r.type]&&AT_T[r.type].l)||"Abwesenheit";out[iso]=st==="genehmigt"?l:(l+" (beantragt)");});
+    return out;
+  };
+  const _wlwOeffnen=()=>{
+    if(!selWorker||loading)return;
+    const vMo=new Date(kwMon);vMo.setDate(kwMon.getDate()-7);const vSo=new Date(kwMon);vSo.setDate(kwMon.getDate()-1);
+    const from=_ymd(vMo),to=_ymd(vSo);const _k=selWorker+"|"+isoDate(0);
+    setWlw({laden:true,key:_k});
+    const _ausCache=()=>(entries||[]).filter(e=>{var wid=e.worker||e.w||e.worker_id||"";var dt=(e.datum||e.date||"").split("T")[0];return wid===selWorker&&dt>=from&&dt<=to;});
+    const _fertig=(data)=>{
+      if(!_lwMounted.current)return;
+      const best=[];Object.keys(dayEntries).forEach(d=>(dayEntries[d]||[]).forEach(e=>best.push({date:d,von:e.von,bis:e.bis})));
+      const ft=DAYS.map((_,i)=>_isATFeiertag(dayDate(i))?isoDate(i):null).filter(Boolean);
+      const zeilen=_wieLetzteWoche(data||[],isoDate(0),ft,_wlwAbs(),best,{projektAktiv:pid=>{const p=(projects||[]).find(x=>x.id===pid);return !!p&&p.status==="aktiv";}});
+      const wahl={};zeilen.forEach((z,i)=>{if(z.ok)wahl[i]=true;});
+      setWlw(p=>(p&&p.laden&&p.key===_k)?{zeilen,wahl,key:_k}:p);
+    };
+    (typeof API!=="undefined"&&API.getEntriesForWorker?API.getEntriesForWorker(selWorker,from,to):Promise.resolve([])).then(d=>_fertig(_rlsLeer(d)?_ausCache():d)).catch(()=>_fertig(_ausCache()));
+  };
+  const _wlwUebernehmen=async()=>{
+    if(!wlw||!wlw.zeilen||wlw.laeuft)return;
+    const sel=wlw.zeilen.filter((z,i)=>z.ok&&wlw.wahl[i]);if(!sel.length)return;
+    setWlw(p=>p?{...p,laeuft:true}:p);
+    let n=0,sum=0;const proTag={};
+    for(const z of sel){
+      _wlwRef.current={addDay:z.datum,addType:z.typ,addId:z.typ==="projekt"?z.project_id:"",addFrei:z.typ==="frei"?z.taetigkeit:"",addHours:z.hours,addVon:z.von,addBis:z.bis,addBemerkung:"",addPause:z.pause,addTaetigkeit:z.typ==="frei"?"":z.taetigkeit,editEntry:null,gewerk:z.gewerk,tagBisher:proTag[z.datum]||[]};
+      let ok=false;try{ok=await addEntry();}catch(_){ok=false;}finally{_wlwRef.current=null;}
+      if(ok===true){n++;sum+=z.hours;(proTag[z.datum]=proTag[z.datum]||[]).push({von:z.von,bis:z.bis,hours:z.hours});}
+    }
+    if(_lwMounted.current)setWlw(null);
+    if(window.__toast)window.__toast(n===sel.length?(_nWort(n,"Eintrag","Einträge")+" übernommen · "+_hK(sum,2)+" h"):(_nWort(n,"Eintrag","Einträge")+" übernommen, "+(sel.length-n)+" nicht gespeichert"),n===sel.length?"success":"warn");
+  };
+  const wlwModal=()=>{
+    const _z=(wlw&&wlw.zeilen)||[];const _w=(wlw&&wlw.wahl)||{};const _lf=!!(wlw&&wlw.laeuft);
+    const _sel=_z.filter((z,i)=>z.ok&&_w[i]);const _selH=_sel.reduce((s,z)=>s+(z.hours||0),0);
+    const _vk=_kwZiel(yr,kw-1);
+    const _tagTxt=z=>{const p=String(z.datum).split("-");return DAYS[z.tag]+" "+p[2]+"."+p[1]+".";};
+    const _was=z=>{if(z.typ==="projekt"){const p=(projects||[]).find(x=>x.id===z.project_id);return p?(p.name+" ("+p.nr+")"):"Projekt";}if(z.typ==="schein")return "Arbeitsschein";return z.taetigkeit||"ohne Bezeichnung";};
+    const _zu=()=>{if(!_lf)setWlw(null);};
+    return React.createElement('div',{onClick:_zu,'data-wlw':"1",style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.6)",zIndex:9999,display:"flex",alignItems:isMob?"flex-end":"center",justifyContent:"center",padding:isMob?0:16}},
+      React.createElement('div',{onClick:e=>e.stopPropagation(),role:"dialog",'aria-modal':"true",'aria-label':"Wie letzte Woche",style:{background:V.cd,color:V.tx,borderRadius:isMob?"16px 16px 0 0":UI.rKarte,border:"1px solid "+V.bd,padding:isMob?16:20,paddingBottom:isMob?"calc(16px + env(safe-area-inset-bottom,0px))":20,width:"100%",maxWidth:isMob?"100%":620,maxHeight:isMob?"92dvh":"90vh",overflowY:"auto",boxSizing:"border-box"}},
+        React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}},
+          React.createElement('div',{style:{minWidth:0}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,fontSize:UI.fTitelGross,fontWeight:800,color:V.tx}},_ik("kopie",20),"Wie letzte Woche"),
+            React.createElement('div',{style:{fontSize:UI.fKlein,color:V.dm,marginTop:2}},workerName+" · KW "+_vk[1]+" → KW "+kw+"/"+yr)),
+          React.createElement('button',{title:"Schließen",'aria-label':"Schließen",onClick:_zu,disabled:_lf,style:{...bsS(),padding:0,width:44,display:"flex",alignItems:"center",justifyContent:"center",flex:"0 0 auto"}},_ik("kreuz",18))
+        ),
+        React.createElement('div',{style:{fontSize:UI.fKlein,color:V.dm,marginBottom:10,lineHeight:1.45}},"Übernommen werden Projekt, Zeiten, Pause, Tätigkeit und Gewerk. Keine Bemerkung, keine Arbeitsschein-Zuordnung. Feiertage, Abwesenheiten und schon gebuchte Tage werden übersprungen."),
+        (!wlw||wlw.laden)?React.createElement('div',{role:"status",style:{padding:"18px 4px",color:V.dm,fontSize:UI.fText,display:"flex",alignItems:"center",gap:8}},React.createElement("span",{className:"epk-spin"}),"Vorwoche wird geladen …")
+        :!_z.length?React.createElement('div',{role:"status",style:{padding:"18px 4px",color:V.dm,fontSize:UI.fText}},"In KW "+_vk[1]+" ist für "+(workerName||"diesen Mitarbeiter")+" nichts gebucht – es gibt nichts zu übernehmen.")
+        :React.createElement('div',{style:{border:"1px solid "+V.bd,borderRadius:UI.rKarte,overflow:"hidden"}},
+          _z.map((z,i)=>React.createElement(z.ok?'label':'div',{key:i,'data-wlw-zeile':z.ok?"neu":"uebersprungen",style:{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 12px",minHeight:44,boxSizing:"border-box",borderTop:i?"1px solid "+V.bd:"none",cursor:z.ok&&!_lf?"pointer":"default",background:z.ok?"transparent":V.subBg}},
+            z.ok?React.createElement('input',{type:"checkbox",checked:!!_w[i],disabled:_lf,onChange:e=>{const c=e.target.checked;setWlw(p=>p?{...p,wahl:{...p.wahl,[i]:c}}:p);},'aria-label':_tagTxt(z)+" übernehmen",style:{width:22,height:22,margin:"1px 0 0",accentColor:UI.marke,flex:"0 0 auto",cursor:"pointer"}})
+              :React.createElement('span',{style:{width:22,flex:"0 0 auto",display:"flex",justifyContent:"center",color:V.dm,marginTop:1}},_ik("verbot",18)),
+            React.createElement('div',{style:{minWidth:0,flex:1}},
+              React.createElement('div',{style:{display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}},
+                React.createElement('span',{style:{fontWeight:700,fontSize:UI.fText,color:V.tx,minWidth:76,fontVariantNumeric:"tabular-nums"}},_tagTxt(z)),
+                React.createElement('span',{style:{fontSize:UI.fText,fontWeight:600,color:z.ok?V.tx:V.dm,overflowWrap:"anywhere"}},_was(z))),
+              React.createElement('div',{style:{fontSize:UI.fKlein,color:V.dm,marginTop:2,fontVariantNumeric:"tabular-nums"}},[z.von&&z.bis?(z.von+" – "+z.bis):null,_zeitPauseText(z.pause)||null,z.hours>0?(_hK(z.hours,2)+" h"):null,(z.typ!=="frei"&&z.taetigkeit)?z.taetigkeit:null].filter(Boolean).join(" · ")),
+              !z.ok&&React.createElement('div',{style:{display:"inline-block",marginTop:4,fontSize:UI.fMeta,fontWeight:700,color:V.dm,border:"1px solid "+V.bd,borderRadius:UI.rChip,padding:"2px 8px"}},"übersprungen: "+z.grund))
+          ))
+        ),
+        React.createElement('div',{style:{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",marginTop:14}},
+          React.createElement('div',{role:"status",style:{fontSize:UI.fKlein,color:V.dm,fontVariantNumeric:"tabular-nums"}},_sel.length?(_nWort(_sel.length,"Eintrag","Einträge")+" · "+_hK(_selH,2)+" h"):"Nichts ausgewählt"),
+          React.createElement('div',{style:{display:"flex",gap:8,marginLeft:"auto"}},
+            React.createElement('button',{onClick:_zu,disabled:_lf,style:bsS()},"Abbrechen"),
+            React.createElement('button',{onClick:_wlwUebernehmen,disabled:!_sel.length||_lf,'data-wlw-uebernehmen':"1",style:{...bpS,...((!_sel.length||_lf)?{opacity:.5,cursor:"not-allowed"}:{})}},_lf?"Wird übernommen …":"Übernehmen")
+          )
+        )
+      )
+    );
   };
 
   // Totals
@@ -27065,7 +27205,9 @@ ${dayRowsHtml}
         ):(
           React.createElement('span',{style:{fontSize:14,fontWeight:700,color:_okG("#10b981")}},workerName)
         ),
-        selWorker&&weekTotal>0&&React.createElement('span',{style:{fontSize:13,fontWeight:700,color:_okG("#10b981"),background:"rgba(16,185,129,.1)",padding:"4px 10px",borderRadius:6}},_hK(weekTotal,2),"h / Woche")
+        selWorker&&weekTotal>0&&React.createElement('span',{style:{fontSize:13,fontWeight:700,color:_okG("#10b981"),background:"rgba(16,185,129,.1)",padding:"4px 10px",borderRadius:6}},_hK(weekTotal,2),"h / Woche"),
+        /* Wie letzte Woche: sichtbar, wo auch '+ Eintrag' steht (gleiche Regel wie die normale Buchung) */
+        selWorker&&React.createElement('button',{onClick:_wlwOeffnen,disabled:loading,'data-wlw-knopf':"1",title:"Einträge der Vorwoche als Vorschau übernehmen",style:{...bsS(),display:"inline-flex",alignItems:"center",gap:6,fontSize:UI.fKlein,...(loading?{opacity:.5,cursor:"not-allowed"}:{})}},_ik("kopie",16),"Wie letzte Woche")
       )
 
       /* All workers overview */
@@ -27268,6 +27410,7 @@ ${dayRowsHtml}
 
       /* Add Entry Modal */
       ,addDay&&addModal(addDay,Math.max(0,DAYS.findIndex((_,i)=>isoDate(i)===addDay)))
+      ,wlw&&wlwModal()
     )
   );
 }
