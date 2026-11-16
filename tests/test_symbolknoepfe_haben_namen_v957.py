@@ -78,12 +78,10 @@ SYMBOLE = ["☰", "⊞", "☷", "▦", "≡", "⋮",
 
 # Namentliche Ausnahmen mit Grund. KEINE Obergrenze - eine Zahl allein
 # unterscheidet nicht, ob eine Ausnahme wegfiel und eine neue dazukam.
-AUSNAHMEN = {
-    ("SmokeTestPanel", "✗"):
-        "Statusanzeige (x.pass||x.ok)?'✓':'✗' in einer "
-        "Ergebniszeile - kein Bedienelement. Ein Name dafuer waere ein Name "
-        "fuer etwas, das man nicht bedienen kann.",
-}
+# Klein2 (16.11.2026): die einzige Ausnahme (SmokeTestPanel-Statusanzeige ✓/✗) ist weg -
+# die Ergebniszeile zeigt jetzt Linien-Ikonen mit role="img"/aria-label. Wie es der Riegel
+# test_die_ausnahme_ist_noch_eine_ausnahme verlangte, ist die Ausnahme damit entfernt.
+AUSNAHMEN = {}
 
 
 def _lies():
@@ -230,12 +228,11 @@ def test_der_riegel_wird_bei_einem_namenlosen_knopf_rot():
 def test_die_ausnahme_ist_noch_eine_ausnahme():
     """Eine Ausnahme ohne Pruefung wird zur stillen Erlaubnis.
 
-    Steht die Statusanzeige nicht mehr da, gehoert die Ausnahme WEG - sonst
-    deckt sie beim naechsten Mal einen echten namenlosen Knopf.
+    Klein2: Der Anlass (Statusanzeige ✓/✗ in SmokeTestPanel) ist entfernt, also
+    ist AUSNAHMEN leer - und bleibt es, solange die alte Anzeige nicht zurueckkehrt.
     """
     roh = _lies()
-    assert '(x.pass||x.ok)?"✓":"✗"' in roh, (
-        "Die Statusanzeige in SmokeTestPanel, fuer die die Ausnahme gilt, "
-        "steht nicht mehr im Code. Dann muss die Ausnahme aus AUSNAHMEN "
-        "heraus - eine Ausnahme, deren Anlass verschwunden ist, erlaubt beim "
-        "naechsten Mal einen echten Fehler.")
+    assert '(x.pass||x.ok)?"✓":"✗"' not in roh, (
+        "Die alte Statusanzeige ist zurueck - dann gehoert sie wieder in "
+        "AUSNAHMEN (mit Grund) oder besser als Linien-Ikone mit Namen.")
+    assert AUSNAHMEN == {}, "Ausnahme ohne Anlass - sie erlaubt beim naechsten Mal einen echten Fehler."
