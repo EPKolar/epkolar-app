@@ -330,3 +330,41 @@ def test_supplier_sync_meldet_keinen_scheinerfolg():
     kaputt = ts.replace("const rows = await downloadArticles(cfg);",
                         "const rows: Array<Record<string, unknown>> = [];", 1)
     assert _sync_verstoss(kaputt)
+
+
+# v3.9.1016 Hauptlauf: DATANORM-4-Preiseinheit steht in parts[7] (Code 0/1/2/3 = 1/10/100/1000),
+# parts[6] ist das Preiskennzeichen (1 brutto / 2 netto) und darf den Preis NICHT teilen.
+DN4_PE = _cp850("\r\n".join([
+    "V 161126Holter Testdaten                           EUR",
+    "A;N;2001;00;Kabelbinder;schwarz;2;2;Stk;1234;R1;WG1;",
+    "A;N;2002;00;Rohrschelle;verzinkt;2;0;Stk;990;R1;WG1;",
+    "A;N;2003;00;Schraube;M6;1;1;Stk;450;R1;WG1;",
+    "",
+]))
+
+
+def _pe_lauf(node_exe, tmp_path, quelle):
+    q = tmp_path / "quelle.js"
+    q.write_text(quelle, encoding="utf-8")
+    d = tmp_path / "dateien.json"
+    d.write_text(json.dumps({"pe": [{"name": "DATANORM.001", "b64": _b64(DN4_PE)}]}), encoding="utf-8")
+    s = tmp_path / "lauf.js"
+    s.write_text(NODE_PARSER, encoding="utf-8")
+    p = subprocess.run([node_exe, str(s), str(q), str(d)], capture_output=True, timeout=EPK_TEST_TIMEOUT)
+    out = p.stdout.decode("utf-8", "replace")
+    assert p.returncode == 0, out + p.stderr.decode("utf-8", "replace")
+    return _nach_nr(json.loads(out)["pe"]["arts"])
+
+
+def test_datanorm4_preiseinheit_aus_code_nicht_aus_preiskennzeichen(index_html, node_exe, tmp_path):
+    a = _pe_lauf(node_exe, tmp_path, _helfer_quelle(index_html))
+    assert a["2001"]["preis"] == pytest.approx(0.1234), a["2001"]  # 12,34 je 100 Stk
+    assert a["2002"]["preis"] == pytest.approx(9.90), a["2002"]    # netto, je 1 Stk - nicht halbiert
+    assert a["2003"]["preis"] == pytest.approx(0.45), a["2003"]    # 4,50 je 10 Stk
+
+
+def test_umkehrprobe_alte_preiseinheit_wird_erkannt(index_html, node_exe, tmp_path):
+    alt = index_html.replace('pe=({"0":1,"1":10,"2":100,"3":1000})[(parts[7]||"").trim()]||1;', "pe=parseInt(parts[6])||1;", 1)
+    assert alt != index_html
+    a = _pe_lauf(node_exe, tmp_path, _helfer_quelle(alt))
+    assert a["2002"]["preis"] != pytest.approx(9.90)
