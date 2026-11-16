@@ -38,6 +38,6 @@ def test_liste_sb_dropdown_unveraendert(index_html):
     assert 'value: a.sachbearbeiter||"", onChange: e=>{e.stopPropagation();updAs(a.id,{sachbearbeiter:e.target.value});}' in index_html, \
         "Listen-SB-Inline-Editor veraendert"
     # Liste: Prio + Status + Monteur inline weiter editierbar (byte-identisch).
-    assert "updAs(a.id,{prioritaet:e.target.value})" in index_html, "Listen-Prio-Editor veraendert"
+    assert "updAs(a.id,{prioritaet:_np})" in index_html, "Listen-Prio-Editor veraendert"
     assert "updAs(a.id,{scheinstatus:_newS})" in index_html, "Listen-Status-Editor veraendert"
-    assert "updAs(a.id,{monteur:e.target.value})" in index_html, "Listen-Monteur-Editor veraendert"
+    assert "updAs(a.id,{monteur:_nm})" in index_html, "Listen-Monteur-Editor veraendert"

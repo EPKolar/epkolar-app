@@ -57,7 +57,7 @@ def test_formular_scheinart_readonly_offa_badge(index_html):
 
 def test_prio_inline_bleibt_editierbar(index_html):
     # Prio-Inline-Select bleibt WOERTLICH editierbar (AK_PRIOR ist Push-Feld, live-bewiesen).
-    assert "updAs(a.id,{prioritaet:e.target.value})" in index_html, "Prio-Inline-Select darf NICHT read-only werden"
+    assert "updAs(a.id,{prioritaet:_np})" in index_html, "Prio-Inline-Select darf NICHT read-only werden"
 
 
 def test_juprowa_push_signatur_byte_identisch(index_html):

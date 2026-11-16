@@ -95,9 +95,9 @@ _SCHREIBWEGE = (
     "updAs(a.id,{terminVorschlag:e.target.value})",
     "updAs(a.id,{terminBestaetigt:e.target.value})",
     "updAs(a.id,{scheinstatus:_newS})",
-    "updAs(a.id,{prioritaet:e.target.value})",
+    "updAs(a.id,{prioritaet:_np})",
     "updAs(a.id,{sachbearbeiter:e.target.value})",
-    "updAs(a.id,{monteur:e.target.value})",
+    "updAs(a.id,{monteur:_nm})",
 )
 
 
@@ -334,10 +334,10 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
     )
 
     # 4. Ein Schreibweg verschiebt sich -> der Abgrenzungs-Riegel muss rot.
-    z4 = index_html.replace("updAs(a.id,{prioritaet:e.target.value})",
+    z4 = index_html.replace("updAs(a.id,{prioritaet:_np})",
                             "updAs(a.id,{prioritaet:_x})", 1)
     assert z4 != index_html, "Rueckbau 4 griff nicht"
-    assert "updAs(a.id,{prioritaet:e.target.value})" not in z4, (
+    assert "updAs(a.id,{prioritaet:_np})" not in z4, (
         "Umkehrprobe: der Schreibweg-Riegel wuerde eine Verschiebung nicht "
         "bemerken."
     )
