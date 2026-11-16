@@ -5031,9 +5031,9 @@ const printLabels=(items,title)=>{
     @page{margin:5mm}body{margin:0;padding:5mm;font-family:Arial,sans-serif}
     @media print{body{padding:0}.no-print{display:none!important}}
   </style></head><body>
-    <div class="no-print" style="text-align:center;padding:10px;background:#f0f9ff;border-bottom:2px solid #0ea5e9;margin-bottom:10px">
+    <div class="no-print" style="text-align:center;padding:10px;background:#f5f5f5;border-bottom:2px solid #009640;margin-bottom:10px">
       <strong>${_e(title)}</strong> — ${items.length} Labels &nbsp;
-      <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#22c55e;color:white;border:none;border-radius:6px">🖨️ Drucken</button>
+      <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#009640;color:white;border:none;border-radius:6px">Drucken</button>
     </div>
     <div style="display:flex;flex-wrap:wrap;justify-content:flex-start">${labels}</div>
   </body></html>`);
@@ -5052,8 +5052,26 @@ const _XNUM=/^-?\d+\.\d{1,4}$/;
 const _xBr=s=>String(s).split(/\r\n|\r|\n/).join('<br style="mso-data-placement:same-cell;"/>');
 const _xAttr=cs=>_XNUM.test(cs)?' class="xn" x:num="'+cs+'"':'';
 const _xText=(cs,esc)=>_xBr(esc(_XNUM.test(cs)?String(cs).replace(".",","):cs));
+/* v1016 Exporte: gemessen mit echtem Excel (HTML-xls geoeffnet, als xlsx gespeichert, Zellen gelesen):
+   (1) GANZE Zahlen blieben Text - '8' Stunden neben 7,5 - und =SUMME ueber die Stundenspalte liess sie aus
+       (exportiert 25,75 h, Excel-Summe 13,75). Jetzt x:num; fuehrende Null ('0012') bleibt Text.
+   (2) Datum (TT.MM.JJJJ, JJJJ-MM-TT) war Text - jetzt echtes Excel-Datum, angezeigt TT.MM.JJJJ, sortier-/filterbar.
+   (3) Die Titelzeile trug das Emoji des Aufrufers, der Blattname verlor jeden Umlaut ('Mngelliste').
+   (4) Kopfzeile fixiert (Zeile 5 = Spaltenkopf unter dem Briefkopf). (5) Zebra neutral grau statt Gruen-Toenung.
+   Der OFFA-Export laeuft ueber denselben Erzeuger und bleibt BYTE-GLEICH (harte Grenze "offa nicht kaputt
+   machen" - dort koennte ein nachgelagerter Import an Text-Zellen haengen): _xCI schaltet alles nur fuer
+   Nicht-OFFA-Titel ein. */
+const _XINT=/^-?(0|[1-9]\d{0,9})$/;
+const _XDAT=/^(\d{2})\.(\d{2})\.(\d{4})$|^(\d{4})-(\d{2})-(\d{2})$/;
+const _xDatum=cs=>{const m=_XDAT.exec(cs);if(!m)return null;const d=+(m[1]||m[6]),mo=+(m[2]||m[5]),y=+(m[3]||m[4]);if(mo<1||mo>12||d<1||d>31)return null;const t=Date.UTC(y,mo-1,d);if(new Date(t).getUTCDate()!==d)return null;return {ser:Math.round((t-Date.UTC(1899,11,30))/86400000),txt:(d<10?"0":"")+d+"."+(mo<10?"0":"")+mo+"."+y};};
+const _xAttrCI=cs=>{if(_XNUM.test(cs)||_XINT.test(cs))return ' class="xn" x:num="'+cs+'"';const dd=_xDatum(cs);return dd?' class="xd" x:num="'+dd.ser+'"':'';};
+const _xTextCI=(cs,esc)=>{const dd=_xDatum(cs);return dd?dd.txt:_xText(cs,esc);};
+const _xOhneEmoji=s=>String(s).replace(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\uFE0F\u200D\u20E3]/gu,"").replace(/\s+/g," ").trim();
+const _xBlatt=t=>(_xOhneEmoji(t).replace(/[\\\/\?\*\[\]:]/g," ").replace(/\s+/g," ").trim()||"Export").slice(0,31);
+const _xCI=t=>String(t).indexOf("\uD83D\uDCCB OFFA Export")!==0;
 const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
   const esc=s=>String(_nullishCoalesce(s, () => (""))).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const _ci=_xCI(title);
   const cw=opts.colWidths||headers.map(()=>100);
   const nc=headers.length;
   const sumCol=_nullishCoalesce(opts.sumCol, () => (-1));
@@ -5063,11 +5081,11 @@ const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
   const rowH=opts.rowHeight||20; // v3.9.520: opt-in höhere Datenzeilen (Wochenplanung + MA-Übersicht). Fußzeile/Briefkopf sind eigene Tabellen, unberührt.
   const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${esc((title.replace(/[^\w\s]/g,"").trim()||"Export").slice(0,31))}</x:Name><x:WorksheetOptions><x:DisplayGridlines/><x:FitToPage/><x:Print><x:FitHeight>99</x:FitHeight><x:FitWidth>1</x:FitWidth></x:Print></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${esc(_ci?_xBlatt(title):(title.replace(/[^\w\s]/g,"").trim()||"Export").slice(0,31))}</x:Name><x:WorksheetOptions>${_ci?'<x:FreezePanes/><x:FrozenNoSplit/><x:SplitHorizontal>5</x:SplitHorizontal><x:TopRowBottomPane>5</x:TopRowBottomPane><x:ActivePane>2</x:ActivePane>':''}<x:DisplayGridlines/><x:FitToPage/><x:Print><x:FitHeight>99</x:FitHeight><x:FitWidth>1</x:FitWidth></x:Print></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
   @page{margin:1cm .7cm;mso-header-data:"&L&8Andreas Kolar && Sohn GesmbH";mso-footer-data:"&L&8${esc(filename)}&R&8Seite &P von &N";}
   body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;}
-  td,th{mso-number-format:\\@;font-family:Arial,Helvetica,sans-serif;vertical-align:middle;}td.xn{mso-number-format:General;}
+  td,th{mso-number-format:\\@;font-family:Arial,Helvetica,sans-serif;vertical-align:middle;}td.xn{mso-number-format:General;}${_ci?'td.xd{mso-number-format:"dd\\.mm\\.yyyy";}':''}
 </style></head><body>
 
 <!-- ═══ BRIEFKOPF ═══ -->
@@ -5078,7 +5096,7 @@ const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
 </td></tr>
 <tr><td colspan="${nc}" style="background:#006e30;padding:1px;border:none;font-size:1px;line-height:1px;">&nbsp;</td></tr>
 <tr><td colspan="${nc}" style="padding:10px 4px 2px;border:none;">
-  <span style="font-size:13pt;font-weight:bold;color:#1a1a1a;">${esc(title)}</span>
+  <span style="font-size:13pt;font-weight:bold;color:#1a1a1a;">${esc(_ci?_xOhneEmoji(title):title)}</span>
 </td></tr>
 <tr><td colspan="${nc}" style="padding:0 4px 8px;border:none;">
   <span style="font-size:8pt;color:#1a1a1a;">${esc(subtitle)} · Exportiert am ${new Date().toLocaleDateString("de-AT",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</span>
@@ -5091,7 +5109,7 @@ const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
 <tr style="height:28px;">${headers.map((h,i)=>'<th style="background:#009640;color:#ffffff;font-weight:bold;font-size:9pt;padding:6px 8px;border:1px solid #006e30;border-bottom:2px solid #004d1a;text-align:'+(leftCols.includes(i)?'left':'center')+';white-space:nowrap;">'+esc(h)+'</th>').join("")}</tr>
 ${rows.map((r,ri)=>{
   const alt=ri%2===1;
-  const bg=alt?"#f7faf8":"#ffffff";
+  const bg=_ci?(alt?"#f5f5f5":"#ffffff"):(alt?"#f7faf8":"#ffffff");
   return '<tr style="height:'+rowH+'px;">'+r.map((c,ci)=>{
     const cs=String(_nullishCoalesce(c, () => ("")));
     const isLeft=leftCols.includes(ci);
@@ -5099,11 +5117,11 @@ ${rows.map((r,ri)=>{
     const isNr=ci===0&&!isNaN(c)&&c!=="";
     const stColor=statusMap[cs];
     let style="font-size:9pt;padding:3px 8px;border:1px solid #ddd;color:#000000;background:"+bg+";text-align:"+(isLeft?"left":"center")+";";
-    if(isNr) style="font-size:9pt;padding:3px 6px;border:1px solid #ddd;background:#eef5ee;text-align:center;color:#006e30;font-weight:bold;";
+    if(isNr) style=_ci?"font-size:9pt;padding:3px 6px;border:1px solid #ddd;background:#f5f5f5;text-align:center;color:#333333;font-weight:bold;":"font-size:9pt;padding:3px 6px;border:1px solid #ddd;background:#eef5ee;text-align:center;color:#006e30;font-weight:bold;";
     if(isBold&&!isNr) style+="font-weight:bold;";
     if(stColor) style+="background:"+stColor+";color:#fff;font-weight:bold;font-size:8pt;text-align:center;";
-    if(cs&&!stColor&&!isNr&&ci>1) style+="background:"+(alt?"#f0f7f2":"#e8f5e9")+";";
-    return '<td'+_xAttr(cs)+' style="'+style+'">'+_xText(cs,esc)+'</td>';
+    if(!_ci&&cs&&!stColor&&!isNr&&ci>1) style+="background:"+(alt?"#f0f7f2":"#e8f5e9")+";";
+    return '<td'+(_ci?_xAttrCI(cs):_xAttr(cs))+' style="'+style+'">'+(_ci?_xTextCI(cs,esc):_xText(cs,esc))+'</td>';
   }).join("")+'</tr>';
 }).join("\n")}
 ${sumCol>=0?'<tr style="height:26px;">'+headers.map((_,ci)=>{
@@ -12706,9 +12724,7 @@ async function _pzePdf(worker,ym,entries,abs,approvals,kontingent,rules,ezFlags)
   var _ezDay=function(iso){return _ezDayEff(daysMap[iso]||0,ezF[_ezKey(worker.id,iso)],!!absSet[iso]);};/* -> Stufe */
 
   var doc=new JsPDF({unit:'mm',format:'a4',orientation:'landscape'});var PW=297,M=12;/* v3.9.778 Querformat */var y=0;
-  doc.setFillColor(0,150,64);doc.rect(0,0,PW,22,'F');
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text('EP: Kolar & Sohn',M,10);
-  doc.setFontSize(10);doc.setFont('helvetica','normal');doc.text(_pdfStr('Personalzeit-Monatsblatt — '+worker.name+'  ('+von+' bis '+bis+')'),M,17);
+  _pdfCIKopf(doc,'Personalzeit-Monatsblatt',worker.name+'  ('+von+' bis '+bis+')',22);/* v1016 Exporte: CI-Kopf mit Logo - nur Darstellung, kein Wert geaendert */
   /* FinkZeit-Kopf: Stammdaten. Zeitmodell rollenbasiert aus _stPauseAbzug; Urlaub aus _resturlaubK (NICHT neu). */
   var _abz=_stPauseAbzug(worker.role,rules);
   var _zm=(_abz>0)?('Variabel · Auto-Pause '+_stFmtPause(_abz)+' (12-13)'):'Büro · Pause selbst gestempelt';
@@ -12724,12 +12740,12 @@ async function _pzePdf(worker,ym,entries,abs,approvals,kontingent,rules,ezFlags)
   var cols=[['Datum',22],['Tag',14],['Von/Bis',68],['Fehlgrund',30],['Gesamt',20],['Soll',18],['Pause',18],['+/-',18],['Notiz',42],['Projektzeit',23]];
   var cx=[];(function(){var x=M;for(var i=0;i<cols.length;i++){cx.push(x);x+=cols[i][1];}})();
   y=37;
-  var head=function(){doc.setFont('helvetica','bold');doc.setFontSize(7.5);var i;for(i=0;i<cols.length;i++){doc.text(_pdfStr(cols[i][0]),cx[i],y);}y+=2;doc.setDrawColor(180);doc.line(M,y,PW-M,y);y+=4;doc.setFont('helvetica','normal');};
+  var head=function(){doc.setFillColor(0,150,64);doc.rect(M-1.2,y-3.8,PW-2*M+2.4,5.6,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(7.5);var i;for(i=0;i<cols.length;i++){doc.text(_pdfStr(cols[i][0]),cx[i],y);}doc.setTextColor(20,20,20);y+=6;doc.setFont('helvetica','normal');};/* v1016 Exporte: Spaltenkopf Markengruen (vorher Linie), gleiche Hoehe 6 mm */
   head();
   var WT=['So','Mo','Di','Mi','Do','Fr','Sa'];
   var kw=null,block=[];
   var flush=function(){if(!block.length)return;var s=_pzeSummen(block);
-    doc.setFont('helvetica','bold');doc.setFillColor(241,245,249);doc.rect(M,y-3.5,PW-2*M,5,'F');
+    doc.setFont('helvetica','bold');doc.setFillColor(242,242,242);doc.rect(M,y-3.5,PW-2*M,5,'F');
     doc.text(_pdfStr('Summe KW '+kw),cx[0],y);
     doc.text(_pzeFmtHm(s.nettoMin),cx[4],y);doc.text(_pzeFmtHm(s.sollMin),cx[5],y);
     doc.text(_pzeFmtHm(s.pauseMin),cx[6],y);doc.text(_pzeFmtHm(s.saldoMin),cx[7],y);
@@ -16631,7 +16647,7 @@ td{padding:5px 8px;border:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}
     const d=data;const nr=d.nr||"001";
     const totalStd=_optionalChain([d, 'access', _336 => _336.personal, 'optionalAccess', _337 => _337.reduce, 'call', _338 => _338((s,r)=>s+(parseFloat(r.stunden)||0),0)])||0;
     const totalFz=_optionalChain([d, 'access', _339 => _339.personal, 'optionalAccess', _340 => _340.reduce, 'call', _341 => _341((s,r)=>s+(parseFloat(r.fahrzeit)||0),0)])||0;
-    body=`<div class="title">📋 Leistungsnachweis / Regiebericht — Nr. ${esc(nr)}</div>
+    body=`<div class="title">Leistungsnachweis / Regiebericht — Nr. ${esc(nr)}</div>
 <div class="meta">
   <div><b>Bauvorhaben:</b> ${esc(pn)}</div><div><b>Datum:</b> ${fd(d.datum)}</div>
   <div><b>PLZ/Ort:</b> ${esc(pp)} ${esc(po)}</div><div><b>Art:</b> ${esc(d.art)}</div>
@@ -16646,7 +16662,7 @@ td{padding:5px 8px;border:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}
 <div style="font-size:11px;font-weight:700;margin-bottom:4px">Material:</div>
 <table><thead><tr><th>Material</th><th style="width:60px">Stück</th><th style="width:80px">Art.Nr.</th><th>Bemerkung</th></tr></thead>
 <tbody>${(d.material||[]).filter(r=>r.name).map(r=>`<tr><td>${esc(r.name)}</td><td style="text-align:center">${esc(r.stueck)}</td><td style="text-align:center">${esc(r.artikelNr)}</td><td>${esc(r.bemerkung)}</td></tr>`).join("")}</tbody></table>
-${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px">⚠️ Folgebericht erforderlich</div>`:""}
+${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px">Folgebericht erforderlich</div>`:""}
 <div class="sig-row">
   <div class="sig-box"><div class="lbl">Unterschrift Mitarbeiter</div><div class="line">${d.sigMA&&(""+d.sigMA).startsWith("data:image/")?`<img src="${d.sigMA}" alt="Unterschrift Mitarbeiter">`:""}</div><div class="nm">EP: Kolar &amp; Sohn</div></div>
   <div class="sig-box"><div class="lbl">Unterschrift Auftraggeber</div><div class="line">${d.sigKunde&&(""+d.sigKunde).startsWith("data:image/")?`<img src="${d.sigKunde}" alt="Unterschrift Auftraggeber">`:""}</div><div class="nm">Auftraggeber</div></div>
@@ -16655,7 +16671,7 @@ ${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px
 
   if(type==="sf"){
     const d=data;
-    body=`<div class="title">🔒 Schließfreigabe GK-Wände/Decken</div>
+    body=`<div class="title">Schließfreigabe GK-Wände/Decken</div>
 <div class="meta">
   <div><b>Bauvorhaben:</b> ${esc(d.bv||pn)}</div><div><b>Datum:</b> ${fd(d.datum)}</div>
   <div><b>PLZ/Ort:</b> ${esc(d.plz||pp)} ${esc(d.ort||po)}</div><div></div>
@@ -16670,7 +16686,7 @@ ${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px
 
   if(type==="dh"){
     const d=data;
-    body=`<div class="title">💧 Dichtheitsprüfung lt. ÖNORM</div>
+    body=`<div class="title">Dichtheitsprüfung lt. ÖNORM</div>
 <div class="meta">
   <div><b>Bauvorhaben:</b> ${esc(d.bv||pn)}</div><div><b>Datum:</b> ${fd(d.datum)}</div>
   <div><b>PLZ/Ort:</b> ${esc(d.plz||pp)} ${esc(d.ort||po)}</div><div></div>
@@ -16686,7 +16702,7 @@ ${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px
 
   if(type==="ah"){
     const d=data;
-    body=`<div class="title">🌡️ Ausheizprotokoll Fußbodenheizung</div>
+    body=`<div class="title">Ausheizprotokoll Fußbodenheizung</div>
 <div class="meta">
   <div><b>Bauvorhaben:</b> ${esc(d.bv||pn)}</div><div><b>Startdatum:</b> ${fd(d.datum)}</div>
   <div><b>PLZ/Ort:</b> ${esc(d.plz||pp)} ${esc(d.ort||po)}</div><div><b>Tage:</b> ${_optionalChain([d, 'access', _342 => _342.rows, 'optionalAccess', _343 => _343.length])||0}</div>
@@ -16704,7 +16720,7 @@ ${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px
     const d=data;
     const ok=_optionalChain([d, 'access', _344 => _344.rows, 'optionalAccess', _345 => _345.filter, 'call', _346 => _346(r=>r.ergebnis==="i.O."), 'access', _347 => _347.length])||0;
     const total=_optionalChain([d, 'access', _348 => _348.rows, 'optionalAccess', _349 => _349.length])||0;
-    body=`<div class="title">🤝 Abnahmeprotokoll</div>
+    body=`<div class="title">Abnahmeprotokoll</div>
 <div class="meta">
   <div><b>Bauvorhaben:</b> ${esc(pn)}</div><div><b>Datum:</b> ${fd(d.datum)}</div>
   <div><b>Bereich:</b> ${esc(d.bereich||"—")}</div><div><b>Ergebnis:</b> <span class="badge ${ok===total?"badge-ok":"badge-warn"}">${ok}/${total} i.O.</span></div>
@@ -17249,15 +17265,15 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
       const wkr=(monteure||MONT).find(x=>x.id===(m.worker||m.zugewiesen||m.assignee));
       const _phA=getPhotos(m);const phImg=_phA.slice(0,3).map(ph=>`<img src="${_e(ph)}"/>`).join("")+(_phA.length>3?`<span style="align-self:flex-end;font-size:10px;color:#666">+${_phA.length-3} weitere Fotos in der App</span>`:"");/* v3.9.603 #22 Security: Foto-src via _e() escapen (kann https-Storage/data/blob sein -> kein data:image-Whitelist, sonst Server-Fotos gedroppt; Escaping neutralisiert "-Breakout/onerror) */
       const ovd=m.frist&&_dueIsPast(m.frist)&&m.status!=="behoben";
-      const ovdB=ovd?`<span class="badge" style="background:#ef4444">⏰ ueberfaellig</span>`:"";
-      const kd=m.melder==="Kunde"?` &nbsp;|&nbsp; <b style="color:#f97316">📩 Kundenmeldung</b>`:"";
+      const ovdB=ovd?`<span class="badge" style="background:#ef4444">ueberfaellig</span>`:"";
+      const kd=m.melder==="Kunde"?` &nbsp;|&nbsp; <b>Kundenmeldung</b>`:"";
       const desc=m.beschreibung?`<div class="desc">${_e(m.beschreibung)}</div>`:"";
       const photos=phImg?`<div class="phs">${phImg}</div>`:"";
       const ort=m.ort?` · ${_e(m.ort)}`:"";
-      return `<div class="card"><div class="ch"><span class="num">${i+1}</span><span class="nm">${_e(m.name||"Mangel")}</span><span class="badge" style="background:${_stC(m.status)}">${_e(m.status||"")}</span><span class="badge" style="background:${_prC(m.prio)}">${_e(m.prio||"mittel")}</span>${ovdB}</div><div class="meta">📍 ${_e(m.ebene||"—")}${ort} &nbsp;|&nbsp; 👷 ${_e((wkr&&wkr.n)||"—")} &nbsp;|&nbsp; 🗓 Erfasst: ${m.date?_e(fdt(m.date)):"—"} &nbsp;|&nbsp; 📅 Frist: ${m.frist?_e(fdt(m.frist)):"—"}${kd}${(m.plan_id&&m.x!=null)?" &nbsp;|&nbsp; 📌 auf Plan (X "+Number(m.x).toFixed(0)+"% / Y "+Number(m.y).toFixed(0)+"%)":""}</div>${desc}${photos}</div>`;
+      return `<div class="card"><div class="ch"><span class="num">${i+1}</span><span class="nm">${_e(m.name||"Mangel")}</span><span class="badge" style="background:${_stC(m.status)}">${_e(m.status||"")}</span><span class="badge" style="background:${_prC(m.prio)}">${_e(m.prio||"mittel")}</span>${ovdB}</div><div class="meta">Ort: ${_e(m.ebene||"—")}${ort} &nbsp;|&nbsp; Verantwortlich: ${_e((wkr&&wkr.n)||"—")} &nbsp;|&nbsp; Erfasst: ${m.date?_e(fdt(m.date)):"—"} &nbsp;|&nbsp; Frist: ${m.frist?_e(fdt(m.frist)):"—"}${kd}${(m.plan_id&&m.x!=null)?" &nbsp;|&nbsp; auf Plan (X "+Number(m.x).toFixed(0)+"% / Y "+Number(m.y).toFixed(0)+"%)":""}</div>${desc}${photos}</div>`;
     }).join("");
     const empty=`<div style="text-align:center;padding:40px;color:#999">Keine Maengel</div>`;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maengel-Report ${_e(p.name||"")}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:24px;color:#1a1a1a}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:12px;margin-bottom:16px}.logo img{height:48px;display:block}.logo small{display:block;font-size:11px;color:#666;margin-top:3px}.info{text-align:right;font-size:12px;color:#444}.title{font-size:18px;font-weight:700;margin-bottom:4px}.sub{font-size:13px;color:#555;margin-bottom:14px}.sum{display:flex;gap:18px;margin-bottom:16px;font-size:13px}.sum b{font-size:18px}.card{border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px;page-break-inside:avoid}.ch{display:flex;align-items:center;gap:8px;margin-bottom:5px}.num{background:#009640;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto}.nm{font-weight:700;font-size:14px;flex:1}.badge{color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}.meta{font-size:12px;color:#444;margin-bottom:4px}.desc{font-size:12px;color:#333;background:#f7f7f7;border-radius:4px;padding:6px 8px;margin:5px 0}.phs{display:flex;gap:6px;margin-top:6px}.phs img{width:92px;height:92px;object-fit:contain;background:#fafafa;border-radius:4px;border:1px solid #ccc}.ftr{margin-top:20px;border-top:1px solid #ddd;padding-top:8px;font-size:9px;color:#999;text-align:center}@page{size:A4;margin:12mm 12mm 14mm 12mm}@media print{body{padding:0}.card{break-inside:avoid}}</style></head><body><div class="header"><div class="logo"><img src="${LOGO_MD}" alt="EP Kolar"/><small>Der Haustechnikprofi · Visionen - Konzepte - Loesungen</small></div><div class="info">Maengel-Report / Snag-List<br>Erstellt: ${new Date().toLocaleDateString("de-AT")}</div></div><div class="title">⚠️ Maengelliste — ${_e(p.name||"")}</div><div class="sub">${_e(p.nr||"")}${p.kunde?" · "+_e(p.kunde):""} · ${list.length} Maengel${_filt?" &nbsp;|&nbsp; <b style='color:#f97316'>Gefiltert nach "+_e(_filt)+" — die Zahlen unten zaehlen alle "+msF.length+" Maengel dieser Prio</b>":""}</div><div class="sum"><span style="color:#ef4444">Offen <b>${cnt.offen}</b></span><span style="color:#f97316">In Behebung <b>${cnt.inb}</b></span><span style="color:#22c55e">Behoben <b>${cnt.beh}</b></span></div>${cards||empty}<div class="ftr">${CF_HTML_LINE1} · ${COMPANY_FOOTER.fn} · UID ${COMPANY_FOOTER.uid} · ${new Date().toLocaleString("de-AT")}</div></body></html>`);
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maengel-Report ${_e(p.name||"")}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:24px;color:#1a1a1a}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:12px;margin-bottom:16px}.logo img{height:48px;display:block}.logo small{display:block;font-size:11px;color:#666;margin-top:3px}.info{text-align:right;font-size:12px;color:#444}.title{font-size:18px;font-weight:700;margin-bottom:4px}.sub{font-size:13px;color:#555;margin-bottom:14px}.sum{display:flex;gap:18px;margin-bottom:16px;font-size:13px}.sum b{font-size:18px}.card{border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px;page-break-inside:avoid}.ch{display:flex;align-items:center;gap:8px;margin-bottom:5px}.num{background:#009640;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto}.nm{font-weight:700;font-size:14px;flex:1}.badge{color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}.meta{font-size:12px;color:#444;margin-bottom:4px}.desc{font-size:12px;color:#333;background:#f7f7f7;border-radius:4px;padding:6px 8px;margin:5px 0}.phs{display:flex;gap:6px;margin-top:6px}.phs img{width:92px;height:92px;object-fit:contain;background:#fafafa;border-radius:4px;border:1px solid #ccc}.ftr{margin-top:20px;border-top:1px solid #ddd;padding-top:8px;font-size:9px;color:#999;text-align:center}@page{size:A4;margin:12mm 12mm 14mm 12mm}@media print{body{padding:0}.card{break-inside:avoid}}</style></head><body><div class="header"><div class="logo"><img src="${LOGO_MD}" alt="EP Kolar"/><small>Der Haustechnikprofi · Visionen - Konzepte - Loesungen</small></div><div class="info">Maengel-Report / Snag-List<br>Erstellt: ${new Date().toLocaleDateString("de-AT")}</div></div><div class="title">Maengelliste — ${_e(p.name||"")}</div><div class="sub">${_e(p.nr||"")}${p.kunde?" · "+_e(p.kunde):""} · ${list.length} Maengel${_filt?" &nbsp;|&nbsp; <b style='color:#f97316'>Gefiltert nach "+_e(_filt)+" — die Zahlen unten zaehlen alle "+msF.length+" Maengel dieser Prio</b>":""}</div><div class="sum"><span style="color:#ef4444">Offen <b>${cnt.offen}</b></span><span style="color:#f97316">In Behebung <b>${cnt.inb}</b></span><span style="color:#22c55e">Behoben <b>${cnt.beh}</b></span></div>${cards||empty}<div class="ftr">${CF_HTML_LINE1} · ${COMPANY_FOOTER.fn} · UID ${COMPANY_FOOTER.uid} · ${new Date().toLocaleString("de-AT")}</div></body></html>`);
     w.document.close();
     setTimeout(()=>{try{w.print();}catch(e){console.warn('[mangel-pdf]',e&&e.message||e);}},600);
   };
@@ -17700,6 +17716,31 @@ function _pdfStr(s){return String(s==null?"":s)
   .replace(/[ćč]/g,"c").replace(/[ĆČ]/g,"C").replace(/[šś]/g,"s").replace(/[ŠŚ]/g,"S").replace(/[žź]/g,"z").replace(/[ŽŹ]/g,"Z").replace(/đ/g,"d").replace(/Đ/g,"D").replace(/ş/g,"s").replace(/Ş/g,"S").replace(/ğ/g,"g").replace(/Ğ/g,"G").replace(/ı/g,"i").replace(/İ/g,"I").replace(/ł/g,"l").replace(/Ł/g,"L").replace(/ę/g,"e").replace(/ą/g,"a").replace(/ń/g,"n").replace(/ő/g,"o").replace(/ű/g,"u")
   .replace(/ /g," ")
   .replace(/[^\x00-\xFF]/g,"").replace(/\s+/g," ").trim();}
+/* v1016 Exporte: EIN Briefkopf fuer alle jsPDF-Belege im EP-Kolar-CI. Weisser Kopf, Logo links, Dokumenttitel
+   rechts, Markengruen nur als Linie darunter - wie die Druck-Formulare (printForm, Maengel-Report), die das schon so
+   tragen. Vorher zeichnete jeder Generator seinen eigenen gruenen Vollbalken ohne Logo, der Fahrtenbuch-Kopf schrieb
+   "EP KOLAR". Die Kopfhoehe h bleibt je Aufrufer wie bisher, damit kein Seitenfluss verrutscht. Laedt das Logo nicht,
+   steht der Firmenname in Markengruen an seiner Stelle. latin1 ueber _pdfStr. */
+function _pdfCIKopf(doc,titel,unter,h){
+  var PW=doc.internal.pageSize.getWidth(),M=PW>250?12:15,H=h||24,lw=0;
+  try{var ip=doc.getImageProperties(LOGO_MD);var lh=H-9;lw=lh*(ip.width/ip.height);doc.addImage(LOGO_MD,"JPEG",M,4,lw,lh);}catch(_l){lw=0;}
+  if(!lw){doc.setTextColor(0,150,64);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("EP: Kolar & Sohn",M,H/2+1);lw=52;}
+  var bx=PW-2*M-lw-6;
+  doc.setTextColor(20,20,20);doc.setFont("helvetica","bold");doc.setFontSize(13);
+  doc.text(doc.splitTextToSize(_pdfStr(titel),bx)[0]||"",PW-M,H/2-1,{align:"right"});
+  if(unter){doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(95,95,95);doc.text(doc.splitTextToSize(_pdfStr(unter),bx)[0]||"",PW-M,H/2+4.5,{align:"right"});}
+  doc.setDrawColor(0,150,64);doc.setLineWidth(0.8);doc.line(M,H-1.5,PW-M,H-1.5);doc.setLineWidth(0.2);doc.setDrawColor(0,0,0);
+  doc.setTextColor(20,20,20);doc.setFont("helvetica","normal");
+}
+/* Fusszeile fuer Belege, die bisher keine hatten (Fahrtenbuch): Firma, FN/UID, Erstelldatum, Seite x von y. */
+function _pdfCIFuss(doc,zusatz){
+  var PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight(),M=PW>250?12:15,n=doc.getNumberOfPages(),i;
+  for(i=1;i<=n;i++){doc.setPage(i);doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(120,120,120);
+    doc.text(_pdfStr(COMPANY_FOOTER.name+" · "+COMPANY_FOOTER.addr+" · "+COMPANY_FOOTER.phone+" · "+COMPANY_FOOTER.web),M,PH-10);
+    doc.text(doc.splitTextToSize(_pdfStr(COMPANY_FOOTER.fn+" ("+COMPANY_FOOTER.fnCourt+") · UID "+COMPANY_FOOTER.uid+" · Erstellt am "+fdt(td2())+(zusatz?(" · "+zusatz):"")),PW-2*M-30)[0]||"",M,PH-6);
+    doc.text("Seite "+i+" von "+n,PW-M,PH-6,{align:"right"});}
+  doc.setTextColor(20,20,20);
+}
 async function _tkLoadImg(src){return new Promise((res,rej)=>{const im=new Image();try{im.crossOrigin="anonymous";}catch(_e){}im.onload=()=>res(im);im.onerror=rej;im.src=src;});}
 async function _tkUrlToDataUrl(url){const r=await fetch(url);const b=await r.blob();return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});}
 
@@ -17759,9 +17800,7 @@ async function _genTicketPdf(ticket,plans,monteure,layers,proj){
     if(window.__toast)window.__toast("📄 PDF wird erstellt…");
     const doc=new JsPDF({unit:"mm",format:"a4"});const PW=210,M=15;let y=0;
     const tt=(TICKET_TYPES[ticket.type]||TICKET_TYPES.info),ts=(TICKET_STATUS[ticket.status]||TICKET_STATUS.offen),tp=(TICKET_PRIO[ticket.priority]||TICKET_PRIO.mittel);
-    doc.setFillColor(0,150,64);doc.rect(0,0,PW,24,"F");
-    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("EP: Kolar & Sohn",M,11);
-    doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text("Ticket / Mangel-Report",M,18);
+    _pdfCIKopf(doc,"Ticket / Mangel-Report",(proj&&((proj.nr?proj.nr+" - ":"")+(proj.name||"")))||"");/* v1016 Exporte: CI-Kopf mit Logo */
     y=32;doc.setTextColor(20,20,20);
     doc.setFont("helvetica","bold");doc.setFontSize(13);doc.splitTextToSize(_pdfStr(ticket.title||"(ohne Titel)"),PW-2*M).forEach(ln=>{doc.text(ln,M,y);y+=7;});
     doc.setFontSize(9);doc.setFont("helvetica","normal");
@@ -17810,7 +17849,7 @@ async function _genPlanReportPdf(plan,pins,monteure,layers,proj,nrMap){
     if(nrMap)_pins.forEach(t=>{if(nrMap[t.id]!=null)_nrById[t.id]=nrMap[t.id];});/* v3.9.877: der PDF hat bisher NEU durchgezaehlt - aber erst NACHDEM er die positionslosen Tickets weggeworfen hatte (_pins filtert x/y!=null). _ticketNr zaehlt sie mit; dass es sie gibt, weiss der Code selbst (Waisen-Toast 'N Tickets ohne Plan-Position'). Ein einziges solches Ticket verschob im PDF jede folgende Nummer um eins gegen den Bildschirm. Der Fallback bleibt stehen, damit ein Aufruf ohne Karte weiter funktioniert (window._genPlanReportPdf). */
     const _hexToRgb=h=>{const m=/^#?([0-9a-fA-F]{6})$/.exec(String(h||""));if(!m)return[113,113,122];const n=parseInt(m[1],16);return[(n>>16)&255,(n>>8)&255,n&255];};
     const _stHex=t=>((TICKET_STATUS[t.status]||{}).c)||"#71717a";
-    const _header=sub=>{doc.setFillColor(0,150,64);doc.rect(0,0,PW,24,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("EP: Kolar & Sohn",M,11);doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text(_pdfStr(sub),M,18);doc.setTextColor(20,20,20);};
+    const _header=sub=>{_pdfCIKopf(doc,sub,(proj&&((proj.nr?proj.nr+" - ":"")+(proj.name||"")))||"");};/* v1016 Exporte: CI-Kopf mit Logo */
     const _byPage={};_pins.forEach(t=>{const pg=Number(t.page)||1;(_byPage[pg]=_byPage[pg]||[]).push(t);});
     let _pageNums=Object.keys(_byPage).map(Number).sort((a,b)=>a-b);if(!_pageNums.length)_pageNums=[1];
     const src=plan.dataUrl||plan.file_url||plan.fileUrl||"";
@@ -17827,7 +17866,7 @@ async function _genPlanReportPdf(plan,pins,monteure,layers,proj,nrMap){
       let y=32;doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text(_pdfStr((plan.name||"Plan")+(_pageNums.length>1?(" — Seite "+pgNo):"")),M,y);y+=6;
       doc.setFont("helvetica","normal");doc.setFontSize(9);
       const _projTxt=(proj&&((proj.nr?proj.nr+" - ":"")+(proj.name||"")))||"-";
-      doc.text(_pdfStr("Projekt: "+_projTxt+((proj&&proj.kunde)?("   ·   Bauherr: "+proj.kunde):"")+"   ·   Pins: "+pgPins.length+"   ·   Stand: "+fdt(td2())),M,y);y+=5;
+      doc.splitTextToSize(_pdfStr("Projekt: "+_projTxt+((proj&&proj.kunde)?("   ·   Bauherr: "+proj.kunde):"")+"   ·   Pins: "+pgPins.length+"   ·   Stand: "+fdt(td2())),PW-2*M).forEach(function(_ln){doc.text(_ln,M,y);y+=5;});/* v1016 Exporte: umbrechen statt rechts abschneiden */
       if(pi===0){const _parts=[_sum.offen+" offen",_sum.in_bearbeitung+" in Bearbeitung",_sum.erledigt+" erledigt"];if(_sum.rest)_parts.push(_sum.rest+" sonstige");if(_sum.ueberfaellig>0)_parts.push(_sum.ueberfaellig+" überfällig");doc.setFont("helvetica","bold");doc.setFontSize(9);doc.text(_pdfStr(_pins.length+" Pins gesamt   ·   "+_parts.join("   ·   ")),M,y);doc.setFont("helvetica","normal");y+=6;}
       try{
         let base=null;
@@ -17882,15 +17921,13 @@ async function _genChecklistPdf(cl,proj,ww){
     if(window.__toast)window.__toast("📄 Protokoll wird erstellt…");
     const doc=new JsPDF({unit:"mm",format:"a4"});const PW=210,M=15,PAST=272;let y=0;
     const items=cl.items||[];const done=items.filter(_clItemDone).length;const tot=items.length;const pct=tot?Math.round(done/tot*100):0;
-    doc.setFillColor(0,150,64);doc.rect(0,0,PW,24,"F");
-    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("EP: Kolar & Sohn",M,11);
-    doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text("Checklisten-Protokoll",M,18);
+    _pdfCIKopf(doc,"Checklisten-Protokoll",(proj&&((proj.nr?proj.nr+" - ":"")+(proj.name||"")))||"");/* v1016 Exporte: CI-Kopf mit Logo */
     y=32;doc.setTextColor(20,20,20);
     doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text(_pdfStr(cl.name||"Checkliste"),M,y);y+=7;
     doc.setFont("helvetica","normal");doc.setFontSize(9);
     const _projTxt=(proj&&((proj.nr?proj.nr+" - ":"")+(proj.name||"")))||"-";
     const _by=cl.by||((Array.isArray(ww)?ww.find(w=>w&&w.id===cl.created_by):null)||{}).n||"-";
-    doc.text(_pdfStr("Projekt: "+_projTxt+((proj&&proj.kunde)?("   ·   Bauherr: "+proj.kunde):"")+"   ·   Datum: "+(cl.date?fdt(cl.date):"-")+"   ·   Erstellt: "+_by),M,y);y+=5;
+    doc.splitTextToSize(_pdfStr("Projekt: "+_projTxt+((proj&&proj.kunde)?("   ·   Bauherr: "+proj.kunde):"")+"   ·   Datum: "+(cl.date?fdt(cl.date):"-")+"   ·   Erstellt: "+_by),PW-2*M).forEach(function(_ln){doc.text(_ln,M,y);y+=5;});/* v1016 Exporte: die Zeile lief rechts aus dem Blatt ("Erstellt:" abgeschnitten) - jetzt umgebrochen */
     doc.setFont("helvetica","bold");doc.text(_pdfStr("Fortschritt: "+done+" / "+tot+"  ("+pct+"%)"),M,y);doc.setFont("helvetica","normal");y+=7;
     items.forEach((it,i)=>{
       if(y>PAST){doc.addPage();y=20;}
@@ -17965,13 +18002,7 @@ async function _genBautagPdf(rows,proj,monteure,curUser,entries){
     for(let n=0;n<list.length;n++){
       const e=list[n];
       if(n>0)doc.addPage();
-      doc.setFillColor(0,150,64);doc.rect(0,0,PW,26,"F");
-      try{doc.addImage(LOGO_MD,"JPEG",M,4.5,26,17);}catch(_lg){}
-      doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(14);
-      doc.text(_pdfStr(COMPANY_FOOTER.name),M+30,11);
-      doc.setFont("helvetica","normal");doc.setFontSize(10);
-      doc.text(_pdfStr("Bautagesbericht Nr. "+(n+1)+" / "+list.length),M+30,17.5);
-      doc.setFontSize(7.5);doc.text(_pdfStr(COMPANY_FOOTER.addr+" - Tel: "+COMPANY_FOOTER.phone+" - "+COMPANY_FOOTER.email),M+30,22.5);
+      _pdfCIKopf(doc,"Bautagesbericht Nr. "+(n+1)+" / "+list.length,_projTxt,26);/* v1016 Exporte: CI-Kopf (Logo auf Weiss statt weisser Logo-Kasten auf Gruen); Anschrift steht im Fuss */
       let y=34;doc.setTextColor(20,20,20);
       let wtag="";
       if(e.datum){const dd=new Date(e.datum+"T00:00:00");if(!isNaN(dd.getTime()))wtag=" ("+["So","Mo","Di","Mi","Do","Fr","Sa"][dd.getDay()]+")";}
@@ -17980,13 +18011,15 @@ async function _genBautagPdf(rows,proj,monteure,curUser,entries){
                   ["Baustelle",_adr||"-"],["Erstellt von",_btPdfAuthor(e,monteure)]];
       const cw=W/2;doc.setFontSize(9);
       for(let i=0;i<meta.length;i+=2){
+        let _zl=1;
         for(let c=0;c<2&&(i+c)<meta.length;c++){
           const kv=meta[i+c],x=M+c*cw;
           doc.setFont("helvetica","bold");doc.text(_pdfStr(kv[0])+":",x,y);
           doc.setFont("helvetica","normal");
-          doc.text(doc.splitTextToSize(_pdfStr(String(kv[1])),cw-33)[0]||"",x+31,y);
+          const _ls=doc.splitTextToSize(_pdfStr(String(kv[1])),cw-33).slice(0,3);/* v1016 Exporte: Bauvorhaben/Baustelle wurden nach der ersten Zeile abgeschnitten */
+          _ls.forEach(function(_l,_li){doc.text(_l,x+31,y+_li*4.2);});if(_ls.length>_zl)_zl=_ls.length;
         }
-        y+=5.5;
+        y+=5.5+(_zl-1)*4.2;
       }
       doc.setDrawColor(190,190,190);doc.line(M,y-1,PW-M,y-1);y+=5;
       doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("Witterung",M,y);y+=5;
@@ -18005,8 +18038,8 @@ async function _genBautagPdf(rows,proj,monteure,curUser,entries){
       doc.setFontSize(9);
       if(!anw.length){doc.setFont("helvetica","italic");doc.text("Keine Anwesenheit erfasst.",M,y);doc.setFont("helvetica","normal");y+=6;}
       else{
-        doc.setFillColor(238,238,238);doc.rect(M,y-4,W,6,"F");
-        doc.setFont("helvetica","bold");doc.text("Name",M+2,y);doc.text("Stunden lt. Zeiterfassung",M+100,y);y+=6;
+        doc.setFillColor(0,150,64);doc.rect(M,y-4,W,6,"F");doc.setTextColor(255,255,255);/* v1016 Exporte: Tabellenkopf Markengruen */
+        doc.setFont("helvetica","bold");doc.text("Name",M+2,y);doc.text("Stunden lt. Zeiterfassung",M+100,y);doc.setTextColor(20,20,20);y+=6;
         doc.setFont("helvetica","normal");
         let sum=0;
         for(let i=0;i<anw.length;i++){
@@ -18025,7 +18058,7 @@ async function _genBautagPdf(rows,proj,monteure,curUser,entries){
       y=_blk("Material / Lieferungen",e.material,y,PAST);
       if(String(e.besonderheiten||"").trim()){
         if(y>PAST-20){doc.addPage();y=20;}
-        doc.setDrawColor(230,140,20);doc.setFillColor(255,247,235);
+        doc.setDrawColor(150,150,150);doc.setFillColor(244,244,244);/* v1016 Exporte: neutral statt Orange - Markengruen bleibt die einzige Akzentfarbe */
         const lns=doc.splitTextToSize(_pdfStr(String(e.besonderheiten)),W-6);
         doc.rect(M,y-4,W,8+lns.length*4.6,"FD");
         doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("Besondere Vorkommnisse / Behinderungen",M+3,y+1);
@@ -21020,7 +21053,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           posRows.forEach(r=>{const nm=(r.name||"").trim();if(nm)items.push({name:nm,dim:"",menge:r.menge||"",einheit:"",artNr:"",katalog:"Manuell"});});/* v3.9.236 */
           if(freitext.trim())items.push({name:freitext.trim(),dim:"",menge:"",einheit:"",artNr:"",katalog:"Freitext"});
           const rows=items.map(i=>`<tr><td>${_e(i.artNr||"")}</td><td>${_e(i.name||"")}</td><td>${_e(i.dim||"")}</td><td style="text-align:right;font-weight:700">${_e(i.menge)}</td><td>${_e(i.einheit||"")}</td><td style="font-size:10px;color:#666">${_e(i.katalog||"")}</td></tr>`).join("");
-          const html=`<!doctype html><html><head><meta charset="utf-8"><title>Warenkorb ${_e((p.nr||p.name||"").replace(/"/g,""))}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{border-bottom:3px solid #009640;padding-bottom:8px;color:#009640;margin:0 0 4px}h2{margin:0 0 16px;color:#444;font-size:14px;font-weight:normal}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#009640;color:#fff;padding:8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#f7f8fa}.meta{font-size:11px;color:#666;margin-bottom:20px}.footer{margin-top:30px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:10px}.sig{margin-top:40px;display:flex;gap:40px;font-size:11px}.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}/* v3.9.48 S33-4 F12+F13: tr-page-break-inside:avoid (kein-Zeilen-Split) + thead display:table-header-group (Header auf jeder Druckseite). */@media print{body{padding:0}tr{page-break-inside:avoid}thead{display:table-header-group}.sig{page-break-inside:avoid}}</style></head><body><h1>🛒 Material-Warenkorb</h1><h2>${_e(p.name||"")} ${p.nr?("· "+_e(p.nr)):""}</h2><div class="meta"><b>Erstellt:</b> ${new Date().toLocaleString("de-AT")} · <b>Monteur:</b> ${_e(curUser?.name||"")} · <b>Positionen:</b> ${items.length}</div><table><thead><tr><th>Art.Nr.</th><th>Bezeichnung</th><th>Dim.</th><th style="text-align:right">Menge</th><th>Einheit</th><th>Katalog</th></tr></thead><tbody>${rows}</tbody></table><div class="sig"><div>Monteur / Datum</div><div>Lager / Datum</div></div><div class="footer">${CF_HTML_LINE1}<br>${COMPANY_FOOTER.fn}, ${COMPANY_FOOTER.fnCourt} · UID: ${COMPANY_FOOTER.uid}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`;
+          const html=`<!doctype html><html><head><meta charset="utf-8"><title>Warenkorb ${_e((p.nr||p.name||"").replace(/"/g,""))}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{border-bottom:3px solid #009640;padding-bottom:8px;color:#009640;margin:0 0 4px}h2{margin:0 0 16px;color:#444;font-size:14px;font-weight:normal}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#009640;color:#fff;padding:8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#f7f8fa}.meta{font-size:11px;color:#666;margin-bottom:20px}.footer{margin-top:30px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:10px}.sig{margin-top:40px;display:flex;gap:40px;font-size:11px}.sig div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}/* v3.9.48 S33-4 F12+F13: tr-page-break-inside:avoid (kein-Zeilen-Split) + thead display:table-header-group (Header auf jeder Druckseite). */@media print{body{padding:0}tr{page-break-inside:avoid}thead{display:table-header-group}.sig{page-break-inside:avoid}}</style></head><body><h1>Material-Warenkorb</h1><h2>${_e(p.name||"")} ${p.nr?("· "+_e(p.nr)):""}</h2><div class="meta"><b>Erstellt:</b> ${new Date().toLocaleString("de-AT")} · <b>Monteur:</b> ${_e(curUser?.name||"")} · <b>Positionen:</b> ${items.length}</div><table><thead><tr><th>Art.Nr.</th><th>Bezeichnung</th><th>Dim.</th><th style="text-align:right">Menge</th><th>Einheit</th><th>Katalog</th></tr></thead><tbody>${rows}</tbody></table><div class="sig"><div>Monteur / Datum</div><div>Lager / Datum</div></div><div class="footer">${CF_HTML_LINE1}<br>${COMPANY_FOOTER.fn}, ${COMPANY_FOOTER.fnCourt} · UID: ${COMPANY_FOOTER.uid}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`;
           const w=window.open("","_blank","width=900,height=1000");
           if(w){w.document.write(html);w.document.close();}
           else window.__toast?.("Popup blockiert — bitte erlauben","warn");
@@ -23958,7 +23991,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
     const w=window.open("","_blank","width=1000,height=800");
     /* v3.9.45 SPRINT-29 F-PDF-3: Popup-blocked Toast statt silent return — Stundenzettel Druck. */
     if(!w){_optionalChain([window,'access',_pdf3a=>_pdf3a.__toast,'optionalCall',_pdf3b=>_pdf3b("⚠️ Popup blockiert — bitte Popup-Blocker deaktivieren","warn")]);return;}
-    try{w.document.write("<!DOCTYPE html><meta charset=utf-8><title>Druck…</title><body style='font-family:Arial;padding:48px;text-align:center;color:#555'><div style='font-size:18px'>⏳ Ausdruck wird vorbereitet…</div></body>");}catch(_pw){}
+    try{w.document.write("<!DOCTYPE html><meta charset=utf-8><title>Druck…</title><body style='font-family:Arial;padding:48px;text-align:center;color:#555'><div style='font-size:18px'>Ausdruck wird vorbereitet…</div></body>");}catch(_pw){}
     // v3.5.144: XSS-Schutz auf z.mitarbeiterName (user-input DB-Feld) im Print-Title
     const _e=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     /* v3.9.207 PDF-Seiten zu Bildern rendern → perfekter Druck (eingebettetes iframe-PDF druckt leer) */
@@ -24005,7 +24038,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
       <div><b>Zeitraum:</b> ${MONATE[z.monat]||""} ${z.jahr||""}</div>
       <div><b>Hochgeladen von:</b> ${_e(z.hochgeladenVon)}</div>
       <div><b>Hochgeladen am:</b> ${z.hochgeladenAm?new Date(z.hochgeladenAm).toLocaleDateString("de-AT"):"—"}</div>
-      <div><b>Status:</b> <span class="status ${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</span></div>
+      <div><b>Status:</b> <span class="status ${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"Freigegeben":"Offen"}</span></div>
       ${z.freigegebenAm?`<div><b>Freigegeben am:</b> ${new Date(z.freigegebenAm).toLocaleDateString("de-AT")}</div>`:"<div></div>"}
     </div>
     <div class="pdf-frame">${_pdfImgs.length?_pdfImgs.map(im=>`<img class="pdfpg" src="${im.src}" alt="Seite">`).join(""):(z.datei?`<img src="${_e(z.datei)}" alt="Stundenzettel">`:`<div style="padding:40px;color:#999;text-align:center">Kein PDF hinterlegt</div>`)}</div>
@@ -24081,11 +24114,11 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
           <td><b>${_e(z.mitarbeiterName)}</b></td>
           <td>${_e(z.dateiName)}</td>
           <td>${z.hochgeladenAm?new Date(z.hochgeladenAm).toLocaleDateString("de-AT"):"—"}</td>
-          <td class="${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"✅ Freigegeben":"⏳ Offen"}</td>
+          <td class="${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"Freigegeben":"Offen"}</td>
           <td><b>${_n(epH,1)}h</b></td>
           <td>${fH>0?_n(fH,1)+"h":"—"}</td>
           <td class="${fH&&Math.abs(diff)<0.5?"ok":fH?"open":""}">${fH?(diff>0?"+":"")+_n(diff,1)+"h":"—"}</td>
-          <td class="${z.abgeglichen?"ok":"open"}">${z.abgeglichen?"✔ Ja":"—"}</td>
+          <td class="${z.abgeglichen?"ok":"open"}">${z.abgeglichen?"Ja":"—"}</td>
           <td>${z.freigegebenAm?new Date(z.freigegebenAm).toLocaleDateString("de-AT"):"—"}</td>
           <td>${z.unterschrift&&/^data:image\//.test(z.unterschrift)?`<img class="sig-img" src="${z.unterschrift}" alt="Unterschrift">`:z.status==="freigegeben"?"✓":"—"}</td>
         </tr>`;}).join("")}
@@ -27861,37 +27894,33 @@ function FahrtenbuchView(props){
       if(!JS){if(window.__toast)window.__toast('❌ PDF-Bibliothek nicht geladen','error',4000);return;}
       const e=_exportZeilen();
       const doc=new JS({orientation:'landscape',unit:'mm',format:'a4'});
-      const W=297,M=10;
-      doc.setFillColor(0,150,64);doc.rect(0,0,W,16,'F');
-      doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont(undefined,'bold');
-      doc.text('EP KOLAR — Fahrtenbuch',M,10);
-      doc.setFontSize(9);doc.setFont(undefined,'normal');
-      doc.text((fid?_kz({}):'Alle Fahrzeuge')+'  ·  '+von+' – '+bis,W-M,10,{align:'right'});
-      doc.setTextColor(30,30,30);
+      const W=297,M=12;
+      /* v1016 Exporte: Kopf und Fuss im CI (Logo, Firma, Erstelldatum, Seite x von y - vorher ohne Fuss und ohne
+         Seitenzahl, Kopf "EP KOLAR"), Spaltenkopf Markengruen und auf JEDER Folgeseite, lange Adressen werden
+         umbrochen statt mit "..." abgeschnitten (Start/Ziel sind der Inhalt des Fahrtenbuchs). Zeilen und Summe
+         unveraendert aus _exportZeilen. */
+      _pdfCIKopf(doc,'Fahrtenbuch',(fid?_kz({}):'Alle Fahrzeuge')+'  ·  '+von+' bis '+bis,22);
       /* Spaltenbreiten proportional zur Bildschirm-Tabelle */
       const gew=e.hdr.map(function(x){return (x==='Start'||x==='Ziel')?3:(x==='Kunde'?2.2:(x==='Fahrer'?1.6:1));});
       const gesamt=gew.reduce(function(a,b){return a+b;},0);
       const nutz=W-2*M;
       const br=gew.map(function(g){return nutz*g/gesamt;});
-      let y=24;
-      doc.setFontSize(7);doc.setFont(undefined,'bold');
-      let x=M;
-      e.hdr.forEach(function(t,i){doc.text(String(t),x+1,y);x+=br[i];});
-      doc.setDrawColor(180);doc.line(M,y+1.5,W-M,y+1.5);
-      y+=5;doc.setFont(undefined,'normal');
+      let y=30;
+      const kopf=function(){let x=M;doc.setFillColor(0,150,64);doc.rect(M,y-4,nutz,6,'F');doc.setTextColor(255,255,255);doc.setFontSize(7.5);doc.setFont('helvetica','bold');e.hdr.forEach(function(t,i){doc.text(_pdfStr(String(t)),x+1,y);x+=br[i];});doc.setTextColor(30,30,30);doc.setFont('helvetica','normal');y+=5.5;};
+      kopf();
       e.data.forEach(function(zeile,ri){
         const letzte=(ri===e.data.length-1);
-        if(y>195){doc.addPage();y=20;}
-        if(letzte){doc.setFont(undefined,'bold');doc.line(M,y-3,W-M,y-3);}
-        x=M;
-        zeile.forEach(function(c,i){
-          const txt=String(c==null?'':c);
-          const platz=Math.max(4,Math.floor(br[i]/1.45));
-          doc.text(txt.length>platz?txt.slice(0,platz-1)+'…':txt,x+1,y);
-          x+=br[i];
-        });
-        y+=4.4;
+        doc.setFontSize(7.5);doc.setFont('helvetica',letzte?'bold':'normal');
+        const zellen=zeile.map(function(c,i){return doc.splitTextToSize(_pdfStr(String(c==null?'':c)),Math.max(4,br[i]-2));});
+        const hz=Math.max.apply(null,zellen.map(function(z){return z.length||1;}))*3.3;
+        if(y+hz>192){doc.addPage();y=20;kopf();doc.setFont('helvetica',letzte?'bold':'normal');}
+        if(letzte){doc.setDrawColor(120,120,120);doc.line(M,y-3.2,W-M,y-3.2);}
+        else if(ri%2===1){doc.setFillColor(246,246,246);doc.rect(M,y-3.2,nutz,hz+0.6,'F');}
+        let x=M;
+        zellen.forEach(function(z,i){z.forEach(function(ln,li){doc.text(ln,x+1,y+li*3.3);});x+=br[i];});
+        y+=hz+1.2;
       });
+      _pdfCIFuss(doc,'Fahrtenbuch '+(fid?_kz({}):'alle Fahrzeuge')+' · '+von+' bis '+bis);
       doc.save(_expName()+'.pdf');
       if(window.__toast)window.__toast('📄 PDF erstellt');
     }catch(err){if(window.__toast)window.__toast('❌ PDF fehlgeschlagen: '+((err&&err.message)||''),'error',5000);}
