@@ -276,7 +276,8 @@ def test_sprint49_mehr_popup_ist_nie_leer(index_html):
         ("Das Menue haengt wieder an der Reiterzahl - dann verschwindet der "
          "Darstellungs-Schalter fuer Rollen ohne zusaetzliche Reiter.")
     i = index_html.index("moreOpen&&isMob&&React.createElement")
-    assert "\U0001F3A8 Darstellung" in index_html[i:i + 900], \
+    # v3.9.1016: Beschriftung ohne Emoji (CI, Entscheidung GF) - geprueft wird weiter, dass der Schalter im Menue steht.
+    assert '"Darstellung")' in index_html[i:i + 900], \
         ("Das Mehr-Menue rendert unbedingt, enthaelt aber den "
          "Darstellungs-Schalter\n  nicht mehr - damit kann es wieder LEER "
          "sein, und genau das sollte\n  Sprint-49 verhindern.")
