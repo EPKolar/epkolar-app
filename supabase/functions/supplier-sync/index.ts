@@ -134,8 +134,12 @@ serve(async (req: Request) => {
 
     // v3.9.1016 (Datanorm sauber): KEINE Erfolgsmeldung ohne Download. Vorher war der
     //   Download ein Platzhalter (rows=[]), die Function schrieb trotzdem
-    //   last_sync_status="success" mit 0 Artikeln - die App zeigte dann einen gruenen
-    //   "Letzter Sync", obwohl nie etwas geladen wurde. Jetzt: fuer jeden Haendler ohne
+    //   last_sync_status="success" mit 0 Artikeln - die App haette dann einen gruenen
+    //   "Letzter Sync" ohne geladene Artikel gezeigt. Das betrifft NUR diese Repo-Function
+    //   (die App ruft sie nicht auf). Die PRODUKTIVE Function ist sync_supplier im Supabase-
+    //   Dashboard (nicht im Repo): sie hat real synchronisiert - Holter am 12.04.2026 rund
+    //   25.000 Artikel (shk_connect), seitdem lief kein Sync mehr (Prod-DB, Stand 16.11.2026).
+    //   Jetzt: fuer jeden Haendler ohne
     //   implementierten Download ok:false + error:"not_implemented", und last_sync /
     //   last_sync_status bleiben UNBERUEHRT (der Stand des letzten echten Imports gilt weiter).
     //   Einen Download einsetzen = downloadArticles() fuer den Haendler ausfuellen; erst

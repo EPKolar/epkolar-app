@@ -110,7 +110,10 @@ def test_offa_export_bleibt_beim_alten_format(xls_offa):
 
 def test_umkehrprobe_offa_weiche_trennt(xls_ci, xls_offa):
     """Ohne Weiche saehen beide Dateien gleich typisiert aus - dann waere der OFFA-Riegel wertlos."""
-    assert 'x:num="10234"' in xls_ci and 'x:num="10234"' not in xls_offa
+    # v1016 Sammel (GF): die Kundennummer (Spalte "KdNr") ist eine Kennung und bleibt auch im CI-Zweig
+    # Text - die Weiche wird deshalb an der Stundenzahl 8 gemessen, die im CI-Zweig Zahl ist.
+    assert 'x:num="8"' in xls_ci and 'x:num="8"' not in xls_offa
+    assert 'x:num="10234"' not in xls_ci and ">10234<" in xls_ci
 
 
 def test_offa_aufruf_traegt_den_weichen_titel(index_html):

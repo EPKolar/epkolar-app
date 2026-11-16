@@ -100,3 +100,9 @@ LIMIT 10;
 
 ## v3.9.1016 – supplier-sync meldet keinen Scheinerfolg mehr
 `supabase/functions/supplier-sync` (action `sync`) antwortet fuer Haendler ohne implementierten Download mit `ok:false, error:"not_implemented"` und setzt `last_sync`/`last_sync_status` NICHT mehr auf `success` (vorher: Platzhalter `rows=[]` + `success` mit 0 Artikeln). Nur Repo, nicht deployt. Download je Haendler in `downloadArticles()` einsetzen. Die App ruft die Function weiterhin nirgends auf; DATANORM kommt per Upload im Reiter Administration > Haendler.
+
+## v3.9.1016 Sammel – Stand laut Prod-DB (16.11.2026), damit niemand "nie funktioniert" liest
+- Es GAB einen echten automatischen Sync: die **Dashboard-Function `sync_supplier`** (nicht im Repo) hat am **12.04.2026** fuer **Holter** rund **25.000 Artikel** geladen (`interface_type` shk_connect). Seitdem (rund 7 Monate) lief **kein** Sync mehr – Ursache offen (Cron/Function im Dashboard pruefen, siehe Monitoring oben).
+- Die Zugangsdaten sind **nicht geleert**: 5 von 9 Haendlern haben sie gesetzt (Heinze, Holter, Impex, OEAG, SHT). Die App schickt username/password seit v3.9.1016 nur noch bei Neueingabe.
+- Die Repo-Function `supabase/functions/supplier-sync` ist ein Platzhalter, nicht der produktive Weg; ihr `not_implemented` sagt nichts ueber `sync_supplier` im Dashboard. Vor einem Deploy die Dashboard-Quelle ins Repo holen (Punkt 2 oben), nicht den Platzhalter deployen.
+- Die App zeigt auf der Haendlerkarte "Letzter Sync <Datum>, <n> Artikel" aus `last_sync` / `last_sync_articles`.

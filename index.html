@@ -4208,6 +4208,20 @@ function _isOffaVerwaist(s,lastPullMs,nowMs){
   return !!(lastPullMs&&lastPullMs>syncMs);
 }
 if(typeof window!=='undefined')window._isOffaVerwaist=_isOffaVerwaist;
+/* v1016 Sammel (GF, Prod-DB 16.11.: juprowa_sync_at zuletzt vor 2 Minuten, 228 von 229 Scheinen gestempelt - der
+   Feed liefert, die Warnung "N offene Scheine evtl. in OFFA abgeschlossen" war ein Fehlalarm): Ob der Feed steht,
+   entscheidet das GLOBALE Maximum von juprowa_sync_at ueber ALLE geladenen Scheine, nicht der Stempel des einzelnen
+   Scheins. frisch = juengster Stempel <= OFFA_VERWAIST_TAGE alt -> keine Warnung; still = laenger -> Warnung darf
+   kommen; unbekannt = kein einziger Stempel geladen -> kein Alarm, sondern ehrlich "unbekannt". Nur Anzeige: kein
+   Status, kein Feed, kein Import wird beruehrt. PURE, testbar. */
+function _offaFeedStand(scheine,nowMs){
+  var max=0,n=0;
+  (scheine||[]).forEach(function(s){if(!s||!s.juprowa_sync_at)return;var t=new Date(s.juprowa_sync_at).getTime();if(!t||isNaN(t))return;n++;if(t>max)max=t;});
+  if(!n)return {zustand:"unbekannt",maxMs:0,tage:null,gestempelt:0};
+  var tage=(nowMs-max)/864e5;
+  return {zustand:tage>OFFA_VERWAIST_TAGE?"still":"frisch",maxMs:max,tage:Math.floor(tage),gestempelt:n};
+}
+if(typeof window!=='undefined')window._offaFeedStand=_offaFeedStand;
 // Push fields: only these EPKolar fields can be sent back to Juprowa Cloud
 const JUPROWA_PUSH_FIELDS={
   durchgefuehrte:'AK_ARBEITEN',
@@ -4937,6 +4951,10 @@ const isWE=d=>d.getDay()===0||d.getDay()===6;
    Stelle wieder zurueck. */
 function _ktgStd(v){if(v===null||v===undefined||v==="")return 192.5;const _k=parseFloat(v);return isNaN(_k)?192.5:_k;}
 function _n(v,d){const n=parseFloat(v);return (isNaN(n)||!isFinite(n))?(d!==undefined?(0).toFixed(d):0):d!==undefined?n.toFixed(d):n;}
+/* v1016 Sammel (GF): Stunden/Fahrzeit im Regiebericht sind abrechnungsrelevant. parseFloat("0,5") ergibt 0 - die
+   Eingabe "0,5" h Fahrzeit fiel in der Gesamt-Zeile weg. EIN Leser fuer Dezimalkomma UND -punkt: "0,5"->0.5,
+   "1,25"->1.25, "2"->2, ""/null/Unsinn->0. Stehen Punkt UND Komma, ist der Punkt Tausendertrenner ("1.234,5"). */
+function _dezKomma(v){if(typeof v==="number")return isFinite(v)?v:0;let s=String(v==null?"":v).replace(/\s+/g,"");if(!s)return 0;if(s.indexOf(",")>=0){if(s.indexOf(".")>=0)s=s.split(".").join("");s=s.replace(",",".");}const n=parseFloat(s);return (isNaN(n)||!isFinite(n))?0:n;}
 
 // ═══ CODE 39 BARCODE GENERATOR ═══
 const C39_MAP={"0":"NNNWWNWNN","1":"WNNWNNNNW","2":"NNWWNNNNW","3":_nullishCoalesce("WNWWNNNNW".slice(0,9), () => ("WNWWNNNN")),"4":"NNNWWNNNW","5":_nullishCoalesce("WNNWWNNNW".slice(0,9), () => ("WNNWWNNNN")),"6":"NNWWWNNNN","7":"NNNWNNWNW","8":"WNNWNNWNN","9":"NNWWNNWNN","A":"WNNNNWNNW","B":"NNWNNWNNW","C":"WNWNNWNNN","D":"NNNNWWNNW","E":"WNNNWWNNN","F":"NNWNWWNNN","G":"NNNNNWWNW","H":"WNNNNWWNN","I":"NNWNNWWNN","J":"NNNNWWWNN","K":"WNNNNNNWW","L":"NNWNNNNWW","M":"WNWNNNNWN","N":"NNNNWNNWW","O":"WNNNWNNWN","P":"NNWNWNNWN","Q":"NNNNNNWWW","R":"WNNNNNWWN","S":"NNWNNNWWN","T":"NNNNWNWWN","U":"WWNNNNNNN"+"W","V":"NWWNNNNNN"+"W","W":_nullishCoalesce("WWWNNNNNNN".slice(0,9), () => ("WWWNNNNNN")),"X":"NWNNWNNNN"+"W","Y":"WWNNWNNNN"+"N","Z":"NWWNWNNNN"+"N"," ":"NWNNNNWN"+"N","-":_nullishCoalesce("NWNNNNNNWW".slice(0,9), () => ("NWNNNNNNW")),".":"WWNNNNNNN"+"N","*":"NWNNWNWNN"};
@@ -5069,9 +5087,18 @@ const _xTextCI=(cs,esc)=>{const dd=_xDatum(cs);return dd?dd.txt:_xText(cs,esc);}
 const _xOhneEmoji=s=>String(s).replace(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\uFE0F\u200D\u20E3]/gu,"").replace(/\s+/g," ").trim();
 const _xBlatt=t=>(_xOhneEmoji(t).replace(/[\\\/\?\*\[\]:]/g," ").replace(/\s+/g," ").trim()||"Export").slice(0,31);
 const _xCI=t=>String(t).indexOf("\uD83D\uDCCB OFFA Export")!==0;
+/* v1016 Sammel (GF): Kundennummer und PLZ sind KENNUNGEN, keine Werte - als Zahl verliert "01067" die Null, "3470"
+   rutscht in die Summe/Sortierung als Zahl. Entschieden wird ueber die SPALTENBEDEUTUNG (Kopfzeile), nicht ueber den
+   Wert: PLZ/Postleitzahl/Telefon/Kennzeichen/Matchcode/IBAN/UID und jede Kopfzeile, die auf "nr"/"nr."/"nummer" endet
+   (Kundennr, Kd-Nr, KdNr, ArtNr, Art.-Nr., Inventar-Nr, Seriennr, PA-Nr). Die laufende Zeilennummer "Nr" ist keine
+   Kennung und bleibt Zahl. Aufrufer koennen Spalten zusaetzlich ausdruecklich als Text fuehren: opts.textCols=[i,...].
+   Stunden, Betraege, Mengen und Datum bleiben Zahl/Datum. Gilt nur im CI-Zweig - OFFA bleibt byte-gleich. */
+const _XKENN=/plz|postleitzahl|telefon|kennzeichen|matchcode|iban/i;
+const _xKennung=h=>{const k=_xOhneEmoji(h).trim();if(!k||/^nr$/i.test(k))return false;return _XKENN.test(k)||/(nummer|nr\.?)$/i.test(k)||/^(tel\.?|uid|handy)$/i.test(k);};
 const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
   const esc=s=>String(_nullishCoalesce(s, () => (""))).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const _ci=_xCI(title);
+  const _txtCol=headers.map((h,i)=>_ci&&(_xKennung(h)||(Array.isArray(opts.textCols)&&opts.textCols.indexOf(i)>=0)));
   const cw=opts.colWidths||headers.map(()=>100);
   const nc=headers.length;
   const sumCol=_nullishCoalesce(opts.sumCol, () => (-1));
@@ -5121,6 +5148,7 @@ ${rows.map((r,ri)=>{
     if(isBold&&!isNr) style+="font-weight:bold;";
     if(stColor) style+="background:"+stColor+";color:#fff;font-weight:bold;font-size:8pt;text-align:center;";
     if(!_ci&&cs&&!stColor&&!isNr&&ci>1) style+="background:"+(alt?"#f0f7f2":"#e8f5e9")+";";
+    if(_txtCol[ci])return '<td style="'+style+'">'+_xBr(esc(cs))+'</td>';
     return '<td'+(_ci?_xAttrCI(cs):_xAttr(cs))+' style="'+style+'">'+(_ci?_xTextCI(cs,esc):_xText(cs,esc))+'</td>';
   }).join("")+'</tr>';
 }).join("\n")}
@@ -11138,7 +11166,8 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
   /* v3.9.728 #18a: verwaiste OFFA-Scheine (offen, aber in OFFA wahrscheinlich abgeschlossen — Feed liefert sie
      nicht mehr). Kein Auto-Status; nur ein Pruef-Badge + Sammel-Hinweis. Letzter Pull global (v3.9.728). */
   const _lastJupPull=(typeof window!=='undefined'&&(window.__lastJuprowaPull||parseInt(localStorage.getItem("epk_last_juprowa_pull"),10)))||0;
-  const _isVerwaist=(a)=>{try{return !!(window._isOffaVerwaist&&window._isOffaVerwaist(a,_lastJupPull,Date.now()));}catch(e){return false;}};
+  const _offaFeed=(()=>{try{return window._offaFeedStand?window._offaFeedStand(arbeitsscheine,Date.now()):{zustand:"unbekannt"};}catch(e){return {zustand:"unbekannt"};}})();/* v1016 Sammel: Feed-Gesundheit global (max juprowa_sync_at) */
+  const _isVerwaist=(a)=>{try{return _offaFeed.zustand==="still"&&!!(window._isOffaVerwaist&&window._isOffaVerwaist(a,_lastJupPull,Date.now()));}catch(e){return false;}};
   const _verwaisteN=(arbeitsscheine||[]).filter(_isVerwaist).length;
   /* v3.9.729 #19: Dispo-Geo-Kaskade laden (plz_geo Zentroide + plz_distanz Matrix, 42P01/leer-tolerant) ->
      window.__dispoGeo. Leer -> ~2 km/? km; sobald Chat-Claude die Tabellen fuellt, greifen echte km AUTOMATISCH
@@ -11533,11 +11562,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;font-size:10pt;color:#1a1a1a;li
 /* Header */
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #009640;padding-bottom:10px;margin-bottom:14px}
 .logo-box{display:flex;align-items:center;gap:12px}
-.logo-k{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,#009640,#006e30);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:22px;font-family:'Courier New',monospace}
-.co-name{font-size:15pt;font-weight:800;color:#009640;line-height:1.1}
+.logo-box{min-width:0;flex:1 1 auto}
+.logo-img{height:40px;width:auto;max-width:120px;display:block;flex-shrink:0}
+.hdr-r{display:flex;align-items:flex-start;gap:14px;flex-shrink:0;margin-left:16px}
+.co-name{font-size:13.5pt;font-weight:800;color:#009640;line-height:1.1;white-space:nowrap}
 .co-sub{font-size:7.5pt;color:#666;margin-top:2px}
-.doc-title{text-align:right}
-.doc-title h1{font-size:16pt;color:#1a1a1a;font-weight:800;margin-bottom:2px}
+.doc-title{text-align:right;white-space:nowrap}
+.doc-title h1{font-size:16pt;color:#1a1a1a;font-weight:800;margin-bottom:2px;line-height:1.1}
 .doc-nr{font-family:'Courier New',monospace;font-size:14pt;color:#009640;font-weight:700}
 .doc-status{display:inline-block;padding:2px 10px;border-radius:4px;font-size:8pt;font-weight:700;margin-top:4px}
 
@@ -11551,7 +11582,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;font-size:10pt;color:#1a1a1a;li
 .field-value{font-size:9.5pt;font-weight:500}
 
 /* Work section */
-.work-box{border:1.5px solid #009640;border-radius:6px;padding:12px;margin-bottom:10px;min-height:60px;page-break-inside:avoid}
+.work-box{border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:10px;min-height:60px;page-break-inside:avoid}
 .work-title{font-size:9pt;font-weight:700;color:#009640;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
 .work-text{font-size:9.5pt;white-space:pre-wrap;line-height:1.5}
 
@@ -11576,16 +11607,18 @@ body{font-family:'Segoe UI',system-ui,sans-serif;font-size:10pt;color:#1a1a1a;li
 <div class="page">
   <div class="hdr">
     <div class="logo-box">
-      <div class="logo-k">K</div>
+      <img class="logo-img" src="${LOGO_MD}" alt="EP: Kolar &amp; Sohn">
       <div><div class="co-name">Andreas Kolar &amp; Sohn GesmbH</div>
       <div class="co-sub">Der Haustechnikprofi · Marktplatz 17 · 3470 Kirchberg am Wagram · Tel: +43 2279 2361</div></div>
     </div>
+    <div class="hdr-r">
     <div class="doc-title">
       <h1>Arbeitsschein</h1>
       <div class="doc-nr">${esc(a.nummer)}</div>
       <div class="doc-status" style="background:${st.c}18;color:${st.c}">${esc(st.l)}</div>
     </div>
     ${qrImg?`<div class="qr-box"><img src="${qrImg}" alt="QR"><span>Scan → App</span></div>`:""}
+    </div>
   </div>
 
   <div class="row">
@@ -11631,8 +11664,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;font-size:10pt;color:#1a1a1a;li
     <div class="work-text">${a.arbeitsanweisungen?esc(a.arbeitsanweisungen):"<span style='color:#aaa'>— keine Angabe —</span>"}</div>
   </div>
 
-  <div class="work-box" style="border-color:#3b82f6">
-    <div class="work-title" style="color:#3b82f6">Durchgeführte Arbeiten</div>
+  <div class="work-box">
+    <div class="work-title">Durchgeführte Arbeiten</div>
     <div class="work-text">${a.durchgefuehrte?esc(a.durchgefuehrte):"<span style='color:#aaa'>— noch nicht erfasst —</span>"}</div>
   </div>
 
@@ -11784,6 +11817,7 @@ function sharePdf(){
 
       , sub==="liste"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-liste", ref: _scheinListRef }
         /* v3.9.728 #18a: Sammel-Hinweis auf verwaiste OFFA-Scheine (offen, aber seit >Tagen kein Feed-Update trotz Pull). */
+        , (canSync&&_offaFeed.zustand==="unbekannt"&&(arbeitsscheine||[]).some(a=>a&&a.juprowa_id))&&React.createElement('div', { style: {padding:"6px 12px",marginBottom:10,borderRadius:8,border:"1px solid "+V.bd,fontSize:12,color:V.dm}}, "OFFA-Feed: kein Abgleich-Zeitstempel geladen - Zustand unbekannt, keine Warnung." )
         , (_verwaisteN>0&&canSync)&&React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:10,borderRadius:8,background:_dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)",border:"1px solid #f59e0b",fontSize:12,color:_dark?"#fbbf24":"#92400e"}}, "⚠ "+_nWort(_verwaisteN,"offener Schein","offene Scheine")+" evtl. in OFFA abgeschlossen — bitte in OFFA prüfen (kein Feed-Update seit >"+OFFA_VERWAIST_TAGE+" Tagen trotz Pull; die App ändert den Status NICHT selbst)." )
         /* v3.5.74 Block 8: Schnell-Filter-Chips */
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",paddingBottom:isMob?0:4}}/* v3.9.930 TOTE WISCH-ZONE, und sie ist aelter als die aus v3.9.926: diese Chip-Leiste rollt quer, und ein quer rollbarer Kasten verbraucht die waagrechte Geste SELBST - der Browser rollt ihn, statt sie nach oben durchzureichen. Mit echten Touch-Ereignissen gemessen (390x844): der 48 px hohe Streifen war TOT, waehrend darueber und darunter der Reiter wechselte. Sebastian: "swipen muss auf der kompletten bildschirmflaeche laufen". Die Chips brechen jetzt UM statt zu rollen - das kostet eine zweite Zeile und nimmt dafuer die tote Zone weg. WebkitOverflowScrolling faellt mit weg, es hatte ohne overflowX keine Bedeutung. Gefunden wurde die Stelle nicht ueber ihren Namen, sondern ueber die EIGENSCHAFT: scripts/wisch_flaechen_messen.py sucht JEDEN Bereich mit berechnetem overflow-x auto/scroll, der breiter ist als sein Kasten - so kam die zweite Leiste ueberhaupt mit. */
@@ -14048,7 +14082,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   );
 }
 
-/* v3.9.1016 DATANORM SAUBER - Zugangsdaten nie leer ueberschreiben. Vorher schickte saveSupplier IMMER username und password mit (leer, wenn nicht geladen). Seit dem Lockdown v3105 (supplier_configs_safe, supplier-sync 'verschiebt jeden Umgang mit username/password auf den Server') koennen die Zugangsdaten beim Laden fehlen oder NULL sein - dann loeschte JEDES Bearbeiten (z. B. nur Skonto) die hinterlegten Zugangsdaten. Jetzt: username/password stehen nur im Rumpf, wenn sie im Formular NEU und nicht leer eingetragen wurden (Merker _usernameGeaendert/_passwortNeu). Beim Anlegen (POST, neue Zeile) wird '' gesendet, damit der Stand 'nicht hinterlegt' ehrlich '' heisst und nicht NULL ('nicht lesbar'). Der Weg set-credentials der Function supplier-sync ist NICHT angeschlossen: ob sie deployt ist, steht nicht im Repo - die Zugangsdaten gingen sonst ins Leere. */
+/* v3.9.1016 DATANORM SAUBER - Zugangsdaten nie leer ueberschreiben. Vorher schickte saveSupplier IMMER username und password mit (leer, wenn nicht geladen). Seit dem Lockdown v3105 (supplier_configs_safe, supplier-sync 'verschiebt jeden Umgang mit username/password auf den Server') koennen die Zugangsdaten beim Laden fehlen oder NULL sein - dann HAETTE jedes Bearbeiten (z. B. nur Skonto) die hinterlegten Zugangsdaten geleert (Prod-DB 16.11.: nicht eingetreten, 5 von 9 Haendlern haben Zugangsdaten). Jetzt: username/password stehen nur im Rumpf, wenn sie im Formular NEU und nicht leer eingetragen wurden (Merker _usernameGeaendert/_passwortNeu). Beim Anlegen (POST, neue Zeile) wird '' gesendet, damit der Stand 'nicht hinterlegt' ehrlich '' heisst und nicht NULL ('nicht lesbar'). Der Weg set-credentials der Function supplier-sync ist NICHT angeschlossen: ob sie deployt ist, steht nicht im Repo - die Zugangsdaten gingen sonst ins Leere. */
 function _supplierSaveBody(data,isNew){
   const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28,datanorm_url:data.datanorm_url||""};
   const _un=typeof data._usernameNeu==="string"?data._usernameNeu.trim():"";
@@ -14059,6 +14093,18 @@ function _supplierSaveBody(data,isNew){
   return body;
 }
 /* v3.9.1016 Stand der Zugangsdaten EHRLICH: NULL/fehlend = nicht lesbar (Rechte oder Spalte nicht geliefert - es kann trotzdem etwas hinterlegt sein), '' = nicht hinterlegt. Das Kennwort selbst wird nie angezeigt. */
+/* v1016 Sammel (GF, Prod-DB 16.11.): es GAB einen echten automatischen Abgleich - Holter zog am 12.04.2026 rund
+   25.000 Artikel (Dashboard-Function sync_supplier, shk_connect), seitdem lief keiner mehr. Die Haendlerkarte zeigt
+   deshalb ehrlich "Letzter Sync <Datum>, <n> Artikel" aus last_sync/last_sync_articles statt eines blossen "nie". */
+function _suppTausender(n){return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,".");}
+function _supplierSyncText(s){
+  const t=s&&s.last_sync?new Date(s.last_sync):null;
+  if(!t||isNaN(t.getTime()))return "Kein Sync-Stand";
+  const d=t.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"Europe/Vienna"});
+  if(s.last_sync_status==="error")return "Letzter Sync-Versuch "+d+" fehlgeschlagen";
+  const n=Number(s.last_sync_articles);
+  return "Letzter Sync "+d+((s.last_sync_articles!==null&&s.last_sync_articles!==undefined&&s.last_sync_articles!==""&&isFinite(n))?", "+_suppTausender(n)+" Artikel":"");
+}
 function _supplierCredStand(s){
   if(!s||s.password===null||s.password===undefined||s.username===null||s.username===undefined)return"unlesbar";
   const u=String(s.username).trim()!=="",p=String(s.password)!=="";
@@ -14893,7 +14939,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           , curUser&&curUser.role==="admin"&&!suppNew&&(()=>{const _cs=suppEdit._credStand||"unlesbar";const _cf=_cs==="hinterlegt"?UI.markeTxt:_cs==="unlesbar"?UI.grau:UI.achtungTxt;return React.createElement('div', { style: {marginTop:8,fontSize:UI.fMeta,color:V.dm,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}, React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:_cf}}), React.createElement('span',{style:{fontWeight:600,color:_cf}},SUPP_CRED_TXT[_cs]), _cs==="unlesbar"?" - der Stand kann hier nicht gelesen werden; ein leeres Feld ändert nichts.":" - das Kennwort wird nie angezeigt; leer lassen = unverändert.");})()
           , curUser&&curUser.role==="admin"&&React.createElement('div', { style: {marginTop:14,padding:"12px 14px",borderRadius:8,background:V.subBg,border:"1px solid "+V.bd}}
             , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8,color:V.tx}}, "IDS / SHK-Connect Konfiguration")
-            , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Adressen für Händlerportal und IDS-Shop. Ein automatischer DATANORM-Download ist noch nicht eingerichtet - die Dateien werden im Händlerportal geladen und hier hochgeladen.")
+            , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Adressen für Händlerportal und IDS-Shop. Der automatische DATANORM-Abgleich läuft derzeit nicht (letzter echter Abgleich: siehe Stand auf der Händlerkarte) - bis dahin die Dateien im Händlerportal laden und hier hochladen.")
             , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:10}}
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "UnternehmensID"), React.createElement('input', { value: suppEdit.unternehmen_id||"", onChange: e=>setSuppEdit(prev=>({...prev,unternehmen_id:e.target.value})), style: II(), placeholder: "z.B. HOLTER, OEAG, SHT"} ))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "SHK-Connect URL"), React.createElement('input', { value: suppEdit.shk_url||"", onChange: e=>setSuppEdit(prev=>({...prev,shk_url:e.target.value})), style: II(), placeholder: "DATANORM-Server des Händlers"} ))
@@ -14926,7 +14972,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           const ifc=SUPP_IFACE[s.interface_type]||SUPP_IFACE.manual;
           const artCount=suppArticleCount[s.id]||0;
           const credStand=_supplierCredStand(s);const credFarbe=credStand==="hinterlegt"?UI.markeTxt:credStand==="unlesbar"?UI.grau:UI.achtungTxt;
-          const lastSync=s.last_sync?new Date(s.last_sync).toLocaleString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"nie";
+          const lastSync=_supplierSyncText(s);
           return React.createElement('div', { key: s.id, style: {...CC(),marginBottom:10,opacity:s.active?1:.5}}
             , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}
               , React.createElement('div', { style: {flex:1,minWidth:150}}
@@ -14948,7 +14994,6 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               )
               , React.createElement('div', { style: {textAlign:"right",minWidth:100}}
                 , React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:600,color:s.last_sync_status==="success"?UI.markeTxt:s.last_sync_status==="error"?UI.fehler:V.dm}}, React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"currentColor",marginRight:6,verticalAlign:"middle"}}),lastSync)
-                , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Letzter Sync")
               )
             )
             , React.createElement('div', { style: {display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}
@@ -14998,7 +15043,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         // Info-Box
         , React.createElement('div', { style: {...CC(),marginTop:14}}
           , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:6}}, "Wie funktioniert der Händler-Import?")
-          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Gewerk, Schnittstelle wählen)", React.createElement('br',{}), "2. Kundennummer, Benutzername und Passwort fürs Händlerportal eintragen (aus der OFFA-Registrierung)", React.createElement('br',{}), "3. Im Händlerportal anmelden, DATANORM-Dateien laden und hier hochladen (ein automatischer Download ist noch nicht eingerichtet)", React.createElement('br',{}), "4. EP-Auto-Filter matcht automatisch die 77 relevanten Produktlinien", React.createElement('br',{}), "5. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "6. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
+          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Gewerk, Schnittstelle wählen)", React.createElement('br',{}), "2. Kundennummer, Benutzername und Passwort fürs Händlerportal eintragen (aus der OFFA-Registrierung)", React.createElement('br',{}), "3. Im Händlerportal anmelden, DATANORM-Dateien laden und hier hochladen (der automatische Abgleich läuft derzeit nicht)", React.createElement('br',{}), "4. EP-Auto-Filter matcht automatisch die 77 relevanten Produktlinien", React.createElement('br',{}), "5. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "6. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
         )
       ))
 
@@ -16697,8 +16742,8 @@ td{padding:5px 8px;border:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}
 
   if(type==="regie"){
     const d=data;const nr=d.nr||"001";
-    const totalStd=_optionalChain([d, 'access', _336 => _336.personal, 'optionalAccess', _337 => _337.reduce, 'call', _338 => _338((s,r)=>s+(parseFloat(r.stunden)||0),0)])||0;
-    const totalFz=_optionalChain([d, 'access', _339 => _339.personal, 'optionalAccess', _340 => _340.reduce, 'call', _341 => _341((s,r)=>s+(parseFloat(r.fahrzeit)||0),0)])||0;
+    const totalStd=_optionalChain([d, 'access', _336 => _336.personal, 'optionalAccess', _337 => _337.reduce, 'call', _338 => _338((s,r)=>s+_dezKomma(r.stunden),0)])||0;
+    const totalFz=_optionalChain([d, 'access', _339 => _339.personal, 'optionalAccess', _340 => _340.reduce, 'call', _341 => _341((s,r)=>s+_dezKomma(r.fahrzeit),0)])||0;/* v1016 Sammel: Komma-Eingabe ("0,5") zaehlt mit */
     body=`<div class="title">Leistungsnachweis / Regiebericht — Nr. ${esc(nr)}</div>
 <div class="meta">
   <div><b>Bauvorhaben:</b> ${esc(pn)}</div><div><b>Datum:</b> ${fd(d.datum)}</div>
@@ -17936,7 +17981,7 @@ async function _genPlanReportPdf(plan,pins,monteure,layers,proj,nrMap){
     doc.addPage();_header("Plan-Report — Legende");let y=32;
     doc.setFont("helvetica","bold");doc.setFontSize(12);doc.text(_pdfStr("Legende — "+(plan.name||"Plan")),M,y);y+=7;
     const CX={nr:M,title:M+12,status:M+90,frist:M+124,who:M+150},CW={title:76};
-    const _legCols=()=>{doc.setFontSize(8);doc.setFont("helvetica","bold");doc.setFillColor(238,238,238);doc.rect(M,y-4,PW-2*M,6,"F");doc.text("Nr",CX.nr+1,y);doc.text("Titel",CX.title+1,y);doc.text("Status",CX.status+1,y);doc.text("Frist",CX.frist+1,y);doc.text("Verantwortlich",CX.who+1,y);y+=6;doc.setFont("helvetica","normal");};/* v3.9.854 Hunt: Spaltenkopf-Zeichnung extrahiert -> auch Legenden-Folgeseiten bekommen den Kopf */
+    const _legCols=()=>{doc.setFontSize(8);doc.setFont("helvetica","bold");doc.setFillColor(0,150,64);doc.rect(M,y-4,PW-2*M,6,"F");doc.setTextColor(255,255,255);doc.text("Nr",CX.nr+1,y);doc.text("Titel",CX.title+1,y);doc.text("Status",CX.status+1,y);doc.text("Frist",CX.frist+1,y);doc.text("Verantwortlich",CX.who+1,y);doc.setTextColor(20,20,20);y+=6;doc.setFont("helvetica","normal");};/* v1016 Sammel (GF): Legendenkopf in Markengruen #009640, Schrift weiss *//* v3.9.854 Hunt: Spaltenkopf-Zeichnung extrahiert -> auch Legenden-Folgeseiten bekommen den Kopf */
     _legCols();
     const _legHeader=()=>{doc.addPage();_header("Plan-Report — Legende");y=32;_legCols();};
     _pins.forEach(t=>{
