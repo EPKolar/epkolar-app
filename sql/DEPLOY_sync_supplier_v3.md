@@ -97,3 +97,6 @@ LIMIT 10;
 2. Wenn Dashboard: Code in dedizierten Commit ins `supabase/functions/sync_supplier/` hier im Repo ablegen → versionierbar
 3. Checkliste oben durchgehen
 4. Cron-Schedule prüfen: läuft sie aktuell? `last_run` aktuell?
+
+## v3.9.1016 – supplier-sync meldet keinen Scheinerfolg mehr
+`supabase/functions/supplier-sync` (action `sync`) antwortet fuer Haendler ohne implementierten Download mit `ok:false, error:"not_implemented"` und setzt `last_sync`/`last_sync_status` NICHT mehr auf `success` (vorher: Platzhalter `rows=[]` + `success` mit 0 Artikeln). Nur Repo, nicht deployt. Download je Haendler in `downloadArticles()` einsetzen. Die App ruft die Function weiterhin nirgends auf; DATANORM kommt per Upload im Reiter Administration > Haendler.

@@ -14037,6 +14037,25 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   );
 }
 
+/* v3.9.1016 DATANORM SAUBER - Zugangsdaten nie leer ueberschreiben. Vorher schickte saveSupplier IMMER username und password mit (leer, wenn nicht geladen). Seit dem Lockdown v3105 (supplier_configs_safe, supplier-sync 'verschiebt jeden Umgang mit username/password auf den Server') koennen die Zugangsdaten beim Laden fehlen oder NULL sein - dann loeschte JEDES Bearbeiten (z. B. nur Skonto) die hinterlegten Zugangsdaten. Jetzt: username/password stehen nur im Rumpf, wenn sie im Formular NEU und nicht leer eingetragen wurden (Merker _usernameGeaendert/_passwortNeu). Beim Anlegen (POST, neue Zeile) wird '' gesendet, damit der Stand 'nicht hinterlegt' ehrlich '' heisst und nicht NULL ('nicht lesbar'). Der Weg set-credentials der Function supplier-sync ist NICHT angeschlossen: ob sie deployt ist, steht nicht im Repo - die Zugangsdaten gingen sonst ins Leere. */
+function _supplierSaveBody(data,isNew){
+  const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28,datanorm_url:data.datanorm_url||""};
+  const _un=typeof data._usernameNeu==="string"?data._usernameNeu.trim():"";
+  const _pw=typeof data._passwortNeu==="string"?data._passwortNeu:"";
+  if(data._usernameGeaendert&&_un)body.username=_un;
+  if(_pw.trim())body.password=_pw;
+  if(isNew){if(!("username" in body))body.username="";if(!("password" in body))body.password="";}
+  return body;
+}
+/* v3.9.1016 Stand der Zugangsdaten EHRLICH: NULL/fehlend = nicht lesbar (Rechte oder Spalte nicht geliefert - es kann trotzdem etwas hinterlegt sein), '' = nicht hinterlegt. Das Kennwort selbst wird nie angezeigt. */
+function _supplierCredStand(s){
+  if(!s||s.password===null||s.password===undefined||s.username===null||s.username===undefined)return"unlesbar";
+  const u=String(s.username).trim()!=="",p=String(s.password)!=="";
+  if(u&&p)return"hinterlegt";
+  if(u||p)return"unvollstaendig";
+  return"fehlt";
+}
+const SUPP_CRED_TXT={hinterlegt:"Zugangsdaten hinterlegt",unvollstaendig:"Zugangsdaten unvollständig",fehlt:"Zugangsdaten nicht hinterlegt",unlesbar:"Zugangsdaten nicht lesbar"};
 // ═══════════ ADMIN PANEL ═══════════
 function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure,arbeitsscheine}){
   const [sel,setSel]=_react.useState.call(void 0, null);
@@ -14249,10 +14268,16 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const [suppArticleCount,setSuppArticleCount]=_react.useState.call(void 0, {});// {suppId: count}
   const [dnUploadSupp,setDnUploadSupp]=_react.useState.call(void 0, null);// supplier for DATANORM upload
   const [dnUploadStatus,setDnUploadStatus]=_react.useState.call(void 0, "");
+  const [dnUploadArt,setDnUploadArt]=_react.useState.call(void 0, "");/* v3.9.1016: "ok" | "fehler" | "" (laeuft) - steuert die Farbe statt dnUploadStatus.startsWith("❌") */
+  const [dnErgebnis,setDnErgebnis]=_react.useState.call(void 0, null);/* v3.9.1016: {gelesen,gefiltert,gespeichert,doppelt,preise,fehler} */
+  const _dnSet=(art,txt)=>{setDnUploadArt(art);setDnUploadStatus(txt);};
+  const _dnReset=()=>{setDnUploadArt("");setDnUploadStatus("");setDnErgebnis(null);setDnUploadProgress(0);};
+  const _suppKopieren=async(txt,was)=>{try{if(!navigator.clipboard||!navigator.clipboard.writeText)throw new Error("kein Zugriff");await navigator.clipboard.writeText(String(txt||""));if(window.__toast)window.__toast(was+" kopiert","success");}catch(e){if(window.__toast)window.__toast(was+" konnte nicht kopiert werden - bitte abschreiben","error");}};
+  const _suppEditStart=(s)=>{const o={...s,_credStand:_supplierCredStand(s),_usernameNeu:"",_usernameGeaendert:false,_passwortNeu:""};delete o.password;return o;};/* v3.9.1016: das geladene Kennwort kommt NICHT in den Formular-Zustand */
   const [dnUploadProgress,setDnUploadProgress]=_react.useState.call(void 0, 0);
   const suppFileRef=_react.useRef.call(void 0, null);
   const SUPP_GEWERK={shk:{l:"SHK",c:"#5B6660"},elektro:{l:"Elektro",c:"#5B6660"},allgemein:{l:"Allgemein",c:"#5B6660"}};/* v3.9.1012: ohne Emoji und Zierfarbe - das Gewerk steht als Text im Abzeichen */
-  const SUPP_IFACE={shk_connect:{l:"SHK-Connect",c:"#22c55e"},ids:{l:"IDS-Connect",c:"#0ea5e9"},soap:{l:"SOAP API",c:"#f97316"},oci:{l:"OCI",c:"#8b5cf6"},manual:{l:"Manuell",c:"#71717a"}};
+  const SUPP_IFACE={shk_connect:{l:"SHK-Connect",c:"#5B6660"},ids:{l:"IDS-Connect",c:"#5B6660"},soap:{l:"SOAP API",c:"#5B6660"},oci:{l:"OCI",c:"#5B6660"},manual:{l:"Manuell",c:"#5B6660"}};/* v3.9.1016 CI: Schnittstelle als neutraler Text-Chip wie das Gewerk, keine Zierfarben */
   const fetchSuppliers=async()=>{
     setSuppLoading(true);
     try{
@@ -14272,7 +14297,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     const isNew=!data.id;
     /* v3.9.81 SPRINT-60 F-5 Form-Validation-R3: required-Name-Check + Toast (Sprint 40/42 standard). */
     if(!(data.name||"").trim()){_optionalChain([window,'access',_g81a=>_g81a.__toast,'optionalCall',_g81b=>_g81b("⚠️ Händler-Name ist Pflichtfeld","warn")]);return;}
-    const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",username:data.username||"",password:data.password||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28,datanorm_url:data.datanorm_url||""};
+    const body=_supplierSaveBody(data,isNew);/* v3.9.1016: Zugangsdaten nur, wenn neu eingetragen - siehe _supplierSaveBody */
     try{
       if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:_uuid(),...body}});}/* v3.9.271 FIX: echte UUID (crypto.randomUUID) statt uid()-Kurz-id — supplier_configs.id ist uuid; Kurz-id brach Insert + verseuchte den DATANORM-Import (supplier_id 22P02) */
       else{await SQ.push({url:"/api/supplier-configs/"+data.id,method:"PUT",body:body});}
@@ -14302,18 +14327,19 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(suppId||""))){
       const _scR=suppName?await _sbGet("supplier_configs","select=id&name=eq."+encodeURIComponent(suppName)).catch(()=>null):null;
       if(_scR&&_scR[0]&&_scR[0].id)_suppId=_scR[0].id;
-      else{setDnUploadStatus("❌ Lieferant ohne gültige UUID — bitte Händler oben speichern/aktualisieren, dann erneut importieren");setDnUploadProgress(0);if(window.__toast)window.__toast("❌ Lieferant-ID ungültig (Kurz-ID) — bitte den Händler oben aktualisieren und erneut importieren.","error",7000);return;}
+      else{_dnSet("fehler","Lieferant ohne gültige UUID — bitte Händler oben speichern/aktualisieren, dann erneut importieren");setDnUploadProgress(0);if(window.__toast)window.__toast("❌ Lieferant-ID ungültig (Kurz-ID) — bitte den Händler oben aktualisieren und erneut importieren.","error",7000);return;}
     }
-    setDnUploadStatus(_nWort(_files.length,"Datei","Dateien")+" lesen...");setDnUploadProgress(10);
+    setDnErgebnis(null);_dnSet("",_nWort(_files.length,"Datei","Dateien")+" lesen...");setDnUploadProgress(10);
+    let _dnGelesen=0,_dnGefiltert=0,_dnGespeichert=0,_dnDoppelt=0,_dnPreise=0;
     try{
-      setDnUploadStatus("DATANORM parsen ("+_nWort(_files.length,"Datei","Dateien")+")...");setDnUploadProgress(20);
+      _dnSet("","DATANORM lesen ("+_nWort(_files.length,"Datei","Dateien")+")...");setDnUploadProgress(20);
       let articles=await _parseDatanormFiles(_files,0);
-      if(!articles||articles.length===0){setDnUploadStatus("❌ Keine Artikel gefunden (A-Records fehlen?)");setDnUploadProgress(0);return;}
-      const _dnSt=articles.stats||{};
-      setDnUploadStatus("EP-Filter ("+articles.length+" Artikel"+(_dnSt.prices?", "+_dnSt.prices+" Preise aus DATPREIS":"")+")...");setDnUploadProgress(40);
+      if(!articles||articles.length===0){_dnSet("fehler","Keine Artikel gefunden - die Dateien enthalten keine A-Sätze. Bitte DATANORM.001 (Artikel) mit auswählen.");setDnErgebnis({gelesen:0,gefiltert:0,gespeichert:0,doppelt:0,preise:0,fehler:"keine Artikelsätze"});setDnUploadProgress(0);return;}
+      const _dnSt=articles.stats||{};_dnGelesen=articles.length;_dnPreise=_dnSt.prices||0;
+      _dnSet("","EP-Filter ("+articles.length+" Artikel"+(_dnSt.prices?", "+_dnSt.prices+" Preise aus DATPREIS":"")+")...");setDnUploadProgress(40);
       const autoMap=_epAutoMatch(articles);
       let totalMatched=0;autoMap.forEach(s=>totalMatched+=s.size);
-      setDnUploadStatus("Speichere "+totalMatched+" von "+articles.length+" Artikeln...");setDnUploadProgress(60);
+      _dnSet("","Speichere "+totalMatched+" von "+articles.length+" Artikeln...");setDnUploadProgress(60);
       // Build supplier_articles rows — only matched ones
       const rows=[];
       for(const art of articles){
@@ -14328,13 +14354,14 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       // affect row a second time", falls eine DATANORM-Datei dieselbe Art-Nr doppelt enthält.
       const _dedup=new Map();for(const _r of rows){_dedup.set(_r.supplier_id+""+_r.art_nr,_r);}
       const _rows=Array.from(_dedup.values());
+      _dnGefiltert=rows.length;_dnDoppelt=rows.length-_rows.length;
       // Batch upsert via direct Supabase REST (SQ too slow for bulk)
       const BATCH=200;
       for(let i=0;i<_rows.length;i+=BATCH){
         const batch=_rows.slice(i,i+BATCH);
         const pct=60+Math.round((i/_rows.length)*35);
         setDnUploadProgress(pct);
-        setDnUploadStatus("Speichere "+(i+batch.length)+"/"+_rows.length+"...");
+        _dnSet("","Speichere "+(i+batch.length)+"/"+_rows.length+"...");
         // v3.5.126: Timeout auf bulk-upsert (60s, da 200-Row-Batch etwas länger dauern darf) + Error-Check
         // v3.8.20 Iter-20: _authRetry-Wrap — vorher konnte Token während 125+ Batches (25k Artikel)
         // ablaufen, 401 warf ohne silent-refresh → kompletter Import-Restart nötig.
@@ -14343,14 +14370,17 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         // Monteur-Rolle würde hier 403 erhalten — Datanorm-Import nur für Admin/Büro freigeschaltet (UI-Gating).
         const _bResp=await _authRetry(()=>{const hdr=_authToken?{..._sbWH(),"Prefer":"resolution=merge-duplicates"}:{apikey:SUPABASE_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"};return fetch(SB_REST+"/supplier_articles?on_conflict=supplier_id,art_nr",_fT({method:"POST",headers:hdr,body:JSON.stringify(batch)},60000));});/* v3.9.595 FIX 409/23505: on_conflict-Ziel = Unique-Constraint (supplier_id,art_nr) → echtes UPSERT statt INSERT (Header resolution=merge-duplicates allein reicht NICHT ohne on_conflict). */
         if(!_bResp.ok){const _et=await _bResp.text().catch(()=>"");throw new Error("Batch-Upsert fehlgeschlagen ("+_bResp.status+"): "+_et.slice(0,150));}
+        _dnGespeichert+=batch.length;
       }
       // Update supplier last_sync (v3.8.20 Iter-20: auch hier _authRetry)
       /* v3.9.96 Sprint-75 P2-Fix: Status-Check fuer supplier_configs last_sync PATCH. Vorher silent RLS-denial. */
       const _scResp=await _authRetry(()=>{const updH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};return fetch(SB_REST+"/supplier_configs?id=eq."+_suppId,_fT({method:"PATCH",headers:updH,body:JSON.stringify({last_sync:new Date().toISOString(),last_sync_status:"success",last_sync_articles:_rows.length})}));});
-      if(_scResp&&!_scResp.ok){const _scTxt=await _scResp.text().catch(()=>"");console.warn("[supplier_configs] last_sync PATCH failed",_scResp.status,_scTxt.slice(0,200));}
-      setDnUploadStatus("✅ "+rows.length+" Artikel importiert ("+articles.detVer+")");setDnUploadProgress(100);
+      let _dnSyncFehler="";
+      if(_scResp&&!_scResp.ok){const _scTxt=await _scResp.text().catch(()=>"");console.warn("[supplier_configs] last_sync PATCH failed",_scResp.status,_scTxt.slice(0,200));_dnSyncFehler="Artikel gespeichert, aber der Stand \"Letzter Sync\" konnte nicht gesetzt werden (HTTP "+_scResp.status+")";}
+      setDnErgebnis({gelesen:_dnGelesen,gefiltert:_dnGefiltert,gespeichert:_dnGespeichert,doppelt:_dnDoppelt,preise:_dnPreise,fehler:_dnSyncFehler,format:articles.detVer||""});
+      _dnSet(_dnGespeichert>0?"ok":"fehler",_dnGespeichert>0?_dnGespeichert+" Artikel gespeichert":"Kein Artikel gespeichert - keiner passt zum EP-Filter (77 Produktlinien)");setDnUploadProgress(100);/* v3.9.1016: gemeldet wird, was GESPEICHERT ist (nach Dedup), nicht die Vorfilter-Zahl */
       setTimeout(fetchSuppliers,500);
-    }catch(e){setDnUploadStatus("❌ Fehler: "+e.message);setDnUploadProgress(0);}
+    }catch(e){_dnSet("fehler","Fehler: "+e.message);setDnErgebnis({gelesen:_dnGelesen,gefiltert:_dnGefiltert,gespeichert:_dnGespeichert,doppelt:_dnDoppelt,preise:_dnPreise,fehler:e.message});setDnUploadProgress(0);}
   };
   _react.useEffect.call(void 0, ()=>{if(adminTab==="haendler")fetchSuppliers();},[adminTab]);
 
@@ -14837,7 +14867,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           )
         )
         // Edit/New Form
-        , suppEdit&&React.createElement('div', { style: {...CC(),marginBottom:14,border:"2px solid #22c55e"}}
+        , suppEdit&&React.createElement('div', { style: {...CC(),marginBottom:14,border:"2px solid "+UI.marke}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, suppNew?"Neuer Händler anlegen":"Händler bearbeiten: "+suppEdit.name)
           , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10}}
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Name *"), React.createElement('input', { value: suppEdit.name||"", onChange: e=>setSuppEdit(prev=>({...prev,name:e.target.value})), style: II(), placeholder: "z.B. Holter", disabled: curUser&&curUser.role!=="admin"} ))
@@ -14846,12 +14876,13 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           )
           , curUser&&curUser.role==="admin"&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10,marginTop:10}}
             , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Kundennummer"), React.createElement('input', { value: suppEdit.kunde_nr||"", onChange: e=>setSuppEdit(prev=>({...prev,kunde_nr:e.target.value})), style: II()} ))
-            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Benutzername"), React.createElement('input', { value: suppEdit.username||"", onChange: e=>setSuppEdit(prev=>({...prev,username:e.target.value})), style: II()} ))
-            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Passwort"), React.createElement(PwInput, { value: suppEdit.password||"", onChange: e=>setSuppEdit(prev=>({...prev,password:e.target.value})), style: II(), type: "password"} ))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Benutzername"), React.createElement('input', { value: suppEdit._usernameGeaendert?(suppEdit._usernameNeu||""):(suppEdit.username||""), onChange: e=>setSuppEdit(prev=>({...prev,_usernameNeu:e.target.value,_usernameGeaendert:true})), style: II(), autoComplete: "off", placeholder: suppNew?"":"leer lassen = unverändert"} ))
+            , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Passwort"), React.createElement(PwInput, { value: suppEdit._passwortNeu||"", onChange: e=>setSuppEdit(prev=>({...prev,_passwortNeu:e.target.value})), style: II(), type: "password", autoComplete: "new-password", placeholder: suppNew?"":"leer lassen = unverändert"} ))
           )
-          , curUser&&curUser.role==="admin"&&React.createElement('div', { style: {marginTop:14,padding:"12px 14px",borderRadius:8,background:_dark?"rgba(14,165,233,.06)":"rgba(14,165,233,.04)",border:"1px solid rgba(14,165,233,.2)"}}
+          , curUser&&curUser.role==="admin"&&!suppNew&&(()=>{const _cs=suppEdit._credStand||"unlesbar";const _cf=_cs==="hinterlegt"?UI.markeTxt:_cs==="unlesbar"?UI.grau:UI.achtungTxt;return React.createElement('div', { style: {marginTop:8,fontSize:UI.fMeta,color:V.dm,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}, React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:_cf}}), React.createElement('span',{style:{fontWeight:600,color:_cf}},SUPP_CRED_TXT[_cs]), _cs==="unlesbar"?" - der Stand kann hier nicht gelesen werden; ein leeres Feld ändert nichts.":" - das Kennwort wird nie angezeigt; leer lassen = unverändert.");})()
+          , curUser&&curUser.role==="admin"&&React.createElement('div', { style: {marginTop:14,padding:"12px 14px",borderRadius:8,background:V.subBg,border:"1px solid "+V.bd}}
             , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8,color:V.tx}}, "IDS / SHK-Connect Konfiguration")
-            , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Zugangsdaten für automatischen DATANORM-Download und IDS-Shopanbindung. Daten aus OFFA-Registrierung übernehmen.")
+            , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Adressen für Händlerportal und IDS-Shop. Ein automatischer DATANORM-Download ist noch nicht eingerichtet - die Dateien werden im Händlerportal geladen und hier hochgeladen.")
             , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:10}}
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "UnternehmensID"), React.createElement('input', { value: suppEdit.unternehmen_id||"", onChange: e=>setSuppEdit(prev=>({...prev,unternehmen_id:e.target.value})), style: II(), placeholder: "z.B. HOLTER, OEAG, SHT"} ))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "SHK-Connect URL"), React.createElement('input', { value: suppEdit.shk_url||"", onChange: e=>setSuppEdit(prev=>({...prev,shk_url:e.target.value})), style: II(), placeholder: "DATANORM-Server des Händlers"} ))
@@ -14860,11 +14891,10 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "IDS Shop-URL"), React.createElement('input', { value: suppEdit.base_url||"", onChange: e=>setSuppEdit(prev=>({...prev,base_url:e.target.value})), style: II(), placeholder: "https://shop.holter.at/..."} ))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Sync-Intervall"), React.createElement('select', { value: suppEdit.sync_interval||"weekly", onChange: e=>setSuppEdit(prev=>({...prev,sync_interval:e.target.value})), style: II()}, React.createElement('option', { value: "daily"}, "Täglich"), React.createElement('option', { value: "weekly"}, "Wöchentlich"), React.createElement('option', { value: "monthly"}, "Monatlich"), React.createElement('option', { value: "manual"}, "Nur manuell")))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "DATANORM-Intervall (Tage)"), React.createElement('input', { type: "number", inputMode: "decimal", min: "1", max: "365", value: suppEdit.datanorm_intervall_tage||28, onChange: e=>setSuppEdit(prev=>({...prev,datanorm_intervall_tage:e.target.value})), style: II(), placeholder: "28"} ))
-              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "DATANORM Download-URL"), React.createElement('input', { value: suppEdit.datanorm_url||"", onChange: e=>setSuppEdit(prev=>({...prev,datanorm_url:e.target.value})), style: II(), placeholder: "https://online.holter.at/HO/PREIWA/..."} ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Händlerportal (DATANORM-Seite)"), React.createElement('input', { value: suppEdit.datanorm_url||"", onChange: e=>setSuppEdit(prev=>({...prev,datanorm_url:e.target.value})), style: II(), placeholder: "https://online.holter.at/HO/PREIWA/..."} ))
             )
-            , (suppEdit.interface_type==="shk_connect"||suppEdit.interface_type==="ids")&&suppEdit.kunde_nr&&React.createElement('div', { style: {marginTop:10,padding:"8px 10px",borderRadius:6,background:_dark?"rgba(34,197,94,.08)":"rgba(34,197,94,.04)",border:"1px solid rgba(34,197,94,.2)",fontSize:UI.fMeta,color:_okG(COLORS.SUCCESS),fontWeight:600}}, "IDS-Zugangsdaten konfiguriert — KdNr: "+suppEdit.kunde_nr+", User: "+suppEdit.username+(suppEdit.unternehmen_id?" · UID: "+suppEdit.unternehmen_id:""))
           )
-          , React.createElement('div', { style: {marginTop:14,padding:"12px 14px",borderRadius:8,background:_dark?"rgba(245,158,11,.06)":"rgba(245,158,11,.04)",border:"1px solid rgba(245,158,11,.2)"}}
+          , React.createElement('div', { style: {marginTop:14,padding:"12px 14px",borderRadius:8,background:V.subBg,border:"1px solid "+V.bd}}
             , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8,color:V.tx}}, "Konditionen (für EK-Preisvergleich)")
             , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr 1fr",gap:10}}
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Zahlungskondition"), React.createElement('input', { value: suppEdit.zahlungskonditionen||"", onChange: e=>setSuppEdit(prev=>({...prev,zahlungskonditionen:e.target.value})), style: II(), placeholder: "z.B. 30 Tage netto"} ))
@@ -14884,58 +14914,80 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           const gw=SUPP_GEWERK[s.gewerk]||SUPP_GEWERK.allgemein;
           const ifc=SUPP_IFACE[s.interface_type]||SUPP_IFACE.manual;
           const artCount=suppArticleCount[s.id]||0;
+          const credStand=_supplierCredStand(s);const credFarbe=credStand==="hinterlegt"?UI.markeTxt:credStand==="unlesbar"?UI.grau:UI.achtungTxt;
           const lastSync=s.last_sync?new Date(s.last_sync).toLocaleString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"nie";
           return React.createElement('div', { key: s.id, style: {...CC(),marginBottom:10,opacity:s.active?1:.5}}
             , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}
               , React.createElement('div', { style: {flex:1,minWidth:150}}
                 , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, s.name, !s.active&&React.createElement('span', { style: {fontSize:UI.fMeta,color:COLORS.ERROR,marginLeft:8}}, "(inaktiv)"))
                 , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,display:"flex",gap:8,flexWrap:"wrap",marginTop:2}}
-                  , React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:gw.c+"18",color:gw.c}}, gw.l)
-                  , React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:ifc.c+"18",color:ifc.c}}, ifc.l)
+                  , React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:UI.neutralBg,color:UI.neutralTxt}}, gw.l)
+                  , React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:UI.neutralBg,color:UI.neutralTxt}}, ifc.l)/* v3.9.1016: Thema-Tokens - #5B6660 auf dunkler Karte war kaum lesbar */
                   , s.kunde_nr&&React.createElement('span', {}, "KdNr: "+s.kunde_nr)
-                  , s.unternehmen_id&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:"rgba(14,165,233,.15)",color:"#0ea5e9"}}, "UID: "+s.unternehmen_id)
-                  , (s.skonto_prozent>0||s.jahresbonus_prozent>0)&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:"rgba(245,158,11,.15)",color:"#f59e0b"}}, (s.skonto_prozent>0?_n(s.skonto_prozent,1)+"% Sk":""), (s.skonto_prozent>0&&s.jahresbonus_prozent>0?" + ":""), (s.jahresbonus_prozent>0?_n(s.jahresbonus_prozent,1)+"% JB":""))
+                  , s.unternehmen_id&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:UI.neutralBg,color:UI.neutralTxt}}, "UID: "+s.unternehmen_id)
+                  , (s.skonto_prozent>0||s.jahresbonus_prozent>0)&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:UI.neutralBg,color:UI.neutralTxt}}, (s.skonto_prozent>0?_n(s.skonto_prozent,1)+"% Sk":""), (s.skonto_prozent>0&&s.jahresbonus_prozent>0?" + ":""), (s.jahresbonus_prozent>0?_n(s.jahresbonus_prozent,1)+"% JB":""))
                   , s.zahlungskonditionen&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, s.zahlungskonditionen)
-                  , s.datanorm_url&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:"rgba(5,150,105,.15)",color:_okG("#059669")}}, "DATANORM-URL")
+                  , s.datanorm_url&&React.createElement('span', { style: {padding:"1px 6px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600,background:UI.neutralBg,color:UI.neutralTxt}}, "Händlerportal")
                 )
+                , React.createElement('div', { style: {fontSize:UI.fMeta,marginTop:4,display:"flex",alignItems:"center",gap:6,color:credFarbe,fontWeight:600}}, React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:credFarbe}}), SUPP_CRED_TXT[credStand])
               )
               , React.createElement('div', { style: {textAlign:"right",minWidth:100}}
-                , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:artCount>0?_okG("#22c55e"):V.dm}}, _n(artCount,0))
+                , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:artCount>0?UI.markeTxt:V.dm}}, _n(artCount,0))
                 , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Artikel")
               )
               , React.createElement('div', { style: {textAlign:"right",minWidth:100}}
-                , React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:600,color:s.last_sync_status==="success"?_okG("#22c55e"):s.last_sync_status==="error"?COLORS.ERROR:V.dm}}, React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"currentColor",marginRight:6,verticalAlign:"middle"}}),lastSync)
+                , React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:600,color:s.last_sync_status==="success"?UI.markeTxt:s.last_sync_status==="error"?UI.fehler:V.dm}}, React.createElement('span',{'aria-hidden':"true",style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"currentColor",marginRight:6,verticalAlign:"middle"}}),lastSync)
                 , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Letzter Sync")
               )
             )
             , React.createElement('div', { style: {display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}
-              , React.createElement('button', { onClick: ()=>{setSuppEdit({...s});setSuppNew(false);}, style: {...bpS,padding:"5px 12px",fontSize:UI.fMeta}}, _ikVw("stift","Bearbeiten"))
-              , React.createElement('button', { onClick: ()=>{setDnUploadSupp(s);setDnUploadStatus("");setDnUploadProgress(0);}, style: {...bsS(),padding:"5px 12px",fontSize:UI.fMeta}}, "DATANORM hochladen")
-              , s.datanorm_url&&React.createElement('button', { onClick: ()=>window.open(s.datanorm_url,"_blank","noopener,noreferrer"), style: {...bsS(),padding:"5px 12px",fontSize:UI.fMeta}}, "DATANORM herunterladen")
+              , React.createElement('button', { onClick: ()=>{setSuppEdit(_suppEditStart(s));setSuppNew(false);}, style: {...bpS,padding:"5px 12px",fontSize:UI.fMeta}}, _ikVw("stift","Bearbeiten"))
+              , React.createElement('button', { onClick: ()=>{setDnUploadSupp(s);_dnReset();}, style: {...bsS(),padding:"5px 12px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("export",16), "DATANORM importieren")
+              , s.datanorm_url&&React.createElement('button', { onClick: ()=>{if(!dnUploadSupp||dnUploadSupp.id!==s.id){setDnUploadSupp(s);_dnReset();}window.open(s.datanorm_url,"_blank","noopener,noreferrer");}, title: "Öffnet das Händlerportal in einem neuen Fenster - dort mit den hinterlegten Zugangsdaten anmelden", style: {...bsS(),padding:"5px 12px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("verbindung",16), "Im Händlerportal anmelden")
               , curUser&&curUser.role==="admin"&&React.createElement('button', { onClick: ()=>deleteSupplier(s.id), style: {...bdS,padding:"5px 12px",fontSize:UI.fMeta,color:COLORS.ERROR,borderColor:COLORS.ERROR}}, "Löschen")
             )
-            // DATANORM Upload UI for this supplier
-            , dnUploadSupp&&dnUploadSupp.id===s.id&&React.createElement('div', { style: {marginTop:10,padding:12,borderRadius:8,background:_dark?"rgba(34,197,94,.08)":"rgba(34,197,94,.05)",border:"1px solid rgba(34,197,94,.3)"}}
-              , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6}}, "DATANORM Import für ",s.name)
-              , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:8}}, "DATANORM-Datei (.001, .dat) mit A/B-Records hochladen. Artikel werden automatisch durch EP-Filter (77 Produktlinien) gefiltert.")
-              , s.datanorm_url&&React.createElement('div', { style: {fontSize:UI.fMeta,color:_okG("#059669"),marginBottom:8,padding:"6px 10px",borderRadius:6,background:_dark?"rgba(5,150,105,.08)":"rgba(5,150,105,.05)",border:"1px solid rgba(5,150,105,.2)"}}, "DATANORM-URL verfügbar: ", React.createElement('a', { href: s.datanorm_url, target: "_blank", rel: "noopener", style: {color:_okG("#059669"),textDecoration:"underline",wordBreak:"break-all"}}, _kurz(s.datanorm_url.replace(/https?:\/\//,""),60)), " — Datei herunterladen, dann hier hochladen.")
+            // DATANORM Upload UI for this supplier - v3.9.1016: Anleitung in drei Schritten, neutrale Karte, Ergebnis ehrlich (gelesen / nach EP-Filter / gespeichert / Fehler)
+            , dnUploadSupp&&dnUploadSupp.id===s.id&&React.createElement('div', { style: {marginTop:10,padding:12,borderRadius:8,background:V.subBg,border:"1px solid "+V.bd}}
+              , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8,color:V.tx}}, "DATANORM-Import für ",s.name)
+              , React.createElement('ol', { style: {margin:"0 0 10px",paddingLeft:20,fontSize:UI.fKlein,color:V.tx,lineHeight:1.6}}
+                , React.createElement('li', {style:{marginBottom:6}}
+                  , React.createElement('span', {style:{fontWeight:600}}, "Im Händlerportal anmelden"), " - mit den hinterlegten Zugangsdaten."
+                  , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:4}}
+                    , s.datanorm_url?React.createElement('button', { onClick: ()=>window.open(s.datanorm_url,"_blank","noopener,noreferrer"), style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("verbindung",14), "Portal öffnen"):React.createElement('span', {style:{fontSize:UI.fMeta,color:V.dm}}, "Keine Portal-Adresse hinterlegt - unter Bearbeiten eintragen.")
+                    , s.kunde_nr&&React.createElement('button', { onClick: ()=>_suppKopieren(s.kunde_nr,"Kundennummer"), title: "Kundennummer kopieren", 'aria-label': "Kundennummer kopieren", style: {...btS(),padding:"4px 10px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("kopie",14), "KdNr "+s.kunde_nr)
+                    , typeof s.username==="string"&&s.username.trim()&&React.createElement('button', { onClick: ()=>_suppKopieren(s.username,"Benutzername"), title: "Benutzername kopieren", 'aria-label': "Benutzername kopieren", style: {...btS(),padding:"4px 10px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("kopie",14), "Benutzer "+s.username)
+                    , credStand!=="hinterlegt"&&React.createElement('span', {style:{fontSize:UI.fMeta,color:credFarbe,fontWeight:600}}, SUPP_CRED_TXT[credStand])
+                  )
+                  , s.datanorm_url&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:2,wordBreak:"break-all"}}, _kurz(s.datanorm_url.replace(/https?:\/\//,""),60))
+                )
+                , React.createElement('li', {style:{marginBottom:6}}, React.createElement('span', {style:{fontWeight:600}}, "DATANORM-Dateien herunterladen"), " - DATANORM.001 (Artikel), falls vorhanden .002, DATPREIS (Preise) und WRG (Warengruppen).")
+                , React.createElement('li', {}, React.createElement('span', {style:{fontWeight:600}}, "Hier hochladen"), " - alle Dateien gemeinsam auswählen. Übernommen werden nur Artikel der 77 EP-Produktlinien.")
+              )
               , React.createElement('input', { type: "file", ref: suppFileRef, multiple: true, accept: ".001,.002,.003,.004,.005,.dat,.txt,.csv,.wrg,*", style: {display:"none"}, onChange: e=>{const fl=_optionalChain([e,'access',_=>_.target,'optionalAccess',_2=>_2.files]);const _arr=fl?Array.prototype.slice.call(fl):[];try{e.target.value="";}catch(_){}if(_arr.length)handleDnUpload(_arr,s.id,s.name);}})
               , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"center"}}
-                , React.createElement('button', { onClick: ()=>_optionalChain([suppFileRef,'access',_=>_.current,'optionalAccess',_2=>_2.click,'call',_3=>_3()]), style: {...bpS,padding:"6px 14px",fontSize:12}}, "Datei wählen")
-                , React.createElement('button', { onClick: ()=>{setDnUploadSupp(null);setDnUploadStatus("");}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "Schließen")
+                , React.createElement('button', { onClick: ()=>_optionalChain([suppFileRef,'access',_=>_.current,'optionalAccess',_2=>_2.click,'call',_3=>_3()]), style: {...bpS,padding:"6px 14px",fontSize:12,display:"inline-flex",alignItems:"center",gap:6}}, _ik("export",16), "Dateien wählen")
+                , React.createElement('button', { onClick: ()=>{setDnUploadSupp(null);_dnReset();}, style: {...bdS,padding:"6px 14px",fontSize:12}}, "Schließen")
               )
               , dnUploadStatus&&React.createElement('div', { style: {marginTop:8}}
-                , dnUploadProgress>0&&dnUploadProgress<100&&React.createElement('div', { style: {height:6,borderRadius:3,background:V.bd,overflow:"hidden",marginBottom:4}}, React.createElement('div', { style: {height:"100%",width:dnUploadProgress+"%",background:"linear-gradient(90deg,#22c55e,#059669)",borderRadius:3,transition:"width .3s"}}))
-                , React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:600,color:dnUploadStatus.startsWith("❌")?COLORS.ERROR:dnUploadStatus.startsWith("✅")?_okG("#22c55e"):V.dm}}, dnUploadStatus)
+                , dnUploadProgress>0&&dnUploadProgress<100&&React.createElement('div', { style: {height:6,borderRadius:3,background:V.bd,overflow:"hidden",marginBottom:4}}, React.createElement('div', { style: {height:"100%",width:dnUploadProgress+"%",background:UI.marke,borderRadius:3,transition:"width .3s"}}))
+                , React.createElement('div', { role: dnUploadArt==="fehler"?"alert":"status", style: {fontSize:UI.fMeta,fontWeight:600,display:"flex",alignItems:"center",gap:6,color:dnUploadArt==="fehler"?UI.fehler:dnUploadArt==="ok"?UI.markeTxt:V.dm}}, dnUploadArt&&_ik(dnUploadArt==="fehler"?"warnung":"abnahme",14), dnUploadStatus)
+                , dnErgebnis&&React.createElement('div', { style: {marginTop:6,fontSize:UI.fMeta,color:V.tx,display:"flex",gap:12,flexWrap:"wrap",...UI.zahlen}}
+                  , React.createElement('span', {}, "Gelesen: ", React.createElement('b', {}, _n(dnErgebnis.gelesen,0)))
+                  , React.createElement('span', {}, "Nach EP-Filter: ", React.createElement('b', {}, _n(dnErgebnis.gefiltert,0)))
+                  , React.createElement('span', {}, "Gespeichert: ", React.createElement('b', {}, _n(dnErgebnis.gespeichert,0)))
+                  , dnErgebnis.preise>0&&React.createElement('span', {}, "Preise aus DATPREIS: ", _n(dnErgebnis.preise,0))
+                  , dnErgebnis.doppelt>0&&React.createElement('span', {style:{color:V.dm}}, _n(dnErgebnis.doppelt,0)+" doppelte Artikelnummern zusammengefasst")
+                )
+                , dnErgebnis&&dnErgebnis.fehler&&React.createElement('div', { style: {marginTop:4,fontSize:UI.fMeta,color:UI.fehler,fontWeight:600}}, "Fehler: "+dnErgebnis.fehler)
               )
             )
           );
         })
 
         // Info-Box
-        , React.createElement('div', { style: {...CC(),marginTop:14,background:_dark?"rgba(59,130,246,.06)":"rgba(59,130,246,.04)",border:"1px solid rgba(59,130,246,.2)"}}
+        , React.createElement('div', { style: {...CC(),marginTop:14}}
           , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:6}}, "Wie funktioniert der Händler-Import?")
-          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Gewerk, Schnittstelle wählen)", React.createElement('br',{}), "2. IDS/SHK-Connect Zugangsdaten eintragen (aus OFFA-Registrierung)", React.createElement('br',{}), "3. DATANORM-Datei hochladen ODER automatisch über SHK-Connect laden", React.createElement('br',{}), "4. EP-Auto-Filter matcht automatisch die 77 relevanten Produktlinien", React.createElement('br',{}), "5. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "6. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
+          , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,lineHeight:1.6}}, "1. Händler anlegen (Name, Gewerk, Schnittstelle wählen)", React.createElement('br',{}), "2. Kundennummer, Benutzername und Passwort fürs Händlerportal eintragen (aus der OFFA-Registrierung)", React.createElement('br',{}), "3. Im Händlerportal anmelden, DATANORM-Dateien laden und hier hochladen (ein automatischer Download ist noch nicht eingerichtet)", React.createElement('br',{}), "4. EP-Auto-Filter matcht automatisch die 77 relevanten Produktlinien", React.createElement('br',{}), "5. Nur relevante Artikel landen im Warenkorb (mit Händler-Badge)", React.createElement('br',{}), "6. EK-Preise nur sichtbar für Admin, PL und Lager (Leo)")
         )
       ))
 
@@ -19063,11 +19115,12 @@ function _fixCp850(t){
   // 0x8E→Ž(U+017D)→Ä, 0x99→™(U+2122)→Ö, 0x9A→š(U+0161)→Ü, 0xE1→á→ß
   return t.replace(/\u201E/g,'ä').replace(/\u201D/g,'ö').replace(/\u0081/g,'ü')
     .replace(/\u017D/g,'Ä').replace(/\u2122/g,'Ö').replace(/\u0161/g,'Ü')
-    .replace(/\u0084/g,'ä').replace(/\u0094/g,'ö').replace(/\u008E/g,'Ä').replace(/\u0099/g,'Ö').replace(/\u009A/g,'Ü');
+    .replace(/\u0084/g,'ä').replace(/\u0094/g,'ö').replace(/\u008E/g,'Ä').replace(/\u0099/g,'Ö').replace(/\u009A/g,'Ü')
+    .replace(/\u00E1/g,'ß');/* v3.9.1016: CP850 0xE1 = ß kam als á an - der Kommentar oben nannte die Zuordnung, der Code fehlte. Sicher, weil _fixCp850 nur bei erkanntem CP850 laeuft; in CP850 gibt es kein á auf 0xE1. */
 }
 function _parseDatanorm(text,version){
   // Detect CP850: if text has „(U+201E) or "(U+201D) or U+0081 where Umlauts expected, fix encoding
-  if(/\u201E|\u201D|\u0081/.test(text))text=_fixCp850(text);
+  if(/\u201E|\u201D|\u0081|\u017D|\u2122|\u0161/.test(text))text=_fixCp850(text);/* v3.9.1016: auch Ä/Ö/Ü (Ž ™ š) erkennen - ein Text nur mit Grossumlauten blieb vorher unerkannt */
   const lines=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim());
   // fmt: "v4ext" = standard DATANORM 4 with Änderungskz (Holter/SHT/Richter)
   //      "v5"    = DATANORM 5 (empty Textschlüssel at p[2])

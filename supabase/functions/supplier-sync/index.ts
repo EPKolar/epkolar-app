@@ -43,6 +43,14 @@ function json(status: number, body: unknown): Response {
   });
 }
 
+// v3.9.1016: Download je Haendler. null = fuer diesen Haendler NICHT implementiert
+// (dann meldet sync not_implemented und setzt keinen Sync-Stand). Ein Array = geladene
+// supplier_articles-Zeilen (supplier_id, art_nr, ...). Bisher fuer KEINEN Haendler umgesetzt.
+// deno-lint-ignore no-explicit-any
+async function downloadArticles(_cfg: any): Promise<Array<Record<string, unknown>> | null> {
+  return null;
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json(405, { ok: false, error: "method_not_allowed" });
@@ -124,20 +132,32 @@ serve(async (req: Request) => {
     const { data: cfgs, error: cfgErr } = b.supplierId ? await q.eq("id", b.supplierId) : await q.eq("active", true);
     if (cfgErr) return json(500, { ok: false, error: "internal", details: "config read failed: " + (cfgErr.message || "") });
 
+    // v3.9.1016 (Datanorm sauber): KEINE Erfolgsmeldung ohne Download. Vorher war der
+    //   Download ein Platzhalter (rows=[]), die Function schrieb trotzdem
+    //   last_sync_status="success" mit 0 Artikeln - die App zeigte dann einen gruenen
+    //   "Letzter Sync", obwohl nie etwas geladen wurde. Jetzt: fuer jeden Haendler ohne
+    //   implementierten Download ok:false + error:"not_implemented", und last_sync /
+    //   last_sync_status bleiben UNBERUEHRT (der Stand des letzten echten Imports gilt weiter).
+    //   Einen Download einsetzen = downloadArticles() fuer den Haendler ausfuellen; erst
+    //   wenn sie ein Array liefert, wird gespeichert und success gesetzt.
     const results: Array<{ supplierId: string; name: string; ok: boolean; rows_synced: number; error?: string }> = [];
     for (const cfg of (cfgs || [])) {
       try {
-        // ── TODO (Sebastian/Chat-Claude): supplier-spezifischen DATANORM/IDS-Download hier
-        //    einsetzen — Logik aus der bestehenden Dashboard-Function `sync_supplier` portieren
-        //    (siehe sql/DEPLOY_sync_supplier_v3.md). cfg.username/cfg.password authentifizieren
-        //    gegen cfg.shk_url / cfg.base_url / cfg.datanorm_url. Parse → supplier_articles-Rows.
+        // ── TODO (Sebastian/Chat-Claude): supplier-spezifischen DATANORM/IDS-Download in
+        //    downloadArticles einsetzen — Logik aus der Dashboard-Function `sync_supplier`
+        //    portieren (siehe sql/DEPLOY_sync_supplier_v3.md). cfg.username/cfg.password
+        //    authentifizieren gegen cfg.shk_url / cfg.base_url / cfg.datanorm_url.
         //    Die SICHERHEITS-Grenze ist bereits korrekt: Creds werden NUR hier (service_role)
         //    gelesen und verlassen die Function nie.
-        const rows: Array<Record<string, unknown>> = []; // Platzhalter bis Sync-Body portiert
+        const rows = await downloadArticles(cfg);
+        if (rows === null) {
+          results.push({ supplierId: cfg.id, name: cfg.name, ok: false, rows_synced: 0, error: "not_implemented" });
+          continue; // last_sync / last_sync_status NICHT anfassen
+        }
         if (rows.length) {
           const { error: upErr } = await admin
             .from("supplier_articles")
-            .upsert(rows, { onConflict: "id" });
+            .upsert(rows, { onConflict: "supplier_id,art_nr" });
           if (upErr) throw new Error(upErr.message);
         }
         await admin.from("supplier_configs").update({
@@ -154,7 +174,10 @@ serve(async (req: Request) => {
         results.push({ supplierId: cfg.id, name: cfg.name, ok: false, rows_synced: 0, error: String((e as Error)?.message || e) });
       }
     }
-    return json(200, { ok: true, results });
+    const anyOk = results.some((r) => r.ok);
+    const allNotImpl = results.length > 0 && results.every((r) => r.error === "not_implemented");
+    if (allNotImpl) return json(200, { ok: false, error: "not_implemented", details: "kein automatischer DATANORM-Download fuer diese Haendler eingerichtet - Dateien im Haendlerportal laden und in der App hochladen", results });
+    return json(200, { ok: results.length === 0 || anyOk, results });
   }
 
   return json(400, { ok: false, error: "validation", details: "unknown action" });
