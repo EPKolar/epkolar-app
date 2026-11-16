@@ -155,7 +155,9 @@ def test_der_name_bricht_nicht_mitten_im_wort():
         "🔴 Ohne nowrap bricht der Name wieder in der Zelle um: %s"
         % stil[:200])
     # Der volle Name bleibt erreichbar.
-    assert "const _lab=nm+" in seg, "Der volle Name fehlt im title/aria-label."
+    # v3.9.1014: der Zusatz "doppelt eingeplant" ist weggefallen (Entscheidung GF),
+    # _lab ist jetzt der volle Name selbst; beide Formen tragen ihn.
+    assert ("const _lab=nm;" in seg or "const _lab=nm+" in seg), "Der volle Name fehlt im title/aria-label."
 
 
 def test_kurzname_ist_eindeutiges_praefix():
