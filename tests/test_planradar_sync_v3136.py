@@ -10,7 +10,8 @@ def test_viewport_ref_and_centering_effect(index_html):
     assert "const _pg = Math.min(Math.max(1, selectedTicket.page || 1), pageCount || 1);" in index_html
     assert "if(_pg !== pageNum) { setPageNum(_pg); return; }" in index_html
     # Effekt-Deps: ID/pageDims/pageNum + pageCount (v3.9.183: Clamp re-evaluiert sobald PDF-Seitenzahl bekannt)
-    assert "}, [selectedTicket && selectedTicket.id, pageDims, pageNum, pageCount]);" in index_html
+    # UI-Folge (4): + zentrierNr - ein erneuter Tipp auf dasselbe Ticket zentriert wieder (Riegel mit Umkehrprobe: test_ui_folge_plaene.py)
+    assert "}, [selectedTicket && selectedTicket.id, pageDims, pageNum, pageCount, zentrierNr]);" in index_html
 
 
 def test_viewport_ref_attached(index_html):

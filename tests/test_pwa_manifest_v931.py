@@ -317,7 +317,7 @@ def test_manifest_traegt_die_pflichtfelder(manifest):
                  "icons"):
         assert feld in manifest, "manifest.json fuehrt %r nicht" % feld
     assert manifest["display"] == "standalone", manifest["display"]
-    assert manifest["background_color"] == "#0f1117", manifest["background_color"]
+    assert manifest["background_color"] == "#F2F4F2", manifest["background_color"]  # UI-Folge (7): Startbildschirm hell wie das Standard-Thema (V.bg hell); vorher #0f1117
     assert manifest["theme_color"] == "#009640", manifest["theme_color"]
     assert manifest["categories"], "categories ist leer"
 
