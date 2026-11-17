@@ -125,10 +125,11 @@ def test_langer_tipp_rechnet_auf_den_plan(index_html, node_exe):
 
 
 # ── 3 EIN Blatt ────────────────────────────────────────────────────────────
-# Fingerabdruck der Schreibwege (gemessen an v3.9.1020 = Basis dieses Zweigs, unveraendert uebernommen)
+# Fingerabdruck der Schreibwege (gemessen an v3.9.1020; Plaene Stufe 3 aendert createTicket/updateTicket bewusst:
+# Fotos -> Storage, PUT nur geaenderte Felder - neu gemessen an feature/plaene-stufe3)
 SCHREIBWEGE_MD5 = {
-    "createTicket": "c204cba23c7a1a85c82eab44c5b9355e",
-    "updateTicket": "f1421549a43528c2938c03e49d448f09",
+    "createTicket": "951a7a90b9c5d572ba94821aa1d525a1",
+    "updateTicket": "14605d6bb657baab3592a962708e36db",
 }
 
 
@@ -172,7 +173,7 @@ def test_ein_blatt(index_html):
 @pytest.mark.parametrize("alt,neu", [
     ("isMob&&selTicket&&sideMode===\"detail\"&&!quickTicket&&!quickDefect&&subView===\"viewer\"", "isMob&&selTicket&&subView===\"viewer\"&&("),
     ("React.createElement(TkKlickSchild, null),", ""),
-    ("method:\"PUT\",body:{title:_u.title,", "method:\"PATCH\",body:{title:_u.title,"),
+    ("method:\"PUT\",body:_tkNurGeaendert(", "method:\"PATCH\",body:_tkNurGeaendert("),
 ])
 def test_ein_blatt_umkehrprobe(index_html, alt, neu):
     assert alt in index_html
