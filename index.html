@@ -21445,6 +21445,22 @@ async function _matHasCreatedById(){
   return _matCbiState;
 }
 // ═══════════ VMaterial — Material-Anforderung (Warenkorb → Lager) ═══════════
+/* Materialbestellung 17.11.2026: Lesehilfen fuer den Lieferantenkatalog - NUR Anzeige und Suche, die DB bleibt unberuehrt.
+   GEMESSEN (read-only, 17.11.): 25.121 Artikel in supplier_articles, der Katalog lud aber nur limit=10000 (sortiert
+   ep_system,bezeichnung) - alles ab "Geberit iCon Einlegeboden" fehlte: 15.121 Artikel, darunter ALLE 8.458 Grohe und
+   5.526 von 7.669 Geberit. Deshalb seitenweise laden (_MAT_KAT_SEITEN Seiten zu 10000).
+   Zeichensatz: 12.765 Holter-Bezeichnungen (Sync 12.04., alter Parser) tragen CP850-Bytes als CP1252 gelesen:
+   "St„rke" = Staerke, "auáen" = aussen, U+0081 = ue (8.727 Zeilen). Wer "betaetigung" oder "fuer" sucht, fand nichts.
+   _matTextFix repariert genau diese 7 Zeichen, und nur bei Zeilen von VOR dem Parser-Fix (last_updated < 2026-11-16) ohne
+   echte Umlaute - neuere Importe dekodieren CP850 selbst richtig. */
+const _MAT_KAT_SEITEN=6;
+const _MAT_MOJI={"\u0081":"ü","\u201e":"ä","\u201d":"ö","\u00e1":"ß","\u017d":"Ä","\u2122":"Ö","\u0161":"Ü"};
+function _matTextFix(s,stand){s=String(s==null?"":s);if(stand&&String(stand).slice(0,10)>="2026-11-16")return s;if(/[äöüßÄÖÜ]/.test(s))return s;return s.replace(/[\u0081\u201e\u201d\u00e1\u017d\u2122\u0161]/g,c=>_MAT_MOJI[c]||c);}
+/* Suche ohne Umlaut-Falle: "fuer"/"für"/"fur" finden dasselbe. */
+function _matFold(s){return String(s==null?"":s).toLowerCase().replace(/ä/g,"a").replace(/ö/g,"o").replace(/ü/g,"u").replace(/ß/g,"ss").replace(/ae/g,"a").replace(/oe/g,"o").replace(/ue/g,"u");}
+/* Datanorm-Mengeneinheiten lesbar - nur die eindeutigen Codes; SE/GT u.a. bleiben als Code stehen (Bedeutung je Haendler verschieden). */
+const _MAT_ME={ST:"Stk",STK:"Stk",MT:"m",M:"m",M2:"m²",M3:"m³",PR:"Paar",PK:"Pkg",RL:"Rolle",KG:"kg",KT:"Karton",SA:"Satz"};
+function _matEinheit(me){const t=String(me||"").trim();return _MAT_ME[t.toUpperCase()]||t||"Stk";}
 function VMaterial({p,curUser,monteure,ww,entries}){
   const isMob=(ww||999)<600;
   const isAdmin=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter");
@@ -21586,6 +21602,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
 
   // Load saved catalogs from Supabase
   const [suppArticles,setSuppArticles]=_react.useState.call(void 0, []);
+  const [suppLoad,setSuppLoad]=_react.useState.call(void 0, null);/* Material 17.11.2026: {n,gekappt,fehler} - wieviel vom Lieferantenkatalog geladen ist */
   const [suppMap,setSuppMap]=_react.useState.call(void 0, {});// {suppId: {name,gewerk,base_url,unternehmen_id,...}}
   const [suppOrders,setSuppOrders]=_react.useState.call(void 0, []);// supplier_orders from Supabase
   const [suppOrdDetail,setSuppOrdDetail]=_react.useState.call(void 0, null);// expanded supplier order id
@@ -21607,7 +21624,20 @@ function VMaterial({p,curUser,monteure,ww,entries}){
       // Load supplier articles (EP-filtered, limited)
       /* v3.9.54 B-006: Production-SELECT für Material-Katalog auf safe-view — ek_preis kommt für Monteur als NULL,
          showEk=canDo("view_ek_price") gated bereits die UI; serverseitige Maskierung schließt die Lücke gegen REST-Direct-Calls. */
-      const sa=await _sbGet("supplier_articles_safe","select=id,supplier_id,art_nr,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe&order=ep_system.asc,bezeichnung.asc&limit=10000").catch(()=>[]);
+      /* Material 17.11.2026: SEITENWEISE statt einmal limit=10000 (s. _MAT_KAT_SEITEN). id.asc als letzte Sortierung, sonst ist offset nicht stabil.
+         Weiter bis eine Seite LEER kommt - so stimmt es auch, falls der Server weniger als 10000 je Antwort liefert. */
+      const _saSel="select=id,supplier_id,art_nr,hersteller_art_nr,gtin,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe,last_updated&order=ep_system.asc,bezeichnung.asc,id.asc";
+      const sa=[];let _saOff=0,_saGekappt=false,_saFehler=false;
+      for(let _sp=0;_sp<_MAT_KAT_SEITEN;_sp++){
+        const _seite=await _sbGet("supplier_articles_safe",_saSel+"&limit=10000&offset="+_saOff).catch(()=>null);
+        if(!a)return;
+        if(!Array.isArray(_seite)){_saFehler=true;break;}
+        if(_seite.length===0)break;
+        for(const _r of _seite)sa.push(_r);
+        _saOff+=_seite.length;
+        if(_sp===_MAT_KAT_SEITEN-1)_saGekappt=true;
+      }
+      setSuppLoad({n:sa.length,gekappt:_saGekappt,fehler:_saFehler});
       if(!a)return;
       if(sa&&sa.length>0){
         setSuppArticles(sa);
@@ -21625,8 +21655,10 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           data.items.forEach(a=>{if(sm[a.supplier_id])suppNames.add(sm[a.supplier_id].name);});
           const suppLabel=suppNames.size>0?" ("+[...suppNames].join(", ")+")":"";
           // Group items that have dimensions vs without
-          const items=data.items.map((a,i)=>({id:"sa_"+a.id,artNr:a.art_nr,name:a.bezeichnung+(a.langtext?" "+a.langtext:""),einheit:a.mengeneinheit||"Stk",ek:a.ek_preis,lp:a.listenpreis,suppId:a.supplier_id,avail:[]}));
-          dynCats.push({id:"supp_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),system:sys+suppLabel,gewerk:data.gewerk,isSupplier:true,cats:[{id:"supp_cat_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),label:sys+" ("+items.length+" Art.)",dims:[],items:items}]});
+          /* Material 17.11.2026: Text repariert (_matTextFix), Einheit lesbar, Suchtext (hay) EINMAL beim Laden: Bezeichnung + Art.-Nr. + Hersteller-Nr. + EAN + Haendler. */
+          const items=data.items.map(a=>{const _nm=_matTextFix(a.bezeichnung,a.last_updated)+(a.langtext?" "+_matTextFix(a.langtext,a.last_updated):"");const _sn=sm[a.supplier_id]?sm[a.supplier_id].name:"";return {id:"sa_"+a.id,artNr:a.art_nr,name:_nm,einheit:_matEinheit(a.mengeneinheit),ek:a.ek_preis,lp:a.listenpreis,stand:a.last_updated||"",suppId:a.supplier_id,avail:[],hay:_matFold([_nm,a.art_nr,a.hersteller_art_nr,a.gtin,_sn].filter(Boolean).join(" "))};});
+          const _sysAnz=sys==="Auto-Sync"?"Großhandel-Katalog":sys;/* "Auto-Sync" ist der Name des Abgleichs, nicht des Sortiments */
+          dynCats.push({id:"supp_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),system:_sysAnz+suppLabel,gewerk:data.gewerk,isSupplier:true,cats:[{id:"supp_cat_"+sys.replace(/[^a-zA-Z0-9]/g,"_"),label:_sysAnz+" ("+items.length+" Art.)",dims:[],items:items}]});
         }
         if(dynCats.length>0)MAT_KATALOG=[...MAT_KATALOG_DEFAULT,..._savedMat,...dynCats];/* v3.9.222 #1: _savedMat (DATANORM-Kataloge) erhalten — vorher verwarf dieser Re-Assign sie */
       }
@@ -21800,11 +21832,13 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   const statusBadge=(st)=>{const s=MAT_STATUS[st]||MAT_STATUS.angefordert;return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:10,fontSize:UI.fMeta,fontWeight:600,background:s.c+"18",color:s.c}}, _matIk("status",MAT_STATUS[st]?st:"angefordert"), s.l);};
   const prioBadge=(pr)=>{const p2=MAT_PRIO[pr]||MAT_PRIO.normal;return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:10,fontSize:UI.fMeta,fontWeight:600,background:p2.c+"18",color:p2.c}}, _matIk("prio",MAT_PRIO[pr]?pr:"normal"), p2.l);};
   const toggleCat=(catId)=>setExpandedCats(prev=>({...prev,[catId]:!prev[catId]}));
-  const toggleSystem=(sysId)=>setExpandedSystems(prev=>({...prev,[sysId]:!prev[sysId]}));
+  const toggleSystem=(sysId,offen)=>setExpandedSystems(prev=>({...prev,[sysId]:offen===undefined?!prev[sysId]:!offen}));/* Material 17.11.2026: bei Suche offen ohne Eintrag - Klick schliesst dann wirklich */
 
   // ═══ Render: Warenkorb (Matrix) ═══
   // v3.5.69: Multi-Word-Suche (AND), Token-Split, Mindestlänge 2
-  const matTokens=matQuery.trim().toLowerCase().split(/\s+/).filter(t=>t.length>=2);
+  const matTokens=_matFold(matQuery.trim()).split(/\s+/).filter(t=>t.length>=2);/* Material 17.11.2026: Umlaute gefaltet wie der Suchtext */
+  const _matHit=(it,tk)=>{const hay=it.hay||_matFold((it.name||"")+" "+(it.artNr||""));return tk.every(t=>hay.includes(t));};
+  const _katHits=(kat)=>matTokens.length?((kat&&kat.cats)||[]).reduce((s2,c)=>s2+(c.items||[]).filter(it=>_matHit(it,matTokens)).length,0):0;
   const matTokensLg=matQueryLg.trim().toLowerCase().split(/\s+/).filter(t=>t.length>=2);
   const renderWarenkorb=()=>{
     // v3.8.26 Gewerk-Filter aus Profil: 'elektro' zeigt elektro+allgemein, 'installateur' zeigt sanitaer+heizung+klima+allgemein, 'beide' zeigt alles
@@ -21853,18 +21887,21 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.mt,marginLeft:4,whiteSpace:"nowrap"}}, _filteredCatalogs.length, "/", catalogs.length, " Kataloge")
       )
       , _hiddenNote/* v3.9.898: oben beim Filter — dort entsteht das Verstecken */
+      , suppLoad&&(suppLoad.gekappt||suppLoad.fehler)&&React.createElement('div', { role: "status", 'aria-label': "Ladestand Lieferantenkatalog", style: {marginBottom:10,fontSize:UI.fMeta,color:V.dm,padding:"6px 10px",border:"1px solid "+V.bd,borderRadius:8}}, _ikVw("warnung",""), suppLoad.fehler?"Lieferantenkatalog nur teilweise geladen ("+suppLoad.n.toLocaleString("de-AT")+" Artikel) – Verbindung prüfen und neu öffnen.":"Lieferantenkatalog bei "+suppLoad.n.toLocaleString("de-AT")+" Artikeln abgeschnitten – nicht alles ist durchsuchbar.")
       , _filteredCatalogs.length===0&&React.createElement('div', { style: {padding:30,textAlign:"center",color:V.dm}}, "Keine Kataloge für dieses Gewerk. Oben das Gewerk umstellen oder Admin kontaktieren.")
       , _filteredCatalogs.map(kat=>{
-        const sysOpen=expandedSystems[kat.id]===true;// default CLOSED
+        const _sysHits=_katHits(kat);
+        if(matTokens.length&&_sysHits===0)return null;/* Material 17.11.2026: Systeme ohne Treffer ausblenden */
+        const sysOpen=expandedSystems[kat.id]===true||(matTokens.length>0&&expandedSystems[kat.id]!==false);// default CLOSED; bei Suche mit Treffern OFFEN (vorher blieben die Treffer zugeklappt unsichtbar)
         const mc=MATERIAL_CATS[kat.gewerk]||{c:"#71717a"};
         // Count total items in cart for this system
         const sysCartCount=_katCartCount(kat);/* v3.9.898: gemeinsame Zaehlung, siehe _katCartCount */
         const sysItemCount=kat.cats.reduce((s,c)=>s+(c.items||[]).length,0);
         return React.createElement('div', { key: kat.id, style: {marginBottom:10}}
-        , React.createElement('div', { onClick: ()=>toggleSystem(kat.id), role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleSystem(kat.id);}}, style: {display:"flex",alignItems:"center",gap:10,padding:isMob?"12px 14px":"10px 14px",background:mc.c+"18",borderRadius:sysOpen?"10px 10px 0 0":10,cursor:"pointer",userSelect:"none",borderBottom:sysOpen?"1px solid "+V.bd:"none"}}
+        , React.createElement('div', { onClick: ()=>toggleSystem(kat.id,sysOpen), role: "button", 'aria-label': kat.system+(sysOpen?" zuklappen":" aufklappen"), 'aria-expanded': sysOpen, tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleSystem(kat.id,sysOpen);}}, style: {display:"flex",alignItems:"center",gap:10,padding:isMob?"12px 14px":"10px 14px",background:mc.c+"18",borderRadius:sysOpen?"10px 10px 0 0":10,cursor:"pointer",userSelect:"none",borderBottom:sysOpen?"1px solid "+V.bd:"none"}}
           , React.createElement('span', { style: {display:"inline-flex",flexShrink:0}}, _matIk("kat",MATERIAL_CATS[kat.gewerk]?kat.gewerk:"allgemein",isMob?18:16))
           , React.createElement('span', { style: {flex:1,fontSize:isMob?15:14,fontWeight:700,color:V.tx}}, kat.system)
-          , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:500}}, sysItemCount, " Art.")
+          , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:500}}, matTokens.length?_sysHits+" Treffer":sysItemCount+" Art.")
           , sysCartCount>0&&React.createElement('span', { style: {padding:"2px 8px",borderRadius:10,fontSize:UI.fMeta,fontWeight:700,background:COLORS.SUCCESS,color:"#fff"}}, sysCartCount)
           , React.createElement('span', { style: {fontSize:13,transition:"transform .2s",transform:sysOpen?"rotate(180deg)":"rotate(0)",color:V.dm}}, "▼")
         )
@@ -21879,8 +21916,8 @@ function VMaterial({p,curUser,monteure,ww,entries}){
           },0);
           // v3.5.69: Multi-Word-Filter + 50-Item-Limit (T-14, T-15, B-005)
           const _mtk=matTokens;
-          const _filteredItems=_mtk.length?catItems.filter(it=>{const hay=((it.name||"")+" "+(it.artNr||"")).toLowerCase();return _mtk.every(t=>hay.includes(t));}):catItems;
-          const _showAll=_mtk.length>0||matShowAll[cat.id];
+          const _filteredItems=_mtk.length?catItems.filter(it=>{return _matHit(it,_mtk);}):catItems;
+          const _showAll=!!matShowAll[cat.id];/* Material 17.11.2026: auch bei Suche 50 + "Mehr laden" - "geberit" trifft 7.669 Artikel, alle auf einmal zeichnen legt das Handy lahm */
           const renderItems=_showAll?_filteredItems:_filteredItems.slice(0,50);
           const _hasMore=!_showAll&&_filteredItems.length>50;
           if(_mtk.length&&_filteredItems.length===0)return null;
@@ -21923,7 +21960,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               , hasDims&&cat.id!=="el_flex"&&!isMob&&React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:hasDims?Math.max(400,160+cat.dims.length*54):400}}
                 , React.createElement('tbody', null, renderItems.map(item=>(
                   React.createElement('tr', { key: item.id, style: {borderBottom:"1px solid "+V.bd}}
-                    , React.createElement('td', { style: {padding:"8px 12px",fontSize:12,color:V.tx,whiteSpace:"nowrap",minWidth:150}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:"#22c55e22",color:_okG("#22c55e")}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:UI.fMeta,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
+                    , React.createElement('td', { style: {padding:"8px 12px",fontSize:12,color:V.tx,whiteSpace:"nowrap",minWidth:150}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:"#22c55e22",color:_okG("#22c55e")}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { title: "Einkaufspreis lt. Datanorm je "+item.einheit+(item.stand?", Stand "+String(item.stand).slice(0,10):"")+(item.stand&&String(item.stand).slice(0,10)<"2026-11-16"?" – vor dem Parser-Fix eingelesen, Preiseinheit ungeprüft":""), style: {marginLeft:6,fontSize:UI.fMeta,color:"#f59e0b",fontWeight:600,whiteSpace:"nowrap"}}, "EK ",_n(item.ek,2),"€/",item.einheit, item.stand&&String(item.stand).slice(0,10)<"2026-11-16"?" · ungeprüft":""))/* Material 17.11.2026: Preis JE Einheit; Holter-Preise vom 12.04. kamen aus dem alten Parser (Preiseinheit nicht geteilt, Befund A5) -> "ungeprueft" statt still anzeigen */
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
                       return React.createElement('td', { key: di, style: {padding:"4px 3px",textAlign:"center",minWidth:48}}
@@ -21935,7 +21972,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               )
               , hasDims&&cat.id!=="el_flex"&&isMob&&renderItems.map(item=>(
                 React.createElement('div', { key: item.id, style: {padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('div', { style: {fontSize:12,fontWeight:600,color:V.tx,marginBottom:6}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6,fontWeight:400,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:"#22c55e22",color:_okG("#22c55e")}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:UI.fMeta,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
+                  , React.createElement('div', { style: {fontSize:12,fontWeight:600,color:V.tx,marginBottom:6}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6,fontWeight:400,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:"#22c55e22",color:_okG("#22c55e")}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { title: "Einkaufspreis lt. Datanorm je "+item.einheit+(item.stand?", Stand "+String(item.stand).slice(0,10):"")+(item.stand&&String(item.stand).slice(0,10)<"2026-11-16"?" – vor dem Parser-Fix eingelesen, Preiseinheit ungeprüft":""), style: {marginLeft:6,fontSize:UI.fMeta,color:"#f59e0b",fontWeight:600,whiteSpace:"nowrap"}}, "EK ",_n(item.ek,2),"€/",item.einheit, item.stand&&String(item.stand).slice(0,10)<"2026-11-16"?" · ungeprüft":""))/* Material 17.11.2026: Preis JE Einheit; Holter-Preise vom 12.04. kamen aus dem alten Parser (Preiseinheit nicht geteilt, Befund A5) -> "ungeprueft" statt still anzeigen */
                   , React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:6}}
                     , cat.dims.map((dim,di)=>{
                       const k=itemKey(cat.id,item.id,di);const avail=item.avail[di];const val=cart[k]||"";
@@ -21951,7 +21988,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               , !hasDims&&renderItems.map(item=>{
                 const k=itemKey(cat.id,item.id);const val=cart[k]||"";
                 return React.createElement('div', { key: item.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:"1px solid "+V.bd}}
-                  , React.createElement('span', { style: {flex:1,fontSize:12,color:V.tx}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:"#22c55e22",color:_okG("#22c55e")}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { style: {marginLeft:6,fontSize:UI.fMeta,color:"#f59e0b",fontWeight:600}}, "EK ",_n(item.ek,2),"€"))
+                  , React.createElement('span', { style: {flex:1,minWidth:0,overflowWrap:"anywhere",fontSize:12,color:V.tx}}, item.name, item.artNr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6,fontFamily:mono}}, item.artNr), item.suppId&&suppMap[item.suppId]&&React.createElement('span', { style: {marginLeft:6,padding:"1px 5px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:"#22c55e22",color:_okG("#22c55e")}}, suppMap[item.suppId].name), showEk&&item.ek&&React.createElement('span', { title: "Einkaufspreis lt. Datanorm je "+item.einheit+(item.stand?", Stand "+String(item.stand).slice(0,10):"")+(item.stand&&String(item.stand).slice(0,10)<"2026-11-16"?" – vor dem Parser-Fix eingelesen, Preiseinheit ungeprüft":""), style: {marginLeft:6,fontSize:UI.fMeta,color:"#f59e0b",fontWeight:600,whiteSpace:"nowrap"}}, "EK ",_n(item.ek,2),"€/",item.einheit, item.stand&&String(item.stand).slice(0,10)<"2026-11-16"?" · ungeprüft":""))/* Material 17.11.2026: Preis JE Einheit; Holter-Preise vom 12.04. kamen aus dem alten Parser (Preiseinheit nicht geteilt, Befund A5) -> "ungeprueft" statt still anzeigen */
                   , React.createElement('input', { type: "number", inputMode: "decimal", min: "0", step: "any", placeholder: (lastQtyByArtNr[item.artNr]!=null?String(lastQtyByArtNr[item.artNr]):"0"), value: val, onChange: e=>setMenge(k,e.target.value), style: {width:isMob?56:50,textAlign:"center",fontSize:13,padding:isMob?"6px 4px":"4px 2px",borderRadius:6,border:"1px solid "+(val?V.ac:V.bd),background:val?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent",fontWeight:val?700:400,color:V.tx,minHeight:isMob?36:0} })
                   , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,minWidth:24}}, item.einheit)
                 );
@@ -21967,6 +22004,15 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         )// close sysOpen wrapper
         );// close system div
       })// close catalogs.map
+      /* Material 17.11.2026: Suche ohne Treffer - sagen WAS durchsucht wurde, Treffer in anderen Gewerken nennen, und den Begriff mit EINEM Tipp als Position uebernehmen. */
+      , matTokens.length>0&&_filteredCatalogs.every(k=>_katHits(k)===0)&&(()=>{const _anderswo=catalogs.filter(k=>!_kataAllowed(k.gewerk)).reduce((s2,k)=>s2+_katHits(k),0);return React.createElement('div', { style: {...CC(),padding:isMob?16:20,textAlign:"center",border:"1px dashed "+V.bd,marginBottom:10}}
+        , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:V.tx,marginBottom:4}}, "Kein Artikel zu „", matQuery.trim(), "“")
+        , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Durchsucht: Bezeichnung, Art.-Nr., Hersteller-Nr., EAN und Händler", suppLoad&&suppLoad.n>0?" · "+suppLoad.n.toLocaleString("de-AT")+" Lieferanten-Artikel geladen":"", ". Nicht im Katalog? Als Position anfordern – das Lager bestellt nach Bezeichnung.")
+        , React.createElement('div', { style: {display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}
+          , React.createElement('button', { onClick: ()=>{setPosRows(prev=>[...prev,{name:matQuery.trim(),menge:""}]);setMatQuery("");}, style: {...bpS,minHeight:44,padding:"8px 16px",fontSize:13,fontWeight:700}}, _ikVw("plus","Als Position übernehmen"))
+          , _anderswo>0&&React.createElement('button', { onClick: ()=>_applyMatGw("beide"), style: {...bsS(),minHeight:44,padding:"8px 16px",fontSize:13}}, _anderswo+" Treffer in anderen Gewerken zeigen")
+        )
+      );})()
       // v3.9.236 Manuelle Positionen (Multi-Entry, Pattern wie Regiebericht "+ Zeile") — jede Zeile = 1 Position
       , React.createElement('div', { style: {marginTop:12}}
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}, React.createElement('span', { style: {fontSize:13,fontWeight:700}}, _ikVw("stift","Manuelle Positionen")  ), React.createElement('button', { onClick: ()=>setPosRows(prev=>[...prev,{name:"",menge:""}]), style: {...bsS(),padding:"3px 10px",fontSize:UI.fMeta}}, "+ Position" ))
@@ -21974,7 +22020,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         , posRows.map((r,i)=>React.createElement('div', { key: i, style: {display:"flex",gap:6,marginBottom:6,alignItems:"center"}}
           , React.createElement('input', { value: r.name, onChange: e=>uPos(i,"name",e.target.value), placeholder: "Artikel / Bezeichnung", style: {...II(),flex:1,fontSize:13}} )
           , React.createElement('input', { value: r.menge, onChange: e=>uPos(i,"menge",e.target.value), type: "number", inputMode: "decimal", step: "any", min: "0", placeholder: "Menge", style: {...II(),width:isMob?64:90,textAlign:"center",fontSize:13}} )
-          , React.createElement('button', { onClick: ()=>setPosRows(prev=>prev.filter((_,j)=>j!==i)), title: "Zeile entfernen", style: {...bdS,padding:"4px 9px",fontSize:12}}, "✕")
+          , React.createElement('button', { onClick: ()=>setPosRows(prev=>prev.filter((_,j)=>j!==i)), title: "Zeile entfernen", 'aria-label': "Position entfernen", style: {...bdS,padding:"4px 9px",fontSize:12}}, "✕")
         ))
       )
       // Freitext-Notiz (optional, echter Freitext)
@@ -22015,6 +22061,31 @@ function VMaterial({p,curUser,monteure,ww,entries}){
   };
 
   // ═══ Render: Verlauf (ALLE Anforderungen, read-only; Buttons nur Verfasser/Lager/Admin) ═══
+  /* Material 17.11.2026: Nochmal anfordern. Katalog-Positionen gehen per Art.-Nr. (ohne Nr.: per Bezeichnung + Groesse) zurueck in den
+     Warenkorb und ADDIEREN sich zu dem, was dort schon liegt; was der Katalog nicht (mehr) kennt, wird manuelle Position - nichts geht still verloren.
+     Gesendet wird erst mit dem normalen Knopf, mit Rueckfrage. */
+  const _nochmalAnfordern=(ord)=>{
+    const pos=(ord&&ord.positionen)||[];if(!pos.length)return;
+    const add={},neu=[];let notiz="";
+    pos.forEach(pp=>{
+      const m=parseFloat(String(pp.menge==null?"":pp.menge).replace(",","."))||0;
+      if(pp.katalog==="Freitext"){notiz=String(pp.name||"");return;}
+      let key=null;
+      if(pp.katalog!=="Manuell"){
+        for(const kat of catalogs){for(const cat of (kat.cats||[])){
+          const it=(cat.items||[]).find(i=>pp.artNr?i.artNr===pp.artNr:i.name===pp.name);if(!it)continue;
+          if(cat.dims&&cat.dims.length>0){const di=cat.dims.indexOf(pp.dim);if(di<0||!it.avail[di])continue;key=itemKey(cat.id,it.id,di);}else key=itemKey(cat.id,it.id);
+          break;}if(key)break;}
+      }
+      if(key&&m>0)add[key]=(add[key]||0)+m;
+      else{const nm=String(pp.name||"").trim()+(pp.dim?" "+pp.dim:"");if(nm.trim())neu.push({name:nm,menge:m>0?String(m):""});}
+    });
+    if(Object.keys(add).length)setCart(prev=>{const c={...prev};Object.keys(add).forEach(k=>{c[k]=(parseFloat(c[k])||0)+add[k];});return c;});
+    if(neu.length)setPosRows(prev=>[...prev,...neu]);
+    if(notiz)setFreitext(prev=>prev.trim()?prev:notiz);
+    window.__toast&&window.__toast(Object.keys(add).length+neu.length+(notiz?1:0)+" Positionen in den Warenkorb gelegt"+(neu.length?" ("+neu.length+" als manuelle Position)":"")+" – Mengen prüfen, dann senden","success");
+    setTab("warenkorb");
+  };
   const renderVerlauf=()=>{
     /* v3.9.379 (Chef): Material-VERLAUF für ALLE sichtbar (jeder Monteur sieht auch Kollegen-Anforderungen, read-only).
        Vorher filterte Nicht-Lager auf eigene → fremde unsichtbar. Jetzt alle Orders; Button-Gating (_canEditOrder:
@@ -22056,6 +22127,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
               )))
             ))
             , ord.freitext&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6,fontStyle:"italic"}}, "Freitext: ", ord.freitext)
+            , pos.length>0&&React.createElement('button', { onClick: ()=>_nochmalAnfordern(ord), title: "Positionen dieser Anforderung in den Warenkorb legen – Mengen prüfen, dann senden", style: {...bsS(),padding:"8px 14px",fontSize:13,fontWeight:700,marginTop:6,marginRight:8,minHeight:44}}, _ikVw("drehen","Nochmal anfordern"))/* Material 17.11.2026: Nachbestellen aus dem Verlauf - fuellt nur den EIGENEN Warenkorb, sendet nichts */
             , _canEditOrder(ord)&&canDo("material_delete",curUser)&&React.createElement('button', { onClick: ()=>deleteOrder(ord.id), style: {...bdS,padding:"4px 10px",fontSize:UI.fMeta,marginTop:6}}, _ikVw("eimer","Löschen"))/* v3.9.373: Löschen nur Verfasser/Lager/Admin */
           )
         );
