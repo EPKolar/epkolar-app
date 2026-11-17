@@ -182,7 +182,8 @@ def test_die_beiden_zu_kleinen_symbole_sind_groesser():
         "Der Stift in der Werkzeug-Tabelle ist wieder 10 px.")
     assert "{...bdS,fontSize:11}}, \"\U0001f5d1️\"" not in roh, (
         "Der Muelleimer im Arbeitsschein-Formular ist wieder 11 px.")
-    assert "{...bdS,fontSize:UI.fKlein}}" in roh, (
+    # v3.9.1033: der Muelleimer im AS-Formular nutzt den gemeinsamen Aktionsknopf-Stil _asAktKn (Schrift UI.fKlein)
+    assert ("{...bdS,fontSize:UI.fKlein}}" in roh) or ("style: {...bdS,..._asAktKn}}, _asIk(\"eimer\"" in roh and "const _asAktKn={" in roh and "fontSize:UI.fKlein" in roh[roh.index("const _asAktKn={"):roh.index("const _asAktKn={")+300]), (
         "Der Muelleimer haengt nicht an UI.fKlein.")
 
 
