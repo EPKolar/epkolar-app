@@ -85,7 +85,7 @@ reset();updateTicket({...T,status:"erledigt"});R.status=sq[0].body;
 // 1 Zuweisung
 reset();updateTicket({...T,assignee:"m7"});R.assign=sq[0].body;
 // 4 Schalter aus -> wie bisher
-store={"epk_tk_diff_put":"0"};reset();var _u={...T,status:"erledigt"};updateTicket(_u);
+store={"epk_tk_diff_put":"0","epk_tk_foto_storage":"0"};reset();/* 17.11.: Storage ist Standard AN - "Schalter aus" heisst jetzt ausdruecklich "0" je Geraet */var _u={...T,status:"erledigt"};updateTicket(_u);
 R.ausGleich=JSON.stringify(sq[0].body)===JSON.stringify((function(_u){return __ALT__;})(planData.tickets[0]));
 var e0;_tkFotoEintrag({name:"c.jpg",dataUrl:"data:image/jpeg;base64,CCC",takenAt:"t",width:9,height:9},e=>{e0=e;});
 R.ausEintrag=e0;R.ausGleicheRef=(function(){var a=[{dataUrl:"x",thumb:""}];return _tkFotosAuslagern(a,"T1","P1")===a;})();
@@ -164,7 +164,7 @@ def test_fotos_raus_aus_dem_ticket_body(src, node_exe):
     ("if(_phA!==_u.photos)_u={..._u,photos:_phA};", ""),
     ("if(k===\"updated_at\"||JSON.stringify(neuB[k])!==JSON.stringify(altB[k]))out[k]=neuB[k];", "out[k]=neuB[k];"),
     ("return f.dataUrl||f.thumb||_tkFotoUrl(f)||\"\";", "return f.dataUrl||\"\";"),
-    ("if(!_tkFlag(\"epk_tk_foto_storage\",false)){cb(e);return;}", ""),
+    ("if(!_tkFlag(\"epk_tk_foto_storage\",true)){cb(e);return;}", ""),
 ])
 def test_umkehrprobe(src, node_exe, alt, neu):
     assert src.count(alt) == 1, "Anker fehlt: " + alt
@@ -176,10 +176,11 @@ def test_umkehrprobe(src, node_exe, alt, neu):
     assert befunde, "Riegel blind fuer: " + alt
 
 
-def test_storage_schalter_standard_aus(src):
-    """Solange der Upload nach tickets/ nicht am Geraet geprueft ist, bleibt der Storage-Weg aus."""
+def test_storage_schalter_standard_an(src):
+    """Entscheid Sebastian 17.11.2026: Storage-Weg Standard AN (vorher AUS bis Geraetetest); "0" je Geraet schaltet ab."""
     f = _extract_fn(src, "_tkFotoEintrag") + _extract_fn(src, "_tkFotosAuslagern")
-    assert f.count('_tkFlag("epk_tk_foto_storage",false)') == 2
+    assert f.count('_tkFlag("epk_tk_foto_storage",true)') == 2
+    assert '_tkFlag("epk_tk_foto_storage",false)' not in src
     assert '_tkFlag("epk_tk_diff_put",true)' in _extract_fn(src, "_tkNurGeaendert")
 
 

@@ -3754,6 +3754,9 @@ const SQ={
 // ═══════════ PHOTO QUEUE: Offline-Fotosync ═══════════
 // Fotos werden lokal in IndexedDB gespeichert und bei Verbindung automatisch hochgeladen
 const PhotoQ={
+  /* Sicherheitsnetz Ticket-Fotos (17.11.2026): PhotoQ meldet jede Aenderung als Ereignis "epk-photoq" - die Ticket-Ansicht
+     zeigt damit "noch nicht hochgeladen" an und plant den naechsten Versuch. Reine Meldung, aendert keinen Ablauf, wirft nie. */
+  _meld(d){try{if(typeof window!=="undefined"&&window.dispatchEvent&&typeof CustomEvent==="function")window.dispatchEvent(new CustomEvent("epk-photoq",{detail:d||{}}));}catch(_e){}},
   _mutex:Promise.resolve(),
   // v3.5.140: Shared Mutex für ALLE read-modify-write: add, remove, update, clear — nicht mehr nur add.
   _serial(fn){PhotoQ._mutex=PhotoQ._mutex.then(fn).catch(()=>{});return PhotoQ._mutex;},
@@ -3762,26 +3765,29 @@ const PhotoQ={
       try{
         const q=await ODB.load("photoQueue")||[];
         q.push({...photo,id:photo.id||(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2)),queuedAt:new Date().toISOString(),status:"pending",retries:0});
-        await ODB.set("photoQueue","data",q);/* v3.9.223 #2: ODB.set direkt — wirft bei QuotaExceeded; ODB.save schluckt den Fehler → sonst return true trotz vollem Speicher → "Speicher voll"-Toast feuert nie → stiller Foto-Verlust */
+        await ODB.set("photoQueue","data",q);PhotoQ._meld({art:"add"});/* v3.9.223 #2: ODB.set direkt — wirft bei QuotaExceeded; ODB.save schluckt den Fehler → sonst return true trotz vollem Speicher → "Speicher voll"-Toast feuert nie → stiller Foto-Verlust */
         return true;
       }catch(e){return false;}
     });
   },
   async getAll(){try{return await ODB.load("photoQueue")||[];}catch(e){return [];}},
-  async remove(id){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.filter(x=>x.id!==id));}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
+  async remove(id){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.filter(x=>x.id!==id));PhotoQ._meld({art:"remove"});}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
   async update(id,updates){return PhotoQ._serial(async()=>{try{const q=await ODB.load("photoQueue")||[];await ODB.save("photoQueue",q.map(x=>x.id===id?{...x,...updates}:x));}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
-  async count(){try{const q=await ODB.load("photoQueue")||[];PhotoQ._leseFehler=false;return q.filter(x=>x.status==="pending"||x.status==="error").length;}/* v3.9.912: siehe SQ.count - die 0 kann auch "nicht lesbar" heissen. Der Fehlerzweig hat den Merker beim ersten Versuch NICHT gesetzt; gefunden hat das der Riegel, der die Fundstellen zaehlt - der Erfolgspfad allein haette den Merker nie auf true gebracht, und die Rueckfrage beim Abmelden waere fuer Fotos stumm geblieben. */catch(e){PhotoQ._leseFehler=true;return 0;}},
+  async count(){try{const q=await ODB.load("photoQueue")||[];PhotoQ._leseFehler=false;return q.filter(x=>x.status==="pending"||x.status==="error"||(x.nurStorage&&x.status==="uploading")/* 17.11.: nach Absturz haengendes Ticket-Foto zaehlt mit (Abmelde-Rueckfrage) */).length;}/* v3.9.912: siehe SQ.count - die 0 kann auch "nicht lesbar" heissen. Der Fehlerzweig hat den Merker beim ersten Versuch NICHT gesetzt; gefunden hat das der Riegel, der die Fundstellen zaehlt - der Erfolgspfad allein haette den Merker nie auf true gebracht, und die Rueckfrage beim Abmelden waere fuer Fotos stumm geblieben. */catch(e){PhotoQ._leseFehler=true;return 0;}},
   async clear(){return PhotoQ._serial(async()=>{try{await ODB.save("photoQueue",[]);}catch(e){console.warn('[silent-await]',e&&e.message||e);}});},
   _flushing:false,// v3.5.101: Concurrency-Guard gegen doppeltes Hochladen
   async flush(){
     if(!navigator.onLine)return{ok:0,fail:0};
     if(PhotoQ._flushing)return{ok:0,fail:0,skipped:true};// schon aktiv
     PhotoQ._flushing=true;
-    let ok=0,fail=0;
+    let ok=0,fail=0,tkFail=0;
     try{
       const q=await PhotoQ.getAll();
       // Max-Retry-Guard: Fotos mit retries>=10 werden übersprungen (dauerhaft-Fehler)
-      const pending=q.filter(x=>(x.status==="pending"||x.status==="error")&&(x.retries||0)<10);
+      /* 17.11.2026 Ticket-Fotos (nurStorage) haben KEINEN 10er-Deckel: das Ticket verweist schon auf den Pfad, das volle Bild liegt nur hier -
+         also so lange versuchen, bis es oben ist. Ein nach Absturz/Neustart haengendes "uploading" wird wieder aufgenommen (Upload mit x-upsert
+         auf denselben festen Pfad - doppelt hochladen schadet nicht). Andere Fotos: unveraendert. */
+      const pending=q.filter(x=>(x.status==="pending"||x.status==="error"||(x.nurStorage&&x.status==="uploading"))&&((x.retries||0)<10||x.nurStorage));
       for(const ph of pending){
         try{
           await PhotoQ.update(ph.id,{status:"uploading"});
@@ -3790,7 +3796,7 @@ const PhotoQ={
           if(!publicUrl){const storagePath=ph.storagePath||_storagePath("photos",ph.projectId,ph.name||"photo.jpg");/* Plaene Stufe 3: Ticket-Fotos bringen ihren festen Pfad mit - das Ticket verweist schon darauf */publicUrl=await _sbUploadFile(storagePath,ph.dataUrl);try{await PhotoQ.update(ph.id,{file_path:publicUrl});}catch(_pu){}}
           if(!ph.nurStorage)/* Plaene Stufe 3: Ticket-Fotos stehen im Ticket (path), keine zweite photos-Zeile */await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
           await PhotoQ.remove(ph.id);ok++;
-        }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;
+        }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;if(ph.nurStorage)tkFail++;
           /* v3.9.160 FIX PhotoQ-Block: nur TRANSIENTE Fehler (offline/5xx/408/429/Failed-to-fetch) stoppen den
              Lauf. Vorher blockierte JEDER Fehler — auch ein dauerhaft kaputtes Foto (z.B. ungültige dataUrl / 4xx)
              — per break alle nachfolgenden Fotos. Jetzt: permanenter Fehler → Foto bleibt als status:"error"
@@ -3799,6 +3805,7 @@ const PhotoQ={
           if(!navigator.onLine||_st>=500||_st===408||_st===429||(e.message||"").includes("Failed to fetch"))break;}
       }
     }finally{PhotoQ._flushing=false;}
+    PhotoQ._meld({art:"flush",ok:ok,fail:fail,tkFail:tkFail});
     try{if(typeof _tkFotoWegNachholen==="function")_tkFotoWegNachholen().catch(()=>{});}catch(_tw){}/* Aufraeumen 17.11.: gemerkte Ticket-Foto-Pfade nachholen */
     return{ok,fail};
   }
@@ -18195,7 +18202,7 @@ async function _tkLoadImg(src){return new Promise((res,rej)=>{const im=new Image
    Bisher: jedes Foto als Base64 (bis 2400 px) im Ticket, und JEDER Status-/Zuweisungs-PUT schickte alle Fotos mit
    (Lehre "Riesen-Body wedged die SyncQueue"). Jetzt zwei Schalter, beide per localStorage umstellbar ("1"/"0"):
    - epk_tk_diff_put (Standard AN): updateTicket schickt nur die geaenderten Felder (+updated_at). Ein Status-PUT traegt keine Fotos mehr.
-   - epk_tk_foto_storage (Standard AUS, erst nach Geraetetest einschalten): neue Fotos gehen ueber die PhotoQ (isoliert, eigener Retry)
+   - epk_tk_foto_storage (Standard AN seit 17.11.2026, Entscheid Sebastian; localStorage "0" schaltet es je Geraet ab): neue Fotos gehen ueber die PhotoQ (isoliert, eigener Retry)
      nach Storage epkolar-files/tickets/<projekt>/<ticket>/..., im Ticket stehen nur {name,path,thumb,w,h,takenAt}. thumb = 240 px JPEG.
    Alte Tickets mit Base64 bleiben lesbar (_tkFotoSrc), es wird nichts massenhaft umgezogen. */
 function _tkFlag(name,standard){try{const v=localStorage.getItem(name);if(v==="1")return true;if(v==="0")return false;}catch(_e){}return standard;}
@@ -18204,12 +18211,12 @@ function _tkFotoUrl(f){if(!f)return "";if(typeof f==="string")return f;if(f.url)
 function _tkFotoSrc(f){if(!f)return "";if(typeof f==="string")return f;return f.dataUrl||f.thumb||_tkFotoUrl(f)||"";}
 function _tkThumb(dataUrl,max,q){return new Promise((res,rej)=>{const img=new Image();img.onerror=()=>rej(new Error("Bild ungueltig"));img.onload=()=>{let w=img.width,h=img.height;if(w>max||h>max){const r=Math.min(max/w,max/h);w=Math.round(w*r);h=Math.round(h*r);}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);res(c.toDataURL("image/jpeg",q));};img.src=dataUrl;});}
 /* Aufnahme: Schalter aus = exakt der bisherige Eintrag. Schalter an = zusaetzlich w/h/thumb (thumb "" wenn das Vorschaubild scheitert). */
-function _tkFotoEintrag(ph,cb){const e={name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt};if(!_tkFlag("epk_tk_foto_storage",false)){cb(e);return;}_tkThumb(ph.dataUrl,240,0.6).then(th=>cb({...e,w:ph.width||0,h:ph.height||0,thumb:th}),()=>cb({...e,w:ph.width||0,h:ph.height||0,thumb:""}));}
+function _tkFotoEintrag(ph,cb){const e={name:ph.name,dataUrl:ph.dataUrl,takenAt:ph.takenAt};if(!_tkFlag("epk_tk_foto_storage",true)){cb(e);return;}_tkThumb(ph.dataUrl,240,0.6).then(th=>cb({...e,w:ph.width||0,h:ph.height||0,thumb:th}),()=>cb({...e,w:ph.width||0,h:ph.height||0,thumb:""}));}
 /* Speichern: frisch aufgenommene Eintraege (dataUrl + thumb-Feld) -> PhotoQ (Storage) und im Ticket nur noch der Verweis.
    Alte Base64-Eintraege ohne thumb-Feld bleiben unangetastet. Nichts zu tun -> dasselbe Array (gleiche Referenz). */
 const _tkAusgelagert=(typeof WeakMap!=="undefined")?new WeakMap():null;/* derselbe Eintrag aus einem veralteten Zustand (Schnellblatt, Kommentar) wird nie zweimal hochgeladen */
 function _tkFotosAuslagern(fotos,tid,pid){
-  if(!Array.isArray(fotos)||!_tkFlag("epk_tk_foto_storage",false))return fotos;
+  if(!Array.isArray(fotos)||!_tkFlag("epk_tk_foto_storage",true))return fotos;
   if(!fotos.some(f=>f&&typeof f==="object"&&f.dataUrl&&f.thumb!==undefined))return fotos;
   const _s=v=>String(v||"x").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,80);const _ts=Date.now();
   const out=fotos.map((f,i)=>{
@@ -18222,6 +18229,38 @@ function _tkFotosAuslagern(fotos,tid,pid){
   if(typeof navigator!=="undefined"&&navigator.onLine)setTimeout(()=>{try{PhotoQ.flush().then(()=>{if(window.__updatePhotoCount)window.__updatePhotoCount();});}catch(_f){}},500);
   return out;
 }
+/* Sicherheitsnetz Ticket-Fotos (Entscheid Sebastian 17.11.2026, Speicher-Weg ist jetzt Standard).
+   Solange ein Ticket-Foto in der PhotoQ steht, ist es NICHT oben: das volle Bild liegt nur auf diesem Geraet (IndexedDB,
+   ueberlebt Neustart). Die Ansicht zeigt das an (Kachel-Marke + Zeile "noch nicht hochgeladen"), die Kachel zeigt das
+   Vorschaubild oder - fehlt es - das lokale Bild. Scheitert ein Upload: Hinweis (hoechstens einmal je Minute) und naechster
+   Versuch nach 15 s, 30 s, ... hoechstens 5 min; ohne Deckel, bis das Foto oben ist. Nichts wird verworfen. */
+const _tkFotoStand={map:{},hoerer:new Set(),laeuft:null,nochmal:false,t:null,n:0,letzterToast:0};
+function _tkFotoStandLaden(){
+  if(_tkFotoStand.laeuft){_tkFotoStand.nochmal=true;return _tkFotoStand.laeuft;}
+  _tkFotoStand.laeuft=PhotoQ.getAll().then(q=>{const m={};(q||[]).forEach(x=>{if(x&&x.nurStorage&&x.storagePath)m[x.storagePath]={status:x.status||"pending",retries:x.retries||0,lastError:x.lastError||"",lokal:x.dataUrl||""};});return m;},()=>_tkFotoStand.map).then(m=>{
+    _tkFotoStand.map=m;_tkFotoStand.laeuft=null;_tkFotoStand.hoerer.forEach(f=>{try{f(m);}catch(_e){}});
+    if(_tkFotoStand.nochmal){_tkFotoStand.nochmal=false;return _tkFotoStandLaden();}
+    return m;});
+  return _tkFotoStand.laeuft;
+}
+function _tkFotoNachLauf(d,m){
+  const offen=Object.keys(m||{}).length;
+  if(d&&d.art==="flush"&&d.tkFail>0){const jetzt=Date.now();if(jetzt-_tkFotoStand.letzterToast>60000){_tkFotoStand.letzterToast=jetzt;try{if(window.__toast)window.__toast("Ticket-Foto noch nicht hochgeladen \u2013 wird erneut versucht. Das Foto bleibt auf diesem Ger\u00e4t gespeichert.","warn",8000);}catch(_e){}}}
+  if(!offen){_tkFotoStand.n=0;if(_tkFotoStand.t){clearTimeout(_tkFotoStand.t);_tkFotoStand.t=null;}return;}
+  if(d&&d.art==="flush"&&!_tkFotoStand.t){const ms=Math.min(300000,15000*Math.pow(2,Math.min(_tkFotoStand.n,5)));_tkFotoStand.n++;
+    _tkFotoStand.t=setTimeout(()=>{_tkFotoStand.t=null;try{PhotoQ.flush().then(()=>{try{if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(_e){}});}catch(_e){}},ms);}
+}
+if(typeof window!=="undefined"&&window.addEventListener){
+  window.addEventListener("epk-photoq",e=>{const d=(e&&e.detail)||{};_tkFotoStandLaden().then(m=>_tkFotoNachLauf(d,m));});
+  setTimeout(()=>{_tkFotoStandLaden().then(m=>{if(Object.keys(m).length&&navigator.onLine)PhotoQ.flush();else _tkFotoNachLauf({art:"flush"},m);});},8000);/* Neustart: liegengebliebene Ticket-Fotos wieder anstossen */
+}
+/* Kachelquelle: Vorschaubild > lokales Vollbild (Foto noch nicht oben, Vorschaubild fehlt) > Speicher-Adresse. REIN. */
+function _tkKachelQuelle(ph,st){if(ph&&typeof ph==="object"&&!ph.dataUrl&&!ph.thumb&&st&&st.lokal)return st.lokal;return _tkFotoSrc(ph);}
+function _useTkFotoStand(){const [m,setM]=_react.useState.call(void 0, _tkFotoStand.map);_react.useEffect.call(void 0, ()=>{_tkFotoStand.hoerer.add(setM);_tkFotoStandLaden();return ()=>{_tkFotoStand.hoerer.delete(setM);};},[]);return m;}
+function TkFotoKachel({ph,onWeg,gr}){const m=_useTkFotoStand();const st=(ph&&typeof ph==="object"&&ph.path)?m[ph.path]:null;return _tkFotoKachel(_tkKachelQuelle(ph,st),onWeg,undefined,gr,!!st);}
+function TkFotoHinweis({photos}){const m=_useTkFotoStand();const offen=(Array.isArray(photos)?photos:[]).filter(f=>f&&typeof f==="object"&&f.path&&m[f.path]);if(!offen.length)return null;
+  const fehler=offen.some(f=>m[f.path].status==="error");
+  return React.createElement('div',{'aria-live':"polite",'data-tk-foto-offen':String(offen.length),style:{display:"flex",alignItems:"center",gap:6,flexBasis:"100%",order:99,fontSize:UI.fMeta,color:V.dm,marginTop:4}},_ik(fehler?"warnung":"drehen",14),(offen.length===1?"Foto":offen.length+" Fotos")+" noch nicht hochgeladen \u2013 "+(fehler?"wird erneut versucht":"wird hochgeladen")+". Bleibt bis dahin auf diesem Ger\u00e4t gespeichert.");}
 /* Aufraeumen (17.11.2026): ein entferntes Ticket-Foto bzw. ein geloeschtes Ticket liess das Storage-Objekt
    tickets/<projekt>/<ticket>/<datei> stehen. Jetzt best-effort ueber den vorhandenen Helfer _sbDeleteObj (wie Plan/Doku/Foto seit
    v3.9.408/423). NUR Pfade unter tickets/ in genau der Form, die _tkFotosAuslagern erzeugt; nie ein anderes Praefix, nie "..".
@@ -18682,7 +18721,8 @@ function TicketDetail({ticket,layers,onUpdate,onDelete,onClose,ww,monteure,isAdm
           , React.createElement('div', { style: {marginBottom:14}}
             , React.createElement('div', { style: {fontSize:12,fontWeight:700,marginBottom:6,color:V.dm}}, "Fotos ("  , (ticket.photos||[]).length, ")")
             , React.createElement('div', { style: {display:"flex",gap:12,flexWrap:"wrap",alignItems:"center",paddingTop:4}}
-              , (ticket.photos||[]).map((ph,i)=>_tkFotoKachel(_tkFotoSrc(ph), ()=>{_tkFotoAufraeumen(_tkFotoPfadeWeg([ph],[]));/* Aufraeumen 17.11.: Storage-Objekt mit */const photos=[...(ticket.photos||[])];photos.splice(i,1);onUpdate({...ticket,photos});}, i, 64))
+              , (ticket.photos||[]).map((ph,i)=>React.createElement(TkFotoKachel,{key:i,ph:ph,gr:64,onWeg:()=>{_tkFotoAufraeumen(_tkFotoPfadeWeg([ph],[]));/* Aufraeumen 17.11.: Storage-Objekt mit */const photos=[...(ticket.photos||[])];photos.splice(i,1);onUpdate({...ticket,photos});}}))
+              , React.createElement(TkFotoHinweis,{photos:ticket.photos})/* 17.11.: sichtbar, solange ein Foto nicht oben ist */
               , React.createElement('label', { style: _tkFotoLab(), title: "Foto aus Datei wählen" }, _ik("ordner",20), "Datei", React.createElement('input', { type: "file", accept: "image/*", multiple: true, style: {display:"none"}, onChange: e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)_tkFotoEintrag(ph,_fe=>onUpdate({...ticket,photos:[...(ticket.photos||[]),_fe]}));});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
               , React.createElement('label', { style: _tkFotoLab(), title: "Foto aufnehmen"}, _ik("kamera",20), "Foto", React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)_tkFotoEintrag(ph,_fe=>onUpdate({...ticket,photos:[...(ticket.photos||[]),_fe]}));});try{e.target.value="";}catch(e){console.warn('[silent-dom]',e&&e.message||e);}}} ))
             )
@@ -18734,7 +18774,7 @@ function TkKlickSchild(){const [an,setAn]=_react.useState.call(void 0, true);_re
 /* Vorlagen-Beschriftungen tragen in den Code-Vorgaben Emoji ("🔴 Steckdose defekt"). Angezeigt wird ohne; die gespeicherten Vorlagen bleiben unberuehrt. */
 function _tkOhneEmoji(s){const t=String(s==null?"":s);const r=t.replace(/(?:[\uD83C-\uDBFF][\uDC00-\uDFFF]|[\u2139\u24C2\u25AA-\u25FE\u2300-\u23FF\u2600-\u27BF\u2934\u2935\u2B00-\u2BFF\u3030\u303D\u3297\u3299])[\uFE0F\u200D]*/g,"").replace(/\s+/g," ").trim();return r||t;}
 /* Fotokachel: der Entfernen-Knopf hat 44 px Trefferflaeche (vorher 18 px), sichtbar bleibt ein 24-px-Kreis. */
-function _tkFotoKachel(src,onWeg,key,gr){const g=gr||64;return React.createElement('div',{key:key,style:{width:g,height:g,position:"relative",flexShrink:0}},React.createElement('div',{style:{width:"100%",height:"100%",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,background:V.bg}},src?React.createElement('img',{src:src,alt:"",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}}):null),onWeg?React.createElement('button',{type:"button",title:"Foto entfernen",'aria-label':"Foto entfernen",onClick:onWeg,style:{position:"absolute",top:-12,right:-12,width:44,height:44,minHeight:44,padding:0,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement('span',{style:{width:24,height:24,borderRadius:"50%",background:UI.fehler,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 3px rgba(0,0,0,.4)"}},_ik("kreuz",14))):null);}
+function _tkFotoKachel(src,onWeg,key,gr,offen){const g=gr||64;return React.createElement('div',{key:key,style:{width:g,height:g,position:"relative",flexShrink:0}},React.createElement('div',{style:{width:"100%",height:"100%",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,background:V.bg}},src?React.createElement('img',{src:src,alt:"",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}}):null),offen?React.createElement('span',{'aria-hidden':"true",'data-tk-foto-marke':"1",title:"Noch nicht hochgeladen",style:{position:"absolute",left:4,bottom:4,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,.65)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}},_ik("drehen",12)):null/* 17.11.: Foto liegt noch in der PhotoQ */,onWeg?React.createElement('button',{type:"button",title:"Foto entfernen",'aria-label':"Foto entfernen",onClick:onWeg,style:{position:"absolute",top:-12,right:-12,width:44,height:44,minHeight:44,padding:0,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement('span',{style:{width:24,height:24,borderRadius:"50%",background:UI.fehler,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 3px rgba(0,0,0,.4)"}},_ik("kreuz",14))):null);}
 /* v3.9.71 S51-1 PlanRadar-R3: Canvas-Pin-Marker mit Hover-Quick-Info-Card (Desktop), ≥44px hit-area (Mobile),
    Status-Color-Fill, Pulse-Animation für NEW (<TIME_HOUR). UI-only Wrapper — keine onClick-Logic-Änderung. */
 function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure, zoom, pendingIds, draggable, pctFromClient, onPinMove}) {
@@ -19443,7 +19483,8 @@ function QuickEditPin({ticket, monteure, isAdmin, isMtField, vpMid, onSave, onOp
         React.createElement('button', {type:"button", onClick:()=>_setAuf(true), 'aria-expanded':"false", style:{...bsS(), flex:1, display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8}}, _ik("liste", 18), hideJournal ? "Details" : "Details · Verlauf")
       ) : null,
       _auf && onPhotos ? React.createElement('div', {style:{display:"flex", gap:12, flexWrap:"wrap", alignItems:"center", marginBottom:12, paddingTop:4}}/* v3.9.181: alle Fotos + Datei/Kamera; Stufe 1: oben, 64 px, Entfernen mit 44-px-Trefferflaeche */,
-        (ticket.photos||[]).map((ph,_pi)=>{const _s=_tkFotoSrc(ph);return _tkFotoKachel(_s, ()=>{_tkFotoAufraeumen(_tkFotoPfadeWeg([ph],[]));/* Aufraeumen 17.11. */onPhotos((ticket.photos||[]).filter((_,_di)=>_di!==_pi));}, _pi, 64);}),
+        (ticket.photos||[]).map((ph,_pi)=>React.createElement(TkFotoKachel,{key:_pi,ph:ph,gr:64,onWeg:()=>{_tkFotoAufraeumen(_tkFotoPfadeWeg([ph],[]));/* Aufraeumen 17.11. */onPhotos((ticket.photos||[]).filter((_,_di)=>_di!==_pi));}})),
+        React.createElement(TkFotoHinweis,{photos:ticket.photos}),
         React.createElement('label', {style:_tkFotoLab(), title:"Foto aufnehmen"}, _ik("kamera", 20), "Foto", React.createElement('input', {type:"file", accept:"image/*", capture:"environment", style:{display:"none"}, onChange:e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)_tkFotoEintrag(ph,_fe=>onPhotos([...(ticket.photos||[]),_fe]));});try{e.target.value="";}catch(_e){}}})),
         React.createElement('label', {style:_tkFotoLab(), title:"Foto aus Datei wählen"}, _ik("ordner", 20), "Datei", React.createElement('input', {type:"file", accept:"image/*", multiple:true, style:{display:"none"}, onChange:e=>{processPhotos(e.target.files,ph=>{if(ph.dataUrl)_tkFotoEintrag(ph,_fe=>onPhotos([...(ticket.photos||[]),_fe]));});try{e.target.value="";}catch(_e){}}}))
       ) : null,
