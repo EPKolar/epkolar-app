@@ -21,12 +21,14 @@ Gruende der Restmenge:
     Wortlaut, offa-Tests werden nie angepasst), OFFA-Banner (Auftrag: nicht
     anfassen), Push-/Juprowa-Kennzeichen im Formular und der Wolken-Knopf der
     Rechner-Zeile (test_as_zeile_flaechen_v920: Warnzeichen bleiben Wort fuer Wort),
-    Kontaktblock "(OFFA)", Juprowa-Monteurcode-Zuordnung (Admin).
+    Juprowa-Monteurcode-Zuordnung (Admin). (Kontaktblock "(OFFA)" traegt seit A55
+    BERICHT9 17.11. Linien-Ikonen telefon/brief - aus der Liste genommen.)
   * Formular-Auftragstyp zeigt Icon+Label aus AS_ART (Vertrag in
     test_scheinart_push_v797 / test_as_formular_kein_dropdown_v803) - steht nicht
     als Literal hier, AS_ART ist eine globale Tabelle.
   * Hinweistexte (Schloss bei abgeschlossenem Schein / Monteur legt nur fuer sich
-    an, Mikrofon am Diktierfeld) - kein Knopf, Reiter, Chip oder Kartenkopf.
+    an) - kein Knopf, Reiter, Chip oder Kartenkopf. Das Mikrofon-Emoji in den
+    Etiketten Durchzufuehren/Notizen ist seit A55 BERICHT9 (17.11.) weg.
   * Chef: _ampLbl und die Budget-Ampel p.amp sind in test_bughunt_2026_06_17 als
     Schwellen-Riegel samt Emoji gepinnt. Angezeigt wird jetzt ein Punkt; _CD_AMPEL
     ordnet den gepinnten Ampelwert der Punktfarbe zu (Emoji nur als Schluessel).
@@ -61,9 +63,6 @@ AS_REST = [
     'jupPushing?"⏳...":"☁️↑ Push"',
     '"🔗 OFFA"',
     '"⚠ Monteur nicht nach OFFA übertragbar',
-    '"📞 Kontakt (OFFA)"',
-    '"☎"',
-    '"✉"',
     # Scan-Meldung (Faerbung haengt am ersten Zeichen)
     'asScanMsg.startsWith("✅")',
     'asScanMsg.startsWith("❌")',
@@ -83,8 +82,6 @@ AS_REST = [
     # Hinweistexte
     '"🔒 Dieser Schein ist abgeschlossen ("',
     '"🔒 Du legst nur für dich selbst an"',
-    '"Durchzuführen * 🎤"',
-    '"Notizen 🎤"',
 ]
 
 CHEF_REST = [
