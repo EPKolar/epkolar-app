@@ -244,7 +244,8 @@ def test_3_ein_tipp_oeffnet_die_kamera(src):
     vm = _fn(src, "VMang")
     b = _zwischen(vm, ", mgNochEins&&!mgFormAuf&&!mgFotoAuf&&React.createElement('div'", "/* ── Kundenmeldungen Review ── */")
     assert "Noch einen Mangel per Foto?" in b
-    i = b.find("\"📷 Noch einen\", React.createElement('input'")
+    # Touch-UI-Rest (17.11.2026): Emoji -> _ik("kamera",18) davor; gepinnt bleibt das label um das Datei-Feld.
+    i = b.find("_ik(\"kamera\",18), \"Noch einen\", React.createElement('input'")
     assert i > 0, "Der Knopf ist kein label um das Datei-Feld - dann ist es keine Nutzergeste."
     nah = b[i:i + 300]
     assert 'capture: "environment"' in nah and "onChange: _mgFotoZuerst" in nah
@@ -257,7 +258,8 @@ def test_3_textfeld_behaelt_diktat(src):
     vm = _fn(src, "VMang")
     form = _zwischen(vm, ", mgFotoAuf&&React.createElement('div', { style: {...CC()", "\"✓ Mangel speichern\"")
     assert "React.createElement(SpeechWrap, { value: name, onChange: v=>setName(v)}" in form
-    assert "Was ist der Mangel? 🎤" in form
+    # Touch-UI-Rest (17.11.2026): das Mikrofon-Emoji im Feldnamen ist weg - MicBtn in SpeechWrap bleibt (Zeile darueber).
+    assert "Was ist der Mangel?" in form
 
 
 # ── 4 Mangel-Karte im CI ─────────────────────────────────────────────────

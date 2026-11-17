@@ -207,6 +207,13 @@ def test_die_zwei_behobenen_stellen_bleiben_benannt():
     for ansicht, name in (("VBautag", "Eintrag löschen"),
                           ("ProjectShell", "Alle Projekte")):
         treffer = [t for t in _klasse(roh) if t[0] == ansicht and t[4]]
+        # Touch-UI-Rest (17.11.2026): VBautag zeichnet das Symbol jetzt als Linien-Ikone (_ikVw, aria-hidden) statt
+        # als Emoji-Literal - der Knopf faellt damit aus der Literal-Klasse, sein Rest kann aber weiter wegfallen.
+        # Verlangt bleibt dasselbe: GENAU dieser Knopf traegt title UND aria-label "Eintrag löschen".
+        # (Vor seinen Eigenschaften steht ein Kommentar - code_scan liest dort keine Eigenschaften; darum hier direkt.)
+        if not treffer and ansicht == "VBautag":
+            treffer = re.findall(r"createElement\('button', /\*(?:(?!\*/).)*\*/\{ title: \"Eintrag löschen\", 'aria-label': \"Eintrag löschen\""
+                                 r"[^\n]*?_ikVw\(\"eimer\",isMob\?\"Löschen\":\"\"\)", roh)
         assert treffer, (
             "%s fuehrt keinen benannten Knopf dieser Klasse mehr. In v3.9.960 "
             "hat er %r bekommen - ist der Name weg, ist der Mangel zurueck."

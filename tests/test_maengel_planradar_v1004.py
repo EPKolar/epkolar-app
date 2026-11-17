@@ -103,7 +103,8 @@ def test_a_nur_plaene_dieses_projekts(src):
 
 def test_b_foto_knopf_oeffnet_direkt_die_kamera(src):
     vm = _fn(src, "VMang", code_only=True)
-    i = vm.find("\"📷 Mangel per Foto\", React.createElement('input'")
+    # Touch-UI-Rest (17.11.2026): Emoji -> _ik("kamera",18) davor; gepinnt bleibt das label um das Datei-Feld.
+    i = vm.find("_ik(\"kamera\",18), \"Mangel per Foto\", React.createElement('input'")
     assert i > 0
     nah = vm[i:i + 400]
     assert 'capture: "environment"' in nah and "onChange: _mgFotoZuerst" in nah

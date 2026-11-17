@@ -142,8 +142,10 @@ def test_kein_emojiknopf_ohne_namen():
     # im Test darunter.
     # Offen-4 (17.11.2026) NACHGEZOGEN: 60 -> 50. Die Foto-Warteschlange im Kopf zeichnet ihren Entfernen-Knopf
     # jetzt mit Linien-Ikone (gemessen 61 -> 60); gleiche Eichungs-Logik wie oben.
-    assert len(alle) > 50, (
-        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 50. Das ist kein "
+    # Touch-UI-Rest (17.11.2026) NACHGEZOGEN: 50 -> 40. Projektakte (Maengel, Fotos, Dokumente) zeichnet ihre
+    # Symbolknoepfe jetzt mit Linien-Ikonen (gemessen 60 -> 50 im Abtaster); gleiche Eichungs-Logik wie oben.
+    assert len(alle) > 40, (
+        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 40. Das ist kein "
         "gruenes Ergebnis: entweder ist der Abtaster blind, oder die Knoepfe "
         "sind anders geschrieben. Eine kleine Grundgesamtheit macht die "
         "Aussage unten wertlos." % len(alle))

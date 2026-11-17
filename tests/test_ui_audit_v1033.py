@@ -72,7 +72,9 @@ def test_umkehrprobe_rohe_statusfarben_waren_unter_aa(index_html, node_exe):
 KONTRAST_STELLEN = [
     'background:st.c+"22",color:_lesbar(st.c),fontWeight:700}}, _asPkt(st.c), st.l)',
     "color:_lesbar((AS_PRIO[a.prioritaet]&&AS_PRIO[a.prioritaet].c)||V.dm),fontWeight:700}}, \"● \"",
-    'background:bg||color+"18",color:bg?color:_lesbar(color),whiteSpace',
+    # Touch-UI-Rest (17.11.2026) VERSCHAERFT: Badge-Schrift steht auf ihrem EIGENEN getoenten Chip und nimmt das
+    # Chip-Ziel von _lesbar (Werkzeuge 'Ausgegeben' gemessen 4,48:1). Riegel: tests/test_touch_ui_rest_v1037.py.
+    'background:bg||color+"18",color:bg?color:_lesbar(color,!0),whiteSpace',
     "return{icon:'→',color:_lesbar('#71717a')};",
     "color:_lesbar(bad?'#ef4444':'#22c55e')};};",
     'color:_lesbar(it.color),padding:"2px 6px",borderRadius:4,background:it.color+"15"',
