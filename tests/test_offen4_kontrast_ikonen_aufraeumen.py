@@ -127,8 +127,8 @@ def test_neue_ikonen_existieren(index_html):
         assert re.search(r"[{,]%s:\[" % n, index_html), n
 
 
-# ── 4 Ticket-Fotos aufraeumen ──────────────────────────────────────────────
-NAMEN = ("_tkFotoPfadOk", "_tkFotoPfadeWeg", "_tkWegListe", "_tkWegSetzen")
+# ── 4 Ticket-Fotos aufraeumen (mit Sicherheits-Nachzug: an Projekt+Ticket gebunden, Nachholliste je Benutzer)
+NAMEN = ("_tkPfadTeil", "_tkFotoPraefix", "_tkFotoPfadOk", "_tkFotoPfadeWeg", "_tkAktUid", "_tkWegListe", "_tkWegSetzen")
 ASYNC = ("_tkFotoAufraeumen", "_tkFotoWegNachholen")
 
 
@@ -151,7 +151,7 @@ def _bausatz(src, ersetzen=None):
 
 
 VORSPANN = r"""
-const LS={};const localStorage={getItem:k=>(k in LS?LS[k]:null),setItem:(k,v)=>{LS[k]=String(v);},removeItem:k=>{delete LS[k];}};
+const LS={epkolar_user:JSON.stringify({id:"u1"})};const localStorage={getItem:k=>(k in LS?LS[k]:null),setItem:(k,v)=>{LS[k]=String(v);},removeItem:k=>{delete LS[k];}};
 const navigator={onLine:true};
 const SB_BUCKET="epkolar-files";const _TK_WEG_KEY="epk_tk_foto_weg";
 let Q=[];const geloescht=[];let storageOk=true;
@@ -167,17 +167,31 @@ def _lauf(node_exe, code, koerper):
 KOERPER = r"""
 const r={};
 const A={name:"a",path:"tickets/p1/t1/1_0.jpg",thumb:"x"},B={name:"b",path:"tickets/p1/t1/1_1.jpg",thumb:"x"};
-r.weg=_tkFotoPfadeWeg([A,B,"data:alt",{name:"c",dataUrl:"data:x"}],[B]);
-r.fremd=_tkFotoPfadeWeg([{path:"photos/p1/x.jpg"},{path:"tickets/../plans/x.pdf"},{path:"tickets/p1/t1"},{path:"plans/tickets/p1/t1/x.jpg"}],[]);
+r.weg=_tkFotoPfadeWeg([A,B,"data:alt",{name:"c",dataUrl:"data:x"}],[B],"p1","t1",[]);
+/* IDOR: fremde Pfade im lokalen Ticket-Objekt (anderes Ticket, anderes Projekt, anderes Praefix, ..) */
+r.fremd=_tkFotoPfadeWeg([{path:"tickets/p1/t2/1_0.jpg"},{path:"tickets/p2/t1/1_0.jpg"},{path:"photos/p1/x.jpg"},{path:"tickets/p1/t1/../t2/x.jpg"},{path:"tickets/p1/t1/.."},{path:"tickets/p1/t1/a/b.jpg"},{path:"plans/tickets/p1/t1/x.jpg"}],[],"p1","t1",[]);
+r.ohneKontext=_tkFotoPfadeWeg([A],[],"","t1",[]).concat(_tkFotoPfadeWeg([A],[],"p1","",[]));
+/* ein anderes Ticket im Plan verweist noch auf A */
+r.geteilt=_tkFotoPfadeWeg([A,B],[],"p1","t1",[{id:"t1",photos:[A,B]},{id:"t7",photos:[A]}]);
+r.sonderzeichen=_tkFotoPfadeWeg([{path:"tickets/P_1/T_1/5_0.jpg"}],[],"P/1","T 1",[]);
+/* Aufraeumer prueft selbst noch einmal gegen Projekt+Ticket */
+r.direkt=await _tkFotoAufraeumen(["tickets/p1/t2/1_0.jpg","photos/p1/x.jpg"],"p1","t1");r.delDirekt=geloescht.slice();
 Q=[{id:"q1",nurStorage:true,storagePath:"tickets/p1/t1/1_0.jpg"},{id:"q2",nurStorage:false,storagePath:"tickets/p1/t1/1_0.jpg"},{id:"q3",nurStorage:true,storagePath:"tickets/p1/t2/9_0.jpg"}];
-r.a1=await _tkFotoAufraeumen(r.weg);
+r.a1=await _tkFotoAufraeumen(r.weg,"p1","t1");
 r.q=Q.map(x=>x.id);r.del1=geloescht.slice();
 Q=[{id:"q4",nurStorage:true,storagePath:"tickets/p1/t1/1_1.jpg",file_path:"https://x/epkolar-files/tickets/p1/t1/1_1.jpg"}];
-storageOk=false;r.a2=await _tkFotoAufraeumen(["tickets/p1/t1/1_1.jpg","photos/p1/x.jpg"]);
+storageOk=false;r.a2=await _tkFotoAufraeumen(["tickets/p1/t1/1_1.jpg"],"p1","t1");
 r.merk=JSON.parse(LS[_TK_WEG_KEY]||"[]");
-for(let i=0;i<6;i++)await _tkFotoWegNachholen();
+/* anderer Benutzer am selben Geraet: Eintrag von u1 wird NICHT nachgeholt */
+storageOk=true;LS.epkolar_user=JSON.stringify({id:"u2"});const vorU2=geloescht.length;r.u2=await _tkFotoWegNachholen();r.u2Del=geloescht.length-vorU2;r.u2Liste=JSON.parse(LS[_TK_WEG_KEY]||"[]").length;
+/* niemand angemeldet: nichts */
+delete LS.epkolar_user;const vorOhne=geloescht.length;r.ohneUser=await _tkFotoWegNachholen();r.ohneUserDel=geloescht.length-vorOhne;
+/* manipulierter Eintrag (fremder Pfad unter eigenem Benutzer) wird verworfen */
+LS.epkolar_user=JSON.stringify({id:"u1"});
+LS[_TK_WEG_KEY]=JSON.stringify([{p:"tickets/p1/t2/1_0.jpg",n:1,u:"u1",pid:"p1",tid:"t1"},{p:"tickets/p1/t1/1_1.jpg",n:1,u:"u1",pid:"p1",tid:"t1"}]);
+storageOk=false;for(let i=0;i<6;i++)await _tkFotoWegNachholen();
 r.nachAufgeben=LS[_TK_WEG_KEY]||"";
-storageOk=false;await _tkFotoAufraeumen(["tickets/p9/t9/5_0.jpg"]);storageOk=true;r.nach=await _tkFotoWegNachholen();r.leer=LS[_TK_WEG_KEY]||"";
+storageOk=false;await _tkFotoAufraeumen(["tickets/p9/t9/5_0.jpg"],"p9","t9");storageOk=true;r.nach=await _tkFotoWegNachholen();r.leer=LS[_TK_WEG_KEY]||"";
 r.del=geloescht.slice();
 process.stdout.write(JSON.stringify(r));
 """
@@ -188,17 +202,30 @@ def pruef_aufraeumen(r):
     if r["weg"] != ["tickets/p1/t1/1_0.jpg"]:
         b.append("Differenz falsch: %s" % r["weg"])
     if r["fremd"]:
-        b.append("fremde/kaputte Pfade durchgelassen: %s" % r["fremd"])
+        b.append("fremde Pfade (anderes Ticket/Projekt/Praefix) durchgelassen: %s" % r["fremd"])
+    if r["ohneKontext"]:
+        b.append("ohne Projekt/Ticket wird geloescht: %s" % r["ohneKontext"])
+    if r["geteilt"] != ["tickets/p1/t1/1_1.jpg"]:
+        b.append("Pfad, auf den ein anderes Ticket verweist, wird geloescht: %s" % r["geteilt"])
+    if r["sonderzeichen"] != ["tickets/P_1/T_1/5_0.jpg"]:
+        b.append("Praefix-Bausteine weichen von _tkFotosAuslagern ab: %s" % r["sonderzeichen"])
+    if r["delDirekt"] or r["direkt"]["offen"]:
+        b.append("Aufraeumer loescht fremde Pfade: %s" % r["delDirekt"])
     if "q1" in r["q"]:
         b.append("noch nicht hochgeladenes Ticket-Foto blieb in der PhotoQ (wuerde spaeter als Waise hochgeladen)")
     if "q2" not in r["q"] or "q3" not in r["q"]:
         b.append("fremde PhotoQ-Eintraege entfernt: %s" % r["q"])
     if r["del1"]:
         b.append("nie hochgeladenes Objekt trotzdem per DELETE angefragt: %s" % r["del1"])
-    if r["a2"]["offen"] != 1 or [x["p"] for x in r["merk"]] != ["tickets/p1/t1/1_1.jpg"]:
-        b.append("gescheiterter DELETE nicht gemerkt: %s / %s" % (r["a2"], r["merk"]))
-    if any("photos/" in d for d in r["del"]):
-        b.append("anderes Praefix geloescht: %s" % r["del"])
+    merk = [(x["p"], x.get("u"), x.get("pid"), x.get("tid")) for x in r["merk"]]
+    if r["a2"]["offen"] != 1 or merk != [("tickets/p1/t1/1_1.jpg", "u1", "p1", "t1")]:
+        b.append("gescheiterter DELETE nicht mit Benutzer/Projekt/Ticket gemerkt: %s / %s" % (r["a2"], r["merk"]))
+    if r["u2"] or r["u2Del"] or r["u2Liste"] != 1:
+        b.append("Nachholliste unter fremdem Benutzer abgespielt/verworfen: %s/%s/%s" % (r["u2"], r["u2Del"], r["u2Liste"]))
+    if r["ohneUser"] or r["ohneUserDel"]:
+        b.append("ohne Anmeldung nachgeholt")
+    if any("photos/" in d or "/t2/" in d for d in r["del"]):
+        b.append("fremdes Objekt geloescht: %s" % r["del"])
     if r["nachAufgeben"]:
         b.append("Merkliste waechst ohne Grenze: %s" % r["nachAufgeben"])
     if r["nach"] != 1 or r["leer"]:
@@ -214,18 +241,41 @@ def test_aufraeumen_node(index_html, node_exe):
 @pytest.mark.parametrize("ersetzen", [
     ("if(x&&x.nurStorage&&liste.indexOf(x.storagePath)>=0){await PhotoQ.remove(x.id);", "if(false){"),
     ("p.indexOf(\"..\")<0&&", ""),
-    ("/^tickets\\/[A-Za-z0-9._-]+\\/[A-Za-z0-9._-]+\\/[A-Za-z0-9._-]+$/", "/^[A-Za-z0-9._\\/-]+$/"),
-    ("else offen.push({p:p,n:1});", ""),
+    ("&&p.indexOf(pre)===0&&/^[A-Za-z0-9._-]+$/.test(p.slice(pre.length))", "&&/^tickets\\//.test(p)"),
+    ("if(!t||t.id===tid)return;", "return;"),
+    ("filter(p=>_tkFotoPfadOk(p,pid,tid))", "filter(p=>!!p)"),
+    ("else if(uid)offen.push({p:p,n:1,u:uid,pid:String(pid),tid:String(tid)});", ""),
+    ("if(x.u!==uid){rest.push(x);continue;}", ""),
+    ("const uid=_tkAktUid();if(!uid)return 0;", "const uid=\"u1\";"),
     ("else if((x.n||0)+1<5)rest.push", "else rest.push"),
+    ("return String(v||\"x\").replace(/[^a-zA-Z0-9._-]/g,\"_\").slice(0,80);", "return String(v||\"x\");"),
 ])
 def test_aufraeumen_umkehrprobe(index_html, node_exe, ersetzen):
-    r = _lauf(node_exe, _bausatz(index_html, ersetzen), KOERPER)
-    assert pruef_aufraeumen(r), "Riegel blind fuer: " + ersetzen[0]
+    try:
+        befunde = pruef_aufraeumen(_lauf(node_exe, _bausatz(index_html, ersetzen), KOERPER))
+    except Exception as ex:
+        befunde = [str(ex)[:200]]
+    assert befunde, "Riegel blind fuer: " + ersetzen[0]
+
+
+def test_pfadbausteine_wortgleich(index_html):
+    """_tkPfadTeil ist zeichengleich mit dem Baustein _s, mit dem _tkFotosAuslagern den Pfad baut."""
+    teil = re.search(r"function _tkPfadTeil\(v\)\{return (.*?);\}", index_html).group(1)
+    aus = _extract_fn(index_html, "_tkFotosAuslagern")
+    assert "const _s=v=>" + teil + ";" in aus
+    assert '"tickets/"+_s(pid)+"/"+_s(tid)+"/"' in aus
 
 
 def test_aufraeumen_verdrahtet(index_html):
-    """Beide Entfernen-Wege und beide Loesch-Wege rufen den Aufraeumer; PhotoQ holt Gemerktes nach."""
-    assert index_html.count("_tkFotoAufraeumen(_tkFotoPfadeWeg([ph],[]))") == 2
-    assert index_html.count("_tkFotoAufraeumen(_tkFotoPfadeWeg(_tDel.photos,[]))") == 2
+    """Entfernen (Detail, Schnellblatt) und Loeschen (Plan, Maengel) laufen ueber den gebundenen Weg; Abmelden leert die Liste."""
+    assert "_tkFotoPfadeWeg([ph],[]))" not in index_html
+    assert index_html.count("_tkFotoAufraeumen(_tkFotoPfadeWeg(alt,neu,p.id,t.id,(planData&&planData.tickets)||[]),p.id,t.id)") == 1
+    assert index_html.count("onFotoWeg: _vpFotoWeg}") == 2
+    assert "if(onFotoWeg)onFotoWeg(ticket,[ph],[]);" in index_html
+    assert "onPhotos: (arr)=>{_vpFotoWeg(quickTicket,quickTicket&&quickTicket.photos,arr);" in index_html
+    assert "if(_tDel)_vpFotoWeg(_tDel,_tDel.photos,[]);" in index_html
+    assert "_tkFotoAufraeumen(_tkFotoPfadeWeg(_tDel.photos,[],p.id,_tDel.id,planData.tickets),p.id,_tDel.id)" in index_html
+    a = index_html.index("function setToken(t)")
+    assert "localStorage.removeItem('epk_tk_foto_weg')" in index_html[a:index_html.index("function getToken", a)]
     a = index_html.index("const PhotoQ={")
     assert "_tkFotoWegNachholen()" in index_html[a:index_html.index("// GPS-Erfassung", a)]
