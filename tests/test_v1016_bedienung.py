@@ -233,7 +233,8 @@ def test_kamera_meldung_deutsch(node_exe, index_html):
         "\nprocess.stdout.write(JSON.stringify([_kameraFehlerText({name:'NotAllowedError',message:'Permission denied'}),"
         "_kameraFehlerText({name:'X'})]));")
     a, b = json.loads(run_node_snippet(node_exe, js))
-    assert "verweigert" in a and "Permission" not in a and b == "Kamera nicht verfügbar"
+    # Tablet-Funde 17.11. (v1038): neutral "nicht freigegeben" statt "verweigert" - wer die Abfrage nur schliesst, hat nichts verweigert.
+    assert "nicht freigegeben" in a and "verweigert" not in a and "Permission" not in a and b == "Kamera nicht verfügbar"
 
 
 def test_datum_deutsch(node_exe, index_html):

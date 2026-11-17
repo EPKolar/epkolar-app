@@ -1749,6 +1749,8 @@ function _fT(init,ms){
 }
 // v3.8.20 Iter-23: Sentinel-Date-Guard gegen termin_vorschlag='0001-01-01'
 const _hasTermin = t => !!(t && t > '1900-01-01');
+/* Tablet-Funde 17.11.: Uhrzeit-Anzeige im Schein-Formular - "00:00" ist wie ueberall in der App (Dispo, Kalender) "keine echte Zeit" und kommt als OFFA-Platzhalter. Nur ANZEIGE, der Formularwert bleibt. */
+const _asZeitAnz = z => {const t=String(z==null?"":z).trim();return (t==="00:00"||t==="00:00:00"||t==="0:00")?"":t;};
 // Safe user columns (excludes password_hash for non-auth reads)
 const _USER_SAFE_COLS="id,name,username,email,role,active,monteur_id,permissions,perms_override,last_login,login_count,locked,deactivate_at,created_at,updated_at,auth_user_id";
 // SB_HDR replaced by dynamic _sbWH() — see auth section above
@@ -2621,7 +2623,9 @@ function _zeitStdHinweis(von,bis,pause){return _zeitEffektiveStunden(von,bis,pau
 /* v1016 Bedienung: Pause lesbar auf der Karte ('1 h Pause'). Nur Anzeige; null/leer = keine Angabe (alte Eintraege ohne Pause-Spalte). */
 /* v1016 Bedienung: der Loeschdialog nennt den Eintrag ('Zeiteintrag Mo 16.11. · 8,00 h · BVH … löschen?') - vorher stand nur 'Zeiteintrag wirklich löschen?', und welcher, sah man hinter dem Dialog nicht. */
 /* v1016: Kamera-Fehler auf Deutsch. Vorher wurde err.message angehaengt - die kommt vom Browser auf Englisch ('Permission denied'). */
-function _kameraFehlerText(err){var n=err&&err.name||"";if(n==="NotAllowedError"||n==="SecurityError"||n==="PermissionDeniedError")return "Kamera-Zugriff verweigert – bitte in den Browser-Einstellungen erlauben";if(n==="NotFoundError"||n==="OverconstrainedError")return "Keine passende Kamera gefunden";if(n==="NotReadableError"||n==="AbortError")return "Kamera ist gerade belegt – andere App schließen und erneut versuchen";return "Kamera nicht verfügbar";}
+/* Tablet-Funde 17.11.: Scan-Meldungen zur Kamera mit Linien-Ikone statt Emoji davor. */
+function _scanMsgInhalt(m){return /^(Kamera |Keine passende Kamera)/.test(String(m||""))?_ikVw("kamera",m):m;}
+function _kameraFehlerText(err){var n=err&&err.name||"";if(n==="NotAllowedError"||n==="SecurityError"||n==="PermissionDeniedError")return "Kamera nicht freigegeben – zum Scannen Kamera erlauben.";/* Tablet-Funde 17.11.: neutral - wer die Abfrage nur schliesst, hat nichts "verweigert" */if(n==="NotFoundError"||n==="OverconstrainedError")return "Keine passende Kamera gefunden";if(n==="NotReadableError"||n==="AbortError")return "Kamera ist gerade belegt – andere App schließen und erneut versuchen";return "Kamera nicht verfügbar";}
 function _zeitEintragName(datum,stunden,was){var t=String(datum||"").slice(0,10);var d=new Date(t+"T00:00:00");var tag=isNaN(d.getTime())?t:(["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()]+" "+String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+".");var h=parseFloat(stunden);var teile=[tag];if(!isNaN(h))teile.push(String(h.toFixed(2)).replace(".",",")+" h");if(was)teile.push(String(was));return teile.filter(Boolean).join(" · ");}
 function _zeitPauseText(p){if(p===null||p===undefined||p==="")return "";var z=parseFloat(p);if(isNaN(z))return "";if(z<=0)return "ohne Pause";if(z===0.5)return "30 Min Pause";return String(Math.round(z*100)/100).replace(".",",")+" h Pause";}
 function _zeitDauerUngueltig(von,bis){
@@ -8804,7 +8808,7 @@ function MonteurTafel(props){
     try{document.addEventListener('visibilitychange',_onVis);}catch(_ee){}
     return ()=>{try{document.removeEventListener('visibilitychange',_onVis);}catch(_re){}};
   },[curUser]);
-  const doSwUpdate=async()=>{/* v3.8.62 Bug-1: Banner sofort ausblenden (UX). _forceCacheClear macht reload nach ~500ms — bis dahin sah Banner persistent aus. */setSwUpdate(false);/* v3.9.48 S33-2 F7: postMessage in try/catch — waiting-Worker konnte von anderer Tab inaktiviert werden → InvalidStateError blockierte _forceCacheClear-Aufruf → User-Reload schlug fehl. */try{if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});}catch(e){console.warn('[doSwUpdate]',e&&e.message||e);}await window._forceCacheClear(true);};
+  const doSwUpdate=async()=>{/* Tablet-Funde 17.11.: OFFLINE nichts loeschen - _forceCacheClear meldet den Service Worker ab und leert die Caches; ohne Netz liess sich die App danach nicht mehr laden, und der Knopf schien nichts zu tun. Banner bleibt stehen. */if(typeof navigator!=="undefined"&&navigator.onLine===false)return void(window.__toast&&window.__toast("Keine Verbindung – das Update wird geladen, sobald wieder Netz da ist. Bitte dann erneut tippen.","warn",6000));/* bewusst ohne geschweifte Klammern - test_v3862_bugfixes liest den Rumpf nur bis zur ersten schliessenden *//* v3.8.62 Bug-1: Banner sofort ausblenden (UX). _forceCacheClear macht reload nach ~500ms — bis dahin sah Banner persistent aus. */setSwUpdate(false);/* v3.9.48 S33-2 F7: postMessage in try/catch — waiting-Worker konnte von anderer Tab inaktiviert werden → InvalidStateError blockierte _forceCacheClear-Aufruf → User-Reload schlug fehl. */try{if(_optionalChain([swReg, 'access', _27 => _27.current, 'optionalAccess', _28 => _28.waiting]))swReg.current.waiting.postMessage({type:"SKIP_WAITING"});}catch(e){console.warn('[doSwUpdate]',e&&e.message||e);}await window._forceCacheClear(true);};
   /* v3.9.705 Kiosk Self-Update — Versions-Poller. Holt index.html netzfrisch (RELATIVER Pfad wegen
      GitHub-Pages-Unterpfad /epkolar-app/), extrahiert die dort deklarierte APP_VERSION per Regex und
      vergleicht mit der laufenden. Mismatch -> lager_display stiller Auto-Reload (Loop-Guard), sonst
@@ -10825,10 +10829,10 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
          Reine Umbenennung: keine Zahl, keine Berechnung, kein Datenpfad angefasst. */
       ,React.createElement('div',{style:{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}},React.createElement('span',{style:{display:"inline-flex",color:V.mt}},_ik("uhr",18)),"Projektstunden ",React.createElement('span',{style:{color:V.dm,fontWeight:500,fontSize:12}},"· "+_curYr))
       ,React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}
-        ,_statBox("Stunden gesamt",Math.round(_zeitStats.totalH*10)/10+" h","#f97316","Jahres-Total")
-        ,_statBox("Ø Woche",_wochenSchnitt+" h",V.tx,"Schnitt / "+_wkVerstrichen+" Wo.")
-        ,_statBox("Diese Woche",Math.round(_zeitStats.thisWeekH*10)/10+" h","#3b82f6")
-        ,_statBox("Letzte Woche",Math.round(_zeitStats.lastWeekH*10)/10+" h",V.dm)
+        ,_statBox("Stunden gesamt",(Math.round(_zeitStats.totalH*10)/10).toLocaleString("de-AT")+" h"/* Tablet-Funde 17.11.: Dezimalkomma */,"#f97316","Jahres-Total")
+        ,_statBox("Ø Woche",_wochenSchnitt.toLocaleString("de-AT")+" h",V.tx,"Schnitt / "+_wkVerstrichen+" Wo.")
+        ,_statBox("Diese Woche",(Math.round(_zeitStats.thisWeekH*10)/10).toLocaleString("de-AT")+" h","#3b82f6")
+        ,_statBox("Letzte Woche",(Math.round(_zeitStats.lastWeekH*10)/10).toLocaleString("de-AT")+" h",V.dm)
       )
       ,_navBtn("zeiterfassung","→ Zeiterfassung öffnen","#f97316")
     );
@@ -11157,9 +11161,9 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
         ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600,letterSpacing:.2}},(isFix?"📌 ":"")+(o.nummer||""))
         ,o.ueberfaelligVon?h('div',{style:{fontSize:UI.fMeta,color:"#ef4444",fontWeight:700}},"⚠ war "+o.ueberfaelligVon.slice(8,10)+"."+o.ueberfaelligVon.slice(5,7)+"."):null
         ,o.konflikt?h('div',{style:{fontSize:UI.fMeta,color:"#dc2626",fontWeight:700}},"⚠ überschneidet "+o.konflikt):null/* v3.9.749 #27c: fix-vs-fix-Zeitkonflikt melden (nicht aufloesen) */
-        ,o.bvh?h('div',{style:{fontWeight:700,color:isFix?V.tx:(_dark?"#fdba74":"#c2410c"),wordBreak:"break-word"}},o.bvh):null
-        ,o.arbeit?h('div',{style:{color:V.tx,fontSize:UI.fMeta,wordBreak:"break-word"}},o.arbeit):null
-        ,h('div',{style:{color:V.dm,fontSize:UI.fMeta},title:(o.dauerGeschaetzt?"Dauer geschaetzt (gelernter Median oder Regel) — nicht mit dem Kunden vereinbart":"")},((Math.round((o.dauerMin||0)/60*10)/10)+"h")+(o.dauerGeschaetzt?"≈":"")+(o.editMark?" ✎":"")+(o.meta?(" · "+o.meta):""))/* v3.9.892: ≈ heisst 'geraten, nicht vereinbart'. Verschwindet, sobald jemand die Dauer selbst gezogen hat (_dauerOv) - dann ist sie eine Entscheidung, keine Schaetzung mehr. */
+        ,o.bvh?h('div',{lang:"de",style:{fontWeight:700,color:isFix?V.tx:(_dark?"#fdba74":"#c2410c"),overflowWrap:"normal",wordBreak:"normal",hyphens:"auto",overflow:"hidden"}},o.bvh):null/* Tablet-Funde 17.11.: kein Bruch mitten im Wort ("Stoerunge|n") - Silbentrennung statt break-word; das ganze steht im title der Kachel */
+        ,o.arbeit?h('div',{lang:"de",style:{color:V.tx,fontSize:UI.fMeta,overflowWrap:"normal",wordBreak:"normal",hyphens:"auto",overflow:"hidden"}},o.arbeit):null
+        ,h('div',{style:{color:V.dm,fontSize:UI.fMeta},title:(o.dauerGeschaetzt?"Dauer geschaetzt (gelernter Median oder Regel) — nicht mit dem Kunden vereinbart":"")},((Math.round((o.dauerMin||0)/60*10)/10).toLocaleString("de-AT")+"h")+(o.dauerGeschaetzt?"≈":"")+(o.editMark?" ✎":"")+(o.meta?(" · "+o.meta):""))/* v3.9.892: ≈ heisst 'geraten, nicht vereinbart'. Verschwindet, sobald jemand die Dauer selbst gezogen hat (_dauerOv) - dann ist sie eine Entscheidung, keine Schaetzung mehr. */
         ,o.tel?h('a',{href:"tel:"+String(o.tel).replace(/[^0-9+]/g,""),title:"Kunde anrufen: "+o.tel,onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},style:{display:"inline-block",marginTop:1,fontSize:UI.fMeta,fontWeight:700,color:V.ac,textDecoration:"none"}},"☎ "+o.tel):null/* v3.9.893: Kundennummer am Chip, direkt anwaehlbar. Die Kachel haengt an onPointerDown (Ziehen) UND onClick (Schein oeffnen) - der Link muss BEIDES stoppen, sonst verschiebt ein Anruf-Tipp den Termin. */
         ,o.uebernehmen||null)
       /* v3.9.746 #25: vereinbarte Zeit (fett) vs. geplante Zeit (o.geplant -> "~", kursiv/gedimmt + Label
@@ -11594,7 +11598,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
           asScanTimerRef.current=requestAnimationFrame(tick);};
         asScanTimerRef.current=requestAnimationFrame(tick);
       }else{setAsScanMsg("⚠️ Kein QR-Scanner — bitte Scheinnummer manuell eingeben");}
-    }catch(err){setAsScanMsg("📷 "+_kameraFehlerText(err));setAsScanning(false);}
+    }catch(err){setAsScanMsg(_kameraFehlerText(err));setAsScanning(false);}
   };
   const asStopScan=()=>{if(asScanTimerRef.current){cancelAnimationFrame(asScanTimerRef.current);asScanTimerRef.current=null;}
     if(asStreamRef.current){asStreamRef.current.getTracks().forEach(t=>t.stop());asStreamRef.current=null;}setAsScanning(false);};
@@ -12080,7 +12084,7 @@ function sharePdf(){
             , React.createElement('input', { value: asManualCode, onChange: e=>setAsManualCode(e.target.value), placeholder: "Scheinnummer z.B. S075270", onKeyDown: e=>{if(e.key==="Enter"&&asManualCode)asHandleScan(asManualCode);}, style: {...II(),width:window.innerWidth<BP_MOB?"100%":220,fontSize:14,textAlign:"center"}} )
             , React.createElement('button', { onClick: ()=>{if(asManualCode)asHandleScan(asManualCode);}, style: bpS}, _asIk("suche","Suchen") )
           )
-          , asScanMsg&&React.createElement('div', { style: {marginTop:10,fontSize:13,padding:"8px 14px",borderRadius:8,background:asScanMsg.startsWith("✅")?"rgba(34,197,94,.12)":asScanMsg.startsWith("❌")?"rgba(239,68,68,.12)":"rgba(234,179,8,.12)",color:asScanMsg.startsWith("✅")?_okG("#16a34a"):asScanMsg.startsWith("❌")?"#dc2626":"#ca8a04"}}, asScanMsg)
+          , asScanMsg&&React.createElement('div', { style: {marginTop:10,fontSize:13,padding:"8px 14px",borderRadius:8,background:asScanMsg.startsWith("✅")?"rgba(34,197,94,.12)":asScanMsg.startsWith("❌")?"rgba(239,68,68,.12)":"rgba(234,179,8,.12)",color:asScanMsg.startsWith("✅")?_okG("#16a34a"):asScanMsg.startsWith("❌")?"#dc2626":"#ca8a04"}}, _scanMsgInhalt(asScanMsg))
         )
         , asScannedAs&&React.createElement('div', { style: {...CC(),marginTop:16,padding:16}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}
@@ -12379,8 +12383,8 @@ function sharePdf(){
             , React.createElement('div', { style: CC()}
               , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:10}}, "Termin")
               , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:6}}/* v3.9.250 Mobile: Termin-Felder stapeln statt 2-spaltig (Datum+Zeit waren gequetscht) */
-                , React.createElement('div', {}, React.createElement('label', { htmlFor:"lbl_asForm_terminBest", style: LL()}, "Bestätigt"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { id:"lbl_asForm_terminBest", type: "date", value: form.terminBestaetigt, onChange: e=>setForm(p=>({...p,terminBestaetigt:e.target.value})), disabled:_asMtLocked, style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminZeit||"", onChange: e=>setForm(p=>({...p,terminZeit:e.target.value})), disabled:_asMtLocked, style: {...II(),width:isMob?"100%":90}, placeholder: "Uhrzeit"} )))
-                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorschlag"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: form.terminVorschlag, onChange: e=>setForm(p=>({...p,terminVorschlag:e.target.value})), disabled:_asMtLocked, style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: form.terminVorschlagZeit||"", onChange: e=>setForm(p=>({...p,terminVorschlagZeit:e.target.value})), disabled:_asMtLocked, style: {...II(),width:isMob?"100%":90}} )))
+                , React.createElement('div', {}, React.createElement('label', { htmlFor:"lbl_asForm_terminBest", style: LL()}, "Bestätigt"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { id:"lbl_asForm_terminBest", type: "date", value: _hasTermin(form.terminBestaetigt)?form.terminBestaetigt:""/* Tablet-Funde 17.11.: OFFA-Platzhalter 0001-01-01 leer ANZEIGEN, der Formularwert bleibt unberuehrt */, onChange: e=>setForm(p=>({...p,terminBestaetigt:e.target.value})), disabled:_asMtLocked, style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: _asZeitAnz(form.terminZeit), onChange: e=>setForm(p=>({...p,terminZeit:e.target.value})), disabled:_asMtLocked, style: {...II(),width:isMob?"100%":90}, placeholder: "Uhrzeit"} )))
+                , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Vorschlag"), React.createElement('div', { style: {display:"flex",gap:4}}, React.createElement('input', { type: "date", value: _hasTermin(form.terminVorschlag)?form.terminVorschlag:"", onChange: e=>setForm(p=>({...p,terminVorschlag:e.target.value})), disabled:_asMtLocked, style: {...II(),flex:1}} ), React.createElement('input', { type: "time", value: _asZeitAnz(form.terminVorschlagZeit), onChange: e=>setForm(p=>({...p,terminVorschlagZeit:e.target.value})), disabled:_asMtLocked, style: {...II(),width:isMob?"100%":90}} )))
                 , React.createElement('div', {}, React.createElement('label', { htmlFor:"lbl_asForm_dauer", style: LL()}, "Dauer (hh:mm)" ), React.createElement('input', { id:"lbl_asForm_dauer", className: "epk-form-field", value: _dauerStr, onChange: e=>{const _v=e.target.value;setDauerStr(_v);const _d=window._displayToDauer(_v);if(_d!==null)setForm(p=>({...p,dauer:_d}));}, onBlur: e=>{const _d=window._displayToDauer(e.target.value);if(_d!==null)setDauerStr(window._dauerToDisplay(_d));}, type:"text", inputMode:"numeric", style: II(), placeholder: "z.B. 03:00" } ))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur"), React.createElement('select', { value: form.monteur, onChange: e=>{if(isMonteurRole&&!isAdmin)return;setForm(p=>({...p,monteur:e.target.value}));}, disabled: isMonteurRole&&!isAdmin, title: isMonteurRole&&!isAdmin?"Monteure legen Arbeitsscheine nur für sich selbst an":"", style: {...II(),opacity:(isMonteurRole&&!isAdmin)?0.7:1,cursor:(isMonteurRole&&!isAdmin)?"not-allowed":"pointer"}}, _maWaehlbar(monteure,form.monteur).map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))), isMonteurRole&&!isAdmin&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:2,fontStyle:"italic"}}, "🔒 Du legst nur für dich selbst an"), (!_dispoMonteurUebertragbar(form.monteur))&&React.createElement('div', { style: {fontSize:UI.fMeta,color:"#dc2626",marginTop:2,fontWeight:600}}, "⚠ Monteur nicht nach OFFA übertragbar (kein Juprowa-Code)"))
               )
@@ -15458,7 +15462,7 @@ function OfflineBanner({pendingCount,syncStatus}){
     , React.createElement('span', { style: {flex:1}},
         !online?"Offline — Änderungen werden lokal gespeichert und später synchronisiert":
         failedCount>0?(failedCount+" Änderung"+(failedCount!==1?"en":"")+" dauerhaft fehlgeschlagen"+(pendingCount>0?" · "+pendingCount+" weitere offen":"")):
-        syncing?("Synchronisiere "+pendingCount+" ausstehende Änderungen…"):
+        syncing?(pendingCount>0?("Synchronisiere "+pendingCount+" ausstehende Änderung"+(pendingCount!==1?"en":"")+"…"):"Synchronisiere…")/* Tablet-Funde 17.11.: keine "0 ausstehende" */:
         (pendingCount+" Änderung"+(pendingCount!==1?"en":"")+" warten auf Sync"))
     , online&&(pendingCount>0||failedCount>0)&&!syncing&&React.createElement('button', { onClick: ()=>{window.__doSync&&window.__doSync();}, style: {padding:"3px 10px",borderRadius:4,border:"1px solid rgba(255,255,255,.4)",background:"rgba(255,255,255,.2)",color:"#fff",fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}, _zpIk("drehen","Jetzt sync",14))
     , online&&failedCount>0&&!syncing&&React.createElement('button', { onClick: _clearFailed, title: "Dauerhaft fehlgeschlagene Einträge verwerfen", style: {padding:"3px 10px",borderRadius:4,border:"1px solid rgba(255,255,255,.5)",background:"rgba(255,255,255,.15)",color:"#fff",fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}, "✕ Verwerfen")/* v3.9.131: Banner-Wegräumen */
@@ -16226,7 +16230,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
                 const _d2=data2?(+data2[i]||0):0;
                 const h2=data2?Math.max(_d2/max*(barH-20),_d2>0?3:0):0;
                 return (React.createElement('div', { key: i, style: {flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}
-                  , React.createElement('div', { style: {fontSize:UI.fMeta,fontFamily:mono,color:V.dm,fontWeight:600}}, v>0?(unit==="€"?"€"+Math.round(v):_n(v,1)):"")
+                  , React.createElement('div', { style: {fontSize:UI.fMeta,fontFamily:mono,color:V.dm,fontWeight:600}}, v>0?(unit==="€"?"€"+Math.round(v):_projStdDE(v,1)):""/* Tablet-Funde 17.11.: 8,5 statt 8.5 */)
                   , React.createElement('div', { style: {display:"flex",gap:1,alignItems:"flex-end",width:"100%",justifyContent:"center"}}
                     , data2&&React.createElement('div', { style: {width:"45%",height:h2,background:color2||"#94a3b8",borderRadius:"3px 3px 0 0",transition:"height .3s"}} )
                     , React.createElement('div', { style: {width:data2?"45%":"70%",height:h,background:color,borderRadius:"3px 3px 0 0",transition:"height .3s"}} )
@@ -19746,7 +19750,10 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
   const _blattZu=()=>{setQuickTicket(null);setQuickDefect(null);setSelTicket(null);};
   const _qtEl=quickTicket&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickTicket, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, key: "qt_"+quickTicket.id, nr: _ticketNr[quickTicket.id], layers: layers, onSave: u=>{updateTicket(u);}/* Stufe 1: Sofort-Speichern ueber denselben Weg; das Blatt bleibt offen */, onOpen: ()=>{setSelTicket(quickTicket);setSideMode("detail");setShowSidebar(true);setQuickTicket(null);}, onClose: _blattZu, onComment: (c)=>{const _u={...quickTicket,comments:[...(quickTicket.comments||[]),c],updatedAt:td2()};updateTicket(_u);setQuickTicket(_u);}/* v3.9.180: Kommentar im Quick-Popup → persistiert + Popup bleibt offen */, onPhotos: (arr)=>{_vpFotoWeg(quickTicket,quickTicket&&quickTicket.photos,arr);/* Aufraeumen 17.11. */const _u2={...quickTicket,photos:arr,updatedAt:td2()};updateTicket(_u2);setQuickTicket(_u2);}/* v3.9.181: Fotos im Quick-Popup → persistiert */} );
   const _qdEl=quickDefect&&subView==="viewer"&&React.createElement(QuickEditPin, { ticket: quickDefect, key: "qd_"+quickDefect.id, nr: _ticketNr[quickDefect.id], layers: layers, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, statusOptions: [["offen",TICKET_STATUS.offen],["in_bearbeitung",TICKET_STATUS.in_bearbeitung],["erledigt",TICKET_STATUS.erledigt]], hideJournal: true, onSave: u=>{/* v3.9.829 PlanRadar ②: Defect-Pin editierbar → kanonische defects-Felder (status/prio/frist/zugewiesen), Status ticket→mangel rueckgemappt (MANGEL_ST). */const _dst=_TICKET2MANGEL_ST[u.status]||"offen";const _prio=(["kritisch","hoch","mittel","niedrig"].indexOf(u.priority)>=0?u.priority:"mittel");const _frist=u.dueDate||"";const _zug=u.assignee||"";const _vhQ=_mgVerlaufFeld(((forms&&forms.maengel)||[]).find(x=>x.id===u.id),_dst);/* v3.9.1012 Statusverlauf */setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===u.id?{...m,status:_dst,prio:_prio,frist:_frist,zugewiesen:_zug,worker:_zug,..._vhQ}:m)}));SQ.push({url:"/api/defects/"+u.id,method:"PUT",body:{status:_dst,prio:_prio,frist:_frist,zugewiesen:_zug}});_mgVerlaufPut(u.id,_vhQ);/* v3.9.1004 C: Wechsel des Verantwortlichen am Mangel-Pin meldet sich wie im Maengel-Reiter */if(_zug&&_zug!==((quickDefect&&quickDefect.assignee)||""))_mgZuweisungMelden([{wid:_zug,name:u.title||(quickDefect&&quickDefect.title)||"Mangel"}],p.name);if(window.__toast)window.__toast("Mangel gespeichert ("+_dst+")","success",2000);setQuickDefect(u);/* Plaene Stufe 1: Blatt bleibt offen (Sofort-Speichern), zeigt den neuen Stand */}, onOpen: ()=>{setQuickDefect(null);if(window.__toast)window.__toast("ℹ️ Vollständige Bearbeitung (Fotos, Beschreibung) im Mängel-Tab","info",3200);}, onClose: ()=>setQuickDefect(null)} );
+  /* Tablet-Funde 17.11.: Tablet HOCHKANT (600-899 px, hoeher als breit) - die 380-px-Spalte liess dem Plan nur einen Streifen. Dann Blatt/Liste UNTER den Plan, Plan behaelt mindestens 45 % der Schirmhoehe, das Blatt rollt in sich. Quer bleibt alles wie bisher. */
+  const _hochkant=!isMob&&!_dauerListe&&typeof window!=="undefined"&&window.innerHeight>window.innerWidth;
   const _rechts=!isMob&&subView==="viewer"&&(_dauerListe||showSidebar||!!(newTicket&&sideMode==="create")||!!quickTicket||!!quickDefect||(sideMode==="detail"&&!!selTicket));
+  const _gestapelt=_hochkant&&_rechts;const _stVh=(typeof window!=="undefined"&&window.innerHeight)||800;const _stPlanH=Math.max(Math.round(_stVh*0.45),Math.round((_planH||0)*0.55));const _stBlattH=_planH?Math.max(220,_planH-_stPlanH-14):Math.round(_stVh*0.4);
   const _rund44={...bsS(),width:44,padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0};
   /* ═══ Plaene Stufe 2 ═══ (1) Liste scrollt zum gewaehlten Ticket. Ab 900 px steht das Unterblatt IN der Liste an der Stelle der Zeile -
      Pin-Tipp markiert die Zeile, Zeilen-Tipp markiert den Pin, und die Liste bleibt dabei stehen. */
@@ -19873,10 +19880,10 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
         , React.createElement('button', { type: "button", onClick: _neuPlanOk, style: {...bpS,display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}, _ik("abnahme",16), "Übernehmen")
         , React.createElement('button', { type: "button", onClick: ()=>_setNeuPlan(null), title: "Hinweis schließen", 'aria-label': "Hinweis schließen", style: _rund44}, _ik("kreuz",18))
       )
-      , subView==="viewer"&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:_rechts?"minmax(0,1fr) 380px":"minmax(0,1fr)",gap:14,alignItems:"start"}}
+      , subView==="viewer"&&(React.createElement('div', { style: {display:"grid",gridTemplateColumns:(_rechts&&!_gestapelt)?"minmax(0,1fr) 380px":"minmax(0,1fr)",gap:14,alignItems:"start"}}
         , React.createElement('div', { ref: _planBoxRef, style: {position:"relative",minWidth:0}}
           , !plans.length&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm,border:"1px dashed "+V.bdK}}, React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:10}}, _ik("karte",40)), React.createElement('div', { style: {fontSize:UI.fTitel,fontWeight:700,color:V.tx,marginBottom:6}}, "Noch keine Pläne hochgeladen"), isAdmin&&React.createElement('button', { type: "button", onClick: ()=>_optionalChain([fileRef, 'access', _pu1 => _pu1.current, 'optionalAccess', _pu2 => _pu2.click, 'call', _pu3 => _pu3()]), style: {...bpS,display:"inline-flex",alignItems:"center",gap:6,marginTop:8}}, _ik("export",18), "Plan hochladen"))
-          , plans.length>0&&React.createElement(PlanViewerCanvas, { plan: _altPlan||selPlan/* Plaene Stufe 2 (4): aeltere Version - ihre Pins sind beim Revisionieren auf die neue umgezogen, der Viewer zeigt darum keine */, pinNr: _ticketNr, tickets: _vpFiltered.concat(_defGef)/* v3.9.139: gefilterte Tickets → Pins respektieren Toolbar-Filter; +v3.9.280: eigenständige Mängel-Defect-Pins (de-dupliziert) */, layers: layers, monteure: monteure, pendingIds: _pendingTicketIds, pinMode: placing, pendingPin: pendingPin, onPlanClick: handlePlanClick, onPinClick: t=>{if(newTicket)return;if(t&&t._isDefectPin){setQuickTicket(null);}else{setQuickDefect(null);}/* Plaene Stufe 1: immer nur EIN Blatt */if(t&&t._isDefectPin){setQuickDefect(t);return;}_setZentrierNr(n=>n+1);setSelTicket(t);setQuickTicket(t);/* v3.9.138: Quick-Edit-Popup statt vollem Detail; v3.9.280: Defect-Pin → Info-Toast (Bearbeitung im Mängel-Tab) */}, onPinMove: (t,x,y)=>{if(t&&t._isDefectPin){setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===t.id?{...m,x:x,y:y}:m)}));SQ.push({url:"/api/defects/"+t.id,method:"PUT",body:{x:x,y:y}});if(window.__toast)window.__toast("📍 Mangel-Pin verschoben","success",1500);return;}updateTicket({...t,x:x,y:y,updatedAt:td2()});if(window.__toast)window.__toast("📍 Pin verschoben","success",1500);}/* v3.9.184/187: Pin-Drag → Position persistieren (+updatedAt); v3.9.280: Defect-Pin-Drag → defects.x/y */, selectedTicket: selTicket||(newTicket&&newTicket.x!=null?{id:"_neu_"+newTicket.x+"_"+newTicket.y,x:newTicket.x,y:newTicket.y,page:newTicket.page||1}:null)/* Stufe 1: auch der Vorschau-Pin wird zentriert */, hoehe: _planH?_planH+"px":"70vh", onPlanLongPress: _pinPerLangTipp, zentrierNr: _zentrierNr} )
+          , plans.length>0&&React.createElement(PlanViewerCanvas, { plan: _altPlan||selPlan/* Plaene Stufe 2 (4): aeltere Version - ihre Pins sind beim Revisionieren auf die neue umgezogen, der Viewer zeigt darum keine */, pinNr: _ticketNr, tickets: _vpFiltered.concat(_defGef)/* v3.9.139: gefilterte Tickets → Pins respektieren Toolbar-Filter; +v3.9.280: eigenständige Mängel-Defect-Pins (de-dupliziert) */, layers: layers, monteure: monteure, pendingIds: _pendingTicketIds, pinMode: placing, pendingPin: pendingPin, onPlanClick: handlePlanClick, onPinClick: t=>{if(newTicket)return;if(t&&t._isDefectPin){setQuickTicket(null);}else{setQuickDefect(null);}/* Plaene Stufe 1: immer nur EIN Blatt */if(t&&t._isDefectPin){setQuickDefect(t);return;}_setZentrierNr(n=>n+1);setSelTicket(t);setQuickTicket(t);/* v3.9.138: Quick-Edit-Popup statt vollem Detail; v3.9.280: Defect-Pin → Info-Toast (Bearbeitung im Mängel-Tab) */}, onPinMove: (t,x,y)=>{if(t&&t._isDefectPin){setForms(f=>({...f,maengel:(f.maengel||[]).map(m=>m.id===t.id?{...m,x:x,y:y}:m)}));SQ.push({url:"/api/defects/"+t.id,method:"PUT",body:{x:x,y:y}});if(window.__toast)window.__toast("📍 Mangel-Pin verschoben","success",1500);return;}updateTicket({...t,x:x,y:y,updatedAt:td2()});if(window.__toast)window.__toast("📍 Pin verschoben","success",1500);}/* v3.9.184/187: Pin-Drag → Position persistieren (+updatedAt); v3.9.280: Defect-Pin-Drag → defects.x/y */, selectedTicket: selTicket||(newTicket&&newTicket.x!=null?{id:"_neu_"+newTicket.x+"_"+newTicket.y,x:newTicket.x,y:newTicket.y,page:newTicket.page||1}:null)/* Stufe 1: auch der Vorschau-Pin wird zentriert */, hoehe: _planH?_planH+"px":"70vh", ...(_gestapelt?{hoehe:_stPlanH+"px"}:null)/* Tablet-Funde 17.11.: hochkant mit Blatt */, onPlanLongPress: _pinPerLangTipp, zentrierNr: _zentrierNr} )
           /* Plaene Stufe 1: Hinweis auf den langen Tipp (bzw. im Platzier-Modus die Anleitung) und der Plus-Knopf als zweiter Weg - beide AUF dem Plan, nicht darueber */
           , selPlan&&plans.length>0&&_altPlan&&React.createElement('div', { role: "status", 'aria-label': "Ältere Planversion – nur ansehen", style: {position:"absolute",top:10,left:10,right:82,zIndex:11,display:"flex",flexWrap:"wrap",alignItems:"center",gap:8,padding:"6px 8px 6px 12px",borderRadius:14,background:UI.achtungBg,color:UI.achtungTxt,border:"1px solid "+UI.achtung,boxShadow:"0 2px 10px rgba(0,0,0,.25)",fontSize:UI.fKlein,fontWeight:700}}, _ik("uhr",16), React.createElement('span', { style: {flex:"1 1 140px"}}, _verText(_altPlan)+" – nur ansehen"), React.createElement('button', { type: "button", onClick: ()=>_setAltPlan(null), style: {...bpS,display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}, "Zur aktuellen Version"))/* Plaene Stufe 2 (4) */
           /* UI-Folge (3): am Handy stehen hier Offen / In Arbeit / Ueberfaellig - EIN Tipp, alle drei ganz sichtbar (219 px; frei sind ab 360 px 252 px), ohne Querrollen. Der Lange-Tipp-Hinweis kommt am Handy einmal je Sitzung als Meldung (siehe _hinweisLangTipp) und deckt keine Pins dauerhaft ab. */
@@ -19884,7 +19891,7 @@ function VPlan({p,planData,setPlanData,ww,curUser,forms,setForms,monteure}){
           , selPlan&&plans.length>0&&!_altPlan&&!(isMob&&_schnellAufPlan)&&React.createElement('div', { 'aria-live': "polite", style: {position:"absolute",top:10,left:10,right:82,display:"flex",pointerEvents:"none",zIndex:11}}, React.createElement('div', { style: {display:"inline-flex",alignItems:"center",gap:8,padding:"7px 12px",borderRadius:20,background:placing?UI.knopf:"rgba(20,26,22,.86)",color:"#fff",fontSize:UI.fKlein,fontWeight:600,boxShadow:"0 2px 10px rgba(0,0,0,.3)",maxWidth:"100%"}}, _ik("tippen",16), React.createElement('span', { style: {overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, placing?"Tippe auf die Stelle für das neue Ticket":"Lange tippen = neues Ticket hier")))
           , selPlan&&plans.length>0&&!_altPlan&&!pendingPin&&!quickTicket&&!quickDefect&&!newTicket&&React.createElement('button', { type: "button", onClick: ()=>setPlacing(!placing), title: placing?"Platzieren abbrechen":"Neues Ticket platzieren", 'aria-label': placing?"Platzieren abbrechen":"Neues Ticket platzieren", style: {position:"absolute",bottom:16,right:16,width:56,height:56,borderRadius:"50%",background:placing?V.cd:UI.knopf,color:placing?V.tx:"#fff",border:placing?"1px solid "+V.bdK:"none",cursor:"pointer",boxShadow:"0 4px 14px rgba(0,0,0,.3)",zIndex:12,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}, _ik(placing?"kreuz":"plus",26))
         )
-        , _rechts&&React.createElement('div', { ref: _spalteRef, style: {maxHeight:_planH?_planH+"px":"70vh",overflowY:"auto",minWidth:0}}
+        , _rechts&&React.createElement('div', { ref: _spalteRef, style: {maxHeight:_gestapelt?_stBlattH+"px":(_planH?_planH+"px":"70vh"),overflowY:"auto",minWidth:0,overscrollBehavior:"contain"}}
           , (sideMode==="create"&&_neuEl)||(!_dauerListe&&(_qtEl||_qdEl))/* Plaene Stufe 2 (1): ab 900 px steht das Blatt in der Liste */||(sideMode==="detail"&&selTicket&&React.createElement(TicketDetail, { ticket: selTicket, layers: layers, onUpdate: updateTicket, onDelete: deleteTicket, onClose: ()=>{setSelTicket(null);setSideMode("tickets");}, ww: ww, monteure: monteure, isAdmin: isAdmin, isMtField: _vpIsField, vpMid: _vpMid, plans: (planData&&planData.plans)||[], proj: p, onFotoWeg: _vpFotoWeg} ))||(sideMode==="detail"&&React.createElement('div', { style: {...CC(),padding:30,textAlign:"center",color:V.dm,fontSize:UI.fKlein}}, "Wähle links ein Ticket – die Details erscheinen hier." ))||_listeEl)
       ))
       , isMob&&subView==="viewer"&&(quickTicket||quickDefect||newTicket)&&React.createElement('div', { 'aria-hidden': "true", style: {height:"58vh"}} )/* Platz unter dem Plan, damit er bei offenem Unterblatt nach oben rollen kann */
@@ -21444,7 +21451,7 @@ async function _matHasCreatedById(){
    "St„rke" = Staerke, "auáen" = aussen, U+0081 = ue (8.727 Zeilen). Wer "betaetigung" oder "fuer" sucht, fand nichts.
    _matTextFix repariert genau diese 7 Zeichen, und nur bei Zeilen von VOR dem Parser-Fix (last_updated < 2026-11-16) ohne
    echte Umlaute - neuere Importe dekodieren CP850 selbst richtig. */
-const _MAT_KAT_SEITEN=6;
+const _MAT_KAT_SEITEN=60;/* Tablet-Funde 17.11.: 60 statt 6 - liefert der Server nur 1000 Zeilen je Antwort, waeren 6 Seiten 6000 Artikel gewesen ("abgeschnitten"). 60 Seiten tragen bei 1000/Seite rund 60.000 Artikel; das Ende erkennt die Schleife selbst (leere oder kuerzere Seite). */
 const _MAT_MOJI={"\u0081":"ü","\u201e":"ä","\u201d":"ö","\u00e1":"ß","\u017d":"Ä","\u2122":"Ö","\u0161":"Ü"};
 function _matTextFix(s,stand){s=String(s==null?"":s);if(stand&&String(stand).slice(0,10)>="2026-11-16")return s;if(/[äöüßÄÖÜ]/.test(s))return s;return s.replace(/[\u0081\u201e\u201d\u00e1\u017d\u2122\u0161]/g,c=>_MAT_MOJI[c]||c);}
 /* Suche ohne Umlaut-Falle: "fuer"/"für"/"fur" finden dasselbe. */
@@ -21619,13 +21626,24 @@ function VMaterial({p,curUser,monteure,ww,entries}){
          Weiter bis eine Seite LEER kommt - so stimmt es auch, falls der Server weniger als 10000 je Antwort liefert. */
       const _saSel="select=id,supplier_id,art_nr,hersteller_art_nr,gtin,bezeichnung,langtext,mengeneinheit,ep_system,ep_gewerk,ek_preis,listenpreis,dimension,rabatt_gruppe,last_updated&order=ep_system.asc,bezeichnung.asc,id.asc";
       const sa=[];let _saOff=0,_saGekappt=false,_saFehler=false;
+      /* Tablet-Funde 17.11.: schwaches Netz - EINE fehlgeschlagene Seite brach den ganzen Katalog ab ("nur teilweise geladen (2 000 Artikel)").
+         Jetzt bis zu 2 Wiederholungen je Seite (nach 800 ms und 2000 ms), erst dann _saFehler. Ende: leere Seite ODER eine Seite kuerzer als die
+         groesste bisher - so stimmt es auch, wenn der Server je Antwort weniger als 10000 liefert (z.B. 1000). */
+      const _saWart=[800,2000];let _saGroesste=0;
       for(let _sp=0;_sp<_MAT_KAT_SEITEN;_sp++){
-        const _seite=await _sbGet("supplier_articles_safe",_saSel+"&limit=10000&offset="+_saOff).catch(()=>null);
-        if(!a)return;
+        let _seite=null;
+        for(let _vs=0;_vs<=_saWart.length;_vs++){
+          if(_vs>0){await new Promise(_res=>setTimeout(_res,_saWart[_vs-1]));if(!a)return;}
+          _seite=await _sbGet("supplier_articles_safe",_saSel+"&limit=10000&offset="+_saOff).catch(()=>null);
+          if(!a)return;
+          if(Array.isArray(_seite))break;
+        }
         if(!Array.isArray(_seite)){_saFehler=true;break;}
         if(_seite.length===0)break;
         for(const _r of _seite)sa.push(_r);
         _saOff+=_seite.length;
+        if(_seite.length<_saGroesste)break;/* kuerzer als die groesste Seite davor = letzte Seite */
+        if(_seite.length>_saGroesste)_saGroesste=_seite.length;
         if(_sp===_MAT_KAT_SEITEN-1)_saGekappt=true;
       }
       setSuppLoad({n:sa.length,gekappt:_saGekappt,fehler:_saFehler});
@@ -23670,7 +23688,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                 , React.createElement('div',{title:md.m.r,style:{fontSize:UI.fMeta,fontWeight:700,letterSpacing:'.4px',textTransform:'uppercase',color:V.dm,marginTop:3,marginLeft:13,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},roleShort[md.m.r]||md.m.r)
               )
               , React.createElement('div',{style:{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:1,justifyContent:'center'}}
-                , projs.map((p,pi)=>React.createElement('div',{key:pi,title:p.bvh,style:{fontSize:12.5,fontWeight:700,color:V.tx,lineHeight:1.25,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',overflowWrap:'anywhere'}},_wpNameLesbar(p.bvh)))/* Planung P3: CI-Textfarbe statt Projektfarbe (Lila lag ausserhalb CI; die Projektfarbe bleibt im Akzentbalken + Wochenband), normale Schreibweise, zwei Zeilen statt einer abgeschnittenen, voller Name im title */
+                , projs.map((p,pi)=>React.createElement('div',{key:pi,title:p.bvh,style:{fontSize:12.5,fontWeight:700,color:V.tx,lineHeight:1.25,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',overflowWrap:'normal',wordBreak:'normal',hyphens:'auto'},lang:'de'},_wpNameLesbar(p.bvh)))/* Planung P3: CI-Textfarbe statt Projektfarbe (Lila lag ausserhalb CI; die Projektfarbe bleibt im Akzentbalken + Wochenband), normale Schreibweise, zwei Zeilen statt einer abgeschnittenen, voller Name im title */
               )
               , React.createElement('div',{style:{flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}
                 , ribbon(md)
@@ -23707,7 +23725,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                       , projs.length===0&&React.createElement('span', { style: {fontSize:12,color:V.mt}}, "—")
                       , projs.map((p,pi)=>{
                         const pc=projColorMap[p.bvh]||"#71717a";
-                        return React.createElement('div', { key: pi, title: p.bvh, style: {fontSize:12,fontWeight:600,padding:"3px 6px",borderRadius:4,marginBottom:pi<projs.length-1?3:0,background:_dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.03)",color:V.tx,borderLeft:"3px solid "+pc,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",overflowWrap:"anywhere"}}, _wpNameLesbar(p.bvh));/* Planung P3: Text in CI-Farbe, Projektfarbe nur als Randmarke; zwei Zeilen, voller Name im title */
+                        return React.createElement('div', { key: pi, title: p.bvh, style: {fontSize:12,fontWeight:600,padding:"3px 6px",borderRadius:4,marginBottom:pi<projs.length-1?3:0,background:_dark?"rgba(255,255,255,.04)":"rgba(0,0,0,.03)",color:V.tx,borderLeft:"3px solid "+pc,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",overflowWrap:"normal",wordBreak:"normal",hyphens:"auto"}, lang: "de"}, _wpNameLesbar(p.bvh));/* Tablet-Funde 17.11.: Silbentrennung statt Bruch mitten im Wort ("Siedlungswer|k"), voller Name im title *//* Planung P3: Text in CI-Farbe, Projektfarbe nur als Randmarke; zwei Zeilen, voller Name im title */
                       })
                     );
                   })
@@ -29991,7 +30009,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   // ═══ FZ QR SCANNER ═══
   const fzLookup=(code)=>{const c=code.trim().toUpperCase();return fahrzeuge.find(f=>_optionalChain([f, 'access', _655 => _655.kennzeichen, 'optionalAccess', _656 => _656.toUpperCase, 'call', _657 => _657()])===c||f.id===code||_optionalChain([f, 'access', _658 => _658.kennzeichen, 'optionalAccess', _659 => _659.toUpperCase, 'call', _660 => _660(), 'access', _661 => _661.replace, 'call', _662 => _662(/[^A-Z0-9]/g,""), 'access', _663 => _663.includes, 'call', _664 => _664(c.replace(/[^A-Z0-9]/g,""))]));};
   const fzHandleScan=(code)=>{const found=fzLookup(code);if(found){setFzScannedItem(found);setFzScanMsg("");setFzQuickAction(null);fzStopScan();}else{setFzScanMsg("❌ Kein Fahrzeug gefunden: "+code);}};
-  const fzStartScan=async()=>{setFzScannedItem(null);setFzScanMsg("");setFzQuickAction(null);try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:640},height:{ideal:480}}});fzStreamRef.current=stream;if(fzVideoRef.current){fzVideoRef.current.srcObject=stream;fzVideoRef.current.play();}setFzScanning(true);if("BarcodeDetector"in window){const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8"]});const tick=async()=>{if(!fzVideoRef.current||fzVideoRef.current.readyState<2){fzScanTimer.current=requestAnimationFrame(tick);return;}try{const codes=await det.detect(fzVideoRef.current);if(codes.length>0){fzHandleScan(codes[0].rawValue);return;}}catch(e){}fzScanTimer.current=requestAnimationFrame(tick);};fzScanTimer.current=requestAnimationFrame(tick);}else{setFzScanMsg("⚠️ Kein Scanner — bitte Kennzeichen manuell eingeben");}}catch(err){setFzScanMsg("📷 "+_kameraFehlerText(err));setFzScanning(false);}};
+  const fzStartScan=async()=>{setFzScannedItem(null);setFzScanMsg("");setFzQuickAction(null);try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:640},height:{ideal:480}}});fzStreamRef.current=stream;if(fzVideoRef.current){fzVideoRef.current.srcObject=stream;fzVideoRef.current.play();}setFzScanning(true);if("BarcodeDetector"in window){const det=new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8"]});const tick=async()=>{if(!fzVideoRef.current||fzVideoRef.current.readyState<2){fzScanTimer.current=requestAnimationFrame(tick);return;}try{const codes=await det.detect(fzVideoRef.current);if(codes.length>0){fzHandleScan(codes[0].rawValue);return;}}catch(e){}fzScanTimer.current=requestAnimationFrame(tick);};fzScanTimer.current=requestAnimationFrame(tick);}else{setFzScanMsg("⚠️ Kein Scanner — bitte Kennzeichen manuell eingeben");}}catch(err){setFzScanMsg(_kameraFehlerText(err));setFzScanning(false);}};
   const fzStopScan=()=>{if(fzScanTimer.current){cancelAnimationFrame(fzScanTimer.current);fzScanTimer.current=null;}if(fzStreamRef.current){fzStreamRef.current.getTracks().forEach(t=>t.stop());fzStreamRef.current=null;}if(fzVideoRef.current)fzVideoRef.current.srcObject=null;setFzScanning(false);};
   _react.useEffect.call(void 0, ()=>()=>fzStopScan(),[]);
   // Quick-action state for scan results
@@ -30110,7 +30128,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 , React.createElement('input', { value: fzManualCode, onChange: e=>setFzManualCode(e.target.value), placeholder: "Manuell...", style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&fzManualCode){fzHandleScan(fzManualCode);setFzManualCode("");}}} )
               )
             ))
-            , fzScanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:fzScanMsg.startsWith("✅")?"rgba(34,197,94,.1)":fzScanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:fzScanMsg.startsWith("✅")?_okG("#22c55e"):fzScanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, fzScanMsg))
+            , fzScanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:fzScanMsg.startsWith("✅")?"rgba(34,197,94,.1)":fzScanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:fzScanMsg.startsWith("✅")?_okG("#22c55e"):fzScanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, _scanMsgInhalt(fzScanMsg)))
             , !fzScanning&&fzScannedItem&&(React.createElement('button', { onClick: ()=>{setFzScannedItem(null);setFzScanMsg("");setFzQuickAction(null);fzStartScan();}, style: {...bpS,width:"100%",marginTop:10}}, _ikVw("kamera","Nächstes Fahrzeug scannen")   ))
           )
 
@@ -31088,7 +31106,7 @@ function BauprovisorienView({bauprovisorien,setBauprovisorien,bauproMieten,setBa
           _scTimer.current=requestAnimationFrame(tick);};
         _scTimer.current=requestAnimationFrame(tick);
       }else{setScanMsg("⚠️ Kein QR-Scanner im Browser — bitte Gerät/Browser aktualisieren.");}
-    }catch(err){setScanMsg("📷 "+_kameraFehlerText(err));}
+    }catch(err){setScanMsg(_kameraFehlerText(err));}
   };
   _react.useEffect.call(void 0, ()=>{return ()=>{_qrScanStop();};},[]);
   /* QR-Druck (CSP-sicher via iframe, Muster wie _wpPrintPlan) — Label zum Aufkleben auf den Kasten. */
@@ -31304,7 +31322,7 @@ function BauprovisorienView({bauprovisorien,setBauprovisorien,bauproMieten,setBa
     ,_scanOpen?h('div',{style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.85)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}
       ,h('div',{style:{color:"#fff",fontSize:15,fontWeight:700,marginBottom:10}},_scanMode.current==="learn"?"QR-Aufkleber einlernen":"Kasten finden & öffnen")
       ,h('video',{ref:el=>{_scVideo.current=el;},playsInline:true,muted:true,autoPlay:true,style:{width:"100%",maxWidth:360,borderRadius:14,border:"3px solid "+V.ac,background:"#000"}})
-      ,h('div',{style:{color:"#ddd",fontSize:12,marginTop:10,textAlign:"center",maxWidth:360,minHeight:34}},_scanMsg||"Kamera auf den QR-Aufkleber am Kasten halten.")
+      ,h('div',{style:{color:"#ddd",fontSize:12,marginTop:10,textAlign:"center",maxWidth:360,minHeight:34}},_scanMsgInhalt(_scanMsg)||"Kamera auf den QR-Aufkleber am Kasten halten.")
       ,h('button',{onClick:_qrScanStop,style:{marginTop:14,border:"1px solid rgba(255,255,255,.35)",background:"rgba(255,255,255,.12)",color:"#fff",borderRadius:10,padding:"10px 24px",fontWeight:700,cursor:"pointer",fontSize:14}},"Abbrechen")):null
     ,_offen>0?h('div',{style:{background:"#f9731622",border:"1px solid #f97316",borderRadius:10,padding:"10px 14px",marginBottom:14,color:V.tx,fontWeight:600,fontSize:14}},""+_offen+" Jahresmiete"+(_offen>1?"n":"")+" bis "+_nowYr+" noch nicht verrechnet."):null
     ,!(bauprovisorien||[]).length?h('div',{style:{textAlign:"center",padding:40,color:V.dm,fontSize:15}},"Noch keine Bauprovisorien erfasst. Lege oben das erste an."):null
@@ -31560,7 +31578,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         setScanMsg("⚠️ Kein QR-Scanner im Browser — bitte Code manuell eingeben");
       }
     }catch(err){
-      setScanMsg("📷 "+_kameraFehlerText(err));
+      setScanMsg(_kameraFehlerText(err));
       setScanning(false);
     }
   };
@@ -31647,7 +31665,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               , React.createElement('input', { value: manualCode, onChange: e=>setManualCode(e.target.value), placeholder: "Manuell: EK-..." , style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&manualCode){handleScanResult(manualCode);setManualCode("");}}} )
             )
           ))
-          , scanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:scanMsg.startsWith("✅")?"rgba(34,197,94,.1)":scanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:scanMsg.startsWith("✅")?_okG("#22c55e"):scanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, scanMsg))
+          , scanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:scanMsg.startsWith("✅")?"rgba(34,197,94,.1)":scanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:scanMsg.startsWith("✅")?_okG("#22c55e"):scanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, _scanMsgInhalt(scanMsg)))
           , !scanning&&scannedWz&&(React.createElement('button', { onClick: ()=>{setScannedWz(null);setScanMsg("");startScan();}, style: {...bpS,width:"100%",marginTop:10}}, "📷 Nächsten Code scannen"   ))
         )
 
