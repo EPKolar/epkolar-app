@@ -144,7 +144,8 @@ def test_regeln_mit_echten_datenbeispielen(index_html, node_exe, tmp_path):
     assert r["f9_normal_raw4_freigegeben"]["sperre"] is None and r["f9_normal_raw4_freigegeben"]["AK_AUFSTATUS"] == "4"
     assert r["f11_ohne_raw"]["sperre"] is None
     # Regel 3
-    assert r["f10_nicht_gelistet"]["sperre"] == "in OFFA nicht mehr gelistet"
+    # v3.9.1037 GF 17.11.: Regel 3 entfernt - ein nicht im Feed gelieferter Schein wird NICHT mehr gesperrt
+    assert r["f10_nicht_gelistet"]["sperre"] is None
     assert r["f10_ohne_abruf"] is None and r["f10_abruf_0"] is None
     assert r["f10_frisch_gestempelt"] is None
     assert r["f10_erst_nach_abruf_gepusht"] is None
@@ -206,7 +207,7 @@ window.__lastJuprowaPull=ABRUF;
 
 def test_aufrufstellen_senden_gesperrte_nicht(index_html, node_exe, tmp_path):
     r = _run(node_exe, tmp_path, _STUBS + _basis(index_html) + _aufrufstellen(index_html) + _AUFRUF, "riegel_aufruf.js")
-    frei = ["idS075403", "idS075406"]
+    frei = ["idS075403", "idS075405", "idS075406"]  # v3.9.1037: S075405 (nicht im Feed) ist frei
     assert r["p1"] == frei, r          # Drain: nur die freien
     assert r["p3"] == frei, r          # PushAll: nur die freien
     assert r["p4"] == ["idS075403"], r  # Klammer: S075338 + 99 gesperrt
@@ -220,7 +221,6 @@ def test_aufrufstellen_senden_gesperrte_nicht(index_html, node_exe, tmp_path):
     assert sorted(r["logs"]) == sorted([
         ["juprowa_push_gesperrt", "S075338", "OFFA-Endstatus storniert weicht ab"],
         ["juprowa_push_gesperrt", "S075402", "OFFA-Statuscode 99 unbekannt"],
-        ["juprowa_push_gesperrt", "S075405", "in OFFA nicht mehr gelistet"],
     ]), r["logs"]
 
 
