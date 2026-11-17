@@ -140,8 +140,10 @@ def test_kein_emojiknopf_ohne_namen():
     # GRUNDGESAMTHEIT, keine Zielzahl - sie darf mit jeder CI-Stufe sinken, aber nicht auf null fallen,
     # sonst waere ein blinder Abtaster gruen. Die Eichung gegen die alten Fehlmeldungen steht unveraendert
     # im Test darunter.
-    assert len(alle) > 60, (
-        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 60. Das ist kein "
+    # Offen-4 (17.11.2026) NACHGEZOGEN: 60 -> 50. Die Foto-Warteschlange im Kopf zeichnet ihren Entfernen-Knopf
+    # jetzt mit Linien-Ikone (gemessen 61 -> 60); gleiche Eichungs-Logik wie oben.
+    assert len(alle) > 50, (
+        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 50. Das ist kein "
         "gruenes Ergebnis: entweder ist der Abtaster blind, oder die Knoepfe "
         "sind anders geschrieben. Eine kleine Grundgesamtheit macht die "
         "Aussage unten wertlos." % len(alle))

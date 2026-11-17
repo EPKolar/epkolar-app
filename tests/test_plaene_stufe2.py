@@ -353,7 +353,7 @@ def test_hochladen_umkehrprobe(index_html, alt, neu):
 SCHREIB_MD5 = {   # gemessen an origin/main v3.9.1025; create/updateTicket neu gemessen fuer Plaene Stufe 3 (bewusste Aenderung)
     "createTicket": "951a7a90b9c5d572ba94821aa1d525a1",
     "updateTicket": "14605d6bb657baab3592a962708e36db",
-    "deleteTicket": "99a9fb2a47f590be3c29474cb905f9ba",
+    "deleteTicket": "87094c34f528c388cc0dc8b7e58c0e29",   # Offen-4 17.11.2026 neu gemessen: Storage-Fotos des geloeschten Tickets aufraeumen (bewusste Aenderung, Auftrag Punkt 4)
     "_qdEl": "70e8d515018b401da91ee98ea1b93f15",
 }
 
