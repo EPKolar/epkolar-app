@@ -35,7 +35,7 @@ def _zwischen(html, a, e):
 def _p1(html):
     f = []
     try:
-        reihe = _zwischen(html, "'data-as-aktionen': \"1\"", "'data-as-offa-sperre-grund'")
+        reihe = _zwischen(html, "'data-as-aktionen': \"1\"", "v3.9.547 TASK B: Unterschriften-Karte")
     except ValueError:
         return ["Aktionsreihe (data-as-aktionen) nicht gefunden"]
     if 'display:"grid"' not in reihe:
@@ -72,7 +72,7 @@ def test_1_umkehr(index_html):
 
 
 def test_1_rueckfrage_und_klickwege_bleiben(index_html):
-    reihe = _zwischen(index_html, "'data-as-aktionen': \"1\"", "'data-as-offa-sperre-grund'")
+    reihe = _zwischen(index_html, "'data-as-aktionen': \"1\"", "v3.9.547 TASK B: Unterschriften-Karte")
     for weg in ("onClick: saveAs,", "onClick: ()=>genAsPdf(form)", "onClick: ()=>{storno(editId);setSub(\"liste\");}",
                 "onClick: ()=>deleteAs(editId)", "...bdS,"):
         assert weg in reihe, weg
@@ -81,20 +81,12 @@ def test_1_rueckfrage_und_klickwege_bleiben(index_html):
 
 # ---------- 2 ----------
 def _p2(html):
+    """GF 17.11. (Chat-Claude-Messung): 'nicht im Feed' ist fuer 2/3 aller Scheine der Normalzustand -> die
+    Sperre von Aktualisieren/Storno daran war ein Fehlalarm und ist entfernt. Hier: sie darf nicht zurueckkommen."""
     f = []
-    if "const _asOffaSperre=!!(editId&&_nichtImFeed(form));" not in html:
-        f.append("Sperrbedingung fehlt / nicht an _nichtImFeed")
-    reihe = _zwischen(html, "'data-as-aktionen': \"1\"", "'data-as-offa-sperre-grund'")
-    for knopf in ("onClick: saveAs, disabled: _asOffaSperre,",
-                  "onClick: ()=>{storno(editId);setSub(\"liste\");}, disabled: _asOffaSperre,"):
-        if knopf not in reihe:
-            f.append("ungesperrt: " + knopf[:40])
-    if "const _ff=saveAs();setTimeout(()=>genAsPdf(_ff||form),200);}, disabled: _asOffaSperre," not in html:
-        f.append("Speichern & PDF ungesperrt")
-    if "_asOffaSperre&&React.createElement(Hinweis, { 'data-as-offa-sperre-hinweis'" not in html:
-        f.append("Hinweis oben fehlt")
-    if "'data-as-offa-sperre-grund'" not in html or "_AS_OFFA_SPERRE_TXT=\"nicht mehr in OFFA gelistet – erst in OFFA prüfen\"" not in html:
-        f.append("Grundtext fehlt")
+    for sym in ("_asOffaSperre", "_AS_OFFA_SPERRE_TXT", "data-as-offa-sperre-hinweis", "data-as-offa-sperre-grund", "_nichtImFeed(form)"):
+        if sym in html:
+            f.append("Fehlalarm-Sperre wieder da: " + sym)
     return f
 
 
@@ -103,10 +95,7 @@ def test_2_sperre(index_html):
 
 
 def test_2_umkehr(index_html):
-    k = index_html.replace("onClick: ()=>{storno(editId);setSub(\"liste\");}, disabled: _asOffaSperre,",
-                           "onClick: ()=>{storno(editId);setSub(\"liste\");},", 1)
-    assert k != index_html and _p2(k)
-    k = index_html.replace("onClick: saveAs, disabled: _asOffaSperre,", "onClick: saveAs,", 1)
+    k = index_html.replace("onClick: saveAs,", "onClick: saveAs, disabled: _asOffaSperre,", 1)
     assert k != index_html and _p2(k)
 
 
@@ -287,9 +276,8 @@ def test_8_umkehr(index_html):
 
 # ---------- 9 ----------
 def _p9(html):
-    n = html.count("_nichtImFeed(a)&&React.createElement('span',")
-    n += html.count("_nichtImFeed(a)&&React.createElement('span', {")
-    return [] if html.count("'data-offa-nicht-im-feed-karte'") == 2 and n >= 2 else ["Kennzeichen fehlt auf Karte/Zeile"]
+    """GF 17.11.: Kennzeichen 'nicht mehr in OFFA' auf Karte/Zeile entfernt (Fehlalarm) - darf nicht zurueckkommen."""
+    return ["Kennzeichen wieder da"] if ("data-offa-nicht-im-feed-karte" in html or "_nichtImFeed(a)" in html) else []
 
 
 def test_9_kennzeichen(index_html):
@@ -297,5 +285,5 @@ def test_9_kennzeichen(index_html):
 
 
 def test_9_umkehr(index_html):
-    k = index_html.replace("'data-offa-nicht-im-feed-karte'", "'data-x'", 1)
+    k = index_html + "<span data-offa-nicht-im-feed-karte></span>"
     assert _p9(k)

@@ -108,10 +108,10 @@ def test_verwendung_an_allen_stellen(index_html):
     assert "React.createElement(Hinweis" in home and "_hinweisSort(alerts)" in home
     assert "linear-gradient" not in home and "COLORS.ERROR" not in home and "▼" not in home
     asl = _block(code, "(_pushGesperrtL.length>0&&canSync)&&", "Schnell-Filter-Chips" if "Schnell-Filter-Chips" in code else "{key:\"\",label:\"Alle\"}")
-    assert asl.count("React.createElement(Hinweis") == 4
+    assert asl.count("React.createElement(Hinweis") == 3  # v3.9.1036: Kasten "in OFFA nicht mehr gelistet" entfernt (GF 17.11., Fehlalarm)
     for rot in ("#ef4444", "239,68,68", "#991b1b", "#fca5a5", "⚠"):
         assert rot not in asl, "Rot/Emoji im Arbeitsschein-Kasten: %s" % rot
-    assert "onOpen:()=>openEdit(x.a)" in asl and "onOpen:()=>openEdit(a)" in asl
+    assert "onOpen:()=>openEdit(x.a)" in asl  # v3.9.1036: openEdit(a) gehoerte zum entfernten Kasten
     chef = _block(code, "_card('sorgen'", "_card('mt'")
     assert chef.count("React.createElement(Hinweis") == 6
     assert "#eab308" not in chef and "fontFamily:mono" not in chef
@@ -129,7 +129,8 @@ def test_umkehrprobe_rot_im_kasten_faellt_auf(index_html):
 
 
 def test_wortlaute_der_kaesten_bleiben(index_html):
-    for w in ('+" NICHT an OFFA gesendet"', '+" in OFFA nicht mehr gelistet"', '"OFFA-Feed steht seit über "+OFFA_VERWAIST_TAGE+" Tagen"',
+    assert '+" in OFFA nicht mehr gelistet"' not in index_html  # v3.9.1036 entfernt (Fehlalarm)
+    for w in ('+" NICHT an OFFA gesendet"', '"OFFA-Feed steht seit über "+OFFA_VERWAIST_TAGE+" Tagen"',
               '_nWort(_verwaisteN,"offener Schein","offene Scheine")', "Zustand unbekannt, keine Warnung.",
               "'Kritisch überfällig'", "'Scheine ohne Monteur'", "'Erledigt, noch nicht fakturiert'"):
         assert w in index_html, w

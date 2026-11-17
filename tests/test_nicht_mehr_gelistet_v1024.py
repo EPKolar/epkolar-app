@@ -27,15 +27,23 @@ def test_rechnung(node_exe, index_html):
 
 
 def test_nur_anzeige_und_bestehendes_unberuehrt(index_html):
+    """v3.9.1036 GF 17.11.: Banner, Formular-Badge, Karten-Kennzeichen und Knopfsperre 'nicht mehr in OFFA
+    gelistet' sind ENTFERNT (der Feed liefert nur ein aktives Fenster ~62 Scheine; 'nicht im Feed' ist Normalzustand).
+    Die reine Funktion _offaNichtImFeed bleibt (Push-Riegel _juprowaPushSperre nutzt sie mit dem Abrufzeitpunkt)."""
     assert "window._offaNichtImFeed=_offaNichtImFeed;" in index_html
-    assert "'data-offa-nicht-im-feed': _nichtImFeedL.length" in index_html
-    assert "_nichtImFeed(form)&&React.createElement('span'" in index_html
-    # nicht zwischen OFFA_VERWAIST_TAGE und _isOffaVerwaist eingefuegt
+    for weg in ("data-offa-nicht-im-feed", "_nichtImFeed", "_nichtImFeedL"):
+        assert weg not in index_html, weg
+    # Gegenprobe: legitime Hinweise bleiben
+    assert "data-offa-push-gesperrt" in index_html
+    assert "OFFA-Feed steht seit über" in index_html
     a = index_html.index("var OFFA_VERWAIST_TAGE")
     b = index_html.index("function _isOffaVerwaist")
     assert "_offaNichtImFeed" not in index_html[a:b]
-    # nur bei frischem Feed (bei stillem Feed greift der bestehende Banner)
-    assert '_offaFeed.zustand==="frisch"&&!!(window._offaNichtImFeed' in index_html
+
+
+def test_umkehrprobe_banner_zurueck_wird_rot(index_html):
+    kaputt = index_html + "<div data-offa-nicht-im-feed></div>"
+    assert "data-offa-nicht-im-feed" in kaputt
 
 
 def test_umkehrprobe(index_html):
