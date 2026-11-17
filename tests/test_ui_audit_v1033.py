@@ -164,7 +164,7 @@ def test_behobene_stellen_ohne_emoji(index_html):
 
 
 def test_umkehrprobe_emoji_in_sync_leiste_wird_erkannt(index_html):
-    kaputt = index_html.replace('minHeight:32}}, "Jetzt sync")', 'minHeight:32}}, "\U0001F504 Jetzt sync")', 1)
+    kaputt = index_html.replace('minHeight:32}}, _zpIk("drehen","Jetzt sync",14))', 'minHeight:32}}, "\U0001F504 Jetzt sync")', 1)
     assert kaputt != index_html
     assert _emojis_in(kaputt)
 
