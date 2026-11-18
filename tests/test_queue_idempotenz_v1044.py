@@ -308,3 +308,86 @@ def test_tankbeleg_id_bei_erzeugung(index_html):
     assert n == 2
     assert index_html.count("const entry={id:uid(),datum:") >= 2
 
+
+# ---------------------------------------------------------------------------------------------------------
+# Zeitueberschreitung in den Anhaengewegen: wird jetzt weitergereicht (Eintrag bleibt in der Warteschlange).
+# Vorher geschluckt -> doSync zaehlte den Eintrag als erledigt, auch wenn der PATCH NIE ankam (stiller Verlust).
+# ---------------------------------------------------------------------------------------------------------
+
+ZEIT_PRELUDE = r"""
+var navigator={onLine:true};var window={};
+var db={fahrzeuge:{F1:{id:"F1",tank_log:"[]",km_log:"[]",km_stand:100,serviceheft:"[]"}},werkzeuge:{W1:{id:"W1",serviceheft:"[]"}}};
+var modus=[];
+function _zeit(){const e=new Error("signal timed out");e.name="TimeoutError";return e;}
+async function _sbGet(tab,q){const id=decodeURIComponent(q.split("eq.")[1]);const r=db[tab][id];return r?[JSON.parse(JSON.stringify(r))]:[];}
+async function _sbPatch(tab,id,data){const m=modus.shift()||"ok";
+  if(m==="zeit_nicht_an")throw _zeit();                         /* PATCH kam NIE an */
+  Object.assign(db[tab][id],data);
+  if(m==="zeit_an")throw _zeit();                               /* PATCH kam an, Antwort zu spaet */
+  return [db[tab][id]];}
+function _ymd(d){return "2026-11-18";}
+function _mapBody(b){return b;}
+async function lauf(url,method,body){const out=[];/* wie doSync: geworfen -> bleibt -> naechster Versuch; ok -> als erledigt entfernt */
+  for(let i=0;i<3;i++){try{await _translateAndExec(url,method,JSON.parse(JSON.stringify(body)));out.push("ok");break;}catch(e){out.push(e&&e.name||"err");}}
+  return out;}
+function L(tab,id,f){return JSON.parse(db[tab][id][f]||"[]");}
+"""
+
+ZEIT_KOERPER = r"""
+(async()=>{
+ const R={};
+ for(const art of ["zeit_nicht_an","zeit_an"]){
+  const r={};
+  db.fahrzeuge.F1={id:"F1",tank_log:"[]",km_log:"[]",km_stand:100,serviceheft:"[]"};db.werkzeuge.W1={id:"W1",serviceheft:"[]"};
+  modus=[art];r.tankLauf=await lauf("/api/fahrzeuge/F1","PUT",{tankLog_add:{id:"t1",liter:40,km:12345},kmStand:12345});
+  r.tank=L("fahrzeuge","F1","tank_log").length;r.km=L("fahrzeuge","F1","km_log").length;
+  modus=[art];r.kmLauf=await lauf("/api/fahrzeuge/F1","PUT",{kmStand:12400,kmLogId:"k1"});
+  r.km2=L("fahrzeuge","F1","km_log").filter(x=>x.km===12400).length;
+  modus=[art];r.wzLauf=await lauf("/api/werkzeuge/W1","POST",{id:"s1",datum:"2026-11-18",art:"Service"});
+  r.wz=L("werkzeuge","W1","serviceheft").length;
+  modus=[art];r.fshLauf=await lauf("/api/fahrzeuge/F1","POST",{id:"sh1",datum:"2026-11-18",art:"Service"});
+  r.fsh=L("fahrzeuge","F1","serviceheft").length;
+  R[art]=r;
+ }
+ process.stdout.write(JSON.stringify(R));
+})().catch(e=>{process.stdout.write(JSON.stringify({crash:String(e&&e.stack||e)}));});
+"""
+
+
+def _zeit(src, node_exe):
+    code = ZEIT_PRELUDE + _fn(src, "_netzFehlerArt") + "\n" + _fn(src, "_translateAndExec") + "\n" + ZEIT_KOERPER
+    return _node(node_exe, code)
+
+
+def _zeit_befunde(r):
+    if "crash" in r:
+        return ["Probe abgestuerzt: " + r["crash"][:300]]
+    b = []
+    for art in ("zeit_nicht_an", "zeit_an"):
+        x = r[art]
+        for k, n in (("tankLauf", "tank"), ("kmLauf", "km2"), ("wzLauf", "wz"), ("fshLauf", "fsh")):
+            if x[k] != ["TimeoutError", "ok"]:
+                b.append("%s/%s: Zeitueberschreitung geschluckt oder falsch behandelt: %r" % (art, k, x[k]))
+            if x[n] != 1:
+                b.append("%s/%s: %r Eintraege statt 1" % (art, n, x[n]))
+        if x["km"] != 1:
+            b.append("%s/km-Zeile zum Tankbeleg: %r statt 1" % (art, x["km"]))
+    return b
+
+
+def test_zeitueberschreitung_bleibt_in_der_warteschlange(index_html, node_exe):
+    """PATCH kam nie an -> Eintrag bleibt, Wiederholung schreibt ihn genau einmal; PATCH kam an -> Wiederholung dedupliziert."""
+    assert _zeit_befunde(_zeit(index_html, node_exe)) == []
+
+
+def test_umkehrprobe_zeitueberschreitung_geschluckt(index_html, node_exe):
+    """Ohne die Erweiterung wird die Zeitueberschreitung geschluckt: der Eintrag gilt als erledigt, kommt aber nie an."""
+    neu_teil = '||(typeof _netzFehlerArt==="function"&&/^(zeit|netz)$/.test(_netzFehlerArt(e,navigator.onLine))))throw e;'
+    assert index_html.count(neu_teil) == 4
+    r = _zeit(index_html.replace(neu_teil, ")throw e;"), node_exe)
+    b = _zeit_befunde(r)
+    assert b
+    x = r["zeit_nicht_an"]
+    assert x["tankLauf"] == ["ok"] and x["tank"] == 0, x   # als erledigt gezaehlt, Tankbeleg verloren
+    assert x["wz"] == 0 and x["fsh"] == 0, x
+
