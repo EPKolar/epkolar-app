@@ -15,7 +15,8 @@ def test_tab_label_ist_dispo(index_html):
 
 
 def test_panel_ueberschrift_ist_dispo(index_html):
-    assert '"🗓 Dispo · "' in index_html, "Panel-Ueberschrift nicht 'Dispo · KW'"
+    # v1044: Ueberschrift mit Linien-Ikone statt Emoji (Tablet-Pruefung 1041) - Wortlaut "Dispo · KW" bleibt
+    assert '_ikT("kalender","Dispo · "+_built.kwLabel)' in index_html, "Panel-Ueberschrift nicht 'Dispo · KW'"
     assert "🗓 Vorschlagsplanung · " not in index_html, "alte Ueberschrift 'Vorschlagsplanung · KW' noch da"
 
 

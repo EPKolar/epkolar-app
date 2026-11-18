@@ -232,6 +232,7 @@ function td2(){ return _ezHeuteISO(); }
 /* AbsView-Umgebung */
 var yr = 2026;
 var kontExpanded = false;
+var kontUnlesbar = false; /* v1044: AbsView zeigt bei ungelesenen Kontingenten "–" (Tablet-Pruefung 1041) - hier gelesen */
 var sel = "";
 function setSel(){}
 function setSubView(){}
