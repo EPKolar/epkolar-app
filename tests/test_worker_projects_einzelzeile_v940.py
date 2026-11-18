@@ -184,6 +184,7 @@ function _isAuthErr(s){ return s === 401 || s === 403; }
 function _onAuthFail(){ }
 function _merkeRlsFehler(){ }
 function _mapBody(o){ return o; }
+async function _dbOhneDateien(t, i, d){ return d; }  // v3.9.1042: Datei-Waechter der Schreibhelfer - hier ohne Dateien ein Durchreicher
 const _gemeldet = [];
 global.window = { __toast: (t)=>_gemeldet.push(["toast", String(t)]) };
 // Node 24 fuehrt `navigator` als Nur-Lese-Eigenschaft - eine einfache

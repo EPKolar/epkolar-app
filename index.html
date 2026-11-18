@@ -1778,7 +1778,7 @@ async function _sbUploadFile(path,dataUrl){
   // → PhotoQ marked als error, nächster flush wieder 401 bis zufällig ein _sb*-Call
   // den Refresh triggerte. Jetzt silent re-auth + retry wie bei allen _sb*-Calls.
   const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({
-    method:"POST",headers:_sbH({"Content-Type":blob.type,"x-upsert":"true"}),body:blob
+    method:"POST",headers:_sbH({"Content-Type":_dateiUploadTyp(SB_BUCKET,blob.type),"x-upsert":"true"}),body:blob/* v3.9.1042: Typen ausserhalb von allowed_mime_types (docx/xlsx/dwg ...) wurden mit 4xx abgewiesen -> Projekt-Dokument nach 5 Versuchen verworfen; jetzt als application/octet-stream */
   },60000)));
   if(!r.ok){const txt=await r.text();throw new Error("HTTP"+r.status+" Storage upload failed: "+txt);}/* v3.9.169 FIX Foto#2: Error-Format "HTTP"+status → PhotoQ.flush erkennt Storage-5xx jetzt als transient (Regex /(?:HTTP|Auth:)(\d{3})/) und pausiert statt alle Fotos durchzuhämmern */
   return SUPABASE_URL+"/storage/v1/object/public/"+SB_BUCKET+"/"+path;
@@ -1819,6 +1819,150 @@ async function _migrateTankFotos(opts){
   return out;
 }
 window._migrateTankFotos=_migrateTankFotos;
+/* ═══ v3.9.1042 DATEIEN NUR IM SPEICHER (Entscheid Sebastian 18.11.2026, Dauerregel) ═══
+   "Die Datenbank darf nie Dateien speichern" - Fotos, PDFs, Scans, Unterschriften, Anhaenge gehoeren nach Supabase Storage,
+   die Zeile traegt nur den Verweis (oeffentliche Speicher-Adresse oder "sbpriv:<bucket>/<pfad>" fuer private Buckets).
+   Drei Teile:
+   (1) _dbOhneDateien = Waechter in _sbPost/_sbUpsert/_sbInsertIfAbsent/_sbPatch: jeder data:-Wert ueber _DATEI_GRENZE
+       (auch tief in Arrays/Objekten und in JSON-Text-Spalten wie tank_log) wird VOR dem Schreiben hochgeladen und ersetzt.
+       Pfad = Inhalts-Pruefsumme -> derselbe Inhalt landet immer am selben Ort (Wiederholung erzeugt keine Waisen).
+       Scheitert der Upload, WIRFT der Waechter: die Zeile geht dann gar nicht raus (nie mit Base64 im Rumpf).
+       Ausnahme arbeitsscheine (OFFA-Dauerregel: Arbeitsschein-Schreibwege bleiben unberuehrt) - nur Konsolenhinweis.
+   (2) _dateiInPhotoQ = neuer Datei-Weg fuer Ansichten: die Datei wartet isoliert in der PhotoQ (IndexedDB, eigener Retry,
+       nurStorage = keine photos-Zeile, kein 10er-Deckel), die Zeile bekommt sofort die Speicher-Adresse. Bis zum Upload
+       zeigt _dateiAnzeige das lokale Bild.
+   (3) _dateienMigration = einmaliger Umzug der Altbestaende (Admin, Einstellungen > "Dateien in den Speicher verschieben"):
+       Probelauf ohne Schreiben, dann je Datei hochladen + nachpruefen (GET, Groesse) + NUR dieses Feld dieser Zeile patchen. */
+const _DATEI_GRENZE=2048;
+const _DATEI_TAB_AUSNAHME={arbeitsscheine:1};
+const _SB_FILES_MIME={"image/jpeg":1,"image/png":1,"image/gif":1,"image/webp":1,"application/pdf":1,"application/octet-stream":1};
+const _dateiLokal=new Map();
+const _dateiHochCache=new Map();
+function _istDateiWert(v){return typeof v==="string"&&v.length>_DATEI_GRENZE&&/^data:[a-z0-9.+-]+\/[a-z0-9.+-]+(;[a-z0-9.+=-]+)*;base64,/i.test(v.slice(0,160));}
+function _dateiEndung(v){const m=/^data:([^;,]+)/i.exec(String(v||""));const t=(m?m[1]:"").toLowerCase();const k={"image/jpeg":"jpg","image/jpg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif","application/pdf":"pdf"};if(k[t])return k[t];const e=(t.split("/")[1]||"").replace(/[^a-z0-9]/g,"").slice(0,8);return e||"bin";}
+function _dateiBytes(v){const s=String(v||"");const i=s.indexOf(",");if(i<0)return 0;const b=s.length-i-1;const pad=s.slice(-2)==="=="?2:(s.slice(-1)==="="?1:0);return Math.max(0,Math.floor(b*3/4)-pad);}
+function _dateiHash(s){s=String(s||"");let h1=0x811c9dc5,h2=0x9747b28c;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,16777619);h2=Math.imul(h2^c,0x5bd1e995);h2^=h2>>>15;}return (h1>>>0).toString(16).padStart(8,"0")+(h2>>>0).toString(16).padStart(8,"0")+"_"+s.length.toString(36);}
+function _dateiSicher(s){return String(s==null||s===""?"neu":s).replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,80);}
+function _dateiJsonText(v){if(v.length<=_DATEI_GRENZE||v.indexOf("data:")<0)return undefined;const c=v.replace(/^\s+/,"").charCodeAt(0);if(c!==91&&c!==123)return undefined;/* 91 = eckige, 123 = geschweifte Klammer auf (als Zahl, damit Klammerzaehler nicht stolpern) */try{return JSON.parse(v);}catch(_e){return undefined;}}
+/* REIN: alle Dateiwerte (einmalig) aus einem Wert - Objekt, Array, JSON-Text. pruef = eigene Erkennung (Standard _istDateiWert). */
+function _dateiSammeln(wert,pruef){pruef=pruef||_istDateiWert;const out=[];const seen=new Set();const geh=(v,t)=>{if(t>14||v==null)return;if(typeof v==="string"){if(pruef(v)){if(!seen.has(v)){seen.add(v);out.push(v);}return;}const j=_dateiJsonText(v);if(j!==undefined)geh(j,t+1);return;}if(Array.isArray(v)){for(let i=0;i<v.length;i++)geh(v[i],t+1);return;}if(typeof v==="object"){Object.keys(v).forEach(k=>geh(v[k],t+1));}};geh(wert,0);return out;}
+/* REIN: ersetzt jeden Wert, der in map steht. Unveraenderte Teile behalten ihre Referenz; JSON-Text bleibt Text. */
+function _dateiErsetzen(wert,map){const geh=(v,t)=>{if(t>14||v==null)return v;if(typeof v==="string"){if(map.has(v))return map.get(v);const j=_dateiJsonText(v);if(j!==undefined){const n=geh(j,t+1);return n===j?v:JSON.stringify(n);}return v;}if(Array.isArray(v)){let ch=false;const n=v.map(x=>{const y=geh(x,t+1);if(y!==x)ch=true;return y;});return ch?n:v;}if(typeof v==="object"){let ch=false;const n={};Object.keys(v).forEach(k=>{const y=geh(v[k],t+1);if(y!==v[k])ch=true;n[k]=y;});return ch?n:v;}return v;};return geh(wert,0);}
+function _sbPublicUrl(pfad){return SUPABASE_URL+"/storage/v1/object/public/"+SB_BUCKET+"/"+pfad;}
+function _istSpeicherUrl(v){return typeof v==="string"&&v.indexOf(SUPABASE_URL+"/storage/v1/object/public/")===0;}
+function _istBildQuelle(v){if(typeof v!=="string"||!v)return false;if(v.indexOf("data:image/")===0)return true;return _istSpeicherUrl(v)&&!/[\x22\x27<>\s]/.test(v);}
+function _dateiIstPdf(v){v=String(v||"");if(v.indexOf("data:application/pdf")===0)return true;return (_istSpeicherUrl(v)||v.indexOf("sbpriv:")===0)&&/\.pdf(\?|$)/i.test(v);}
+/* Sicherheits-Pruefung 18.11.: was in img/iframe-src darf - nur data:image/*, data:application/pdf und Adressen UNSERES Speichers (oeffentlich oder signiert).
+   javascript:, fremde Hosts, Anfuehrungszeichen -> "" (nichts anzeigen). REIN. */
+function _dateiQuelleSicher(v){if(typeof v!=="string"||!v)return "";if(/^data:(image\/[a-z0-9.+-]+|application\/pdf)[;,]/i.test(v))return v;const b=SUPABASE_URL+"/storage/v1/object/";if((v.indexOf(b+"public/")===0||v.indexOf(b+"sign/")===0)&&!/[\x22\x27<>\s\\]/.test(v))return v;return "";}
+function _dateiUploadTyp(bucket,typ){typ=String(typ||"").toLowerCase();if(!typ)return "application/octet-stream";if(bucket===SB_BUCKET&&!_SB_FILES_MIME[typ])return "application/octet-stream";return typ;}
+/* REIN: Ziel einer Datei. Zulassungsschein -> privater Fahrzeug-Bucket (wie Serviceheft-Dokumente), sonst epkolar-files. */
+function _dateiZiel(table,spalte,id,v){const h=_dateiHash(v),e=_dateiEndung(v);if(table==="fahrzeuge"&&spalte==="zulassungsschein"){const p="fahrzeuge/"+_dateiSicher(id)+"/zulassung_"+h+"."+e;return{bucket:SB_FZ_BUCKET,pfad:p,ref:"sbpriv:"+SB_FZ_BUCKET+"/"+p};}const p="auto/"+_dateiSicher(table)+"/"+_dateiSicher(id)+"/"+h+"."+e;return{bucket:SB_BUCKET,pfad:p,ref:_sbPublicUrl(p)};}
+function _dateiPfadNeu(basis,v){const u=(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+"_"+Math.random().toString(36).slice(2));return basis+"/"+u+"."+_dateiEndung(v);}
+async function _dateiSigniert(ref,sek){const r=String(ref||"").slice(7);const i=r.indexOf("/");if(i<1)return "";const b=r.slice(0,i),p=r.slice(i+1);if(b===SB_FZ_BUCKET)return _sbSignedFzUrl(p,sek);if(b===SB_DOCS_BUCKET)return _sbSignedDocUrl(p,sek);if(b===SB_GEF_BUCKET)return _sbSignedGefUrl(p,sek);return "";}
+/* Liegt die Datei mit genau dieser Groesse im Speicher? (GET, nicht aus dem Cache) */
+async function _dateiDa(bucket,pfad,groesse){try{const u=bucket===SB_BUCKET?_sbPublicUrl(pfad):await _dateiSigniert("sbpriv:"+bucket+"/"+pfad,120);if(!u)return false;const r=await fetch(u,{cache:"no-store"});if(!r.ok)return false;const b=await r.arrayBuffer();return !(groesse>0)||b.byteLength===groesse;}catch(_e){return false;}}
+/* Upload OHNE x-upsert: der Pfad haengt am Inhalt, ein vorhandenes Objekt ist dieselbe Datei. "Duplicate" (auch von einem
+   anderen Benutzer hochgeladen, dessen Objekt wir nicht ueberschreiben duerften) -> nachpruefen, dann als erledigt werten. */
+async function _sbDateiHoch(bucket,pfad,dataUrl){
+  const blob=_dataUrlToBlob(dataUrl);if(!blob)throw new Error("Ungueltige Datei");
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+bucket+"/"+encodeURIComponent(pfad).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":_dateiUploadTyp(bucket,blob.type)}),body:blob},60000)));
+  if(!r.ok){const t=await r.text().catch(()=>"");if((r.status===409||/duplicate|already exists/i.test(t))&&await _dateiDa(bucket,pfad,blob.size))return blob.size;throw new Error("HTTP"+r.status+" Storage upload failed: "+String(t).slice(0,200));}
+  return blob.size;
+}
+/* (1) WAECHTER vor jedem DB-Schreiben. Gibt bei "nichts gefunden" exakt dasselbe Objekt zurueck. */
+async function _dbOhneDateien(table,id,data){
+  if(!data||typeof data!=="object")return data;
+  if(_DATEI_TAB_AUSNAHME[table]){try{if(_dateiSammeln(data).length)console.warn("[db-ohne-dateien] "+table+": Datei im Rumpf, OFFA-Ausnahme - unveraendert");}catch(_w){}return data;}
+  if(Array.isArray(data)){let ch=false;const out=[];for(const z of data){const n=await _dbOhneDateien(table,(z&&z.id)||id,z);if(n!==z)ch=true;out.push(n);}return ch?out:data;}
+  const rid=id||data.id||"";const map=new Map();
+  for(const k of Object.keys(data)){
+    for(const v of _dateiSammeln(data[k])){
+      if(map.has(v))continue;
+      const z=_dateiZiel(table,k,rid,v);const ck=z.bucket+"/"+z.pfad;
+      if(!_dateiHochCache.has(ck)){try{await _sbDateiHoch(z.bucket,z.pfad,v);}catch(e){const m=String(e&&e.message||e);if(/^Ungueltige Datei/.test(m))throw e;/* Upload gescheitert -> als HTTP503 melden: Warteschlange behaelt den Auftrag und versucht spaeter neu. Die Sonderwege (Tank/Serviceheft) werfen nur 5xx/408/429 weiter und schlucken den Rest - ohne diese Umdeutung ginge die ganze Aenderung still verloren. */throw new Error("HTTP503 Datei-Upload vor dem Speichern gescheitert ("+m.slice(0,160)+")");}_dateiHochCache.set(ck,z.ref);}
+      map.set(v,z.ref);
+      try{console.warn("[db-ohne-dateien] "+table+"."+k+" -> Speicher "+z.pfad+" ("+_dateiBytes(v)+" B)");const L=window.__dateiWaechter||(window.__dateiWaechter=[]);L.push({t:new Date().toISOString(),tab:table,feld:k,pfad:z.pfad,bytes:_dateiBytes(v)});if(L.length>50)L.shift();}catch(_l){}
+    }
+  }
+  if(!map.size)return data;
+  const out={};Object.keys(data).forEach(k=>{out[k]=_dateiErsetzen(data[k],map);});return out;
+}
+/* (2) Neue Datei aus einer Ansicht: wartet isoliert in der PhotoQ, Rueckgabe = Speicher-Adresse ("" = nicht ablegbar, Hinweis kam). */
+async function _dateiInPhotoQ(pfad,dataUrl,meta){
+  meta=meta||{};
+  if(typeof dataUrl!=="string"||dataUrl.indexOf("data:")!==0)return "";
+  _dateiLokal.set(pfad,dataUrl);
+  const ok=await PhotoQ.add({entityType:meta.art||"datei",entityId:meta.id||"",projectId:meta.pid||"",context:meta.kontext||"Datei",name:pfad.split("/").pop(),dataUrl:dataUrl,takenAt:new Date().toISOString(),storagePath:pfad,nurStorage:true});
+  if(ok===false){_dateiLokal.delete(pfad);try{if(window.__toast)window.__toast("⚠️ Speicher voll - Datei konnte nicht zwischengespeichert werden. Bitte erneut versuchen, wenn wieder Platz ist.","error",8000);}catch(_t){}return "";}
+  try{if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(_c){}
+  if(typeof navigator!=="undefined"&&navigator.onLine)setTimeout(()=>{try{PhotoQ.flush().then(()=>{try{if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(_e){}});}catch(_f){}},300);
+  return _sbPublicUrl(pfad);
+}
+/* Anzeige: solange die Datei noch in der PhotoQ wartet, das lokale Bild zeigen (sonst leere Kachel bis zum Upload). */
+function _dateiAnzeige(v){if(!_istSpeicherUrl(v))return v;const vor=_sbPublicUrl("");if(v.indexOf(vor)!==0)return v;const p=v.slice(vor.length);if(_dateiLokal.has(p))return _dateiLokal.get(p);try{const st=_tkFotoStand.map[p];if(st&&st.lokal)return st.lokal;}catch(_e){}return v;}
+function _blobZuDataUrl(b){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});}
+/* PDF-Erzeugung (jsPDF addImage) braucht Bild-Bytes: Speicher-Adressen vorher in data:-Bilder holen. Fehler -> Wert bleibt. */
+async function _pdfDateienEinbetten(wert){
+  const urls=_dateiSammeln(wert,v=>typeof v==="string"&&(_istSpeicherUrl(v)||v.indexOf("sbpriv:")===0)).slice(0,80);if(!urls.length)return wert;
+  const map=new Map();
+  for(const u of urls){try{const lok=_dateiAnzeige(u);if(lok!==u&&String(lok).indexOf("data:")===0){map.set(u,lok);continue;}const q=u.indexOf("sbpriv:")===0?await _dateiSigniert(u,300):u;if(!q)continue;const r=await fetch(q);if(!r.ok)continue;const b=await r.blob();if(String(b.type||"").indexOf("image/")!==0)continue;map.set(u,await _blobZuDataUrl(b));}catch(_e){}}
+  return map.size?_dateiErsetzen(wert,map):wert;
+}
+/* Anzeige-Baustein fuer private Verweise (sbpriv:) - holt eine zeitlich begrenzte Adresse; data:/http unveraendert. */
+function DateiQuelle({v,el,p}){
+  const priv=typeof v==="string"&&v.indexOf("sbpriv:")===0;
+  const [src,setSrc]=_react.useState.call(void 0, priv?"":_dateiQuelleSicher(v));
+  _react.useEffect.call(void 0, ()=>{let a=true;if(priv){setSrc("");_dateiSigniert(v,3600).then(u=>{if(a)setSrc(_dateiQuelleSicher(u));},()=>{if(a)setSrc("");});}else setSrc(_dateiQuelleSicher(v));return ()=>{a=false;};},[v]);
+  if(!src)return React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,padding:8}},priv?"Datei wird geladen …":(v?"Datei kann nicht angezeigt werden":""));
+  return React.createElement(el||"img",{...(p||{}),src:src});
+}
+/* (3) MIGRATION der Altbestaende. opts.go=true schreibt (nur Admin), sonst Probelauf ohne jeden Schreibzugriff.
+   Je Datei: hochladen -> nachpruefen (GET + Groesse) -> Zeile FRISCH lesen -> nur dieses Feld ersetzen -> patchen.
+   Idempotent: es werden nur data:-Werte angefasst; ein zweiter Lauf findet nichts mehr. Abbruch jederzeit gefahrlos. */
+const _DATEI_MIG_TABELLEN=[{t:"fahrzeuge",u:1},{t:"werkzeuge",u:1},{t:"checklists",u:1},{t:"forms",u:1},{t:"defects",u:1},{t:"tickets",u:1},{t:"bautagebuch",u:1},{t:"project_documents",u:1},{t:"photos"},{t:"plans"},{t:"finkzeit"},{t:"bescheinigungen"},{t:"absence_files"},{t:"anmeldungen"},{t:"fahrbewilligungen"},{t:"gefahrstoff_files",u:1},{t:"bauprovisorien",u:1},{t:"bauprovisorien_mieten"},{t:"projects",u:1},{t:"workers",u:1},{t:"absences",u:1},{t:"material_orders",u:1},{t:"supplier_orders",u:1},{t:"wz_service"},{t:"fz_termine",u:1}];
+async function _dateienMigration(opts){
+  opts=opts||{};const GO=opts.go===true;const log=z=>{try{console.log("[datei-umzug] "+z);if(opts.onLog)opts.onLog(z);}catch(_e){}};
+  const _u=window._curUser&&window._curUser();
+  if(GO&&(!_u||_u.role!=="admin")){log("Abgebrochen: nur Admin darf verschieben.");return{fehler:["nur Admin"]};}
+  const out={modus:GO?"Verschieben":"Probelauf",dateien:0,bytes:0,zeilen:0,verschoben:0,gepatcht:0,fehler:[],tabellen:{}};
+  for(const tb of (opts.tabellen||_DATEI_MIG_TABELLEN)){
+    let rows;try{rows=await _sbGet(tb.t);}catch(e){out.fehler.push(tb.t+": lesen "+(e&&e.message||e));log(tb.t+": nicht lesbar ("+(e&&e.message||e)+")");continue;}
+    const st={dateien:0,bytes:0,zeilen:0};
+    for(const row of (rows||[])){
+      if(!row||!row.id)continue;
+      for(const sp of Object.keys(row)){
+        if(sp==="id")continue;
+        const funde=_dateiSammeln(row[sp]);if(!funde.length)continue;
+        const b=funde.reduce((s,v)=>s+_dateiBytes(v),0);
+        st.dateien+=funde.length;st.bytes+=b;st.zeilen++;
+        if(!GO){log(tb.t+" "+row.id+" ."+sp+": "+_nWort(funde.length,"Datei","Dateien")+", "+Math.round(b/1024)+" kB");continue;}
+        const map=new Map();let ok=true;
+        for(const v of funde){
+          const z=_dateiZiel(tb.t,sp,row.id,v);
+          try{const gr=await _sbDateiHoch(z.bucket,z.pfad,v);if(!await _dateiDa(z.bucket,z.pfad,gr))throw new Error("Nachpruefung: Datei fehlt oder Groesse falsch");map.set(v,z.ref);out.verschoben++;log(tb.t+" "+row.id+" ."+sp+": hochgeladen + geprueft -> "+z.pfad);}
+          catch(e){ok=false;out.fehler.push(tb.t+"/"+row.id+"/"+sp+": "+(e&&e.message||e));log(tb.t+" "+row.id+" ."+sp+": FEHLER "+(e&&e.message||e));}
+        }
+        if(!map.size)continue;
+        try{
+          const fr=await _sbGet(tb.t,"select=id,"+encodeURIComponent(sp)+"&id=eq."+encodeURIComponent(row.id));
+          if(!fr||!fr[0])throw new Error("Zeile nicht mehr lesbar");
+          const neu=_dateiErsetzen(fr[0][sp],map);
+          if(neu===fr[0][sp]){log(tb.t+" "+row.id+" ."+sp+": schon erledigt");continue;}
+          const body={};body[sp]=neu;if(tb.u)body.updated_at=new Date().toISOString();
+          const pr=await _sbPatch(tb.t,row.id,body);
+          if(Array.isArray(pr)&&pr.length===0)throw new Error("0 Zeilen geaendert (Berechtigung?)");
+          out.gepatcht++;log(tb.t+" "+row.id+" ."+sp+": Zeile umgestellt"+(ok?"":" (teilweise - Rest beim naechsten Lauf)"));
+        }catch(e){out.fehler.push(tb.t+"/"+row.id+"/"+sp+" patch: "+(e&&e.message||e));log(tb.t+" "+row.id+" ."+sp+": PATCH-FEHLER "+(e&&e.message||e));}
+      }
+    }
+    out.tabellen[tb.t]=st;out.dateien+=st.dateien;out.bytes+=st.bytes;out.zeilen+=st.zeilen;
+  }
+  try{localStorage.setItem("epk_dateiumzug_letzter",JSON.stringify({am:new Date().toISOString(),modus:out.modus,dateien:out.dateien,bytes:out.bytes,verschoben:out.verschoben,gepatcht:out.gepatcht,fehler:out.fehler.slice(0,20)}));}catch(_s){}
+  log(out.modus+" fertig: "+_nWort(out.dateien,"Datei","Dateien")+" in "+_nWort(out.zeilen,"Feld","Feldern")+", "+Math.round(out.bytes/1024)+" kB"+(GO?(", verschoben "+out.verschoben+", Zeilen umgestellt "+out.gepatcht):"")+", Fehler "+out.fehler.length);
+  return out;
+}
+window._dateienMigration=_dateienMigration;
 function _storagePath(category,projectId,fileName){
   const safe=s=>(s||"unknown").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,80);
   const ts=Date.now();
@@ -2345,11 +2489,13 @@ async function _workerRefs(id){
   return out;
 }
 async function _sbPost(table,data,minimal){/* v3.9.227: minimal=true → Prefer return=minimal (kein RETURNING→SELECT) — Fix Monteur-403 bei notifications-INSERT fuer fremde Empfaenger */
+  data=await _dbOhneDateien(table,null,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
   const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH(minimal?"return=minimal":"return=representation"),body:JSON.stringify(data)})));
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbUpsert(table,data,minimal){/* v3.9.227: minimal=true → return=minimal (kein RETURNING) — Fix notifications-403 */
+  data=await _dbOhneDateien(table,null,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
   const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH((minimal?"return=minimal":"return=representation")+",resolution=merge-duplicates"),body:JSON.stringify(data)})));
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   try{return await r.json();}catch(_){return{ok:1};}
@@ -2392,11 +2538,13 @@ async function _sbInsertIfAbsent(table,data){/* v3.9.442 #17: idempotenter AS-PO
   Bei verlorener HTTP-Antwort retryt doSync denselben POST mit derselben stabilen id (uid()); ignore-duplicates
   verhindert den 409→5x-Retry→Drop+Falsch-Warnung-Pfad OHNE jedes Overwrite (Juprowa ist autoritativ, kein DO UPDATE).
   return=minimal: DO NOTHING liefert KEINE Zeile zurück → 200/201 mit LEEREM Body = ERFOLG (kein json()-noetig, NIE Fehler/Drop). */
+  data=await _dbOhneDateien(table,null,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
   const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH("return=minimal,resolution=ignore-duplicates"),body:JSON.stringify(data)})));
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log */}
   return{ok:1};/* leerer Body bei DO NOTHING ist gewollt → immer Erfolg, kein Falsch-Drop */
 }
 async function _sbPatch(table,id,data){
+  data=await _dbOhneDateien(table,id,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
   const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)})));
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   /* v3.9.998 (R1): DER WAECHTER SASS NUR IM UEBERSETZER DER WARTESCHLANGE. 21 Schreibaufrufe rufen _sbPatch direkt und liefen baulich daran vorbei; fuenf davon treffen Tabellen, die in der Tafel STEHEN (fahrzeuge dreimal, werkzeuge, fz_termine). Der Eintrag dort war damit eine Attrappe - er sieht nach Deckung aus und konnte von diesen Wegen nie feuern, obwohl genau der stille Tank-/km-Verlust der Grund war, den Waechter zu bauen. Die Pruefung steht jetzt HIER, also an einer Stelle fuer alle Umwege und jeden kuenftigen. Kein Fehlalarm: _sbPatch sendet ueber _sbWH() die Kopfzeile Prefer: return=representation, die Antwort traegt also die geaenderten Zeilen. Leer heisst bei einem Zugriff ueber id=eq.<kennung> wirklich null Zeilen - Zeilenschutz abgewiesen oder Zeile nicht da. Gemeldet wird nur fuer die 23 durchgesehenen Tabellen der Tafel. */
@@ -3578,6 +3726,7 @@ if(typeof window!=='undefined'){window._kioskDailyShouldReset=_kioskDailyShouldR
 // ═══════════ FILE OPEN HELPER (handles data: URLs blocked by Chrome) ═══════════
 function _openFileUrl(url,fileName){
   if(!url)return;
+  if(String(url).indexOf("sbpriv:")===0){_dateiSigniert(url,300).then(u=>{if(u)window.open(u,"_blank","noopener,noreferrer");else if(window.__toast)window.__toast("Datei nicht verfuegbar","warn");}).catch(e=>{if(window.__toast)window.__toast("Datei konnte nicht geoeffnet werden: "+(e&&e.message||e),"error",6000);});return;}/* v3.9.1042 privater Speicher (sbpriv:<bucket>/<pfad>) -> zeitlich begrenzte Adresse */
   if(url.startsWith("http")){window.open(url,"_blank","noopener,noreferrer");return;}
   if(url.startsWith("data:")){
     try{const[hdr,b64]=url.split(",");const mime=hdr.match(/:(.*?);/)[1];const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);const blob=new Blob([arr],{type:mime});const bu=URL.createObjectURL(blob);window.open(bu,"_blank","noopener,noreferrer");setTimeout(()=>URL.revokeObjectURL(bu),60000);}
@@ -4826,6 +4975,7 @@ async function _planRenderThumbnail(planId, pageNum, canvas) {
    iframes drucken eingebettete PDFs unzuverlässig (leer) → gerenderte Bilder drucken zuverlässig. */
 async function _pdfToImages(dataUrl,scale){
   try{
+    if(_istSpeicherUrl(dataUrl)){try{const _r=await fetch(dataUrl);if(_r.ok)dataUrl=await _blobZuDataUrl(await _r.blob());}catch(_fe){}}/* v3.9.1042: Stundenzettel liegt im Speicher */
     if(!window.pdfjsLib||!dataUrl||String(dataUrl).indexOf("data:")!==0)return [];
     const b64=dataUrl.substring(dataUrl.indexOf(",")+1);const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     const pdf=await window.pdfjsLib.getDocument({data:arr.buffer}).promise;
@@ -17156,8 +17306,8 @@ td{padding:5px 8px;border:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}
 <tbody>${(d.material||[]).filter(r=>r.name).map(r=>`<tr><td>${esc(r.name)}</td><td style="text-align:center">${esc(r.stueck)}</td><td style="text-align:center">${esc(r.artikelNr)}</td><td>${esc(r.bemerkung)}</td></tr>`).join("")}</tbody></table>
 ${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px">Folgebericht erforderlich</div>`:""}
 <div class="sig-row">
-  <div class="sig-box"><div class="lbl">Unterschrift Mitarbeiter</div><div class="line">${d.sigMA&&(""+d.sigMA).startsWith("data:image/")?`<img src="${d.sigMA}" alt="Unterschrift Mitarbeiter">`:""}</div><div class="nm">EP: Kolar &amp; Sohn</div></div>
-  <div class="sig-box"><div class="lbl">Unterschrift Auftraggeber</div><div class="line">${d.sigKunde&&(""+d.sigKunde).startsWith("data:image/")?`<img src="${d.sigKunde}" alt="Unterschrift Auftraggeber">`:""}</div><div class="nm">Auftraggeber</div></div>
+  <div class="sig-box"><div class="lbl">Unterschrift Mitarbeiter</div><div class="line">${d.sigMA&&_istBildQuelle(d.sigMA)?`<img src="${d.sigMA}" alt="Unterschrift Mitarbeiter">`:""}</div><div class="nm">EP: Kolar &amp; Sohn</div></div>
+  <div class="sig-box"><div class="lbl">Unterschrift Auftraggeber</div><div class="line">${d.sigKunde&&_istBildQuelle(d.sigKunde)?`<img src="${d.sigKunde}" alt="Unterschrift Auftraggeber">`:""}</div><div class="nm">Auftraggeber</div></div>
 </div>`;
   }
 
@@ -17220,8 +17370,8 @@ ${d.folge?`<div class="note" style="color:#d97706;font-weight:600;font-size:11px
 <table><thead><tr><th>Raum</th><th>Leistung</th><th style="width:90px;text-align:center">Ergebnis</th><th>Bemerkung</th></tr></thead>
 <tbody>${(d.rows||[]).map(r=>`<tr><td><b>${esc(r.raum)}</b></td><td>${esc(r.leistung)}</td><td style="text-align:center"><span class="badge ${r.ergebnis==="i.O."?"badge-ok":r.ergebnis==="Mangel"?"badge-err":"badge-warn"}">${esc(r.ergebnis)}</span></td><td>${esc(r.bemerkung)}</td></tr>`).join("")}</tbody></table>
 <div class="sig-row">
-  <div class="sig-box"><div class="lbl">Unterschrift EP Kolar &amp; Sohn</div><div class="line">${d.sigFirma&&(""+d.sigFirma).startsWith("data:image/")?`<img src="${d.sigFirma}" alt="Unterschrift Firma">`:""}</div><div class="nm">Auftragnehmer</div></div>
-  <div class="sig-box"><div class="lbl">Unterschrift Auftraggeber / ÖBA</div><div class="line">${d.sigKunde&&(""+d.sigKunde).startsWith("data:image/")?`<img src="${d.sigKunde}" alt="Unterschrift Auftraggeber">`:""}</div><div class="nm">Auftraggeber</div></div>
+  <div class="sig-box"><div class="lbl">Unterschrift EP Kolar &amp; Sohn</div><div class="line">${d.sigFirma&&_istBildQuelle(d.sigFirma)?`<img src="${d.sigFirma}" alt="Unterschrift Firma">`:""}</div><div class="nm">Auftragnehmer</div></div>
+  <div class="sig-box"><div class="lbl">Unterschrift Auftraggeber / ÖBA</div><div class="line">${d.sigKunde&&_istBildQuelle(d.sigKunde)?`<img src="${d.sigKunde}" alt="Unterschrift Auftraggeber">`:""}</div><div class="nm">Auftraggeber</div></div>
 </div>`;
   }
 
@@ -17546,8 +17696,8 @@ function VCheck({p,forms,setForms,ww,curUser}){
                   , React.createElement('input', { value: item.note||"", onChange: e=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],note:e.target.value};return{...c,items};});}, placeholder: "Anmerkung...", style: {...II(),fontSize:UI.fMeta,marginTop:4,padding:"4px 8px"}} )
                 )
                 , React.createElement('div', { style: {flexShrink:0,display:"flex",flexDirection:"column",gap:4}}
-                  , item.photo?(React.createElement('div', { style: {width:48,height:48,borderRadius:4,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: item.photo, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { title: "Foto entfernen", 'aria-label': "Foto entfernen", onClick: ()=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],photo:""};return{...c,items};});}, style: {position:"absolute",top:-2,right:-2,width:14,height:14,borderRadius:"50%",background:COLORS.ERROR,color:"#fff",border:"none",fontSize:UI.fMeta,cursor:"pointer"}}, "✕"))):(
-                    React.createElement('label', { style: {width:48,height:48,borderRadius:4,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:V.dm}}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{const file=_optionalChain([e, 'access', _364 => _364.target, 'access', _365 => _365.files, 'optionalAccess', _366 => _366[0]]);try{e.target.value="";}catch(_){}if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Checklisten-Foto konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],photo:ev.target.result};return{...c,items};});};reader.readAsDataURL(file);}} ), "📷")
+                  , item.photo?(React.createElement('div', { style: {width:48,height:48,borderRadius:4,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: _dateiAnzeige(item.photo), style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { title: "Foto entfernen", 'aria-label': "Foto entfernen", onClick: ()=>{update(sel,c=>{const items=[...c.items];items[i]={...items[i],photo:""};return{...c,items};});}, style: {position:"absolute",top:-2,right:-2,width:14,height:14,borderRadius:"50%",background:COLORS.ERROR,color:"#fff",border:"none",fontSize:UI.fMeta,cursor:"pointer"}}, "✕"))):(
+                    React.createElement('label', { style: {width:48,height:48,borderRadius:4,border:"2px dashed "+V.bd,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:V.dm}}, React.createElement('input', { type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{const file=_optionalChain([e, 'access', _364 => _364.target, 'access', _365 => _365.files, 'optionalAccess', _366 => _366[0]]);try{e.target.value="";}catch(_){}if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Checklisten-Foto konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=async ev=>{const _cl=sel;const _du=ev.target.result;/* v3.9.1042 Checklisten-Foto in den Speicher (PhotoQ), Liste nur Adresse */const _u=(await _dateiInPhotoQ(_dateiPfadNeu("checklisten/"+_dateiSicher(_cl),_du),_du,{art:"checkliste",id:_cl,kontext:"Checklisten-Foto"}))||_du;update(_cl,c=>{const items=[...c.items];items[i]={...items[i],photo:_u};return{...c,items};});};reader.readAsDataURL(file);}} ), "📷")
                   )
                 )
               )
@@ -18513,6 +18663,7 @@ try{if(typeof window!=='undefined')window._genPlanReportPdf=_genPlanReportPdf;}c
    zwei Unterschriften (Pruefer/Monteur + Auftraggeber) als Bild; Kopf mit Fortschritt, Footer mit Seitenzahl.
    Muster _genTicketPdf; latin1-sicher (kein Unicode-Haekchen — _pdfStr wuerde es strippen). Kein Schema/Backend. */
 async function _genChecklistPdf(cl,proj,ww){
+  cl=await _pdfDateienEinbetten(cl);/* v3.9.1042 Fotos/Unterschriften aus dem Speicher als Bild-Bytes fuer addImage */
   try{
     const JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
     if(!JsPDF){if(window.__toast)window.__toast("⚠️ PDF-Bibliothek nicht geladen — bitte App neu laden","error",5000);return;}
@@ -18566,6 +18717,7 @@ function _btPdfAuthor(e,monteure){
   return m?(((m.vorname?m.vorname+" ":"")+(m.n||m.name||"")).trim()||v):v;
 }
 async function _genBautagPdf(rows,proj,monteure,curUser,entries){
+  rows=await _pdfDateienEinbetten(rows);/* v3.9.1042 Unterschriften/Fotos aus dem Speicher als Bild-Bytes fuer addImage */
   try{
     const JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
     if(!JsPDF){if(window.__toast)window.__toast("PDF-Bibliothek nicht geladen - bitte App neu laden","error",5000);return;}
@@ -25370,7 +25522,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
 
           , React.createElement('div', { style: {display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}
             , React.createElement('button', { onClick: ()=>setViewPdf(z), style: {...bsS(),padding:"6px 12px",fontSize:12}}, _zpIk("auge","Anzeigen") )
-            , z.datei&&z.datei.startsWith("data:")&&(
+            , z.datei&&(z.datei.startsWith("data:")||_istSpeicherUrl(z.datei))&&(
               React.createElement('a', { href: z.datei, download: z.dateiName, style: {...bsS(),padding:"6px 12px",fontSize:12,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}, _ik("download",16),"Download" )
             )
             , z.status==="hochgeladen"&&(z.mitarbeiterId===curUser.id||curUser.role==="admin")&&(
@@ -25597,9 +25749,41 @@ function VerbindungView({ww,curUser,isDark,toggleTheme,setThemeMode}){
       )
       /* v3.5.72 Block 17a Integrity UI (admin only) */
       , curUser.role==="admin"&&React.createElement(SmokeTestPanel, {})
+      , curUser.role==="admin"&&React.createElement(DateienSpeicherPanel, {})/* v3.9.1042 Altbestaende verschieben */
       /* v3.5.74 Block 4: System-Config (admin only) */
       , curUser.role==="admin"&&React.createElement(SystemConfigPanel, {curUser: curUser})
     )
+  );
+}
+/* v3.9.1042 Admin: Altbestaende (Fotos/PDFs als Base64 in Datenbank-Zeilen) in den Speicher verschieben. Erst Probelauf
+   (zaehlt nur, schreibt nichts), dann Verschieben (je Datei hochladen, nachpruefen, nur dieses Feld umstellen). */
+function DateienSpeicherPanel(){
+  const [busy,setBusy]=_react.useState.call(void 0, false);
+  const [erg,setErg]=_react.useState.call(void 0, null);
+  const [log,setLog]=_react.useState.call(void 0, []);
+  const [letzter]=_react.useState.call(void 0, ()=>{try{return JSON.parse(localStorage.getItem("epk_dateiumzug_letzter")||"null");}catch(_e){return null;}});
+  const lauf=async(go)=>{
+    if(busy)return;
+    if(go&&!await _confirmModal("Dateien aus der Datenbank in den Speicher verschieben?\n\nJede Datei wird hochgeladen und geprueft; erst dann wird in ihrer Zeile die Datei durch den Speicher-Verweis ersetzt. Abbrechen und Wiederholen ist gefahrlos.",{title:"Dateien verschieben",confirmLabel:"Verschieben"}))return;
+    setBusy(true);setLog([]);setErg(null);
+    try{const r=await _dateienMigration({go:go,onLog:z=>setLog(l=>[...l.slice(-199),z])});setErg(r);}catch(e){setErg({modus:go?"Verschieben":"Probelauf",dateien:0,bytes:0,zeilen:0,fehler:[String(e&&e.message||e)],tabellen:{}});}
+    setBusy(false);
+  };
+  const kb=b=>b>=1048576?(Math.round(b/104857.6)/10).toLocaleString("de-AT")+" MB":Math.round((b||0)/1024).toLocaleString("de-AT")+" kB";
+  return React.createElement('div', { style: CC()}
+    , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, _ikVw("ordner","Dateien in den Speicher verschieben"))
+    , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10,lineHeight:1.5}}, "Fotos und PDFs, die noch direkt in Datenbank-Zeilen stehen (z. B. Zulassungsscheine, Tankbelege), werden in den Datei-Speicher verschoben. Die Zeile behaelt nur den Verweis. Zuerst den Probelauf starten - er zaehlt nur und aendert nichts. Arbeitsscheine sind ausgenommen.")
+    , letzter&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Letzter Lauf: "+fdt(String(letzter.am||"").slice(0,10))+" - "+letzter.modus+", "+_nWort(letzter.dateien,"Datei","Dateien")+(letzter.modus==="Verschieben"?(", verschoben "+(letzter.verschoben||0)):"")+", Fehler "+((letzter.fehler||[]).length))
+    , React.createElement('div', { style: {display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}
+      , React.createElement('button', { onClick: ()=>lauf(false), disabled: busy, style: {...beS,fontSize:UI.fMeta,padding:"8px 14px",minHeight:44,opacity:busy?.6:1}}, busy?"Laeuft …":_ikVw("suche","Probelauf (nichts aendern)"))
+      , React.createElement('button', { onClick: ()=>lauf(true), disabled: busy||!erg||erg.modus!=="Probelauf"||!erg.dateien, title: "Erst nach einem Probelauf mit Funden moeglich", style: {...bpS,fontSize:UI.fMeta,padding:"8px 14px",minHeight:44,opacity:(busy||!erg||erg.modus!=="Probelauf"||!erg.dateien)?.5:1}}, _ikVw("senden","Jetzt verschieben"))
+    )
+    , erg&&React.createElement('div', { style: {fontSize:UI.fMeta,marginBottom:8,padding:10,borderRadius:6,border:"1px solid "+V.bd,background:V.bg}}
+      , React.createElement('div', { style: {fontWeight:700,marginBottom:4}}, erg.modus+": "+_nWort(erg.dateien,"Datei","Dateien")+" in "+_nWort(erg.zeilen,"Feld","Feldern")+", "+kb(erg.bytes)+(erg.modus==="Verschieben"?(" - verschoben "+(erg.verschoben||0)+", Zeilen umgestellt "+(erg.gepatcht||0)):""))
+      , Object.keys(erg.tabellen||{}).filter(k=>erg.tabellen[k].dateien>0).map(k=>React.createElement('div', { key: k}, k+": "+_nWort(erg.tabellen[k].dateien,"Datei","Dateien")+", "+kb(erg.tabellen[k].bytes)))
+      , (erg.fehler||[]).length>0&&React.createElement('div', { style: {marginTop:6,color:COLORS.ERROR}}, "Fehler ("+erg.fehler.length+"): "+erg.fehler.slice(0,5).join(" | "))
+    )
+    , log.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,fontFamily:mono,background:V.bg,padding:10,borderRadius:6,border:"1px solid "+V.bd,maxHeight:220,overflowY:"auto",whiteSpace:"pre-wrap"}}, log.join("\n"))
   );
 }
 function SmokeTestPanel(){
@@ -29796,6 +29980,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const _svcSync=u=>({serviceheft:u.serviceheft});
   /* v3.9.252 (Hunt-Welle-2): column-scoped syncBody für zuvor übersehene Voll-Row-Clobber-Pfade (Zulassungsschein/Verbrauchsmaterial/Schaden-Status) — verhindert Überschreiben paralleler km_log/tank_log/schaeden-Änderungen, exakt wie v3.9.234/238. */
   const _zulSync=u=>({zulassungsschein:u.zulassungsschein});
+  /* v3.9.1042 Zulassungsschein direkt in den privaten Fahrzeug-Speicher (epkolar-fahrzeuge, wie Serviceheft-Dokumente); die Zeile traegt nur "sbpriv:...". Offline wird NICHT abgelegt (mehrere MB gehoeren nicht in die Warteschlange) - klarer Hinweis statt stillem Verlust. */
+  const _zulHoch=async(fzId,du)=>{if(!navigator.onLine){window.__toast&&window.__toast("Zulassungsschein braucht Internet — bitte online erneut auswählen","error",6000);return;}try{const _z=_dateiZiel("fahrzeuge","zulassungsschein",fzId,du);window.__toast&&window.__toast("Zulassungsschein wird hochgeladen …","info",2500);await _sbDateiHoch(_z.bucket,_z.pfad,du);upd(fzId,f=>({...f,zulassungsschein:_z.ref}),_zulSync);window.__toast&&window.__toast("✅ Zulassungsschein gespeichert","success",2000);}catch(err){window.__toast&&window.__toast("❌ Zulassungsschein-Upload fehlgeschlagen — "+(err&&err.message||err)+" (bitte erneut)","error",7000);}};
   const _vmSync=u=>({verbrauchsmaterial:u.verbrauchsmaterial});
   const _schSync=u=>({schaeden:u.schaeden});
   const _isPdf=d=>typeof d==="string"&&d.indexOf("data:application/pdf")===0;
@@ -29940,8 +30126,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       if(tankFoto&&tankFoto.indexOf("data:")===0){
         if(navigator.onLine){
           try{_foto=await _sbUploadFile("fahrzeuge/"+fzId+"/tank/"+_eid+".jpg",tankFoto);}
-          catch(_up){console.warn('[tank-foto-up]',_up&&_up.message||_up);window.__toast&&window.__toast("⚠️ Tankfoto-Upload fehlgeschlagen — Tankung ohne Foto gespeichert","warn");}
-        }else{window.__toast&&window.__toast("📷 Offline — Tankung ohne Foto gespeichert","warn");}
+          catch(_up){console.warn('[tank-foto-up]',_up&&_up.message||_up);_foto=await _dateiInPhotoQ("fahrzeuge/"+fzId+"/tank/"+_eid+".jpg",tankFoto,{art:"tank",id:fzId,kontext:"Tankbeleg"});window.__toast&&window.__toast(_foto?"⚠️ Tankfoto-Upload fehlgeschlagen — das Foto bleibt auf dem Gerät und wird automatisch nachgeladen":"⚠️ Tankfoto-Upload fehlgeschlagen — Tankung ohne Foto gespeichert","warn");}
+        }else{_foto=await _dateiInPhotoQ("fahrzeuge/"+fzId+"/tank/"+_eid+".jpg",tankFoto,{art:"tank",id:fzId,kontext:"Tankbeleg"});window.__toast&&window.__toast(_foto?"📷 Offline — Tankfoto wird hochgeladen, sobald Internet da ist":"📷 Offline — Tankung ohne Foto gespeichert","warn");}/* v3.9.1042 Dateien nur im Speicher: Offline/Fehler legt das Foto in die PhotoQ (isoliert, IndexedDB) - tank_log traegt sofort die Speicher-Adresse, nie Base64; nur wenn auch das scheitert (Geraet voll) wie bisher ohne Foto */
       }else if(tankFoto){_foto=tankFoto;}
       const data={liter:_r.liter,preis:_r.preis,km:_r.km,datum:_r.datum,foto:_foto};
       upd(fzId,f=>{
@@ -29955,9 +30141,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
       setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
     }finally{window.__addTankInFlight=false;}
   };
-  const addSchaden=(fzId)=>{
+  const addSchaden=async(fzId)=>{
     if(!schadBeschr.trim())return;
-    const data={id:uid(),beschreibung:schadBeschr,foto:schadFoto,datum:td2(),status:"offen"};
+    const _sid=uid();let _sf=schadFoto;if(_sf&&_sf.indexOf("data:")===0){/* v3.9.1042 Schadenfoto in den Speicher (PhotoQ), Zeile nur Adresse; scheitert das Ablegen, nimmt der DB-Waechter es beim Senden */_sf=(await _dateiInPhotoQ("fahrzeuge/"+_dateiSicher(fzId)+"/schaden/"+_sid+".jpg",_sf,{art:"schaden",id:fzId,kontext:"Fahrzeugschaden"}))||_sf;}
+    const data={id:_sid,beschreibung:schadBeschr,foto:_sf,datum:td2(),status:"offen"};
     upd(fzId,f=>{
       f.schaeden=[{...data,by_user:_optionalChain([curUser, 'optionalAccess', _642 => _642.name])||""},...(f.schaeden||[])];
       return f;
@@ -30637,28 +30824,28 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             )
             , zlsOpen&&React.createElement('div', { style: {marginTop:8}}
             , selFz.zulassungsschein?(React.createElement('div', {}
-              , selFz.zulassungsschein.startsWith("data:application/pdf")?(
+              , _dateiIstPdf(selFz.zulassungsschein)?(
                 React.createElement('div', { style: {position:"relative",width:"100%",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,marginBottom:8}}
-                  , React.createElement('iframe', { src: selFz.zulassungsschein, style: {width:"100%",height:300,border:"none"}, title: "Zulassungsschein PDF"} )
+                  , React.createElement(DateiQuelle, {v: selFz.zulassungsschein, el: "iframe", p: {style: {width:"100%",height:300,border:"none"}, title: "Zulassungsschein PDF"}} )
                   , React.createElement('div', { style: {position:"absolute",top:6,right:6,display:"flex",gap:4}}
                     , React.createElement('button', { onClick: ()=>_openFileUrl(selFz.zulassungsschein,"Zulassungsschein"), style: {padding:"4px 8px",borderRadius:6,border:"none",background:"rgba(0,0,0,.6)",color:"#fff",cursor:"pointer",fontSize:UI.fMeta,fontFamily:"inherit"}}, "Vollbild")
                   )
                 )
               ):(
                 React.createElement('div', { style: {position:"relative",width:"100%",borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,marginBottom:8,cursor:"pointer",background:"#000"}, onClick: ()=>_openFileUrl(selFz.zulassungsschein,"Zulassungsschein")}
-                  , React.createElement('img', { src: selFz.zulassungsschein, style: {width:"100%",maxHeight:280,objectFit:"contain",display:"block"}, alt: "Zulassungsschein"} )
+                  , React.createElement(DateiQuelle, {v: selFz.zulassungsschein, el: "img", p: {style: {width:"100%",maxHeight:280,objectFit:"contain",display:"block"}, alt: "Zulassungsschein"}} )
                   , React.createElement('div', { style: {position:"absolute",top:6,right:6,padding:"3px 8px",borderRadius:6,background:"rgba(0,0,0,.6)",color:"#fff",fontSize:UI.fMeta}}, "Klick zum Vergrößern")
                 )
               )
               , isVAdmin&&React.createElement('div', { style: {display:"flex",gap:6}}
                 , React.createElement('button', { onClick: ()=>upd(sel,f=>({...f,zulassungsschein:""}),_zulSync), style: {...bdS,fontSize:UI.fMeta,padding:"4px 8px"}}, "Entfernen" )
-                , React.createElement('label', { style: {...bsS(),fontSize:UI.fMeta,padding:"4px 8px",cursor:"pointer",textAlign:"center"}}, "Ersetzen", React.createElement('input', { type: "file", accept: "image/*,.pdf", style: {display:"none"}, onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Zulassungsschein konnte nicht gelesen werden","error");};reader.onload=ev=>upd(sel,f=>({...f,zulassungsschein:ev.target.result}),_zulSync);reader.readAsDataURL(file);}} ))
+                , React.createElement('label', { style: {...bsS(),fontSize:UI.fMeta,padding:"4px 8px",cursor:"pointer",textAlign:"center"}}, "Ersetzen", React.createElement('input', { type: "file", accept: "image/*,.pdf", style: {display:"none"}, onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Zulassungsschein konnte nicht gelesen werden","error");};reader.onload=ev=>_zulHoch(sel,ev.target.result);reader.readAsDataURL(file);}} ))
               )
-            )):(isVAdmin?(React.createElement('label', { style: {display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,padding:"28px 16px",border:"2px dashed "+V.bd,borderRadius:8,cursor:"pointer",color:V.dm,fontSize:12,transition:"border-color .2s,background .2s"}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;e.currentTarget.style.background=V.ac+"11";}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.background="transparent";}, onDrop: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.background="transparent";const file=_optionalChain([e, 'access', _zul1 => _zul1.dataTransfer, 'access', _zul2 => _zul2.files, 'optionalAccess', _zul3 => _zul3[0]]);if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Zulassungsschein konnte nicht gelesen werden","error");};reader.onload=ev=>upd(sel,f=>({...f,zulassungsschein:ev.target.result}),_zulSync);reader.readAsDataURL(file);}}
+            )):(isVAdmin?(React.createElement('label', { style: {display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,padding:"28px 16px",border:"2px dashed "+V.bd,borderRadius:8,cursor:"pointer",color:V.dm,fontSize:12,transition:"border-color .2s,background .2s"}, onDragOver: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.ac;e.currentTarget.style.background=V.ac+"11";}, onDragLeave: e=>{e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.background="transparent";}, onDrop: e=>{e.preventDefault();e.currentTarget.style.borderColor=V.bd;e.currentTarget.style.background="transparent";const file=_optionalChain([e, 'access', _zul1 => _zul1.dataTransfer, 'access', _zul2 => _zul2.files, 'optionalAccess', _zul3 => _zul3[0]]);if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Zulassungsschein konnte nicht gelesen werden","error");};reader.onload=ev=>_zulHoch(sel,ev.target.result);reader.readAsDataURL(file);}}
               , React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:2,color:V.mt}}, _ik("kamera",32))
               , "Foto/Scan hochladen oder hierher ziehen"
               , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "JPG, PNG oder PDF")
-              , React.createElement('input', { type: "file", accept: "image/*,.pdf", style: {display:"none"}, onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Zulassungsschein konnte nicht gelesen werden","error");};reader.onload=ev=>upd(sel,f=>({...f,zulassungsschein:ev.target.result}),_zulSync);reader.readAsDataURL(file);}} )
+              , React.createElement('input', { type: "file", accept: "image/*,.pdf", style: {display:"none"}, onChange: e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Zulassungsschein konnte nicht gelesen werden","error");};reader.onload=ev=>_zulHoch(sel,ev.target.result);reader.readAsDataURL(file);}} )
             )):React.createElement('div', { style: {fontSize:12,color:V.dm,textAlign:"center",padding:12}}, "Kein Zulassungsschein hinterlegt" )))
           )
           , React.createElement('div', { style: {fontSize:13,fontWeight:600,marginBottom:6}}, "Werkstatt-/Prüftermine:")
@@ -30825,7 +31012,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 , !isVAdmin&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 6px",borderRadius:4,background:s.status==="offen"?"#fee2e2":s.status==="erledigt"?"#dcfce7":"#fef3c7",fontWeight:600}}, s.status==="offen"?"Offen":s.status==="erledigt"?"Erledigt":"In Reparatur")
               )
             )
-            , s.foto&&React.createElement('img', { src: s.foto, style: {maxWidth:200,maxHeight:120,borderRadius:6,marginTop:6,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.foto,"Schaden"), alt: "Schaden"} )
+            , s.foto&&React.createElement('img', { src: _dateiAnzeige(s.foto), style: {maxWidth:200,maxHeight:120,borderRadius:6,marginTop:6,cursor:"pointer"}, onClick: ()=>_openFileUrl(_dateiAnzeige(s.foto),"Schaden"), alt: "Schaden"} )
           )))
         ))
 
@@ -30833,7 +31020,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , (selFz.tankLog||[]).length>0&&(React.createElement('div', { style: {...CC(),marginTop:8}}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "Tankprotokoll ("  , (selFz.tankLog||[]).length, ")")
           , React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}}, React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Datum"), React.createElement('th', { style: thS()}, "Liter"), React.createElement('th', { style: thS()}, "Gesamt €" ), React.createElement('th', { style: thS()}, "€/L"), React.createElement('th', { style: thS()}, "km"), React.createElement('th', { style: thS()}, "Von"), React.createElement('th', { style: thS()}, "Beleg")))
-          , React.createElement('tbody', {}, (selFz.tankLog||[]).map((t,i)=>(React.createElement('tr', { key: i}, React.createElement('td', { style: tdSt()}, fdt(t.datum)), React.createElement('td', { style: {...tdSt(),textAlign:"center",fontWeight:600}}, t.liter, " L" ), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, t.preis?fmt$(t.preis):"—"), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, t.preis&&t.liter?_n((t.preis/t.liter),3):"—"), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, _optionalChain([t, 'access', _741 => _741.km, 'optionalAccess', _742 => _742.toLocaleString, 'call', _743 => _743("de-AT")])), React.createElement('td', { style: {...tdSt(),fontSize:UI.fMeta}}, t.by), React.createElement('td', { style: tdSt()}, t.foto?React.createElement('img', { src: t.foto, onClick: ()=>_openFileUrl(t.foto,"Beleg"), style: {width:28,height:28,objectFit:"cover",borderRadius:4,cursor:"pointer"}, alt: "Beleg"} ):"—")))))))
+          , React.createElement('tbody', {}, (selFz.tankLog||[]).map((t,i)=>(React.createElement('tr', { key: i}, React.createElement('td', { style: tdSt()}, fdt(t.datum)), React.createElement('td', { style: {...tdSt(),textAlign:"center",fontWeight:600}}, t.liter, " L" ), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, t.preis?fmt$(t.preis):"—"), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, t.preis&&t.liter?_n((t.preis/t.liter),3):"—"), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, _optionalChain([t, 'access', _741 => _741.km, 'optionalAccess', _742 => _742.toLocaleString, 'call', _743 => _743("de-AT")])), React.createElement('td', { style: {...tdSt(),fontSize:UI.fMeta}}, t.by), React.createElement('td', { style: tdSt()}, t.foto?React.createElement('img', { src: _dateiAnzeige(t.foto), onClick: ()=>_openFileUrl(_dateiAnzeige(t.foto),"Beleg"), style: {width:28,height:28,objectFit:"cover",borderRadius:4,cursor:"pointer"}, alt: "Beleg"} ):"—")))))))
           , (selFz.tankLog||[]).length>1&&(React.createElement('div', { style: {fontSize:12,color:V.acTx,fontWeight:600,marginTop:6}}, "Ø Verbrauch: "  , (()=>{const sorted=[...(selFz.tankLog||[])].sort((a,b)=>a.km-b.km);if(sorted.length<2)return"—";const diff=sorted[sorted.length-1].km-sorted[0].km;const lit=sorted.slice(1).reduce((s,t)=>s+t.liter,0);return diff>0?_n((lit/diff*100),1)+" L/100km":"—";})()))
         ))
 
@@ -32013,8 +32200,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                     , React.createElement('div', {}, React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Werkstatt/Firma"), React.createElement('input', { value: s.werkstatt||"", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,werkstatt:e.target.value}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:UI.fMeta,padding:4}, placeholder: "z.B. Hilti Service"} ))
                     , React.createElement('div', { style: {gridColumn:"span 2"}}, React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Beschreibung"), React.createElement('input', { value: s.beschreibung||"", onChange: e=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,beschreibung:e.target.value}:x)}:w));_pushWzSh(wzServiceSel);}, style: {...II(),fontSize:UI.fMeta,padding:4}, placeholder: "Was wurde gemacht?"} ))
                     , React.createElement('div', { style: {gridColumn:"span 2",display:"flex",gap:8,flexWrap:"wrap"}}
-                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.befund, alt: "Befund", style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.befund,"Befund")} ), React.createElement('span', { onClick: ()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)}:w));_pushWzSh(wzServiceSel);}, style: {cursor:"pointer",fontSize:UI.fMeta,color:COLORS.ERROR}}, _ik("kreuz",16))):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];e.target.value="";if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Werkzeug-Befund konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:ev.target.result}:x)}:w));_pushWzSh(wzServiceSel);};reader.readAsDataURL(file);}, style: {fontSize:UI.fMeta,padding:2}} ))
-                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: s.rechnung, alt: "Rechnung", style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(s.rechnung,"Rechnung")} ), React.createElement('span', { onClick: ()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)}:w));_pushWzSh(wzServiceSel);}, style: {cursor:"pointer",fontSize:UI.fMeta,color:COLORS.ERROR}}, _ik("kreuz",16))):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];e.target.value="";if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Werkzeug-Rechnung konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=ev=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:ev.target.result}:x)}:w));_pushWzSh(wzServiceSel);};reader.readAsDataURL(file);}, style: {fontSize:UI.fMeta,padding:2}} ))
+                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Befund"), s.befund?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: _dateiAnzeige(s.befund), alt: "Befund", style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(_dateiAnzeige(s.befund),"Befund")} ), React.createElement('span', { onClick: ()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:""}:x)}:w));_pushWzSh(wzServiceSel);}, style: {cursor:"pointer",fontSize:UI.fMeta,color:COLORS.ERROR}}, _ik("kreuz",16))):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];e.target.value="";if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Werkzeug-Befund konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=async ev=>{const _wzId=wzServiceSel;const _du=ev.target.result;/* v3.9.1042 Datei in den Speicher (PhotoQ), Serviceheft nur Adresse */const _u=(await _dateiInPhotoQ(_dateiPfadNeu("werkzeuge/"+_dateiSicher(_wzId)+"/service",_du),_du,{art:"werkzeug",id:_wzId,kontext:"Werkzeug-Befund"}))||_du;setWerkzeuge(p=>p.map(w=>w.id===_wzId?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,befund:_u}:x)}:w));_pushWzSh(_wzId);};reader.readAsDataURL(file);}, style: {fontSize:UI.fMeta,padding:2}} ))
+                      , React.createElement('div', { style: {flex:1}}, React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Rechnung"), s.rechnung?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('img', { src: _dateiAnzeige(s.rechnung), alt: "Rechnung", style: {width:40,height:40,objectFit:"cover",borderRadius:4,cursor:"pointer"}, onClick: ()=>_openFileUrl(_dateiAnzeige(s.rechnung),"Rechnung")} ), React.createElement('span', { onClick: ()=>{setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:""}:x)}:w));_pushWzSh(wzServiceSel);}, style: {cursor:"pointer",fontSize:UI.fMeta,color:COLORS.ERROR}}, _ik("kreuz",16))):React.createElement('input', { type: "file", accept: "image/*,.pdf", onChange: e=>{const file=e.target.files[0];e.target.value="";if(!file)return;const reader=new FileReader();reader.onerror=()=>{if(window.__toast)window.__toast("❌ Werkzeug-Rechnung konnte nicht gelesen werden ("+(file.name||"?")+")","error",6000);};reader.onload=async ev=>{const _wzId=wzServiceSel;const _du=ev.target.result;/* v3.9.1042 Datei in den Speicher (PhotoQ), Serviceheft nur Adresse */const _u=(await _dateiInPhotoQ(_dateiPfadNeu("werkzeuge/"+_dateiSicher(_wzId)+"/service",_du),_du,{art:"werkzeug",id:_wzId,kontext:"Werkzeug-Rechnung"}))||_du;setWerkzeuge(p=>p.map(w=>w.id===_wzId?{...w,serviceheft:(w.serviceheft||[]).map((x,j)=>j===i?{...x,rechnung:_u}:x)}:w));_pushWzSh(_wzId);};reader.readAsDataURL(file);}, style: {fontSize:UI.fMeta,padding:2}} ))
                     )
                   )):(React.createElement('div', {}
                     , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, s.art, ": " , s.beschreibung)
