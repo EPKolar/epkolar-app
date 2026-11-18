@@ -18,7 +18,9 @@ def _panel(index_html):
 
 def test_legende(index_html):
     body = _panel(index_html)
-    assert "⚡ Störungsdienst · 🏗 auf Baustelle (Störung vorher möglich) · 🏖️ Urlaub · 🚫 gesperrt" in body
+    # v1044: Legende mit Linien-Ikonen statt Emoji (Tablet-Pruefung 1041) - dieselben Eintraege in derselben Reihenfolge
+    assert '["⚡","Störungsdienst"],["🏗","auf Baustelle (Störung vorher möglich)"],["🏖️","Urlaub"],["🚫","gesperrt"]' in body
+    assert "_dpIkTxt(x[0],x[1])" in body
 
 
 def test_vorab_tooltip_und_kein_suffix(index_html):
@@ -26,7 +28,7 @@ def test_vorab_tooltip_und_kein_suffix(index_html):
     # Tooltip erklaert das Vorab-Fenster (mit DISPO_VORAB_MIN)
     assert 'Störung vorher möglich, bis "+DISPO_VORAB_MIN+" min' in body
     # Zelle zeigt nur "🏗 <BVH>" (aus tagArt), kein "(Vorab möglich)"-Suffix an der leeren Zelle
-    assert '"🏗 "+_bvh' in body
+    assert '_dpIkTxt("🏗",_bvh)' in body  # v1044: Ikone statt Emoji, Zelle zeigt weiter nur die BVH
 
 
 def test_vorab_zelle_getoent_kein_kasten(index_html):

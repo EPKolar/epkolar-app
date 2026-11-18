@@ -218,7 +218,8 @@ def test_6_umkehrprobe(index_html):
 # ── 7 Dezimalkomma ─────────────────────────────────────────────────────────
 def pruef_komma(src):
     b = []
-    if 'v>0?(unit==="€"?"€"+Math.round(v):_projStdDE(v,1)):""' not in src:
+    # v1044 (Tablet-Pruefung 1041, Fund 9): Euro jetzt ueber _eurKachel ("€ 711", wie die Home-Kacheln) - der Riegel prueft weiter das Komma der Literzahl
+    if 'v>0?(unit==="€"?_eurKachel(v):_projStdDE(v,1)):""' not in src:
         b.append("Balkenwerte mit Punkt")
     for k in ("Stunden gesamt", "Diese Woche", "Letzte Woche"):
         z = src[src.index('_statBox("%s",' % k):][:120]
