@@ -21,7 +21,7 @@ from conftest import run_node_snippet, _extract_fn
 HELFER = ("_istDateiWert", "_dateiEndung", "_dateiBytes", "_dateiHash", "_dateiSicher", "_dateiJsonText",
           "_dateiSammeln", "_dateiErsetzen", "_sbPublicUrl", "_istSpeicherUrl", "_istBildQuelle", "_dateiIstPdf",
           "_dateiUploadTyp", "_dateiZiel", "_dateiQuelleSicher")
-KONST = ("_DATEI_GRENZE", "_DATEI_TAB_AUSNAHME", "_SB_FILES_MIME", "_dateiHochCache", "_DATEI_MIG_TABELLEN")
+KONST = ("_DATEI_OEFFENTLICH", "_DATEI_GRENZE", "_DATEI_TAB_AUSNAHME", "_SB_FILES_MIME", "_dateiHochCache", "_DATEI_MIG_TABELLEN")
 
 PRELUDE = r"""
 var SUPABASE_URL="https://x.supabase.co",SB_BUCKET="epkolar-files",SB_FZ_BUCKET="epkolar-fahrzeuge",SB_DOCS_BUCKET="epkolar-docs",SB_GEF_BUCKET="epkolar-gefahrstoff";
@@ -305,3 +305,34 @@ def test_neue_dateiwege(index_html):
     assert dq.count("_dateiQuelleSicher(") == 3 and "setSrc(v" not in dq and "setSrc(u" not in dq
     # Admin-Werkzeug sichtbar nur fuer Admin
     assert 'curUser.role==="admin"&&React.createElement(DateienSpeicherPanel, {})' in s
+
+
+def test_sicherheit_hr_daten_nie_oeffentlich(index_html):
+    """Security review 18.11. (HIGH): nur eine feste Liste unkritischer Tabellen darf in den oeffentlichen Bucket."""
+    i = index_html.index("const _DATEI_OEFFENTLICH={")
+    liste = index_html[i:index_html.index("};", i)]
+    for hr in ("absence_files", "bescheinigungen", "fahrbewilligungen", "anmeldungen", "workers", "finkzeit", "users", "gefahrstoff"):
+        assert hr not in liste, hr
+    z = index_html[index_html.index("function _dateiZiel("):]
+    z = z[:z.index("\n")]
+    assert "if(_DATEI_OEFFENTLICH[table])return{bucket:SB_BUCKET" in z
+    assert z.rstrip().endswith('return{bucket:SB_DOCS_BUCKET,pfad:p,ref:"sbpriv:"+SB_DOCS_BUCKET+"/"+p};}')
+
+
+def test_umkehrprobe_hr_oeffentlich_wird_rot(index_html):
+    kaputt = index_html.replace("const _DATEI_OEFFENTLICH={", "const _DATEI_OEFFENTLICH={fahrbewilligungen:1,", 1)
+    i = kaputt.index("const _DATEI_OEFFENTLICH={")
+    assert "fahrbewilligungen" in kaputt[i:kaputt.index("};", i)]
+
+
+def test_sicherheit_duplikat_byteweise(index_html):
+    """Security review 18.11. (MEDIUM): vorhandenes Objekt wird Byte fuer Byte verglichen, nicht nur die Groesse."""
+    d = index_html[index_html.index("async function _dateiDa(bucket,pfad,groesse,vergleich){"):]
+    d = d[:d.index("\n")]
+    assert "if(a[i]!==c[i])return false;" in d
+    assert "&&await _dateiDa(bucket,pfad,blob.size,blob))return blob.size;" in index_html
+
+
+def test_umkehrprobe_duplikat_nur_groesse(index_html):
+    kaputt = index_html.replace("&&await _dateiDa(bucket,pfad,blob.size,blob))", "&&await _dateiDa(bucket,pfad,blob.size))", 1)
+    assert "&&await _dateiDa(bucket,pfad,blob.size,blob))return blob.size;" not in kaputt
