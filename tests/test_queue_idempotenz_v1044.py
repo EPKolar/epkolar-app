@@ -205,3 +205,106 @@ def test_photoq_id_bei_erzeugung(index_html):
     assert "id:photo.id||" in add and "randomUUID" in add
     fl = pq[pq.index("async flush()"):]
     assert "randomUUID" not in fl and "uid()" not in fl
+
+
+# ---------------------------------------------------------------------------------------------------------
+# JSON-Anhaengewege in _translateAndExec (Lesen-Aendern-Schreiben): Tankbuch (+ km-Zeile), km-Korrektur,
+# Werkzeug-Serviceheft, Fahrzeug-Serviceheft. Hier gibt es KEINEN PK-Schutz - der Eintrag landet als Element
+# eines JSON-Felds. Antwort verloren = der PATCH ist am Server angekommen, der Client sieht "Failed to fetch"
+# (die Zweige reichen genau diese Art weiter -> Eintrag bleibt in der Warteschlange -> Wiederholung).
+# ---------------------------------------------------------------------------------------------------------
+
+JSON_PRELUDE = r"""
+var navigator={onLine:true};var window={};
+var db={fahrzeuge:{F1:{id:"F1",tank_log:"[]",km_log:"[]",km_stand:100,serviceheft:"[]"}},werkzeuge:{W1:{id:"W1",serviceheft:"[]"}}};
+var verlieren=0;var patches=[];
+async function _sbGet(tab,q){const id=decodeURIComponent(q.split("eq.")[1]);const r=db[tab][id];return r?[JSON.parse(JSON.stringify(r))]:[];}
+async function _sbPatch(tab,id,data){patches.push(Object.keys(data).sort().join(","));Object.assign(db[tab][id],data);
+  if(verlieren>0){verlieren--;throw new TypeError("Failed to fetch");}/* Server HAT geschrieben, Antwort verloren */
+  return [db[tab][id]];}
+function _ymd(d){return "2026-11-18";}
+function _mapBody(b){return b;}
+async function lauf(url,method,body){const out=[];
+  for(let i=0;i<3;i++){try{await _translateAndExec(url,method,JSON.parse(JSON.stringify(body)));out.push("ok");break;}catch(e){out.push(String(e&&e.message||e).slice(0,30));}}
+  return out;}
+function L(tab,id,f){return JSON.parse(db[tab][id][f]||"[]");}
+"""
+
+JSON_KOERPER = r"""
+(async()=>{
+ const R={};
+ verlieren=1;R.tankLauf=await lauf("/api/fahrzeuge/F1","PUT",{tankLog_add:{id:"t1",datum:"2026-11-18",liter:40,preis:60,km:12345},kmStand:12345});
+ R.tank=L("fahrzeuge","F1","tank_log").length;R.km=L("fahrzeuge","F1","km_log");
+ verlieren=1;R.kmLauf=await lauf("/api/fahrzeuge/F1","PUT",{kmStand:12400,kmLogId:"k1"});
+ R.km2=L("fahrzeuge","F1","km_log").filter(x=>x.km===12400).length;
+ verlieren=1;R.wzLauf=await lauf("/api/werkzeuge/W1","POST",{id:"s1",datum:"2026-11-18",art:"Service"});
+ R.wz=L("werkzeuge","W1","serviceheft").length;
+ verlieren=1;R.fshLauf=await lauf("/api/fahrzeuge/F1","POST",{id:"sh1",datum:"2026-11-18",art:"Service"});
+ R.fsh=L("fahrzeuge","F1","serviceheft").length;
+ /* ohne id (Altbestand): Verhalten unveraendert -> Wiederholung haengt doppelt an */
+ verlieren=1;await lauf("/api/werkzeuge/W1","POST",{datum:"2026-11-19",art:"ohne id"});
+ R.wzOhneId=L("werkzeuge","W1","serviceheft").filter(x=>x.art==="ohne id").length;
+ R.patches=patches;R.kmStand=db.fahrzeuge.F1.km_stand;
+ process.stdout.write(JSON.stringify(R));
+})().catch(e=>{process.stdout.write(JSON.stringify({crash:String(e&&e.stack||e)}));});
+"""
+
+
+def _json(src, node_exe):
+    return _node(node_exe, JSON_PRELUDE + _fn(src, "_translateAndExec") + "\n" + JSON_KOERPER)
+
+
+def _json_befunde(r):
+    if "crash" in r:
+        return ["Probe abgestuerzt: " + r["crash"][:300]]
+    b = []
+    for k in ("tankLauf", "kmLauf", "wzLauf", "fshLauf"):
+        if r[k] != ["Failed to fetch", "ok"]:
+            b.append("%s: Ablauf %r (soll: verlorene Antwort, dann Erfolg)" % (k, r[k]))
+    if r["tank"] != 1:
+        b.append("Tankbuch: %r Eintraege statt 1" % r["tank"])
+    if len(r["km"]) != 1 or r["km"][0].get("id") != "km_t1":
+        b.append("km-Zeile zum Tankbeleg: %r (soll genau 1 mit id km_t1)" % r["km"])
+    if r["km2"] != 1:
+        b.append("km-Korrektur: %r Zeilen statt 1" % r["km2"])
+    if r["wz"] != 1:
+        b.append("Werkzeug-Serviceheft: %r Eintraege statt 1" % r["wz"])
+    if r["fsh"] != 1:
+        b.append("Fahrzeug-Serviceheft: %r Eintraege statt 1" % r["fsh"])
+    return b
+
+
+def test_json_anhaengen_wiederholung_ohne_duplikat(index_html, node_exe):
+    r = _json(index_html, node_exe)
+    assert _json_befunde(r) == []
+    # die Hilfsfelder kmLogId/km_log_id gehen nie als Spalte in den fahrzeuge-PATCH
+    assert not any("kmLogId" in p or "km_log_id" in p for p in r["patches"]), r["patches"]
+    assert r["kmStand"] == 12400
+    # ohne id bleibt alles wie bisher (kein Erfinden einer id zur Sendezeit) -> Duplikat, dokumentiert
+    assert r["wzOhneId"] == 2, r["wzOhneId"]
+
+
+JSON_RUECKBAU = [
+    ("if(!(_tAdd&&_tAdd.id&&tl.some(x=>x&&x.id===_tAdd.id)))tl.push(_tAdd);", "tl.push(_tAdd);", "Tankbuch"),
+    ("if(!(_kmId&&kl.some(x=>x&&x.id===_kmId)))kl.push(", "kl.push(", "km-Zeile zum Tankbeleg"),
+    ("if(!(_kmId2&&kl.some(x=>x&&x.id===_kmId2)))kl.push(", "kl.push(", "km-Korrektur"),
+    ('if(!(body&&body.id&&sv.some(x=>x&&x.id===body.id)))sv.push(body);' + "/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */\n        await _sbPatch(\"werkzeuge\"",
+     "sv.push(body);\n        await _sbPatch(\"werkzeuge\"", "Werkzeug-Serviceheft"),
+    ('if(!(body&&body.id&&sv.some(x=>x&&x.id===body.id)))sv.push(body);' + "/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */\n          await _sbPatch(\"fahrzeuge\"",
+     "sv.push(body);\n          await _sbPatch(\"fahrzeuge\"", "Fahrzeug-Serviceheft"),
+]
+
+
+@pytest.mark.parametrize("alt,neu,name", JSON_RUECKBAU)
+def test_umkehrprobe_json_anhaengen(index_html, node_exe, alt, neu, name):
+    assert index_html.count(alt) == 1, name
+    b = _json_befunde(_json(index_html.replace(alt, neu, 1), node_exe))
+    assert any(x.startswith(name) and "statt 1" in x or (x.startswith(name) and "soll genau 1" in x) for x in b), (name, b)
+
+
+def test_tankbeleg_id_bei_erzeugung(index_html):
+    """Die Tank-id (und damit die abgeleitete km-Zeilen-id) vergibt der Erzeuger beim Einreihen."""
+    n = index_html.count('SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{tankLog_add:entry,kmStand:entry.km}});')
+    assert n == 2
+    assert index_html.count("const entry={id:uid(),datum:") >= 2
+

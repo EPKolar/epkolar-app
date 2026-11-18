@@ -3265,7 +3265,7 @@ async function _translateAndExec(url,method,body){
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
           let sv=[];try{sv=JSON.parse(fz[0].serviceheft||'[]');if(!Array.isArray(sv))sv=[];}catch(pe){console.error("[fahrzeuge] serviceheft-JSON korrupt für id",idOrSub,"— starte neu. Raw:",String(fz[0].serviceheft||'').substring(0,200));sv=[];}
-          sv.push(body);
+          if(!(body&&body.id&&sv.some(x=>x&&x.id===body.id)))sv.push(body);/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */
           await _sbPatch("fahrzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
         }
       }catch(e){console.warn("[api] Serviceheft update:",e);/* v3.9.219 F2: transiente Fehler (5xx/408/429/offline) re-werfen → Item bleibt in SyncQueue + Retry statt stiller Drop. Permanente/Parse-Fehler bleiben geschluckt. */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
@@ -3282,34 +3282,36 @@ async function _translateAndExec(url,method,body){
         if(fz&&fz[0]){
           /* v3.8.14 Bug-Hunt Iter-14: defensive parse tank_log + km_log */
           let tl=[];try{tl=JSON.parse(fz[0].tank_log||'[]');if(!Array.isArray(tl))tl=[];}catch(pe){console.error("[fahrzeuge] tank_log-JSON korrupt für id",idOrSub,"— starte neu.");tl=[];}
-          tl.push(d.tankLog_add||d.tank_log_add);
+          const _tAdd=d.tankLog_add||d.tank_log_add;if(!(_tAdd&&_tAdd.id&&tl.some(x=>x&&x.id===_tAdd.id)))tl.push(_tAdd);/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */
           const patch={tank_log:JSON.stringify(tl),updated_at:new Date().toISOString()};
           if(d.kmStand||d.km_stand){
             const km=parseInt(d.kmStand||d.km_stand)||0;
             let kl=[];try{kl=JSON.parse(fz[0].km_log||'[]');if(!Array.isArray(kl))kl=[];}catch(pe){console.error("[fahrzeuge] km_log-JSON korrupt für id",idOrSub,"— starte neu.");kl=[];}
-            kl.push({km:km,date:_ymd(new Date())});
+            const _kmId=d.kmLogId||d.km_log_id||((_tAdd&&_tAdd.id)?"km_"+_tAdd.id:"");/* 18.11.: stabile id der km-Zeile = aus der Tank-id abgeleitet (Tank-id vergibt der Erzeuger beim Einreihen) */
+            if(!(_kmId&&kl.some(x=>x&&x.id===_kmId)))kl.push(_kmId?{id:_kmId,km:km,date:_ymd(new Date())}:{km:km,date:_ymd(new Date())});
             patch.km_stand=Math.max(km,parseInt(fz[0].km_stand,10)||0);/* v3.9.578: nur ERHOEHEN — ein Tank-/QR-Beleg mit niedrigerem km darf den Tacho nicht senken (Klobber). Die manuelle km-Korrektur (unten, addKm/qDoKm) bleibt unbedingt. */
             patch.km_log=JSON.stringify(kl);
           }
           await _sbPatch("fahrzeuge",idOrSub,patch);
         }
       }catch(e){console.warn("[api] Tank/KM update:",e);/* v3.9.219 F2: transient re-throw → kein stiller Sync-Drop */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
-      delete d.tankLog_add;delete d.tank_log_add;delete d.kmStand;delete d.km_stand;
+      delete d.tankLog_add;delete d.tank_log_add;delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;
       if(Object.keys(d).length===0)return{ok:1};
     }
     if(d.kmStand||d.km_stand){
       try{
         const km=parseInt(d.kmStand||d.km_stand)||0;
-        if(km<0){delete d.kmStand;delete d.km_stand;return{ok:1};}
+        if(km<0){delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;return{ok:1};}
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
           /* v3.8.14 Bug-Hunt Iter-14: defensive parse km_log */
           let kl=[];try{kl=JSON.parse(fz[0].km_log||'[]');if(!Array.isArray(kl))kl=[];}catch(pe){console.error("[fahrzeuge] km_log-JSON korrupt für id",idOrSub,"— starte neu.");kl=[];}
-          kl.push({km:km,date:_ymd(new Date())});
+          const _kmId2=d.kmLogId||d.km_log_id||"";/* 18.11.: stabile id der km-Zeile kommt vom Erzeuger (kmLogId, beim Einreihen vergeben) */
+          if(!(_kmId2&&kl.some(x=>x&&x.id===_kmId2)))kl.push(_kmId2?{id:_kmId2,km:km,date:_ymd(new Date())}:{km:km,date:_ymd(new Date())});/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */
           await _sbPatch("fahrzeuge",idOrSub,{km_stand:km,km_log:JSON.stringify(kl),updated_at:new Date().toISOString()});
         }
       }catch(e){console.warn("[api] KM update:",e);/* v3.9.219 F2: transient re-throw → kein stiller Sync-Drop */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
-      delete d.kmStand;delete d.km_stand;
+      delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;
       if(Object.keys(d).length===0)return{ok:1};
     }
     // Continue with regular PATCH for remaining fields
@@ -3323,7 +3325,7 @@ async function _translateAndExec(url,method,body){
       if(wz&&wz[0]){
         /* v3.8.14 Bug-Hunt Iter-14: defensive parse WZ serviceheft */
         let sv=[];try{sv=JSON.parse(wz[0].serviceheft||'[]');if(!Array.isArray(sv))sv=[];}catch(pe){console.error("[werkzeuge] serviceheft-JSON korrupt für id",idOrSub,"— starte neu. Raw:",String(wz[0].serviceheft||'').substring(0,200));sv=[];}
-        sv.push(body);
+        if(!(body&&body.id&&sv.some(x=>x&&x.id===body.id)))sv.push(body);/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */
         await _sbPatch("werkzeuge",idOrSub,{serviceheft:JSON.stringify(sv),updated_at:new Date().toISOString()});
       }
     }catch(e){console.warn("[api] WZ serviceheft:",e);/* v3.9.219 F2: transient re-throw → kein stiller Sync-Drop */if(/^HTTP(5\d\d|408|429)/.test((e&&e.message)||"")||(e&&e.message)==='Failed to fetch'||!navigator.onLine)throw e;}
