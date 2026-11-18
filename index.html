@@ -3332,11 +3332,11 @@ async function _translateAndExec(url,method,body){
 
   // WZ-Service + FZ-Termine: POST with sub-ID
   if(resource==="wz-service"&&idOrSub&&method==="POST"){
-    await _sbPost("wz_service",_mapBody({...body,werkzeug_id:idOrSub}));
+    const _wzsM=_mapBody({...body,werkzeug_id:idOrSub});if(_wzsM&&_wzsM.id){await _sbInsertIfAbsent("wz_service",_wzsM);}else{await _sbPost("wz_service",_wzsM);}/* 18.11. Idempotenz: stabile Client-id (bei Erzeugung vergeben) -> ON CONFLICT PK DO NOTHING; eine nach verlorener Antwort wiederholte Sendung (v3.9.1043) endet nicht mehr in 409 -> 5x -> Verwerfen + Falschwarnung. Ohne id unveraendert Plain-POST. */
     return{ok:1};
   }
   if(resource==="fz-termine"&&idOrSub&&method==="POST"){
-    await _sbPost("fz_termine",_mapBody({...body,fahrzeug_id:idOrSub}));
+    const _fztM=_mapBody({...body,fahrzeug_id:idOrSub});if(_fztM&&_fztM.id){await _sbInsertIfAbsent("fz_termine",_fztM);}else{await _sbPost("fz_termine",_fztM);}/* 18.11. Idempotenz: stabile Client-id (bei Erzeugung vergeben) -> ON CONFLICT PK DO NOTHING; eine nach verlorener Antwort wiederholte Sendung (v3.9.1043) endet nicht mehr in 409 -> 5x -> Verwerfen + Falschwarnung. Ohne id unveraendert Plain-POST. */
     return{ok:1};
   }
 
@@ -3345,7 +3345,7 @@ async function _translateAndExec(url,method,body){
     const parts=idOrSub.split("/");
     if(parts.length>=2&&method==="POST"){
       const mapped=_mapBody({...body,entity_type:parts[0],entity_id:parts[1]});
-      await _sbPost("photos",mapped);
+      if(mapped&&mapped.id){await _sbInsertIfAbsent("photos",mapped);}else{await _sbPost("photos",mapped);}/* 18.11. Idempotenz: stabile Client-id (bei Erzeugung vergeben) -> ON CONFLICT PK DO NOTHING; eine nach verlorener Antwort wiederholte Sendung (v3.9.1043) endet nicht mehr in 409 -> 5x -> Verwerfen + Falschwarnung. Ohne id unveraendert Plain-POST. */
       return{ok:1};
     }
   }
@@ -4065,7 +4065,7 @@ const PhotoQ={
           /* v3.9.579 #Foto-Orphan: bereits hochgeladene URL wiederverwenden statt re-upload — sonst erzeugt jeder DB-Post-Fail-Retry via _storagePath (Date.now()-Praefix) ein NEUES Storage-Objekt → Waise ohne DB-Verweis. */
           let publicUrl=ph.file_path||"";
           if(!publicUrl){const storagePath=ph.storagePath||_storagePath("photos",ph.projectId,ph.name||"photo.jpg");/* Plaene Stufe 3: Ticket-Fotos bringen ihren festen Pfad mit - das Ticket verweist schon darauf */publicUrl=await _sbUploadFile(storagePath,ph.dataUrl);try{await PhotoQ.update(ph.id,{file_path:publicUrl});}catch(_pu){}}
-          if(!ph.nurStorage)/* Plaene Stufe 3: Ticket-Fotos stehen im Ticket (path), keine zweite photos-Zeile */await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
+          if(!ph.nurStorage)/* Plaene Stufe 3: Ticket-Fotos stehen im Ticket (path), keine zweite photos-Zeile *//* 18.11. Idempotenz: ph.id stammt aus PhotoQ.add (bei Erzeugung) -> ON CONFLICT PK DO NOTHING; kam die Antwort nicht an, bleibt das Foto sonst nach 409 dauerhaft "Fehler", obwohl die Zeile oben ist */await _sbInsertIfAbsent("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
           await PhotoQ.remove(ph.id);ok++;
         }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;if(ph.nurStorage)tkFail++;
           /* v3.9.1043 Schwaches Netz: Zeitueberschreitung/Netzfehler ist kein Fehler des Fotos - zaehlt NICHT gegen den 10er-Deckel

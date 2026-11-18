@@ -239,7 +239,7 @@ async function _sbUploadFile(path,d){const m=modus.shift()||"ok";up.push(path+"|
   if(m==="400")throw new Error("HTTP400 Storage upload failed: bad");
   return "https://x/"+path;}
 function _storagePath(c,pid,n){return "photos/"+pid+"/"+n;}
-async function _sbPost(){}function _mapBody(b){return b;}
+async function _sbPost(){}async function _sbInsertIfAbsent(){}/* 18.11.: PhotoQ schreibt photos idempotent */function _mapBody(b){return b;}
 """
 PQ_KOERPER = r"""
 (async()=>{

@@ -39,6 +39,15 @@ def test_id_less_post_stays_plain_sbpost():
         r'else if\(mapped&&mapped\.id\)\{await _sbInsertIfAbsent\(table,mapped\);.*?\}\s*'
         r'else\{await _sbPost\(table,mapped,table==="notifications"\);',
         t, re.S), '#17: id-loser POST muss unverändert auf _sbPost fallen'
+    # 18.11.2026 (Folge v3.9.1043): die Sonderwege fz-termine / wz-service / photos tragen jetzt ebenfalls
+    # die Erzeugungs-id ueber _sbInsertIfAbsent; NUR ohne id bleibt dort Plain-_sbPost (Altbestand, bewusst).
+    # Laufzeitbeweis: tests/test_queue_idempotenz_v1044.py
+    for tab, var in (("fz_termine", "_fztM"), ("wz_service", "_wzsM"), ("photos", "mapped")):
+        assert ('if(%s&&%s.id){await _sbInsertIfAbsent("%s",%s);}else{await _sbPost("%s",%s);}'
+                % (var, var, tab, var, tab, var)) in t, tab
+    # PhotoQ.flush hat immer die id aus PhotoQ.add -> nie mehr Plain-POST auf photos
+    assert 'await _sbPost("photos",_mapBody({id:ph.id,' not in t
+    assert 'await _sbInsertIfAbsent("photos",_mapBody({id:ph.id,' in t
 
 
 def test_sbinsertifabsent_uses_ignore_duplicates():

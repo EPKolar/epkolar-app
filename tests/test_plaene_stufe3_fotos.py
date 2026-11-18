@@ -197,7 +197,7 @@ var mem={photoQueue:[]};var ODB={load:async k=>JSON.parse(JSON.stringify(mem[k]|
 var navigator={onLine:true};var up=[],posts=[];
 async function _sbUploadFile(path,d){up.push(path);return "https://x/storage/v1/object/public/epkolar-files/"+path;}
 function _storagePath(c,pid,n){return "photos/"+pid+"/123_"+n;}
-async function _sbPost(t,b){posts.push(b.entity_type);}function _mapBody(b){return b;}
+async function _sbPost(t,b){posts.push(b.entity_type);}async function _sbInsertIfAbsent(t,b){posts.push(b.entity_type);}/* 18.11.: PhotoQ schreibt photos idempotent */function _mapBody(b){return b;}
 """ + _photoq(src) + r"""
 (async()=>{
  await PhotoQ.add({entityType:"ticket",entityId:"T1",projectId:"P1",name:"a.jpg",dataUrl:"data:image/jpeg;base64,AA",storagePath:"tickets/P1/T1/1_0.jpg",nurStorage:true});
