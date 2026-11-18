@@ -23564,14 +23564,14 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const selBg=isDragSel||isPickCell?"rgba(59,130,246,.15)":hasContent?(_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)"):"transparent";
     const selBorder=isDragSel||isPickCell?"2px solid #3b82f6":"1px solid "+V.bd;
 
-    return (React.createElement('td', { key: d, style: {padding:"5px 6px",borderRight:selBorder,borderLeft:isPickCell&&d===pickDays[0]?selBorder:undefined,verticalAlign:"top",cursor:"pointer",minHeight:40,background:selBg,position:"relative",userSelect:"none"},
+    return (React.createElement('td', { key: d, style: {padding:"5px 4px",borderRight:selBorder,overflow:"hidden",borderLeft:isPickCell&&d===pickDays[0]?selBorder:undefined,verticalAlign:"top",cursor:"pointer",minHeight:40,background:selBg,position:"relative",userSelect:"none"},
       onMouseDown: e=>onCellMouseDown(r.id,dIdx,e),
       onMouseEnter: ()=>onCellMouseEnter(r.id,dIdx),
       onMouseUp: ()=>onCellMouseUp(r.id,dIdx),
       onClick: e=>{e.stopPropagation();if(isMob&&isAdmin){setCellPick(isPickCell?null:{rowId:r.id,days:[d],type:"ma"});}} }
       , React.createElement('div', { style: {display:"flex",flexWrap:"wrap",gap:4,minHeight:26,alignItems:"flex-start",pointerEvents:"none"}}
-        , maNames.map(m=>(React.createElement('span', { key: m.id, title: m.n, style: {fontSize:14,padding:"3px 6px",borderRadius:5,background:m.c+"22",color:m.c,fontWeight:700,lineHeight:"18px",whiteSpace:"nowrap"}}, m.n)))/* v3.9.1014: keine MA-Doppelmarkierung mehr (Entscheidung GF) */
-        , fzItems.map(f=>(React.createElement('span', { key: f.id, title: f.label/* v3.9.468: voller Name (Kennzeichen + Modell) als Tooltip */, style: {fontSize:13,padding:"3px 6px",borderRadius:5,background:f.conflict?"#fee2e2":"#dbeafe",color:f.conflict?"#dc2626":"#1d4ed8",fontWeight:700,lineHeight:"18px",whiteSpace:"normal",overflowWrap:"anywhere",display:"inline-block",maxWidth:"100%",verticalAlign:"middle"}}, f.conflict?_zpWarn("Fahrzeug doppelt gebucht"):null, f.kz)/* Planung P3 (16.11.2026): am A55 stand in der Freitagszelle nur "TU-…" - das Kennzeichen bricht jetzt um, statt abgeschnitten zu werden */))
+        , maNames.map(m=>(React.createElement('span', { key: m.id, title: m.n, style: {fontSize:13,padding:"3px 5px",borderRadius:5,background:m.c+"22",color:m.c,fontWeight:700,lineHeight:"18px",whiteSpace:"nowrap",display:"inline-block",maxWidth:"100%",boxSizing:"border-box",overflow:"hidden",textOverflow:"ellipsis",verticalAlign:"top"}}, m.n)))/* Planung Tablet 18.11.: Chip bleibt in der Zelle (am Lenovo hochkant ragte "Paschinger" ueber den Zellrand) - zu lang -> Auslassung, voller Name im title *//* v3.9.1014: keine MA-Doppelmarkierung mehr (Entscheidung GF) */
+        , fzItems.map(f=>(React.createElement('span', { key: f.id, title: f.label/* v3.9.468: voller Name (Kennzeichen + Modell) als Tooltip */, style: {fontSize:13,padding:"3px 6px",borderRadius:5,background:f.conflict?"#fee2e2":"#dbeafe",color:f.conflict?"#dc2626":"#1d4ed8",fontWeight:700,lineHeight:"18px",whiteSpace:"normal",overflowWrap:"anywhere",display:"inline-block",maxWidth:"100%",boxSizing:"border-box",verticalAlign:"middle"}}, f.conflict?_zpWarn("Fahrzeug doppelt gebucht"):null, f.kz)/* Planung P3 (16.11.2026): am A55 stand in der Freitagszelle nur "TU-…" - das Kennzeichen bricht jetzt um, statt abgeschnitten zu werden */))
         , !hasContent&&React.createElement('span', { style: {fontSize:15,color:V.mt}}, "—")
       )
       , isLastPick&&(React.createElement('div', { ref: (el)=>{_wpPopupRef.current=el;}/* v3.9.486 Smart-Positioning */, style: {position:"fixed",top:cellPickPos?cellPickPos.top+"px":"0",left:cellPickPos?cellPickPos.left+"px":"0",zIndex:9999,visibility:cellPickPos?"visible":"hidden",minWidth:spezFz.length>0?420:240,maxHeight:"calc(100vh - 16px)",overflowY:"auto",background:V.cd/* v3.9.487: V.bg → V.cd (Card-Token: #1c1f2e dark / #fff light) — kontrastreicher als bg, klar opak */,border:"2px solid "+V.ac,borderRadius:12/* v3.9.487: 8→12 */,boxShadow:"0 8px 32px rgba(0,0,0,.8)"/* v3.9.487: shadow alpha .25→.8 für stärkere Abhebung gegen Tabellen-Hintergrund */,padding:10}, onClick: e=>e.stopPropagation(), onMouseDown: e=>e.stopPropagation()}
@@ -23580,11 +23580,26 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     ));
   };
 
+  /* Planung Tablet (18.11.2026, Lenovo 1200x1920 hoch/quer, Touch): EIN Spaltenmodell fuer Abwesenheiten, Spezialfahrzeuge, Wetter und Planungstabelle.
+     Vorher fuehrten Wetter/Abwesenheiten ein Flex-Raster (28px + 16% + 6x12% + 14% + 44px) und die Tabelle eine colgroup (28 + 16% + 6x12% + 12% + 54) -
+     die Prozente bezogen sich auf verschiedene Restbreiten, die Tage liefen nach rechts auseinander (Sa 11 px versetzt, gemessen bei 1200 px).
+     Jetzt: alle vier Bloecke sind Tabellen mit DERSELBEN colgroup (_wpCols) und table-layout:fixed. Die Prozente summieren sich auf 100 und teilen
+     den Rest nach den festen Spalten (Nr, Zeilenknoepfe) - so passt die Tabelle in jede Breite, ohne quer zu rollen.
+     _wpGrob spiegelt die Hausregel @media (pointer: coarse),(max-width: 768px), die [role=button]/button auf 44x44 zwingt: dort braucht die
+     Knopfspalte 2x44 px, sonst ragten die Knoepfe ueber den Rand (gemessen 18 px abgeschnitten). _wpTouch = nur Zeigerart (fuer den Hilfetext).
+     _wpEng: unter 760 px bleibt die alte Querrolle (minWidth 720) - dort klebt der Kopf nicht, weil der Rollbehaelter ihn einfaengt. */
+  const _wpMM=(q)=>{try{return !!(window.matchMedia&&window.matchMedia(q).matches);}catch(_mmE){return false;}};
+  const _wpGrob=_wpMM("(pointer: coarse), (max-width: 768px)");const _wpTouch=_wpMM("(pointer: coarse)");const _wpEng=ww<760;
+  const _WP_SP={nr:34,bvh:"16.5%",tag:"11.5%",sa:"8%",bem:"18%"};/* 16,5 + 5x11,5 + 8 + 18 = 100. Bem breiter, Sa so schmal, dass der 44-px-Kopierknopf noch hineinpasst */
+  const _WP_KOPF="#00843A";/* UI.knopf - feste Flaeche statt Verlauf am <tr>: ein klebender Kopf braucht eine deckende Zellenflaeche, sonst scheinen die Zeilen durch */
+  const _wpCols=()=>React.createElement('colgroup', {}, React.createElement('col', { style: {width:_WP_SP.nr}}), React.createElement('col', { style: {width:_WP_SP.bvh}}), DSHORT.map((_,i)=>(React.createElement('col', { key: i, style: {width:i===5?_WP_SP.sa:_WP_SP.tag}}))), React.createElement('col', { style: {width:_WP_SP.bem}}), _wpGrob?React.createElement('col', { style: {width:100}}):React.createElement('col', { style: {width:54}}));/* Knopfspalte: 54 px mit Maus (v3.9.976, gemessen), 100 px wo die Hausregel 44x44 erzwingt */
+  const _wpTabStil={width:"100%",borderCollapse:"collapse",tableLayout:"fixed",minWidth:_wpEng?720:0};
+  const _wpKopfTh=(x)=>({color:"#fff",fontWeight:700,fontSize:16,padding:"10px 6px",borderBottom:"2px solid #004d20",position:"sticky",top:ww<1200?-20:0/* bis 1199 px rollt .main-pad (padding 20) und Chrome klebt an dessen INHALTSkante - gemessen 20 px Luft, durch die die Zeilen schienen; ab 1200 rollt das Dokument */,zIndex:2,background:_WP_KOPF,verticalAlign:"middle",...x});
   return (
     React.createElement('div', { ref: _wpRootRef, onClick: ()=>{if(cellPick)setCellPick(null);setSelCells(null);}}
       /* Header with KW nav */
       , React.createElement('div', { className: "header-row", style: {marginBottom:6}}
-        , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}/* v3.9.113 Mobile: flexWrap — KW-Sprung-Buttons (savedKws) brachen sonst die Seite quer auf (671px @ 390 Viewport). */
+        , React.createElement('div', { style: {flex:"1 1 auto",minWidth:0,maxWidth:"100%",...{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}}/* Planung Tablet 18.11.: flex+minWidth 0, sonst blieb der Block so breit wie die ungerollte KW-Reihe und die Seite rollte bei 800 px quer *//* v3.9.113 Mobile: flexWrap — KW-Sprung-Buttons (savedKws) brachen sonst die Seite quer auf (671px @ 390 Viewport). */
           , React.createElement('button', { title: "Woche zurück", 'aria-label': "Woche zurück", onClick: ()=>switchKw(kw-1)/* v3.9.1012 Jahreswechsel: keine Klemme mehr hier - switchKw rollt selbst ins Vorjahr */, style: {...bsS(),padding:isMob?"10px 16px":"5px 10px",fontSize:isMob?16:14,minHeight:isMob?44:0,touchAction:'manipulation',display:'inline-flex',alignItems:'center',justifyContent:'center'}/* v3.9.507 Mobile: größere Tap-Target */}, _ik("links",isMob?20:16)/* Planung P3 (16.11.2026): Linienikone statt Textzeichen */)
           , React.createElement('span', { style: {fontFamily:mono,fontSize:isMob?20:18,fontWeight:700,color:V.tx,minWidth:130,textAlign:"center"}}, "KW " , String(kw).padStart(2,"0"), " / "  , yr)
           , React.createElement('button', { title: "Woche vor", 'aria-label': "Woche vor", onClick: ()=>switchKw(kw+1)/* v3.9.1012 Jahreswechsel: keine Klemme mehr hier - switchKw rollt selbst ins Folgejahr (KW53/2026 -> KW1/2027) */, style: {...bsS(),padding:isMob?"10px 16px":"5px 10px",fontSize:isMob?16:14,minHeight:isMob?44:0,touchAction:'manipulation',display:'inline-flex',alignItems:'center',justifyContent:'center'}/* v3.9.483 + v3.9.507 Mobile */}, _ik("rechts",isMob?20:16)/* Planung P3: Linienikone statt Textzeichen */)
@@ -23597,7 +23612,9 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             , React.createElement('option', { value: ""}, "Andere Woche …")
             , savedKws.filter(k=>k!==kw).map(k=>React.createElement('option', { key: k, value: k}, "KW "+String(k).padStart(2,"0")+(k===curKw&&yr===curYr?" (aktuell)":"")))
           )
-          , !isMob&&savedKws.filter(k=>k!==kw).length>0&&savedKws.filter(k=>k!==kw).map(k=>(React.createElement('button', { key: k, onClick: ()=>switchKw(k), style: {padding:isMob?"8px 12px":"2px 8px",borderRadius:isMob?6:4,border:"1px solid "+V.bd,background:"transparent",color:V.dm,cursor:"pointer",fontWeight:600,fontSize:isMob?13:12,fontFamily:mono,minHeight:isMob?36:24,touchAction:'manipulation'}/* v3.9.507 Mobile: Tap-friendly */}, "KW", k)))
+          /* Planung Tablet 18.11.: die bis zu 26 KW-Knoepfe standen am Tablet in 2-3 Reihen und schoben die Planung weit nach unten. Jetzt EINE quer rollende Reihe (alle Knoepfe bleiben), die Woche, die der angezeigten am naechsten liegt, wird beim Wechsel in die Mitte gerollt. */
+          , !isMob&&savedKws.filter(k=>k!==kw).length>0&&(()=>{const _ks=savedKws.filter(k=>k!==kw);let _nah=_ks[0];_ks.forEach(k=>{if(Math.abs(k-kw)<Math.abs(_nah-kw))_nah=k;});return React.createElement('div', { 'data-wp-kwreihe': "1", ref: (el)=>{if(!el||el.getAttribute('data-kw-mitte')===String(kw))return;const b=el.querySelector('[data-kw-nah="1"]');if(!b)return;el.setAttribute('data-kw-mitte',String(kw));el.scrollLeft=Math.max(0,b.offsetLeft-(el.clientWidth-b.offsetWidth)/2);}, style: {display:"flex",flexWrap:"nowrap",gap:4,overflowX:"auto",overflowY:"hidden",flex:"1 1 260px",minWidth:0,maxWidth:"100%",position:"relative",padding:"2px 0",WebkitOverflowScrolling:"touch",scrollbarWidth:"thin"}}
+            , _ks.map(k=>(React.createElement('button', { key: k, 'data-kw-nah': k===_nah?"1":undefined, onClick: ()=>switchKw(k), style: {flex:"0 0 auto",padding:isMob?"8px 12px":"2px 8px",borderRadius:isMob?6:4,border:"1px solid "+V.bd,background:"transparent",color:V.dm,cursor:"pointer",fontWeight:600,fontSize:isMob?13:12,fontFamily:mono,minHeight:isMob?36:24,touchAction:'manipulation'}/* v3.9.507 Mobile: Tap-friendly */}, "KW", k))));})()
         )
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
           /* v3.9.471: 1-Klick Umschalter aktuelle ↔ kommende Woche (macht die ◀/▶-Vorausplanung auffindbar) */
@@ -23611,7 +23628,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         )
       )
 
-      , React.createElement('p', { style: {color:V.dm,fontSize:UI.fMeta,margin:"0 0 4px",fontStyle:"italic"}}, wpView==="planung"?(isAdmin?("Monteure, Baustellen & Fahrzeuge pro Wochentag planen. "+(!isMob?"Mehrere Tage markieren: Maus über Zellen ziehen. ":"")+"Änderungen werden automatisch gespeichert."):"Nur Ansicht — die Wochenplanung wird von Büro/PL erstellt. Eigene Änderungen werden nicht gespeichert."):"Multi-Projekt Übersicht: Wo ist welcher Mitarbeiter eingeplant?"/* v3.9.354 #6: Read-only-Hinweis für Monteure statt falscher Auto-Save-Zusage */)
+      , React.createElement('p', { style: {color:V.dm,fontSize:UI.fMeta,margin:"0 0 4px",fontStyle:"italic"}}, wpView==="planung"?(isAdmin?("Monteure, Baustellen & Fahrzeuge pro Wochentag planen. "+(!isMob?(_wpTouch?"Zelle antippen zum Einplanen (mehrere Tage auf einmal: mit der Maus über Zellen ziehen). ":"Mehrere Tage markieren: Maus über Zellen ziehen. "):"")/* Planung Tablet 18.11.: das Ziehen hoert nur auf Mausereignisse (onCellMouseDown/-Enter/-Up) - mit dem Finger ziehen rollt die Seite. Am Touchgeraet stand also eine Anleitung, die nicht geht; ein Tipp auf die Zelle oeffnet die Auswahl (Maus-Ersatzereignisse) */+"Änderungen werden automatisch gespeichert."):"Nur Ansicht — die Wochenplanung wird von Büro/PL erstellt. Eigene Änderungen werden nicht gespeichert."):"Multi-Projekt Übersicht: Wo ist welcher Mitarbeiter eingeplant?"/* v3.9.354 #6: Read-only-Hinweis für Monteure statt falscher Auto-Save-Zusage */)
 
       /* View toggle: Planung | MA-Übersicht */
       , React.createElement('div', { style: {display:"flex",gap:4,marginBottom:8}}
@@ -23711,7 +23728,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         return React.createElement('div', { style: {borderRadius:8,border:"1px solid "+V.bd,overflow:"hidden",background:V.cd,marginBottom:12}}
           , React.createElement('div', { style: {overflowX:"auto"}}
           , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:700,tableLayout:"fixed"}}
-            , React.createElement('colgroup', {}, React.createElement('col', { style: {width:"18%"}}), React.createElement('col', { style: {width:"8%"}}), DSHORT.map((_,i)=>(React.createElement('col', { key: i, style: {width:"11%"}}))), React.createElement('col', { style: {width:"6%"}}))
+            , React.createElement('colgroup', {}, React.createElement('col', { style: {width:"14%"}}), React.createElement('col', { style: {width:"13%"}}), DSHORT.map((_,i)=>(React.createElement('col', { key: i, style: {width:"11%"}}))), React.createElement('col', { style: {width:"7%"}}))/* Planung Tablet 18.11.: Rolle 8 -> 13 % ("Störungstechniker" ragte in die Mo-Spalte), Mitarbeiter 18 -> 14 % */
             , React.createElement('thead', {}, React.createElement('tr', { style: {background:"linear-gradient(135deg,#009640,#006e30)"}}/* v1016 CI: Kopf wie die Planungstabelle (vorher Orange) */
               , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:14,padding:"10px 8px",borderBottom:"2px solid #006e30",textAlign:"left"}}, "Mitarbeiter")
               , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:UI.fMeta,padding:"10px 4px",borderBottom:"2px solid #006e30",textAlign:"center"}}, "Rolle")
@@ -23722,8 +23739,8 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
               , maData.map((md,idx)=>{
                 const roleC=md.m.r==="Monteur"?"#22c55e":md.m.r==="Techniker"?"#3b82f6":"#f97316";
                 return React.createElement('tr', { key: md.m.id, style: {borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent"}}
-                  , React.createElement('td', { style: {padding:"8px 8px",fontWeight:700,fontSize:14,color:V.tx,borderRight:"1px solid "+V.bd,whiteSpace:"nowrap"}}, md.m.n)
-                  , React.createElement('td', { style: {padding:"4px 4px",fontSize:UI.fMeta,color:roleC,fontWeight:600,textAlign:"center",borderRight:"1px solid "+V.bd}}, md.m.r)
+                  , React.createElement('td', { title: md.m.n, style: {padding:"8px 8px",fontWeight:700,fontSize:14,color:V.tx,borderRight:"1px solid "+V.bd,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, md.m.n)
+                  , React.createElement('td', { lang: "de", style: {padding:"4px 4px",fontSize:UI.fMeta,color:roleC,fontWeight:600,textAlign:"center",borderRight:"1px solid "+V.bd,hyphens:"auto",overflowWrap:"anywhere"}}, md.m.r)
                   , md.dayProjs.map((projs,di)=>{
                     /* v1016 GF-Entscheid v3.9.1014 auch in der MA-Uebersicht: ein MA auf mehreren Baustellen ist normal - keine rote Zelle, kein Warnzeichen. Fahrzeug-Konflikte bleiben (fzConflicts). */
                     return React.createElement('td', { key: di, style: {padding:"6px 6px",borderRight:"1px solid "+V.bd,verticalAlign:"top",background:projs.length>0?(_dark?"rgba(0,150,64,.06)":"rgba(0,150,64,.03)"):"transparent"}}
@@ -23784,21 +23801,21 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         ,u.length?line("Urlaub",UR,u):null
         ,z.length?line("Zeitausgleich",ZA,z):null));
   }
-  /* v3.9.523: Desktop-Streifen auf das EXAKTE Wetter/Tabellen-Flex-Grid (28px + 16% + 6×12% + 8% + 44px, minWidth:800) — Tage fluchten mit Tabelle + Wetter. Daten-Logik unverändert. */
-  const _absCell=(names,color,i)=>React.createElement('div',{key:i,style:{width:i===5?"6%":"12%",flexShrink:1,textAlign:"center",padding:"4px 2px",borderLeft:"1px solid "+V.bd,background:names.length?color+"14":"transparent"}}
-    ,names.length?names.map((n,j)=>React.createElement('div',{key:j,style:{fontSize:UI.fMeta,fontWeight:600,color:color,whiteSpace:"nowrap"}},n)):React.createElement('span',{style:{color:V.mt,fontSize:UI.fMeta}},"—"));
-  const _absRow=(label,color,dayArr)=>React.createElement('div',{key:label,style:{display:"flex",gap:0,minWidth:800,borderBottom:"1px solid "+V.bd}}
-    ,React.createElement('div',{style:{width:28,flexShrink:0}})
-    ,React.createElement('div',{style:{width:"16%",flexShrink:1,padding:"4px 8px",fontWeight:700,color:color,whiteSpace:"nowrap"}},label)
+  /* v3.9.523: Desktop-Streifen fluchtet mit Wetter + Tabelle. Planung Tablet 18.11.: jetzt als Tabelle mit DEMSELBEN Spaltenmodell (_wpCols) - das alte Flex-Raster lief gegen die Tabelle auseinander. Ueberschrift mit Innenabstand (stand buendig am Kartenrand), fluchtet mit den Zeilenbeschriftungen. Daten-Logik unverändert. */
+  const _absCell=(names,color,i)=>React.createElement('td',{key:i,style:{textAlign:"center",padding:"4px 2px",borderLeft:"1px solid "+V.bd,background:names.length?color+"14":"transparent",verticalAlign:"top",overflow:"hidden"}}
+    ,names.length?names.map((n,j)=>React.createElement('div',{key:j,title:n,style:{fontSize:UI.fMeta,fontWeight:600,color:color,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},n)):React.createElement('span',{style:{color:V.mt,fontSize:UI.fMeta}},"—"));
+  const _absRow=(label,color,dayArr)=>React.createElement('tr',{key:label,style:{borderBottom:"1px solid "+V.bd}}
+    ,React.createElement('td',{})
+    ,React.createElement('td',{lang:"de",style:{padding:"4px 8px",fontWeight:700,color:color,hyphens:"auto",overflowWrap:"anywhere",verticalAlign:"top"}},label)
     ,dayArr.map((names,i)=>_absCell(names,color,i))
-    ,React.createElement('div',{style:{width:"14%",flexShrink:1}})
-    ,React.createElement('div',{style:{width:44,flexShrink:0}}));
+    ,React.createElement('td',{colSpan:2,style:{borderLeft:"1px solid "+V.bd}}));
   return React.createElement('div',{style:{marginBottom:4,padding:"6px 0",borderRadius:6,border:"1px solid "+V.bd,background:"transparent"}}
-    ,React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},React.createElement('span',{style:{fontSize:13,fontWeight:700,color:V.dm}},"Abwesenheiten"))
-    ,React.createElement('div',{style:{overflowX:"auto"}}
+    ,React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,padding:"2px 8px 0 "+(_WP_SP.nr+8)+"px"}},React.createElement('span',{style:{fontSize:13,fontWeight:700,color:V.dm}},"Abwesenheiten"))
+    ,React.createElement('div',{style:{overflowX:_wpEng?"auto":"visible"}}
+    ,React.createElement('table',{style:_wpTabStil},_wpCols(),React.createElement('tbody',{}
     ,_absRow("Krankenstand",KR,krankD)
     ,_absRow("Urlaub",UR,urlaubD)
-    ,_absRow("Zeitausgleich",ZA,zaD)));
+    ,_absRow("Zeitausgleich",ZA,zaD)))));
 })()
 
       /* v3.9.503 Mobile Tages-Karten-Ansicht (<600px) */
@@ -23852,9 +23869,10 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       /* v3.9.878: ab HIER Desktop-only (Fragment-Beginn, vorher 22 Zeilen weiter oben). */
       , !isMob&&React.createElement(React.Fragment, null
       , spezFz.length>0&&!isMob&&(React.createElement('div', { style: {marginBottom:4,padding:"6px 0",borderRadius:6,border:"1px solid "+V.bd,background:_dark?"rgba(249,115,22,.04)":"rgba(249,115,22,.02)"}}
-        , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6,marginBottom:4}}, React.createElement('span', { style: {fontSize:13,fontWeight:700,color:"#f97316"}}, "Spezialfahrzeuge Übersicht" ))
-        /* v3.9.523: Wetter/Tabellen-Flex-Grid (28px + 16% + 6×12% + 8% + 44px, minWidth:800) — Tage fluchten mit Tabelle + Wetter. Daten-Logik (dayData/Konflikt) unverändert. */
-        , React.createElement('div', { style: {overflowX:"auto"}}
+        , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6,marginBottom:4,padding:"2px 8px 0 "+(_WP_SP.nr+8)+"px"}}, React.createElement('span', { style: {fontSize:13,fontWeight:700,color:"#f97316"}}, "Spezialfahrzeuge Übersicht" ))
+        /* v3.9.523 + Planung Tablet 18.11.: Tabelle mit dem gemeinsamen Spaltenmodell _wpCols - Tage fluchten mit Tabelle + Wetter. Daten-Logik (dayData/Konflikt) unverändert. */
+        , React.createElement('div', { style: {overflowX:_wpEng?"auto":"visible"}}
+        , React.createElement('table', { style: _wpTabStil}, _wpCols(), React.createElement('tbody', {}
         , spezFz.map(f=>{
             const dayData=DSHORT.map(d=>{
               const assigned=rows.filter(r=>(_optionalChain([r, 'access', _fzOv1 => _fzOv1.z, 'optionalAccess', _fzOv2 => _fzOv2[d], 'optionalAccess', _fzOv3 => _fzOv3.fz])||[]).includes(f.id));
@@ -23862,34 +23880,32 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             });
             const hasAny=dayData.some(dd=>dd.rows.length>0);
             if(!hasAny)return null;
-            return (React.createElement('div', { key: f.id, style: {display:"flex",gap:0,minWidth:800,borderBottom:"1px solid "+V.bd}}
-              , React.createElement('div', { style: {width:28,flexShrink:0}})
-              , React.createElement('div', { style: {width:"16%",flexShrink:1,padding:"4px 8px",fontWeight:700,color:V.tx,whiteSpace:"nowrap"}}, f.kennzeichen, " " , React.createElement('span', { style: {fontWeight:400,fontSize:UI.fMeta,color:V.dm}}, f.modell||f.typ))
-              , dayData.map((dd,i)=>(React.createElement('div', { key: dd.day, style: {width:i===5?"6%":"12%",flexShrink:1,textAlign:"center",padding:"4px 2px",borderLeft:"1px solid "+V.bd,background:dd.conflict?"rgba(239,68,68,.1)":dd.rows.length?"rgba(249,115,22,.06)":"transparent"}}
-                , dd.rows.length>0?dd.rows.map(rr=>(React.createElement('div', { key: rr.id, title: rr.bvh||undefined, style: {fontSize:UI.fMeta,fontWeight:600,color:dd.conflict?"#dc2626":"#ea580c",whiteSpace:"normal",overflowWrap:"anywhere",lineHeight:1.25}}, dd.conflict?_zpWarn("Fahrzeug doppelt gebucht"):null, _wpNameLesbar(rr.bvh)||(rr.projId?"Projekt":"?"))))/* Planung P3: voller Projektname, bricht in der Tagesspalte um, statt nach 18 Zeichen mit … zu enden */:React.createElement('span', { style: {color:V.mt,fontSize:UI.fMeta}}, "—")
+            return (React.createElement('tr', { key: f.id, style: {borderBottom:"1px solid "+V.bd}}
+              , React.createElement('td', {})
+              , React.createElement('td', { style: {padding:"4px 8px",fontWeight:700,color:V.tx,overflowWrap:"anywhere",verticalAlign:"top"}}, f.kennzeichen, " " , React.createElement('span', { style: {fontWeight:400,fontSize:UI.fMeta,color:V.dm}}, f.modell||f.typ))
+              , dayData.map((dd,i)=>(React.createElement('td', { key: dd.day, style: {textAlign:"center",padding:"4px 2px",verticalAlign:"top",borderLeft:"1px solid "+V.bd,background:dd.conflict?"rgba(239,68,68,.1)":dd.rows.length?"rgba(249,115,22,.06)":"transparent"}}
+                , dd.rows.length>0?dd.rows.map(rr=>(React.createElement('div', { key: rr.id, title: rr.bvh||undefined, lang: "de", style: {fontSize:UI.fMeta,fontWeight:600,color:dd.conflict?"#dc2626":"#ea580c",whiteSpace:"normal",hyphens:"auto",overflowWrap:"anywhere",lineHeight:1.25}}, dd.conflict?_zpWarn("Fahrzeug doppelt gebucht"):null, _wpNameLesbar(rr.bvh)||(rr.projId?"Projekt":"?"))))/* Planung P3: voller Projektname, bricht in der Tagesspalte um, statt nach 18 Zeichen mit … zu enden */:React.createElement('span', { style: {color:V.mt,fontSize:UI.fMeta}}, "—")
               )))
-              , React.createElement('div', { style: {width:"14%",flexShrink:1}})
-              , React.createElement('div', { style: {width:44,flexShrink:0}})
+              , React.createElement('td', { colSpan: 2, style: {borderLeft:"1px solid "+V.bd}})
             ));
           }).filter(Boolean)
-        )
+        )))
       ))
 
-      /* Weather strip - aligned with table columns */
-      , React.createElement('div', { style: {overflowX:"auto",borderRadius:"8px 8px 0 0",border:"1px solid "+V.bd,borderBottom:"none",background:V.cd}}
-      , React.createElement('div', { style: {display:"flex",gap:0,minWidth:800}}
-        , React.createElement('div', { style: {width:28,flexShrink:0}})
-        , React.createElement('div', { style: {width:"16%",flexShrink:1}})
-        , DSHORT.map((d,i)=>{const w=wetter[dk(dayDate(i))]||null;const isToday=i===((new Date().getDay()+6)%7);const maC=maPerDay[d]||0;const isSa=i===5;return (React.createElement('div', { key: d, style: {width:isSa?"6%":"12%",flexShrink:1,textAlign:"center",padding:"8px 2px 6px",borderLeft:"1px solid "+V.bd,background:isToday?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent"}}
+      /* Weather strip - aligned with table columns *//* Planung Tablet 18.11.: eigene Tabelle mit DERSELBEN colgroup wie die Planungstabelle (_wpCols) statt Flex-Raster - vorher wanderte der Versatz nach rechts auf 11 px (Sa). */
+      , React.createElement('div', { style: {overflowX:_wpEng?"auto":"visible",borderRadius:"8px 8px 0 0",border:"1px solid "+V.bd,borderBottom:"none",background:V.cd}}
+      , React.createElement('table', { 'data-wp-wetter': "1", style: _wpTabStil}, _wpCols(), React.createElement('tbody', {}, React.createElement('tr', {}
+        , React.createElement('td', {})
+        , React.createElement('td', {})
+        , DSHORT.map((d,i)=>{const w=wetter[dk(dayDate(i))]||null;const isToday=i===((new Date().getDay()+6)%7);const maC=maPerDay[d]||0;return (React.createElement('td', { key: d, style: {textAlign:"center",verticalAlign:"top",overflow:"hidden",padding:"8px 2px 6px",borderLeft:"1px solid "+V.bd,background:isToday?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent"}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:isToday?_okG("#22c55e"):V.dm,marginBottom:4,letterSpacing:.5}}, d)
           , React.createElement('div', { style: {fontSize:28,lineHeight:"32px",marginBottom:2,filter:"drop-shadow(0 1px 2px rgba(0,0,0,.15))"}}, (w&&w.icon)?w.icon:"")
           , React.createElement('div', { style: {fontSize:16,fontWeight:800,fontFamily:mono,color:(!w||w.tmax===null)?V.mt:(w.tmax<=0?"#60a5fa":w.tmax<=5?V.tx:w.tmax<=15?"#f59e0b":"#ef4444")}}, (w&&w.tmax!==null)?(Math.round(w.tmax)+"°"):"—")
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:1,marginBottom:3}}, (w&&w.text)?w.text:"")
           , React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,color:maC>0?V.acTx:V.mt||V.dm,background:maC>0?UI.markeBg:"transparent",...UI.zahlen,borderRadius:4,padding:"2px 6px",display:"inline-block"}}, maC, " MA" )
         ));})
-        , React.createElement('div', { style: {width:"14%",flexShrink:1}})
-        , React.createElement('div', { style: {width:44,flexShrink:0}})
-      )
+        , React.createElement('td', { colSpan: 2, style: {borderLeft:"1px solid "+V.bd}})
+      )))
       )
 
       /* Add row — inline with project selector + free text */
@@ -23903,12 +23919,13 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       ))
 
       /* Main table */
-      , React.createElement('div', { style: {borderRadius:"0 0 8px 8px",border:"1px solid "+V.bd,borderTop:"none",overflow:"hidden",background:V.cd}}, React.createElement('div', { style: {overflowX:"auto"}}
-        , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:800,tableLayout:"fixed"}}
-          , React.createElement('colgroup', {}, React.createElement('col', { style: {width:28}}), React.createElement('col', { style: {width:"16%"}}), DSHORT.map((_,i)=>(React.createElement('col', { key: i, style: {width:i===5?"6%":"12%"}}))), React.createElement('col', { style: {width:"12%"}}), React.createElement('col', { style: {width:54}}))
+      /* Planung Tablet 18.11.: Huelle ab 760 px ohne eigenen Rollbehaelter (overflow clip statt hidden/auto) - sonst fing der Behaelter den klebenden Tabellenkopf ein und der Wochentagskopf rollte weg. Die Tabelle passt durch das Spaltenmodell ohnehin in die Breite. */
+      , React.createElement('div', { style: {borderRadius:"0 0 8px 8px",border:"1px solid "+V.bd,borderTop:"none",overflow:_wpEng?"hidden":"clip",background:V.cd}}, React.createElement('div', { style: {overflowX:_wpEng?"auto":"visible"}}
+        , React.createElement('table', { 'data-wp-plan': "1", style: _wpTabStil}
+          , _wpCols()
           , React.createElement('thead', {}, React.createElement('tr', { style: {background:"linear-gradient(135deg,#009640,#006e30)"}}
-            , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:16,padding:"10px 6px",borderBottom:"2px solid #004d20",textAlign:"center"}}, "Nr")
-            , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:16,padding:"10px 6px",borderBottom:"2px solid #004d20",textAlign:"left"}}, "BVH / Baustelle"  )
+            , React.createElement('th', { style: _wpKopfTh({textAlign:"center",padding:"10px 2px"})}, "Nr")
+            , React.createElement('th', { lang: "de", style: _wpKopfTh({textAlign:"left",hyphens:"auto"})}, "BVH / Baustelle"  )
             , DSHORT.map((d,i)=>{/* v3.9.485: Tag-Kopieren — 📋/✂️ im <th>, Hover trackt für STRG+C/V, Klick auf Header=Paste (wenn Quelle gesetzt) */
               const isSrc=copySrcDay===d;
               const isTgt=!!copySrcDay&&copySrcDay!==d;
@@ -23917,23 +23934,24 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                 onMouseLeave: ()=>setHoverDay(prev=>prev===d?null:prev),
                 onClick: (isAdmin&&isTgt)?()=>_wpPasteDay(d):undefined,
                 title: !isAdmin?undefined:(isSrc?"Kopier-Quelle — ESC zum Abbrechen":isTgt?("Hier einfügen: "+copySrcDay+" → "+d+"  (STRG+V)"):("Tag kopieren (STRG+C)")),
-                style: {color:"#fff",fontWeight:700,fontSize:16,padding:"10px 6px",borderBottom:"2px solid #004d20",textAlign:"center",
-                  background:isSrc?"rgba(59,130,246,.35)":isTgt?"rgba(34,197,94,.22)":"transparent",
+                /* Planung Tablet 18.11.: jeder Tageskopf gleich gebaut - Tag, darunter Datum, darunter der Kopierknopf, alles mittig. Vorher stand die Kopier-Ikone als Inline-Element neben dem Tag; am Touchgeraet macht die Hausregel daraus 44x44 und schob sie je nach Spaltenbreite nach oben rechts (Mo-Fr) oder unter den Tag (Sa). Der Knopf ist jetzt ein echter <button> (Tastatur), Handler unveraendert. Deckende Flaeche, weil der Kopf klebt. */
+                style: _wpKopfTh({textAlign:"center",padding:"8px 2px",
+                  background:isSrc?"linear-gradient(rgba(59,130,246,.45),rgba(59,130,246,.45)),"+_WP_KOPF:isTgt?"linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),"+_WP_KOPF:_WP_KOPF,
                   cursor:(isAdmin&&isTgt)?"pointer":"default",
-                  transition:"background .15s",
-                  position:"relative"}},
-                d,
-                isAdmin&&React.createElement('span', {
+                  transition:"background .15s"})},
+                React.createElement('div', { style: {display:"flex",flexDirection:"column",alignItems:"center",gap:2,lineHeight:1.15}}
+                , React.createElement('span', {}, d)
+                , React.createElement('span', { style: {fontWeight:400,fontSize:UI.fMeta,opacity:.85}}, dateFmt(i))
+                , isAdmin&&React.createElement('button', {
+                  type: "button",
                   onClick: (e)=>{e.stopPropagation();if(isTgt)_wpPasteDay(d);else if(isSrc)setCopySrcDay(null);else _wpCopyDay(d);},
-                  title: isSrc?"Aktive Quelle — Klick zum Abbrechen (oder ESC)":isTgt?("Einfügen aus "+copySrcDay):"Tag kopieren",'aria-label': isSrc?"Kopieren abbrechen":isTgt?("Einfügen aus "+copySrcDay):("Tag "+d+" kopieren"),role:"button",
-                  style: {marginLeft:6,display:"inline-flex",cursor:"pointer",opacity:copySrcDay?1:0.55,verticalAlign:"middle",userSelect:"none"}
-                }, isSrc?_ik("kreuz",14):_ik("kopie",14)),
-                React.createElement('br', {}),
-                React.createElement('span', { style: {fontWeight:400,fontSize:12,opacity:.7}}, dateFmt(i))
+                  title: isSrc?"Aktive Quelle — Klick zum Abbrechen (oder ESC)":isTgt?("Einfügen aus "+copySrcDay):"Tag kopieren",'aria-label': isSrc?"Kopieren abbrechen":isTgt?("Einfügen aus "+copySrcDay):("Tag "+d+" kopieren"),
+                  style: {marginTop:2,display:"inline-flex",alignItems:"center",justifyContent:"center",width:28,height:28,padding:0,border:"none",borderRadius:6,background:copySrcDay?"rgba(255,255,255,.18)":"transparent",color:"#fff",cursor:"pointer",opacity:copySrcDay?1:0.75,userSelect:"none",fontFamily:"inherit"}
+                }, isSrc?_ik("kreuz",14):_ik("kopie",14)))
               );
             })
-            , React.createElement('th', { style: {color:"#fff",fontWeight:700,fontSize:16,padding:"10px 6px",borderBottom:"2px solid #004d20",textAlign:"left"}}, "Bem.")
-            , React.createElement('th', { style: {borderBottom:"2px solid #004d20",background:"#006e30"}})
+            , React.createElement('th', { style: _wpKopfTh({textAlign:"left"})}, "Bem.")
+            , React.createElement('th', { style: _wpKopfTh({padding:0}), 'aria-label': "Zeilenaktionen"})
           ))
           , React.createElement('tbody', {}, rows.map((r,idx)=>{
             const proj=r.projId?projects.find(p=>p.id===r.projId):null;
@@ -23945,9 +23963,9 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
             const isEmpty=_isPaddingRow(r);
             const hasAnyContent=!isEmpty||DSHORT.some(d=>{const c=_optionalChain([r, 'access', _505b => _505b.z, 'optionalAccess', _506b => _506b[d]]);return (_optionalChain([c, 'optionalAccess', _507b => _507b.ma, 'optionalAccess', _508b => _508b.length])||0)>0||(_optionalChain([c, 'optionalAccess', _509b => _509b.fz, 'optionalAccess', _510b => _510b.length])||0)>0;});
             return (React.createElement('tr', { key: r.id, style: {borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent",opacity:isEmpty&&!hasAnyContent?0.5:1}}
-              , React.createElement('td', { style: {padding:"5px 5px",textAlign:"center",color:isEmpty?"#555":"#009640",fontFamily:mono,fontSize:15,fontWeight:700,borderRight:"1px solid "+V.bd}}, idx+1)
+              , React.createElement('td', { style: {padding:"5px 2px",textAlign:"center",verticalAlign:"top",color:isEmpty?"#555":"#009640",fontFamily:mono,fontSize:15,fontWeight:700,lineHeight:1.25,borderRight:"1px solid "+V.bd}}, idx+1)/* Planung Tablet 18.11.: oben wie der BVH-Text (stand senkrecht mittig) */
               , React.createElement('td', { style: {padding:"3px 5px",borderRight:"1px solid "+V.bd,verticalAlign:"top",cursor:"pointer",position:"relative"}, onClick: ()=>{if(isAdmin&&isEmpty&&editRow!==r.id){setEditRow(r.id);setEditBvh("");}}}/* v3.9.354 #6: Benennen nur Admin/PL */
-                , React.createElement('div', { style: {fontWeight:isEmpty?400:700,fontSize:15,whiteSpace:"normal",wordBreak:"break-word",lineHeight:1.25,color:isEmpty?V.mt:V.tx}, onDoubleClick: ()=>{if(isAdmin&&!isEmpty){setEditRow(r.id);setEditBvh(r.bvh);}}, title: r.bvh||(isAdmin?"Klicken zum Benennen":"")}
+                , React.createElement('div', { lang: "de", style: {fontWeight:isEmpty?400:700,fontSize:15,whiteSpace:"normal",hyphens:"auto",overflowWrap:"anywhere",lineHeight:1.25,color:isEmpty?V.mt:V.tx}, onDoubleClick: ()=>{if(isAdmin&&!isEmpty){setEditRow(r.id);setEditBvh(r.bvh);}}, title: r.bvh||(isAdmin?"Klicken zum Benennen":"")}
                   , editRow===r.id?(isEmpty?(
                     React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}, onClick: e=>e.stopPropagation()}
                       , React.createElement('select', { autoFocus: true, onChange: e=>{if(e.target.value){const p=projects.find(x=>x.id===e.target.value);if(p){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:p.name,projId:p.id}:x));setEditRow(null);}}}, style: {...II(),fontSize:UI.fMeta,padding:"2px 4px",flex:1,minWidth:100}}
@@ -23957,15 +23975,15 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
                       , React.createElement('input', { value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "oder Freitext...", onKeyDown: e=>{if(e.key==="Enter"&&editBvh.trim()){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),fontSize:UI.fMeta,padding:"2px 4px",flex:1,minWidth:80}} )
                       , React.createElement('span', { onClick: ()=>setEditRow(null), role:"button", tabIndex:0, "aria-label":"Bearbeiten abbrechen", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setEditRow(null);}}, style: {cursor:"pointer",fontSize:UI.fMeta,color:_lesbar(COLORS.ERROR),padding:"0 2px"}}, "✕")
                     )
-                  ):(React.createElement('input', { autoFocus: true, value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "BVH / Baustelle eingeben...", onBlur: ()=>{setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}, onKeyDown: e=>{if(e.key==="Enter"){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),padding:"1px 3px",fontSize:UI.fMeta,fontWeight:600,width:"100%"}} ))):(isEmpty?"":r.bvh)
+                  ):(React.createElement('input', { autoFocus: true, value: editBvh, onChange: e=>setEditBvh(e.target.value), placeholder: "BVH / Baustelle eingeben...", onBlur: ()=>{setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}, onKeyDown: e=>{if(e.key==="Enter"){setRows(prev=>prev.map(x=>x.id===r.id?{...x,bvh:editBvh}:x));setEditRow(null);}if(e.key==="Escape")setEditRow(null);}, style: {...II(),padding:"1px 3px",fontSize:UI.fMeta,fontWeight:600,width:"100%"}} ))):(isEmpty?"":_wpNameLesbar(r.bvh))/* Planung Tablet 18.11.: nur ANZEIGE wie in der MA-Uebersicht - GROSSSCHRIFT wird zu Wortanfaengen, damit die Silbentrennung (hyphens:auto, lang de) greift statt "GSCHMEIDLE|RSTRASSE"; title und Daten bleiben r.bvh */
                 )
                 , proj&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.acTx}}, proj.nr)
               )
               , DSHORT.map((d,dIdx)=>renderCell(r,d,dIdx))
               , React.createElement('td', { style: {padding:"3px 4px",borderRight:"1px solid "+V.bd,verticalAlign:"top",overflow:"hidden"}, onDoubleClick: ()=>setCellPick({rowId:r.id,days:["_bem"],type:"bem"})}
-                , _optionalChain([cellPick, 'optionalAccess', _512 => _512.rowId])===r.id&&(_optionalChain([cellPick, 'optionalAccess', _513 => _513.days])||[]).includes("_bem")?(React.createElement('input', { autoFocus: true, value: r.bem, onChange: e=>setRows(prev=>prev.map(x=>x.id===r.id?{...x,bem:e.target.value}:x)), onBlur: ()=>setCellPick(null), onKeyDown: e=>e.key==="Enter"&&setCellPick(null), style: {...II(),padding:"4px 6px",fontSize:15}, onClick: e=>e.stopPropagation()} )):(React.createElement('span', { style: {fontSize:15,color:r.bem?"#d97706":V.mt,fontStyle:r.bem?"italic":"normal",wordBreak:"break-word",overflowWrap:"anywhere"}}, r.bem||""))
+                , _optionalChain([cellPick, 'optionalAccess', _512 => _512.rowId])===r.id&&(_optionalChain([cellPick, 'optionalAccess', _513 => _513.days])||[]).includes("_bem")?(React.createElement('input', { autoFocus: true, value: r.bem, onChange: e=>setRows(prev=>prev.map(x=>x.id===r.id?{...x,bem:e.target.value}:x)), onBlur: ()=>setCellPick(null), onKeyDown: e=>e.key==="Enter"&&setCellPick(null), style: {...II(),padding:"4px 6px",fontSize:15}, onClick: e=>e.stopPropagation()} )):(React.createElement('span', { lang: "de", style: {fontSize:14,lineHeight:1.3,color:r.bem?"#d97706":V.mt,fontStyle:r.bem?"italic":"normal",hyphens:"auto",overflowWrap:"anywhere"}}, r.bem||""))
               )
-              , React.createElement('td', { style: {padding:0,textAlign:"center",whiteSpace:"nowrap"}}, React.createElement('div', { style: {display:"grid",gridTemplateColumns:"24px 24px",gap:2,width:50,margin:"0 auto"}}/* v3.9.967: Polsterung zurueckgenommen, weil die Schriften dieser Zeilenknoepfe von 9 auf 12 px gehoben wurden und die Tabelle dadurch 7 px quer rollte (scrollWidth 1405 gegen clientWidth 1398, gemessen am ueberstehenden Loeschknopf). td 2->1 px und die drei nicht zerstoerenden Knoepfe 0 1px -> 0 geben 8 px zurueck. Der LOESCHKNOPF behaelt seine Polsterung: ein zerstoerender Knopf, der die Nachbarn beruehrt, wird verklickt. */
+              , React.createElement('td', { style: {padding:"2px 0",textAlign:"center",whiteSpace:"nowrap",verticalAlign:"top"}}, React.createElement('div', { style: {display:"grid",gridTemplateColumns:"24px 24px",gap:2,width:50,margin:"0 auto",...(_wpGrob?{gridTemplateColumns:"44px 44px",gap:4,width:92}:null)}}/* Planung Tablet 18.11.: am Touchgeraet (Hausregel 44x44) zwei 44er-Spalten in einer 100-px-Spalte - vorher 24er-Raster in 54 px, die Knoepfe ragten 18 px ueber den Tabellenrand *//* v3.9.967: Polsterung zurueckgenommen, weil die Schriften dieser Zeilenknoepfe von 9 auf 12 px gehoben wurden und die Tabelle dadurch 7 px quer rollte (scrollWidth 1405 gegen clientWidth 1398, gemessen am ueberstehenden Loeschknopf). td 2->1 px und die drei nicht zerstoerenden Knoepfe 0 1px -> 0 geben 8 px zurueck. Der LOESCHKNOPF behaelt seine Polsterung: ein zerstoerender Knopf, der die Nachbarn beruehrt, wird verklickt. */
                 , !isEmpty&&React.createElement('span', { onClick: ()=>moveRow(r.id,-1), role:"button", tabIndex:0, "aria-label":"Zeile nach oben", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();moveRow(r.id,-1);}}, style: {cursor:"pointer",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,color:V.dm}, title: "Hoch"}, "▲")
                 , !isEmpty&&React.createElement('span', { onClick: ()=>moveRow(r.id,1), role:"button", tabIndex:0, "aria-label":"Zeile nach unten", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();moveRow(r.id,1);}}, style: {cursor:"pointer",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,color:V.dm}, title: "Runter"}, "▼")
                 , !isEmpty&&React.createElement('span', { onClick: ()=>clearRow(r.id), role:"button", tabIndex:0, "aria-label":"Zeile leeren", onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();clearRow(r.id);}}, style: {cursor:"pointer",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,color:V.dm}, title: "Zeile leeren"}, _ik("eimer",14))
