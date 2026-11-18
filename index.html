@@ -785,7 +785,7 @@ const _api={
   async get(table,query,opts){
     await window._ensureAuth?.();
     const url=SUPABASE_URL+"/rest/v1/"+table+(query?"?"+query:"");
-    const r=await _authRetry(()=>fetch(url,_fT({headers:_sbH()})));
+    const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler */
     if(!r.ok){const txt=await r.text();throw new Error("GET "+table+" "+r.status+": "+txt.substring(0,200));}
     return r.json();
   },
@@ -1747,6 +1747,122 @@ function _fT(init,ms){
   }catch(_){}
   return init||{};
 }
+/* ═══ v3.9.1043 SCHWACHES NETZ (Werkstatt-Tablet 18.11.2026: WLAN -88 dBm, Antwortzeit ~11 s, erste DNS-Abfrage
+   des Supabase-Hosts scheiterte, danach ging es; Baustellen-Handys im 3G/EDGE mit wechselndem Empfang genauso).
+   Was ankommt, gelingt laut Server-Protokoll fast immer - das Problem ist der Weg dorthin. Darum:
+   (1) LESEN (GET) wird bei Netz- oder Zeitfehler nach 1,5 s / 4 s wiederholt (Lesen ist folgenlos wiederholbar);
+       die Zeitgrenze fuer Lesen waechst mit der gemessenen Antwortzeit (nie unter den bisherigen 30 s, hoechstens 60 s).
+   (2) SCHREIBEN wird hier NIE automatisch wiederholt - ein POST koennte doppelt anlegen. Geschriebenes laeuft wie bisher
+       ueber die Warteschlange (SQ/PhotoQ); neu ist nur der geplante naechste Versuch mit wachsender Pause.
+   (3) Zeitueberschreitung und die Netzmeldungen von Safari/Firefox gelten jetzt wie "Failed to fetch" als voruebergehend:
+       der Eintrag bleibt in der Warteschlange und an seinem Platz, statt nach 5 Versuchen verworfen zu werden.
+   (4) Ehrliche Anzeige: Antwortzeit > 3 s, eine Zeitueberschreitung in den letzten 2 Minuten oder eine sehr langsame
+       Verbindungsart (navigator.connection) = "Verbindung schwach" (bernstein, nicht rot), egal ob WLAN oder Mobilfunk.
+   Die reinen Helfer (_netzBackoffMs ... _syncErgebnisText) sind ohne Browser pruefbar: tests/test_schwaches_netz_v1043.py. */
+function _netzBackoffMs(versuch){var t=[1500,4000];var n=Math.floor(+versuch||0);if(n<0)n=0;return t[Math.min(n,t.length-1)];}
+/* Pause bis zum naechsten automatischen Warteschlangen-Versuch nach n voruebergehenden Fehlschlaegen in Folge. */
+function _netzPauseMs(n){var t=[5000,15000,30000,60000,120000,300000];var k=Math.floor(+n||0);if(k<1)k=1;return t[Math.min(k,t.length)-1];}
+/* Zeitgrenze fuer Lesen: nie unter der bisherigen Grenze (30 s), bei langsamer Antwort 5x Antwortzeit, hoechstens 60 s. */
+function _netzLeseMsFuer(rttMs,basis){var b=+basis>0?+basis:30000;var r=+rttMs;if(!(r>0))return b;return Math.min(60000,Math.max(b,Math.round(r*5)));}
+/* Zeitgrenze fuer den Lebenszeichen-Abruf (alle 30 s): 3x Antwortzeit, 8 bis 25 s; unbekannt 10 s (vorher fest 5 s). */
+function _netzHerzMsFuer(rttMs){var r=+rttMs;if(!(r>0))return 10000;return Math.min(25000,Math.max(8000,Math.round(r*3)));}
+/* Zeitgrenze fuer Datei-Uploads nach Groesse: mindestens die bisherigen 60 s, sonst 20 s + 15 kB/s (EDGE/3G), hoechstens 5 min. */
+function _netzUploadMsFuer(bytes){var n=+bytes;if(!(n>0))n=0;return Math.min(300000,Math.max(60000,Math.round(n/15)+20000));}
+/* Art eines Fehlers: "offline" | "zeit" (Zeitueberschreitung) | "netz" (Verbindung/DNS) | "server" (5xx/408/429) | "" (dauerhaft/unbekannt).
+   Bewusst eng: ein TypeError aus einem Programmfehler ("Cannot read properties ...") ist KEIN Netzfehler. */
+function _netzFehlerArt(e,online){
+  if(online===false)return "offline";
+  if(!e)return "";
+  var nm=String(e.name||""),m=String(e.message!=null?e.message:e);
+  var h=/^(?:HTTP|Auth:)(\d{3})/.exec(m);
+  if(h){var s=+h[1];return (s>=500||s===408||s===429)?"server":"";}
+  if(nm==="TimeoutError"||nm==="AbortError"||/timed out/i.test(m))return "zeit";
+  if(m==="Failed to fetch"||m==="Load failed"||/^NetworkError when attempting to fetch/.test(m)||/network connection was lost|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_CONNECTION_(?:RESET|CLOSED|TIMED_OUT)/i.test(m))return "netz";
+  return "";
+}
+function _netzFehlerTransient(e,online){return _netzFehlerArt(e,online)!=="";}
+/* Darf ein LESE-Abruf nach dieser Fehlerart noch einmal? Netz (schnell gescheitert, z.B. DNS): 2 Wiederholungen;
+   Zeitueberschreitung: 1 (sonst wartet ein Bildschirm minutenlang); alles andere: nein. */
+function _netzNochmal(art,versuch){var v=+versuch||0;if(art==="netz")return v<2;if(art==="zeit")return v<1;return false;}
+function _netzMedian(a){var l=(a||[]).filter(function(x){return +x>0;}).map(Number).sort(function(x,y){return x-y;});if(!l.length)return 0;var m=l.length>>1;return l.length%2?l[m]:Math.round((l[m-1]+l[m])/2);}
+/* Zustand der Verbindung aus Messwerten. s={online,rttMs,zeitFehler,conn:{effectiveType,rtt,downlink,saveData}} */
+function _netzKlasse(s){
+  s=s||{};
+  if(s.online===false)return "offline";
+  if((+s.rttMs||0)>3000||(+s.zeitFehler||0)>0)return "schwach";
+  var c=s.conn;
+  if(c){if(c.effectiveType==="slow-2g"||c.effectiveType==="2g")return "schwach";if((+c.rtt||0)>=2000)return "schwach";if(+c.downlink>0&&+c.downlink<0.15)return "schwach";}
+  return "gut";
+}
+function _netzPingText(ms){var n=+ms;if(!(n>0))return "";if(n<1000)return Math.round(n)+" ms";var s=Math.round(n/100)/10;return String(s).replace(".",",")+" s";}
+function _netzStatusText(klasse,rttMs){if(klasse==="offline")return "Offline";if(klasse==="schwach"){var p=_netzPingText(rttMs);return "Verbindung schwach"+(p?" (Ping "+p+")":"");}return "";}
+/* Mindestabstand fuer Hinweise/Anstoesse (Flattern online/offline darf nicht im Sekundentakt melden). */
+function _netzAbstandOk(letzter,jetzt,abstand){return !(+letzter>0)||(+jetzt-+letzter)>=(+abstand||60000);}
+/* Gilt der Server trotz gescheitertem Lebenszeichen noch als erreichbar? Ja, wenn kuerzlich irgendein Abruf geantwortet hat. */
+function _netzServerDa(jetzt,letzterOk,fenster){return +letzterOk>0&&(+jetzt-+letzterOk)<(+fenster||90000);}
+function _netzGrundText(art){return art==="zeit"?"Zeitüberschreitung (Verbindung zu langsam)":art==="netz"?"Server nicht erreichbar (Netzwerkfehler)":art==="server"?"Server ausgelastet oder gestört":art==="offline"?"Kein Netz":art==="anmeldung"?"Anmeldung abgelaufen – bitte neu anmelden":"";}
+/* Rueckmeldung fuer "Jetzt synchronisieren". r={art:"ok"|"teil"|"fehler"|"offline"|"anmeldung"|"laeuft", ok, offen, fotos, grund, naechsterMs} -> {text,typ} */
+function _syncErgebnisText(r){
+  r=r||{};var offen=Math.max(0,+r.offen||0),fotos=Math.max(0,+r.fotos||0);
+  var rest=(offen?offen+" Änderung"+(offen===1?"":"en"):"")+(offen&&fotos?" und ":"")+(fotos?fotos+" Foto"+(fotos===1?"":"s"):"");
+  if(r.art==="laeuft")return {text:"Synchronisierung läuft bereits …",typ:"info"};
+  if(r.art==="offline")return {text:"Offline – "+(rest?rest+" warten auf dem Gerät und werden":"Änderungen werden")+" automatisch übertragen, sobald wieder Netz da ist.",typ:"warn"};
+  if(r.art==="anmeldung")return {text:"Synchronisieren nicht möglich: "+_netzGrundText("anmeldung")+(rest?" ("+rest+" offen)":""),typ:"warn"};
+  if(r.art==="fehler"){var g=_netzGrundText(r.grund)||"Übertragung fehlgeschlagen";var s=Math.round((+r.naechsterMs||0)/1000);
+    return {text:"Synchronisieren fehlgeschlagen: "+g+". "+(rest?rest+" bleiben gespeichert":"Nichts geht verloren")+(s>0?" – neuer Versuch in "+s+" s.":"."),typ:"warn"};}
+  if(r.art==="teil")return {text:"Teilweise synchronisiert"+(+r.ok>0?" ("+r.ok+" übertragen)":"")+(rest?" – "+rest+" noch offen.":"."),typ:"warn"};
+  return {text:rest?"Synchronisiert"+(+r.ok>0?" ("+r.ok+" übertragen)":"")+" – noch offen: "+rest+".":"Alles synchron – nichts offen.",typ:rest?"info":"success"};
+}
+/* ── Zustand (nur Arbeitsspeicher) ── */
+const _NETZ={proben:[],fehler:[],letzterOk:0,gemeldet:"",sqN:0,sqT:null,sqBis:0,toastOn:0,toastOff:0,visTs:0};
+function _netzOnline(){try{return typeof navigator==="undefined"||navigator.onLine!==false;}catch(_){return true;}}
+function _netzConn(){try{var c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(!c)return null;return {effectiveType:String(c.effectiveType||""),rtt:+c.rtt||0,downlink:+c.downlink||0,saveData:!!c.saveData};}catch(_){return null;}}
+function _netzLage(){
+  var j=Date.now();
+  var p=_NETZ.proben.filter(function(x){return j-x.ts<300000;}).slice(-3).map(function(x){return x.ms;});
+  var z=_NETZ.fehler.filter(function(x){return j-x.ts<120000&&x.art==="zeit";}).length;
+  var on=_netzOnline(),c=_netzConn(),rtt=_netzMedian(p);
+  return {online:on,rttMs:rtt,zeitFehler:z,conn:c,letzterOk:_NETZ.letzterOk,klasse:_netzKlasse({online:on,rttMs:rtt,zeitFehler:z,conn:c})};
+}
+function _netzMelden(immer){
+  try{
+    var l=_netzLage();var ping=l.rttMs>0?Math.round(l.rttMs/100)*100:0;var sig=l.klasse+"|"+ping;
+    if(!immer&&sig===_NETZ.gemeldet)return;_NETZ.gemeldet=sig;
+    if(typeof window!=="undefined"&&window.dispatchEvent&&typeof CustomEvent==="function")window.dispatchEvent(new CustomEvent("epk-netz",{detail:{klasse:l.klasse,ping:ping,zeitFehler:l.zeitFehler}}));
+  }catch(_){}
+}
+/* Antwortzeit einer kleinen Probe (Lebenszeichen, 1 Zeile) merken. */
+function _netzProbe(ms){try{var j=Date.now();_NETZ.proben.push({ts:j,ms:+ms||0});if(_NETZ.proben.length>20)_NETZ.proben.splice(0,_NETZ.proben.length-20);_NETZ.letzterOk=j;_netzMelden();}catch(_){}}
+function _netzFehlerMerken(art){try{if(!art)return;_NETZ.fehler.push({ts:Date.now(),art:art});if(_NETZ.fehler.length>30)_NETZ.fehler.splice(0,_NETZ.fehler.length-30);_netzMelden();}catch(_){}}
+function _netzLeseMs(){try{return _netzLeseMsFuer(_netzLage().rttMs,30000);}catch(_){return 30000;}}
+function _netzHerzMs(){try{return _netzHerzMsFuer(_netzLage().rttMs);}catch(_){return 10000;}}
+function _netzSchlaf(ms){return new Promise(function(res){setTimeout(res,ms);});}
+/* LESEN mit Wiederholung. fn baut bei JEDEM Versuch einen frischen fetch (frische Zeitgrenze). NUR fuer GET verwenden. */
+async function _netzLesen(fn){
+  for(var v=0;;v++){
+    try{
+      var r=await fn();
+      if(r&&(r.status===502||r.status===503||r.status===504)&&v<2&&_netzOnline()){await _netzSchlaf(_netzBackoffMs(v));continue;}
+      if(r)_NETZ.letzterOk=Date.now();
+      return r;
+    }catch(e){
+      var art=_netzFehlerArt(e,_netzOnline());
+      if(art==="zeit"||art==="netz")_netzFehlerMerken(art);
+      if(_netzNochmal(art,v)){await _netzSchlaf(_netzBackoffMs(v));continue;}
+      throw e;
+    }
+  }
+}
+/* Naechster automatischer Warteschlangen-Versuch nach voruebergehendem Fehlschlag (wachsende Pause, EIN Zeitgeber). */
+function _netzSqPlanen(){
+  _NETZ.sqN++;var ms=_netzPauseMs(_NETZ.sqN);
+  if(_NETZ.sqT)clearTimeout(_NETZ.sqT);
+  _NETZ.sqBis=Date.now()+ms;
+  _NETZ.sqT=setTimeout(function(){_NETZ.sqT=null;try{if(_netzOnline()&&window.__doSync)window.__doSync();}catch(_e){}},ms);
+  return ms;
+}
+function _netzSqZurueck(){_NETZ.sqN=0;_NETZ.sqBis=0;if(_NETZ.sqT){clearTimeout(_NETZ.sqT);_NETZ.sqT=null;}}
+if(typeof window!=="undefined"){window._NETZ=_NETZ;window._netzLage=_netzLage;}
 // v3.8.20 Iter-23: Sentinel-Date-Guard gegen termin_vorschlag='0001-01-01'
 const _hasTermin = t => !!(t && t > '1900-01-01');
 /* Tablet-Funde 17.11.: Uhrzeit-Anzeige im Schein-Formular - "00:00" ist wie ueberall in der App (Dispo, Kalender) "keine echte Zeit" und kommt als OFFA-Platzhalter. Nur ANZEIGE, der Formularwert bleibt. */
@@ -1779,7 +1895,7 @@ async function _sbUploadFile(path,dataUrl){
   // den Refresh triggerte. Jetzt silent re-auth + retry wie bei allen _sb*-Calls.
   const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({
     method:"POST",headers:_sbH({"Content-Type":_dateiUploadTyp(SB_BUCKET,blob.type),"x-upsert":"true"}),body:blob/* v3.9.1042: Typen ausserhalb von allowed_mime_types (docx/xlsx/dwg ...) wurden mit 4xx abgewiesen -> Projekt-Dokument nach 5 Versuchen verworfen; jetzt als application/octet-stream */
-  },60000)));
+  },_netzUploadMsFuer(blob.size))));/* v3.9.1043: Zeitgrenze nach Groesse statt fest 60 s */
   if(!r.ok){const txt=await r.text();throw new Error("HTTP"+r.status+" Storage upload failed: "+txt);}/* v3.9.169 FIX Foto#2: Error-Format "HTTP"+status → PhotoQ.flush erkennt Storage-5xx jetzt als transient (Regex /(?:HTTP|Auth:)(\d{3})/) und pausiert statt alle Fotos durchzuhämmern */
   return SUPABASE_URL+"/storage/v1/object/public/"+SB_BUCKET+"/"+path;
 }
@@ -1868,7 +1984,7 @@ async function _dateiDa(bucket,pfad,groesse,vergleich){try{const u=bucket===SB_B
    anderen Benutzer hochgeladen, dessen Objekt wir nicht ueberschreiben duerften) -> nachpruefen, dann als erledigt werten. */
 async function _sbDateiHoch(bucket,pfad,dataUrl){
   const blob=_dataUrlToBlob(dataUrl);if(!blob)throw new Error("Ungueltige Datei");
-  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+bucket+"/"+encodeURIComponent(pfad).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":_dateiUploadTyp(bucket,blob.type)}),body:blob},60000)));
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+bucket+"/"+encodeURIComponent(pfad).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":_dateiUploadTyp(bucket,blob.type)}),body:blob},_netzUploadMsFuer(blob.size))));
   if(!r.ok){const t=await r.text().catch(()=>"");if((r.status===409||/duplicate|already exists/i.test(t))&&await _dateiDa(bucket,pfad,blob.size,blob))return blob.size;throw new Error("HTTP"+r.status+" Storage upload failed: "+String(t).slice(0,200));}
   return blob.size;
 }
@@ -1985,7 +2101,7 @@ async function _sbUploadDoc(monteurId,fileName,dataUrl){
   const safe=s=>(s||"datei").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,90);
   const uidp=(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2));
   const path="docs/"+(monteurId||"unknown")+"/"+uidp+"_"+safe(fileName);
-  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_DOCS_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/pdf","x-upsert":"true"}),body:blob},60000)));
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_DOCS_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/pdf","x-upsert":"true"}),body:blob},_netzUploadMsFuer(blob.size))));
   if(!r.ok){const t=await r.text();throw new Error("HTTP"+r.status+" "+t);}
   return path;
 }
@@ -2007,7 +2123,7 @@ async function _sbUploadGef(folderId,fileName,dataUrl){
   const safe=s=>(s||"datei").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,90);
   const uidp=(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2));
   const path="gefahrstoff/"+((folderId&&String(folderId).trim())?safe(folderId):"misc")+"/"+uidp+"_"+safe(fileName);
-  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_GEF_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/pdf","x-upsert":"true"}),body:blob},60000)));
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_GEF_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/pdf","x-upsert":"true"}),body:blob},_netzUploadMsFuer(blob.size))));
   if(!r.ok){const t=await r.text();throw new Error("HTTP"+r.status+" "+t);}
   return path;
 }
@@ -2028,7 +2144,7 @@ async function _sbUploadFzDoc(fzId,fileName,dataUrl){
   const safe=s=>(s||"datei").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,90);
   const uidp=(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2));
   const path="fahrzeuge/"+((fzId&&String(fzId).trim())?safe(fzId):"misc")+"/"+uidp+"_"+safe(fileName);
-  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_FZ_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/octet-stream","x-upsert":"true"}),body:blob},60000)));
+  const r=await _authRetry(()=>fetch(SB_STORAGE+"/object/"+SB_FZ_BUCKET+"/"+encodeURIComponent(path).replace(/%2F/g,"/"),_fT({method:"POST",headers:_sbH({"Content-Type":blob.type||"application/octet-stream","x-upsert":"true"}),body:blob},_netzUploadMsFuer(blob.size))));
   if(!r.ok){const t=await r.text();throw new Error("HTTP"+r.status+" "+t);}
   return path;
 }
@@ -2422,7 +2538,7 @@ async function _sbGet(table,filter){
   const hatGrenze=!!(filter&&/(^|&)limit=/.test(filter));/* v3.9.993 (B3): HIER STAND "limit=5000" OHNE BEDINGUNG. Hatte der Aufrufer eine eigene Grenze gesetzt, trug die Adresse danach ZWEI limit-Parameter - und der des Helfers stand ZULETZT. Genau ein Aufruf ist betroffen und wollte ausdruecklich mehr: der Lieferantenkatalog mit limit=10000, der 5000 Artikel leicht ueberschreitet. Fuer die uebrigen 112 Aufrufe aendert sich nichts. Der dritte Leser _sbGetAnon bleibt unangetastet: er kappt ZWEIFACH, auch per Range-Kopfzeile. */
   const parts=[hasSelect?"":"select=*",filter||"",hatGrenze?"":"limit=5000"].filter(Boolean);
   const url=SB_REST+"/"+table+"?"+parts.join("&");
-  const r=await _authRetry(()=>fetch(url,_fT({headers:_sbRH()})));
+  const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbRH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler (_netzLesen) */
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail(r.status);/* v3.9.910: das leere Array TRAEGT jetzt seinen Grund. Vorher kam ein 401/403 als leere Tabelle im ERFOLGSPFAD an - fuer rund 150 Aufrufer ununterscheidbar von einer wirklich leeren Tabelle, und kein Auffangzweig konnte es sehen. Additiv: .length bleibt 0, Array.isArray bleibt wahr, kein Aufrufer aendert sein Verhalten. Sichtbar wird es ueber window.__EP_RLS. */var _tabRls=(typeof table!=='undefined'&&table)?table:'users';_merkeRlsFehler(_tabRls,r.status);var _leerRls=[];try{_leerRls.__rlsFehler=r.status;_leerRls.__rlsTab=_tabRls;}catch(_lm){}return _leerRls;}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   return _sbGrenzeMelden(table,filter,await r.json());
 }
@@ -2431,7 +2547,7 @@ async function _sbGetOrder(table,order,filter){
   const hatGrenze=!!(filter&&/(^|&)limit=/.test(filter));/* v3.9.993 (B3): HIER STAND "limit=5000" OHNE BEDINGUNG. Hatte der Aufrufer eine eigene Grenze gesetzt, trug die Adresse danach ZWEI limit-Parameter - und der des Helfers stand ZULETZT. Genau ein Aufruf ist betroffen und wollte ausdruecklich mehr: der Lieferantenkatalog mit limit=10000, der 5000 Artikel leicht ueberschreitet. Fuer die uebrigen 112 Aufrufe aendert sich nichts. Der dritte Leser _sbGetAnon bleibt unangetastet: er kappt ZWEIFACH, auch per Range-Kopfzeile. */
   const parts=[hasSelect?"":"select=*",filter||"","order="+order,hatGrenze?"":"limit=5000"].filter(Boolean);
   const url=SB_REST+"/"+table+"?"+parts.join("&");
-  const r=await _authRetry(()=>fetch(url,_fT({headers:_sbRH()})));
+  const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbRH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler (_netzLesen) */
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail(r.status);/* v3.9.910: das leere Array TRAEGT jetzt seinen Grund. Vorher kam ein 401/403 als leere Tabelle im ERFOLGSPFAD an - fuer rund 150 Aufrufer ununterscheidbar von einer wirklich leeren Tabelle, und kein Auffangzweig konnte es sehen. Additiv: .length bleibt 0, Array.isArray bleibt wahr, kein Aufrufer aendert sein Verhalten. Sichtbar wird es ueber window.__EP_RLS. */var _tabRls=(typeof table!=='undefined'&&table)?table:'users';_merkeRlsFehler(_tabRls,r.status);var _leerRls=[];try{_leerRls.__rlsFehler=r.status;_leerRls.__rlsTab=_tabRls;}catch(_lm){}return _leerRls;}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   return _sbGrenzeMelden(table,filter,await r.json());
 }
@@ -2476,7 +2592,7 @@ if(typeof window!=='undefined'){window._workerRefSumme=_workerRefSumme;window._w
    waere hier der Silent-Denial-Fehler aus v3.9.820, nur mit Datenverlust als Folge. Fail-CLOSED.
    Zeilen-Obergrenze = Range 0-4999 aus _sbRH (reale Groessenordnung: <150 Zeilen je Tabelle). */
 async function _sbSelectStrict(table,select,filter){
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?select="+select+"&"+filter,_fT({headers:_sbRH()})));
+  const r=await _authRetry(()=>_netzLesen(()=>fetch(SB_REST+"/"+table+"?select="+select+"&"+filter,_fT({headers:_sbRH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler */
   if(!r.ok){const t=await r.text().catch(()=>"");throw new Error("HTTP"+r.status+" "+t);}
   const j=await r.json();
   if(!Array.isArray(j))throw new Error("unerwartete Antwort für "+table);
@@ -2602,7 +2718,7 @@ async function _sbDeleteWhere(table,filter){
 // Safe user reads (excludes password_hash)
 async function _sbGetUsersSafe(filter){
   const url=SB_REST+"/users?select="+_USER_SAFE_COLS+(filter?"&"+filter:"")+"&limit=5000";
-  const r=await _authRetry(()=>fetch(url,_fT({headers:_sbRH()})));
+  const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbRH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler (_netzLesen) */
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail(r.status);/* v3.9.910: das leere Array TRAEGT jetzt seinen Grund. Vorher kam ein 401/403 als leere Tabelle im ERFOLGSPFAD an - fuer rund 150 Aufrufer ununterscheidbar von einer wirklich leeren Tabelle, und kein Auffangzweig konnte es sehen. Additiv: .length bleibt 0, Array.isArray bleibt wahr, kein Aufrufer aendert sein Verhalten. Sichtbar wird es ueber window.__EP_RLS. *//* v3.9.914: hier stand derselbe typeof-Ausdruck wie in den beiden anderen Abrufhelfern - kopiert, ohne ihn anzupassen. In dieser Funktion gibt es aber kein table: die Adresse ist fest die Benutzertabelle. Der Waechter griff also IMMER, der Zweig war tot, und das Ergebnis war nur zufaellig richtig. Gefunden hat es der Freie-Namen-Riegel, der mit v3.9.914 dauerhaft mitlaeuft - genau die Fehlerart, die in v3.9.899 den Live-Absturz ausgeloest hat: ein Name aus einer anderen Funktion mitkopiert. */var _tabRls='users';_merkeRlsFehler(_tabRls,r.status);var _leerRls=[];try{_leerRls.__rlsFehler=r.status;_leerRls.__rlsTab=_tabRls;}catch(_lm){}return _leerRls;}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   return _sbGrenzeMelden("users",filter,await r.json());
 }
@@ -3935,7 +4051,7 @@ const PhotoQ={
     if(!navigator.onLine)return{ok:0,fail:0};
     if(PhotoQ._flushing)return{ok:0,fail:0,skipped:true};// schon aktiv
     PhotoQ._flushing=true;
-    let ok=0,fail=0,tkFail=0;
+    let ok=0,fail=0,tkFail=0,_pqAbbruch=false;
     try{
       const q=await PhotoQ.getAll();
       // Max-Retry-Guard: Fotos mit retries>=10 werden übersprungen (dauerhaft-Fehler)
@@ -3952,14 +4068,20 @@ const PhotoQ={
           if(!ph.nurStorage)/* Plaene Stufe 3: Ticket-Fotos stehen im Ticket (path), keine zweite photos-Zeile */await _sbPost("photos",_mapBody({id:ph.id,entity_type:ph.entityType,entity_id:ph.entityId,project_id:ph.projectId||"",name:ph.name,file_path:publicUrl,data_url:"",taken_at:ph.takenAt,gps_lat:ph.gpsLat,gps_lon:ph.gpsLon,context:ph.context||"",uploaded_by:ph.uploadedBy||"",width:ph.width||0,height:ph.height||0,original_size:ph.originalSize||0,compressed_size:ph.compressedSize||0}));
           await PhotoQ.remove(ph.id);ok++;
         }catch(e){await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;if(ph.nurStorage)tkFail++;
+          /* v3.9.1043 Schwaches Netz: Zeitueberschreitung/Netzfehler ist kein Fehler des Fotos - zaehlt NICHT gegen den 10er-Deckel
+             (sonst blieb ein Foto nach 10 langsamen Versuchen im 3G fuer immer liegen) und bricht den Lauf ab wie "Failed to fetch". */
+          const _pqArt=(typeof _netzFehlerArt==="function")?_netzFehlerArt(e,navigator.onLine):"";
+          if(_pqArt==="zeit"||_pqArt==="netz"){await PhotoQ.update(ph.id,{retries:ph.retries||0,netzFehler:(ph.netzFehler||0)+1});}
           /* v3.9.160 FIX PhotoQ-Block: nur TRANSIENTE Fehler (offline/5xx/408/429/Failed-to-fetch) stoppen den
              Lauf. Vorher blockierte JEDER Fehler — auch ein dauerhaft kaputtes Foto (z.B. ungültige dataUrl / 4xx)
              — per break alle nachfolgenden Fotos. Jetzt: permanenter Fehler → Foto bleibt als status:"error"
              markiert (sichtbar in count, kein stiller Verlust) + nächstes Foto wird weiter hochgeladen. */
           const _hm=/(?:HTTP|Auth:)(\d{3})/.exec(e.message||"");const _st=_hm?parseInt(_hm[1],10):0;
-          if(!navigator.onLine||_st>=500||_st===408||_st===429||(e.message||"").includes("Failed to fetch"))break;}
+          if(!navigator.onLine||_st>=500||_st===408||_st===429||(e.message||"").includes("Failed to fetch")||_pqArt==="zeit"||_pqArt==="netz"){_pqAbbruch=true;break;}}
       }
     }finally{PhotoQ._flushing=false;}
+    /* v3.9.1043: nach voruebergehendem Abbruch naechster Versuch mit wachsender Pause (5 s ... 5 min), EIN Zeitgeber; Erfolg setzt zurueck. */
+    try{if(_pqAbbruch){PhotoQ._pauseN=(PhotoQ._pauseN||0)+1;const _pms=(typeof _netzPauseMs==="function")?_netzPauseMs(PhotoQ._pauseN):30000;if(PhotoQ._pauseT)clearTimeout(PhotoQ._pauseT);PhotoQ._pauseT=setTimeout(()=>{PhotoQ._pauseT=null;try{PhotoQ.flush().then(()=>{try{if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(_e){}}).catch(()=>{});}catch(_e){}},_pms);}else if(ok>0){PhotoQ._pauseN=0;}}catch(_pp){}
     PhotoQ._meld({art:"flush",ok:ok,fail:fail,tkFail:tkFail});
     try{if(typeof _tkFotoWegNachholen==="function")_tkFotoWegNachholen().catch(()=>{});}catch(_tw){}/* Aufraeumen 17.11.: gemerkte Ticket-Foto-Pfade nachholen */
     return{ok,fail};
@@ -7162,7 +7284,7 @@ function Kpi({label,value,sub,color,onClick,i,title,trend}){/* v3.9.788: optiona
 function Row({children,style}){ return (React.createElement('div', { style: {display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid "+V.bd,...style}}, children)); }
 function Dot({color}){ return (React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}} )); }
 /* v3.9.447: WLAN-Status als SVG-Icon (aktiv gruen / durchgestrichen rot) statt Ampel-Punkt. */
-function WifiStatusIcon({online,size}){const col=online?"#22c55e":"#ef4444";const s=size||20;return React.createElement('svg',{width:s,height:s,viewBox:'0 2.5 24 24',fill:'none',stroke:col,strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round',style:{display:'block',flexShrink:0}}/* v3.9.466: viewBox minY +2.5 → Glyph-Schwerpunkt (Bögen+Punkt ~y14.5) optisch vertikal zentriert */,React.createElement('title',{},online?'WLAN/Online verbunden':'Offline'),React.createElement('path',{d:'M5 12.55a11 11 0 0 1 14.08 0'}),React.createElement('path',{d:'M1.42 9a16 16 0 0 1 21.16 0'}),React.createElement('path',{d:'M8.53 16.11a6 6 0 0 1 6.95 0'}),React.createElement('circle',{cx:'12',cy:'20',r:'1',fill:col,stroke:'none'}),online?null:React.createElement('line',{x1:'2',y1:'2',x2:'22',y2:'22',stroke:col}));}
+function WifiStatusIcon({online,size,schwach}){const col=online?(schwach?"#d97706":"#22c55e"):"#ef4444";/* v3.9.1043: bernstein = Verbindung schwach (nicht rot - es geht, nur langsam) */const s=size||20;return React.createElement('svg',{width:s,height:s,viewBox:'0 2.5 24 24',fill:'none',stroke:col,strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round',style:{display:'block',flexShrink:0}}/* v3.9.466: viewBox minY +2.5 → Glyph-Schwerpunkt (Bögen+Punkt ~y14.5) optisch vertikal zentriert */,React.createElement('title',{},online?(schwach?'Verbindung schwach':'WLAN/Online verbunden'):'Offline'),React.createElement('path',{d:'M5 12.55a11 11 0 0 1 14.08 0'}),React.createElement('path',{d:'M1.42 9a16 16 0 0 1 21.16 0'}),React.createElement('path',{d:'M8.53 16.11a6 6 0 0 1 6.95 0'}),React.createElement('circle',{cx:'12',cy:'20',r:'1',fill:col,stroke:'none'}),online?null:React.createElement('line',{x1:'2',y1:'2',x2:'22',y2:'22',stroke:col}));}
 
 // ═══════════ SPEECH RECOGNITION — Baustelle mit Handschuhen ═══════════
 const SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -9453,6 +9575,14 @@ function MonteurTafel(props){
     return ()=>{if(navigator.connection)navigator.connection.removeEventListener("change",checkNet);};
   },[]);
 
+  /* v3.9.1043 Ehrliche Verbindungsanzeige: Klasse (gut/schwach/offline) + gemessene Antwortzeit aus _netzLage. */
+  _react.useEffect.call(void 0, ()=>{
+    const f=e=>{const d=(e&&e.detail)||{};setSyncStatus(p=>(p.netz===d.klasse&&p.netzPing===d.ping)?p:({...p,netz:d.klasse,netzPing:d.ping}));};
+    const g=()=>{try{_netzMelden(true);}catch(_g){}};
+    window.addEventListener("epk-netz",f);g();
+    const c=navigator.connection;if(c&&c.addEventListener)c.addEventListener("change",g);
+    return ()=>{window.removeEventListener("epk-netz",f);if(c&&c.removeEventListener)c.removeEventListener("change",g);};
+  },[]);
   // Server heartbeat — check actual Supabase reachability every 30s
   _react.useEffect.call(void 0, ()=>{
     let active=true;
@@ -9460,7 +9590,9 @@ function MonteurTafel(props){
       if(!navigator.onLine){setSyncStatus(p=>({...p,serverOk:false}));return;}
       try{
         /* v3.8.35 L2-P3: _authRetry-Wrap — Heartbeat soll bei 401 nicht als 'server down' erscheinen */
-        const r=await _authRetry(()=>fetch(SB_REST+"/workers?select=id&limit=1",{method:"GET",headers:_sbH(),signal:AbortSignal.timeout(5000)}));
+        const _hb0=Date.now();/* v3.9.1043: Antwortzeit messen; Zeitgrenze waechst mit ihr (vorher fest 5 s - bei 11 s Antwortzeit hiess das IMMER "Server nicht erreichbar") */
+        const r=await _authRetry(()=>fetch(SB_REST+"/workers?select=id&limit=1",{method:"GET",headers:_sbH(),signal:AbortSignal.timeout(_netzHerzMs())}));
+        if(r)_netzProbe(Date.now()-_hb0);
         /* v3.9.397 FIX False-Positive "Server nicht erreichbar": Eine HTTP-Antwort (egal welcher Status,
            auch 401/403/4xx) BEWEIST dass der Server erreichbar ist → serverOk:true. Nur ein ECHTER
            Netzwerk-Fehler (fetch wirft/Timeout, catch unten) ODER 5xx (Server-Ausfall) → serverOk:false.
@@ -9470,7 +9602,10 @@ function MonteurTafel(props){
           else{setLastHeartbeat(Date.now());setSyncStatus(p=>({...p,serverOk:true,connected:true}));}
         }
       }catch(e){
-        if(active)setSyncStatus(p=>({...p,serverOk:false}));
+        /* v3.9.1043: eine Zeitueberschreitung merkt sich die Netzanzeige ("Verbindung schwach"). "Server nicht erreichbar" erst,
+           wenn seit 90 s KEIN Abruf mehr geantwortet hat - ein langsamer Weg ist kein fehlender Server. */
+        try{_netzFehlerMerken(_netzFehlerArt(e,navigator.onLine)||"netz");}catch(_nm){}
+        if(active)setSyncStatus(p=>({...p,serverOk:_netzServerDa(Date.now(),_NETZ.letzterOk,90000)?p.serverOk:false}));
       }
     };
     heartbeat();
@@ -9675,12 +9810,17 @@ function MonteurTafel(props){
   _react.useEffect.call(void 0, ()=>{try{if("Notification" in window&&Notification.permission==="default"){const _p=Notification.requestPermission();if(_p&&_p.then)_p.then(perm=>{window._cachedNotifPerm=perm;if(perm!=="granted")console.warn("[notif] permission",perm);}).catch(e=>console.warn("[notif] requestPermission rejected",e&&e.message||e));}}catch(e){console.warn('[silent-notif]',e&&e.message||e);}},[curUser]);
 
   // Sync trigger — flush offline queue to server
-  const doSync=async()=>{
+  const doSync=async(_opt)=>{
+    /* v3.9.1043: _opt.manuell = Knopf "Jetzt synchronisieren" -> klare Rueckmeldung (laeuft / fertig / fehlgeschlagen mit Grund + offen). */
+    const _manuell=!!(_opt&&_opt.manuell===true);
+    const _melde=async(art,extra)=>{try{const _o=await SQ.countMine();const _f=await PhotoQ.count();const _m=_syncErgebnisText({art:art,offen:_o,fotos:_f,...(extra||{})});const _d=new Date();setSyncStatus(p=>({...p,letzterVersuch:{zeit:String(_d.getHours()).padStart(2,"0")+":"+String(_d.getMinutes()).padStart(2,"0"),ok:art==="ok",text:_m.text}}));if(_manuell&&window.__toast)window.__toast(_m.text,_m.typ,art==="ok"?4000:8000);}catch(_me){}};
+    let _sqGrund="",_sqOk=0,_sqFail=0;
     // v3.5.138: Synchrones Flight-Flag — React-State-Check ist async (setSyncStatus ist batched),
     // zwei rapid clicks oder online-event + manueller Button konnten beide durchflashen → doppelte Server-Writes
-    if(window._epkSyncInflight)return;
+    if(window._epkSyncInflight){if(_manuell&&window.__toast)window.__toast(_syncErgebnisText({art:"laeuft"}).text,"info",3000);return;}
     if(syncStatus.syncing)return;
     if(!_authToken){
+      if(_manuell)_melde("anmeldung");
       // v3.8.7 BLOCK 7: Skip-Counter für Diagnose wenn User ewig in no-auth-mode hängt
       try{window._syncSkipCount=(window._syncSkipCount||0)+1;
         if(window._syncSkipCount===10){console.warn('[Sync] 10 skips in Folge ohne _authToken — User sollte neu einloggen');if(window.__toast)window.__toast('⚠ Sync wartet auf Anmeldung — bitte neu einloggen wenn pendings stehen','warn',8000);}
@@ -9712,7 +9852,7 @@ function MonteurTafel(props){
             }catch(e){
               const isAuth=e.message&&e.message.startsWith("Auth:");
               const _authSt=isAuth?(parseInt(e.message.slice(5),10)||0):0;
-              if(isAuth&&_authSt!==403){fail++;break;} // 401/sonstige Auth → echte Session, Run stoppen + auf Re-Login warten
+              if(isAuth&&_authSt!==403){fail++;_sqGrund="anmeldung";break;} // 401/sonstige Auth → echte Session, Run stoppen + auf Re-Login warten
               /* v3.9.159 FIX 403-Wedge: 403 = permanente RLS-Ablehnung (kein Session-Problem). Vorher break →
                  das vergiftete Item blockierte die GANZE restliche Queue dauerhaft (pendingCount>0, Banner steckt).
                  Jetzt fällt 403 unten in die Retry-Zähler/Drop-Logik wie ein permanenter 4xx (nach 5 Versuchen raus,
@@ -9726,7 +9866,13 @@ function MonteurTafel(props){
                  Retry-Zähler → nach 5 gedroppt → Item raus, Banner klärt sich, nächste Items laufen weiter. */
               const _hm=/^HTTP(\d{3})/.exec(e.message||"");const _st=_hm?parseInt(_hm[1],10):0;
               const _transient=!navigator.onLine||_st>=500||_st===408||_st===429||e.message==='Failed to fetch';/* v3.9.149 (Agent P1): 408 Timeout + 429 Rate-Limit sind retrybar (Kommentar sagte das schon, Code nicht) */
+              /* v3.9.1043 Schwaches Netz: auch Zeitueberschreitung (TimeoutError) und die Netzmeldungen von Safari ("Load failed") und
+                 Firefox ("NetworkError ...") sind voruebergehend. Vorher fielen sie in den 5er-Zaehler und wurden VERWORFEN, obwohl der
+                 Server den Eintrag oft schon hatte oder beim naechsten Versuch angenommen haette. Jetzt: bleibt am Platz, Lauf stoppt. */
+              const _netzArt=_transient?(_netzFehlerArt(e,navigator.onLine)||"server"):_netzFehlerArt(e,navigator.onLine);
+              if(_netzArt)_sqGrund=_netzArt;
               if(_transient){fail++;break;} // transient → Queue behalten, Run stoppen
+              if(_netzArt){fail++;break;}
               // v3.5.70 Block 5b: Max 5 Retries (permanente/unklare Fehler), dann als FAILED markieren
               const retries=(item._retries||0)+1;
               if(retries>=5){
@@ -9742,6 +9888,7 @@ function MonteurTafel(props){
               fail++;
             }
           }
+          _sqOk=ok;_sqFail=fail;
           /* v3.9.65 Sprint 44.3 D1: Summarized drop-toast — 1 message pro run, listet bis 3 Endpoints */
           if(_dropNames.length>0&&!_dropToastShown){
             _dropToastShown=true;
@@ -9806,11 +9953,16 @@ function MonteurTafel(props){
         if(queue.length>0&&cnt<queue.length){const synced=queue.length-cnt;_optionalChain([window, 'access', _56 => _56.__toast, 'optionalCall', _57 => _57("🔄 "+synced+" Änderung"+(synced>1?"en":"")+" synchronisiert")]);}
         refreshPendingDetail();
         // Offline-Fotos hochladen
-        try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _56b => _56b.__toast, 'optionalCall', _57b => _57b("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(pe){console.warn('[silent-log]',pe&&pe.message||pe);}      } else {
+        try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _56b => _56b.__toast, 'optionalCall', _57b => _57b("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(pe){console.warn('[silent-log]',pe&&pe.message||pe);}
+        /* v3.9.1043: Netzfehler -> naechster Versuch mit wachsender Pause (5 s ... 5 min); sauberer Lauf setzt zurueck. Ergebnis fuer Anzeige + Knopf. */
+        {let _naechst=0;if(_sqGrund&&_sqGrund!=="anmeldung")_naechst=_netzSqPlanen();else if(!_sqFail)_netzSqZurueck();
+         await _melde(_sqGrund?(_sqGrund==="anmeldung"?"anmeldung":"fehler"):(_sqFail?"teil":"ok"),{ok:_sqOk,grund:_sqGrund,naechsterMs:_naechst});}
+      } else {
         setSyncStatus(p=>({...p,syncing:false}));
+        if(_manuell)await _melde("offline");
       }
     }catch(e){
-      console.error('[doSync]',e&&e.message||e);/* v3.9.819: Aussen-catch nicht mehr still — unerwartete Fehler ausserhalb der Item-Schleife (WP-/Juprowa-Hooks) sichtbar machen (Agent-4 P2-3). */
+      console.error('[doSync]',e&&e.message||e);if(_manuell&&window.__toast)window.__toast("Synchronisieren fehlgeschlagen: "+String((e&&e.message)||e).slice(0,120),"warn",8000);/* v3.9.819: Aussen-catch nicht mehr still — unerwartete Fehler ausserhalb der Item-Schleife (WP-/Juprowa-Hooks) sichtbar machen (Agent-4 P2-3). */
       setSyncStatus(p=>({...p,syncing:false}));
     }finally{window._epkSyncInflight=false;}
   };
@@ -9820,7 +9972,9 @@ function MonteurTafel(props){
   _react.useEffect.call(void 0, ()=>{
     const onOnline=async()=>{
       setSyncStatus(p=>({...p,connected:true,serverOk:true}));
-      _optionalChain([window, 'access', _59 => _59.__toast, 'optionalCall', _60 => _60("📶 Verbindung wiederhergestellt")]);
+      /* v3.9.1043: flatternde Verbindung (Baustelle, -88 dBm) meldet hoechstens einmal je Minute; neues Netz = neue Chance, Pausen zurueck. */
+      if(_netzAbstandOk(_NETZ.toastOn,Date.now(),60000)){_NETZ.toastOn=Date.now();_optionalChain([window, 'access', _59 => _59.__toast, 'optionalCall', _60 => _60("📶 Verbindung wiederhergestellt")]);}
+      _netzSqZurueck();PhotoQ._pauseN=0;_netzMelden(true);
       // v3.8.47 G2-Fix: Auth-Refresh bei Online-Wiederkehr (vor Sync-Flush).
       // Nach 8h Offline ist _authToken idR abgelaufen; ohne Refresh feuern Sync-Calls
       // mit totem Token und bekommen 401s bevor _authRetry einen Refresh triggert.
@@ -9833,10 +9987,15 @@ function MonteurTafel(props){
       // Also flush photo queue
       setTimeout(async()=>{try{const pr=await PhotoQ.flush();if(pr.ok>0)_optionalChain([window, 'access', _pf1 => _pf1.__toast, 'optionalCall', _pf2 => _pf2("📷 "+pr.ok+" Foto"+(pr.ok>1?"s":"")+" synchronisiert")]);if(window.__updatePhotoCount)window.__updatePhotoCount();}catch(e){console.warn("[app] PhotoQ flush:",e);}},3000);
     };
-    const onOffline=()=>{setSyncStatus(p=>({...p,connected:false,serverOk:false}));_optionalChain([window, 'access', _63 => _63.__toast, 'optionalCall', _64 => _64("📵 Offline — Änderungen werden lokal gespeichert","warn")]);refreshPendingDetail();};
+    const onOffline=()=>{setSyncStatus(p=>({...p,connected:false,serverOk:false}));if(_netzAbstandOk(_NETZ.toastOff,Date.now(),60000)){_NETZ.toastOff=Date.now();_optionalChain([window, 'access', _63 => _63.__toast, 'optionalCall', _64 => _64("📵 Offline — Änderungen werden lokal gespeichert","warn")]);}_netzMelden(true);refreshPendingDetail();};
+    /* v3.9.1043: Rueckkehr in die App (Bildschirm an, Tab gewechselt) stoesst Warteschlange + Fotos an - hoechstens alle 15 s. */
+    const onVisSync=()=>{if(document.visibilityState!=="visible"||navigator.onLine===false)return;const _j=Date.now();if(!_netzAbstandOk(_NETZ.visTs,_j,15000))return;_NETZ.visTs=_j;
+      SQ.countMine().then(n=>{if(n>0&&window.__doSync)window.__doSync();}).catch(()=>{});
+      setTimeout(()=>{try{PhotoQ.flush().then(()=>{if(window.__updatePhotoCount)window.__updatePhotoCount();}).catch(()=>{});}catch(_f){}},1500);};
     window.addEventListener("online",onOnline);
     window.addEventListener("offline",onOffline);
-    return ()=>{window.removeEventListener("online",onOnline);window.removeEventListener("offline",onOffline);};
+    document.addEventListener("visibilitychange",onVisSync);
+    return ()=>{window.removeEventListener("online",onOnline);window.removeEventListener("offline",onOffline);document.removeEventListener("visibilitychange",onVisSync);};
   },[curUser]);
 
   // My unread notifications
@@ -10346,9 +10505,9 @@ function MonteurTafel(props){
               , !isMob&&(()=>{const ts=typeof window!=="undefined"&&window._lastJuprowaSyncAt;const da=!!ts;const mins=da?Math.max(0,Math.floor((Date.now()-ts)/60000)):0;const txt=!da?"":mins<1?"gerade eben":mins===1?"vor 1 Min":"vor "+mins+" Min";return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4,minWidth:_isTabletNav?78:92,fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums",flexShrink:0,visibility:da?"visible":"hidden"}, 'aria-hidden': da?undefined:"true", title: "Letzter automatischer Juprowa-Sync"+(navigator.onLine?"":" · offline")}, _ik("uhr",14), txt, da&&!navigator.onLine?" · offline":null);})()
               /* Sync indicator */
               , React.createElement('button', { onClick: ()=>{refreshPendingDetail();setShowSyncPanel(!showSyncPanel);}, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+_datumDE(syncStatus.lastSync), style: {border:"none",background:showSyncPanel?"rgba(14,165,233,.12)":syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s"}}
-                , syncStatus.syncing?React.createElement('span', { 'aria-hidden': "true", style: {animation:"spin .8s linear infinite",display:"inline-flex"}}, _ik("drehen",16))/* Tablet-Rest v1040 (b) */:React.createElement(WifiStatusIcon,{online:syncStatus.connected&&syncStatus.serverOk,size:18})/* v3.9.447: WLAN-Icon statt 3-Farben-Ampel-Punkt */
+                , syncStatus.syncing?React.createElement('span', { 'aria-hidden': "true", style: {animation:"spin .8s linear infinite",display:"inline-flex"}}, _ik("drehen",16))/* Tablet-Rest v1040 (b) */:React.createElement(WifiStatusIcon,{online:syncStatus.connected&&syncStatus.serverOk,schwach:syncStatus.netz==="schwach",size:18})/* v3.9.447: WLAN-Icon statt 3-Farben-Ampel-Punkt */
                 , pendingCount>0&&React.createElement('span', { style: {position:"absolute",top:-2,right:-4,background:"#f97316",color:"#fff",fontSize:UI.fMeta,fontWeight:800,borderRadius:10,padding:"1px 4px",minWidth:14,textAlign:"center"}}, pendingCount)
-                , !isMob&&(!_isTabletNav||syncStatus.syncing||!(syncStatus.connected&&syncStatus.serverOk))/* v3.9.1016: am Tablet steht das Wort nur bei Stoerung/Sync - 'Online' zeigt das WLAN-Zeichen, Name bleibt in title/aria */&&React.createElement('span', { style: {fontSize:UI.fMeta,color:syncStatus.connected&&syncStatus.serverOk?V.dm:COLORS.ERROR}}, syncStatus.syncing?"Sync...":!syncStatus.connected?"Offline":!syncStatus.serverOk?"Kein Server":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN":syncStatus.netWeg==="cellular"?"Mobil":"Online")
+                , !isMob&&(!_isTabletNav||syncStatus.syncing||!(syncStatus.connected&&syncStatus.serverOk)||syncStatus.netz==="schwach")/* v3.9.1016: am Tablet steht das Wort nur bei Stoerung/Sync - 'Online' zeigt das WLAN-Zeichen, Name bleibt in title/aria */&&React.createElement('span', { style: {fontSize:UI.fMeta,color:syncStatus.connected&&syncStatus.serverOk?(syncStatus.netz==="schwach"?(_dark?"#fbbf24":"#b45309"):V.dm):COLORS.ERROR}}, syncStatus.syncing?"Sync...":!syncStatus.connected?"Offline":!syncStatus.serverOk?"Kein Server":syncStatus.netz==="schwach"?"Verbindung schwach":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN":syncStatus.netWeg==="cellular"?"Mobil":"Online")
               )
               /* Photo Queue */
               , React.createElement('button', { onClick: ()=>{refreshPhotoQ();setShowPhotoQ(!showPhotoQ);}, title: photoCount>0?photoCount+" Foto"+(photoCount>1?"s":"")+" ausstehend":"Foto-Warteschlange", 'aria-label': photoCount>0?photoCount+" Foto"+(photoCount>1?"s":"")+" ausstehend":"Foto-Warteschlange", style: {border:"none",background:showPhotoQ?UI.markeBg:photoCount>0?"rgba(249,115,22,.08)":"transparent",color:V.tx,cursor:"pointer",padding:"4px 8px",borderRadius:6,position:"relative",minHeight:36,minWidth:36,display:"flex",alignItems:"center",justifyContent:"center",transition:"background .2s"}}/* v3.9.1016 Kopfzeile: Linien-Ikonen statt Emoji (📷 🔍 ☀️/🌙/🅰️ 🔔 👑 🚪) */
@@ -10387,13 +10546,13 @@ function MonteurTafel(props){
             /* Sync bar */
             , React.createElement('div', { style: {padding:"8px 16px",borderBottom:"1px solid "+V.bd,display:"flex",alignItems:"center",justifyContent:"space-between",background:V.cd}}
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
-                , React.createElement(WifiStatusIcon,{online:syncStatus.connected&&syncStatus.serverOk,size:16})/* v3.9.447: WLAN-Icon statt gruener Punkt */
+                , React.createElement(WifiStatusIcon,{online:syncStatus.connected&&syncStatus.serverOk,schwach:syncStatus.netz==="schwach",size:16})/* v3.9.447: WLAN-Icon statt gruener Punkt */
                 /* v3.9.93 Sprint-72.2 ARIA-Live: Sync-Status mit role=status + aria-live polite — Screen-Reader hoeren Connect/Disconnect-Wechsel. */
-                , React.createElement('span', { role: "status", "aria-live": "polite", style: {fontSize:UI.fMeta,color:V.dm}}, syncStatus.connected?(syncStatus.serverOk?((syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN verbunden":syncStatus.netWeg==="cellular"?"Mobilfunk":"Online (Verbindungsart nicht messbar)"):"Server nicht erreichbar"):"Offline")/* Tablet-Rest v1040 (b): das WLAN-Zeichen davor traegt den Zustand, Text ohne Emoji */
+                , React.createElement('span', { role: "status", "aria-live": "polite", style: {fontSize:UI.fMeta,color:V.dm}}, syncStatus.connected?(syncStatus.serverOk?(syncStatus.netz==="schwach"?_netzStatusText("schwach",syncStatus.netzPing):(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN verbunden":syncStatus.netWeg==="cellular"?"Mobilfunk":"Online (Verbindungsart nicht messbar)"):"Server nicht erreichbar"):"Offline")/* Tablet-Rest v1040 (b): das WLAN-Zeichen davor traegt den Zustand, Text ohne Emoji */
               )
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
 
-                , React.createElement('button', { onClick: doSync, disabled: syncStatus.syncing||!syncStatus.connected||!syncStatus.serverOk, style: {...bpS,padding:isMob?"7px 12px":"4px 10px",fontSize:UI.fMeta,opacity:syncStatus.syncing?.6:1,minHeight:isMob?38:28}}, _ikVw("drehen",syncStatus.syncing?"Sync …":"Sync") )
+                , React.createElement('button', { onClick: ()=>{doSync({manuell:true});}, disabled: syncStatus.syncing||!syncStatus.connected, style: {...bpS,padding:isMob?"7px 12px":"4px 10px",fontSize:UI.fMeta,opacity:syncStatus.syncing?.6:1,minHeight:isMob?38:28}}, _ikVw("drehen",syncStatus.syncing?"Sync …":"Sync") )
               )
             )
             , syncStatus.lastSync&&React.createElement('div', { style: {padding:"4px 16px",fontSize:UI.fMeta,color:V.dm,borderBottom:"1px solid "+V.bd}}, "Letzter Sync: "  , _datumDE(syncStatus.lastSync))
@@ -10486,14 +10645,21 @@ function MonteurTafel(props){
             /* Connection Status */
             , React.createElement('div', { style: {padding:"10px 16px",borderBottom:"1px solid "+V.bd}}
               , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,marginBottom:8}}
-                , React.createElement('div', { style: {width:12,height:12,borderRadius:"50%",background:!syncStatus.connected?COLORS.ERROR:!syncStatus.serverOk?"#f97316":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"#22c55e":syncStatus.netWeg==="cellular"?"#eab308":COLORS.INFO,boxShadow:"0 0 8px "+(syncStatus.connected&&syncStatus.serverOk?"rgba(34,197,94,.4)":"rgba(239,68,68,.4)")}})
-                , React.createElement('span', { style: {fontSize:13,fontWeight:600,color:V.tx}}, !syncStatus.connected?"Offline":!syncStatus.serverOk?"Server nicht erreichbar":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN verbunden":syncStatus.netWeg==="cellular"?"Mobilfunk":"Online (Verbindungsart nicht messbar)")
+                , React.createElement('div', { style: {width:12,height:12,borderRadius:"50%",background:!syncStatus.connected?COLORS.ERROR:!syncStatus.serverOk?"#f97316":syncStatus.netz==="schwach"?"#d97706":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"#22c55e":syncStatus.netWeg==="cellular"?"#eab308":COLORS.INFO,boxShadow:"0 0 8px "+(syncStatus.connected&&syncStatus.serverOk?"rgba(34,197,94,.4)":"rgba(239,68,68,.4)")}})
+                , React.createElement('span', { style: {fontSize:13,fontWeight:600,color:V.tx}}, !syncStatus.connected?"Offline":!syncStatus.serverOk?"Server nicht erreichbar":syncStatus.netz==="schwach"?_netzStatusText("schwach",syncStatus.netzPing):(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN verbunden":syncStatus.netWeg==="cellular"?"Mobilfunk":"Online (Verbindungsart nicht messbar)")
               )
-              , React.createElement('div', { style: {display:"flex",gap:12,fontSize:UI.fMeta,color:V.dm}}
+              /* v3.9.1043: Hinweis bei schwacher Verbindung - ruhig (Rand statt Flaeche), Linien-Ikone, gilt fuer WLAN wie Mobilfunk */
+              , syncStatus.connected&&syncStatus.netz==="schwach"&&React.createElement('div', { style: {display:"flex",gap:6,alignItems:"flex-start",fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid #d97706",padding:"4px 8px",marginBottom:8,lineHeight:1.4}}
+                , React.createElement('span', { style: {display:"inline-flex",flexShrink:0,color:"#d97706"}}, _ik("verbindung",14))
+                , React.createElement('span', {}, "Die Verbindung ist sehr langsam. Änderungen bleiben auf diesem Gerät gespeichert und werden automatisch übertragen, sobald es durchgeht – es geht nichts verloren. Besserer Empfang (näher zum WLAN-Router oder ins Freie) beschleunigt das.")
+              )
+              , React.createElement('div', { style: {display:"flex",gap:12,flexWrap:"wrap",fontSize:UI.fMeta,color:V.dm}}
                 , React.createElement('span', {}, "Sync: automatisch")/* v3.9.902 Option B: ehrliche Anzeige statt Wahl. Gesendet wird, sobald eine Verbindung besteht - ueber WLAN wie ueber Mobilfunk. */
-                , lastHeartbeat&&React.createElement('span', {}, "Ping: ", Math.round((Date.now()-lastHeartbeat)/1000), "s")
+                , syncStatus.netzPing>0&&React.createElement('span', {}, "Ping: ", _netzPingText(syncStatus.netzPing))/* v3.9.1043: echte Antwortzeit des Lebenszeichens */
+                , lastHeartbeat&&React.createElement('span', {}, "Letzte Serverantwort: vor ", Math.round((Date.now()-lastHeartbeat)/1000), " s")/* v3.9.1043: hiess vorher "Ping", war aber das ALTER der letzten Antwort (0-30 s) - keine Antwortzeit */
               )
               , syncStatus.lastSync&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.mt,marginTop:4}}, "Letzter Sync: ", _datumDE(syncStatus.lastSync))
+              , syncStatus.letzterVersuch&&React.createElement('div', { role: "status", "aria-label": "Ergebnis der letzten Synchronisierung", "aria-live": "polite", style: {fontSize:UI.fMeta,color:syncStatus.letzterVersuch.ok?V.mt:(_dark?"#fbbf24":"#b45309"),marginTop:4,lineHeight:1.4}}, "Letzter Versuch ", syncStatus.letzterVersuch.zeit, ": ", syncStatus.letzterVersuch.text)
             )
             /* Pending Queue */
             , React.createElement('div', { style: {padding:"10px 16px",borderBottom:"1px solid "+V.bd}}
@@ -10510,7 +10676,7 @@ function MonteurTafel(props){
             )
             /* Actions */
             , React.createElement('div', { style: {padding:"10px 16px",display:"flex",gap:8,flexWrap:"wrap"}}
-              , React.createElement('button', { onClick: ()=>{doSync();}, disabled: syncStatus.syncing||!syncStatus.connected, style: {...bpS,padding:"8px 16px",fontSize:12,flex:1,opacity:syncStatus.syncing?.6:1,minHeight:44,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}, _ik("drehen",14), syncStatus.syncing?"Synchronisiere …":"Jetzt synchronisieren")
+              , React.createElement('button', { onClick: ()=>{doSync({manuell:true});}, disabled: syncStatus.syncing||!syncStatus.connected, style: {...bpS,padding:"8px 16px",fontSize:12,flex:1,opacity:syncStatus.syncing?.6:1,minHeight:44,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}, _ik("drehen",14), syncStatus.syncing?"Synchronisiere …":"Jetzt synchronisieren")
             )
           )
           , React.createElement('div', { className: "top-tabs", style: {borderBottom:"2px solid "+V.bd,background:V.sb,alignItems:"center",position:"relative"}}
@@ -15633,7 +15799,7 @@ function OfflineBanner({pendingCount,syncStatus}){
         failedCount>0?(failedCount+" Änderung"+(failedCount!==1?"en":"")+" dauerhaft fehlgeschlagen"+(pendingCount>0?" · "+pendingCount+" weitere offen":"")):
         syncing?(pendingCount>0?("Synchronisiere "+pendingCount+" ausstehende Änderung"+(pendingCount!==1?"en":"")+"…"):"Synchronisiere…")/* Tablet-Funde 17.11.: keine "0 ausstehende" */:
         (pendingCount+" Änderung"+(pendingCount!==1?"en":"")+" warten auf Sync"))
-    , online&&(pendingCount>0||failedCount>0)&&!syncing&&React.createElement('button', { onClick: ()=>{window.__doSync&&window.__doSync();}, style: {padding:"3px 10px",borderRadius:4,border:"1px solid rgba(255,255,255,.4)",background:"rgba(255,255,255,.2)",color:"#fff",fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}, _zpIk("drehen","Jetzt sync",14))
+    , online&&(pendingCount>0||failedCount>0)&&!syncing&&React.createElement('button', { onClick: ()=>{window.__doSync&&window.__doSync({manuell:true});}, style: {padding:"3px 10px",borderRadius:4,border:"1px solid rgba(255,255,255,.4)",background:"rgba(255,255,255,.2)",color:"#fff",fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}, _zpIk("drehen","Jetzt sync",14))
     , online&&failedCount>0&&!syncing&&React.createElement('button', { onClick: _clearFailed, title: "Dauerhaft fehlgeschlagene Einträge verwerfen", style: {padding:"3px 10px",borderRadius:4,border:"1px solid rgba(255,255,255,.5)",background:"rgba(255,255,255,.15)",color:"#fff",fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}, "✕ Verwerfen")/* v3.9.131: Banner-Wegräumen */
   );
 }
@@ -28816,7 +28982,7 @@ async function _geoCacheGet(keys){/* Batch-Lesen aus geo_cache. -> {key:ort}; {}
   try{
     const inList='('+uniq.map(function(k){return '"'+k+'"';}).join(',')+')';
     const url=SB_REST+'/geo_cache?select=geo_key,ort&geo_key=in.'+encodeURIComponent(inList);
-    const r=await _authRetry(()=>fetch(url,_fT({headers:_sbH()})));
+    const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler */
     if(!r.ok)return {};/* fehlende Tabelle (404/42P01) -> ohne DB-Cache weiterarbeiten */
     const rows=await r.json();
     const out={};
