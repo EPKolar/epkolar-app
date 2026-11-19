@@ -71,7 +71,6 @@ REST_IMMER_TEXT = {
     "FRegie": 'editIdx!==null?"Aktualisieren":"Speichern"',
     "VPlan": 'placing?"Abbrechen":"Ticket platzieren"',
     "VMaterial": "Anzahl plus festen Text",
-    "VOffa": "x.t aus einer festen Liste im Code",
     "WerkzeugView": 'editId?"Aktualisieren":"Speichern"',
     # v3.9.962 dazugekommen, weil der Riegel sie vorher NICHT SAH: zwei
     # Knoepfe in der h(-Form (Z7669/7670, Urlaubsantrag). Ihr Rest ist ein
