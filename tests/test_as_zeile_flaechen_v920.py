@@ -139,9 +139,12 @@ _KLICKWEGE = (
 _ZEILE_ANFANG = ("React.createElement('tr', { key: a.id, "
                  "onTouchStart: e=>_swipeStart(a,e), onTouchEnd: "
                  "e=>_swipeEnd(a,e)")
-_MOBIL_ANFANG = ("isMob&&React.createElement('div', { style: "
-                 '{display:"flex",flexDirection:"column",gap:8}}')
-_RECHNER_ANFANG = ("!isMob&&React.createElement('div', { style: "
+# Anker nachgezogen (AS Hochformat, GF 19.11.2026): Karte und Tabelle haengen
+# seit dem Hochformat-Umbau an _asKarte (_layoutStufe: schmal/mittel = Karten)
+# statt an isMob - das Tablet hochkant zeigt dieselbe Karte wie
+# das Handy. Gemessen wird weiter dasselbe Paar Zweige.
+_MOBIL_ANFANG = "_asKarte&&React.createElement('div', { 'data-as-karten'"
+_RECHNER_ANFANG = ("!_asKarte&&React.createElement('div', { style: "
                    '{...CC(),padding:0,overflow:"hidden"}}')
 
 

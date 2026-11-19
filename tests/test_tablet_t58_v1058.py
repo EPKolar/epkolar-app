@@ -204,7 +204,9 @@ def test_dispo_pfeile_bleiben_in_der_reihe(index_html):
     assert "flexWrap:\"nowrap\"}}/* v1058 (5)" in seg
     assert "minWidth:44,flexShrink:0},'aria-label':\"Vorherige Woche\"" in seg
     assert "minWidth:44,flexShrink:0},'aria-label':\"Nächste Woche\"" in seg
-    assert "h('div',{style:{display:\"flex\",gap:6,flexWrap:\"wrap\",flex:\"1 1 0\",minWidth:0}},wochen.map(" in seg
+    # AS Hochformat (GF 19.11.2026): die Wochen-Huelle bricht nicht mehr um (KW 50 stand allein in
+    # Zeile 2, die Pfeile wurden hohe Seitenspalten) - EINE Reihe, die bei Platzmangel selbst rollt.
+    assert "h('div',{'data-kw-leiste':\"1\",style:{display:\"flex\",gap:6,flexWrap:\"nowrap\",overflowX:\"auto\",scrollbarWidth:\"thin\",flex:\"1 1 0\",minWidth:0}}" in seg
     # Reihenfolge: Pfeil zurueck, Wochen-Huelle, Pfeil vor
     a = seg.index("Vorherige Woche")
     b = seg.index("wochen.map(")

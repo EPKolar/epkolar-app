@@ -190,8 +190,13 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # Gegenrichtung zu "eine Pruefung anpassen, damit sie gruen wird". Waere
     # sie gesunken, waere eine Umstellung verlorengegangen.
     # v3.9.1053: 29 -> 30. main-pad scrollPaddingBottom nur am Handy (Scan 1051, Werkzeug-Suche ueber der Leiste) nutzt die gemeinsame Schwelle.
-    assert roh.count("ww<BP_MOB") == 30, (
-        "Erwartet 30 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # AS Hochformat (19.11.2026, Owner-Vorgabe): 30 -> 29. ArbeitsscheinView fragt jetzt die
+    # gemeinsame Breitenstufe (_layoutStufe, dort n<BP_MOB) statt selbst ww<BP_MOB zu vergleichen.
+    # Die Schwelle ist dieselbe; die Stelle ist nicht verloren, sondern in die Stufe gewandert
+    # (Abdeckungsriegel test_as_hochformat_v1062).
+    assert "if(n<BP_MOB)return \"schmal\";" in roh
+    assert roh.count("ww<BP_MOB") == 29, (
+        "Erwartet 29 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
