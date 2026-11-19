@@ -42,7 +42,7 @@ def _schnitt(q, a, e):
 
 def _block(q):
     a = "const ABW_MON_TYP={"
-    e = 'Abwesenheitstage (Arbeitstage)")));}'
+    e = 'Abwesenheitstage (Arbeitstage)")));\r\n}'  # schliessende Klammer auf eigener Zeile (Riegel test_hook_order_static)
     return _schnitt(q, a, e)
 
 
