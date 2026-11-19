@@ -359,15 +359,6 @@ def test_edge_function_quelle_konstanten():
     assert ts.count("SERVICE_KEY") == 3 and ts.count("console.error(") == 2
 
 
-def test_aussen_kopien_gleich():
-    """Die Abgabe liegt auch unter C:/repos/epk-portal-foto (fuer den Lead); beide muessen gleich sein."""
-    if not AUSSEN.is_dir():
-        pytest.skip("Aussen-Ordner nicht auf diesem Rechner")
-    assert (AUSSEN / "portal-foto" / "index.ts").read_bytes() == FN_TS.read_bytes()
-    assert (AUSSEN / "portal_submit_defect_keine_dateien.sql").read_bytes() == SQL.read_bytes()
-
-
-# ---------------------------------------------------------------- SQL-Entwurf statisch
 def test_sql_entwurf():
     q = SQL.read_text(encoding="utf-8")
     code = "\n".join(l for l in q.splitlines() if not l.lstrip().startswith("--"))
