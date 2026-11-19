@@ -36,10 +36,13 @@
 --      Aufraeumen beim Loeschen eines Haendlers ueber einen AFTER-DELETE-Trigger.
 --   2. Kopie username/password -> supplier_credentials (ON CONFLICT DO NOTHING), danach Abgleich (bricht ab, wenn
 --      ein Wert nicht angekommen ist), ERST DANN UPDATE supplier_configs SET username=NULL, password=NULL.
---   3. BEFORE-INSERT/UPDATE-Trigger auf supplier_configs: schreibt ein Admin (alte App) oder der Server
---      (service_role, Edge-Function set-credentials) username/password in supplier_configs, wandert der Wert in
---      supplier_credentials und die Zeile in supplier_configs behaelt NULL. Alte Apps und die Function laufen also
---      ohne 400 weiter. Von anderen Rollen (deren App-Formular die Felder nie zeigte) wird der Wert verworfen.
+--   3. BEFORE-INSERT/UPDATE-Trigger auf supplier_configs: schreibt ein angemeldeter Admin (alte App) oder direktes
+--      SQL ohne Anfrage-Identitaet username/password in supplier_configs, wandert der Wert in supplier_credentials;
+--      die Zeile in supplier_configs behaelt IMMER NULL. Alte Apps laufen ohne 400 weiter. Von allen anderen
+--      (anon, service_role, andere Rollen) wird der Wert verworfen. service_role wird bewusst NICHT vertraut:
+--      die Function supplier-sync (set-credentials) prueft selbst "aktiver Admin" und schreibt dann direkt nach
+--      supplier_credentials (Fassung auf diesem Zweig) -> sie MUSS mit/vor diesem SQL deployt werden, sonst verwirft
+--      der Trigger die Schreibversuche der alten live-Fassung.
 --   4. CHECK-Riegel supplier_configs_kein_klartext (username IS NULL AND password IS NULL) als zweite Linie:
 --      faellt der Trigger je weg, scheitert das Schreiben laut, statt wieder Klartext abzulegen.
 --
@@ -51,11 +54,13 @@
 --   Folge: Projektleitung/Lagerleitung sehen auf der Haendlerkarte keinen Benutzernamen mehr (Kopierknopf entfaellt).
 --
 -- SERVER-CODE (NICHT Teil dieses Entwurfs, Edge-Functions bleiben unberuehrt):
---   Kuenftig liest supplier-sync die Zugangsdaten mit service_role aus public.supplier_credentials
---   (supplier_id = supplier_configs.id) und schreibt set-credentials direkt dorthin. Bis dahin wirkt Punkt 3
---   (set-credentials schreibt weiter in supplier_configs, der Trigger leitet um); action sync bekaeme aus
---   supplier_configs nur noch NULL - heute ohne Wirkung, weil downloadArticles fuer keinen Haendler umgesetzt ist
---   und der Zweig feature/datanorm-sync Zugangsdaten derzeit nie sendet (cred_host nicht selektiert).
+--   supplier-sync (Fassung auf diesem Zweig, NICHT deployt): action sync liest die Zugangsdaten mit service_role aus
+--   public.supplier_credentials (supplier_id = supplier_configs.id); action set-credentials nur fuer aktive Admins,
+--   schreibt per upsert nach supplier_credentials, 503 wenn die Tabelle fehlt (nie Klartext-Rueckfall).
+--   Die live-Fassung (v2) schreibt noch nach supplier_configs -> nach dem Apply verworfen (Trigger). Heute ohne
+--   praktische Wirkung: downloadArticles ist fuer keinen Haendler umgesetzt, die App ruft set-credentials nicht auf,
+--   und der Zweig feature/datanorm-sync sendet Zugangsdaten derzeit nie (cred_host nicht selektiert) - er muss
+--   beim Zusammenfuehren die supplier_credentials-Lesung dieses Zweigs uebernehmen.
 --   Die Autorisierung dort darf sich NICHT auf can_see_supplier_creds() stuetzen (existiert nicht).
 --   sync_supplier (Dashboard-Function, verify_jwt=false) ist NICHT im Repo; ob sie supplier_configs.username/password
 --   liest, ist unbekannt -> vor dem Apply im Dashboard pruefen (TABU fuer Agenten, Entscheidung Sebastian).
@@ -183,8 +188,14 @@ BEGIN
   v_un := nullif(btrim(coalesce(NEW.username,'')),'');
   v_pw := nullif(coalesce(NEW.password,''),'');
   IF v_un IS NOT NULL OR v_pw IS NOT NULL THEN
-    -- Server (service_role) oder SQL ohne Nutzer, sonst nur Admin. Andere Rollen: Wert verworfen (ihre App zeigte die Felder nie).
-    v_darf := coalesce(auth.role(),'') = 'service_role' OR auth.uid() IS NULL OR public.auth_role() = 'admin';
+    -- Erlaubt NUR: (a) angemeldeter Admin (alte App <= v1051) oder (b) direktes SQL ohne jede Anfrage-Identitaet
+    -- (SQL-Editor/Migration: keine request.jwt.claims, nicht ueber PostgREST/authenticator, keine API-Rolle gesetzt).
+    -- NICHT erlaubt: anon (auth.uid() ist dort auch NULL!), service_role (die Function supplier-sync schreibt nach
+    -- ihrer eigenen Admin-Pruefung direkt nach supplier_credentials), alle anderen Rollen -> Wert verworfen.
+    v_darf := (coalesce(auth.role(),'') = 'authenticated' AND public.auth_role() = 'admin')
+           OR (coalesce(nullif(current_setting('request.jwt.claims', true),''),'') = ''
+               AND session_user::text <> 'authenticator'
+               AND coalesce(nullif(current_setting('role', true),''),'none') NOT IN ('anon','authenticated','service_role'));
     IF v_darf THEN
       INSERT INTO public.supplier_credentials AS c (supplier_id, username, password)
       VALUES (NEW.id, v_un, v_pw)
@@ -288,6 +299,20 @@ COMMIT;
 --     RAISE NOTICE 'Probe %: ok', v_rolle;
 --     EXECUTE 'RESET ROLE';
 --   END LOOP;
+--   -- service_role ueber PostgREST: Umleitung verwirft den Wert (nur die Function schreibt, nach Admin-Pruefung)
+--   SELECT s.id INTO v_sid FROM public.supplier_configs s
+--    WHERE NOT EXISTS (SELECT 1 FROM public.supplier_credentials c WHERE c.supplier_id = s.id) LIMIT 1;
+--   IF v_sid IS NOT NULL THEN
+--     PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+--     EXECUTE 'SET LOCAL ROLE service_role';
+--     UPDATE public.supplier_configs SET password = '__probe__' WHERE id = v_sid;
+--     EXECUTE 'RESET ROLE';
+--     SELECT count(*) INTO v_n FROM public.supplier_credentials WHERE supplier_id = v_sid;
+--     IF v_n <> 0 THEN RAISE EXCEPTION 'PROBE FEHLER service_role-Schreiben wurde umgeleitet (soll verworfen werden)'; END IF;
+--     SELECT count(*) INTO v_n FROM public.supplier_configs WHERE id = v_sid AND password IS NOT NULL;
+--     IF v_n <> 0 THEN RAISE EXCEPTION 'PROBE FEHLER Klartext blieb in supplier_configs (service_role)'; END IF;
+--     RAISE NOTICE 'Probe service_role: verworfen - ok';
+--   END IF;
 --   -- anon: keinerlei Recht auf der Tabelle
 --   PERFORM set_config('request.jwt.claims', '{"role":"anon"}', true);
 --   EXECUTE 'SET LOCAL ROLE anon';

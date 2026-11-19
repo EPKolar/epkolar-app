@@ -17,7 +17,15 @@
 //   POST {SUPABASE_URL}/functions/v1/supplier-sync
 //   Headers: Authorization: Bearer <user-jwt>, Content-Type: application/json
 //
-// Autorisierung (spiegelt can_see_supplier_creds()): role admin/projektleiter ODER rolle='lagerleitung'.
+// Autorisierung: sync -> role admin/projektleiter ODER rolle='lagerleitung' (aktiv, nicht gesperrt).
+//   set-credentials -> NUR role admin (aktiv, nicht gesperrt) - seit v3.9.1052.
+//   public.can_see_supplier_creds() existiert in Prod NICHT; nichts hier stuetzt sich darauf.
+// v3.9.1052 Zugangsdaten liegen in public.supplier_credentials (sql/LIEFERANTEN_ZUGANG_v1052_ENTWURF.sql),
+//   nicht mehr in supplier_configs. Der Umleit-Trigger dort vertraut service_role NICHT - diese Function
+//   schreibt deshalb direkt nach supplier_credentials, erst NACH der Admin-Pruefung. Fehlt die Tabelle
+//   (SQL nicht eingespielt), antwortet set-credentials 503 statt Klartext in supplier_configs zu schreiben.
+//   AUSLIEFERUNG: diese Function zusammen mit (bzw. vor) dem SQL deployen - die alte live-Fassung schreibt
+//   nach supplier_configs, und das verwirft der Trigger nach dem Apply.
 // Antworten enthalten NIE username/password.
 // =============================================================================
 
@@ -41,6 +49,13 @@ function json(status: number, body: unknown): Response {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
+}
+
+// v3.9.1052: fehlt die Tabelle (SQL nicht eingespielt)? PostgREST 42P01 / PGRST205.
+// deno-lint-ignore no-explicit-any
+function tabelleFehlt(e: any): boolean {
+  const code = String(e?.code || "");
+  return code === "42P01" || code === "PGRST205";
 }
 
 // v3.9.1016: Download je Haendler. null = fuer diesen Haendler NICHT implementiert
@@ -91,9 +106,10 @@ serve(async (req: Request) => {
   if (lookErr) return json(500, { ok: false, error: "internal", details: "caller lookup failed: " + (lookErr.message || "") });
   const role = (callerRow?.role || "").toLowerCase();
   const rolle = (callerRow?.rolle || "").toLowerCase();
-  const allowed = !!callerRow && callerRow.active && !callerRow.locked &&
-    (role === "admin" || role === "projektleiter" || rolle === "lagerleitung");
+  const aktiv = !!callerRow && callerRow.active && !callerRow.locked;
+  const allowed = aktiv && (role === "admin" || role === "projektleiter" || rolle === "lagerleitung");
   if (!allowed) return json(403, { ok: false, error: "forbidden", details: "caller may not manage suppliers" });
+  const istAdmin = aktiv && role === "admin";
 
   // 3. Parse
   let body: Partial<Body>;
@@ -104,6 +120,8 @@ serve(async (req: Request) => {
 
   // 4a. set-credentials — server-only write, never echoes creds back
   if (body.action === "set-credentials") {
+    // v3.9.1052: Zugangsdaten setzen NUR Admin (wie die RLS-Policy auf supplier_credentials).
+    if (!istAdmin) return json(403, { ok: false, error: "forbidden", details: "only admin may set credentials" });
     const b = body as CredsBody;
     // P2-Fix: leere Strings sind keine gültigen Creds (trim-Check, nicht nur typeof).
     const uName = typeof b.username === "string" ? b.username : "";
@@ -111,16 +129,19 @@ serve(async (req: Request) => {
     if (!b.supplierId || !uName.trim() || !pWord.trim()) {
       return json(400, { ok: false, error: "validation", details: "supplierId, non-empty username and password required" });
     }
-    // P2-Fix: .select().maybeSingle() — ohne Rückgabe meldet ein UPDATE mit 0 betroffenen
-    // Zeilen (nicht-existente supplierId) fälschlich 200 {ok:true} trotz No-Op.
-    const { data: updRow, error: upErr } = await admin
-      .from("supplier_configs")
-      .update({ username: b.username, password: b.password, updated_at: new Date().toISOString() })
-      .eq("id", b.supplierId)
-      .select("id")
-      .maybeSingle();
-    if (upErr) return json(500, { ok: false, error: "internal", details: "cred update failed: " + (upErr.message || "") });
-    if (!updRow) return json(404, { ok: false, error: "not_found", details: "supplierId does not exist" });
+    // P2-Fix: Existenz der supplierId pruefen (sonst 200 trotz No-Op).
+    const { data: cfgRow, error: cfgErr } = await admin
+      .from("supplier_configs").select("id").eq("id", b.supplierId).maybeSingle();
+    if (cfgErr) return json(500, { ok: false, error: "internal", details: "supplier lookup failed" });
+    if (!cfgRow) return json(404, { ok: false, error: "not_found", details: "supplierId does not exist" });
+    // v3.9.1052: direkt nach supplier_credentials (service_role), nie mehr nach supplier_configs.
+    const { error: upErr } = await admin
+      .from("supplier_credentials")
+      .upsert({ supplier_id: b.supplierId, username: uName.trim(), password: pWord }, { onConflict: "supplier_id" });
+    if (upErr) {
+      if (tabelleFehlt(upErr)) return json(503, { ok: false, error: "credentials_table_missing", details: "SQL LIEFERANTEN_ZUGANG_v1052 not applied" });
+      return json(500, { ok: false, error: "internal", details: "cred update failed" }); // keine DB-Meldung (koennte Werte zitieren)
+    }
     return json(200, { ok: true, supplierId: b.supplierId }); // NO creds in response
   }
 
@@ -128,9 +149,22 @@ serve(async (req: Request) => {
   if (body.action === "sync") {
     const b = body as SyncBody;
     const q = admin.from("supplier_configs")
-      .select("id, name, interface_type, base_url, shk_url, ids_shop_url, unternehmen_id, kunde_nr, datanorm_url, username, password, active");
-    const { data: cfgs, error: cfgErr } = b.supplierId ? await q.eq("id", b.supplierId) : await q.eq("active", true);
+      .select("id, name, interface_type, base_url, shk_url, ids_shop_url, unternehmen_id, kunde_nr, datanorm_url, active");
+    const { data: cfgRows, error: cfgErr } = b.supplierId ? await q.eq("id", b.supplierId) : await q.eq("active", true);
     if (cfgErr) return json(500, { ok: false, error: "internal", details: "config read failed: " + (cfgErr.message || "") });
+    // v3.9.1052: Zugangsdaten aus supplier_credentials (service_role), nur serverseitig an cfg gehaengt.
+    const credMap: Record<string, { username: string | null; password: string | null }> = {};
+    const ids = (cfgRows || []).map((c: { id: string }) => c.id);
+    if (ids.length) {
+      const { data: creds, error: credErr } = await admin
+        .from("supplier_credentials").select("supplier_id, username, password").in("supplier_id", ids);
+      if (credErr && !tabelleFehlt(credErr)) return json(500, { ok: false, error: "internal", details: "credentials read failed" });
+      for (const c of (creds || [])) credMap[c.supplier_id] = { username: c.username, password: c.password };
+    }
+    const cfgs = (cfgRows || []).map((c: Record<string, unknown>) => {
+      const z = credMap[c.id as string];
+      return { ...c, username: z ? z.username : null, password: z ? z.password : null };
+    });
 
     // v3.9.1016 (Datanorm sauber): KEINE Erfolgsmeldung ohne Download. Vorher war der
     //   Download ein Platzhalter (rows=[]), die Function schrieb trotzdem

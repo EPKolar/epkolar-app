@@ -378,3 +378,147 @@ def test_supplier_sql_umleitung_und_probe():
     for rolle in ("'monteur'", "'buero'", "'admin'"):
         assert rolle in probe
     assert "SET LOCAL ROLE anon" in probe and "count(password)" in probe
+
+
+# ── Nachschaerfung (Sicherheitspruefung): Umleit-Trigger vertraut weder anon noch service_role ──
+ALTE_BEDINGUNG = "v_darf := coalesce(auth.role(),'') = 'service_role' OR auth.uid() IS NULL OR public.auth_role() = 'admin';"
+
+
+def _darf_ausdruck(c):
+    a = c.index("v_darf :=")
+    return c[a:c.index(";", a) + 1]
+
+
+def _darf_eng(ausdruck):
+    """Die Bedingung darf nur angemeldeten Admin ODER direktes SQL ohne jede Anfrage-Identitaet zulassen."""
+    a = " ".join(ausdruck.split())
+    if "auth.uid() IS NULL" in a or "'service_role' OR" in a:
+        return False
+    pflicht = ("coalesce(auth.role(),'') = 'authenticated' AND public.auth_role() = 'admin'",
+               "coalesce(nullif(current_setting('request.jwt.claims', true),''),'') = ''",
+               "session_user::text <> 'authenticator'",
+               "NOT IN ('anon','authenticated','service_role')")
+    return all(p in a for p in pflicht)
+
+
+def test_supplier_sql_umleitung_nur_admin_oder_direktes_sql():
+    c = _sql_code()
+    assert c.count("v_darf :=") == 1
+    assert _darf_eng(_darf_ausdruck(c))
+    assert "Probe service_role: verworfen" in _sql_roh()
+
+
+def test_supplier_sql_umkehrprobe_alte_bedingung():
+    assert not _darf_eng(ALTE_BEDINGUNG)
+    c = _sql_code()
+    alt = c.replace(_darf_ausdruck(c), ALTE_BEDINGUNG, 1)
+    assert alt != c and not _darf_eng(_darf_ausdruck(alt))
+    # schon EIN alter Zusatz (auth.uid() IS NULL) kippt die Pruefung
+    eins = _darf_ausdruck(c).replace("v_darf := (", "v_darf := auth.uid() IS NULL OR (", 1)
+    assert eins != _darf_ausdruck(c) and not _darf_eng(eins)
+
+
+# ── Edge-Function supplier-sync: Admin-Pruefung + supplier_credentials (Node, Typen gestrippt) ──
+EDGE = os.path.join(WURZEL, "supabase", "functions", "supplier-sync", "index.ts")
+
+EDGE_KOPF = r"""
+globalThis.Deno={env:{get:(k)=>({SUPABASE_URL:"https://x",SUPABASE_SERVICE_ROLE_KEY:"SVC",SUPABASE_ANON_KEY:"ANON"})[k]}};
+const serve=(h)=>{globalThis.__h=h;};
+const S=globalThis.__S={rolle:{role:"admin",rolle:"",active:true,locked:false},credFehlt:false,calls:[],seen:[]};
+function createClient(url,key){
+  if(key==="ANON")return {auth:{getUser:async()=>({data:{user:{id:"auth-1"}},error:null})}};
+  return {from:(table)=>{const st={table,ops:[],single:false};const b={
+    select(c){st.ops.push(["select",c]);return b;},eq(k,v){st.ops.push(["eq",k,v]);return b;},in(k,v){st.ops.push(["in",k,v]);return b;},
+    update(v){st.ops.push(["update",v]);return b;},upsert(v,o){st.ops.push(["upsert",v,o]);return b;},
+    maybeSingle(){st.single=true;return b;},
+    then(res,rej){S.calls.push(st);return Promise.resolve(lauf(st)).then(res,rej);}};return b;}};
+}
+function hat(st,op){return st.ops.some(o=>o[0]===op);}
+function lauf(st){
+  if(st.table==="users")return {data:S.rolle,error:null};
+  if(st.table==="supplier_configs"){if(hat(st,"update"))return {data:null,error:null};
+    if(st.single)return {data:{id:"u1"},error:null};
+    return {data:[{id:"u1",name:"Holter",active:true}],error:null};}
+  if(st.table==="supplier_credentials"){if(S.credFehlt)return {data:null,error:{code:"PGRST205",message:"missing"}};
+    if(hat(st,"upsert"))return {data:null,error:null};
+    return {data:[{supplier_id:"u1",username:"hu",password:"__GEHEIM__"}],error:null};}
+  return {data:null,error:null};
+}
+"""
+
+EDGE_FUSS = r"""
+async function ruf(body){S.calls=[];S.seen=[];
+  const r=await globalThis.__h(new Request("https://x/functions/v1/supplier-sync",{method:"POST",headers:{Authorization:"Bearer t"},body:JSON.stringify(body)}));
+  const txt=await r.text();
+  return {status:r.status,txt:txt,calls:S.calls.map(c=>({t:c.table,ops:c.ops})),seen:S.seen.map(c=>({u:c.username,p:c.password}))};}
+const SET={action:"set-credentials",supplierId:"u1",username:"hu",password:"__GEHEIM__"};
+const R={};
+S.rolle={role:"projektleiter",rolle:"",active:true,locked:false};R.pl=await ruf(SET);
+S.rolle={role:"monteur",rolle:"lagerleitung",active:true,locked:false};R.lager=await ruf(SET);
+S.rolle={role:"admin",rolle:"",active:false,locked:false};R.inaktiv=await ruf(SET);
+S.rolle={role:"admin",rolle:"",active:true,locked:false};R.admin=await ruf(SET);
+S.credFehlt=true;R.fehlt=await ruf(SET);S.credFehlt=false;
+S.rolle={role:"projektleiter",rolle:"",active:true,locked:false};R.sync=await ruf({action:"sync",supplierId:"u1"});
+process.stdout.write(JSON.stringify(R));
+"""
+
+DL_ALT = "async function downloadArticles(_cfg: any): Promise<Array<Record<string, unknown>> | null> {\n  return null;"
+DL_NEU = "async function downloadArticles(_cfg: any): Promise<Array<Record<string, unknown>> | null> {\n  globalThis.__S.seen.push(_cfg); return null;"
+
+
+def _edge_quelle():
+    with open(EDGE, encoding="utf-8") as f:
+        return f.read()
+
+
+def _edge_lauf(node_exe, tmp_path, ts=None):
+    ts = ts if ts is not None else _edge_quelle()
+    for imp in ('import { serve } from "https://deno.land/std@0.224.0/http/server.ts";',
+                'import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";'):
+        assert ts.count(imp) == 1
+        ts = ts.replace(imp, "", 1)
+    assert ts.count(DL_ALT) == 1
+    ts = ts.replace(DL_ALT, DL_NEU, 1)
+    code = (EDGE_KOPF + ts + EDGE_FUSS).replace("__GEHEIM__", GEHEIM)
+    p = tmp_path / "edge.mts"
+    p.write_text(code, encoding="utf-8")
+    r = subprocess.run([node_exe, "--no-warnings", str(p)], capture_output=True, timeout=EPK_TEST_TIMEOUT)
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[:3000]
+    return json.loads(r.stdout.decode("utf-8"))
+
+
+def _schreibt(calls, tab):
+    return [c for c in calls if c["t"] == tab and any(o[0] in ("upsert", "update") for o in c["ops"])]
+
+
+def test_supplier_edge_set_credentials_nur_admin(node_exe, tmp_path):
+    r = _edge_lauf(node_exe, tmp_path)
+    for fall in ("pl", "lager", "inaktiv"):
+        assert r[fall]["status"] == 403, (fall, r[fall])
+        assert not _schreibt(r[fall]["calls"], "supplier_credentials") and not _schreibt(r[fall]["calls"], "supplier_configs")
+    a = r["admin"]
+    assert a["status"] == 200 and GEHEIM not in a["txt"]
+    w = _schreibt(a["calls"], "supplier_credentials")
+    assert len(w) == 1
+    up = [o for o in w[0]["ops"] if o[0] == "upsert"][0]
+    assert up[1] == {"supplier_id": "u1", "username": "hu", "password": GEHEIM} and up[2] == {"onConflict": "supplier_id"}
+    assert not _schreibt(a["calls"], "supplier_configs"), "nie mehr Klartext nach supplier_configs"
+    f = r["fehlt"]
+    assert f["status"] == 503 and not _schreibt(f["calls"], "supplier_configs")
+
+
+def test_supplier_edge_sync_liest_supplier_credentials(node_exe, tmp_path):
+    r = _edge_lauf(node_exe, tmp_path)
+    s = r["sync"]
+    cfg_sel = [o[1] for c in s["calls"] if c["t"] == "supplier_configs" for o in c["ops"] if o[0] == "select"]
+    assert cfg_sel and all("password" not in x and "username" not in x for x in cfg_sel)
+    assert s["seen"] == [{"u": "hu", "p": GEHEIM}]
+    assert GEHEIM not in s["txt"]
+
+
+def test_supplier_edge_umkehrprobe_ohne_admin_riegel(node_exe, tmp_path):
+    ts = _edge_quelle()
+    zeile = '    if (!istAdmin) return json(403, { ok: false, error: "forbidden", details: "only admin may set credentials" });\n'
+    assert ts.count(zeile) == 1
+    r = _edge_lauf(node_exe, tmp_path, ts.replace(zeile, "", 1))
+    assert r["pl"]["status"] == 200 and _schreibt(r["pl"]["calls"], "supplier_credentials")
