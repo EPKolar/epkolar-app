@@ -97,10 +97,12 @@ GEHOBEN = [
     #    zwei Elemente unter 24 px. Kein Werkzeug konnte sie vorher sehen:
     #    sie erscheinen erst nach einem Klick, und die Messreihe misst den
     #    Ruhezustand.
-    ('fontSize:20,padding:0,minWidth:24,color:isFav(sel)', 1,
+    # v1050 (Fahrzeuge-UX 19.11.): Stern auf 44x44 gehoben - Muster nachgezogen, Hebung nur groesser
+    ('fontSize:20,padding:0,minWidth:44,minHeight:44,color:isFav(sel)', 1,
      "Favoritenstern in der Fahrzeug-Detailansicht (der DRITTE seiner Art)",
      "16.7x27"),
-    ('cursor:"pointer",userSelect:"none",minHeight:24', 1,
+    # v1050 (Fahrzeuge-UX 19.11.): Zulassungsschein-Zeile 44 statt 24 - Muster nachgezogen
+    ('cursor:"pointer",userSelect:"none",minHeight:44', 1,
      "Zulassungsschein-Zeile der Fahrzeug-Detailansicht", "1340x19.5"),
     ('width:20,height:20,borderRadius:"50%",background:"#fff",'
      'position:"absolute",top:2,left:visible?14:2', 1,
