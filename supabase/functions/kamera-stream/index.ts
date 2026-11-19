@@ -6,7 +6,7 @@
 //   ladeNutzer  -> public.users (id, role, active, locked) per auth_user_id, Service-Client
 //   darfSehen   -> rpc kamera_darf_sehen(p_kamera) mit dem JWT DES AUFRUFERS (auth.uid() = Aufrufer),
 //                  OHNE p_zeitpunkt -> die Datenbank nimmt now() (Serverzeit, Wiener Ortszeit in SQL)
-//   ladeBackend -> public.kamera_backend (nur service_role lesbar)
+//   ladeBackend -> public.kamera_backend (nur service_role lesbar), Phase 2 mit stream_typ
 //   protokoll   -> public.kamera_abruf_log (nur service_role schreibt)
 // Secrets: KAMERA_TOKEN_SECRET (>= 32 Zeichen), KAMERA_BACKEND_BASE (https://...), optional KAMERA_TOKEN_TTL
 // (30..120 s, Standard 90) und KAMERA_AUFZEICHNUNG_ROLLEN (Standard admin,projektleiter,buero).
@@ -48,13 +48,14 @@ const deps: Deps = {
     return data === true;
   },
   ladeBackend: async (kameraId: string): Promise<Backend | null> => {
-    const { data, error } = await dienst.from("kamera_backend").select("stream_name, aufzeichnung_quelle").eq("kamera_id", kameraId).limit(1);
+    const { data, error } = await dienst.from("kamera_backend").select("stream_name, aufzeichnung_quelle, stream_typ").eq("kamera_id", kameraId).limit(1);
     if (error) throw new Error("db");
     if (!data || !data.length) return null;
     const r = data[0] as Record<string, unknown>;
     return {
       stream_name: String(r.stream_name ?? ""),
       aufzeichnung_quelle: r.aufzeichnung_quelle === null || r.aufzeichnung_quelle === undefined ? null : String(r.aufzeichnung_quelle),
+      stream_typ: r.stream_typ === null || r.stream_typ === undefined ? null : String(r.stream_typ),
     };
   },
   protokoll: async (e: Protokoll) => {

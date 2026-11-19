@@ -78,9 +78,13 @@ create table if not exists public.kamera_backend (
   kamera_id           text primary key references public.kameras(id) on delete restrict,
   stream_name         text not null,
   aufzeichnung_quelle text,
+  -- Phase 2: Adressart, die die Edge Function ausgibt (webrtc/llhls ueber go2rtc; mjpeg/snapshot fuer Altkameras
+  -- wie Mobotix). Die Zuordnung Streamname -> Kamera-IP steht NUR in der go2rtc-Konfiguration auf dem Video-Host.
+  stream_typ          text not null default 'webrtc',
   updated_at          timestamptz not null default now(),
   constraint kamera_backend_stream_chk check (stream_name ~ '^[A-Za-z0-9_-]{1,64}$'),
-  constraint kamera_backend_quelle_chk check (aufzeichnung_quelle is null or aufzeichnung_quelle ~ '^[A-Za-z0-9_-]{1,64}$')
+  constraint kamera_backend_quelle_chk check (aufzeichnung_quelle is null or aufzeichnung_quelle ~ '^[A-Za-z0-9_-]{1,64}$'),
+  constraint kamera_backend_typ_chk check (stream_typ in ('webrtc','llhls','mjpeg','snapshot'))
 );
 drop trigger if exists kamera_backend_touch on public.kamera_backend;
 create trigger kamera_backend_touch before update on public.kamera_backend

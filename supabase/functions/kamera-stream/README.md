@@ -63,14 +63,25 @@ gets `403 {error:"origin"}` without `Access-Control-Allow-Origin`.
 
 ## Response (200)
 
+Phase 2: the live answer depends on `kamera_backend.stream_typ` (`webrtc` | `llhls` | `mjpeg` | `snapshot`,
+default `webrtc`). The type is read only in step 8, i.e. after the full authorization; an unknown type gives
+`503 nicht_konfiguriert`. Every kind uses the same token. Mobotix (HTTP/MJPEG only) maps to `mjpeg` or `snapshot`;
+the mapping stream name -> camera address lives only in the go2rtc config on the video host.
+
 ```
-scope=live:          { "liveUrl": "<BASE>/live/<stream>/index.m3u8?token=<T>",
+typ=webrtc:          { "typ": "webrtc", "liveUrl": "<BASE>/live/<stream>/index.m3u8?token=<T>",
                        "webrtcUrl": "<BASE>/live/<stream>/whep?token=<T>",
                        "exp": <unix s>, "ttl": <s> }
+typ=llhls:           { "typ": "llhls", "liveUrl": "<BASE>/live/<stream>/index.m3u8?token=<T>", "exp", "ttl" }
+typ=mjpeg:           { "typ": "mjpeg", "mjpegUrl": "<BASE>/live/<stream>/mjpeg?token=<T>", "exp", "ttl" }
+typ=snapshot:        { "typ": "snapshot", "snapshotUrl": "<BASE>/live/<stream>/snapshot.jpg?token=<T>", "exp", "ttl" }
 scope=aufzeichnung:  { "aufzeichnungUrl": "<BASE>/aufzeichnung/<quelle>?token=<T>", "exp": <unix s>, "ttl": <s> }
 ```
 
 The client requests a fresh URL per tile and refreshes it about 20 s before `exp`.
+App rendering: `webrtc`/`llhls` -> `<video>` (WHEP, else native HLS); `mjpeg` -> `<img>` on `/live/<s>/mjpeg`
+(new token URL swapped in before `exp`); `snapshot` -> `<img>` reloaded every 2 s (`&_=<n>`), paused while the tab
+is hidden or the tile is off screen. Image errors / WHEP 404/5xx show "Kamera nicht erreichbar".
 For recordings the client appends `&von=<unix s>&bis=<unix s>`.
 
 ## TOKEN CONTRACT (the reverse proxy MUST implement exactly this)
@@ -97,8 +108,12 @@ The proxy accepts a request only if ALL hold:
 2. `v == 1`, `0 < exp - iat <= 120`, `exp > now`, `iat <= now + 5` (max 5 s clock skew; proxy clock via NTP).
 3. Path type matches `sc`: `/live/<s>/...` needs `sc=live`, `/aufzeichnung/<s>` needs `sc=aufzeichnung`.
 4. Path stream equals `s` exactly (no prefix match, no case folding).
-5. Path is one of the allowed shapes: `/live/<s>/index.m3u8`, `/live/<s>/whep`, the HLS segment/part URLs it
-   generated itself, `/aufzeichnung/<s>` — everything else (go2rtc `/api/*` admin, config, Frigate UI) is 404.
+5. Path is one of the allowed shapes: `/live/<s>/index.m3u8`, `/live/<s>/whep`, `/live/<s>/mjpeg`,
+   `/live/<s>/snapshot.jpg`, `/live/<s>/hls/<file>` (HLS parts), `/aufzeichnung/<s>` — everything else
+   (go2rtc `/api/*` admin, config, Frigate UI) is 404.
+
+Reference implementation for the proxy: `tools/kamera-proxy-auth/` (`verify.mjs` for Caddy `forward_auth` /
+nginx `auth_request`, `token.mjs` = 1:1 port of `pruefeToken`, shared vectors `vektoren.json`).
 
 Session continuity (the token is only for session START):
 
@@ -107,6 +122,9 @@ Session continuity (the token is only for session START):
 - **LL-HLS**: on a valid `index.m3u8` request the proxy sets an `HttpOnly; Secure; SameSite=None; Path=/live/<s>/`
   cookie bound to `s` and `exp` (or rewrites segment URLs with the same token). Segments without a valid
   token/cookie → 401. When `exp` passes, the client fetches a fresh token and reloads the playlist.
+- **MJPEG**: token checked when the stream starts; the app swaps in a fresh token URL before `exp` (the browser
+  closes the old connection). On 403 at refresh the app removes the image at once.
+- **Snapshot**: every frame request is checked (same token until the app refreshes it).
 - **Recordings**: token checked per request; `von/bis` must lie inside the camera's retention
   (`kameras.aufbewahrung_tage`, enforced on the storage side by deleting older footage).
 

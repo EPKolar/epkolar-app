@@ -15,6 +15,8 @@
 //   7. kamera_darf_sehen(kamera) mit dem JWT des Aufrufers, Serverzeit (Europe/Vienna in SQL) -> sonst 403
 //   8. Backend-Zuordnung (service_role)                    -> sonst 503
 //   9. kurzlebiges HMAC-Token (<= 120 s), URL bauen        -> 200
+//      Phase 2: die Adressart folgt kamera_backend.stream_typ (webrtc | llhls | mjpeg | snapshot) und wird
+//      ERST NACH allen Pruefungen 1-8 gewaehlt; unbekannter Typ -> 503. Gleiches Token fuer jede Art.
 // Fehlerantworten tragen NUR {error:<Code>} — nie eine Adresse, nie einen Streamnamen, nie Details.
 
 export const ERLAUBTE_ROLLEN: readonly string[] = ["admin", "projektleiter", "buero", "lagerleitung"];
@@ -26,13 +28,17 @@ export const TTL_STANDARD = 90;
 export const SECRET_MIN_LAENGE = 32;
 export const MAX_BODY = 2048;
 export const TOKEN_VERSION = 1;
+// Phase 2: Adressarten je Kamera (Spalte kamera_backend.stream_typ). Fehlt der Wert -> webrtc (Phase-1-Verhalten).
+export const STREAM_TYPEN: readonly string[] = ["webrtc", "llhls", "mjpeg", "snapshot"];
+export const STANDARD_STREAM_TYP = "webrtc";
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export type Scope = "live" | "aufzeichnung";
+export type StreamTyp = "webrtc" | "llhls" | "mjpeg" | "snapshot";
 
 export type Nutzer = { id: string; role: string | null; active: unknown; locked: unknown };
-export type Backend = { stream_name: string; aufzeichnung_quelle: string | null };
+export type Backend = { stream_name: string; aufzeichnung_quelle: string | null; stream_typ?: string | null };
 export type Protokoll = {
   user_id: string | null;
   kamera_id: string | null;
@@ -107,6 +113,27 @@ export function aufzeichnungsRollen(env: (name: string) => string | undefined): 
     : roh.split(",").map((x) => x.trim().toLowerCase()).filter((x) => x.length > 0);
   // Nie mehr als die Kamerarollen — ein Tippfehler in der Konfiguration darf keinen Monteur freischalten.
   return liste.filter((r) => ERLAUBTE_ROLLEN.indexOf(r) >= 0);
+}
+
+// stream_typ aus kamera_backend: leer -> Standard webrtc; unbekannt -> null (die Function antwortet dann 503).
+export function streamTyp(be: Backend | null): StreamTyp | null {
+  const roh = be && be.stream_typ !== null && be.stream_typ !== undefined ? String(be.stream_typ).trim().toLowerCase() : "";
+  const t = roh === "" ? STANDARD_STREAM_TYP : roh;
+  return STREAM_TYPEN.indexOf(t) >= 0 ? (t as StreamTyp) : null;
+}
+
+// Live-Antwort je Adressart. Pfade (der Reverse-Proxy kennt genau diese, siehe README):
+//   webrtc   -> /live/<s>/whep (WHEP-Angebot) + /live/<s>/index.m3u8 (HLS-Rueckfall)
+//   llhls    -> /live/<s>/index.m3u8
+//   mjpeg    -> /live/<s>/mjpeg
+//   snapshot -> /live/<s>/snapshot.jpg (die App laedt das Bild alle 2 s neu)
+export function liveAntwort(basis: string, ziel: string, typ: StreamTyp, token: string, exp: number, ttl: number): Record<string, unknown> {
+  const p = basis + "/live/" + ziel + "/";
+  const q = "?token=" + token;
+  if (typ === "mjpeg") return { typ, mjpegUrl: p + "mjpeg" + q, exp, ttl };
+  if (typ === "snapshot") return { typ, snapshotUrl: p + "snapshot.jpg" + q, exp, ttl };
+  if (typ === "llhls") return { typ, liveUrl: p + "index.m3u8" + q, exp, ttl };
+  return { typ, liveUrl: p + "index.m3u8" + q, webrtcUrl: p + "whep" + q, exp, ttl };
 }
 
 export function backendBasis(env: (name: string) => string | undefined): string | null {
@@ -314,6 +341,8 @@ export async function bearbeite(req: Request, deps: Deps): Promise<Response> {
     const be = await deps.ladeBackend(kameraId);
     const ziel = be ? (scope === "live" ? be.stream_name : be.aufzeichnung_quelle) : null;
     if (!ziel || !ID_RE.test(ziel)) return antwort(origin, 503, { error: "nicht_konfiguriert" });
+    const typ = streamTyp(be);
+    if (scope === "live" && !typ) return antwort(origin, 503, { error: "nicht_konfiguriert" });
 
     // 9. Token + Adresse
     const ttl = ttlSekunden(deps.env);
@@ -330,14 +359,7 @@ export async function bearbeite(req: Request, deps: Deps): Promise<Response> {
     };
     const token = encodeURIComponent(await signiere(secret, payload));
     await merke(deps, { user_id: nutzer.id, kamera_id: kameraId, scope, ergebnis: "erteilt", grund: "ok" });
-    if (scope === "live") {
-      return antwort(origin, 200, {
-        liveUrl: basis + "/live/" + ziel + "/index.m3u8?token=" + token,
-        webrtcUrl: basis + "/live/" + ziel + "/whep?token=" + token,
-        exp: payload.exp,
-        ttl,
-      });
-    }
+    if (scope === "live") return antwort(origin, 200, liveAntwort(basis, ziel, typ as StreamTyp, token, payload.exp, ttl));
     return antwort(origin, 200, {
       aufzeichnungUrl: basis + "/aufzeichnung/" + ziel + "?token=" + token,
       exp: payload.exp,
