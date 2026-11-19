@@ -108,7 +108,7 @@ def test_satz_maske_buero_portal(index_html):
     # Der EZ-Report (KVZulagenReport) sitzt im bueroexport-gegateten VBueroExport
     assert "React.createElement(KVZulagenReport, {" in index_html
     # Maske: Bearbeiten-Button + Save auf system_config.kv_rules (gemergt, nur EZ-Felder)
-    assert "⚙ Zulagensätze bearbeiten" in index_html
+    assert "_zpIk('regler','Zulagensätze bearbeiten ▼',14)" in index_html  # Tablet 1046: Linien-Ikone statt ⚙
     assert "const _ezRateSave=async()=>{" in index_html
     assert "base.taggeldAb6h=nk;base.ezMittel=nm;base.ezGross=ng;" in index_html, "nur die 3 EZ-Felder ueberschreiben"
     assert "_sbUpsert('system_config',{key:'kv_rules'" in index_html, "Persistenz system_config.kv_rules"

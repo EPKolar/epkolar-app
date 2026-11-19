@@ -97,7 +97,7 @@ def test_rechenkern_unberuehrt(index_html):
 
 def test_csv_button_ersetzt_durch_pze_pdf(index_html):
     """Der CSV-Button ist durch den PZE-PDF-Uebergabezettel ersetzt; _csv-Export ist entfernt (0 Refs)."""
-    assert "📄 PZE-PDF (Lohnverrechner)" in index_html, "PZE-PDF-Button fehlt im Zulagen-Tab"
+    assert "_zpIk('dokument','PZE-PDF (Lohnverrechner)')" in index_html  # Tablet 1046: Linien-Ikone statt 📄, "PZE-PDF-Button fehlt im Zulagen-Tab"
     assert "📥 CSV (Lohnverrechner)" not in index_html, "alter CSV-Button darf nicht mehr existieren"
     # KVZulagenReport._csv wurde entfernt: es gibt keine `const _csv=` mehr (der Audit-_csv ist lokal 'const _csv=' mit anderem Muster).
     assert "const _csv=()=>{" not in index_html, "KVZulagenReport._csv muss entfernt sein (0 Referenzen)"

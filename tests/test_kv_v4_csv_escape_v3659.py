@@ -18,4 +18,4 @@ def test_csv_export_entfernt(index_html):
 
 
 def test_pze_pdf_uebergabe_ersetzt_csv(index_html):
-    assert "📄 PZE-PDF (Lohnverrechner)" in index_html, "PZE-PDF-Uebergabe-Button muss den CSV-Button ersetzen"
+    assert "_zpIk('dokument','PZE-PDF (Lohnverrechner)')" in index_html  # Tablet 1046: Linien-Ikone statt 📄, "PZE-PDF-Uebergabe-Button muss den CSV-Button ersetzen"

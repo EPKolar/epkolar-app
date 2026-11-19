@@ -60,7 +60,7 @@ def test_pze_pdf_export(index_html):
     # v3.9.776: der CSV-Export (KV-Zulagen_*.csv) ist durch den PZE-PDF-Uebergabezettel an den
     # Lohnverrechner ersetzt (modul-globaler Generator _pzePdf, geteilt mit PZEView).
     assert "'KV-Zulagen_'+ym+'.csv'" not in index_html, "alter CSV-Export darf nicht mehr existieren"
-    assert "📄 PZE-PDF (Lohnverrechner)" in index_html, "PZE-PDF-Uebergabe-Button fehlt"
+    assert "_zpIk('dokument','PZE-PDF (Lohnverrechner)')" in index_html  # Tablet 1046: Linien-Ikone statt 📄, "PZE-PDF-Uebergabe-Button fehlt"
     assert "_pzeBtn" in index_html, "PZE-PDF-Button-Handler fehlt"
 
 
