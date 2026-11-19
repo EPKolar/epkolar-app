@@ -628,31 +628,59 @@ def _mangel_sql(name, t, rb):
             m.append("anon darf die RPC nicht rufen")
         if "REVOKE ALL ON TABLE public.passwort_hilfe_log FROM PUBLIC, anon, authenticated;" not in code:
             m.append("Log lesbar")
-        if "interval '1 hour'" not in rumpf or "v_n >= 30" not in rumpf:
+        if "interval '1 hour'" not in rumpf or "v_grenze_client" not in rumpf:
             m.append("keine Drosselung")
-        # Sicherheitspruefung 20.11. (ersetzt Fund-8-Fassung): gleicher Weg fuer Treffer/Nicht-Treffer
+        # Sicherheitspruefung 20.11., 3. Runde: Drosselung JE CLIENT, gleicher Weg fuer Treffer/Nicht-Treffer
         i_suche = rumpf.find("FROM public.users u WHERE lower(u.username) = v_norm")
-        i_grenze = rumpf.find("IF v_n >= 30 THEN RETURN v_ok; END IF;")
         i_sperre = rumpf.find("PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));")
-        if (i_suche < 0 or not (0 <= i_grenze < i_suche)
-                or "SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';" not in rumpf):
-            m.append("keine globale Drosselung fuer jeden Aufruf vor dem Nachschlagen")
         if not (0 <= i_sperre < i_suche):
             m.append("Sperre nicht fuer jeden Aufruf (vor dem Nachschlagen)")
         if re.search(r"\bIF\s+(NOT\s+)?v_treffer\b", rumpf):
             m.append("Treffer/Nicht-Treffer laufen verschiedene Wege (Zeitmessung)")
+        if rumpf.count("RETURN v_ok;") != 2:   # nur leere Eingabe + Ende - keine fruehe Rueckkehr bei Drosselung
+            m.append("fruehe Rueckkehr (Drosselung/Treffer) - Wege ungleich: %d x RETURN" % rumpf.count("RETURN v_ok;"))
+        ins = rumpf[rumpf.find("INSERT INTO public.passwort_hilfe_log"):]
+        ins = ins[:ins.find(";") + 1]
         if (rumpf.count("INSERT INTO public.passwort_hilfe_log") != 1
-                or "INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);" not in rumpf):
+                or "VALUES (v_norm, v_treffer, v_melden, v_client_hash, v_gedrosselt);" not in ins):
             m.append("nicht genau eine Protokollzeile je Aufruf")
+        # Client-Schluessel aus den Kopfzeilen, robust, nur als Hash gespeichert
+        if ("v_kopf := nullif(current_setting('request.headers', true), '')::json;" not in rumpf
+                or "EXCEPTION WHEN others THEN\n    v_kopf := NULL;" not in rumpf
+                or "IF json_typeof(v_kopf) IS DISTINCT FROM 'object' THEN v_kopf := NULL; END IF;" not in rumpf):
+            m.append("Kopfzeilen nicht robust gelesen (NULL/ungueltiges JSON)")
+        reihe = [rumpf.find(x) for x in ("v_kopf->>'cf-connecting-ip'", "split_part(v_kopf->>'x-forwarded-for', ',', 1)",
+                                         "v_kopf->>'x-real-ip'", "'unbekannt'), 100);")]
+        if min(reihe) < 0 or reihe != sorted(reihe):
+            m.append("Client-Schluessel nicht in der Reihenfolge cf-connecting-ip, x-forwarded-for, x-real-ip, unbekannt")
+        if "v_client_hash := md5(v_client || ':' || v_salz);" not in rumpf or re.search(r"\bv_client\b(?!_)", ins):
+            m.append("Client-Adresse nicht nur als Hash gespeichert")
+        # Sperren ERST global, dann Client, dann Name - Zaehlungen danach
+        i_glob = rumpf.find("PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:global'));")
+        i_cli = rumpf.find("PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:client:' || v_client_hash));")
+        i_zaehl = rumpf.find("SELECT count(*)")
+        if not (0 <= i_glob < i_cli < i_sperre < i_zaehl) or rumpf.count("pg_advisory_xact_lock(hashtext('passwort_hilfe:global'))") != 1:
+            m.append("Sperrreihenfolge global -> Client -> Name vor allen Zaehlungen verletzt (Wettlauf)")
+        if ("v_grenze_client := CASE WHEN v_client = 'unbekannt' THEN 20 ELSE 5 END;" not in rumpf
+                or "WHERE client_hash = v_client_hash AND angefragt_am > v_jetzt - interval '10 minutes';" not in rumpf):
+            m.append("keine Grenze je Client (5) / eigener Topf unbekannt (20)")
+        if ("WHERE NOT gedrosselt AND angefragt_am > v_jetzt - interval '10 minutes';" not in rumpf
+                or "v_gedrosselt := v_n_client >= v_grenze_client OR v_n_alle >= 300;" not in rumpf):
+            m.append("globale Notbremse fehlt oder zaehlt gedrosselte Aufrufe mit")
         if "WHERE username_norm = v_norm AND gemeldet AND angefragt_am > v_jetzt - interval '1 hour'" not in rumpf:
             m.append("keine Drosselung je Benutzername")
-        if ("v_melden := v_treffer AND v_n_name = 0 AND v_n_global < 10;" not in rumpf
+        if ("v_melden := v_treffer AND NOT v_gedrosselt AND v_n_name = 0 AND v_n_global < 10;" not in rumpf
                 or "WHERE gemeldet AND angefragt_am > v_jetzt - interval '1 hour';" not in rumpf
                 or "IF NOT v_melden THEN" not in rumpf):
-            m.append("keine harte globale Grenze fuer Benachrichtigungen")
+            m.append("keine harte globale Grenze fuer Benachrichtigungen (oder gedrosselt meldet)")
         kopf5 = t[:t.index("\nBEGIN;")]
         if "Restrisiko Zeitmessung" not in kopf5 or "NICHT vollkommen gleich" not in kopf5:
             m.append("Restrisiko Zeitmessung nicht im Kopf")
+        if "PERSONENBEZUG" not in kopf5 or "NUR md5(Adresse || fester Salt)" not in kopf5 or "KOPFZEILEN-PROBE" not in kopf5:
+            m.append("Kopf: Personenbezug/Hash/Faelschen nicht beschrieben")
+        if ("-- CREATE FUNCTION public._kopfzeilen_probe_v1056()" not in t or "_kopfzeilen_probe_v1056" in code
+                or "-- 3) SQL-Editor: DROP FUNCTION public._kopfzeilen_probe_v1056();" not in t):
+            m.append("Kopfzeilen-Probe fehlt oder laeuft automatisch mit")
         # Review 19.11. Fund 9: Text-created_at als ISO-8601 UTC
         if ("to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')" not in rumpf
                 or "IF v_zeit_text THEN" not in rumpf):
@@ -711,12 +739,25 @@ def test_sql_entwurf(name):
     # Sicherheitspruefung 20.11. (Skript 5): gleicher Weg fuer Treffer/Nicht-Treffer, harte Meldegrenze
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  v_melden := v_treffer AND", "  IF NOT v_treffer THEN RETURN v_ok; END IF;\n  v_melden := v_treffer AND", "verschiedene Wege"),
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));\n", "", "Sperre nicht"),
-    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';",
-     "SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE NOT treffer AND angefragt_am > v_jetzt - interval '10 minutes';", "globale Drosselung"),
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", " AND v_n_global < 10;", ";", "harte globale Grenze"),
-    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);",
-     "  INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);\n  INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, true);", "genau eine Protokollzeile"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  VALUES (v_norm, v_treffer, v_melden, v_client_hash, v_gedrosselt);",
+     "  VALUES (v_norm, v_treffer, v_melden, v_client_hash, v_gedrosselt);\n  INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, true);", "genau eine Protokollzeile"),
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "--   Restrisiko Zeitmessung:", "--   Restrisiko:", "Restrisiko Zeitmessung"),
+    # Sicherheitspruefung 20.11., 3. Runde (Skript 5): Drosselung je Client statt global
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:global'));",
+     "  SELECT count(*) INTO v_n_alle FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';\n  IF v_n_alle >= 30 THEN RETURN v_ok; END IF;\n  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:global'));",
+     "fruehe Rueckkehr"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "VALUES (v_norm, v_treffer, v_melden, v_client_hash, v_gedrosselt);",
+     "VALUES (v_norm, v_treffer, v_melden, v_client, v_gedrosselt);", "nur als Hash"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  v_client_hash := md5(v_client || ':' || v_salz);", "  v_client_hash := v_client;", "nur als Hash"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "THEN 20 ELSE 5 END;", "THEN 5 ELSE 5 END;", "eigener Topf unbekannt"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "WHERE NOT gedrosselt AND angefragt_am > v_jetzt - interval '10 minutes';",
+     "WHERE angefragt_am > v_jetzt - interval '10 minutes';", "Notbremse"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "v_melden := v_treffer AND NOT v_gedrosselt AND", "v_melden := v_treffer AND", "gedrosselt meldet"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  EXCEPTION WHEN others THEN\n    v_kopf := NULL;\n", "", "robust"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "      nullif(btrim(v_kopf->>'cf-connecting-ip'), ''),\n", "", "Reihenfolge cf-connecting-ip"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "PERSONENBEZUG", "HINWEIS", "Personenbezug"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "-- CREATE FUNCTION public._kopfzeilen_probe_v1056()", "CREATE FUNCTION public._kopfzeilen_probe_v1056()", "Kopfzeilen-Probe"),
     # Sicherheitspruefung 20.11. (Skript 1): Wiederverknuepfen nur ungesperrt, danach Sitzungen beenden; Rueckweg exakt
     ("AUTH_HAERTUNG_1_users_v1056", "      IF v_gesperrt_bis IS NOT NULL AND v_gesperrt_bis > now() THEN", "      IF false THEN", "wieder scharf"),
     ("AUTH_HAERTUNG_1_users_v1056", "  IF v_wiederverknuepft THEN\n    UPDATE auth.refresh_tokens", "  IF false THEN\n    UPDATE auth.refresh_tokens", "beendet alte Sitzungen nicht"),
@@ -744,6 +785,19 @@ def test_umkehrprobe_sql_wiederverknuepfen():
     assert n == 1
     assert "IF true THEN\n      RAISE EXCEPTION 'admin_create_user: fuer diese E-Mail gibt es schon einen Login" in kaputt
     assert any("Wiederverknuepfen" in x for x in _mangel_sql(name, kaputt, rb)), _mangel_sql(name, kaputt, rb)
+
+
+def test_umkehrprobe_sql_sperrreihenfolge():
+    """Sicherheitspruefung 20.11., 3. Runde: globale Sperre erst NACH den Zaehlungen (alter Wettlauf) -> Riegel schlaegt an."""
+    name = "AUTH_HAERTUNG_5_passwort_hilfe_v1056"
+    t, rb = _sql(name), _sql(name, "ROLLBACK")
+    sperre = "  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:global'));\n"
+    assert t.count(sperre) == 1
+    kaputt = t.replace(sperre, "", 1)
+    anker = "  v_gedrosselt := v_n_client >= v_grenze_client OR v_n_alle >= 300;\n"
+    assert anker in kaputt
+    kaputt = kaputt.replace(anker, anker + sperre, 1)
+    assert any("Sperrreihenfolge" in x for x in _mangel_sql(name, kaputt, rb)), _mangel_sql(name, kaputt, rb)
 
 
 def test_sql_keine_werte_und_kein_live_apply_hinweis():
