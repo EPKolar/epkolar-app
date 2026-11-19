@@ -11,10 +11,22 @@
 //   3. Rolle in ERLAUBTE_ROLLEN (Monteure NIE)             -> sonst 403   (vor jeder weiteren Abfrage)
 //   4. Konfiguration (Secret, Backend-Basis)               -> sonst 503
 //   5. Anfrage gueltig                                     -> sonst 400
-//   6. Aufzeichnung: nur geraet=pc UND Rolle in AUFZEICHNUNG_ROLLEN -> sonst 403
+//      Aufzeichnung: von/bis (ISO 8601 mit Zone) Pflicht, von < bis, Spanne <= 2 h, bis nicht in der Zukunft,
+//      von nicht aelter als die harte Obergrenze 30 Tage (genau je Kamera: Schritt 7b in der DB) -> sonst 400
+//   6. Aufzeichnung: Rolle in AUFZEICHNUNG_ROLLEN          -> sonst 403
+//      (zusaetzlich geraet=pc - das ist NUR Bedienkomfort, KEINE Sicherheitsgrenze, siehe unten)
 //   7. kamera_darf_sehen(kamera) mit dem JWT des Aufrufers, Serverzeit (Europe/Vienna in SQL) -> sonst 403
+//   7b. Aufzeichnung: kamera_darf_sehen_bereich(kamera, von, bis) mit dem JWT des Aufrufers -> sonst 403.
+//      DAS ist die echte Kontrolle fuer Aufzeichnungen: die Regel muss fuer JEDEN Augenblick des angefragten
+//      Bereichs gelten (nicht nur jetzt), und der Bereich muss in der Aufbewahrung der Kamera liegen.
 //   8. Backend-Zuordnung (service_role)                    -> sonst 503
 //   9. kurzlebiges HMAC-Token (<= 120 s), URL bauen        -> 200
+//      Aufzeichnung: von/bis (Unix-Sekunden) stehen SIGNIERT im Token und in der Adresse; der Proxy-Pruefer
+//      (tools/kamera-proxy-auth/verify.mjs) verlangt, dass die Query-Werte exakt den signierten entsprechen.
+//
+// `geraet` ("pc"/"mobil") kommt aus dem Anfragekoerper, also vom Client. Es ist eine BEHAUPTUNG und damit
+// KEINE Sicherheitsgrenze: jeder Client kann "pc" schicken. Es haelt nur ehrliche Handys auf Live (Bedienung).
+// Wer Aufzeichnungen sehen darf, entscheiden ausschliesslich Rolle (Schritt 6) + Zeitfenster-Bereich (Schritt 7b).
 //      Phase 2: die Adressart folgt kamera_backend.stream_typ (webrtc | llhls | mjpeg | snapshot) und wird
 //      ERST NACH allen Pruefungen 1-8 gewaehlt; unbekannter Typ -> 503. Gleiches Token fuer jede Art.
 // Fehlerantworten tragen NUR {error:<Code>} — nie eine Adresse, nie einen Streamnamen, nie Details.
@@ -31,6 +43,11 @@ export const TOKEN_VERSION = 1;
 // Phase 2: Adressarten je Kamera (Spalte kamera_backend.stream_typ). Fehlt der Wert -> webrtc (Phase-1-Verhalten).
 export const STREAM_TYPEN: readonly string[] = ["webrtc", "llhls", "mjpeg", "snapshot"];
 export const STANDARD_STREAM_TYP = "webrtc";
+// Aufzeichnungsbereich: hoechstens 2 h je Freigabe; harte Altersgrenze = CHECK-Obergrenze kameras.aufbewahrung_tage
+// (30). Die genaue Aufbewahrung je Kamera prueft kamera_darf_sehen_bereich in der Datenbank.
+export const AUFZEICHNUNG_MAX_SPANNE_S = 2 * 60 * 60;
+export const AUFZEICHNUNG_MAX_ALTER_S = 30 * 24 * 60 * 60;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.0{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -53,6 +70,8 @@ export type Deps = {
   authUser: (jwt: string) => Promise<string | null>;
   ladeNutzer: (authUid: string) => Promise<Nutzer | null>;
   darfSehen: (jwt: string, kameraId: string) => Promise<boolean>;
+  // rpc kamera_darf_sehen_bereich(p_kamera, p_von, p_bis) mit dem JWT des Aufrufers (nur scope=aufzeichnung)
+  darfSehenBereich: (jwt: string, kameraId: string, vonIso: string, bisIso: string) => Promise<boolean>;
   ladeBackend: (kameraId: string) => Promise<Backend | null>;
   protokoll?: (e: Protokoll) => Promise<void>;
   nonce?: () => string;
@@ -67,7 +86,31 @@ export type TokenPayload = {
   iat: number;
   exp: number;
   n: string;
+  // nur sc=aufzeichnung: freigegebener Bereich [von, bis) in Unix-Sekunden (signiert)
+  von?: number;
+  bis?: number;
 };
+
+// ISO-Zeitpunkt (mit Zone, ganze Sekunden) -> Unix-Sekunden, sonst null
+export function isoSekunden(roh: unknown): number | null {
+  if (typeof roh !== "string" || roh.length > 40 || !ISO_RE.test(roh)) return null;
+  const ms = Date.parse(roh);
+  if (!Number.isFinite(ms) || ms % 1000 !== 0) return null;
+  return ms / 1000;
+}
+
+// Bereich einer Aufzeichnungsanfrage pruefen (rein). -> {von, bis} in Unix-Sekunden oder null (= 400)
+export function aufzeichnungsBereich(vonRoh: unknown, bisRoh: unknown, nowMs: number): { von: number; bis: number } | null {
+  const von = isoSekunden(vonRoh);
+  const bis = isoSekunden(bisRoh);
+  if (von === null || bis === null) return null;
+  const jetzt = Math.floor(nowMs / 1000);
+  if (!(von < bis)) return null;
+  if (bis - von > AUFZEICHNUNG_MAX_SPANNE_S) return null;
+  if (bis > jetzt) return null;
+  if (von < jetzt - AUFZEICHNUNG_MAX_ALTER_S) return null;
+  return { von, bis };
+}
 
 // ── Hilfen ─────────────────────────────────────────────────────────────────────
 
@@ -200,6 +243,8 @@ export async function pruefeToken(
   if (p.exp <= jetzt) return null;
   if (p.iat > jetzt + 5) return null; // Uhrversatz hoechstens 5 s
   if (p.sc !== "live" && p.sc !== "aufzeichnung") return null;
+  if (p.sc === "aufzeichnung" && !(Number.isInteger(p.von) && Number.isInteger(p.bis) && Number(p.von) < Number(p.bis))) return null;
+  if (p.sc === "live" && (p.von !== undefined || p.bis !== undefined)) return null;
   if (erwartet && erwartet.s !== undefined && p.s !== erwartet.s) return null;
   if (erwartet && erwartet.sc !== undefined && p.sc !== erwartet.sc) return null;
   return p;
@@ -262,6 +307,32 @@ export function entscheide(regeln: Regel[], nutzer: { id: string; role: string }
   if (rolleR.some((r) => !r.erlaubt)) return false;
   if (rolleR.some((r) => r.erlaubt)) return true;
   return false;
+}
+
+// Spiegel von public.kamera_darf_sehen_bereich (Bereichspruefung fuer Aufzeichnungen) - wie entscheide() nur
+// Referenz und Test-Attrappe; entschieden wird in der Datenbank.
+// Exakt, nicht geschaetzt: Regelgrenzen sind ganze Minuten (CHECK kamera_zugriff_minuten_chk), Wiener
+// Zonenversaetze und Umstellungen liegen auf ganzen Minuten. Damit ist die Entscheidung auf jedem Stueck
+// [volle Minute, naechste volle Minute) konstant; geprueft werden der Anfang `von` und JEDE volle Minute in (von, bis).
+// Bereich halboffen [von, bis). Zusaetzlich: von < bis, Spanne <= 2 h, bis <= jetzt, von >= jetzt - Aufbewahrung.
+export function entscheideBereich(
+  regeln: Regel[],
+  nutzer: { id: string; role: string },
+  vonMs: number,
+  bisMs: number,
+  nowMs: number,
+  aufbewahrungTage: number,
+  kameraAktiv = true,
+): boolean {
+  if (!Number.isFinite(vonMs) || !Number.isFinite(bisMs) || !(vonMs < bisMs)) return false;
+  if (bisMs > nowMs) return false;
+  if (bisMs - vonMs > AUFZEICHNUNG_MAX_SPANNE_S * 1000) return false;
+  if (!(aufbewahrungTage > 0) || vonMs < nowMs - aufbewahrungTage * 24 * 60 * 60 * 1000) return false;
+  if (!entscheide(regeln, nutzer, vonMs, kameraAktiv)) return false;
+  for (let t = Math.floor(vonMs / 60000) * 60000 + 60000; t < bisMs; t += 60000) {
+    if (!entscheide(regeln, nutzer, t, kameraAktiv)) return false;
+  }
+  return true;
 }
 
 // ── Anfrage ────────────────────────────────────────────────────────────────────
@@ -343,9 +414,16 @@ export async function bearbeite(req: Request, deps: Deps): Promise<Response> {
     const scopeRoh = body.scope === undefined ? "live" : body.scope;
     if (scopeRoh !== "live" && scopeRoh !== "aufzeichnung") return antwort(origin, 400, { error: "ungueltig" });
     const scope: Scope = scopeRoh;
+    // Client-Behauptung, KEINE Sicherheitsgrenze (siehe Kopf). Nur Bedienkomfort: ehrliche Handys bleiben auf Live.
     const geraet = body.geraet === "pc" ? "pc" : "mobil";
+    // Aufzeichnung: angefragter Bereich (ISO). Ohne gueltigen Bereich keine Aufzeichnung (400).
+    let bereich: { von: number; bis: number } | null = null;
+    if (scope === "aufzeichnung") {
+      bereich = aufzeichnungsBereich(body.von, body.bis, deps.now());
+      if (!bereich) return antwort(origin, 400, { error: "ungueltig" });
+    }
 
-    // 6. Aufzeichnung: nur am PC und nur fuer die Aufzeichnungsrollen
+    // 6. Aufzeichnung: Rolle in den Aufzeichnungsrollen = Kontrolle; geraet=pc = nur Bedienung (faelschbar)
     if (scope === "aufzeichnung" && (geraet !== "pc" || aufzeichnungsRollen(deps.env).indexOf(rolle) < 0)) {
       await merke(deps, { user_id: nutzer.id, kamera_id: kameraId, scope, ergebnis: "abgelehnt", grund: "aufzeichnung" });
       return antwort(origin, 403, { error: "kein_zugriff" });
@@ -356,6 +434,17 @@ export async function bearbeite(req: Request, deps: Deps): Promise<Response> {
     if (darf !== true) {
       await merke(deps, { user_id: nutzer.id, kamera_id: kameraId, scope, ergebnis: "abgelehnt", grund: "regel" });
       return antwort(origin, 403, { error: "kein_zugriff" });
+    }
+
+    // 7b. Aufzeichnung: die Regel muss fuer den GANZEN angefragten Bereich gelten (nicht nur jetzt) und der
+    //     Bereich muss in der Aufbewahrung der Kamera liegen - entschieden in der DB mit dem JWT des Aufrufers.
+    if (scope === "aufzeichnung") {
+      const b = bereich as { von: number; bis: number };
+      const darfBereich = await deps.darfSehenBereich(jwt, kameraId, new Date(b.von * 1000).toISOString(), new Date(b.bis * 1000).toISOString());
+      if (darfBereich !== true) {
+        await merke(deps, { user_id: nutzer.id, kamera_id: kameraId, scope, ergebnis: "abgelehnt", grund: "bereich" });
+        return antwort(origin, 403, { error: "kein_zugriff" });
+      }
     }
 
     // 8. Backend-Zuordnung
@@ -378,11 +467,19 @@ export async function bearbeite(req: Request, deps: Deps): Promise<Response> {
       exp: iat + ttl,
       n: deps.nonce ? deps.nonce() : crypto.randomUUID(),
     };
+    if (bereich) {
+      payload.von = bereich.von;
+      payload.bis = bereich.bis;
+    }
     const token = encodeURIComponent(await signiere(secret, payload));
     await merke(deps, { user_id: nutzer.id, kamera_id: kameraId, scope, ergebnis: "erteilt", grund: "ok" });
     if (scope === "live") return antwort(origin, 200, liveAntwort(basis, ziel, typ as StreamTyp, token, payload.exp, ttl));
+    const b = bereich as { von: number; bis: number };
+    // von/bis stehen signiert im Token; der Proxy-Pruefer verlangt exakt diese Werte in der Query.
     return antwort(origin, 200, {
-      aufzeichnungUrl: basis + "/aufzeichnung/" + ziel + "?token=" + token,
+      aufzeichnungUrl: basis + "/aufzeichnung/" + ziel + "?token=" + token + "&von=" + b.von + "&bis=" + b.bis,
+      von: b.von,
+      bis: b.bis,
       exp: payload.exp,
       ttl,
     });

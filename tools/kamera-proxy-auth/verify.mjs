@@ -6,7 +6,8 @@
 //
 //   204  Token gueltig, Pfad passt (Kopf X-Kamera-Stream / X-Kamera-User fuer das Zugriffsprotokoll des Proxys)
 //   401  kein Token, Signatur falsch, abgelaufen, zu lang gueltig, aus der Zukunft, kaputt
-//   403  Token an sich gueltig, aber Pfad-Stream != s, Pfad-Art != sc, Pfadform/Methode nicht erlaubt
+//   403  Token an sich gueltig, aber Pfad-Stream != s, Pfad-Art != sc, Pfadform/Methode nicht erlaubt,
+//        Aufzeichnung: Query von/bis fehlt, doppelt, kodiert oder nicht zeichengleich mit dem signierten von/bis
 //
 // Woher der Originalpfad kommt: AUSSCHLIESSLICH aus dem per KAMERA_AUTH_URI_HEADER festgelegten Kopf
 // (x-forwarded-uri fuer Caddy forward_auth, x-original-uri fuer nginx auth_request). Kein Rueckfall auf die
@@ -35,7 +36,7 @@ import { pruefeToken } from "./token.mjs";
 
 export const SECRET_MIN_LAENGE = 32;
 export const MAX_URI = 4096;
-export const MAX_AUFZEICHNUNG_SPANNE_S = 6 * 3600;
+export const MAX_AUFZEICHNUNG_SPANNE_S = 2 * 3600; // gleich AUFZEICHNUNG_MAX_SPANNE_S in logic.ts
 // Erlaubte Kopf-Paare (Uri -> Methode). Genau EIN Paar ist vertrauenswuerdig, das andere ist verboten.
 export const KOPF_PAARE = { "x-forwarded-uri": "x-forwarded-method", "x-original-uri": "x-original-method" };
 
@@ -82,6 +83,16 @@ function cookieToken(cookie) {
     if (i > 0 && teil.slice(0, i).trim() === "kam_t") treffer.push(teil.slice(i + 1).trim());
   }
   return treffer.length === 1 ? treffer[0] : "";
+}
+
+// Rohe (nicht dekodierte) Werte eines Query-Parameters mit genau diesem rohen Namen.
+function rohParameter(roheQuery, name) {
+  const out = [];
+  for (const teil of roheQuery.split("&")) {
+    const i = teil.indexOf("=");
+    if ((i >= 0 ? teil.slice(0, i) : teil) === name) out.push(i >= 0 ? teil.slice(i + 1) : "");
+  }
+  return out;
 }
 
 function zahl(t) {
@@ -136,14 +147,33 @@ export async function entscheide(req, secret, nowMs, cfg) {
   const gebunden = await pruefeToken(secret, token, nowMs, { s: ziel.s, sc: ziel.sc });
   if (!gebunden) return nein(403, { art: ziel.art, s: ziel.s, u: String(p.u || "") });
 
-  if (ziel.art === "aufzeichnung") {
-    const von = zahl(query.get("von"));
-    const bis = zahl(query.get("bis"));
+  // Aufzeichnung: der freigegebene Bereich steht SIGNIERT im Token (von/bis, Unix-Sekunden). Die Query-Parameter
+  // von/bis, nach denen der Proxy die Aufzeichnung abruft, muessen GENAU diesen Werten entsprechen: je genau ein
+  // Parameter (dekodiert UND roh, kein %-kodierter Doppelgaenger), nur Ziffern, zeichengleich mit dem Token.
+  // Fuer Teilstuecke (aufzeichnung_teil) gilt: fehlen von/bis, binden die Antwortkoepfe X-Kamera-Von/-Bis;
+  // stehen sie da, muessen sie ebenso exakt passen.
+  if (gebunden.sc === "aufzeichnung") {
+    const gv = String(gebunden.von), gb = String(gebunden.bis);
+    const pflicht = ziel.art === "aufzeichnung";
+    const ok = (name, soll) => {
+      const dek = query.getAll(name);
+      const roh = rohParameter(q >= 0 ? uri.slice(q + 1) : "", name);
+      if (!pflicht && dek.length === 0 && roh.length === 0) return true;
+      return dek.length === 1 && roh.length === 1 && roh[0] === dek[0] && /^[0-9]{1,12}$/.test(roh[0]) && roh[0] === soll;
+    };
+    if (!ok("von", gv) || !ok("bis", gb)) return nein(403, { art: ziel.art, s: ziel.s, u: String(p.u || "") });
+    const von = zahl(gv);
+    const bis = zahl(gb);
     const jetzt = Math.floor(nowMs / 1000);
-    if (!(von < bis) || bis - von > MAX_AUFZEICHNUNG_SPANNE_S || von > jetzt) return nein(403, { art: ziel.art, s: ziel.s, u: String(p.u || "") });
+    if (!(von < bis) || bis - von > MAX_AUFZEICHNUNG_SPANNE_S || bis > jetzt + 5) return nein(403, { art: ziel.art, s: ziel.s, u: String(p.u || "") });
   }
 
   const out = { "Cache-Control": "no-store", "X-Kamera-Stream": gebunden.s, "X-Kamera-User": String(gebunden.u || "") };
+  if (gebunden.sc === "aufzeichnung") {
+    // Der Proxy baut die Frigate-Adresse NUR aus diesen Koepfen (copy_headers / auth_request_set), nie aus der Client-Query.
+    out["X-Kamera-Von"] = String(gebunden.von);
+    out["X-Kamera-Bis"] = String(gebunden.bis);
+  }
   // HLS: Teilstuecke laedt der Browser ohne Query nach -> Token als Cookie, nur fuer diesen Stream-Pfad,
   // hoechstens bis zum Token-Ablauf (<= 120 s). nginx reicht ihn per auth_request_set weiter (README).
   if (quelle === "query" && (ziel.art === "hls" || ziel.art === "aufzeichnung")) {

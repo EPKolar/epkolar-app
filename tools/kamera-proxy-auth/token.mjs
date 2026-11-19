@@ -67,6 +67,8 @@ export async function pruefeToken(secret, token, nowMs, erwartet) {
   if (p.exp <= jetzt) return null;
   if (p.iat > jetzt + 5) return null; // Uhrversatz hoechstens 5 s
   if (p.sc !== "live" && p.sc !== "aufzeichnung") return null;
+  if (p.sc === "aufzeichnung" && !(Number.isInteger(p.von) && Number.isInteger(p.bis) && Number(p.von) < Number(p.bis))) return null;
+  if (p.sc === "live" && (p.von !== undefined || p.bis !== undefined)) return null;
   if (erwartet && erwartet.s !== undefined && p.s !== erwartet.s) return null;
   if (erwartet && erwartet.sc !== undefined && p.sc !== erwartet.sc) return null;
   return p;

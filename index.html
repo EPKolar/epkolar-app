@@ -30639,13 +30639,13 @@ function _kamStreamAntwort(status,j,scope){
   if(status===401||status===403)return {ok:false,grund:'kein_zugriff'};
   return {ok:false,grund:'fehler'};
 }
-async function _kamStreamHolen(kameraId,scope,geraet){
+async function _kamStreamHolen(kameraId,scope,geraet,bereich){
   if(_kamBackend.fehlt&&Date.now()-_kamBackend.ts<60000)return {ok:false,grund:'kein_backend'};
   var a;
   try{
     try{if(window._ensureAuth)await window._ensureAuth();}catch(_a){}
     var r=await fetch(SUPABASE_URL+KAMERA_FN,_fT({method:'POST',headers:Object.assign({},_sbH(),{'Content-Type':'application/json'}),
-      body:JSON.stringify({kamera_id:kameraId,scope:scope,geraet:geraet})},15000));
+      body:JSON.stringify(Object.assign({kamera_id:kameraId,scope:scope,geraet:geraet},bereich||{}))},15000));
     var j=null;try{j=await r.json();}catch(_j){}
     a=_kamStreamAntwort(r.status,j,scope);
   }catch(e){a={ok:false,grund:'kein_backend'};}
@@ -30729,6 +30729,16 @@ function _kamTageText(t){
 function _kamFensterText(r){
   var v=r&&r.von?String(r.von).slice(0,5):'',b=r&&r.bis?String(r.bis).slice(0,5):'';
   return (v&&b)?(v+'–'+b):'ganzer Tag';
+}
+/* Aufzeichnung: angefragter Zeitraum fuer den Server (ISO), hoechstens 1 Stunde, nie ueber jetzt hinaus. Der Server
+   prueft ihn (Aufzeichnungsrolle + Zugriffsregel fuer JEDEN Augenblick des Zeitraums + Aufbewahrung) und signiert
+   ihn ins Token; der Proxy nimmt nur genau diesen Zeitraum an. Hier wird nichts entschieden. */
+var KAMERA_REC_TXT={bereich:'Kein Zugriff auf Aufnahmen aus diesem Zeitraum',zukunft:'Dieser Zeitpunkt liegt in der Zukunft'};
+function _kamBereichIso(vonMs,nowMs){
+  if(!isFinite(vonMs)||!isFinite(nowMs))return null;
+  var bisMs=Math.min(vonMs+60*60*1000,Math.floor(nowMs/1000)*1000);
+  if(!(bisMs>vonMs))return null;
+  return {von:new Date(vonMs).toISOString(),bis:new Date(bisMs).toISOString()};
 }
 function _kamTagesListe(tage,nowMs){
   var n=Math.max(1,Math.min(30,Number(tage)||3));var out=[];
@@ -30886,10 +30896,12 @@ function KameraAufzeichnung(props){
   var _laden=async function(){
     if(!_kamZeitOk(zeit)){setRes({phase:'stub',grund:'fehler',url:''});return;}
     setRes({phase:'laedt',grund:'laedt',url:''});
-    var a=await _kamStreamHolen(kam.id,'aufzeichnung','pc');
-    if(!a.ok){setRes({phase:'stub',grund:a.grund,url:''});return;}
-    var von=Math.floor(new Date(tag+'T'+zeit+':00').getTime()/1000);
-    var url=a.aufzeichnungUrl+'&von='+von+'&bis='+(von+3600);
+    var bereich=_kamBereichIso(new Date(tag+'T'+zeit+':00').getTime(),Date.now());
+    if(!bereich){setRes({phase:'stub',grund:'zukunft',url:''});return;}
+    var a=await _kamStreamHolen(kam.id,'aufzeichnung','pc',bereich);
+    if(!a.ok){setRes({phase:'stub',grund:a.grund==='kein_zugriff'?'bereich':a.grund,url:''});return;}
+    /* von/bis stehen schon signiert in der Adresse (vom Server) - nichts anhaengen, der Proxy prueft zeichengleich */
+    var url=a.aufzeichnungUrl;
     var v=vidRef.current;var hls=false;try{hls=!!(v&&v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl'));}catch(_h){}
     if(!hls){setRes({phase:'stub',grund:'player',url:''});return;}
     v.src=url;try{await v.play();}catch(_p){}
@@ -30925,7 +30937,7 @@ function KameraAufzeichnung(props){
       h('div',{key:'v',style:{position:'relative',width:'100%',aspectRatio:'16 / 9',background:'#0b0d0c',borderRadius:UI.rChip,overflow:'hidden'}}
         ,h('video',{ref:vidRef,controls:true,playsInline:true,'aria-label':'Aufzeichnung '+(kam.name||''),style:{position:'absolute',inset:0,width:'100%',height:'100%',display:res.phase==='live'?'block':'none'}})
         ,res.phase==='live'?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',padding:10,textAlign:'center',color:'#E6EAE7',fontSize:UI.fKlein,fontWeight:600}},
-          res.phase==='leer'?'Tag und Uhrzeit wählen, dann „Aufzeichnung laden“.':(res.grund==='player'?'Wiedergabe der Aufzeichnung im Browser folgt mit dem Video-Host.':(KAMERA_STUB_TXT[res.grund]||KAMERA_STUB_TXT.fehler))))]));
+          res.phase==='leer'?'Tag und Uhrzeit wählen, dann „Aufzeichnung laden“.':(res.grund==='player'?'Wiedergabe der Aufzeichnung im Browser folgt mit dem Video-Host.':(KAMERA_REC_TXT[res.grund]||KAMERA_STUB_TXT[res.grund]||KAMERA_STUB_TXT.fehler))))]));
 }
 
 function KameraZugriffEditor(props){
@@ -31176,7 +31188,7 @@ function KameraView(props){
   var ww=props.ww||(typeof window!=='undefined'?window.innerWidth:1024);
   var rolle=_kamRolle(cu);var isAdmin=rolle==='admin';
   var fein=false;try{fein=!!(window.matchMedia&&window.matchMedia('(pointer: fine)').matches);}catch(_m){}
-  var isPC=_kamIstPC(ww,fein);var isMob=ww<BP_MOB;var geraet=isPC?'pc':'mobil';
+  var isPC=_kamIstPC(ww,fein);var isMob=ww<BP_MOB;var geraet=isPC?'pc':'mobil';/* geraet geht an den Server, ist dort aber nur Bedienkomfort (Client-Angabe, faelschbar) - KEINE Sicherheitsgrenze; Aufzeichnungen schuetzen Rolle + Zeitraum-Pruefung am Server */
   var _k=_react.useState.call(void 0,{status:'laedt',rows:[]});var kd=_k[0],setKd=_k[1];
   var _n=_react.useState.call(void 0,0);var neu=_n[0],setNeu=_n[1];
   var _a=_react.useState.call(void 0,'2x2');var ansicht=_a[0],setAnsicht=_a[1];

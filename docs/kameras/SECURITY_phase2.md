@@ -189,3 +189,103 @@ ausgewertet und nur für `rolle === "admin"` beantwortet (sonst 403 `kein_zugrif
 und die Basisadresse des Video-Hosts (nur gültiges `https://`, ohne Zugangsdaten – `backendBasis()`), ohne Kamera,
 Streamname, Token oder DB-Abfrage. Ein Monteur endet weiter an der Rollensperre (Abschnitt d). Die Zeilenangaben oben
 beziehen sich weiter auf 110678f. Tests mit Umkehrproben: `tests/test_kameras_einrichtung_v1060.py`.
+
+## e) Nachtrag `fix/kamera-aufzeichnung-fenster` (19.11.2026): Aufzeichnung nur im freigegebenen Zeitraum, `geraet` ist keine Grenze
+
+Zwei Funde einer automatischen Sicherheitsprüfung von `logic.ts`. Zeilenangaben in diesem Abschnitt beziehen sich auf
+den Commit, der ihn einführt (Zweig `fix/kamera-aufzeichnung-fenster`, Basis v3.9.1062). Nichts deployt, keine DB berührt.
+
+### e1) `geraet` („pc“/„mobil“) ist eine Client-Angabe – KEINE Sicherheitsgrenze
+
+`geraet` kommt aus dem Anfragekörper; jeder Client kann `"pc"` schicken. Die Prüfung `geraet !== "pc"` bleibt als
+Bedienkomfort (ehrliche Handys/Tablets bleiben auf Live), ist aber nirgends mehr als Schutz beschrieben.
+Die Kontrolle für Aufzeichnungen ist ausschließlich **Rolle** (`KAMERA_AUFZEICHNUNG_ROLLEN`) + **Zeitraum-Prüfung** (e2).
+
+| Stelle | Inhalt |
+|---|---|
+| `supabase/functions/kamera-stream/logic.ts:14-28` | Kopf: Schritt 6 = Rolle; `geraet` ausdrücklich „KEINE Sicherheitsgrenze“; Schritt 7b = echte Kontrolle |
+| `logic.ts:417-418` | `const geraet = …` mit Kommentar „Client-Behauptung, KEINE Sicherheitsgrenze“ |
+| `logic.ts:426` | Schritt 6: „Rolle … = Kontrolle; geraet=pc = nur Bedienung (fälschbar)“ |
+| `supabase/functions/kamera-stream/README.md` (Abschnitt Request + Schritt 6) | „**`geraet` is NOT a security control.**“ |
+| `docs/kameras/PHASE1_2026-11-19.md` (Prüfreihenfolge 6/7b, Testplan 10/10b) | gleiche Klarstellung, Fall 10b = Zeitraum-Angriff |
+| `index.html:31191` | `var geraet=…` mit Kommentar „nur Bedienkomfort (Client-Angabe, fälschbar) – KEINE Sicherheitsgrenze“ |
+
+UI-Texte geprüft: „Am Handy und Tablet nur Live-Bild. Aufzeichnungen und Verwaltung am PC.“ beschreibt nur die
+Bedienung, behauptet keinen Schutz – unverändert. `KAMERA_REC_ROLLEN` war schon als „nur für die Anzeige“ markiert.
+
+### e2) Aufzeichnung: Freigabe galt für „jetzt“, die Adresse aber für jeden Zeitraum (HIGH, Betriebsvereinbarung)
+
+**Vorher:** `darfSehen(jwt, kamera)` wertete die Regel zu `now()` aus; die Aufzeichnungsadresse nahm danach beliebige
+`von`/`bis` aus der Query an (nur Form, Spanne ≤ 6 h). Eine Regel Mo–Fr erlaubte damit am Montag die Aufnahmen vom
+Samstag. **Nachher**, Ende zu Ende:
+
+| # | Station | Stelle |
+|---|---|---|
+| 1 | App schickt den Zeitraum (ISO, UTC, höchstens 1 h, nie über jetzt hinaus) | `index.html:30737` `_kamBereichIso`, `:30648` Body mit `von`/`bis`, `:30899` Aufruf; Zukunft → Hinweis ohne Abruf |
+| 2 | Edge Function prüft die Form → sonst 400 | `logic.ts:95-113` (`isoSekunden`, `aufzeichnungsBereich`): ISO mit Zone, ganze Sekunden, `von < bis`, Spanne ≤ 2 h (`:48`), `bis ≤ jetzt`, `von ≥ jetzt − 30 Tage` (`:49`, harte Obergrenze = CHECK-Maximum von `aufbewahrung_tage`); Aufruf `logic.ts:422` |
+| 3 | Rolle (Kontrolle), `geraet` (Komfort) | `logic.ts:426-430` |
+| 4 | Regel jetzt (unverändert, für Live und Aufzeichnung) | `logic.ts:432-437` |
+| 5 | **Zeitraum-Prüfung in der DB mit dem JWT des Aufrufers** → sonst 403 (`grund: "bereich"` im Protokoll) | `logic.ts:439-447`; Verdrahtung `index.ts:54-58` → `rpc("kamera_darf_sehen_bereich", { p_kamera, p_von, p_bis })` über `aufruferClient(jwt)` |
+| 6 | SQL-Funktion | `sql/KAMERAS_v1_ENTWURF.sql:231-259`: SECURITY DEFINER, `set search_path = public, pg_temp`, `v_auth := auth.uid()` (kein Nutzer-Parameter), `p_von < p_bis`, `p_bis ≤ now()`, Spanne ≤ 2 h (`:241`), Kamera aktiv + `p_von ≥ now() − aufbewahrung_tage` (`:244-247`), `kamera_pruefen` an `p_von` und an **jeder vollen Minute** in `(p_von, p_bis)` (`:248-257`) |
+| 7 | Rechte | `:264-265` – `revoke all … from public, anon; grant execute … to authenticated;`; Rücknahme `sql/KAMERAS_v1_RUECKNAHME.sql:29` (vor `kamera_pruefen`) |
+| 8 | Voraussetzung der Exaktheit | `sql/KAMERAS_v1_ENTWURF.sql:113` `kamera_zugriff_minuten_chk` – Regelgrenzen nur auf ganzen Minuten |
+| 9 | Zeitraum signiert ins Token und in die Adresse | `logic.ts:470-473` (`payload.von/bis`), `logic.ts:480` `…?token=T&von=V&bis=B`; App hängt nichts mehr an (`index.html:30904`) |
+| 10 | Token-Regel (beide Umsetzungen wortgleich) | `logic.ts:246-247` = `tools/kamera-proxy-auth/token.mjs:70-71`: `sc=aufzeichnung` verlangt ganzzahlige `von < bis`, `sc=live` darf keine tragen |
+| 11 | **Proxy-Prüfer bindet die Query an das Token** → sonst 403 | `tools/kamera-proxy-auth/verify.mjs:155-169`: je genau ein `von`/`bis`, dekodiert **und** roh (kein `%`-kodierter Doppelgänger, `rohParameter` `:89-96`), nur Ziffern, **zeichengleich** mit dem signierten Wert; Spanne ≤ 2 h (`:39`) |
+| 12 | Proxy baut den Abruf nur aus dem signierten Bereich | `verify.mjs:172-176` gibt `X-Kamera-Von`/`X-Kamera-Bis` zurück; Vorlage `vorlagen/Caddyfile` (Phase 3, auskommentiert): `copy_headers` + `rewrite …/start/{http.request.header.X-Kamera-Von}/end/{…Bis}/…` statt `{query.*}` |
+| 13 | Live unverändert | Live-Token ohne `von`/`bis`, Live fragt keinen Bereich ab (`test_live_bleibt_bei_jetzt`) |
+
+**Entwurfsentscheidung Zeitraum-Prüfung (exakt statt Stichprobe):** `kamera_pruefen` hängt nur von Wochentag und
+Wiener Uhrzeit ab. Regelgrenzen liegen (per CHECK) auf ganzen Minuten; die Wiener Zonenversätze und
+Sommerzeit-Umstellungen ebenfalls. Damit ist die Entscheidung auf jedem Stück `[volle Minute, nächste volle Minute)`
+konstant, und die Prüfung an `p_von` plus jeder vollen Minute in `(p_von, p_bis)` ist **beweisbar vollständig** – auch
+über Mitternacht und über die Umstellungsnacht (doppelte bzw. fehlende Stunde), wo eine Rückrechnung „Regelgrenze →
+Zeitpunkt“ Fälle übersehen könnte. Kosten: höchstens 121 Aufrufe von `kamera_pruefen` je Anfrage (Spanne ≤ 2 h).
+Ausführbarer Spiegel für die Tests: `entscheideBereich()` in `logic.ts:318-336`.
+
+**Zusätzlich** muss die Regel auch **jetzt** gelten (Schritt 4): wer gerade keinen Zugriff hat, sieht auch keine
+Aufnahmen (strenger als nötig, fail closed).
+
+### Tests (Node, gegen genau diese Dateien)
+
+`tests/test_kameras_phase1_v1055.py` (Abfragezeit Mo 23.11.2026 10:00 Wien, Regel Büro Mo–Fr 07–17, Aufbewahrung 3 Tage):
+- `test_angriff_aufzeichnung_ausserhalb_des_bereichs_403` (Z. 504): **Samstag** 10–11 → 403; **teils außerhalb** Mo 06:30–07:30
+  und Fr 16:30–17:01 → 403; **außerhalb der Aufbewahrung** Do 10–11 (Werktag im Fenster) → 403. Jeweils `darf == 1` (Regel gilt jetzt),
+  abgewiesen erst durch die Bereichsprüfung, `backend == 0`, Protokollgrund `bereich`.
+- `test_aufzeichnung_ungueltiger_bereich_400_ohne_abfrage` (Z. 523): älter als 30 Tage, Zukunft, Spanne > 2 h, `von = bis`,
+  umgekehrt, fehlend, ohne Zone, Sekundenbruchteil, Zahl statt ISO → 400 ohne DB-Abfrage.
+- `test_aufzeichnung_bereich_signiert_in_token_und_adresse` (Z. 488), `test_aufzeichnung_bereich_grenzfaelle_erlaubt` (Z. 515, 16:00–17:00 erlaubt,
+  Admin-Regel ohne Fenster deckt Samstag), `test_geraet_ist_keine_sicherheitsgrenze_dokumentiert` (Z. 529), `test_live_bleibt_bei_jetzt` (Z. 542),
+  `test_aufzeichnung_schickt_den_zeitraum_an_den_server` (Z. 986), `test_aufzeichnung_haengt_nichts_an_die_serveradresse` (Z. 1003),
+  `test_sql_bereichspruefung_fuer_aufzeichnungen` (Z. 1192, statisch: DEFINER, Suchpfad, `auth.uid()`, Minutenschleife, Rechte, CHECK).
+- Umkehrproben bei jedem Lauf: `test_umkehrprobe_alte_logik_ohne_bereichspruefung` (Z. 624, ohne Schritt 7b → alle vier Angriffe 200),
+  `test_umkehrprobe_nur_der_anfang_statt_jeder_minute` (Z. 631), `test_umkehrprobe_aufbewahrung_im_spiegel` (Z. 638),
+  `test_umkehrprobe_aufzeichnung_am_handy` (Z. 616: ohne `geraet`-Abgleich bleiben die Bereichs-Angriffe 403 – `geraet` trägt keinen Schutz).
+
+`tests/test_kameras_phase2_v1056.py` + `tools/kamera-proxy-auth/vektoren.json` (neu signiert, Testsecret):
+- `test_angriff_aufzeichnung_query_bereich_ungleich_token_403` (Z. 306): `von` verschoben (z. B. auf den Samstag, `vektoren.json:410`),
+  ganzes Fenster um einen Tag verschoben (`:422`), `bis` verändert, `von` doppelt, `%31…`-kodiert (`:434`), kodierter Parametername,
+  führende Null, Teilstück mit falschem `von`, fehlende Zeit → 403; passender Bereich (`:343`) → 204; altes Token ohne Bereich → 401.
+- `test_aufzeichnung_bereich_als_kopf_fuer_den_proxy` (Z. 317), `test_tokenvektoren_bereich` (Z. 324, beide Umsetzungen),
+  `test_aufzeichnung_unveraendert_und_vom_proxy_angenommen` (Z. 240: Adresse der Edge Function wird ohne Anhängen angenommen).
+- Umkehrproben: `test_umkehrprobe_ohne_bereichsbindung_im_pruefer` (Z. 331), `test_umkehrprobe_token_ohne_bereichsregel` (Z. 339).
+
+### Umkehrprobe gegen den alten Code (Scratch-Kopie, nicht im Zweig)
+
+Neue Angriffstests (`test_angriff_aufzeichnung_ausserhalb_des_bereichs_403` ×4, `test_aufzeichnung_bereich_signiert_in_token_und_adresse`,
+`test_angriff_aufzeichnung_query_bereich_ungleich_token_403`, `test_tokenvektoren_bereich`) in einer Kopie, deren `logic.ts`,
+`token.mjs`, `verify.mjs` aus `origin/main` (v3.9.1062) stammen:
+
+| Lauf | Ergebnis | Exitcode |
+|---|---|---|
+| A) alter Stand (alle drei Dateien) | **7 failed** – z. B. `('rec_buero_samstag', 200, '{"aufzeichnungUrl":…')`: Samstag-Aufnahme freigegeben | **1** (ROT) |
+| B) nur `verify.mjs` alt | **1 failed, 6 passed** – `('aufzeichnung_bis_manipuliert', 204)`: verschobene Query vom Prüfer angenommen | **1** (ROT) |
+| C) Fix wiederhergestellt (`cmp` byte-gleich mit dem Zweig) | **7 passed** | **0** (GRÜN) |
+
+### Offen / vor Ort
+
+1. SQL ist Entwurf, **nicht eingespielt**. Vor dem Einspielen den Probe-Block (Bereichs-Proben, `savepoint c8`) in einer Transaktion fahren.
+2. Aufzeichnungswiedergabe ist Phase 3 (Proxy-Block auskommentiert). Beim Aktivieren bestätigen, dass Caddy `copy_headers`
+   Client-Kopien von `X-Kamera-Von/-Bis` verwirft und der Abruf nur aus diesen Köpfen gebaut wird; Frigate-Teilstücke
+   (`/aufzeichnung/<s>/<datei>`) laufen über das Cookie-Token, dessen Bereich der Prüfer ebenfalls als Kopf zurückgibt.
+3. Ein Token bleibt ≤ 120 s gültig; innerhalb dieser Zeit ist nur **genau** der signierte Zeitraum abrufbar.

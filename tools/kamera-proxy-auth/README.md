@@ -22,7 +22,7 @@ has reverse probes (removing the expiry or the path binding makes the vectors fa
 |---|---|
 | `204` | token valid **and** path stream == `s` **and** path kind == `sc` **and** path shape + method allowed |
 | `401` | no token, two `token` parameters, bad signature, tampered payload, expired (`exp <= now`), `exp - iat > 120` or `<= 0`, `iat > now + 5` (clock skew), `v != 1`, malformed |
-| `403` | signature fine but wrong stream / wrong kind (`live` vs `aufzeichnung`), path not one of the allowed shapes, method not allowed, recording without valid `von`/`bis` |
+| `403` | signature fine but wrong stream / wrong kind (`live` vs `aufzeichnung`), path not one of the allowed shapes, method not allowed, recording whose query `von`/`bis` is missing, duplicated, %-encoded or not character-identical to the `von`/`bis` signed in the token |
 
 Allowed shapes (everything else 403; the Caddyfile already answers 404 before asking):
 
@@ -32,8 +32,8 @@ GET|HEAD  /live/<s>/index.m3u8           HLS playlist                 sc=live
 GET|HEAD  /live/<s>/hls/<file>           HLS parts (token or cookie)  sc=live
 GET|HEAD  /live/<s>/mjpeg                MJPEG stream (<img>)         sc=live
 GET|HEAD  /live/<s>/snapshot.jpg         single frame (<img>, 2 s)    sc=live
-GET|HEAD  /aufzeichnung/<s>?von=&bis=    recording (span <= 6 h)      sc=aufzeichnung
-GET|HEAD  /aufzeichnung/<s>/<file>...    recording parts              sc=aufzeichnung
+GET|HEAD  /aufzeichnung/<s>?von=&bis=    recording (span <= 2 h)      sc=aufzeichnung, von/bis == signed
+GET|HEAD  /aufzeichnung/<s>/<file>...    recording parts              sc=aufzeichnung (von/bis if present == signed)
 <s> = [A-Za-z0-9_-]{1,64}; no %, no .., no // anywhere in the path
 ```
 

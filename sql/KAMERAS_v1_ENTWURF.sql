@@ -109,6 +109,8 @@ create table if not exists public.kamera_zugriff (
   constraint kamera_zugriff_tage_chk check (cardinality(wochentage) between 1 and 7
     and wochentage <@ array[1,2,3,4,5,6,7] and array_position(wochentage, null) is null),
   constraint kamera_zugriff_zeit_chk check ((von is null and bis is null) or (von is not null and bis is not null and von < bis)),
+  -- Grenzen nur auf ganzen Minuten: Voraussetzung dafuer, dass kamera_darf_sehen_bereich (5e) EXAKT prueft
+  constraint kamera_zugriff_minuten_chk check ((von is null or extract(second from von) = 0) and (bis is null or extract(second from bis) = 0)),
   constraint kamera_zugriff_bemerkung_chk check (bemerkung is null or length(bemerkung) <= 200)
 );
 create index if not exists kamera_zugriff_kamera_idx on public.kamera_zugriff (kamera_id);
@@ -218,9 +220,49 @@ returns boolean language sql stable security definer set search_path = public, p
   select public.kamera_pruefen(auth.uid(), p_kamera, p_zeitpunkt);
 $$;
 
+-- 5e. Aufzeichnung: darf der angemeldete Nutzer die Aufnahmen der Kamera aus dem Bereich [p_von, p_bis) sehen?
+--     Befund 19.11.2026: kamera_darf_sehen(now()) reicht fuer Aufzeichnungen NICHT - eine Mo-Fr-Regel liesse sonst
+--     am Montag die Aufnahmen vom Samstag zu. Hier muss die Regel fuer JEDEN Augenblick des Bereichs gelten.
+--     EXAKT statt Stichprobe: Regelgrenzen liegen auf ganzen Minuten (kamera_zugriff_minuten_chk), die Wiener
+--     Zonenversaetze und Sommerzeit-Umstellungen ebenfalls. Damit ist kamera_pruefen auf jedem Stueck
+--     [volle Minute, naechste volle Minute) konstant - geprueft werden p_von und jede volle Minute in (p_von, p_bis).
+--     Hoechstens 121 Aufrufe (Spanne <= 2 h). Bereich halboffen; dazu p_bis <= now() und p_von >= now() - Aufbewahrung.
+--     Spiegel in JS: entscheideBereich() in supabase/functions/kamera-stream/logic.ts (Tests).
+create or replace function public.kamera_darf_sehen_bereich(p_kamera text, p_von timestamptz, p_bis timestamptz)
+returns boolean language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare
+  v_auth uuid := auth.uid();
+  v_tage integer;
+  v_t    timestamptz;
+begin
+  if v_auth is null or p_kamera is null or p_von is null or p_bis is null then
+    return false;
+  end if;
+  if p_von >= p_bis or p_bis > now() or p_bis - p_von > interval '2 hours' then
+    return false;
+  end if;
+  select k.aufbewahrung_tage into v_tage from public.kameras k where k.id = p_kamera and k.aktiv;
+  if v_tage is null or p_von < now() - make_interval(days => v_tage) then
+    return false;
+  end if;
+  if public.kamera_pruefen(v_auth, p_kamera, p_von) is not true then
+    return false;
+  end if;
+  v_t := date_trunc('minute', p_von) + interval '1 minute';
+  while v_t < p_bis loop
+    if public.kamera_pruefen(v_auth, p_kamera, v_t) is not true then
+      return false;
+    end if;
+    v_t := v_t + interval '1 minute';
+  end loop;
+  return true;
+end $$;
+
 revoke all on function public.kamera_pruefen(uuid, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.kamera_darf_sehen(text, timestamptz) from public, anon;
 grant execute on function public.kamera_darf_sehen(text, timestamptz) to authenticated;
+revoke all on function public.kamera_darf_sehen_bereich(text, timestamptz, timestamptz) from public, anon;
+grant execute on function public.kamera_darf_sehen_bereich(text, timestamptz, timestamptz) to authenticated;
 revoke all on function public.kamera_ist_verwalter() from public, anon;
 grant execute on function public.kamera_ist_verwalter() to authenticated;
 
@@ -272,9 +314,10 @@ create policy kamera_abruf_log_select on public.kamera_abruf_log for select to a
 --    where table_schema='public' and table_name='kamera_backend' and grantee in ('anon','authenticated');
 --     -- erwartet 0 Zeilen
 --   select routine_name, grantee from information_schema.routine_privileges
---    where routine_schema='public' and routine_name in ('kamera_pruefen','kamera_darf_sehen','kamera_ist_verwalter') order by 1,2;
---     -- erwartet: kamera_pruefen NICHT fuer anon/authenticated/PUBLIC; kamera_darf_sehen nur authenticated (+Eigentuemer)
---   select prosecdef, proconfig from pg_proc where proname in ('kamera_pruefen','kamera_darf_sehen','kamera_ist_verwalter');
+--    where routine_schema='public' and routine_name in ('kamera_pruefen','kamera_darf_sehen','kamera_darf_sehen_bereich','kamera_ist_verwalter') order by 1,2;
+--     -- erwartet: kamera_pruefen NICHT fuer anon/authenticated/PUBLIC; kamera_darf_sehen und kamera_darf_sehen_bereich
+--     -- nur authenticated (+Eigentuemer)
+--   select prosecdef, proconfig from pg_proc where proname in ('kamera_pruefen','kamera_darf_sehen','kamera_darf_sehen_bereich','kamera_ist_verwalter');
 --     -- erwartet prosecdef=true, proconfig enthaelt search_path=public, pg_temp
 --
 -- PROBE (BEGIN ... ROLLBACK — aendert nichts dauerhaft). Platzhalter ersetzen:
@@ -322,6 +365,9 @@ create policy kamera_abruf_log_select on public.kamera_abruf_log for select to a
 --   savepoint c7; delete from public.kameras where id = '__probe_kam__';
 --     -- erwartet ERROR foreign key (RESTRICT, kein CASCADE)
 --   rollback to savepoint c7;
+--   savepoint c8; insert into public.kamera_zugriff (kamera_id, rolle, von, bis) values ('__probe_kam__', 'buero', '07:00:30', '17:00');
+--     -- erwartet ERROR kamera_zugriff_minuten_chk
+--   rollback to savepoint c8;
 --
 --   -- (c) Admin: sieht die Kamera, darf_sehen = true (Rollen-Freigabe admin), sieht Regeln, sieht KEIN Backend
 --   set local role authenticated;
@@ -346,6 +392,15 @@ create policy kamera_abruf_log_select on public.kamera_abruf_log for select to a
 --   -- select public.kamera_darf_sehen('__probe_kam__', '2026-11-21 10:00 Europe/Vienna');  -- erwartet false (Sa)
 --   -- select public.kamera_darf_sehen('__probe_kam__', '2026-11-23 10:00 Europe/Vienna');  -- erwartet true  (Mo)
 --   -- select public.kamera_darf_sehen('__probe_kam__', '2026-11-23 17:00 Europe/Vienna');  -- erwartet false (bis exklusiv)
+--   -- Bereichs-Probe (Aufzeichnung; Buero-Konto, Regel Mo-Fr 07-17; Datum an "jetzt" anpassen: Bereich muss
+--   -- in der Vergangenheit und in der Aufbewahrung von 3 Tagen liegen):
+--   -- select public.kamera_darf_sehen_bereich('__probe_kam__', '<SA> 10:00 Europe/Vienna', '<SA> 11:00 Europe/Vienna');  -- erwartet false (Samstag)
+--   -- select public.kamera_darf_sehen_bereich('__probe_kam__', '<MO> 06:30 Europe/Vienna', '<MO> 07:30 Europe/Vienna');  -- erwartet false (teils ausserhalb)
+--   -- select public.kamera_darf_sehen_bereich('__probe_kam__', '<MO> 16:30 Europe/Vienna', '<MO> 17:01 Europe/Vienna');  -- erwartet false (17:00 exklusiv)
+--   -- select public.kamera_darf_sehen_bereich('__probe_kam__', '<MO> 08:00 Europe/Vienna', '<MO> 09:00 Europe/Vienna');  -- erwartet true
+--   -- select public.kamera_darf_sehen_bereich('__probe_kam__', '<MO> 08:00 Europe/Vienna', '<MO> 10:01 Europe/Vienna');  -- erwartet false (> 2 h)
+--   -- select public.kamera_darf_sehen_bereich('__probe_kam__', now() - interval '4 days', now() - interval '4 days' + interval '30 minutes');
+--   --   erwartet false (aelter als aufbewahrung_tage = 3)
 --   -- (e) Monteur: NIE — trotz eigener Nutzer-Freigabe
 --   select set_config('request.jwt.claims', json_build_object('sub','<AUTH_MONTEUR>','role','authenticated')::text, true);
 --   select count(*) from public.kameras;                                            -- erwartet 0

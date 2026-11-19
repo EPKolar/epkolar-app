@@ -36,10 +36,16 @@ Missing/invalid secret or base -> `503 {error:"nicht_konfiguriert"}` (only after
 (max 2 KB):
 
 ```
-{ "kamera_id": "<kameras.id>", "scope": "live" | "aufzeichnung", "geraet": "pc" | "mobil" }
+{ "kamera_id": "<kameras.id>", "scope": "live" | "aufzeichnung", "geraet": "pc" | "mobil",
+  "von": "<ISO 8601>", "bis": "<ISO 8601>" }        // von/bis: required for scope=aufzeichnung only
 ```
 
-`scope` defaults to `live`, `geraet` defaults to `mobil`.
+`scope` defaults to `live`, `geraet` defaults to `mobil`. `von`/`bis` must carry a zone (`Z` or `+hh:mm`) and whole
+seconds; the range is half-open `[von, bis)`.
+
+**`geraet` is NOT a security control.** It comes from the request body, i.e. it is whatever the client claims;
+any client can send `"pc"`. It only keeps honest phones/tablets on live (UI convenience). Access to recordings is
+decided by the role list (step 6) and the server-side range check (step 7b) - nothing else.
 
 ## Decision order (all server-side)
 
@@ -48,12 +54,17 @@ Missing/invalid secret or base -> `503 {error:"nicht_konfiguriert"}` (only after
 3. `users.role` in **admin, projektleiter, buero, lagerleitung** — else `403 kein_zugriff`
    (Monteur, Helfer, Techniker, Obermonteur, lager_display, stempel_terminal: always here; nothing else is queried)
 4. secrets present — else `503 nicht_konfiguriert`
-5. body valid — else `400 ungueltig`
-6. `scope=aufzeichnung`: `geraet` must be `pc` AND role in `KAMERA_AUFZEICHNUNG_ROLLEN` — else `403 kein_zugriff`.
-   The server cannot really know the device; `geraet` is a client claim. Recordings are therefore gated by
-   the role list as well — the `pc` check only keeps honest phones on live.
+5. body valid — else `400 ungueltig`. For `scope=aufzeichnung` also: `von`/`bis` present and ISO with zone,
+   `von < bis`, span <= 2 h, `bis <= now`, `von >= now - 30 days` (hard ceiling = max `aufbewahrung_tage`)
+6. `scope=aufzeichnung`: role in `KAMERA_AUFZEICHNUNG_ROLLEN` — else `403 kein_zugriff` (this is the control).
+   Additionally `geraet` must be `pc` — a client claim, NOT a security control (see above).
 7. `rpc kamera_darf_sehen(p_kamera)` called **with the caller's JWT** (so `auth.uid()` is the caller) and
    **without** a timestamp (DB uses `now()`, evaluated in Europe/Vienna) — else `403 kein_zugriff`
+7b. `scope=aufzeichnung` only: `rpc kamera_darf_sehen_bereich(p_kamera, p_von, p_bis)` with the caller's JWT —
+   true only if the access rule holds for EVERY instant of `[von, bis)` (checked at `von` and every whole minute
+   inside; exact because rule bounds are whole minutes) and the range lies within the camera's
+   `aufbewahrung_tage` — else `403 kein_zugriff`. Reason (finding 19.11.2026): a Mon–Fri rule evaluated only at
+   `now()` would let a user view Saturday's footage on Monday.
 8. `kamera_backend` row (service role) with a valid stream / recording name — else `503 nicht_konfiguriert`
 9. sign token, return URLs, write `kamera_abruf_log` (best effort)
 
@@ -82,14 +93,16 @@ typ=webrtc:          { "typ": "webrtc", "liveUrl": "<BASE>/live/<stream>/index.m
 typ=llhls:           { "typ": "llhls", "liveUrl": "<BASE>/live/<stream>/index.m3u8?token=<T>", "exp", "ttl" }
 typ=mjpeg:           { "typ": "mjpeg", "mjpegUrl": "<BASE>/live/<stream>/mjpeg?token=<T>", "exp", "ttl" }
 typ=snapshot:        { "typ": "snapshot", "snapshotUrl": "<BASE>/live/<stream>/snapshot.jpg?token=<T>", "exp", "ttl" }
-scope=aufzeichnung:  { "aufzeichnungUrl": "<BASE>/aufzeichnung/<quelle>?token=<T>", "exp": <unix s>, "ttl": <s> }
+scope=aufzeichnung:  { "aufzeichnungUrl": "<BASE>/aufzeichnung/<quelle>?token=<T>&von=<unix s>&bis=<unix s>",
+                       "von": <unix s>, "bis": <unix s>, "exp": <unix s>, "ttl": <s> }
 ```
 
 The client requests a fresh URL per tile and refreshes it about 20 s before `exp`.
 App rendering: `webrtc`/`llhls` -> `<video>` (WHEP, else native HLS); `mjpeg` -> `<img>` on `/live/<s>/mjpeg`
 (new token URL swapped in before `exp`); `snapshot` -> `<img>` reloaded every 2 s (`&_=<n>`), paused while the tab
 is hidden or the tile is off screen. Image errors / WHEP 404/5xx show "Kamera nicht erreichbar".
-For recordings the client appends `&von=<unix s>&bis=<unix s>`.
+For recordings the server puts `&von=<unix s>&bis=<unix s>` into the URL itself; the same values are signed into
+the token (`von`, `bis`) and the proxy accepts only exactly these values. The client must not append anything.
 
 ## TOKEN CONTRACT (the reverse proxy MUST implement exactly this)
 
@@ -102,6 +115,7 @@ payload  = { "v": 1,                     // version, reject anything else
              "s": "<stream_name | aufzeichnung_quelle>",
              "u": "<users.id>",          // for the proxy access log
              "sc": "live" | "aufzeichnung",
+             "von": <unix s>, "bis": <unix s>,   // ONLY for sc=aufzeichnung (required there, von < bis, integers)
              "iat": <unix s>, "exp": <unix s>,
              "n": "<uuid nonce>" }
 ```
@@ -114,6 +128,10 @@ The proxy accepts a request only if ALL hold:
 1. `T` splits into exactly two parts; `S` verifies with a **constant-time** HMAC comparison.
 2. `v == 1`, `0 < exp - iat <= 120`, `exp > now`, `iat <= now + 5` (max 5 s clock skew; proxy clock via NTP).
 3. Path type matches `sc`: `/live/<s>/...` needs `sc=live`, `/aufzeichnung/<s>` needs `sc=aufzeichnung`.
+   `sc=aufzeichnung` requires integer `von < bis` in the payload; `sc=live` must not carry them.
+   For `/aufzeichnung/<s>` the query `von`/`bis` must each appear exactly once, digits only, raw (no %-encoding)
+   and be **character-identical** to the signed values (span <= 2 h); else 403. On 204 the verifier returns
+   `X-Kamera-Von` / `X-Kamera-Bis`; the proxy builds the recording request ONLY from these headers.
 4. Path stream equals `s` exactly (no prefix match, no case folding).
 5. Path is one of the allowed shapes: `/live/<s>/index.m3u8`, `/live/<s>/whep`, `/live/<s>/mjpeg`,
    `/live/<s>/snapshot.jpg`, `/live/<s>/hls/<file>` (HLS parts), `/aufzeichnung/<s>` — everything else

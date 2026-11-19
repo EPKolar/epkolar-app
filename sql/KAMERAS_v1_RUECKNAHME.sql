@@ -26,6 +26,7 @@ drop table if exists public.kamera_backend;
 drop table if exists public.kameras;
 
 -- 3. Funktionen (Policies, die sie nutzen, sind oben schon weg)
+drop function if exists public.kamera_darf_sehen_bereich(text, timestamptz, timestamptz);
 drop function if exists public.kamera_darf_sehen(text, timestamptz);
 drop function if exists public.kamera_pruefen(uuid, text, timestamptz);
 drop function if exists public.kamera_ist_verwalter();
