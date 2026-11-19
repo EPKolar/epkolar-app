@@ -163,8 +163,12 @@ def test_alle_pfeilknoepfe_tragen_eine_beschriftung():
     roh = _roh()
     ohne = []
     gefunden = 0
-    for zeichen in ("◀", "▶"):
-        for m in re.finditer(re.escape('"' + zeichen + '"'), roh):
+    # v3.9.1046 Scan 1045: die Pfeile sind jetzt ueberwiegend Linien-Ikonen (_ik links/rechts) -
+    # die Grundgesamtheit zaehlt beide Schreibweisen, sonst wuerde der Koeder stumm.
+    muster = [re.escape('"' + z + '"') for z in ("◀", "▶")]
+    muster.append(r"_ik\([\"'](?:links|rechts)[\"']")
+    for mu in muster:
+        for m in re.finditer(mu, roh):
             b = roh.rfind("React.createElement('button'", max(0, m.start() - 900),
                           m.start())
             if b < 0:

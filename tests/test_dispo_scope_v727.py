@@ -120,6 +120,7 @@ console.log('OK');
 def test_panel_pins(index_html):
     body = _panel(index_html)
     assert "überfällig" in body, "Kopfzeile ohne 'überfällig'-Zaehler"
-    assert "⚠ war " in body, "Chip-Badge '⚠ war' fehlt"
+    # v3.9.1046 Scan 1045: das Warnzeichen ist jetzt die Linien-Ikone (_dpIkTxt mappt ⚠ -> warnung)
+    assert '_dpIkTxt("⚠","war "' in body, "Chip-Badge '⚠ war' fehlt"
     assert "_built.fixMap" in body or "fixMap" in body, "feste Chips (fixMap) nicht gerendert"
     assert "📌" in body, "📌-Badge fuer fixe Termine fehlt"

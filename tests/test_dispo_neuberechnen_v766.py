@@ -26,7 +26,8 @@ def _panel(index_html):
 def _button(index_html):
     body = _panel(index_html)
     # v3.9.767: onClick ist seit der onRefreshScheine-Verdrahtung mehrzeilig -> re.S statt Ein-Zeilen-Match.
-    m = re.search(r"h\('button',\{onClick:.*?\"↻ Neu berechnen\"\)", body, re.S)
+    # v3.9.1046 Scan 1045: Linien-Ikone statt Zeichen '↻' (Text bleibt 'Neu berechnen')
+    m = re.search(r"h\('button',\{onClick:.*?_zpIk\(\"drehen\",\"Neu berechnen\",14\)", body, re.S)
     assert m, "Button '↻ Neu berechnen' nicht mehr auffindbar (Renderpfad veraendert?)"
     return m.group(0)
 

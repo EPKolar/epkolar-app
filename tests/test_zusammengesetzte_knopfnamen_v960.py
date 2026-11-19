@@ -211,6 +211,12 @@ def test_die_zwei_behobenen_stellen_bleiben_benannt():
         # als Emoji-Literal - der Knopf faellt damit aus der Literal-Klasse, sein Rest kann aber weiter wegfallen.
         # Verlangt bleibt dasselbe: GENAU dieser Knopf traegt title UND aria-label "Eintrag löschen".
         # (Vor seinen Eigenschaften steht ein Kommentar - code_scan liest dort keine Eigenschaften; darum hier direkt.)
+        # v3.9.1046 (Scan 1045): ProjectShell zeichnet den Pfeil jetzt als Linien-Ikone (_ik links, aria-hidden)
+        # statt "◀ " - der Knopf faellt aus der Literal-Klasse, sein Text (sb-text) kann weiter wegfallen.
+        # Verlangt bleibt dasselbe: GENAU dieser Knopf traegt title UND aria-label "Alle Projekte".
+        if not treffer and ansicht == "ProjectShell":
+            treffer = re.findall(r"createElement\('button', \{ title: \"Alle Projekte\", 'aria-label': \"Alle Projekte\""
+                                 r"[^\n]*?_ik\(\"links\",16\)\), React\.createElement\('span', \{ className: \"sb-text\"\}, \"Alle Projekte\"\)", roh)
         if not treffer and ansicht == "VBautag":
             treffer = re.findall(r"createElement\('button', /\*(?:(?!\*/).)*\*/\{ title: \"Eintrag löschen\", 'aria-label': \"Eintrag löschen\""
                                  r"[^\n]*?_ikVw\(\"eimer\",isMob\?\"Löschen\":\"\"\)", roh)
@@ -294,9 +300,17 @@ def test_der_riegel_erkennt_auch_den_versteckbaren_text():
     vorhanden aus. Genau daran ist der ProjectShell-Fall vorbeigelaufen: kein
     Zaehler hat ihn gesehen, sondern erst eine Messung am gerenderten Baum.
     """
+    # v3.9.1046 (Scan 1045): der echte ProjectShell-Knopf traegt den Pfeil jetzt als Linien-Ikone und faellt
+    # damit aus der Literal-Klasse. Die display:none-Form wird deshalb an einem KOEDER in genau seiner alten
+    # Schreibweise geprueft ("◀ " + span.sb-text), eingesetzt an derselben Stelle der Huelle.
     roh = _lies()
+    anker = ", React.createElement('button', { title: \"Alle Projekte\""
+    assert anker in roh, "Anker fuer den Koeder fehlt."
+    koeder = ("React.createElement('button',{onClick:()=>0},\"◀ \","
+              "React.createElement('span',{className:\"sb-text\"},\"Koeder\"))")
+    roh = roh.replace(anker, ", " + koeder + anker, 1)
     treffer = [t for t in _klasse(roh) if t[0] == "ProjectShell"]
-    assert treffer, "Der ProjectShell-Knopf faellt nicht mehr in die Klasse."
+    assert treffer, "Der ProjectShell-Koeder faellt nicht in die Klasse."
     assert any(t[5] for t in treffer), (
         "Der ProjectShell-Knopf wird nicht mehr als 'Rest kann wegfallen' "
         "erkannt. Dann sieht der Riegel die display:none-Form nicht - und die "

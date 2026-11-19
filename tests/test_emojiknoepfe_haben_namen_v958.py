@@ -144,8 +144,10 @@ def test_kein_emojiknopf_ohne_namen():
     # jetzt mit Linien-Ikone (gemessen 61 -> 60); gleiche Eichungs-Logik wie oben.
     # Touch-UI-Rest (17.11.2026) NACHGEZOGEN: 50 -> 40. Projektakte (Maengel, Fotos, Dokumente) zeichnet ihre
     # Symbolknoepfe jetzt mit Linien-Ikonen (gemessen 60 -> 50 im Abtaster); gleiche Eichungs-Logik wie oben.
-    assert len(alle) > 40, (
-        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 40. Das ist kein "
+    # Scan 1045 (v3.9.1046) NACHGEZOGEN: 40 -> 30. Die Blaetterpfeile (Kalender, KW, Monat, Team-Timeline,
+    # Projektakte-Zurueck) und Dispo-Pfeile sind jetzt Linien-Ikonen (gemessen 35 im Abtaster); gleiche Eichungs-Logik wie oben.
+    assert len(alle) > 30, (
+        "Nur %d Emoji-Knoepfe gefunden, erwartet ueber 30. Das ist kein "
         "gruenes Ergebnis: entweder ist der Abtaster blind, oder die Knoepfe "
         "sind anders geschrieben. Eine kleine Grundgesamtheit macht die "
         "Aussage unten wertlos." % len(alle))

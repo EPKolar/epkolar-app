@@ -103,8 +103,8 @@ _UMRISS = {
 _VORGABEHANDLUNG = {
     "bearbeiten_rechner":
         'React.createElement(\'button\', { onClick: e=>{e.stopPropagation();'
-        'openEdit(a);}, style: {background:"#3b82f6",color:"#fff",'
-        'border:"none",borderRadius:4,padding:"4px 7px"',
+        # v3.9.1046 Scan 1045: Markengruen (bpS) wie die Mobil-Karte statt Blau - bleibt FLAECHE
+        'openEdit(a);}, style: {...bpS,border:"none",borderRadius:4,padding:"4px 7px"',
     "bearbeiten_mobil":
         'React.createElement(\'button\', { onClick: e=>{e.stopPropagation();'
         # v3.9.1008 CI: gefuellt ueber die CI-Hilfe bpS (Markengruen) statt Blau - bleibt FLAECHE
@@ -113,11 +113,11 @@ _VORGABEHANDLUNG = {
 _WARNZEICHEN = {
     "storno_rechner":
         'React.createElement(\'button\', { onClick: e=>{e.stopPropagation();'
-        'storno(a.id);}, style: {background:COLORS.ERROR,color:"#fff",'
+        'storno(a.id);}, style: {background:COLORS.ERROR_FILL,color:"#fff",'  # v3.9.1046: Fuellung >= 4,5:1 unter Weiss
         'border:"none",borderRadius:4,padding:"4px 7px"',
     "storno_mobil":
         'React.createElement(\'button\', { onClick: e=>{e.stopPropagation();'
-        'storno(a.id);}, style: {background:COLORS.ERROR,color:"#fff",'
+        'storno(a.id);}, style: {background:COLORS.ERROR_FILL,color:"#fff",'  # v3.9.1046: Fuellung >= 4,5:1 unter Weiss
         'border:"none",borderRadius:6,padding:"6px 12px"',
     "push_rechner":
         'React.createElement(\'button\', { onClick: e=>{e.stopPropagation();'
