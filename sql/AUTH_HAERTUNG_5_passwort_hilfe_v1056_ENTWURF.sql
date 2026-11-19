@@ -11,8 +11,10 @@
 --     Antwortet IMMER {"ok": true} (auch fuer unbekannte Namen und bei Drosselung) - die Antwort verraet nicht, ob es
 --     den Benutzernamen gibt. Fuer einen vorhandenen Benutzernamen legt sie fuer jeden aktiven Admin eine
 --     Benachrichtigung an (notifications, Typ system) - mit Status des Kontos (aktiv/gesperrt/inaktiv) fuer den Admin.
---     Drosselung: je Benutzername hoechstens 1 Benachrichtigung pro Stunde; insgesamt hoechstens 30 Anfragen in
---     10 Minuten (danach wird nichts mehr protokolliert oder benachrichtigt, Antwort bleibt gleich).
+--     Drosselung (Review 19.11. Fund 8): je Benutzername hoechstens 1 Benachrichtigung pro Stunde (auch bei Flut -
+--     ein echter Benutzername wird IMMER gemeldet); die globale Grenze (30 in 10 Minuten) gilt nur fuer das
+--     Protokollieren von NICHT-Treffern. Antwort bleibt in jedem Fall gleich.
+--     created_at (Fund 9): ist die Spalte Text, wird ISO-8601 in UTC geschrieben ('YYYY-MM-DD"T"HH24:MI:SS.MS"Z"').
 --   * public.passwort_hilfe_log - Protokoll (Benutzername klein, Zeitpunkt, Treffer ja/nein), RLS an, KEINE Rechte fuer
 --     anon/authenticated; Eintraege > 30 Tage werden bei jedem Aufruf entfernt.
 --   Die App (>= v3.9.1056) ruft die RPC mit dem anon-Schluessel; 404 (noch nicht eingespielt) -> ehrlicher Text
@@ -84,37 +86,64 @@ AS $$
 DECLARE
   v_norm text := lower(btrim(coalesce(p_username, '')));
   v_ok constant jsonb := jsonb_build_object('ok', true);
-  v_n int; v_user record; v_treffer boolean; v_status text; v_jetzt timestamptz := now();
+  v_n int; v_user record; v_treffer boolean; v_status text; v_jetzt timestamptz := now(); v_zeit_text boolean;
 BEGIN
   -- AUTH_HAERTUNG_v1056: Antwort immer gleich - verraet nie, ob es den Namen gibt
   IF v_norm = '' OR length(v_norm) > 80 THEN RETURN v_ok; END IF;
   DELETE FROM public.passwort_hilfe_log WHERE angefragt_am < v_jetzt - interval '30 days';
-  SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';
-  IF v_n >= 30 THEN RETURN v_ok; END IF;                     -- Flut: nichts mehr tun
   SELECT u.id, u.name, u.username, u.active, u.locked, u.deactivate_at INTO v_user
     FROM public.users u WHERE lower(u.username) = v_norm LIMIT 1;
   v_treffer := FOUND;
-  INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, v_treffer);
-  IF NOT v_treffer THEN RETURN v_ok; END IF;
+  IF NOT v_treffer THEN
+    -- Review 19.11. Fund 8: die globale Grenze gilt NUR fuer das Protokollieren von Nicht-Treffern (Flut mit
+    -- erfundenen Namen fuellt das Log nicht und verdraengt keine echte Anfrage)
+    SELECT count(*) INTO v_n FROM public.passwort_hilfe_log
+     WHERE NOT treffer AND angefragt_am > v_jetzt - interval '10 minutes';
+    IF v_n >= 30 THEN RETURN v_ok; END IF;                   -- Flut: Nicht-Treffer nicht mehr protokollieren
+    INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, false);
+    RETURN v_ok;
+  END IF;
+  -- Echter Benutzername: IMMER melden, aber hoechstens 1x je Benutzername und Stunde (auch bei Flut).
+  -- Sperre je Name, damit zwei gleichzeitige Aufrufe nicht beide melden.
+  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));
   SELECT count(*) INTO v_n FROM public.passwort_hilfe_log
    WHERE username_norm = v_norm AND treffer AND angefragt_am > v_jetzt - interval '1 hour';
-  IF v_n > 1 THEN RETURN v_ok; END IF;                       -- diese Stunde schon gemeldet (eigener Eintrag zaehlt mit)
+  IF v_n > 0 THEN RETURN v_ok; END IF;                       -- diese Stunde schon gemeldet
+  INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, true);
   v_status := CASE
     WHEN coalesce(v_user.locked::text,'') IN ('1','t','true') THEN 'gesperrt'
     WHEN coalesce(v_user.active::text,'') NOT IN ('1','t','true') THEN 'inaktiv'
     WHEN v_user.deactivate_at IS NOT NULL AND v_user.deactivate_at <= current_date THEN 'ausgeschieden'
     ELSE 'aktiv' END;
-  INSERT INTO public.notifications (id, user_id, type, title, body, created_at)
-  SELECT 'pwh_' || to_char(v_jetzt, 'YYYYMMDDHH24MISSMS') || '_' || a.id::text,
-         a.id, 'system', 'Passwort-Hilfe angefragt',
-         'Benutzer ' || coalesce(nullif(v_user.name,''), v_user.username) || ' (' || v_user.username || ', Konto ' || v_status
-           || ') bittet um ein neues Passwort. Bitte persoenlich bestaetigen, dann in der Benutzerverwaltung zuruecksetzen.',
-         v_jetzt
-    FROM public.users a
-   WHERE a.role = 'admin'
-     AND coalesce(a.active::text,'') IN ('1','t','true')
-     AND NOT coalesce(a.locked::text IN ('1','t','true'), false)
-  ON CONFLICT DO NOTHING;
+  -- Review 19.11. Fund 9: ist notifications.created_at Text, schreiben wir ISO-8601 in UTC wie die App
+  -- (toISOString: 2026-11-19T08:15:00.000Z) - sonst stuende dort das Sitzungsformat '2026-11-19 08:15:00.123+00'.
+  SELECT a.atttypid IN ('text'::regtype, 'character varying'::regtype) INTO v_zeit_text
+    FROM pg_attribute a WHERE a.attrelid = 'public.notifications'::regclass AND a.attname = 'created_at' AND NOT a.attisdropped;
+  IF v_zeit_text THEN
+    INSERT INTO public.notifications (id, user_id, type, title, body, created_at)
+    SELECT 'pwh_' || to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSMS') || '_' || a.id::text,
+           a.id, 'system', 'Passwort-Hilfe angefragt',
+           'Benutzer ' || coalesce(nullif(v_user.name,''), v_user.username) || ' (' || v_user.username || ', Konto ' || v_status
+             || ') bittet um ein neues Passwort. Bitte persoenlich bestaetigen, dann in der Benutzerverwaltung zuruecksetzen.',
+           to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      FROM public.users a
+     WHERE a.role = 'admin'
+       AND coalesce(a.active::text,'') IN ('1','t','true')
+       AND NOT coalesce(a.locked::text IN ('1','t','true'), false)
+    ON CONFLICT DO NOTHING;
+  ELSE
+    INSERT INTO public.notifications (id, user_id, type, title, body, created_at)
+    SELECT 'pwh_' || to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSMS') || '_' || a.id::text,
+           a.id, 'system', 'Passwort-Hilfe angefragt',
+           'Benutzer ' || coalesce(nullif(v_user.name,''), v_user.username) || ' (' || v_user.username || ', Konto ' || v_status
+             || ') bittet um ein neues Passwort. Bitte persoenlich bestaetigen, dann in der Benutzerverwaltung zuruecksetzen.',
+           v_jetzt
+      FROM public.users a
+     WHERE a.role = 'admin'
+       AND coalesce(a.active::text,'') IN ('1','t','true')
+       AND NOT coalesce(a.locked::text IN ('1','t','true'), false)
+    ON CONFLICT DO NOTHING;
+  END IF;
   RETURN v_ok;
 END $$;
 REVOKE ALL ON FUNCTION public.passwort_hilfe_anfragen(text) FROM PUBLIC;

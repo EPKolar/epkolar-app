@@ -32,6 +32,9 @@
 --     Tokens fuer alle helfergestuetzten Policies wertlos; ganz zu ist es erst mit AUTH_HAERTUNG_4. Offen
 --     (eigener Auftrag): beim Sperren/Loeschen zusaetzlich auth.users.banned_until setzen (siehe AUTH_HAERTUNG_3).
 --   * Leistung: jede Huelle fragt users einmal mehr ab (10 Zeilen, Index auf auth_user_id empfohlen, Abschnitt 1b).
+--     Messblock LEISTUNG am Ende (EXPLAIN ANALYZE supplier_articles/time_entries, vorher/nachher, nur von Hand).
+--   * Vorpruefung bricht ab bei verknuepften users-Zeilen mit active NULL und bei Logins ohne aktive users-Zeile,
+--     die in den letzten 30 Tagen aktiv waren (wie AUTH_HAERTUNG_4).
 --
 -- VORAUSSETZUNG: mindestens EIN aktiver, verknuepfter Admin (sonst sperrt sich das Buero aus) - wird geprueft.
 -- ROLLBACK: sql/AUTH_HAERTUNG_2_gesperrt_v1056_ROLLBACK.sql (erst AUTH_HAERTUNG_4 zuruecknehmen, falls angewendet).
@@ -71,6 +74,27 @@ BEGIN
      AND (u.deactivate_at IS NULL OR u.deactivate_at > current_date);
   IF v_n = 0 THEN RAISE EXCEPTION 'Vorpruefung: kein aktiver, verknuepfter Admin - das Skript wuerde das Buero aussperren'; END IF;
   RAISE NOTICE 'Vorpruefung ok: % aktive, verknuepfte Admins', v_n;
+  -- Review 19.11. Fund 1: verknuepfte users-Zeilen mit active NULL - ist_aktiver_benutzer() wertet NULL als inaktiv
+  SELECT count(*), string_agg(u.id::text || ' (' || coalesce(u.role::text,'?') || ')', ', ')
+    INTO v_n, v_liste
+    FROM public.users u WHERE u.auth_user_id IS NOT NULL AND u.active IS NULL;
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'Vorpruefung: % verknuepfte users-Zeilen haben active = NULL: % - die Helfer werten NULL als inaktiv. Erst bewusst auf aktiv/inaktiv setzen', v_n, v_liste; END IF;
+  -- Review 19.11. Fund 1: dieselbe 30-Tage-Regel wie AUTH_HAERTUNG_4 - aktive Logins ohne aktive App-Benutzerzeile
+  SELECT count(*), string_agg(au.id::text || ' (' || split_part(au.email,'@',2) || ')', ', ')
+    INTO v_n, v_liste
+    FROM auth.users au
+   WHERE (au.banned_until IS NULL OR au.banned_until < now())
+     AND (au.last_sign_in_at > now() - interval '30 days'
+          OR EXISTS (SELECT 1 FROM auth.sessions s WHERE s.user_id = au.id AND s.updated_at > now() - interval '30 days'))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.users u
+        WHERE u.auth_user_id = au.id
+          AND coalesce(u.active::text,'') IN ('1','t','true')
+          AND NOT coalesce(u.locked::text IN ('1','t','true'), false)
+          AND (u.deactivate_at IS NULL OR u.deactivate_at > current_date));
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv: % - Dienstkonto oder versehentlich inaktiv? Erst klaeren (AUTH_HAERTUNG_3 / users-Zeile)', v_n, v_liste; END IF;
 END $$;
 
 CREATE TABLE IF NOT EXISTS public._auth_haertung_v1056_sicherung (
@@ -125,7 +149,7 @@ CREATE INDEX IF NOT EXISTS users_auth_user_id_idx_v1056 ON public.users (auth_us
 -- 2. Helfer in die Huelle legen
 DO $$
 DECLARE
-  v_name text; v_basis text; v_oid oid; v_src text; v_def text; v_res text; v_sonst text; v_ausdruck text;
+  v_name text; v_basis text; v_oid oid; v_src text; v_def text; v_res text; v_sonst text; v_ausdruck text; v_kopie text;
 BEGIN
   FOREACH v_name IN ARRAY ARRAY['auth_role','current_user_role','is_staff','is_hr','is_logged_in'] LOOP
     v_oid := to_regprocedure('public.'||v_name||'()');
@@ -139,9 +163,14 @@ BEGIN
     v_def := pg_get_functiondef(v_oid);
     INSERT INTO public._auth_haertung_v1056_sicherung (objekt, art, definition)
     VALUES ('funktion:public.'||v_name||'()', 'funktion', v_def) ON CONFLICT (objekt) DO NOTHING;
-    IF position(('FUNCTION public.'||v_name||'()') in v_def) = 0 THEN
-      RAISE EXCEPTION 'Kopf von %() unerwartet - melden', v_name; END IF;
-    EXECUTE replace(v_def, 'FUNCTION public.'||v_name||'()', 'FUNCTION public.'||v_basis||'()');
+    -- Review 19.11. Fund 11: NUR den Kopf umbenennen - erstes Vorkommen, am Textanfang verankert, ohne 'g'.
+    -- Aufrufe anderer Helfer/Selbstaufrufe im Rumpf ('FUNCTION public.<name>()') bleiben unveraendert.
+    IF v_def !~ ('^CREATE OR REPLACE FUNCTION public\.' || v_name || '\(\)') THEN
+      RAISE EXCEPTION 'Kopf von %() unerwartet (erwartet: CREATE OR REPLACE FUNCTION public.%() am Anfang) - melden', v_name, v_name; END IF;
+    v_kopie := regexp_replace(v_def, '^CREATE OR REPLACE FUNCTION public\.' || v_name || '\(\)',
+                              'CREATE OR REPLACE FUNCTION public.' || v_basis || '()');
+    IF v_kopie = v_def THEN RAISE EXCEPTION 'Kopf von %() nicht umbenannt - melden', v_name; END IF;
+    EXECUTE v_kopie;
     EXECUTE format('REVOKE ALL ON FUNCTION public.%I() FROM PUBLIC, anon, authenticated', v_basis);
     IF v_res = 'boolean' THEN
       v_ausdruck := format('public.ist_aktiver_benutzer() AND public.%I()', v_basis);  -- aktiv: genau das Original (auch NULL)
@@ -164,18 +193,40 @@ $huelle$;$f$, v_name, v_res, v_basis, v_ausdruck);
 END $$;
 
 -- 3. Wirkungsliste: alle Policies mit diesen Helfern; FREIZUEGIGE mit negiertem Helfer -> Abbruch
+--    Review 19.11. Fund 5: Negation in allen ueblichen Schreibweisen (wie pg_get_expr sie ausgibt):
+--      NOT h(), NOT (rolle() = ...)/NOT (rolle() = ANY ...), rolle() <> / != / <> ALL, 'x' <> rolle(),
+--      h() IS DISTINCT FROM / ... IS DISTINCT FROM h(), COALESCE(h(), ...) <> / = false / IS NOT TRUE, NOT COALESCE(h(), ...),
+--      h() IS NOT TRUE / IS FALSE / = false / false = h(), auth_role() = 'anon' bzw. = ANY (ARRAY['anon', ...]),
+--      current_user_role() IS NULL.
 DO $$
-DECLARE r record; v_neg int := 0; v_alle int := 0;
+DECLARE r record; v_neg int := 0; v_alle int := 0; v_n int := 0;
   v_muster constant text := '(auth_role|current_user_role|is_staff|is_hr|is_logged_in|is_kiosk_role)\(\)';
-  v_negiert constant text := '(not\s*\(?\s*(public\.)?(is_staff|is_hr|is_logged_in|is_kiosk_role)\(\))|(auth_role\(\)\s*(<>|!=))|(auth_role\(\)\s*=\s*''anon'')|(current_user_role\(\)\s*(<>|!=))|(auth_role\(\)\)?\s*<>\s*all)';
+  v_h constant text := '(public\.)?(auth_role|current_user_role|is_staff|is_hr|is_logged_in|is_kiosk_role)\(\)';
+  v_rolle constant text := '(public\.)?(auth_role|current_user_role)\(\)';
+  v_negiert text[];
 BEGIN
+  v_negiert := ARRAY[
+    '\mnot\s*\(*\s*' || v_h,                                             -- NOT h() / NOT (rolle() = ...) / NOT (rolle() = ANY ...)
+    v_rolle || '\)?\s*(<>|!=)',                                         -- rolle() <> 'x' / <> ALL (...)
+    '(<>|!=)\s*\(*\s*' || v_rolle,                                      -- 'x' <> rolle()
+    v_h || '\)?\s*is\s+distinct\s+from',                                -- h() IS DISTINCT FROM ...
+    'is\s+distinct\s+from\s*\(*\s*' || v_h,                             -- ... IS DISTINCT FROM h()
+    'coalesce\(\s*' || v_h || '\s*,[^()]*\)\s*(<>|!=|=\s*false|is\s+not\s+true|is\s+false|is\s+distinct)',
+    '\mnot\s*\(*\s*coalesce\(\s*' || v_h,                                 -- NOT COALESCE(h(), ...)
+    v_h || '\)?\s*is\s+not\s+true',
+    v_h || '\)?\s*is\s+false',
+    v_h || '\)?\s*=\s*false',
+    '\mfalse\s*=\s*\(*\s*' || v_h,
+    '(public\.)?auth_role\(\)\)?\s*=\s*''anon''',                       -- auth_role() = 'anon'
+    '(public\.)?auth_role\(\)\)?\s*=\s*any\s*\(\s*\(?\s*array\[[^\]]*''anon''',   -- auth_role() IN ('anon', ...)
+    '(public\.)?current_user_role\(\)\)?\s*is\s+null'];
   FOR r IN SELECT schemaname, tablename, policyname, permissive, cmd,
                   coalesce(qual,'') || ' ' || coalesce(with_check,'') AS ausdruck
              FROM pg_policies
             WHERE (coalesce(qual,'') || ' ' || coalesce(with_check,'')) ~* v_muster
             ORDER BY tablename, policyname LOOP
     v_alle := v_alle + 1;
-    IF r.ausdruck ~* v_negiert THEN
+    IF EXISTS (SELECT 1 FROM unnest(v_negiert) m WHERE r.ausdruck ~* m) THEN
       IF r.permissive = 'PERMISSIVE' THEN
         v_neg := v_neg + 1;
         RAISE WARNING 'NEGIERT + FREIZUEGIG: %.% % (%) - fuer gesperrte Benutzer jetzt WAHR', r.tablename, r.policyname, r.cmd, r.ausdruck;
@@ -187,6 +238,28 @@ BEGIN
     END IF;
   END LOOP;
   RAISE NOTICE 'Policies mit Helfern: %', v_alle;
+  -- Review 19.11. Fund 5 (nur Hinweis): Funktionen und Sichten in public, die die Helfer rufen - deren Verhalten fuer
+  -- nicht aktive Benutzer aendert sich mit (negierte Verwendung dort = von Hand ansehen)
+  FOR r IN SELECT p.oid::regprocedure::text AS objekt, p.prosecdef,
+                  EXISTS (SELECT 1 FROM unnest(v_negiert) m WHERE p.prosrc ~* m) AS negiert
+             FROM pg_proc p
+            WHERE p.pronamespace = 'public'::regnamespace
+              AND p.prosrc ~* v_muster
+              AND p.proname NOT IN ('auth_role','current_user_role','is_staff','is_hr','is_logged_in','ist_aktiver_benutzer')
+              AND p.proname !~ '^_.*_basis_v1056$'
+            ORDER BY 1 LOOP
+    v_n := v_n + 1;
+    RAISE NOTICE 'HINWEIS Funktion % ruft Helfer (security definer=%, negiert=%)', r.objekt, r.prosecdef, r.negiert;
+  END LOOP;
+  FOR r IN SELECT quote_ident(v.schemaname) || '.' || quote_ident(v.viewname) AS objekt,
+                  EXISTS (SELECT 1 FROM unnest(v_negiert) m WHERE v.definition ~* m) AS negiert
+             FROM pg_views v
+            WHERE v.schemaname = 'public' AND v.definition ~* v_muster
+            ORDER BY 1 LOOP
+    v_n := v_n + 1;
+    RAISE NOTICE 'HINWEIS Sicht % ruft Helfer (negiert=%)', r.objekt, r.negiert;
+  END LOOP;
+  RAISE NOTICE 'Funktionen/Sichten mit Helfern: % (nur Hinweis, kein Abbruch)', v_n;
   IF v_neg > 0 THEN
     RAISE EXCEPTION '% freizuegige Policies negieren einen Helfer (WARNING oben) - erst ansehen, dann bewusst freigeben', v_neg;
   END IF;
@@ -242,5 +315,23 @@ COMMIT;
 --   EXECUTE 'RESET ROLE';
 --   RAISE NOTICE 'PROBE fertig - ok';
 -- END $probe$;
+-- ROLLBACK;
+--
+-- =====================================================================================
+-- LEISTUNG (Review 19.11. Fund 6): VOR dem Apply und NACH dem Apply je einmal von Hand laufen lassen, Zeiten vergleichen.
+-- Wird NICHT automatisch ausgefuehrt. EXPLAIN ANALYZE fuehrt die Abfrage wirklich aus - darum nur SELECT und in
+-- BEGIN ... ROLLBACK. Die Huellen sind SECURITY DEFINER und werden daher NICHT inline eingebettet: steht in einer Policy
+-- is_staff() ohne (SELECT ...), laeuft die Huelle (und damit eine users-Abfrage) je Zeile. Erwartung: "Execution Time"
+-- nachher hoechstens wenig groesser; bei deutlichem Sprung die Policy auf (SELECT public.is_staff()) umstellen.
+-- Platzhalter <AUTH_USER_ID> durch das auth_user_id eines aktiven Buero-/Monteur-Kontos ersetzen (nicht ins Repo).
+-- =====================================================================================
+-- BEGIN;
+-- SELECT set_config('request.jwt.claims', json_build_object('sub', '<AUTH_USER_ID>', 'role', 'authenticated')::text, true);
+-- SET LOCAL ROLE authenticated;
+-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.supplier_articles;
+-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT * FROM public.supplier_articles ORDER BY 1 LIMIT 200;
+-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.time_entries;
+-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT * FROM public.time_entries ORDER BY 1 DESC LIMIT 500;
+-- RESET ROLE;
 -- ROLLBACK;
 -- =====================================================================================

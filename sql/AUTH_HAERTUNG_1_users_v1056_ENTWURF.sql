@@ -12,15 +12,32 @@
 --      Grund: (a) alte Apps lesen users mit select=* und bekommen nach Schritt 1 dieses Skripts 42501 fuer die
 --      GANZE Tabelle (auch beim Schreiben, weil return=representation alle Spalten zurueckliest); (b) alte Apps
 --      brauchen aus login_lookup die id - nach Schritt 3 meldet die alte Anmeldemaske "Benutzer nicht gefunden".
---      Pruefen: activity_log action='login' der letzten Tage, details enthaelt den User-Agent - oder jedes Tablet
---      einmal oeffnen und unten auf der Anmeldemaske die Version lesen.
+--      PRUEFSTELLE (Review 19.11. Fund 2): App >= v3.9.1056 schreibt beim Anmelden activity_log action='login' mit
+--      details = 'gotrue v3.9.1056-supabase <User-Agent>'. Abschnitt 0c (Rollout-Tor) bricht AB, wenn jemand, der sich
+--      in den letzten 14 Tagen angemeldet hat, zuletzt mit einer Version < 3.9.1056 oder ohne Versionsmarke kam.
+--      Vorher von Hand (nur lesen) - je Benutzer die zuletzt gemeldete Version:
+--        WITH logins AS (
+--          SELECT a.user_id::text AS uid, a.created_at::timestamptz AS zeit,      -- Zeitspalte ggf. "timestamp"
+--                 regexp_match(coalesce(a.details::text,''), 'gotrue v(\d{1,4})\.(\d{1,4})\.(\d{1,6})') AS v
+--            FROM public.activity_log a WHERE a.action = 'login' AND a.user_id IS NOT NULL),
+--        letzte AS (SELECT DISTINCT ON (uid) uid, zeit, v FROM logins ORDER BY uid, zeit DESC)
+--        SELECT l.uid, u.username, u.role, l.zeit AS letzte_anmeldung,
+--               coalesce(array_to_string(l.v, '.'), 'OHNE VERSION') AS version,
+--               (l.zeit > now() - interval '14 days'
+--                AND (l.v IS NULL OR ARRAY[l.v[1]::int, l.v[2]::int, l.v[3]::int] < ARRAY[3,9,1056])) AS blockiert
+--          FROM letzte l LEFT JOIN public.users u ON u.id::text = l.uid
+--         ORDER BY blockiert DESC, l.zeit DESC;
+--      Grenzen: die Marke ist je BENUTZER, nicht je Geraet (zweites Tablet desselben Kontos sieht man nicht); ein altes
+--      Geraet, das nur seine Sitzung erneuert und sich nicht neu anmeldet, schreibt keine Zeile (0c listet solche
+--      Konten als HINWEIS). Darum zusaetzlich jedes Tablet einmal oeffnen und unten auf der Anmeldemaske die Version lesen.
 --   2. AUTH_HAERTUNG_2_gesperrt (Helfer), 3. AUTH_HAERTUNG_3_waisen, 4. AUTH_HAERTUNG_4_policies,
 --      5. AUTH_HAERTUNG_5_passwort_hilfe (unabhaengig, jederzeit; die App zeigt bis dahin den ehrlichen Text).
 --   Dieses Skript (1) haengt NICHT von 2-5 ab.
 --
 -- WAS ES AENDERT
 --   1. Spaltenrecht: anon/authenticated duerfen users.password_hash nicht mehr LESEN. Technisch: Tabellen-SELECT
---      weg, SELECT auf alle uebrigen Spalten (zur Laufzeit aus information_schema gebaut). FOLGE: eine kuenftig
+--      weg, SELECT auf alle uebrigen Spalten (zur Laufzeit aus information_schema gebaut) - und zwar NUR an die
+--      Rollen, die vorher Tabellen-SELECT hatten (laut Sicherung 'grant:public.users:select'). FOLGE: eine kuenftig
 --      NEU angelegte Spalte in users ist fuer die App erst lesbar, wenn sie ausdruecklich gegrantet wird
 --      (GRANT SELECT (neue_spalte) ON public.users TO anon, authenticated;) - im Migrationsmuster vermerken.
 --      SECURITY-DEFINER-Funktionen (login_lookup, auth_role, admin_*) sind nicht betroffen (laufen als Eigentuemer).
@@ -44,7 +61,9 @@
 --        * Passwort mindestens 8 Zeichen (App: PW_MIN_LEN = 8);
 --        * create: gibt es die E-Mail schon in auth.users -> Abbruch 23505 (Fund 14: vorher wurde das Passwort des
 --          vorhandenen Kontos still ueberschrieben, ein Tippfehler uebernahm ein fremdes Konto). Ausnahme nur:
---          das vorhandene Konto ist schon mit genau DIESEM Benutzernamen verknuepft (Wiederholung derselben Anlage).
+--          das vorhandene Konto ist schon mit genau DIESEM Benutzernamen verknuepft (Wiederholung derselben Anlage),
+--          ODER (Review Fund 3, Wiederverknuepfen statt Sackgasse) das vorhandene Login haengt an KEINER users-Zeile und
+--          die users-Zeile mit p_username hat genau diese E-Mail und noch kein auth_user_id.
 --        * reset: NACH erfolgreichem Original alle Refresh-Tokens des Ziels widerrufen und seine Sitzungen loeschen
 --          (Fund 13: vorher blieb ein Angreifer nach dem Reset angemeldet). Laufende Zugangs-Tokens gelten noch
 --          hoechstens bis zu ihrem Ablauf (Standard 1 h).
@@ -119,6 +138,127 @@ BEGIN
   RAISE NOTICE 'HINWEIS Trigger auf users (bleiben): %', coalesce(v_liste,'-');
 END $$;
 
+-- 0-A. VORPRUEFUNG Aussperr-Schutz (Review 19.11. Fund 1; dieselbe 30-Tage-Regel wie AUTH_HAERTUNG_4):
+--      login_lookup (Abschnitt 3) gibt nur noch AKTIVEN Konten die E-Mail - active NULL zaehlt als inaktiv.
+DO $$
+DECLARE v_n int; v_liste text;
+BEGIN
+  -- verknuepfte users-Zeilen mit active NULL: waeren ab Abschnitt 3 ausgesperrt, ohne dass es jemand beschlossen hat
+  SELECT count(*), string_agg(u.id::text || ' (' || coalesce(u.role::text,'?') || ')', ', ')
+    INTO v_n, v_liste
+    FROM public.users u WHERE u.auth_user_id IS NOT NULL AND u.active IS NULL;
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'Vorpruefung: % verknuepfte users-Zeilen haben active = NULL: % - login_lookup wertet NULL als inaktiv. Erst bewusst auf aktiv/inaktiv setzen', v_n, v_liste; END IF;
+  -- aktive Logins ohne aktive App-Benutzerzeile (letzte 30 Tage) -> wuerden ab jetzt abgewiesen
+  SELECT count(*), string_agg(au.id::text || ' (' || split_part(au.email,'@',2) || ')', ', ')
+    INTO v_n, v_liste
+    FROM auth.users au
+   WHERE (au.banned_until IS NULL OR au.banned_until < now())
+     AND (au.last_sign_in_at > now() - interval '30 days'
+          OR EXISTS (SELECT 1 FROM auth.sessions s WHERE s.user_id = au.id AND s.updated_at > now() - interval '30 days'))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.users u
+        WHERE u.auth_user_id = au.id
+          AND coalesce(u.active::text,'') IN ('1','t','true')
+          AND NOT coalesce(u.locked::text IN ('1','t','true'), false)
+          AND (u.deactivate_at IS NULL OR u.deactivate_at > current_date));
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv: % - Dienstkonto oder versehentlich inaktiv? Erst klaeren (AUTH_HAERTUNG_3 / users-Zeile)', v_n, v_liste; END IF;
+END $$;
+
+-- 0c. VORPRUEFUNG Rollout-Tor (Review 19.11. Fund 2): wer sich in den letzten 14 Tagen angemeldet hat, muss zuletzt
+--     mit App >= 3.9.1056 gekommen sein (activity_log details 'gotrue v3.9.1056-supabase <User-Agent>').
+DO $$
+DECLARE v_t text; v_zeit text; v_n int; v_liste text;
+BEGIN
+  IF to_regclass('public.activity_log') IS NULL THEN RAISE EXCEPTION 'Vorpruefung Tor: public.activity_log fehlt'; END IF;
+  FOREACH v_t IN ARRAY ARRAY['user_id','action','details'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema='public' AND table_name='activity_log' AND column_name=v_t) THEN
+      RAISE EXCEPTION 'Vorpruefung Tor: activity_log.% fehlt', v_t; END IF;
+  END LOOP;
+  -- Zeitspalte: created_at bevorzugt, sonst "timestamp" (beide als timestamptz lesbar - auch ISO-Text)
+  SELECT column_name INTO v_zeit FROM information_schema.columns
+   WHERE table_schema='public' AND table_name='activity_log' AND column_name IN ('created_at','timestamp')
+     AND data_type IN ('timestamp with time zone','timestamp without time zone','text','character varying')
+   ORDER BY (column_name = 'created_at') DESC LIMIT 1;
+  IF v_zeit IS NULL THEN RAISE EXCEPTION 'Vorpruefung Tor: activity_log hat keine Zeitspalte created_at/timestamp - Tor anpassen'; END IF;
+  EXECUTE format($q$
+    WITH logins AS (
+      SELECT a.user_id::text AS uid, a.%1$I::timestamptz AS zeit,
+             regexp_match(coalesce(a.details::text,''), 'gotrue v(\d{1,4})\.(\d{1,4})\.(\d{1,6})') AS v
+        FROM public.activity_log a
+       WHERE a.action = 'login' AND a.user_id IS NOT NULL AND a.%1$I IS NOT NULL),
+    letzte AS (SELECT DISTINCT ON (uid) uid, zeit, v FROM logins ORDER BY uid, zeit DESC)
+    SELECT count(*), string_agg(l.uid || ' (' || coalesce(array_to_string(l.v, '.'), 'ohne Version') || ')', ', ' ORDER BY l.uid)
+      FROM letzte l
+     WHERE l.zeit > now() - interval '14 days'
+       AND (l.v IS NULL OR ARRAY[l.v[1]::int, l.v[2]::int, l.v[3]::int] < ARRAY[3,9,1056])$q$, v_zeit)
+    INTO v_n, v_liste;
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'Vorpruefung Tor: % Benutzer (users.id) kamen in den letzten 14 Tagen zuletzt mit App < 3.9.1056 oder ohne Versionsmarke: % - erst diese Geraete aktualisieren und neu anmelden lassen', v_n, v_liste; END IF;
+  -- Hinweis (bricht nicht ab): Konten mit erneuerter Sitzung in 14 Tagen, aber ohne Anmeldezeile in 14 Tagen -
+  -- dort kann ein altes Geraet mit gespeicherter Sitzung laufen. Tablet ansehen.
+  EXECUTE format($q$
+    SELECT count(*), string_agg(u.id::text, ', ')
+      FROM public.users u
+     WHERE u.auth_user_id IS NOT NULL
+       AND EXISTS (SELECT 1 FROM auth.sessions s WHERE s.user_id = u.auth_user_id AND s.updated_at > now() - interval '14 days')
+       AND NOT EXISTS (SELECT 1 FROM public.activity_log a
+                        WHERE a.action = 'login' AND a.user_id::text = u.id::text
+                          AND a.%1$I::timestamptz > now() - interval '14 days')$q$, v_zeit)
+    INTO v_n, v_liste;
+  RAISE NOTICE 'HINWEIS Tor: % Konten mit Sitzung, aber ohne Anmeldezeile in 14 Tagen (Geraet von Hand pruefen): %', v_n, coalesce(v_liste,'-');
+END $$;
+
+-- 0d. VORPRUEFUNG weitere Lesewege fuer password_hash (Review 19.11. Fund 4). Sichten und SECURITY-DEFINER-Funktionen
+--     laufen mit Eigentuemerrechten - das Spaltenrecht aus Abschnitt 1 schuetzt dort NICHT. SECURITY-INVOKER-Funktionen
+--     mit users.* brechen nach Abschnitt 1 mit 42501. Jeder Treffer wird gelistet; Abbruch bei jedem Treffer, der nicht
+--     in v_geprueft steht.
+DO $$
+DECLARE r record; v_n int := 0;
+  -- NUR nach Durchsicht von pg_get_functiondef ergaenzen (Name ohne Schema):
+  --   login_lookup: wird in Abschnitt 3 ersetzt; _users_selbst_nur_harmlos: eigener Trigger (to_jsonb(OLD/NEW), gibt nichts heraus)
+  v_geprueft constant text[] := ARRAY['login_lookup','_users_selbst_nur_harmlos'];
+BEGIN
+  -- Sichten: information_schema (nur Tabellen eigener Rollen) UND pg_depend (alle Schemata, auch Materialized Views)
+  FOR r IN
+    SELECT DISTINCT objekt FROM (
+      SELECT quote_ident(vcu.view_schema) || '.' || quote_ident(vcu.view_name) AS objekt
+        FROM information_schema.view_column_usage vcu
+       WHERE vcu.table_schema='public' AND vcu.table_name='users' AND vcu.column_name='password_hash'
+      UNION
+      SELECT rw.ev_class::regclass::text
+        FROM pg_depend d JOIN pg_rewrite rw ON rw.oid = d.objid
+       WHERE d.classid = 'pg_rewrite'::regclass AND d.refclassid = 'pg_class'::regclass
+         AND d.refobjid = 'public.users'::regclass AND rw.ev_class <> 'public.users'::regclass
+         AND d.refobjsubid = (SELECT attnum FROM pg_attribute WHERE attrelid='public.users'::regclass AND attname='password_hash')
+    ) s ORDER BY 1 LOOP
+    v_n := v_n + 1;
+    RAISE NOTICE 'LESEWEG Sicht % nutzt users.password_hash', r.objekt;
+  END LOOP;
+  -- Funktionen in public: liefern users-Zeilen, oder verweisen auf public.users mit *, to_jsonb, row_to_json, json(b)_agg
+  FOR r IN
+    SELECT p.proname, p.oid::regprocedure::text AS sig, p.prosecdef,
+           (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE')) AS offen,
+           (p.prorettype = 'public.users'::regtype) AS liefert_users
+      FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND (p.prorettype = 'public.users'::regtype
+            OR (p.prosrc ~* '(public\.users\M|(^|[^.[:alnum:]_"])users\M)'
+                AND p.prosrc ~* '(select\s+\*|[[:alnum:]_]\.\*|to_jsonb\s*\(|row_to_json\s*\(|to_json\s*\(|jsonb?_agg\s*\()'))
+     ORDER BY p.proname LOOP
+    IF r.proname = ANY (v_geprueft) THEN
+      RAISE NOTICE 'Leseweg-Kandidat % - bekannt/geprueft, ok', r.sig; CONTINUE; END IF;
+    v_n := v_n + 1;
+    RAISE NOTICE 'LESEWEG Funktion % (%, %, liefert users-Zeile: %)', r.sig,
+      CASE WHEN r.prosecdef THEN 'SECURITY DEFINER - kann den Hash herausgeben' ELSE 'SECURITY INVOKER - bricht nach dem Apply mit 42501' END,
+      CASE WHEN r.offen THEN 'anon/authenticated duerfen rufen' ELSE 'nur Eigentuemer' END, r.liefert_users;
+  END LOOP;
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'Vorpruefung: % weitere Lesewege fuer users.password_hash (LESEWEG oben) - ansehen; harmlose Funktionen in v_geprueft eintragen, Sichten ohne Hash neu bauen', v_n; END IF;
+END $$;
+
 -- 0a. Sicherungstabelle (gemeinsam fuer AUTH_HAERTUNG_1..4; nur Eigentuemer)
 CREATE TABLE IF NOT EXISTS public._auth_haertung_v1056_sicherung (
   objekt       text PRIMARY KEY,
@@ -153,15 +293,27 @@ SELECT 'grant:public.users:select', 'grant',
                           'authenticated_tabelle', has_table_privilege('authenticated','public.users','SELECT'))
 ON CONFLICT (objekt) DO NOTHING;
 
--- 1. SPALTENRECHT: password_hash nicht mehr lesbar (Tabellen-SELECT weg, alle anderen Spalten einzeln)
+-- 1. SPALTENRECHT: password_hash nicht mehr lesbar (Tabellen-SELECT weg, alle anderen Spalten einzeln -
+--    Review 19.11. Fund 10: NUR an die Rollen, die laut Sicherung vorher Tabellen-SELECT hatten)
 DO $$
-DECLARE v_spalten text;
+DECLARE v_spalten text; v_x jsonb; v_rollen text;
 BEGIN
+  SELECT extra INTO v_x FROM public._auth_haertung_v1056_sicherung WHERE objekt = 'grant:public.users:select';
+  IF v_x IS NULL OR NOT (v_x ? 'anon_tabelle') OR NOT (v_x ? 'authenticated_tabelle') THEN
+    RAISE EXCEPTION 'Rechte-Sicherung grant:public.users:select fehlt/unvollstaendig - Abbruch'; END IF;
   SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position) INTO v_spalten
     FROM information_schema.columns
    WHERE table_schema='public' AND table_name='users' AND column_name <> 'password_hash';
+  -- Tabellen-REVOKE nimmt auch Spaltenrechte eines frueheren Laufs mit -> danach exakt neu vergeben (idempotent)
   REVOKE SELECT ON public.users FROM anon, authenticated;
-  EXECUTE format('GRANT SELECT (%s) ON public.users TO anon, authenticated', v_spalten);
+  SELECT string_agg(rolle, ', ') INTO v_rollen
+    FROM (VALUES ('anon', (v_x->>'anon_tabelle')::boolean),
+                 ('authenticated', (v_x->>'authenticated_tabelle')::boolean)) s(rolle, hatte)
+   WHERE hatte;
+  IF v_rollen IS NOT NULL THEN
+    EXECUTE format('GRANT SELECT (%s) ON public.users TO %s', v_spalten, v_rollen);
+  END IF;
+  RAISE NOTICE 'Spalten-SELECT (ohne password_hash) vergeben an: %', coalesce(v_rollen, '- niemand (vorher kein Tabellen-SELECT)');
   -- falls irgendwo ein Spaltenrecht auf den Hash steht: weg
   REVOKE SELECT (password_hash) ON public.users FROM anon, authenticated;
 END $$;
@@ -262,7 +414,7 @@ $$;
 DO $$
 DECLARE
   v_name text; v_basis text; v_oid oid; v_src text; v_def text; v_args text; v_idargs text; v_res text;
-  v_set boolean; v_names text[]; v_modes text[]; v_i int; v_call text; v_pruef text; v_rumpf text;
+  v_set boolean; v_names text[]; v_modes text[]; v_i int; v_call text; v_pruef text; v_rumpf text; v_kopie text;
 BEGIN
   FOREACH v_name IN ARRAY ARRAY['admin_create_user','admin_reset_password'] LOOP
     v_basis := '_' || v_name || '_basis_v1056';
@@ -273,7 +425,8 @@ BEGIN
     IF position('AUTH_HAERTUNG_v1056_HUELLE' in v_src) > 0 THEN
       RAISE NOTICE '% ist schon die Huelle v1056 - uebersprungen', v_name; CONTINUE;
     END IF;
-    IF v_set THEN RAISE EXCEPTION '% liefert eine Menge (SETOF/TABLE) - Huelle nicht vorgesehen, melden', v_name; END IF;
+    IF v_set THEN
+      RAISE EXCEPTION '% liefert eine Menge (RETURNS %) - die Huelle reicht nur EINEN Rueckgabewert weiter, nichts geaendert. Pruefen: SELECT pg_get_functiondef(''public.%''::regproc); und was die App aus rpc/% liest (Array?). Dann die Huelle auf RETURN QUERY SELECT * FROM <Basis>(...) umbauen lassen - melden', v_name, v_res, v_name, v_name; END IF;
     IF v_modes IS NOT NULL AND NOT (v_modes <@ ARRAY['i']) THEN
       RAISE EXCEPTION '% hat OUT/INOUT/VARIADIC-Parameter (%) - Huelle nicht vorgesehen, melden', v_name, v_modes; END IF;
     IF v_names IS NULL OR array_position(v_names, '') IS NOT NULL THEN
@@ -282,9 +435,14 @@ BEGIN
     v_def := pg_get_functiondef(v_oid);
     INSERT INTO public._auth_haertung_v1056_sicherung (objekt, art, definition)
     VALUES ('funktion:public.'||v_name, 'funktion', v_def) ON CONFLICT (objekt) DO NOTHING;
-    IF position(('FUNCTION public.'||v_name||'(') in v_def) = 0 THEN
-      RAISE EXCEPTION 'Kopf von % unerwartet - melden', v_name; END IF;
-    EXECUTE replace(v_def, 'FUNCTION public.'||v_name||'(', 'FUNCTION public.'||v_basis||'(');
+    -- Review 19.11. Fund 11: NUR den Kopf umbenennen - erstes Vorkommen, am Textanfang verankert, ohne 'g'.
+    -- Selbstaufrufe/Kommentare im Rumpf ('FUNCTION public.<name>(') bleiben unveraendert.
+    IF v_def !~ ('^CREATE OR REPLACE FUNCTION public\.' || v_name || '\(') THEN
+      RAISE EXCEPTION 'Kopf von % unerwartet (erwartet: CREATE OR REPLACE FUNCTION public.%() am Anfang) - melden', v_name, v_name; END IF;
+    v_kopie := regexp_replace(v_def, '^CREATE OR REPLACE FUNCTION public\.' || v_name || '\(',
+                              'CREATE OR REPLACE FUNCTION public.' || v_basis || '(');
+    IF v_kopie = v_def THEN RAISE EXCEPTION 'Kopf von % nicht umbenannt - melden', v_name; END IF;
+    EXECUTE v_kopie;
     EXECUTE format('REVOKE ALL ON FUNCTION public.%I(%s) FROM PUBLIC, anon, authenticated', v_basis, v_idargs);
     -- Aufruf mit benannten Parametern
     v_call := '';
@@ -298,9 +456,19 @@ BEGIN
     RAISE EXCEPTION 'admin_create_user: Passwort mindestens 8 Zeichen' USING ERRCODE = '22023';
   END IF;
   SELECT au.id INTO v_vorhanden FROM auth.users au WHERE lower(au.email) = lower(btrim(p_email)) LIMIT 1;
-  IF v_vorhanden IS NOT NULL AND NOT EXISTS (
+  IF v_vorhanden IS NOT NULL
+     -- erlaubt 1: Wiederholung derselben Anlage (Login schon mit diesem Benutzernamen verknuepft)
+     AND NOT EXISTS (
        SELECT 1 FROM public.users pu
-        WHERE pu.auth_user_id = v_vorhanden AND lower(pu.username) = lower(btrim(p_username))) THEN
+        WHERE pu.auth_user_id = v_vorhanden AND lower(pu.username) = lower(btrim(p_username)))
+     -- erlaubt 2 (Review Fund 3, Wiederverknuepfen): Login haengt an KEINER users-Zeile UND die users-Zeile mit
+     -- p_username hat genau diese E-Mail und noch kein auth_user_id
+     AND NOT (
+       NOT EXISTS (SELECT 1 FROM public.users pu WHERE pu.auth_user_id = v_vorhanden)
+       AND EXISTS (SELECT 1 FROM public.users pu
+                    WHERE lower(pu.username) = lower(btrim(p_username))
+                      AND lower(btrim(coalesce(pu.email,''))) = lower(btrim(p_email))
+                      AND pu.auth_user_id IS NULL)) THEN
     RAISE EXCEPTION 'admin_create_user: fuer diese E-Mail gibt es schon einen Login - nichts geaendert. E-Mail pruefen oder das Passwort ueber Passwort zuruecksetzen setzen.'
       USING ERRCODE = '23505';
   END IF;$p$;
@@ -357,8 +525,12 @@ BEGIN
   IF has_column_privilege('authenticated','public.users','password_hash','SELECT')
      OR has_column_privilege('anon','public.users','password_hash','SELECT') THEN
     RAISE EXCEPTION 'Nachpruefung: password_hash ist noch lesbar'; END IF;
-  IF NOT has_column_privilege('authenticated','public.users','email','SELECT') THEN
+  IF (SELECT (extra->>'authenticated_tabelle')::boolean FROM public._auth_haertung_v1056_sicherung
+       WHERE objekt = 'grant:public.users:select')
+     AND NOT has_column_privilege('authenticated','public.users','email','SELECT') THEN
     RAISE EXCEPTION 'Nachpruefung: authenticated kann users.email nicht mehr lesen - Spaltenrechte falsch'; END IF;
+  IF has_table_privilege('anon','public.users','SELECT') OR has_table_privilege('authenticated','public.users','SELECT') THEN
+    RAISE EXCEPTION 'Nachpruefung: Tabellen-SELECT auf users besteht noch (PUBLIC-Grant?) - Hash damit lesbar'; END IF;
   SELECT qual, with_check INTO v_q, v_c FROM pg_policies WHERE schemaname='public' AND tablename='users' AND policyname='users_update';
   IF v_c IS NULL OR position('auth.uid()' in v_q) = 0 THEN RAISE EXCEPTION 'Nachpruefung: users_update nicht wie erwartet: % / %', v_q, v_c; END IF;
   SELECT count(*) INTO v_n FROM pg_proc WHERE pronamespace='public'::regnamespace

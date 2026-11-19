@@ -511,6 +511,53 @@ def _mangel_sql(name, t, rb):
             m.append("admin_create_user ueberschreibt vorhandenes Konto")
         if "AUTH_HAERTUNG_v1056_HUELLE' in v_src" not in code:
             m.append("Huelle nicht idempotent (wuerde sich selbst kopieren)")
+        # Review 19.11. Fund 2: Rollout-Tor ueber die Versionsmarke im Login-Protokoll
+        kopf = t[:t.index("\nBEGIN;")]
+        if "gotrue v3.9.1056-supabase" not in kopf or "details enthaelt den User-Agent" in kopf:
+            m.append("Rollout-Tor im Kopf nicht konkret (Versionsmarke)")
+        if (r"regexp_match(coalesce(a.details::text,''), 'gotrue v(\d{1,4})\.(\d{1,4})\.(\d{1,6})')" not in code
+                or "AND (l.v IS NULL OR ARRAY[l.v[1]::int, l.v[2]::int, l.v[3]::int] < ARRAY[3,9,1056])$q$" not in code
+                or "WHERE l.zeit > now() - interval '14 days'" not in code or "RAISE EXCEPTION 'Vorpruefung Tor:" not in code):
+            m.append("Rollout-Tor bricht nicht ab bei alter/fehlender Version")
+        # Review 19.11. Fund 3: Wiederverknuepfen statt 23505-Sackgasse
+        if ("NOT EXISTS (SELECT 1 FROM public.users pu WHERE pu.auth_user_id = v_vorhanden)" not in code
+                or "AND lower(btrim(coalesce(pu.email,''))) = lower(btrim(p_email))" not in code
+                or "AND pu.auth_user_id IS NULL)) THEN" not in code
+                or "IF public.auth_role() IS DISTINCT FROM 'admin' THEN" not in code
+                or "IF length(coalesce(p_password,'')) < 8 THEN" not in code):
+            m.append("admin_create_user: kein Wiederverknuepfen (oder Admin-/Laengenpruefung weg)")
+        # Review 19.11. Fund 4: weitere Lesewege fuer den Hash
+        if ("information_schema.view_column_usage" not in code or "p.prorettype = 'public.users'::regtype" not in code
+                or "to_jsonb\\s*\\(|row_to_json\\s*\\(" not in code or "select\\s+\\*" not in code
+                or "IF v_n > 0 THEN\n    RAISE EXCEPTION 'Vorpruefung: % weitere Lesewege" not in code
+                or "v_geprueft constant text[] := ARRAY['login_lookup','_users_selbst_nur_harmlos'];" not in code):
+            m.append("weitere Lesewege fuer password_hash nicht geprueft")
+        # Review 19.11. Fund 10: Spaltenrecht nur an Rollen mit vorherigem Tabellen-SELECT
+        if ("GRANT SELECT (%s) ON public.users TO anon, authenticated" in code
+                or "EXECUTE format('GRANT SELECT (%s) ON public.users TO %s', v_spalten, v_rollen);" not in code
+                or "(v_x->>'anon_tabelle')::boolean" not in code):
+            m.append("Spaltenrecht nicht aus der Sicherung")
+        rbc = _ohne_kommentar(rb)
+        i_rev = rbc.find("REVOKE SELECT ON public.users FROM anon, authenticated;")
+        i_gr = rbc.find("GRANT SELECT ON public.users TO anon;")
+        if i_rev < 0 or i_gr < 0 or i_rev > i_gr:
+            m.append("Rueckweg: erst REVOKE, dann exakt nach Sicherung vergeben - fehlt")
+        # Review 19.11. Fund 12: verstaendlicher Abbruch bei SETOF/TABLE
+        if "RETURN QUERY" not in code or "pg_get_functiondef(''public.%''::regproc)" not in code:
+            m.append("SETOF-Abbruch ohne Handlungsanweisung")
+    if name.startswith(("AUTH_HAERTUNG_1", "AUTH_HAERTUNG_2")):
+        # Review 19.11. Fund 1: Aussperr-Schutz wie in AUTH_HAERTUNG_4 + active NULL
+        if "WHERE u.auth_user_id IS NOT NULL AND u.active IS NULL;" not in code:
+            m.append("Aussperr-Schutz: active NULL nicht abgefangen")
+        if ("RAISE EXCEPTION 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv" not in code
+                or "RAISE EXCEPTION 'Vorpruefung: % verknuepfte users-Zeilen haben active = NULL" not in code
+                or "au.last_sign_in_at > now() - interval '30 days'" not in code):
+            m.append("Aussperr-Schutz: 30-Tage-Regel fehlt")
+        # Review 19.11. Fund 11: nur der Kopf wird umbenannt
+        if "EXECUTE replace(v_def" in code or "regexp_replace(v_def, '^CREATE OR REPLACE FUNCTION public\\.' || v_name || '\\(" not in code:
+            m.append("Kopf-Umbenennung nicht auf das erste Vorkommen begrenzt")
+        if re.search(r"regexp_replace\(v_def,[^;]*'g'\)", code):
+            m.append("Kopf-Umbenennung nicht auf das erste Vorkommen begrenzt ('g')")
     if name.startswith("AUTH_HAERTUNG_2"):
         rumpf = _ohne_kommentar(_funktionsrumpf(t, "CREATE OR REPLACE FUNCTION public.ist_aktiver_benutzer()"))
         for bed in ("u.auth_user_id = auth.uid()", "u.active", "u.locked", "u.deactivate_at > current_date"):
@@ -522,6 +569,22 @@ def _mangel_sql(name, t, rb):
             m.append("auth_role faellt nicht auf anon")
         if "freizuegige Policies negieren einen Helfer" not in code:
             m.append("negierte Helfer nicht abgefangen")
+        # Review 19.11. Fund 5: breitere Negationsmuster + Hinweisliste Funktionen/Sichten
+        for muster in (r"'\mnot\s*\(*\s*' || v_h", r"v_h || '\)?\s*is\s+distinct\s+from'",
+                       r"'is\s+distinct\s+from\s*\(*\s*' || v_h", r"'coalesce\(\s*' || v_h || '\s*,[^()]*\)\s*(<>|!=",
+                       r"v_h || '\)?\s*is\s+not\s+true'", r"v_h || '\)?\s*=\s*false'", r"v_rolle || '\)?\s*(<>|!=)'"):
+            if muster not in code:
+                m.append("Negationsmuster fehlt: " + muster)
+        if "IF EXISTS (SELECT 1 FROM unnest(v_negiert) m WHERE r.ausdruck ~* m) THEN" not in code:
+            m.append("Negationsmuster werden nicht alle angewendet")
+        if "HINWEIS Funktion % ruft Helfer" not in code or "FROM pg_views v" not in code:
+            m.append("Funktionen/Sichten mit Helfern nicht gelistet")
+        # Review 19.11. Fund 6: EXPLAIN-ANALYZE-Block nur auskommentiert
+        if ("-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.supplier_articles;" not in t
+                or "-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.time_entries;" not in t):
+            m.append("Leistungs-Messblock (EXPLAIN ANALYZE) fehlt")
+        if re.search(r"\bexplain\b", code, re.I):
+            m.append("EXPLAIN laeuft automatisch mit")
     if name.startswith("AUTH_HAERTUNG_3"):
         if "infinity" in code.lower():
             m.append("banned_until = infinity (GoTrue liest das nicht sicher)")
@@ -549,6 +612,19 @@ def _mangel_sql(name, t, rb):
             m.append("Log lesbar")
         if "interval '1 hour'" not in rumpf or "v_n >= 30" not in rumpf:
             m.append("keine Drosselung")
+        # Review 19.11. Fund 8: globale Grenze nur fuer Nicht-Treffer; echte Treffer melden immer (1/Name/Stunde)
+        i_nicht = rumpf.find("IF NOT v_treffer THEN")
+        i_grenze = rumpf.find("v_n >= 30")
+        i_ende = rumpf.find("\n  END IF;", i_nicht) if i_nicht >= 0 else -1   # Ende des Nicht-Treffer-Zweigs
+        if (i_nicht < 0 or not (i_nicht < i_grenze < i_ende)
+                or "WHERE NOT treffer AND angefragt_am > v_jetzt - interval '10 minutes'" not in rumpf):
+            m.append("globale Grenze bremst auch echte Treffer")
+        if "WHERE username_norm = v_norm AND treffer AND angefragt_am > v_jetzt - interval '1 hour'" not in rumpf:
+            m.append("keine Drosselung je Benutzername")
+        # Review 19.11. Fund 9: Text-created_at als ISO-8601 UTC
+        if ("to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')" not in rumpf
+                or "IF v_zeit_text THEN" not in rumpf):
+            m.append("created_at als Text nicht im ISO-Format")
     return m
 
 
@@ -567,6 +643,45 @@ def test_sql_entwurf(name):
     ("AUTH_HAERTUNG_4_policies_v1056", "    'werkzeuge','wz_service','as_vorlagen',", "    'werkzeuge','wz_service','as_vorlagen','arbeitsscheine',", "arbeitsscheine"),
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  IF v_norm = '' OR length(v_norm) > 80 THEN RETURN v_ok; END IF;", "  IF v_norm = '' OR length(v_norm) > 80 THEN RETURN jsonb_build_object('ok', false); END IF;", "immer gleich"),
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "DROP FUNCTION IF EXISTS public.passwort_hilfe_anfragen(text);", "DROP FUNCTION IF EXISTS public.passwort_hilfe_anfragen(text) CASCADE;", "CASCADE"),
+    # ── Review 19.11.: je Fund der alte Text zurueck -> Riegel schlaegt an
+    # Fund 1 (Skript 1 und 2): active NULL / 30-Tage-Regel
+    ("AUTH_HAERTUNG_1_users_v1056", "    FROM public.users u WHERE u.auth_user_id IS NOT NULL AND u.active IS NULL;", "    FROM public.users u WHERE false;", "active NULL"),
+    ("AUTH_HAERTUNG_1_users_v1056", "    RAISE EXCEPTION 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv", "    RAISE NOTICE 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv", "30-Tage-Regel"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "    FROM public.users u WHERE u.auth_user_id IS NOT NULL AND u.active IS NULL;", "    FROM public.users u WHERE false;", "active NULL"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "    RAISE EXCEPTION 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv", "    RAISE NOTICE 'Vorpruefung: % Logins ohne aktive users-Zeile waren in den letzten 30 Tagen aktiv", "30-Tage-Regel"),
+    # Fund 2: Rollout-Tor
+    ("AUTH_HAERTUNG_1_users_v1056", "--      PRUEFSTELLE (Review 19.11. Fund 2):", "--      Pruefen: activity_log action='login' der letzten Tage, details enthaelt den User-Agent. (", "Rollout-Tor im Kopf"),
+    ("AUTH_HAERTUNG_1_users_v1056", "       AND (l.v IS NULL OR ARRAY[l.v[1]::int, l.v[2]::int, l.v[3]::int] < ARRAY[3,9,1056])$q$", "$q$", "Rollout-Tor bricht nicht ab"),
+    # Fund 4: weitere Lesewege
+    ("AUTH_HAERTUNG_1_users_v1056", "  IF v_n > 0 THEN\n    RAISE EXCEPTION 'Vorpruefung: % weitere Lesewege", "  IF false THEN\n    RAISE EXCEPTION 'Vorpruefung: % weitere Lesewege", "weitere Lesewege"),
+    ("AUTH_HAERTUNG_1_users_v1056", "        FROM information_schema.view_column_usage vcu", "        FROM information_schema.columns vcu", "weitere Lesewege"),
+    # Fund 10: Spaltenrecht aus der Sicherung; Rueckweg erst REVOKE
+    ("AUTH_HAERTUNG_1_users_v1056", "EXECUTE format('GRANT SELECT (%s) ON public.users TO %s', v_spalten, v_rollen);", "EXECUTE format('GRANT SELECT (%s) ON public.users TO anon, authenticated', v_spalten);", "nicht aus der Sicherung"),
+    ("AUTH_HAERTUNG_1_users_v1056", "  REVOKE SELECT ON public.users FROM anon, authenticated;\n  IF (v_x->>'anon_tabelle')", "  IF (v_x->>'anon_tabelle')", "erst REVOKE"),
+    # Fund 11: Kopf-Umbenennung nur erstes Vorkommen
+    ("AUTH_HAERTUNG_1_users_v1056", "    EXECUTE v_kopie;", "    EXECUTE replace(v_def, 'FUNCTION public.'||v_name||'(', 'FUNCTION public.'||v_basis||'(');", "erste Vorkommen"),
+    ("AUTH_HAERTUNG_1_users_v1056", "'CREATE OR REPLACE FUNCTION public.' || v_basis || '(');", "'CREATE OR REPLACE FUNCTION public.' || v_basis || '(', 'g');", "('g')"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "    EXECUTE v_kopie;", "    EXECUTE replace(v_def, 'FUNCTION public.'||v_name||'()', 'FUNCTION public.'||v_basis||'()');", "erste Vorkommen"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "'CREATE OR REPLACE FUNCTION public.' || v_basis || '()');", "'CREATE OR REPLACE FUNCTION public.' || v_basis || '()', 'g');", "('g')"),
+    # Fund 12: SETOF-Abbruch mit Handlungsanweisung
+    ("AUTH_HAERTUNG_1_users_v1056",
+     "    IF v_set THEN\n      RAISE EXCEPTION '% liefert eine Menge (RETURNS %) - die Huelle reicht nur EINEN Rueckgabewert weiter, nichts geaendert. Pruefen: SELECT pg_get_functiondef(''public.%''::regproc); und was die App aus rpc/% liest (Array?). Dann die Huelle auf RETURN QUERY SELECT * FROM <Basis>(...) umbauen lassen - melden', v_name, v_res, v_name, v_name; END IF;",
+     "    IF v_set THEN RAISE EXCEPTION '% liefert eine Menge (SETOF/TABLE) - Huelle nicht vorgesehen, melden', v_name; END IF;",
+     "SETOF-Abbruch"),
+    # Fund 5: Negationsmuster
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "    v_h || '\\)?\\s*is\\s+distinct\\s+from',", "", "is\\s+distinct\\s+from"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "    v_h || '\\)?\\s*=\\s*false',", "", "=\\s*false"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "    IF EXISTS (SELECT 1 FROM unnest(v_negiert) m WHERE r.ausdruck ~* m) THEN", "    IF r.ausdruck ~* v_negiert[1] THEN", "nicht alle angewendet"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "FROM pg_views v", "FROM pg_matviews v", "Sichten mit Helfern"),
+    # Fund 6: EXPLAIN nur auskommentiert
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.time_entries;", "", "Messblock"),
+    ("AUTH_HAERTUNG_2_gesperrt_v1056", "-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.supplier_articles;", "EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.supplier_articles;", "automatisch"),
+    # Fund 8: alte Reihenfolge (globale Grenze vor dem Nachschlagen, gilt fuer alle)
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  SELECT u.id, u.name, u.username, u.active, u.locked, u.deactivate_at INTO v_user",
+     "  SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';\n  IF v_n >= 30 THEN RETURN v_ok; END IF;\n  SELECT u.id, u.name, u.username, u.active, u.locked, u.deactivate_at INTO v_user",
+     "echte Treffer"),
+    # Fund 9: created_at roh statt ISO
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "           to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')", "           v_jetzt", "ISO-Format"),
 ])
 def test_umkehrprobe_sql(name, alt, neu, erwartet):
     t, rb = _sql(name), _sql(name, "ROLLBACK")
@@ -576,6 +691,16 @@ def test_umkehrprobe_sql(name, alt, neu, erwartet):
         assert alt in rb, alt
         rb = rb.replace(alt, neu, 1)
     assert any(erwartet in x for x in _mangel_sql(name, t, rb)), _mangel_sql(name, t, rb)
+
+
+def test_umkehrprobe_sql_wiederverknuepfen():
+    """Review 19.11. Fund 3: alte Huellen-Bedingung (nur 'schon mit diesem Benutzernamen verknuepft') -> Riegel schlaegt an."""
+    name = "AUTH_HAERTUNG_1_users_v1056"
+    t, rb = _sql(name), _sql(name, "ROLLBACK")
+    kaputt, n = re.subn(r"\n     -- erlaubt 2 .*?AND pu\.auth_user_id IS NULL\)\) THEN", " THEN", t, count=1, flags=re.S)
+    assert n == 1
+    assert "lower(btrim(p_username))) THEN" in kaputt
+    assert any("Wiederverknuepfen" in x for x in _mangel_sql(name, kaputt, rb)), _mangel_sql(name, kaputt, rb)
 
 
 def test_sql_keine_werte_und_kein_live_apply_hinweis():
