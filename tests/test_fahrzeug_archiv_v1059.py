@@ -264,10 +264,17 @@ def test_umkehrprobe_ohne_admin_riegel(tmp_path):
 def test_wurzel_reicht_nur_aktive_weiter():
     q = _q()
     assert q.count("const fahrzeugeAktiv=_react.useMemo.call(void 0, ()=>_fzNurAktiv(fahrzeuge),[fahrzeuge]);") == 1
-    for comp in ["HomeView", "ChefDashboard", "WeekPlan", "FlotteView", "MitarbeiterView", "AuswertungView", "VBueroExport"]:
+    # v3.9.1062: Arbeitsansichten bleiben aktiv; Auswertung, Bueroexport und Mitarbeiter (nur Fahrtenbuch-Panel)
+    # bekommen die volle Liste, damit vergangene Kosten/Fahrten archivierter Fahrzeuge nicht verschwinden
+    # (Verhalten gemessen in test_archiv_historie_v1062.py).
+    for comp in ["HomeView", "ChefDashboard", "WeekPlan", "FlotteView"]:
         i = q.index("React.createElement(%s, {" % comp)
         teil = q[i:q.index("\n", i)]
-        assert "fahrzeuge: fahrzeugeAktiv" in teil and "fahrzeuge: fahrzeuge," not in teil, comp
+        assert "fahrzeuge: fahrzeugeAktiv," in teil and "fahrzeuge: fahrzeuge," not in teil, comp
+    for comp in ["MitarbeiterView", "AuswertungView", "VBueroExport"]:
+        i = q.index("React.createElement(%s, {" % comp)
+        teil = q[i:q.index("\n", i)]
+        assert "fahrzeuge: fahrzeuge," in teil and "fahrzeugeAktiv" not in teil, comp
     i = q.index("React.createElement(FahrzeugView, {")
     assert "fahrzeuge: fahrzeuge, setFahrzeuge: setFahrzeuge" in q[i:i + 120]  # nur hier die volle Liste (Admin-Archiv)
     assert "WochenplanTafel,{wpHistory:wpHistory,monteure:monteure,fahrzeuge:fahrzeugeAktiv," in q

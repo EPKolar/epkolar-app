@@ -11,7 +11,8 @@ def test_monteure_prop(index_html):
     # sich am geprueften Verhalten etwas aendert.
     # v3.9.689: setFahrzeuge kam dazu (IMEI-Zuordnung inline im Fleet-Panel).
     # v3.9.1059: Flotte bekommt die Liste OHNE archivierte Fahrzeuge (fahrzeugeAktiv), setFahrzeuge bleibt der volle Zustand.
-    assert "React.createElement(FlotteView, { fahrzeuge: fahrzeugeAktiv, setFahrzeuge: setFahrzeuge" in index_html
+    # v3.9.1062: zusaetzlich fahrzeugeAlle - nur fuer das Fahrtenbuch (vergangene Fahrten archivierter Fahrzeuge)
+    assert "React.createElement(FlotteView, { fahrzeuge: fahrzeugeAktiv, fahrzeugeAlle: fahrzeuge, setFahrzeuge: setFahrzeuge" in index_html
     assert "const monteure=props.monteure||[];" in index_html
 
 
