@@ -311,7 +311,8 @@ def _deeplink_lauf(node_exe, src):
     tabs = src[b:src.index("const safeKat=", b)]
     r0 = src.index("const ROLES={")
     roles = src[r0 + len("const ROLES="):src.index("\n};", r0) + 2]
-    js = ("const FINKZEIT_ENABLED=true;const V={ac:'#009640'};const COLORS={ERROR:'#ef4444'};const _bauproOffenCount=0;\n"
+    # v3.9.1062: der Kameras-Eintrag in _allTabs liest _kamFlag (Schalter) - im Testgeruest aus
+    js = ("const FINKZEIT_ENABLED=true;const _kamFlag=false;const V={ac:'#009640'};const COLORS={ERROR:'#ef4444'};const _bauproOffenCount=0;\n"
           "const ROLES=" + roles + ";\nfunction hasPerm(u,m){return ((ROLES[u.role]||{}).modules||[]).indexOf(m)>=0;}function canDo(){return false;}\n"
           + fn + "\nfunction lauf(curUser){" + nav + "\n" + vis + "\n" + tabs +
           "\nconst i=_asReiterIdx(tabs,vis);return {neu:tabs[i]&&tabs[i].perm, leer:_asReiterIdx([],vis), alt:tabs[vis.indexOf('arbeitsscheine')].perm};}\n"

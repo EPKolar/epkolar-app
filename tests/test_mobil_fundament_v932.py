@@ -190,8 +190,9 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # Gegenrichtung zu "eine Pruefung anpassen, damit sie gruen wird". Waere
     # sie gesunken, waere eine Umstellung verlorengegangen.
     # v3.9.1053: 29 -> 30. main-pad scrollPaddingBottom nur am Handy (Scan 1051, Werkzeug-Suche ueber der Leiste) nutzt die gemeinsame Schwelle.
-    assert roh.count("ww<BP_MOB") == 30, (
-        "Erwartet 30 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # v3.9.1062: +1 Stelle im Kamera-Bereich (Einrichtungs-/Kachel-Ansicht, ueber BP_MOB statt nackter Zahl)
+    assert roh.count("ww<BP_MOB") == 31, (
+        "Erwartet 31 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
