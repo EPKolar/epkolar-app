@@ -40,8 +40,19 @@ Token sources, in order: query `?token=` (from the app) → header `X-Kamera-Tok
 cookie `kam_t` (only for `hls/<file>` and recording parts). On a valid query token for `index.m3u8` or a
 recording the service answers with `Set-Cookie: kam_t=<token>; Path=/live/<s>/; Max-Age=<= 120; HttpOnly; Secure; SameSite=None`.
 
-Original URI: header `X-Forwarded-Uri` (Caddy `forward_auth` sets it) or `X-Original-URI` (nginx, set it
-yourself, see below). Method: `X-Forwarded-Method` / `X-Original-Method`. A duplicated header is rejected.
+Original URI and method come ONLY from the header pair configured explicitly (required, the service refuses
+to start otherwise):
+
+| Proxy | `KAMERA_AUTH_URI_HEADER` | `KAMERA_AUTH_METHOD_HEADER` |
+|---|---|---|
+| Caddy `forward_auth` | `x-forwarded-uri` | `x-forwarded-method` |
+| nginx `auth_request` | `x-original-uri` | `x-original-method` |
+
+There is **no fallback** to the request URL. If a request carries any header of the OTHER pair, it is a
+client-injected header → `403`. Reason: nginx passes client headers to the auth subrequest by default, so
+without this a client holding a token for camera A could request camera B and send `X-Forwarded-Uri: <path of A>`
+to fool the path binding. In addition the proxy snippets below overwrite/clear the client copies.
+Missing or empty configured header → `403`; a duplicated header is rejected.
 
 On 204 the response carries `X-Kamera-Stream: <s>` and `X-Kamera-User: <users.id>` for the proxy access log.
 
@@ -53,11 +64,13 @@ the query parameter `token` (snippets below).
 
 ```
 KAMERA_TOKEN_SECRET=<same value as the Edge Function secret, >= 32 chars> \
+KAMERA_AUTH_URI_HEADER=x-forwarded-uri KAMERA_AUTH_METHOD_HEADER=x-forwarded-method \
 KAMERA_AUTH_HOST=0.0.0.0 KAMERA_AUTH_PORT=9099 node verify.mjs
 ```
 
 - `KAMERA_TOKEN_SECRET_FILE=/run/secrets/kamera_token_secret` instead of the variable (Docker secret).
-- Missing or short secret → exit code 1, the proxy then fails closed (forward_auth gets no 2xx).
+- Missing or short secret, or missing/mismatched `KAMERA_AUTH_URI_HEADER` / `KAMERA_AUTH_METHOD_HEADER` → exit
+  code 1, the proxy then fails closed (forward_auth gets no 2xx).
 - `GET /gesund` (without forwarded headers) → `200 ok` for health checks.
 - Bind it only inside the Docker network / localhost. It trusts `X-Forwarded-Uri`, so it must never be reachable
   by clients directly.
@@ -66,11 +79,17 @@ KAMERA_AUTH_HOST=0.0.0.0 KAMERA_AUTH_PORT=9099 node verify.mjs
 
 Order matters: `forward_auth` must run **before** any `rewrite`, otherwise the verifier sees the rewritten
 go2rtc path. Use `route` blocks. Full file: `C:/repos/epk-kamera-pilot/Caddyfile`.
+Verifier env for Caddy: `KAMERA_AUTH_URI_HEADER=x-forwarded-uri`, `KAMERA_AUTH_METHOD_HEADER=x-forwarded-method`.
+Caddy's `forward_auth` **overwrites** `X-Forwarded-Uri` / `X-Forwarded-Method` with the real values, so a client
+copy never arrives. Client-supplied `X-Original-*` headers are stripped with `header_up` (if one slipped through,
+the verifier answers 403 anyway).
 
 ```
 route /live/* {
 	forward_auth kamera-auth:9099 {
 		uri /pruefen
+		header_up -X-Original-URI
+		header_up -X-Original-Method
 		copy_headers X-Kamera-User X-Kamera-Stream
 	}
 	# whep -> go2rtc /api/webrtc?src=<s>, mjpeg -> /api/stream.mjpeg?src=<s>, snapshot.jpg -> /api/frame.jpeg?src=<s>
@@ -95,18 +114,28 @@ therefore **not part of the pilot** (all G3 run as `webrtc`; Safari also uses We
 
 ## nginx (auth_request)
 
+Verifier env for nginx: `KAMERA_AUTH_URI_HEADER=x-original-uri`, `KAMERA_AUTH_METHOD_HEADER=x-original-method`.
+nginx passes client headers to the subrequest, so the snippet sets the trusted pair from nginx variables and
+**clears** the client copies of the other pair (an empty value makes nginx drop the header).
+
 ```
 location = /_kamera_pruefen {
     internal;
     proxy_pass              http://kamera-auth:9099/pruefen;
     proxy_pass_request_body off;
     proxy_set_header        Content-Length "";
-    proxy_set_header        X-Original-URI    $request_uri;
-    proxy_set_header        X-Original-Method $request_method;
+    proxy_set_header        X-Original-URI     $request_uri;
+    proxy_set_header        X-Original-Method  $request_method;
+    proxy_set_header        X-Forwarded-Uri    "";
+    proxy_set_header        X-Forwarded-Method "";
 }
 
 location ~ ^/live/([A-Za-z0-9_-]{1,64})/(whep|index\.m3u8|mjpeg|snapshot\.jpg|hls/[A-Za-z0-9._-]+)$ {
     auth_request     /_kamera_pruefen;
+    proxy_set_header X-Original-URI "";      # never forward client copies upstream either
+    proxy_set_header X-Original-Method "";
+    proxy_set_header X-Forwarded-Uri "";
+    proxy_set_header X-Forwarded-Method "";
     auth_request_set $kam_cookie $upstream_http_set_cookie;
     add_header       Set-Cookie $kam_cookie;
     add_header       Cache-Control no-store always;

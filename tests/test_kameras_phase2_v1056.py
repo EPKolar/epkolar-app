@@ -60,6 +60,8 @@ const SECRET = %(secret)s;
 const BASE = %(base)s;
 const VEK = %(vek)s;
 const MO_10 = Date.UTC(2026, 10, 23, 9, 0, 0);
+const CADDY = VF.ladeKopfConfig({KAMERA_AUTH_URI_HEADER: "x-forwarded-uri", KAMERA_AUTH_METHOD_HEADER: "x-forwarded-method"});
+const NGINX = VF.ladeKopfConfig({KAMERA_AUTH_URI_HEADER: "x-original-uri", KAMERA_AUTH_METHOD_HEADER: "x-original-method"});
 const USERS = {
   admin: {id: "u1", role: "admin", active: 1, locked: false},
   monteur: {id: "u4", role: "monteur", active: 1, locked: false},
@@ -102,7 +104,7 @@ async function lauf(wer, kamera, scope, darf) {
       let uri = u.pathname + u.search;
       if (key === "aufzeichnungUrl") uri += "&von=" + (Math.floor(MO_10 / 1000) - 3600) + "&bis=" + Math.floor(MO_10 / 1000);
       const methode = key === "webrtcUrl" ? "POST" : "GET";
-      const e = await VF.entscheide({method: "GET", url: "/pruefen", headers: {"x-forwarded-uri": uri, "x-forwarded-method": methode}}, SECRET, MO_10);
+      const e = await VF.entscheide({method: "GET", url: "/pruefen", headers: {"x-forwarded-uri": uri, "x-forwarded-method": methode}}, SECRET, MO_10, CADDY);
       out.proxy[key] = {status: e.status, art: (VF.pfadArt(u.pathname) || {}).art || null};
     }
   }
@@ -126,15 +128,43 @@ for (const v of VEK.token) {
 }
 for (const v of VEK.anfragen) {
   const h = Object.assign({"x-forwarded-uri": v.uri, "x-forwarded-method": v.method}, v.headers || {});
-  const e = await VF.entscheide({method: "GET", url: "/pruefen", headers: h}, VEK.secret, v.now_ms || VEK.now_ms);
+  const e = await VF.entscheide({method: "GET", url: "/pruefen", headers: h}, VEK.secret, v.now_ms || VEK.now_ms, CADDY);
   R.vek.anfragen.push({name: v.name, soll: v.status, ist: e.status, cookie: !!e.headers["Set-Cookie"], sollCookie: !!v.cookie,
     cookieText: e.headers["Set-Cookie"] || "", info: JSON.stringify(e.info), kopf: e.headers});
 }
 // nginx-Weg: X-Original-URI / X-Original-Method statt X-Forwarded-*
 const g = VEK.token[0].token;
-R.nginx = (await VF.entscheide({method: "GET", url: "/pruefen", headers: {"x-original-uri": "/live/g3_37/whep?token=" + g, "x-original-method": "POST"}}, VEK.secret, VEK.now_ms)).status;
-R.direkt = (await VF.entscheide({method: "GET", url: "/live/g3_37/mjpeg?token=" + g, headers: {}}, VEK.secret, VEK.now_ms)).status;
-R.doppelkopf = (await VF.entscheide({method: "GET", url: "/x", headers: {"x-forwarded-uri": ["/live/g3_37/mjpeg?token=" + g, "/a"]}}, VEK.secret, VEK.now_ms)).status;
+const E = async (h, cfg) => (await VF.entscheide({method: "GET", url: "/live/g3_37/mjpeg?token=" + g, headers: h}, VEK.secret, VEK.now_ms, cfg)).status;
+const A = "/live/g3_37/mjpeg?token=" + g;   // Token gilt fuer g3_37
+const B = "/live/g3_38/mjpeg?token=" + g;   // tatsaechlich angefragt: g3_38
+R.nginx = await E({"x-original-uri": "/live/g3_37/whep?token=" + g, "x-original-method": "POST"}, NGINX);
+R.direkt = await E({}, CADDY);
+R.doppelkopf = await E({"x-forwarded-uri": [A, "/a"], "x-forwarded-method": "GET"}, CADDY);
+R.spoof = {
+  // Angriff unter nginx: nginx setzt X-Original-URI = B (echt), Client schleust X-Forwarded-Uri = A ein
+  nginx_angriff: await E({"x-original-uri": B, "x-original-method": "GET", "x-forwarded-uri": A, "x-forwarded-method": "GET"}, NGINX),
+  nginx_angriff_nur_uri: await E({"x-original-uri": B, "x-original-method": "GET", "x-forwarded-uri": A}, NGINX),
+  nginx_fremde_methode: await E({"x-original-uri": A, "x-original-method": "GET", "x-forwarded-method": "GET"}, NGINX),
+  nginx_leerer_fremdkopf: await E({"x-original-uri": A, "x-original-method": "GET", "x-forwarded-uri": ""}, NGINX),
+  nginx_echt_b: await E({"x-original-uri": B, "x-original-method": "GET"}, NGINX),
+  nginx_echt_a: await E({"x-original-uri": A, "x-original-method": "GET"}, NGINX),
+  // Angriff unter Caddy: Caddy setzt X-Forwarded-Uri = B, Client schleust X-Original-URI = A ein
+  caddy_angriff: await E({"x-forwarded-uri": B, "x-forwarded-method": "GET", "x-original-uri": A, "x-original-method": "GET"}, CADDY),
+  caddy_fremd_bei_gutem_pfad: await E({"x-forwarded-uri": A, "x-forwarded-method": "GET", "x-original-uri": A}, CADDY),
+  caddy_echt_a: await E({"x-forwarded-uri": A, "x-forwarded-method": "GET"}, CADDY),
+  // nur der nicht konfigurierte Kopf / ohne Konfiguration / ohne Methode
+  caddy_cfg_nur_original: await E({"x-original-uri": A, "x-original-method": "GET"}, CADDY),
+  ohne_cfg: await E({"x-forwarded-uri": A, "x-forwarded-method": "GET"}, undefined),
+  ohne_methode: await E({"x-forwarded-uri": A}, CADDY),
+};
+R.cfg = {
+  leer: VF.ladeKopfConfig({}),
+  nurUri: VF.ladeKopfConfig({KAMERA_AUTH_URI_HEADER: "x-forwarded-uri"}),
+  gemischt: VF.ladeKopfConfig({KAMERA_AUTH_URI_HEADER: "x-forwarded-uri", KAMERA_AUTH_METHOD_HEADER: "x-original-method"}),
+  fremd: VF.ladeKopfConfig({KAMERA_AUTH_URI_HEADER: "host", KAMERA_AUTH_METHOD_HEADER: "x-forwarded-method"}),
+  gross: VF.ladeKopfConfig({KAMERA_AUTH_URI_HEADER: "X-Original-URI", KAMERA_AUTH_METHOD_HEADER: "X-Original-Method"}),
+  caddy: CADDY,
+};
 // kreuzweise signiert: gleiche Payload -> byte-gleiches Token
 const p = {v: 1, k: "kam_01", s: "g3_37", u: "u1", sc: "live", iat: 1795424400, exp: 1795424490, n: "x"};
 const t1 = await L.signiere(SECRET, p), t2 = await TM.signiere(SECRET, p);
@@ -270,8 +300,49 @@ def test_hls_cookie_eng_gebunden(R):
 
 def test_nginx_kopf_direktaufruf_und_doppelter_kopf(R):
     assert R["nginx"] == 204
-    assert R["direkt"] == 204
+    assert R["direkt"] == 403, "kein Rueckfall auf die eigene Anfrage-URL"
     assert R["doppelkopf"] == 403
+
+
+def test_nur_der_konfigurierte_kopf_zaehlt(R):
+    sp = R["spoof"]
+    for k in ("nginx_angriff", "nginx_angriff_nur_uri", "nginx_fremde_methode", "nginx_leerer_fremdkopf", "nginx_echt_b",
+              "caddy_angriff", "caddy_fremd_bei_gutem_pfad", "caddy_cfg_nur_original", "ohne_cfg", "ohne_methode"):
+        assert sp[k] == 403, (k, sp[k])
+    assert sp["nginx_echt_a"] == 204 and sp["caddy_echt_a"] == 204
+
+
+def test_kopf_konfiguration_ist_pflicht_und_paarweise(R):
+    c = R["cfg"]
+    assert c["leer"] is None and c["nurUri"] is None and c["gemischt"] is None and c["fremd"] is None
+    assert c["gross"] == {"uriHeader": "x-original-uri", "methodHeader": "x-original-method",
+                          "fremd": ["x-forwarded-uri", "x-forwarded-method"]}
+    assert c["caddy"]["fremd"] == ["x-original-uri", "x-original-method"]
+
+
+def test_pruefer_liest_kopfnamen_nie_fest():
+    v = _lies(VERIFY)
+    code = "\n".join(z for z in v.replace("\r\n", "\n").split("\n") if not z.lstrip().startswith("//"))
+    assert "req.url ||" not in code and "String(req.url" not in code, "kein Rueckfall auf req.url"
+    assert not re.search(r"kopf\(h, \"x-(forwarded|original)-", code), "Uri/Methode nur ueber cfg"
+    assert "kopf(h, cfg.uriHeader)" in code and "kopf(h, cfg.methodHeader)" in code
+    assert "for (const k of cfg.fremd) if (h[k] !== undefined) return nein(403);" in code
+
+
+def test_snippets_raeumen_client_koepfe_ab():
+    r = _lies(AUTH_README).replace("\r\n", "\n")
+    i = r.index("location = /_kamera_pruefen {")
+    ng = r[i:r.index("}", i)]
+    assert re.search(r"proxy_set_header\s+X-Original-URI\s+\$request_uri;", ng)
+    assert re.search(r"proxy_set_header\s+X-Original-Method\s+\$request_method;", ng)
+    assert re.search(r'proxy_set_header\s+X-Forwarded-Uri\s+"";', ng)
+    assert re.search(r'proxy_set_header\s+X-Forwarded-Method\s+"";', ng)
+    j = r.index("forward_auth kamera-auth:9099 {")
+    ca = r[j:r.index("}", j)]
+    assert "header_up -X-Original-URI" in ca and "header_up -X-Original-Method" in ca
+    for teil in ("KAMERA_AUTH_URI_HEADER=x-forwarded-uri", "KAMERA_AUTH_METHOD_HEADER=x-forwarded-method",
+                 "`KAMERA_AUTH_URI_HEADER=x-original-uri`", "**overwrites**", "no fallback"):
+        assert teil in r, teil
 
 
 def test_kreuzweise_signiert_byte_gleich(R):
@@ -327,7 +398,8 @@ def _hole(url, headers):
 def test_dienst_rauchprobe_ohne_token_im_protokoll(node_exe):
     vek = json.loads(_lies(VEKTOREN))
     port = _freier_port()
-    env = dict(os.environ, KAMERA_TOKEN_SECRET=vek["secret"], KAMERA_AUTH_PORT=str(port), KAMERA_AUTH_LOG="1")
+    env = dict(os.environ, KAMERA_TOKEN_SECRET=vek["secret"], KAMERA_AUTH_PORT=str(port), KAMERA_AUTH_LOG="1",
+               KAMERA_AUTH_URI_HEADER="x-forwarded-uri", KAMERA_AUTH_METHOD_HEADER="x-forwarded-method")
     pr = subprocess.Popen([node_exe, VERIFY], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         for _ in range(50):
@@ -340,7 +412,11 @@ def test_dienst_rauchprobe_ohne_token_im_protokoll(node_exe):
             pytest.fail("Dienst startet nicht")
         tok = vek["token"][0]["token"]
         # echte Uhr: das Vektor-Token ist abgelaufen -> 401; ohne Token 401; fremde Pfade 403
-        assert _hole("http://127.0.0.1:%d/pruefen" % port, {"X-Forwarded-Uri": "/live/g3_37/mjpeg?token=" + tok}) == 401
+        assert _hole("http://127.0.0.1:%d/pruefen" % port, {"X-Forwarded-Uri": "/live/g3_37/mjpeg?token=" + tok,
+                                                           "X-Forwarded-Method": "GET"}) == 401
+        # eingeschleuster nginx-Kopf bei Caddy-Konfiguration -> 403
+        assert _hole("http://127.0.0.1:%d/pruefen" % port, {"X-Forwarded-Uri": "/live/g3_37/mjpeg?token=" + tok,
+                                                           "X-Forwarded-Method": "GET", "X-Original-URI": "/x"}) == 403
         assert _hole("http://127.0.0.1:%d/pruefen" % port, {"X-Forwarded-Uri": "/api/streams"}) == 403
     finally:
         pr.terminate()
@@ -348,6 +424,20 @@ def test_dienst_rauchprobe_ohne_token_im_protokoll(node_exe):
     assert tok not in out and tok not in err
     assert tok.split(".")[0] not in out
     assert '"status":401' in out and '"status":403' in out
+
+
+@pytest.mark.parametrize("uri_kopf,methoden_kopf", [(None, None), ("x-forwarded-uri", None),
+                                                    ("x-forwarded-uri", "x-original-method"), ("host", "x-forwarded-method")])
+def test_dienst_startet_nicht_ohne_kopfkonfiguration(node_exe, uri_kopf, methoden_kopf):
+    env = {k: v for k, v in os.environ.items() if not k.startswith("KAMERA_")}
+    env["KAMERA_TOKEN_SECRET"] = "x" * 40
+    env["KAMERA_AUTH_PORT"] = str(_freier_port())
+    if uri_kopf:
+        env["KAMERA_AUTH_URI_HEADER"] = uri_kopf
+    if methoden_kopf:
+        env["KAMERA_AUTH_METHOD_HEADER"] = methoden_kopf
+    r = subprocess.run([node_exe, VERIFY], env=env, capture_output=True, text=True, timeout=EPK_TEST_TIMEOUT)
+    assert r.returncode == 1 and "KAMERA_AUTH_URI_HEADER" in r.stderr
 
 
 def test_dienst_startet_nicht_ohne_secret(node_exe):
@@ -382,6 +472,21 @@ def test_umkehrprobe_pfadbindung_im_pruefer(node_exe):
     R2 = _lauf(node_exe, verify_src=_mut(VERIFY, "{ s: ziel.s, sc: ziel.sc }", "{}"))
     v = {x["name"]: x for x in R2["vek"]["anfragen"]}
     assert v["anderer_stream_im_pfad"]["ist"] != 403
+
+
+def test_umkehrprobe_fremdkopf_sperre(node_exe):
+    R2 = _lauf(node_exe, verify_src=_mut(VERIFY, "for (const k of cfg.fremd) if (h[k] !== undefined) return nein(403);", ""))
+    assert R2["spoof"]["caddy_fremd_bei_gutem_pfad"] == 204, "Umkehrprobe: Fremdkopf-Riegel waere blind"
+
+
+def test_umkehrprobe_altes_verhalten_einer_von_beiden_koepfen(node_exe):
+    # Alter Stand: Uri aus X-Forwarded-Uri ODER X-Original-URI, kein Fremdkopf-Riegel -> nginx-Angriff kommt durch
+    alt = _mut(VERIFY, "for (const k of cfg.fremd) if (h[k] !== undefined) return nein(403);", "")
+    a = "const uri = kopf(h, cfg.uriHeader);"
+    assert alt.count(a) == 1
+    alt = alt.replace(a, "const uri = kopf(h, \"x-forwarded-uri\") || kopf(h, \"x-original-uri\");", 1)
+    R2 = _lauf(node_exe, verify_src=alt)
+    assert R2["spoof"]["nginx_angriff"] == 204, "Umkehrprobe: Pfadbindung waere per Kopf umgehbar"
 
 
 def test_umkehrprobe_typ_vor_pruefung_wuerde_monteur_verraten(node_exe):

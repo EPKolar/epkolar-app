@@ -8,7 +8,11 @@
 //   401  kein Token, Signatur falsch, abgelaufen, zu lang gueltig, aus der Zukunft, kaputt
 //   403  Token an sich gueltig, aber Pfad-Stream != s, Pfad-Art != sc, Pfadform/Methode nicht erlaubt
 //
-// Woher der Originalpfad kommt: X-Forwarded-Uri (Caddy forward_auth) oder X-Original-URI (nginx, siehe README).
+// Woher der Originalpfad kommt: AUSSCHLIESSLICH aus dem per KAMERA_AUTH_URI_HEADER festgelegten Kopf
+// (x-forwarded-uri fuer Caddy forward_auth, x-original-uri fuer nginx auth_request). Kein Rueckfall auf die
+// eigene Anfrage-URL. Steht bei einer Anfrage der JEWEILS ANDERE Kopf (Uri oder Methode) dabei, ist das ein
+// vom Client eingeschleuster Kopf -> 403. Sonst koennte ein Client mit Token fuer Kamera A den Pfad von
+// Kamera B abrufen und dem Pruefer per Kopf den Pfad von A vorspielen (nginx reicht Client-Koepfe durch).
 // Woher das Token kommt: Query ?token= ; sonst Kopf X-Kamera-Token ; sonst Authorization: Bearer ; sonst Cookie kam_t
 // (nur fuer HLS-Teilstuecke, die der Browser ohne Query nachlaedt).
 //
@@ -21,6 +25,9 @@
 //   KAMERA_AUTH_HOST          (Standard 127.0.0.1; im Docker-Netz 0.0.0.0, NIE nach aussen veroeffentlichen)
 //   KAMERA_AUTH_PORT          (Standard 9099)
 //   KAMERA_AUTH_LOG           (1 = knappes Protokoll ohne Token)
+//   KAMERA_AUTH_URI_HEADER    (Pflicht: x-forwarded-uri [Caddy] ODER x-original-uri [nginx])
+//   KAMERA_AUTH_METHOD_HEADER (Pflicht, passend: x-forwarded-method bzw. x-original-method)
+//   Fehlt eines oder passt das Paar nicht -> Start abgebrochen.
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -29,6 +36,18 @@ import { pruefeToken } from "./token.mjs";
 export const SECRET_MIN_LAENGE = 32;
 export const MAX_URI = 4096;
 export const MAX_AUFZEICHNUNG_SPANNE_S = 6 * 3600;
+// Erlaubte Kopf-Paare (Uri -> Methode). Genau EIN Paar ist vertrauenswuerdig, das andere ist verboten.
+export const KOPF_PAARE = { "x-forwarded-uri": "x-forwarded-method", "x-original-uri": "x-original-method" };
+
+// -> {uriHeader, methodHeader, fremd:[...]} oder null (ungueltig/fehlend)
+export function ladeKopfConfig(env) {
+  const u = String(env.KAMERA_AUTH_URI_HEADER || "").trim().toLowerCase();
+  const m = String(env.KAMERA_AUTH_METHOD_HEADER || "").trim().toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(KOPF_PAARE, u) || KOPF_PAARE[u] !== m) return null;
+  const fremd = [];
+  for (const k of Object.keys(KOPF_PAARE)) if (k !== u) fremd.push(k, KOPF_PAARE[k]);
+  return { uriHeader: u, methodHeader: m, fremd };
+}
 
 const STREAM = "[A-Za-z0-9_-]{1,64}";
 const TEIL = "[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}";
@@ -70,14 +89,15 @@ function zahl(t) {
 }
 
 // Reine Entscheidung (ohne Netz). req = {method, url, headers}; headers mit kleingeschriebenen Namen.
-// -> {status, headers, info:{art, s, u}} ; info nur fuer das knappe Protokoll, nie mit Token.
-export async function entscheide(req, secret, nowMs) {
+// cfg = ladeKopfConfig(env) - Pflicht. -> {status, headers, info:{art, s, u}} ; info nie mit Token.
+export async function entscheide(req, secret, nowMs, cfg) {
   const h = req.headers || {};
   const nein = (status, info) => ({ status, headers: { "Cache-Control": "no-store" }, info: info || {} });
-  const fwd = kopf(h, "x-forwarded-uri");
-  const orig = kopf(h, "x-original-uri");
-  if (fwd === null || orig === null) return nein(403);
-  const uri = fwd || orig || String(req.url || "");
+  if (!cfg || !cfg.uriHeader || !cfg.methodHeader || !Array.isArray(cfg.fremd)) return nein(403);
+  // eingeschleuster Kopf des jeweils anderen Proxys -> 403 (auch wenn leer)
+  for (const k of cfg.fremd) if (h[k] !== undefined) return nein(403);
+  const uri = kopf(h, cfg.uriHeader);
+  if (uri === null || uri === "") return nein(403);
   if (uri.length > MAX_URI || uri.charAt(0) !== "/") return nein(403);
   const q = uri.indexOf("?");
   const pfad = q >= 0 ? uri.slice(0, q) : uri;
@@ -85,8 +105,9 @@ export async function entscheide(req, secret, nowMs) {
   const ziel = pfadArt(pfad);
   if (!ziel) return nein(403);
 
-  const methodeRoh = kopf(h, "x-forwarded-method") || kopf(h, "x-original-method") || String(req.method || "GET");
-  const methode = String(methodeRoh).toUpperCase();
+  const methodeRoh = kopf(h, cfg.methodHeader);
+  if (methodeRoh === null || methodeRoh === "") return nein(403, { art: ziel.art, s: ziel.s });
+  const methode = methodeRoh.toUpperCase();
   const erlaubt = ziel.art === "whep" ? ["POST"] : ["GET", "HEAD"];
   if (erlaubt.indexOf(methode) < 0) return nein(403, { art: ziel.art, s: ziel.s });
 
@@ -147,6 +168,12 @@ export function starte(env) {
     process.stderr.write("kamera-proxy-auth: KAMERA_TOKEN_SECRET fehlt oder ist kuerzer als 32 Zeichen - Start abgebrochen\n");
     process.exit(1);
   }
+  const cfg = ladeKopfConfig(env);
+  if (!cfg) {
+    process.stderr.write("kamera-proxy-auth: KAMERA_AUTH_URI_HEADER/KAMERA_AUTH_METHOD_HEADER fehlen oder passen nicht "
+      + "(x-forwarded-uri + x-forwarded-method fuer Caddy, x-original-uri + x-original-method fuer nginx) - Start abgebrochen\n");
+    process.exit(1);
+  }
   const log = env.KAMERA_AUTH_LOG === "1";
   const server = createServer(async (req, res) => {
     let e;
@@ -156,7 +183,7 @@ export function starte(env) {
         res.end("ok");
         return;
       }
-      e = await entscheide({ method: req.method, url: req.url, headers: req.headers }, secret, Date.now());
+      e = await entscheide({ method: req.method, url: req.url, headers: req.headers }, secret, Date.now(), cfg);
     } catch {
       e = { status: 401, headers: { "Cache-Control": "no-store" }, info: {} };
     }
