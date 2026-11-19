@@ -195,8 +195,10 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     assert "if(n<BP_MOB)return \"schmal\";" in roh
     # v3.9.1066 Stufe Planung: 30 -> 29. VPlan fragt _layoutStufe (isMob=_plStufe==="schmal", dort n<BP_MOB) -
     # Schwelle unveraendert, die Stelle ist wie bei den Arbeitsscheinen in die gemeinsame Stufe gewandert.
-    assert roh.count("ww<BP_MOB") == 29, (
-        "Erwartet 29 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 3 Abwesenheiten (19.11.2026): -1 (AbsView fragt _layoutStufe, isMob = Stufe "schmal" = n<BP_MOB).
+    # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert.
+    assert roh.count("ww<BP_MOB") == 28, (  # 1067: Planung (-1) + Abwesenheiten (-1)
+        "Erwartet 28 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.

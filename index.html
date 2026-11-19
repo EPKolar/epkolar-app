@@ -185,6 +185,11 @@ td.epk-dp-umbruch { white-space: normal !important; overflow-wrap: break-word; }
 /* Stufe Planung (v1066): feste Spaltenzahl fuer vier Kacheln - auto-fill liesse am Tablet hochkant zwei leere Spuren stehen. vier = mittel (eine Reihe), zwei = schmal aufgeklappt. Vier Klassen schlagen die Breiten-Bloecke mit .kpi-grid !important unabhaengig von der Reihenfolge. Kein Querrollen (v3.9.930). */
 .kpi-grid.epk-leiste.epk-kachel-kompakt.epk-kachel-vier { grid-template-columns: repeat(4,minmax(0,1fr)) !important; }
 .kpi-grid.epk-leiste.epk-kachel-kompakt.epk-kachel-zwei { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+/* Stufe 3 Abwesenheiten (GF 19.11.2026): Kennzahlen kompakt am Tablet hochkant (vier in einer Reihe) und am Handy aufgeklappt (zwei je Reihe). Die Klasse setzt nur AbsView aus _layoutStufe - keine Breitenabfrage hier. Kein Querrollen (v3.9.930), Schrift nicht unter 12 px. */
+.kpi-grid.epk-abs-kpi { grid-template-columns: repeat(4,minmax(0,1fr)) !important; gap: 8px !important; }
+.kpi-grid.epk-abs-kpi > div { padding: 8px 10px !important; margin-bottom: 0 !important; min-width: 0; }
+.kpi-grid.epk-abs-kpi > div > div:nth-child(3) { font-size: 18px !important; font-variant-numeric: tabular-nums; }
+.kpi-grid.epk-abs-kpi.epk-abs-kpi-schmal { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
 @media(max-width:600px) { .kpi-grid.epk-leiste { grid-template-columns: repeat(3,1fr) !important; gap: 6px !important; }
   .kpi-grid.epk-leiste > div { padding: 6px 8px !important; }
   .kpi-grid.epk-leiste > div > div:nth-child(3) { font-size: 16px !important; } }
@@ -24959,6 +24964,8 @@ function _resolveApprK(abs,approvals,key){const _dec=s=>s==="genehmigt"||s==="ab
    Resturlaub), abgelehnt nie. */
 const ABW_MON_TYP={urlaub:{c:"#1d4ed8",k:"U"},krankenstand:{c:"#b45309",k:"K"},zeitausgleich:{c:"#0f766e",k:"Z"},pflegefrei:{c:"#7c3aed",k:"P"},pflegefrei2:{c:"#5b21b6",k:"J"},sonder_hochzeit:{c:"#a21caf",k:"H"},sonder_geburt:{c:"#86198f",k:"G"},sonder_tod_partner:{c:"#334155",k:"T"},sonder_tod_eltern:{c:"#57534e",k:"E"},sonder_uebersiedlung:{c:"#713f12",k:"Ü"},sonder_arzt:{c:"#0e7490",k:"A"},sonder_behoerde:{c:"#0369a1",k:"B"},bildungsfreistellung:{c:"#4338ca",k:"W"},feiertag:{c:"#3f6212",k:"F"},sonstiges:{c:"#52525b",k:"S"}};
 function _abwMonTyp(t){if(t==="krank")t="krankenstand";return ABW_MON_TYP[t]?t:"sonstiges";}
+/* Tablet-Vollpruefung (Stufe 3, 19.11.2026): Jahresuebersicht - die Legende zeigte Urlaub BLAU (AT_T.c), die Balken GRUEN (UI.marke, derselbe Ton wie Feiertag). Jetzt lesen Balken UND Legende dieselbe Tafel ABW_MON_TYP (v1054, CI-Farben je Typ, kein Signalrot). Ein Monat = so viele Tage wie Eintraege (alle Typen), Farbe = der haeufigste Typ; Gleichstand -> der fruehere Typ der Tafel (Urlaub vor Krankenstand, wie vorher). get(d) liefert den Eintrag des Tages oder nichts. */
+function _abwJahrBalken(get,yr,mi){const dim=new Date(yr,mi+1,0).getDate();const n={};let ges=0;for(let di=1;di<=dim;di++){const r=get(new Date(yr,mi,di));if(!r||!r.type)continue;const t=_abwMonTyp(r.type);n[t]=(n[t]||0)+1;ges++;}let best=null;Object.keys(ABW_MON_TYP).forEach(t=>{if(n[t]&&(!best||n[t]>n[best]))best=t;});return {t:best,ges:ges,c:best?ABW_MON_TYP[best].c:null};}
 function _abwIso(y,m,d){return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}
 function _abwMonTag(abs,approvals,nm,iso){const key=nm+"_"+iso;const r=abs&&abs[key];if(!r)return null;const st=_resolveApprK(abs,approvals,key);if(st==="abgelehnt")return null;return {t:_abwMonTyp(r.type),gen:st==="genehmigt"};}
 function _abwMonZeile(abs,approvals,nm,yr,mo){const dim=new Date(yr,mo+1,0).getDate();const z=[];for(let i=1;i<=dim;i++)z.push(_abwMonTag(abs,approvals,nm,_abwIso(yr,mo,i)));const gl=(x,c)=>!!x&&x.t===c.t&&x.gen===c.gen;z.forEach((c,i)=>{if(!c)return;c.anf=!gl(z[i-1],c);c.end=!gl(z[i+1],c);});return z;}
@@ -25069,6 +25076,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const [kontingent,setKontingent]=_react.useState.call(void 0, ()=>{const k={};monteure.forEach(m=>{k[m.n]={urlaub:25,stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};});return k;});
   const [editKontingent,setEditKontingent]=_react.useState.call(void 0, false);
   const [kontExpanded,setKontExpanded]=_react.useState.call(void 0, false);
+  const [abKpiAuf,setAbKpiAuf]=_react.useState.call(void 0, false);/* Stufe 3: Kennzahlen am Handy zugeklappt (eine Zeile mit den zwei wichtigsten Zahlen) */
   const names=monteure.map(m=>m.n);
   /* v3.9.931 EIN ANSPRUCH FUER JEMANDEN, DER NICHT MEHR DA IST, IST KEINE HISTORIE. Das
      Urlaubskontingent fuehrte fuer Ausgetretene weiter einen Jahresanspruch samt Resturlaub -
@@ -25088,7 +25096,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   const _absMonAb=yr+"-"+String(mo+1).padStart(2,"0");const _absImMonat=nm=>_absAb(nm,_absMonAb+"-01")||Object.keys(abs||{}).some(k=>k.startsWith(nm+"_"+_absMonAb));/* v3.9.1049 (Sebastian: "Aliti und Cracana gibt es nicht mehr"): die Personen-Pillen des Kalenders und der Monat "ALLE" fuehren einen Ausgetretenen nur noch, wenn der GEZEIGTE Monat am oder vor seinem Austritt beginnt ODER er in diesem Monat Abwesenheiten hat. Das loest die v3.9.931-Ausnahme fuer die Kalenderliste ab; Jahresuebersicht/Export folgen der Jahresregel. */
   const wks=weeksOf(yr,mo);
   const dim=new Date(yr,mo+1,0).getDate();
-  const isMob=ww<BP_MOB;
+  const _abStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_abStufe==="schmal";const _abKarte=_abStufe!=="breit";/* Stufe 3 Abwesenheiten (GF 19.11.2026, "EINE Oberflaeche, drei Breiten-Stufen"): schmal = Handy (dieselbe Grenze wie vorher BP_MOB), mittel = Tablet hochkant: Kontingent-Details als Karten in zwei Spalten, Kennzahlen flach in einer Reihe; breit = Tabelle wie bisher. Keine eigene Breitenabfrage mehr in AbsView ausser dem app-weiten Seitentitel-Muster. */
 
   /* v3.9.914: eigener Zustand fuer "Kontingente wurden nie gelesen". Die Anzeige kennt kein null - sie rechnet Resturlaub aus Zahlen, ein null dort waere NaN. Der zweite Weg ist deshalb ein Merker, gelesen an genau zwei Stellen: Banner und Speichern-Sperre. */
   const [kontUnlesbar,setKontUnlesbar]=_react.useState.call(void 0, false);
@@ -25430,8 +25438,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}
           , React.createElement('div', { style: {fontSize:13,fontWeight:700}}, "Urlaubskontingent "  , yr)
           , React.createElement('div', { style: {display:"flex",gap:4}}
-            , React.createElement('button', { onClick: ()=>setKontExpanded(!kontExpanded), 'aria-expanded': kontExpanded?"true":"false", style: {...bsS(),padding:isMob?"8px 12px":"3px 10px",fontSize:isMob?12:UI.fMeta,minHeight:isMob?38:0,touchAction:"manipulation",display:"inline-flex",alignItems:"center",gap:6}}, _klappIk(kontExpanded,16), kontExpanded?"Kompakt":"Details")
-            , isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent&&kontUnlesbar){/* v3.9.914 DER TEURE TEIL: dieser Knopf schreibt den GANZEN kontingent-Zustand fuer JEDEN Monteur per Upsert zurueck. Konnte er nie gelesen werden, steht dort die eingebaute Voreinstellung 192,5h / Vorjahr 0 / Ueberstunden 0 - ein einziger Klick haette damit die echten Werte aller Mitarbeiter ueberschrieben. Ein nie gemessener Wert darf nicht zurueckgeschrieben werden. */if(window.__toast)window.__toast("⛔ Die Kontingente konnten nie gelesen werden (Rechte oder Netz). Speichern würde 192,5h / Vorjahr 0 / Überstunden 0 über die echten Werte schreiben — NICHT gespeichert.","error",9000);setEditKontingent(false);return;}if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{/* v3.8.78 Hunt B-022: ID-Lookup ZUERST, Name-Fallback nur falls Legacy-Daten — verhindert Namens-Kollision (z.B. "Hans" matched "Hans Mueller") */const mon=monteure.find(m=>m.id===worker)||monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:_ktgStd(ks.stunden),ueberstunden:ks.ueberstunden||0/* v3.9.648 KV-V2: urlaub-Spalte DEPRECATED seit v3.9.647 - Resturlaub laeuft ausschliesslich in Stunden (_resturlaubK); nicht mehr serialisieren. Upsert OHNE das Feld laesst die DB-Spalte bei UPDATE unveraendert (kein Bruch fuer alte App-Staende). */}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:isMob?"8px 12px":"3px 10px",fontSize:isMob?12:UI.fMeta,minHeight:isMob?38:0,touchAction:"manipulation"}}, editKontingent?_zpIk("speichern","Kontingent speichern"):_zpIk("stift","Kontingent bearbeiten"))
+            , React.createElement('button', { onClick: ()=>setKontExpanded(!kontExpanded), 'aria-expanded': kontExpanded?"true":"false", style: {...bsS(),padding:_abKarte?"8px 12px":"3px 10px",fontSize:UI.fMeta,minHeight:_abKarte?44:0,touchAction:"manipulation",display:"inline-flex",alignItems:"center",gap:6}}, _klappIk(kontExpanded,16), kontExpanded?"Kompakt":"Details")
+            , isAdmin&&React.createElement('button', { onClick: ()=>{if(editKontingent&&kontUnlesbar){/* v3.9.914 DER TEURE TEIL: dieser Knopf schreibt den GANZEN kontingent-Zustand fuer JEDEN Monteur per Upsert zurueck. Konnte er nie gelesen werden, steht dort die eingebaute Voreinstellung 192,5h / Vorjahr 0 / Ueberstunden 0 - ein einziger Klick haette damit die echten Werte aller Mitarbeiter ueberschrieben. Ein nie gemessener Wert darf nicht zurueckgeschrieben werden. */if(window.__toast)window.__toast("⛔ Die Kontingente konnten nie gelesen werden (Rechte oder Netz). Speichern würde 192,5h / Vorjahr 0 / Überstunden 0 über die echten Werte schreiben — NICHT gespeichert.","error",9000);setEditKontingent(false);return;}if(editKontingent){Object.entries(kontingent).forEach(([worker,ks])=>{/* v3.8.78 Hunt B-022: ID-Lookup ZUERST, Name-Fallback nur falls Legacy-Daten — verhindert Namens-Kollision (z.B. "Hans" matched "Hans Mueller") */const mon=monteure.find(m=>m.id===worker)||monteure.find(m=>m.n===worker);const wid=mon?mon.id:worker;SQ.push({url:"/api/urlaubskontingent",method:"POST",body:{worker_id:wid,jahr:yr,vorjahr:ks.vorjahr||0,woche:ks.woche||38.5,stunden:_ktgStd(ks.stunden),ueberstunden:ks.ueberstunden||0/* v3.9.648 KV-V2: urlaub-Spalte DEPRECATED seit v3.9.647 - Resturlaub laeuft ausschliesslich in Stunden (_resturlaubK); nicht mehr serialisieren. Upsert OHNE das Feld laesst die DB-Spalte bei UPDATE unveraendert (kein Bruch fuer alte App-Staende). */}});});_optionalChain([window, 'access', _574 => _574.__toast, 'optionalCall', _575 => _575("✅ Kontingente gespeichert")]);}setEditKontingent(!editKontingent);if(!editKontingent)setKontExpanded(true);}, style: {...bsS(),padding:_abKarte?"8px 12px":"3px 10px",fontSize:UI.fMeta,minHeight:_abKarte?44:0,touchAction:"manipulation"}}, editKontingent?_zpIk("speichern","Kontingent speichern"):_zpIk("stift","Kontingent bearbeiten"))
           )
         )
         , kontUnlesbar?React.createElement('div', { style: {padding:"8px 12px",marginBottom:8,borderRadius:8,border:"1px solid #ef4444",background:"rgba(239,68,68,.10)",color:_lesbar("#ef4444"),fontSize:12,fontWeight:700,lineHeight:1.5}}, _zpWarn(),"Kontingente konnten NICHT gelesen werden (Rechte oder Netz). Anspruch, Vorjahr und Überstunden stehen auf den eingebauten Werten 192,5 / 0 / 0 — der angezeigte Resturlaub ist NICHT GEMESSEN. Speichern ist gesperrt."):null
@@ -25452,8 +25460,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
             , React.createElement('div', { style: {padding:"4px 10px",borderRadius:8,fontWeight:800,fontSize:isMob?12:13,color:kontUnlesbar?V.dm:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e"),background:kontUnlesbar?"transparent":rest<=20?"rgba(239,68,68,.08)":rest<=50?"rgba(234,179,8,.08)":"rgba(34,197,94,.08)",flexShrink:0,minWidth:55,textAlign:"center"}}, kontUnlesbar?"–":(_n(rest,1).replace(".",",")+"h"))
           ));
         })))
-        /* Expanded full table */
-        , kontExpanded&&(React.createElement('div', { style: {overflowX:"auto"}}
+        /* Expanded full table - Stufe 3: nur noch breit (quer/PC); mittel und schmal zeigen dieselben Spalten als Karten darunter */
+        , kontExpanded&&!_abKarte&&(React.createElement('div', { style: {overflowX:"auto"}}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:UI.fMeta,minWidth:isMob?760:0}}
           , React.createElement('thead', {}, React.createElement('tr', { style: {background:_dark?"rgba(34,197,94,.06)":"rgba(34,197,94,.04)"}}
             , React.createElement('th', { style: {...thS(),textAlign:"left",fontSize:UI.fMeta}}, "Mitarbeiter")
@@ -25487,9 +25495,40 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           }))
         )
         ))
+        /* Stufe 3 (GF 19.11.2026): mittel/schmal - dieselben zwoelf Tabellenspalten als Karte je Mitarbeiter (mittel zwei Kartenspalten, schmal eine). Dieselben Handlungen wie die Tabellenzeile: Name oeffnet den Kalender (nur Verwaltung), im Bearbeiten-Modus dieselben vier Eingaben mit denselben Aenderungen. Farben wie in der Tabelle (Urlaub Marke-Text, Krank Achtung-Text, Rest gruen/gelb nur ueber _okG/_lesbar); Rest bis 20 h ruhig in Achtung statt Rot (CI: Rot nur Gefahr). Kein Querrollen: Raster mit minmax(0,1fr), Eingaben 100 % breit. */
+        , kontExpanded&&_abKarte&&React.createElement('div', { 'data-abs-karten': "1", style: {display:"grid",gridTemplateColumns:isMob?"minmax(0,1fr)":"repeat(2,minmax(0,1fr))",gap:8}}, (isAdmin?_kontNames:_kontNames.filter(n=>n===myMonteurName)).map(m=>{const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=yearSt(m);const rest=resturlaub(m);const total=_ktgStd(ks.stunden)+(ks.vorjahr||0);
+          const _abFeld=(lbl,wert,farbe,fett)=>React.createElement('div', { style: {minWidth:0}}, React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, lbl), React.createElement('div', { style: {fontSize:UI.fText,fontWeight:fett?700:500,color:farbe||V.tx,fontVariantNumeric:"tabular-nums",minHeight:20}}, wert));
+          const _abEin=(wert,aend,lbl)=>React.createElement('input', { type: "number", inputMode:"decimal", step: "0.5", value: wert, 'aria-label': lbl+" "+m, onChange: aend, style: {...II(),width:"100%",minHeight:44,padding:"6px 8px",fontSize:UI.fText,textAlign:"center",fontVariantNumeric:"tabular-nums",boxSizing:"border-box"}} );
+          return (React.createElement('div', { key: m, 'data-abs-karte': "1", style: {minWidth:0,padding:"10px 12px",borderRadius:UI.rKarte,border:"1px solid "+(sel===m?UI.marke:V.bd),background:V.cd,display:"flex",flexDirection:"column",gap:8}}
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,minWidth:0}}
+              , React.createElement('div', { role: isAdmin?"button":undefined, tabIndex: isAdmin?0:undefined, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{if(isAdmin){setSel(m);setSubView("kalender");}})(e);}}, onClick: ()=>{if(isAdmin){setSel(m);setSubView("kalender");}}, style: {flex:1,minWidth:0,minHeight:44,display:"flex",alignItems:"center",gap:6,fontWeight:700,fontSize:UI.fText,color:sel===m?UI.markeTxt:V.tx,cursor:isAdmin?"pointer":"default"}}
+                , React.createElement('span', { style: {minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, m)
+                , isAdmin&&React.createElement('span', { 'aria-hidden': "true", style: {display:"inline-flex",color:V.dm,flexShrink:0}}, _ik("kalender",16))
+              )
+              , React.createElement('div', { title: "Rest Urlaub", style: {flexShrink:0,textAlign:"right",fontVariantNumeric:"tabular-nums"}}
+                , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Rest Urlaub")
+                , React.createElement('div', { style: {fontSize:UI.fTitel,fontWeight:800,color:kontUnlesbar?V.dm:rest<=20?UI.achtungTxt:rest<=50?_lesbar("#eab308"):_okG("#22c55e")}}, kontUnlesbar?"–":((rest.toFixed?_absH(rest,1):rest)+"h"))
+              )
+            )
+            , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"8px 12px"}}
+              , _abFeld("Std/Wo", editKontingent?_abEin(ks.woche||38.5, e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}})), "Std/Wo"):_absH(ks.woche||38.5,1))
+              , _abFeld("Anspruch h", editKontingent?_abEin(_ktgStd(ks.stunden), e=>setKontingent(p=>({...p,[m]:{...ks,stunden:_ktgStd(e.target.value)}})), "Anspruch h"):(kontUnlesbar?"–":_absH(_ktgStd(ks.stunden),1)))
+              , _abFeld("Vorjahr h", editKontingent?_abEin(ks.vorjahr||0, e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}})), "Vorjahr h"):(kontUnlesbar?"–":_absH(ks.vorjahr||0,1)))
+              , _abFeld("Gesamt h", kontUnlesbar?"–":_absH(total,1), null, true)
+              , _abFeld(React.createElement(React.Fragment, null, _zpAbsK("U"), AT_T.urlaub.l), React.createElement(React.Fragment, null, ys.urlaubStd>0?_absH(ys.urlaubStd,1):"—", ys.urlaubStdAusstehend>0?React.createElement('span', { style: {fontSize:UI.fMeta,marginLeft:4,color:V.dm}}, "+"+_absH(ys.urlaubStdAusstehend,1)+" offen"):null), UI.markeTxt, ys.urlaubStd>0)
+              , _abFeld(React.createElement(React.Fragment, null, _zpAbsK("K"), AT_T.krankenstand.l), ys.krankenstandStd>0?_absH(ys.krankenstandStd,1):"—", UI.achtungTxt, ys.krankenstandStd>0)
+              , _abFeld(React.createElement(React.Fragment, null, _zpAbsK("ZA"), AT_T.zeitausgleich.l), ys.zeitausgleichStd>0?_absH(ys.zeitausgleichStd,1):"—", V.tx, ys.zeitausgleichStd>0)
+              , _abFeld("Sonder", ys.sonderStdGes>0?_absH(ys.sonderStdGes,1):"—", V.tx, ys.sonderStdGes>0)
+              , _abFeld("Pflege", ys.pflegeStdGes>0?_absH(ys.pflegeStdGes,1):"—", V.tx, ys.pflegeStdGes>0)
+              , _abFeld("ÜS h", editKontingent?_abEin(ks.ueberstunden||0, e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}})), "Überstunden h"):kontUnlesbar?"–":(ks.ueberstunden||0)!==0?((ks.ueberstunden>0?"+":"")+_absH(ks.ueberstunden,1)):"—", V.tx, (ks.ueberstunden||0)!==0)
+            )
+          ));
+        }))
       )
 
-      , React.createElement('div', { className: "kpi-grid", style: {marginBottom:14}}
+      /* Stufe 3: schmal - Kennzahlen hinter einer Zeile zum Aufklappen (wie das Kontingent darueber), keine quer rollenden Kacheln; mittel - vier flache Kacheln in einer Reihe; breit unveraendert. */
+      , isMob&&React.createElement('button', { onClick: ()=>setAbKpiAuf(!abKpiAuf), 'aria-expanded': abKpiAuf?"true":"false", 'data-abs-kpi-klapp': "1", style: {...bsS(),width:"100%",minHeight:44,marginBottom:abKpiAuf?8:14,padding:"8px 12px",fontSize:UI.fMeta,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,touchAction:"manipulation",fontVariantNumeric:"tabular-nums"}}, React.createElement('span', { style: {minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"left"}}, "Kennzahlen · ", (pendingUnklar?"mind. ":"")+pendingGesamt, " ausstehend · Rest ", kontUnlesbar?"–":((typeof resturlaub(sel)==="number"?_absH(resturlaub(sel),1):resturlaub(sel))+"h")), _klappIk(abKpiAuf,16))
+      , (!isMob||abKpiAuf)&&React.createElement('div', { className: "kpi-grid"+(_abKarte?" epk-abs-kpi"+(isMob?" epk-abs-kpi-schmal":""):""), style: {marginBottom:14}}
         , React.createElement(Kpi, { label: pendingUnklar?"Ausstehend (nur Kalender)":"Ausstehend", value: pendingGesamt, sub: pendingUnklar?"Reiter „Anträge“ noch nicht gezählt":"warten auf Freigabe", title: pendingUnklar?"Die Zahl zählt nur Kalender-/Terminal-Anträge. Die Anträge im Reiter „Anträge“ sind noch nicht gezählt: der Reiter wurde noch nicht geöffnet, sein Laden schlug fehl, oder die Liste ist auf 100 begrenzt. Öffne den Reiter „Anträge“, dann steht hier die Gesamtzahl.":"Kalender-/Terminal-Anträge plus offene Anträge aus dem Reiter „Anträge“", color: "#eab308", i: 0} )
         , React.createElement(Kpi, { label: "Genehmigt", value: approvedEntries.length, sub: "freigegeben", color: _okG("#22c55e"), i: 1} )
         , React.createElement(Kpi, { label: "Rest "+sel, value: kontUnlesbar?"–":(typeof resturlaub(sel)==="number"?_absH(resturlaub(sel),1):resturlaub(sel))+"h", sub: kontUnlesbar?"nicht gemessen":"von "+_absH((_ktgStd(_optionalChain([kontingent, 'access', _576 => _576[sel], 'optionalAccess', _577 => _577.stunden]))+(_optionalChain([kontingent, 'access', _578 => _578[sel], 'optionalAccess', _579 => _579.vorjahr])||0)),1)+"h", color: resturlaub(sel)<=20?"#ef4444":V.tx, i: 2} )
@@ -25497,7 +25536,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       )
 
       /* ═══ v3.9.15 View-Level-Block: 3 Karten (Günther/Krankmeldung/Export) sichtbar auf ALLEN Tabs ═══ */
-      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:window.innerWidth<768?"1fr":"1fr 1fr 1fr",gap:12,marginBottom:14}}
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:_abStufe==="breit"?"1fr 1fr 1fr":isMob?"minmax(0,1fr)":"repeat(auto-fit,minmax(220px,1fr))",gap:12,marginBottom:14}}
         , _renderUrlaubBoxGuenther()
         , _renderUrlaubBoxKrankmeldung()
         , _renderUrlaubBoxExport()
@@ -25608,7 +25647,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               , pe.map((e,i)=>React.createElement(EntryRow, { key: i, e: e, showName: false, showActions: true} ))
             ));
           })
-        )):(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40}}, React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:8,color:V.dm}}, _ik(antragOffen>0?"uhr":pendingUnklar?"brief":"abnahme",32)), React.createElement('div', { style: {fontSize:15,fontWeight:600,color:antragOffen>0?"#eab308":pendingUnklar?V.dm:_okG("#22c55e")}}, antragOffen>0?("Keine offenen Kalender-Anträge — aber "+_nWort(antragOffen,"offener Antrag","offene Anträge")+" im Panel oben"):pendingUnklar?"Keine offenen Kalender-Anträge — Panel oben noch ungezählt":"Keine offenen Anträge"), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6}}, "Diese Zahl zählt nur, was als Abwesenheit im Kalender steht."   )))
+        )):antragOffen===0?null/* Stufe 3 (Tablet-Vollpruefung): zwei Leerzustaende uebereinander - das Panel oben spricht fuer sich, wenn es gezaehlt ist und nichts offen hat */:(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40}}, React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:8,color:V.dm}}, _ik(antragOffen>0?"uhr":pendingUnklar?"brief":"abnahme",32)), React.createElement('div', { style: {fontSize:15,fontWeight:600,color:antragOffen>0?"#eab308":pendingUnklar?V.dm:_okG("#22c55e")}}, antragOffen>0?("Keine offenen Kalender-Anträge — aber "+_nWort(antragOffen,"offener Antrag","offene Anträge")+" im Panel oben"):pendingUnklar?"Keine offenen Kalender-Anträge — Panel oben noch ungezählt":"Keine offenen Anträge"), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6}}, "Diese Zahl zählt nur, was als Abwesenheit im Kalender steht."   )))
 
         , approvedEntries.length>0&&(React.createElement('div', { style: {...CC(),marginTop:14}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:_okG("#22c55e"),marginBottom:10}}, "Genehmigt ("  , approvedEntries.length, ")")
@@ -25658,14 +25697,12 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           , names.filter(m=>_absAb(m,yr+"-01-01")).map(m=>{const ys=yearSt(m);const rest=resturlaub(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;
             return (React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:isMob?"90px 1fr":"120px 60px 60px 1fr",gap:6,padding:"10px 8px",borderBottom:"1px solid "+V.bd,alignItems:"center",fontSize:12,background:names.indexOf(m)%2===0?V.rowAlt:"transparent",borderRadius:4}}
               , React.createElement('div', { style: {fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",minHeight:24}, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{setSel(m);setSubView("kalender");})(e);}}, onClick: ()=>{setSel(m);setSubView("kalender");}}, m)
-              , !isMob&&React.createElement(React.Fragment, null, React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:kontUnlesbar?V.dm:rest<=20?UI.fehler:rest<=50?_lesbar("#eab308"):_okG("#22c55e")}}, kontUnlesbar?"–":((rest.toFixed?_absH(rest,0):rest)+"h")), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Rest" ))
+              , !isMob&&React.createElement(React.Fragment, null, React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:kontUnlesbar?V.dm:rest<=20?UI.fehler:rest<=50?_lesbar("#eab308"):_okG("#22c55e")}}, kontUnlesbar?"–":((rest.toFixed?_absH(rest,1):rest)+"h")), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Rest" ))
               , React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:(ys.krankenstandStd||0)>0?UI.fehler:V.dm}}, _absH((ys.krankenstandStd||0),0), "h")/* Scan 1051 (v1053): "0 h" Krank stand in COLORS.ERROR (#ef4444, 3,6-3,8). Null ist kein Fehler -> neutral; echte Krankstunden in UI.fehler (hell #B91C1C, dunkel #FF6B6B, beide >= 4,5) */, React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Krank" )))
               , React.createElement('div', { style: {display:"flex",gap:1}}
-                , Array.from({length:12},(_,mi)=>{const dim2=new Date(yr,mi+1,0).getDate();let u=0,k=0,z=0;
-                  for(let di=1;di<=dim2;di++){const d=new Date(yr,mi,di);const ab=ga(m,d);if(ab){if(ab.type==="urlaub")u++;if(ab.type==="krankenstand")k++;if(ab.type==="zeitausgleich")z++;}}
-                  const max=Math.max(u,k,z,1);const c=k>u?UI.achtung:u>0?UI.marke:z>0?UI.neutralTxt:V.empty;/* v3.9.1012 CI: wie Planung/Chips - Krank Achtung, Urlaub Marke, ZA neutral */
+                , Array.from({length:12},(_,mi)=>{const _jb=_abwJahrBalken(d=>ga(m,d),yr,mi);const c=_jb.c||V.empty;/* Stufe 3: Farbe aus ABW_MON_TYP - dieselbe Tafel wie die Legende darunter */
                   return (React.createElement('div', { key: mi, style: {flex:1,display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}
-                    , React.createElement('div', { style: {width:"100%",height:Math.max(3,((u+k+z)/22)*40),borderRadius:2,background:c,opacity:u+k+z>0?1:.15}} )
+                    , React.createElement('div', { style: {width:"100%",height:Math.max(3,(_jb.ges/22)*40),borderRadius:2,background:c,opacity:_jb.ges>0?1:.15},'data-abw-typ':_jb.t||""} )
                     , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _optionalChain([MO_DE, 'access', _603 => _603[mi], 'optionalAccess', _604 => _604.slice, 'call', _605 => _605(0,3)]))
                   ));
                 })
@@ -25673,7 +25710,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
             ));
           })
           , React.createElement('div', { style: {display:"flex",gap:12,marginTop:12,fontSize:UI.fMeta,flexWrap:"wrap"}}
-            , Object.entries(AT_T).map(([k,v])=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {width:12,height:12,borderRadius:2,background:v.c}} ), v.l))
+            , Object.keys(ABW_MON_TYP).map(k=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { 'data-abw-legende': k, style: {width:12,height:12,borderRadius:2,background:ABW_MON_TYP[k].c}} ), (AT_T[k]&&AT_T[k].l)||k))
           )
         )
         , React.createElement('div', { style: {...CC()}}
@@ -25758,7 +25795,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
                 return React.createElement('div', { key: m, style: {display:"flex",borderBottom:"1px solid "+V.bd,background:mi%2===0?"transparent":V.rowAlt}}
                   , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, role: "button", tabIndex: 0, "aria-label": "Kalender für "+m+" öffnen", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setSel(m);setSubView("kalender");}}, style: {width:nameW,minWidth:nameW,position:"sticky",left:0,zIndex:2,background:mi%2===0?V.cd:V.rowAlt,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?UI.fMeta:UI.fMeta,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",gap:1}}/* v1055 Tablet-Vollpruefung (8): Name OBEN in voller Zellbreite, Resturlaub darunter - vorher teilten sich Name und Stunden eine Zeile, und _zweiZeilen (overflowWrap anywhere) brach Lindhube|r, Pasching|er, Riedman|n mitten im Wort, auch quer */
                     , React.createElement('span', { title: m, style: {overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",overflowWrap:"normal",wordBreak:"normal",hyphens:"none",maxWidth:"100%",minWidth:0,lineHeight:1.2,fontSize:isMob?UI.fMeta:13}}, m)
-                    , React.createElement('span', { style: {fontSize:isMob?UI.fMeta:UI.fMeta,color:kontUnlesbar?V.dm:mRest<=20?"#ef4444":_okG("#22c55e"),fontWeight:700,flexShrink:0}, title: kontUnlesbar?"Resturlaub nicht gemessen - Kontingente nicht gelesen":undefined}, kontUnlesbar?"–":(_absH(mRest,0)+"h"))
+                    , React.createElement('span', { style: {fontSize:isMob?UI.fMeta:UI.fMeta,color:kontUnlesbar?V.dm:mRest<=20?"#ef4444":_okG("#22c55e"),fontWeight:700,flexShrink:0}, title: kontUnlesbar?"Resturlaub nicht gemessen - Kontingente nicht gelesen":undefined}, kontUnlesbar?"–":(_absH(mRest,1)+"h"))
                   )
                   , React.createElement('div', { style: {display:"flex",flexDirection:"column"}}
                     , React.createElement('div', { style: {display:"flex"}}, _dayRow("gen"))

@@ -291,8 +291,11 @@ def pruef_klein(html):
         b.append("Planung-Zeilenknoepfe zweistoeckig")
     if "minWidth:ww<1000?Math.max(640,ww-80):800" not in html:
         b.append("Werkzeug-Tabelle hoch abgeschnitten")
-    for t in ('kontUnlesbar?"– (nicht gemessen)"', 'kontUnlesbar?"–":(_n(rest,1)', 'kontUnlesbar?"–":(_absH(mRest,0)+"h")',
+    for t in ('kontUnlesbar?"– (nicht gemessen)"', 'kontUnlesbar?"–":(_n(rest,1)', 'kontUnlesbar?"–":(_absH(mRest,1)+"h")',
               'sub: kontUnlesbar?"nicht gemessen":"von "+'):
+        # Pin angepasst (Stufe 3, 19.11.2026): Rest in der Personen-Pille mit EINER Nachkommastelle wie im
+        # Kontingent (Tablet-Vollpruefung: Kontingent 192,5 h, Pille "Rest 193 h"). Gesichert bleibt dieselbe
+        # Eigenschaft: bei kontUnlesbar steht "–" statt einer Zahl.
         if t not in html:
             b.append("Kontingent zeigt Zahl trotz 'nicht gemessen': " + t)
     return b
@@ -305,7 +308,7 @@ def test_7_klein(index_html):
 @pytest.mark.parametrize("alt,neu", [
     ('fil.length===0?null/*', '/*'),
     ("const _wpZeile1=_wpGrob&&ww>=1200;", "const _wpZeile1=false;"),
-    ('kontUnlesbar?"–":(_absH(mRest,0)+"h")', '_absH(mRest,0)+"h"'),
+    ('kontUnlesbar?"–":(_absH(mRest,1)+"h")', '_absH(mRest,1)+"h"'),
     ("html input[type=radio]{-webkit-appearance:none !important", "html input[type=radio]{"),
 ])
 def test_7_umkehrprobe(index_html, alt, neu):
