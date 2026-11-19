@@ -36,8 +36,10 @@ def _block(src):
     return m.group(1)
 
 
+# v1051: _fzVanSvg zeichnet nicht mehr selbst, sondern delegiert an _fzBusSvg (EINE Fahrzeug-Geometrie fuer
+# Seite Fahrzeuge und Flotte) - der Marker braucht darum den echten Helfer aus index.html.
 _DEPS = ["_flotteInactive", "_flotteRelTime", "_fzStampFink", "_fzHaversine", "_fzOdo",
-         "_fzNormPos", "_fzSegmente", "_fbSummen"]
+         "_fzNormPos", "_fzSegmente", "_fbSummen", "_fzBusSvg"]
 
 _OUT = ("function _out(v){process.stdout.write(JSON.stringify(v,function(k,x){"
         "return (typeof x==='number'&&Number.isNaN(x))?'NaN':x;}));}\n")

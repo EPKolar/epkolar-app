@@ -5430,13 +5430,14 @@ function _fzPickerlFaellig(f){const _pkSt=window._pickerlStatus(f.pickerl);retur
 function _fzServiceFaellig(f){if(!f.naechstService)return false;const d=new Date(f.naechstService+"T00:00:00");return d<=new Date();}
 function _fzFaelligkeit(liste){var a=(liste||[]).filter(function(f){return f&&f.status!=="stillgelegt";});var pk=a.filter(_fzPickerlFaellig),sv=a.filter(_fzServiceFaellig);var ids=new Set(pk.concat(sv).map(function(f){return f.id||f.kennzeichen;}));return {pickerl:pk,service:sv,fahrzeuge:ids.size};}
 /* v1049 Fahrzeuge-Bedienung (Monteur am Telefon, Buero am Tablet): reine Helfer - EINE Quelle fuer Fahrzeug-Bild, Betriebszustand, Suche, "Mein" und Filter-Chips. Datenstand: fahrzeuge.status kennt nur "aktiv"/"stillgelegt"; "Werkstatt" ist kein Spaltenwert, sondern ein Schaden mit status "in_reparatur" (abgeleitet, nichts wird geschrieben). */
-function _fzArt(f){var t=_matFold(f&&f.typ).replace(/[^a-z]/g,"");if(t.indexOf("lkw")===0)return "lkw";if(t.indexOf("anhang")===0)return "anhaenger";return "bus";}
+function _fzArt(f){var t=_matFold(f&&f.typ).replace(/[^a-z]/g,"");if(t.indexOf("lkw")===0)return "lkw";if(t.indexOf("anhang")===0)return "anhaenger";if(t.indexOf("pkw")===0)return "pkw";if(t.indexOf("stapler")===0)return "stapler";return "bus";}
 function _fzBetrieb(f){if(!f)return "betrieb";if(f.status==="stillgelegt")return "ausser";var s=f.schaeden;if(Array.isArray(s)&&s.some(function(x){return !!(x&&x.status==="in_reparatur");}))return "werkstatt";return "betrieb";}
 const _FZ_BETRIEB={betrieb:{l:"In Betrieb",h:COLORS.EP_GREEN},werkstatt:{l:"Werkstatt",h:COLORS.WARNING_FILL},ausser:{l:"Außer Dienst",h:COLORS.NEUTRAL}};
-/* _fzBusSvg(opts) -> SVG-Text eines Fahrzeugs in Seitenansicht (eigene Zeichnung, Strichstil, kein Hersteller-Zeichen). Ohne Abhaengigkeiten, damit die Flotten-Karte (Leaflet divIcon braucht Text) denselben Helfer uebernehmen kann. opts: art "bus"|"lkw"|"anhaenger" (sonst bus) - farbe "#rrggbb" (Strich + 16 % Flaeche, sonst Markengruen) - gr Breite in px (Hoehe = 2/3) - titel (Vorlesetext; leer = aria-hidden). */
-function _fzBusSvg(opts){var o=opts||{};var art=(o.art==="lkw"||o.art==="anhaenger")?o.art:"bus";var farbe=/^#[0-9a-fA-F]{6}$/.test(String(o.farbe||""))?String(o.farbe):"#009640";var gr=(+o.gr>0)?Math.round(+o.gr):40;var hoch=Math.round(gr*2/3);var esc=function(t){return String(t).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;";});};var titel=String(o.titel==null?"":o.titel).trim();var L='fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';var F='fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"';var rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.2" '+L+'/><circle cx="'+x+'" cy="'+y+'" r=".9" fill="currentColor"/>';};var k;if(art==="lkw")k='<rect x="3" y="4" width="25" height="16.5" rx="1.5" '+F+'/><path d="M30 22.5V10.5A2 2 0 0 1 32 8.5H38L44 15V22.5H41.7A3.7 3.7 0 0 0 34.3 22.5Z" '+F+'/><path d="M33 11.5H37.2L40.4 15.2H33Z" '+L+'/><path d="M3 22.5H6.3M13.7 22.5H30" '+L+'/>'+rad(10,23)+rad(38,23);else if(art==="anhaenger")k='<rect x="4" y="7" width="30" height="14" rx="1.5" '+F+'/><path d="M34 18.5L44.5 21.5M9 21V26.5M7 26.5H11" '+L+'/><circle cx="45.6" cy="21.8" r="1.3" '+L+'/>'+rad(22,24);else k='<path d="M5 24.5V9.5A3.5 3.5 0 0 1 8.5 6H30.5L37.5 14H41A3 3 0 0 1 44 17V24.5H39.2A4.2 4.2 0 0 0 30.8 24.5H17.2A4.2 4.2 0 0 0 8.8 24.5Z" '+F+'/><path d="M29 9.2H31.4L35.2 13.4H29Z" '+L+'/><path d="M26.5 8.5V22M5 16.5H24.5M42.4 18.6H43.6" '+L+'/>'+rad(13,24.5)+rad(35,24.5);return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" width="'+gr+'" height="'+hoch+'" data-fz-art="'+art+'" style="color:'+farbe+';display:block;flex:0 0 auto"'+(titel?' role="img" aria-label="'+esc(titel)+'"><title>'+esc(titel)+'</title>':' aria-hidden="true" focusable="false">')+k+'</svg>';}
+/* _fzBusSvg(opts) -> SVG-Text eines Fahrzeugs in Seitenansicht (eigene Zeichnung, kein Hersteller-Zeichen). v1051: EINZIGE Fahrzeug-Geometrie der App - Fahrzeuge (Liste/Detail, Strichstil) UND Flotten-Karte/-Liste (_fzVanSvg/_fzVanEl delegieren hierher, Flaechenstil). Ohne Abhaengigkeiten (Leaflet divIcon braucht Text). opts: art bus|lkw|anhaenger|pkw|stapler (sonst bus) - farbe #rrggbb (Strich + 16 % Flaeche, sonst Markengruen) - gr Breite in px (Hoehe = 2/3) - titel (Vorlesetext; leer = aria-hidden) - karte {fill,stroke,dash,fenster,opacity} schaltet auf gefuellte Kartenansicht (Farben nur #hex/none/rgba, Strichelung nur Ziffern) - spiegeln (scaleX(-1), nur mit karte). */
+function _fzBusSvg(opts){var o=opts||{};var art=["lkw","anhaenger","pkw","stapler"].indexOf(o.art)>=0?o.art:"bus";var farbe=/^#[0-9a-fA-F]{6}$/.test(String(o.farbe||""))?String(o.farbe):"#009640";var gr=(+o.gr>0)?Math.round(+o.gr):40;var hoch=Math.round(gr*2/3);var esc=function(t){return String(t).replace(/[&<>\x22]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;";});};var titel=String(o.titel==null?"":o.titel).trim();var L='fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';var F='fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"';var G=L,S=L;var rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.2" '+L+'/><circle cx="'+x+'" cy="'+y+'" r=".9" fill="currentColor"/>';};var ks=(o.karte&&typeof o.karte==="object")?o.karte:null;var op=1;if(ks){var fa=function(x,d){x=String(x==null?"":x);return /^(#[0-9a-fA-F]{3,8}|none|rgba\([0-9., ]+\))$/.test(x)?x:d;};var kf=fa(ks.fill,"#94a3b8"),kr=fa(ks.stroke,"#ffffff"),kg=fa(ks.fenster,"#ffffff");var kd=/^[0-9. ]+$/.test(String(ks.dash||""))?' stroke-dasharray="'+ks.dash+'"':"";op=(+ks.opacity>=0&&+ks.opacity<=1)?+ks.opacity:1;F='fill="'+kf+'" stroke="'+kr+'" stroke-width="1.6" stroke-linejoin="round"'+kd;L='fill="none" stroke="'+kg+'" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"';G='fill="'+kg+'" fill-opacity=".9" stroke="none"';S='fill="none" stroke="'+kr+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'+kd;rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.4" fill="#1f2937" stroke="#ffffff" stroke-width="1.2"/><circle cx="'+x+'" cy="'+y+'" r="1.2" fill="#cbd5e1"/>';};}var k;if(art==="lkw")k='<rect x="3" y="4" width="25" height="16.5" rx="1.5" '+F+'/><path d="M30 22.5V10.5A2 2 0 0 1 32 8.5H38L44 15V22.5H41.7A3.7 3.7 0 0 0 34.3 22.5Z" '+F+'/><path d="M33 11.5H37.2L40.4 15.2H33Z" '+G+'/><path d="M3 22.5H6.3M13.7 22.5H30" '+S+'/>'+rad(10,23)+rad(38,23);else if(art==="anhaenger")k='<rect x="4" y="7" width="30" height="14" rx="1.5" '+F+'/><path d="M34 18.5L44.5 21.5M9 21V26.5M7 26.5H11" '+S+'/><circle cx="45.6" cy="21.8" r="1.3" '+S+'/>'+rad(22,24);else if(art==="pkw")k='<path d="M4 22.5V17.6A2 2 0 0 1 5.7 15.6L11.6 14.6L16.6 9.3A3 3 0 0 1 18.8 8.3H29.4A3 3 0 0 1 31.6 9.2L37 14.6L41.6 15.4A2.4 2.4 0 0 1 43.6 17.8V22.5H39.2A4.2 4.2 0 0 0 30.8 22.5H17.2A4.2 4.2 0 0 0 8.8 22.5Z" '+F+'/><path d="M18 10.6H24.2V14.4H14.4Z" '+G+'/><path d="M26.2 10.6H30.4L34.2 14.4H26.2Z" '+G+'/><path d="M25.2 10.6V20.5M41.4 17.6H42.6" '+L+'/>'+rad(13,22.5)+rad(35,22.5);else if(art==="stapler")k='<path d="M4 24.5V16.5A3 3 0 0 1 7 13.5H31V24.5H30.7A4.2 4.2 0 0 0 22.3 24.5H15.2A4.2 4.2 0 0 0 6.8 24.5Z" '+F+'/><path d="M8.5 13.5V5.5H25L28.5 13.5M13 13.5V10H17" '+S+'/><rect x="32.5" y="3.5" width="3" height="21" rx="1" '+F+'/><path d="M35.5 25H45M35.5 25V18.5" '+S+'/>'+rad(11,24.5)+rad(26.5,24.5);else k='<path d="M5 24.5V9.5A3.5 3.5 0 0 1 8.5 6H30.5L37.5 14H41A3 3 0 0 1 44 17V24.5H39.2A4.2 4.2 0 0 0 30.8 24.5H17.2A4.2 4.2 0 0 0 8.8 24.5Z" '+F+'/><path d="M29 9.2H31.4L35.2 13.4H29Z" '+G+'/><path d="M26.5 8.5V22M5 16.5H24.5M42.4 18.6H43.6" '+L+'/>'+rad(13,24.5)+rad(35,24.5);var stil=ks?('display:block;flex:0 0 auto;overflow:visible;opacity:'+op+(o.spiegeln?';transform:scaleX(-1)':'')):('color:'+farbe+';display:block;flex:0 0 auto');return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" width="'+gr+'" height="'+hoch+'" data-fz-art="'+art+'" style="'+stil+'"'+(titel?' role="img" aria-label="'+esc(titel)+'"><title>'+esc(titel)+'</title>':' aria-hidden="true" focusable="false">')+k+'</svg>';}
 function _fzBusFarbe(stufe){var b=_FZ_BETRIEB[stufe]||_FZ_BETRIEB.betrieb;return (typeof _lesbar==="function")?_lesbar(b.h):b.h;}
-function _fzBusFuer(f,gr){var st=_fzBetrieb(f);var a=_fzArt(f);return _fzBusSvg({art:a,farbe:_fzBusFarbe(st),gr:gr,titel:(a==="lkw"?"LKW":a==="anhaenger"?"Anhänger":"Transporter")+", "+_FZ_BETRIEB[st].l});}
+const _FZ_ART_NAME={bus:"Transporter",lkw:"LKW",anhaenger:"Anhänger",pkw:"PKW",stapler:"Stapler"};
+function _fzBusFuer(f,gr){var st=_fzBetrieb(f);var a=_fzArt(f);return _fzBusSvg({art:a,farbe:_fzBusFarbe(st),gr:gr,titel:(_FZ_ART_NAME[a]||"Transporter")+", "+_FZ_BETRIEB[st].l});}
 function _fzSuchText(f,fahrerName){if(!f)return "";var kz=String(f.kennzeichen||"");return _matFold([kz,kz.replace(/[^A-Za-z0-9]/g,""),f.marke,f.modell,f.typ,f.farbe,f.standort,fahrerName].filter(function(x){return x!=null&&x!=="";}).join(" "));}
 function _fzSuchTreffer(f,q,fahrerName){var t=_matFold(q).trim();if(!t)return true;var h=_fzSuchText(f,fahrerName);return t.split(/\s+/).every(function(x){return h.indexOf(x)>=0||h.indexOf(x.replace(/[^a-z0-9]/g,""))>=0;});}
 function _fzIstMeins(f,mid){return !!(f&&mid&&f.fahrer===mid);}
@@ -29125,14 +29126,9 @@ function _fzHeuteAusTrack(rows,nowMs,limit){/* -> {km,fahrten,teilweise,punkte} 
   var punkte=_fzNormPos(heute).map(function(x){return [x.lat,x.lon];});
   return {km:su.km,fahrten:su.anzahl,teilweise:teilweise,punkte:punkte,gueltig:gueltig};
 }
-/* ── Transporter-Glyphe: EINE Geometrie fuer Karte (HTML-String im L.divIcon) und Liste (React-SVG).
-   Eigene, schlichte Seitenansicht eines Kastenwagens (Laderaum + Fahrerhaus + zwei Raeder), keine
-   Marke, kein Hersteller-Logo. viewBox 0 0 40 26, Front zeigt nach rechts. ── */
-var FZ_VAN_VIEWBOX='0 0 40 26';
-var FZ_VAN_KAROSSE='M2.5 7.5Q2.5 5 5 5H24.6Q26 5 27 6.1L32.3 11.6L36.3 12.8Q38 13.4 38 15.2V19.2Q38 20.5 36.7 20.5H3.8Q2.5 20.5 2.5 19.2Z';
-var FZ_VAN_FENSTER='M25.4 7.1H26.3L30.7 11.7H25.4Z';
-var FZ_VAN_TUER='M19 6.5V18.6';
-var FZ_VAN_RAEDER=[[10,20.5],[30.4,20.5]];
+/* ── Fahrzeug-Glyphe der Karte (v1051): KEINE eigene Geometrie mehr - _fzVanSvg und _fzVanEl delegieren an
+   _fzBusSvg (dieselbe Zeichnung wie die Seite Fahrzeuge, inkl. LKW/Anhaenger/PKW/Stapler). Hier steht nur der
+   Kartenstil je Zustand: Flaechenfarbe, weisser Rand, gestrichelt bei veraltet/kein Signal. Front zeigt nach rechts. ── */
 function _fzVanStil(zustand){/* -> {fill,stroke,dash,fenster,opacity} */
   var z=zustand||'kein_signal';
   var fill=FZ_KARTE_FARBE[z]||FZ_KARTE_FARBE.kein_signal;
@@ -29140,15 +29136,8 @@ function _fzVanStil(zustand){/* -> {fill,stroke,dash,fenster,opacity} */
   if(z==='kein_tracker')return {fill:'none',stroke:'#94a3b8',dash:'',fenster:'#cbd5e1',opacity:0.8};
   return {fill:fill,stroke:'#ffffff',dash:'',fenster:'#ffffff',opacity:1};
 }
-function _fzVanSvg(zustand,breite,spiegeln){/* -> SVG-Markup (nur Konstanten, kein Nutzertext) */
-  var s=_fzVanStil(zustand);var b=Number(breite)||36;var hh=Math.round(b*26/40);
-  var dash=s.dash?(' stroke-dasharray="'+s.dash+'"'):'';
-  var r=FZ_VAN_RAEDER.map(function(w){return '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="3.3" fill="#1f2937" stroke="#ffffff" stroke-width="1.2"/><circle cx="'+w[0]+'" cy="'+w[1]+'" r="1.2" fill="#cbd5e1"/>';}).join('');
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+b+'" height="'+hh+'" viewBox="'+FZ_VAN_VIEWBOX+'" aria-hidden="true" focusable="false" style="display:block;overflow:visible;opacity:'+s.opacity+(spiegeln?';transform:scaleX(-1)':'')+'">'
-    +'<path d="'+FZ_VAN_KAROSSE+'" fill="'+s.fill+'" stroke="'+s.stroke+'" stroke-width="1.6" stroke-linejoin="round"'+dash+'/>'
-    +'<path d="'+FZ_VAN_FENSTER+'" fill="'+s.fenster+'" fill-opacity="0.9"/>'
-    +'<path d="'+FZ_VAN_TUER+'" stroke="'+s.fenster+'" stroke-opacity="0.45" stroke-width="1"/>'
-    +r+'</svg>';
+function _fzVanSvg(zustand,breite,spiegeln,art){/* -> SVG-Markup (nur Konstanten, kein Nutzertext); art wie _fzArt (sonst Transporter) */
+  return _fzBusSvg({art:art,gr:Number(breite)||36,karte:_fzVanStil(zustand),spiegeln:!!spiegeln});
 }
 function _fzEscHtml(x){return String(x===undefined||x===null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\x27/g,'&#39;').replace(/\x22/g,'&quot;');}/* Hausmuster: keine Anfuehrungszeichen in Regex-Literalen (Klammer-Streicher) */
 function _fzVanMarkerHtml(o){/* -> HTML fuer L.divIcon: 44x44 Trefferflaeche, Transporter, Fahrtrichtungs-Zeiger, Kennzeichen-Pille */
@@ -29156,7 +29145,7 @@ function _fzVanMarkerHtml(o){/* -> HTML fuer L.divIcon: 44x44 Trefferflaeche, Tr
   var dreh=_fzVanDreh(z,o.heading);
   var ring=o.gewaehlt?'<div style="position:absolute;inset:1px;border-radius:50%;border:2.5px solid '+COLORS.EP_GREEN+';background:rgba(0,150,64,.16);box-shadow:0 0 0 2px #ffffff"></div>':'';
   var zeiger=(dreh.zeiger!==null)?('<div style="position:absolute;inset:0;transform:rotate('+dreh.zeiger+'deg)"><div style="position:absolute;left:50%;top:-3px;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid '+COLORS.EP_GREEN+';filter:drop-shadow(0 0 1px #ffffff)"></div></div>'):'';
-  var van='<div style="position:absolute;left:4px;top:10px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))">'+_fzVanSvg(z,36,dreh.spiegeln)+'</div>';
+  var van='<div style="position:absolute;left:4px;top:10px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))">'+_fzVanSvg(z,36,dreh.spiegeln,o.art)+'</div>';
   var lbl='<div class="fz-van-lbl" style="position:absolute;top:41px;left:50%;transform:translateX(-50%);background:#ffffff;color:#141A16;border:1px solid rgba(20,26,22,.22);border-radius:6px;padding:0 5px;font:700 11px/16px system-ui,-apple-system,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.28)">'+_fzEscHtml(o.kennzeichen||'?')+'</div>';
   return '<div class="fz-van'+(o.gewaehlt?' fz-van-sel':'')+'" data-zustand="'+z+'" style="position:relative;width:44px;height:44px;cursor:pointer">'+ring+zeiger+van+lbl+'</div>';
 }
@@ -30029,13 +30018,9 @@ function _fzKarteCss(){
     document.head.appendChild(st);
   }catch(_e){}
 }
-function _fzVanEl(zustand,breite){/* v1049 dieselbe Transporter-Geometrie wie auf der Karte, als React-SVG (Liste, Info-Karte) */
-  var h=React.createElement;var s=_fzVanStil(zustand);var b=breite||28;
-  return h('svg',{width:b,height:Math.round(b*26/40),viewBox:FZ_VAN_VIEWBOX,'aria-hidden':'true',focusable:'false',style:{display:'block',flex:'0 0 auto',overflow:'visible',opacity:s.opacity}}
-    ,h('path',{d:FZ_VAN_KAROSSE,fill:s.fill,stroke:(s.stroke==='#ffffff'?'rgba(0,0,0,.28)':s.stroke),strokeWidth:1.4,strokeLinejoin:'round',strokeDasharray:s.dash||undefined})
-    ,h('path',{d:FZ_VAN_FENSTER,fill:s.fenster,fillOpacity:0.9})
-    ,h('path',{d:FZ_VAN_TUER,stroke:s.fenster,strokeOpacity:0.45,strokeWidth:1})
-    ,FZ_VAN_RAEDER.map(function(w,i){return h('g',{key:i},h('circle',{cx:w[0],cy:w[1],r:3.3,fill:'#1f2937',stroke:'#ffffff',strokeWidth:1.2}),h('circle',{cx:w[0],cy:w[1],r:1.2,fill:'#cbd5e1'}));}));
+function _fzVanEl(zustand,breite,art){/* v1051 dieselbe Zeichnung wie Karte und Seite Fahrzeuge (_fzBusSvg), fuer Liste und Info-Karte; auf hellem Grund dunkler Rand statt weiss */
+  var s=_fzVanStil(zustand);var k={fill:s.fill,stroke:(s.stroke==='#ffffff'?'rgba(0,0,0,.28)':s.stroke),dash:s.dash,fenster:s.fenster,opacity:s.opacity};
+  return React.createElement('span',{'aria-hidden':'true',style:{display:'inline-flex',flex:'0 0 auto',lineHeight:0},dangerouslySetInnerHTML:{__html:_fzBusSvg({art:art,gr:breite||28,karte:k})}});
 }
 
 function FlotteView(props){
@@ -30187,7 +30172,7 @@ function FlotteView(props){
       /* v1049: kleiner Transporter statt Kennzeichen-Kaestchen (Sebastian 19.11.). Farbe aus dem Kartenzustand
          (_fzKartenZustand: faehrt gruen, steht/Zuendung an orange, geparkt grau, veraltet hellgrau gestrichelt),
          Fahrtrichtungs-Zeiger nur in Fahrt. Antippen oeffnet die Info-Karte (React, nicht mehr bindPopup-HTML). */
-      var _icd={zustand:_fzKartenZustand(p,now),heading:_fzHeading(p),kennzeichen:f.kennzeichen||'?',gewaehlt:(selFid===f.id)};
+      var _icd={zustand:_fzKartenZustand(p,now),heading:_fzHeading(p),kennzeichen:f.kennzeichen||'?',gewaehlt:(selFid===f.id),art:_fzArt(f)};
       var m=L.marker([_la,_lo],{icon:_fzVanIcon(_icd),title:(f.kennzeichen||'?')+' - '+(FZ_KARTE_LABEL[_icd.zustand]||''),alt:(f.kennzeichen||'?'),keyboard:true,riseOnHover:true,zIndexOffset:_icd.gewaehlt?1000:0});
       m._fzIconDaten=_icd;
       m.on('click',function(){_waehle(f.id);});
@@ -30271,7 +30256,7 @@ function FlotteView(props){
      flackernder Zwischenzustand) - aktiv gruen, inaktiv hellgrau gestrichelt, wartet blass gestrichelt, ohne Tracker nur Umriss.
      Fahrt/Stand/Zuendung zeigen Karte und Info-Karte. */
   var _LIST_ZUSTAND={aktiv:'faehrt',inaktiv:'veraltet',wartet:'kein_signal',kein_tracker:'kein_tracker'};
-  var _listVan=function(status){return h('span',{title:FZ_STATUS_LABEL[status]||'',style:{display:'inline-flex',flexShrink:0,width:32,justifyContent:'center'}},_fzVanEl(_LIST_ZUSTAND[status]||'kein_signal',30));};
+  var _listVan=function(status,f){return h('span',{title:FZ_STATUS_LABEL[status]||'',style:{display:'inline-flex',flexShrink:0,width:32,justifyContent:'center'}},_fzVanEl(_LIST_ZUSTAND[status]||'kein_signal',30,_fzArt(f)));};
 
   /* v3.9.690 Standort je Zeile — NUR aus dem Cache (geo_cache + Session), KEIN Nominatim-Lookup.
      Die Adressen entstehen ohnehin beim Oeffnen des Fahrtenbuchs; hier werden sie nur
@@ -30406,7 +30391,7 @@ function FlotteView(props){
     if(heute&&heute.punkte.length>=2)knoepfe.push(_infoKnopf('karte','Route heute',function(){_showFahrtTrail(heute.punkte);if(modus==='sheet')setSelFid(null);}));
     if(props.onOpenFahrzeug&&!_demo&&!f._demo)knoepfe.push(_infoKnopf('transporter','Fahrzeug öffnen',function(){props.onOpenFahrzeug(f.id);}));
     var kopf=h('div',{style:{display:'flex',alignItems:'center',gap:10}}
-      ,h('div',{style:{width:44,height:32,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},_fzVanEl(z,40))
+      ,h('div',{style:{width:44,height:32,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},_fzVanEl(z,40,_fzArt(f)))
       ,h('div',{style:{minWidth:0,flex:1}}
         ,h('div',{style:{fontWeight:800,fontSize:UI.fTitel,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},f.kennzeichen||'?')
         ,modell?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},modell):null)
@@ -30450,7 +30435,7 @@ function FlotteView(props){
         borderLeft:'3px solid '+((selFid===row.f.id)?COLORS.EP_GREEN:'transparent'),
         background:(selFid===row.f.id)?(_dark?'rgba(0,150,64,.16)':UI.markeBg):'transparent',
         cursor:row.hatTracker?'pointer':'default',opacity:row.hatTracker?1:0.7}}
-      ,_listVan(row.status)
+      ,_listVan(row.status,row.f)
       ,h('div',{style:{minWidth:0,flex:'0 0 auto',maxWidth:'58%'}}/* v1049 Tablet hochkant (Befund 19.11.): das Kennzeichen ist der Schluessel der Zeile und schrumpft nie. Vorher flex:1+minWidth:0 gegen einen starren rechten Block (minWidth 110, Ort bis 150 px) - bei ~290 px Listenbreite blieb fuer das Kennzeichen nichts uebrig. Jetzt gibt der rechte Block nach (Zeit/Ort kuerzen mit ...). */
         ,h('div',{style:{fontWeight:700,fontSize:13,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?')
         ,_fahrerName(row.f)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},''+_fahrerName(row.f)):null)
@@ -30471,7 +30456,7 @@ function FlotteView(props){
 
   const _imeiZeile=function(row){
     return h('div',{key:row.f.id,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderBottom:'1px solid '+V.bd}}
-      ,_listVan(row.status)
+      ,_listVan(row.status,row.f)
       ,h('div',{style:{minWidth:0,flex:1}}
         ,h('div',{style:{fontWeight:700,fontSize:12,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?'))
       ,(imeiFid===row.f.id)
