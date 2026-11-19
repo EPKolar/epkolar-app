@@ -193,8 +193,10 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # v3.9.1062: +1 Stelle im Kamera-Bereich; v3.9.1065 AS Hochformat: -1 (ArbeitsscheinView fragt _layoutStufe,
     # dort n<BP_MOB). Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert.
     assert "if(n<BP_MOB)return \"schmal\";" in roh
-    assert roh.count("ww<BP_MOB") == 30, (
-        "Erwartet 30 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 3 Abwesenheiten (19.11.2026): -1 (AbsView fragt _layoutStufe, isMob = Stufe "schmal" = n<BP_MOB).
+    # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert.
+    assert roh.count("ww<BP_MOB") == 29, (
+        "Erwartet 29 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
