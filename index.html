@@ -30793,7 +30793,7 @@ async function _kamStreamHolen(kameraId,scope,geraet,bereich){
       body:JSON.stringify(Object.assign({kamera_id:kameraId,scope:scope,geraet:geraet},bereich||{}))},15000));
     var j=null;try{j=await r.json();}catch(_j){}
     a=_kamStreamAntwort(r.status,j,scope);
-  }catch(e){a={ok:false,grund:'kein_backend'};}
+  }catch(e){a={ok:false,grund:'netz'};}/* Netzfehler: die Kachel wiederholt mit Pause (_kamBackoff) */
   if(!a.ok&&a.grund==='kein_backend'){_kamBackend.fehlt=true;_kamBackend.ts=Date.now();}
   if(a.ok)_kamBackend.fehlt=false;
   return a;
@@ -30917,7 +30917,106 @@ function _kamHinweis(h,titel,text,knopf){
 }
 var KAMERA_STUB_TXT={kein_backend:'Kein Video-Backend verbunden',kein_zugriff:'Kein Zugriff zu dieser Zeit',
   player:'Dieses Gerät kann den Stream nicht abspielen',abbruch:'Verbindung unterbrochen',fehler:'Video nicht verfügbar',laedt:'Verbinde …',
-  offline:'Kamera nicht erreichbar'};
+  offline:'Kamera nicht erreichbar',wartet:'Verbinde …',netz_aus:'Server nicht erreichbar'};
+/* Betrieb (20.11.2026): Statuschip je Kachel. Reine Abbildung Phase/Grund -> Schluessel (in Node getestet). */
+var KAMERA_STATUS_TXT={verbindet:'verbindet',live:'live',kein_zugriff:'kein Zugriff jetzt (Zeitfenster)',offline:'Kamera nicht erreichbar',server:'Server nicht erreichbar',spaeter:'später'};
+function _kamStatus(phase,grund){
+  if(phase==='live')return 'live';
+  if(phase==='laedt'||grund==='laedt'||grund==='wartet')return 'verbindet';
+  if(grund==='kein_zugriff')return 'kein_zugriff';
+  if(grund==='offline'||grund==='abbruch'||grund==='player')return 'offline';
+  return 'server';
+}
+/* Netzfehler (fetch wirft): neue Versuche nach 2 s, 5 s, 10 s - danach "Neu laden". 403/503 werden NICHT wiederholt. */
+var KAMERA_RETRY_MS=[2000,5000,10000];
+function _kamBackoff(n){return (n>=0&&n<KAMERA_RETRY_MS.length)?KAMERA_RETRY_MS[n]:null;}
+/* Spalten NUR aus _layoutStufe: schmal 1, mittel 2, breit 2-3 (3 bei 3x3 bzw. mehr als 4 Kacheln) */
+function _kamSpalten(stufe,ansicht,n){
+  var z=Math.max(1,Number(n)||1);
+  if(stufe==='schmal')return 1;
+  if(stufe==='mittel')return Math.min(2,z);
+  if(ansicht==='3x3'||(ansicht==='alle'&&z>4))return 3;
+  return Math.min(2,z);
+}
+function _kamStatusChip(h,key){
+  var ok=key==='live'||key==='verbindet'||key==='spaeter';
+  return h('span',{'data-kam-status':key,style:{flex:'0 0 auto',fontSize:UI.fMeta,fontWeight:700,borderRadius:UI.rChip,padding:'3px 8px',whiteSpace:'nowrap',
+    color:ok?UI.neutralTxt:UI.achtungTxt,background:ok?UI.neutralBg:UI.achtungBg,border:'1px solid '+(ok?UI.linie:UI.achtung)}},KAMERA_STATUS_TXT[key]||key);
+}
+/* DEMO-ANSICHT (Owner 20.11.2026): zeigt die fertige Oberflaeche, bevor das Gateway laeuft. NUR Admin, NUR mit
+   ?kameras_demo=1 (gemerkt in localStorage, ?kameras_demo=0 schaltet aus) oder dem Schalter "Demo-Ansicht".
+   Kein echtes Bild, KEIN Abruf (keine Funktion, kein Gateway, keine Datenbank) - nur ein erzeugter Platzhalter. */
+var KAMERA_DEMO_LS='epk_kameras_demo';
+var KAMERA_DEMO_BANNER='DEMO – kein echtes Kamerabild';
+function _kamDemoErlaubt(user,search,lokal){
+  if(!user||_kamRolle(user)!=='admin')return false;
+  var m=/[?&]kameras_demo=([^&#]*)/.exec(String(search||''));
+  if(m)return m[1]==='1';
+  return lokal==='1';
+}
+function _kamDemoLokal(){try{return localStorage.getItem(KAMERA_DEMO_LS)||'';}catch(e){return '';}}
+function _kamDemoMerken(an){try{if(an)localStorage.setItem(KAMERA_DEMO_LS,'1');else localStorage.removeItem(KAMERA_DEMO_LS);}catch(e){}}
+function _kamDemoStart(user){
+  var s='';try{s=(typeof window!=='undefined'&&window.location&&window.location.search)||'';}catch(e){s='';}
+  var m=/[?&]kameras_demo=([^&#]*)/.exec(s);
+  if(m&&user&&_kamRolle(user)==='admin')_kamDemoMerken(m[1]==='1');
+  return _kamDemoErlaubt(user,s,_kamDemoLokal());
+}
+/* Aufzeichnungen (Owner 20.11.2026): laufen ueber die Surveillance Station der QNAP, NICHT ueber die App -> Bereich aus. */
+var KAMERA_REC_UI=false;
+function _kamDemoKameras(){
+  return [
+    {id:'demo_hochregal01',name:'Hochregal 01',standort:'Demo',_demo:'live'},
+    {id:'demo_verkauf02',name:'Verkauf 02',standort:'Demo',_demo:'verbindet'},
+    {id:'demo_elektrolager03',name:'Elektrolager 03',standort:'Demo',_demo:'kein_zugriff'},
+    {id:'demo_cam39',name:'Kamera .39',standort:'Demo',_demo:'offline'},
+    {id:'demo_mob32',name:'Mobotix .32',standort:'Demo',_demo:'spaeter'},
+    {id:'demo_mob33',name:'Mobotix .33',standort:'Demo',_demo:'spaeter'},
+    {id:'demo_mob34',name:'Mobotix .34',standort:'Demo',_demo:'spaeter'},
+    {id:'demo_mob35',name:'Mobotix .35',standort:'Demo',_demo:'spaeter'},
+    {id:'demo_mob36',name:'Mobotix .36',standort:'Demo',_demo:'spaeter'}];
+}
+function _kamDemoBanner(h){
+  return h('div',{'data-kam-demo':'banner',style:{fontSize:UI.fMeta,fontWeight:800,color:UI.achtungTxt,background:UI.achtungBg,
+    border:'1px solid '+UI.achtung,borderRadius:UI.rChip,padding:'3px 8px',display:'inline-block'}},KAMERA_DEMO_BANNER);
+}
+function _kamUhrText(ms){var d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+function KameraDemoKachel(props){
+  var h=React.createElement;var k=props.kamera;var zst=k._demo||'live';
+  var _u=_react.useState.call(void 0,Date.now());var jetzt=_u[0],setJetzt=_u[1];
+  _react.useEffect.call(void 0,function(){
+    if(zst!=='live')return undefined;
+    var t=setInterval(function(){setJetzt(Date.now());},1000);
+    return function(){clearInterval(t);};
+  },[zst]);
+  var bildArt=zst==='live';
+  return h('div',{'data-kam-kachel':'demo',style:{minWidth:0,border:'1px solid '+UI.linie,borderRadius:UI.rKarte,overflow:'hidden',background:UI.flaeche}}
+    ,h('div',{style:{position:'relative',width:'100%',aspectRatio:'16 / 9',overflow:'hidden',
+        background:bildArt?'repeating-linear-gradient(45deg,rgba(255,255,255,.035) 0 2px,transparent 2px 5px),linear-gradient(135deg,#2B332E,#4A554E 55%,#1E2320)':'#0b0d0c'}}
+      ,h('div',{style:{position:'absolute',top:8,left:8,right:8}},_kamDemoBanner(h))
+      ,h('div',{role:'img','aria-label':'Platzhalter '+(k.name||''),style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:6,color:'#E6EAE7',textAlign:'center',padding:10}}
+        ,h('span',{style:{opacity:.8}},_ik('videokamera',28))
+        ,h('span',{style:{fontSize:UI.fKlein,fontWeight:700}},k.name||'Kamera')
+        ,bildArt?h('span',{style:{fontSize:UI.fMeta,...UI.zahlen}},_kamUhrText(jetzt)):h('span',{style:{fontSize:UI.fMeta}},zst==='spaeter'?'Mobotix – folgt später':(KAMERA_STATUS_TXT[zst]||''))))
+    ,h('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',minHeight:44,flexWrap:'wrap'}}
+      ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
+        ,h('div',{style:{fontSize:UI.fKlein,fontWeight:700,color:UI.tinte,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},k.name||'Kamera')
+        ,h('div',{style:{fontSize:UI.fMeta,color:UI.grau}},k.standort||''))
+      ,_kamStatusChip(h,zst)
+      ,props.onVoll?h('button',{type:'button',onClick:props.onVoll,'aria-label':'Vollbild '+(k.name||''),title:'Vollbild',style:{...bsS(),padding:'6px 10px',minHeight:44,minWidth:44}},_ik('vollbild',18)):null));
+}
+/* Vollbild: eine Kachel ueber die ganze Flaeche, Schliessen-Knopf 44 px; Esc schliesst (Dialog-Muster der App). */
+function _kamVollbild(h,titel,kind,onZu,demo){
+  return h('div',{role:'dialog','aria-modal':'true','aria-label':'Vollbild '+titel,tabIndex:-1,
+      onKeyDown:function(e){if(e&&e.key==='Escape')onZu();},
+      style:{position:'fixed',inset:0,zIndex:1200,background:'rgba(0,0,0,.92)',display:'flex',flexDirection:'column',padding:12,gap:10,boxSizing:'border-box'}}
+    ,h('div',{style:{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}
+      ,h('div',{style:{flex:'1 1 auto',minWidth:0,fontSize:UI.fTitel,fontWeight:800,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},titel)
+      ,demo?_kamDemoBanner(h):null
+      ,h('button',{type:'button',onClick:onZu,'aria-label':'Vollbild schließen',style:{...bsS(),minHeight:44,minWidth:44,color:'#fff',border:'1px solid #6E7872',display:'inline-flex',alignItems:'center',gap:6}},_ik('kreuz',18),'Schließen'))
+    ,h('div',{style:{flex:'1 1 auto',minHeight:0,display:'flex',alignItems:'center',justifyContent:'center'}}
+      ,h('div',{style:{width:'100%',maxWidth:'calc((100vh - 120px) * 16 / 9)'}},kind)));
+}
 
 function KameraKachel(props){
   var h=React.createElement;var k=props.kamera;
@@ -30930,8 +31029,24 @@ function KameraKachel(props){
   var imBild=_react.useRef.call(void 0,true);
   var tickRef=_react.useRef.call(void 0,null);
   var fehlerRef=_react.useRef.call(void 0,0);
+  var versuchRef=_react.useRef.call(void 0,0);
+  /* Strom nur, wenn die Kachel im Bild liegt UND die Seite sichtbar ist (kein Stapel paralleler Stroeme am Handy);
+     verlassen/verborgen -> Strom zu. Ohne IntersectionObserver (alte Geraete) gilt die Kachel als sichtbar. */
+  var _ak=_react.useState.call(void 0,function(){return typeof IntersectionObserver==='undefined'&&!(typeof document!=='undefined'&&document.hidden===true);});
+  var aktiv=_ak[0],setAktiv=_ak[1];
+  _react.useEffect.call(void 0,function(){
+    var imSicht=typeof IntersectionObserver==='undefined';var beob=null;
+    function neuBerechnen(){var versteckt=typeof document!=='undefined'&&document.hidden===true;setAktiv(imSicht&&!versteckt);}
+    if(typeof IntersectionObserver!=='undefined'&&boxRef.current){
+      try{beob=new IntersectionObserver(function(es){imSicht=!!(es[0]&&es[0].isIntersecting);neuBerechnen();});beob.observe(boxRef.current);}catch(_i){imSicht=true;}
+    }else imSicht=true;/* ohne Beobachter/Element: als sichtbar behandeln (nie dauerhaft dunkel) */
+    if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('visibilitychange',neuBerechnen);
+    neuBerechnen();
+    return function(){if(beob){try{beob.disconnect();}catch(_d){}}if(typeof document!=='undefined'&&document.removeEventListener)document.removeEventListener('visibilitychange',neuBerechnen);};
+  },[k.id]);
   _react.useEffect.call(void 0,function(){
     var alive=true;var pc=null;var timer=null;var io=null;
+    if(!aktiv){setSt({phase:'laedt',grund:'wartet'});setBild({modus:'',url:''});return function(){alive=false;};}
     function takten(){
       if(tickRef.current)clearInterval(tickRef.current);
       tickRef.current=setInterval(function(){
@@ -30976,10 +31091,19 @@ function KameraKachel(props){
       takten();
       planen(b.exp,'snapshot');
     }
+    function nochmal(){
+      var ms=_kamBackoff(versuchRef.current);
+      if(ms===null){setSt({phase:'stub',grund:'netz_aus'});return;}
+      versuchRef.current++;
+      setSt({phase:'laedt',grund:'wartet'});
+      timer=setTimeout(function(){if(alive){_kamBackend.fehlt=false;setNeu(function(x){return x+1;});}},ms);
+    }
     async function start(){
       var a=await _kamStreamHolen(k.id,'live',props.geraet);
       if(!alive)return;
+      if(!a.ok&&a.grund==='netz'){nochmal();return;}
       if(!a.ok){setSt({phase:'stub',grund:a.grund});return;}
+      versuchRef.current=0;
       var bm=_kamPlayerModus(false,false,a);
       if(bm==='mjpeg'||bm==='snapshot'){
         fehlerRef.current=0;
@@ -31017,7 +31141,7 @@ function KameraKachel(props){
     setBild({modus:'',url:''});
     start();
     return function(){alive=false;schliessen();if(io){try{io.disconnect();}catch(_d){}}};
-  },[k.id,props.geraet,neu]);
+  },[k.id,props.geraet,neu,aktiv]);
   var live=st.phase==='live';
   var mitBild=live&&!!bild.url;
   var _bildFehler=function(){
@@ -31038,13 +31162,15 @@ function KameraKachel(props){
       ,live?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:10,textAlign:'center',color:'#E6EAE7'}}
         ,h('span',{style:{opacity:.8}},_ik('videokamera',28))
         ,h('span',{style:{fontSize:UI.fKlein,fontWeight:600}},KAMERA_STUB_TXT[st.grund]||KAMERA_STUB_TXT.fehler)
-        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline')?h('button',{type:'button',onClick:function(){_kamBackend.fehlt=false;setNeu(neu+1);},
-            style:{...bsS(),color:'#E6EAE7',border:'1px solid #6E7872'}},'Neu verbinden'):null))
+        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline'||st.grund==='netz_aus')?h('button',{type:'button',onClick:function(){versuchRef.current=0;_kamBackend.fehlt=false;setNeu(neu+1);},
+            style:{...bsS(),color:'#E6EAE7',border:'1px solid #6E7872'}},'Neu laden'):null))
     ,h('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',minHeight:44}}
       ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
         ,h('div',{style:{fontSize:UI.fKlein,fontWeight:700,color:UI.tinte,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},k.name||'Kamera')
         ,k.standort?h('div',{style:{fontSize:UI.fMeta,color:UI.grau,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},k.standort):null)
-      ,props.onGross?h('button',{type:'button',onClick:props.onGross,'aria-label':'Nur diese Kamera zeigen',title:'Einzeln zeigen',style:{...bsS(),padding:'6px 12px',minHeight:44}},'Einzeln'):null));
+      ,_kamStatusChip(h,_kamStatus(st.phase,st.grund))
+      ,props.onGross?h('button',{type:'button',onClick:props.onGross,'aria-label':'Nur diese Kamera zeigen',title:'Einzeln zeigen',style:{...bsS(),padding:'6px 12px',minHeight:44}},'Einzeln'):null
+      ,props.onVoll?h('button',{type:'button',onClick:props.onVoll,'aria-label':'Vollbild '+(k.name||''),title:'Vollbild',style:{...bsS(),padding:'6px 10px',minHeight:44,minWidth:44}},_ik('vollbild',18)):null));
 }
 
 function KameraAufzeichnung(props){
@@ -31340,6 +31466,10 @@ function KameraView(props){
   var h=React.createElement;var cu=props.curUser;
   var ww=props.ww||(typeof window!=='undefined'?window.innerWidth:1024);
   var rolle=_kamRolle(cu);var isAdmin=rolle==='admin';
+  var _dm=_react.useState.call(void 0,function(){return _kamDemoStart(cu);});var demoAn=_dm[0],setDemoAn=_dm[1];
+  var demo=isAdmin&&demoAn===true;/* Demo NUR Admin - auch ein gemerkter Schalter wirkt fuer andere Rollen nie */
+  var _vo=_react.useState.call(void 0,'');var voll=_vo[0],setVoll=_vo[1];
+  var stufe=_layoutStufe(ww);
   var fein=false;try{fein=!!(window.matchMedia&&window.matchMedia('(pointer: fine)').matches);}catch(_m){}
   var isPC=_kamIstPC(ww,fein);var isMob=ww<BP_MOB;var geraet=isPC?'pc':'mobil';/* geraet geht an den Server, ist dort aber nur Bedienkomfort (Client-Angabe, faelschbar) - KEINE Sicherheitsgrenze; Aufzeichnungen schuetzen Rolle + Zeitraum-Pruefung am Server */
   var _k=_react.useState.call(void 0,{status:'laedt',rows:[]});var kd=_k[0],setKd=_k[1];
@@ -31353,13 +31483,15 @@ function KameraView(props){
   _react.useEffect.call(void 0,function(){
     var alive=true;
     if(!rolle)return function(){alive=false;};
+    if(demo)return function(){alive=false;};/* Demo: kein Abruf */
     _kamLadeKameras().then(function(r){if(alive)setKd(r);});
     return function(){alive=false;};
-  },[neu,rolle]);
+  },[neu,rolle,demo]);
   /* Einrichtung: nur der Admin prueft Server-Funktion und Video-Host (siehe _kamEinrichtung) */
   _react.useEffect.call(void 0,function(){
     var alive=true;
     if(!isAdmin)return function(){alive=false;};
+    if(demo)return function(){alive=false;};/* Demo: keine Einrichtungs-Pruefung */
     setEp({fn:null,buero:null});
     _kamFnPruefen().then(function(fn){
       if(!alive)return;
@@ -31368,9 +31500,25 @@ function KameraView(props){
       _kamBueroPruefen(fn.basis).then(function(b){if(alive)setEp({fn:fn,buero:b});});
     });
     return function(){alive=false;};
-  },[eNeu,isAdmin]);
+  },[eNeu,isAdmin,demo]);
   if(!rolle)return null;
-  var darfRec=isPC&&KAMERA_REC_ROLLEN.indexOf(rolle)>=0;
+  var titel=h('h2',{style:{fontSize:isMob?UI.fSeiteMob:UI.fSeite,fontWeight:800,color:V.tx,margin:0}},_ikT("videokamera","Kameras"));/* EINE Seitenueberschrift fuer Demo und Betrieb */
+  if(demo){
+    /* DEMO: kein Abruf (keine Funktion, kein Gateway, keine Datenbank), nur erzeugte Platzhalter mit Banner */
+    var dk=_kamDemoKameras();
+    var dv=dk.filter(function(x){return x.id===voll;})[0];
+    var dKopf=h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:12,flexWrap:'wrap'}}
+      ,titel
+      ,_kamDemoBanner(h));
+    var dReiter=h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}
+      ,_kamChip(h,true,'Demo-Ansicht',function(){})
+      ,_kamChip(h,false,'Demo beenden',function(){_kamDemoMerken(false);setDemoAn(false);setVoll('');}));
+    var dInhalt=dv?_kamVollbild(h,dv.name,h(KameraDemoKachel,{kamera:dv}),function(){setVoll('');},true)
+      :h('div',{style:{display:'grid',gridTemplateColumns:'repeat('+_kamSpalten(stufe,'alle',dk.length)+',minmax(0,1fr))',gap:8}},dk.map(function(x){
+        return h(KameraDemoKachel,{key:x.id,kamera:x,onVoll:x._demo==='spaeter'?null:function(){setVoll(x.id);}});}));
+    return h('div',{className:'fade-in','data-kam-demo':'an',style:{minWidth:0}},dKopf,dReiter,dInhalt);
+  }
+  var darfRec=KAMERA_REC_UI&&isPC&&KAMERA_REC_ROLLEN.indexOf(rolle)>=0;
   var einr=isAdmin?_kamEinrichtung(kd,ep.fn,ep.buero):null;
   var fertig=!isAdmin||einr.fertig;
   var b=(isAdmin&&bereich==='einrichtung')?'einrichtung':((!isPC||(bereich==='aufzeichnung'&&!darfRec)||(bereich==='verwaltung'&&!isAdmin))?'live':bereich);
@@ -31378,19 +31526,22 @@ function KameraView(props){
   if(isAdmin&&!fertig&&!(b==='verwaltung'&&kd.status==='ok'))b='einrichtung';
   var aktive=kd.rows.filter(function(x){return x.aktiv!==false;});
   var kopf=h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:12,flexWrap:'wrap'}}
-    ,h('h2',{style:{fontSize:isMob?UI.fSeiteMob:UI.fSeite,fontWeight:800,color:V.tx,margin:0}},_ikT("videokamera","Kameras"))
+    ,titel
     ,KAMERAS_PROD?null:h('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:UI.achtungTxt,background:UI.achtungBg,borderRadius:UI.rChip,padding:'4px 10px'}},'Testbetrieb'));
   var reiter=(isPC||isAdmin)?h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}
     ,fertig?_kamChip(h,b==='live','Live',function(){setBereich('live');}):null
     ,darfRec&&fertig?_kamChip(h,b==='aufzeichnung','Aufzeichnungen',function(){setBereich('aufzeichnung');}):null
     ,isPC&&isAdmin&&kd.status==='ok'?_kamChip(h,b==='verwaltung','Verwaltung',function(){setBereich('verwaltung');}):null
-    ,isAdmin?_kamChip(h,b==='einrichtung','Einrichtung',function(){setBereich('einrichtung');}):null):null;
+    ,isAdmin?_kamChip(h,b==='einrichtung','Einrichtung',function(){setBereich('einrichtung');}):null
+    ,isAdmin&&!aktive.length&&kd.status!=='laedt'?_kamChip(h,false,'Demo-Ansicht',function(){_kamDemoMerken(true);setDemoAn(true);},'Fertige Ansicht mit Platzhaltern zeigen (kein echtes Bild)'):null):null;
   var inhalt;
   if(b==='einrichtung')inhalt=h(KameraEinrichtung,{zeilen:einr.zeilen,onNeu:function(){setNeu(neu+1);setENeu(eNeu+1);}});
   else if(kd.status==='laedt')inhalt=h('div',{style:{fontSize:UI.fKlein,color:UI.grau,padding:12}},'Lade Kameras …');
   else if(kd.status==='fehlt')inhalt=_kamHinweis(h,'Datenmodell noch nicht angelegt','Die Kamera-Tabellen sind in der Datenbank noch nicht angelegt (sql/KAMERAS_v1_ENTWURF.sql, Einspielen über das Tor). Bis dahin gibt es hier nichts zu sehen.');
   else if(kd.status==='fehler')inhalt=_kamHinweis(h,'Kameras konnten nicht geladen werden','Netzfehler oder keine Berechtigung.',h('button',{type:'button',onClick:function(){setNeu(neu+1);},style:bsS()},'Erneut laden'));
-  else if(b==='verwaltung')inhalt=h(KameraVerwaltung,{kameras:kd.rows,users:props.users,onNeu:function(){setNeu(neu+1);}});
+  else if(b==='verwaltung')inhalt=h('div',null
+    ,h('div',{style:{fontSize:UI.fMeta,color:UI.grau,marginBottom:10}},'Name, Standort und Zugriffsregeln sind hier änderbar. Welche Kamera hinter welchem Stream steht, legt das Einrichtungs-Skript fest – nicht in der App.')
+    ,h(KameraVerwaltung,{kameras:kd.rows,users:props.users,onNeu:function(){setNeu(neu+1);}}));
   else if(!aktive.length)inhalt=_kamHinweis(h,'Keine Kamera freigegeben',isAdmin?(isPC?'Unter „Verwaltung“ Kameras anlegen und Zugriffsregeln setzen.':'Kameras werden am PC unter „Verwaltung“ angelegt.'):'Für dich ist zu dieser Zeit keine Kamera freigegeben.');
   else if(b==='aufzeichnung')inhalt=h(KameraAufzeichnung,{kameras:aktive});
   else{
@@ -31400,16 +31551,20 @@ function KameraView(props){
     var seiten=einzel?1:Math.max(1,Math.ceil(aktive.length/r.proSeite));
     var s=Math.min(seite,seiten-1);
     var zeigen=einzel?[gewaehlt]:aktive.slice(s*r.proSeite,(s+1)*r.proSeite);
-    inhalt=h('div',null
+    var vk=aktive.filter(function(x){return x.id===voll;})[0];
+    /* Vollbild: nur diese eine Kachel laeuft (das Raster wird nicht gezeichnet -> kein zweiter Strom) */
+    if(vk)inhalt=_kamVollbild(h,vk.name||'Kamera',h(KameraKachel,{kamera:vk,geraet:geraet}),function(){setVoll('');},false);
+    else inhalt=h('div',null
       ,h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}},KAMERA_ANSICHTEN.map(function(a){return h(React.Fragment,{key:a[0]},_kamChip(h,ansicht===a[0],a[1],function(){setAnsicht(a[0]);setSeite(0);}));}))
       ,einzel&&aktive.length>1?h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}},aktive.map(function(x){return h(React.Fragment,{key:x.id},_kamChip(h,x.id===gewaehlt.id,x.name||'Kamera',function(){setSel(x.id);}));})):null
-      ,h('div',{style:{display:'grid',gridTemplateColumns:'repeat('+r.cols+',minmax(0,1fr))',gap:8}},zeigen.map(function(x){
-        return h(KameraKachel,{key:x.id,kamera:x,geraet:geraet,onGross:einzel?null:function(){setSel(x.id);setAnsicht('einzel');}});}))
+      ,h('div',{style:{display:'grid',gridTemplateColumns:'repeat('+(einzel?1:_kamSpalten(stufe,ansicht,zeigen.length))+',minmax(0,1fr))',gap:8}},zeigen.map(function(x){
+        return h(KameraKachel,{key:x.id,kamera:x,geraet:geraet,onGross:einzel?null:function(){setSel(x.id);setAnsicht('einzel');},onVoll:function(){setVoll(x.id);}});}))
       ,seiten>1?h('div',{style:{display:'flex',alignItems:'center',gap:8,marginTop:10,flexWrap:'wrap'}}
         ,h('button',{type:'button',onClick:function(){setSeite(Math.max(0,s-1));},disabled:s===0,style:bsS()},'Zurück')
         ,h('span',{style:{fontSize:UI.fKlein,color:UI.grau,...UI.zahlen}},'Seite '+(s+1)+' / '+seiten)
         ,h('button',{type:'button',onClick:function(){setSeite(Math.min(seiten-1,s+1));},disabled:s>=seiten-1,style:bsS()},'Weiter')):null
-      ,isPC?null:h('div',{style:{fontSize:UI.fMeta,color:UI.grau,marginTop:10}},'Am Handy und Tablet nur Live-Bild. Aufzeichnungen und Verwaltung am PC.'));
+      ,isPC?null:h('div',{style:{fontSize:UI.fMeta,color:UI.grau,marginTop:10}},'Am Handy und Tablet nur Live-Bild. Aufzeichnungen und Verwaltung am PC.')
+      ,isAdmin&&!KAMERA_REC_UI?h('div',{style:{fontSize:UI.fMeta,color:UI.grau,marginTop:6}},'Aufnahmen laufen über die Surveillance Station der QNAP – nicht über die App.'):null);
   }
   return h('div',{className:'fade-in',style:{minWidth:0}},kopf,reiter,inhalt);
 }

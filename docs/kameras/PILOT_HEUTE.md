@@ -19,8 +19,8 @@ absichtlich `503 nicht_konfiguriert` (App: „Kamera-Server noch nicht in Betrie
 
 ## b) Zertifikat + DNS (Sebastian)
 1. **Variante ohne DNS/IT:** Caddy auf der QNAP mit `tls internal` (eigene CA) und Zertifikat für die IP;
-   Gateway = `https://<QNAP-LAN-IP>` (optional `:<port>`). Das Caddy-Stammzertifikat einmal auf **jedem** Gerät
-   (PC, Tablet, Handy) installieren – sonst kein Bild und Einrichtung „nicht erreichbar“.
+   Gateway = `https://<QNAP-LAN-IP>`. Das Caddy-Stammzertifikat nur auf **Firmengeräten** (Tablet, Büro-PCs)
+   installieren, **nie auf privaten Handys** (eine Firmen-CA könnte dort jede Seite signieren).
 2. **Variante mit DNS (IT):** `https://kameras.ep-kolar.at`, Split-DNS (FW-KOLAR01) auf die QNAP, Zertifikat per
    DNS-01, kein Internet. In beiden Fällen NTP auf der QNAP an (der Prüfer erlaubt nur 5 s Uhrversatz).
 
@@ -29,7 +29,7 @@ absichtlich `503 nicht_konfiguriert` (App: „Kamera-Server noch nicht in Betrie
    `reverse_proxy` auf den lokalen go2rtc-Port 1984). Nur `/live/<stream>/whep`, `/live/<stream>/snapshot.jpg`, `/live/<stream>/mjpeg`,
    `/gesund` – alles andere 404, go2rtc-Port 1984 nie nach außen. WebRTC-Medien: Port 8555 (TCP+UDP) im LAN.
 2. Abschottung: nur die QNAP darf die G3 erreichen (`KAMERAS_ABSICHERN.md` im Vorlagen-Ordner). Zugangsdaten nur als
-   `KAM_USER`/`KAM_PW` in der Umgebung auf der QNAP.
+   `KAM_USER`/`KAM_PASS` in der env-Datei der go2rtc-App auf der QNAP.
 3. Ergebnis an CC/Sebastian: Gateway-URL `https://<name>` und `curl -s https://<name>/gesund` → `ok`.
 
 ## d) Gateway-Adresse setzen und Kameras anmelden

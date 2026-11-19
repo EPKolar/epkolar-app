@@ -625,7 +625,8 @@ let b = bilder();
 OUT.mjpeg = {n: b.length, src: b.length ? b[0].props.src : '', ref: b.length ? b[0].props.referrerPolicy : '', text: text(baum),
              videoSichtbar: videos().map(function (v) { return v.props.style.display; })};
 b[0].props.onError({}); await ruhe(w);
-OUT.mjpeg_weg = {n: bilder().length, text: text(baum), neu: knopfHat(baum, 'Neu verbinden')};
+// Pin angepasst 20.11.2026: Knopf heisst jetzt 'Neu laden' (Owner-Vorgabe Kamera-Oberflaeche)
+OUT.mjpeg_weg = {n: bilder().length, text: text(baum), neu: knopfHat(baum, 'Neu laden')};
 
 reset({db: {kameras: KAMS}, fein: true, fetch: {status: 200, json: {typ: 'snapshot', snapshotUrl: 'https://p/live/mx_33/snapshot.jpg?token=T2', exp: 1e12, ttl: 90}}});
 w = wurzel('projektleiter'); await ruhe(w);

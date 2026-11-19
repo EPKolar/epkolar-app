@@ -307,7 +307,7 @@ def _gemeinsam(name, sql):
         b.append(name + ": IP-Adresse")
     if re.search(r"(rtsp|https?)://", sql):
         b.append(name + ": Adresse")
-    if re.search(r"(passwort|kennwort|password|KAM_PW|KAM_USER)", sql, re.I):
+    if re.search(r"(passwort|kennwort|password|KAM_PW|KAM_PASS|KAM_USER)", sql, re.I):
         b.append(name + ": Zugangsdaten")
     for t in re.findall(r"time\s+'([^']*)'", code):
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d(:00)?", t):
@@ -544,6 +544,8 @@ def pruefe_doku(text):
     pos = [text.find(x) for x in reihe]
     if -1 in pos or pos != sorted(pos):
         b.append("Reihenfolge Zertifikat -> Proxy -> GATEWAY_BASE -> Probe -> Seed -> Testliste: %s" % pos)
+    if "nie auf privaten Handys" not in text:
+        b.append("Stammzertifikat-Grenze (nur Firmengeraete) fehlt")
     for teil in ("hochregal01", "verkauf02", "elektrolager03", "cam39", "TABU", "Mensch", "mjpeg",
                  "https://kameras.ep-kolar.at", "DNS-01", "Vorlage – der Kamera-Server ist die QNAP"):
         if teil not in text:
@@ -579,10 +581,12 @@ def test_vorlage_go2rtc_gateway_streams_und_mobotix_aus():
     assert set(yaml.safe_load(roh)["streams"]) == set(G3)
     for z in roh.split("\n"):
         if re.search(r"^\s+- rtsp://", z):
-            assert "${KAM_USER}:${KAM_PW}@" in z, z
+            assert "${KAM_USER}:${KAM_PASS}@" in z, z
     for nr in range(32, 37):
         netz = ".".join(("192", "168", "33", str(nr)))
-        assert ("  # mob%d: http://${KAM_USER}:${KAM_PW}@%s/cgi-bin/faststream.jpg?stream=full" % (nr, netz)) in roh
+        assert ("  # mob%d: http://${KAM_USER}:${KAM_PASS}@%s/cgi-bin/faststream.jpg?stream=full" % (nr, netz)) in roh
+    assert "KAM_PW" not in roh, "Variable heisst auf der QNAP KAM_PASS"
+    assert not re.search(r"\.6[23][^\n]*offline", roh), ".62/.63 nicht als offline behaupten (von der QNAP aus pruefen)"
     assert "ffmpeg:" not in roh and "#video=h264" not in roh, "Mobotix: MJPEG durchreichen, keine Umwandlung"
     for f in ("go2rtc.yaml", ".env.beispiel", "docker-compose.yml"):
         assert "MX_USER" not in _lies(os.path.join(VORLAGE, f)) and "MX_PASS" not in _lies(os.path.join(VORLAGE, f)), f

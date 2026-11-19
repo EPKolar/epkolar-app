@@ -1,12 +1,12 @@
 # Caddy - EP Kolar Kamera-Gateway auf der QNAP (20.11.2026). Einziger Web-Eingang zu go2rtc.
-# Wird von Chat-Claude auf der QNAP eingesetzt. KEINE Adressen in dieser Datei: die LAN-Adresse kommt aus der
-# Umgebung {$QNAP_LAN_IP} (siehe ENV.md), der Port aus {$KAMERA_GATEWAY_PORT} (Standard 443; ist 443 auf der QNAP
-# durch QTS belegt, z. B. 8443 setzen - dann KAMERA_GATEWAY_BASE = https://<QNAP-LAN-IP>:8443).
+# Wird von Chat-Claude auf der QNAP eingesetzt. KEINE Adressen in dieser Datei: die LAN-Adresse der QNAP kommt aus
+# der Umgebung {$QNAP_LAN_IP} (Wert nur in der .env auf der QNAP, siehe ENV.md). Gateway = https://<QNAP-LAN-IP> (443).
 #
-# go2rtc laeuft bereits auf der QNAP (Container Station, Host-Netz, API 127.0.0.1:1984). Caddy und kamera-auth
-# laufen ebenfalls im Host-Netz (docker-compose.yml): Caddy spricht go2rtc ueber 127.0.0.1:1984 und den Pruefer
-# ueber 127.0.0.1:{$KAMERA_AUTH_PORT}. Port 1984 darf im LAN NICHT erreichbar sein (QNAP-Firewall / go2rtc
-# api.listen auf 127.0.0.1:1984) - sonst ginge jeder an Token und Betriebsvereinbarung vorbei.
+# go2rtc laeuft als EIGENE Container-Station-App im Host-Netz, gebunden an <QNAP-LAN-IP>:1984 - nicht Teil dieser
+# compose. Caddy erreicht es ueber {$QNAP_LAN_IP}:1984, den Pruefer ueber kamera-auth:9099 (Nachbar-Container im
+# compose-Netz, nicht veroeffentlicht). ACHTUNG: weil go2rtc auf der LAN-Adresse lauscht, ist :1984 fuer jedes
+# Geraet im LAN direkt erreichbar (ohne Token!). Pflicht: QNAP-Firewall/Kamera-VLAN so, dass :1984 nur von der QNAP
+# selbst (Docker-Bruecke) erreichbar ist - sonst ginge jeder an Token und Betriebsvereinbarung vorbei.
 #
 # SICHERHEIT (aus tools/kamera-proxy-auth/vorlagen/Caddyfile uebernommen, NICHT entfernen):
 #   - jede Route ist "handle { route { forward_auth ... ; rewrite ; reverse_proxy } }": forward_auth laeuft VOR
@@ -16,7 +16,7 @@
 #   - /gesund ohne Bild; alles andere (auch go2rtc /api/*, Oberflaeche, Konfiguration) -> 404
 #   - Zugriffsprotokoll ohne token/Cookie/Authorization; CORS nur fuer https://epkolar.github.io
 # WebRTC-MEDIEN laufen NICHT durch Caddy: nach dem WHEP-Austausch verbindet sich der Browser direkt mit go2rtc
-# (Port 8555 TCP+UDP auf der QNAP, im LAN erreichbar). Nur das WHEP-Angebot selbst geht ueber diesen Eingang.
+# (<QNAP-LAN-IP>:8555 TCP+UDP) - das LAN (Firmengeraete) muss diesen Port erreichen. Nur das WHEP-Angebot geht hier durch.
 # Pruefen vor dem Start:  docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile
 
 {
@@ -24,13 +24,14 @@
 	auto_https disable_redirects
 }
 
-https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
-	# ── TLS ohne DNS/IT: eigene Caddy-CA, Zertifikat fuer die IP. Stammzertifikat EINMAL auf jedem Geraet
-	#    installieren (Datei im Volume caddy_daten: /data/caddy/pki/authorities/local/root.crt).
+https://{$QNAP_LAN_IP} {
+	# ── TLS ohne DNS/IT: eigene Caddy-CA, Zertifikat fuer die IP. Stammzertifikat EINMAL auf jedem FIRMENgeraet
+	#    (Tablet, Buero-PCs) installieren - NIE auf private Handys (eine Firmen-CA koennte dort jede Seite signieren).
+	#    Datei im Volume caddy_daten: /data/caddy/pki/authorities/local/root.crt
 	tls internal
+	#   tls /zertifikate/kamera.crt /zertifikate/kamera.key   (nur Variante mit DNS/Firmenzertifikat)
 	# ── Alternative mit DNS (IT): Site-Adresse oben durch kameras.ep-kolar.at ersetzen und Zertifikat per DNS-01:
-	#   kameras.ep-kolar.at {
-	#   	tls /zertifikate/kamera.crt /zertifikate/kamera.key
+	#   kameras.ep-kolar.at {   (und oben tls internal durch die Zertifikat-Zeile ersetzen)
 
 	# ── Protokoll OHNE Tokens ───────────────────────────────────────────────────────────────
 	log {
@@ -79,7 +80,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 	@whep path_regexp whep ^/live/([A-Za-z0-9_-]{1,64})/whep$
 	handle @whep {
 		route {
-			forward_auth 127.0.0.1:{$KAMERA_AUTH_PORT:9099} {
+			forward_auth kamera-auth:9099 {
 				uri /pruefen
 				header_up -X-Original-URI
 				header_up -X-Original-Method
@@ -91,7 +92,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 			header Access-Control-Allow-Private-Network "true"
 			header Vary "Origin"
 			rewrite * /api/webrtc?src={re.whep.1}
-			reverse_proxy 127.0.0.1:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984
 		}
 	}
 
@@ -99,7 +100,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 	@mjpeg path_regexp mjpeg ^/live/([A-Za-z0-9_-]{1,64})/mjpeg$
 	handle @mjpeg {
 		route {
-			forward_auth 127.0.0.1:{$KAMERA_AUTH_PORT:9099} {
+			forward_auth kamera-auth:9099 {
 				uri /pruefen
 				header_up -X-Original-URI
 				header_up -X-Original-Method
@@ -108,7 +109,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 				copy_headers X-Kamera-User X-Kamera-Stream
 			}
 			rewrite * /api/stream.mjpeg?src={re.mjpeg.1}
-			reverse_proxy 127.0.0.1:1984 {
+			reverse_proxy {$QNAP_LAN_IP}:1984 {
 				flush_interval -1
 			}
 		}
@@ -118,7 +119,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 	@bild path_regexp bild ^/live/([A-Za-z0-9_-]{1,64})/snapshot\.jpg$
 	handle @bild {
 		route {
-			forward_auth 127.0.0.1:{$KAMERA_AUTH_PORT:9099} {
+			forward_auth kamera-auth:9099 {
 				uri /pruefen
 				header_up -X-Original-URI
 				header_up -X-Original-Method
@@ -127,7 +128,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 				copy_headers X-Kamera-User X-Kamera-Stream
 			}
 			rewrite * /api/frame.jpeg?src={re.bild.1}
-			reverse_proxy 127.0.0.1:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984
 		}
 	}
 
@@ -139,7 +140,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 	@hls path_regexp hls ^/live/([A-Za-z0-9_-]{1,64})/index\.m3u8$
 	handle @hls {
 		route {
-			forward_auth 127.0.0.1:{$KAMERA_AUTH_PORT:9099} {
+			forward_auth kamera-auth:9099 {
 				uri /pruefen
 				header_up -X-Original-URI
 				header_up -X-Original-Method
@@ -149,7 +150,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 			}
 			header Set-Cookie "kam_t={http.request.uri.query.token}; Path=/live/{re.hls.1}/; Max-Age=120; HttpOnly; Secure; SameSite=None"
 			rewrite * /api/stream.m3u8?src={re.hls.1}
-			reverse_proxy 127.0.0.1:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984
 		}
 	}
 
@@ -157,7 +158,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 	@hlsteil path_regexp hlsteil ^/live/([A-Za-z0-9_-]{1,64})/hls/([A-Za-z0-9_-][A-Za-z0-9._-]{0,127})$
 	handle @hlsteil {
 		route {
-			forward_auth 127.0.0.1:{$KAMERA_AUTH_PORT:9099} {
+			forward_auth kamera-auth:9099 {
 				uri /pruefen
 				header_up -X-Original-URI
 				header_up -X-Original-Method
@@ -166,7 +167,7 @@ https://{$QNAP_LAN_IP}:{$KAMERA_GATEWAY_PORT:443} {
 				copy_headers X-Kamera-User X-Kamera-Stream
 			}
 			rewrite * /api/hls/{re.hlsteil.2}?id={http.request.uri.query.id}
-			reverse_proxy 127.0.0.1:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984
 		}
 	}
 

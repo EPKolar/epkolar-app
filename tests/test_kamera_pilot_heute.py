@@ -162,7 +162,8 @@ def pruefe_doku(text):
     koepfe = re.findall(r"^## ([a-e])\)", text, re.M)
     if koepfe != list("abcde"):
         b.append("Reihenfolge a-e: %s" % koepfe)
-    for teil in ("KAMERA_TOKEN_SECRET", "5c83ca0b", "KAMERA_BACKEND_BASE", "docker compose up", "KAM_USER", "KAM_PW",
+    # Pin angepasst 20.11.2026: die go2rtc-App auf der QNAP liest KAM_USER/KAM_PASS (gemessen von Chat-Claude) statt KAM_PW.
+    for teil in ("KAMERA_TOKEN_SECRET", "5c83ca0b", "KAMERA_BACKEND_BASE", "docker compose up", "KAM_USER", "KAM_PASS",
                  # GF 19.11. abends: nur Weg A (direkter RTSP), kein Protect -> PROTECT_TOKEN entfaellt;
                  # dafuer muessen Probe-Datei und die Abschottung (VLAN) in der Anleitung stehen.
                  "KAMERA_PILOT_HEUTE_ENTWURF.sql", "KAMERA_PILOT_HEUTE_PROBE.sql", "PILOT_TESTLISTE.md",
@@ -253,7 +254,7 @@ def test_umkehrprobe_streamnamen_abgleich():
     pytest.importorskip("yaml")
     seed = _lies(GATEWAY_SEED)
     s = sorted(_seed_streams(seed))
-    gut = "streams:\n" + "".join("  %s:\n    - rtsp://${KAM_USER}:${KAM_PW}@kamera/s0\n" % x for x in s)
+    gut = "streams:\n" + "".join("  %s:\n    - rtsp://${KAM_USER}:${KAM_PASS}@kamera/s0\n" % x for x in s)
     assert _vorlage_abgleich(seed, gut) == []
     assert _vorlage_abgleich(seed, gut.replace("  " + s[0] + ":", "  " + s[0] + "_alt:", 1)) != []
     kaputt = re.sub(r"\('" + s[0] + r"',(\s*)'" + s[0] + "'", r"('" + s[0] + r"',\1'g3_01'", seed, count=1)

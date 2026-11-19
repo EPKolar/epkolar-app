@@ -192,11 +192,13 @@ PFLICHT_KOPF = ("header_up -X-Original-URI", "header_up -X-Original-Method",
 def pruefe_caddy(text):
     b = []
     c = _ohne_kommentare(text)
-    if [x for x in IP_RE.findall(text) if x != "127.0.0.1"]:
+    if [x for x in IP_RE.findall(text) if x not in ("127.0.0.1", "0.0.0.0")]:
         b.append("IP-Adresse")
     if not re.search(r"^\ttls internal$", c, re.M):
         b.append("tls internal fehlt")
-    if "https://{$QNAP_LAN_IP}" not in c:
+    if re.search(r"^\s*tls /", c, re.M):
+        b.append("Zertifikat-Datei aktiv (nur auskommentiert erlaubt)")
+    if not re.search(r"^https://\{\$QNAP_LAN_IP\} \{$", c, re.M):
         b.append("Site ohne {$QNAP_LAN_IP}")
     if "kameras.ep-kolar.at" not in text:
         b.append("DNS-Alternative fehlt")
@@ -211,7 +213,7 @@ def pruefe_caddy(text):
     for matcher, inhalt in bl:
         if "reverse_proxy" not in inhalt:
             continue
-        i_fa = inhalt.find("forward_auth 127.0.0.1:")
+        i_fa = inhalt.find("forward_auth kamera-auth:9099 {")
         i_rw = inhalt.find("rewrite")
         i_rp = inhalt.find("reverse_proxy")
         if i_fa < 0 or not (i_fa < i_rp) or (i_rw >= 0 and not i_fa < i_rw) or "route {" not in inhalt:
@@ -220,7 +222,7 @@ def pruefe_caddy(text):
             if k not in inhalt:
                 b.append("Kopf-Regel fehlt (" + k + "): " + matcher)
         for ziel in re.findall(r"reverse_proxy (\S+)", inhalt):
-            if ziel != "127.0.0.1:1984":
+            if ziel != "{$QNAP_LAN_IP}:1984":
                 b.append("reverse_proxy-Ziel: " + ziel)
     if re.search(r"handle /api|path /api|\^/api", c):
         b.append("go2rtc /api offen")
@@ -254,16 +256,23 @@ def pruefe_docker(text):
 def pruefe_compose(text):
     b = []
     c = _ohne_kommentare(text)
-    if [x for x in IP_RE.findall(text) if x != "127.0.0.1"]:
+    if [x for x in IP_RE.findall(text) if x not in ("127.0.0.1", "0.0.0.0")]:
         b.append("IP-Adresse")
-    if re.search(r"^\s+ports:", c, re.M):
-        b.append("ports veroeffentlicht")
-    if c.count("network_mode: host") != 2:
-        b.append("nicht beide im Host-Netz")
-    if re.search(r"^\s{2}go2rtc:", c, re.M) or "frigate" in c.lower():
-        b.append("startet go2rtc/frigate")
-    if "KAMERA_AUTH_HOST=127.0.0.1" not in c:
-        b.append("Pruefer nicht nur lokal")
+    dienste = dict((m.group(1), m.group(2)) for m in re.finditer(r"^  ([a-z0-9_-]+):\n((?:    .*\n|\n)*)", c + "\n", re.M))
+    if sorted(dienste) != ["caddy", "kamera-auth"]:
+        b.append("Dienste != caddy + kamera-auth: %s" % sorted(dienste))
+    if "network_mode" in c:
+        b.append("Host-Netz statt Bruecke")
+    if "frigate" in c.lower():
+        b.append("startet frigate")
+    ka = dienste.get("kamera-auth", "")
+    if "ports:" in ka:
+        b.append("kamera-auth veroeffentlicht")
+    if "KAMERA_AUTH_PORT=9099" not in ka:
+        b.append("Pruefer-Port nicht 9099")
+    ports = re.findall(r"^\s+- \"([^\"]+)\"$", dienste.get("caddy", "").split("environment:")[0], re.M)
+    if ports != ["${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:443:443"]:
+        b.append("Caddy-ports nicht genau <QNAP_LAN_IP>:443:443: %s" % ports)
     if "KAMERA_AUTH_URI_HEADER=x-forwarded-uri" not in c or "KAMERA_AUTH_METHOD_HEADER=x-forwarded-method" not in c:
         b.append("Kopf-Paar fehlt")
     if not re.search(r"KAMERA_TOKEN_SECRET=\$\{KAMERA_TOKEN_SECRET:\?", c):
@@ -275,15 +284,22 @@ def pruefe_compose(text):
 
 def pruefe_env(text):
     b = []
-    if [x for x in IP_RE.findall(text) if x != "127.0.0.1"]:
+    if [x for x in IP_RE.findall(text) if x not in ("127.0.0.1", "0.0.0.0")]:
         b.append("IP-Adresse")
     if re.search(r"^[A-Z_]{4,}=\S+", text, re.M):
         b.append("Wert statt Name")
-    for n in ("KAMERA_TOKEN_SECRET", "KAMERA_AUTH_URI_HEADER", "KAMERA_AUTH_METHOD_HEADER", "QNAP_LAN_IP", "KAMERA_AUTH_LOG",
-              "KAMERA_GATEWAY_PORT", "8555"):
+    # jede Umgebungsvariable, die verify.mjs liest, muss in ENV.md stehen (gemessen, nicht abgeschrieben)
+    gelesen = sorted(set(re.findall(r"\benv\.([A-Z][A-Z0-9_]+)", _lies(os.path.join(AUTH, "verify.mjs")))))
+    for n in gelesen + ["QNAP_LAN_IP", "8555", "x-forwarded-uri", "x-forwarded-method", "nie auf privaten Handys"]:
         if n not in text:
             b.append("ENV.md ohne " + n)
     return b
+
+
+def test_env_kennt_alle_namen_aus_verify():
+    gelesen = set(re.findall(r"\benv\.([A-Z][A-Z0-9_]+)", _lies(os.path.join(AUTH, "verify.mjs"))))
+    assert {"KAMERA_TOKEN_SECRET", "KAMERA_TOKEN_SECRET_FILE", "KAMERA_AUTH_HOST", "KAMERA_AUTH_PORT", "KAMERA_AUTH_LOG",
+            "KAMERA_AUTH_URI_HEADER", "KAMERA_AUTH_METHOD_HEADER"} <= gelesen
 
 
 def test_caddy_sauber():
@@ -314,7 +330,8 @@ def _mjpeg_block_ohne_forward_auth(s):
     (lambda s: _mut(s, "\thandle {\n\t\trespond 404\n\t}", ""), "Catch-all"),
     (lambda s: _mut(s, "\ttls internal\n", "\t# tls internal\n"), "tls internal"),
     (lambda s: _mut(s, "\t\t\t\theader_up -X-Original-URI\n", ""), "Kopf-Regel"),
-    (lambda s: _mut(s, "reverse_proxy 127.0.0.1:1984 {", "reverse_proxy 0.0.0.0:1984 {"), "reverse_proxy-Ziel"),
+    (lambda s: _mut(s, "reverse_proxy {$QNAP_LAN_IP}:1984 {", "reverse_proxy go2rtc:1984 {"), "reverse_proxy-Ziel"),
+    (lambda s: _mut(s, "\t#   tls /zertifikate/kamera.crt", "\ttls /zertifikate/kamera.crt"), "Zertifikat-Datei aktiv"),
     (lambda s: _mut(s, "{$QNAP_LAN_IP}", "." .join(("192", "168", "33", "95"))), "IP-Adresse"),
     (lambda s: _mut(s, "\t\t\t\t\tdelete token\n", ""), "Token im Protokoll"),
     (lambda s: _mut(s, "handle /gesund {", "handle /api/streams {\n\t\trespond 200\n\t}\n\thandle /gesund {"), "/api"),
@@ -335,8 +352,10 @@ def test_umkehrprobe_docker(alt, neu, erwartet):
 
 
 @pytest.mark.parametrize("alt,neu,erwartet", [
-    ("    network_mode: host\n    restart: unless-stopped\n    depends_on", "    ports: [\"443:443\"]\n    restart: unless-stopped\n    depends_on", "ports"),
-    ("KAMERA_AUTH_HOST=127.0.0.1", "KAMERA_AUTH_HOST=0.0.0.0", "nur lokal"),
+    ("    expose: [\"9099\"]\n", "    ports:\n      - \"9099:9099\"\n", "kamera-auth veroeffentlicht"),
+    ("      - \"${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:443:443\"", "      - \"443:443\"", "Caddy-ports"),
+    ("services:\n", "services:\n  go2rtc:\n    image: alexxit/go2rtc\n", "Dienste"),
+    ("    restart: unless-stopped\n    read_only", "    network_mode: host\n    restart: unless-stopped\n    read_only", "Host-Netz"),
     ("KAMERA_AUTH_URI_HEADER=x-forwarded-uri", "KAMERA_AUTH_URI_HEADER=x-original-uri", "Kopf-Paar"),
     ("    read_only: true\n", "", "read_only"),
 ])

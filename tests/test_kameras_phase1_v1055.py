@@ -755,8 +755,16 @@ const window = {innerWidth: 1440, location: {search: ''}, matchMedia: function (
 """
 
 
+def _layout_echt():
+    """Die ECHTE _layoutStufe aus index.html (samt BP_BREIT/BP_QUER) - seit 20.11.2026 waehlt KameraView die Spalten
+    daraus. Keine Attrappe: die Kachel-Spalten haengen an genau dieser Funktion."""
+    m = re.search(r"const BP_BREIT=\d+;const BP_QUER=\d+;function _layoutStufe\(w,h\)\{.*?return \"mittel\";\}", _index(), re.S)
+    assert m, "_layoutStufe nicht gefunden"
+    return "\n" + m.group(0).replace("const ", "var ") + "\n"
+
+
 def _render_lauf(node_exe, block, szenen_js):
-    js = RENDER_PRELUDE + block + "\n(async function(){\nconst OUT={};\n" + szenen_js + \
+    js = RENDER_PRELUDE + _layout_echt() + block + "\n(async function(){\nconst OUT={};\n" + szenen_js + \
         "\nconsole.log(JSON.stringify(OUT));process.exit(0);\n})().catch(function(e){console.error(e&&e.stack||e);process.exit(3);});\n"
     with tempfile.TemporaryDirectory() as d:
         p = os.path.join(d, "render.cjs")
@@ -769,6 +777,9 @@ def _render_lauf(node_exe, block, szenen_js):
 
 
 SZENEN = r"""
+// Pin angepasst 20.11.2026 (feature/kamera-gateway): der Aufzeichnungs-Bereich ist in der App aus (Owner: Aufnahmen
+// ueber die Surveillance Station). Diese Szenarien pruefen die vorhandene Aufzeichnungs-Oberflaeche weiter -> Schalter an.
+KAMERA_REC_UI = true;
 function reset(s) { SZENE = s; store.clear(); _kamBackend.fehlt = false; ['get','post','upsert','del','fetch'].forEach(function (k) { ZAEHL[k].length = 0; }); }
 const KAMS = [{id: 'cam1', name: 'Kamera 1', standort: 'Hof', aktiv: true, aufbewahrung_tage: 3},
               {id: 'cam2', name: 'Kamera 2', standort: 'Lager', aktiv: false, aufbewahrung_tage: 3},
