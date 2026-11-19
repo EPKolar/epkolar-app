@@ -284,11 +284,18 @@ def test_offa_excel_unberuehrt(index_html):
 # ── 14 Dispo-Sperrknopf ──────────────────────────────────────────────────
 
 def test_sperrknopf_ueberdeckt_keine_kachel(index_html):
-    m = re.search(r"paddingTop:_hasToggle\?(\d+):4", index_html)
+    # AS Hochformat (GF 19.11.2026): die alte Rechnung 28 >= 2 + 24 war gruen, am Tablet lag der Knopf
+    # trotzdem ueber der Karte - die Hausregel (pointer coarse) macht JEDEN Knopf 44 hoch. Jetzt je
+    # Zweig: grob (Touch) Streifen 48 gegen Knopf 44, fein (Maus) 28 gegen 24.
+    m = re.search(r"paddingTop:_hasToggle\?\(_dpGrob\?(\d+):(\d+)\):4", index_html)
     assert m
-    knopf = re.search(r"style:\{position:\"absolute\",top:(\d+),right:8,zIndex:3,.*?minHeight:(\d+),", index_html)
+    knopf = re.search(r"style:\{position:\"absolute\",top:(\d+),right:8,zIndex:3,.*?minHeight:_dpGrob\?(\d+):(\d+),", index_html)
     assert knopf
-    assert int(m.group(1)) >= int(knopf.group(1)) + int(knopf.group(2)), "Kopfstreifen kleiner als der Knopf"
+    top = int(knopf.group(1))
+    assert int(m.group(1)) >= top + int(knopf.group(2)), "Kopfstreifen (Touch) kleiner als der Knopf"
+    assert int(m.group(2)) >= top + int(knopf.group(3)), "Kopfstreifen (Maus) kleiner als der Knopf"
+    assert int(knopf.group(2)) >= 44, "Touch-Knopf unter 44 px"
+    assert '"(pointer: coarse), (max-width: 768px)"' in index_html, "_dpGrob folgt nicht der Hausregel"
 
 
 # ── 15 Projektakte-Kopf ──────────────────────────────────────────────────

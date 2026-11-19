@@ -275,10 +275,11 @@ def test_die_mobil_karte_bleibt_unberuehrt(index_html):
     """GEGENPROBE zum Geltungsbereich: die Ueberladung ist ein Rechner-Problem
     (die Mobil-Karte hat keinen einzigen Zeilen-Editor). Landet die Klasse
     dort, wurde am falschen Zweig gearbeitet."""
-    i = index_html.find('isMob&&React.createElement(\'div\', { style: '
-                        '{display:"flex",flexDirection:"column",gap:8}}')
+    # Anker nachgezogen (AS Hochformat, GF 19.11.2026): die Karte haengt an
+    # _asKarte statt isMob (Tablet hochkant zeigt dieselbe Karte).
+    i = index_html.find("_asKarte&&React.createElement('div', { 'data-as-karten'")
     assert i != -1, "Der Mobil-Kartenzweig ist nicht mehr auffindbar."
-    j = index_html.find("!isMob&&React.createElement('div', { style: "
+    j = index_html.find("!_asKarte&&React.createElement('div', { style: "
                         "{...CC(),padding:0,overflow:\"hidden\"}}", i)
     assert j != -1, "Der Rechner-Tabellenzweig ist nicht mehr auffindbar."
     assert "epk-ruhig" not in index_html[i:j], (
