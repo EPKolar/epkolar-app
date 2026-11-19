@@ -345,7 +345,7 @@ def test_ansichten_rendern_ohne_fehler(node_exe, index_html, tmp_path):
     fns = BASIS + ("_fzPickerlStufe", "_fzTerminErledigt", "_fzFristen", "_fzTankStats", "_fzServiceStats",
                    "_fzAkte", "_fzFahrerCheck", "_fzCsvZelle", "_fzCsv", "_fzCsvZahl", "_fzTageTxt", "_fzDatumAnz",
                    "_fzStufeChip", "_fzCsvLaden", "_fzChipBtn", "FlotteFristenPanel", "FlotteKostenPanel",
-                   "FahrzeugAkteKarte", "_n",
+                   "FahrzeugAkteKarte", "_n", "_fzDE",  # v1049 UX: Zahlen deutsch
                    "_fzFixkosten",  # v1050: Kosten-Ansicht rechnet Leasing/Versicherung je Monat
                    "_maIstEhemalig")  # Austritt nur ueber die eine Regel (v952)
     fz = [dict(FZ[0], marke="Ford", modell="Transit", fahrer="m1", typ="LKW",

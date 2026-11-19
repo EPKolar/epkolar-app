@@ -341,7 +341,7 @@ TANKLOG = (
 def _monat_lauf(node_exe, src):
     s, e = _monat_iife(src)
     snip = (
-        _flotte_basis(src) + _top(src, "_n") + "\n"
+        _flotte_basis(src) + _top(src, "_n") + "\n" + _top(src, "_fzDE") + "\n"  # v1049 UX: Anzeige deutsch (_fzDE)
         "var fmt$=function(n){return 'EUR '+Number(n).toFixed(2);};\n"
         "var React={createElement:function(t,p){return {t:t,c:Array.prototype.slice.call(arguments,2)};}};\n"
         "function tdSt(){return {};}function thS(){return {};}function _okG(h){return h;}var V={dm:'#999'};\n"
@@ -366,15 +366,15 @@ def _pruef_monate(z):
     nov, okt = z
     if okt[0] != "10/2026" or okt[1] != "3":
         p.append("Oktober Kopf: %r" % okt[:2])
-    if okt[2] != "105.0 L":
+    if okt[2] != "105,0 L":  # v1049 UX: Dezimalkomma (_fzDE)
         p.append("Oktober Liter (alle Tankungen, Text addiert): %r" % okt[2])
     if okt[3] != "EUR 164.00":
         p.append("Oktober Kosten: %r" % okt[3])
     if okt[5] != "500 km":
         p.append("Oktober km gefahren: %r" % okt[5])
-    if okt[6] != "7.0":
+    if okt[6] != "7,0":
         p.append("Oktober Verbrauch (35 L / 500 km): %r" % okt[6])
-    if nov[0] != "11/2026" or nov[2] != "20.0 L" or nov[3] != "EUR 31.00":
+    if nov[0] != "11/2026" or nov[2] != "20,0 L" or nov[3] != "EUR 31.00":
         p.append("November Liter/Kosten: %r" % nov[:4])
     if nov[5] != "—" or nov[6] != "—":
         p.append("November ohne km muss '—' zeigen: %r" % nov[5:])

@@ -190,9 +190,10 @@ def test_felder_haben_namen(index_html):
 # ── 17 Fahrzeug-Plaketten ────────────────────────────────────────────────
 
 def test_fahrzeug_plaketten(index_html):
-    assert ('color:pickerlRot?"#b91c1c":pickerlOk&&!pickerlWarn?_okG("#16a34a"):pickerlWarn?"#92400e":"#b91c1c"'
-            in index_html)
-    assert 'color:serviceWarn?"#b91c1c":"#0369a1"' in index_html
+    # v1049 Fahrzeuge-UX: die farbigen Plaketten der Liste sind einer Fristzeile gewichen (_fzFristZeile).
+    # Farbe nur bei Faelligkeit, als Schrift ueber _lesbar auf den *_FILL-Toenen (>= 4,5:1 gemessen in v1046).
+    assert 'const rot=_lesbar(COLORS.ERROR_FILL),orange=_lesbar(COLORS.WARNING_FILL);' in index_html
+    assert "const farbe=st==='overdue'?rot:(st==='toleranz'||st==='warn')?orange:null;" in index_html
     assert 'background:"#fee2e2",color:"#dc2626"' not in index_html
     for fg, bg in (("#b91c1c", "#fee2e2"), ("#92400e", "#fef3c7"), ("#0369a1", "#e0f2fe")):
         assert _kontrast(fg, bg) >= 4.5, (fg, bg)

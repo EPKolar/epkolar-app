@@ -140,7 +140,10 @@ def test_listing_kachel_typ_emoji_anchor_unchanged(index_html):
     anfassen, nicht die Listen-Kachel."""
     block = _listing_block(index_html)
     # v3.9.1012 CI-Stufe 3: derselbe Typ-Schalter, jetzt mit IKON-Schluesseln statt Emoji
-    expected = 'f.typ==="Transporter"||f.typ==="LKW"?"transporter":f.typ==="Anhänger"?"verbindung":"auto"'
+    # v1049 Fahrzeuge-UX: die Liste zeichnet den Typ als Fahrzeugbild (_fzZeile/_fzKachel -> _fzAvatar ->
+    # _fzBusFuer, Art aus f.typ ueber _fzArt) - weiterhin nur lesend.
+    expected = '_fzListe.map(f=>view==="kacheln"?_fzKachel(f):_fzZeile(f))'
+    assert 'function _fzArt(f){var t=_matFold(f&&f.typ)' in index_html
     assert expected in block, (
         "Listen-Kachel-Emoji-Anker (f.typ==='Transporter'?'🚐'...) ist nicht mehr "
         "im Listing-Block — v3.9.343 darf die Listen-Kachel NICHT anfassen."
@@ -151,7 +154,10 @@ def test_listing_kachel_farbe_render_anchor_unchanged(index_html):
     """Anker-Snapshot: Die Listen-Kachel zeigt Farbe weiterhin als ' · '+f.farbe
     Suffix im Marke/Modell-Text — nicht als Input."""
     block = _listing_block(index_html)
-    expected = 'f.farbe?" · "+f.farbe:""'
+    # v1049 Fahrzeuge-UX: die Listenzeile ist auf Kennzeichen / Modell · Fahrer / Fristen verdichtet; die Farbe
+    # steht im Detail (dort editierbar) und ist ueber die Suche (_fzSuchText) auffindbar - nie als Eingabe in der Liste.
+    expected = '_fzListe.map(f=>view==="kacheln"?_fzKachel(f):_fzZeile(f))'
+    assert "[kz,kz.replace(/[^A-Za-z0-9]/g,\"\"),f.marke,f.modell,f.typ,f.farbe," in index_html
     assert expected in block, (
         "Listen-Kachel-Farbe-Anker (f.farbe?' · '+f.farbe:'') ist nicht mehr "
         "im Listing-Block — v3.9.343 darf die Listen-Kachel NICHT anfassen."
