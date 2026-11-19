@@ -345,7 +345,8 @@ def test_ansichten_rendern_ohne_fehler(node_exe, index_html, tmp_path):
     fns = BASIS + ("_fzPickerlStufe", "_fzTerminErledigt", "_fzFristen", "_fzTankStats", "_fzServiceStats",
                    "_fzAkte", "_fzFahrerCheck", "_fzCsvZelle", "_fzCsv", "_fzCsvZahl", "_fzTageTxt", "_fzDatumAnz",
                    "_fzStufeChip", "_fzCsvLaden", "_fzChipBtn", "FlotteFristenPanel", "FlotteKostenPanel",
-                   "FahrzeugAkteKarte", "_n")
+                   "FahrzeugAkteKarte", "_n",
+                   "_fzFixkosten")  # v1050: Kosten-Ansicht rechnet Leasing/Versicherung je Monat
     fz = [dict(FZ[0], marke="Ford", modell="Transit", fahrer="m1", typ="LKW",
                tankLog=[{"liter": 40, "preis": 60, "km": 1000, "datum": "2026-10-01"},
                         {"liter": 45, "preis": 70, "km": 1600, "datum": "2026-11-01"}],
