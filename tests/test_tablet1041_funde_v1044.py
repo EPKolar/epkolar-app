@@ -289,7 +289,10 @@ def pruef_klein(html):
         b.append("Version neben dem Logo wird gekappt")
     if "const _wpZeile1=_wpGrob&&ww>=1200;" not in html or 'gridTemplateColumns:"repeat(4,44px)",width:188' not in html:
         b.append("Planung-Zeilenknoepfe zweistoeckig")
-    if "minWidth:ww<1000?Math.max(640,ww-80):800" not in html:
+    # Pin angepasst (Stufe 4 Werkzeuge, 19.11.2026): die Breitenrechnung ist in die gemeinsame Stufe gewandert.
+    # Gesichert bleibt dieselbe Eigenschaft: am Tablet hochkant (mittel) keine feste Mindestbreite, die Tabelle
+    # rollt in ihrem Kasten und Kaestchen + Inventar-Nr. kleben links (test_stufe_werkzeuge_v1073).
+    if "minWidth:_wzMittel?0:800" not in html or "const _wzKlebSp=(links,bg)=>_wzMittel?{position:\"sticky\"" not in html:
         b.append("Werkzeug-Tabelle hoch abgeschnitten")
     for t in ('kontUnlesbar?"– (nicht gemessen)"', 'kontUnlesbar?"–":(_n(rest,1)', 'kontUnlesbar?"–":(_absH(mRest,1)+"h")',
               'sub: kontUnlesbar?"nicht gemessen":"von "+'):

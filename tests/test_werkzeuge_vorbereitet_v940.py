@@ -216,7 +216,10 @@ STATUS_SOLL = [
     ("verfuegbar", "Verfügbar"),
     ("ausgegeben", "Ausgegeben"),
     ("reparatur", "In Reparatur"),
-    ("kalibrierung", "Kalibrierung fällig"),
+    # Stufe 4 (Tablet-Befund 19.11.2026): der STATUS hiess wie die Datums-Faelligkeit "Kalibrierung faellig" -
+    # Auswertung "Kalibrierung faellig (1)" neben Filter/Kachel "Kalibrierung faellig (6)". Ein Wort, eine Zahl:
+    # der Status heisst jetzt "Zur Kalibrierung"; "Kalibrierung faellig" bleibt _wzKalibFaellig (Chip unten).
+    ("kalibrierung", "Zur Kalibrierung"),
     ("verloren", "Verloren/Defekt"),
     ("stillgelegt", "Stillgelegt"),
 ]
@@ -667,8 +670,10 @@ def test_die_reiter_tragen_am_telefon_einen_kurztext(wz):
     liste = wz[i:wz.index("].map(t=>", i)]
     assert liste.count("{id:") == liste.count(",k:"), (
         "nicht jeder Werkzeug-Reiter traegt einen Kurztext k: " + liste[:300])
-    assert nur_code_treffer(wz, "const isMob=ww<BP_MOB;"), (
-        "WerkzeugView misst die Breite nicht mehr ueber BP_MOB")
+    # Pin angepasst (Stufe 4 Werkzeuge, 19.11.2026): isMob kommt aus der gemeinsamen Stufe; "schmal" ist
+    # n<BP_MOB in _layoutStufe - dieselbe Schwelle (test_stufe_werkzeuge_v1073 fuehrt sie fuer 599/600 aus).
+    assert nur_code_treffer(wz, 'const isMob=_wzStufe==="schmal";'), (
+        "WerkzeugView misst die Breite nicht mehr ueber BP_MOB (_layoutStufe schmal)")
 
 
 # ───────────────────────────────────────────────────────────────────────────

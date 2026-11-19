@@ -72,12 +72,13 @@ PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 # Breitenstufe gewandert (const _plStufe=_layoutStufe(...)). isTab regelte dort nur das
 # Ebenen-Raster; es ist jetzt einspaltig ausser in der Stufe breit (gesichert in
 # tests/test_stufe_planung_v1066.py). Die Tablet-Fassung der Ansicht ist also nicht weg.
+# Stufe 4 Werkzeuge (19.11.2026): die beiden WerkzeugView-Stellen (ww<768 Karten statt Tabelle) sind
+# WEGGEFALLEN - in die gemeinsame Breitenstufe gewandert (const _wzStufe=_layoutStufe(...)). Karten jetzt
+# nur in schmal, die Tabelle in mittel und breit (gesichert in tests/test_stufe_werkzeuge_v1073.py).
 ERLAUBT = [
     "ProjectShell",
     "VDash",
     "VFotos",
-    "WerkzeugView",
-    "WerkzeugView",
 ]
 
 

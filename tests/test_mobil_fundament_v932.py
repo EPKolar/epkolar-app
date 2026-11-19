@@ -197,15 +197,18 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # Schwelle unveraendert, die Stelle ist wie bei den Arbeitsscheinen in die gemeinsame Stufe gewandert.
     # Stufe 3 Abwesenheiten (19.11.2026): -1 (AbsView fragt _layoutStufe, isMob = Stufe "schmal" = n<BP_MOB).
     # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert.
-    assert roh.count("ww<BP_MOB") == 28, (  # 1067: Planung (-1) + Abwesenheiten (-1)
-        "Erwartet 28 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 4 Werkzeuge (19.11.2026): 28 -> 27 (WerkzeugView fragt _layoutStufe, isMob = Stufe "schmal" = n<BP_MOB).
+    # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert (tests/test_stufe_werkzeuge_v1073.py).
+    assert roh.count("ww<BP_MOB") == 27, (  # 1067: Planung (-1) + Abwesenheiten (-1); 1073: Werkzeuge (-1)
+        "Erwartet 27 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
 # Namentlich statt als Zahl - Begruendung im Riegel darunter.
 # v1066: VPlan weggefallen - in die gemeinsame Breitenstufe gewandert (siehe test_stufe_planung_v1066).
-_TABLET_ERLAUBT = ["ProjectShell", "VDash", "VFotos",
-                   "WerkzeugView", "WerkzeugView"]
+# Stufe 4 Werkzeuge (19.11.2026): beide WerkzeugView-Stellen weggefallen - Karten/Tabelle fragt _layoutStufe
+# (Karten schmal, Tabelle mittel+breit; siehe test_stufe_werkzeuge_v1073).
+_TABLET_ERLAUBT = ["ProjectShell", "VDash", "VFotos"]
 
 
 def test_die_tablet_schwellen_sind_unangetastet(roh):
