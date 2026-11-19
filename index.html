@@ -11053,6 +11053,18 @@ function _wpMaSichtbarAmTag(worker, isoTag){
   return !_maIstEhemalig(worker, String(isoTag).slice(0,10));
 }
 if(typeof window!=='undefined')window._wpMaSichtbarAmTag=_wpMaSichtbarAmTag;
+/* v3.9.1049 FILTER-Listen ("Alle Monteure", "Alle Verantwortlichen"): Ausgetretene stehen nur noch drin,
+   wenn an ihnen in dieser Liste DATEN haengen (hatDaten) oder sie der aktuelle Filterwert sind. So bleibt
+   die Historie auffindbar (alte Scheine/Maengel eines Ausgetretenen), aber wer nichts mehr hat, verschwindet.
+   Gleiches Praedikat _maIstEhemalig, keine zweite Datumsregel. */
+function _maFilterliste(liste,aktuell,hatDaten){
+  var h=_ezHeuteISO();
+  return (liste||[]).filter(function(m){
+    if(!_maIstEhemalig(m,h)) return true;
+    if(aktuell && m && String(m.id)===String(aktuell)) return true;
+    return typeof hatDaten==="function" && !!hatDaten(m);
+  });
+}
 function _maIstEhemalig(m,heute){
   var h=heute||_ezHeuteISO();
   return !!(m&&m.austritt&&String(m.austritt).slice(0,10)<h);
@@ -12598,7 +12610,7 @@ function sharePdf(){
           ), React.createElement('button', { onClick: ()=>setSortDir(d=>d==="asc"?"desc":"asc"), 'aria-label': sortDir==="asc"?"Aufsteigend sortiert, umkehren":"Absteigend sortiert, umkehren", style: {padding:"6px 10px",minWidth:44,minHeight:44,borderRadius:6,border:"1px solid "+V.bdK,background:V.cd,color:V.tx,fontSize:13,cursor:"pointer",fontFamily:"inherit",flex:"0 0 auto"}, title: sortDir==="asc"?"Aufsteigend":"Absteigend"}, sortDir==="asc"?"▲":"▼"))/* Handy-Befund A3 (14.11.): derselbe Filter stand DREIFACH da - "Filter (1)", "1 Filter zuruecksetzen" und der Chip. Die Zahl steht nicht mehr am Aufklapper (die Chips darunter nennen jeden Filter einzeln und entfernen ihn), hervorgehoben bleibt er. */
         , (!isMob||_fltOffen)&&React.createElement('select', { value: filterStatus, onChange: e=>setFilterStatus(e.target.value), style: {...II(),width:"auto",fontSize:13}, 'aria-label': "Nach Status filtern"}, React.createElement('option', { value: "alle"}, "Alle Status" ), React.createElement('option', { value: "offen_bearb"}, "— Offen (alle) —" ), React.createElement('option', { value: "fertig"}, "— Fertig (alle) —" ), Object.entries(AS_STATUS).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.l)))
           , (!isMob||_fltOffen)&&React.createElement('select', { value: filterArt, onChange: e=>setFilterArt(e.target.value), style: {...II(),width:"auto",fontSize:13}, 'aria-label': "Nach Auftragstyp filtern"}, React.createElement('option', { value: "alle"}, "Alle Arten" ), Object.entries(AS_ART).map(([k,v])=>React.createElement('option', { key: k, value: k}, v.l)))
-          , isAdmin&&(!isMob||_fltOffen)&&React.createElement('select', { value: filterMonteur, onChange: e=>setFilterMonteur(e.target.value), style: {...II(),width:"auto",fontSize:13}, 'aria-label': "Nach Monteur filtern"}, React.createElement('option', { value: "alle"}, "Alle Monteure" ), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n)))
+          , isAdmin&&(!isMob||_fltOffen)&&React.createElement('select', { value: filterMonteur, onChange: e=>setFilterMonteur(e.target.value), style: {...II(),width:"auto",fontSize:13}, 'aria-label': "Nach Monteur filtern"}, React.createElement('option', { value: "alle"}, "Alle Monteure" ), _maFilterliste(monteure,filterMonteur,m=>arbeitsscheine.some(a=>a.monteur===m.id)).map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n)))
           , isAdmin&&(!isMob||_fltOffen)&&React.createElement('select', { value: filterSB, onChange: e=>setFilterSB(e.target.value), style: {...II(),width:"auto",fontSize:13}, 'aria-label': "Nach Sachbearbeiter filtern"}, React.createElement('option', { value: "alle"}, "Alle SB" ), [...new Set(arbeitsscheine.map(a=>a.sachbearbeiter).filter(Boolean))].sort().map(s=>React.createElement('option', { key: s, value: s}, s)))
           /* v3.9.82 Sprint-61.2: Reset-Filters-Button wenn min. 1 Filter aktiv. */
           , (()=>{const activeCount=(filterStatus!=="alle"?1:0)+(filterArt!=="alle"?1:0)+(filterMonteur!=="alle"?1:0)+(filterSB!=="alle"?1:0)+(quickFilter&&!_asQuickDoppelt?1:0)+(search?1:0);if(activeCount<2)return null;/* A3: bei EINEM Filter ist der Chip mit dem Kreuz der Zuruecksetzer - erst ab zwei lohnt der Sammelknopf */return React.createElement('button', { onClick: ()=>{setFilterStatus("alle");setFilterArt("alle");setFilterMonteur("alle");setFilterSB("alle");setQuickFilter("");setSearch("");}, 'aria-label': activeCount+" aktive Filter zurücksetzen", title: "Alle Filter zurücksetzen", style: {padding:"6px 10px",borderRadius:6,border:"1px solid "+V.bd,background:V.ac+"15",color:V.acTx,fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, "↻ Alle ", activeCount, " zurücksetzen");})()
@@ -12714,7 +12726,7 @@ function sharePdf(){
             , ["tag","woche","monat"].map(v=>React.createElement('button', { key: v, onClick: ()=>setCalView(v), style: {padding:isMob?"8px 14px":"5px 10px",minHeight:isMob?40:0,touchAction:"manipulation",border:"none",borderRadius:6,background:calView===v?UI.knopf:"transparent",color:calView===v?"#fff":V.dm,fontSize:isMob?12:UI.fMeta,fontWeight:calView===v?700:400,cursor:"pointer",fontFamily:"inherit"}}, v==="tag"?"Tag":v==="woche"?"Woche":"Monat"))
           )
           , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center"}}
-            , isAdmin?React.createElement('select', { value: calMonteur, onChange: e=>setCalMonteur(e.target.value), 'aria-label': "Monteur im Kalender", style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { key: "__alle__", value: "__alle__"}, "Alle Monteure"), monteure.map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))):React.createElement(Badge, { text: (_optionalChain([monteure, 'access', _176 => _176.find, 'call', _177 => _177(m=>m.id===calMonteur), 'optionalAccess', _178 => _178.n])||""), color: V.acTx} )
+            , isAdmin?React.createElement('select', { value: calMonteur, onChange: e=>setCalMonteur(e.target.value), 'aria-label': "Monteur im Kalender", style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { key: "__alle__", value: "__alle__"}, "Alle Monteure"), _maFilterliste(monteure,calMonteur,m=>arbeitsscheine.some(a=>a.monteur===m.id)).map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))):React.createElement(Badge, { text: (_optionalChain([monteure, 'access', _176 => _176.find, 'call', _177 => _177(m=>m.id===calMonteur), 'optionalAccess', _178 => _178.n])||""), color: V.acTx} )
           )
         )
 
@@ -13381,7 +13393,7 @@ function KVZulagenReport(props){
         ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}
           ,h('select',{value:ezWid,onChange:function(e){setEzWid(e.target.value);},style:{background:V.inputBg,color:V.tx,border:'1px solid '+V.bd,borderRadius:7,padding:'6px 10px',fontFamily:'inherit',fontSize:13,minHeight:isMob?38:34,maxWidth:180}}
             ,h('option',{value:''},'Mitarbeiter wählen…')
-            ,monteure.map(function(m){return h('option',{key:m.id,value:m.id},m.n||m.id);}))
+            ,monteure.filter(function(m){return !_maIstEhemalig(m,ym+'-01')||m.id===ezWid;})/* v3.9.1049: Ausgetretene nur fuer Monate bis zum Austritt (Abrechnung Juli bleibt moeglich) */.map(function(m){return h('option',{key:m.id,value:m.id},m.n||m.id);}))
           ,h('button',{ title: "Zeitraum zurück", 'aria-label': "Zeitraum zurück",onClick:()=>_ezNav(-1),style:{...bsS(),padding:'6px 10px',minHeight:isMob?38:0,minWidth:44,display:'inline-flex',alignItems:'center',justifyContent:'center'}},_ik('links',18))
           ,h('span',{style:{fontWeight:700,fontSize:14,minWidth:isMob?110:170,textAlign:'center'}},_ezTitel())
           ,h('button',{ title: "Zeitraum vor", 'aria-label': "Zeitraum vor",onClick:()=>_ezNav(1),style:{...bsS(),padding:'6px 10px',minHeight:isMob?38:0,minWidth:44,display:'inline-flex',alignItems:'center',justifyContent:'center'}},_ik('rechts',18))
@@ -14492,7 +14504,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   /* ═══ v3.9.358 #3 Abwesenheiten + #4 Krankenstand — READ-ONLY Spiegel über _yearStK/_resturlaubK.
      KEINE eigene Bilanz-/Genehmigungslogik, KEINE absences-Writes (Genehmigen/Bearbeiten nur im
      Urlaub-Modul, das durch den Trigger guard_urlaub_edit läuft). */
-  const _absRows=()=>(monteure||[]).map(m=>{const ys=_yearStK(abs,approvals,_kontFor,m.n,_abYr);const urlaub=ys.urlaubStd||0,krank=ys.krankenstandStd||0,za=ys.zeitausgleichStd||0,sonder=ys.sonderStdGes||0,pflege=ys.pflegeStdGes||0;return {name:m.n,gesamt:urlaub+krank+za+sonder+pflege,urlaub,krank,za,sonder,rest:_resturlaubK(abs,approvals,_kontFor,m.n,_abYr)};}).sort((a,b)=>a.name.localeCompare(b.name));
+  const _absRows=()=>(monteure||[]).filter(m=>!_maIstEhemalig(m,_abYr+"-01-01")).map(m=>{const ys=_yearStK(abs,approvals,_kontFor,m.n,_abYr);const urlaub=ys.urlaubStd||0,krank=ys.krankenstandStd||0,za=ys.zeitausgleichStd||0,sonder=ys.sonderStdGes||0,pflege=ys.pflegeStdGes||0;return {name:m.n,gesamt:urlaub+krank+za+sonder+pflege,urlaub,krank,za,sonder,rest:_resturlaubK(abs,approvals,_kontFor,m.n,_abYr)};}).sort((a,b)=>a.name.localeCompare(b.name));
   const _krankRows=()=>{const rows=[];(monteure||[]).forEach(m=>{Object.entries(abs||{}).forEach(([key,v])=>{if((v.type!=="krankenstand"&&v.type!=="krank")||!key.startsWith(m.n+"_"))return;/* v3.9.668 Bug-Hunt: Legacy-Alias "krank" mit aufnehmen (sonst aus der Krankenstand-Liste gedroppt). */const date=v.date||key.slice(m.n.length+1);if(!String(date).startsWith(String(_abYr)))return;var _fl=(_bxAtt&&_bxAtt[m.n])||(files&&files[m.n])||[];rows.push({name:m.n,date:date,hours:(parseFloat(v.hours)||_stdVonTagK(new Date(String(date).slice(0,10)+"T00:00:00"),_wocheOfK(_kontFor,m.n))),status:_resolveApprK(abs,approvals,key),hasAtt:!!_fl.length,atts:_fl});/* v3.9.668 Bug-Hunt: Std-Fallback wie in der Bilanz (_yearStK) — fehlende/0 Std = Tagesnorm, sonst zeigte die Krank-Liste 0h waehrend die Bilanz die Tagesnorm zaehlte. */});});return rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||a.name.localeCompare(b.name));};
   /* v3.9.459 (TEIL B): Attest im Büro-Portal direkt ansehen — signierte URL (privater Bucket), Fallback Legacy. */
   const _bxOpenAttest=async(f)=>{try{let u="";if(f&&f.storage_path)u=await _sbSignedDocUrl(f.storage_path,120);if(!u)u=(f&&(f.fileUrl||f.file_url||f.dataUrl))||"";if(!u){window.__toast&&window.__toast("⚠️ Attest nicht verfügbar","warn");return;}_openAttestViewer(u,(f&&f.name)||"Attest",_isPdfAtt(f));}catch(_e){if(window.__toast)window.__toast("⚠️ Attest konnte nicht geöffnet werden","error");}};
@@ -17336,7 +17348,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   const _vzMid=(curUser&&curUser.monteurId)||"";
   const assignedWorkers=(monteure||MONT).filter(m=>(monteurProjekte||{})[m.id]&&(monteurProjekte||{})[m.id].includes(pid));
   const allWorkers=isAdminPL?(monteure||MONT):assignedWorkers.length>0?assignedWorkers:(monteure||MONT);
-  const _defW=(curUser&&curUser.monteurId&&allWorkers.find(w=>w.id===curUser.monteurId))?curUser.monteurId:((allWorkers[0]||{}).id)||"";
+  const _defW=(curUser&&curUser.monteurId&&allWorkers.find(w=>w.id===curUser.monteurId))?curUser.monteurId:((_maWaehlbar(allWorkers,null)[0]||{}).id)||"";
   const [selWorker,setSelWorker]=_react.useState.call(void 0, selW||_defW);
   const [filterW,setFilterW]=_react.useState.call(void 0, "alle");
   const pe=entries.filter(e=>e.pid===pid||e.p===pid);
@@ -17421,7 +17433,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
         React.createElement('div',{style:{marginBottom:10}},
           React.createElement('label',{style:LL()},"Monteur"),
           /* v3.9.26 P2 (Fix-E): Field-User Worker-Select disabled + forced auf eigene mid. Admin/PL frei. */
-          React.createElement('select',{value:_vzIsField?_vzMid:addWorker,onChange:e=>{if(_vzIsField)return;setAddWorker(e.target.value);},disabled:!!_vzIsField,style:{...II(),fontSize:13,opacity:_vzIsField?.6:1,cursor:_vzIsField?"not-allowed":"pointer"}},_mtMitGetragenem(allWorkers,(monteure||MONT),_vzIsField?_vzMid:addWorker)/* v3.9.925: der gebuchte Monteur bleibt im Vorrat - sonst zeigt das Feld einen fremden Namen fuer fremde Stunden. */.map(w=>React.createElement('option',{key:w.id,value:w.id},w.n))),
+          React.createElement('select',{value:_vzIsField?_vzMid:addWorker,onChange:e=>{if(_vzIsField)return;setAddWorker(e.target.value);},disabled:!!_vzIsField,style:{...II(),fontSize:13,opacity:_vzIsField?.6:1,cursor:_vzIsField?"not-allowed":"pointer"}},_mtMitGetragenem(allWorkers.filter(w=>_wpMaSichtbarAmTag(w,addDay)),(monteure||MONT),_vzIsField?_vzMid:addWorker)/* v3.9.925: der gebuchte Monteur bleibt im Vorrat - sonst zeigt das Feld einen fremden Namen fuer fremde Stunden. */.map(w=>React.createElement('option',{key:w.id,value:w.id},w.n))),
           _vzIsField&&React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:4,fontStyle:"italic"}},_ikVw("schloss","Du buchst Zeit nur für dich selbst"))
         ),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}},
@@ -18432,7 +18444,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
       , React.createElement('div', { 'data-epk': "mg-filter", style: {display:"flex",gap:6,flexWrap:isMob?"wrap":"nowrap",overflowX:isMob?"visible":"auto",WebkitOverflowScrolling:"touch",paddingBottom:isMob?0:4,margin:"14px 0 10px",alignItems:"center"}}/* Tablet-Pruefung 1041 (7): quer brach die Reihe vor Prio um - jetzt EINE quer rollende Reihe */
         , React.createElement('input', { type: "search", value: fSearch, onChange: e=>setFSearch(e.target.value), placeholder: "Mangel/Ort/Ebene…", className: "epk-suche", style: {...II(),flex:isMob?"1 1 100%":"0 0 210px",minWidth:0,fontSize:12,padding:"5px 8px"} })
         , isAdmin&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fMeta,color:V.dm,cursor:"pointer",fontWeight:600}, title: "Alle sichtbaren Mängel für Sammelaktion auswählen"}, React.createElement('input', { type: "checkbox", checked: msV.length>0&&msV.every(m=>_bulkSel[m.id]), onChange: _bulkAll, style: {width:24,height:24,cursor:"pointer",accentColor:"#009640"}} ), "Alle")/* v3.9.464 (BLOCK C): Select-All */
-        , React.createElement('select', { value: fWorker, 'aria-label': "Verantwortlich filtern", onChange: e=>setFWorker(e.target.value), style: {...II(),width:"auto",fontSize:12,padding:"5px 8px"} }, React.createElement('option', { value: "" }, "Alle Verantwortlichen"), (monteure||MONT).map(w=>React.createElement('option', { key: w.id, value: w.id }, w.n)))
+        , React.createElement('select', { value: fWorker, 'aria-label': "Verantwortlich filtern", onChange: e=>setFWorker(e.target.value), style: {...II(),width:"auto",fontSize:12,padding:"5px 8px"} }, React.createElement('option', { value: "" }, "Alle Verantwortlichen"), _maFilterliste((monteure||MONT),fWorker,w=>ms.some(m=>m.worker===w.id||m.zugewiesen===w.id||m.assignee===w.id)).map(w=>React.createElement('option', { key: w.id, value: w.id }, w.n)))
         , React.createElement('button', { onClick: ()=>{const hdrs=["Mangel","Ebene","Prio","Status","Verantwortlich","Frist","Ort"];const data=msV.map(m=>{const w=(monteure||MONT).find(x=>x.id===(m.worker||m.zugewiesen||m.assignee));return [m.name||"",m.ebene||"",m.prio||"",m.status||"",(w&&w.n)||"",m.frist?fdt(m.frist):"",m.ort||""];});if(!data.length){window.__toast&&window.__toast("Keine Mängel zum Export","warn");return;}genXls("⚠️ Mängelliste — "+(p.name||""),(p.nr||"")+" · "+data.length+" Mängel",hdrs,data,"Maengel_"+((p.nr||p.name||"x")+"").replace(/[^a-zA-Z0-9]/g,"_")+".xls",{colWidths:[200,90,60,90,110,70,120],leftCols:[0,1,4,6]});}, style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta}}, _ikVw("download","Export"))
         , React.createElement('button', { onClick: genMangelPdf, title: "Mängel-Report als PDF drucken oder speichern — mit Fotos und EP-Kolar-CI", style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta,borderColor:_lesbar("#ef4444"),color:_lesbar("#ef4444")}}, _ikVw("dokument","PDF-Report"))
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginRight:2,marginLeft:4}}, "Status:" )
@@ -24531,6 +24543,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   /* Handy-Befund AB4: Ausgetretene in der Mitarbeiter-Auswahl ans Ende und gedimmt (Liste bleibt vollstaendig, v3.9.931). */
   const _absEhem=nm=>{const o=(monteure||[]).find(x=>x.n===nm);return !!(o&&_maIstEhemalig(o,_hkAK));};
   const _kontNames=monteure.filter(m=>!_maIstEhemalig(m,_hkAK)).map(m=>m.n);
+  const _absAb=(nm,ab)=>{const o=(monteure||[]).find(x=>x.n===nm);return !(o&&_maIstEhemalig(o,ab));};/* v3.9.1049 ZEITRAUM-Regel: Monat/Jahr/Zeitleiste fuehren einen Ausgetretenen nur, wenn der Zeitraum am oder vor seinem Austritt beginnt */
+  const _absMonAb=yr+"-"+String(mo+1).padStart(2,"0");const _absImMonat=nm=>_absAb(nm,_absMonAb+"-01")||Object.keys(abs||{}).some(k=>k.startsWith(nm+"_"+_absMonAb));/* v3.9.1049 (Sebastian: "Aliti und Cracana gibt es nicht mehr"): die Personen-Pillen des Kalenders und der Monat "ALLE" fuehren einen Ausgetretenen nur noch, wenn der GEZEIGTE Monat am oder vor seinem Austritt beginnt ODER er in diesem Monat Abwesenheiten hat. Das loest die v3.9.931-Ausnahme fuer die Kalenderliste ab; Jahresuebersicht/Export folgen der Jahresregel. */
   const wks=weeksOf(yr,mo);
   const dim=new Date(yr,mo+1,0).getDate();
   const isMob=ww<BP_MOB;
@@ -24700,15 +24714,15 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
   // Export
   /* v3.9.332: Pre-Export-Review-Modal — Buero sieht Jahres-Urlaubstabelle als editierbare Liste vor Excel. */
   const exportAbsCsv=async()=>{
-    const reviewRows=[];let nr=0;
+    const reviewRows=[];let nr=0;const _expNames=names.filter(m=>_absAb(m,yr+"-01-01"));/* v3.9.1049 */
     /* v3.9.27 A-F1: Export-Rest jetzt konsistent mit resturlaub() — zieht genehmigt + ausstehend ab. */
-    names.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=resturlaub(m);const verbraucht=(ys.urlaubStdGen||0)+(ys.urlaubStdAusstehend||0);const total=_ktgStd(ks.stunden)+(ks.vorjahr||0);
+    _expNames.forEach(m=>{const ys=yearSt(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const rest=resturlaub(m);const verbraucht=(ys.urlaubStdGen||0)+(ys.urlaubStdAusstehend||0);const total=_ktgStd(ks.stunden)+(ks.vorjahr||0);
       Object.entries(abs).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");nr++;reviewRows.push({nr:nr,mitarbeiter:m,datum:dateStr,typ:_optionalChain([AT_T, 'access', _568 => _568[v.type], 'optionalAccess', _569 => _569.l])||v.type,status:approvals[key]||"ausstehend",stunden:parseFloat(v.hours||stdTag(m))||0,kontingent:parseFloat(_n(total,1).replace(",","."))||0,verbraucht:parseFloat(_n(verbraucht,1).replace(",","."))||0,rest:parseFloat(_n(rest,1).replace(",","."))||0});}});});
     if(!reviewRows.length){window.__toast&&window.__toast("ℹ️ Keine Abwesenheitseinträge im Jahr "+yr,"info");return;}
     if(window._exportReviewModal){
       const _edited=await window._exportReviewModal({
         title:"🏖️ Abwesenheit "+yr+" — Vorschau",
-        subtitle:COMPANY_FOOTER.name+" · "+names.length+" Mitarbeiter · Werte prüfen — nur Export, DB bleibt.",
+        subtitle:COMPANY_FOOTER.name+" · "+_expNames.length+" Mitarbeiter · Werte prüfen — nur Export, DB bleibt.",
         columns:[
           {key:"nr",label:"Nr",type:"readonly",width:40},
           {key:"mitarbeiter",label:"👤 Mitarbeiter",type:"readonly",width:140},
@@ -24728,7 +24742,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     }
     const hdrs=["Nr","Mitarbeiter","Datum","Typ","Status","Stunden","Kontingent h","Verbraucht h","Rest h"];
     const csvRows=reviewRows.map((r,i)=>[i+1,r.mitarbeiter,r.datum,r.typ,r.status,_n(r.stunden,1),_n(r.kontingent,1),_n(r.verbraucht,1),_n(r.rest,1)]);
-    genXls("🏖️ Abwesenheit — "+yr,COMPANY_FOOTER.name+" · "+names.length+" Mitarbeiter",hdrs,csvRows,"Abwesenheit_"+yr+".xls",{colWidths:[35,110,75,90,75,55,65,65,55],leftCols:[0,1,2,3],boldCols:[1],statusMap:{"Urlaub":"#3b82f6","Krankenstand":"#ef4444","Zeitausgleich":"#a855f7","Pflegefreistellung":"#f97316","genehmigt":"#22c55e","abgelehnt":"#ef4444","ausstehend":"#eab308"}});
+    genXls("🏖️ Abwesenheit — "+yr,COMPANY_FOOTER.name+" · "+_expNames.length+" Mitarbeiter",hdrs,csvRows,"Abwesenheit_"+yr+".xls",{colWidths:[35,110,75,90,75,55,65,65,55],leftCols:[0,1,2,3],boldCols:[1],statusMap:{"Urlaub":"#3b82f6","Krankenstand":"#ef4444","Zeitausgleich":"#a855f7","Pflegefreistellung":"#f97316","genehmigt":"#22c55e","abgelehnt":"#ef4444","ausstehend":"#eab308"}});
   };
   /* v3.9.308: Abwesenheits-TXT-Export entfernt — Buero nutzt Excel. */
   /* GF 19.11.: Firmenserver-Export-Knopf entfernt - der Handler lud nur die Zeitbuchungen und verwarf sie, auf den Server wurde nie etwas geschrieben. */
@@ -24958,7 +24972,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       /* ═══ KALENDER ═══ */
       , subView==="kalender"&&(React.createElement('div', {}
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}
-          , (isAdmin?names:names.filter(m=>m===myMonteurName)).map(m=>{const s=st(m);const a=sel===m;const ys=yearSt(m);const rest=resturlaub(m);const mp=allEntries.filter(e=>e.name===m&&e.approval==="ausstehend").length;return (React.createElement('button', { key: m, onClick: ()=>setSel(m), style: {padding:isMob?"5px 7px":"8px 14px",borderRadius:8,border:a?"2px solid #22c55e":"2px solid "+V.bd,background:a?"rgba(34,197,94,.1)":"transparent",color:a?_okG("#22c55e"):V.tx,cursor:"pointer",fontWeight:600,fontSize:isMob?9.5:12,fontFamily:"inherit",position:"relative",minHeight:44,opacity:_absEhem(m)&&!a?.6:1}}, m, React.createElement('span', { style: {display:"block",fontSize:UI.fMeta,opacity:.85,fontFamily:mono}}/* v3.9.948 E2: die Pille zeigte einem AUSGETRETENEN einen Resturlaub - gemessen bei 390 und 1440 px stand unter allen fuenf Namen "193h Rest · 0K", auch unter den beiden Ausgetretenen. Der NAME gehoert dorthin: die Pille ist die Auswahl, ueber die man Kalender und Krankenstaende einer Person ansieht, und v3.9.931 haelt ausdruecklich fest, dass diese Liste vollstaendig bleiben muss - wer die alten Krankenstaende eines Ausgetretenen sucht, muss ihn hier finden. Der ANSPRUCH gehoert nicht dorthin, und das sagt derselbe Kommentar mit denselben Worten: "Ein Anspruch fuer jemanden, der nicht mehr da ist, ist keine Historie." v3.9.931 hat Kompaktliste, Detailtabelle und Excel versorgt - die Pille nicht. Aufgeloest wird ueber den Namen, weil `names` genau `monteure.map(m=>m.n)` ist; denselben Namensabgleich macht `resturlaub(m)` schon, also keine neue Klasse von Risiko. Der Krankenstand BLEIBT stehen - der ist Historie und keine Zusage. Schriftgroesse dabei von 9 auf UI.fMeta (D7, Anker c). */, (function(){var _maObj=(monteure||[]).find(x=>x.n===m);var _kt=ys.krankenstand===1?" Krankentag":" Krankentage";/* Handy-Befund AB4: das Kuerzel K war kryptisch. K = ys.krankenstand = Anzahl Krankenstandstage (_yearStK zaehlt je Tag-Schluessel). */if(_maObj&&_maIstEhemalig(_maObj))return React.createElement(React.Fragment,null,"ausgetreten · ",ys.krankenstand,_kt);return React.createElement(React.Fragment,null,"Rest ",(kontUnlesbar?"–":(resturlaub(m).toFixed?_n(resturlaub(m),0):resturlaub(m))+" h")," · ",ys.krankenstand,_kt);})())/* v3.9.118 Mobile: kürzerer Text — Pill clippte sonst 4px */, mp>0&&React.createElement('span', { style: {position:"absolute",top:-4,right:-4,background:"#eab308",color:"#000",borderRadius:"50%",width:16,height:16,fontSize:UI.fMeta,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}, mp)));}).sort((x,y)=>(_absEhem(x.key)?1:0)-(_absEhem(y.key)?1:0))/* Handy-Befund AB4: Ausgetretene ans Ende (stabil sortiert nach key = Name) */
+          , (isAdmin?names.filter(m=>_absImMonat(m)||m===sel):names.filter(m=>m===myMonteurName)).map(m=>{const s=st(m);const a=sel===m;const ys=yearSt(m);const rest=resturlaub(m);const mp=allEntries.filter(e=>e.name===m&&e.approval==="ausstehend").length;return (React.createElement('button', { key: m, onClick: ()=>setSel(m), style: {padding:isMob?"5px 7px":"8px 14px",borderRadius:8,border:a?"2px solid #22c55e":"2px solid "+V.bd,background:a?"rgba(34,197,94,.1)":"transparent",color:a?_okG("#22c55e"):V.tx,cursor:"pointer",fontWeight:600,fontSize:isMob?9.5:12,fontFamily:"inherit",position:"relative",minHeight:44,opacity:_absEhem(m)&&!a?.6:1}}, m, React.createElement('span', { style: {display:"block",fontSize:UI.fMeta,opacity:.85,fontFamily:mono}}/* v3.9.948 E2: die Pille zeigte einem AUSGETRETENEN einen Resturlaub - gemessen bei 390 und 1440 px stand unter allen fuenf Namen "193h Rest · 0K", auch unter den beiden Ausgetretenen. Der NAME gehoert dorthin: die Pille ist die Auswahl, ueber die man Kalender und Krankenstaende einer Person ansieht, und v3.9.931 haelt ausdruecklich fest, dass diese Liste vollstaendig bleiben muss - wer die alten Krankenstaende eines Ausgetretenen sucht, muss ihn hier finden. Der ANSPRUCH gehoert nicht dorthin, und das sagt derselbe Kommentar mit denselben Worten: "Ein Anspruch fuer jemanden, der nicht mehr da ist, ist keine Historie." v3.9.931 hat Kompaktliste, Detailtabelle und Excel versorgt - die Pille nicht. Aufgeloest wird ueber den Namen, weil `names` genau `monteure.map(m=>m.n)` ist; denselben Namensabgleich macht `resturlaub(m)` schon, also keine neue Klasse von Risiko. Der Krankenstand BLEIBT stehen - der ist Historie und keine Zusage. Schriftgroesse dabei von 9 auf UI.fMeta (D7, Anker c). */, (function(){var _maObj=(monteure||[]).find(x=>x.n===m);var _kt=ys.krankenstand===1?" Krankentag":" Krankentage";/* Handy-Befund AB4: das Kuerzel K war kryptisch. K = ys.krankenstand = Anzahl Krankenstandstage (_yearStK zaehlt je Tag-Schluessel). */if(_maObj&&_maIstEhemalig(_maObj))return React.createElement(React.Fragment,null,"ausgetreten · ",ys.krankenstand,_kt);return React.createElement(React.Fragment,null,"Rest ",(kontUnlesbar?"–":(resturlaub(m).toFixed?_n(resturlaub(m),0):resturlaub(m))+" h")," · ",ys.krankenstand,_kt);})())/* v3.9.118 Mobile: kürzerer Text — Pill clippte sonst 4px */, mp>0&&React.createElement('span', { style: {position:"absolute",top:-4,right:-4,background:"#eab308",color:"#000",borderRadius:"50%",width:16,height:16,fontSize:UI.fMeta,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}, mp)));}).sort((x,y)=>(_absEhem(x.key)?1:0)-(_absEhem(y.key)?1:0))/* Handy-Befund AB4: Ausgetretene ans Ende (stabil sortiert nach key = Name) */
         )
 
         , React.createElement('div', {}
@@ -25022,7 +25036,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               )
             )
 
-            , !isMob&&isAdmin&&(React.createElement('div', { style: {marginTop:14}}, React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,color:V.dm,fontFamily:mono,marginBottom:6}}, "ALLE — "  , MO_DE[mo]), names.map(m=>(React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:"75px 1fr",gap:3,marginBottom:2,alignItems:"center"}}, React.createElement('div', { style: {fontSize:UI.fMeta,color:sel===m?_okG("#22c55e"):V.dm,fontWeight:sel===m?700:400}}, m), React.createElement('div', { style: {display:"flex",gap:1}}, Array.from({length:dim},(_,i)=>{const d=new Date(yr,mo,i+1);const ab=ga(m,d);const at2=ab?AT_T[ab.type]:null;return (React.createElement('div', { key: i, style: {flex:1,height:9,borderRadius:1,background:at2?at2.c:isWE(d)?V.weBg:V.empty}} ));})))))))
+            , !isMob&&isAdmin&&(React.createElement('div', { style: {marginTop:14}}, React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,color:V.dm,fontFamily:mono,marginBottom:6}}, "ALLE — "  , MO_DE[mo]), names.filter(m=>_absImMonat(m)).map(m=>(React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:"75px 1fr",gap:3,marginBottom:2,alignItems:"center"}}, React.createElement('div', { style: {fontSize:UI.fMeta,color:sel===m?_okG("#22c55e"):V.dm,fontWeight:sel===m?700:400}}, m), React.createElement('div', { style: {display:"flex",gap:1}}, Array.from({length:dim},(_,i)=>{const d=new Date(yr,mo,i+1);const ab=ga(m,d);const at2=ab?AT_T[ab.type]:null;return (React.createElement('div', { key: i, style: {flex:1,height:9,borderRadius:1,background:at2?at2.c:isWE(d)?V.weBg:V.empty}} ));})))))))
           )
         )
       ))
@@ -25097,7 +25111,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         )
         , React.createElement('div', { style: {...CC()}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:14}}, "Jahresübersicht "  , yr)
-          , names.map(m=>{const ys=yearSt(m);const rest=resturlaub(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;
+          , names.filter(m=>_absAb(m,yr+"-01-01")).map(m=>{const ys=yearSt(m);const rest=resturlaub(m);const ks=kontingent[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const total=ys.urlaub+ys.krankenstand+ys.zeitausgleich;
             return (React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:isMob?"90px 1fr":"120px 60px 60px 1fr",gap:6,padding:"10px 8px",borderBottom:"1px solid "+V.bd,alignItems:"center",fontSize:12,background:names.indexOf(m)%2===0?V.rowAlt:"transparent",borderRadius:4}}
               , React.createElement('div', { style: {fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",minHeight:24}, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{setSel(m);setSubView("kalender");})(e);}}, onClick: ()=>{setSel(m);setSubView("kalender");}}, m)
               , !isMob&&React.createElement(React.Fragment, null, React.createElement('div', { style: {textAlign:"center"}}, React.createElement('span', { style: {fontWeight:700,color:rest<=20?"#ef4444":rest<=50?"#eab308":_okG("#22c55e")}}, kontUnlesbar?"–":((rest.toFixed?_absH(rest,0):rest)+"h")), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, " Rest" ))
@@ -25184,7 +25198,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
                 , days.map((d,i)=>{const dow=d.getDay();const we=dow===0||dow===6;return React.createElement('div', { key: i, style: {width:dayW,textAlign:"center",fontSize:isMob?UI.fMeta:UI.fMeta,color:we?V.tx:V.mt,fontWeight:we?700:400,fontFamily:mono,padding:"2px 0",borderRight:dow===0?"1px solid "+V.bd:"none"}}, ["So","Mo","Di","Mi","Do","Fr","Sa"][dow]);})
               )
               /* Worker rows */
-              , names.map((m,mi)=>{
+              , names.filter(m=>_absAb(m,dk(days[0]))).map((m,mi)=>{
                 const mRest=resturlaub(m);
                 /* v3.9.262 Tagezeile-Renderer: which="gen" (genehmigt, volle Balken) | "req" (offen, schraffiert+gestrichelt). */
                 const _dayRow=(which)=>days.map((d,di)=>{
@@ -25355,6 +25369,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
      haben getrennte Schemata, u.id===m.id matchte nie → Dropdown zeigte 18 (9 users + 9 monteure).
      Jetzt Dedup via users.monteurId/monteur_id (analog zu L13421/13580 Pattern). */
   const allMA=[...(users||[]).filter(u=>u.active!==false),...(monteure||[]).filter(m=>!(users||[]).find(u=>u.monteurId===m.id||u.monteur_id===m.id))];
+  const _szAb=selJahr+"-"+(typeof selMonat==="number"?String(selMonat+1).padStart(2,"0"):"01")+"-01";const _szWaehlbar=allMA.filter(m=>{const w=(monteure||[]).find(x=>x.id===m.id||x.id===m.monteurId||x.id===m.monteur_id);return !_maIstEhemalig(w,_szAb)||m.id===selMA;});/* v3.9.1049: Ausgetretene nur fuer Monate bis zum Austritt waehlbar; allMA bleibt die Namensaufloesung */
   const allEntries=entries||[];
   /* v3.9.813 Monteur-Eigensicht: EZ-Flags des Monats + autoritative Monatssumme (Ist-Stunden + Entfernungszulage via _ezEffTage, nicht selbst nachgerechnet). */
   const [ezFlags,setEzFlags]=_react.useState.call(void 0, {});
@@ -25669,7 +25684,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
               , React.createElement('label', { style: LL()}, "Mitarbeiter")
               , React.createElement('select', { value: selMA, onChange: e=>setSelMA(e.target.value), style: II(), 'aria-label': "Mitarbeiter wählen"}
                 , React.createElement('option', { value: ""}, "— Mitarbeiter wählen —"   )
-                , allMA.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.name||m.n||m.id)))
+                , _szWaehlbar.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.name||m.n||m.id)))
               )
             )
             , React.createElement('div', { style: {minWidth:120}}
@@ -25707,7 +25722,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
         , canUpload&&(
           React.createElement('select', { value: selMA, onChange: e=>setSelMA(e.target.value), style: {...II(),flex:1,minWidth:140}, 'aria-label': "Mitarbeiter wählen"}
             , React.createElement('option', { value: ""}, "Alle Mitarbeiter" )
-            , allMA.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.name||m.n||m.id)))
+            , _szWaehlbar.map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.name||m.n||m.id)))
           )
         )
       )
@@ -27453,6 +27468,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const dayDate=(off)=>{const dt=new Date(kwMon);dt.setDate(kwMon.getDate()+off);return dt;};
   const dateFmt=(off)=>{const dt=dayDate(off);return String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0")+".";};
   const isoDate=(off)=>_ymd(dayDate(off));
+  const fieldMAWo=monteure.filter(m=>m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung"&&!_maIstEhemalig(m,isoDate(0)));/* v3.9.1049: Wochenansichten fuehren einen Ausgetretenen fuer Wochen, die am oder vor seinem Austritt beginnen - fieldMA (heute) liess seine Stunden aus dem Juli-Bauwochenbericht fallen */
   const DAYS=["Mo","Di","Mi","Do","Fr","Sa","So"];/* v3.9.546 Bug-Hunt Zeit#2 (User-Freigabe): Sonntag ergänzt — Sonntags-Zeiteinträge (per Timer möglich) waren in ZeiterfassungView unsichtbar + aus Wochensumme/Übersicht ausgeschlossen. DAYS treibt Wochentabelle/Matrix/Tages-Stz/Übersicht/Export → alle jetzt 7-tägig (konsistent mit BWB). */
   const isToday=(off)=>{const dt=dayDate(off);const t=new Date();return dt.toDateString()===t.toDateString();};
 
@@ -27529,7 +27545,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     if(!isAdmin){return;}
     const from=isoDate(0);const to=isoDate(6);/* v3.9.546: bis Sonntag (Zeit#2) */
     const _heuteUe=_ezHeuteISO();/* Z6 */
-    const result=fieldMA.map(m=>{
+    const result=fieldMAWo.map(m=>{
       const mine=(entries||[]).filter(e=>{const wid=e.worker||e.w||e.worker_id||"";const dt=(e.datum||e.date||"").split("T")[0];return wid===m.id&&dt>=from&&dt<=to;});
       const dayTotals={};
       DAYS.forEach((_,i)=>{const iso=isoDate(i);dayTotals[DAYS[i]]=mine.filter(e=>(e.datum||e.date||"").split("T")[0]===iso).reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);});
@@ -27978,7 +27994,7 @@ ${entryRows}
     const BWB_DAYS=["Mo","Di","Mi","Do","Fr","Sa","So"];
     BWB_DAYS.forEach((_,i)=>{
       const iso=isoDate(i);
-      fieldMA.forEach(m=>{
+      fieldMAWo.forEach(m=>{
         const mine=(entries||[]).filter(e=>{const wid=e.worker||e.w||e.worker_id||"";const dt=(e.datum||e.date||"").split("T")[0];const pid=e.project_id||e.p||e.pid||"";return wid===m.id&&dt===iso&&pid===projId;});
         const h=mine.reduce((s,e)=>s+(parseFloat(e.hours||e.stunden)||0),0);
         if(h>0){
@@ -28264,7 +28280,7 @@ ${dayRowsHtml}
         isAdmin?(
           React.createElement('select',{value:selWorker,onChange:e=>setSelWorker(e.target.value),style:{...II(),fontSize:13,padding:"6px 10px",minWidth:isMob?0:200,fontWeight:600}},
             React.createElement('option',{value:""},"— Mitarbeiter wählen —"),
-            fieldMA.map(m=>React.createElement('option',{key:m.id,value:m.id},m.n," (",m.r,")"))
+            fieldMAWo.concat(monteure.filter(m=>m.id===selWorker&&fieldMAWo.indexOf(m)<0)).map(m=>React.createElement('option',{key:m.id,value:m.id},m.n," (",m.r,")"))
           )
         ):(
           React.createElement('span',{style:{fontSize:14,fontWeight:700,color:_okG("#10b981")}},workerName)

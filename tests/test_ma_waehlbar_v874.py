@@ -69,12 +69,15 @@ def test_alle_zuweisungs_stellen_umgestellt(index_html):
         direkt darueber zog seit v3.9.874, diese nicht),
       - FahrzeugView, Fahrer der Bescheinigung nach VO 561/2006,
       - Arbeitsschein-Kommentare, Vorschlagsliste der Erwaehnungen.
+    v3.9.1049: 21 -> 22. VZeit-Vorbelegung (_defW) nimmt den ersten
+    WAEHLBAREN statt den ersten der Liste - sonst stand ein Ausgetretener
+    als vorbelegter Monteur im neuen Zeiteintrag.
     """
     # Der Versions-Kommentar erwaehnt den Helfer im Fliesstext - der zaehlt nicht mit.
     zeilen = [l for l in index_html.splitlines() if not l.startswith("const APP_VERSION=")]
     n = len(re.findall(r"_maWaehlbar\(", "\n".join(zeilen)))
-    assert n == 22, (
-        "Erwartet 1 Definition + 21 Zuweisungs-Auswahlen = 22 '_maWaehlbar('; "
+    assert n == 23, (
+        "Erwartet 1 Definition + 22 Zuweisungs-Auswahlen = 23 '_maWaehlbar('; "
         "gefunden %d. Neue Zuweisung dazugekommen oder eine entfernt?" % n
     )
 

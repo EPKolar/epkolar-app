@@ -43,7 +43,7 @@ def _roh():
 
 def test_die_pille_zeigt_einem_ausgetretenen_keinen_anspruch():
     roh = _roh()
-    i = roh.find("(isAdmin?names:names.filter(m=>m===myMonteurName)).map")
+    i = roh.find("(isAdmin?names.filter(m=>_absImMonat(m)||m===sel):names.filter(m=>m===myMonteurName)).map")
     assert i > 0, "KOEDER STUMM: die Pillenreihe der Abwesenheiten fehlt."
     block = roh[i:i + 2600]
     assert "_maIstEhemalig(_maObj)" in block, (
@@ -69,12 +69,16 @@ def test_der_name_bleibt_in_der_auswahl():
     Filter auf Ehemalige auf, ist die Auswahl kaputt.
     """
     roh = _roh()
-    i = roh.find("(isAdmin?names:names.filter(m=>m===myMonteurName)).map")
+    i = roh.find("(isAdmin?names.filter(m=>_absImMonat(m)||m===sel):names.filter(m=>m===myMonteurName)).map")
+    # v3.9.1049 (Sebastian 19.11.): die Pillen filtern jetzt nach dem GEZEIGTEN
+    # MONAT (_absImMonat: Monat beginnt am/vor dem Austritt ODER Eintraege im
+    # Monat) - nicht nach HEUTE. Die alten Krankenstaende bleiben so ueber
+    # ihren Monat erreichbar; gemessen in test_ausgetretene_live_v931 (Riegel 3).
+    assert i > 0, "KOEDER STUMM: die Pillenreihe der Abwesenheiten fehlt."
     kopf = roh[i:i + 200]
     assert "_maIstEhemalig" not in kopf, (
-        "Die Pillenreihe filtert Ausgetretene aus der AUSWAHL - genau das "
-        "verbietet v3.9.931. Gefiltert werden darf nur der ANSPRUCH, nicht "
-        "der Name.")
+        "Die Pillenreihe filtert nach HEUTE statt nach dem gezeigten Monat - "
+        "dann verschwinden die alten Krankenstaende eines Ausgetretenen.")
 
 
 # ── D5 / C5: umbrechen statt rollen ───────────────────────────────────────

@@ -203,7 +203,8 @@ def test_buero_stunden_aufgeteilt(index_html):
 def test_kalender_alle_monteure_fuer_buero(index_html):
     assert 'isAdmin?"__alle__":(curUser.monteurId' in index_html
     assert 'if(calMonteur==="__alle__")return isAdmin;' in index_html
-    assert '"Alle Monteure"), monteure.map(m=>React.createElement(\'option\', { key: m.id, value: m.id}, m.n))' in index_html
+    # v3.9.1049: die Liste fuehrt Ausgetretene nur noch mit eigenen Scheinen (_maFilterliste)
+    assert '"Alle Monteure"), _maFilterliste(monteure,calMonteur,m=>arbeitsscheine.some(a=>a.monteur===m.id)).map(m=>React.createElement(\'option\', { key: m.id, value: m.id}, m.n))' in index_html
 
 
 # ── 9. Plan-Viewer-Legende ─────────────────────────────────────────────────
