@@ -1,6 +1,7 @@
 # Kamera-Pilot heute – Reihenfolge (19.11.2026)
 
 Ziel: 2 Kameras (G3 Dome `g3_01` und `g3_lager03`) **nur intern** im Büro-Netz in der App sehen.
+**Weg A** (direkter RTSP-Zugang der G3) – kein Protect, kein Kamera-Reset (GF 19.11.).
 Mobotix, externer Zugang (WireGuard) und Aufzeichnungs-Wiedergabe sind **nicht** Teil des Pilots.
 Vorlagen für den Video-Host: Ordner `C:/repos/epk-kamera-pilot/pilot-heute/` (außerhalb des Repos, dort stehen
 die Kamera-Adressen). In diesem Repo stehen **keine** Adressen und **keine** Geheimnisse.
@@ -29,20 +30,26 @@ sie antwortet ohne Secrets absichtlich `503 nicht_konfiguriert`.
 6. Start: `docker compose up -d`, dann `docker compose ps` und `curl -s https://<name>/gesund` → `ok`.
 7. Supabase-Secret `KAMERA_BACKEND_BASE` = `https://<name>` (ohne Pfad, ohne Schrägstrich am Ende).
 
-## c) Kamera-Zugang (Wert nur in der `.env` des Hosts)
-- **Weg A (heute):** direkt von der G3, RTSP-Pfad `/s0` (1080p) – am Gerät geprüft. `KAM_USER`/`KAM_PW` eintragen.
-  Probe auf dem Host: `ffprobe -v error -rtsp_transport tcp -show_streams "rtsp://$KAM_USER:$KAM_PW@<kamera>:554/s0"`.
-- **Weg B (Alternative):** Kamera in UniFi Protect adoptiert → dort RTSP einschalten, Token als `PROTECT_TOKEN_01/02`
-  in die `.env`, in `go2rtc.yaml` die B-Zeile statt der A-Zeile aktivieren. Streamname bleibt gleich.
+## c) Kamera-Zugang und Abschottung (Weg A)
+- **Gemessen 19.11. abends an allen vier G3** (.37 .38 .39 .61), ohne Anmeldung, kein Bild gespeichert:
+  `/s0` = H.264 1920×1080, `/s1` = H.264 640×360 – beide liefern. Die Kameras verlangten dabei **keine**
+  Zugangsdaten → sie sind im Netz offen.
+- **Pflicht vor dem Start:** Kamera-VLAN bzw. Firewall so, dass **nur** der Video-Host die G3 erreicht
+  (Anleitung `pilot-heute/KAMERAS_ABSICHERN.md`, Weg 2). Erst danach Bild in der App.
+- In der `.env` des Hosts: vorhandenen Kamera-Zugang als `KAM_USER`/`KAM_PW` eintragen, falls die Kamera ihn
+  verlangt (sonst bleiben die Werte ungenutzt). Probe auf dem Host:
+  `ffprobe -v error -rtsp_transport tcp -show_streams "rtsp://<kamera>:554/s0"` → Video h264 1920x1080.
 - Der Pilot holt nur das **Video** (kein Ton).
 
 ## d) Pilot-Kameras anmelden
-1. `sql/KAMERA_PILOT_HEUTE_ENTWURF.sql` im SQL-Editor: zuerst den Probe-Block (BEGIN … ROLLBACK), dann einspielen.
+1. Im SQL-Editor zuerst `sql/KAMERA_PILOT_HEUTE_PROBE.sql` (BEGIN … ROLLBACK; Ergebnis steht in der Meldung
+   `PROBE_ERGEBNIS …`, jede Zeile muss `OK` zeigen), dann `sql/KAMERA_PILOT_HEUTE_ENTWURF.sql` (BEGIN … COMMIT).
    Ergebnis: 2 Kameras, 2 Stream-Zuordnungen, Regeln „Admin immer“ und „Büro Mo–Fr 07:00–17:00“.
 2. Namen, Standorte und Regeln lassen sich danach in der App ändern (Kameras → Verwaltung). Die **Stream-Zuordnung**
    (`kamera_backend`) kann die App absichtlich nicht schreiben – nur dieses SQL.
-3. Sichtbar wird der Bereich in der App nur im Testbetrieb: Admin, `system_config.kameras_testumgebung = true`
-   (Eintrag fehlt heute – eigene Entscheidung des Inhabers) und App mit `?kameras_test=1`. Produktionsschalter bleibt AUS.
+3. Sichtbar ist der Bereich „Kameras“ in der App seit v3.9.1062 für den **Admin** (ohne Testschalter).
+   Alle anderen Rollen sehen ihn erst, wenn der Produktionsschalter an ist – der bleibt AUS, bis dieser
+   Pilot vollständig bestanden ist.
 4. Rücknahme: `sql/KAMERA_PILOT_HEUTE_RUECKNAHME.sql` (oder Kameras in der App auf inaktiv).
 
 ## e) Ende-zu-Ende prüfen

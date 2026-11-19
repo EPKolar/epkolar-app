@@ -7,6 +7,7 @@ Ausserdem: Nachweis, dass die deployte Edge Function (Version 1, Stand 64fdb53) 
 unterscheidet sich nur in der Kopfzeile "NICHT DEPLOYT" -> "DEPLOYT ...", logic.ts gar nicht.
 """
 import hashlib
+import io
 import os
 import re
 
@@ -164,7 +165,10 @@ def pruefe_doku(text):
     if koepfe != list("abcde"):
         b.append("Reihenfolge a-e: %s" % koepfe)
     for teil in ("KAMERA_TOKEN_SECRET", "5c83ca0b", "KAMERA_BACKEND_BASE", "docker compose up", "KAM_USER", "KAM_PW",
-                 "KAMERA_PILOT_HEUTE_ENTWURF.sql", "PILOT_TESTLISTE.md", "PROTECT_TOKEN", "kamera_backend"):
+                 # GF 19.11. abends: nur Weg A (direkter RTSP), kein Protect -> PROTECT_TOKEN entfaellt;
+                 # dafuer muessen Probe-Datei und die Abschottung (VLAN) in der Anleitung stehen.
+                 "KAMERA_PILOT_HEUTE_ENTWURF.sql", "KAMERA_PILOT_HEUTE_PROBE.sql", "PILOT_TESTLISTE.md",
+                 "KAMERAS_ABSICHERN.md", "kamera_backend"):
         if teil not in text:
             b.append("Doku ohne " + teil)
     if text.find("KAMERA_TOKEN_SECRET") > text.find("## b)"):
@@ -300,3 +304,13 @@ def test_umkehrprobe_deploy_nachweis():
     s = _lies(os.path.join(FN_DIR, "index.ts")).replace(KOPF_NEU, KOPF_ALT)
     assert hashlib.sha256((s + " ").encode("utf-8")).hexdigest() != DEPLOYT_INDEX_SHA
     assert hashlib.sha256(s.replace("Deno.serve", "Deno.serveX", 1).encode("utf-8")).hexdigest() != DEPLOYT_INDEX_SHA
+
+
+def test_weg_a_ohne_protect_und_probe_datei_ausfuehrbar():
+    """GF 19.11.: Pilot nur Weg A; Probe als eigene Datei (BEGIN ... ROLLBACK), bricht garantiert ab."""
+    doku = io.open(os.path.join(WURZEL, "docs", "kameras", "PILOT_HEUTE.md"), encoding="utf-8").read()
+    assert "PROTECT_TOKEN" not in doku and "Weg B" not in doku
+    sql = io.open(os.path.join(WURZEL, "sql", "KAMERA_PILOT_HEUTE_PROBE.sql"), encoding="utf-8").read()
+    assert sql.count("raise exception 'PROBE_ERGEBNIS %', r;") == 1 and "\nrollback;" in sql
+    assert "commit" not in sql.lower().replace("-- ", "")
+    assert "cascade" not in sql.lower() and "192.168" not in sql

@@ -2,7 +2,8 @@
 -- =====================================================================================
 -- KAMERA_PILOT_HEUTE_ENTWURF.sql  —  2 Pilot-Kameras anmelden (EPKolar, 19.11.2026)
 --
--- STATUS: ENTWURF — NICHT eingespielt. Einspielen nur durch Sebastian (Supabase SQL-Editor) bzw. ueber das Tor.
+-- STATUS: ENTWURF — NICHT eingespielt. ANWENDUNG (BEGIN ... COMMIT), nur durch Sebastian im SQL-Editor.
+-- VORHER: sql/KAMERA_PILOT_HEUTE_PROBE.sql ausfuehren (BEGIN ... ROLLBACK, Ergebnis mit OK/ABWEICHUNG).
 -- Voraussetzung: sql/KAMERAS_v1_ENTWURF.sql ist eingespielt (Stand 19.11.: ja, Tabellen leer).
 -- ERSETZT fuer den Pilot sql/KAMERAS_PILOT_SEED_ENTWURF.sql (alte Streamnamen g3_37 ... - NICHT zusaetzlich
 -- einspielen) und die Anmeldevorlage ausserhalb des Repos. Ruecknahme: sql/KAMERA_PILOT_HEUTE_RUECKNAHME.sql
@@ -118,7 +119,7 @@ commit;
 -- select kamera_id, rolle, wochentage, von, bis, erlaubt, bemerkung from public.kamera_zugriff order by 1, 2;
 
 -- =====================================================================================
--- PROBE (BEGIN ... ROLLBACK - aendert nichts dauerhaft). Statt "begin; ... commit;" oben ausfuehren:
+-- PROBE: fertig ausfuehrbar in sql/KAMERA_PILOT_HEUTE_PROBE.sql (sucht die Konten selbst). Alte Handvorlage:
 -- Abschnitte 0-4 oben einfuegen (ohne begin/commit), dann:
 --   <AUTH_ADMIN>   auth.users.id eines aktiven Admins
 --   <AUTH_BUERO>   auth.users.id eines aktiven Buero-Kontos
