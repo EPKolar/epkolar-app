@@ -60,7 +60,9 @@ def test_sektionen_haengen_am_tab(index_html):
     b = _vbuero(index_html)
     assert "_bxTab==='zulagen' && React.createElement(KVZulagenReport" in b, "Zulagen nicht an Tab gebunden"
     assert "_bxTab==='stempel' && React.createElement(PZEView" in b, "Stempelzeiten nicht an Tab gebunden"
-    assert "_bxTab==='projekte' && React.createElement('div', { className: \"kpi-grid\"" in b, "KPIs nicht an Projekte-Tab"
+    # Stufe 6 (19.11.2026): die Kachelleiste steht weiter am Projekte-Reiter; am Handy klappt sie hinter eine Zeile
+    # ((!isMob||_beKpiAuf)), siehe tests/test_stufe_bueroexport_v1076.py.
+    assert "_bxTab==='projekte' && (!isMob||_beKpiAuf) && React.createElement('div', { className: \"kpi-grid\"" in b, "KPIs nicht an Projekte-Tab"
     assert "_bxTab==='projekte' && loaded && monteurStats.length>0" in b, "Monteur-Übersicht nicht an Projekte-Tab"
     assert "_bxTab==='projekte' && projStats.map(ps=>(" in b, "Projekt-Karten nicht an Projekte-Tab"
     assert "_bxTab==='abwesend' && React.createElement('div',{style:{marginTop:16}}" in b, "Abwesenheiten nicht an Tab"
@@ -83,7 +85,8 @@ def test_tab_leiste_mit_tap_target(index_html):
     b = _vbuero(index_html)
     assert "_setBxTab(_t[0])" in b, "Tab-Button ruft _setBxTab nicht"
     # v3.9.802: Tab-Leiste auf flachen AdminPanel-Stil umgebaut -> Tap-Target jetzt minHeight:44 mobil (statt 48).
-    assert "minHeight:_bxMob?44:0" in b, "Tap-Target der Tab-Buttons nicht >=44 (mobil)"
+    # Stufe 6 (19.11.2026): 44 px in JEDER Breitenstufe - das Tablet (mittel/breit) wird auch getippt.
+    assert "minHeight:44,borderRadius:8" in b, "Tap-Target der Tab-Buttons nicht >=44"
 
 
 def test_rechnung_unberuehrt(index_html):

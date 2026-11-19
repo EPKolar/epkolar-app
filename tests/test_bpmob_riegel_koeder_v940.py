@@ -143,7 +143,8 @@ def test_keine_nackte_600_mehr_ueber_innerwidth():
 
     koeder = {
         "768": len(zaehl(r"window\.innerWidth\s*<\s*768\b")),
-        "700": len(zaehl(r"window\.innerWidth\s*<\s*700\b")),
+        # Stufe 6 Buero-Export (19.11.2026): die letzten nackten 700er (Tankbeleg-Ansicht) fragen jetzt
+        # _layoutStufe - der Koeder lebt von den verbleibenden nackten Schwellen 768 und 400.
         "400": len(zaehl(r"window\.innerWidth\s*<\s*400\b")),
     }
     assert all(v > 0 for v in koeder.values()), (

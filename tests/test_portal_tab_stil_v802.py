@@ -24,7 +24,8 @@ def test_buero_flacher_admin_stil(index_html):
     # Flacher Stil: 2px-Border in V.ac (aktiv) sonst transparent, subtile V.ac+15-Fuellung, kompakt.
     assert 'border:"2px solid "+(_act?V.ac:"transparent")' in b, "Buero-Tab nicht auf 2px-Border-Stil"
     assert 'background:_act?V.ac+"15":V.bg' in b, "Buero-Tab hat noch vollflaechige Fuellung statt V.ac+15"
-    assert "minHeight:_bxMob?44:0" in b, "Buero-Tab: mobiles 44px-Tap-Target fehlt"
+    # Stufe 6 (19.11.2026): 44 px in jeder Breitenstufe statt nur am Handy (Tablet wird getippt).
+    assert "minHeight:44,borderRadius:8" in b, "Buero-Tab: 44px-Tap-Target fehlt"
     # Alte dicke Kachel raus.
     assert "minHeight:48" not in b, "Buero-Tab traegt noch die dicke Kachel (minHeight:48)"
     assert 'flexDirection:"column"' not in b.split("BX_TABS.map")[1].split(";})),")[0], "Buero-Tab noch Spalten-Kachel"
