@@ -371,13 +371,13 @@ def test_ci_farben_liste(fv):
 HANDLER = {
     "upd": "20e7ba8d6c6b812b0b49400ef2caf9f7",
     "addKm": "532f6979ad8e6b597713c9fda235ec54",
-    "addTank": "d03a08ae8b188f2194e492183b48710d",
+    "addTank": "832cdbd6bdaa642329df7a6bfaba1d9f",  # v3.9.1051 Tankbuch atomar (_tankAtomar-Hinweis), bewusst neu gehasht
     "addSchaden": "31c58844425685f1f49f9fb7f92d6a00",
     "qDoKm": "cc49299a34c3cbbbf787e50d549a6b7d",
     "qDoTank": "49e73b88ebbe8a7138e634ce24139162",
     "qDoSchaden": "6aa09e85b8e7807dcc2e0b3e2c5e1d3a",
     "batchSave": "2aebc12df5ab699a32d218f82504bea3",
-    "batchDel": "f8989197df676cd783452489a432c805",
+    "batchDel": "1af738b359919fc452fd16aca16d46c3",  # v3.9.1051 Tankbuch atomar (fz_tanklog_del), bewusst neu gehasht
     "addFz": "aa601e73f08d3f41f0dbbb80b7c34aa7",
     "del": "accf7e1384c8970cbc7b2e10e8381914",
     "addTermin": "dfcc6d696018722f6b5aea97c05bd20d",
@@ -412,14 +412,15 @@ def test_alle_upd_und_sq_aufrufe_byte_gleich(fv):
     vor dem Umbau gehasht. Verschieben ist erlaubt, Aendern nicht."""
     z = _schreibaufrufe(fv)
     assert len(z) == 54, len(z)
-    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() == "095f5128faa1b876e8407fb03899d75b"
+    # v3.9.1051: addTank/batchDel tragen den _tankAtomar-Hinweis (Tankbuch atomar) - bewusst neu gehasht
+    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() == "33d279fe95f6073d5d6bf6d624e4b695"
 
 
 def test_koeder_schreibaufruf_aenderung_wird_erkannt(fv):
     alt = 'f.schaeden=[{...data,by_user:'
     assert fv.count(alt) == 1
     z = _schreibaufrufe(fv.replace(alt, 'f.schaeden=[{...data,von:', 1))
-    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() != "095f5128faa1b876e8407fb03899d75b"
+    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() != "33d279fe95f6073d5d6bf6d624e4b695"
 
 
 def test_neue_teile_schreiben_nichts(fv):

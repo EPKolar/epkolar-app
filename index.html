@@ -3178,6 +3178,44 @@ const _RLS_SILENT_DENIAL_LABELS=Object.freeze({
   gefahrstoff_folders:"Gefahrstoff-Ordner"/* v3.9.994 */,
   project_folders:"Ordner-Umbenennung"/* v3.9.994 */
 });
+/* v3.9.1051 Tankbuch atomar (SQL-Entwurf sql/TANKLOG_ATOMAR_v1051_ENTWURF.sql): tank_log ist EIN JSON-Text pro Fahrzeug. Bisher schickten
+   Tank-Dialog und Sammel-Tanken-Entfernen das GANZE Array aus dem lokalen Stand, QR-/Sammel-Tanken und Buero-Kontrolle lasen-aenderten-schrieben
+   im Client - eine Tankung von einem zweiten Geraet dazwischen ging verloren. Jetzt aendert der Server per id genau EINEN Eintrag
+   (fz_tanklog_add/_del/_set, Zeile gesperrt). Funktionserkennung: antwortet /rpc/ mit 404 (noch nicht eingespielt), gilt das bis zum
+   Neuladen und es laeuft der bisherige Weg unveraendert (gleicher Koerper). Nie Base64 an die Funktion: ein Eintrag mit data:-Inhalt nimmt
+   den alten Weg, dort verschiebt _dbOhneDateien die Datei in den Speicher. */
+var _fzTankRpcDa=null;/* null = noch nicht gefragt, true = vorhanden, false = 404 -> alter Weg bis zum Neuladen */
+function _fzTankHatDatei(x){try{return /data:[^\x22]*;base64,/i.test(JSON.stringify(x));}catch(_){return true;}}
+async function _fzTankRpc(name,args){
+  if(_fzTankRpcDa===false)return {fehlt:true};
+  const r=await _authRetry(()=>fetch(SB_REST+"/rpc/"+name,_fT({method:"POST",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify(args)})));
+  if(r.status===404){_fzTankRpcDa=false;return {fehlt:true};}
+  if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);}
+  _fzTankRpcDa=true;
+  let j=null;try{j=await r.json();}catch(_){j=null;}
+  return {res:j||{}};
+}
+/* Warteschlangen-Teil: d ist der Koerper eines PUT /api/fahrzeuge/<id>. true = Tank-Teil am Server erledigt (Felder aus d entfernt),
+   false = alter Weg (nur der Hinweis _tankAtomar ist entfernt, der Rest ist byte-gleich zum bisherigen Koerper). */
+async function _fzTankAtomar(fzId,d){
+  const ta=d._tankAtomar;delete d._tankAtomar;
+  const add=d.tankLog_add||d.tank_log_add;
+  let name="",args=null,weg=[];
+  if(ta&&ta.op==="del"&&ta.id){name="fz_tanklog_del";args={p_fahrzeug_id:fzId,p_eintrag_id:String(ta.id)};weg=["tankLog","tank_log"];}
+  else if(ta&&ta.op==="add"&&ta.eintrag&&ta.eintrag.id){const km=parseInt(ta.eintrag.km,10)||0;name="fz_tanklog_add";args={p_fahrzeug_id:fzId,p_eintrag:ta.eintrag,p_km:km>0?km:null,p_km_log_id:null};weg=ta.kmForce?["tankLog","tank_log"]:["tankLog","tank_log","kmStand","km_stand"];}
+  else if(add&&add.id){const km=parseInt(d.kmStand||d.km_stand,10)||0;name="fz_tanklog_add";args={p_fahrzeug_id:fzId,p_eintrag:add,p_km:km>0?km:null,p_km_log_id:d.kmLogId||d.km_log_id||null};weg=["tankLog_add","tank_log_add","kmStand","km_stand","kmLogId","km_log_id"];}
+  else return false;
+  if(args.p_eintrag&&_fzTankHatDatei(args.p_eintrag))return false;
+  const r=await _fzTankRpc(name,args);
+  if(r.fehlt)return false;
+  const res=r.res||{};
+  weg.forEach(k=>{delete d[k];});
+  if(res.ok===false){
+    delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;
+    if(res.grund==="nicht_berechtigt"){try{window.__sbStilleAbweisung=(window.__sbStilleAbweisung||0)+1;}catch(_sa){}window.__toast&&window.__toast("\u26a0\ufe0f "+_RLS_SILENT_DENIAL_LABELS.fahrzeuge+" NICHT gespeichert \u2014 keine Schreibberechtigung. Bitte Buero/Admin informieren (Eingabe ging nicht in die Datenbank).","error",9000);}
+  }else if(ta&&ta.op==="add"&&ta.kmForce){d.kmLogId="km_"+ta.eintrag.id;}/* Admin-Korrektur nach unten (kmDowngraded): km_stand wie bisher unbedingt ueber den km-Zweig setzen; km-Zeile hat der Server schon -> gleiche id, kein Duplikat */
+  return true;
+}
 async function _translateAndExec(url,method,body){
   // Parse: /api/{resource}/{id?}
   const cleanUrl=url.replace(/\/+$/,"");
@@ -3295,6 +3333,7 @@ async function _translateAndExec(url,method,body){
   // Fahrzeuge special PUT fields: tankLog_add, kmStand
   if(resource==="fahrzeuge"&&idOrSub&&method==="PUT"){
     const d={...body};
+    if((d._tankAtomar||d.tankLog_add||d.tank_log_add)&&typeof _fzTankAtomar==="function"){if(await _fzTankAtomar(idOrSub,d)&&Object.keys(d).length===0)return{ok:1};}/* v3.9.1051 Tankbuch atomar am Server; 404 -> unten der bisherige Weg */
     if(d.tankLog_add||d.tank_log_add){
       try{
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
@@ -5434,7 +5473,7 @@ function _fzArt(f){var t=_matFold(f&&f.typ).replace(/[^a-z]/g,"");if(t.indexOf("
 function _fzBetrieb(f){if(!f)return "betrieb";if(f.status==="stillgelegt")return "ausser";var s=f.schaeden;if(Array.isArray(s)&&s.some(function(x){return !!(x&&x.status==="in_reparatur");}))return "werkstatt";return "betrieb";}
 const _FZ_BETRIEB={betrieb:{l:"In Betrieb",h:COLORS.EP_GREEN},werkstatt:{l:"Werkstatt",h:COLORS.WARNING_FILL},ausser:{l:"Außer Dienst",h:COLORS.NEUTRAL}};
 /* _fzBusSvg(opts) -> SVG-Text eines Fahrzeugs in Seitenansicht (eigene Zeichnung, Strichstil, kein Hersteller-Zeichen). Ohne Abhaengigkeiten, damit die Flotten-Karte (Leaflet divIcon braucht Text) denselben Helfer uebernehmen kann. opts: art "bus"|"lkw"|"anhaenger" (sonst bus) - farbe "#rrggbb" (Strich + 16 % Flaeche, sonst Markengruen) - gr Breite in px (Hoehe = 2/3) - titel (Vorlesetext; leer = aria-hidden). */
-function _fzBusSvg(opts){var o=opts||{};var art=(o.art==="lkw"||o.art==="anhaenger")?o.art:"bus";var farbe=/^#[0-9a-fA-F]{6}$/.test(String(o.farbe||""))?String(o.farbe):"#009640";var gr=(+o.gr>0)?Math.round(+o.gr):40;var hoch=Math.round(gr*2/3);var esc=function(t){return String(t).replace(/[&<>"]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;";});};var titel=String(o.titel==null?"":o.titel).trim();var L='fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';var F='fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"';var rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.2" '+L+'/><circle cx="'+x+'" cy="'+y+'" r=".9" fill="currentColor"/>';};var k;if(art==="lkw")k='<rect x="3" y="4" width="25" height="16.5" rx="1.5" '+F+'/><path d="M30 22.5V10.5A2 2 0 0 1 32 8.5H38L44 15V22.5H41.7A3.7 3.7 0 0 0 34.3 22.5Z" '+F+'/><path d="M33 11.5H37.2L40.4 15.2H33Z" '+L+'/><path d="M3 22.5H6.3M13.7 22.5H30" '+L+'/>'+rad(10,23)+rad(38,23);else if(art==="anhaenger")k='<rect x="4" y="7" width="30" height="14" rx="1.5" '+F+'/><path d="M34 18.5L44.5 21.5M9 21V26.5M7 26.5H11" '+L+'/><circle cx="45.6" cy="21.8" r="1.3" '+L+'/>'+rad(22,24);else k='<path d="M5 24.5V9.5A3.5 3.5 0 0 1 8.5 6H30.5L37.5 14H41A3 3 0 0 1 44 17V24.5H39.2A4.2 4.2 0 0 0 30.8 24.5H17.2A4.2 4.2 0 0 0 8.8 24.5Z" '+F+'/><path d="M29 9.2H31.4L35.2 13.4H29Z" '+L+'/><path d="M26.5 8.5V22M5 16.5H24.5M42.4 18.6H43.6" '+L+'/>'+rad(13,24.5)+rad(35,24.5);return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" width="'+gr+'" height="'+hoch+'" data-fz-art="'+art+'" style="color:'+farbe+';display:block;flex:0 0 auto"'+(titel?' role="img" aria-label="'+esc(titel)+'"><title>'+esc(titel)+'</title>':' aria-hidden="true" focusable="false">')+k+'</svg>';}
+function _fzBusSvg(opts){var o=opts||{};var art=(o.art==="lkw"||o.art==="anhaenger")?o.art:"bus";var farbe=/^#[0-9a-fA-F]{6}$/.test(String(o.farbe||""))?String(o.farbe):"#009640";var gr=(+o.gr>0)?Math.round(+o.gr):40;var hoch=Math.round(gr*2/3);var esc=function(t){return String(t).replace(/[&<>\x22]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;";});};var titel=String(o.titel==null?"":o.titel).trim();var L='fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';var F='fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"';var rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.2" '+L+'/><circle cx="'+x+'" cy="'+y+'" r=".9" fill="currentColor"/>';};var k;if(art==="lkw")k='<rect x="3" y="4" width="25" height="16.5" rx="1.5" '+F+'/><path d="M30 22.5V10.5A2 2 0 0 1 32 8.5H38L44 15V22.5H41.7A3.7 3.7 0 0 0 34.3 22.5Z" '+F+'/><path d="M33 11.5H37.2L40.4 15.2H33Z" '+L+'/><path d="M3 22.5H6.3M13.7 22.5H30" '+L+'/>'+rad(10,23)+rad(38,23);else if(art==="anhaenger")k='<rect x="4" y="7" width="30" height="14" rx="1.5" '+F+'/><path d="M34 18.5L44.5 21.5M9 21V26.5M7 26.5H11" '+L+'/><circle cx="45.6" cy="21.8" r="1.3" '+L+'/>'+rad(22,24);else k='<path d="M5 24.5V9.5A3.5 3.5 0 0 1 8.5 6H30.5L37.5 14H41A3 3 0 0 1 44 17V24.5H39.2A4.2 4.2 0 0 0 30.8 24.5H17.2A4.2 4.2 0 0 0 8.8 24.5Z" '+F+'/><path d="M29 9.2H31.4L35.2 13.4H29Z" '+L+'/><path d="M26.5 8.5V22M5 16.5H24.5M42.4 18.6H43.6" '+L+'/>'+rad(13,24.5)+rad(35,24.5);return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" width="'+gr+'" height="'+hoch+'" data-fz-art="'+art+'" style="color:'+farbe+';display:block;flex:0 0 auto"'+(titel?' role="img" aria-label="'+esc(titel)+'"><title>'+esc(titel)+'</title>':' aria-hidden="true" focusable="false">')+k+'</svg>';}
 function _fzBusFarbe(stufe){var b=_FZ_BETRIEB[stufe]||_FZ_BETRIEB.betrieb;return (typeof _lesbar==="function")?_lesbar(b.h):b.h;}
 function _fzBusFuer(f,gr){var st=_fzBetrieb(f);var a=_fzArt(f);return _fzBusSvg({art:a,farbe:_fzBusFarbe(st),gr:gr,titel:(a==="lkw"?"LKW":a==="anhaenger"?"Anhänger":"Transporter")+", "+_FZ_BETRIEB[st].l});}
 function _fzSuchText(f,fahrerName){if(!f)return "";var kz=String(f.kennzeichen||"");return _matFold([kz,kz.replace(/[^A-Za-z0-9]/g,""),f.marke,f.modell,f.typ,f.farbe,f.standort,fahrerName].filter(function(x){return x!=null&&x!=="";}).join(" "));}
@@ -14039,14 +14078,19 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
        Erfolg angleichen. (Verbleibendes Mini-Fenster read↔write ist nur via server-seitige RPC ganz
        zu — für die Büro-Kontrolle ausreichend, kein Voll-Blob-Overwrite mehr aus stale State.) */
     try{
-      const rows=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(fzId)+"&select=tank_log");
-      if(!rows||!rows[0]){window.__toast&&window.__toast("⚠️ Fahrzeug nicht gefunden — bitte neu laden","error");return;}
-      let cur;try{cur=JSON.parse(rows[0].tank_log||"[]");if(!Array.isArray(cur))cur=[];}catch(_){cur=[];}
-      let found=false;
+      /* v3.9.1051 Tankbuch atomar: zuerst am Server (fz_tanklog_set - nur dieser Eintrag, Zeile gesperrt). Damit ist auch das Lese-Schreib-Fenster
+         von v3.9.542 zu. Meldungen bleiben dieselben (fahrzeug_fehlt / eintrag_fehlt / nicht_berechtigt laufen in die vorhandenen Toasts). */
+      const _tkP={kontrolliert:val,kontrolliert_von:val?((curUser&&curUser.name)||""):null,kontrolliert_am:val?new Date().toISOString():null};
+      const _ra=await _fzTankRpc("fz_tanklog_set",{p_fahrzeug_id:fzId,p_eintrag_id:eid,p_patch:_tkP});
+      const _rr=_ra.fehlt?null:(_ra.res||{});/* null = Funktion noch nicht eingespielt (404) -> unten der bisherige Weg (frisch lesen, einen Eintrag aendern, zurueckschreiben) */
+      const rows=_rr?null:await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(fzId)+"&select=tank_log");
+      if(_rr?_rr.grund==="fahrzeug_fehlt":(!rows||!rows[0])){window.__toast&&window.__toast("⚠️ Fahrzeug nicht gefunden — bitte neu laden","error");return;}
+      let cur=[];if(!_rr){try{cur=JSON.parse(rows[0].tank_log||"[]");if(!Array.isArray(cur))cur=[];}catch(_){cur=[];}}
+      let found=!!_rr&&_rr.grund!=="eintrag_fehlt";
       const tl=cur.map(x=>{if(x&&x.id===eid){found=true;return {...x,kontrolliert:val,kontrolliert_von:val?((curUser&&curUser.name)||""):null,kontrolliert_am:val?new Date().toISOString():null};}return x;});
       if(!found){window.__toast&&window.__toast("⚠️ Beleg nicht mehr vorhanden — bitte neu laden","error");return;}
-      const _r9m=await _sbPatch("fahrzeuge",fzId,{tank_log:JSON.stringify(tl),updated_at:new Date().toISOString()});if(Array.isArray(_r9m)&&_r9m.length===0){window.__toast&&window.__toast("⚠️ Tank-Kontrolle NICHT gespeichert — keine Schreibrechte (RLS)","error");return;}/* v3.9.612 #9: 0-Rows-RLS-Silent-Denial abfangen (direktes _sbPatch umging den _translateAndExec-Guard :2393) — kein falsches "✓" */
-      if(setFahrzeuge)setFahrzeuge(prev=>prev.map(f=>f.id===fzId?{...f,tankLog:tl}:f));
+      const _r9m=_rr?(_rr.ok===false?[]:null):await _sbPatch("fahrzeuge",fzId,{tank_log:JSON.stringify(tl),updated_at:new Date().toISOString()});if(Array.isArray(_r9m)&&_r9m.length===0){window.__toast&&window.__toast("⚠️ Tank-Kontrolle NICHT gespeichert — keine Schreibrechte (RLS)","error");return;}/* v3.9.612 #9: 0-Rows-RLS-Silent-Denial abfangen (direktes _sbPatch umging den _translateAndExec-Guard :2393) — kein falsches "✓" */
+      if(setFahrzeuge)setFahrzeuge(prev=>prev.map(f=>f.id===fzId?{...f,tankLog:_rr?(f.tankLog||[]).map(x=>(x&&x.id===eid)?{...x,..._tkP}:x):tl}:f));
       window.__toast&&window.__toast(val?"⛽ Beleg als kontrolliert markiert":"↩ Kontrolle zurückgesetzt");
       return true;/* v3.9.1004 (B2): Erfolg melden - Rueckgaengig wird nur nach einem GESPEICHERTEN Markieren angeboten */
     }catch(e){console.warn('[tank-kontroll]',e&&e.message||e);window.__toast&&window.__toast("⚠️ Speichern fehlgeschlagen — bitte neu laden","error");}
@@ -14057,10 +14101,14 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
 
   const _tankEditSave=async(fzId,eid,vals)=>{
     try{
-      const rows=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(fzId)+"&select=tank_log");
-      if(!rows||!rows[0]){window.__toast&&window.__toast("⚠️ Fahrzeug nicht gefunden — bitte neu laden","error");return;}
-      let cur;try{cur=JSON.parse(rows[0].tank_log||"[]");if(!Array.isArray(cur))cur=[];}catch(_){cur=[];}
-      let found=false,updated=null;
+      /* v3.9.1051 Tankbuch atomar: zuerst am Server (fz_tanklog_set; km_stand bestimmt der Server wie v3.9.555). 404 -> bisheriger Weg. */
+      const _tkW={datum:vals.datum,liter:vals.liter,preis:vals.preis,km:vals.km};
+      const _ra=await _fzTankRpc("fz_tanklog_set",{p_fahrzeug_id:fzId,p_eintrag_id:eid,p_patch:_tkW});
+      const _rr=_ra.fehlt?null:(_ra.res||{});/* null = Funktion noch nicht eingespielt (404) -> unten der bisherige Weg (frisch lesen, einen Eintrag aendern, zurueckschreiben) */
+      const rows=_rr?null:await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(fzId)+"&select=tank_log");
+      if(_rr?_rr.grund==="fahrzeug_fehlt":(!rows||!rows[0])){window.__toast&&window.__toast("⚠️ Fahrzeug nicht gefunden — bitte neu laden","error");return;}
+      let cur=[];if(!_rr){try{cur=JSON.parse(rows[0].tank_log||"[]");if(!Array.isArray(cur))cur=[];}catch(_){cur=[];}}
+      let found=!!_rr&&_rr.grund!=="eintrag_fehlt",updated=null;
       const tl=cur.map(x=>{if(x&&x.id===eid){found=true;updated={...x,datum:vals.datum,liter:vals.liter,preis:vals.preis,km:vals.km};return updated;}return x;});
       if(!found){window.__toast&&window.__toast("⚠️ Beleg nicht mehr vorhanden — bitte neu laden","error");return;}
       /* v3.9.555: km-Korrektur eines Belegs zieht den Fahrzeug-Tacho (km_stand) mit:
@@ -14068,11 +14116,12 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
          km_log-Historie bleibt unberuehrt. */
       var _withKm=tl.filter(function(x){return x&&x.km!=null&&x.km!=="";});var _nk=null;
       if(_withKm.length){_withKm.sort(function(a,b){var _d=String(b.datum||'').localeCompare(String(a.datum||''));return _d!==0?_d:(Number(b.km)-Number(a.km));});_nk=Number(_withKm[0].km);}
+      if(_rr&&_rr.km_stand!=null&&!isNaN(Number(_rr.km_stand)))_nk=Number(_rr.km_stand);
       var _patch={tank_log:JSON.stringify(tl),updated_at:new Date().toISOString()};
       if(_nk!=null&&!isNaN(_nk))_patch.km_stand=_nk;
-      const _r9e=await _sbPatch("fahrzeuge",fzId,_patch);if(Array.isArray(_r9e)&&_r9e.length===0){window.__toast&&window.__toast("⚠️ Tank-Korrektur NICHT gespeichert — keine Schreibrechte (RLS)","error");return;}/* v3.9.612 #9: 0-Rows-RLS-Silent-Denial abfangen */
-      if(setFahrzeuge)setFahrzeuge(prev=>prev.map(f=>f.id===fzId?{...f,tankLog:tl,...((_nk!=null&&!isNaN(_nk))?{kmStand:_nk}:{})}:f));
-      _setTankFotoView(pv=>pv?{...pv,e:updated}:pv);
+      const _r9e=_rr?(_rr.ok===false?[]:null):await _sbPatch("fahrzeuge",fzId,_patch);if(Array.isArray(_r9e)&&_r9e.length===0){window.__toast&&window.__toast("⚠️ Tank-Korrektur NICHT gespeichert — keine Schreibrechte (RLS)","error");return;}/* v3.9.612 #9: 0-Rows-RLS-Silent-Denial abfangen */
+      if(setFahrzeuge)setFahrzeuge(prev=>prev.map(f=>f.id===fzId?{...f,tankLog:_rr?(f.tankLog||[]).map(x=>(x&&x.id===eid)?{...x,..._tkW}:x):tl,...((_nk!=null&&!isNaN(_nk))?{kmStand:_nk}:{})}:f));
+      _setTankFotoView(pv=>pv?{...pv,e:updated||{...(pv.e||{}),..._tkW}}:pv);
       _setTankEdit(null);
       window.__toast&&window.__toast("✓ Werte aktualisiert");
     }catch(e){console.warn('[tank-edit]',e&&e.message||e);window.__toast&&window.__toast("⚠️ Speichern fehlgeschlagen — bitte neu laden","error");}
@@ -31782,13 +31831,14 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         }else{_foto=await _dateiInPhotoQ("fahrzeuge/"+fzId+"/tank/"+_eid+".jpg",tankFoto,{art:"tank",id:fzId,kontext:"Tankbeleg"});window.__toast&&window.__toast(_foto?"📷 Offline — Tankfoto wird hochgeladen, sobald Internet da ist":"📷 Offline — Tankung ohne Foto gespeichert","warn");}/* v3.9.1042 Dateien nur im Speicher: Offline/Fehler legt das Foto in die PhotoQ (isoliert, IndexedDB) - tank_log traegt sofort die Speicher-Adresse, nie Base64; nur wenn auch das scheitert (Geraet voll) wie bisher ohne Foto */
       }else if(tankFoto){_foto=tankFoto;}
       const data={liter:_r.liter,preis:_r.preis,km:_r.km,datum:_r.datum,foto:_foto};
+      const _tkNeu={...data,by:(curUser&&curUser.name)||"",id:_eid,kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
       upd(fzId,f=>{
-        f.tankLog=[{...data,by:(curUser&&curUser.name)||"",id:_eid,kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null},...(f.tankLog||[])];
+        f.tankLog=[_tkNeu,...(f.tankLog||[])];
         /* v3.9.329: bei kmDowngraded Forced-Overwrite des Fahrzeug-km (Admin-Korrektur), sonst nur up. */
         if(_r.kmDowngraded){f.kmStand=_r.km;}
         else if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
         return f;
-      },u=>({tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
+      },u=>({_tankAtomar:{op:"add",eintrag:_tkNeu,kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.1051: _tankAtomar = nur dieser eine Eintrag an fz_tanklog_add; fehlt die Funktion (404), geht der Rest wie bisher. v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
       window.__toast&&window.__toast(_r.kmDowngraded?"⛽ Tankung erfasst · km nach unten korrigiert":"⛽ Tankung erfasst");
       setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
     }finally{window.__addTankInFlight=false;}
@@ -31949,7 +31999,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
        hier nur der Bildschirm-Zustand gefiltert, nach dem Neuladen war die Tankung wieder da. Jetzt derselbe Schreibweg, mit dem
        die App tank_log aendert (addTank): upd mit Diff-PUT nur der tankLog-Spalte ueber die SyncQueue (Wiederholung = gleicher
        Endzustand). Die Warteschlange ist geordnet: ein noch nicht gesendetes tankLog_add laeuft vorher, der PUT danach. */
-    upd(row.fzId,f=>({...f,tankLog:(f.tankLog||[]).filter(t=>!(t&&t.id===rowId))}),u=>({tankLog:u.tankLog}));
+    upd(row.fzId,f=>({...f,tankLog:(f.tankLog||[]).filter(t=>!(t&&t.id===rowId))}),u=>({_tankAtomar:{op:"del",id:rowId},tankLog:u.tankLog}));/* v3.9.1051: am Server nur die id entfernen (fz_tanklog_del); ganzes Array nur noch als Rueckfall, solange die Funktion fehlt */
     setBatchRows(p=>p.filter(r=>r.id!==rowId));
     _optionalChain([window, 'access', _681 => _681.__toast, 'optionalCall', _682 => _682("🗑️ Tankung entfernt")]);
   };
