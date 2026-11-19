@@ -77,10 +77,14 @@ def test_username_konvention_nachname(index_html):
 
 
 def test_kein_erfundenes_standardpasswort(index_html):
-    """Es gibt kein Haus-Initialpasswort im Code — der Admin tippt es (min. 4). Ein vorhersagbares
+    """Es gibt kein Haus-Initialpasswort im Code — der Admin tippt es (seit v3.9.1056 min. PW_MIN_LEN = 8,
+    vorher 4 - eine Mindestlaenge fuer alle Masken, Auth-Pruefung Fund 9). Ein vorhersagbares
     Default-Passwort wäre ein Sicherheitsrisiko und wird NICHT eingebaut."""
     body = _addmonteur(index_html)
-    assert "nf.loginPw.length<4" in body
+    assert "nf.loginPw.length<PW_MIN_LEN" in body
+    assert "const PW_MIN_LEN=8;" in index_html
+    # Das Passwort geht nie in die Warteschlange (v3.9.1056 Fund 10):
+    assert re.search(r"SQ\.push\(\{[^}]*password", body) is None  # nur die Online-RPC traegt es (p_password)
     # Kein hartkodiertes Default-Passwort im Login-Zweig:
     for verdacht in ("Willkommen", "start123", "Passwort1", "changeme", "ep-kolar1"):
         assert verdacht not in body

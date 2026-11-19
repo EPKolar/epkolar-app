@@ -16,9 +16,14 @@ def test_kein_falschgruen_vor_sq_push(index_html):
 
 
 def test_direktsend_via_translateandexec(index_html):
-    assert 'await _translateAndExec("/api/password-reset","POST",{username:_u});setResetMsg("✅ Anfrage an den Admin gesendet.");' in index_html
+    # v3.9.1056 Auth-Pruefung Fund 4: der Direkt-Send aus v3.9.859 war selbst ein Falschgruen - der Handler las
+    # users ANONYM (RLS: immer leer) und meldete trotzdem "gesendet". Jetzt ruft die Maske die RPC
+    # passwort_hilfe_anfragen ueber _passwortHilfeAnfragen; Erfolg nur bei ok:true. Gemessen wird das in
+    # tests/test_auth_haertung_v1056.py (Node fuehrt die echte Funktion aus).
+    assert 'r=await _passwortHilfeAnfragen(_u)' in index_html
+    assert 'setResetMsg("✅ Anfrage an den Admin gesendet.")' not in index_html
     # Fehlerfall wird ehrlich gemeldet (kein grünes OK bei Fehlschlag)
-    assert 'catch(_pre){console.warn(\'[pw-reset]\',_pre&&_pre.message||_pre);setResetMsg("⚠️ Konnte nicht gesendet werden' in index_html
+    assert 'Bitte wende dich direkt an das Büro oder den Admin.' in index_html
 
 
 def test_handler_braucht_keine_user_auth(index_html):
