@@ -199,6 +199,11 @@ table.epk-as-mittel td button { min-width: 44px !important; min-height: 44px !im
 table.epk-wz-mittel th { white-space: nowrap; }
 table.epk-wz-mittel thead th:nth-child(-n+2) { z-index: 2 !important; }
 .kpi-grid.epk-wz-kpi > div > div:nth-child(3) { font-variant-numeric: tabular-nums; }
+/* Stufe 5 Zeiterfassung (GF 19.11.2026): Monteur-Uebersicht am Tablet hochkant als Tabelle - Koepfe brechen nicht um, der klebende Mitarbeiter-Kopf liegt ueber den oben klebenden Nachbarn, jede Zeile (Tipp = Mitarbeiter oeffnen) mindestens 44 px hoch. Ziffern gleich breit in allen Stufen. Die Klassen setzt nur ZeiterfassungView aus _layoutStufe - keine Breitenabfrage hier. */
+table.epk-ze-mittel th { white-space: nowrap; }
+table.epk-ze-mittel thead th:first-child { z-index: 2 !important; }
+table.epk-ze-mittel tbody td { height: 44px; }
+table.epk-ze-tab td { font-variant-numeric: tabular-nums; }
 @media(max-width:600px) { .kpi-grid.epk-leiste { grid-template-columns: repeat(3,1fr) !important; gap: 6px !important; }
   .kpi-grid.epk-leiste > div { padding: 6px 8px !important; }
   .kpi-grid.epk-leiste > div > div:nth-child(3) { font-size: 16px !important; } }
@@ -28063,7 +28068,7 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
 
 // ═══════════ ZEITERFASSUNG — Monteur-Wochenstunden ═══════════
 function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,setEntries,ww,abs,approvals}){/* v3.9.786: abs/approvals (App-Ebene durchgereicht, KEIN neuer Fetch) fuer die Konflikt-Warnung Projektzeit vs. genehmigte Abwesenheit */
-  const isMob=ww<BP_MOB;/* v3.9.653 P3-D: Schwelle 700->600, konsistent zum App-Standard (600-699 rendert jetzt Desktop wie ueberall) */const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
+  const _zeStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_zeStufe==="schmal";const _zeMittel=_zeStufe==="mittel";/* Stufe 5 Zeiterfassung (GF 19.11.2026, "EINE Oberflaeche, drei Breiten-Stufen"): vorher isMob aus ww gegen BP_MOB (v3.9.653 P3-D) - schmal ist dieselbe Grenze (n<BP_MOB). mittel = Tablet hochkant: Wochenkarten dreispaltig, Monteur-Uebersicht Tabelle mit klebender Namensspalte; schmal = Karten. Nur Darstellung - keine Rechnung, Rundung, Speicherung, Freigabe. */const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const _hkZE=_ezHeuteISO();/* v3.9.821: Wiener Datum (DST-sicher), kein rohes new Date() */
   const fieldMA=monteure.filter(m=>m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung"&&!_maIstEhemalig(m,_hkZE));/* v3.9.821: + Austritt (Praedikat woertlich wie fieldM). Geschaeftsfuehrer bewusst NICHT zusaetzlich ausgeschlossen — das waere eine Verhaltensaenderung an einer lohnnahen Ansicht. */
   const curKw=isoW();const curYr=isoWY();const [yr,setYr]=_react.useState.call(void 0, curYr);/* v3.9.127 F2 | v3.9.1012 Jahreswechsel: yr ist ZUSTAND statt bei jedem Render isoWY(). Sonst endete die Navigation an der Jahresgrenze, und ein ueber den 04.01.2027 offener Tab stand auf kw=53 + yr=2027 - eine Woche, die es nicht gibt. curYr = Jahr von HEUTE (Abzeichen, Heute-Knopf). */
@@ -28794,7 +28799,7 @@ ${dayRowsHtml}
   // ── Add Entry Modal ──
   const addModal=(iso,dayIdx)=>{
     const dayLabel=DAYS[dayIdx]+" "+dateFmt(dayIdx);
-    const _im=(typeof window!=="undefined"&&window.innerWidth<BP_MOB);/* v3.9.194 Mobile = Bottom-Sheet */
+    const _im=isMob;/* v3.9.194 Mobile = Bottom-Sheet - Stufe 5: aus _zeStufe (schmal = vorher innerWidth<BP_MOB) */
     return React.createElement('div',{onClick:()=>{setAddDay(null);setEditEntry(null);}/* v3.9.416: Tap-outside schließt (Mobile hat kein ESC; ✕ macht dasselbe) */,style:{position:"fixed",top:"var(--epk-vvt,0px)",left:0,right:0,height:"var(--epk-vvh,100dvh)",boxSizing:"border-box",background:"rgba(0,0,0,.6)",zIndex:9999,display:"flex",alignItems:_im?"flex-end":"center",justifyContent:"center",padding:_im?0:16}}/* Tablet-Rest v1040 (a): Huelle = sichtbarer Ausschnitt (visualViewport), nicht das Layout - sonst liegt die Knopfleiste unter der Bildschirmtastatur */,
       React.createElement('div',{onClick:e=>e.stopPropagation()/* v3.9.416: Klicks im Panel schließen nicht */,onFocus:_dlgFokusSicht,style:{background:V.cd,borderRadius:_im?"16px 16px 0 0":12,border:"1px solid "+V.bd,padding:20,paddingBottom:0,width:"100%",maxWidth:_im?"100%":480,maxHeight:_im?"calc(var(--epk-vvh,100dvh) * .92)":"calc(var(--epk-vvh,100dvh) - 32px)",overflowY:"auto",boxSizing:"border-box"}},
         React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
@@ -28883,6 +28888,15 @@ ${dayRowsHtml}
     );
   };
 
+  /* Stufe 5: Tageszelle der Monteur-Uebersicht fuer die Handy-Karten - dieselben Faelle wie die Tabellenzelle (Abwesenheit genehmigt, fehlt, Stunden), nur gelesen. */
+  const _zeTagZelle=(m,d)=>{const _h=m.dayTotals[d]||0;
+    if(!(_h>0)&&m.absTyp&&m.absTyp[d])return {t:m.absTyp[d].i,title:m.absTyp[d].l+" (genehmigt)",farbe:UI.neutralTxt,gew:800,bg:"transparent"};
+    if(!(_h>0)&&m.fehlt&&m.fehlt[d])return {t:"fehlt",title:"Werktag vorbei – keine Stunden gebucht",farbe:_dark?"#fbbf24":"#b45309",gew:700,bg:_dark?"rgba(245,158,11,.12)":"rgba(245,158,11,.10)"};
+    return {t:_h>0?_hK(_h,2):"—",title:undefined,farbe:_h>=8?_okG("#10b981"):_h>0?V.tx:V.mt,gew:_h>0?700:400,bg:"transparent"};};
+  /* Stufe 5 mittel: Namensspalte klebt links, deckend (sonst scheint beim Querrollen die Nachbarzelle durch). */
+  const _zeKleb=(bg)=>_zeMittel?{position:"sticky",left:0,zIndex:1,background:bg}:{};
+  const _zeStreif=(f)=>"linear-gradient("+f+","+f+"),"+V.cd;
+
   // ── Render ──
   return (
     React.createElement('div',{}
@@ -28950,17 +28964,37 @@ ${dayRowsHtml}
             _zpWarn(),React.createElement('b',{},_mitF.length+" von "+allData.length+" Mitarbeitern"),
             (_mitF.length===1?" hat":" haben")+" vergangene Werktage ohne Buchung ("+_tageF+(_tageF===1?" Tag":" Tage")+" zusammen).",
             React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},"„fehlt“ = Werktag vorbei, keine Stunden gebucht. Genehmigte Abwesenheiten und Feiertage zählen nicht als fehlend, noch nicht genehmigte schon."));})(),
-        React.createElement('div',{style:{overflowX:"auto"}},
-        React.createElement('table',{style:{width:"100%",borderCollapse:"collapse",minWidth:700}},
+        /* Stufe 5 schmal: je Mitarbeiter eine Karte (ganze Karte = Knopf, derselbe Drill-down wie die Tabellenzeile), sieben Tage als Raster - kein Querrollen. */
+        isMob&&React.createElement('div',{'data-ze-uebersicht':"karten",style:{display:"flex",flexDirection:"column",gap:8}},
+          allData.map(m=>React.createElement('button',{key:m.id,type:"button",onClick:()=>{setSelWorker(m.id);setViewAll(false);},style:{display:"block",width:"100%",minHeight:44,boxSizing:"border-box",textAlign:"left",padding:"8px 10px",borderRadius:8,border:"1px solid "+V.bd,background:V.cd,color:V.tx,cursor:"pointer",fontFamily:"inherit",opacity:(m.total>0||m.fehlTage>0)?1:0.5}},
+            React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}},
+              React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:700,fontSize:14,color:V.tx}},m.n,React.createElement('span',{style:{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}},", "),React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:400,marginLeft:6}},m.r)),
+              React.createElement('span',{style:{whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums",fontSize:15,fontWeight:800,color:m.total>=40?_okG("#10b981"):m.total>0?_lesbar("#3b82f6"):V.mt}},m.total>0?_hK(m.total,2)+" h":"—")),
+            React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:2}},
+              DAYS.map(d=>{const z=_zeTagZelle(m,d);return React.createElement('div',{key:d,title:z.title,style:{minWidth:0,textAlign:"center",padding:"2px 0",borderRadius:4,background:z.bg}},
+                React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},d),
+                React.createElement('div',{style:{fontSize:UI.fMeta,fontWeight:z.gew,color:z.farbe,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},z.t));}))
+          )),
+          React.createElement('div',{'data-ze-uebersicht-summe':"1",style:{padding:"8px 10px",borderRadius:8,border:"1px solid rgba(16,185,129,.35)",background:_zeStreif(_dark?"rgba(16,185,129,.1)":"rgba(16,185,129,.06)")}},
+            React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:6}},
+              React.createElement('span',{style:{fontWeight:800,fontSize:14,color:_okG("#10b981")}},"SUMME"),
+              React.createElement('span',{style:{whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums",fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(_gesZE,2)+" h")),
+            React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:2}},
+              DAYS.map(d=>{const t=allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0);return React.createElement('div',{key:d,style:{minWidth:0,textAlign:"center"}},
+                React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},d),
+                React.createElement('div',{style:{fontSize:UI.fMeta,fontWeight:800,color:_okG("#10b981"),fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},t>0?_hK(t,2):"—"));})))
+        ),
+        !isMob&&React.createElement('div',{'data-ze-uebersicht':_zeStufe,style:{overflowX:"auto"}},
+        React.createElement('table',{className:"epk-ze-tab"+(_zeMittel?" epk-ze-mittel":""),style:{width:"100%",borderCollapse:"collapse",minWidth:_zeMittel?0:700}},
           React.createElement('thead',{},React.createElement('tr',{style:{background:"linear-gradient(135deg,#009640,#006e30)"}},
-            React.createElement('th',{style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 6px",textAlign:"left"}},"Mitarbeiter"),
+            React.createElement('th',{style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 6px",textAlign:"left",..._zeKleb("#009640")}},"Mitarbeiter"),
             React.createElement('th',{style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 6px",textAlign:"center"}},"Σ Woche"),
             DAYS.map((d,i)=>React.createElement('th',{key:d,style:{color:"#fff",fontWeight:700,fontSize:13,padding:"8px 4px",textAlign:"center"}},d,React.createElement('br',{}),React.createElement('span',{style:{fontSize:UI.fMeta,opacity:.7}},dateFmt(i))))
           )),
           React.createElement('tbody',{},allData.map((m,idx)=>{
             const hasHours=m.total>0;
             return React.createElement('tr',{key:m.id,style:{borderBottom:"1px solid "+V.bd,background:idx%2?(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):"transparent",cursor:"pointer",opacity:(hasHours||m.fehlTage>0)?1:0.5},onClick:()=>{setSelWorker(m.id);setViewAll(false);}},
-              React.createElement('td',{style:{padding:"8px 6px",fontWeight:700,fontSize:14,color:V.tx}},m.n,React.createElement('span',{style:{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}},", ")/* v3.9.1016 Barrierefreiheit: Vorlesehilfe las 'BargerMonteur' - unsichtbarer Trenner zwischen Name und Rolle */,React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:400,marginLeft:6}},m.r)),
+              React.createElement('td',{style:{padding:"8px 6px",fontWeight:700,fontSize:14,color:V.tx,..._zeKleb(idx%2?_zeStreif(_dark?"rgba(255,255,255,.02)":"rgba(0,0,0,.015)"):V.cd)}},m.n,React.createElement('span',{style:{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}},", ")/* v3.9.1016 Barrierefreiheit: Vorlesehilfe las 'BargerMonteur' - unsichtbarer Trenner zwischen Name und Rolle */,React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:400,marginLeft:6}},m.r)),
               React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:15,fontWeight:800,color:m.total>=40?_okG("#10b981"):m.total>0?_lesbar("#3b82f6"):V.mt}},m.total>0?_hK(m.total,2):"—"),
               DAYS.map(d=>{const _h=m.dayTotals[d]||0;
                 if(!(_h>0)&&m.absTyp&&m.absTyp[d])return React.createElement('td',{key:d,title:m.absTyp[d].l+" (genehmigt)",'aria-label':m.absTyp[d].l,style:{padding:"6px 4px",textAlign:"center",fontSize:UI.fMeta,fontWeight:800,color:UI.neutralTxt}},m.absTyp[d].i);
@@ -28969,7 +29003,7 @@ ${dayRowsHtml}
             );
           })),
           React.createElement('tfoot',{},React.createElement('tr',{style:{background:_dark?"rgba(16,185,129,.1)":"rgba(16,185,129,.06)",borderTop:"2px solid #10b981"}},
-            React.createElement('td',{style:{padding:"8px 6px",fontWeight:800,fontSize:14,color:_okG("#10b981")}},"SUMME"),
+            React.createElement('td',{style:{padding:"8px 6px",fontWeight:800,fontSize:14,color:_okG("#10b981"),..._zeKleb(_zeStreif(_dark?"rgba(16,185,129,.1)":"rgba(16,185,129,.06)"))}},"SUMME"),
             React.createElement('td',{style:{padding:"6px",textAlign:"center",fontFamily:mono,fontSize:16,fontWeight:800,color:_okG("#10b981")}},_hK(_gesZE,2),"h"),
             DAYS.map(d=>{const t=allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0);return React.createElement('td',{key:d,style:{padding:"6px 4px",textAlign:"center",fontFamily:mono,fontSize:14,fontWeight:800,color:_okG("#10b981")}},t>0?_hK(t,2):"—");})
           ))
@@ -28980,7 +29014,7 @@ ${dayRowsHtml}
       ,!viewAll&&selWorker&&React.createElement('div',{},
 
         /* Day columns grid */
-        React.createElement('div',{style:{display:"grid",gridTemplateColumns:isMob?"1fr":(ww<1100?"repeat(3,minmax(0,1fr))":"repeat(6,minmax(0,1fr))"),gap:isMob?8:6,marginBottom:12}}/* v3.9.1016 Tablet: unter 1100 px drei Tage je Zeile - sechs Spalten waren am Tablet (800 px) je ~120 px schmal, der Loeschknopf ragte ueber den Kartenrand */,
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:isMob?"1fr":(_zeMittel?"repeat(3,minmax(0,1fr))":"repeat(6,minmax(0,1fr))"),gap:isMob?8:6,marginBottom:12}}/* v3.9.1016 Tablet: unter 1100 px drei Tage je Zeile - sechs Spalten waren am Tablet (800 px) je ~120 px schmal, der Loeschknopf ragte ueber den Kartenrand */,
           DAYS.map((d,i)=>{
             const iso=isoDate(i);
             const arr=dayEntries[iso]||[];

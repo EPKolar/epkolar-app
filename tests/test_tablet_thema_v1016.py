@@ -111,7 +111,9 @@ def test_ze_knoepfe_44px_und_karten_am_tablet_dreispaltig(index_html):
     ze = _fn(index_html, "ZeiterfassungView")
     assert ze.count('minWidth:44,minHeight:44,padding:"2px 4px",borderRadius:6') == 2
     assert 'minWidth:24,minHeight:24' not in ze
-    assert '(ww<1100?"repeat(3,minmax(0,1fr))":"repeat(6,minmax(0,1fr))")' in ze
+    # Stufe 5 Zeiterfassung (19.11.2026): die eigene Grenze ww<1100 ist in die gemeinsame Stufe gewandert -
+    # drei Spalten in "mittel" (Tablet hochkant), sechs in "breit" (tests/test_stufe_zeiterfassung_v1075.py).
+    assert '(_zeMittel?"repeat(3,minmax(0,1fr))":"repeat(6,minmax(0,1fr))")' in ze
     assert 'whiteSpace:"nowrap"}},entry.von,"–",entry.bis)' in ze
 
 
