@@ -30129,6 +30129,11 @@ var KAMERA_TEST_LS='epk_kameras_test';
 var KAMERA_TAGE=[[1,'Mo'],[2,'Di'],[3,'Mi'],[4,'Do'],[5,'Fr'],[6,'Sa'],[7,'So']];
 var KAMERA_ROLLEN_TXT={admin:'Admin',projektleiter:'Projektleitung',buero:'Büro',lagerleitung:'Lagerleitung'};
 var KAMERA_ANSICHTEN=[['einzel','Einzel'],['2x2','2×2'],['3x3','3×3'],['alle','Alle']];
+/* Phase 2: Adressart je Kamera - entscheidet der Server (kamera_backend.stream_typ), die App zeigt nur an.
+   webrtc/llhls -> Videoelement wie Phase 1; mjpeg -> Bild-Element am Token-Link; snapshot -> Einzelbild alle 2 s,
+   angehalten, solange der Tab verborgen oder die Kachel ausserhalb des Bildes ist. */
+var KAMERA_STREAM_TYPEN=['webrtc','llhls','mjpeg','snapshot'];
+var KAMERA_SNAPSHOT_MS=2000;
 var _kamBackend={fehlt:false,ts:0};
 
 function _kamRolle(user){
@@ -30193,10 +30198,20 @@ function _kamRefreshIn(exp,nowMs){
 function _kamIstHttps(u){return typeof u==='string'&&/^https:\/\/[^\s]+$/.test(u);}
 function _kamStreamAntwort(status,j,scope){
   if(status===200&&j&&typeof j==='object'){
-    var haupt=scope==='aufzeichnung'?j.aufzeichnungUrl:j.liveUrl;
-    if(!_kamIstHttps(haupt))return {ok:false,grund:'fehler'};
-    return {ok:true,liveUrl:scope==='live'?j.liveUrl:'',webrtcUrl:(scope==='live'&&_kamIstHttps(j.webrtcUrl))?j.webrtcUrl:'',
-            aufzeichnungUrl:scope==='aufzeichnung'?j.aufzeichnungUrl:'',exp:Number(j.exp)};
+    var o={ok:true,typ:'',liveUrl:'',webrtcUrl:'',mjpegUrl:'',snapshotUrl:'',aufzeichnungUrl:'',exp:Number(j.exp)};
+    if(scope==='aufzeichnung'){
+      if(!_kamIstHttps(j.aufzeichnungUrl))return {ok:false,grund:'fehler'};
+      o.aufzeichnungUrl=j.aufzeichnungUrl;return o;
+    }
+    /* ohne typ = Phase-1-Antwort = webrtc; unbekannter typ wird nie geladen */
+    var typ=j.typ===undefined?'webrtc':j.typ;
+    if(KAMERA_STREAM_TYPEN.indexOf(typ)<0)return {ok:false,grund:'fehler'};
+    o.typ=typ;
+    if(typ==='mjpeg'){if(!_kamIstHttps(j.mjpegUrl))return {ok:false,grund:'fehler'};o.mjpegUrl=j.mjpegUrl;return o;}
+    if(typ==='snapshot'){if(!_kamIstHttps(j.snapshotUrl))return {ok:false,grund:'fehler'};o.snapshotUrl=j.snapshotUrl;return o;}
+    if(!_kamIstHttps(j.liveUrl))return {ok:false,grund:'fehler'};
+    o.liveUrl=j.liveUrl;o.webrtcUrl=(typ==='webrtc'&&_kamIstHttps(j.webrtcUrl))?j.webrtcUrl:'';
+    return o;
   }
   if(status===404||status===503||status===0)return {ok:false,grund:'kein_backend'};
   if(status===401||status===403)return {ok:false,grund:'kein_zugriff'};
@@ -30217,9 +30232,20 @@ async function _kamStreamHolen(kameraId,scope,geraet){
   return a;
 }
 function _kamPlayerModus(hatRtc,hatHls,a){
+  if(a&&a.typ==='mjpeg'&&a.mjpegUrl)return 'mjpeg';
+  if(a&&a.typ==='snapshot'&&a.snapshotUrl)return 'snapshot';
   if(a&&a.webrtcUrl&&hatRtc)return 'webrtc';
   if(a&&a.liveUrl&&hatHls)return 'hls';
   return 'keiner';
+}
+/* Einzelbild nur holen, wenn der Tab sichtbar ist UND die Kachel im Bild liegt */
+function _kamSnapshotAktiv(versteckt,imBild){return versteckt!==true&&imBild!==false;}
+function _kamSnapshotUrl(url,n){return url+(url.indexOf('?')>=0?'&':'?')+'_='+(Number(n)||0);}
+/* HTTP-Status des Video-Hosts -> Kachelzustand. 404/5xx = go2rtc erreicht die Kamera nicht. */
+function _kamFehlerGrund(st){
+  if(st===401||st===403)return 'kein_zugriff';
+  if(st===404||st===500||st===502||st===503||st===504)return 'offline';
+  return 'fehler';
 }
 async function _kamWhep(video,url){
   var pc=new RTCPeerConnection({});
@@ -30234,7 +30260,7 @@ async function _kamWhep(video,url){
     pc.addEventListener('icegatheringstatechange',function(){if(pc.iceGatheringState==='complete'){clearTimeout(t);fertig();}});
   });
   var r=await fetch(url,_fT({method:'POST',headers:{'Content-Type':'application/sdp'},body:pc.localDescription.sdp},15000));
-  if(!r.ok){try{pc.close();}catch(_c){}throw new Error('whep '+r.status);}
+  if(!r.ok){try{pc.close();}catch(_c){}var we=new Error('whep');we.status=r.status;throw we;}
   await pc.setRemoteDescription({type:'answer',sdp:await r.text()});
   return pc;
 }
@@ -30292,7 +30318,7 @@ function _kamTagesListe(tage,nowMs){
   }
   return out;
 }
-if(typeof window!=='undefined'){window._kamSchalter=_kamSchalter;window._kamRolle=_kamRolle;window._kamRegelPruefen=_kamRegelPruefen;window._kamStreamAntwort=_kamStreamAntwort;}
+if(typeof window!=='undefined'){window._kamSchalter=_kamSchalter;window._kamRolle=_kamRolle;window._kamRegelPruefen=_kamRegelPruefen;window._kamStreamAntwort=_kamStreamAntwort;window._kamPlayerModus=_kamPlayerModus;}
 
 function _kamChip(h,aktiv,label,onClick,titel){
   return h('button',{type:'button',onClick:onClick,'aria-pressed':aktiv?'true':'false',title:titel||undefined,
@@ -30310,17 +30336,33 @@ function _kamHinweis(h,titel,text,knopf){
     knopf?h('div',{key:'k',style:{marginTop:10}},knopf):null]);
 }
 var KAMERA_STUB_TXT={kein_backend:'Kein Video-Backend verbunden',kein_zugriff:'Kein Zugriff zu dieser Zeit',
-  player:'Dieses Gerät kann den Stream nicht abspielen',abbruch:'Verbindung unterbrochen',fehler:'Video nicht verfügbar',laedt:'Verbinde …'};
+  player:'Dieses Gerät kann den Stream nicht abspielen',abbruch:'Verbindung unterbrochen',fehler:'Video nicht verfügbar',laedt:'Verbinde …',
+  offline:'Kamera nicht erreichbar'};
 
 function KameraKachel(props){
   var h=React.createElement;var k=props.kamera;
   var _s=_react.useState.call(void 0,{phase:'laedt',grund:'laedt'});var st=_s[0],setSt=_s[1];
   var _n=_react.useState.call(void 0,0);var neu=_n[0],setNeu=_n[1];
+  var _b=_react.useState.call(void 0,{modus:'',url:''});var bild=_b[0],setBild=_b[1];
+  var _tk=_react.useState.call(void 0,0);var takt=_tk[0],setTakt=_tk[1];
   var vidRef=_react.useRef.call(void 0,null);
+  var boxRef=_react.useRef.call(void 0,null);
+  var imBild=_react.useRef.call(void 0,true);
+  var tickRef=_react.useRef.call(void 0,null);
+  var fehlerRef=_react.useRef.call(void 0,0);
   _react.useEffect.call(void 0,function(){
-    var alive=true;var pc=null;var timer=null;
+    var alive=true;var pc=null;var timer=null;var io=null;
+    function takten(){
+      if(tickRef.current)clearInterval(tickRef.current);
+      tickRef.current=setInterval(function(){
+        if(!alive)return;
+        var versteckt=typeof document!=='undefined'&&document.hidden===true;
+        if(_kamSnapshotAktiv(versteckt,imBild.current))setTakt(function(x){return x+1;});
+      },KAMERA_SNAPSHOT_MS);
+    }
     function schliessen(){
       if(timer){clearTimeout(timer);timer=null;}
+      if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}
       if(pc){try{pc.close();}catch(_c){}pc=null;}
       var v=vidRef.current;
       if(v){try{v.pause();v.removeAttribute('src');v.srcObject=null;v.load();}catch(_v){}}
@@ -30332,12 +30374,15 @@ function KameraKachel(props){
         if(!alive)return;
         if(!b.ok){
           /* Server sagt nein (Zeitfenster vorbei, Regel entzogen): Bild sofort weg. */
-          if(b.grund==='kein_zugriff'){schliessen();setSt({phase:'stub',grund:'kein_zugriff'});}
+          if(b.grund==='kein_zugriff'){schliessen();setBild({modus:'',url:''});setSt({phase:'stub',grund:'kein_zugriff'});}
           else planen(Math.floor(Date.now()/1000)+40,modus);
           return;
         }
         /* HLS: Playlist mit frischem Token neu laden. WebRTC: die laufende Sitzung braucht keins (Token gilt fuer den Aufbau). */
         if(modus==='hls'){var v=vidRef.current;if(v)v.src=b.liveUrl;}
+        /* MJPEG/Einzelbild: neuer Token-Link; der Browser schliesst die alte Verbindung selbst */
+        if(modus==='mjpeg'&&b.mjpegUrl)setBild({modus:'mjpeg',url:b.mjpegUrl});
+        if(modus==='snapshot'&&b.snapshotUrl)setBild({modus:'snapshot',url:b.snapshotUrl});
         planen(b.exp,modus);
       },_kamRefreshIn(exp,Date.now()));
     }
@@ -30345,6 +30390,15 @@ function KameraKachel(props){
       var a=await _kamStreamHolen(k.id,'live',props.geraet);
       if(!alive)return;
       if(!a.ok){setSt({phase:'stub',grund:a.grund});return;}
+      var bm=_kamPlayerModus(false,false,a);
+      if(bm==='mjpeg'||bm==='snapshot'){
+        fehlerRef.current=0;
+        setBild({modus:bm,url:bm==='mjpeg'?a.mjpegUrl:a.snapshotUrl});
+        setSt({phase:'live',grund:''});
+        if(bm==='snapshot')takten();
+        planen(a.exp,bm);
+        return;
+      }
       var v=vidRef.current;if(!v)return;
       var hls=false;try{hls=!!(v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl'));}catch(_h){}
       var modus=_kamPlayerModus(typeof RTCPeerConnection!=='undefined',hls,a);
@@ -30358,21 +30412,37 @@ function KameraKachel(props){
         try{await v.play();}catch(_p){}
         setSt({phase:'live',grund:''});
         planen(a.exp,modus);
-      }catch(e){schliessen();if(alive)setSt({phase:'stub',grund:'fehler'});}
+      }catch(e){schliessen();if(alive)setSt({phase:'stub',grund:_kamFehlerGrund(e&&e.status)});}
+    }
+    if(typeof IntersectionObserver!=='undefined'&&boxRef.current){
+      try{io=new IntersectionObserver(function(es){imBild.current=!!(es[0]&&es[0].isIntersecting);});io.observe(boxRef.current);}catch(_i){io=null;}
     }
     setSt({phase:'laedt',grund:'laedt'});
+    setBild({modus:'',url:''});
     start();
-    return function(){alive=false;schliessen();};
+    return function(){alive=false;schliessen();if(io){try{io.disconnect();}catch(_d){}}};
   },[k.id,props.geraet,neu]);
   var live=st.phase==='live';
+  var mitBild=live&&!!bild.url;
+  var _bildFehler=function(){
+    fehlerRef.current++;
+    /* MJPEG bricht ab = Kamera weg; Einzelbild: erst nach drei Fehlschlaegen in Folge */
+    if(bild.modus==='mjpeg'||fehlerRef.current>=3){
+      if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}
+      setBild({modus:'',url:''});setSt({phase:'stub',grund:'offline'});
+    }
+  };
   return h('div',{style:{minWidth:0,border:'1px solid '+UI.linie,borderRadius:UI.rKarte,overflow:'hidden',background:UI.flaeche}}
-    ,h('div',{style:{position:'relative',width:'100%',aspectRatio:'16 / 9',background:'#0b0d0c'}}
+    ,h('div',{ref:boxRef,style:{position:'relative',width:'100%',aspectRatio:'16 / 9',background:'#0b0d0c'}}
       ,h('video',{ref:vidRef,muted:true,playsInline:true,autoPlay:true,'aria-label':'Live-Bild '+(k.name||''),
-          style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:live?'block':'none'}})
+          style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:(live&&!mitBild)?'block':'none'}})
+      ,mitBild?h('img',{src:bild.modus==='snapshot'?_kamSnapshotUrl(bild.url,takt):bild.url,alt:'Live-Bild '+(k.name||''),
+          referrerPolicy:'no-referrer',decoding:'async',onLoad:function(){fehlerRef.current=0;},onError:_bildFehler,
+          style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block'}}):null
       ,live?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:10,textAlign:'center',color:'#E6EAE7'}}
         ,h('span',{style:{opacity:.8}},_ik('videokamera',28))
         ,h('span',{style:{fontSize:UI.fKlein,fontWeight:600}},KAMERA_STUB_TXT[st.grund]||KAMERA_STUB_TXT.fehler)
-        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend')?h('button',{type:'button',onClick:function(){_kamBackend.fehlt=false;setNeu(neu+1);},
+        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline')?h('button',{type:'button',onClick:function(){_kamBackend.fehlt=false;setNeu(neu+1);},
             style:{...bsS(),color:'#E6EAE7',border:'1px solid #6E7872'}},'Neu verbinden'):null))
     ,h('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',minHeight:44}}
       ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
