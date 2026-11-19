@@ -18,7 +18,7 @@ VARS1 = ("FZ_FRIST_RANG", "FZ_FRIST_ART", "FZ_FRIST_TXT", "FS_KTR_ERGEBNIS", "FS
          "FZ_STAMM_FINANZ", "FZ_STAMM_REIFEN", "FZ_REIFEN_TXT")
 BASIS = ("_fzZahl", "_fzDatumTeile", "_fzTagKey", "_fzTageBis", "_fzTageTxt", "_fzDatumAnz")
 STAMM = ("_fzStammWert", "_fzStammAnzeige", "_fzStammPruef", "_fzStammBody", "_fzStammSpalten")
-FS = ("_fsPlusMonate", "_fsKtrSortiert", "_fsKtrStatus", "_fsKtrFaellig", "_fsKtrNeu")
+FS = ("_maIstEhemalig", "_fsPlusMonate", "_fsKtrSortiert", "_fsKtrStatus", "_fsKtrFaellig", "_fsKtrNeu")
 NOW = "new Date(2026,10,19,10,0,0).getTime()"  # Do 19.11.2026 10:00 Wiener Zeit
 
 
