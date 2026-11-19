@@ -807,6 +807,12 @@ const _api={
     if(!r.ok){const txt=await r.text();throw new Error("PATCH "+table+" "+r.status+": "+txt.substring(0,200));}
     const d=await r.json();return Array.isArray(d)?d[0]:d;
   },
+  /* v1061 Bughunt: patch meldet Erfolg, auch wenn RLS 0 Zeilen durchlaesst (200 + leeres RETURNING -> undefined). patchPruefen ist die AUSDRUECKLICHE Variante: 0 Zeilen = Fehler. Nur dort einsetzen, wo der Nutzer eine ehrliche Rueckmeldung braucht (Urlaubsantrag genehmigen/ablehnen); patch selbst bleibt unveraendert. */
+  async patchPruefen(table,id,data){
+    const d=await _api.patch(table,id,data);
+    if(!d||typeof d!=="object")throw new Error("PATCH "+table+": keine Zeile geändert (keine Berechtigung oder Eintrag nicht mehr vorhanden)");
+    return d;
+  },
   async delete(table,id){
     await window._ensureAuth?.();
     const r=await _authRetry(()=>fetch(SUPABASE_URL+"/rest/v1/"+table+"?id=eq."+encodeURIComponent(id),_fT({method:'DELETE',headers:_sbH()})));
@@ -6086,6 +6092,12 @@ var _ANTRAG_ABS_TYP={pflege:"pflegefrei",sonder:"sonstiges"};
 function _antragAbsTyp(art){var a=String(art==null?"":art);if(typeof AT_T!=="undefined"&&Object.prototype.hasOwnProperty.call(AT_T,a))return a;return _ANTRAG_ABS_TYP[a]||"sonstiges";}
 if(typeof window!=='undefined'){window._antragAbsTyp=_antragAbsTyp;}
 /* v1057 Bughunt Fahrtenbuch: eine neu gespeicherte Fahrt landete IMMER oben in der Liste des angezeigten Monats - auch mit Datum in einem anderen Monat (November offen, Fahrt vom 31.10. nachgetragen). Summe km/Kraftstoff und der XLS-Export 'Fahrtenbuch 2026-11' enthielten sie dann, bis neu geladen wurde. Ausserdem kam von _api.post bei leerer RETURNING-Antwort undefined zurueck; [undefined,...] liess die Liste beim Zeichnen abstuerzen (e.fahrzeug_id). Uebernommen wird jetzt die Server-Zeile oder ersatzweise die gesendete, und nur wenn ihr Datum im angezeigten Monat liegt. */
+/* v1061 Bughunt: Urlaubsantrag stellen - liefert RETURNING keine Zeile (RLS blendet sie aus, leere Antwort), kam undefined in die Liste und antraege.map(a=>a.id) stuerzte das ganze Panel ab. Wie beim Fahrtenbuch faellt der Updater auf die gesendete Zeile zurueck. */
+function _uaNachAntrag(prev,created,item){var row=(created&&typeof created==="object"&&created.id)?created:item;var l=Array.isArray(prev)?prev:[];if(!row)return l;return [row].concat(l.filter(function(x){return !(x&&x.id===row.id);}));}
+/* v1061 Bughunt: Regiebericht-Nummer war saved.length+1 - nach dem Loeschen von #002 aus 001/002/003 bekam der naechste Bericht wieder "003" (zwei Berichte mit derselben Nummer auf Ausdruck/Abrechnung). Jetzt hoechste vorhandene Nummer + 1; nicht-numerische Nummern zaehlen nicht. */
+function _regieNaechsteNr(saved){var mx=0;(Array.isArray(saved)?saved:[]).forEach(function(f){var n=parseInt(String((f&&f.nr)==null?"":f.nr).trim(),10);if(Number.isFinite(n)&&n>mx)mx=n;});return String(mx+1).padStart(3,"0");}
+/* v1061 Bughunt: Ladewache gegen ueberholte Antworten - jeder Ladevorgang zieht eine Nummer; nur die Antwort des JUENGSTEN Aufrufs darf den Zustand setzen (schnelles Monatsblaettern: die langsame Antwort fuer den alten Monat ueberschrieb sonst die neue). */
+function _ladeWache(ref){var n=(ref.current=(ref.current|0)+1);return function(){return ref.current===n;};}
 function _fbNachSpeichern(prev,created,item,month){var row=(created&&typeof created==="object"&&created.id)?created:item;var l=Array.isArray(prev)?prev:[];if(!row||String(row.datum||"").slice(0,7)!==String(month||""))return l;return [row].concat(l);}
 // ═══════════ //@DISPO Rechenkern (pure Functions, testbar) — Vorschlagsplanung Etappe 3 ═══════════
 // Kein optional chaining. Konstanten benannt/konfigurierbar. Alles rein, ohne DOM/State.
@@ -18120,7 +18132,7 @@ function FRegie({p,forms,setForms}){
   const clearF=()=>{setD(_safeJsonParse(JSON.stringify(defD),{}));setEditIdx(null);};
   /* v3.9.34 Sprint-19 V-Form-1: nr-Preservation beim Edit — vorher wurde jede Edit-Operation
      die nr auf saved.length+1 setzen (z.B. 3 saved, edit#1 → nr="004" statt "001"). */
-  const saveE=()=>{const _existingNr=editIdx!==null&&_optionalChain([saved, 'access', _v34a => _v34a[editIdx], 'optionalAccess', _v34b => _v34b.nr]);const entry={...d,pid:p.id,nr:_existingNr||d.nr||String(saved.length+1).padStart(3,"0")};
+  const saveE=()=>{const _existingNr=editIdx!==null&&_optionalChain([saved, 'access', _v34a => _v34a[editIdx], 'optionalAccess', _v34b => _v34b.nr]);const entry={...d,pid:p.id,nr:_existingNr||d.nr||_regieNaechsteNr(saved)};
     /* v3.9.34 Sprint-19 V-Form-2: Empty-Submit Guard — Regiebericht ohne Datum ODER ohne Arbeit ODER ohne Personal-Name verweigern. */
     const _hasArbeit=!!(entry.arbeit&&entry.arbeit.trim());
     const _hasPersonal=Array.isArray(entry.personal)&&entry.personal.some(r=>r&&r.name&&r.name.trim());
@@ -26925,7 +26937,7 @@ function UrlaubsantragPanel({curUser,monteure,users,onOffenCount}){
     try{
       const item={id:_uuid(),worker_id:curUser.monteurId,von:form.von,bis:form.bis,art:form.art,status:'beantragt',kommentar:form.kommentar||null};
       const created=await _api.post('urlaubsantraege',item);
-      setAntraege(prev=>[created,...prev]);
+      setAntraege(prev=>_uaNachAntrag(prev,created,item));
       setShowForm(false);setForm({von:'',bis:'',art:'urlaub',kommentar:''});
       window._showToast?.('Antrag gestellt — wartet auf Genehmigung','success');window._haptic.success();
       try{const tgt=(users||[]).filter(u=>u.role==='admin'||u.role==='projektleiter');for(const u of tgt){await _api.post('notifications',{id:_uuid(),user_id:u.id,type:'absence_new',title:'Urlaubsantrag: '+(curUser.name||curUser.username||'?'),body:form.art+': '+form.von+' bis '+form.bis,read:0,link:'urlaub'});}}catch(e){console.warn('[silent-notif]',e&&e.message||e);}
@@ -26964,7 +26976,7 @@ function UrlaubsantragPanel({curUser,monteure,users,onOffenCount}){
     const grund=status==='abgelehnt'?(prompt('Grund für Ablehnung (optional):')||''):'';
     try{
       const _bv=curUser.name||curUser.username||"";
-      await _api.patch('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()});
+      await _api.patchPruefen('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()});/* v1061 Bughunt: 0 Zeilen (RLS) = Fehler statt falschem "Genehmigt" */
       setAntraege(prev=>prev.map(a=>a.id===id?{...a,status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()}:a));
       window._showToast?.(status==='genehmigt'?'✅ Genehmigt':'❌ Abgelehnt','success');window._haptic.success();
       const ant=antraege.find(a=>a.id===id);if(status==='genehmigt'&&ant){const _me=await _materialisiereAbsence(ant);if(_me&&_me.fehl>0)window._showToast?.('Genehmigt, aber '+_nWort(_me.fehl,'Tag','Tage')+' nicht im Abwesenheitskalender eingetragen - bitte dort prüfen und nachtragen (Urlaubskonto)','warning');}/* v3.9.230 P1: genehmigter Antrag → absences-Werktage materialisieren (sonst kein Resturlaub-Abzug) */if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
@@ -27509,7 +27521,9 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
   // v3.5.110: Mount-Guard gegen setState-after-unmount
   const _mnt=_react.useRef.call(void 0, true);
   _react.useEffect.call(void 0, ()=>()=>{_mnt.current=false;},[]);
+  const _ldSeq=_react.useRef.call(void 0, 0);/* v1061 Bughunt: Ladewache (schnelles Monatsblaettern) */
   const load=async()=>{
+    const _aktuell=_ladeWache(_ldSeq);
     setLoading(true);
     try{
       const from=month+'-01';
@@ -27517,9 +27531,9 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
       const _fbJ=parseInt(month.slice(0,4),10), _fbM=parseInt(month.slice(5,7),10);
       const to=_ymd(new Date(_fbJ,_fbM,1));
       const d=await _api.get('fahrtenbuch','worker_id=eq.'+encodeURIComponent(workerId)+'&datum=gte.'+from+'&datum=lt.'+to+'&order=datum.desc');
-      if(_mnt.current)setEntries(d||[]);
-    }catch(e){if(_mnt.current)window._showToast?.('Fahrtenbuch laden: '+e.message,'error');}
-    if(_mnt.current)setLoading(false);
+      if(_mnt.current&&_aktuell())setEntries(d||[]);
+    }catch(e){if(_mnt.current&&_aktuell())window._showToast?.('Fahrtenbuch laden: '+e.message,'error');}
+    if(_mnt.current&&_aktuell())setLoading(false);
   };
   _react.useEffect.call(void 0, ()=>{load();},[workerId,month]);
   const save=async()=>{
