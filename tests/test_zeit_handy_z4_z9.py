@@ -41,13 +41,14 @@ def test_z4_startansicht_haengt_am_uebersichtsrecht(index_html):
     assert init.startswith("if(!isAdmin)return false;"), init
     # Speicherzugriff faellt bei Ausnahme auf die Uebersicht zurueck, nie auf einen Absturz.
     assert "try{" in init and "catch(_){return true;}" in init, init
-    # Das Tor ist dasselbe wie beim Umschaltknopf.
-    assert "isAdmin&&React.createElement('button',{onClick:()=>{const _nv=!viewAll;setViewAll(_nv);_zeAnsichtMerken(_nv);}" in b
+    # Das Tor ist dasselbe wie bei den Ansichtsknoepfen (A55 19.11.: zwei feste Knoepfe statt Umschalter).
+    assert "isAdmin&&React.createElement('div',{role:\"group\",'aria-label':\"Ansicht\"" in b
+    assert "onClick:()=>{if(viewAll)return;setViewAll(true);_zeAnsichtMerken(true);}" in b
 
 
 def test_z4_merken_nur_am_knopf_nicht_beim_zeilenklick(index_html):
     b = _ze(index_html)
-    assert b.count("_zeAnsichtMerken(") == 1, "genau ein Aufruf: der Umschaltknopf"
+    assert b.count("_zeAnsichtMerken(") == 2, "genau zwei Aufrufe: die beiden Ansichtsknoepfe"
     # Zeilenklick in der Uebersicht ist ein Drill-down und merkt nichts.
     assert "onClick:()=>{setSelWorker(m.id);setViewAll(false);}" in b
 

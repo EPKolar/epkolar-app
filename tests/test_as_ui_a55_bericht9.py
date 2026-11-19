@@ -116,7 +116,8 @@ def test_2_bedingung_rechnet(node_exe, index_html):
 # ---------- 3 ----------
 def _p3(html):
     f = []
-    if "_react.useLayoutEffect.call(void 0, ()=>{if(sub!==\"form\")return;try{const _mp=document.querySelector('.main-pad');if(_mp)_mp.scrollTop=0;window.scrollTo(0,0);}catch(_se){}},[sub,editId]);" not in html:
+    # A55 Vollpruefung 19.11.: der Formularkopf rollt selbst ins Bild (Uebersicht kann darueber stehen); Rueckfall weiter nach oben
+    if "_react.useLayoutEffect.call(void 0, ()=>{if(sub!==\"form\")return;try{const _af=document.querySelector('[data-as-form=\"1\"]');if(_af&&_af.scrollIntoView){_af.scrollIntoView({block:\"start\"});}else{const _mp=document.querySelector('.main-pad');if(_mp)_mp.scrollTop=0;window.scrollTo(0,0);}}catch(_se){}},[sub,editId]);" not in html             or "key: \"as-form\", 'data-as-form': \"1\"" not in html:
         f.append("Formular springt nicht nach oben")
     m = re.search(r"'data-as-abbrechen-unten': \"1\".{0,400}", html)
     if not m or 'onClick: ()=>{setSub("liste");setEditId(null);}' not in m.group(0) or '_asIk("kreuz","Abbrechen")' not in m.group(0):
