@@ -121,7 +121,15 @@ S_HIST = {
     "histZeit": ("const workers=[...workerIds].map(wid=>{const m=(monteure||MONT)"
                  ".find(x=>x.id===wid);",
                  "a.name.localeCompare(b.name));"),
-    "kalenderListe": ("(isAdmin?names:names.filter(m=>m===myMonteurName))",
+    # v3.9.1049 (Sebastian 19.11.: "Aliti und Cracana gibt es nicht mehr"):
+    # die Personen-Pillen des Kalenders fuehren einen Ausgetretenen nur noch,
+    # wenn der GEZEIGTE Monat am/vor seinem Austritt beginnt ODER er in diesem
+    # Monat Abwesenheiten hat (oder gerade ausgewaehlt ist). Die v931-Ausnahme
+    # "Kalenderliste fuehrt ihn immer" ist damit abgeloest; die Historie bleibt
+    # ueber den Monat erreichbar, in dem er Eintraege hat.
+    "absAb": ("const _absAb=(nm,ab)=>{", "_maIstEhemalig(o,ab));};"),
+    "absImMonat": ("const _absMonAb=", "+_absMonAb));"),
+    "kalenderListe": ("(isAdmin?names.filter(m=>_absImMonat(m)||m===sel):names.filter(m=>m===myMonteurName))",
                       "m===myMonteurName))"),
 }
 
@@ -307,7 +315,18 @@ AUS.hist_zeit = (function(workerIds){
 %(histZeit)s
   return workers.map(function(w){ return w.name; });
 })(["w2","w1"]);
-AUS.kalender_liste = %(kalenderListe)s;
+function _kal(yr, mo, abs, sel){
+  %(absAb)s
+  %(absImMonat)s
+  return %(kalenderListe)s;
+}
+var _NACH = _tag(40);
+var _GEST = _tag(-1);
+AUS.kalender_spaeter = _kal(+_NACH.slice(0,4), +_NACH.slice(5,7)-1, {}, "");
+var _absD = {}; _absD["%(EHEMALIG)s_" + _NACH.slice(0,7) + "-05"] = {type:"krankenstand"};
+AUS.kalender_daten = _kal(+_NACH.slice(0,4), +_NACH.slice(5,7)-1, _absD, "");
+AUS.kalender_monat = _kal(+_GEST.slice(0,4), +_GEST.slice(5,7)-1, {}, "");
+AUS.kalender_sel = _kal(+_NACH.slice(0,4), +_NACH.slice(5,7)-1, {}, "%(EHEMALIG)s");
 """
 
 R_ZUW = """
@@ -470,10 +489,15 @@ def test_3_historie_loest_den_namen_weiterhin_auf(tmp_path):
     assert "?" not in aus["hist_zeit"], (
         "Ein Zeiteintrag loest auf '?' auf - der Name ist weg: %r"
         % (aus["hist_zeit"],))
-    assert EHEMALIG in aus["kalender_liste"], (
-        "Die Kalender-/Reportliste in AbsView fuehrt den Ausgetretenen nicht "
-        "mehr - wer seine alten Krankenstaende sucht, kommt nicht mehr hin: %r"
-        % (aus["kalender_liste"],))
+    # v3.9.1049: Kalender-Pillen nach Monat (siehe S_HIST)
+    assert EHEMALIG not in aus["kalender_spaeter"], (
+        "Ein Monat NACH dem Austritt ohne Eintraege fuehrt den Ausgetretenen "
+        "noch als Pille: %r" % (aus["kalender_spaeter"],))
+    assert AKTIV in aus["kalender_spaeter"]
+    for k in ("kalender_daten", "kalender_monat", "kalender_sel"):
+        assert EHEMALIG in aus[k], (
+            "Historie verloren (%s): ein Monat mit Eintraegen, der Austrittsmonat "
+            "oder die aktuelle Auswahl muss ihn fuehren: %r" % (k, aus[k]))
 
 
 # ================================================================ RIEGEL 4
@@ -555,6 +579,20 @@ def test_5c_gegenprobe_werkzeug_fahrer_und_erwaehnung_boten_ihn_an(tmp_path):
     # Was schon vorher richtig war, darf die Umkehr nicht verfaelschen.
     assert EHEMALIG in aus["zuw_eigene"], (
         "Ausnahme 1 galt auch vorher schon - die Umkehr darf sie nicht drehen.")
+
+
+def test_5d_gegenprobe_die_alte_kalenderliste_fuehrte_ihn_immer(tmp_path):
+    """Die v931-Form `(isAdmin?names:...)` IM SPEICHER zurueckgebaut: der
+    Ausgetretene steht dann auch im Monat nach dem Austritt ohne Eintraege."""
+    neu = "(isAdmin?names.filter(m=>_absImMonat(m)||m===sel):names.filter(m=>m===myMonteurName))"
+    alt_ausdruck = "(isAdmin?names:names.filter(m=>m===myMonteurName))"
+    alt = _umgekehrt(INDEX.read_text(encoding="utf-8"), [(neu, alt_ausdruck)])
+    s_alt = dict(S_HIST)
+    s_alt["kalenderListe"] = (alt_ausdruck, "m===myMonteurName))")
+    aus = _lauf(alt, tmp_path, "alt_kal.js", [R_HIST], [s_alt])
+    assert EHEMALIG in aus["kalender_spaeter"], (
+        "Die alte Kalenderliste MUSS den Ausgetretenen gefuehrt haben - sonst "
+        "misst Riegel 3 nichts: %r" % (aus["kalender_spaeter"],))
 
 
 def test_6_die_beiden_praedikate_stehen_unveraendert_im_code():

@@ -312,7 +312,9 @@ def test_gegenprobe_ticket_ebene_alt_zeigt_die_erste_ebene(tmp_path):
 # auf entry.worker. Gehoert dieser Monteur nicht (mehr) zur Zuweisung, fiel der
 # Wert aus dem Vorrat - und das Feld zeigte den ERSTEN Zugewiesenen. Im Browser
 # gemessen als Buero: acht Stunden auf M9, das Feld sagte "Aktiv Anton".
-MT_ANKER = ('_mtMitGetragenem(allWorkers,(monteure||MONT),'
+# v3.9.1049: der Vorrat ist auf "am gebuchten Tag noch da" gefiltert
+# (_wpMaSichtbarAmTag) - der getragene Wert bleibt unveraendert drin.
+MT_ANKER = ('_mtMitGetragenem(allWorkers.filter(w=>_wpMaSichtbarAmTag(w,addDay)),(monteure||MONT),'
             '_vzIsField?_vzMid:addWorker)')
 MT_FAELLE = [
     ("zugewiesener Monteur", "M1"),
