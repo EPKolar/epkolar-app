@@ -5399,6 +5399,13 @@ function _fzPickerlFaellig(f){const _pkSt=window._pickerlStatus(f.pickerl);retur
 function _fzServiceFaellig(f){if(!f.naechstService)return false;const d=new Date(f.naechstService+"T00:00:00");return d<=new Date();}
 function _fzFaelligkeit(liste){var a=(liste||[]).filter(function(f){return f&&f.status!=="stillgelegt";});var pk=a.filter(_fzPickerlFaellig),sv=a.filter(_fzServiceFaellig);var ids=new Set(pk.concat(sv).map(function(f){return f.id||f.kennzeichen;}));return {pickerl:pk,service:sv,fahrzeuge:ids.size};}
 function _wzKalibFaellig(w){if(!w)return false;if(w.status==='kalibrierung')return true;return _isValidKalibDate(w.naechsteKalib)&&w.naechsteKalib<=td2();}
+/* v3.9.1049 Werkzeuge-Bedienung (Monteur am Telefon, Buero am Tablet): reine Helfer - EINE Quelle fuer Suche, "Bei mir" und Chip-Filter. Suche faltet ueber _matFold (dieselbe Umlaut-Faltung wie die Materialsuche: "saege", "säge" und "sage" finden dasselbe); jedes Wort muss vorkommen (UND). Felder: Name, Inventar-Nr., Seriennr., Barcode, Kategorie, Standort, Notizen, Person. "Bei mir" = zugewiesen an die eigene Monteur-Id (curUser.monteurId) - ohne Id gibt es kein "mein". _wzStartChip: Monteure (ohne wz_edit) mit Monteur-Id landen auf "Bei mir"; ein gespeichertes "meine" ohne Id faellt auf "alle" zurueck (sonst leere Liste ohne sichtbaren Grund). _wzKlebTop: Klebe-Kante der Suchleiste je Breite - bis 600 px rollt .main-pad mit 10 px Innenabstand, bis 1199 px mit 20 px (Chrome klebt an der Inhaltskante, siehe Wochenplan-Kopf); ab 1200 rollt das Dokument, dort klebt nichts (null). */
+function _wzSuchText(w,person){if(!w)return "";var k=WZ_KAT[w.kat];return _matFold([w.name,w.inventarnr,w.seriennr,w.barcode,k&&k.l,w.standort,w.notizen,person].filter(function(x){return x!=null&&x!=="";}).join(" "));}
+function _wzSuchTreffer(w,q,person){var t=_matFold(q).trim();if(!t)return true;var h=_wzSuchText(w,person);return t.split(/\s+/).every(function(x){return h.indexOf(x)>=0;});}
+function _wzIstMeins(w,mid){return !!(w&&mid&&w.zugewiesen===mid);}
+function _wzChipPasst(w,chip,mid){if(!w)return false;if(chip==="meine")return _wzIstMeins(w,mid);if(chip==="verfuegbar"||chip==="ausgegeben"||chip==="reparatur"||chip==="verloren")return w.status===chip;if(chip==="kalib_faellig")return _wzKalibFaellig(w);return true;}
+function _wzStartChip(gespeichert,feld,mid){if(feld&&mid)return "meine";if(gespeichert==="meine"&&!mid)return "alle";return gespeichert||"alle";}
+function _wzKlebTop(ww){return ww<=600?-10:(ww<1200?-20:null);}
 /* v1016: ISO-Zeitstempel "2026-11-16 10:11" / "2026-11-16T10:11" als "16.11.2026 10:11" - nur Anzeige (Sync-Zeile, Suche). */
 const _datumDE=v=>{var t=String(v==null?"":v);var m=/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2}))?/.exec(t);if(!m)return t;return m[3]+"."+m[2]+"."+m[1]+(m[4]?" "+m[4]:"");};
 const _fdtC={};const fdt=d=>{if(!d)return"";if(_fdtC[d])return _fdtC[d];const r=new Date(d+"T00:00:00").toLocaleDateString("de-AT");_fdtC[d]=r;return r;};
@@ -32364,7 +32371,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const [editId,setEditId]=_react.useState.call(void 0, null);const [form,setForm]=_react.useState.call(void 0, {});
   const [wzServiceSel,setWzServiceSel]=_react.useState.call(void 0, "");
   // v3.8.60 Phase 4.1: Werkzeug-Filter-Chips (Alle/Verfügbar/Ausgegeben/Kalibrierung/Defekt)
-  const [werkStatusFilter,setWerkStatusFilter]=_react.useState.call(void 0, ()=>_wkzFilterLoad("werkStatusFilter","alle"));
+  const _wzMid=(curUser&&curUser.monteurId)||"";const _wzFeld=!canDo("wz_edit",curUser);/* v3.9.1049: _wzMid steht VOR jedem Verbraucher (_matchesChip laeuft schon im useMemo unten - das spaetere _myMid waere dort noch in der TDZ). _wzFeld = Monteur-Sicht (kein Ausgeben an andere); reine Anzeige, die Rechte bleiben bei canDo. */
+  const [werkStatusFilter,setWerkStatusFilter]=_react.useState.call(void 0, ()=>_wzStartChip(_wkzFilterLoad("werkStatusFilter","alle"),_wzFeld,_wzMid));
   _react.useEffect.call(void 0, ()=>{_wkzFilterSave("werkStatusFilter",werkStatusFilter);},[werkStatusFilter]);
   // v3.8.60 Phase 4.2: Multi-Select Bulk-Edit (Status/Monteur/Standort)
   const [selectedIds,setSelectedIds]=_react.useState.call(void 0, []);
@@ -32433,30 +32441,27 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   // v3.8.60 Phase 4.1: Chip-Filter-Predicate (Verfügbar/Ausgegeben/Kalibrierung fällig/Defekt)
   // NB: WZ_STATUS-key für "Defekt" ist 'verloren' (Label: "Verloren/Defekt"). DB-Convention beibehalten.
   const _matchesChip=(w)=>{
-    if(werkStatusFilter==='alle')return true;
-    if(werkStatusFilter==='verfuegbar')return w.status==='verfuegbar';
-    if(werkStatusFilter==='ausgegeben')return w.status==='ausgegeben';
-    if(werkStatusFilter==='verloren')return w.status==='verloren';
-    if(werkStatusFilter==='kalib_faellig'){return _wzKalibFaellig(w);}/* v3.9.899: eine Quelle statt Nachbau. Der alte Kommentar berief sich auf "konsistent mit L18012+L18037" - beide Zeilennummern gibt es nicht mehr, und konsistent war es nie: Abzeichen, Scan-Karte und Zeilenfaerbung antworteten anders. */
-    return true;
+    return _wzChipPasst(w,werkStatusFilter,_wzMid);/* v3.9.1049: eine Quelle (_wzChipPasst) statt Kette - dazu "Bei mir" und "In Reparatur". kalib_faellig zaehlt weiter ueber _wzKalibFaellig, nicht ueber den Status. */
   };
   // v3.8.60 Phase 4.1: Counter pro Chip (memoized — werkzeuge kann groß werden)
   const _chipCounts=_react.useMemo.call(void 0, ()=>{
-    const cnt={alle:_wzPool.length,verfuegbar:0,ausgegeben:0,kalib_faellig:0,verloren:0};
+    const cnt={alle:_wzPool.length,verfuegbar:0,ausgegeben:0,kalib_faellig:0,verloren:0,reparatur:0,meine:0};
     for(const w of _wzPool){
       if(w.status==='verfuegbar')cnt.verfuegbar++;
       if(w.status==='ausgegeben')cnt.ausgegeben++;
       if(w.status==='verloren')cnt.verloren++;
       if(_wzKalibFaellig(w))cnt.kalib_faellig++;
+      if(w.status==='reparatur')cnt.reparatur++;
+      if(_wzMid&&w.zugewiesen===_wzMid)cnt.meine++;
     }
     return cnt;
-  },[_wzPool]);
+  },[_wzPool,_wzMid]);
   // Filter — v3.9.80 S55-1 useMemo: filter über pool incl. monteure-find (.find pro Werkzeug → O(n*m)) — bei Search-Tastatur lag möglich
   const filtered=_react.useMemo.call(void 0, ()=>_wzPool.filter(w=>{
     if(!_matchesChip(w))return false;
     if(filtSt&&w.status!==filtSt)return false;
     if(filtKat&&w.kat!==filtKat)return false;
-    if(search){const s=search.toLowerCase();/* v3.9.84 Sprint-63.4: Defensive ||"" guards — verhindert "undefined" im Such-Token. */return ((w.name||"")+(w.seriennr||"")+(w.inventarnr||"")+(w.notizen||"")+(_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"")).toLowerCase().includes(s);}
+    if(search){/* v3.9.1049: umlaut-tolerant, Woerter UND-verknuepft, auch Kategorie/Standort/Barcode (_wzSuchTreffer). */return _wzSuchTreffer(w,search,_optionalChain([monteure, 'access', _749 => _749.find, 'call', _750 => _750(m=>m.id===w.zugewiesen), 'optionalAccess', _751 => _751.n])||"");}
     return true;
   }),[_wzPool,_matchesChip,filtSt,filtKat,search,monteure]);
   // v3.8.60 Phase 4.2: SelectAll-Helper (depends on filtered)
@@ -32507,8 +32512,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const wzSelfIn=(id)=>{const w=_wzRef.current.find(x=>x.id===id);if(!w)return;const _own=w.zugewiesen===_myMid&&!!_myMid;if(!_own&&!canDo("wz_edit",curUser)){if(window.__toast)window.__toast("⚠️ Nur eigene Geräte zurückgebbar","warn");return;}const _patch={status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"};setWerkzeuge(p=>p.map(x=>x.id===id?{...x,..._patch}:x));setScannedWz(p=>(p&&p.id===id)?{...p,..._patch}:p);SQ.push({url:"/api/werkzeuge/"+id,method:"PUT",body:_patch});if(window.__toast)window.__toast("✅ "+(w.name||"Gerät")+" zurückgegeben");_optionalChain([pushNotif,'optionalCall',_wsi=>_wsi("tool_checkout","📥 Werkzeug zurück",(w.name||"Gerät")+" zurück ins Lager (Self-Service)")]);};
   /* Pro-Werkzeug Schnell-Button (1 Klick) — verfuegbar→Ausleihen, eigenes→Zurueckgeben, sonst null. */
   const _wzQuickBtn=(w)=>{if(!w)return null;
-    if(w.status==="verfuegbar"&&_myMid)return React.createElement('button',{onClick:e=>{e.stopPropagation();wzSelfOut(w.id);},style:{...bpS,padding:"5px 12px",fontSize:UI.fMeta,whiteSpace:"nowrap",minHeight:isMob?34:0}},"Ausleihen");
-    if(w.status==="ausgegeben"&&(w.zugewiesen===_myMid&&!!_myMid||canDo("wz_edit",curUser)))return React.createElement('button',{onClick:e=>{e.stopPropagation();wzSelfIn(w.id);},style:{...bgS,padding:"5px 12px",fontSize:UI.fMeta,whiteSpace:"nowrap",minHeight:isMob?34:0}},(w.zugewiesen===_myMid&&!!_myMid)?"Zurückgeben":"Zurück");
+    if(w.status==="verfuegbar"&&_myMid)return React.createElement('button',{onClick:e=>{e.stopPropagation();wzSelfOut(w.id);},style:{...bpS,padding:"5px 12px",fontSize:isMob?15:UI.fMeta,whiteSpace:"nowrap",minHeight:isMob?48:44}},"Ausleihen");
+    if(w.status==="ausgegeben"&&(w.zugewiesen===_myMid&&!!_myMid||canDo("wz_edit",curUser)))return React.createElement('button',{onClick:e=>{e.stopPropagation();wzSelfIn(w.id);},style:{...bgS,padding:"5px 12px",fontSize:isMob?15:UI.fMeta,whiteSpace:"nowrap",minHeight:isMob?48:44}},(w.zugewiesen===_myMid&&!!_myMid)?"Zurückgeben":"Zurück");
     return null;};
 
   // CSV Export
@@ -32586,14 +32591,26 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
   const scanCheckin=(wzId)=>{if(!canDo("wz_edit",curUser))return;const wn=_optionalChain([werkzeuge, 'access', _786 => _786.find, 'call', _787 => _787(x=>x.id===wzId), 'optionalAccess', _788 => _788.name])||"Gerät";const _patch={status:"verfuegbar",zugewiesen:"",projekt:"",standort:"Lager"};setWerkzeuge(p=>p.map(w=>w.id===wzId?{...w,..._patch}:w));SQ.push({url:"/api/werkzeuge/"+wzId,method:"PUT",body:_patch});setScannedWz(p=>p?{...p,..._patch}:p);setScanMsg("✅ Zurück ins Lager");_optionalChain([pushNotif, 'optionalCall', _789 => _789("tool_checkout","📥 "+wn+" zurück",wn+" zurück ins Lager (QR-Scan)")]);};
   const scanToRepair=(wzId)=>{if(!canDo("wz_edit",curUser))return;const wn=_optionalChain([werkzeuge, 'access', _790 => _790.find, 'call', _791 => _791(x=>x.id===wzId), 'optionalAccess', _792 => _792.name])||"Gerät";const _patch={status:"reparatur",standort:"Werkstatt/Service"};setWerkzeuge(p=>p.map(w=>w.id===wzId?{...w,..._patch}:w));SQ.push({url:"/api/werkzeuge/"+wzId,method:"PUT",body:_patch});setScannedWz(p=>p?{...p,..._patch}:p);setScanMsg("🔧 In Reparatur gesetzt");_optionalChain([pushNotif, 'optionalCall', _793 => _793("tool_checkout","🔧 "+wn+" in Reparatur",wn+" → Werkstatt/Service (QR-Scan)")]);};
 
+  /* v3.9.1049 EIN Suchfeld fuer Liste, Ein/Aus und Service (derselbe Suchbegriff - wer in der Liste "hilti" tippt, findet es auch beim Ausgeben). Bis 1199 px klebt es oben (_wzKlebTop), am Telefon 48 px hoch und 16 px Schrift (kein Zoom-Sprung), mit Leeren-Knopf. */
+  const _wzKleb=_wzKlebTop(ww);
+  const _wzSuchFeld=(ph)=>React.createElement('div', { 'data-wz-suche': "1", style: {display:"flex",gap:6,marginBottom:10,alignItems:"center",...(_wzKleb!=null?{position:"sticky",top:_wzKleb,zIndex:3,background:V.bg,paddingTop:8,paddingBottom:8}:{})}}
+    , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: ph, 'aria-label': "Werkzeug suchen", inputMode: "search", enterKeyHint: "search", autoComplete: "off", style: {...II(),flex:1,minWidth:0,fontSize:isMob?16:14,minHeight:isMob?48:44}, className: "epk-suche"} )
+    , search&&React.createElement('button', { onClick: ()=>setSearch(""), title: "Suche leeren", 'aria-label': "Suche leeren", style: {...bsS(),minWidth:isMob?48:44,minHeight:isMob?48:44,padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}, _ik("kreuz",18))
+  );
+  /* v3.9.1049 Ein/Aus: dieselben Listen wie bisher (status verfuegbar / ausgegeben), nur durch die Suche gefiltert. Ohne Suche rendert die Ausgabeliste hoechstens _WZ_CO_MAX Zeilen (289 Geraete mit je einer Monteur-Auswahl lagen sonst auf dem Telefon) - der Rest wird mit Zahl genannt, nicht verschwiegen. */
+  const _WZ_CO_MAX=40;
+  const _coFrei=werkzeuge.filter(w=>w.status==="verfuegbar"&&_wzSuchTreffer(w,search,""));
+  const _coAus=werkzeuge.filter(w=>w.status==="ausgegeben"&&_wzSuchTreffer(w,search,_optionalChain([monteure, 'access', _cop1 => _cop1.find, 'call', _cop2 => _cop2(m=>m.id===w.zugewiesen), 'optionalAccess', _cop3 => _cop3.n])||""));
   // Zustand Stars
   const Stars=({val,onChange})=>(React.createElement('div', { style: {display:"flex",gap:2}}, [1,2,3,4,5].map(i=>(React.createElement('span', { key: i, role: (onChange?()=>onChange(i):undefined)?"button":undefined, tabIndex: (onChange?()=>onChange(i):undefined)?0:undefined, onKeyDown: e=>{if(e.target!==e.currentTarget)return;const _h=(onChange?()=>onChange(i):undefined);if(_h&&(e.key==="Enter"||e.key===" ")){e.preventDefault();_h(e);}}, onClick: onChange?()=>onChange(i):undefined, "aria-label": onChange?(i+" von 5"):undefined, title: onChange?(i+" von 5"):undefined, style: {cursor:onChange?"pointer":"default",fontSize:16,display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:onChange?24:0,minHeight:onChange?24:0,color:i<=val?_lesbar("#eab308"):V.mt}}, i<=val?"★":"☆")))));
 
   return (React.createElement('div', {}
     , React.createElement('div', { className: "header-row", style: {marginBottom:12}}
-      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, _ikT("werkzeug","Werkzeuge & Geräte")   ), React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geräte erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))
+      , React.createElement('div', {}, React.createElement('h2', { style: {fontSize:isMob?18:22,fontWeight:800,margin:0}}, _ikT("werkzeug","Werkzeuge & Geräte")   ), !isMob&&React.createElement('p', { style: {color:V.dm,fontSize:13,margin:0}}, "Geräte erfassen, Check-In/Out per Barcode, Service-Termine und Kalibrierung verwalten."    ))/* v3.9.1049: am Telefon zwei Zeilen Erklaertext weniger - der Platz gehoert der Liste. */
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,flexWrap:"wrap"}}
         , isAdmin&&React.createElement('button', { onClick: openNew, style: bpS}, "+ Neues Gerät"  )
+        /* v3.9.1049: die haeufigste Monteur-Handlung (Geraet am Code erkennen, ausleihen/zurueckgeben) als Hauptknopf oben - nicht nur als kleiner Reiter. */
+        , _wzFeld&&sub!=="scan"&&React.createElement('button', { onClick: switchToScan, style: {...bpS,minHeight:48,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8}}, _ikVw("kamera","QR-Code scannen"))
         /* v3.9.340: Werkzeug-Labels-Button — Render-Gate (admin/PL/buero/lagerleitung), Status-Filter (stillgelegt+verloren raus per default), Toggle "Stillgelegte/verlorene einblenden" daneben. */
         , _isVAdminWz&&React.createElement('button', { onClick: ()=>{const _list=wzShowDecommissioned?werkzeuge:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status));printLabels(_list.map(w=>({name:w.name,code:w.inventarnr,inventarnr:w.inventarnr})),"Werkzeug-Labels");}, style: bsS(), title: ""+(wzShowDecommissioned?werkzeuge.length:werkzeuge.filter(w=>!["stillgelegt","verloren"].includes(w.status)).length)+" Werkzeuge werden gedruckt"+(wzShowDecommissioned?" (inkl. stillgelegt/verloren)":" (ohne stillgelegt/verloren)")+". Count wird beim Klick im Toast angezeigt."}, "Labels" )
         /* Handy-Befund W3 (14.11.2026): der Schalter stand als nackter Text da und versprach "einblenden" - er wirkt aber NUR auf den Label-Druck (wzShowDecommissioned wird ausschliesslich im Labels-Knopf gelesen). Jetzt als Schalter-Chip mit 44 px und ehrlicher Beschriftung. */
@@ -32605,7 +32622,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('button', { onClick: ()=>window.print(), style: xBtn("pdf"), title: "Drucken / als PDF speichern"}, _ikVw("drucker","PDF") )/* v3.9.318 */
       )
     )
-    , React.createElement('div', { className: "kpi-grid", style: {marginBottom:_wzRestTeile.length?6:14}}
+    , !(isMob&&_wzFeld)&&React.createElement('div', { className: "kpi-grid", style: {marginBottom:_wzRestTeile.length?6:14}}/* v3.9.1049: Bestandskacheln (Gesamtwert, Service faellig) sind Buero-/Lagerinformation; am Monteur-Telefon schoben sie die eigene Liste um einen Bildschirm nach unten. */
       /* v3.9.81 SPRINT-60 F-9 Tooltips-R2: KPI-Hover-Tooltips (Sprint 44 standard). */
       , React.createElement(Kpi, { label: "Gesamt", value: werkzeuge.length, sub: _eurKachel(totalWert)+" Wert"+(()=>{const _n=werkzeuge.filter(w=>w.wert>0).length;return (_n&&_n<werkzeuge.length)?" ("+_n+" bewertet)":"";})(), color: "#d97706", i: 0, title: "Gesamtanzahl aller im Inventar erfassten Werkzeuge inkl. ausgegebener und reparaturbedürftiger Geräte."} )
       , React.createElement(Kpi, { label: "Verfügbar", value: stCounts.verfuegbar||0, sub: "im Lager" , color: _okG("#22c55e"), i: 1, title: "Werkzeuge im Lager, sofort einsatzbereit (Status: verfügbar)."} )
@@ -32613,7 +32630,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , React.createElement(Kpi, { label: "Service fällig" , value: kalibFaellig, sub: (stCounts.reparatur||0)+" in Reparatur", color: kalibFaellig>0?"#ef4444":_okG("#22c55e"), i: 3, title: "Geräte mit fälliger oder überfälliger Kalibrierung/Wartung (nach Datum - zählt unabhängig vom Status, ist also kein Teil der Summe)."} )
     )
     /* Handy-Befund W2: die Summe sichtbar machen - Gesamt = Verfuegbar + Ausgegeben + In Reparatur + diese Zeile. */
-    , _wzRestTeile.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:14,lineHeight:1.4}}, "Außerdem im Gesamtbestand: ", _wzRestTeile.join(" · "))
+    , !(isMob&&_wzFeld)&&_wzRestTeile.length>0&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:14,lineHeight:1.4}}, "Außerdem im Gesamtbestand: ", _wzRestTeile.join(" · "))
     /* Handy-Befund W4: am Telefon trugen die Reiter nur ein Emoji. Jetzt mit Kurztext (t.k) und Umbruch statt Querrollen
        (eine quer rollende Leiste verbraucht die Wischgeste, siehe v3.9.948 D5). title/aria-label bleiben der volle Name. */
     , React.createElement('div', { className: "tab-bar", style: {borderBottom:"2px solid "+V.bd,marginBottom:14,flexWrap:"wrap",overflowX:"visible"}}
@@ -32624,7 +32641,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     , sub==="scan"&&(React.createElement('div', {}
       , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:14}}
         /* Camera / Scanner */
-        , React.createElement('div', { style: {...CC(),borderColor:"rgba(217,119,6,.2)"}}
+        , React.createElement('div', { style: {...CC()}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:12}}, "QR-Code scannen"  )
           , !scanning&&!scannedWz&&(React.createElement('div', {}
             , React.createElement('button', { onClick: startScan, style: {...bpS,width:"100%",padding:"18px 20px",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:14}}, _ikVw("kamera","Kamera starten")  )
@@ -32639,10 +32656,10 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               , React.createElement('video', { ref: videoRef, style: {width:"100%",display:"block",borderRadius:10}, playsInline: true, autoPlay: true, muted: true} )
               /* Scan overlay */
               , React.createElement('div', { style: {position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}
-                , React.createElement('div', { style: {width:"60%",height:"60%",border:"3px solid #d97706",borderRadius:12,boxShadow:"0 0 0 9999px rgba(0,0,0,.4)"}} )
+                , React.createElement('div', { style: {width:"60%",height:"60%",border:"3px solid "+UI.marke,borderRadius:12,boxShadow:"0 0 0 9999px rgba(0,0,0,.4)"}} )
               )
               , React.createElement('div', { style: {position:"absolute",bottom:8,left:0,right:0,textAlign:"center"}}
-                , React.createElement('span', { style: {background:"rgba(0,0,0,.7)",color:"#d97706",padding:"4px 12px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600}}, "QR-Code in den Rahmen halten"    )
+                , React.createElement('span', { style: {background:"rgba(0,0,0,.7)",color:"#fff",padding:"4px 12px",borderRadius:6,fontSize:UI.fMeta,fontWeight:600}}, "QR-Code in den Rahmen halten"    )
               )
             )
             , React.createElement('div', { style: {display:"flex",gap:6}}
@@ -32650,17 +32667,17 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               , React.createElement('input', { value: manualCode, onChange: e=>setManualCode(e.target.value), placeholder: "Manuell: EK-..." , style: {...II(),flex:1}, onKeyDown: e=>{if(e.key==="Enter"&&manualCode){handleScanResult(manualCode);setManualCode("");}}} )
             )
           ))
-          , scanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:scanMsg.startsWith("✅")?"rgba(34,197,94,.1)":scanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:scanMsg.startsWith("✅")?_okG("#22c55e"):scanMsg.startsWith("❌")?"#ef4444":"#eab308",fontSize:13,fontWeight:600}}, _scanMsgInhalt(scanMsg)))
+          , scanMsg&&(React.createElement('div', { style: {marginTop:10,padding:"10px 14px",borderRadius:8,background:scanMsg.startsWith("✅")?"rgba(34,197,94,.1)":scanMsg.startsWith("❌")?"rgba(239,68,68,.1)":"rgba(234,179,8,.1)",color:scanMsg.startsWith("✅")?_okG("#22c55e"):scanMsg.startsWith("❌")?_lesbar("#ef4444"):_lesbar("#eab308"),fontSize:13,fontWeight:600}}, _scanMsgInhalt(scanMsg)))
           , !scanning&&scannedWz&&(React.createElement('button', { onClick: ()=>{setScannedWz(null);setScanMsg("");startScan();}, style: {...bpS,width:"100%",marginTop:10}}, _ikVw("kamera","Nächsten Code scannen")   ))
         )
 
         /* Scan Result / Quick Actions */
         , React.createElement('div', {}
           , !scannedWz&&scanMsg.indexOf("❌")===0&&isAdmin&&(React.createElement('div', { style: {...CC(),borderColor:"rgba(234,179,8,.35)",background:"rgba(234,179,8,.04)",marginBottom:14}}
-            , React.createElement('div', { style: {fontSize:isMob?13:14,fontWeight:700,color:"#eab308",marginBottom:6}}, "Code einem Werkzeug zuordnen"     )
+            , React.createElement('div', { style: {fontSize:isMob?13:14,fontWeight:700,color:_lesbar("#eab308"),marginBottom:6}}, "Code einem Werkzeug zuordnen"     )
             , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:10}}, "Dieser Code ist noch keinem Gerät zugewiesen — wähle das passende Werkzeug, der Code wird als Barcode gebunden."        )
             , React.createElement('input', { value: assignCode, onChange: e=>setAssignCode(e.target.value), placeholder: "Code (vom Label)"   , style: {...II(),width:"100%",marginBottom:8,fontFamily:mono}} )
-            , React.createElement('select', { value: assignTo, onChange: e=>setAssignTo(e.target.value), style: {...II(),width:"100%",marginBottom:10}, 'aria-label': "Monteur zuweisen"}
+            , React.createElement('select', { value: assignTo, onChange: e=>setAssignTo(e.target.value), style: {...II(),width:"100%",marginBottom:10}, 'aria-label': "Werkzeug wählen"}
               , React.createElement('option', { value: ""}, "— Werkzeug wählen —"   )
               , werkzeuge.slice().sort((a,b)=>(a.inventarnr||"").localeCompare(b.inventarnr||"","de",{numeric:true})).map(w=>(React.createElement('option', { key: w.id, value: w.id}, (w.inventarnr||"?")+" — "+(w.name||"?")+(w.barcode?" · hat Code":""))))
             )
@@ -32668,7 +32685,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
           ))
           , !scannedWz&&(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40}}
             , React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:8,color:V.mt}}, _ik("kamera",32))
-            , React.createElement('div', { style: {fontSize:15,fontWeight:600,color:"#a1a1aa"}}, "QR-Code scannen" )
+            , React.createElement('div', { style: {fontSize:15,fontWeight:600,color:V.tx}}, "QR-Code scannen" )
             , React.createElement('div', { style: {fontSize:12,color:V.dm,marginTop:4}}, "Halte die Kamera auf den QR-Code am Werkzeug."       , React.createElement('br', {}), "Der Code enthält die Inventar-Nr. (z.B. EK-E001)"      )
             , React.createElement('div', { style: {marginTop:16,padding:12,borderRadius:8,background:V.bg,fontSize:UI.fMeta,color:V.dm}}
               , React.createElement('div', { style: {fontWeight:700,marginBottom:4}}, "Tipp: QR-Codes erstellen"   ), "Jedes Gerät hat eine Inventar-Nr. — diese als QR-Code drucken und aufs Gerät kleben."
@@ -32678,7 +32695,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
           , scannedWz&&(React.createElement('div', {}
             /* Tool Card */
-            , React.createElement('div', { style: {...CC(),borderColor:"rgba(217,119,6,.3)",background:"rgba(217,119,6,.03)"}}
+            , React.createElement('div', { style: {...CC(),borderColor:UI.marke}}
               , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:12}}
                 , React.createElement('div', {}
                   , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,fontFamily:mono}}, scannedWz.inventarnr)
@@ -32714,7 +32731,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                   , _maWaehlbar(monteure,null).map(m=>(React.createElement('button', { key: m.id, onClick: ()=>scanCheckout(scannedWz.id,m.id), style: {...bsS(),width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:8,padding:"12px 14px"}}
                     , _vwAvatar((m.vorname||"")+" "+(m.n||""),28)
                     , React.createElement('div', { style: {flex:1}}, React.createElement('div', { style: {fontWeight:600}}, m.n), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, m.r))
-                    , React.createElement('span', { style: {color:"#f97316",fontSize:12}}, "Ausgeben" )
+                    , React.createElement('span', { style: {color:_lesbar("#f97316"),fontSize:12,fontWeight:600}}, "Ausgeben" )
                   )))
                 )
               ))
@@ -32727,7 +32744,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                   , /* v3.9.931: Umbuchen ist eine ZUWEISUNG - die Ausgabeliste direkt darueber zieht seit v3.9.874 ueber _maWaehlbar, diese hier nicht. Der aktuelle Traeger wird wie bisher ausgenommen. */ _maWaehlbar(monteure,scannedWz.zugewiesen).filter(m=>m.id!==scannedWz.zugewiesen).map(m=>(React.createElement('button', { key: m.id, onClick: ()=>scanCheckout(scannedWz.id,m.id), style: {...bsS(),width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}
                     , _vwAvatar((m.vorname||"")+" "+(m.n||""),24)
                     , React.createElement('div', { style: {flex:1}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, m.n))
-                    , React.createElement('span', { style: {color:"#f97316",fontSize:UI.fMeta}}, "Umbuchen" )
+                    , React.createElement('span', { style: {color:_lesbar("#f97316"),fontSize:UI.fMeta,fontWeight:600}}, "Umbuchen" )
                   )))
                 )
               ))
@@ -32747,7 +32764,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               ))
 
               , React.createElement('div', { style: {borderTop:"1px solid "+V.bd,marginTop:12,paddingTop:12,display:"flex",gap:6,flexWrap:"wrap"}}
-                , React.createElement('button', { onClick: ()=>scanToRepair(scannedWz.id), style: {...bdS,fontSize:UI.fMeta,padding:"6px 12px"}}, "In Reparatur"  )
+                , canDo("wz_edit",curUser)&&React.createElement('button', { onClick: ()=>scanToRepair(scannedWz.id), style: {...bsS(),fontSize:UI.fMeta,padding:"6px 12px"}}, _ikVw("werkzeug","In Reparatur")  )/* v3.9.1049: scanToRepair verlangt wz_edit - fuer Monteure war der Knopf da, tat aber nichts. Rot ist Loeschen/Storno vorbehalten, Reparatur ist keine Gefahr. */
                 , isAdmin&&React.createElement('button', { onClick: ()=>{openEdit(scannedWz);}, style: {...bsS(),fontSize:UI.fMeta,padding:"6px 12px"}}, _ikVw("stift","Bearbeiten") )
                 , React.createElement('button', { onClick: ()=>printLabels([{name:scannedWz.name,code:scannedWz.inventarnr,inventarnr:scannedWz.inventarnr}],"Werkzeug-Label"), style: {...bsS(),fontSize:UI.fMeta,padding:"6px 12px"}}, "Label drucken"  )
               )
@@ -32765,20 +32782,22 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
     /* ═══ LISTE ═══ */
     , sub==="liste"&&(React.createElement('div', {}
       /* v3.8.60 Phase 4.1: Filter-Chips (Alle/Verfügbar/Ausgegeben/Kalibrierung fällig/Defekt) */
+      , _wzSuchFeld("Suchen: Name, Inventar-Nr., Kategorie, Person…")
       , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",paddingBottom:4}}/* v3.9.930: dieselbe tote Wisch-Zone wie oben, nur in der Werkzeug-Ansicht. Umbruch statt Querrollen. */
         , [
             {key:'alle',label:'Alle'},
+            {key:'meine',label:'Bei mir'},
             {key:'verfuegbar',label:'Verfügbar'},
             {key:'ausgegeben',label:'Ausgegeben'},
+            {key:'reparatur',label:'In Reparatur'},
             {key:'kalib_faellig',label:'Kalibrierung fällig'},
             {key:'verloren',label:'Defekt'}
-          ].map(chip=>{
+          ].map(chip=>{if(!(chip.key==='alle'||chip.key===werkStatusFilter||(chip.key==='meine'?!!_wzMid:(_chipCounts[chip.key]||0)>0)))return null;/* v3.9.1049: Chips mit 0 Treffern blenden aus (ausser Alle, dem aktiven und "Bei mir" - der leere eigene Stand ist eine Antwort). */
             const act=werkStatusFilter===chip.key;const cnt=_chipCounts[chip.key]||0;
-            return React.createElement('button', {key:chip.key,onClick:()=>setWerkStatusFilter(chip.key), style: {flexShrink:0,padding:"5px 12px",borderRadius:16,border:"1px solid "+(act?V.ac:V.bd),background:act?V.ac+"22":V.cd,color:act?V.acTx:V.dm,fontSize:UI.fMeta,fontWeight:act?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}, chip.label+" ("+cnt+")");
+            return React.createElement('button', {key:chip.key,onClick:()=>setWerkStatusFilter(chip.key),'aria-pressed':act, style: {flexShrink:0,padding:"8px 14px",minHeight:44,borderRadius:22,border:"1px solid "+(act?V.ac:V.bdK),background:act?V.ac+"22":V.cd,color:act?V.acTx:V.tx,fontSize:13,fontWeight:act?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",touchAction:"manipulation"}}, chip.label+" ("+cnt+")");
           })
       )
       , React.createElement('div', { className: "mob-stack", style: {display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}
-        , React.createElement('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "Name, Seriennr, Inventar..."   , style: {...II(),width:"auto",flex:1,minWidth:150,fontSize:12}, className: "mob-full epk-suche"} )
         , React.createElement('select', { value: filtSt, onChange: e=>setFiltSt(e.target.value), style: {...II(),width:"auto",minWidth:100,fontSize:12}, 'aria-label': "Nach Status filtern"}, React.createElement('option', { value: ""}, "Alle Status" ), Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l))))
         , React.createElement('select', { value: filtKat, onChange: e=>setFiltKat(e.target.value), style: {...II(),width:"auto",minWidth:100,fontSize:12}, 'aria-label': "Nach Kategorie filtern"}, React.createElement('option', { value: ""}, "Alle Kategorien" ), Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l))))
       )
@@ -32787,16 +32806,16 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
          v3.9.30 W-Fix3: Bulk-Aktionen NUR für isAdmin (Mass-Patch via _sbPatch ist destruktiv). */
       , selectedIds.length>0&&isAdmin&&React.createElement('div', { style: {display:"flex",gap:8,marginBottom:8,padding:"10px 14px",background:V.ac+"22",borderRadius:8,alignItems:"center",flexWrap:"wrap"}}
         , React.createElement('span', { style: {fontWeight:600,color:V.acTx,fontSize:13}}, selectedIds.length+" ausgewählt")
-        , React.createElement('button', { onClick: ()=>setBulkMode('status'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Status…")
-        , React.createElement('button', { onClick: ()=>setBulkMode('monteur'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Ausgeben…")
-        , React.createElement('button', { onClick: ()=>setBulkMode('standort'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Standort…")
-        , React.createElement('button', { onClick: _clearSelection, style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:36}}, "Aufheben")
+        , React.createElement('button', { onClick: ()=>setBulkMode('status'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:44}}, "Status…")
+        , React.createElement('button', { onClick: ()=>setBulkMode('monteur'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:44}}, "Ausgeben…")
+        , React.createElement('button', { onClick: ()=>setBulkMode('standort'), style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:44}}, "Standort…")
+        , React.createElement('button', { onClick: _clearSelection, style: {...bsS(),padding:"6px 12px",fontSize:12,minHeight:44}}, "Aufheben")
       )
       /* v3.8.60 Phase 4.2: Bulk-Modal — Status ändern
          v3.9.30 W-Fix3: Admin-only sichtbar + Admin-Defense im Click-Handler. */
       , selectedIds.length>0&&isAdmin&&bulkMode==='status'&&React.createElement('div', { style: {padding:10,background:V.cd,borderRadius:8,marginBottom:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",border:"1px solid "+V.bd}}
         , React.createElement('span', { style: {fontWeight:600,fontSize:13}}, "Neuer Status: ")
-        , React.createElement('select', { id: "_bulkStatusSel", style: {...II(),width:"auto",minWidth:160,fontSize:12}}, Object.keys(WZ_STATUS).map(k=>React.createElement('option', { value: k, key: k}, WZ_STATUS[k].i+" "+WZ_STATUS[k].l)))
+        , React.createElement('select', { id: "_bulkStatusSel", style: {...II(),width:"auto",minWidth:160,fontSize:12}}, Object.keys(WZ_STATUS).map(k=>React.createElement('option', { value: k, key: k}, WZ_STATUS[k].l)))
         , React.createElement('button', { onClick: async()=>{
             if(!isAdmin)return;
             const sel=document.getElementById('_bulkStatusSel');const newStatus=sel?sel.value:null;if(!newStatus)return;
@@ -32850,44 +32869,58 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
           }, style: bpS}, "Anwenden")
         , React.createElement('button', { onClick: ()=>setBulkMode(null), style: bsS()}, "Abbrechen")
       )
-      , !filtered.length&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:10,color:V.mt}}, _ik("werkzeug",32)), "Keine Werkzeuge gefunden"  )
+      , !filtered.length&&(()=>{/* v3.9.1049 ehrlicher Leerzustand: sagt WARUM leer (nichts ausgeliehen / Filter) und bietet den Ausweg an. */const _nurMeine=werkStatusFilter==="meine"&&!search&&!filtSt&&!filtKat;const _gefiltert=!!(search||filtSt||filtKat||werkStatusFilter!=="alle");
+        return React.createElement('div', { style: {...CC(),textAlign:"center",padding:isMob?24:40,color:V.dm}}
+          , React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:10,color:V.mt}}, _ik("werkzeug",32))
+          , React.createElement('div', { style: {fontWeight:700,fontSize:15,color:V.tx,marginBottom:4}}, _nurMeine?"Du hast gerade kein Werkzeug ausgeliehen":"Keine Werkzeuge gefunden")
+          , _gefiltert&&React.createElement('div', { style: {fontSize:13,marginBottom:14}}, _nurMeine?"Scanne den QR-Code am Gerät, um es auszuleihen - oder such es unter allen Werkzeugen.":(search?"Für „"+search+"“ passt kein Gerät zu den gewählten Filtern.":"Kein Gerät passt zu den gewählten Filtern."))
+          , _gefiltert&&React.createElement('div', { style: {display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}
+            , _nurMeine&&React.createElement('button', { onClick: switchToScan, style: {...bpS,minHeight:48,display:"inline-flex",alignItems:"center",gap:8}}, _ikVw("kamera","QR-Code scannen"))
+            , React.createElement('button', { onClick: ()=>{setSearch("");setFiltSt("");setFiltKat("");setWerkStatusFilter("alle");}, style: {...bsS(),minHeight:48}}, _nurMeine?"Alle Werkzeuge zeigen":"Filter zurücksetzen")
+          )
+        );
+      })()
       /* v3.9.18 3.3: Mobile-Card-Layout <768px statt Tabelle. Sort als Dropdown. Bulk-Checkbox bleibt nur Desktop. */
       , (ww<768)&&filtered.length>0&&React.createElement('div', { style: {display:"flex",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, "Sortieren:")
-        , React.createElement('select', { value: sortCol, onChange: e=>{const v=e.target.value;if(v===sortCol)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(v);setSortDir("asc");}}, style: {...II(),width:"auto",fontSize:12,minHeight:36}, 'aria-label': "Sortieren nach"}
+        , React.createElement('select', { value: sortCol, onChange: e=>{const v=e.target.value;if(v===sortCol)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(v);setSortDir("asc");}}, style: {...II(),width:"auto",fontSize:12,minHeight:44}, 'aria-label': "Sortieren nach"}
           , [{l:"Inventar",c:"inventarnr"},{l:"Bezeichnung",c:"name"},{l:"Standort",c:"standort"},{l:"Status",c:"status"},{l:"Letzte Wartung",c:"letzteKalib"}].map(o=>React.createElement('option', { key: o.c, value: o.c}, o.l))
         )
-        , React.createElement('button', { onClick: ()=>setSortDir(d=>d==="asc"?"desc":"asc"), style: {...bsS(),padding:"4px 10px",fontSize:12,minHeight:36}, title: "Richtung wechseln"}, sortDir==="asc"?"▲":"▼")
+        , React.createElement('button', { onClick: ()=>setSortDir(d=>d==="asc"?"desc":"asc"), style: {...bsS(),padding:"4px 10px",fontSize:12,minHeight:44}, title: "Richtung wechseln"}, sortDir==="asc"?"▲":"▼")
       )
       , (ww<768)&&filtered.length>0&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr",gap:8}}
         , sorted.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=_wzKalibFaellig(w);const lastMaint=w.letzteKalib||(_optionalChain([w, 'access', _wsh => _wsh.serviceheft, 'optionalAccess', _wsh2 => _wsh2[0], 'optionalAccess', _wsh3 => _wsh3.datum]))||"—";
-          return React.createElement('div', { key: w.id, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{if(isAdmin)openEdit(w);})(e);}}, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {...CC(),padding:"10px 12px",cursor:isAdmin?"pointer":"default",borderLeft:"3px solid "+(_optionalChain([st, 'optionalAccess', _stc => _stc.c])||V.bd),background:kalFaellig?"rgba(239,68,68,.04)":undefined}}
-            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}
+          return React.createElement('div', { key: w.id, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{if(isAdmin)openEdit(w);})(e);}}, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {...CC(),padding:"12px 14px",marginBottom:0,cursor:isAdmin?"pointer":"default",borderLeft:"4px solid "+(_optionalChain([st, 'optionalAccess', _stc => _stc.c])||V.bd),background:kalFaellig?"rgba(239,68,68,.04)":undefined}}
+            , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}
               , React.createElement('div', { style: {flex:1,minWidth:0}}
-                , React.createElement('div', { style: {fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis"}}, w.name)
-                , React.createElement('div', { style: {fontFamily:mono,fontSize:UI.fMeta,color:V.dm,marginTop:2}}, w.inventarnr)
+                , React.createElement('div', { style: {fontWeight:700,fontSize:15,lineHeight:1.3,overflowWrap:"anywhere",color:V.tx}}, w.name||"—")
+                , React.createElement('div', { style: {fontFamily:mono,fontSize:13,color:V.dm,marginTop:2}}, w.inventarnr||"ohne Inventar-Nr.")
               )
-              , React.createElement(Badge, { text: (_optionalChain([st, 'optionalAccess', _stl => _stl.l])||"—"), color: _optionalChain([st, 'optionalAccess', _stc2 => _stc2.c])||V.bd})
-              /* v3.9.899 Befund 1: die Zeile war rot hinterlegt und trug daneben das gruene Abzeichen "Verfuegbar" - die Faerbung hing am Datum, das Abzeichen am Status. Das Status-Abzeichen bleibt stehen (ausgegeben oder in Reparatur ist eine andere, weiter noetige Information); das zweite benennt die faellige Kalibrierung ausdruecklich. */
-              , kalFaellig&&w.status!=='kalibrierung'&&React.createElement(Badge, { text: "Kalib. fällig" , color: "#eab308"})
+              , React.createElement('div', { style: {display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}
+                , React.createElement(Badge, { text: (_optionalChain([st, 'optionalAccess', _stl => _stl.l])||"—"), color: _optionalChain([st, 'optionalAccess', _stc2 => _stc2.c])||V.bd})
+                /* v3.9.899 Befund 1: die Zeile war rot hinterlegt und trug daneben das gruene Abzeichen "Verfuegbar" - die Faerbung hing am Datum, das Abzeichen am Status. Das zweite Abzeichen benennt die faellige Kalibrierung ausdruecklich. */
+                , kalFaellig&&w.status!=='kalibrierung'&&React.createElement(Badge, { text: "Kalib. fällig" , color: "#eab308"})
+              )
             )
-            , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:UI.fMeta,color:V.dm}}
-              , React.createElement('div', null, _ikVw("standort",""), React.createElement('strong', { style: {color:V.tx}}, w.standort||"—"))
-              , React.createElement('div', null, _ikVw("werkzeug",""), React.createElement('strong', { style: {color:V.tx}}, lastMaint!=="—"?fdt(lastMaint):"—"))
-              , mont&&React.createElement('div', { style: {gridColumn:"1 / -1"}}, _ikVw("person",""), React.createElement('strong', { style: {color:V.acTx}}, mont.n))
+            /* v3.9.1049: Fakten beschriftet (vorher stand ein Datum neben einem Werkzeug-Symbol ohne Wort), 13 px statt 12, Kategorie dazu; das eigene Geraet heisst "Bei dir". */
+            , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 10px",fontSize:13,color:V.dm}}
+              , React.createElement('div', { style: {minWidth:0}}, _ikVw("standort",""), React.createElement('strong', { style: {color:V.tx}}, w.standort||"—"))
+              , React.createElement('div', { style: {minWidth:0}}, _wzKatIk(kat), React.createElement('span', { style: {color:V.tx}}, _optionalChain([kat, 'optionalAccess', _wckl => _wckl.l])||"—"))
+              , mont&&React.createElement('div', { style: {gridColumn:"1 / -1"}}, _ikVw("person",""), React.createElement('strong', { style: {color:V.acTx}}, _wzIstMeins(w,_wzMid)?"Bei dir":mont.n))
+              , React.createElement('div', { style: {gridColumn:"1 / -1"}}, _ikVw("werkzeug",""), "Letzter Service: ", React.createElement('strong', { style: {color:V.tx}}, lastMaint!=="—"?fdt(lastMaint):"—"))
             )
-            , (()=>{const _qb=_wzQuickBtn(w);return _qb?React.createElement('div',{style:{marginTop:8,display:"flex",justifyContent:"flex-end"},onClick:e=>e.stopPropagation()},_qb):null;})()/* v3.9.457: Self-Service-Schnellbutton (Mobile-Karte) */
+            , (()=>{const _qb=_wzQuickBtn(w);return _qb?React.createElement('div',{style:{marginTop:10,display:"grid"},onClick:e=>e.stopPropagation()},_qb):null;})()/* v3.9.457: Self-Service-Schnellbutton (Mobile-Karte) */
           );
         })
       )
       , (ww>=768)&&React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}, React.createElement('div', { className: "scroll-x"}
         , React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:ww<1000?Math.max(640,ww-80):800}}/* Tablet-Pruefung 1041 (7): hoch rollte die Standort-Spalte aus dem Bild */
-          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(217,119,6,.06)":"rgba(217,119,6,.04)"}}
+          , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(0,150,64,.12)":"rgba(0,150,64,.05)"}}
             , React.createElement('th', { style: {...thS(),width:32,textAlign:"center",cursor:"pointer",userSelect:"none"}, title: "Alle auswählen"}, React.createElement('input', { type: "checkbox", checked: selectedIds.length===filtered.length&&filtered.length>0, 'aria-label': "Alle auswählen", onChange: _selectAll, style: {cursor:"pointer",width:24,height:24}}))
             , [{l:"Inventar",c:"inventarnr"},{l:"Gerät/Werkzeug",c:"name"},{l:"Kategorie",c:"kat"},{l:"Status",c:"status"},{l:"Zugewiesen",c:"zugewiesen"},{l:"Standort",c:"standort"},{l:"Wert €",c:"wert"},{l:"Zustand",c:"zustandBewertung"},{l:"",c:null}].map((h,i)=>(React.createElement('th', { key: i, role: h.c?"button":undefined, tabIndex: h.c?0:undefined, onKeyDown: h.c?(e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggleSort(h.c);}}):undefined, onClick: h.c?()=>toggleSort(h.c):undefined/* v3.9.969: Rolle, Tab-Stopp und Tastenbehandler tragen DIESELBE Bedingung wie der Klick. Ein Tab-Stopp ohne Handlung waere ein Phantom: der Fokus stuende auf etwas, das nicht reagiert. */, style: {...thS(),textAlign:i===7?"center":"left",cursor:h.c?"pointer":"default",userSelect:"none"}}, h.l, h.c?sortArrow(h.c):"")))
           ))
           , React.createElement('tbody', {}, sorted.map(w=>{const st=WZ_STATUS[w.status];const kat=WZ_KAT[w.kat];const mont=monteure.find(m=>m.id===w.zugewiesen);const kalFaellig=_wzKalibFaellig(w);
-            return (React.createElement('tr', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {borderBottom:"1px solid "+V.bd,cursor:isAdmin?"pointer":"default",background:selectedIds.includes(w.id)?"rgba(217,119,6,.10)":(kalFaellig?"rgba(239,68,68,.03)":"transparent")}, onMouseOver: e=>e.currentTarget.style.background="rgba(217,119,6,.05)", onMouseOut: e=>e.currentTarget.style.background=selectedIds.includes(w.id)?"rgba(217,119,6,.10)":(kalFaellig?"rgba(239,68,68,.03)":"transparent")}
+            return (React.createElement('tr', { key: w.id, onClick: ()=>{if(isAdmin)openEdit(w);}, style: {borderBottom:"1px solid "+V.bd,cursor:isAdmin?"pointer":"default",background:selectedIds.includes(w.id)?"rgba(0,150,64,.12)":(kalFaellig?"rgba(239,68,68,.03)":"transparent")}, onMouseOver: e=>e.currentTarget.style.background="rgba(0,150,64,.06)", onMouseOut: e=>e.currentTarget.style.background=selectedIds.includes(w.id)?"rgba(0,150,64,.12)":(kalFaellig?"rgba(239,68,68,.03)":"transparent")}
               , React.createElement('td', { style: {...tdSt(),width:32,textAlign:"center"}, onClick: e=>e.stopPropagation()}, React.createElement('input', { type: "checkbox", checked: selectedIds.includes(w.id), 'aria-label': "Auswählen: "+(w.name||w.inventarnr||"Gerät"), onChange: ()=>_toggleSelect(w.id), style: {cursor:"pointer",width:24,height:24}}))
               , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontSize:isMob?UI.fMeta:13,fontWeight:600}}, w.inventarnr)
               , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {fontWeight:600}}, w.name), React.createElement('div', { style: {fontSize:isMob?UI.fMeta:12,color:V.dm}}, w.seriennr))
@@ -32906,29 +32939,31 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
 
     /* ═══ CHECK-IN / CHECK-OUT ═══ */
     , sub==="checkout"&&(React.createElement('div', {}
+      , _wzSuchFeld("Gerät suchen: Name, Inventar-Nr., Person…")
       , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 1fr",gap:14}}
         /* Ausgeben */
         , React.createElement('div', { style: {...CC(),borderColor:"rgba(249,115,22,.15)"}}
-          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#f97316",marginBottom:12}}, "Werkzeug ausgeben"  )
-          , werkzeuge.filter(w=>w.status==="verfuegbar").length===0?(React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm}}, "Keine Geräte verfügbar"  )):(
-            werkzeuge.filter(w=>w.status==="verfuegbar").map(w=>{const kat=WZ_KAT[w.kat];
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:_lesbar("#f97316"),marginBottom:12}}, "Werkzeug ausgeben"  )
+          , _coFrei.length===0?(React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm}}, search?"Kein verfügbares Gerät passt zur Suche":"Keine Geräte verfügbar"  )):(
+            _coFrei.slice(0,search?_coFrei.length:_WZ_CO_MAX).map(w=>{const kat=WZ_KAT[w.kat];
               return (React.createElement('div', { key: w.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+V.bd,flexWrap:"wrap"}}
                 /* v3.9.899 Befund 1 Fall b, der teuerste: diese Liste fragt nur w.status==="verfuegbar". Ein Messgeraet mit ueberfaelliger Kalibrierung hat Status "verfuegbar" und stand hier ohne jeden Hinweis - waehrend die KPI-Kachel im selben Modul es als faellig zaehlte. Es ging unkalibriert auf die Baustelle. */
-                , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, _wzKatIk(kat), w.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, w.inventarnr), _wzKalibFaellig(w)&&React.createElement('div', { style: {fontSize:UI.fMeta,color:_lesbar("#eab308"),fontWeight:700,marginTop:2}}, "Kalibrierung fällig" ))
-                , React.createElement('select', { id: "co_"+w.id, 'aria-label': "Monteur für "+(w.name||"Gerät"), style: {...II(),width:"auto",minWidth:120,fontSize:UI.fMeta,padding:"5px 8px",minHeight:36}}, React.createElement('option', { value: ""}, "Monteur wählen..." ), _maWaehlbar(monteure,null).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))
-                , React.createElement('button', { onClick: ()=>{const sel=document.getElementById("co_"+w.id);if(!_optionalChain([sel, 'optionalAccess', _819 => _819.value])){alert("Monteur wählen!");return;}if(_wzKalibFaellig(w)&&!confirm("⚠️ "+w.name+" ist zur Kalibrierung fällig (nächste Kalibrierung: "+(w.naechsteKalib||"kein Datum")+"). Trotzdem ausgeben?"))return;checkout(w.id,sel.value);}, style: {...bpS,padding:"5px 12px",fontSize:UI.fMeta,minHeight:36}}, "Ausgeben" )
+                , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:14}}, _wzKatIk(kat), w.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, w.inventarnr), _wzKalibFaellig(w)&&React.createElement('div', { style: {fontSize:UI.fMeta,color:_lesbar("#eab308"),fontWeight:700,marginTop:2}}, "Kalibrierung fällig" ))
+                , React.createElement('select', { id: "co_"+w.id, 'aria-label': "Monteur für "+(w.name||"Gerät"), style: {...II(),width:isMob?"100%":"auto",minWidth:120,fontSize:isMob?15:UI.fMeta,padding:"5px 8px",minHeight:isMob?48:44}}, React.createElement('option', { value: ""}, "Monteur wählen..." ), _maWaehlbar(monteure,null).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))
+                , React.createElement('button', { onClick: ()=>{const sel=document.getElementById("co_"+w.id);if(!_optionalChain([sel, 'optionalAccess', _819 => _819.value])){alert("Monteur wählen!");return;}if(_wzKalibFaellig(w)&&!confirm("⚠️ "+w.name+" ist zur Kalibrierung fällig (nächste Kalibrierung: "+(w.naechsteKalib||"kein Datum")+"). Trotzdem ausgeben?"))return;checkout(w.id,sel.value);}, style: {...bpS,padding:"5px 12px",fontSize:isMob?15:UI.fMeta,minHeight:isMob?48:44,width:isMob?"100%":undefined}}, "Ausgeben" )
               ));
             })
           )
+          , !search&&_coFrei.length>_WZ_CO_MAX&&React.createElement('div', { style: {paddingTop:12,fontSize:13,color:V.dm}}, "Noch "+(_coFrei.length-_WZ_CO_MAX)+" weitere verfügbare Geräte - bitte oben suchen (Name oder Inventar-Nr.).")
         )
         /* Zurücknehmen */
         , React.createElement('div', { style: {...CC(),borderColor:"rgba(34,197,94,.15)"}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:_okG("#22c55e"),marginBottom:12}}, "Werkzeug zurücknehmen"  )
-          , werkzeuge.filter(w=>w.status==="ausgegeben").length===0?(React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm}}, "Keine Geräte ausgegeben"  )):(
-            werkzeuge.filter(w=>w.status==="ausgegeben").map(w=>{const mont=monteure.find(m=>m.id===w.zugewiesen);const kat=WZ_KAT[w.kat];
+          , _coAus.length===0?(React.createElement('div', { style: {textAlign:"center",padding:20,color:V.dm}}, search?"Kein ausgegebenes Gerät passt zur Suche":"Keine Geräte ausgegeben"  )):(
+            _coAus.map(w=>{const mont=monteure.find(m=>m.id===w.zugewiesen);const kat=WZ_KAT[w.kat];
               return (React.createElement('div', { key: w.id, style: {display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+V.bd,flexWrap:"wrap"}}
-                , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:12}}, _wzKatIk(kat), w.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, w.inventarnr, " · bei "   , _optionalChain([mont, 'optionalAccess', _821 => _821.n])||"?"))
-                , React.createElement('button', { onClick: ()=>checkin(w.id), style: {...bgS,padding:"5px 12px",fontSize:UI.fMeta,minHeight:36}}, "Zurücknehmen" )
+                , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:14}}, _wzKatIk(kat), w.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, w.inventarnr, " · bei "   , _optionalChain([mont, 'optionalAccess', _821 => _821.n])||"?"))
+                , React.createElement('button', { onClick: ()=>checkin(w.id), style: {...bgS,padding:"5px 12px",fontSize:isMob?15:UI.fMeta,minHeight:isMob?48:44,width:isMob?"100%":undefined}}, "Zurücknehmen" )
               ));
             })
           )
@@ -32941,7 +32976,8 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
       , React.createElement('div', { style: {...CC()}}
         , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:12}}, "Geräte-Serviceheft"  )
         , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:10}}, "Gerät auswählen um Service-Einträge zu sehen/bearbeiten" )
-        , React.createElement('select', { value: wzServiceSel, onChange: e=>setWzServiceSel(e.target.value), style: {...II(),fontSize:13,padding:"8px",marginBottom:12}, 'aria-label': "Gerät wählen"}, React.createElement('option', { value: ""}, "— Gerät wählen —" ), werkzeuge.map(w=>React.createElement('option', { key: w.id, value: w.id}, w.name, " (", w.inventarnr, ")")))
+        , _wzSuchFeld("Gerät suchen: Name oder Inventar-Nr.…")/* v3.9.1049: 296 Geraete in einer Auswahl ohne Suche - jetzt engt die Suche die Auswahl ein (das gewaehlte bleibt immer drin). */
+        , React.createElement('select', { value: wzServiceSel, onChange: e=>setWzServiceSel(e.target.value), style: {...II(),fontSize:isMob?16:13,padding:"8px",marginBottom:12}, 'aria-label': "Gerät wählen"}, React.createElement('option', { value: ""}, search?"— Gerät wählen ("+werkzeuge.filter(w=>_wzSuchTreffer(w,search,"")).length+" Treffer) —":"— Gerät wählen —" ), werkzeuge.filter(w=>w.id===wzServiceSel||_wzSuchTreffer(w,search,"")).map(w=>React.createElement('option', { key: w.id, value: w.id}, w.name, " (", w.inventarnr, ")")))
         , wzServiceSel&&(()=>{
           const wz=werkzeuge.find(w=>w.id===wzServiceSel);if(!wz)return null;
           const sh=wz.serviceheft||[];
@@ -32951,7 +32987,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
               , isAdmin&&React.createElement('button', { onClick: ()=>{const e={id:uid(),datum:td2(),art:"Service",beschreibung:"",kosten:0,werkstatt:"",befund:"",rechnung:""};setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:[e,...(w.serviceheft||[])]}:w));SQ.push({url:"/api/werkzeuge/"+wzServiceSel,method:"POST",body:e});_optionalChain([window, 'access', _822c => _822c.__toast, 'optionalCall', _822d => _822d("🔧 Service-Eintrag hinzugefügt")]);}, style: {...bpS,fontSize:UI.fMeta}}, "+ Service-Eintrag" )
             )
             , sh.length===0&&React.createElement('div', { style: {fontSize:13,color:V.dm,textAlign:"center",padding:"24px 16px",border:"1px dashed "+V.bd,borderRadius:8}}, React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:6,color:V.mt}}, _ik("werkzeug",32)), React.createElement('div', { style: {fontWeight:700,marginBottom:4,color:V.tx}}, "Keine Service-Einträge"), isAdmin?"Erfasse Reparaturen, UVV-Prüfungen und Kalibrierungen via + Service-Eintrag.":"Noch keine Service-Historie für dieses Werkzeug."  )
-            , sh.map((s,i)=>(React.createElement('div', { key: s.id||i, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid #d97706"}}
+            , sh.map((s,i)=>(React.createElement('div', { key: s.id||i, style: {...CC(),padding:10,marginBottom:6,borderLeft:"3px solid "+UI.marke}}
               , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}
                 , React.createElement('div', { style: {flex:1}}
                   , isAdmin?(React.createElement('div', { className: "form-grid-4", style: {gap:6,marginBottom:4}}
@@ -32972,7 +33008,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                 , isAdmin&&React.createElement('button', { title: "Service-Eintrag löschen", 'aria-label': "Service-Eintrag löschen", onClick: async()=>{/* v3.9.11 Modal-Migration Round-4: native confirm → _confirmModal. */ if(!await _confirmModal("Service-Eintrag löschen?",{variant:"danger"}))return;const wz=werkzeuge.find(w=>w.id===wzServiceSel);const entry=_optionalChain([wz, 'optionalAccess', _999 => _999.serviceheft, 'optionalAccess', _999b => _999b[i]]);setWerkzeuge(p=>p.map(w=>w.id===wzServiceSel?{...w,serviceheft:(w.serviceheft||[]).filter((_,j)=>j!==i)}:w));_pushWzSh(wzServiceSel);/* v3.9.256 FIX (Hunt P2): Löschung über _pushWzSh persistieren (serviceheft-JSON-Array am Werkzeug = Source-of-Truth, identisch zu Add/Edit). Vorher nur DELETE /wz-service/:id (Sekundär-/No-op-Endpoint) → Eintrag erschien nach Reload wieder (Resurrection). */if(entry&&entry.id)SQ.push({url:"/api/wz-service/"+entry.id,method:"DELETE"});}, style: {...bdS,padding:"3px 6px",fontSize:UI.fMeta}}, _ik("kreuz",16))
               )
             )))
-            , sh.length>0&&(()=>{const total=sh.reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginTop:6}}, "Servicekosten gesamt: "   , fmt$(total) ):null;})()
+            , sh.length>0&&(()=>{const total=sh.reduce((s,e)=>s+(e.kosten||0),0);return total>0?React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.tx,marginTop:6}}, "Servicekosten gesamt: "   , fmt$(total) ):null;})()
           ));
         })()
       )
@@ -32984,7 +33020,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
         , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:14}}, editId?"Gerät bearbeiten":"Neues Gerät anlegen", editId&&React.createElement('span', { style: {fontFamily:mono,fontSize:12,color:V.dm,marginLeft:8}}, form.inventarnr))
         , React.createElement('div', { className: "as-form-grid"}
           , React.createElement('div', {}
-            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Gerätedaten")
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.acTx,marginBottom:8}}, "Gerätedaten")
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Gerätename *" ), React.createElement('input', { 'aria-label': "Gerätename", value: form.name||"", onChange: e=>setForm(p=>({...p,name:e.target.value})), style: II(), placeholder: "z.B. Hilti TE 30-A36"   }))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Kategorie"), React.createElement('select', { 'aria-label': "Kategorie", value: form.kat||"elektro", onChange: e=>setForm(p=>({...p,kat:e.target.value})), style: II()}, Object.entries(WZ_KAT).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l)))))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Seriennummer"), React.createElement('input', { 'aria-label': "Seriennummer", value: form.seriennr||"", onChange: e=>setForm(p=>({...p,seriennr:e.target.value})), style: II()} ))
@@ -33006,7 +33042,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wert (€)" ), React.createElement('input', { 'aria-label': "Wert (€)", type: "number", inputMode:"decimal", min: "0", value: form.wert||0, onChange: e=>setForm(p=>({...p,wert:Math.max(0,parseFloat(e.target.value)||0)})), style: {...II(),fontFamily:mono}} ))
           )
           , React.createElement('div', {}
-            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Status & Zuweisung"  )
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.acTx,marginBottom:8}}, "Status & Zuweisung"  )
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Status"), React.createElement('select', { 'aria-label': "Status", value: form.status||"verfuegbar", onChange: e=>setForm(p=>({...p,status:e.target.value})), style: II()}, Object.entries(WZ_STATUS).map(([k,v])=>(React.createElement('option', { key: k, value: k}, v.l)))))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zugewiesen an" ), React.createElement('select', { 'aria-label': "Zugewiesen an", value: form.zugewiesen||"", onChange: e=>setForm(p=>({...p,zugewiesen:e.target.value})), style: II()}, React.createElement('option', { value: ""}, "— Nicht zugewiesen —"   ), _maWaehlbar(monteure,form.zugewiesen||"").map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n, " (" , m.r, ")")))))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Projekt"), React.createElement('select', { 'aria-label': "Projekt", value: form.projekt||"", onChange: e=>setForm(p=>({...p,projekt:e.target.value})), style: II()}, React.createElement('option', { value: ""}, "— Kein Projekt —"   ), projects.filter(p=>p.status==="aktiv"||String(p.id)===String(form.projekt||""))/* v3.9.923: der Vorrat war auf aktive Projekte gefiltert, der Wert kam aus dem gespeicherten Geraet (openEdit setzt setForm({...w})). Ein Werkzeug auf einem abgeschlossenen oder archivierten Projekt hatte damit einen Wert, der unter keiner Option stand - das Feld zeigte die erste, also "— Kein Projekt —", und behauptete damit das Gegenteil des Datensatzes. Im Browser gemessen (Geraet auf p7, status abgeschlossen): DOM-Wert leer, Index 0; nachher Wert p7, Index 6. Dieselbe Antwort wie _maWaehlbar: das aktuell Getragene bleibt waehlbar. */.map(p=>(React.createElement('option', { key: p.id, value: p.id}, p.nr, " — "  , p.name)))))
@@ -33014,7 +33050,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Zustand"), React.createElement(Stars, { val: form.zustandBewertung||5, onChange: v=>setForm(p=>({...p,zustandBewertung:v}))}))
           )
           , React.createElement('div', {}
-            , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:"#d97706",marginBottom:8}}, "Service & Notizen"  )
+            , React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.acTx,marginBottom:8}}, "Service & Notizen"  )
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Nächster Service" ), React.createElement('input', { 'aria-label': "Nächster Service", type: "date", value: form.naechsteKalib||"", onChange: e=>setForm(p=>({...p,naechsteKalib:e.target.value})), style: II()} ))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Letzter Service" ), React.createElement('input', { 'aria-label': "Letzter Service", type: "date", value: form.letzteKalib||"", onChange: e=>setForm(p=>({...p,letzteKalib:e.target.value})), style: II()} ))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Notizen" ), React.createElement(SpeechWrap, { value: form.notizen||"", onChange: v=>setForm(p=>({...p,notizen:v}))}, React.createElement('textarea', { value: form.notizen||"", 'aria-label': "Notizen", onChange: e=>setForm(p=>({...p,notizen:e.target.value})), style: {...II(),minHeight:80}, rows: 3})))
