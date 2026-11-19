@@ -249,5 +249,8 @@ def test_ehrlicher_leerzustand_und_restzahl(wz):
 
 def test_monteur_telefon_ohne_bestandskacheln(wz):
     c = _code(wz)
-    assert "!(isMob&&_wzFeld)&&React.createElement('div', { className: \"kpi-grid\"" in c
+    # Pin angepasst (Stufe 4, 19.11.2026): Kachelblock und Klappzeile stehen beide hinter !(isMob&&_wzFeld) -
+    # am Monteur-Telefon weiter keine Bestandskacheln; fuer das Buero am Handy zugeklappt.
+    assert "!(isMob&&_wzFeld)&&(!isMob||_wzKpiAuf)&&React.createElement('div', { className: \"kpi-grid\"" in c
+    assert "!(isMob&&_wzFeld)&&isMob&&React.createElement('button', { type: \"button\", onClick: ()=>_wzSetKpiAuf(" in c
     assert "_wzFeld&&sub!==\"scan\"&&React.createElement('button', { onClick: switchToScan" in c

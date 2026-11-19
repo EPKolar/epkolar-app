@@ -111,8 +111,9 @@ WERKZEUGE = [
      "notizen": "Ablaufdatum erreicht", "zustandBewertung": 1},
 ]
 
+# Stufe 4 (19.11.2026): der Status kalibrierung heisst "Zur Kalibrierung" ("Kalibrierung fällig" = _wzKalibFaellig).
 STATUS_SOLL = ["Verfügbar", "Ausgegeben", "In Reparatur",
-               "Kalibrierung fällig", "Verloren/Defekt", "Stillgelegt"]
+               "Zur Kalibrierung", "Verloren/Defekt", "Stillgelegt"]
 
 KAT_SOLL = ["Elektrowerkzeug", "Messgeräte", "Handwerkzeug", "Maschinen",
             "Sicherheit/PSA", "Verbrauchsmaterial", "Kabelwerkzeug",

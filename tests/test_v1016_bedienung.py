@@ -188,7 +188,9 @@ def test_kennzahlen_ehrlich_beschriftet(index_html):
     alt = [b for b in ("'Service/Pickerl 14T'", "'Service/Reparatur'", "{l:'Monteure heute'", "\"Team aktiv\" )") if b in code]
     assert alt == [], alt
     assert "_metric('Neu fällig in 14 Tagen',fzFaellig" in index_html
-    assert "_metric('Service fällig',wzKalibFaellig" in index_html
+    # Stufe 4 (19.11.2026): dieselbe Zahl heisst ueberall "Kalibrierung fällig" (Kachel + Filter der Werkzeug-Seite);
+    # gesichert bleibt: die Kachel liest wzKalibFaellig.
+    assert "_metric('Kalibrierung fällig',wzKalibFaellig" in index_html
 
 
 # ── 7. Buero-Portal ────────────────────────────────────────────────────────
