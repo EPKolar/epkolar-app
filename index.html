@@ -14923,7 +14923,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   );
 }
 
-/* v3.9.1016 DATANORM SAUBER - Zugangsdaten nie leer ueberschreiben. Vorher schickte saveSupplier IMMER username und password mit (leer, wenn nicht geladen). Seit dem Lockdown v3105 (supplier_configs_safe, supplier-sync 'verschiebt jeden Umgang mit username/password auf den Server') koennen die Zugangsdaten beim Laden fehlen oder NULL sein - dann HAETTE jedes Bearbeiten (z. B. nur Skonto) die hinterlegten Zugangsdaten geleert (Prod-DB 16.11.: nicht eingetreten, 5 von 9 Haendlern haben Zugangsdaten). Jetzt: username/password stehen nur im Rumpf, wenn sie im Formular NEU und nicht leer eingetragen wurden (Merker _usernameGeaendert/_passwortNeu). Beim Anlegen (POST, neue Zeile) wird '' gesendet, damit der Stand 'nicht hinterlegt' ehrlich '' heisst und nicht NULL ('nicht lesbar'). Der Weg set-credentials der Function supplier-sync ist NICHT angeschlossen: ob sie deployt ist, steht nicht im Repo - die Zugangsdaten gingen sonst ins Leere. */
+/* v3.9.1016 DATANORM SAUBER - Zugangsdaten nie leer ueberschreiben. Vorher schickte saveSupplier IMMER username und password mit (leer, wenn nicht geladen). Seit dem Lockdown v3105 (eine geplante Sicht ohne Zugangsdaten - in Prod NIE angelegt, Stand 19.11.; supplier-sync 'verschiebt jeden Umgang mit username/password auf den Server') koennen die Zugangsdaten beim Laden fehlen oder NULL sein - dann HAETTE jedes Bearbeiten (z. B. nur Skonto) die hinterlegten Zugangsdaten geleert (Prod-DB 16.11.: nicht eingetreten, 5 von 9 Haendlern haben Zugangsdaten). Jetzt: username/password stehen nur im Rumpf, wenn sie im Formular NEU und nicht leer eingetragen wurden (Merker _usernameGeaendert/_passwortNeu). Beim Anlegen (POST, neue Zeile) wird '' gesendet, damit der Stand 'nicht hinterlegt' ehrlich '' heisst und nicht NULL ('nicht lesbar'). Der Weg set-credentials der Function supplier-sync ist NICHT angeschlossen: ob sie deployt ist, steht nicht im Repo - die Zugangsdaten gingen sonst ins Leere. */
 function _supplierSaveBody(data,isNew){
   const body={name:data.name,gewerk:data.gewerk||"shk",interface_type:data.interface_type||"manual",base_url:data.base_url||"",kunde_nr:data.kunde_nr||"",unternehmen_id:data.unternehmen_id||"",shk_url:data.shk_url||"",sync_interval:data.sync_interval||"weekly",active:data.active!==false,config:data.config||{},zahlungskonditionen:data.zahlungskonditionen||"",skonto_prozent:parseFloat(data.skonto_prozent)||0,jahresbonus_prozent:parseFloat(data.jahresbonus_prozent)||0,datanorm_intervall_tage:parseInt(data.datanorm_intervall_tage)||28,datanorm_url:data.datanorm_url||""};
   const _un=typeof data._usernameNeu==="string"?data._usernameNeu.trim():"";
@@ -14947,6 +14947,13 @@ function _supplierSyncText(s){
   return "Letzter Sync "+d+((s.last_sync_articles!==null&&s.last_sync_articles!==undefined&&s.last_sync_articles!==""&&isFinite(n))?", "+_suppTausender(n)+" Artikel":"");
 }
 function _supplierCredStand(s){
+  if(s&&typeof s._pwHinterlegt==="boolean"){/* v3.9.1052: aus supplier_credentials (has_password) - das Kennwort selbst kommt nie in die App */
+    if(s.username===null||s.username===undefined)return"unlesbar";
+    const u1=String(s.username).trim()!=="";
+    if(u1&&s._pwHinterlegt)return"hinterlegt";
+    if(u1||s._pwHinterlegt)return"unvollstaendig";
+    return"fehlt";
+  }
   if(!s||s.password===null||s.password===undefined||s.username===null||s.username===undefined)return"unlesbar";
   const u=String(s.username).trim()!=="",p=String(s.password)!=="";
   if(u&&p)return"hinterlegt";
@@ -14954,6 +14961,68 @@ function _supplierCredStand(s){
   return"fehlt";
 }
 const SUPP_CRED_TXT={hinterlegt:"Zugangsdaten hinterlegt",unvollstaendig:"Zugangsdaten unvollständig",fehlt:"Zugangsdaten nicht hinterlegt",unlesbar:"Zugangsdaten nicht lesbar"};
+/* v3.9.1052 LIEFERANTEN-ZUGANG (Sicherheit). Befund Prod 19.11.: supplier_configs.username/password standen im Klartext und
+   JEDER Angemeldete (auch Monteur) konnte sie lesen; die App lud sie mit select=* in den Browser. Neu (SQL-Entwurf
+   sql/LIEFERANTEN_ZUGANG_v1052_ENTWURF.sql): eigene Tabelle supplier_credentials, nur Admin, password per REST nie lesbar
+   (nur has_password). Die App
+   - liest supplier_configs IMMER mit fester Spaltenliste ohne Zugangsdaten (SUPP_CFG_SPALTEN),
+   - fragt supplier_credentials NUR als Admin ab; andere Rollen fragen nie und sehen "nicht lesbar",
+   - erkennt die Tabelle selbst: 404 (42P01/PGRST205 = SQL noch nicht eingespielt) -> bis zum Neuladen der bisherige Weg
+     (Admin liest username/password aus supplier_configs, Speichern wie v3.9.1016),
+   - schreibt Zugangsdaten direkt (nicht ueber die Warteschlange - kein Kennwort im Geraetespeicher) mit return=minimal,
+   - loggt und meldet NIE Werte, nur Zustaende. */
+const SUPP_CFG_SPALTEN="id,name,gewerk,interface_type,base_url,kunde_nr,unternehmen_id,shk_url,ids_shop_url,sync_interval,active,config,zahlungskonditionen,skonto_prozent,jahresbonus_prozent,datanorm_intervall_tage,datanorm_url,firma_adresse,last_sync,last_sync_status,last_sync_articles";
+var _suppCredTabDa=null;/* null = unbekannt, true = supplier_credentials da, false = 404 (bisheriger Weg bis zum Neuladen) */
+function _suppTabFehlt(e){
+  const m=String(e&&e.message||e||"");
+  return /^HTTP404\b/.test(m)||/42P01|PGRST205/.test(m);
+}
+async function _supplierLaden(istAdmin){
+  let zug=null;
+  if(istAdmin&&_suppCredTabDa!==false){
+    try{
+      const z=await _sbGet("supplier_credentials","select=supplier_id,username,has_password");
+      if(Array.isArray(z)&&!z.__rlsFehler){_suppCredTabDa=true;zug={};for(const c of z){if(c&&c.supplier_id)zug[c.supplier_id]=c;}}
+    }catch(e){if(_suppTabFehlt(e))_suppCredTabDa=false;}
+  }
+  const alt=!!(istAdmin&&_suppCredTabDa===false);
+  let rows;
+  try{rows=await _sbGet("supplier_configs","select="+SUPP_CFG_SPALTEN+(alt?",username,password":"")+"&order=name.asc");}
+  catch(e){
+    if(!/^HTTP400\b/.test(String(e&&e.message||"")))throw e;
+    rows=await _sbGet("supplier_configs","order=name.asc");/* Spaltenliste passt nicht zur DB: alles laden, Zugangsdaten unten sofort entfernen */
+  }
+  rows=Array.isArray(rows)?rows:[];
+  return rows.map(r=>{
+    const o=Object.assign({},r);const pw=o.password;delete o.password;
+    if(zug){const c=zug[o.id];o.username=(c&&typeof c.username==="string")?c.username:"";o._pwHinterlegt=!!(c&&c.has_password);o._zugVorhanden=!!c;}
+    else if(alt){if(pw!==null&&pw!==undefined&&o.username!==null&&o.username!==undefined)o._pwHinterlegt=String(pw)!=="";}
+    else delete o.username;
+    return o;
+  });
+}
+function _supplierZugangNeu(body){
+  const z={};
+  if(body&&typeof body.username==="string"&&body.username.trim())z.username=body.username.trim();
+  if(body&&typeof body.password==="string"&&body.password)z.password=body.password;
+  return Object.keys(z).length?z:null;
+}
+async function _supplierZugangSpeichern(id,zug,vorhanden){
+  if(!id||!zug)return false;
+  const body={};
+  if(typeof zug.username==="string")body.username=zug.username;
+  if(typeof zug.password==="string")body.password=zug.password;
+  if(!Object.keys(body).length)return true;
+  const h=_sbWH("return=minimal");
+  const patch=()=>fetch(SB_REST+"/supplier_credentials?supplier_id=eq."+encodeURIComponent(id),_fT({method:"PATCH",headers:h,body:JSON.stringify(body)}));
+  const post=()=>fetch(SB_REST+"/supplier_credentials",_fT({method:"POST",headers:h,body:JSON.stringify(Object.assign({supplier_id:id},body))}));
+  let r=null;
+  try{
+    r=await _authRetry(vorhanden?patch:post);
+    if(!vorhanden&&r&&r.status===409)r=await _authRetry(patch);
+  }catch(_e){return false;}
+  return !!(r&&r.ok);
+}
 // ═══════════ ADMIN PANEL ═══════════
 function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure,arbeitsscheine}){
   const [sel,setSel]=_react.useState.call(void 0, null);
@@ -15179,7 +15248,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const fetchSuppliers=async()=>{
     setSuppLoading(true);
     try{
-      const rows=await _sbGet("supplier_configs","order=name.asc");
+      const rows=await _supplierLaden(!!(curUser&&curUser.role==="admin"));/* v3.9.1052: feste Spaltenliste, Zugangsdaten nur Admin aus supplier_credentials */
       if(rows)setSuppliers(rows.map(r=>({...r,config:_jp(r.config)||{}})));
       // Article counts
       const counts={};
@@ -15196,10 +15265,16 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     /* v3.9.81 SPRINT-60 F-5 Form-Validation-R3: required-Name-Check + Toast (Sprint 40/42 standard). */
     if(!(data.name||"").trim()){_optionalChain([window,'access',_g81a=>_g81a.__toast,'optionalCall',_g81b=>_g81b("⚠️ Händler-Name ist Pflichtfeld","warn")]);return;}
     const body=_supplierSaveBody(data,isNew);/* v3.9.1016: Zugangsdaten nur, wenn neu eingetragen - siehe _supplierSaveBody */
+    const _istAdm=!!(curUser&&curUser.role==="admin");
+    const _zugTab=_istAdm&&_suppCredTabDa===true;/* v3.9.1052: Tabelle supplier_credentials da -> Zugangsdaten NUR dorthin */
+    const _zugNeu=_zugTab?_supplierZugangNeu(body):null;
+    if(_zugTab||!_istAdm){delete body.username;delete body.password;}
+    const _sid=isNew?_uuid():data.id;
     try{
-      if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:_uuid(),...body}});}/* v3.9.271 FIX: echte UUID (crypto.randomUUID) statt uid()-Kurz-id — supplier_configs.id ist uuid; Kurz-id brach Insert + verseuchte den DATANORM-Import (supplier_id 22P02) */
+      if(isNew){await SQ.push({url:"/api/supplier-configs",method:"POST",body:{id:_sid,...body}});}/* v3.9.271 FIX: echte UUID (crypto.randomUUID) statt uid()-Kurz-id — supplier_configs.id ist uuid; Kurz-id brach Insert + verseuchte den DATANORM-Import (supplier_id 22P02) */
       else{await SQ.push({url:"/api/supplier-configs/"+data.id,method:"PUT",body:body});}
       if(window.__doSync)window.__doSync();
+      if(_zugNeu&&!(await _supplierZugangSpeichern(_sid,_zugNeu,!isNew&&data._zugVorhanden===true))){if(window.__toast)window.__toast("Händler gespeichert, aber die Zugangsdaten wurden NICHT gespeichert - bitte erneut eintragen (Verbindung/Rechte prüfen).","error",9000);}
       _optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2(isNew?"✅ Händler angelegt":"✅ Gespeichert","success")]);
       setSuppEdit(null);setSuppNew(false);
       setTimeout(fetchSuppliers,500);
@@ -15845,7 +15920,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                     , s.datanorm_url?React.createElement('button', { onClick: ()=>window.open(s.datanorm_url,"_blank","noopener,noreferrer"), style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("verbindung",14), "Portal öffnen"):React.createElement('span', {style:{fontSize:UI.fMeta,color:V.dm}}, "Keine Portal-Adresse hinterlegt - unter Bearbeiten eintragen.")
                     , s.kunde_nr&&React.createElement('button', { onClick: ()=>_suppKopieren(s.kunde_nr,"Kundennummer"), title: "Kundennummer kopieren", 'aria-label': "Kundennummer kopieren", style: {...btS(),padding:"4px 10px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("kopie",14), "KdNr "+s.kunde_nr)
                     , typeof s.username==="string"&&s.username.trim()&&React.createElement('button', { onClick: ()=>_suppKopieren(s.username,"Benutzername"), title: "Benutzername kopieren", 'aria-label': "Benutzername kopieren", style: {...btS(),padding:"4px 10px",fontSize:UI.fMeta,display:"inline-flex",alignItems:"center",gap:6}}, _ik("kopie",14), "Benutzer "+s.username)
-                    , credStand!=="hinterlegt"&&React.createElement('span', {style:{fontSize:UI.fMeta,color:credFarbe,fontWeight:600}}, SUPP_CRED_TXT[credStand])
+                    , credStand!=="hinterlegt"&&curUser&&curUser.role==="admin"&&React.createElement('span', {style:{fontSize:UI.fMeta,color:credFarbe,fontWeight:600}}, SUPP_CRED_TXT[credStand])
                   )
                   , s.datanorm_url&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:2,wordBreak:"break-all"}}, _kurz(s.datanorm_url.replace(/https?:\/\//,""),60))
                 )
