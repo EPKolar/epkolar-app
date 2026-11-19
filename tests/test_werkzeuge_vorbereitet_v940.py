@@ -235,8 +235,10 @@ KAT_SOLL = [
 
 CHIPS_SOLL = [
     ("alle", "Alle"),
+    ("meine", "Bei mir"),  # v3.9.1049: eigene Geraete (Monteur-Landung)
     ("verfuegbar", "Verfügbar"),  # v3.9.1012: Chips ohne Emoji
     ("ausgegeben", "Ausgegeben"),
+    ("reparatur", "In Reparatur"),  # v3.9.1049
     ("kalib_faellig", "Kalibrierung fällig"),
     ("verloren", "Defekt"),
 ]
@@ -310,12 +312,13 @@ def chipzaehler(quelle, node_exe, tmp_path, name="zaehler.js"):
     assert j > i, "Ende des Chip-Zaehlerblocks nicht gefunden"
     rumpf = quelle[i:j + len("return cnt;")]
     code = (
-        'function zaehl(_wzPool,_wzKalibFaellig){\n' + rumpf + '\n}\n'
+        'function zaehl(_wzPool,_wzKalibFaellig,_wzMid){\n' + rumpf + '\n}\n'
         'const pool=[{id:"A",status:"verfuegbar",faellig:false},\n'
         '            {id:"B",status:"ausgegeben",faellig:false},\n'
         '            {id:"C",status:"verloren",faellig:false},\n'
-        '            {id:"D",status:"verfuegbar",faellig:true}];\n'
-        'console.log(JSON.stringify(zaehl(pool,w=>w.faellig===true)));\n')
+        '            {id:"D",status:"verfuegbar",faellig:true},\n'
+        '            {id:"E",status:"reparatur",faellig:false,zugewiesen:"M1"}];\n'
+        'console.log(JSON.stringify(zaehl(pool,w=>w.faellig===true,"M1")));\n')
     return node_json(node_exe, tmp_path, code, name)
 
 
@@ -458,9 +461,10 @@ def test_kategorien_sind_in_zwei_auswahlfeldern_waehlbar(wz):
 # 3. Fuenf Filter-Chips mit Zaehlern
 # ───────────────────────────────────────────────────────────────────────────
 def test_fuenf_filter_chips(wz, node_exe, tmp_path):
+    # v3.9.1049: sieben statt fuenf (Bei mir, In Reparatur) - der Testname bleibt.
     ist = chips(wz, node_exe, tmp_path)
-    assert len(ist) == 5, "%d Filter-Chips statt 5: %r" % (
-        len(ist), [k for k, _l in ist])
+    assert len(ist) == len(CHIPS_SOLL), "%d Filter-Chips statt %d: %r" % (
+        len(ist), len(CHIPS_SOLL), [k for k, _l in ist])
     assert [k for k, _l in ist] == [k for k, _l in CHIPS_SOLL], (
         "Chip-Schluessel oder -Reihenfolge geaendert: %r"
         % [k for k, _l in ist])
@@ -477,8 +481,10 @@ def test_jeder_chip_tragt_seinen_zaehler(wz, node_exe, tmp_path):
     cnt = chipzaehler(wz, node_exe, tmp_path)
     for k, _l in CHIPS_SOLL:
         assert k in cnt, "der Zaehlerblock liefert keinen Wert fuer %r" % k
-    # Vier Geraete: A verfuegbar, B ausgegeben, C verloren, D verfuegbar+faellig
-    assert cnt["alle"] == 4, cnt
+    # Fuenf Geraete: A verfuegbar, B ausgegeben, C verloren, D verfuegbar+faellig,
+    # E in Reparatur und bei M1 (v3.9.1049: Zaehler fuer "Bei mir" und "In Reparatur")
+    assert cnt["alle"] == 5, cnt
+    assert cnt["reparatur"] == 1 and cnt["meine"] == 1, cnt
     assert cnt["verfuegbar"] == 2, cnt
     assert cnt["ausgegeben"] == 1, cnt
     assert cnt["verloren"] == 1, cnt
@@ -697,7 +703,7 @@ def test_koeder_ein_fehlender_chip_wird_gefunden(wz, node_exe, tmp_path):
     kaputt = wz.replace("{key:'verloren',label:'Defekt'}", "", 1)
     assert kaputt != wz, "der Koeder konnte nichts verstuemmeln"
     ist = chips(kaputt, node_exe, tmp_path, name="koeder_chips.js")
-    assert len(ist) != 5, (
+    assert len(ist) != len(CHIPS_SOLL), (
         "EIN ENTFERNTER FILTER-CHIP BLIEB UNBEMERKT - es wurden weiter 5 "
         "gezaehlt.")
 
