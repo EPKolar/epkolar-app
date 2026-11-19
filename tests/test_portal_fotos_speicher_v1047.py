@@ -54,7 +54,8 @@ def _zwischen(text, anfang, ende):
 ECHT = ("_fT", "_netzUploadMsFuer", "_dateiBytes", "_netzBackoffMs", "_netzFehlerArt", "_netzNochmal",
         "_dateiQuelleSicher", "_dateiSigniert", "_optionalChain",
         "_portalFotoCall", "_portalFotoHoch", "_portalFotoGrund", "_portalMangelFotosHoch", "_portalFotoSignieren",
-        "_mgPrivPfade", "_mgFotoAufloesen")
+        "_mgPrivPfade", "_mgFotoAufloesen",
+        "_portalFotosMerge")  # v1052 M1: Ergebnis in die AKTUELLE Fotoliste einfuegen
 
 PRELUDE = r"""
 var SUPABASE_URL="https://x.supabase.co",SUPABASE_KEY="ANONKEY",SB_DOCS_BUCKET="epkolar-docs",SB_BUCKET="epkolar-files",SB_FZ_BUCKET="epkolar-fahrzeuge",SB_GEF_BUCKET="epkolar-gefahrstoff";
@@ -194,6 +195,7 @@ async function lauf(opts,SUBMIT){
   const _confirmModal=async(msg,o)=>{st.confirm.push(msg);return opts.confirm;};
   const _portalRpcCall=async(name,body)=>{st.rpc.push({name:name,body:body});if(opts.rpcFail)throw new Error("HTTP400");return body.p_id;};
   const PhotoQ={add:()=>{throw new Error("PhotoQ im Portal")},flush:()=>{throw new Error("PhotoQ im Portal")}};
+  const _mFotoLaeuft={current:0};/* v1052 M1: keine Foto-Aufbereitung offen */
   eval(SUBMIT+";globalThis.__sm=submitMangel;");
   await globalThis.__sm();
   st.nm=newMangel;st.forms=forms;st.uploads=CALLS.filter(c=>c.url.indexOf("/functions/v1/portal-foto")>0).map(c=>c.body.name);CALLS.length=0;

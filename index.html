@@ -7702,6 +7702,20 @@ async function _portalFotoHoch(code,defectId,key,dataUrl){
 function _portalFotoGrund(e){const c=String((e&&e.code)||""),st=(e&&e.status)||0;if(c==="too_large"||st===413)return "zu groß";if(c==="bad_type"||c==="bad_image")return "kein unterstütztes Bild";if(c.indexOf("limit")===0)return "Obergrenze erreicht";if(c==="invalid_code"||st===403)return "Zugang ungültig";return "keine Verbindung";}
 /* Alle Fotos eines neuen Mangels NACHEINANDER (schwaches Netz: keine parallelen Mehr-MB-Uploads). Schon hochgeladene (pfad) werden
    nicht noch einmal gesendet. Ergebnis: pfade (in Foto-Reihenfolge), je (Pfad je Foto oder ""), urls (Pfad -> signierte Adresse), fehl (Index + Grund). */
+/* v1052 M1: Hochlade-Ergebnis in die AKTUELLE Fotoliste einfuegen. aktuell = nm.photos jetzt, orig = Schnappschuss vor dem Hochladen,
+   fotos = dieselben Eintraege mit key, je = Pfad je Foto oder "". Zuordnung ueber dieselbe Referenz oder denselben key; Fotos, die
+   waehrend des Hochladens dazukamen, bleiben unveraendert stehen, entfernte kommen NICHT zurueck. */
+function _portalFotosMerge(aktuell,orig,fotos,je){
+  var o=orig||[],fo=fotos||[],j0=je||[];
+  return (aktuell||[]).map(function(ph){
+    for(var i=0;i<fo.length;i++){
+      if(o[i]===ph||(ph&&typeof ph==="object"&&ph.key&&fo[i]&&fo[i].key===ph.key)){
+        return j0[i]?Object.assign({},fo[i],{pfad:j0[i]}):fo[i];
+      }
+    }
+    return ph;
+  });
+}
 async function _portalMangelFotosHoch(code,defectId,fotos,hoch){
   hoch=hoch||_portalFotoHoch;const pfade=[],je=[],urls={},fehl=[];const L=fotos||[];
   for(let i=0;i<L.length;i++){
@@ -7768,6 +7782,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   const [tab,setTab]=_react.useState.call(void 0, "uebersicht");
   const [newMangel,setNewMangel]=_react.useState.call(void 0, null);
   const [submittingMangel,setSubmittingMangel]=_react.useState.call(void 0, false);
+  const _mFotoLaeuft=_react.useRef.call(void 0, 0);/* v1052 M1: Fotos, deren Aufbereitung (Verkleinern/Vorschau) noch laeuft */
   const [selMangel,setSelMangel]=_react.useState.call(void 0, null);
   const [portalLoading,setPortalLoading]=_react.useState.call(void 0, true);
   const maengel=(forms.maengel||[]).filter(m=>m.pid===p.id);
@@ -7829,6 +7844,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
     /* Sprint-11 N6: Double-click prevention via submitting-state guard. */
     if(submittingMangel)return;
     if(!_optionalChain([newMangel, 'optionalAccess', _17 => _17.name]))return;
+    if(_mFotoLaeuft.current>0){if(window.__toast)window.__toast("Foto wird noch vorbereitet - bitte einen Moment warten und dann absenden","warn",4000);return;}/* v1052 M1: sonst kommt das Foto erst NACH dem Absenden an und geht verloren */
     /* v3.8.49 Bug-Fix: Length-Limits gegen DB-overflow/UI-breakage bei Kunden-Malice/Fehlern. */
     if((newMangel.name||"").trim().length<3){if(window.__toast)window.__toast("⚠️ Titel muss mind. 3 Zeichen haben","warn");return;}
     if((newMangel.name||"").length>200||(newMangel.beschreibung||"").length>5000){if(window.__toast)window.__toast("⚠️ Text zu lang (max 200/5000 Zeichen)","warn");return;}
@@ -7840,8 +7856,9 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
          Scheitert ein Foto, erfaehrt der Kunde WELCHES und entscheidet: ohne es absenden oder erneut versuchen. */
       const mid=newMangel._mid||uid();
       const fotos=(newMangel.photos||[]).map(ph=>(ph&&typeof ph==="object")?{...ph}:{full:ph,thumb:ph}).map((ph,i)=>({...ph,key:ph.key||(mid+"_"+i+"_"+Math.random().toString(36).slice(2,8))}));
+      const _orig=(newMangel.photos||[]);
       const fu=await _portalMangelFotosHoch(p.portalCode,mid,fotos);
-      setNewMangel(nm=>nm?{...nm,_mid:mid,photos:fotos.map((ph,i)=>fu.je[i]?{...ph,pfad:fu.je[i]}:ph)}:nm);
+      setNewMangel(nm=>nm?{...nm,_mid:mid,photos:_portalFotosMerge(nm.photos,_orig,fotos,fu.je)}:nm);/* v1052 M1: in den AKTUELLEN Stand einfuegen statt ihn mit dem Schnappschuss zu ersetzen */
       if(Object.keys(fu.urls).length)setPortalFotoUrls(prev=>({...prev,...fu.urls}));
       if(fu.fehl.length){
         const _nr=fu.fehl.map(x=>"Foto "+(x.i+1)+" ("+x.grund+")").join(", ");
@@ -7969,8 +7986,8 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Was ist der Mangel? *"  ), React.createElement('input', { className: "epk-form-field", value: newMangel.name, onChange: e=>setNewMangel(p=>({...p,name:e.target.value})), style: II(), placeholder: "z.B. Steckdose in Küche defekt"} ))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Wo genau? (Raum, Etage)"   ), React.createElement('input', { className: "epk-form-field", value: newMangel.ort||"", onChange: e=>setNewMangel(p=>({...p,ort:e.target.value})), style: II(), placeholder: "z.B. Erdgeschoss, Küche links"} ))
             , React.createElement('div', { style: {marginBottom:8}}, React.createElement('span', { style: LL()}, "Genauere Beschreibung" ), React.createElement('textarea', { className: "epk-form-field", value: newMangel.beschreibung||"", onChange: e=>setNewMangel(p=>({...p,beschreibung:e.target.value})), rows: 3, style: {...II(),resize:"vertical"}, placeholder: "Was genau ist das Problem?"} ))
-            , React.createElement('div', { style: {marginBottom:10}}, React.createElement('span', { style: LL()}, "Fotos (empfohlen)" ), React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:8,border:"2px dashed "+V.bd,cursor:"pointer",fontSize:12,color:V.dm}}, "📷 Foto aufnehmen / auswählen"   , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, style: {display:"none"}, onChange: e=>{const files=[...(e.target.files||[])];e.target.value="";files.forEach(file=>{_fotoAufbereiten(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewMangel(m=>({...m,photos:[...(m.photos||[]),{thumb,full:ph.dataUrl}]}))));});}} ))
-              , (newMangel.photos||[]).length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}, (newMangel.photos||[]).map((ph,i)=>(React.createElement('div', { key: i, style: {width:64,height:64,borderRadius:6,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: ph.thumb||ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { title: "Foto entfernen", 'aria-label': "Foto entfernen", onClick: ()=>setNewMangel(m=>({...m,photos:m.photos.filter((_,j)=>j!==i)})), style: {position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,border:"none",background:"rgba(0,0,0,.6)",color:"#fff",fontSize:UI.fMeta,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")))))
+            , React.createElement('div', { style: {marginBottom:10}}, React.createElement('span', { style: LL()}, "Fotos (empfohlen)" ), React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:8,border:"2px dashed "+V.bd,cursor:"pointer",fontSize:12,color:V.dm}}, "📷 Foto aufnehmen / auswählen"   , React.createElement('input', { type: "file", accept: "image/*", capture: "environment", multiple: true, disabled: submittingMangel, style: {display:"none"}, onChange: e=>{const files=[...(e.target.files||[])];e.target.value="";if(submittingMangel)return;files.forEach(file=>{_mFotoLaeuft.current++;const _fertig=()=>{_mFotoLaeuft.current=Math.max(0,_mFotoLaeuft.current-1);};_fotoAufbereiten(file,2400,0.88).then(ph=>createThumbnail(ph.dataUrl,120).then(thumb=>setNewMangel(m=>m?({...m,photos:[...(m.photos||[]),{thumb,full:ph.dataUrl}]}):m))).then(_fertig,()=>{_fertig();if(window.__toast)window.__toast("Foto konnte nicht verarbeitet werden","warn",4000);});});}} ))
+              , (newMangel.photos||[]).length>0&&React.createElement('div', { style: {display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}, (newMangel.photos||[]).map((ph,i)=>(React.createElement('div', { key: i, style: {width:64,height:64,borderRadius:6,overflow:"hidden",position:"relative"}}, React.createElement('img', { src: ph.thumb||ph, style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ""} ), React.createElement('button', { title: "Foto entfernen", 'aria-label': "Foto entfernen", onClick: ()=>{if(submittingMangel)return;setNewMangel(m=>({...m,photos:m.photos.filter((_,j)=>j!==i)}));}, disabled: submittingMangel, style: {position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,border:"none",background:"rgba(0,0,0,.6)",color:"#fff",fontSize:UI.fMeta,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}, "✕")))))
             )
             , React.createElement('div', { style: {display:"flex",gap:8}}, React.createElement('button', { onClick: submitMangel, disabled: submittingMangel, style: {padding:"10px 24px",borderRadius:8,border:"none",background:"#009640",color:"#fff",fontSize:13,fontWeight:700,cursor:submittingMangel?"wait":"pointer",fontFamily:"inherit",opacity:submittingMangel?0.6:1}}, submittingMangel?React.createElement("span",{},React.createElement("span",{className:"epk-spin",style:{marginRight:6}})," Wird gesendet…"):"📤 Mangel absenden"  ), React.createElement('button', { onClick: ()=>setNewMangel(null), disabled: submittingMangel, style: {...bsS(),opacity:submittingMangel?0.6:1}}, "Abbrechen"))
           ))
@@ -30125,6 +30142,8 @@ function FlotteView(props){
   /* ESC verlaesst den Maximier-Modus; jeder Wechsel braucht ein invalidateSize (Karte war ausgeblendet). */
   _react.useEffect.call(void 0, function(){try{setTimeout(_mapInval,70);}catch(_e){}if(!maxBuch)return;var onKey=function(e){if(e.key==='Escape')setMaxBuch(false);};window.addEventListener('keydown',onKey);return function(){window.removeEventListener('keydown',onKey);};},[maxBuch]);
   const _fahrtMk=_react.useRef.call(void 0, []);/* Start-/Ende-Marker der gewaehlten Fahrt */
+  const _trailFidRef=_react.useRef.call(void 0, null);const _followIdRef=_react.useRef.call(void 0, null);const _trailReq=_react.useRef.call(void 0, 0);/* v1052 N2: Marker-Klick liest den AKTUELLEN Stand, nicht den des letzten Marker-Aufbaus */
+  _trailFidRef.current=trailFid;_followIdRef.current=followId;
   /* v3.9.687 F4: Filtersuche + Favoriten. Bei 13 Fahrzeugen noch ueberschaubar — sobald der Fuhrpark
      waechst, ist Scrollen durch eine ungeordnete Liste die eigentliche Bremse. Favoriten liegen
      lokal (localStorage): es ist eine Ansichts-Vorliebe des Geraets, keine Firmendaten. */
@@ -30275,9 +30294,9 @@ function FlotteView(props){
   /* v3.9.1004 (FL1): Der Kopf sagt "Fahrzeuge (21)", die Karte zeigt einen Marker - ohne Hinweis sieht das aus wie ein Ladefehler. Gezaehlt wird mit DERSELBEN Regel wie die Marker (Tracker + letzte Position mit gueltigen Koordinaten, 0/0 verworfen), damit Zahl und Karte nie auseinanderlaufen. Nenner = derselbe wie im Kopf. */
   var _nGps=trackerFz.filter(function(f){var p=byId[f.id];if(!p||p.lat===undefined||p.lat===null||p.lon===undefined||p.lon===null)return false;var _la=Number(p.lat),_lo=Number(p.lon);return isFinite(_la)&&isFinite(_lo)&&!(_la===0&&_lo===0);}).length;
   var _holeTrack=function(fid){return _demo?Promise.resolve((_demoDaten&&_demoDaten.tracks[fid])||[]):_flotteFetchTrack(fid);};/* v1049: Demo-Spur aus dem Speicher, sonst der bestehende on-demand-Abruf */
-  var _showTrail=function(fid){if(!_map.current||typeof L==='undefined')return;setTrailFid(fid);setTrailSeit(null);/* v3.9.663 Bug-Hunt #3: Spur on-demand pro Fahrzeug laden (fz_latest hat je Fahrzeug nur 1 Punkt) */_holeTrack(fid).then(function(rows){if(!_map.current)return;setTrackRows({fid:fid,rows:rows||[]});try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}var _sm=_fzStatusSeit(rows);setTrailSeit(isNaN(_sm)?null:_sm);/* v3.9.678: exaktes "seit" aus der Historie — die Liste zeigt fuer dieses Fahrzeug jetzt den echten Zustandsbeginn statt der Naeherung */var tp=(rows||[]).filter(function(p){return p&&p.lat!=null&&p.lon!=null;}).sort(function(a,b){return new Date(a.ts).getTime()-new Date(b.ts).getTime();}).map(function(p){return [p.lat,p.lon];});if(tp.length>=2){try{_trail.current=L.polyline(tp,{color:'#0ea5e9',weight:4,opacity:0.95,lineJoin:'round',lineCap:'round'}).addTo(_map.current);}catch(_e2){}}/* v3.9.690: durchgezogen, keine Strichelung — Fink-Optik, deutlich besser lesbar */});};/* v3.9.656/658/663: gefahrene Spur des Fahrzeugs */
+  var _showTrail=function(fid){if(!_map.current||typeof L==='undefined')return;setTrailFid(fid);var _rq=++_trailReq.current;_trailFidRef.current=fid;setTrailSeit(null);/* v3.9.663 Bug-Hunt #3: Spur on-demand pro Fahrzeug laden (fz_latest hat je Fahrzeug nur 1 Punkt) */_holeTrack(fid).then(function(rows){if(!_map.current)return;if(_rq!==_trailReq.current)return;/* v1052 N2: eine spaete Antwort fuer ein frueher gewaehltes Fahrzeug zeichnet nichts mehr */setTrackRows({fid:fid,rows:rows||[]});try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}var _sm=_fzStatusSeit(rows);setTrailSeit(isNaN(_sm)?null:_sm);/* v3.9.678: exaktes "seit" aus der Historie — die Liste zeigt fuer dieses Fahrzeug jetzt den echten Zustandsbeginn statt der Naeherung */var tp=(rows||[]).filter(function(p){return p&&p.lat!=null&&p.lon!=null;}).sort(function(a,b){return new Date(a.ts).getTime()-new Date(b.ts).getTime();}).map(function(p){return [p.lat,p.lon];});if(tp.length>=2){try{_trail.current=L.polyline(tp,{color:'#0ea5e9',weight:4,opacity:0.95,lineJoin:'round',lineCap:'round'}).addTo(_map.current);}catch(_e2){}}/* v3.9.690: durchgezogen, keine Strichelung — Fink-Optik, deutlich besser lesbar */});};/* v3.9.656/658/663: gefahrene Spur des Fahrzeugs */
   var _clearFahrtMk=function(){try{(_fahrtMk.current||[]).forEach(function(m){try{_map.current.removeLayer(m);}catch(_e){}});}catch(_e2){}_fahrtMk.current=[];};
-  var _clearTrail=function(){try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}_clearFahrtMk();setTrailFid(null);setTrailSeit(null);setFahrtTrail(false);};/* v3.9.658; v3.9.690: raeumt auch die Start/Ende-Marker */
+  var _clearTrail=function(){try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}_clearFahrtMk();_trailReq.current++;_trailFidRef.current=null;setTrailFid(null);setTrailSeit(null);setFahrtTrail(false);};/* v3.9.658; v3.9.690: raeumt auch die Start/Ende-Marker */
   /* v3.9.683: Trail EINER Fahrt statt der ganzen 500-Punkte-Historie. Das Fahrtenbuch reicht die
      Punktkette der gewaehlten Fahrt herein; die Karte zeichnet nur sie und passt die Sicht darauf
      an. "Verlauf ✕" raeumt beides gleich wieder weg — daher kein zweiter Aufraeum-Pfad. */
@@ -30295,7 +30314,7 @@ function FlotteView(props){
       _fahrtMk.current=[_mk(pts[0],'#22c55e','▶'),_mk(pts[pts.length-1],'#ef4444','■')];
       _map.current.fitBounds(pts,{padding:[50,50],maxZoom:16});
     }catch(_e2){}
-    setTrailFid(null);setTrailSeit(null);setFahrtTrail(true);
+    _trailReq.current++;_trailFidRef.current=null;setTrailFid(null);setTrailSeit(null);setFahrtTrail(true);
   };
   var _fitAll=function(){var ap=fleet.filter(function(r){return r.p;}).map(function(r){return [r.p.lat,r.p.lon];});if(ap.length&&_map.current){try{_map.current.fitBounds(ap,{padding:[40,40],maxZoom:14});}catch(_e){}}};/* v3.9.658: alle Fahrzeuge einpassen */
   var _cbtn={background:'rgba(15,23,42,.92)',color:'#fff',border:'none',borderRadius:8,padding:'7px 11px',fontSize:12,fontWeight:700,cursor:'pointer',minHeight:44,touchAction:'manipulation'};/* v1049: 44 px Trefferflaeche */
@@ -30343,7 +30362,7 @@ function FlotteView(props){
      heute = on-demand-Historie aus _showTrail + _fzSegmente, Adresse = Geocode-Cache, sonst EIN gedrosselter
      Lookup ueber _geoNominatim (hoechstens einer je Minute und Fahrzeug). */
   var _fzVanIcon=function(d){return L.divIcon({className:'fz-van-icon',html:_fzVanMarkerHtml(d),iconSize:[44,44],iconAnchor:[22,22]});};
-  var _waehle=function(fid){setSelFid(fid);setPopAnstoss(function(n){return n+1;});if(followId&&followId!==fid)setFollowId(null);if(trailFid!==fid)_showTrail(fid);};
+  var _waehle=function(fid){setSelFid(fid);setPopAnstoss(function(n){return n+1;});var _fo=_followIdRef.current;if(_fo&&_fo!==fid){_followIdRef.current=null;setFollowId(null);}if(_trailFidRef.current!==fid)_showTrail(fid);};/* v1052 N2: liest trailFid/followId ueber Refs - der Marker-Klick haelt _waehle aus dem letzten Marker-Aufbau (bis zu 10 s alt, im Demo-Modus dauerhaft) */
   const _fahrerAnz=function(f){return (f&&f._demoFahrer)?f._demoFahrer:_fahrerName(f);};
   const _selRow=selFid?(fleet.find(function(r){return r.f.id===selFid&&r.hatTracker;})||null):null;
   const _selP=_selRow?_selRow.p:null;
@@ -30717,7 +30736,7 @@ function _fzFristen(fahrzeuge,nowMs,termine,finanzen){/* -> Fristen ueber alle (
     var tj=Array.isArray(f.termine)?f.termine:[];
     for(j=0;j<tj.length;j++){
       var t=tj[j];
-      if(!t||_fzTerminErledigt(t)||t.erledigt)continue;
+      if(!t||_fzTerminErledigt(t))continue;/* v1052: kein Wahrheitswert-Test mehr - "0"/"false" (Text) ist NICHT erledigt */
       var tg=_fzTageBis(t.datum,nowMs);
       if(isNaN(tg))continue;
       out.push(mk(f,'termin',_fzDatumTeile(t.datum).iso,tg,tg<0?'ueberfaellig':(tg<14?'bald':'ok'),null,String(t.beschreibung||t.art||'')));
@@ -30931,7 +30950,7 @@ function FlotteFristenPanel(props){
     var p=null;
     try{p=_sbGet('fz_termine');}catch(e){p=null;}
     if(!p||typeof p.then!=='function'){setTm({rows:null,status:'fehler'});return;}
-    p.then(function(d){if(lebt)setTm({rows:Array.isArray(d)?d:[],status:'ok'});},function(){if(lebt)setTm({rows:null,status:'fehler'});});
+    p.then(function(d){if(!lebt)return;if(_rlsLeer(d)){setTm({rows:null,status:'rechte'});return;}/* v1052 N1 */setTm({rows:Array.isArray(d)?d:[],status:'ok'});},function(){if(lebt)setTm({rows:null,status:'fehler'});});
     return function(){lebt=false;};
   },[]);
   var now=Date.now();
@@ -30953,7 +30972,12 @@ function FlotteFristenPanel(props){
   };
   var tmHinweis=tm.status==='laedt'?'Geplante Werkstatt-Termine werden geladen …'
     :tm.status==='offline'?'Offline: geplante Werkstatt-Termine nicht geladen. Pickerl, Service und Vignette kommen aus den gespeicherten Fahrzeugdaten und sind vollständig.'
-    :tm.status==='fehler'?'Werkstatt-Termine konnten nicht geladen werden. Pickerl, Service und Vignette sind trotzdem vollständig.':'';
+    :tm.status==='fehler'?'Werkstatt-Termine konnten nicht geladen werden. Pickerl, Service und Vignette sind trotzdem vollständig.'
+    :tm.status==='rechte'?'Werkstatt-Termine sind nicht lesbar (keine Berechtigung). Pickerl, Service und Vignette sind trotzdem vollständig.':'';
+  var fs0=props.finanzen?String(props.finStatus||''):'';/* v1052 N1: Leasing/Versicherung fehlen sonst STILL in der Liste */
+  var finHinweis=(!fs0||fs0==='ok')?'':fs0==='laedt'?'Leasing- und Versicherungsdaten werden geladen …'
+    :fs0==='rechte'?'Leasing- und Versicherungsdaten sind nicht lesbar (keine Berechtigung) - diese Fristen fehlen in der Liste.'
+    :'Leasing- und Versicherungsdaten konnten nicht geladen werden - diese Fristen fehlen in der Liste.';
   var zeile=function(x,i){
     var oeffnen=function(){if(props.onOpen)props.onOpen(x.fid);};
     var wann=x.datum?(_fzDatumAnz(x.datum)+(isNaN(x.tage)?'':(' · '+_fzTageTxt(x.tage)))):'';
@@ -30982,7 +31006,7 @@ function FlotteFristenPanel(props){
         ,h('select',{value:artF,onChange:function(e){setArtF(e.target.value);},'aria-label':'Art der Frist',style:Object.assign({},II(),{width:'auto',minHeight:44,fontSize:UI.fKlein})}
           ,h('option',{value:'alle'},'Alle Arten'),h('option',{value:'pickerl'},'Pickerl §57a'),h('option',{value:'service'},'Service'),h('option',{value:'vignette'},'Vignette'),h('option',{value:'termin'},'Termine'),props.finanzen?h('option',{value:'leasing'},'Leasing-Ende'):null,props.finanzen?h('option',{value:'versicherung'},'Versicherung'):null,h('option',{value:'service_km'},'Service (km)')))
       ,nUeb?h('div',{style:{marginTop:8,fontSize:UI.fKlein,fontWeight:700,color:V.tx}},nUeb+(nUeb===1?' Frist ist':' Fristen sind')+' überfällig.'):null
-      ,tmHinweis?h('div',{style:{marginTop:6,fontSize:UI.fMeta,color:V.dm}},tmHinweis):null)
+      ,(tmHinweis||finHinweis)?h('div',{style:{marginTop:6,fontSize:UI.fMeta,color:V.dm}},[finHinweis,tmHinweis].filter(function(x){return !!x;}).join(' ')):null)
     ,h('div',{style:Object.assign({},CC(),{padding:0,overflow:'hidden'})}
       ,sicht.length?sicht.map(zeile)
         :h('div',{style:{padding:'24px 16px',textAlign:'center',color:V.dm,fontSize:UI.fKlein}}
@@ -31175,8 +31199,9 @@ function _fzStammWert(feld,roh){/* Eingabe/DB-Wert -> {ok,wert,fehler}. wert ist
   var g=_fzZahl(z);
   if(isNaN(g))return {ok:false,wert:null,fehler:'keine Zahl'};
   if(g<0)return {ok:false,wert:null,fehler:'nicht negativ'};
-  if(g>=1e8)return {ok:false,wert:null,fehler:'Zahl zu groß'};
-  return {ok:true,wert:Math.round(g*100)/100,fehler:''};
+  var gr=Math.round(g*100)/100;/* v1052 N3: ERST runden, dann pruefen - 99999999.995 wurde zu 1e8 und sprengte numeric(10,2) (400, Warteschlange verwirft) */
+  if(!(gr<=99999999.99))return {ok:false,wert:null,fehler:'Zahl zu groß'};
+  return {ok:true,wert:gr,fehler:''};
 }
 function _fzStammAnzeige(feld,v){/* DB-Wert -> Text fuer das Eingabefeld ('' fuer leer, nie "null"/"NaN") */
   var r=_fzStammWert(feld,v);
@@ -31290,14 +31315,14 @@ function _fsKtrNeu(e,monteurId,id){/* Formular -> {ok,row,fehler}. Leere Datumsf
 var _fsKtrCache={};/* id -> Zeile; geladene + eben erfasste (noch in der Warteschlange) Kontrollen. Nur Sitzungsspeicher, kein localStorage (Personaldaten). */
 function _fsKtrMerken(rows){(rows||[]).forEach(function(r){if(r&&r.id)_fsKtrCache[r.id]=r;});}
 function _fsKtrAusCache(mid){return Object.keys(_fsKtrCache).map(function(k){return _fsKtrCache[k];}).filter(function(r){return r&&(!mid||r.monteur_id===mid);});}
-function _fsKtrChip(stufe,h){
-  var bg=(stufe==='entzogen'||stufe==='abgelaufen'||stufe==='alt')?COLORS.ERROR_FILL:(stufe==='fehlt'||stufe==='mangel')?COLORS.WARNING_FILL:stufe==='bald'?COLORS.INFO_FILL:UI.markeTxt;
-  return h('span',{style:{display:'inline-block',flexShrink:0,minWidth:112,textAlign:'center',padding:'3px 8px',borderRadius:UI.rChip,background:bg,color:'#fff',fontSize:UI.fMeta,fontWeight:700,whiteSpace:'nowrap'}},FS_KTR_TXT[stufe]||stufe);
+function _fsKtrChip(stufe,h){/* v1052 N1: stufe 'unlesbar' = Kontrollen wegen 401/403 nicht lesbar (grau, nicht 'nie kontrolliert') */
+  var bg=stufe==='unlesbar'?UI.grau:(stufe==='entzogen'||stufe==='abgelaufen'||stufe==='alt')?COLORS.ERROR_FILL:(stufe==='fehlt'||stufe==='mangel')?COLORS.WARNING_FILL:stufe==='bald'?COLORS.INFO_FILL:UI.markeTxt;
+  return h('span',{style:{display:'inline-block',flexShrink:0,minWidth:112,textAlign:'center',padding:'3px 8px',borderRadius:UI.rChip,background:bg,color:'#fff',fontSize:UI.fMeta,fontWeight:700,whiteSpace:'nowrap'}},stufe==='unlesbar'?'nicht lesbar':(FS_KTR_TXT[stufe]||stufe));
 }
 
 /* ── Finanzdaten (fz_finanzen): seit 19.11. eigene Tabelle, RLS FOR ALL nur is_hr (admin/buero/projektleiter).
    Geladen wird NUR fuer _maStaffRolle - andere Rollen fragen die Tabelle nie an (sie bekaemen ohnehin 0 Zeilen).
-   Sitzungsspeicher, kein localStorage (Personal-/Vertragsdaten). status: aus | laedt | ok | offline | fehler. */
+   Sitzungsspeicher, kein localStorage (Personal-/Vertragsdaten). status: aus | laedt | ok | offline | fehler | rechte (401/403, v1052). */
 var _fzFin={rows:{},status:'aus'};
 function _fzFinLaden(cu){/* -> Promise (fertig) oder null, wenn die Rolle keine Finanzdaten sehen darf */
   if(!_maStaffRolle(cu))return null;
@@ -31307,6 +31332,7 @@ function _fzFinLaden(cu){/* -> Promise (fertig) oder null, wenn die Rolle keine 
   if(!p||typeof p.then!=='function'){if(_fzFin.status!=='ok')_fzFin.status='fehler';return Promise.resolve(_fzFin);}
   if(_fzFin.status!=='ok')_fzFin.status='laedt';
   return p.then(function(d){
+    if(_rlsLeer(d)){if(_fzFin.status!=='ok')_fzFin.status='rechte';return _fzFin;}/* v1052 N1: 401/403 ist KEIN leerer Bestand - nicht editierbar, nicht als leer zeigen */
     (Array.isArray(d)?d:[]).forEach(function(r){if(r&&r.fahrzeug_id)_fzFin.rows[r.fahrzeug_id]=r;});
     _fzFin.status='ok';return _fzFin;
   },function(){if(_fzFin.status!=='ok')_fzFin.status='fehler';return _fzFin;});
@@ -31325,26 +31351,35 @@ function FahrzeugStammKarte(props){
   var _d=_react.useState.call(void 0,false);var dirty=_d[0],setDirty=_d[1];
   var _fe=_react.useState.call(void 0,{});var fehler=_fe[0],setFehler=_fe[1];
   var _o=_react.useState.call(void 0,!!props.offenStart);var offen=_o[0],setOffen=_o[1];
-  _react.useEffect.call(void 0,function(){if(!dirty)setEntwurf(felderAus(f,fin));},[props.f,props.fin]);
+  var _bt=_react.useState.call(void 0,{});var beruehrt=_bt[0],setBeruehrt=_bt[1];/* v1052 H1: Schluessel, die der Nutzer WIRKLICH geaendert hat - nur sie gehen in einen Rumpf */
+  _react.useEffect.call(void 0,function(){
+    /* v1052 H1: Auch WAEHREND des Bearbeitens folgen die nicht angefassten Felder dem Server (Finanzdaten kommen erst nach dem
+       ersten Bild an, ein anderes Geraet aendert). Vorher blieb der Entwurf stehen (7 leere Finanzfelder aus fin={}) und der Rumpf
+       schickte sie als null - der Upsert loeschte Leasing und Versicherung. */
+    if(!dirty){setEntwurf(felderAus(f,fin));return;}
+    var frisch=felderAus(f,fin);
+    setEntwurf(function(p){var n=Object.assign({},p);Object.keys(frisch).forEach(function(k){if(!beruehrt[k])n[k]=frisch[k];});return n;});
+  },[props.f,props.fin]);
   if(!props.f)return null;
   var spaltenDa=!!props.spaltenDa,siehtFinanz=!!props.darfFinanz,finDa=siehtFinanz&&!!props.finDa;
   var darfFinanz=finDa,darfReifen=spaltenDa&&!!props.darfReifen;
   var isMob=!!props.isMob;
-  var setze=function(k,v){setEntwurf(function(p){var n=Object.assign({},p);n[k]=v;return n;});setDirty(true);setFehler(function(p){var n=Object.assign({},p);delete n[k];delete n._riegel;return n;});};
-  var rumpf=function(){return {fz:_fzStammBody(f,entwurf,darfReifen?FZ_STAMM_REIFEN:[],'fahrzeuge'),fi:_fzStammBody(fin,entwurf,darfFinanz?FZ_STAMM_FINANZ:[],'fz_finanzen')};};
+  var setze=function(k,v){setEntwurf(function(p){var n=Object.assign({},p);n[k]=v;return n;});setBeruehrt(function(p){if(p[k])return p;var n=Object.assign({},p);n[k]=1;return n;});setDirty(true);setFehler(function(p){var n=Object.assign({},p);delete n[k];delete n._riegel;return n;});};
+  var nurBeruehrt=function(liste){return liste.filter(function(k){return !!beruehrt[k];});};/* v1052 H1: nie ein Feld senden, das niemand angefasst hat */
+  var rumpf=function(){return {fz:_fzStammBody(f,entwurf,darfReifen?nurBeruehrt(FZ_STAMM_REIFEN):[],'fahrzeuge'),fi:_fzStammBody(fin,entwurf,darfFinanz?nurBeruehrt(FZ_STAMM_FINANZ):[],'fz_finanzen')};};
   var vorschau=rumpf();var nGeaendert=vorschau.fz.anzahl+vorschau.fi.anzahl;
   var speichern=function(){
     var r=rumpf();
     var fx=Object.assign({},r.fz.fehler,r.fi.fehler);
     if(r.fz.fehler._riegel&&r.fi.fehler._riegel)fx._riegel=r.fz.fehler._riegel+'; '+r.fi.fehler._riegel;
     if(Object.keys(fx).length){setFehler(fx);if(window.__toast)window.__toast('Bitte die markierten Felder prüfen','error',4000);return;}
-    if(!r.fz.anzahl&&!r.fi.anzahl){setDirty(false);return;}
+    if(!r.fz.anzahl&&!r.fi.anzahl){setDirty(false);setBeruehrt({});return;}
     if(r.fz.anzahl&&props.onSpeichern)props.onSpeichern(r.fz.body);
     if(r.fi.anzahl&&props.onSpeichernFin)props.onSpeichernFin(r.fi.body);
-    setDirty(false);setFehler({});
+    setDirty(false);setFehler({});setBeruehrt({});
     if(window.__toast)window.__toast((typeof navigator!=='undefined'&&navigator.onLine===false)?'Gespeichert - wird übertragen, sobald wieder Netz da ist':'Stammdaten gespeichert','success',3000);
   };
-  var verwerfen=function(){setEntwurf(felderAus(f,fin));setDirty(false);setFehler({});};
+  var verwerfen=function(){setEntwurf(felderAus(f,fin));setDirty(false);setFehler({});setBeruehrt({});};
   var lesen=function(k){
     var src=FZ_STAMM_FINANZ.indexOf(k)>=0?fin:f;
     var r=_fzStammWert(k,src[k]);var d=FZ_STAMM_FELDER[k];
@@ -31389,7 +31424,7 @@ function FahrzeugStammKarte(props){
   if(finDa){var lr=_fzStammWert('leasing_rate',fin.leasing_rate);var le=_fzStammWert('leasing_ende',fin.leasing_ende);if(le.ok&&le.wert)zusammen.push('Leasing bis '+_fzDatumAnz(le.wert));else if(lr.ok&&lr.wert!==null)zusammen.push('Leasing');var va=_fzStammWert('versicherung_ablauf',fin.versicherung_ablauf);if(va.ok&&va.wert)zusammen.push('Versicherung bis '+_fzDatumAnz(va.wert));}
   var rs=_fzStammWert('reifen_saison',f.reifen_saison);if(rs.ok&&rs.wert)zusammen.push({sommer:'Sommerreifen',winter:'Winterreifen',ganzjahr:'Ganzjahresreifen'}[rs.wert]||rs.wert);
   var sk=_fzStammWert('naechst_service_km',f.naechst_service_km);if(sk.ok&&sk.wert!==null)zusammen.push('Service bei '+lesen('naechst_service_km'));
-  var finTxt=props.finStatus==='offline'?'Offline: Leasing- und Versicherungsdaten sind auf diesem Gerät noch nicht geladen.':props.finStatus==='fehler'?'Leasing- und Versicherungsdaten konnten nicht geladen werden - bitte später erneut öffnen.':'Leasing- und Versicherungsdaten werden geladen …';
+  var finTxt=props.finStatus==='rechte'?'Leasing- und Versicherungsdaten sind nicht lesbar (keine Berechtigung) - hier wird nichts gespeichert.':props.finStatus==='offline'?'Offline: Leasing- und Versicherungsdaten sind auf diesem Gerät noch nicht geladen.':props.finStatus==='fehler'?'Leasing- und Versicherungsdaten konnten nicht geladen werden - bitte später erneut öffnen.':'Leasing- und Versicherungsdaten werden geladen …';
   var kannSpeichern=darfFinanz||darfReifen;
   return h('div',{style:Object.assign({},CC(),{marginTop:8})}
     ,h('button',{type:'button',onClick:function(){setOffen(function(v){return !v;});},'aria-expanded':offen?'true':'false',
@@ -31432,7 +31467,7 @@ function FsKontrolleSection(props){
     if(typeof navigator!=='undefined'&&navigator.onLine===false){setStatus('offline');return;}
     setStatus('laedt');
     _sbGet('fz_fs_kontrollen','monteur_id=eq.'+encodeURIComponent(mid)+'&order=geprueft_am.desc,created_at.desc').then(function(d){
-      if(!lebt)return;_fsKtrMerken(Array.isArray(d)?d:[]);setRows(_fsKtrAusCache(mid));setStatus('ok');
+      if(!lebt)return;if(_rlsLeer(d)){setStatus('rechte');return;}/* v1052 N1: 401/403 = nicht lesbar, nicht 'nie kontrolliert' */_fsKtrMerken(Array.isArray(d)?d:[]);setRows(_fsKtrAusCache(mid));setStatus('ok');
     },function(){if(lebt)setStatus('fehler');});
     return function(){lebt=false;};
   },[mid]);
@@ -31470,12 +31505,13 @@ function FsKontrolleSection(props){
   };
   var lbl=function(t,id){return h('label',{htmlFor:id,style:LL()},t);};
   var err=function(k){return fehler[k]?h('div',{role:'alert',style:{fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:600,marginTop:2}},fehler[k]):null;};
-  var stHinweis=status==='offline'?'Offline: angezeigt werden nur bereits geladene oder eben erfasste Kontrollen.':status==='fehler'?'Kontrollen konnten nicht geladen werden.':status==='laedt'?'Kontrollen werden geladen …':'';
+  var stUnlesbar=status==='rechte'&&st.stufe==='fehlt';
+  var stHinweis=status==='rechte'?'Kontrollen sind nicht lesbar (keine Berechtigung) - der Stand ist unbekannt.':status==='offline'?'Offline: angezeigt werden nur bereits geladene oder eben erfasste Kontrollen.':status==='fehler'?'Kontrollen konnten nicht geladen werden.':status==='laedt'?'Kontrollen werden geladen …':'';
   return h('div',{style:Object.assign({},CC(),{marginTop:14})}
     ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:8}}
       ,h('div',{style:{fontSize:15,fontWeight:700,flex:1,display:'flex',alignItems:'center',gap:8,minWidth:180}},_ik('schild',18),'Führerscheinkontrolle')
       ,!formOffen?h('button',{type:'button',onClick:function(){setEnt(leer());setFehler({});setFormOffen(true);},style:Object.assign({},bpS,{minHeight:44,display:'inline-flex',alignItems:'center',gap:6})},_ik('plus',16),'Kontrolle erfassen'):null)
-    ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:8}},_fsKtrChip(st.stufe,h),h('span',{style:{fontSize:UI.fKlein,color:V.tx,flex:'1 1 200px',minWidth:0}},st.hinweis))
+    ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:8}},_fsKtrChip(stUnlesbar?'unlesbar':st.stufe,h),h('span',{style:{fontSize:UI.fKlein,color:V.tx,flex:'1 1 200px',minWidth:0}},stUnlesbar?'Stand unbekannt':st.hinweis))
     ,stHinweis?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:6}},stHinweis):null
     ,formOffen?h('div',{style:{padding:10,borderRadius:8,border:'1px solid '+V.bd,marginBottom:10}}
       ,h('div',{style:{display:'grid',gridTemplateColumns:props.isMob?'1fr':'repeat(auto-fit,minmax(170px,1fr))',gap:8}}
@@ -31504,7 +31540,7 @@ function FsKontrolleSection(props){
           ,h('span',{style:{color:V.dm,flex:'1 1 160px',minWidth:0}},[r.klassen?('Klassen '+r.klassen):'',gb?('gültig bis '+_fzDatumAnz(gb.iso)):'',r.pruefer?('geprüft von '+r.pruefer):'',r.notiz||''].filter(function(x){return !!x;}).join(' · ')||'—')
           ,r.nachweis_path?h('button',{type:'button',onClick:function(){nachweis(r);},style:Object.assign({},bsS(),{minHeight:44})},_ikVw('auge','Nachweis')):null);
       }))
-    :h('div',{style:{fontSize:UI.fKlein,color:V.dm,padding:'4px 0'}},'Noch keine Kontrolle erfasst.')
+    :h('div',{style:{fontSize:UI.fKlein,color:V.dm,padding:'4px 0'}},status==='rechte'?'Kontrollen nicht lesbar.':'Noch keine Kontrolle erfasst.')
     ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8}},'Halterpflicht: Führerschein der Fahrer regelmäßig (alle 6 Monate) im Original sichtkontrollieren und hier festhalten.'));
 }
 
@@ -31518,20 +31554,21 @@ function FsKontrolleFristenKarte(props){
     var p=null;
     try{p=_sbGet('fz_fs_kontrollen','select=id,monteur_id,geprueft_am,ergebnis,klassen,gueltig_bis,pruefer,created_at&order=geprueft_am.desc');}catch(e){p=null;}
     if(!p||typeof p.then!=='function'){setTm({rows:_fsKtrAusCache(''),status:'fehler'});return;}
-    p.then(function(d){if(!lebt)return;_fsKtrMerken(Array.isArray(d)?d:[]);setTm({rows:_fsKtrAusCache(''),status:'ok'});},function(){if(lebt)setTm({rows:_fsKtrAusCache(''),status:'fehler'});});
+    p.then(function(d){if(!lebt)return;if(_rlsLeer(d)){setTm({rows:_fsKtrAusCache(''),status:'rechte'});return;}/* v1052 N1 */_fsKtrMerken(Array.isArray(d)?d:[]);setTm({rows:_fsKtrAusCache(''),status:'ok'});},function(){if(lebt)setTm({rows:_fsKtrAusCache(''),status:'fehler'});});
     return function(){lebt=false;};
   },[]);
   var alle=_fsKtrFaellig(props.monteure||[],props.fahrzeuge||[],tm.rows||[],Date.now());
   var offen=alle.filter(function(x){return x.stufe!=='ok';});
-  var hinweis=tm.status==='laedt'?'Kontrollen werden geladen …':tm.status==='offline'?'Offline: nur bereits geladene Kontrollen - die Liste kann unvollständig sein.':tm.status==='fehler'?'Kontrollen konnten nicht geladen werden - die Liste kann unvollständig sein.':'';
+  var unlesbar=tm.status==='rechte';
+  var hinweis=unlesbar?'Kontrollen sind nicht lesbar (keine Berechtigung) - wer hier ohne Kontrolle steht, ist unbekannt, nicht unkontrolliert.':tm.status==='laedt'?'Kontrollen werden geladen …':tm.status==='offline'?'Offline: nur bereits geladene Kontrollen - die Liste kann unvollständig sein.':tm.status==='fehler'?'Kontrollen konnten nicht geladen werden - die Liste kann unvollständig sein.':'';
   return h('div',{style:Object.assign({},CC(),{padding:12,marginTop:10})}
     ,h('div',{style:{fontSize:UI.fTitel,fontWeight:800,color:V.tx,display:'flex',alignItems:'center',gap:8,marginBottom:6}},_ik('schild',18),'Führerscheinkontrolle (Halterpflicht)')
     ,hinweis?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:6}},hinweis):null
     ,offen.length?offen.map(function(r){
       return h('div',{key:r.mid,style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,padding:'8px 0',minHeight:44,borderBottom:'1px solid '+V.bd}}
-        ,_fsKtrChip(r.stufe,h)
+        ,_fsKtrChip((unlesbar&&r.stufe==='fehlt')?'unlesbar':r.stufe,h)
         ,h('span',{style:{fontWeight:800,color:V.tx,whiteSpace:'nowrap'}},r.name)
-        ,h('span',{style:{color:V.dm,fontSize:UI.fKlein,flex:'1 1 160px',minWidth:0}},r.hinweis));
+        ,h('span',{style:{color:V.dm,fontSize:UI.fKlein,flex:'1 1 160px',minWidth:0}},(unlesbar&&r.stufe==='fehlt')?'Stand unbekannt':r.hinweis));
     }):h('div',{style:{fontSize:UI.fKlein,color:V.dm}},alle.length?'Alle Fahrer sind kontrolliert, kein Führerschein läuft in den nächsten 60 Tagen ab.':'Keinem aktiven Fahrzeug ist ein Fahrer zugewiesen.')
     ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Im Blick: zugewiesene Fahrer und alle Mitarbeiter mit erfasster Kontrolle. Erfassen unter Mitarbeiter → Person → Führerscheinkontrolle.'));
 }
@@ -32438,7 +32475,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , _fzListe.map(f=>view==="kacheln"?_fzKachel(f):_fzZeile(f))
       ))
       /* v1049 Lese-Ansichten Fristen / Kosten (Grundmenge visibleFz wie die Kacheln; Klick oeffnet das Fahrzeug) */
-      , !sel&&!batchMode&&isVAdmin&&view==="fristen"&&React.createElement(FlotteFristenPanel, {fahrzeuge: visibleFz, monteure: (monteure||MONT), isMob: isMob, zeigeFahrer: isVAdmin, zeigeFsKtr: _maStaffRolle(curUser), finanzen: _finKarte, onOpen: setSel})
+      , !sel&&!batchMode&&isVAdmin&&view==="fristen"&&React.createElement(FlotteFristenPanel, {finStatus: _darfFin?_fzFin.status:"", fahrzeuge: visibleFz, monteure: (monteure||MONT), isMob: isMob, zeigeFahrer: isVAdmin, zeigeFsKtr: _maStaffRolle(curUser), finanzen: _finKarte, onOpen: setSel})
       , !sel&&!batchMode&&isVAdmin&&view==="kosten"&&React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz, isMob: isMob, finanzen: _finKarte, onOpen: setSel})
 
       /* Vehicle Detail */

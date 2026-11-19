@@ -144,7 +144,7 @@ def test_finanzen_nur_fuer_hr_geladen(node_exe, index_html):
     m = re.search(r"^var _fzFin=\{.*?\};", index_html, re.M)
     assert m
     snip = ("var navigator={onLine:true};var _rufe=[];function _sbGet(t){_rufe.push(t);return Promise.resolve([{fahrzeug_id:'F1',leasing_rate:450}]);}\n"
-            + _extract_fn(index_html, "_maStaffRolle") + "\n" + m.group(0) + "\n" + _extract_fn(index_html, "_fzFinLaden") + "\n"
+            + _extract_fn(index_html, "_maStaffRolle") + "\n" + _extract_fn(index_html, "_rlsLeer") + "\n" + m.group(0) + "\n" + _extract_fn(index_html, "_fzFinLaden") + "\n"
             "var nichtHr=[null,{},{role:'monteur'},{role:'lagerleitung'},{role:'lager_display'},{role:'polier',rolle:'Projektleiter'}].map(function(u){return _fzFinLaden(u);});"
             "var vorher=_rufe.slice();"
             "_fzFinLaden({role:'buero'}).then(function(f){process.stdout.write(JSON.stringify({nichtHr:nichtHr,vorher:vorher,nachher:_rufe,status:f.status,rows:f.rows}));});")
