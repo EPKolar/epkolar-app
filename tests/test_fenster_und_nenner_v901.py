@@ -225,7 +225,7 @@ def test_zwei_zahlen_zwei_worte(index_html):
     # NICHT ueber "+' ohne Tracker')" suchen: dieselbe Zeichenfolge steckt auch
     # in der Kopfzeile ("...ohne Tracker'):''") - genau die Verwechslung, die
     # dieser Riegel bewachen soll, waere im Riegel selbst passiert.
-    grp = _zeile_mit(index_html, "(ohneOpen?'")
+    grp = _zeile_mit(index_html, "_klappIk(ohneOpen,14)")  # A55 19.11.: Linien-Ikone statt Klapp-Glyphe
     assert "_fq?" in kopf, (
         "Die Kopfzeile sagt bei aktiver Suche nicht, dass sie den ganzen "
         "Fuhrpark zaehlt:" + chr(10) + kopf)

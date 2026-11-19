@@ -67,8 +67,8 @@ def test_fussleiste_markiert_den_gezeigten_reiter(index_html):
     code = nur_code(index_html)
     blk = _fussleiste(code)
     assert blk.count("_fussG(t)===gr.g") == 2, "Filter UND grTabs muessen dieselbe Fussleisten-Gruppe nutzen"
-    # A55-2 Fund 25: ueber die Mehr-Liste geoeffnet -> Mehr markiert; sonst die Gruppe des gezeigten Reiters (safeKat)
-    assert "const _viaMehr=_fussMehrKat!==null&&_fussMehrKat===safeKat;const isActive=gr.g===4?(_viaMehr||grTabs.some(t=>tabs.indexOf(t)===safeKat)):(!_viaMehr&&grTabs.some(t=>tabs.indexOf(t)===safeKat));" in blk
+    # A55-Vollpruefung 19.11.: immer die Gruppe des gezeigten Reiters (safeKat), auch wenn ueber die Mehr-Liste geoeffnet
+    assert "const isActive=grTabs.some(t=>tabs.indexOf(t)===safeKat);" in blk
     assert "tabs.indexOf(t)===kat)" not in blk, "Markierung liest kat statt des gezeigten Reiters (safeKat)"
     # Am Chef-Portal ist NICHT Home markiert, sondern Mehr (wie NavMehr am Tablet)
     assert _aktive_slots(code, "_chef") == ["Mehr"]
@@ -146,7 +146,7 @@ def test_ueberfaellig_zeile_bricht_nicht_um_und_tage_haben_feste_spalte(index_ht
     z = _ueberfaellig_zeile(nur_code(index_html))
     assert "flexWrap:'wrap'" not in z, "Zeile bricht wieder um - Tageszahl rutscht in eine eigene Zeile"
     assert "flexWrap:'nowrap'" in z
-    m = re.search(r"React\.createElement\('span',\{style:\{([^}]*)\}\},tage\+'d'\)", z)
+    m = re.search(r"React\.createElement\('span',\{style:\{([^}]*)\}\},tage\+\(tage===1\?' Tag':' Tage'\)\)", z)
     assert m, "Tages-Spalte nicht gefunden"
     st = m.group(1)
     assert "whiteSpace:'nowrap'" in st and "flex:'0 0 auto'" in st

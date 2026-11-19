@@ -203,10 +203,13 @@ def test_23_unterseite_oeffnet_oben(index_html):
 
 
 # ── 25 Mehr markiert ───────────────────────────────────────────────────────
-def test_25_ueber_mehr_geoeffnet_markiert_mehr(index_html):
-    f = lambda s: "setKat(ri);setMoreOpen(false);_setFussMehrKat(ri);" in s and "_setFussMehrKat(null);if(isActive)" in s \
-        and "const _viaMehr=_fussMehrKat!==null&&_fussMehrKat===safeKat;" in s
-    _umkehr(f, index_html, "setKat(ri);setMoreOpen(false);_setFussMehrKat(ri);", "setKat(ri);setMoreOpen(false);")
+# A55-Vollpruefung 19.11.: Fund 25 umgekehrt - Zeiterfassung ueber Mehr markierte Mehr statt Zeit.
+# Markiert ist jetzt immer die Gruppe des gezeigten Reiters, egal ueber welchen Weg (Verhalten: test_a55_voll_p2_v1054).
+def test_25_markierung_haengt_nicht_am_weg(index_html):
+    f = lambda s: "const isActive=grTabs.some(t=>tabs.indexOf(t)===safeKat);" in s and "_fussMehrKat" not in s \
+        and "setKat(ri);setMoreOpen(false);}" in s
+    _umkehr(f, index_html, "const isActive=grTabs.some(t=>tabs.indexOf(t)===safeKat);",
+            "const _viaMehr=_fussMehrKat!==null&&_fussMehrKat===safeKat;const isActive=!_viaMehr&&grTabs.some(t=>tabs.indexOf(t)===safeKat);")
 
 
 # ── Z Wisch-Navigation ─────────────────────────────────────────────────────
