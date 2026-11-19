@@ -1,4 +1,8 @@
 -- IDEMPOTENT
+-- !!! SUPERSEDED / ABGELOEST 20.11.2026 durch sql/KAMERA_GATEWAY_SEED_ENTWURF.sql (QNAP-Gateway, IDs = go2rtc-
+-- !!! Streamnamen cam37/cam38/cam39/hochregal01). NICHT mehr einspielen - nie beide Seeds. Diese Ruecknahme bleibt GUELTIG:
+-- !!! war der Pilot eingespielt, ZUERST sie ausfuehren, dann den Gateway-Seed.
+
 -- =====================================================================================
 -- KAMERA_PILOT_HEUTE_RUECKNAHME.sql  —  nimmt sql/KAMERA_PILOT_HEUTE_ENTWURF.sql zurueck (EPKolar, 19.11.2026)
 --

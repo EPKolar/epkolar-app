@@ -558,7 +558,9 @@ def test_readme_beschreibt_den_vertrag():
     r = _lies(README)
     for teil in ("base64url", "HMAC-SHA256", "KAMERA_TOKEN_SECRET", "KAMERA_BACKEND_BASE", "constant-time",
                  '"v": 1', "exp - iat <= 120", "/live/<s>/index.m3u8", "/live/<s>/whep", "/aufzeichnung/<s>",
-                 "NOT deployed", "verify_jwt", "kamera_darf_sehen"):
+                 # Pin angepasst 20.11.2026 (feature/kamera-gateway): Funktion ist deployt ("NOT deployed" -> "Deployed"),
+                 # Basisadresse heisst bevorzugt KAMERA_GATEWAY_BASE (alter Name bleibt dokumentiert, siehe oben).
+                 "Deployed", "KAMERA_GATEWAY_BASE", "verify_jwt", "kamera_darf_sehen"):
         assert teil in r, teil
 
 

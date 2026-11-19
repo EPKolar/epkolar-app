@@ -26,11 +26,9 @@ PILOT_IDS = ("kam_g3_01", "kam_g3_lager03")
 PILOT_STREAMS = ("g3_01", "g3_lager03")
 IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
-# Deployter Stand (MCP get_edge_function, 19.11.2026): sha256 der Dateien mit LF-Zeilenenden
-DEPLOYT_INDEX_SHA = "e5bc28e2cdf60365c49f487d17d2162fdcee4e74454662a77619b07793912238"
-DEPLOYT_LOGIC_SHA = "f34e1107e374b864d064936f348e015c14a7d9b5aadde5d40a0ec82cf6686762"
-KOPF_ALT = "// NICHT DEPLOYT. Deploy-Parameter und Token-Vertrag: README.md daneben."
-KOPF_NEU = "// DEPLOYT 19.11.2026 als Version 1 (Stand 64fdb53, verify_jwt). Deploy-Parameter und Token-Vertrag: README.md daneben."
+# Deployter Stand: seit 20.11.2026 (feature/kamera-gateway) wird EXAKT der Repo-Stand deployt (keine Kopfzeilen-
+# Abweichung mehr). Die sha256-Werte und die Version stehen an EINER Stelle: tests/test_kamera_gateway.py.
+from test_kamera_gateway import DEPLOYT_INDEX_SHA, DEPLOYT_LOGIC_SHA
 
 
 def _lies(p):
@@ -210,25 +208,23 @@ def test_keine_adressen_in_den_neuen_sql_dateien():
 
 
 # ── Tests: deployt == Repo ─────────────────────────────────────────────────────
-def test_deployte_funktion_entspricht_dem_repo_bis_auf_die_kopfzeile():
+def test_deployte_funktion_entspricht_dem_repo():
+    # Pin angepasst 20.11.2026: Redeploy aus genau den committeten Dateien (Gateway-Basis), daher ohne Kopfzeilen-Tausch.
     s = _lies(os.path.join(FN_DIR, "index.ts"))
-    assert s.count(KOPF_NEU) == 1 and KOPF_ALT not in s
-    assert hashlib.sha256(s.replace(KOPF_NEU, KOPF_ALT).encode("utf-8")).hexdigest() == DEPLOYT_INDEX_SHA
-    # logic.ts unveraendert gegenueber dem deployten Stand. Aendert sich logic.ts, ist ein Redeploy noetig ->
-    # danach DEPLOYT_LOGIC_SHA hier nachziehen.
+    assert hashlib.sha256(s.encode("utf-8")).hexdigest() == DEPLOYT_INDEX_SHA
+    # Aendert sich logic.ts oder index.ts, ist ein Redeploy noetig -> danach die Werte in test_kamera_gateway.py nachziehen.
     assert hashlib.sha256(_lies(os.path.join(FN_DIR, "logic.ts")).encode("utf-8")).hexdigest() == DEPLOYT_LOGIC_SHA
 
 
 # ── Gegenstueck auf dem Video-Host (ausserhalb des Repos) ───────────────────────
-def test_streamnamen_gleich_go2rtc_und_frigate():
+def test_streamnamen_gleich_go2rtc():
+    # Pin angepasst 20.11.2026: Kamera-Server ist die QNAP; die Vorlage traegt die Gateway-Streams (cam37..hochregal01)
+    # und wird nicht mehr gestartet. Frigate entfaellt (go2rtc = nur Live, Aufnahme bleibt bei Surveillance Station).
     if not os.path.isdir(PILOT_HOST):
         pytest.skip("Vorlagen des Video-Hosts nicht auf diesem Rechner")
     yaml = pytest.importorskip("yaml")
     g = yaml.safe_load(_lies(os.path.join(PILOT_HOST, "go2rtc.yaml")))
-    f = yaml.safe_load(_lies(os.path.join(PILOT_HOST, "frigate.yml")))
-    assert set(g["streams"]) == set(PILOT_STREAMS)
-    assert set(f["cameras"]) == set(PILOT_STREAMS)
-    assert f["record"]["retain"]["days"] == 3
+    assert set(g["streams"]) == {"cam37", "cam38", "cam39", "hochregal01"}
 
 
 # ── Umkehrproben: jede Pruefung schlaegt an, wenn die Datei verdorben wird ─────
@@ -301,7 +297,7 @@ def test_umkehrprobe_doku_reihenfolge_und_laenge():
 
 
 def test_umkehrprobe_deploy_nachweis():
-    s = _lies(os.path.join(FN_DIR, "index.ts")).replace(KOPF_NEU, KOPF_ALT)
+    s = _lies(os.path.join(FN_DIR, "index.ts"))
     assert hashlib.sha256((s + " ").encode("utf-8")).hexdigest() != DEPLOYT_INDEX_SHA
     assert hashlib.sha256(s.replace("Deno.serve", "Deno.serveX", 1).encode("utf-8")).hexdigest() != DEPLOYT_INDEX_SHA
 

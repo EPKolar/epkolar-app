@@ -9,7 +9,9 @@
 //   1. JWT des Aufrufers pruefen (auth.getUser)            -> sonst 401
 //   2. Nutzerzeile: aktiv, nicht gesperrt                  -> sonst 403
 //   3. Rolle in ERLAUBTE_ROLLEN (Monteure NIE)             -> sonst 403   (vor jeder weiteren Abfrage)
-//   4. Konfiguration (Secret, Backend-Basis)               -> sonst 503
+//   4. Konfiguration (Secret, Gateway-Basis)               -> sonst 503
+//      Basis = KAMERA_GATEWAY_BASE (bevorzugt), sonst KAMERA_BACKEND_BASE (alter Name, Kompatibilitaet).
+//      Ist KAMERA_GATEWAY_BASE gesetzt, aber ungueltig -> 503 (KEIN stiller Rueckfall auf den alten Namen).
 //   5. Anfrage gueltig                                     -> sonst 400
 //      Aufzeichnung: von/bis (ISO 8601 mit Zone) Pflicht, von < bis, Spanne <= 2 h, bis nicht in der Zukunft,
 //      von nicht aelter als die harte Obergrenze 30 Tage (genau je Kamera: Schritt 7b in der DB) -> sonst 400
@@ -167,6 +169,8 @@ export function streamTyp(be: Backend | null): StreamTyp | null {
 
 // Live-Antwort je Adressart. Pfade (der Reverse-Proxy kennt genau diese, siehe README):
 //   webrtc   -> /live/<s>/whep (WHEP-Angebot) + /live/<s>/index.m3u8 (HLS-Rueckfall)
+//               + /live/<s>/snapshot.jpg (Einzelbild-Rueckfall, wenn WHEP/ICE scheitert; Gateway 20.11.2026:
+//               die QNAP-Vorlage hat HLS aus, das Einzelbild ist dort freigeschaltet). Gleiches Token, gleicher Stream.
 //   llhls    -> /live/<s>/index.m3u8
 //   mjpeg    -> /live/<s>/mjpeg
 //   snapshot -> /live/<s>/snapshot.jpg (die App laedt das Bild alle 2 s neu)
@@ -176,11 +180,20 @@ export function liveAntwort(basis: string, ziel: string, typ: StreamTyp, token: 
   if (typ === "mjpeg") return { typ, mjpegUrl: p + "mjpeg" + q, exp, ttl };
   if (typ === "snapshot") return { typ, snapshotUrl: p + "snapshot.jpg" + q, exp, ttl };
   if (typ === "llhls") return { typ, liveUrl: p + "index.m3u8" + q, exp, ttl };
-  return { typ, liveUrl: p + "index.m3u8" + q, webrtcUrl: p + "whep" + q, exp, ttl };
+  return { typ, liveUrl: p + "index.m3u8" + q, webrtcUrl: p + "whep" + q, snapshotUrl: p + "snapshot.jpg" + q, exp, ttl };
 }
 
+// Basisadresse des Kamera-Gateways (Reverse-Proxy vor go2rtc), EIN konfigurierbarer Wert.
+// Reihenfolge: KAMERA_GATEWAY_BASE (bevorzugt) -> KAMERA_BACKEND_BASE (alter Name, bleibt fuer Kompatibilitaet).
+// Ein gesetzter (nicht leerer) KAMERA_GATEWAY_BASE gewinnt IMMER - auch wenn er ungueltig ist: dann null (= 503),
+// kein stiller Rueckfall auf den alten Namen (fail closed, ein Tippfehler darf nicht unbemerkt auf alt umschalten).
+// Pruefung fuer beide Namen gleich: nur https://, Host aus [A-Za-z0-9.-], optional Port und Pfad, abschliessende
+// Schraegstriche werden entfernt. Fehlt beides -> null (App: "Kamera-Server noch nicht in Betrieb").
+export const BASIS_NAMEN: readonly string[] = ["KAMERA_GATEWAY_BASE", "KAMERA_BACKEND_BASE"];
+
 export function backendBasis(env: (name: string) => string | undefined): string | null {
-  const roh = (env("KAMERA_BACKEND_BASE") ?? "").trim();
+  const gw = env("KAMERA_GATEWAY_BASE");
+  const roh = (gw !== undefined && gw.trim() !== "" ? gw : (env("KAMERA_BACKEND_BASE") ?? "")).trim();
   if (!/^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[A-Za-z0-9._~\/-]*)?$/.test(roh)) return null;
   return roh.replace(/\/+$/, "");
 }

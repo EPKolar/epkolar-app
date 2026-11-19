@@ -204,8 +204,12 @@ def test_webrtc_wie_phase1_mit_typ(R):
     assert j["typ"] == "webrtc"
     assert j["webrtcUrl"].startswith(BASE + "/live/g3_37/whep?token=")
     assert j["liveUrl"].startswith(BASE + "/live/g3_37/index.m3u8?token=")
-    assert set(j) == {"typ", "webrtcUrl", "liveUrl", "exp", "ttl"}
-    assert e["proxy"] == {"webrtcUrl": {"status": 204, "art": "whep"}, "liveUrl": {"status": 204, "art": "hls"}}
+    # Pin angepasst 20.11.2026 (feature/kamera-gateway): webrtc liefert zusaetzlich snapshotUrl als Einzelbild-
+    # Rueckfall (QNAP-Gateway hat HLS aus). Gleiches Token, Proxy-Pruefer nimmt auch diese Adresse an (204).
+    assert set(j) == {"typ", "webrtcUrl", "liveUrl", "snapshotUrl", "exp", "ttl"}
+    assert j["snapshotUrl"].startswith(BASE + "/live/g3_37/snapshot.jpg?token=")
+    assert e["proxy"] == {"webrtcUrl": {"status": 204, "art": "whep"}, "liveUrl": {"status": 204, "art": "hls"},
+                          "snapshotUrl": {"status": 204, "art": "snapshot"}}
 
 
 @pytest.mark.parametrize("fall,typ,schluessel,art", [

@@ -30776,6 +30776,8 @@ function _kamStreamAntwort(status,j,scope){
     if(typ==='snapshot'){if(!_kamIstHttps(j.snapshotUrl))return {ok:false,grund:'fehler'};o.snapshotUrl=j.snapshotUrl;return o;}
     if(!_kamIstHttps(j.liveUrl))return {ok:false,grund:'fehler'};
     o.liveUrl=j.liveUrl;o.webrtcUrl=(typ==='webrtc'&&_kamIstHttps(j.webrtcUrl))?j.webrtcUrl:'';
+    /* Gateway (20.11.): Einzelbild-Rueckfall derselben Freigabe (gleiches Token), nur fuer webrtc, nur https */
+    o.snapshotUrl=(typ==='webrtc'&&_kamIstHttps(j.snapshotUrl))?j.snapshotUrl:'';
     return o;
   }
   if(status===404||status===503||status===0)return {ok:false,grund:'kein_backend'};
@@ -30803,6 +30805,9 @@ function _kamPlayerModus(hatRtc,hatHls,a){
   if(a&&a.liveUrl&&hatHls)return 'hls';
   return 'keiner';
 }
+/* Rueckfall auf das Einzelbild, wenn WHEP/ICE scheitert oder das Geraet weder WebRTC noch HLS kann (das Gateway hat
+   HLS aus). Nie bei 401/403: dann hat der Server nein gesagt und es bleibt beim Hinweis. */
+function _kamErsatzBild(st,a){return !!(a&&a.typ==='webrtc'&&a.snapshotUrl&&_kamFehlerGrund(st)!=='kein_zugriff');}
 /* Einzelbild nur holen, wenn der Tab sichtbar ist UND die Kachel im Bild liegt */
 function _kamSnapshotAktiv(versteckt,imBild){return versteckt!==true&&imBild!==false;}
 function _kamSnapshotUrl(url,n){return url+(url.indexOf('?')>=0?'&':'?')+'_='+(Number(n)||0);}
@@ -30961,6 +30966,16 @@ function KameraKachel(props){
         planen(b.exp,modus);
       },_kamRefreshIn(exp,Date.now()));
     }
+    async function ersatz(b){
+      schliessen();
+      if(!b||!b.snapshotUrl||Number(b.exp)*1000-Date.now()<20000){b=await _kamStreamHolen(k.id,'live',props.geraet);if(!alive)return;}
+      if(!b.ok||!b.snapshotUrl){setSt({phase:'stub',grund:b.ok?'abbruch':b.grund});return;}
+      fehlerRef.current=0;
+      setBild({modus:'snapshot',url:b.snapshotUrl});
+      setSt({phase:'live',grund:''});
+      takten();
+      planen(b.exp,'snapshot');
+    }
     async function start(){
       var a=await _kamStreamHolen(k.id,'live',props.geraet);
       if(!alive)return;
@@ -30974,20 +30989,26 @@ function KameraKachel(props){
         planen(a.exp,bm);
         return;
       }
-      var v=vidRef.current;if(!v)return;
+      var v=vidRef.current;if(!v){if(_kamErsatzBild(0,a))ersatz(a);return;}
       var hls=false;try{hls=!!(v.canPlayType&&v.canPlayType('application/vnd.apple.mpegurl'));}catch(_h){}
       var modus=_kamPlayerModus(typeof RTCPeerConnection!=='undefined',hls,a);
-      if(modus==='keiner'){setSt({phase:'stub',grund:'player'});return;}
+      if(modus==='keiner'){if(_kamErsatzBild(0,a)){ersatz(a);return;}setSt({phase:'stub',grund:'player'});return;}
       try{
         if(modus==='webrtc'){
           pc=await _kamWhep(v,a.webrtcUrl);
           if(!alive){schliessen();return;}
-          pc.onconnectionstatechange=function(){if(alive&&pc&&(pc.connectionState==='failed'||pc.connectionState==='closed'))setSt({phase:'stub',grund:'abbruch'});};
+          pc.onconnectionstatechange=function(){
+            if(alive&&pc&&pc.connectionState==='failed'&&_kamErsatzBild(0,a)){ersatz(a);return;}
+            if(alive&&pc&&(pc.connectionState==='failed'||pc.connectionState==='closed'))setSt({phase:'stub',grund:'abbruch'});};
         }else{v.src=a.liveUrl;}
         try{await v.play();}catch(_p){}
         setSt({phase:'live',grund:''});
         planen(a.exp,modus);
-      }catch(e){schliessen();if(alive)setSt({phase:'stub',grund:_kamFehlerGrund(e&&e.status)});}
+      }catch(e){
+        schliessen();if(!alive)return;
+        /* WHEP abgelehnt (404/5xx) oder Netzfehler: Einzelbild derselben Freigabe; 401/403 bleibt Hinweis */
+        if(modus==='webrtc'&&_kamErsatzBild(e&&e.status,a)){ersatz(a);return;}
+        setSt({phase:'stub',grund:_kamFehlerGrund(e&&e.status)});}
     }
     if(typeof IntersectionObserver!=='undefined'&&boxRef.current){
       try{io=new IntersectionObserver(function(es){imBild.current=!!(es[0]&&es[0].isIntersecting);});io.observe(boxRef.current);}catch(_i){io=null;}
