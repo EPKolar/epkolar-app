@@ -170,7 +170,8 @@ def test_stunden_chips_mit_kurzlabel_lesbar(index_html):
         assert 'textAlign:"center",color:V.tx}}, "%s")' % k in teil or '_zpAbsK("%s")' % k in teil
     # Lila (#a855f7) und Blau (#3b82f6) trugen keine Bedeutung - ausserhalb des Excel-Exports nirgends mehr
     ohne_excel = re.sub(r"statusMap:\{[^}]*\}", "", teil)
-    # Ausnahme mit Grund: test_v3862_bugfixes findet den Urlaub-Tabellenkopf (Tooltip-Riegel) ueber #3b82f6
+    # Ausnahme mit Grund: test_v3862_bugfixes fand den Urlaub-Tabellenkopf (Tooltip-Riegel) ueber #3b82f6.
+    # Tablet-Runde 1077 (3): der Kopf ist jetzt UI.markeTxt - die Ausnahme greift nicht mehr (harmlos).
     ohne_excel = ohne_excel.replace('color:"#3b82f6"}, title: "Urlaubs-Stunden gesamt', "", 1)
     for f in ("#a855f7", "#3b82f6", "#6ea8ff"):
         assert f not in ohne_excel, "Fremdfarbe %s in den Abwesenheiten" % f

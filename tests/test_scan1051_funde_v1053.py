@@ -116,7 +116,7 @@ def test_ma_uebersicht_nullen_lesbar(index_html):
 
 
 def _abw_ok(src):
-    return ("color:(ys.krankenstandStd||0)>0?UI.fehler:V.dm}}, _absH((ys.krankenstandStd||0),0)" in src
+    return ("color:(ys.krankenstandStd||0)>0?UI.fehler:V.dm}}, _absH((ys.krankenstandStd||0),1)" in src  # Tablet-Runde 1077 (3): eine Nachkommastelle (68,5 statt 69)
             and 'color:kontUnlesbar?V.dm:rest<=20?UI.fehler:rest<=50?_lesbar("#eab308"):_okG("#22c55e")}}' in src)
 
 

@@ -417,7 +417,9 @@ def test_bwb_counts_sunday_local_seven_days():
     assert 'for(let i=0;i<7;i++){/* v3.9.438: Mo-So' in text, \
         'v3.9.438 Regression: BWB-Render-Loop muss i<7 (Mo-So) sein'
     # Komponentenweite DAYS bleibt Mo-Sa (NICHT global auf 7 erweitert).
-    assert 'const DAYS=["Mo","Di","Mi","Do","Fr","Sa"];' in text, \
+    # Tablet-Runde 1077 (7): die Projekt-Zeiterfassung zeigt den Sonntag nur, wenn in der Woche ein
+    # Sonntagseintrag steht (_zeWochenTage, Standard Mo-Sa - in node belegt in test_tablet_runde_v1077.py).
+    assert 'const DAYS=_zeWochenTage(pe,isoDate(6));' in text and 'return so?["Mo","Di","Mi","Do","Fr","Sa","So"]:["Mo","Di","Mi","Do","Fr","Sa"];' in text, \
         'v3.9.438 Regression: globale DAYS darf NICHT auf Sonntag erweitert worden sein'
     assert 'for(let i=0;i<6;i++){/* v3.9.419: Mo-Sa' not in text, \
         'v3.9.438 Regression: alter Mo-Sa-Render-Loop (i<6) darf nicht zurueckkehren'

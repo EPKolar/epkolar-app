@@ -58,7 +58,8 @@ AS_REST = [
     '"🔗 Juprowa #"',
     '"⬆ Push ausstehend"',
     '"✓ Gepusht: "',
-    '"❌ ",_kurz(form.push_error',
+    # Tablet-Runde 1077 (9): '"❌ ",_kurz(form.push_error' entfaellt - der Push-Fehler im Formularkopf ist
+    # jetzt ein kurzer deutscher Satz ohne Emoji (_pushFehlerKurz), der Volltext steht im title.
     '"⚠ in OFFA prüfen"',
     'jupPushing?"⏳...":"☁️↑ Push"',
     '"🔗 OFFA"',

@@ -168,7 +168,8 @@ def test_reiterzeile_ohne_stopPropagation(index_html):
 def test_zeiterfassung_raster(index_html):
     i = index_html.index("function VZeit(")
     teil = index_html[i:index_html.index("function BerCell(", i)]
-    assert 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0))),gap:6}}' in teil
+    # Tablet-Runde 1077 (7): zweites Argument DAYS.length (Sonntag erscheint mit Sonntagseintrag)
+    assert 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0)),DAYS.length),gap:6}}' in teil
     assert 'color:V.acTx,whiteSpace:"nowrap",...UI.zahlen}},_projStdDE((entry.stunden||entry.hours||0),2)," h")' in teil
     assert "React.createElement('span',{style:{whiteSpace:\"nowrap\",...UI.zahlen}},(entry.von||\"\"),\"–\",(entry.bis||\"\"))" in teil
     assert 'title:(wk||{}).r||undefined' in teil and 'maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"' in teil

@@ -192,7 +192,9 @@ def test_die_zwoelf_stellen_benutzen_den_helfer():
         ("Wochenplan, Monteursname", "_kurz(nm,6)"),
         ("Abwesenheiten, Art am Telefon", "_kurz(v.l,12)"),
         ("Admin, Datanorm-Adresse", "_kurz(s.datanorm_url"),
-        ("AS-Formular, Push-Fehler", "_kurz(form.push_error,40)"),
+        # Tablet-Runde 1077 (9): der Push-Fehler wird nicht mehr gekuerzt, sondern durch einen kurzen
+        # Satz ersetzt; der volle Text steht im title des Elements (title:String(form.push_error)).
+        ("AS-Formular, Push-Fehler", "title:String(form.push_error),'data-push-fehler'"),
         ("Maengel, Beschreibung", "_kurz(m.beschreibung,60)"),
         ("Formularliste, Zusammenfassung", "_kurz((f.arbeit||f.bv||f.bereich"),
     ]

@@ -63,8 +63,10 @@ def test_urlaub_table_header_rest_explicit():
 def test_urlaub_table_header_urlaub_has_tooltip():
     """Urlaub-Header muss Tooltip haben (zeigt ALLE inkl. ausstehend, nur genehmigte abgezogen)."""
     text = INDEX.read_text(encoding='utf-8')
-    # th mit color #3b82f6 und title-Property mit "ausstehend" o.ä.
-    assert re.search(r'#3b82f6[^}]{0,200}\}\s*,\s*title:\s*[\'"][^\'"]*ausstehend', text), \
+    # th mit Kopffarbe und title-Property mit "ausstehend" o.ä.
+    # Tablet-Runde 1077 (3): der Kopf traegt jetzt UI.markeTxt (dieselbe Farbe wie die Urlaubswerte,
+    # vorher blau ueber gruenen Werten) - der Tooltip-Riegel bleibt, nur die Farbmarke wechselt.
+    assert re.search(r'(?:#3b82f6|UI\.markeTxt)[^}]{0,200}\}\s*,\s*title:\s*[\'"][^\'"]*ausstehend', text), \
         'Urlaub-Header muss Tooltip mit "ausstehend"-Erklaerung haben'
 
 
