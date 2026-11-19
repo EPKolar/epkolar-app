@@ -223,6 +223,7 @@ ERLAUBTE_BEZEICHNER = {
     "_s",                 # laeuft ueber _USER_SCOPED_ODB_STORES
     "PLAN_CACHE_STORE",   # ist "planFiles"
     "PROJ_CACHE_STORE",   # ist "projektCache" (v3.9.927)
+    "_pwStore",           # v3.9.1056 _sqKennwortPurge: laeuft ueber die Literale "syncQueue"/"syncQueueFailed" (beide in STORES)
 }
 
 

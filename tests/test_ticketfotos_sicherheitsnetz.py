@@ -133,7 +133,7 @@ def test_sicherheitsnetz(index_html, node_exe):
     ('await PhotoQ.update(ph.id,{status:"error",retries:(ph.retries||0)+1,lastError:e.message||"Netzwerkfehler"});fail++;',
      'await PhotoQ.remove(ph.id);fail++;'),
     ("if(ph.nurStorage)tkFail++;", ""),
-    ("&&((x.retries||0)<10||x.nurStorage));", "&&(x.retries||0)<10);"),
+    ("&&((x.retries||0)<10||x.nurStorage)).filter(", "&&(x.retries||0)<10).filter("),  # v3.9.1056: PhotoQ filtert danach nach Besitzer
     ('x.status==="error"||(x.nurStorage&&x.status==="uploading"))&&(', 'x.status==="error")&&('),
     ("if(x&&x.nurStorage&&x.storagePath)m[x.storagePath]=", "if(false)m[x.storagePath]="),
     ("if(ph&&typeof ph===\"object\"&&!ph.dataUrl&&!ph.thumb&&st&&st.lokal)return st.lokal;", ""),

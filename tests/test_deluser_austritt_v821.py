@@ -20,7 +20,8 @@ def _du_block(index_html):
 def test_awaited_delete_mit_representation(index_html):
     blk = _du_block(index_html)
     assert '_sbWH("return=representation")' in blk, "DELETE ohne return=representation -> 0-Rows nicht erkennbar"
-    assert 'SB_REST+"/users?id=eq."' in blk and 'method:"DELETE"' in blk, "kein direkter awaited users-DELETE"
+    # v3.9.1056 Login-Haertung: return=representation nur noch mit select=id (sonst kaeme password_hash zurueck / 42501)
+    assert 'SB_REST+"/users?select=id&id=eq."' in blk and 'method:"DELETE"' in blk, "kein direkter awaited users-DELETE"
     assert "SQ.push" not in blk, "Löschen darf NICHT über die Offline-Queue (Fehlschlag würde still geschluckt)"
 
 
