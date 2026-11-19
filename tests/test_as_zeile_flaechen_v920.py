@@ -140,9 +140,10 @@ _ZEILE_ANFANG = ("React.createElement('tr', { key: a.id, "
                  "onTouchStart: e=>_swipeStart(a,e), onTouchEnd: "
                  "e=>_swipeEnd(a,e)")
 # Anker nachgezogen (AS Hochformat, GF 19.11.2026): Karte und Tabelle haengen
-# seit dem Hochformat-Umbau an _asKarte (_layoutStufe: schmal/mittel = Karten)
-# statt an isMob - das Tablet hochkant zeigt dieselbe Karte wie
-# das Handy. Gemessen wird weiter dasselbe Paar Zweige.
+# seit dem Hochformat-Umbau an _asKarte statt an isMob. Seit AS Liste mittel
+# (GF 19.11.2026 nach 1065) gilt _asKarte nur noch fuer schmal (Handy); das
+# Tablet hochkant zeigt wieder die Tabelle. Gemessen wird weiter dasselbe
+# Paar Zweige.
 _MOBIL_ANFANG = "_asKarte&&React.createElement('div', { 'data-as-karten'"
 _RECHNER_ANFANG = ("!_asKarte&&React.createElement('div', { style: "
                    '{...CC(),padding:0,overflow:"hidden"}}')

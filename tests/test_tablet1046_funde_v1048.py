@@ -155,8 +155,13 @@ def test_werkzeug_kalibrierung_lesbar(index_html):
 
 def test_as_liste_aktionen_kleben_rechts(index_html):
     assert 'const _asAktKlebt=()=>({position:"sticky",right:0,zIndex:1,background:V.cd,' in index_html
-    assert '{...thS(),width:110,textAlign:"center",..._asAktKlebt()}}, "Aktionen")' in index_html
-    assert '{...tdSt(),textAlign:"center",padding:"4px 2px",..._asAktKlebt()}}' in index_html
+    # Pin nachgezogen (AS Liste mittel, GF 19.11.2026 nach 1065): die Spalte
+    # klebt weiter in der Stufe breit; am Tablet hochkant (mittel) deckte sie
+    # BESTAETIGT zu und steht dort am Zeilenende im Rollkasten. Die Aufrufstellen
+    # gehen deshalb ueber _asAktSpalte, das in breit genau _asAktKlebt liefert.
+    assert 'const _asAktSpalte=()=>(_asMittel?{}:_asAktKlebt());' in index_html
+    assert '{...thS(),width:110,textAlign:"center",..._asAktSpalte()}}, "Aktionen")' in index_html
+    assert '{...tdSt(),textAlign:"center",padding:"4px 2px",..._asAktSpalte()}}' in index_html
     # die Schreibwege der Zeile sind unberuehrt
     assert "openEdit(a);}, style: {...bpS,border:\"none\",borderRadius:4" in index_html
 

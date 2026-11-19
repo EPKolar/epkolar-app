@@ -20,6 +20,14 @@ Was hier gesichert wird:
 4. Der Sperrknopf hat am Touch-Geraet seinen 44-px-Streifen.
 5. Heute ist eine Aktion neben den Pfeilen, die Ansicht eine Segmentgruppe.
 Jeder Riegel hat eine Umkehrprobe.
+
+Nachtrag AS Liste mittel (GF-Entscheidung 19.11.2026 nach 1065): "die Ansicht
+der AS in Kacheln kann ich nicht zuordnen, vorher in der Liste konnte ich
+direkt aendern, war besser". Karten gelten seitdem NUR fuer schmal (Handy).
+mittel (Tablet hochkant) zeigt wieder die Tabelle - dieselben Zeilen und
+dieselben Direkt-Felder wie breit -, aber die Aktionen-Spalte klebt dort
+nicht mehr (sie deckte BESTAETIGT zu), die Koepfe brechen nicht um, Felder
+und Knoepfe sind 44 px. Die Kacheln bleiben in mittel kompakt.
 """
 import io
 import json
@@ -150,13 +158,14 @@ def test_abdeckung_beide_teile_fragen_die_stufe(roh):
     b = _bereiche(roh)
     assert "const _asStufe=_layoutStufe(ww," in b["ArbeitsscheinView"]
     assert "const isMob=_asStufe===\"schmal\";" in b["ArbeitsscheinView"]
-    assert "const _asKarte=_asStufe!==\"breit\";" in b["ArbeitsscheinView"]
+    # GF 19.11. nach 1065: Karte nur noch schmal, mittel = Tabelle
+    assert "const _asKarte=_asStufe===\"schmal\";const _asMittel=_asStufe===\"mittel\";" in b["ArbeitsscheinView"]
     assert "var _dpStufe=_layoutStufe();" in b["DispoPanel"]
     assert "var _dpGrob=_grobZeiger();" in b["DispoPanel"]
 
 
 def test_umkehr_abdeckung_findet_einen_neuen_vergleich(roh):
-    kaputt = roh.replace("const _asKarte=_asStufe!==\"breit\";", "const _asKarte=ww<1100;", 1)
+    kaputt = roh.replace("const _asKarte=_asStufe===\"schmal\";", "const _asKarte=ww<600;", 1)
     assert kaputt != roh
     assert _fremde_breiten(kaputt), "Abdeckungsriegel blind"
     kaputt2 = roh.replace("var _dpGrob=_grobZeiger();", "var _dpGrob=window.matchMedia(\"(pointer: coarse)\").matches;", 1)
@@ -264,7 +273,8 @@ def test_karte_nennt_beide_termine_und_den_ort(roh):
 
 def test_kacheln_kompakt_nur_am_tablet_hochkant(roh):
     v = _as_view(roh)
-    assert "epk-kachelband\"+((_asKarte&&!isMob)?\" epk-kachel-kompakt\":\"\")" in v
+    # GF 19.11. nach 1065: mittel zeigt wieder die Tabelle, die Kacheln bleiben dort kompakt
+    assert "epk-kachelband\"+(_asMittel?\" epk-kachel-kompakt\":\"\")" in v
     css = [m.group(0) for m in re.finditer(r"\.kpi-grid\.epk-leiste\.epk-kachel-kompakt[^{]*\{[^}]*\}", roh)]
     assert css, "keine Kompakt-Regel"
     for r in css:
@@ -345,3 +355,130 @@ def test_umkehr_heute_in_der_ansichtsgruppe_waere_rot(roh):
     g = ohne.index("[\"tag\",\"woche\",\"monat\"].map(")
     kaputt = ohne[:g] + zeile.strip() .lstrip(", ") + "," + ohne[g:]
     assert not _heute_ok(kaputt)
+
+
+# ── AS Liste mittel (GF-Entscheidung 19.11.2026 nach 1065) ──────────────────
+# "die Ansicht der AS in Kacheln kann ich nicht zuordnen, vorher in der Liste
+# konnte ich direkt aendern, war besser" - mittel zeigt die Tabelle.
+
+ENTSCHEIDUNG = "const _asKarte=_asStufe===\"schmal\";const _asMittel=_asStufe===\"mittel\";"
+
+
+def _form_je_stufe(node_exe, code, entscheidung):
+    """Fuehrt _layoutStufe UND die Entscheidungszeile aus und liefert je Fall
+    'karte' oder 'tabelle' (plus ob die Stufe mittel ist)."""
+    out = run_node_snippet(
+        node_exe,
+        "var window={innerWidth:0,innerHeight:0};\n" + code
+        + "\nprocess.stdout.write(JSON.stringify(" + json.dumps([f for f, _ in FAELLE])
+        + ".map(function(f){var _asStufe=_layoutStufe(f[0],f[1]);" + entscheidung
+        + "return [_asKarte?\"karte\":\"tabelle\",!!_asMittel];})));")
+    return json.loads(out)
+
+
+def _soll_form():
+    return [["karte" if e == "schmal" else "tabelle", e == "mittel"] for _, e in FAELLE]
+
+
+def test_mittel_zeigt_die_tabelle_schmal_die_karte(roh, node_exe):
+    assert roh.count(ENTSCHEIDUNG) == 1
+    r = _form_je_stufe(node_exe, _stufe_code(roh), ENTSCHEIDUNG)
+    assert r == _soll_form(), list(zip([f for f, _ in FAELLE], r))
+    # 800x1280 (Tablet hochkant) ausdruecklich
+    assert r[[f for f, _ in FAELLE].index([800, 1280])] == ["tabelle", True]
+
+
+def test_umkehr_karten_in_mittel_waeren_rot(roh, node_exe):
+    """Die 1065-Entscheidung (Karte in schmal UND mittel) muss der Riegel sehen."""
+    alt = ENTSCHEIDUNG.replace("_asStufe===\"schmal\";", "_asStufe!==\"breit\";")
+    assert alt != ENTSCHEIDUNG
+    assert _form_je_stufe(node_exe, _stufe_code(roh), alt) != _soll_form()
+
+
+# Die Direkt-Felder der Tabellenzeile (Kennung -> Schreibweg). Sie stehen genau
+# einmal im Tabellenzweig, und nichts davon haengt an der Stufe - mittel hat
+# also dieselben Direkt-Aenderungen wie breit.
+DIREKT = {
+    "Terminvorschlag": "onChange: e=>updAs(a.id,{terminVorschlag:e.target.value})",
+    "Bestaetigt": "onChange: e=>_asBestEntwurf(a,e,_bestSt,updAs), onBlur: e=>{_asBestUebernehmen(a,e,_bestSt,updAs);}",
+    "Status": "_asZeileRueckfrage(a,\"scheinstatus\",_newS).then(_ok=>{if(_ok)updAs(a.id,{scheinstatus:_newS});});",
+    "Prioritaet": "_asZeileRueckfrage(a,\"prioritaet\",_np).then(_ok=>{if(_ok)updAs(a.id,{prioritaet:_np});});",
+    "Sachbearbeiter": "isAdmin?React.createElement('select', { className: \"epk-ruhig\", value: a.sachbearbeiter||\"\", onChange: e=>{e.stopPropagation();updAs(a.id,{sachbearbeiter:e.target.value});}",
+    "Monteur": "_asZeileRueckfrage(a,\"monteur\",_nm,monteure).then(_ok=>{if(_ok)updAs(a.id,{monteur:_nm});});",
+}
+STUFEN_WOERTER = ("_asMittel", "_asStufe", "isMob", "_asKarte")
+
+
+def _direkt_ok(v):
+    _, tabelle = _zweige(v)
+    zeile = tabelle[tabelle.index("React.createElement('tbody'"):]
+    for name, weg in DIREKT.items():
+        if zeile.count(weg) != 1:
+            return False
+    code = nur_code(zeile)
+    # Die Zeile (Felder UND Knoepfe) haengt an keiner Stufe; die Aktionen-
+    # Spalte unterscheidet sich nur im Kleben (_asAktSpalte), nicht im Inhalt.
+    rest = code.replace("..._asAktSpalte()", "")
+    return not any(w in rest for w in STUFEN_WOERTER)
+
+
+def test_mittel_hat_dieselben_direkt_felder_wie_breit(roh):
+    v = _as_view(roh)
+    assert _direkt_ok(v)
+    # die Tabelle selbst haengt nur an !_asKarte, also an mittel UND breit
+    assert v.count(TABELLE) == 1
+
+
+def test_umkehr_feld_nur_in_breit_waere_rot(roh):
+    v = _as_view(roh)
+    _, tabelle = _zweige(v)
+    anker = "React.createElement('td', { style: {...tdSt(),padding:2}}, React.createElement('select', { className: \"epk-ruhig\", value: a.scheinstatus"
+    assert tabelle.count(anker) == 1
+    kaputt = v.replace(tabelle, tabelle.replace(anker, "!_asMittel&&" + anker, 1), 1)
+    assert not _direkt_ok(kaputt)
+
+
+def _akt_klebt(node_exe, helfer, mittel):
+    out = run_node_snippet(
+        node_exe,
+        "var V={cd:\"#fff\"};var _asMittel=" + ("true" if mittel else "false") + ";\n"
+        + helfer + "\nprocess.stdout.write(JSON.stringify(_asAktSpalte()));")
+    return json.loads(out)
+
+
+def _akt_helfer(src):
+    i = src.index("const _asAktKlebt=()=>(")
+    j = src.index(";", src.index("boxShadow:", i)) + 1
+    k = src.index("const _asAktSpalte=()=>(")
+    l = src.index(";", k) + 1
+    return src[i:j] + "\n" + src[k:l]
+
+
+def test_aktionen_kleben_nur_in_breit(roh, node_exe):
+    h = _akt_helfer(roh)
+    assert _akt_klebt(node_exe, h, False).get("position") == "sticky", "breit unveraendert"
+    m = _akt_klebt(node_exe, h, True)
+    assert "position" not in m and "right" not in m, "mittel: die Spalte deckt nichts zu"
+    v = _as_view(roh)
+    _, tabelle = _zweige(v)
+    assert tabelle.count("..._asAktSpalte()") == 2 and "..._asAktKlebt()" not in tabelle
+    assert "..._asNrKlebt()" in tabelle, "Nummer klebt weiter links"
+
+
+def test_umkehr_klebende_aktionen_in_mittel_waeren_rot(roh, node_exe):
+    h = _akt_helfer(roh).replace("_asMittel?{}:_asAktKlebt()", "_asAktKlebt()")
+    assert _akt_klebt(node_exe, h, True).get("position") == "sticky"
+
+
+def test_mittel_tabelle_koepfe_ohne_umbruch_und_tippziele(roh):
+    v = _as_view(roh)
+    _, tabelle = _zweige(v)
+    assert "React.createElement('table', { className: _asMittel?\"epk-as-mittel\":undefined," in tabelle
+    assert "table.epk-as-mittel th { white-space: nowrap; }" in roh
+    assert "table.epk-as-mittel thead th:first-child { z-index: 2 !important; }" in roh, "NUMMER-Kopf liegt beim Querrollen oben"
+    assert re.search(r'table\.epk-as-mittel td select, table\.epk-as-mittel td input\[type="date"\] \{ min-height: 44px; \}', roh)
+    r = re.search(r"table\.epk-as-mittel td button \{([^}]*)\}", roh)
+    assert r and "min-width: 44px !important" in r.group(1) and "min-height: 44px !important" in r.group(1)
+    for regel in re.findall(r"table\.epk-as-mittel[^{]*\{[^}]*\}", roh):
+        assert "font-size" not in regel, "Schrift bleibt bei thS/tdSt (>= 12)"
+        assert "position" not in regel and "overflow" not in regel

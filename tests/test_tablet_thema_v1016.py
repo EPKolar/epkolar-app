@@ -269,7 +269,10 @@ def test_abwesenheit_hinweis_neutral_und_antraege_ehrlich(index_html):
 def test_as_tabelle_rollhinweis_ohne_spaltenaenderung(index_html):
     assert '"Tabelle ist breiter als der Bildschirm – seitlich wischen für weitere Spalten"' in index_html
     assert "className: \"epk-as-roll\", style: {overflowX:\"auto\"" in index_html
-    assert 'React.createElement(\'table\', { style: {width:"100%",borderCollapse:"collapse",minWidth:1300,fontSize:12}}' in index_html
+    # Pin nachgezogen (AS Liste mittel, GF 19.11.2026 nach 1065): die Tabelle traegt
+    # am Tablet hochkant die Klasse epk-as-mittel (Koepfe ohne Umbruch, 44-px-Felder);
+    # Spalten und Mindestbreite bleiben woertlich gleich.
+    assert 'React.createElement(\'table\', { className: _asMittel?"epk-as-mittel":undefined, style: {width:"100%",borderCollapse:"collapse",minWidth:1300,fontSize:12}}' in index_html
 
 
 # ── 9. Barrierefreiheit ───────────────────────────────────────────────────
