@@ -307,7 +307,8 @@ var STORE={
   {id:"a",url:"/api/users",method:"POST",body:{id:"N1",username:"neu",password:"__G__",name:"Neu",email:"n@x.at"}},
   {id:"b",url:"/api/users/N2",method:"PUT",body:{password:"__G__"}},
   {id:"c",url:"/api/projects/P1",method:"PUT",body:{name:"Bau"}},
-  {id:"d",url:"/api/x",method:"POST",body:JSON.stringify({new_password:"__G__",note:"n"})}],
+  {id:"d",url:"/api/password-reset",method:"POST",body:JSON.stringify({new_password:"__G__",note:"n"})},
+  {id:"f",url:"/api/supplier-configs/holter",method:"PUT",body:{username:"kunde",password:"LIEFERANT_PW"}}],
  syncQueueFailed:[{id:"e",url:"/api/users/N3",method:"PUT",body:{id:"N3",p_password:"__G__"},failedAt:"t"}]};
 var ODB={load:async function(s){return STORE[s];},set:async function(s,k,v){STORE[s]=v;}};
 var SQ={_serial:function(fn){return fn();}};
@@ -318,7 +319,7 @@ var SQ={_serial:function(fn){return fn();}};
 
 def _purge_lauf(node_exe, tmp_path, src):
     felder = re.search(r"const _PW_FELDER=\[[^\]]*\];", src).group(0)
-    return _node(node_exe, tmp_path, felder + "\n" + _fn(src, "_sqKennwortPurge") + "\n" + PURGE_KOERPER.replace("__G__", GEHEIM), "purge.js")
+    return _node(node_exe, tmp_path, felder + "\n" + _fn(src, "_sqIstKennwortZiel") + "\n" + _fn(src, "_sqKennwortPurge") + "\n" + PURGE_KOERPER.replace("__G__", GEHEIM), "purge.js")
 
 
 def _purge_mangel(R):
@@ -327,13 +328,17 @@ def _purge_mangel(R):
     if GEHEIM in roh:
         m.append("Kennwort steht noch in der Warteschlange")
     ids = [x["id"] for x in R["store"]["syncQueue"]]
-    if ids != ["a", "c", "d"]:
+    if ids != ["a", "c", "d", "f"]:
         m.append("falsche Eintraege entfernt/behalten: %r" % ids)
     a = R["store"]["syncQueue"][0] if R["store"]["syncQueue"] else {}
     if a.get("body", {}).get("username") != "neu":
         m.append("Benutzer-Anlage ging verloren")
     if R["store"]["syncQueueFailed"] and "p_password" in json.dumps(R["store"]["syncQueueFailed"]):
         m.append("syncQueueFailed nicht bereinigt")
+    # Review 19.11.: Lieferanten-Passwort ist kein Benutzer-Kennwort - muss die Bereinigung ueberleben.
+    f = [x for x in R["store"]["syncQueue"] if x["id"] == "f"]
+    if not f or f[0].get("body", {}).get("password") != "LIEFERANT_PW":
+        m.append("Lieferanten-Passwort aus der Warteschlange geloescht")
     if GEHEIM in "\n".join(R["logs"]):
         m.append("Kennwort im Protokoll")
     return m
@@ -585,3 +590,15 @@ def test_sql_keine_werte_und_kein_live_apply_hinweis():
         assert "STATUS: ENTWURF — NICHT APPLIZIERT" in t, name
         assert not re.search(r"[\w.+-]+@(ep-kolar\.at|epkolar\.local)", t), name
         assert not re.search(r"'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'", t.replace("00000000-0000-0000-0000-000000000000", "")), name
+
+
+def test_umkehrprobe_purge_trifft_lieferanten(node_exe, tmp_path, index_html):
+    kaputt = index_html.replace("if(_sqIstKennwortZiel(it&&it.url)&&b&&", "if(b&&", 1)
+    assert kaputt != index_html
+    assert "Lieferanten-Passwort aus der Warteschlange geloescht" in _purge_mangel(_purge_lauf(node_exe, tmp_path, kaputt))
+
+
+def test_login_protokoll_traegt_app_version(index_html):
+    """Review 19.11.: ohne Version im Login-Protokoll ist 'alle Geraete >= 1056' vor AUTH_HAERTUNG_1 nicht pruefbar."""
+    assert 'details:"gotrue v"+(typeof APP_VERSION!=="undefined"?APP_VERSION:"?")+" "+(navigator.userAgent||"")}' in index_html
+    assert 'details:"gotrue "+(navigator.userAgent||"")}' not in index_html

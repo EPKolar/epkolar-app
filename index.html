@@ -3683,7 +3683,7 @@ window.API = (function() {
       // v3.9.214 #2: last_login immer; login_count NUR mit echtem Profil hochzaehlen — sonst (Self-Read leer +
       // nach login_lookup-Migration ohne login_count-Feld) wuerde parseInt(undefined)||0 den Zaehler auf 1 nullen.
       if(_authToken){const _stamp={last_login:new Date().toISOString()};if(_prof)_stamp.login_count=(parseInt(_src.login_count)||0)+1;_sbPatch("users",_prof.id,_stamp).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
-      if(_authToken){_sbPost("activity_log",{user_id:_prof.id,action:"login",details:"gotrue "+(navigator.userAgent||"")},true).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}/* v3.9.355 #1: return=minimal (kein RETURNING→SELECT) — activity_log_select ist staff-only, der SELECT-Back warf bei Monteur-Login 42501. Analog notifications-Fix v3.9.227. Insert selbst ist erlaubt (WITH CHECK=authenticated). */
+      if(_authToken){_sbPost("activity_log",{user_id:_prof.id,action:"login",details:"gotrue v"+(typeof APP_VERSION!=="undefined"?APP_VERSION:"?")+" "+(navigator.userAgent||"")}/* Review 19.11.: Version im Login-Protokoll - Pruefstelle fuer "alle Geraete >= 1056" vor AUTH_HAERTUNG_1 */,true).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}/* v3.9.355 #1: return=minimal (kein RETURNING→SELECT) — activity_log_select ist staff-only, der SELECT-Back warf bei Monteur-Login 42501. Analog notifications-Fix v3.9.227. Insert selbst ist erlaubt (WITH CHECK=authenticated). */
       let perms=[];try{perms=typeof _src.permissions==='string'?JSON.parse(_src.permissions||'[]'):_src.permissions||[];}catch(e){perms=[];}
       const _po=_src.perms_override||_src.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
       const userData={id:_prof.id,name:_src.name||(user&&user.name),role:_src.role||(user&&user.role),username:_src.username||(user&&user.username),email:email,permissions:perms,monteurId:_src.monteur_id||'',permsOverride:_poObj};
@@ -4135,6 +4135,7 @@ const SQ={
 
 /* v3.9.1056 Fund 10: Kennwoerter lagen im Klartext in der Warteschlange (Admin-Reset, Benutzer anlegen) und nach 5 Fehlversuchen in syncQueueFailed. Neue Eintraege tragen keine mehr; alte werden beim Start bereinigt. Nur die Kennwort-Felder fallen weg - die Anlage der Benutzerzeile bleibt erhalten. Protokolliert wird nur die Zahl, nie ein Wert. */
 const _PW_FELDER=["password","new_password","p_password","passwort"];
+function _sqIstKennwortZiel(url){const u=String(url||"");return u.indexOf("/api/users")===0||u.indexOf("/api/password-reset")===0;}
 async function _sqKennwortPurge(){
   return SQ._serial(async()=>{
     let n=0;
@@ -4145,7 +4146,9 @@ async function _sqKennwortPurge(){
         for(const it of q){
           let b=it&&it.body;let warText=false;
           if(typeof b==="string"){try{b=JSON.parse(b);warText=true;}catch(_){b=null;}}
-          if(b&&typeof b==="object"&&!Array.isArray(b)&&_PW_FELDER.some(k=>Object.prototype.hasOwnProperty.call(b,k))){
+          /* Review 19.11.: NUR Benutzer-/Passwort-Eintraege bereinigen. Lieferanten-Konfigurationen (/api/supplier-configs) tragen ihr
+             Lieferanten-Passwort absichtlich - der Purge haette es beim Neustart vor dem Sync still verworfen. */
+          if(_sqIstKennwortZiel(it&&it.url)&&b&&typeof b==="object"&&!Array.isArray(b)&&_PW_FELDER.some(k=>Object.prototype.hasOwnProperty.call(b,k))){
             const nb={...b};_PW_FELDER.forEach(k=>{delete nb[k];});n++;geaendert=true;
             if(!Object.keys(nb).some(k=>k!=="id"))continue;
             neu.push({...it,body:warText?JSON.stringify(nb):nb});
