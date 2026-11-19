@@ -123,7 +123,9 @@ def test_sync_hinweis_sitzt_im_kopf_nicht_in_der_leiste(index_html):
     leiste = _block(index_html, 'className: "top-tabs"', "/* v3.9.69 S49 Riedmann-Sidebar-Fix: Mehr-Button")
     assert "window._lastJuprowaSyncAt" not in leiste
     kopf = _block(index_html, "/* v3.9.1016 Juprowa-Sync-Hinweis", "/* Sync indicator */")
-    assert "window._lastJuprowaSyncAt" in kopf and "minWidth:" in kopf and 'visibility:da?"visible":"hidden"' in kopf
+    # UI-Runde 1072: der Kopf zeigt jetzt denselben Stand wie das Sync-Fenster (syncStatus.lastSync);
+    # der Juprowa-Abruf steht als eigene Zeile im Fenster. Platzreserve und Sichtbarkeitsregel bleiben.
+    assert "_syncStempelMs(syncStatus.lastSync)" in kopf and "minWidth:" in kopf and 'visibility:da?"visible":"hidden"' in kopf
 
 
 def test_umkehrprobe(index_html):

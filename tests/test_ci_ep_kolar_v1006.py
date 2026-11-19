@@ -136,7 +136,7 @@ def test_suchfeld_selektor_schlaegt_die_handyregel(roh):
 
 @pytest.mark.parametrize("anker", [
     "'aria-label': \"Projekte durchsuchen\"",
-    "placeholder: \"Suche Nr, Kunde, Arbeit...\"",
+    "placeholder: \"Nr., Kunde …\"",  # UI-Runde 1072: kuerzer, passt hochkant; Lupe sagt "Suche"
     "placeholder: \"Benutzer suchen…\"",
     "placeholder:\"Suchen (Name, Lieferant, Notiz)…\"",
 ])

@@ -243,4 +243,6 @@ def test_10_color_scheme_folgt_app_wahl(index_html, node_exe):
 def test_p3_kleinkram(index_html):
     assert "(absences)" not in index_html
     assert "tage+(tage===1?' Tag':' Tage')" in index_html and "tage+'d')" not in index_html
-    assert '[a.terminZeit||"", a.dauer?window._dauerToDisplay(a.dauer):"", _kurz(a.arbeitsanweisungen,60)].filter(Boolean).join(" · ")' in index_html
+    # UI-Runde 1072: die Dauer steht als "2 h" statt "02:00" (las sich wie eine Endzeit); der
+    # Kern dieses Riegels - kein Trenner am Zeilenanfang, leere Teile gefiltert - bleibt.
+    assert '[a.terminZeit||"", _dauerKurzDE(a.dauer), _kurz(a.arbeitsanweisungen,60)].filter(Boolean).join(" · ")' in index_html

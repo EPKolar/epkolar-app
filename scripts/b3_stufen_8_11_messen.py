@@ -337,7 +337,7 @@ ANSICHT_DA8_JS = r"""(art) => {
                      .test((e.textContent || '').trim())).length;
     return {marke: '11 Statuskacheln + Sortier-Auswahlfeld, und KEIN .as-form-grid',
             da: kacheln >= 2 && !document.querySelector('.as-form-grid')
-                && /Suche Nr, Kunde, Arbeit/.test(
+                && /Nr\., Kunde/.test(
                      Array.from(document.querySelectorAll('input'))
                        .map(i => i.getAttribute('placeholder') || '').join('|')),
             kopfkacheln: kacheln};
@@ -790,7 +790,7 @@ AS_BESTAND_JS = r"""() => {
   const suchfeld = Array.from(document.querySelectorAll('input'))
     .filter(sicht)
     .map(i => i.getAttribute('placeholder') || '')
-    .filter(p => /Suche Nr, Kunde, Arbeit/.test(p));
+    .filter(p => /Nr\., Kunde/.test(p));
   const alleSelects = Array.from(document.querySelectorAll('select'))
     .filter(sicht).map(s => ({
       wert: s.value, n: s.options.length,
