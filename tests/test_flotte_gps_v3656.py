@@ -23,12 +23,16 @@ def test_fahrer_in_fleetliste(index_html):
 
 
 def test_kompass_helper(index_html):
-    assert "const _kompass=d=>{var dirs=['N','NO','O','SO','S','SW','W','NW'];" in index_html
+    # v1049 Re-Pin: der Kompass ist als pure Funktion _fzRichtung in //@FLOTTE-KARTE gewandert
+    # (Node-getestet), der lokale _kompass in FlotteView ist entfernt.
+    assert "var dirs=['N','NO','O','SO','S','SW','W','NW'];" in index_html
+    assert "function _fzRichtung(grad){" in index_html
 
 
 def test_popup_heading(index_html):
-    # Heading/course aus raw ins Popup
-    assert "_raw.course" in index_html and "_kompass(_head)" in index_html
+    # Heading/course aus raw in die Info-Karte (v1049: _fzHeading/_fzRichtungText)
+    assert "_raw.course" in index_html and "FZ_RICHTUNG_LANG[_fzRichtung(g)]" in index_html
+    assert "_infoZeile('Richtung',_fzRichtungText(p,now),'ri')" in index_html
 
 
 def test_trail_polyline(index_html):

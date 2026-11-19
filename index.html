@@ -10835,7 +10835,7 @@ function MonteurTafel(props){
             , _optionalChain([tabs, 'access', _93 => _93[safeKat], 'optionalAccess', _94 => _94.perm])==="urlaub" && React.createElement(_ViewBoundary,{name:"urlaub"},React.createElement(AbsView, { abs: abs, setAbs: setAbs, approvals: absApprovals, setApprovals: setAbsApprovals, files: mFiles, setFiles: setMFiles, ww: ww, curUser: curUser, pushNotif: pushNotif, monteure: monteure, entries: entries} ))/* v3.9.786: entries fuer Konflikt-Warnung (App-Ebene, kein neuer Fetch) */
             , _optionalChain([tabs, 'access', _95 => _95[safeKat], 'optionalAccess', _96 => _96.perm])==="stunden" && React.createElement(_ViewBoundary,{name:"stunden"},React.createElement(StundenzettelView, { monteure: monteure, ww: ww, curUser: curUser, users: users, entries: entries, projects: projects, abs: abs, approvals: absApprovals} ))/* v3.9.864: hier stand als Wert die nackte Bindung `approvals` — die gibt es in der App nirgends (der State heisst absApprovals, :7348). Der ReferenceError entstand beim RENDER von App, nicht in der View -> keine _ViewBoundary faengt ihn, die GANZE App fiel auf die Fehlerseite. Die drei Nachbar-Callsites (urlaub :9130, mitarbeiter :9137, bueroexport :9140) reichten laengst korrekt durch. */
             , _optionalChain([tabs, 'access', _97 => _97[safeKat], 'optionalAccess', _98 => _98.perm])==="fahrzeuge" && React.createElement(_ViewBoundary,{name:"fahrzeuge"},React.createElement(FahrzeugView, { fahrzeuge: fahrzeuge, setFahrzeuge: setFahrzeuge, monteure: monteure, ww: ww, curUser: curUser, users: users} ))
-            , _optionalChain([tabs, 'access', _97fl => _97fl[safeKat], 'optionalAccess', _98fl => _98fl.perm])==="flotte" && React.createElement(_ViewBoundary,{name:"flotte"},React.createElement(FlotteView, { fahrzeuge: fahrzeuge, setFahrzeuge: setFahrzeuge, monteure: monteure, ww: ww, curUser: curUser, projects: projects} ))/* v3.9.645 GPS-Flotte-Karte */
+            , _optionalChain([tabs, 'access', _97fl => _97fl[safeKat], 'optionalAccess', _98fl => _98fl.perm])==="flotte" && React.createElement(_ViewBoundary,{name:"flotte"},React.createElement(FlotteView, { fahrzeuge: fahrzeuge, setFahrzeuge: setFahrzeuge, monteure: monteure, ww: ww, curUser: curUser, projects: projects, onOpenFahrzeug: (fid)=>{const idx=tabs.findIndex(t=>t.perm==="fahrzeuge");if(idx>=0&&hasPerm(curUser,"fahrzeuge")){window.__pendingFzSel=fid;setKat(idx);}}} ))/* v3.9.645 GPS-Flotte-Karte; v1049 "Fahrzeug oeffnen" aus der Info-Karte - derselbe Deeplink wie die Schnellsuche (__pendingFzSel) */
             , _optionalChain([tabs, 'access', _99 => _99[safeKat], 'optionalAccess', _100 => _100.perm])==="werkzeuge" && hasPerm(curUser,"werkzeuge") && React.createElement(_ViewBoundary,{name:"werkzeuge"},React.createElement(WerkzeugView, { werkzeuge: werkzeuge, setWerkzeuge: setWerkzeuge, monteure: monteure, ww: ww, curUser: curUser, pushNotif: pushNotif, projects: projects} ))
             , _optionalChain([tabs, 'access', _99bp => _99bp[safeKat], 'optionalAccess', _100bp => _100bp.perm])==="bauprovisorien" && hasPerm(curUser,"bauprovisorien") && React.createElement(_ViewBoundary,{name:"bauprovisorien"},React.createElement(BauprovisorienView, { bauprovisorien: bauprovisorien, setBauprovisorien: setBauprovisorien, bauproMieten: bauproMieten, setBauproMieten: setBauproMieten, projects: projects, curUser: curUser, ww: ww} ))
             , _optionalChain([tabs, 'access', _99g => _99g[safeKat], 'optionalAccess', _100g => _100g.perm])==="gefahrstoff" && React.createElement(_ViewBoundary,{name:"gefahrstoff"},React.createElement(VGefahrstoff, { curUser: curUser, ww: ww} ))/* v3.9.196 Sicherheitsdatenblätter-Modul */
@@ -28950,6 +28950,201 @@ function _fzSpeedKennzahlen(reihe){/* -> {max,schnitt,punkte} */
 if(typeof window!=='undefined'){window._fzTagesKm=_fzTagesKm;window._fzSpeedReihe=_fzSpeedReihe;window._fzSpeedKennzahlen=_fzSpeedKennzahlen;}
 //@FLOTTE-ANALYSE-END
 
+//@FLOTTE-KARTE-START
+/* v1049 Flotte-Karte: Fahrzeuge als kleine Transporter + Info-Karte beim Antippen (Sebastian 19.11.:
+   "Fahrzeuge in der Flotte wirklich als kleine Transportbusse darstellen, sauber machen, und wenn man
+   draufklickt soll man Infos erhalten wie Geschwindigkeit etc.").
+   Pure, window-scope, kein optional chaining, keine Netz-/DB-Zugriffe. Node-getestet in
+   tests/test_flotte_karte_busse_v1049.py.
+
+   Kartenzustand (NUR Karte + Info-Karte; die LISTE bleibt bewusst vierstufig, Sebastian 14.07.:
+   kein flackernder Zwischenzustand im Statuspunkt):
+     faehrt      Geschwindigkeit > 3 km/h, Signal frisch            -> Markengruen
+     steht       Zuendung an (oder unbekannt) und steht, frisch      -> Orange (COLORS.WARNING_FILL)
+     aus         Zuendung aus = geparkt                              -> neutrales Grau
+     veraltet    letzte Meldung aelter als 24 h (wie _fzStatus 'inaktiv') ODER ein "faehrt/steht"
+                 aus einer Meldung, die aelter als FZ_SIGNAL_FRISCH_MS ist -> hellgrau, gestrichelt
+     kein_signal kein Datensatz / ts fehlt                           -> keine Markierung, nur Info-Karte
+   FZ_SIGNAL_FRISCH_MS ist enger als die 24 h des Status-Modells: eine Geschwindigkeit von vor drei
+   Stunden ist keine Geschwindigkeit mehr. Der FMC003 funkt in Bewegung alle 30 s; 15 min ohne
+   Meldung bei laufendem Motor heisst "Signal weg", nicht "faehrt gerade".
+   JS-Fallen: new Date(null) ist 1970 (nicht NaN), Number(null) ist 0 (nicht NaN) - beides wird hier
+   vor jeder Rechnung abgefangen, sonst stuende "0 km/h" oder "1.1.1970" in der Karte. */
+var FZ_SIGNAL_FRISCH_MS=15*TIME_MINUTE;
+var FZ_LABEL_MIN_ZOOM=12;/* darunter keine Kennzeichen an den Transportern - sonst ueberlappen sie */
+var FZ_TRACK_LIMIT=500;/* = limit in _flotteFetchTrack; erreicht -> "km heute" ist eine Untergrenze */
+var FZ_KARTE_FARBE={faehrt:COLORS.EP_GREEN,steht:COLORS.WARNING_FILL,aus:'#64748b',veraltet:'#e2e8f0',kein_signal:'#e2e8f0',kein_tracker:'#cbd5e1'};
+var FZ_KARTE_CHIP={faehrt:'#00722F',steht:COLORS.WARNING_FILL,aus:'#475569'};/* Flaeche unter weisser Schrift, >= 4,5:1 */
+var FZ_KARTE_LABEL={faehrt:'Fährt',steht:'Steht · Zündung an',aus:'Geparkt',veraltet:'Signal veraltet',kein_signal:'Noch kein GPS-Signal'};
+function _fzTsMs(p){/* -> ms oder NaN; ts null/''/undefined ist KEIN Zeitpunkt (new Date(null) waere 1970) */
+  if(!p)return NaN;
+  if(p.ts===null||p.ts===undefined||p.ts==='')return NaN;
+  return new Date(p.ts).getTime();
+}
+function _fzSpeedWert(p){/* -> km/h oder null; Number(null)===0 darf nicht als "steht" durchgehen */
+  if(!p)return null;
+  var v=p.speed;
+  if(v===undefined||v===null||v==='')return null;
+  var n=Number(v);
+  return (isFinite(n)&&n>=0)?n:null;
+}
+function _fzSignalFrisch(p,nowMs){
+  var t=_fzTsMs(p);
+  if(isNaN(t))return false;
+  return (nowMs-t)<=FZ_SIGNAL_FRISCH_MS;
+}
+function _fzKartenZustand(p,nowMs){/* -> faehrt|steht|aus|veraltet|kein_signal */
+  var t=_fzTsMs(p);
+  if(isNaN(t))return 'kein_signal';
+  if(_flotteInactive(t,nowMs))return 'veraltet';
+  var frisch=_fzSignalFrisch(p,nowMs);
+  var sp=_fzSpeedWert(p);
+  if(sp!==null&&sp>3)return frisch?'faehrt':'veraltet';
+  if(p.ignition===true)return frisch?'steht':'veraltet';
+  if(p.ignition===false)return 'aus';
+  return frisch?'steht':'aus';/* Zuendung unbekannt, steht: frisch = steht, alt = abgestellt */
+}
+function _fzSpeedAnzeige(p,nowMs){/* -> "52 km/h" nur bei frischem Signal, sonst "—" */
+  if(!_fzSignalFrisch(p,nowMs))return '—';
+  var s=_fzSpeedWert(p);
+  if(s===null)return '—';
+  return Math.round(s)+' km/h';
+}
+function _fzHeading(p){/* -> 0..359 oder null; Kurs steckt im Traccar-raw (course, Fallback heading) */
+  if(!p)return null;
+  var _raw=p.raw||{};
+  var v=(_raw.course!==undefined&&_raw.course!==null&&_raw.course!=='')?_raw.course:_raw.heading;
+  if(v===undefined||v===null||v==='')return null;
+  var n=Number(v);
+  if(!isFinite(n))return null;
+  return ((Math.round(n)%360)+360)%360;
+}
+var FZ_RICHTUNG_LANG={N:'Nord',NO:'Nordost',O:'Ost',SO:'Südost',S:'Süd',SW:'Südwest',W:'West',NW:'Nordwest'};
+function _fzRichtung(grad){/* -> "NO" oder '' */
+  if(grad===null||grad===undefined||grad==='')return '';
+  var n=Number(grad);
+  if(!isFinite(n))return '';
+  var dirs=['N','NO','O','SO','S','SW','W','NW'];
+  return dirs[Math.round((((n%360)+360)%360)/45)%8];
+}
+function _fzRichtungText(p,nowMs){/* -> "Nordost (45°)" nur wenn das Fahrzeug faehrt; Kurs im Stand ist Rauschen */
+  if(_fzKartenZustand(p,nowMs)!=='faehrt')return '—';
+  var g=_fzHeading(p);
+  if(g===null)return '—';
+  return FZ_RICHTUNG_LANG[_fzRichtung(g)]+' ('+g+'°)';
+}
+function _fzVanDreh(zustand,grad){/* -> {zeiger,spiegeln}: Seitenansicht schaut nach rechts (Ost); im Westhalbkreis gespiegelt, Fahrtrichtung zeigt der Zeiger */
+  if(zustand!=='faehrt'||grad===null||grad===undefined||grad==='')return {zeiger:null,spiegeln:false};
+  var g=Number(grad);
+  if(!isFinite(g))return {zeiger:null,spiegeln:false};
+  g=((Math.round(g)%360)+360)%360;
+  return {zeiger:g,spiegeln:(g>180&&g<360)};
+}
+function _fzKmDe(v,d){/* A55 (v1049): Kilometer am BILDSCHIRM im deutschen Format ("12,4"), Exporte bleiben bei _n. -> '' bei Muell */
+  if(v===undefined||v===null||v==='')return '';
+  var n=Number(v);var st=(d===undefined||d===null)?1:Number(d);
+  if(!isFinite(n))return '';
+  try{return n.toLocaleString('de-AT',{minimumFractionDigits:st,maximumFractionDigits:st});}catch(_e){return n.toFixed(st).replace('.',',');}
+}
+function _fzImeiTail(imei){/* -> "…1234" (nur fuer Admins angezeigt) */
+  var s=String(imei===undefined||imei===null?'':imei).replace(/[^0-9]/g,'');
+  return s.length?('…'+s.slice(-4)):'';
+}
+function _fzLetztesSignal(p,nowMs){/* -> {rel,abs} oder null - nie "1970" */
+  var t=_fzTsMs(p);
+  if(isNaN(t))return null;
+  return {rel:_flotteRelTime(t,nowMs),abs:_fzStampFink(t,nowMs)};
+}
+function _fzHeuteAusTrack(rows,nowMs,limit){/* -> {km,fahrten,teilweise,punkte} aus der on-demand-Historie (_flotteFetchTrack) */
+  var n=new Date(nowMs);
+  var mitternacht=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime();/* LOKAL, nicht UTC */
+  var heute=[];var aeltester=Infinity;var gueltig=0;var i;
+  for(i=0;i<(rows?rows.length:0);i++){
+    var p=rows[i];if(!p)continue;
+    var t=_fzTsMs(p);if(isNaN(t))continue;
+    gueltig++;
+    if(t<aeltester)aeltester=t;
+    if(t>=mitternacht)heute.push(p);
+  }
+  var segs=_fzSegmente(heute,{});
+  var su=_fbSummen(segs);
+  var lim=Number(limit);
+  /* Teilweise: der Abruf stiess an sein Limit UND reicht nicht bis Mitternacht zurueck - dann
+     fehlen Punkte vom Tagesbeginn, die Zahl ist eine Untergrenze und wird so beschriftet. */
+  var teilweise=!!(isFinite(lim)&&lim>0&&(rows?rows.length:0)>=lim&&aeltester>mitternacht);
+  var punkte=_fzNormPos(heute).map(function(x){return [x.lat,x.lon];});
+  return {km:su.km,fahrten:su.anzahl,teilweise:teilweise,punkte:punkte,gueltig:gueltig};
+}
+/* ── Transporter-Glyphe: EINE Geometrie fuer Karte (HTML-String im L.divIcon) und Liste (React-SVG).
+   Eigene, schlichte Seitenansicht eines Kastenwagens (Laderaum + Fahrerhaus + zwei Raeder), keine
+   Marke, kein Hersteller-Logo. viewBox 0 0 40 26, Front zeigt nach rechts. ── */
+var FZ_VAN_VIEWBOX='0 0 40 26';
+var FZ_VAN_KAROSSE='M2.5 7.5Q2.5 5 5 5H24.6Q26 5 27 6.1L32.3 11.6L36.3 12.8Q38 13.4 38 15.2V19.2Q38 20.5 36.7 20.5H3.8Q2.5 20.5 2.5 19.2Z';
+var FZ_VAN_FENSTER='M25.4 7.1H26.3L30.7 11.7H25.4Z';
+var FZ_VAN_TUER='M19 6.5V18.6';
+var FZ_VAN_RAEDER=[[10,20.5],[30.4,20.5]];
+function _fzVanStil(zustand){/* -> {fill,stroke,dash,fenster,opacity} */
+  var z=zustand||'kein_signal';
+  var fill=FZ_KARTE_FARBE[z]||FZ_KARTE_FARBE.kein_signal;
+  if(z==='veraltet'||z==='kein_signal')return {fill:fill,stroke:'#64748b',dash:'2.2 1.6',fenster:'#94a3b8',opacity:(z==='kein_signal'?0.75:1)};
+  if(z==='kein_tracker')return {fill:'none',stroke:'#94a3b8',dash:'',fenster:'#cbd5e1',opacity:0.8};
+  return {fill:fill,stroke:'#ffffff',dash:'',fenster:'#ffffff',opacity:1};
+}
+function _fzVanSvg(zustand,breite,spiegeln){/* -> SVG-Markup (nur Konstanten, kein Nutzertext) */
+  var s=_fzVanStil(zustand);var b=Number(breite)||36;var hh=Math.round(b*26/40);
+  var dash=s.dash?(' stroke-dasharray="'+s.dash+'"'):'';
+  var r=FZ_VAN_RAEDER.map(function(w){return '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="3.3" fill="#1f2937" stroke="#ffffff" stroke-width="1.2"/><circle cx="'+w[0]+'" cy="'+w[1]+'" r="1.2" fill="#cbd5e1"/>';}).join('');
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+b+'" height="'+hh+'" viewBox="'+FZ_VAN_VIEWBOX+'" aria-hidden="true" focusable="false" style="display:block;overflow:visible;opacity:'+s.opacity+(spiegeln?';transform:scaleX(-1)':'')+'">'
+    +'<path d="'+FZ_VAN_KAROSSE+'" fill="'+s.fill+'" stroke="'+s.stroke+'" stroke-width="1.6" stroke-linejoin="round"'+dash+'/>'
+    +'<path d="'+FZ_VAN_FENSTER+'" fill="'+s.fenster+'" fill-opacity="0.9"/>'
+    +'<path d="'+FZ_VAN_TUER+'" stroke="'+s.fenster+'" stroke-opacity="0.45" stroke-width="1"/>'
+    +r+'</svg>';
+}
+function _fzEscHtml(x){return String(x===undefined||x===null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\x27/g,'&#39;').replace(/\x22/g,'&quot;');}/* Hausmuster: keine Anfuehrungszeichen in Regex-Literalen (Klammer-Streicher) */
+function _fzVanMarkerHtml(o){/* -> HTML fuer L.divIcon: 44x44 Trefferflaeche, Transporter, Fahrtrichtungs-Zeiger, Kennzeichen-Pille */
+  var z=o.zustand||'kein_signal';
+  var dreh=_fzVanDreh(z,o.heading);
+  var ring=o.gewaehlt?'<div style="position:absolute;inset:1px;border-radius:50%;border:2.5px solid '+COLORS.EP_GREEN+';background:rgba(0,150,64,.16);box-shadow:0 0 0 2px #ffffff"></div>':'';
+  var zeiger=(dreh.zeiger!==null)?('<div style="position:absolute;inset:0;transform:rotate('+dreh.zeiger+'deg)"><div style="position:absolute;left:50%;top:-3px;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid '+COLORS.EP_GREEN+';filter:drop-shadow(0 0 1px #ffffff)"></div></div>'):'';
+  var van='<div style="position:absolute;left:4px;top:10px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))">'+_fzVanSvg(z,36,dreh.spiegeln)+'</div>';
+  var lbl='<div class="fz-van-lbl" style="position:absolute;top:41px;left:50%;transform:translateX(-50%);background:#ffffff;color:#141A16;border:1px solid rgba(20,26,22,.22);border-radius:6px;padding:0 5px;font:700 11px/16px system-ui,-apple-system,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.28)">'+_fzEscHtml(o.kennzeichen||'?')+'</div>';
+  return '<div class="fz-van'+(o.gewaehlt?' fz-van-sel':'')+'" data-zustand="'+z+'" style="position:relative;width:44px;height:44px;cursor:pointer">'+ring+zeiger+van+lbl+'</div>';
+}
+/* ── Entwickler-Vorschau ?flottedemo=1 (NUR Admin). Synthetische Fahrzeuge/Positionen nur fuer die
+   ANSICHT: keine DB, keine SyncQueue, kein fetch. Die View blendet im Demo-Modus Fahrtenbuch,
+   IMEI-Speichern, Positions-Poll und Adress-Lookup aus. ── */
+function _fzDemoErlaubt(user,search){
+  if(!user||user.role!=='admin')return false;
+  var s=String(search||'');
+  var m=/[?&]flottedemo=([^&#]*)/.exec(s);
+  return !!(m&&m[1]==='1');
+}
+function _fzDemoDaten(nowMs){/* -> {fahrzeuge,positions,tracks,orte} - rein im Speicher */
+  var iso=function(ms){return new Date(ms).toISOString();};
+  var fz=[
+    {id:'demo-1',kennzeichen:'TU-DEMO 1',marke:'Demo',modell:'Kastenwagen lang',tracker_imei:'350000000000001',tracker_typ:'Demo-Tracker',_demo:true,_demoFahrer:'Max Muster'},
+    {id:'demo-2',kennzeichen:'TU-DEMO 2',marke:'Demo',modell:'Kastenwagen',tracker_imei:'350000000000002',_demo:true,_demoFahrer:'Eva Beispiel'},
+    {id:'demo-3',kennzeichen:'TU-DEMO 3',marke:'Demo',modell:'Pritsche',tracker_imei:'350000000000003',_demo:true,_demoFahrer:''},
+    {id:'demo-4',kennzeichen:'TU-DEMO 4',marke:'Demo',modell:'Kleintransporter',tracker_imei:'350000000000004',_demo:true,_demoFahrer:''}
+  ];
+  var pos=[
+    {fahrzeug_id:'demo-1',lat:48.4590,lon:15.8950,ts:iso(nowMs-20*TIME_SECOND),speed:62,ignition:true,raw:{course:72}},
+    {fahrzeug_id:'demo-2',lat:48.4319,lon:15.9420,ts:iso(nowMs-2*TIME_MINUTE),speed:0,ignition:true,raw:{course:200}},
+    {fahrzeug_id:'demo-3',lat:48.4120,lon:15.8640,ts:iso(nowMs-3*TIME_HOUR),speed:0,ignition:false,raw:{}},
+    {fahrzeug_id:'demo-4',lat:48.3905,lon:15.9810,ts:iso(nowMs-2*TIME_DAY),speed:0,ignition:false,raw:{}}
+  ];
+  /* Spur fuer demo-1: 30 Punkte im 30-s-Takt bis zur aktuellen Position (km heute, Route heute). */
+  var tr=[];var i;
+  for(i=0;i<30;i++){
+    var k=29-i;
+    tr.push({lat:48.4590-k*0.0013,lon:15.8950-k*0.0058,ts:iso(nowMs-20*TIME_SECOND-k*30*TIME_SECOND),speed:55+(i%5),ignition:true});
+  }
+  tr.reverse();/* wie _flotteFetchTrack: neueste zuerst */
+  return {fahrzeuge:fz,positions:pos,tracks:{'demo-1':tr},orte:{'demo-1':'Demo-Straße 1 (Demo-Adresse)','demo-2':'Demo-Baustelle (Demo-Adresse)'}};
+}
+if(typeof window!=='undefined'){window._fzKartenZustand=_fzKartenZustand;window._fzSpeedAnzeige=_fzSpeedAnzeige;window._fzHeading=_fzHeading;window._fzRichtung=_fzRichtung;window._fzRichtungText=_fzRichtungText;window._fzVanDreh=_fzVanDreh;window._fzImeiTail=_fzImeiTail;window._fzKmDe=_fzKmDe;window._fzLetztesSignal=_fzLetztesSignal;window._fzHeuteAusTrack=_fzHeuteAusTrack;window._fzVanSvg=_fzVanSvg;window._fzVanMarkerHtml=_fzVanMarkerHtml;window._fzDemoErlaubt=_fzDemoErlaubt;window._fzDemoDaten=_fzDemoDaten;window.FZ_KARTE_FARBE=FZ_KARTE_FARBE;}
+//@FLOTTE-KARTE-END
+
 //@WETTER-START
 /* v3.9.686 Wetter — EINE Quelle fuer Home-Widget und Planungs-Wetterzeile.
 
@@ -29266,6 +29461,8 @@ function FahrtenbuchView(props){
   /* v3.9.690: fid==='' bedeutet ALLE Fahrzeuge (Fink-Muster). Default ist der aktuelle Monat —
      nicht mehr "letzte 7 Tage": ein Fahrtenbuch wird monatsweise geprueft und abgelegt. */
   const [fid,setFid]=_react.useState.call(void 0, props.initialFid||"");
+  /* v1049 Versteckter Pfad: initialFid wirkte nur beim ERSTEN Mount - Zeilen-Klick in der Fahrzeugliste und "Im Fahrtenbuch zeigen" setzten buchFid, das Fahrtenbuch blieb aber auf dem alten Fahrzeug. fidAnstoss zaehlt jeden Wunsch mit, damit auch dasselbe Fahrzeug ein zweites Mal greift. */
+  _react.useEffect.call(void 0, function(){if(props.initialFid)setFid(props.initialFid);},[props.initialFid,props.fidAnstoss]);
   const _iso=(d)=>_ymd(d);
   const _zrStart=_fbZeitraum('monat',Date.now());
   const [von,setVon]=_react.useState.call(void 0, _zrStart.von);
@@ -29638,7 +29835,7 @@ function FahrtenbuchView(props){
       return h('div',{key:idx,style:Object.assign({},_card,{marginBottom:8})}
         ,h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:6}}
           ,h('span',{style:{fontFamily:mono,fontWeight:800,fontSize:15,color:V.tx}},_zeit(s.beginn)+' – '+_zeit(s.ende))
-          ,h('span',{style:{fontFamily:mono,fontWeight:800,fontSize:15,color:'#0ea5e9'}},_n(s.km,2)+' km'))
+          ,h('span',{style:{fontFamily:mono,fontWeight:800,fontSize:15,color:'#0ea5e9'}},_fzKmDe(s.km,2)+' km'))
         ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:2}},'⏱ '+_fzDauerFmt(s.dauerMin)+' h')
         ,h('div',{style:{fontSize:UI.fMeta,color:V.tx,marginBottom:1}},'▸ '+_ort(row,'start_ort',s.startPos.lat,s.startPos.lon))
         ,h('div',{style:{fontSize:UI.fMeta,color:V.tx,marginBottom:6}},'◂ '+_ort(row,'ziel_ort',s.endPos.lat,s.endPos.lon))
@@ -29662,7 +29859,7 @@ function FahrtenbuchView(props){
     zellen.push(h('span',{key:'du',style:{fontFamily:mono,fontSize:12,color:V.dm}},_fzDauerFmt(s.dauerMin)));
     zellen.push(h('span',{key:'st',style:{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},_ort(row,'start_ort',s.startPos.lat,s.startPos.lon)));
     zellen.push(h('span',{key:'zi',style:{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},_ort(row,'ziel_ort',s.endPos.lat,s.endPos.lon)));
-    zellen.push(h('span',{key:'km',style:{fontFamily:mono,fontWeight:800,fontSize:13,color:'#0ea5e9',textAlign:'right'}},_n(s.km,2)));
+    zellen.push(h('span',{key:'km',style:{fontFamily:mono,fontWeight:800,fontSize:13,color:'#0ea5e9',textAlign:'right'}},_fzKmDe(s.km,2)));
     if(zeigeTacho)zellen.push(h('span',{key:'ta',style:{fontFamily:mono,fontSize:12,color:V.dm,textAlign:'right'}},(s.tachoBis!==null&&s.tachoBis!==undefined)?_n(s.tachoBis,0):'—'));
     zellen.push(h('span',{key:'fa',style:{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},_fahrerVon(s)||'—'));
     zellen.push(h('div',{key:'ku',onClick:function(ev){try{ev.stopPropagation();}catch(_e){}}},zuordnung));
@@ -29704,8 +29901,8 @@ function FahrtenbuchView(props){
       ,h('div',{style:{fontSize:13,fontWeight:700,color:V.tx,marginBottom:8}},'📊 Tageskilometer')
       ,h(SvgBar,{data:balken,color:'#0ea5e9',fmt:function(v){return _n(v,0);},height:chartH,maxH:chartH})
       ,h('div',{style:{display:'flex',gap:isMob?12:20,flexWrap:'wrap',marginTop:8,fontSize:UI.fMeta,color:V.dm}}
-        ,h('span',{},'Ø '+_n(sumKm/(tagesKm.length||1),1)+' km/Tag')
-        ,bestTag?h('span',{},'Spitze: '+_n(bestTag.km,1)+' km'):null
+        ,h('span',{},'Ø '+_fzKmDe(sumKm/(tagesKm.length||1),1)+' km/Tag')
+        ,bestTag?h('span',{},'Spitze: '+_fzKmDe(bestTag.km,1)+' km'):null
         ,h('span',{},tagesKm.length+' Tag'+(tagesKm.length===1?'':'e')+' mit Fahrten')));
   };
 
@@ -29745,7 +29942,7 @@ function FahrtenbuchView(props){
       /* Summe der ANGEZEIGTEN Fahrten — reagiert auf beide Filter (Fink-Muster). */
       ,h('div',{style:{flex:1}})
       ,h('span',{style:{fontSize:12,fontWeight:700,color:V.acTx,whiteSpace:'nowrap'}},
-        'Summe: '+_n(sumKm,1)+' km · '+_fzDauerFmt(sumMin)+' h · '+summe.anzahl+' Fahrt'+(summe.anzahl===1?'':'en'))
+        summe.anzahl?('Summe: '+_fzKmDe(sumKm,1)+' km · '+_fzDauerFmt(sumMin)+' h · '+summe.anzahl+' Fahrt'+(summe.anzahl===1?'':'en')):'Summe: —')/* A55 v1049: "0.0 km" war Punkt-Format und eine 0 ohne Daten */
     )
     ,missing?h('div',{style:{padding:'6px 10px',fontSize:UI.fMeta,background:'rgba(245,158,11,.10)',color:'#b45309',fontWeight:600,borderBottom:'1px solid '+V.bd,flexShrink:0}}
       ,'⚠ Tabelle fz_fahrten fehlt — sql/FZ_FAHRTEN_v1.sql ausführen. Fahrten werden berechnet angezeigt, aber nicht gespeichert; keine Projekt-Zuordnung möglich.'):null
@@ -29769,9 +29966,37 @@ function FahrtenbuchView(props){
   );
 }
 
+/* v1049 Flotte-Karte: Stilregeln fuer Transporter-Marker und Info-Popup (einmal je Dokument). Kennzeichen
+   verschwinden unterhalb FZ_LABEL_MIN_ZOOM, ausser am gewaehlten Fahrzeug. */
+function _fzKarteCss(){
+  try{
+    if(document.getElementById('fz-karte-css'))return;
+    var st=document.createElement('style');st.id='fz-karte-css';
+    st.textContent='.fz-lbl-aus .fz-van-lbl{display:none}.fz-lbl-aus .fz-van-sel .fz-van-lbl{display:block}'
+      +'.fz-van-icon{background:transparent;border:0}.fz-van-icon:focus-visible{outline:3px solid #009640;outline-offset:2px;border-radius:50%}'
+      +'.fz-pop .leaflet-popup-content-wrapper{padding:0;border-radius:12px;background:var(--fz-pop-bg,#ffffff);box-shadow:0 6px 24px rgba(0,0,0,.28)}'
+      +'.fz-pop .leaflet-popup-content{margin:0;min-width:260px}.fz-pop .leaflet-popup-tip{background:var(--fz-pop-bg,#ffffff)}';
+    document.head.appendChild(st);
+  }catch(_e){}
+}
+function _fzVanEl(zustand,breite){/* v1049 dieselbe Transporter-Geometrie wie auf der Karte, als React-SVG (Liste, Info-Karte) */
+  var h=React.createElement;var s=_fzVanStil(zustand);var b=breite||28;
+  return h('svg',{width:b,height:Math.round(b*26/40),viewBox:FZ_VAN_VIEWBOX,'aria-hidden':'true',focusable:'false',style:{display:'block',flex:'0 0 auto',overflow:'visible',opacity:s.opacity}}
+    ,h('path',{d:FZ_VAN_KAROSSE,fill:s.fill,stroke:(s.stroke==='#ffffff'?'rgba(0,0,0,.28)':s.stroke),strokeWidth:1.4,strokeLinejoin:'round',strokeDasharray:s.dash||undefined})
+    ,h('path',{d:FZ_VAN_FENSTER,fill:s.fenster,fillOpacity:0.9})
+    ,h('path',{d:FZ_VAN_TUER,stroke:s.fenster,strokeOpacity:0.45,strokeWidth:1})
+    ,FZ_VAN_RAEDER.map(function(w,i){return h('g',{key:i},h('circle',{cx:w[0],cy:w[1],r:3.3,fill:'#1f2937',stroke:'#ffffff',strokeWidth:1.2}),h('circle',{cx:w[0],cy:w[1],r:1.2,fill:'#cbd5e1'}));}));
+}
+
 function FlotteView(props){
   const h=React.createElement;
-  const fahrzeuge=props.fahrzeuge||[];
+  /* v1049 Entwickler-Vorschau ?flottedemo=1 - NUR Admin (_fzDemoErlaubt). Synthetische Fahrzeuge und
+     Positionen ersetzen ausschliesslich die ANSICHT: kein Positions-Poll, kein Adress-Lookup, kein
+     Fahrtenbuch, kein IMEI-Speichern - es wird nichts gelesen und nichts geschrieben. */
+  const _demo=_fzDemoErlaubt(props.curUser,(typeof location!=='undefined'?location.search:''));
+  const [_demoDaten]=_react.useState.call(void 0, function(){return _demo?_fzDemoDaten(Date.now()):null;});
+  const _istAdmin=!!(props.curUser&&props.curUser.role==='admin');
+  const fahrzeuge=(_demo&&_demoDaten)?_demoDaten.fahrzeuge:(props.fahrzeuge||[]);
   const monteure=props.monteure||[];
   const projects=props.projects||[];
   const ww=props.ww||0;const isMob=ww<BP_MOB;
@@ -29781,7 +30006,6 @@ function FlotteView(props){
   const _trail=_react.useRef.call(void 0, null);/* v3.9.656: aktuelle Verlaufs-Polyline (Klick auf Fahrzeug) */
   const [st,setSt]=_react.useState.call(void 0, {loaded:false,missing:false,positions:[]});
   const _markers=_react.useRef.call(void 0, {});/* v3.9.655: fahrzeug_id -> Leaflet-Marker (fuer Klick-Fokus aus der Liste) */
-  const _openFid=_react.useRef.call(void 0, null);/* v3.9.663 Bug-Hunt #2: welches Popup ist offen — zum Wiederherstellen nach dem 60s-Marker-Neuaufbau */
   const _polling=_react.useRef.call(void 0, false);/* v3.9.663 Bug-Hunt #4: In-Flight-Guard gegen ueberlappende/out-of-order Polls */
   const [listOpen,setListOpen]=_react.useState.call(void 0, ww>=600);/* Fleet-Liste: Desktop offen, Handy zu (Karte frei) */
   const [trailFid,setTrailFid]=_react.useState.call(void 0, null);/* v3.9.658: welches Fahrzeug hat gerade einen Verlauf/Trail an (fuer "Verlauf loeschen"-Button) */
@@ -29790,6 +30014,16 @@ function FlotteView(props){
   const [fahrtTrail,setFahrtTrail]=_react.useState.call(void 0, false);
   const [buchFid,setBuchFid]=_react.useState.call(void 0, '');/* v3.9.690: Zeilen-Klick in der Liste filtert das Fahrtenbuch unten */
   const [ohneOpen,setOhneOpen]=_react.useState.call(void 0, false);/* Gruppe "ohne Tracker" eingeklappt */
+  /* v1049 Info-Karte: gewaehltes Fahrzeug, seine on-demand-Historie (fuer km/Fahrten/Route heute) und der Anstoss fuers Fahrtenbuch. */
+  const [selFid,setSelFid]=_react.useState.call(void 0, null);
+  const [popAnstoss,setPopAnstoss]=_react.useState.call(void 0, 0);
+  const [trackRows,setTrackRows]=_react.useState.call(void 0, {fid:null,rows:[]});
+  const [buchAnstoss,setBuchAnstoss]=_react.useState.call(void 0, 0);
+  const [geoPend,setGeoPend]=_react.useState.call(void 0, '');
+  const _popRef=_react.useRef.call(void 0, null);const _popZu=_react.useRef.call(void 0, false);
+  const _fitDone=_react.useRef.call(void 0, false);const _buchRef=_react.useRef.call(void 0, null);
+  const _geoLetzt=_react.useRef.call(void 0, {fid:null,ms:0});
+  const [_popEl]=_react.useState.call(void 0, function(){try{return document.createElement('div');}catch(_e){return null;}});
   /* v3.9.702: Fahrtenbuch vergroesserbar (Sebastian). (1) Drag-Splitter zwischen oberem Bereich und
      Fahrtenbuch, Hoehe pro Geraet in localStorage. (2) Maximieren-Toggle, Panel fuellt den ganzen Tab.
      topH=0 -> Default 52%; >0 -> feste Pixelhoehe des oberen Bereichs. Kein optional chaining. */
@@ -29821,6 +30055,7 @@ function FlotteView(props){
   const [imeiVal,setImeiVal]=_react.useState.call(void 0, '');
   const [imeiBusy,setImeiBusy]=_react.useState.call(void 0, false);
   const _imeiSpeichern=async function(fid){
+    if(_demo){if(window.__toast)window.__toast('Demo-Modus: es wird nichts gespeichert','info');return;}/* v1049 Demo schreibt nie */
     const andere=fahrzeuge.filter(function(x){return x&&x.id!==fid;}).map(function(x){return x.tracker_imei;});
     const pr=_fzImeiPruef(imeiVal,andere);
     if(pr.fehler){if(window.__toast)window.__toast('⚠️ '+pr.fehler,'error',5000);return;}
@@ -29848,10 +30083,8 @@ function FlotteView(props){
       return n;
     });
   };/* v3.9.683: zeigt die Karte gerade EINE Fahrt (statt der Gesamt-Historie)? Nur fuer den "Verlauf ✕"-Button. */
-  const _esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');/* Hausmuster wie Z.8877 — kein "-Regex (bracht sonst den String-Stripper des _bracket_check) */
   const trackerFz=fahrzeuge.filter(f=>f&&f.tracker_imei&&String(f.tracker_imei).trim()!=='');
   const _fahrerName=f=>{if(!f||!f.fahrer)return '';var m=monteure.find(function(x){return x.id===f.fahrer;});return m?(m.n||''):'';};/* v3.9.656: Fahrer aus fahrzeuge.fahrer -> Monteur-Name (Dispo-Bezug) */
-  const _kompass=d=>{var dirs=['N','NO','O','SO','S','SW','W','NW'];return dirs[Math.round((((d%360)+360)%360)/45)%8];};/* Himmelsrichtung aus Grad */
 
   /* Karte einmal initialisieren */
   _react.useEffect.call(void 0, function(){
@@ -29869,12 +30102,17 @@ function FlotteView(props){
     L.control.layers({'Karte':osm,'Satellit':sat},{},{position:'topright'}).addTo(map);
     _layer.current=L.layerGroup().addTo(map);
     _map.current=map;
+    /* v1049: Kennzeichen-Pillen erst ab FZ_LABEL_MIN_ZOOM - weiter draussen ueberlappen sie sich. */
+    _fzKarteCss();
+    var _lblZoom=function(){try{var c=map.getContainer();if(map.getZoom()<FZ_LABEL_MIN_ZOOM)c.classList.add('fz-lbl-aus');else c.classList.remove('fz-lbl-aus');}catch(_e){}};
+    map.on('zoomend',_lblZoom);_lblZoom();
     var t=setTimeout(function(){try{map.invalidateSize();}catch(_e){}},200);
     return function(){clearTimeout(t);try{if(_map.current){_map.current.remove();_map.current=null;_layer.current=null;}}catch(_e){}};
   },[]);
 
   /* Positionen laden + Live-Poll (FLOTTE_POLL_MS, v3.9.691: 10s statt 60s), Cleanup bei Unmount */
   _react.useEffect.call(void 0, function(){
+    if(_demo){setSt({loaded:true,missing:false,positions:(_demoDaten?_demoDaten.positions:[])});return;}/* v1049 Demo: kein Poll, kein Abruf */
     var alive=true;
     /* v3.9.663 Bug-Hunt #4: nur ein Fetch gleichzeitig — sonst kann bei langsamem Netz eine aeltere
        Antwort NACH einer neueren resolven und die Karte auf veraltete Positionen zuruecksetzen. */
@@ -29896,34 +30134,19 @@ function FlotteView(props){
       if(p.lat===undefined||p.lat===null||p.lon===undefined||p.lon===null)return;
       var _la=Number(p.lat),_lo=Number(p.lon);
       if(!isFinite(_la)||!isFinite(_lo)||(_la===0&&_lo===0))return;/* v3.9.677 (WIP aus v3.9.673): NaN/Infinity + Null-Island (0/0 = Tracker ohne GPS-Fix, Traccar-Default bei valid=false) verwerfen — sonst zieht ein 0/0 die fitBounds auf den Golf von Guinea bzw. wirft L.marker([NaN,NaN]). Genau der Pilot-Fall (Tracker bootet, hat noch keinen Fix). */
-      var tsMs=new Date(p.ts).getTime();var inactive=_flotteInactive(tsMs,now);
-      var col=inactive?'#9ca3af':'#0ea5e9';
-      var _raw=p.raw||{};
-      var _head=(_raw.course!==undefined&&_raw.course!==null)?_raw.course:((_raw.heading!==undefined&&_raw.heading!==null)?_raw.heading:null);
-      var _arrow=(_head!==null&&_head!==''&&!inactive)?('<span style="display:inline-block;transform:rotate('+Math.round(_head)+'deg);margin-right:3px">▲</span>'):'';/* v3.9.658: Heading-Pfeil, 0deg=Norden=oben */
-      var icon=L.divIcon({className:'',html:'<div style="background:'+col+';color:#fff;border:2px solid #fff;border-radius:6px;padding:2px 6px;font:700 11px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap">'+_arrow+_esc(f.kennzeichen||'?')+'</div>',iconSize:[0,0],iconAnchor:[0,0]});
-      var m=L.marker([p.lat,p.lon],{icon:icon});
-      var speed=(p.speed!==undefined&&p.speed!==null&&p.speed!=='')?(Math.round(p.speed)+' km/h'):'—';
-      var zdg=(p.ignition===true)?'Zündung an':(p.ignition===false?'Zündung aus':'—');
-      var _rich=(_head!==null&&_head!==''&&!inactive)?(' · '+_kompass(_head)+' '+Math.round(_head)+'°'):'';/* v3.9.663 Bug-Hunt #7: Himmelsrichtung nur wenn aktiv (Pfeil wird bei inaktiv auch unterdrueckt) */
-      var _fn=_fahrerName(f);
-      /* v3.9.678: dieselbe Status-Zeile wie in der Liste ("Steht (13.7. 08:42) · 02:15"), damit
-         Karte und Liste nicht zwei verschiedene Wahrheiten erzaehlen. Farbe aus FZ_STATUS_COLOR. */
-      var _stp=_fzStatus(p,now,(trailFid===f.id&&_trailSeit!==null)?_trailSeit:undefined);
-      var _stTxt=(_stp.code==='wartet')?'Wartet':(FZ_STATUS_LABEL[_stp.code]+' ('+_fzSeitFmt(_stp.seit,now)+') · '+_fzDauerFmt(_stp.dauerMin));
-      var _stLine='<span style="color:'+(FZ_STATUS_COLOR[_stp.code]||'#9ca3af')+';font-weight:700">'+_esc(_stTxt)+'</span>';
-      /* v3.9.689: Geraetetyp additiv — nur wenn gepflegt. Hilft beim Rollout: man sieht auf der
-         Karte, welches Fahrzeug welches Geraet traegt, ohne ins Formular zu wechseln. */
-      var _trk='';
-      if(f.tracker_typ){_trk=String(f.tracker_typ);if(f.tracker_eingebaut){var _te=String(f.tracker_eingebaut).slice(0,10).split('-');if(_te.length===3)_trk+=' · seit '+parseInt(_te[2],10)+'.'+parseInt(_te[1],10)+'.';}}
-      var _trkLine=_trk?('<br><span style="color:#94a3b8;font-size:11px">Tracker '+_esc(_trk)+'</span>'):'';
-      m.bindPopup('<b>'+_esc(f.kennzeichen||'')+'</b>'+(_fn?(' <span style="color:#94a3b8">· '+_esc(_fn)+'</span>'):'')+'<br>'+_esc((f.marke||'')+' '+(f.modell||''))+'<br>'+_stLine+'<br>'+_flotteRelTime(tsMs,now)+(inactive?' <span style="color:#9ca3af">(inaktiv)</span>':'')+'<br>'+speed+' · '+zdg+_rich+_trkLine,{autoPan:false});/* v3.9.663 Bug-Hunt #2: autoPan aus — Popup-Wiederherstellung verschiebt die Karte nicht */
-      m.on('popupopen',function(){_openFid.current=f.id;});m.on('popupclose',function(){if(_openFid.current===f.id)_openFid.current=null;});/* v3.9.663 Bug-Hunt #2: offenes Popup merken */
-      _layer.current.addLayer(m);_markers.current[f.id]=m;pts.push([p.lat,p.lon]);
+      /* v1049: kleiner Transporter statt Kennzeichen-Kaestchen (Sebastian 19.11.). Farbe aus dem Kartenzustand
+         (_fzKartenZustand: faehrt gruen, steht/Zuendung an orange, geparkt grau, veraltet hellgrau gestrichelt),
+         Fahrtrichtungs-Zeiger nur in Fahrt. Antippen oeffnet die Info-Karte (React, nicht mehr bindPopup-HTML). */
+      var _icd={zustand:_fzKartenZustand(p,now),heading:_fzHeading(p),kennzeichen:f.kennzeichen||'?',gewaehlt:(selFid===f.id)};
+      var m=L.marker([_la,_lo],{icon:_fzVanIcon(_icd),title:(f.kennzeichen||'?')+' - '+(FZ_KARTE_LABEL[_icd.zustand]||''),alt:(f.kennzeichen||'?'),keyboard:true,riseOnHover:true,zIndexOffset:_icd.gewaehlt?1000:0});
+      m._fzIconDaten=_icd;
+      m.on('click',function(){_waehle(f.id);});
+      _layer.current.addLayer(m);_markers.current[f.id]=m;pts.push([_la,_lo]);
     });
-    /* v3.9.663 Bug-Hunt #2: der 60s-Poll (und jeder followId-Toggle) baut alle Marker neu auf und schloss
-       dabei jedes offene Popup. Zuvor gemerktes Popup wieder oeffnen (autoPan aus → keine Karten-Verschiebung). */
-    if(_openFid.current&&_markers.current[_openFid.current]){try{_markers.current[_openFid.current].openPopup();}catch(_eo){}}
+    /* v1049: Die Info-Karte haengt nicht mehr am Marker (eigenes L.popup bzw. Sheet) - der Neuaufbau schliesst nichts mehr.
+       Einpassen nur beim ersten Erscheinen der Fahrzeuge. Vorher passte JEDER 10-s-Poll die Karte neu ein und riss
+       Zoom/Ausschnitt (auch den Fokus aus der Liste) nach Sekunden wieder zurueck. "Alle" passt jederzeit von Hand ein. */
+    if(_fitDone.current)pts=[];else if(pts.length)_fitDone.current=true;
     if(followId){var _fp=byId[followId];if(_fp&&_fp.lat!=null&&_fp.lon!=null&&isFinite(Number(_fp.lat))&&isFinite(Number(_fp.lon))&&!(Number(_fp.lat)===0&&Number(_fp.lon)===0)){try{_map.current.setView([_fp.lat,_fp.lon]);}catch(_ef){}}}/* v3.9.660: Live-Follow zentriert auf das verfolgte Fahrzeug; v3.9.677: Null-Island/NaN nicht zentrieren */
     else if(pts.length){try{_map.current.fitBounds(pts,{padding:[40,40],maxZoom:14});}catch(_e){}}
   },[st.positions,fahrzeuge.length,monteure.length,followId]);
@@ -29967,7 +30190,8 @@ function FlotteView(props){
   var showEmpty=st.loaded&&(st.missing||latest.length===0);
   /* v3.9.1004 (FL1): Der Kopf sagt "Fahrzeuge (21)", die Karte zeigt einen Marker - ohne Hinweis sieht das aus wie ein Ladefehler. Gezaehlt wird mit DERSELBEN Regel wie die Marker (Tracker + letzte Position mit gueltigen Koordinaten, 0/0 verworfen), damit Zahl und Karte nie auseinanderlaufen. Nenner = derselbe wie im Kopf. */
   var _nGps=trackerFz.filter(function(f){var p=byId[f.id];if(!p||p.lat===undefined||p.lat===null||p.lon===undefined||p.lon===null)return false;var _la=Number(p.lat),_lo=Number(p.lon);return isFinite(_la)&&isFinite(_lo)&&!(_la===0&&_lo===0);}).length;
-  var _showTrail=function(fid){if(!_map.current||typeof L==='undefined')return;setTrailFid(fid);setTrailSeit(null);/* v3.9.663 Bug-Hunt #3: Spur on-demand pro Fahrzeug laden (fz_latest hat je Fahrzeug nur 1 Punkt) */_flotteFetchTrack(fid).then(function(rows){if(!_map.current)return;try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}var _sm=_fzStatusSeit(rows);setTrailSeit(isNaN(_sm)?null:_sm);/* v3.9.678: exaktes "seit" aus der Historie — die Liste zeigt fuer dieses Fahrzeug jetzt den echten Zustandsbeginn statt der Naeherung */var tp=(rows||[]).filter(function(p){return p&&p.lat!=null&&p.lon!=null;}).sort(function(a,b){return new Date(a.ts).getTime()-new Date(b.ts).getTime();}).map(function(p){return [p.lat,p.lon];});if(tp.length>=2){try{_trail.current=L.polyline(tp,{color:'#0ea5e9',weight:4,opacity:0.95,lineJoin:'round',lineCap:'round'}).addTo(_map.current);}catch(_e2){}}/* v3.9.690: durchgezogen, keine Strichelung — Fink-Optik, deutlich besser lesbar */});};/* v3.9.656/658/663: gefahrene Spur des Fahrzeugs */
+  var _holeTrack=function(fid){return _demo?Promise.resolve((_demoDaten&&_demoDaten.tracks[fid])||[]):_flotteFetchTrack(fid);};/* v1049: Demo-Spur aus dem Speicher, sonst der bestehende on-demand-Abruf */
+  var _showTrail=function(fid){if(!_map.current||typeof L==='undefined')return;setTrailFid(fid);setTrailSeit(null);/* v3.9.663 Bug-Hunt #3: Spur on-demand pro Fahrzeug laden (fz_latest hat je Fahrzeug nur 1 Punkt) */_holeTrack(fid).then(function(rows){if(!_map.current)return;setTrackRows({fid:fid,rows:rows||[]});try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}var _sm=_fzStatusSeit(rows);setTrailSeit(isNaN(_sm)?null:_sm);/* v3.9.678: exaktes "seit" aus der Historie — die Liste zeigt fuer dieses Fahrzeug jetzt den echten Zustandsbeginn statt der Naeherung */var tp=(rows||[]).filter(function(p){return p&&p.lat!=null&&p.lon!=null;}).sort(function(a,b){return new Date(a.ts).getTime()-new Date(b.ts).getTime();}).map(function(p){return [p.lat,p.lon];});if(tp.length>=2){try{_trail.current=L.polyline(tp,{color:'#0ea5e9',weight:4,opacity:0.95,lineJoin:'round',lineCap:'round'}).addTo(_map.current);}catch(_e2){}}/* v3.9.690: durchgezogen, keine Strichelung — Fink-Optik, deutlich besser lesbar */});};/* v3.9.656/658/663: gefahrene Spur des Fahrzeugs */
   var _clearFahrtMk=function(){try{(_fahrtMk.current||[]).forEach(function(m){try{_map.current.removeLayer(m);}catch(_e){}});}catch(_e2){}_fahrtMk.current=[];};
   var _clearTrail=function(){try{if(_trail.current){_map.current.removeLayer(_trail.current);_trail.current=null;}}catch(_e){}_clearFahrtMk();setTrailFid(null);setTrailSeit(null);setFahrtTrail(false);};/* v3.9.658; v3.9.690: raeumt auch die Start/Ende-Marker */
   /* v3.9.683: Trail EINER Fahrt statt der ganzen 500-Punkte-Historie. Das Fahrtenbuch reicht die
@@ -29990,17 +30214,21 @@ function FlotteView(props){
     setTrailFid(null);setTrailSeit(null);setFahrtTrail(true);
   };
   var _fitAll=function(){var ap=fleet.filter(function(r){return r.p;}).map(function(r){return [r.p.lat,r.p.lon];});if(ap.length&&_map.current){try{_map.current.fitBounds(ap,{padding:[40,40],maxZoom:14});}catch(_e){}}};/* v3.9.658: alle Fahrzeuge einpassen */
-  var _cbtn={background:'rgba(15,23,42,.92)',color:'#fff',border:'none',borderRadius:8,padding:'7px 11px',fontSize:12,fontWeight:700,cursor:'pointer',minHeight:36,touchAction:'manipulation'};
-  var _focus=function(row){if(!row.p||!_map.current)return;if(followId&&followId!==row.f.id)setFollowId(null);/* v3.9.663 Bug-Hunt #5: Fokus auf ein anderes Fahrzeug beendet ein laufendes Live-Follow, sonst zieht der naechste Poll die Karte zurueck */try{_showTrail(row.f.id);_map.current.setView([row.p.lat,row.p.lon],15);var mk=_markers.current[row.f.id];if(mk)mk.openPopup();}catch(_e){}};
-  /* v3.9.678: Ampel aus dem Status-Modell — gruen faehrt, rot steht, grau inaktiv, orange wartet.
-     Farben zentral in FZ_STATUS_COLOR, damit Liste und Popup nicht auseinanderlaufen. */
-  var _dot=function(status){var c=FZ_STATUS_COLOR[status]||'#9ca3af';return h('span',{style:{display:'inline-block',width:8,height:8,borderRadius:'50%',background:c,flexShrink:0}});};
+  var _cbtn={background:'rgba(15,23,42,.92)',color:'#fff',border:'none',borderRadius:8,padding:'7px 11px',fontSize:12,fontWeight:700,cursor:'pointer',minHeight:44,touchAction:'manipulation'};/* v1049: 44 px Trefferflaeche */
+  var _posOk=function(p){if(!p||p.lat===undefined||p.lat===null||p.lon===undefined||p.lon===null)return false;var _a=Number(p.lat),_o=Number(p.lon);return isFinite(_a)&&isFinite(_o)&&!(_a===0&&_o===0);};
+  var _focus=function(row){setSelFid(row.f.id);if(!_posOk(row.p)||!_map.current)return;if(followId&&followId!==row.f.id)setFollowId(null);/* v3.9.663 Bug-Hunt #5: Fokus auf ein anderes Fahrzeug beendet ein laufendes Live-Follow, sonst zieht der naechste Poll die Karte zurueck */try{_showTrail(row.f.id);_map.current.setView([row.p.lat,row.p.lon],15);}catch(_e){}};
+  /* v1049: Statuspunkt -> derselbe Transporter wie auf der Karte. Die LISTE bleibt vierstufig (Sebastian 14.07.: kein
+     flackernder Zwischenzustand) - aktiv gruen, inaktiv hellgrau gestrichelt, wartet blass gestrichelt, ohne Tracker nur Umriss.
+     Fahrt/Stand/Zuendung zeigen Karte und Info-Karte. */
+  var _LIST_ZUSTAND={aktiv:'faehrt',inaktiv:'veraltet',wartet:'kein_signal',kein_tracker:'kein_tracker'};
+  var _listVan=function(status){return h('span',{title:FZ_STATUS_LABEL[status]||'',style:{display:'inline-flex',flexShrink:0,width:32,justifyContent:'center'}},_fzVanEl(_LIST_ZUSTAND[status]||'kein_signal',30));};
 
   /* v3.9.690 Standort je Zeile — NUR aus dem Cache (geo_cache + Session), KEIN Nominatim-Lookup.
      Die Adressen entstehen ohnehin beim Oeffnen des Fahrtenbuchs; hier werden sie nur
      wiederverwendet. Kein zusaetzlicher Traffic ueber den Cache hinaus. */
   const [fzOrte,setFzOrte]=_react.useState.call(void 0, {});
   _react.useEffect.call(void 0, function(){
+    if(_demo)return;/* v1049 Demo: kein Lesezugriff */
     var keys=[];
     fleet.forEach(function(r){
       if(!r.p)return;
@@ -30024,6 +30252,133 @@ function FlotteView(props){
     return '';
   };
 
+  /* ═══ v1049 Info-Karte beim Antippen eines Transporters (oder seiner Listenzeile) ═══
+     Desktop/Tablet: Leaflet-Popup am Fahrzeug, der Inhalt kommt per Portal aus React (Knoepfe, Thema, Live-Werte
+     bei jedem Poll). Handy (< BP_MOB): Bottom-Sheet. Ohne gueltige Position: Karte oben rechts in der Karte.
+     Quellen: Position = fz_latest (Poll), Status/Geschwindigkeit/Richtung = //@FLOTTE-KARTE, km/Fahrten/Route
+     heute = on-demand-Historie aus _showTrail + _fzSegmente, Adresse = Geocode-Cache, sonst EIN gedrosselter
+     Lookup ueber _geoNominatim (hoechstens einer je Minute und Fahrzeug). */
+  var _fzVanIcon=function(d){return L.divIcon({className:'fz-van-icon',html:_fzVanMarkerHtml(d),iconSize:[44,44],iconAnchor:[22,22]});};
+  var _waehle=function(fid){setSelFid(fid);setPopAnstoss(function(n){return n+1;});if(followId&&followId!==fid)setFollowId(null);if(trailFid!==fid)_showTrail(fid);};
+  const _fahrerAnz=function(f){return (f&&f._demoFahrer)?f._demoFahrer:_fahrerName(f);};
+  const _selRow=selFid?(fleet.find(function(r){return r.f.id===selFid&&r.hatTracker;})||null):null;
+  const _selP=_selRow?_selRow.p:null;
+  const _selPosOk=_posOk(_selP);
+  const _infoModus=!_selRow?'':(isMob?'sheet':(_selPosOk?'popup':'overlay'));
+  const _selLat=_selPosOk?Number(_selP.lat):null;
+  const _selLon=_selPosOk?Number(_selP.lon):null;
+  const _selKey=_selPosOk?_geoKey(_selP.lat,_selP.lon):'';
+  const _schliesseInfo=function(){setSelFid(null);};
+  /* Auswahl-Ring ohne Marker-Neuaufbau */
+  _react.useEffect.call(void 0, function(){
+    var ms=_markers.current||{};
+    Object.keys(ms).forEach(function(id){var m=ms[id];var d=m&&m._fzIconDaten;if(!d)return;var sel=(id===String(selFid));if(d.gewaehlt===sel)return;d.gewaehlt=sel;try{m.setIcon(_fzVanIcon(d));m.setZIndexOffset(sel?1000:0);}catch(_e){}});
+  },[selFid]);
+  /* Leaflet-Popup: einmal anlegen, bei jedem Poll nur neu verankern. Schliessen durch Klick in die Karte waehlt ab. */
+  _react.useEffect.call(void 0, function(){
+    var map=_map.current;if(!map||typeof L==='undefined'||!_popEl)return;
+    if(_infoModus!=='popup'||_selLat===null){
+      if(_popRef.current&&map.hasLayer(_popRef.current)){_popZu.current=true;try{map.closePopup(_popRef.current);}catch(_e){}_popZu.current=false;}
+      return;
+    }
+    if(!_popRef.current){
+      _popRef.current=L.popup({closeButton:false,autoPan:false,className:'fz-pop',maxWidth:340,minWidth:260,offset:[0,-18]}).setContent(_popEl);
+      _popRef.current.on('remove',function(){if(!_popZu.current)setSelFid(null);});
+    }
+    try{map.getContainer().style.setProperty('--fz-pop-bg',V.cd);}catch(_e){}
+    try{_popRef.current.setLatLng([_selLat,_selLon]);if(!map.hasLayer(_popRef.current))_popRef.current.openOn(map);}catch(_e){}
+  },[selFid,_selLat,_selLon,_infoModus,popAnstoss]);
+  _react.useEffect.call(void 0, function(){if(_popRef.current&&_map.current&&_map.current.hasLayer(_popRef.current)){try{_popRef.current.update();}catch(_e){}}});
+  _react.useEffect.call(void 0, function(){if(!selFid)return;var onKey=function(e){if(e.key==='Escape')setSelFid(null);};window.addEventListener('keydown',onKey);return function(){window.removeEventListener('keydown',onKey);};},[selFid]);
+  useBackLayer(_infoModus==='sheet',_schliesseInfo);
+  /* Adresse des GEWAEHLTEN Fahrzeugs: Cache zuerst, dann ein gedrosselter Lookup (Nominatim-Regeln liegen in _geoNominatim). */
+  _react.useEffect.call(void 0, function(){
+    if(_demo||!selFid||!_selKey||_geoMem[_selKey]||_geoIstAus())return;
+    var jetzt=Date.now();var gl=_geoLetzt.current;
+    if(gl.fid===selFid&&(jetzt-gl.ms)<TIME_MINUTE)return;
+    _geoLetzt.current={fid:selFid,ms:jetzt};
+    var k=_selKey;var la=_selLat,lo=_selLon;var lebt=true;
+    setGeoPend(k);
+    _geoCacheGet([k]).then(function(m){
+      if(m&&m[k]){_geoMem[k]=m[k];return '';}
+      return _geoNominatim(k,la,lo).then(function(ort){if(ort){_geoMem[k]=ort;_geoCacheSet(k,ort,la,lo);}return '';});
+    }).catch(function(){return '';}).then(function(){if(!lebt)return;setGeoPend('');setFzOrte(Object.assign({},_geoMem));});
+    return function(){lebt=false;};
+  },[selFid,_selKey,_demo]);
+  const _infoZeile=function(lbl,wert,key){return h('div',{key:key,style:{display:'contents'}}
+    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},lbl)
+    ,h('div',{style:{fontSize:UI.fKlein,color:V.tx,fontWeight:600,minWidth:0,overflowWrap:'anywhere'}},wert));};
+  const _infoKnopf=function(ik,txt,onClick){return h('button',{key:txt,onClick:onClick,title:txt,style:Object.assign({},bsS(),{minHeight:44,padding:'8px 10px',fontSize:UI.fKlein,display:'inline-flex',alignItems:'center',justifyContent:'center',gap:6,flex:'1 1 130px'})},_ik(ik,16),txt);};
+  const _infoKarte=function(modus){
+    var r=_selRow;if(!r)return null;
+    var f=r.f,p=r.p,now=_now2;
+    var z=_fzKartenZustand(p,now);
+    var sig=_fzLetztesSignal(p,now);
+    var modell=(String(f.marke||'')+' '+String(f.modell||'')).trim();
+    var heute=(trackRows.fid===f.id&&trackRows.rows&&trackRows.rows.length)?_fzHeuteAusTrack(trackRows.rows,now,FZ_TRACK_LIMIT):null;
+    var heuteLaedt=(trackRows.fid!==f.id)&&!!p;
+    var adr='';
+    if(_posOk(p)){
+      var k=_geoKey(p.lat,p.lon);
+      var ort=(_demo&&_demoDaten&&_demoDaten.orte[f.id])||(k?(fzOrte[k]||_geoMem[k]||''):'');
+      adr=ort||(_geoFallback(p.lat,p.lon)+((k&&geoPend===k)?' · Adresse wird ermittelt …':''));
+    }
+    var chipF=FZ_KARTE_CHIP[z];
+    var chip=h('span',{style:{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:UI.rChip,fontSize:UI.fMeta,fontWeight:800,whiteSpace:'nowrap',
+      background:chipF||'transparent',color:chipF?'#ffffff':V.tx,border:chipF?('1px solid '+chipF):('1px dashed '+V.dm)}},FZ_KARTE_LABEL[z]||'');
+    var zeilen=[_infoZeile('Fahrer',_fahrerAnz(f)||'—','fa')];
+    if(z!=='kein_signal'){
+      zeilen.push(_infoZeile('Geschwindigkeit',_fzSpeedAnzeige(p,now),'sp'));
+      zeilen.push(_infoZeile('Richtung',_fzRichtungText(p,now),'ri'));
+      zeilen.push(_infoZeile('Letztes Signal',sig?(sig.rel+' · '+sig.abs):'—','ls'));
+      zeilen.push(_infoZeile('Standort',adr||'—','st'));
+      if(p&&(p.ignition===true||p.ignition===false))zeilen.push(_infoZeile('Zündung',p.ignition?'an':'aus','zd'));
+      zeilen.push(_infoZeile('Heute',heute?((heute.teilweise?'mind. ':'')+_fzKmDe(heute.km,1)+' km · '+heute.fahrten+' Fahrt'+(heute.fahrten===1?'':'en')):(heuteLaedt?'lädt …':'—'),'he'));
+    }
+    /* Geraetetyp fuer alle (Rollout-Hilfe seit v3.9.689), IMEI-Endstellen nur fuer Admins. */
+    var _trk='';
+    if(f.tracker_typ){_trk=String(f.tracker_typ);if(f.tracker_eingebaut){var _te=String(f.tracker_eingebaut).slice(0,10).split('-');if(_te.length===3)_trk+=' · seit '+parseInt(_te[2],10)+'.'+parseInt(_te[1],10)+'.';}}
+    if(_istAdmin&&f.tracker_imei)_trk=(_trk?(_trk+' · '):'')+'IMEI '+_fzImeiTail(f.tracker_imei);
+    if(_trk)zeilen.push(_infoZeile('Tracker',_trk,'tr'));
+    var hinweis=null;
+    if(z==='kein_signal')hinweis=h('div',{style:{background:_dark?'rgba(148,163,184,.12)':UI.neutralBg,color:V.tx,borderRadius:8,padding:'8px 10px',fontSize:UI.fKlein,lineHeight:1.45}}
+      ,h('div',{style:{fontWeight:800,marginBottom:2}},'Noch kein GPS-Signal')
+      ,'Der Tracker ist zugeordnet, hat aber noch keine Position gemeldet. Sobald er eingebaut ist und Empfang hat, erscheint der Transporter auf der Karte.');
+    else if(z==='veraltet'&&sig)hinweis=h('div',{style:{background:_dark?'rgba(194,65,12,.18)':UI.achtungBg,color:_dark?COLORS.WARNING_DARK:UI.achtungTxt,borderRadius:8,padding:'8px 10px',fontSize:UI.fKlein,fontWeight:700,lineHeight:1.45}}
+      ,'Letztes Signal '+sig.rel+' ('+sig.abs+'). Geschwindigkeit und Richtung werden darum nicht angezeigt.');
+    var knoepfe=[];
+    knoepfe.push(_infoKnopf('buch','Im Fahrtenbuch zeigen',function(){
+      if(_demo){if(window.__toast)window.__toast('Demo-Modus: das Fahrtenbuch zeigt nur echte Fahrten','info');return;}
+      setBuchFid(f.id);setBuchAnstoss(function(n){return n+1;});setMaxBuch(false);
+      if(modus==='sheet')setSelFid(null);
+      setTimeout(function(){try{if(_buchRef.current)_buchRef.current.scrollIntoView({behavior:'smooth',block:'start'});}catch(_e){}},60);
+    }));
+    if(heute&&heute.punkte.length>=2)knoepfe.push(_infoKnopf('karte','Route heute',function(){_showFahrtTrail(heute.punkte);if(modus==='sheet')setSelFid(null);}));
+    if(props.onOpenFahrzeug&&!_demo&&!f._demo)knoepfe.push(_infoKnopf('transporter','Fahrzeug öffnen',function(){props.onOpenFahrzeug(f.id);}));
+    var kopf=h('div',{style:{display:'flex',alignItems:'center',gap:10}}
+      ,h('div',{style:{width:44,height:32,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},_fzVanEl(z,40))
+      ,h('div',{style:{minWidth:0,flex:1}}
+        ,h('div',{style:{fontWeight:800,fontSize:UI.fTitel,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},f.kennzeichen||'?')
+        ,modell?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},modell):null)
+      ,h('button',{onClick:_schliesseInfo,title:'Schließen','aria-label':'Info schließen',style:{background:'transparent',border:'none',color:V.dm,cursor:'pointer',minWidth:44,minHeight:44,display:'inline-flex',alignItems:'center',justifyContent:'center',padding:0,flexShrink:0}},_ik('kreuz',18)));
+    return h('div',{role:'dialog','aria-label':'Fahrzeug '+(f.kennzeichen||''),style:{background:V.cd,color:V.tx,padding:'8px 12px 12px',display:'flex',flexDirection:'column',gap:8,boxSizing:'border-box',width:(modus==='popup')?300:'100%',maxWidth:'100%',fontFamily:'inherit'}}
+      ,kopf
+      ,h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},chip,_demo?h('span',{style:{fontSize:UI.fMeta,fontWeight:800,color:_lesbar(COLORS.WARNING_FILL)}},'Demo-Daten'):null)
+      ,hinweis
+      ,h('div',{style:{display:'grid',gridTemplateColumns:'auto minmax(0,1fr)',columnGap:12,rowGap:5,alignItems:'baseline'}},zeilen)
+      ,knoepfe.length?h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:2}},knoepfe):null);
+  };
+  const _infoOverlay=(_infoModus==='overlay')?h('div',{style:{position:'absolute',top:10,right:10,zIndex:1050,width:'min(340px, calc(100% - 20px))',borderRadius:12,overflow:'hidden',border:'1px solid '+V.bd,boxShadow:'0 6px 24px rgba(0,0,0,.28)'}},_infoKarte('overlay')):null;
+  const _infoPortal=(_infoModus==='popup'&&_popEl&&typeof ReactDOM!=='undefined')?ReactDOM.createPortal(_infoKarte('popup'),_popEl):null;
+  const _infoSheet=(_infoModus==='sheet'&&typeof ReactDOM!=='undefined'&&typeof document!=='undefined')?ReactDOM.createPortal(
+    h('div',{style:{position:'fixed',inset:0,zIndex:3000,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}
+      ,h('div',{onClick:_schliesseInfo,role:'presentation',style:{position:'absolute',inset:0,background:'rgba(0,0,0,.28)'}})
+      ,h('div',{style:{position:'relative',background:V.cd,borderRadius:'16px 16px 0 0',boxShadow:'0 -6px 24px rgba(0,0,0,.3)',maxHeight:'72vh',overflowY:'auto',paddingBottom:'env(safe-area-inset-bottom)',WebkitOverflowScrolling:'touch'}}
+        ,h('div',{style:{display:'flex',justifyContent:'center',paddingTop:6}},h('div',{style:{width:40,height:4,borderRadius:2,background:V.bd}}))
+        ,_infoKarte('sheet'))),document.body):null;
+  const _demoBanner=_demo?h('div',{role:'status',style:{display:'flex',alignItems:'center',gap:8,background:COLORS.WARNING_FILL,color:'#ffffff',fontWeight:700,fontSize:UI.fKlein,padding:'8px 12px',borderRadius:8,flexShrink:0}}
+    ,_ik('warnung',16),'Demo-Daten: synthetische Fahrzeuge zur Vorschau. Nichts davon ist echt, nichts wird gelesen oder gespeichert.'):null;
+
   /* ═══ v3.9.690 Fink-Layout: EIN Frame, drei Panels, alles gleichzeitig sichtbar ═══
      Kein Overlay, kein Toggle, App-Theme (V-Tokens) statt hartem Dunkel-Panel.
        oben links  Fahrzeugliste (~38%)
@@ -30040,9 +30395,12 @@ function FlotteView(props){
     return h('div',{key:row.f.id,
       tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(function(){if(row.hatTracker)_focus(row);setBuchFid(row.f.id);})(e);}}, onClick:function(){if(row.hatTracker)_focus(row);setBuchFid(row.f.id);},
       title:(row.hatTracker&&row.tsMs)?('zuletzt gemeldet '+_flotteRelTime(row.tsMs,_now2)):(row.hatTracker?'Kein Signal':'Kein Tracker zugeordnet'),
-      style:{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderBottom:'1px solid '+V.bd,
+      'aria-current':(selFid===row.f.id)?'true':undefined,
+      style:{display:'flex',alignItems:'center',gap:8,padding:'6px 8px 6px 5px',minHeight:44,boxSizing:'border-box',borderBottom:'1px solid '+V.bd,
+        borderLeft:'3px solid '+((selFid===row.f.id)?COLORS.EP_GREEN:'transparent'),
+        background:(selFid===row.f.id)?(_dark?'rgba(0,150,64,.16)':UI.markeBg):'transparent',
         cursor:row.hatTracker?'pointer':'default',opacity:row.hatTracker?1:0.7}}
-      ,_dot(row.status)
+      ,_listVan(row.status)
       ,h('div',{style:{minWidth:0,flex:'0 0 auto',maxWidth:'58%'}}/* v1049 Tablet hochkant (Befund 19.11.): das Kennzeichen ist der Schluessel der Zeile und schrumpft nie. Vorher flex:1+minWidth:0 gegen einen starren rechten Block (minWidth 110, Ort bis 150 px) - bei ~290 px Listenbreite blieb fuer das Kennzeichen nichts uebrig. Jetzt gibt der rechte Block nach (Zeit/Ort kuerzen mit ...). */
         ,h('div',{style:{fontWeight:700,fontSize:13,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?')
         ,_fahrerName(row.f)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},''+_fahrerName(row.f)):null)
@@ -30063,7 +30421,7 @@ function FlotteView(props){
 
   const _imeiZeile=function(row){
     return h('div',{key:row.f.id,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderBottom:'1px solid '+V.bd}}
-      ,_dot(row.status)
+      ,_listVan(row.status)
       ,h('div',{style:{minWidth:0,flex:1}}
         ,h('div',{style:{fontWeight:700,fontSize:12,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?'))
       ,(imeiFid===row.f.id)
@@ -30102,7 +30460,7 @@ function FlotteView(props){
         ,ohneOpen?h('div',{},_ohneTracker.map(_imeiZeile)):null):null)
   );
 
-  const _panelKarte=h('div',{style:{position:'relative',height:'100%',minHeight:0,borderRadius:10,overflow:'hidden',border:'1px solid '+V.bd}}
+  const _panelKarte=h('div',{'data-fz-karte':'1',style:{position:'relative',zIndex:0,isolation:'isolate',height:'100%',minHeight:0,borderRadius:10,overflow:'hidden',border:'1px solid '+V.bd}}/* A55 v1049 (HOCH): eigener Stapelkontext - Leaflets Panes (z 400-1000) blieben sonst mit dem Mehr-Sheet, Modalen und Toasts der App im selben Kontext und lagen am Handy UEBER dem Mehr-Menue. Jetzt kann keine Karten-Ebene mehr aus dem Panel heraus. */
     ,h('div',{ref:_mapEl,'data-no-swipe':"1",style:{position:'absolute',inset:0,background:'#e5e7eb'}})/* v3.9.864: data-no-swipe wie im Plan-Viewer :17003. Auf einer Karte schiebt man die Karte, ein Tab-Wechsel ist dort nicht das erwartete Verhalten. Und handfest: solange select in der Skip-Liste stand, verschluckte die Skip-Liste die Wische, die hier begannen. Ohne sie riss der Wisch die Leaflet-Karte aus ihrem EIGENEN Touch-Handler heraus ab -> TypeError classList of undefined -> ganze App auf der Fehlerseite. Gemessen: v862 sauber, v863/864 ohne diesen Riegel reproduzierbar Absturz, gleiche Sequenz, frischer Origin. */
     ,(typeof L==='undefined')?h('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b7280',fontSize:14}},'Karten-Bibliothek nicht geladen'):null
     ,(st.loaded&&!showEmpty&&fahrzeuge.length)?h('div',{'aria-live':'polite',title:trackerFz.length+' mit Tracker',style:{position:'absolute',left:'50%',top:10,transform:'translateX(-50%)',zIndex:500,background:'rgba(15,23,42,.88)',color:'#fff',padding:'5px 10px',borderRadius:8,fontWeight:600,maxWidth:'calc(100% - 128px)',textAlign:'center',pointerEvents:'none'}},''+_nGps+' von '+fahrzeuge.length+' mit GPS-Ortung'):null/* v3.9.1004 (FL1) */
@@ -30122,20 +30480,26 @@ function FlotteView(props){
       ,h('button',{onClick:_fitAll,title:'Alle Fahrzeuge auf der Karte einpassen',style:_cbtn},'Alle')
       ,(trailFid||fahrtTrail)?h('button',{onClick:_clearTrail,title:fahrtTrail?'Fahrt ausblenden':'Verlauf ausblenden',style:Object.assign({},_cbtn,{background:fahrtTrail?'rgba(249,115,22,.95)':'rgba(14,165,233,.95)'})},fahrtTrail?'Fahrt schließen':'Verlauf schließen'):null
       ,followId?h('button',{onClick:function(){setFollowId(null);},title:'Live-Follow beenden',style:Object.assign({},_cbtn,{background:'rgba(34,197,94,.95)'})},'folgt: '+((fahrzeuge.find(function(x){return x.id===followId;})||{}).kennzeichen||'?')):null):null
+    ,_infoOverlay
+    ,_infoPortal
   );
 
+  const _panelBuchDemo=h('div',{style:{height:'100%',minHeight:120,display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center',padding:16,background:V.cd,border:'1px solid '+V.bd,borderRadius:10,color:V.dm,fontSize:UI.fKlein}}
+    ,'Fahrtenbuch im Demo-Modus ausgeblendet - es zeigt nur echte, gespeicherte Fahrten.');
   const _panelBuch=h(FahrtenbuchView,{fahrzeuge:trackerFz,monteure:monteure,projects:projects,ww:ww,
-    initialFid:buchFid,onFahrtTrail:_showFahrtTrail,onFahrtTrailAus:_clearTrail,
+    initialFid:buchFid,fidAnstoss:buchAnstoss,onFahrtTrail:_showFahrtTrail,onFahrtTrailAus:_clearTrail,
     maximized:maxBuch,onToggleMax:function(){setMaxBuch(function(v){return !v;});}});
 
   if(isMob){
     /* Mobile: kein Drag-Splitter (Sebastian). Maximieren fuellt den Tab, Karte/Liste ausgeblendet. */
     if(maxBuch)return h('div',{style:{height:'calc(100dvh - 128px)',minHeight:420}},_panelBuch);
     return h('div',{style:{display:'flex',flexDirection:'column',gap:8,minHeight:'calc(100dvh - 128px)'}}
+      ,_demoBanner
       ,h('button',{onClick:function(){setListOpen(function(v){return !v;});},style:Object.assign({},bsS(),{width:'100%'})},(listOpen?'▾ ':'▸ ')+'Fahrzeuge ('+fahrzeuge.length+')')
-      ,listOpen?h('div',{style:{height:280}},_panelListe):null
+      ,listOpen?h('div',{style:{maxHeight:280,display:'flex',flexDirection:'column'}},_panelListe):null/* A55 v1049: feste 280 px liessen unter wenigen Zeilen eine grosse Leerflaeche */
       ,h('div',{style:{height:320}},_panelKarte)
-      ,h('div',{style:{height:520}},_panelBuch)
+      ,h('div',{ref:_buchRef,style:{height:520}},(_demo?_panelBuchDemo:_panelBuch))
+      ,_infoSheet
     );
   }
   /* Maximiert: Fahrtenbuch fuellt den ganzen Flotte-Tab, Dreifenster ausgeblendet. */
@@ -30143,13 +30507,14 @@ function FlotteView(props){
   /* Drag-Splitter zwischen oberem Bereich (Liste+Karte) und Fahrtenbuch. topH>0 -> feste Pixelhoehe oben. */
   const _topStyle=topH?{display:'flex',gap:8,minHeight:0,flexShrink:0,height:topH}:{display:'flex',gap:8,flex:'0 0 52%',minHeight:0};
   return h('div',{ref:_frameRef,style:{display:'flex',flexDirection:'column',gap:8,height:'calc(100dvh - 150px)',minHeight:600}}
+    ,_demoBanner
     ,h('div',{style:_topStyle}
       ,h('div',{style:{flex:'0 0 38%',minWidth:0}},_panelListe)
       ,h('div',{style:{flex:1,minWidth:0}},_panelKarte))
     ,h('div',{onMouseDown:_onSplitMouseDown,onTouchStart:_onSplitTouchStart,title:'Ziehen zum Vergrößern (Fahrtenbuch)',role:'separator','aria-orientation':'horizontal',
       style:{height:FLOTTE_SPLIT_H,flexShrink:0,cursor:'row-resize',display:'flex',alignItems:'center',justifyContent:'center',background:V.bd,borderRadius:6,touchAction:'none',userSelect:'none'}}
       ,h('div',{style:{width:44,height:4,borderRadius:2,background:V.dm,opacity:.6}}))
-    ,h('div',{style:{flex:1,minHeight:0}},_panelBuch)
+    ,h('div',{ref:_buchRef,style:{flex:1,minHeight:0}},(_demo?_panelBuchDemo:_panelBuch))
   );
 }
 
