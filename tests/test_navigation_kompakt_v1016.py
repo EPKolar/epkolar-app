@@ -33,10 +33,21 @@ def _block(src, a, b):
     return src[i:src.index(b, i)]
 
 
+def _ohne_zeilen(block, marke):
+    return "\n".join(z for z in block.split("\n") if marke not in z)
+
+
 def test_rechte_logik_der_reiter_ist_byte_gleich(index_html):
     s = _n(index_html)
-    assert hashlib.md5(_block(s, "const _allTabs=[", "\n  ];").encode("utf-8")).hexdigest() == "7a6b4fdfffef09e288fa08c0c84265eb"
-    assert hashlib.md5(_block(s, "const tabs=curUser?_allTabs.filter(", "}):[];").encode("utf-8")).hexdigest() == "0d494f2313403b9e6c66f4d56fb6d44a"
+    reiter = _block(s, "const _allTabs=[", "\n  ];")
+    filt = _block(s, "const tabs=curUser?_allTabs.filter(", "}):[];")
+    # Kameras Phase 1 (v1055): je EINE Zeile dazu (Reiter nur mit Schalter _kamFlag, Filter
+    # _kamFlag && Kamerarolle). Ohne genau diese Zeilen sind beide Bloecke weiter byte-gleich zum
+    # Stand d3c4cc6 - die Rechte aller bestehenden Reiter sind also nachweislich unveraendert.
+    assert hashlib.md5(_ohne_zeilen(reiter, 'perm:"kameras"').encode("utf-8")).hexdigest() == "7a6b4fdfffef09e288fa08c0c84265eb"
+    assert hashlib.md5(_ohne_zeilen(filt, 't.perm==="kameras"').encode("utf-8")).hexdigest() == "0d494f2313403b9e6c66f4d56fb6d44a"
+    assert hashlib.md5(reiter.encode("utf-8")).hexdigest() == "988b724d88e048a036b44a3f12ae3ee8"
+    assert hashlib.md5(filt.encode("utf-8")).hexdigest() == "ed11b627ce024ace3515915f45929949"
 
 
 def _teilen_js(src):

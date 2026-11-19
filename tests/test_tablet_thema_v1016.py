@@ -213,7 +213,8 @@ def test_neue_ikonen_stehen_in_ikon_und_der_regelabstand_haelt(index_html):
     rumpf = index_html[i:j]
     assert 'mond:["' in rumpf and 'glocke:["' in rumpf
     u = index_html.index("const UI={")
-    assert "NIE Statusampel" in index_html[u - 12000:u]
+    # Kameras Phase 1 (v1055): 12000 -> 13000, IKON um videokamera gewachsen; die Regel steht unveraendert am Objekt.
+    assert "NIE Statusampel" in index_html[u - 13000:u]
 
 
 # ── 5. Home + Projekt-Uebersicht ──────────────────────────────────────────

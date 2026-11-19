@@ -1,0 +1,173 @@
+# VORLAGE aus C:/repos/epk-kamera-pilot/Caddyfile (Kopie im App-Repo zur Pruefung der Kopfzeilen-Regel).
+# Platzhalter: {$KAMERA_DOMAIN} aus der Umgebung; keine echten Adressen. Pruefer-Umgebung dazu:
+# KAMERA_AUTH_URI_HEADER=x-forwarded-uri  KAMERA_AUTH_METHOD_HEADER=x-forwarded-method
+# Caddy - EP Kolar Kamera-Pilot (Vorlage, 19.11.2026). Einziger Web-Eingang des Video-Hosts.
+# Nur im LAN / ueber WireGuard erreichbar (docker-compose bindet 443 an VIDEOHOST_LAN_IP).
+# Jede Anfrage an /live/* und /aufzeichnung/* wird VOR der Weiterleitung von kamera-auth geprueft
+# (Token der Edge Function kamera-stream). Alles andere: 404. go2rtc-/Frigate-Oberflaechen nie erreichbar.
+#
+# WICHTIG: forward_auth muss VOR jedem rewrite laufen -> jede Regel ist "handle { route { ... } }"
+# (handle trennt die Faelle, route haelt die geschriebene Reihenfolge).
+# KOPFZEILEN: forward_auth setzt X-Forwarded-Uri / X-Forwarded-Method selbst; zusaetzlich hier ausdruecklich per
+# header_up auf {http.request.orig_uri} / {http.request.orig_method} gesetzt (Originalanfrage vor jedem rewrite).
+# Damit UEBERSCHREIBT Caddy die Client-Kopien in jedem Fall (ein Client
+# kann sie nicht vorgeben). Vom Client mitgeschickte X-Original-* werden per header_up entfernt; kame der Pruefer
+# trotzdem an eines, antwortet er 403 (KAMERA_AUTH_URI_HEADER=x-forwarded-uri, docker-compose.yml).
+# Pruefen vor dem Start:  docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile
+
+{
+	admin off
+	auto_https disable_redirects
+}
+
+{$KAMERA_DOMAIN} {
+	# ── TLS - ZU BESTAETIGEN (siehe PILOT.md "TLS"): ──────────────────────────────────────────────
+	# Aktiv: vorhandenes Zertifikat (z. B. Firmen-Wildcard) als Dateien.
+	tls /zertifikate/kamera.crt /zertifikate/kamera.key
+	# Alternative 1: DNS-Pruefung bei Let's Encrypt (eigenes Caddy-Image mit DNS-Modul des Anbieters noetig)
+	#   tls { dns <anbieter> {env.DNS_API_TOKEN} }
+	# Alternative 2: interne CA - jedes Geraet muss dann die Caddy-Wurzel vertrauen (am Handy muehsam)
+	#   tls internal
+
+	# ── Protokoll OHNE Tokens ───────────────────────────────────────────────────────────────
+	log {
+		output file /protokoll/zugriff.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					delete token
+				}
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>headers>X-Kamera-Token delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Cache-Control "no-store"
+	}
+
+	# ── CORS-Vorabanfrage fuer WHEP (fetch POST application/sdp von https://epkolar.github.io) ─────
+	# Access-Control-Allow-Private-Network: Chrome fragt so, wenn eine oeffentliche Seite ein Geraet im lokalen
+	# Netz anspricht (Private/Local Network Access). Zu bestaetigen im Pilot mit Chrome und Safari.
+	@vorab {
+		method OPTIONS
+		path /live/*
+	}
+	handle @vorab {
+		header Access-Control-Allow-Origin "https://epkolar.github.io"
+		header Access-Control-Allow-Methods "POST, OPTIONS"
+		header Access-Control-Allow-Headers "content-type"
+		header Access-Control-Allow-Private-Network "true"
+		header Access-Control-Max-Age "600"
+		header Vary "Origin"
+		respond 204
+	}
+
+	# ── WebRTC (WHEP) -> go2rtc /api/webrtc?src=<s> ───────────────────────────────────────────
+	@whep path_regexp whep ^/live/([A-Za-z0-9_-]{1,64})/whep$
+	handle @whep {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			header Access-Control-Allow-Origin "https://epkolar.github.io"
+			header Access-Control-Allow-Private-Network "true"
+			header Access-Control-Expose-Headers "Location"
+			header Vary "Origin"
+			rewrite * /api/webrtc?src={re.whep.1}
+			reverse_proxy go2rtc:1984
+		}
+	}
+
+	# ── MJPEG (Bild-Element) -> go2rtc /api/stream.mjpeg?src=<s> ───────────────────────────────
+	@mjpeg path_regexp mjpeg ^/live/([A-Za-z0-9_-]{1,64})/mjpeg$
+	handle @mjpeg {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			rewrite * /api/stream.mjpeg?src={re.mjpeg.1}
+			reverse_proxy go2rtc:1984 {
+				flush_interval -1
+			}
+		}
+	}
+
+	# ── Einzelbild -> go2rtc /api/frame.jpeg?src=<s> ──────────────────────────────────────────
+	@bild path_regexp bild ^/live/([A-Za-z0-9_-]{1,64})/snapshot\.jpg$
+	handle @bild {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			rewrite * /api/frame.jpeg?src={re.bild.1}
+			reverse_proxy go2rtc:1984
+		}
+	}
+
+	# ── HLS - IM PILOT AUS ────────────────────────────────────────────────────────────────────
+	# go2rtc-HLS laedt Teilstuecke ohne Token nach. Der Pruefer setzt dafuer ein Cookie kam_t, Caddy reicht das
+	# Set-Cookie einer erfolgreichen forward_auth-Antwort aber nicht an den Browser weiter; Safari blockiert
+	# Dritt-Cookies ohnehin. Alle G3 laufen deshalb als webrtc (auch Safari/iOS kann WebRTC).
+	# Falls HLS noetig wird: nginx (auth_request_set, siehe tools/kamera-proxy-auth/README.md) oder Playlist mit Token.
+	# @hls path_regexp hls ^/live/([A-Za-z0-9_-]{1,64})/(index\.m3u8|hls/[A-Za-z0-9._-]+)$
+	# handle @hls { route { forward_auth kamera-auth:9099 { uri /pruefen } ... reverse_proxy go2rtc:1984 } }
+
+	# ── Aufzeichnung - PHASE 3 (Wiedergabe-Player in der App folgt) ───────────────────────────
+	# Pruefer verlangt sc=aufzeichnung, von < bis, Spanne <= 6 h. Frigate-VOD liefert eine HLS-Playlist mit
+	# relativen Teilstuecken -> gleiches Teilstueck-Thema wie oben. Erst mit dem Player umsetzen.
+	# @rec path_regexp rec ^/aufzeichnung/([A-Za-z0-9_-]{1,64})$
+	# handle @rec {
+	# 	route {
+	# 		forward_auth kamera-auth:9099 {
+	# 			uri /pruefen
+	# 			header_up -X-Original-URI
+	# 			header_up -X-Original-Method
+	# 			header_up X-Forwarded-Uri {http.request.orig_uri}
+	# 			header_up X-Forwarded-Method {http.request.orig_method}
+	# 		}
+	# 		rewrite * /vod/{re.rec.1}/start/{query.von}/end/{query.bis}/index.m3u8
+	# 		reverse_proxy frigate:5000
+	# 	}
+	# }
+
+	# ── Gesundheitsabruf fuer die App-Ansicht "Einrichtung" (nur "ok", kein Bild, kein go2rtc/Frigate) ──
+	# Antwortet ohne Token; verraet nur, dass der Video-Host laeuft. Allow-Private-Network: Chrome-Vorabfrage.
+	handle /gesund {
+		header Access-Control-Allow-Origin "https://epkolar.github.io"
+		header Access-Control-Allow-Private-Network "true"
+		header Vary "Origin"
+		respond "ok" 200
+	}
+
+	# ── alles andere ────────────────────────────────────────────────────────────────────────
+	handle {
+		respond 404
+	}
+}

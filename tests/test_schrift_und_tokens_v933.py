@@ -265,7 +265,9 @@ def test_die_drei_regeln_stehen_als_kommentar_am_objekt(roh):
     # v3.9.1010: 4000 -> 12000. IKON ist um den Navigationssatz gewachsen
     # (29 Ikonen, rund 6000 Zeichen Pfaddaten) und steht weiter zwischen den
     # Regeln und `const UI={`. Die Regeln stehen unveraendert am Objekt.
-    umfeld = roh[max(0, i - 12000):i]
+    # Kameras Phase 1 (v1055): 12000 -> 13000. IKON hat die Ikone videokamera
+    # bekommen (rund 120 Zeichen Pfaddaten); die Regeln stehen unveraendert am Objekt.
+    umfeld = roh[max(0, i - 13000):i]
     for wort in ("NIE Statusampel", "HELLIGKEIT", "tabular-nums"):
         assert wort in umfeld, (
             "Die Regel %r steht nicht am Token-Objekt." % wort)
