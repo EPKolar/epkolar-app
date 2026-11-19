@@ -46,7 +46,9 @@ OHNE_FAELLE = {
 
 # Unter dieser Zahl gilt der Lauf als TEILLAUF und es wird nicht geurteilt.
 # Gemessen am 27.09.2026: ein Volllauf sammelt aus ueber 460 Dateien.
-VOLLLAUF_AB = 300
+# v3.9.1053: feste 300 reichte nicht mehr - eine HAELFTE des Tor-Laufs (epk_tore.py teilt die Suite) hatte selbst >300
+# Dateien und wurde als Volllauf beurteilt. Jetzt relativ: Volllauf erst ab 90 % der Dateien auf der Platte.
+VOLLLAUF_AB = 300  # Untergrenze bleibt
 
 
 def test_jede_testdatei_hat_faelle_beigetragen(request):
@@ -67,7 +69,7 @@ def test_jede_testdatei_hat_faelle_beigetragen(request):
         if os.path.dirname(os.path.abspath(str(pfad))) == HIER:
             mit_faellen.add(name)
 
-    if len(mit_faellen) < VOLLLAUF_AB:
+    if len(mit_faellen) < max(VOLLLAUF_AB, int(0.9 * len(auf_platte))):
         pytest.skip(
             "TEILLAUF: nur %d von %d Dateien haben Faelle beigetragen "
             "(Schwelle %d). Dieser Lauf hat absichtlich nur einen Teil "

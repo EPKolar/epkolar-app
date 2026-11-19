@@ -76,8 +76,9 @@ def test_alle_zuweisungs_stellen_umgestellt(index_html):
     # Der Versions-Kommentar erwaehnt den Helfer im Fliesstext - der zaehlt nicht mit.
     zeilen = [l for l in index_html.splitlines() if not l.startswith("const APP_VERSION=")]
     n = len(re.findall(r"_maWaehlbar\(", "\n".join(zeilen)))
-    assert n == 23, (
-        "Erwartet 1 Definition + 22 Zuweisungs-Auswahlen = 23 '_maWaehlbar('; "
+    # v3.9.1053: 23 -> 24 - AS-Formular: _maWaehlbar zusaetzlich im _optFremd-Zweig (ehrliche Leer-/Fremd-Option, A55 S075486).
+    assert n == 24, (
+        "Erwartet 1 Definition + 23 Zuweisungs-Auswahlen = 24 '_maWaehlbar('; "
         "gefunden %d. Neue Zuweisung dazugekommen oder eine entfernt?" % n
     )
 
