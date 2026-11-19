@@ -236,7 +236,8 @@ def test_schreibwege_byte_gleich(wz):
     ):
         assert s in wz, "Schreibweg veraendert: %r" % s
     # die Ausgabe-Rueckfrage bei faelliger Kalibrierung bleibt am Knopf
-    assert 'if(_wzKalibFaellig(w)&&!confirm(' in wz
+    # v1051: App-Rueckfrage (_confirmModal, async) statt nativem confirm - Verhalten in test_konsistenz_v1051
+    assert 'if(_wzKalibFaellig(w)&&!(await window._confirmModal(' in wz
 
 
 def test_ehrlicher_leerzustand_und_restzahl(wz):

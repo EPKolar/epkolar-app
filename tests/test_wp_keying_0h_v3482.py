@@ -8,7 +8,8 @@ HTML = SRC.read_text(encoding="utf-8")
 def test_matrix_0h_deletes_existing_entry():
     # bestehender Eintrag auf 0h → DELETE (kein PUT hours:0-Zombie)
     assert 'if(_h<=0){/* v3.9.482:' in HTML, "0h-Lösch-Zweig im Matrix-Handler fehlt"
-    assert '🗑️ Eintrag gelöscht (0 h)' in HTML
+    # v1051: Buero-Portal-Toasts ohne Emoji - die Meldung selbst bleibt
+    assert '__toast("Eintrag gelöscht (0 h)","info")' in HTML
 
 
 def test_wphistory_composite_key_helpers():
