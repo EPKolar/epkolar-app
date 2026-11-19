@@ -46,7 +46,9 @@ def _block(src, anfang, ende):
 # ── 1 Glocke ──────────────────────────────────────────────────────────────
 
 ESK_FNS = ("_rlsLeer", "_netzFehlerArt", "_netzOnline", "_eskLeseMarke", "_eskAusfallArt",
-           "_eskAusfallSchritt", "_eskAusfallMelden", "_eskAusfallText")
+           "_eskAusfallSchritt", "_eskAusfallMelden", "_eskAusfallText",
+           # v1058 (2): _eskAusfallMelden merkt sich den gemeldeten Ausfall (fehl) fuer die Glocken-Ausblendung
+           "_eskAusfallStandLesen", "_eskAusfallStandSetzen")
 
 
 def _esk(src, node_exe):
