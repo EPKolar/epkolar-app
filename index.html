@@ -7575,6 +7575,64 @@ async function _portalRpcCall(name,body){
   if(!r.ok)throw new Error("HTTP"+r.status);
   return await r.json();
 }
+/* v3.9.1047 KUNDENPORTAL-FOTOS IN DEN SPEICHER (Dauerregel 18.11.2026: die Datenbank speichert nie Dateien).
+   Bis v1045 gingen die Vorschauen als Base64 ueber portal_submit_defect in defects.images (DB) und die grossen Fotos
+   in die PhotoQ - die der anonyme Kunde ohne Anmeldung nie hochladen konnte. Jetzt: jedes Foto einzeln ueber die Edge
+   Function portal-foto (prueft Portal-Code, Typ, Groesse, Bildkennung, Obergrenzen) in den PRIVATEN Bucket epkolar-docs
+   unter portal/<Projekt>/<Mangel>/<Schluessel>.<Endung>; defects.images traegt nur "sbpriv:epkolar-docs/portal/...".
+   Anzeige: im Portal ueber signierte Adressen der Function (action "sign"), im Buero ueber _dateiSigniert (Anmeldung).
+   Mangel-Id und Foto-Schluessel bleiben ueber Wiederholungen gleich -> ein zweiter Versuch legt kein zweites Objekt an. */
+const _PORTAL_FOTO_FN="/functions/v1/portal-foto";
+async function _portalFotoCall(body,ms){
+  /* immer der anon-Schluessel (verify_jwt der Function prueft ihn); ein abgelaufener Benutzer-Token gaebe 401 */
+  const r=await fetch(SUPABASE_URL+_PORTAL_FOTO_FN,_fT({method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify(body)},ms||30000));
+  let j=null;try{j=await r.json();}catch(_e){j=null;}
+  if(!r.ok){const c=String((j&&j.error)||"").slice(0,40);const e=new Error("HTTP"+r.status+" "+c);e.status=r.status;e.code=c;throw e;}
+  return j||{};
+}
+/* EIN Foto. Wiederholt bei Netz-/Zeit-/Serverfehler (der Schluessel macht das gefahrlos), nie bei Ablehnung (Typ, Groesse, Obergrenze). */
+async function _portalFotoHoch(code,defectId,key,dataUrl){
+  const ms=_netzUploadMsFuer(_dateiBytes(dataUrl));
+  for(let v=0;;v++){
+    try{
+      const j=await _portalFotoCall({code:code,defect_id:defectId,name:key,dataUrl:dataUrl},ms);
+      if(!j||typeof j.path!=="string"||j.path.indexOf("sbpriv:"+SB_DOCS_BUCKET+"/portal/")!==0){const e=new Error("HTTP502 kein Speicherpfad");e.status=502;throw e;}
+      return j;
+    }catch(e){
+      const art=_netzFehlerArt(e,!(typeof navigator!=="undefined"&&navigator.onLine===false));const lim=String((e&&e.code)||"").indexOf("limit")===0;
+      if(!lim&&((art==="server"&&v<2)||_netzNochmal(art,v))){await _netzSchlaf(_netzBackoffMs(v));continue;}
+      throw e;
+    }
+  }
+}
+function _portalFotoGrund(e){const c=String((e&&e.code)||""),st=(e&&e.status)||0;if(c==="too_large"||st===413)return "zu groß";if(c==="bad_type"||c==="bad_image")return "kein unterstütztes Bild";if(c.indexOf("limit")===0)return "Obergrenze erreicht";if(c==="invalid_code"||st===403)return "Zugang ungültig";return "keine Verbindung";}
+/* Alle Fotos eines neuen Mangels NACHEINANDER (schwaches Netz: keine parallelen Mehr-MB-Uploads). Schon hochgeladene (pfad) werden
+   nicht noch einmal gesendet. Ergebnis: pfade (in Foto-Reihenfolge), je (Pfad je Foto oder ""), urls (Pfad -> signierte Adresse), fehl (Index + Grund). */
+async function _portalMangelFotosHoch(code,defectId,fotos,hoch){
+  hoch=hoch||_portalFotoHoch;const pfade=[],je=[],urls={},fehl=[];const L=fotos||[];
+  for(let i=0;i<L.length;i++){
+    const f=L[i]||{};
+    if(typeof f.pfad==="string"&&f.pfad.indexOf("sbpriv:"+SB_DOCS_BUCKET+"/portal/")===0){pfade.push(f.pfad);je.push(f.pfad);continue;}
+    const d=f.full||f.thumb||"";
+    if(typeof d!=="string"||d.indexOf("data:image/")!==0){je.push("");fehl.push({i:i,grund:"kein unterstütztes Bild"});continue;}
+    try{const j=await hoch(code,defectId,f.key,d);pfade.push(j.path);je.push(j.path);if(j.url)urls[j.path]=j.url;}
+    catch(e){je.push("");fehl.push({i:i,grund:_portalFotoGrund(e)});}
+  }
+  return {pfade:pfade,je:je,urls:urls,fehl:fehl};
+}
+/* Signierte Adressen fuer die EIGENEN Portal-Fotos (Lesen = wiederholbar). Nur Adressen unseres Speichers (_dateiQuelleSicher). */
+async function _portalFotoSignieren(code,pfade){
+  const offen=(pfade||[]).filter(v=>typeof v==="string"&&v.indexOf("sbpriv:"+SB_DOCS_BUCKET+"/portal/")===0).slice(0,50);
+  if(!offen.length)return {};
+  /* Signieren aendert nichts -> bei Netz-/Zeit-/Serverfehler bis zu 2x wiederholen (eigene Schleife: _netzLesen ist den GET-Abrufen vorbehalten). */
+  let j=null;for(let v=0;;v++){try{j=await _portalFotoCall({code:code,action:"sign",paths:offen},20000);break;}catch(e){const art=_netzFehlerArt(e,!(typeof navigator!=="undefined"&&navigator.onLine===false));if((art==="server"&&v<2)||_netzNochmal(art,v)){await _netzSchlaf(_netzBackoffMs(v));continue;}throw e;}}
+  const out={};const u=(j&&j.urls)||{};offen.forEach(v=>{const q=_dateiQuelleSicher(u[v]);if(q)out[v]=q;});
+  return out;
+}
+/* REIN: private Foto-Verweise (sbpriv:) aller Maengel einer Liste - fuer Portal und Buero. */
+function _mgPrivPfade(ms){const out=[];(ms||[]).forEach(m=>{const raw=m&&m.photos;let arr=[];if(Array.isArray(raw))arr=raw;else if(typeof raw==="string"){try{const x=JSON.parse(raw);if(Array.isArray(x))arr=x;}catch(_e){arr=[];}}arr.forEach(v=>{if(typeof v==="string"&&v.indexOf("sbpriv:")===0&&out.indexOf(v)<0)out.push(v);});});return out;}
+/* REIN: sbpriv:-Verweise durch ihre signierte Adresse ersetzen; noch nicht signierte fallen weg (kein kaputtes Bild), alles andere bleibt. */
+function _mgFotoAufloesen(liste,signiert){return (liste||[]).map(v=>(typeof v==="string"&&v.indexOf("sbpriv:")===0)?((signiert&&signiert[v])||""):v).filter(Boolean);}
 function PortalEntry({onPortal,projects}){
   const [showP,setShowP]=_react.useState.call(void 0, false);
   const [code,setCode]=_react.useState.call(void 0, "");
@@ -7622,6 +7680,7 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   const kundeMaengel=maengel.filter(m=>m.melder==="Kunde");
   const cls=(forms.checklisten||[]).filter(c=>c.pid===p.id);
   const [defectPhotos,setDefectPhotos]=_react.useState.call(void 0, {});
+  const [portalFotoUrls,setPortalFotoUrls]=_react.useState.call(void 0, {});/* v3.9.1047: sbpriv:-Pfad -> signierte Adresse (eigene Portal-Fotos) */
 
   // ═══ Portal: Load fresh data from Supabase ═══
   _react.useEffect.call(void 0, ()=>{
@@ -7662,14 +7721,17 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
   // Load photos from server for customer defects
   // v3.5.148: Mount-guard + early-exit — bei neuem Mangel oder Unmount verhindert race von parallelen fetch-loops + setState-after-unmount
   _react.useEffect.call(void 0, ()=>{if(!navigator.onLine)return;let active=true;(async()=>{const pm={};for(const m of maengel){if(!active)return;try{const ph=await API.getPhotos("defect",m.id);if(!active)return;if(ph&&ph.length)pm[m.id]=ph.map(x=>x.file_path||x.data_url).filter(Boolean);}catch(e){console.warn('[silent-await]',e&&e.message||e);}}if(active&&Object.keys(pm).length)setDefectPhotos(pm);})();return ()=>{active=false;};},[maengel.map(m=>m.id).join(",")]);/* v3.9.383 FIX: war [maengel.length] → Mangel-Tausch bei gleicher Anzahl lud keine Fotos nach */
-  const getDefectPhotos=(m)=>{const raw=m.photos||[];const arr=typeof raw==="string"?_safeJsonParse(raw,[]):Array.isArray(raw)?raw:[];const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=[...local];server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
+  /* v3.9.1047: eigene Fotos liegen privat -> signierte Adressen ueber die Edge Function (action "sign"); frisch hochgeladene bringt die Upload-Antwort mit. */
+  const _pfOffen=_mgPrivPfade(kundeMaengel).filter(v=>!portalFotoUrls[v]);
+  _react.useEffect.call(void 0, ()=>{if(!_pfOffen.length||!p.portalCode)return;let active=true;_portalFotoSignieren(p.portalCode,_pfOffen).then(u=>{if(active&&u&&Object.keys(u).length)setPortalFotoUrls(prev=>({...prev,...u}));}).catch(e=>console.warn('[portal-foto-sign]',e&&e.message||e));return ()=>{active=false;};},[_pfOffen.join("|")]);
+  const getDefectPhotos=(m)=>{const raw=m.photos||[];const arr=typeof raw==="string"?_safeJsonParse(raw,[]):Array.isArray(raw)?raw:[];const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph).filter(Boolean);const server=defectPhotos[m.id]||[];const all=_mgFotoAufloesen(local,portalFotoUrls);server.forEach(s=>{if(!all.includes(s))all.push(s);});return all;};
   const sc=(ST_CFG||{})[p.status]||(ST_CFG||{}).aktiv||{l:"Aktiv",c:"#22c55e",bg:"#22c55e18",i:"🟢"};
   const docs=(forms.kundenDocs||[]).filter(d=>d.pid===p.id);
   const offeneMaengel=kundeMaengel.filter(m=>m.kundeStatus!=="abgenommen"&&m.kundeStatus!=="abgelehnt").length;
 
   const KUNDE_ST={gemeldet:{l:"Gemeldet",c:"#f97316",i:"📩",desc:"Wird geprüft"},angenommen:{l:"Angenommen",c:"#3b82f6",i:"✅",desc:"Wird bearbeitet"},abgelehnt:{l:"Abgelehnt",c:"#71717a",i:"❌",desc:"Kein Mangel"},in_bearbeitung:{l:"In Bearbeitung",c:"#eab308",i:"🔧",desc:"Techniker arbeitet daran"},behoben:{l:"Behoben",c:"#22c55e",i:"✔️",desc:"Bitte Abnahme bestätigen"},abgenommen:{l:"Abgenommen",c:"#22c55e",i:"🏁",desc:"Abgeschlossen"}};
 
-  const submitMangel=()=>{
+  const submitMangel=async()=>{
     /* Sprint-11 N6: Double-click prevention via submitting-state guard. */
     if(submittingMangel)return;
     if(!_optionalChain([newMangel, 'optionalAccess', _17 => _17.name]))return;
@@ -7678,25 +7740,28 @@ function KundenPortal({project:p,forms,setForms,monteure,onClose}){
     if((newMangel.name||"").length>200||(newMangel.beschreibung||"").length>5000){if(window.__toast)window.__toast("⚠️ Text zu lang (max 200/5000 Zeichen)","warn");return;}
     setSubmittingMangel(true);
     try{
-      const fullPhotos=(newMangel.photos||[]).map(ph=>ph.full||ph);
-      const thumbPhotos=(newMangel.photos||[]).map(ph=>ph.thumb||ph);
-      const mid=uid();
-      const m={id:mid,pid:p.id,name:newMangel.name,beschreibung:newMangel.beschreibung||"",ort:newMangel.ort||"",status:"offen",kundeStatus:"gemeldet",prio:"normal",date:td2(),melder:"Kunde",photos:fullPhotos,reviewNote:"",zugewiesen:""};
-      setForms(f=>({...f,maengel:[...(f.maengel||[]),{...m,photos:thumbPhotos}]}));
-      /* v3.9.157: über SECURITY-DEFINER-RPC statt SQ (defects hat keine anon-Write-Policy → SQ-POST war 403). */
-      _portalRpcCall("portal_submit_defect",{p_code:p.portalCode,p_id:mid,p_title:m.name,p_description:m.beschreibung||"",p_ort:m.ort||"",p_images:JSON.stringify(thumbPhotos||[])}).catch(err=>{console.warn("[mangel-rpc]",err&&err.message||err);if(window.__toast)window.__toast("⚠️ Mangel konnte nicht gespeichert werden — bitte Internet-Verbindung prüfen","warn",6000);});
-      // Queue full photos for server upload via PhotoQ
-      fullPhotos.forEach((dataUrl,i)=>{
-        if(dataUrl&&dataUrl.startsWith("data:image")){
-          PhotoQ.add({entityType:"defect",entityId:mid,projectId:p.id,context:"Kunde-Mangelmeldung",name:"foto_"+(i+1)+".jpg",dataUrl:dataUrl,takenAt:new Date().toISOString()});
-        }
-      });
-      if(fullPhotos.length>0&&navigator.onLine){setTimeout(()=>PhotoQ.flush().then(r=>{if(r.ok>0&&window.__toast)window.__toast("📷 "+r.ok+" Foto"+(r.ok>1?"s":"")+" hochgeladen");if(window.__updatePhotoCount)window.__updatePhotoCount();}),500);}
-      _optionalChain([window, 'access', _17b => _17b.__toast, 'optionalCall', _17c => _17c("📩 Mangel gemeldet — wird geprüft")]);
+      /* v3.9.1047: Fotos ZUERST in den privaten Speicher (Edge Function portal-foto), DANN der Mangel mit den Verweisen.
+         Kein Base64 mehr an die RPC, keine PhotoQ (der anonyme Kunde darf nicht direkt in den Speicher). Mangel-Id und
+         Foto-Schluessel bleiben in newMangel stehen -> ein zweiter Versuch nach Netzfehler laedt nichts doppelt hoch.
+         Scheitert ein Foto, erfaehrt der Kunde WELCHES und entscheidet: ohne es absenden oder erneut versuchen. */
+      const mid=newMangel._mid||uid();
+      const fotos=(newMangel.photos||[]).map(ph=>(ph&&typeof ph==="object")?{...ph}:{full:ph,thumb:ph}).map((ph,i)=>({...ph,key:ph.key||(mid+"_"+i+"_"+Math.random().toString(36).slice(2,8))}));
+      const fu=await _portalMangelFotosHoch(p.portalCode,mid,fotos);
+      setNewMangel(nm=>nm?{...nm,_mid:mid,photos:fotos.map((ph,i)=>fu.je[i]?{...ph,pfad:fu.je[i]}:ph)}:nm);
+      if(Object.keys(fu.urls).length)setPortalFotoUrls(prev=>({...prev,...fu.urls}));
+      if(fu.fehl.length){
+        const _nr=fu.fehl.map(x=>"Foto "+(x.i+1)+" ("+x.grund+")").join(", ");
+        const _ohne=await _confirmModal(_nr+(fu.fehl.length===1?" konnte":" konnten")+" nicht übertragen werden. Mangel ohne "+(fu.fehl.length===1?"dieses Foto":"diese Fotos")+" absenden? Mit „Zurück“ bleibt die Meldung offen und Sie können es gleich noch einmal versuchen.",{confirmLabel:"Ohne "+(fu.fehl.length===1?"dieses Foto":"diese Fotos")+" absenden",cancelLabel:"Zurück"});
+        if(!_ohne){if(window.__toast)window.__toast("Mangel noch nicht gesendet — bitte erneut auf „Mangel absenden“ tippen","warn",6000);return;}
+      }
+      await _portalRpcCall("portal_submit_defect",{p_code:p.portalCode,p_id:mid,p_title:newMangel.name,p_description:newMangel.beschreibung||"",p_ort:newMangel.ort||"",p_images:JSON.stringify(fu.pfade)});
+      const m={id:mid,pid:p.id,name:newMangel.name,beschreibung:newMangel.beschreibung||"",ort:newMangel.ort||"",status:"offen",kundeStatus:"gemeldet",prio:"normal",date:td2(),melder:"Kunde",photos:fu.pfade,reviewNote:"",zugewiesen:""};
+      setForms(f=>({...f,maengel:[...(f.maengel||[]).filter(x=>x.id!==mid),m]}));
+      if(window.__toast)window.__toast(fu.pfade.length?("Mangel gemeldet ("+fu.pfade.length+" Foto"+(fu.pfade.length>1?"s":"")+") — wird geprüft"):"Mangel gemeldet — wird geprüft","success");
       setNewMangel(null);
     }catch(err){
       console.warn("[mangel-save]",err&&err.message||err);
-      if(window.__toast)window.__toast("⚠️ Mangel konnte nicht gespeichert werden — bitte Internet-Verbindung prüfen","warn",6000);
+      if(window.__toast)window.__toast("Mangel konnte nicht gesendet werden — bitte Internet-Verbindung prüfen und erneut absenden. Ihre Eingaben bleiben erhalten.","warn",8000);
     }finally{
       setSubmittingMangel(false);
     }};
@@ -18071,13 +18136,17 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
     loadPhotos();
   },[ms.map(m=>m.id).join(",")]);/* v3.9.383 FIX: war [ms.length] → Mangel-Tausch bei gleicher Anzahl lud keine Server-Fotos nach; auf Id-Set keyen */
 
+  /* v3.9.1047: Kundenportal-Fotos liegen privat (sbpriv:epkolar-docs/portal/...) -> zeitlich begrenzte Adresse ueber die eigene Anmeldung (_dateiSigniert). */
+  const [mgSigniert,setMgSigniert]=_react.useState.call(void 0, {});
+  const _mgPrivOffen=_mgPrivPfade(ms).filter(v=>!mgSigniert[v]);
+  _react.useEffect.call(void 0, ()=>{if(!_mgPrivOffen.length)return;let a=true;(async()=>{const neu={};for(const v of _mgPrivOffen.slice(0,60)){if(!a)return;try{const u=_dateiQuelleSicher(await _dateiSigniert(v,3600));if(u)neu[v]=u;}catch(e){console.warn('[mg-foto-sign]',e&&e.message||e);}}if(a&&Object.keys(neu).length)setMgSigniert(prev=>({...prev,...neu}));})();return ()=>{a=false;};},[_mgPrivOffen.join("|")]);
   // Helper: get all photos for a defect (local + server)
   const getPhotos=(m)=>{
     const raw=m.photos||[];const arr=typeof raw==="string"?(()=>{try{return JSON.parse(raw)}catch(e){return[]}})():Array.isArray(raw)?raw:[];
     const local=arr.map(ph=>typeof ph==="string"?ph:ph.full||ph.thumb||ph);
     const server=(defectPhotos[m.id]||[]).map(ph=>ph.src);
     // Deduplicate by checking if starts with same prefix
-    const all=[...local];
+    const all=_mgFotoAufloesen(local,mgSigniert);/* v3.9.1047 sbpriv: -> signierte Adresse */
     server.forEach(s=>{if(!all.some(a=>a===s))all.push(s);});
     return all;
   };
