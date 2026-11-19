@@ -1657,6 +1657,8 @@ function _merkeRlsFehler(tab,status){try{if(typeof window==='undefined')return;w
 if(typeof window!=='undefined')window._merkeRlsFehler=_merkeRlsFehler;
 /* v3.9.911: die Gegenfrage zur Marke aus v3.9.910 - ist diese leere Liste ein ERGEBNIS oder ein Rechtefehler? Ohne sie zeigt eine Kachel 0, und eine 0 ist eine Auskunft, nach der jemand handelt. Bewusst tolerant: alles, was kein markiertes Array ist, gilt als echtes Ergebnis - der Helfer darf nie selbst zum Grund werden, warum etwas nicht angezeigt wird. */
 function _rlsLeer(liste){try{return !!(liste&&liste.__rlsFehler);}catch(_rl){return false;}}
+/* v1057 Bughunt Bauprovisorien: Provisorien und Jahresmieten werden NUR ZUSAMMEN uebernommen. Vorher setzte der Lader die Provisorien auch dann, wenn die Mieten-Abfrage scheiterte (catch -> null) oder an Rechten leer zurueckkam. BauprovisorienView legt dann fuer JEDES Jahr JEDES Kastens eine neue Mietzeile an (verrechnet:false): die Liste zeigt bereits verrechnete Jahre wieder als offen (Doppelverrechnung droht), der Zaehler springt hoch, die POSTs scheitern am UNIQUE und ein spaeteres 'verrechnet' trifft eine Zeile, die es am Server nicht gibt. */
+function _bpLadenOk(bp,bm){return Array.isArray(bp)&&Array.isArray(bm)&&!_rlsLeer(bp)&&!_rlsLeer(bm);}
 /* v3.9.1001 (B1-Kiosk): WURDE DIESE TABELLE GERADE ABGEWIESEN?
    _rlsLeer daneben fragt das ARRAY - das ist der genauere Weg und
    bleibt der erste. Er hilft aber nur, solange man das Array noch in
@@ -6071,6 +6073,12 @@ function _absNotifOk(fromD,heuteISO){
   return fromD.slice(0,10)>=thr;
 }
 if(typeof window!=='undefined'){window._absNotifOk=_absNotifOk;}
+/* v1057 Bughunt: Der Urlaubsantrag bietet die Arten 'pflege' und 'sonder' an, AT_T kennt aber nur 'pflegefrei'/'pflegefrei2' und die einzelnen sonder_*-Typen. Beim Genehmigen wurde die Antrags-Art 1:1 als absences.type geschrieben - der Kalender (AT_T[ab.type]) zeigte den Tag dann LEER, Auswertung/Pflegefreistellungs-Zaehler (AT_T[t].kat) zaehlten ihn nicht. Gemessen: Antrag Pflegefreistellung Mo-Fr genehmigt -> 5 Zeilen type='pflege', 0 sichtbar. EINE Abbildung: gueltige AT_T-Schluessel bleiben, pflege -> pflegefrei, alles Unbekannte (auch 'sonder', es gibt keinen allgemeinen Sonderurlaub-Typ) -> sonstiges, damit der Tag sichtbar bleibt. */
+var _ANTRAG_ABS_TYP={pflege:"pflegefrei",sonder:"sonstiges"};
+function _antragAbsTyp(art){var a=String(art==null?"":art);if(typeof AT_T!=="undefined"&&Object.prototype.hasOwnProperty.call(AT_T,a))return a;return _ANTRAG_ABS_TYP[a]||"sonstiges";}
+if(typeof window!=='undefined'){window._antragAbsTyp=_antragAbsTyp;}
+/* v1057 Bughunt Fahrtenbuch: eine neu gespeicherte Fahrt landete IMMER oben in der Liste des angezeigten Monats - auch mit Datum in einem anderen Monat (November offen, Fahrt vom 31.10. nachgetragen). Summe km/Kraftstoff und der XLS-Export 'Fahrtenbuch 2026-11' enthielten sie dann, bis neu geladen wurde. Ausserdem kam von _api.post bei leerer RETURNING-Antwort undefined zurueck; [undefined,...] liess die Liste beim Zeichnen abstuerzen (e.fahrzeug_id). Uebernommen wird jetzt die Server-Zeile oder ersatzweise die gesendete, und nur wenn ihr Datum im angezeigten Monat liegt. */
+function _fbNachSpeichern(prev,created,item,month){var row=(created&&typeof created==="object"&&created.id)?created:item;var l=Array.isArray(prev)?prev:[];if(!row||String(row.datum||"").slice(0,7)!==String(month||""))return l;return [row].concat(l);}
 // ═══════════ //@DISPO Rechenkern (pure Functions, testbar) — Vorschlagsplanung Etappe 3 ═══════════
 // Kein optional chaining. Konstanten benannt/konfigurierbar. Alles rein, ohne DOM/State.
 var DISPO_RESERVE_MIN=60;          /* Tagesreserve — System plant NIE hinein (Nachtrag 9) */
@@ -10619,7 +10627,7 @@ function MonteurTafel(props){
     let _alv=true;
     (async()=>{try{
       const [_bp,_bm]=await Promise.all([API.request("GET","/api/bauprovisorien").catch(()=>null),API.request("GET","/api/bauprovisorien-mieten").catch(()=>null)]);
-      if(!_alv)return;if(Array.isArray(_bp))setBauprovisorien(_bp);if(Array.isArray(_bm))setBauproMieten(_bm);
+      if(!_alv)return;if(_bpLadenOk(_bp,_bm)){setBauprovisorien(_bp);setBauproMieten(_bm);}else{console.warn('[baupro-load] Provisorien/Mieten nicht vollstaendig geladen - nichts uebernommen');}
     }catch(_e){console.warn('[baupro-load]',_e&&_e.message||_e);}})();
     return ()=>{_alv=false;};
   },[curUser]);
@@ -22591,7 +22599,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     const upd={status:newStatus,positionen:(overridePos!==undefined?overridePos:ord.positionen),kommentar_lager:lagerKommentar||ord.kommentar_lager||""};
     try{
       await SQ.push({url:"/api/material-orders/"+ord.id,method:"PUT",body:upd});
-      setOrders(prev=>prev.map(x=>x.id===ord.id?{...x,status:newStatus,kommentar_lager:upd.kommentar_lager}:x));
+      setOrders(prev=>prev.map(x=>x.id===ord.id?{...x,status:newStatus,positionen:upd.positionen,kommentar_lager:upd.kommentar_lager}:x));/* v1057 Bughunt: positionen auch LOKAL uebernehmen. Der Preisvergleich schreibt die bearbeiteten Positionen (entfernt/Menge geaendert) an den Server, die Liste behielt aber die urspruenglichen. Der naechste Statusknopf derselben Sitzung (z. B. 'erledigt') sendete dann ord.positionen = ORIGINAL und ueberschrieb die bestellten Positionen am Server wieder - genau die Abweichung zu supplier_orders, die v3.9.255 beheben sollte. */
       if(window.__doSync)window.__doSync();
       if(window.__refreshMatOrderCount)window.__refreshMatOrderCount();
       window.__toast&&window.__toast("Status → "+((MAT_STATUS[newStatus]||{}).l||newStatus),"success");
@@ -26920,21 +26928,25 @@ function UrlaubsantragPanel({curUser,monteure,users,onOffenCount}){
   /* v3.9.908 DER ANGEZEIGTE WERKTAGE-ZAEHLER EINES URLAUBSANTRAGS VERLOR DEN LETZTEN TAG, SOBALD DER ANTRAG DIE OKTOBER-ZEITUMSTELLUNG UEBERSPANNTE. new Date(von) auf einen reinen YYYY-MM-DD-Text liest UTC-Mitternacht, nicht Ortsmitternacht. In Wien liegt Ortsmitternacht im Sommer zwei, im Winter eine Stunde vor UTC-Mitternacht. Die Schleife merkt sich die ORTSZEIT des Startpunkts (02:00 im Sommer) und traegt sie durch; nach der Umstellung Ende Oktober ist der Endpunkt aber nur noch 01:00 Ortszeit. 02:00 ist groesser als 01:00, also bricht die Schleife einen Tag zu frueh ab. Gemessen: 19.10.2026 bis 30.10.2026 zeigt 9 Werktage, gebucht werden 10. Ebenso 20.10.2025 bis 31.10.2025 und 25.10.2027 bis 05.11.2027. Der Fall 24.10.2026 bis 26.10.2026 zeigt sogar 0 statt 1. Die Gegenrichtung im Maerz ist unauffaellig, weil das Fenster dort eine Stunde zu WEIT wird und der letzte Tag trotzdem hineinfaellt. GEFAEHRLICH IST DIE ASYMMETRIE: _materialisiereAbsence direkt darunter parst mit T00:00:00, also ortsrichtig, und schreibt ALLE Tage weg. Der Chef sieht in der Antragsliste eine Zahl, die um einen Tag kleiner ist als das, was danach vom Urlaubskonto abgeht - er genehmigt gegen eine falsche Zahl. Der Fix ist nur das Parsen; die Schleife bleibt unveraendert, denn setDate haelt die Ortszeit fest und ist damit sommerzeitfest, sobald beide Enden dieselbe Basis haben. */
   const _antragWerktage=(von,bis)=>{const a=new Date(String(von).slice(0,10)+'T00:00:00'),b=new Date(String(bis).slice(0,10)+'T00:00:00');if(isNaN(a)||isNaN(b)||b<a)return 0;var n=0;for(var d=new Date(a);d<=b;d.setDate(d.getDate()+1)){if(_stdVonTagBrk(d)>0)n++;}return n;};
   const _materialisiereAbsence=async(ant)=>{
+    /* v1057 Bughunt: Ergebnis zurueckgeben statt jeden Fehlschlag still zu schlucken - vorher stand "Genehmigt" auf dem Schirm, auch wenn KEIN Tag in absences ankam (offline, Rechte, Zeitueberschreitung); der Resturlaub wurde dann nie abgezogen und niemand erfuhr es. 409/23505 (Tag existiert schon) zaehlt als vorhanden, nicht als Fehler. */
+    const _erg={neu:0,vorhanden:0,fehl:0};
     try{
       const w=(monteure||[]).find(m=>m.id===ant.worker_id);
       const wName=(w&&w.n)||ant.worker_name||ant.worker_id;
-      const von=ant.von,bis=ant.bis;if(!von||!bis)return;
+      const von=ant.von,bis=ant.bis;if(!von||!bis)return _erg;
       const start=new Date(von+"T00:00:00"),end=new Date(bis+"T00:00:00");
-      if(isNaN(start)||isNaN(end)||end<start)return;
+      if(isNaN(start)||isNaN(end)||end<start)return _erg;
+      const _typ=_antragAbsTyp(ant.art);const _note=(ant.art==="sonder"?"Sonderurlaub"+(ant.kommentar?" - "+ant.kommentar:""):(ant.kommentar||""));
       let _existing=new Set();
       try{const ex=await _api.get('absences','worker_id=eq.'+encodeURIComponent(ant.worker_id)+'&from_date=gte.'+von+'&from_date=lte.'+bis+'&select=id');(ex||[]).forEach(r=>{if(r&&r.id)_existing.add(r.id);});}catch(e){console.warn('[urlaub-brk-existing]',e&&e.message||e);}
       const _by=curUser.name||curUser.username||"";const _now=new Date().toISOString();
       for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
         const h=_stdVonTagBrk(d);if(h<=0)continue;
-        const fd=dk(d);const key=wName+"_"+fd;if(_existing.has(key))continue;
-        try{await _api.post('absences',{id:key,worker_id:ant.worker_id,worker_name:wName,type:ant.art,from_date:fd,to_date:fd,hours:h,tage:1,status:'genehmigt',approved_by:_by,approved_at:_now,note:ant.kommentar||""});}catch(e){console.warn('[urlaub-brk-insert]',key,e&&e.message||e);}
+        const fd=dk(d);const key=wName+"_"+fd;if(_existing.has(key)){_erg.vorhanden++;continue;}
+        try{await _api.post('absences',{id:key,worker_id:ant.worker_id,worker_name:wName,type:_typ,from_date:fd,to_date:fd,hours:h,tage:1,status:'genehmigt',approved_by:_by,approved_at:_now,note:_note});_erg.neu++;}catch(e){const _em=String(e&&e.message||e);if(/\b409\b|23505/.test(_em))_erg.vorhanden++;else{_erg.fehl++;console.warn('[urlaub-brk-insert]',key,_em);}}
       }
-    }catch(e){console.warn('[urlaub-brk]',e&&e.message||e);}
+    }catch(e){_erg.fehl++;console.warn('[urlaub-brk]',e&&e.message||e);}
+    return _erg;
   };
   const entscheiden=async(id,status)=>{
     const grund=status==='abgelehnt'?(prompt('Grund für Ablehnung (optional):')||''):'';
@@ -26943,7 +26955,7 @@ function UrlaubsantragPanel({curUser,monteure,users,onOffenCount}){
       await _api.patch('urlaubsantraege',id,{status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()});
       setAntraege(prev=>prev.map(a=>a.id===id?{...a,status,bescheid:grund,bescheid_von:_bv,bescheid_at:new Date().toISOString()}:a));
       window._showToast?.(status==='genehmigt'?'✅ Genehmigt':'❌ Abgelehnt','success');window._haptic.success();
-      const ant=antraege.find(a=>a.id===id);if(status==='genehmigt'&&ant){await _materialisiereAbsence(ant);}/* v3.9.230 P1: genehmigter Antrag → absences-Werktage materialisieren (sonst kein Resturlaub-Abzug) */if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
+      const ant=antraege.find(a=>a.id===id);if(status==='genehmigt'&&ant){const _me=await _materialisiereAbsence(ant);if(_me&&_me.fehl>0)window._showToast?.('Genehmigt, aber '+_nWort(_me.fehl,'Tag','Tage')+' nicht im Abwesenheitskalender eingetragen - bitte dort prüfen und nachtragen (Urlaubskonto)','warning');}/* v3.9.230 P1: genehmigter Antrag → absences-Werktage materialisieren (sonst kein Resturlaub-Abzug) */if(ant){const antUser=(users||[]).find(u=>u.monteurId===ant.worker_id||u.monteur_id===ant.worker_id);if(antUser){try{await _api.post('notifications',{id:_uuid(),user_id:antUser.id,type:'absence_approval',title:'Antrag '+status,body:status==='genehmigt'?'Dein '+ant.art+' wurde genehmigt':'Abgelehnt'+(grund?': '+grund:''),read:0,link:'urlaub'});}catch(e){console.warn('[silent-notif]',e&&e.message||e);}}}
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');}
   };
   /* v3.9.61 S40 F-11: native confirm → _confirmModal */
@@ -27512,10 +27524,10 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
     try{
       const _kfl=form.kraftstoff_liter?parseFloat(String(form.kraftstoff_liter).replace(",",".")):null;const _kfp=form.kraftstoff_preis_liter?parseFloat(String(form.kraftstoff_preis_liter).replace(",",".")):null;const item={id:_uuid(),worker_id:workerId,fahrzeug_id:form.fahrzeug_id,datum:form.datum,zweck:form.zweck,km_start:kms,km_ende:kme,projekt_id:form.projekt_id||null,kraftstoff_liter:Number.isFinite(_kfl)?_kfl:null,kraftstoff_preis_liter:Number.isFinite(_kfp)?_kfp:null};
       const created=await _api.post('fahrtenbuch',item);
-      setEntries(prev=>[created,...prev]);
+      setEntries(prev=>_fbNachSpeichern(prev,created,item,month));
       setShowForm(false);
       setForm({datum:_ymd(new Date()),fahrzeug_id:'',zweck:'Dienstfahrt',km_start:'',km_ende:'',projekt_id:'',kraftstoff_liter:'',kraftstoff_preis_liter:''});
-      window._showToast?.('Fahrt gespeichert','success');
+      window._showToast?.('Fahrt gespeichert'+(String(item.datum||'').slice(0,7)!==month?' (steht unter '+_monatAnz(String(item.datum||'').slice(0,7))+')':''),'success');
       window._haptic.success();
     }catch(e){window._showToast?.('Fehler: '+e.message,'error');window._haptic.error();}
     finally{setSaving(false);}
