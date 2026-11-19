@@ -74,6 +74,12 @@ GRUND = {
     "ezHeute": ("function _ezHeuteISO(){", "\n}"),
     "istEhemalig": ("function _maIstEhemalig(m,heute){", "\n}"),
     "waehlbar": ("function _maWaehlbar(liste,aktuell){", "\n}"),
+    # v3.9.1069: das Team zeigt das Kennzeichen ueber _fzKzAnzeige (Wechselkennzeichen mit Modell) -
+    # GESCHNITTEN wie _ktgStd, damit der Lauf nicht an einem ReferenceError statt an der Eigenschaft stirbt.
+    "fzArchiviert": ("function _fzArchiviert(f){", "}\n"),
+    "fzKzKurz": ("function _fzKzKurz(kz){", "}\n"),
+    "fzKzAktiv": ("function _fzKzAktiv(f){", "}\n"),
+    "fzKzAnzeige": ("function _fzKzAnzeige(f,alle,kurz){", "}\n"),
     # 🔴 v3.9.992 DAZUGEKOMMEN, und zwar GESCHNITTEN statt nachgebaut.
     #    Das Urlaubskontingent rechnet seit v3.9.992 mit `_ktgStd(x)` statt
     #    `x||192.5` - die alte Form las eine ausdrueckliche 0 als FEHLEND und
@@ -197,6 +203,10 @@ var UI={fMeta:12,fKlein:13,fText:14,fTitel:15,fTitelGross:17,
         fSeiteMob:18,fZahl:20,fSeite:22,fZahlGross:24,fUeber:28};
 %(ezHeute)s
 %(istEhemalig)s
+%(fzArchiviert)s
+%(fzKzKurz)s
+%(fzKzAktiv)s
+%(fzKzAnzeige)s
 %(waehlbar)s
 %(ktgStd)s
 %(teamIk)s
