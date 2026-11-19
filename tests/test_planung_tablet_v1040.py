@@ -144,7 +144,7 @@ def _p_ma(q):
     f = []
     if "React.createElement('col', { style: {width:\"14%\"}}), React.createElement('col', { style: {width:\"13%\"}})" not in q:
         f.append("MA-Uebersicht: Rolle-Spalte nicht verbreitert")
-    if 'lang: "de", style: {padding:"4px 4px",fontSize:UI.fMeta,color:roleC,fontWeight:600,textAlign:"center",borderRight:"1px solid "+V.bd,hyphens:"auto",overflowWrap:"anywhere"}' not in q:
+    if 'lang: "de", style: {padding:"4px 4px",fontSize:UI.fMeta,color:_lesbar(roleC),fontWeight:600,textAlign:"center",borderRight:"1px solid "+V.bd,hyphens:"auto",overflowWrap:"anywhere"}' not in q:
         f.append("MA-Uebersicht: Rolle bricht nicht in der Zelle um")
     return f
 

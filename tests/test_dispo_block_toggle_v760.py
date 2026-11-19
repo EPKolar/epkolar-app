@@ -46,7 +46,7 @@ def test_toggle_kopfstreifen_gegen_kollision(index_html):
     gerendert wird, damit das absolut positionierte Toggle nie ueber Karten/Chips liegt."""
     body = _panel(index_html)
     assert "var _hasToggle=(typeof onToggleBlock==='function')" in body, "_hasToggle-Bedingung fehlt"
-    assert "paddingTop:_hasToggle?18:4" in body, "kein reservierter Kopfstreifen (paddingTop) fuer die Toggle-Zelle"
+    assert "paddingTop:_hasToggle?28:4" in body, "kein reservierter Kopfstreifen (paddingTop) fuer die Toggle-Zelle"
 
 
 def test_toggle_hat_vergangenheits_guard(index_html):

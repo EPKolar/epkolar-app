@@ -73,7 +73,7 @@ console.log(JSON.stringify(out));
 # ================================================================ Label
 
 def test_anzeige_heisst_entfernungszulage(index_html):
-    assert "'💶 Entfernungszulage'" in index_html, "Report-Titel nicht umbenannt"
+    assert "_ikVw('euro','Entfernungszulage')" in index_html  # Tablet 1046: Linien-Ikone statt 💶, "Report-Titel nicht umbenannt"
     # v3.9.785: der Report-Spaltenkopf zeigt jetzt die 3 Stufen statt der frueheren Info-Spalten
     # 'Tage >6h'/'Tage >11h' (die kamen aus _kvZulagenMonat und sind mit dem Stufen-Modell obsolet).
     assert "['Monteur','klein','mittel','groß','Entfernungszulage']" in index_html, "Spaltenkopf nicht auf 3 Stufen"

@@ -202,5 +202,5 @@ def test_ausgabe_warnt_bei_faelliger_kalibrierung(index_html):
     import re as _re
     assert _re.search(
         r"React\.createElement\('div', \{ style: \{fontSize:(?:10|UI\.fMeta),"
-        r'color:"#eab308"', code), \
+        r'color:(?:"#eab308"|_lesbar\("#eab308"\))', code), \
         "Der sichtbare Hinweis in der Ausgabeliste fehlt."
