@@ -63,7 +63,8 @@ console.log('ALL-OK');
 
 def test_abwabzug_gebaut_ohne_belegung(index_html):
     """abwAbzug wird parallel zu kapAbzug gefuellt, aber OHNE die Belegung (die += d fliesst NUR in kapAbzug)."""
-    assert "var kapAbzug={}, blockGrund={}, tagArt={}, abwAbzug={};" in index_html
+    # v1055 Tablet-Vollpruefung (4): + abwTag (Abwesenheit je Monteur-Tag fuer die Konfliktwarnung an der Kachel)
+    assert "var kapAbzug={}, blockGrund={}, tagArt={}, abwAbzug={}, abwTag={};" in index_html
     assert "abwAbzug[m.id]={};" in index_html
     assert 'abwAbzug[m.id][t.key]=abz;' in index_html, "abwAbzug = Abwesenheit+Vorab (Wert abz vor der Belegung)"
     # die Belegung += d landet NUR in kapAbzug, NICHT in abwAbzug

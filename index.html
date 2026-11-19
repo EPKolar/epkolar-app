@@ -1864,7 +1864,16 @@ function _eskAusfallSchritt(z,art,jetzt){z=z||{};var n=+z.n||0,ts=+z.ts||0,ab=+z
 function _eskAusfallMelden(key,art){var j=Date.now(),alle={};try{alle=JSON.parse(localStorage.getItem("epk_esk_netz")||"{}")||{};}catch(_l){alle={};}var r=_eskAusfallSchritt(alle[key],art,j);try{if(r.n>0)alle[key]={n:r.n,ts:r.ts,ab:r.ab};else delete alle[key];localStorage.setItem("epk_esk_netz",JSON.stringify(alle));}catch(_s){}return r.melden?(r.ab||j):0;}
 /* Getrennte Texte je Ursache - nie wieder das gemischte "Rechte oder Netz". */
 function _eskAusfallText(was,art,seit){if(art==="rechte")return "Keine Leserechte für "+was+" (oder Anmeldung abgelaufen).";if(art==="netz"){var u="";try{var d=new Date(+seit);if(!isNaN(d.getTime()))u=" seit "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}catch(_d){}return "Prüfung"+u+" nicht möglich – keine Verbindung zum Server ("+was+").";}return was+" konnten nicht gelesen werden (Fehler in der Serverantwort).";}
-if(typeof window!=="undefined"){window._eskAusfallArt=_eskAusfallArt;window._eskAusfallSchritt=_eskAusfallSchritt;}
+/* v1055 Tablet-Vollpruefung (2, HOCH): zwei Ausfall-Meldungen von vor dem v1050-Fix (Fristenpruefung unvollstaendig /
+   Material-Fristen NICHT geprueft) standen Tage spaeter noch UNGELESEN in der Glocke, obwohl jede Runde seither sauber las.
+   Eine Ausfall-Meldung beschreibt einen Zustand, kein Ereignis: liest die naechste Runde wieder, ist sie erledigt und wird
+   fuer diesen Benutzer als gelesen markiert (derselbe Schreibweg wie markRead - lokal + PUT read:1, kein Schema). Gefunden
+   wird sie ueber die deterministische id aus pushNotif (n_<user>_<typ>_<djb2 von k:key>) ODER Typ+Titel (Altbestand). */
+var ESK_AUSFALL_TITEL={rls_frist:"Fristenprüfung unvollständig",rls_material:"Material-Fristen NICHT geprüft"};
+var ESK_AUSFALL_TYP={rls_frist:"ticket_eskalation",rls_material:"material_eskalation"};
+function _notifKeyId(uid,type,key){var s="k:"+String(key),hh=5381;for(var i=0;i<s.length;i++){hh=((hh<<5)+hh+s.charCodeAt(i))>>>0;}return "n_"+uid+"_"+type+"_"+hh.toString(36);}
+function _eskAusfallErledigtIds(liste,uid,key){var typ=ESK_AUSFALL_TYP[key],tit=ESK_AUSFALL_TITEL[key];if(!typ||!uid)return [];var id=_notifKeyId(uid,typ,key);var out=[];(liste||[]).forEach(function(n){if(!n||n.read||n.user!==uid)return;if(n.id===id||(n.type===typ&&String(n.title||"")===tit))out.push(n.id);});return out;}
+if(typeof window!=="undefined"){window._eskAusfallArt=_eskAusfallArt;window._eskAusfallSchritt=_eskAusfallSchritt;window._eskAusfallErledigtIds=_eskAusfallErledigtIds;window._notifKeyId=_notifKeyId;}
 /* Naechster automatischer Warteschlangen-Versuch nach voruebergehendem Fehlschlag (wachsende Pause, EIN Zeitgeber). */
 function _netzSqPlanen(){
   _NETZ.sqN++;var ms=_netzPauseMs(_NETZ.sqN);
@@ -4210,8 +4219,27 @@ function _Skeleton(rows){const n=rows||4;const bg=(typeof V!=='undefined'&&V&&V.
 /* Tablet-Pruefung 1041 (2): Glocken-Text fuer die ANZEIGE. Bereits gespeicherte Meldungen tragen noch Emoji vorn im Titel und rohe
    Tabellennamen ("tickets war nicht lesbar") - die Daten bleiben, nur das Gezeichnete wird bereinigt. */
 const _NOTIF_TAB_DE={tickets:"Tickets",defects:"Mängel",material_orders:"Materialanforderungen",supplier_orders:"Lieferantenbestellungen",arbeitsscheine:"Arbeitsscheine",time_entries:"Zeitbuchungen",absences:"Abwesenheiten",urlaubskontingent:"Urlaubskontingente",werkzeuge:"Werkzeuge",fahrzeuge:"Fahrzeuge",projects:"Projekte",users:"Benutzer"};
-function _notifAnzeige(txt){var t=String(txt==null?"":txt);t=t.replace(/^[\s\u2600-\u27BF\uFE0F\u200D]+/,"").replace(/^(?:\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF]|[\uFE0F\u200D\s])+/,"");return t.replace(/\b(tickets|defects|material_orders|supplier_orders|arbeitsscheine|time_entries|absences|urlaubskontingent|werkzeuge|fahrzeuge|projects|users) war nicht lesbar/g,function(_m,k){return _NOTIF_TAB_DE[k]+" waren nicht lesbar";});}
+function _notifAnzeige(txt){var t=String(txt==null?"":txt);t=t.replace(/^[\s\u2600-\u27BF\uFE0F\u200D]+/,"").replace(/^(?:\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF]|[\uFE0F\u200D\s])+/,"");return t.replace(/\b(tickets|defects|material_orders|supplier_orders|arbeitsscheine|time_entries|absences|urlaubskontingent|werkzeuge|fahrzeuge|projects|users) war nicht lesbar/g,function(_m,k){return _NOTIF_TAB_DE[k]+" waren nicht lesbar";}).replace(/\((\d+)\.(\d+)h\)/g,"($1,$2 h)").replace(/\((\d+)h\)/g,"($1 h)");}/* v1055 (3): gespeicherte Abwesenheits-Meldungen trugen (8.5h) - Anzeige deutsch (8,5 h) */
 window._notifAnzeige=_notifAnzeige;
+/* v1055 Tablet-Vollpruefung (3): Neue Abwesenheit - Barger: Urlaub am 17.11. stand in der Glocke, obwohl der 17.11. Krankenstand
+   ist und Barger keinen Urlaub hat. Ursache: die Meldung ist ein SCHNAPPSCHUSS des Typs beim Eintragen (AbsView tog: AT_T[typ].l).
+   Wird der Tag danach auf einen anderen Typ umgestellt oder geloescht, bleibt der alte Text stehen. Die Glocke prueft darum beim
+   Zeichnen gegen den aktuellen Abwesenheitsstand: anderer Typ -> Hinweis mit dem echten Typ, Eintrag weg -> Hinweis geloescht.
+   Ohne geladene Abwesenheiten (leeres abs) wird nichts behauptet. Rein lesend, nichts wird geschrieben. */
+function _absNotifStand(n,abs){
+  if(!n||(n.type!=="absence_new"&&n.type!=="absence_sonder"))return null;
+  if(!abs||typeof abs!=="object"||!Object.keys(abs).length)return null;
+  var m=/^(.+?): (.+?) am (\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(String(n.body||""));
+  if(!m)return null;
+  var iso=m[5]+"-"+("0"+m[4]).slice(-2)+"-"+("0"+m[3]).slice(-2);
+  var ein=abs[m[1]+"_"+iso];
+  if(!ein)return {art:"entfernt"};
+  var lbl=(typeof AT_T!=="undefined"&&AT_T[ein.type]&&AT_T[ein.type].l)||String(ein.type||"");
+  if(lbl&&lbl!==m[2])return {art:"geaendert",typ:lbl};
+  return null;
+}
+function _absNotifText(n,abs){var t=_notifAnzeige(n&&n.body);var st=_absNotifStand(n,abs);if(!st)return t;return t+(st.art==="entfernt"?" – inzwischen gelöscht":" – inzwischen: "+st.typ);}
+if(typeof window!=="undefined"){window._absNotifStand=_absNotifStand;window._absNotifText=_absNotifText;}
 function _fmtTimeAgo(ts){
   const t=typeof ts==='number'?ts:(new Date(ts||0).getTime()||0);
   if(!t)return"–";
@@ -6329,6 +6357,17 @@ function _dispoAbwLabel(type){var t=String(type||"").toLowerCase();
   if(t==="zeitausgleich"||t==="za")return {icon:"⏰",label:"Zeitausgleich"};
   return {icon:"🚫",label:(type||"abwesend")};
 }
+/* v1055 Tablet-Vollpruefung (4): S075342 stand am Do 19.11. bei Barger, mitten in seinem Krankenstand 17.-27.11. Die Zelle
+   zeigte Krankenstand, aber kein Warnsignal an der Kachel. Ein FIXER Termin (von Menschenhand) wird von der Dispo nie
+   verschoben - also muss er wenigstens laut sein. Genehmigt UND beantragt zaehlen (beantragt = vermutlich weg),
+   abgelehnt nicht. PURE, nur Anzeige: nichts wird umgeplant oder geschrieben. -> Text oder null */
+function _dispoAbwKonflikt(ein){
+  if(!ein)return null;
+  var st=String(ein.status||"genehmigt").toLowerCase();
+  if(st==="abgelehnt")return null;
+  var lbl=_dispoAbwLabel(ein.type).label;
+  return (st==="genehmigt"?"Monteur abwesend: ":"Abwesenheit beantragt: ")+lbl;
+}
 /* Vorschlags-Plan Stufe 1. PURE. cfg={monteure:[{id,name}], tage:[{key,normMin}], firma:{plz,lat,lon},
    dist(a,b)->FAHRMINUTEN (v3.9.764 #28a - NICHT km, der alte Name stand hier bis v3.9.896),
    kapAbzug:{mid:{tagKey:min}} (Abwesenheit+Belegung+Prio1),
@@ -6445,7 +6484,7 @@ function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,g
      Gleiche Schwelle wie _hasTermin (Z.1532): ein Termin zaehlt nur, wenn er > '1900-01-01' ist. */
   var _termISO=function(s){var t=s.terminBestaetigt?String(s.terminBestaetigt).slice(0,10):"";return t>"1900-01-01"?t:"";};
   var offen=(scheine||[]).filter(function(s){if(AS_GRP_OFFEN.indexOf(s.scheinstatus)<0)return false;if(s.scheinstatus==="aufgeschoben")return false;var t=_termISO(s);return (!t)||(t<_heute);});
-  var kapAbzug={}, blockGrund={}, tagArt={}, abwAbzug={};/* v3.9.790: abwAbzug = kapAbzug OHNE die Belegung (nur Abwesenheit+Vorab+Sperre) — die Hand-Wand zieht die Belegung EINMAL ueber usedMin ab, nicht zusaetzlich ueber kapAbzug (fixt den Doppel-Abzug). */
+  var kapAbzug={}, blockGrund={}, tagArt={}, abwAbzug={}, abwTag={};/* v1055 (4): abwTag[mid_tag] = Abwesenheit (auch beantragt) fuer die Konfliktwarnung *//* v3.9.790: abwAbzug = kapAbzug OHNE die Belegung (nur Abwesenheit+Vorab+Sperre) — die Hand-Wand zieht die Belegung EINMAL ueber usedMin ab, nicht zusaetzlich ueber kapAbzug (fixt den Doppel-Abzug). */
   /* v3.9.724 #0 Kapazitaetsmodell: drei Tagesarten statt Vollblock. Kern-Grenzen (Norm/Reserve/Urlaub/Krank)
      UNVERAENDERT. (0a) Planungszeilen "Störungen"/"SAT-Störungen" = NICHT belegt -> Stoerungsdienst-Tag,
      volle Kapazitaet, bevorzugt. (0b) normale BVH-Belegung = Vorab-Fenster DISPO_VORAB_MIN statt Vollblock.
@@ -6500,6 +6539,7 @@ function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,g
         kapAbzug[m.id][t.key]=abz;
         abwAbzug[m.id][t.key]=abz;/* v3.9.790: Abwesenheit+Vorab OHNE Belegung (die += d unten fliesst NUR in kapAbzug) */
         tagArt[m.id][t.key]=art;
+        if(ab)abwTag[m.id+"_"+t.key]={type:ab.type,status:ab.status};
         blockGrund[m.id][t.key]=gruende.length?gruende:null;
       });
     });
@@ -6548,7 +6588,7 @@ function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,g
     firma:{plz:_firmaPlz,lat:48.4269,lon:15.7386}, dist:function(x,y){/* v3.9.764 #28a: Score/2opt optimieren auf FAHR-MINUTEN statt km — _dispoStrecke.min ist die plz_distanz-Matrix-Minute, sonst Haversine-km/DISPO_KMH->min (leer-tolerant: ohne Matrix proportional zu km = identischer Plan; mit Matrix echte Fahrzeit). min ist immer gesetzt (Innerorts-Fallback DISPO_INNERORTS_MIN). */var st=_dispoStrecke((x&&x.plz)||_firmaPlz,(y&&y.plz)||_firmaPlz,_geo,_mx);return (st&&st.known&&st.min!=null)?st.min:DISPO_UNBEKANNT_MIN;}, near:function(x,y){/* v3.9.856: Nachbarschafts-Check NUR bei BEKANNTER Distanz. _dispoStrecke liefert bei fehlender Geo {min:5(INNERORTS-Attrappe),known:false}; cfg.dist wirft das known-Flag weg, sodass die 5-min-Attrappe wie echte Naehe (<15) aussah und der -30000-Bonus auf JEDES Paar feuerte (ferne Auftraege wurden geclustert). Gleiche PLZ bleibt known:true -> echte Naehe behaelt den Bonus. */var st=_dispoStrecke((x&&x.plz)||_firmaPlz,(y&&y.plz)||_firmaPlz,_geo,_mx);return !!(st.known&&st.min!=null&&st.min<DISPO_NAH_MIN);}, kapAbzug:kapAbzug, abwAbzug:abwAbzug,
     scheine:planScheine, horizont:HOR, tagArt:tagArt}, tage:tage, wochen:wochen,
     kwLabel:wochen.length>1?(wochen[0].label+" – "+wochen[wochen.length-1].label):wochen[0].label,
-    offenCount:offen.length, monteure:feld, horizont:HOR, blockGrund:blockGrund, tagArt:tagArt,
+    offenCount:offen.length, monteure:feld, horizont:HOR, blockGrund:blockGrund, tagArt:tagArt, abwTag:abwTag,
     fixMap:fixMap, ueberfaelligCount:ueberfaelligCount, heute:_heute, ortIdx:_ortIdx,
     /* v3.9.886: die gelernten Dauer-Mediane werden jetzt herausgegeben. Der PLAN rief
        _dispoDauer(s,null,_gelernt,_typMed) - vierarmig, mit Klassen- und Typ-Median. Der
@@ -9902,6 +9942,8 @@ function MonteurTafel(props){
       try{localStorage.setItem("epk_autonotif_cd",JSON.stringify(cd));}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
       _pushNotif(type,title,body,targets,key);/* v3.9.544: stabiler dedupKey=key → keine tägliche Re-Notif (Tage-Zähler im body nicht mehr in der id) */
     };
+    /* v1055 (2): gelesene Runde -> offene Ausfall-Meldung dieses Benutzers ist erledigt (als gelesen markieren). */
+    const _ausfallErledigt=(key)=>{const _uid=curUser&&curUser.id;if(!_uid)return;setNotifications(prev=>{const _ids=_eskAusfallErledigtIds(prev,_uid,key);if(!_ids.length)return prev;const _s=new Set(_ids);const upd=prev.map(n=>_s.has(n.id)?{...n,read:true}:n);ODB.save("notifications",upd);_ids.forEach(id=>SQ.push({url:"/api/notifications/"+id,method:"PUT",body:{read:1}}));return upd;});};
     // 1. Dringende AS unbearbeitet → Eskalation (rote Glocke) ERST nach 14 Tagen; davor sanfte Erinnerung.
     //    v3.9.451 (Chef): Eskalation darf nicht schon nach 24h aufpoppen — vorher nur freundlicher Reminder
     //    (Typ as_new = nicht in eskCount → Glocke bleibt normal statt rot/pulsierend).
@@ -9946,7 +9988,7 @@ function MonteurTafel(props){
       const openMat=await _sbGet("material_orders","status=eq.angefordert").catch(_eskLeseMarke);
       const admins=_users.filter(u=>u.role==="admin").map(u=>u.id);
       /* v3.9.914: eine leere Liste erzeugt hier KEINE Eskalation - die stille Glocke sah aus wie: nichts offen. Die Glocke IST die vorhandene Anzeige, also meldet sie den Ausfall selbst; fire() hat 4h Sperrzeit je Schluessel, das bleibt also eine Meldung, kein Dauerpiepen. */
-      {const _mArt=_eskAusfallArt(openMat);const _mSeit=_eskAusfallMelden("rls_material",_mArt);if(_mSeit)fire("rls_material","material_eskalation","Material-Fristen NICHT geprüft",_eskAusfallText("Materialanforderungen",_mArt,_mSeit)+" Offene Bestellungen werden gerade nicht überwacht.",admins);}/* v3.9.1050: Netzausfall erst nach 3 Runden, Rechtefehler sofort */
+      {const _mArt=_eskAusfallArt(openMat);const _mSeit=_eskAusfallMelden("rls_material",_mArt);if(_mSeit)fire("rls_material",ESK_AUSFALL_TYP.rls_material,ESK_AUSFALL_TITEL.rls_material,_eskAusfallText("Materialanforderungen",_mArt,_mSeit)+" Offene Bestellungen werden gerade nicht überwacht.",admins);if(_mArt==="")_ausfallErledigt("rls_material");}/* v3.9.1050: Netzausfall erst nach 3 Runden, Rechtefehler sofort */
       (openMat||[]).forEach(o=>{
         const created=new Date(o.created_at).getTime();const hAlt=Math.floor((now-created)/TIME_HOUR);const dAlt=Math.floor(hAlt/24);
         if(dAlt>=14){fire("mat_esk_"+o.id,"material_eskalation","🔺 Material wartet: "+(o.name||"Bestellung"),"seit "+dAlt+" Tagen nicht bearbeitet",admins);}
@@ -9992,7 +10034,7 @@ function MonteurTafel(props){
       (ovT||[]).filter(t=>["offen","in_bearbeitung"].includes(t.status)&&/^\d{4}-\d{2}-\d{2}/.test(t.due_date||"")).forEach(t=>{const dO=_dOver(t.due_date);if(dO<1)return;const rec=[..._pmU,..._mUser(t.assignee)];if(dO>=14)fire("tk_esk_"+t.id,"ticket_eskalation","🔺 Ticket überfällig: "+(t.title||"Ticket"),"seit "+dO+" Tagen über Frist",rec);else fire("tk_due_"+t.id,"ticket_due","🔔 Ticket fällig: "+(t.title||"Ticket"),"seit "+dO+(dO>1?" Tagen":" Tag")+" über Frist",rec);});
       const ovD=await _sbGet("defects","select=id,title,frist,status,zugewiesen,worker&frist=lt."+_today).catch(_eskLeseMarke);
       /* v3.9.914: faellt eines der beiden Lesen aus, feuert die Fristenpruefung KEINE einzige Ueberfaellig-Meldung - und genau das sieht fuer Chef und Projektleiter aus wie: nichts ueberfaellig. Gemeldet wird deshalb der AUSFALL selbst, ueber dieselbe Glocke. */
-      {const _fArt=_eskAusfallArt(ovT,ovD);const _fSeit=_eskAusfallMelden("rls_frist",_fArt);if(_fSeit)fire("rls_frist","ticket_eskalation","Fristenprüfung unvollständig",_eskAusfallText(_eskAusfallArt(ovT)===_fArt?"Tickets":"Mängel",_fArt,_fSeit)+" Überfällige Tickets und Mängel werden gerade NICHT gemeldet.",_pmU);}/* v3.9.1050: Netzausfall erst nach 3 Runden, Rechtefehler sofort */
+      {const _fArt=_eskAusfallArt(ovT,ovD);const _fSeit=_eskAusfallMelden("rls_frist",_fArt);if(_fSeit)fire("rls_frist",ESK_AUSFALL_TYP.rls_frist,ESK_AUSFALL_TITEL.rls_frist,_eskAusfallText(_eskAusfallArt(ovT)===_fArt?"Tickets":"Mängel",_fArt,_fSeit)+" Überfällige Tickets und Mängel werden gerade NICHT gemeldet.",_pmU);if(_fArt==="")_ausfallErledigt("rls_frist");}/* v3.9.1050: Netzausfall erst nach 3 Runden, Rechtefehler sofort */
       (ovD||[]).filter(m=>m.status!=="behoben"&&/^\d{4}-\d{2}-\d{2}/.test(m.frist||"")).forEach(m=>{const dO=_dOver(m.frist);if(dO<1)return;const rec=[..._pmU,..._mUser(m.zugewiesen||m.worker)];if(dO>=14)fire("df_esk_"+m.id,"mangel_eskalation","🔺 Mangel überfällig: "+(m.title||"Mangel"),"seit "+dO+" Tagen über Frist",rec);else fire("df_due_"+m.id,"mangel_due","🔔 Mangel fällig: "+(m.title||"Mangel"),"seit "+dO+(dO>1?" Tagen":" Tag")+" über Frist",rec);});
     }catch(e){console.warn('[silent-notif]',e&&e.message||e);}})();
   },[curUser]);
@@ -10776,7 +10818,7 @@ function MonteurTafel(props){
                     , React.createElement('span', { 'aria-hidden': "true", style: {display:"inline-flex",flexShrink:0,color:V.dm,paddingTop:2}}, _ik(((n.type||"").includes("eskalation")||n.type==="kunde_mangel"||n.type==="absence_sick")?"warnung":n.type==="deadline_fz"?"transporter":(({projekte:"helm",arbeitsscheine:"bericht",urlaub:"sonne",werkzeuge:"werkzeug",kunden:"person",material:"paket",system:"regler"})[nt&&nt.cat]||"glocke"),20))/* Tablet-Rest v1040 (b): Linien-Ikone je Art statt NOTIF_TYPES-Emoji */
                     , React.createElement('div', { style: {flex:1,minWidth:0}}
                       , React.createElement('div', { style: {fontSize:12,fontWeight:n.read?400:700,color:n.read?V.dm:V.tx}}, _notifAnzeige(n.title))
-                      , React.createElement('div', { style: {fontSize:12,color:V.dm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}, title: _notifAnzeige(n.body)}, _notifAnzeige(n.body))
+                      , React.createElement('div', { style: {fontSize:12,color:V.dm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}, title: _absNotifText(n,abs)}, _absNotifText(n,abs))/* v1055 (3) */
                       , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.mt,marginTop:2}}, agoStr, " · "  , _optionalChain([nt, 'optionalAccess', _84 => _84.l]))
                     )
                     , !n.read&&React.createElement('div', { style: {width:8,height:8,borderRadius:"50%",background:V.ac,flexShrink:0,marginTop:4}} )
@@ -10999,9 +11041,9 @@ function KVRulesConfig(props){
   const [msg,setMsg]=_react.useState.call(void 0, "");
   _react.useEffect.call(void 0, ()=>{let a=true;(async()=>{try{const r=await _kvLoadRules();if(a)setVals(Object.assign({},KV_RULES_FALLBACK,r));}catch(_e){}})();return()=>{a=false;};},[]);
   const NUMF=[
-    {g:'Arbeitszeit',f:[['wochenStd','Wochenstunden','h'],['tagStd','Tagesstunden','h'],['pauseAbStd','Pause ab','h'],['pauseMin','Pausenlaenge','min']]},
+    {g:'Arbeitszeit',f:[['wochenStd','Wochenstunden','h'],['tagStd','Tagesstunden','h'],['pauseAbStd','Pause ab','h'],['pauseMin','Pausenlänge','min']]},
     {g:'Urlaub',f:[['urlaubStdJahr','Urlaub/Jahr','h'],['urlaubStdJahr25DJ','Urlaub ab 25 Dienstjahren','h']]},
-    {g:'Zuschlaege (Faktor auf den Stundenlohn)',f:[['mehrarbeitStd','Mehrarbeit-Grenze','h'],['zuschlagMehrarbeit','Mehrarbeit','x'],['zuschlagUeStd','Ueberstunde 50%','x'],['zuschlagUeStd100','Ueberstunde 100%','x'],['zaFaktor50','Zeitausgleich 50%','x'],['zaFaktor100','Zeitausgleich 100%','x']]},
+    {g:'Zuschläge (Faktor auf den Stundenlohn)',f:[['mehrarbeitStd','Mehrarbeit-Grenze','h'],['zuschlagMehrarbeit','Mehrarbeit','x'],['zuschlagUeStd','Überstunde 50%','x'],['zuschlagUeStd100','Überstunde 100%','x'],['zaFaktor50','Zeitausgleich 50%','x'],['zaFaktor100','Zeitausgleich 100%','x']]},
     /* v3.9.768: Anzeige heisst ueberall "Entfernungszulage" (Vertrag/Lohnzettel LA 2740). Die FELDNAMEN
        bleiben taggeld* — sie liegen in system_config.kv_rules persistiert; ein Umbenennen braeuchte eine
        Datenmigration und wuerde bei Altbestand still auf die Fallback-Saetze zurueckfallen. Die Stufen
@@ -11703,9 +11745,10 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
         ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600,letterSpacing:.2}},(isFix?_dpIkTxt("📌",o.nummer||""):(o.nummer||"")))
         ,o.ueberfaelligVon?h('div',{style:{fontSize:UI.fMeta,color:_dark?COLORS.ERROR_DARK:"#b91c1c",fontWeight:700}},_dpIkTxt("⚠","war "+o.ueberfaelligVon.slice(8,10)+"."+o.ueberfaelligVon.slice(5,7)+".")):null
         ,o.konflikt?h('div',{style:{fontSize:UI.fMeta,color:_dark?COLORS.ERROR_DARK:"#b91c1c",fontWeight:700}},_dpIkTxt("⚠","überschneidet "+o.konflikt)):null/* v3.9.749 #27c: fix-vs-fix-Zeitkonflikt melden (nicht aufloesen) */
+        ,o.abwesend?h('div',{'data-abw-konflikt':"1",style:{fontSize:UI.fMeta,color:_dark?COLORS.ERROR_DARK:"#b91c1c",fontWeight:700}},_dpIkTxt("⚠",o.abwesend)):null/* v1055 (4): Schein an einem Abwesenheitstag */
         ,o.bvh?h('div',{lang:"de",style:{fontWeight:700,color:isFix?V.tx:(_dark?"#fdba74":"#9a3412"),overflowWrap:"normal",wordBreak:"normal",hyphens:"auto",overflow:"hidden"}},o.bvh):null/* Tablet-Funde 17.11.: kein Bruch mitten im Wort ("Stoerunge|n") - Silbentrennung statt break-word; das ganze steht im title der Kachel */
         ,o.arbeit?h('div',{lang:"de",style:{color:V.tx,fontSize:UI.fMeta,overflowWrap:"normal",wordBreak:"normal",hyphens:"auto",overflow:"hidden"}},o.arbeit):null
-        ,h('div',{style:{color:V.dm,fontSize:UI.fMeta},title:(o.dauerGeschaetzt?"Dauer geschaetzt (gelernter Median oder Regel) — nicht mit dem Kunden vereinbart":"")},((Math.round((o.dauerMin||0)/60*10)/10).toLocaleString("de-AT")+"h")+(o.dauerGeschaetzt?"≈":"")+(o.editMark?" ✎":"")+(o.meta?" · ":""),o.meta?_dpMetaIk(o.meta):null)/* v3.9.892: ≈ heisst 'geraten, nicht vereinbart'. Verschwindet, sobald jemand die Dauer selbst gezogen hat (_dauerOv) - dann ist sie eine Entscheidung, keine Schaetzung mehr. */
+        ,h('div',{style:{color:V.dm,fontSize:UI.fMeta},title:(o.dauerGeschaetzt?"Dauer geschaetzt (gelernter Median oder Regel) — nicht mit dem Kunden vereinbart":"")},(o.dauerGeschaetzt?"≈":"")+((Math.round((o.dauerMin||0)/60*10)/10).toLocaleString("de-AT")+"h")+(o.editMark?" ✎":"")+(o.meta?" · ":""),o.meta?_dpMetaIk(o.meta):null)/* v3.9.892: ≈ heisst 'geraten, nicht vereinbart'. Verschwindet, sobald jemand die Dauer selbst gezogen hat (_dauerOv) - dann ist sie eine Entscheidung, keine Schaetzung mehr. */
         ,o.tel?h('a',{href:"tel:"+String(o.tel).replace(/[^0-9+]/g,""),title:"Kunde anrufen: "+o.tel,onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},style:{display:"block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1,fontSize:UI.fMeta,fontWeight:700,color:V.ac,textDecoration:"none"}},_zpIkI("telefon"),o.tel)/* Tablet-Pruefung 1041 (5): eigene Zeile - quer lief die Nummer in den Uebernehmen-Knopf */:null/* v3.9.893: Kundennummer am Chip, direkt anwaehlbar. Die Kachel haengt an onPointerDown (Ziehen) UND onClick (Schein oeffnen) - der Link muss BEIDES stoppen, sonst verschiebt ein Anruf-Tipp den Termin. */
         ,o.uebernehmen||null)
       /* v3.9.746 #25: vereinbarte Zeit (fett) vs. geplante Zeit (o.geplant -> "~", kursiv/gedimmt + Label
@@ -11848,6 +11891,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
         nummer:(_fs.nummer||"Fixtermin"),tel:_telOf(_fs),dauerGeschaetzt:!!f.dauerGeschaetzt,bvh:f.bvh,arbeit:_ell(_fs.arbeitsanweisungen||_fs.stoerungsmelder,60),
         dauerMin:f.dauerMin,meta:_km,
         konflikt:(_konflikt[f.scheinId]&&_konflikt[f.scheinId].length?_konflikt[f.scheinId].map(function(id){return _scheinById(id).nummer||id;}).join(", "):null),
+        abwesend:_dispoAbwKonflikt((_built.abwTag||{})[m.id+"_"+t.key]),
         geplant:(!_hasT&&_slotOk),ohneZeit:(!_hasT&&!_slot),keineLuecke:(!_hasT&&!!_slot&&!_slotOk),
         startLabel:(_hasT?_tz:_planStart),endLabel:(_hasT?_dispoMinToHHMM(_sMin+(f.dauerMin||0)):(_slotOk?_dispoMinToHHMM(_slot.endMin):""))});})
     /* v3.9.733 #20 + #16b-neu (Sebastian): Kalender-Kachel — Hoehe proportional zur Dauer (DISPO_PX_PER_MIN),
@@ -11856,7 +11900,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
     ,chips.map(function(c,ci){var _cs=_scheinById(c.scheinId);var _eff=_effDauer(c);var _rawWin=_ab[ci];var _keineL=(!_rawWin||_rawWin.startMin==null||_rawWin.startMin<DISPO_TAG_START_MIN);var _win=_keineL?{startMin:DISPO_TAG_START_MIN,endMin:DISPO_TAG_START_MIN+_eff}:_rawWin;var _blkH=Math.max(46,Math.round(_eff*DISPO_PX_PER_MIN));
       var _ueb=onUebernehmen?h('button',{onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();onUebernehmen(c.scheinId,m.id,t.iso,_eff,_dispoMinToHHMM(_win.startMin));},style:{display:"block",marginTop:3,padding:"2px 6px",minHeight:24,fontSize:UI.fMeta,border:"1px solid #f97316",borderRadius:4,background:"transparent",color:_dark?"#fdba74":"#9a3412",cursor:"pointer",fontFamily:"inherit"}},_zpIk("abnahme","Übernehmen",12)):null;
       var _grip=h('div',{onPointerDown:_dauerDrag(c.scheinId,_eff,t.normMin),onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},title:"Unteren Rand ziehen = Dauer (15-min-Schritte)",style:{position:"absolute",left:0,right:0,bottom:0,height:10,cursor:"ns-resize",touchAction:"none",display:"flex",alignItems:"center",justifyContent:"center"}},h('div',{style:{width:28,height:3,borderRadius:2,background:"#f97316",opacity:.65}}));
-      return _chipBox({kind:"vorschlag",key:ci,
+      return _chipBox({kind:"vorschlag",key:ci,abwesend:_dispoAbwKonflikt((_built.abwTag||{})[m.id+"_"+t.key]),
         title:"Ziehen = auf den Tag speichern · Klick = Schein öffnen · unterer Rand = Dauer"+(c.plzEstimate&&c.plzOrt?(" · Ort aus Arbeitstext: "+c.plzOrt):""),
         drag:_chipDrag(c.scheinId,m.id,_cs.nummer||c.bvh,_eff,{startHHMM:_dispoMinToHHMM(_win.startMin),srcIso:t.key}),
         open:function(){if(Date.now()-(_suppressClickRef.current||0)<350)return;window.__asOpenId=c.scheinId;if(onOpenSchein)onOpenSchein(c.scheinId);},
@@ -14792,7 +14836,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
         React.createElement(Kpi, { label: "Buchungen", value: allEntries.length, sub: "Zeiterfassung gesamt", color: "#3b82f6", i: 0} ),
         React.createElement(Kpi, { label: "Tagesberichte", value: allBT.length, sub: "Bautagebuch", color: "#f97316", i: 1} ),
         React.createElement(Kpi, { label: "Projekte", value: activeProjects.length, sub: "aktiv", color: V.ac, i: 2} ),
-        /* v1016 Ehrlichkeit (Tablet-Test 16.11.): hiess "Stunden total - alle Projekte", summierte aber ALLE Zeiteintraege, auch Scheine/Stoerungen und Freitext (Lager, Buero, Schulung) ohne Projekt. Jetzt aufgeteilt: die Zahl sind die Projektstunden, die Unterzeile nennt den Rest. Summe unveraendert (Projekt + Rest = vorher). Komma statt Punkt. */(function(){var _hP=allEntries.filter(function(e){return !!e.projekt;}).reduce(function(s,e){return s+(e.stunden||0);},0);var _hR=allEntries.filter(function(e){return !e.projekt;}).reduce(function(s,e){return s+(e.stunden||0);},0);return React.createElement(Kpi, { label: "Stunden auf Projekten", value: _projStdDE(_hP,1), sub: _hR>0?("+ "+_projStdDE(_hR,1)+" h Scheine/Freitext"):"keine Stunden ohne Projekt", color: V.acTx, i: 3, title: "Projektstunden aller Zeiteinträge; Arbeitsscheine, Störungen und Freitext (ohne Projekt) stehen in der Unterzeile."} );})()
+        /* v1016 Ehrlichkeit (Tablet-Test 16.11.): hiess "Stunden total - alle Projekte", summierte aber ALLE Zeiteintraege, auch Scheine/Stoerungen und Freitext (Lager, Buero, Schulung) ohne Projekt. Jetzt aufgeteilt: die Zahl sind die Projektstunden, die Unterzeile nennt den Rest. Summe unveraendert (Projekt + Rest = vorher). Komma statt Punkt. */(function(){var _pIds=new Set(activeProjects.map(function(p){return p.id;}));var _hP=projStats.reduce(function(s,p){return s+(p.hrs||0);},0);var _hA=allEntries.filter(function(e){return !!e.projekt&&!_pIds.has(e.projekt);}).reduce(function(s,e){return s+(e.stunden||0);},0);var _hR=allEntries.filter(function(e){return !e.projekt;}).reduce(function(s,e){return s+(e.stunden||0);},0);/* v1055 Minor: 898,2 stand neben den Zeilen 211,4 + 646,9 - die Zahl zaehlte auch Buchungen auf archivierten/geloeschten Projekten. Jetzt = Summe der gezeigten Zeilen, der Rest steht in der Unterzeile. */var _sub=[_hA>0?("+ "+_projStdDE(_hA,1)+" h archivierte/andere Projekte"):"",_hR>0?("+ "+_projStdDE(_hR,1)+" h Scheine/Freitext"):""].filter(Boolean).join(" · ");return React.createElement(Kpi, { label: "Stunden auf Projekten", value: _projStdDE(_hP,1), sub: _sub||"keine Stunden ohne Projekt", color: V.acTx, i: 3, title: "Projektstunden aller Zeiteinträge; Arbeitsscheine, Störungen und Freitext (ohne Projekt) stehen in der Unterzeile."} );})()
       ),
 
       /* v3.9.355 G1: redundanter Projekt-Dropdown + globaler BWB-Download-Button entfernt \u2014 generateAll/per-Projekt nutzen denselben generateBWB (nur anderer Scope); globaler Download jetzt als "Alle als Excel" im Projekt\u00fcbersicht-Kopf (s.u.). selProj wird weiter via Projekt-Karten-Klick gesetzt. */
@@ -14846,7 +14890,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
               React.createElement(Badge, { text: ps.kws+" KWs", color: V.ac} ),
               ps.btCnt>0&&React.createElement(Badge, { text: ps.btCnt+" Tagesber.", color: "#f97316"} ),
               /* v3.9.334: Regie + M\u00e4ngel-Badges */
-              ps.regCnt>0&&React.createElement(Badge, { text: "\ud83d\udccb "+ps.regCnt+" Regie", color: _okG("#22c55e")} ),
+              ps.regCnt>0&&React.createElement(Badge, { text: _ikVw("bericht",ps.regCnt+" Regie"), color: _okG("#22c55e")} ),
               ps.mgOffen>0?React.createElement(Badge, { text: "\u26a0\ufe0f "+ps.mgOffen+" M\u00e4ngel offen", color: "#eab308"} ):(ps.mgCnt>0?React.createElement(Badge, { text: "\u2713 "+ps.mgCnt+" M\u00e4ngel behoben", color: _okG("#22c55e")} ):null),
               React.createElement('button', { onClick: (e)=>{e.stopPropagation();if(ps.cnt)_toggleBWB(ps.id);}, disabled: !ps.cnt, style: {...bsS(),padding:"4px 12px",fontSize:UI.fMeta,opacity:ps.cnt?1:.4,...(openBWB.has(ps.id)?{borderColor:V.ac,color:V.acTx}:{})}, title: "Bauwochenbericht-Vorschau ein-/ausklappen"}, (openBWB.has(ps.id)?"\u25be":"\u25b8")+" Vorschau" ),
               React.createElement('button', { onClick: async(e)=>{e.stopPropagation();const _p=activeProjects.find(p=>p.id===ps.id);if(!_p)return;const _gd=getProjectData(ps.id);const _sc=await window._bwbScopeModal(_gd.kwList);if(_sc==null)return;generateBWB(_p,false,_sc);}/* v3.9.484: Scope-Auswahl auch auf dem Projekt-Karten-Button (vorher nur Inline-Vorschau) — QA-Befund */, disabled: !ps.cnt, style: {...bsS(),padding:"4px 12px",fontSize:UI.fMeta,opacity:ps.cnt?1:.4}}, _ikVw("tabelle","Excel") )
@@ -14888,7 +14932,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
               ,React.createElement('button',{onClick:_krankExcel,disabled:!_krAll.length,style:{...bpS,padding:"6px 16px",fontSize:12,opacity:_krAll.length?1:.4}},_ikVw("tabelle","Excel"))
             )
           )
-          ,noAtt>0&&React.createElement('div',{style:{background:"rgba(239,68,68,.10)",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,fontWeight:700,color:COLORS.ERROR}},"\u26a0\ufe0f "+noAtt+" Mitarbeiter mit Krankenstand ohne Attest")
+          ,noAtt>0&&React.createElement('div',{style:{background:"rgba(239,68,68,.10)",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,fontWeight:700,color:COLORS.ERROR}},_ikVw("warnung",noAtt+" Mitarbeiter mit Krankenstand ohne Attest"))
           ,React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}},React.createElement('input',{className:"epk-suche",type:"search",value:_kSearch,onChange:e=>_setKSearch(e.target.value),placeholder:"Mitarbeiter suchen…",style:{...II(),flex:1,minWidth:150,fontSize:13}}),React.createElement('select',{value:_kfMonteur,onChange:e=>_setKfMonteur(e.target.value),style:{...II(),fontSize:13,maxWidth:180}},React.createElement('option',{value:"alle"},"Alle MA"),_mNames.map(n=>React.createElement('option',{key:n,value:n},n))),React.createElement('select',{value:_kfAttest,onChange:e=>_setKfAttest(e.target.value),style:{...II(),fontSize:13,maxWidth:170}},[["alle","Attest: alle"],["fehlt","Attest fehlt"],["vorhanden","Attest vorhanden"]].map(o=>React.createElement('option',{key:o[0],value:o[0]},o[1]))),React.createElement('select',{value:_kfMonat,onChange:e=>_setKfMonat(e.target.value),style:{...II(),fontSize:13,maxWidth:150}},[["alle","Alle Monate"],["01","Jänner"],["02","Februar"],["03","März"],["04","April"],["05","Mai"],["06","Juni"],["07","Juli"],["08","August"],["09","September"],["10","Oktober"],["11","November"],["12","Dezember"]].map(o=>React.createElement('option',{key:o[0],value:o[0]},o[1]))),React.createElement('button',{onClick:()=>_setKfAttest(a=>a==="fehlt"?"alle":"fehlt"),style:{padding:"6px 12px",borderRadius:6,border:"1px solid "+(_kfAttest==="fehlt"?COLORS.ERROR:V.bd),background:_kfAttest==="fehlt"?"rgba(239,68,68,.15)":"transparent",color:_kfAttest==="fehlt"?COLORS.ERROR:V.dm,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:36,touchAction:"manipulation"}},"Attest fehlt"),_kActive>0&&React.createElement('button',{onClick:()=>{_setKSearch("");_setKfMonteur("alle");_setKfAttest("alle");_setKfMonat("alle");},title:"Filter zurücksetzen",style:{padding:"6px 10px",borderRadius:6,border:"1px solid "+V.bd,background:V.ac+"15",color:V.acTx,fontSize:UI.fMeta,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:36,touchAction:"manipulation"}},"↻ "+_kActive+" Filter"),React.createElement('div',{style:{fontSize:12,color:V.dm,marginLeft:"auto",whiteSpace:"nowrap"}},kr.length+" von "+_krAll.length))
           ,React.createElement('div',{style:{...CC(),padding:12,overflowX:"auto"}}
             ,_krAll.length===0?React.createElement('div',{style:{fontSize:12,color:V.dm,textAlign:"center",padding:20}},"Keine Krankenst\u00e4nde "+_abYr):kr.length===0?React.createElement('div',{style:{fontSize:12,color:V.dm,textAlign:"center",padding:20}},"Keine Treffer \u2014 Filter anpassen")
@@ -16755,7 +16799,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             // Vehicle deadlines — v3.9.299: Monteure sehen NUR ihr zugewiesenes Fahrzeug (fahrer===monteurId); Admin/PL/Lagerleitung/Büro alle
             const _myMid=(curUser&&curUser.monteurId)||"";const _seesAllFz=!!(curUser&&(curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero"||curUser.role==="lagerleitung"||(curUser.rolle||"").toLowerCase()==="lagerleitung"));
             (_seesAllFz?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMid)).forEach(f=>{
-              if(f.pickerl){const d=new Date(f.pickerl+"T00:00:00");const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-60&&diff<90)/* v3.9.107 Hunt: date-only lokal parsen (T00:00:00) statt UTC — sonst zeigte "heute" ab Nachmittag fälschlich ABGELAUFEN. */items.push({date:f.pickerl,icon:"kalender",text:`Pickerl ${f.kennzeichen}`,sub:(diff<0?"abgelaufen seit ":"gültig bis ")+fdt(f.pickerl),badge:diff<0?"Abgelaufen":_inTagen(diff),urgent:diff<14,color:diff<0?COLORS.ERROR:diff<30?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
+              if(f.pickerl){const _pe=_homePickerlEintrag(f.pickerl,Date.now(),_inTagen);/* v1055 (5): dieselbe Toleranzregel wie Fahrzeuge/Fristen */if(_pe)items.push({date:f.pickerl,icon:"kalender",text:`Pickerl ${f.kennzeichen}`,sub:_pe.sub,badge:_pe.badge,urgent:_pe.urgent,color:_pe.farbe==="rot"?COLORS.ERROR:_pe.farbe==="orange"?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
               if(f.naechstService){const d=new Date(f.naechstService+"T00:00:00");const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"werkzeug",text:`Service ${f.kennzeichen}`,sub:(diff<0?"fällig seit ":"fällig am ")+fdt(f.naechstService),badge:diff<0?"Überfällig":_inTagen(diff),urgent:diff<7,color:diff<0?COLORS.ERROR:diff<14?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
               (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum+"T00:00:00")-new Date())/TIME_DAY);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"werkzeug":"kalender",text:`${t.beschreibung}`,sub:(f.kennzeichen||"Fzg")+" · "+fdt(t.datum),badge:_inTagen(diff),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
             });
@@ -19675,6 +19719,12 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
   // Ein Resolver normalisiert: dataUrl > data_url > file_url > "".
   const _planSrc = (plan && (plan.dataUrl || plan.data_url || plan.file_url)) || "";
   const _isPdf = _planSrc.startsWith("data:application/pdf") || _planSrc.startsWith("blob:") || (plan && /\.pdf$/i.test(plan.filename || "")) || /\.pdf(\?|$)/i.test(_planSrc);
+  /* v1055 Tablet-Vollpruefung (9): Plan wird geladen stand mitten ueber dem FERTIG gezeichneten Plan (beide Ausrichtungen). Der Merker
+     loading wird von ZWEI Effekten gesetzt (Laden + Zeichnen) und nur vom Zeichnen geloescht; laeuft das Laden ein zweites Mal
+     (neue Plan-Adresse fuer denselben Plan) und das Zeichnen nicht mehr fertig, bleibt er haengen. Die Anzeige fragt darum zusaetzlich
+     das ERGEBNIS: sind die Masse DIESER Seite DIESES Plans schon gezeichnet (pageDims), ist der Plan sichtbar - kein Lade-Hinweis. */
+  const _planFertig = !!(_isPdf && plan && pageDims && pageDims._plan === plan.id && pageDims._pg === pageNum);
+  const _ladeSicht = loading && !_planFertig;
 
   _react.useEffect.call(void 0, () => {
     let active = true;
@@ -20020,7 +20070,7 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         React.createElement('span', {'aria-live': "polite", style: {padding: "0 4px", fontSize:UI.fMeta, color: V.tx, minWidth: 40, textAlign: "center", fontFamily: mono, whiteSpace: "nowrap"}}, "Seite " + pageNum + "/" + pageCount),
         React.createElement('button', {onClick: () => setPageNum(p => Math.min(pageCount, p+1)), disabled: pageNum>=pageCount, title: "Nächste Seite", 'aria-label': "Nächste Seite", style: {..._pvS(false), boxShadow: "none", border: "none", opacity: pageNum>=pageCount?0.45:1}}, _ik("rechts", 20))
       ) : null,
-      loading ? React.createElement('div', {
+      _ladeSicht ? React.createElement('div', {
         style: {position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: V.dm, fontSize: 14, zIndex: 5}
       }, "Plan wird geladen…") : null,
       loadError && !loading ? React.createElement('div', {
@@ -20032,14 +20082,14 @@ function PlanViewerCanvas({plan, pinNr, tickets, layers, monteure, pinMode, pend
         (_planSrc && navigator.onLine!==false) ? React.createElement('a', {href:_planSrc/* v3.9.890: offline nicht anbieten. Der Link fuehrt zwingend zur Netz-URL - ein Angebot, das nicht gehen kann, ist schlimmer als keins. */, target:"_blank", rel:"noopener", style:{...bpS, textDecoration:"none", display:"inline-block", marginTop:4}}, "Plan im neuen Tab öffnen") : null
       ) : null,/* v3.9.140: Fehler-Fallback statt schwarzem Viewer */
       /* v3.9.184 PlanRadar-Status-Legende: Aufschlüsselung der sichtbaren Pins nach Status (oben links, read-only). */
-      !loading && plan && ticketsOnPage.length > 0 ? React.createElement('div', {
+      !_ladeSicht && plan && ticketsOnPage.length > 0 ? React.createElement('div', {
         /* v1016 Bedienung (Tablet 800 px): oben links lag die Legende UEBER dem "−"-Zoomknopf der Werkzeugleiste (oben rechts, reicht bei schmalem Plan bis nach links). Jetzt unten links, direkt ueber der Pin-Pille - dort liegt kein Bedienelement. */style: {position: "absolute", bottom: 48, left: 10, maxWidth: "calc(100% - 96px)", overflow: "hidden", zIndex: 10, background: V.bg + "f2", border: "1px solid " + V.bd, borderRadius: 10, padding: "6px 9px", display: "flex", flexDirection: "column", gap: 3, fontSize:UI.fMeta, color: V.tx, boxShadow: "0 4px 16px rgba(0,0,0,.4)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", pointerEvents: "none", maxWidth: 170}
       },
         Object.entries(TICKET_STATUS).map(([k, v]) => { const c = ticketsOnPage.filter(t => t.status === k).length; if(!c) return null; return React.createElement('div', {key: k, style: {display: "flex", alignItems: "center", gap: 5}}, _tkPunkt(k, 10), React.createElement('span', {style: {flex: 1, whiteSpace: "nowrap"}}, v.l), React.createElement('span', {style: {fontFamily: mono, fontWeight: 700}}, c)); }).filter(Boolean),/* Plaene Stufe 1: derselbe Punkt wie am Pin (_tkPunkt) */
         (() => { const _u = ticketsOnPage.filter(t => _tkUeberfaellig(t)).length; return _u ? React.createElement('div', {key: "_ueb", style: {display: "flex", alignItems: "center", gap: 5}}, React.createElement('span', {style: {width: 14, height: 14, borderRadius: "50%", background: UI.fehler, color: "#fff", fontSize: UI.fMeta, fontWeight: 900, lineHeight: "14px", textAlign: "center", border: "1.5px solid #fff", boxShadow: "0 0 0 1px rgba(0,0,0,.35)", flexShrink: 0}}, "!"), React.createElement('span', {style: {flex: 1, whiteSpace: "nowrap"}}, "überfällig"), React.createElement('span', {style: {fontFamily: mono, fontWeight: 700}}, _u)) : null; })()
       ) : null,
       /* v3.9.71 S51-4 PlanRadar-Cluster-Pill: Floating Pin-Count bottom-left auf Canvas (zeigt Total + offen — Plan-Sicht-Indikator). */
-      !loading && plan && ticketsOnPage.length > 0 ? React.createElement('div', {
+      !_ladeSicht && plan && ticketsOnPage.length > 0 ? React.createElement('div', {
         style: {position: "absolute", bottom: 10, left: 10, maxWidth: "calc(100% - 96px)", overflow: "hidden", zIndex: 10, background: V.cd + "ee", border: "1px solid " + V.bd, borderRadius: 16, padding: "4px 11px", display: "flex", alignItems: "center", gap: 8, fontSize:UI.fMeta, color: V.tx, boxShadow: "0 2px 8px rgba(0,0,0,.3)", pointerEvents: "none"}
       },
         React.createElement('span', {style: {display: "flex", color: V.dm}}, _ik("standort", 16)),
@@ -22107,6 +22157,11 @@ function _matFold(s){return String(s==null?"":s).toLowerCase().replace(/ä/g,"a"
 /* Datanorm-Mengeneinheiten lesbar - nur die eindeutigen Codes; SE/GT u.a. bleiben als Code stehen (Bedeutung je Haendler verschieden). */
 const _MAT_ME={ST:"Stk",STK:"Stk",MT:"m",M:"m",M2:"m²",M3:"m³",PR:"Paar",PK:"Pkg",RL:"Rolle",KG:"kg",KT:"Karton",SA:"Satz"};
 function _matEinheit(me){const t=String(me||"").trim();return _MAT_ME[t.toUpperCase()]||t||"Stk";}
+/* v1055 Tablet-Vollpruefung (10): Lieferantenkatalog nur teilweise geladen (5 000 Artikel) bei Holter mit GENAU 5000 Artikeln.
+   Die Seitenschleife fragt nach einer vollen Seite noch einmal ab offset=5000 nach, um das Ende zu sehen. PostgREST beantwortet einen
+   Bereich hinter der letzten Zeile mit 416 (PGRST103, Requested range not satisfiable) statt mit einer leeren Liste - _sbGet wirft
+   das als HTTP416, der Auffang machte daraus null = Verbindungsfehler. Hinter offset 0 ist 416 das ENDE der Liste, kein Fehler. PURE. */
+function _matSeiteEnde(err,offset){if(!(+offset>0))return false;var t=String((err&&err.message)||err||"");return /HTTP416|PGRST103/.test(t);}
 function VMaterial({p,curUser,monteure,ww,entries}){
   const isMob=(ww||999)<600;
   const isAdmin=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter");
@@ -22282,7 +22337,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
         let _seite=null;
         for(let _vs=0;_vs<=_saWart.length;_vs++){
           if(_vs>0){await new Promise(_res=>setTimeout(_res,_saWart[_vs-1]));if(!a)return;}
-          _seite=await _sbGet("supplier_articles_safe",_saSel+"&limit=10000&offset="+_saOff).catch(()=>null);
+          _seite=await _sbGet("supplier_articles_safe",_saSel+"&limit=10000&offset="+_saOff).catch(_er=>_matSeiteEnde(_er,_saOff)?[]:null);/* v1055 (10): 416 hinter der letzten Zeile = Ende */
           if(!a)return;
           if(Array.isArray(_seite))break;
         }
@@ -23299,7 +23354,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     return React.createElement('div', null
       // Saved catalogs
       , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:8}}, "Gespeicherte Kataloge")
-      , savedCatalogs.length===0&&React.createElement('div', { style: {padding:16,color:V.dm,fontSize:12}}, _katFehl?(_nlTxt()+" – gespeicherte Kataloge unbekannt. Standard-Platzhalter aktiv."):"Noch keine DATANORM-Kataloge importiert. Standard-Platzhalter aktiv.")
+      , savedCatalogs.length===0&&React.createElement('div', { style: {padding:16,color:V.dm,fontSize:12}}, _katFehl?(_nlTxt()+" – gespeicherte Kataloge unbekannt. Standard-Platzhalter aktiv."):(suppArticles.length>0?("Keine DATANORM-Datei importiert. Im Warenkorb aktiv: "+catalogs.length+" Kataloge – Standard-Kataloge und der Großhandel-Katalog ("+_fzDE(suppArticles.length,0)+" Artikel, automatischer Abgleich)."):"Keine DATANORM-Datei importiert. Im Warenkorb sind nur die Standard-Kataloge aktiv."))/* v1055 (10): vorher Noch keine DATANORM-Kataloge importiert neben 12/12 Kataloge im Warenkorb */
       , savedCatalogs.map(cat=>(React.createElement('div', { key: cat.id, style: {...CC(),marginBottom:6,display:"flex",alignItems:"center",gap:8}}
         , React.createElement('span', { style: {fontSize:13,fontWeight:600,flex:1}}, cat.system, React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,marginLeft:6}}, (cat.cats||[]).reduce((s,c)=>s+(c.items||[]).length,0), " Artikel · ", (cat.cats||[]).length, " Kategorien"))
         , React.createElement('span', { style: {fontSize:UI.fMeta,padding:"2px 8px",borderRadius:10,background:(MATERIAL_CATS[cat.gewerk]||{c:"#71717a"}).c+"18",color:(MATERIAL_CATS[cat.gewerk]||{c:"#71717a"}).c,fontWeight:600}}, _matIk("kat",MATERIAL_CATS[cat.gewerk]?cat.gewerk:"allgemein"), " ", cat.gewerk)
@@ -24542,7 +24597,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
         , React.createElement('td', {})
         , DSHORT.map((d,i)=>{const w=wetter[dk(dayDate(i))]||null;const isToday=i===((new Date().getDay()+6)%7);const maC=maPerDay[d]||0;return (React.createElement('td', { key: d, style: {textAlign:"center",verticalAlign:"top",overflow:"hidden",padding:"8px 2px 6px",borderLeft:"1px solid "+V.bd,background:isToday?(_dark?"rgba(0,150,64,.1)":"rgba(0,150,64,.05)"):"transparent"}}
           , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:isToday?_okG("#22c55e"):V.dm,marginBottom:4,letterSpacing:.5}}, d)
-          , React.createElement('div', { style: {fontSize:28,lineHeight:"32px",marginBottom:2,filter:"drop-shadow(0 1px 2px rgba(0,0,0,.15))"}}, (w&&w.icon)?w.icon:"")
+          , React.createElement('div', { 'aria-hidden': "true", style: {height:32,marginBottom:2,display:"flex",alignItems:"center",justifyContent:"center",color:V.tx}}, (w&&w.code!==null&&w.code!==undefined)?_ik(_wmoIk(w.code),28):"")/* v1055 (11): Linien-Ikone wie die Home-Wetterleiste (WMO_IK) statt Emoji-Wolke */
           , React.createElement('div', { style: {fontSize:16,fontWeight:800,fontFamily:mono,color:(!w||w.tmax===null)?V.mt:(w.tmax<=0?"#60a5fa":w.tmax<=5?V.tx:w.tmax<=15?"#f59e0b":"#ef4444")}}, (w&&w.tmax!==null)?(Math.round(w.tmax)+"°"):"—")
           , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:1,marginBottom:3}}, (w&&w.text)?w.text:"")
           , React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,color:maC>0?V.acTx:V.mt||V.dm,background:maC>0?UI.markeBg:"transparent",...UI.zahlen,borderRadius:4,padding:"2px 6px",display:"inline-block"}}, maC, " MA" )
@@ -24857,8 +24912,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
     if(!isDelete){
       const typName=_optionalChain([AT_T, 'access', _540 => _540[typ], 'optionalAccess', _541 => _541.l])||typ;
       if(typ==="krankenstand"){_optionalChain([pushNotif, 'optionalCall', _542 => _542("absence_sick","🤒 Krankmeldung",sel+" hat sich krankgemeldet ("+fdt(dk(d))+")")]);}
-      else if(_optionalChain([AT_T, 'access', _543 => _543[typ], 'optionalAccess', _544 => _544.kat])==="sonder"||_optionalChain([AT_T, 'access', _545 => _545[typ], 'optionalAccess', _546 => _546.kat])==="pflege"){_optionalChain([pushNotif, 'optionalCall', _547 => _547("absence_sonder","📌 "+typName,sel+": "+typName+" am "+fdt(dk(d))+" ("+stdVonTag(d,_wocheOf(sel))+"h)")]);}
-      else{_optionalChain([pushNotif, 'optionalCall', _548 => _548("absence_new","Neue Abwesenheit",sel+": "+typName+" am "+fdt(dk(d))+" ("+stdVonTag(d,_wocheOf(sel))+"h)")]);}
+      else if(_optionalChain([AT_T, 'access', _543 => _543[typ], 'optionalAccess', _544 => _544.kat])==="sonder"||_optionalChain([AT_T, 'access', _545 => _545[typ], 'optionalAccess', _546 => _546.kat])==="pflege"){_optionalChain([pushNotif, 'optionalCall', _547 => _547("absence_sonder","📌 "+typName,sel+": "+typName+" am "+fdt(dk(d))+" ("+_absH(stdVonTag(d,_wocheOf(sel)),1)+" h)")]);}
+      else{_optionalChain([pushNotif, 'optionalCall', _548 => _548("absence_new","Neue Abwesenheit",sel+": "+typName+" am "+fdt(dk(d))+" ("+_absH(stdVonTag(d,_wocheOf(sel)),1)+" h)")]);}
     }
   };
   const ga=(m,d)=>abs[m+"_"+dk(d)];
@@ -25478,8 +25533,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
                   return React.createElement('div', { key: di, title: at2?(m+": "+at2.l+" "+fdt(_ds)+" ("+(which==="gen"?"genehmigt":"offen")+")"+(_coll?" – Kollision":"")):"", style: {width:dayW,height:_h,background:_bg,borderRight:dow===0?"1px solid "+V.bd:"none",borderLeft:isToday?"2px solid "+V.ac:"none",border:_coll?"1.5px solid #ef4444":(at2&&which==="req"?"1px dashed "+at2.c:undefined),boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",fontSize:which==="gen"?(isMob?13:15):9,cursor:at2?"pointer":"default",transition:"background .1s"}, onClick: ()=>{if(at2){setSel(m);setMo(d.getMonth());setSubView("kalender");}}}, at2&&which==="gen"?_ik(_teamIk(at2),isMob?13:15):"");
                 });
                 return React.createElement('div', { key: m, style: {display:"flex",borderBottom:"1px solid "+V.bd,background:mi%2===0?"transparent":V.rowAlt}}
-                  , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, role: "button", tabIndex: 0, "aria-label": "Kalender für "+m+" öffnen", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setSel(m);setSubView("kalender");}}, style: {width:nameW,minWidth:nameW,position:"sticky",left:0,zIndex:2,background:mi%2===0?V.cd:V.rowAlt,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?UI.fMeta:UI.fMeta,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:2}}
-                    , React.createElement('span', { title: m, style: {overflow:"hidden",textOverflow:"ellipsis",..._zweiZeilen,minWidth:0,lineHeight:1.2,fontSize:isMob?UI.fMeta:13}}, m)
+                  , React.createElement('div', { onClick: ()=>{setSel(m);setSubView("kalender");}, role: "button", tabIndex: 0, "aria-label": "Kalender für "+m+" öffnen", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();setSel(m);setSubView("kalender");}}, style: {width:nameW,minWidth:nameW,position:"sticky",left:0,zIndex:2,background:mi%2===0?V.cd:V.rowAlt,padding:isMob?"4px 4px":"6px 6px",fontSize:isMob?UI.fMeta:UI.fMeta,fontWeight:600,borderRight:"1px solid "+V.bd,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",gap:1}}/* v1055 Tablet-Vollpruefung (8): Name OBEN in voller Zellbreite, Resturlaub darunter - vorher teilten sich Name und Stunden eine Zeile, und _zweiZeilen (overflowWrap anywhere) brach Lindhube|r, Pasching|er, Riedman|n mitten im Wort, auch quer */
+                    , React.createElement('span', { title: m, style: {overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",overflowWrap:"normal",wordBreak:"normal",hyphens:"none",maxWidth:"100%",minWidth:0,lineHeight:1.2,fontSize:isMob?UI.fMeta:13}}, m)
                     , React.createElement('span', { style: {fontSize:isMob?UI.fMeta:UI.fMeta,color:kontUnlesbar?V.dm:mRest<=20?"#ef4444":_okG("#22c55e"),fontWeight:700,flexShrink:0}, title: kontUnlesbar?"Resturlaub nicht gemessen - Kontingente nicht gelesen":undefined}, kontUnlesbar?"–":(_absH(mRest,0)+"h"))
                   )
                   , React.createElement('div', { style: {display:"flex",flexDirection:"column"}}
@@ -25529,14 +25584,16 @@ function SvgBar({data,height=140,color="#f97316",fmt,maxH}){/* v3.9.366: kompakt
     ));})
   ));
 }
+/* v1055 (7): Platz fuer die Wertbeschriftung rechts vom Balken - Abstand 6 + Zeichenbreite (fett ~0,62 em) + 4 Rand. PURE. */
+function _hbarWertBreite(werte,fs){var n=0;(werte||[]).forEach(function(w){var l=String(w==null?"":w).length;if(l>n)n=l;});return Math.max(40,Math.ceil(6+n*(+fs||12)*0.62+4));}
 function SvgHBar({data,width=300,height=0,color="#f97316",fmt}){/* v3.9.412: fmt durchgereicht (€-Format bei Trend-Umschalten auf HBar) */
   // v3.5.153: d.l null-safe (vorher crash wenn Chart-Data einen Eintrag mit undefined label hatte)
-  if(!data||!data.length)return null;const mx=Math.max(...data.map(d=>d.v||0),1);const bh=18;const gap=3;/* v3.9.366: kompaktere Zeilen (22/4→18/3) */const h=(bh+gap)*data.length+10;/* v3.9.949 D8 - DIE DRITTE FORM DES BESCHNITTS. Hier wird der Text IN JAVASCRIPT gekappt, bevor er ins DOM kommt: es gibt kein overflow, kein ellipsis und keinen Kasten, an dem man messen koennte. Der Beschnitt-Melder meldete fuer die Auswertungen '0 wirklich gekuerzt' - korrekt nach seiner Vorschrift und trotzdem die falsche Antwort auf die Frage, ob Text verloren geht. Gerendert stand da 'Gerhard Steinb...', 'Johannes Hinte...', 'Bernadette Wie...' - drei von fuenf Monteursnamen sind so nicht mehr unterscheidbar, und bei gleichen Vornamen oder Doppelnamen ist das keine Theorie. 14 Zeichen ergaben eine Beschriftungsspalte von 14*8+10 = 122 px, obwohl die Schranke darunter 140 px erlaubt. 16 Zeichen sind 138 px und nutzen sie aus, ohne sie zu verschieben. Die Kartenhoehe aendert sich nicht (h haengt nur an data.length); die Balken werden um 16 px kuerzer. Der eigentliche Griff ist der <title> am <text> unten: im SVG ist das der Tooltip, und er traegt den VOLLEN Wert - fuer Namen, die auch in 16 Zeichen nicht passen. */const maxChars=16;const longestLabel=Math.max(...data.map(d=>Math.min((d.l||"").length,maxChars)));const lw=Math.max(80,Math.min(140,longestLabel*8+10));
+  if(!data||!data.length)return null;const mx=Math.max(...data.map(d=>d.v||0),1);const bh=18;const gap=3;/* v3.9.366: kompaktere Zeilen (22/4→18/3) */const h=(bh+gap)*data.length+10;/* v3.9.949 D8 - DIE DRITTE FORM DES BESCHNITTS. Hier wird der Text IN JAVASCRIPT gekappt, bevor er ins DOM kommt: es gibt kein overflow, kein ellipsis und keinen Kasten, an dem man messen koennte. Der Beschnitt-Melder meldete fuer die Auswertungen '0 wirklich gekuerzt' - korrekt nach seiner Vorschrift und trotzdem die falsche Antwort auf die Frage, ob Text verloren geht. Gerendert stand da 'Gerhard Steinb...', 'Johannes Hinte...', 'Bernadette Wie...' - drei von fuenf Monteursnamen sind so nicht mehr unterscheidbar, und bei gleichen Vornamen oder Doppelnamen ist das keine Theorie. 14 Zeichen ergaben eine Beschriftungsspalte von 14*8+10 = 122 px, obwohl die Schranke darunter 140 px erlaubt. 16 Zeichen sind 138 px und nutzen sie aus, ohne sie zu verschieben. Die Kartenhoehe aendert sich nicht (h haengt nur an data.length); die Balken werden um 16 px kuerzer. Der eigentliche Griff ist der <title> am <text> unten: im SVG ist das der Tooltip, und er traegt den VOLLEN Wert - fuer Namen, die auch in 16 Zeichen nicht passen. */const maxChars=16;const longestLabel=Math.max(...data.map(d=>Math.min((d.l||"").length,maxChars)));const lw=Math.max(80,Math.min(140,longestLabel*8+10));const _hbFmt=fmt||(v=>v);const _hbWerte=data.map(d=>String(_hbFmt(d.v)));const _hbWertB=_hbarWertBreite(_hbWerte,UI.fMeta);/* v1055 Tablet-Vollpruefung (7): rechts neben dem Balken waren fest 40 Einheiten fuer die Zahl reserviert - die viewBox schnitt € 5.410 zu € 5.41 und 243 848 zu 243 84 ab (las sich wie eine andere Zahl). Jetzt bekommt die Zahl so viel Platz, wie der laengste Wert braucht, und die Balken werden entsprechend kuerzer. */
   return (React.createElement('svg', { width: "100%", viewBox: `0 0 ${width} ${h}`, style: {display:"block"}}
-    , data.map((d,i)=>{const bW=Math.max(2,((d.v||0)/mx)*(width-lw-40));const y=i*(bh+gap)+5;const clr=d.c||color;const lbl=d.l||"";return (React.createElement('g', { key: i}
+    , data.map((d,i)=>{const bW=Math.max(2,((d.v||0)/mx)*Math.max(20,width-lw-_hbWertB));const y=i*(bh+gap)+5;const clr=d.c||color;const lbl=d.l||"";return (React.createElement('g', { key: i}
       , React.createElement('text', { x: lw-4, y: y+bh/2+4, textAnchor: "end", fill: V.dm, fontSize: UI.fMeta/* v3.9.971: auf den Hausboden UI.fMeta (12). Siehe DIAGRAMM_ACHSEN.md - in 17 der 18 Diagramm-Instanzen faellt dabei KEINE Marke weg. */, fontFamily: "system-ui"}, lbl.length>maxChars?React.createElement('title',null,lbl):null/* v3.9.949: der volle Wert im SVG-title, aber NUR wenn wirklich gekappt wird - ein title auf jedem Balken waere Laerm. Kostet kein Pixel. */, lbl.length>maxChars?lbl.slice(0,maxChars)+"…":lbl)
       , React.createElement('rect', { x: lw, y: y, width: bW, height: bh, rx: 3, fill: clr, opacity: .85}, React.createElement('animate', { attributeName: "width", from: "0", to: bW, dur: ".4s", fill: "freeze"}))
-      , React.createElement('text', { x: lw+bW+6, y: y+bh/2+4, fill: clr, fontSize: UI.fMeta/* v3.9.971: auf den Hausboden UI.fMeta (12). Siehe DIAGRAMM_ACHSEN.md - in 17 der 18 Diagramm-Instanzen faellt dabei KEINE Marke weg. */, fontWeight: 700}, (fmt||(v=>v))(d.v))
+      , React.createElement('text', { x: lw+bW+6, y: y+bh/2+4, fill: clr, fontSize: UI.fMeta/* v3.9.971: auf den Hausboden UI.fMeta (12). Siehe DIAGRAMM_ACHSEN.md - in 17 der 18 Diagramm-Instanzen faellt dabei KEINE Marke weg. */, fontWeight: 700}, _hbWerte[i])
     ));})
   ));
 }
@@ -26166,7 +26223,7 @@ function PhotoSyncStatus(){
         , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Fehler")
       )
       , React.createElement('div', { style: {textAlign:"center",padding:"8px 4px",borderRadius:8}}
-        , React.createElement('div', { style: {fontSize:16,fontWeight:800,color:V.tx,fontFamily:mono}}, totalSize>BYTES_MB?_n((totalSize/BYTES_MB),1)+"MB":_n((totalSize/BYTES_KB),0)+"KB")
+        , React.createElement('div', { style: {fontSize:16,fontWeight:800,color:V.tx,fontFamily:mono}}, totalSize>BYTES_MB?_n((totalSize/BYTES_MB),1).replace(".",",")+" MB":_n((totalSize/BYTES_KB),0)+" KB")/* v1055 Minor: 0KB -> 0 KB */
         , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Speicher")
       )
     )
@@ -26328,7 +26385,7 @@ function DateienSpeicherPanel(){
   const [letzter]=_react.useState.call(void 0, ()=>{try{return JSON.parse(localStorage.getItem("epk_dateiumzug_letzter")||"null");}catch(_e){return null;}});
   const lauf=async(go)=>{
     if(busy)return;
-    if(go&&!await _confirmModal("Dateien aus der Datenbank in den Speicher verschieben?\n\nJede Datei wird hochgeladen und geprueft; erst dann wird in ihrer Zeile die Datei durch den Speicher-Verweis ersetzt. Abbrechen und Wiederholen ist gefahrlos.",{title:"Dateien verschieben",confirmLabel:"Verschieben"}))return;
+    if(go&&!await _confirmModal("Dateien aus der Datenbank in den Speicher verschieben?\n\nJede Datei wird hochgeladen und geprüft; erst dann wird in ihrer Zeile die Datei durch den Speicher-Verweis ersetzt. Abbrechen und Wiederholen ist gefahrlos.",{title:"Dateien verschieben",confirmLabel:"Verschieben"}))return;
     setBusy(true);setLog([]);setErg(null);
     try{const r=await _dateienMigration({go:go,onLog:z=>setLog(l=>[...l.slice(-199),z])});setErg(r);}catch(e){setErg({modus:go?"Verschieben":"Probelauf",dateien:0,bytes:0,zeilen:0,fehler:[String(e&&e.message||e)],tabellen:{}});}
     setBusy(false);
@@ -26339,8 +26396,8 @@ function DateienSpeicherPanel(){
     , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10,lineHeight:1.5}}, "Fotos und PDFs, die noch direkt in Datenbank-Zeilen stehen (z. B. Zulassungsscheine, Tankbelege), werden in den Datei-Speicher verschoben. Die Zeile behaelt nur den Verweis. Zuerst den Probelauf starten - er zaehlt nur und aendert nichts. Arbeitsscheine sind ausgenommen.")
     , letzter&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:10}}, "Letzter Lauf: "+fdt(String(letzter.am||"").slice(0,10))+" - "+letzter.modus+", "+_nWort(letzter.dateien,"Datei","Dateien")+(letzter.modus==="Verschieben"?(", verschoben "+(letzter.verschoben||0)):"")+", Fehler "+((letzter.fehler||[]).length))
     , React.createElement('div', { style: {display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}
-      , React.createElement('button', { onClick: ()=>lauf(false), disabled: busy, style: {...beS,fontSize:UI.fMeta,padding:"8px 14px",minHeight:44,opacity:busy?.6:1}}, busy?"Laeuft …":_ikVw("suche","Probelauf (nichts aendern)"))
-      , React.createElement('button', { onClick: ()=>lauf(true), disabled: busy||!erg||erg.modus!=="Probelauf"||!erg.dateien, title: "Erst nach einem Probelauf mit Funden moeglich", style: {...bpS,fontSize:UI.fMeta,padding:"8px 14px",minHeight:44,opacity:(busy||!erg||erg.modus!=="Probelauf"||!erg.dateien)?.5:1}}, _ikVw("senden","Jetzt verschieben"))
+      , React.createElement('button', { onClick: ()=>lauf(false), disabled: busy, style: {...beS,fontSize:UI.fMeta,padding:"8px 14px",minHeight:44,opacity:busy?.6:1}}, busy?"Läuft …":_ikVw("suche","Probelauf (nichts ändern)"))
+      , React.createElement('button', { onClick: ()=>lauf(true), disabled: busy||!erg||erg.modus!=="Probelauf"||!erg.dateien, title: "Erst nach einem Probelauf mit Funden möglich", style: {...bpS,fontSize:UI.fMeta,padding:"8px 14px",minHeight:44,opacity:(busy||!erg||erg.modus!=="Probelauf"||!erg.dateien)?.5:1}}, _ikVw("senden","Jetzt verschieben"))
     )
     , erg&&React.createElement('div', { style: {fontSize:UI.fMeta,marginBottom:8,padding:10,borderRadius:6,border:"1px solid "+V.bd,background:V.bg}}
       , React.createElement('div', { style: {fontWeight:700,marginBottom:4}}, erg.modus+": "+_nWort(erg.dateien,"Datei","Dateien")+" in "+_nWort(erg.zeilen,"Feld","Feldern")+", "+kb(erg.bytes)+(erg.modus==="Verschieben"?(" - verschoben "+(erg.verschoben||0)+", Zeilen umgestellt "+(erg.gepatcht||0)):""))
@@ -26584,17 +26641,21 @@ function ASKommentarePanel({asId,curUser,monteure,users}){
 // ═══════════════════════════════════════════════════════════════════
 // v3.5.74 — Block 5: Worker-Kompetenzen-Panel
 // ═══════════════════════════════════════════════════════════════════
+/* v1055 Tablet-Vollpruefung (11): icon ist ein IKON-Name (Linien-Ikone), kein Emoji mehr. */
+Object.assign(IKON,{/* v1055 Lucide ISC: star */stern:["M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"]});
+function _kompStern(an){return React.createElement('svg',{width:16,height:16,viewBox:"0 0 24 24",fill:an?"#eab308":"none",stroke:an?"#a16207":"currentColor",strokeWidth:1.8,strokeLinejoin:"round",'aria-hidden':"true",focusable:"false",style:{display:"block"}},React.createElement('path',{d:IKON.stern[0]}));}
+function _monatAnz(ym){var p=String(ym||'').split('-');var mi=parseInt(p[1],10)-1;return (p.length>=2&&mi>=0&&mi<12)?(MO_DE[mi]+' '+p[0]):String(ym||'');}/* v1055: 2026-11 -> November 2026 */
 const KOMPETENZEN_DEFS=[
-  {key:'elektro',label:'Elektroinstallation',icon:'⚡'},
-  {key:'sanitaer',label:'Sanitär',icon:'🚿'},
-  {key:'heizung',label:'Heizungsanlagen',icon:'🔥'},
-  {key:'gas',label:'Gasanlagen',icon:'🔵'},
-  {key:'klima',label:'Klima/Lüftung',icon:'❄️'},
-  {key:'solar',label:'Solar/PV',icon:'☀️'},
-  {key:'schwachstrom',label:'Schwachstrom/EDV',icon:'📡'},
-  {key:'wasserleitung',label:'Wasserleitung',icon:'💧'},
-  {key:'erdgas',label:'Erdgas-Konzession',icon:'🏭'},
-  {key:'knx',label:'KNX-Programmierung',icon:'🧠'},
+  {key:'elektro',label:'Elektroinstallation',icon:'blitz'},
+  {key:'sanitaer',label:'Sanitär',icon:'tropfen'},
+  {key:'heizung',label:'Heizungsanlagen',icon:'flamme'},
+  {key:'gas',label:'Gasanlagen',icon:'kolben'},
+  {key:'klima',label:'Klima/Lüftung',icon:'wind'},
+  {key:'solar',label:'Solar/PV',icon:'sonne'},
+  {key:'schwachstrom',label:'Schwachstrom/EDV',icon:'monitor'},
+  {key:'wasserleitung',label:'Wasserleitung',icon:'verbindung'},
+  {key:'erdgas',label:'Erdgas-Konzession',icon:'schild'},
+  {key:'knx',label:'KNX-Programmierung',icon:'regler'},
 ];
 /* ═══ v3.9.693 Teil F — WorkerNfcPanel: NFC-Chip in der Mitarbeiter-Verwaltung ═══
    Architektur (Sebastian 14.07.): Es gibt EINEN Terminal-Login fuers Wandpanel. Die Mitarbeiter bekommen
@@ -26654,7 +26715,7 @@ function WorkerNfcPanel({workerId,workerName,curUser,editable}){
   const btnS={padding:'10px 16px',borderRadius:8,border:'1px solid '+V.bd,background:V.cd,color:V.tx,fontWeight:700,fontSize:14,cursor:'pointer',minHeight:44};
 
   return h('div',{style:{...CC(),marginTop:14}}
-    ,h('div',{style:{fontSize:15,fontWeight:700,marginBottom:8}},'📡 NFC-Chip')
+    ,h('div',{style:{fontSize:15,fontWeight:700,marginBottom:8}},_ikVw("verbindung","NFC-Chip"))
     ,h('div',{style:{fontSize:13,color:V.tx2,marginBottom:10}}
       ,uid?h('span',null,'Zugeordnet: ',h('code',{style:{fontFamily:mono,fontWeight:700,color:V.tx}},uid)):'kein Chip zugeordnet')
     ,!editable?null:h('div',{style:{display:'flex',flexDirection:'column',gap:8}}
@@ -26668,8 +26729,8 @@ function WorkerNfcPanel({workerId,workerName,curUser,editable}){
         placeholder:'Chip-UID', style:inpS, disabled:busy})
       ,h('div',{style:{fontSize:12,color:V.tx2}},'Feld anklicken, Chip an Lesegerät halten — die UID erscheint automatisch. Oder von Hand eintippen.')
       ,h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}}
-        ,h('button',{onClick:_speichern,disabled:busy,style:{...btnS,background:V.ac,color:'#fff',border:'none',opacity:busy?0.6:1}},busy?'…':'💾 Chip zuordnen')
-        ,uid?h('button',{onClick:_entfernen,disabled:busy,style:{...btnS,color:COLORS.ERROR}},'🗑️ Chip entfernen'):null)
+        ,h('button',{onClick:_speichern,disabled:busy,style:{...btnS,background:V.ac,color:'#fff',border:'none',opacity:busy?0.6:1}},busy?'…':_ikVw("speichern","Chip zuordnen"))
+        ,uid?h('button',{onClick:_entfernen,disabled:busy,style:{...btnS,color:COLORS.ERROR}},_ikVw("eimer","Chip entfernen")):null)
       ,msg?h('div',{style:{fontSize:13,fontWeight:700,color:err?COLORS.ERROR:COLORS.SUCCESS}},msg):null));
 }
 
@@ -26697,19 +26758,19 @@ function WorkerKompetenzenPanel({workerId,curUser,editable}){
   };
   if(loading)return _Skeleton(3); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
   return React.createElement('div',{style:{padding:12}}
-    ,React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:10}},'🎓 Kompetenzen & Qualifikationen')
+    ,React.createElement('div',{style:{fontWeight:700,fontSize:14,marginBottom:10}},_ikVw("werkzeug","Kompetenzen & Qualifikationen"))
     ,React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}
       ,KOMPETENZEN_DEFS.map(({key,label,icon})=>{
         const ex=komps.find(k=>k.kompetenz===key);
         const has=!!ex;
         return React.createElement('div',{key,onClick:editable?()=>toggle(key):null,role:"checkbox","aria-checked":has,"aria-label":label,tabIndex:editable?0:-1,onKeyDown:editable?(e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(key);}}):undefined,/* v3.9.225 A11y: Kompetenz-Kachel per Tastatur/Screenreader bedienbar */style:{background:has?V.ac+'18':V.cd,border:'2px solid '+(has?V.ac:V.bd),borderRadius:8,padding:10,cursor:editable?'pointer':'default',transition:'all .2s'}}
           ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}
-            ,React.createElement('span',{style:{fontSize:20}},icon)
+            ,React.createElement('span',{'aria-hidden':"true",style:{display:'inline-flex',color:has?V.acTx:V.dm}},_ik(icon,22))
             ,has&&React.createElement('span',{style:{color:V.acTx,fontWeight:700,fontSize:14}},'✓')
           )
           ,React.createElement('div',{style:{fontSize:12,fontWeight:600}},label)
           ,has&&React.createElement('div',{style:{display:'flex',gap:1,marginTop:4}}
-            ,[1,2,3].map(lvl=>React.createElement('span',{key:lvl,role: editable?"button":undefined, tabIndex: editable?0:undefined, "aria-label": editable?(lvl+" von 3"):undefined, title: editable?(lvl+" von 3"):undefined, onKeyDown: e=>{if(editable&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();setLevel(key,lvl);}}, onClick:editable?e=>{e.stopPropagation();setLevel(key,lvl);}:null,style:{fontSize:12,cursor:editable?'pointer':'default',opacity:ex.level>=lvl?1:.3}},'⭐'))
+            ,[1,2,3].map(lvl=>React.createElement('span',{key:lvl,role: editable?"button":undefined, tabIndex: editable?0:undefined, "aria-label": editable?(lvl+" von 3"):undefined, title: editable?(lvl+" von 3"):undefined, onKeyDown: e=>{if(editable&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();setLevel(key,lvl);}}, onClick:editable?e=>{e.stopPropagation();setLevel(key,lvl);}:null,style:{fontSize:12,cursor:editable?'pointer':'default',display:'inline-flex',padding:2,color:V.dm}},_kompStern(ex.level>=lvl)))
           )
         );
       })
@@ -27394,12 +27455,12 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
   const totalKraftstoff=entries.reduce((s,e)=>s+((e.kraftstoff_liter||0)*(e.kraftstoff_preis_liter||0)),0);
   return React.createElement('div',{style:{padding:12}}
     ,React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:8}}
-      ,React.createElement('div',{style:{fontWeight:700,fontSize:14}},'🚐 Fahrtenbuch')
+      ,React.createElement('div',{style:{fontWeight:700,fontSize:14}},_ikVw("transporter","Fahrtenbuch"))
       ,React.createElement('div',{style:{display:'flex',gap:6,alignItems:'center'}}
-        ,React.createElement('input',{type:'month',value:month,onChange:e=>setMonth(e.target.value),style:{...II(),width:window.innerWidth<BP_MOB?"100%":140,fontSize:12,padding:window.innerWidth<BP_MOB?'10px 10px':'4px 8px'}})
+        ,React.createElement('input',{type:'month',value:month,onChange:e=>setMonth(e.target.value),style:{...II(),width:window.innerWidth<BP_MOB?"100%":176,fontSize:12,padding:window.innerWidth<BP_MOB?'10px 10px':'4px 8px'}})/* v1055 Minor: 140 schnitt November 202... ab */
         ,editable&&React.createElement('button',{title:showForm?"Abbrechen":"Fahrt hinzufügen",'aria-label':showForm?"Abbrechen":"Fahrt hinzufügen"/* v3.9.962 Ein UMSCHALTER: geschlossen steht "+ Fahrt" da, offen nur das Kreuz. Der Name haengt deshalb an derselben Bedingung wie der Inhalt - ein fester saegte im geschlossenen Zustand das Falsche. Der siebte Umschalter dieser Art; die ersten sechs kamen in v3.9.957. */,onClick:()=>setShowForm(!showForm),style:showForm?bdS:bpS},showForm?'✕':'+ Fahrt')
-        ,entries.length>0&&React.createElement('button',{onClick:exportCsv,style:{...xBtn("xls"),fontSize:UI.fMeta,padding:'4px 10px'}},'📥 XLS')
-        ,entries.length>0&&React.createElement('button',{onClick:()=>window.print(),style:{...xBtn("pdf"),fontSize:UI.fMeta,padding:'4px 10px'},title:"Drucken / als PDF speichern"},'🖨️ PDF')/* v3.9.319 */
+        ,entries.length>0&&React.createElement('button',{onClick:exportCsv,style:{...xBtn("xls"),fontSize:UI.fMeta,padding:'4px 10px'}},_ikVw("download","XLS"))
+        ,entries.length>0&&React.createElement('button',{onClick:()=>window.print(),style:{...xBtn("pdf"),fontSize:UI.fMeta,padding:'4px 10px'},title:"Drucken / als PDF speichern"},_ikVw("drucker","PDF"))/* v3.9.319 */
       )
     )
     ,showForm&&React.createElement('div',{style:{...CC(),marginBottom:10}}
@@ -27413,11 +27474,11 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'Liter (opt.)'),React.createElement('input',{type:'number',step:0.1,value:form.kraftstoff_liter,onChange:e=>setForm(p=>({...p,kraftstoff_liter:e.target.value})),style:II()}))
         ,React.createElement('div',{},React.createElement('label',{style:LL()},'€/L (opt.)'),React.createElement('input',{type:'number',step:0.001,value:form.kraftstoff_preis_liter,onChange:e=>setForm(p=>({...p,kraftstoff_preis_liter:e.target.value})),style:II()}))
       )
-      ,React.createElement('button',{onClick:save,disabled:saving,style:{...bpS,opacity:saving?.6:1}},saving?'⏳ …':'💾 Speichern')
+      ,React.createElement('button',{onClick:save,disabled:saving,style:{...bpS,opacity:saving?.6:1}},saving?'⏳ …':_ikVw("speichern","Speichern"))
     )
     ,loading?React.createElement('div',{role:'status','aria-live':'polite','aria-busy':'true',style:{color:V.dm,fontSize:12,padding:12}},'Lade…'):
       entries.length===0
-        ?React.createElement('div',{style:{textAlign:'center',padding:20,color:V.dm,fontSize:12}},'Keine Fahrten in '+month)
+        ?React.createElement('div',{style:{textAlign:'center',padding:20,color:V.dm,fontSize:12}},'Keine Fahrten im '+_monatAnz(month))/* v1055 Minor: vorher roh 2026-11 */
         :React.createElement('div',{}
           ,React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:6}},'Σ '+entries.length+' Fahrten · '+totalKm+' km'+(totalKraftstoff>0?' · €'+totalKraftstoff.toFixed(2):''))
           ,React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:4}}
@@ -27430,7 +27491,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
                 ,React.createElement('span',{style:{minWidth:100,fontWeight:600}},fz?fz.kennzeichen:e.fahrzeug_id)
                 ,React.createElement('span',{style:{flex:1,color:V.dm}},e.zweck+(pj?' · '+pj.name:''))
                 ,React.createElement('span',{style:{fontFamily:mono,fontWeight:700,color:V.acTx}},km+' km')
-                ,editable&&React.createElement('button',{ title: "Fahrt löschen", 'aria-label': "Fahrt löschen",onClick:()=>del(e.id),style:{background:'none',border:'none',color:V.dm,cursor:'pointer',fontSize:14}},'🗑')
+                ,editable&&React.createElement('button',{ title: "Fahrt löschen", 'aria-label': "Fahrt löschen",onClick:()=>del(e.id),style:{background:'none',border:'none',color:V.dm,cursor:'pointer',minWidth:44,minHeight:44,display:'inline-flex',alignItems:'center',justifyContent:'center'}},_ik("eimer",18))
               );
             })
           )
@@ -29413,7 +29474,35 @@ function _fzDemoDaten(nowMs){/* -> {fahrzeuge,positions,tracks,orte} - rein im S
   tr.reverse();/* wie _flotteFetchTrack: neueste zuerst */
   return {fahrzeuge:fz,positions:pos,tracks:{'demo-1':tr},orte:{'demo-1':'Demo-Straße 1 (Demo-Adresse)','demo-2':'Demo-Baustelle (Demo-Adresse)'}};
 }
-if(typeof window!=='undefined'){window._fzKartenZustand=_fzKartenZustand;window._fzSpeedAnzeige=_fzSpeedAnzeige;window._fzHeading=_fzHeading;window._fzRichtung=_fzRichtung;window._fzRichtungText=_fzRichtungText;window._fzVanDreh=_fzVanDreh;window._fzImeiTail=_fzImeiTail;window._fzKmDe=_fzKmDe;window._fzLetztesSignal=_fzLetztesSignal;window._fzHeuteAusTrack=_fzHeuteAusTrack;window._fzVanSvg=_fzVanSvg;window._fzVanMarkerHtml=_fzVanMarkerHtml;window._fzDemoErlaubt=_fzDemoErlaubt;window._fzDemoDaten=_fzDemoDaten;window.FZ_KARTE_FARBE=FZ_KARTE_FARBE;}
+/* v1055 Tablet-Vollpruefung (1, HOCH): die Info-Karte (Leaflet-Popup, ~380 px) war hoeher als die Karte - quer am
+   Tablet ist die Karte nur ~270 px hoch, oben fehlten Kennzeichen, Signal, Standort und Zuendung, darueber lag das
+   GPS-Badge. Drei Regeln: (a) ist die Karte niedriger als FZ_POPUP_MIN_KARTE_H, kommt die Info-Karte als Blatt von
+   unten (wie am Handy); (b) sonst hat das Popup eine Hoechsthoehe relativ zur Karte und scrollt innen; (c) beim
+   Oeffnen wird die Karte so verschoben, dass das Popup ganz hineinpasst. */
+var FZ_POPUP_MIN_KARTE_H=420;
+function _fzInfoModus(isMob,posOk,kartenH){/* -> sheet|popup|overlay; kartenH 0/unbekannt = keine Aussage */
+  if(isMob)return 'sheet';
+  var hh=Number(kartenH);
+  if(isFinite(hh)&&hh>0&&hh<FZ_POPUP_MIN_KARTE_H)return 'sheet';
+  return posOk?'popup':'overlay';
+}
+function _fzPopupMaxH(kartenH){/* -> px fuer Leaflet maxHeight: Karte minus Marker, Versatz und Rand */
+  var hh=Number(kartenH);
+  if(!isFinite(hh)||hh<=0)return 360;
+  return Math.max(160,Math.round(hh-96));
+}
+function _fzPopupPan(mx,my,popW,popH,kartenW,kartenH){/* -> {dx,dy}: um so viele px muss der MARKER wandern (dx>0 nach rechts, dy>0 nach unten), damit das Popup darueber ganz in der Karte liegt */
+  var x=Number(mx),y=Number(my),pw=Number(popW),ph=Number(popH),w=Number(kartenW),hh=Number(kartenH);
+  var r={dx:0,dy:0};
+  if(!isFinite(x)||!isFinite(y)||!isFinite(pw)||!isFinite(ph)||!isFinite(w)||!isFinite(hh)||w<=0||hh<=0)return r;
+  var noetig=ph+18+10;/* Popup samt Spitze + Versatz (offset 18) + Rand oben */
+  var zielY=Math.min(Math.max(noetig,y),hh-40);/* den Marker nie unter den unteren Rand schieben */
+  if(zielY>y)r.dy=Math.round(zielY-y);
+  var halb=pw/2+10;
+  if(pw>0&&w>2*halb){if(x<halb)r.dx=Math.round(halb-x);else if(x>w-halb)r.dx=Math.round((w-halb)-x);}
+  return r;
+}
+if(typeof window!=='undefined'){window._fzKartenZustand=_fzKartenZustand;window._fzSpeedAnzeige=_fzSpeedAnzeige;window._fzHeading=_fzHeading;window._fzRichtung=_fzRichtung;window._fzRichtungText=_fzRichtungText;window._fzVanDreh=_fzVanDreh;window._fzImeiTail=_fzImeiTail;window._fzKmDe=_fzKmDe;window._fzLetztesSignal=_fzLetztesSignal;window._fzHeuteAusTrack=_fzHeuteAusTrack;window._fzVanSvg=_fzVanSvg;window._fzVanMarkerHtml=_fzVanMarkerHtml;window._fzDemoErlaubt=_fzDemoErlaubt;window._fzDemoDaten=_fzDemoDaten;window.FZ_KARTE_FARBE=FZ_KARTE_FARBE;window._fzInfoModus=_fzInfoModus;window._fzPopupMaxH=_fzPopupMaxH;window._fzPopupPan=_fzPopupPan;}
 //@FLOTTE-KARTE-END
 
 //@WETTER-START
@@ -30291,6 +30380,7 @@ function FlotteView(props){
   const _fitDone=_react.useRef.call(void 0, false);const _buchRef=_react.useRef.call(void 0, null);
   const _geoLetzt=_react.useRef.call(void 0, {fid:null,ms:0});
   const [_popEl]=_react.useState.call(void 0, function(){try{return document.createElement('div');}catch(_e){return null;}});
+  const _popPanRef=_react.useRef.call(void 0, '');/* v1055 (1): Auswahl, fuer die schon verschoben wurde */
   /* v3.9.702: Fahrtenbuch vergroesserbar (Sebastian). (1) Drag-Splitter zwischen oberem Bereich und
      Fahrtenbuch, Hoehe pro Geraet in localStorage. (2) Maximieren-Toggle, Panel fuellt den ganzen Tab.
      topH=0 -> Default 52%; >0 -> feste Pixelhoehe des oberen Bereichs. Kein optional chaining. */
@@ -30533,7 +30623,8 @@ function FlotteView(props){
   const _selRow=selFid?(fleet.find(function(r){return r.f.id===selFid&&r.hatTracker;})||null):null;
   const _selP=_selRow?_selRow.p:null;
   const _selPosOk=_posOk(_selP);
-  const _infoModus=!_selRow?'':(isMob?'sheet':(_selPosOk?'popup':'overlay'));
+  const _kartenH=(_mapEl.current&&_mapEl.current.clientHeight)||0;/* v1055 (1): niedrige Karte -> Blatt statt Popup */
+  const _infoModus=!_selRow?'':_fzInfoModus(isMob,_selPosOk,_kartenH);
   const _selLat=_selPosOk?Number(_selP.lat):null;
   const _selLon=_selPosOk?Number(_selP.lon):null;
   const _selKey=_selPosOk?_geoKey(_selP.lat,_selP.lon):'';
@@ -30555,7 +30646,13 @@ function FlotteView(props){
       _popRef.current.on('remove',function(){if(!_popZu.current)setSelFid(null);});
     }
     try{map.getContainer().style.setProperty('--fz-pop-bg',V.cd);}catch(_e){}
-    try{_popRef.current.setLatLng([_selLat,_selLon]);if(!map.hasLayer(_popRef.current))_popRef.current.openOn(map);}catch(_e){}
+    try{_popRef.current.options.maxHeight=_fzPopupMaxH(map.getSize().y);}catch(_e){}/* v1055 (1): innen scrollen statt oben abschneiden */
+    try{_popRef.current.setLatLng([_selLat,_selLon]);if(!map.hasLayer(_popRef.current))_popRef.current.openOn(map);else _popRef.current.update();}catch(_e){}
+    /* v1055 (1): EINMAL je Auswahl/Antippen so verschieben, dass die Info-Karte ganz sichtbar ist. Nicht bei jedem Poll - sonst
+       wuerde die Karte dem Nutzer unter dem Finger weglaufen (autoPan bleibt darum aus). */
+    var _panKey=String(selFid)+'|'+popAnstoss;
+    if(_popPanRef.current!==_panKey){_popPanRef.current=_panKey;
+      setTimeout(function(){try{var pe=_popRef.current&&_popRef.current.getElement();if(!pe||!map.hasLayer(_popRef.current))return;var pt=map.latLngToContainerPoint([_selLat,_selLon]);var sz=map.getSize();var d=_fzPopupPan(pt.x,pt.y,pe.offsetWidth,pe.offsetHeight,sz.x,sz.y);if(d.dx||d.dy)map.panBy([-d.dx,-d.dy]);}catch(_e){}},60);}
   },[selFid,_selLat,_selLon,_infoModus,popAnstoss]);
   _react.useEffect.call(void 0, function(){if(_popRef.current&&_map.current&&_map.current.hasLayer(_popRef.current)){try{_popRef.current.update();}catch(_e){}}});
   _react.useEffect.call(void 0, function(){if(!selFid)return;var onKey=function(e){if(e.key==='Escape')setSelFid(null);};window.addEventListener('keydown',onKey);return function(){window.removeEventListener('keydown',onKey);};},[selFid]);
@@ -30732,7 +30829,7 @@ function FlotteView(props){
   const _panelKarte=h('div',{'data-fz-karte':'1',style:{position:'relative',zIndex:0,isolation:'isolate',height:'100%',minHeight:0,borderRadius:10,overflow:'hidden',border:'1px solid '+V.bd}}/* A55 v1049 (HOCH): eigener Stapelkontext - Leaflets Panes (z 400-1000) blieben sonst mit dem Mehr-Sheet, Modalen und Toasts der App im selben Kontext und lagen am Handy UEBER dem Mehr-Menue. Jetzt kann keine Karten-Ebene mehr aus dem Panel heraus. */
     ,h('div',{ref:_mapEl,'data-no-swipe':"1",style:{position:'absolute',inset:0,background:'#e5e7eb'}})/* v3.9.864: data-no-swipe wie im Plan-Viewer :17003. Auf einer Karte schiebt man die Karte, ein Tab-Wechsel ist dort nicht das erwartete Verhalten. Und handfest: solange select in der Skip-Liste stand, verschluckte die Skip-Liste die Wische, die hier begannen. Ohne sie riss der Wisch die Leaflet-Karte aus ihrem EIGENEN Touch-Handler heraus ab -> TypeError classList of undefined -> ganze App auf der Fehlerseite. Gemessen: v862 sauber, v863/864 ohne diesen Riegel reproduzierbar Absturz, gleiche Sequenz, frischer Origin. */
     ,(typeof L==='undefined')?h('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b7280',fontSize:14}},'Karten-Bibliothek nicht geladen'):null
-    ,(st.loaded&&!showEmpty&&fahrzeuge.length)?h('div',{'aria-live':'polite',title:trackerFz.length+' mit Tracker',style:{position:'absolute',left:'50%',top:10,transform:'translateX(-50%)',zIndex:500,background:'rgba(15,23,42,.88)',color:'#fff',padding:'5px 10px',borderRadius:8,fontWeight:600,maxWidth:'calc(100% - 128px)',textAlign:'center',pointerEvents:'none'}},''+_nGps+' von '+fahrzeuge.length+' mit GPS-Ortung'):null/* v3.9.1004 (FL1) */
+    ,(st.loaded&&!showEmpty&&fahrzeuge.length&&!_infoModus)?h('div',{'aria-live':'polite',title:trackerFz.length+' mit Tracker',style:{position:'absolute',left:'50%',top:10,transform:'translateX(-50%)',zIndex:500,background:'rgba(15,23,42,.88)',color:'#fff',padding:'5px 10px',borderRadius:8,fontWeight:600,maxWidth:'calc(100% - 128px)',textAlign:'center',pointerEvents:'none'}},''+_nGps+' von '+fahrzeuge.length+' mit GPS-Ortung'):null/* v3.9.1004 (FL1) */
     ,(st.loaded&&!st.missing&&trackerFz.length===0)?h('div',{role:'status','data-fz-leer':'1',style:{position:'absolute',inset:0,zIndex:900,display:'flex',alignItems:'center',justifyContent:'center',padding:'10px 58px 24px',boxSizing:'border-box',background:'rgba(15,23,42,.45)'}}/* Scan 1051 (v1053): zIndex 1100 -> 900 und Seitenabstand. Die Leaflet-Controls (Zoom links oben, Ebenen rechts oben, Zuschreibung unten rechts) sitzen auf z 1000 im selben Stapelkontext (_panelKarte isolate) - mit 1100 lag die Hinweiskarte samt Abdunklung DARUEBER, Zoom/Ebenen waren nicht mehr bedienbar. Jetzt liegen die Controls oben auf, die Karte haelt seitlich 58 px Abstand (Zoom 10+34, Ebenen 10+44) und unten 24 px (Zuschreibung). Marker/Popups (600/700) bleiben darunter. */
       ,h('div',{style:{maxWidth:380,width:'100%',maxHeight:'100%',overflowY:'auto',boxSizing:'border-box',background:V.cd,color:V.tx,border:'1px solid '+V.bd,borderRadius:12,padding:'16px 18px',textAlign:'center',boxShadow:'0 4px 16px rgba(0,0,0,.25)'}}
         ,h('div',{style:{display:'flex',justifyContent:'center',marginBottom:6,color:V.dm}},_ik('standort',28))
@@ -30837,6 +30934,24 @@ function _fzPickerlStufe(datum,nowMs){/* -> {stufe,tage,tolBis} oder null. Diese
   var tb=new Date(t.y,(t.m-1)+5,0);
   var tbIso=_fzTagKey(tb.getTime());
   return {stufe:(_fzTageBis(tbIso,nowMs)>=0)?'toleranz':'ueberfaellig',tage:tage,tolBis:tbIso};
+}
+/* v1055 Tablet-Vollpruefung (5): Home Termine und Fristen sagte Pickerl TU-516CP Abgelaufen seit 10.11.2026, Fahrzeugkarte und
+   Fristenliste Toleranzfrist bis 31.03.2027. Home rechnete selbst (Datum kleiner heute = abgelaufen) und kannte die
+   Paragraph-57a-Toleranz nicht. Jetzt dieselbe Stufe wie Fahrzeuge/Fristen (_fzPickerlStufe). Fenster wie bisher (Pickerl in den
+   naechsten 90 Tagen); eine laufende Toleranzfrist bleibt immer sichtbar, eine abgelaufene noch 60 Tage nach ihrem Ende.
+   -> {sub,badge,urgent,farbe} (farbe: rot|orange|gruen) oder null */
+function _homePickerlEintrag(datum,nowMs,inTagen){
+  var s=_fzPickerlStufe(datum,nowMs);
+  if(!s)return null;
+  var tg=s.tage;
+  var tol=(s.stufe==='toleranz');
+  var ueb=(s.stufe==='ueberfaellig');
+  if(ueb){if(!(_fzTageBis(s.tolBis,nowMs)>-60))return null;}/* abgelaufen samt Toleranz: noch 60 Tage nach deren Ende sichtbar */
+  else if(!tol&&!(tg>-60&&tg<90))return null;
+  var anz=function(iso){var t=_fzDatumTeile(iso);return t?(t.d+'.'+t.m+'.'+t.y):String(iso||'');};
+  if(tol)return {sub:'Toleranzfrist bis '+anz(s.tolBis)+' (fällig war '+anz(datum)+')',badge:'Toleranzfrist',urgent:true,farbe:'orange'};
+  if(ueb)return {sub:'abgelaufen, Toleranzfrist endete '+anz(s.tolBis),badge:'Abgelaufen',urgent:true,farbe:'rot'};
+  return {sub:'gültig bis '+anz(datum),badge:(typeof inTagen==='function')?inTagen(tg):(tg+' Tage'),urgent:tg<14,farbe:tg<30?'orange':'gruen'};
 }
 var FZ_FRIST_RANG={ueberfaellig:0,toleranz:1,bald:2,ok:3,fehlt:4,ungueltig:4};
 var FZ_FRIST_ART={pickerl:'Pickerl §57a',service:'Service',vignette:'Vignette',termin:'Termin',leasing:'Leasing-Ende',versicherung:'Versicherung',service_km:'Service (km)'};
@@ -30974,6 +31089,9 @@ function _fzTankStats(f,nowMs){/* Tankbuch eines Fahrzeugs -> Kennzahlen. Unguel
   return r;
 }
 function _fzServiceStats(f){/* Serviceheft -> {anzahl,euro,letzte,letzteKm} */
+  /* v1055 Tablet-Vollpruefung (6): X5 zeigte Letztes Service 10.11.2026 - das war ein Reifenwechsel, waehrend daneben
+     Service ueberfaellig seit 15.04.2026 stand. letzte/letzteKm (Kachel UND Basis des km-Intervalls) zaehlen jetzt nur
+     Eintraege der Art Service/Inspektion; ohne Art gilt Service (Vorgabe des Formulars). anzahl und euro bleiben alle Eintraege. */
   var sh=(f&&Array.isArray(f.serviceheft))?f.serviceheft:[];
   var r={anzahl:0,euro:0,letzte:'',letzteKm:NaN};var i;
   for(i=0;i<sh.length;i++){
@@ -30982,6 +31100,8 @@ function _fzServiceStats(f){/* Serviceheft -> {anzahl,euro,letzte,letzteKm} */
     r.anzahl++;
     var k=_fzZahl(s.kosten);
     if(k>0)r.euro+=k;
+    var art=String(s.art===undefined||s.art===null?'':s.art).trim().toLowerCase();
+    if(art!==''&&art!=='service'&&art!=='inspektion')continue;
     var dt=_fzDatumTeile(s.datum);
     if(dt&&dt.iso>r.letzte){r.letzte=dt.iso;var km=_fzZahl(s.km);r.letzteKm=(km>0)?km:NaN;}
   }
@@ -32943,7 +33063,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                 , React.createElement('div', { style: {flex:1}}
                   , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                     , React.createElement('span', { style: {fontSize:13,fontWeight:700,textDecoration:t.erledigt?"line-through":"none",color:V.tx}}, t.typ)
-                    , t.erledigt&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 6px",borderRadius:4,background:"#dcfce7",color:_okG("#16a34a"),fontWeight:600}}, "Erledigt")
+                    , _fzTerminErledigt(t)&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 6px",borderRadius:4,background:"#dcfce7",color:_okG("#16a34a"),fontWeight:600}}, "Erledigt")
                     , !t.erledigt&&urgent&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 6px",borderRadius:4,background:"#fee2e2",color:"#b91c1c",fontWeight:600}}, "ÜBERFÄLLIG")
                     , !t.erledigt&&soon&&React.createElement('span', { style: {fontSize:UI.fMeta,padding:"1px 6px",borderRadius:4,background:"#fef3c7",color:"#92400e",fontWeight:600}}, "Bald fällig")
                   )
@@ -33071,12 +33191,12 @@ function MAAttesteSection({workerId,workerName,curUser,isMob}){
   const _open=async(it)=>{try{let u="";if(it&&it.storage_path)u=await _sbSignedDocUrl(it.storage_path,120);if(!u)u=(it&&(it.file_url||it.fileUrl))||"";if(!u){window.__toast&&window.__toast("⚠️ Attest nicht verfügbar","warn");return;}_openFileUrl(u,(it&&it.file_name)||"Attest");}catch(_e){window.__toast&&window.__toast("⚠️ Attest konnte nicht geöffnet werden","error");}};
   const _del=async(it)=>{if(!_office||!it||!it.id)return;if(!await _confirmModal("Attest \""+((it&&it.file_name)||"")+"\" wirklich löschen?",{variant:"danger"}))return;if(it.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,it.storage_path);SQ.push({url:"/api/absence-files/"+it.id,method:"DELETE"});setItems(p=>p.filter(x=>x.id!==it.id));if(window.__toast)window.__toast("🗑️ Attest gelöscht");};
   return React.createElement('div',{style:{...CC(),marginTop:14}},
-    React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:10}},"📋 Atteste / Krankmeldungen"),
+    React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:10}},_ikVw("fieber","Atteste / Krankmeldungen")),
     items.length===0?React.createElement('div',{style:{color:V.dm,fontSize:13,padding:"4px 0"}},"Keine Atteste hinterlegt. (Upload im Urlaub-Modul.)"):React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6}},items.map(it=>React.createElement('div',{key:it.id,style:{...CC(),padding:"8px 10px",display:"flex",alignItems:"center",gap:10,minHeight:isMob?48:0}},
-      React.createElement('span',{style:{fontSize:18,flexShrink:0}},"📄"),
+      React.createElement('span',{'aria-hidden':"true",style:{display:"inline-flex",flexShrink:0,color:V.dm}},_ik("dokument",18)),
       React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.file_name||"Attest"),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},it.created_at?fdt(String(it.created_at).slice(0,10)):"")),
-      React.createElement('button',{onClick:()=>_open(it),style:{...bsS(),padding:"6px 10px",fontSize:12}},"👁 Ansehen"),
-      _office?React.createElement('button',{onClick:()=>_del(it),title:"Löschen","aria-label":"Attest löschen",style:{...bdS,padding:"6px 9px",fontSize:12}},"🗑️"):null
+      React.createElement('button',{onClick:()=>_open(it),style:{...bsS(),padding:"6px 10px",fontSize:12}},_ikVw("auge","Ansehen")),
+      _office?React.createElement('button',{onClick:()=>_del(it),title:"Löschen","aria-label":"Attest löschen",style:{...bdS,padding:"6px 9px",fontSize:12}},_ik("eimer",16)):null
     )))
   );
 }
@@ -33090,12 +33210,12 @@ function FahrbewSection({workerId,canEdit,isMob,curUser}){
   const openItem=async(it)=>{setViewer({name:it.name,dataUrl:null});try{if(!it.storage_path){if(window.__toast)window.__toast("Datei nicht verfügbar (kein Storage-Pfad)","error");setViewer(null);return;}const d=await _sbSignedDocUrl(it.storage_path,300);/* v3.9.404: Single-Path — nur Storage (signed URL); file_data-Lesepfad entfernt (Spalte gedroppt) */if(_isMobileViewer()){_openFileUrl(d,it.name);setViewer(null);}else{setViewer({name:it.name,dataUrl:d});}/* v3.9.446: Mobile -> Geraete-PDF-Viewer (Android/iOS rendern PDF nicht im iframe) */}catch(e){if(window.__toast)window.__toast("Datei konnte nicht geladen werden","error");setViewer(null);}};
   const delItem=async(it)=>{if(!canEdit)return;if(!await _confirmModal("Fahrbewilligung \""+it.name+"\" löschen?",{variant:"danger"}))return;if(it.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,it.storage_path);/* v3.9.408 Storage-Objekt mitlöschen */setItems(p=>p.filter(x=>x.id!==it.id));SQ.push({url:"/api/fahrbewilligungen/"+it.id,method:"DELETE"});};
   return React.createElement('div',{style:{...CC(),marginTop:14}},
-    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},React.createElement('div',{style:{fontSize:15,fontWeight:700,flex:1}},"🪪 Fahrbewilligungen"),canEdit?React.createElement('button',{onClick:()=>{if(fileRef.current)fileRef.current.click();},disabled:busy,style:{...bpS,minHeight:isMob?40:0,opacity:busy?.6:1}},busy?"⏳ Lädt…":"📄 PDF hochladen"):null,canEdit?React.createElement('input',{ref:fileRef,type:"file",accept:"application/pdf,.pdf",multiple:true,style:{display:"none"},onChange:onUpload}):null),
+    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},React.createElement('div',{style:{fontSize:15,fontWeight:700,flex:1}},_ikVw("auto","Fahrbewilligungen")),canEdit?React.createElement('button',{onClick:()=>{if(fileRef.current)fileRef.current.click();},disabled:busy,style:{...bpS,minHeight:isMob?40:0,opacity:busy?.6:1}},busy?"⏳ Lädt…":_ikVw("hochladen","PDF hochladen")):null,canEdit?React.createElement('input',{ref:fileRef,type:"file",accept:"application/pdf,.pdf",multiple:true,style:{display:"none"},onChange:onUpload}):null),
     items.length===0?React.createElement('div',{style:{color:V.dm,fontSize:13,padding:"6px 0"}},"Keine Fahrbewilligungen hinterlegt."):React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6}},items.map(it=>React.createElement('div',{key:it.id,style:{...CC(),padding:"8px 10px",display:"flex",alignItems:"center",gap:10,minHeight:isMob?48:0}},
-      React.createElement('span',{style:{fontSize:20,flexShrink:0}},"📄"),
-      React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},it.created_at?React.createElement('span',{},"📅 ",fdt(String(it.created_at).slice(0,10))):null,it.created_by?React.createElement('span',{},"👤 ",it.created_by):null)),
-      React.createElement('button',{onClick:()=>openItem(it),style:{...bsS(),padding:"6px 10px",fontSize:12}},"👁 Ansehen"),
-      canEdit?React.createElement('button',{onClick:()=>delItem(it),title:"Löschen","aria-label":"Löschen",style:{...bdS,padding:"6px 9px",fontSize:12}},"🗑️"):null))),
+      React.createElement('span',{'aria-hidden':"true",style:{display:"inline-flex",flexShrink:0,color:V.dm}},_ik("dokument",20)),
+      React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},it.created_at?React.createElement('span',{style:{display:"inline-flex",alignItems:"center"}},_ikVw("kalender",""),fdt(String(it.created_at).slice(0,10))):null,it.created_by?React.createElement('span',{style:{display:"inline-flex",alignItems:"center"}},_ikVw("person",""),it.created_by):null)),
+      React.createElement('button',{onClick:()=>openItem(it),style:{...bsS(),padding:"6px 10px",fontSize:12}},_ikVw("auge","Ansehen")),
+      canEdit?React.createElement('button',{onClick:()=>delItem(it),title:"Löschen","aria-label":"Löschen",style:{...bdS,padding:"6px 9px",fontSize:12}},_ik("eimer",16)):null))),
     viewer?React.createElement(PdfViewerModal,{name:viewer.name,dataUrl:viewer.dataUrl,isMob:isMob,onClose:()=>setViewer(null)}):null
   );
 }
@@ -33111,12 +33231,12 @@ function AnmeldungSection({workerId,canEdit,isMob,curUser}){
   const openItem=async(it)=>{setViewer({name:it.name,dataUrl:null});try{if(!it.storage_path){if(window.__toast)window.__toast("Datei nicht verfügbar (kein Storage-Pfad)","error");setViewer(null);return;}const d=await _sbSignedDocUrl(it.storage_path,300);/* v3.9.404: Single-Path — nur Storage; file_data-Lesepfad entfernt */if(_isMobileViewer()){_openFileUrl(d,it.name);setViewer(null);}else{setViewer({name:it.name,dataUrl:d});}/* v3.9.446: Mobile -> Geraete-PDF-Viewer (Android/iOS rendern PDF nicht im iframe) */}catch(e){if(window.__toast)window.__toast("Datei konnte nicht geladen werden","error");setViewer(null);}};
   const delItem=async(it)=>{if(!canEdit)return;if(!await _confirmModal("Dokument \""+it.name+"\" löschen?",{variant:"danger"}))return;if(it.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,it.storage_path);/* v3.9.408 Storage-Objekt mitlöschen */setItems(p=>p.filter(x=>x.id!==it.id));SQ.push({url:"/api/anmeldungen/"+it.id,method:"DELETE"});};
   return React.createElement('div',{style:{...CC(),marginTop:14}},
-    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},React.createElement('div',{style:{fontSize:15,fontWeight:700,flex:1}},"📄 Persönliche Dokumente"),canEdit?React.createElement('button',{onClick:()=>{if(fileRef.current)fileRef.current.click();},disabled:busy,style:{...bpS,minHeight:isMob?40:0,opacity:busy?.6:1}},busy?"⏳ Lädt…":"📄 PDF hochladen"):null,canEdit?React.createElement('input',{ref:fileRef,type:"file",accept:"application/pdf,.pdf",multiple:true,style:{display:"none"},onChange:onUpload}):null),
+    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},React.createElement('div',{style:{fontSize:15,fontWeight:700,flex:1}},_ikVw("ordner","Persönliche Dokumente")),canEdit?React.createElement('button',{onClick:()=>{if(fileRef.current)fileRef.current.click();},disabled:busy,style:{...bpS,minHeight:isMob?40:0,opacity:busy?.6:1}},busy?"⏳ Lädt…":_ikVw("hochladen","PDF hochladen")):null,canEdit?React.createElement('input',{ref:fileRef,type:"file",accept:"application/pdf,.pdf",multiple:true,style:{display:"none"},onChange:onUpload}):null),
     items.length===0?React.createElement('div',{style:{color:V.dm,fontSize:13,padding:"6px 0"}},"Keine Dokumente hinterlegt."):React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6}},items.map(it=>React.createElement('div',{key:it.id,style:{...CC(),padding:"8px 10px",display:"flex",alignItems:"center",gap:10,minHeight:isMob?48:0}},
-      React.createElement('span',{style:{fontSize:20,flexShrink:0}},"📄"),
-      React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},it.created_at?React.createElement('span',{},"📅 ",fdt(String(it.created_at).slice(0,10))):null,it.created_by?React.createElement('span',{},"👤 ",it.created_by):null)),
-      React.createElement('button',{onClick:()=>openItem(it),style:{...bsS(),padding:"6px 10px",fontSize:12}},"👁 Ansehen"),
-      canEdit?React.createElement('button',{onClick:()=>delItem(it),title:"Löschen","aria-label":"Löschen",style:{...bdS,padding:"6px 9px",fontSize:12}},"🗑️"):null))),
+      React.createElement('span',{'aria-hidden':"true",style:{display:"inline-flex",flexShrink:0,color:V.dm}},_ik("dokument",20)),
+      React.createElement('div',{style:{flex:1,minWidth:0}},React.createElement('div',{style:{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},it.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,display:"flex",gap:8,flexWrap:"wrap"}},it.created_at?React.createElement('span',{style:{display:"inline-flex",alignItems:"center"}},_ikVw("kalender",""),fdt(String(it.created_at).slice(0,10))):null,it.created_by?React.createElement('span',{style:{display:"inline-flex",alignItems:"center"}},_ikVw("person",""),it.created_by):null)),
+      React.createElement('button',{onClick:()=>openItem(it),style:{...bsS(),padding:"6px 10px",fontSize:12}},_ikVw("auge","Ansehen")),
+      canEdit?React.createElement('button',{onClick:()=>delItem(it),title:"Löschen","aria-label":"Löschen",style:{...bdS,padding:"6px 9px",fontSize:12}},_ik("eimer",16)):null))),
     viewer?React.createElement(PdfViewerModal,{name:viewer.name,dataUrl:viewer.dataUrl,isMob:isMob,onClose:()=>setViewer(null)}):null
   );
 }

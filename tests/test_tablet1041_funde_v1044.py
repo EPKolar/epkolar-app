@@ -129,7 +129,9 @@ def pruef_glocke_quelle(html):
         b.append("kein Kalendertag-Vergleich")
     if "color:n.read?V.dm:V.tx}}, _notifAnzeige(n.title))" not in html:
         b.append("Titel wird roh gezeichnet")
-    if "_notifAnzeige(n.body))" not in html:
+    # v1055 Tablet-Vollpruefung (3): der Text laeuft ueber _absNotifText, das _notifAnzeige aufruft und bei
+    # Abwesenheits-Meldungen den aktuellen Typ ergaenzt.
+    if "_notifAnzeige(n.body))" not in html and not ("_absNotifText(n,abs))" in html and "var t=_notifAnzeige(n&&n.body);" in html):
         b.append("Text wird roh gezeichnet")
     if '"material_orders war nicht lesbar' in html or '"tickets":"defects")+" war nicht lesbar' in html:
         b.append("Tabellenname in der Meldung")
