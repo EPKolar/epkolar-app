@@ -60,7 +60,8 @@ def test_sub_tag_kennzeichen_fallback():
     # Separator-Encodings (UTF-8 ·, ASCII -, Bullet •) und beliebige
     # Quoting-Varianten/Whitespace.
     pattern = re.compile(
-        r'\(\s*f\.kennzeichen\s*\|\|\s*["\']Fzg["\']\s*\)\s*\+\s*["\'][^"\']{1,8}["\']\s*\+\s*fdt'
+        # v3.9.1069: Kennzeichen kommt ueber _fzKzAnzeige(f,...) (Wechselkennzeichen) - der Fzg-Rueckfall bleibt Pflicht
+        r'\(\s*(?:f\.kennzeichen|_fzKzAnzeige\(f,[A-Za-z_]+\))\s*\|\|\s*["\']Fzg["\']\s*\)\s*\+\s*["\'][^"\']{1,8}["\']\s*\+\s*fdt'
     )
     m = pattern.search(text)
     assert m, (

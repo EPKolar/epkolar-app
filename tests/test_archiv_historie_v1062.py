@@ -72,7 +72,10 @@ def _node(prog, tmp_path, name):
 
 
 def _fz_helfer(q):
-    return "\n".join(_zeile_ab(q, k) for k in ("function _fzArchiviert(f){", "function _fzNurAktiv(l){", "function _fzNurArchiv(l){"))
+    # v3.9.1069: die Anzeige-Helfer fuer Wechselkennzeichen (_fzKzAnzeige) gehoeren seitdem zu den Fahrzeug-Helfern
+    return "\n".join(_zeile_ab(q, k) for k in ("function _fzArchiviert(f){", "function _fzKzKurz(kz){", "function _fzKzAktiv(f){",
+                                              "function _fzKzAnzeige(f,alle,kurz){", "function _fzKzAnzeigeVon(fid,roh,alle){",
+                                              "function _fzNurAktiv(l){", "function _fzNurArchiv(l){"))
 
 
 def _wurzel_prop(q, comp, name):
@@ -504,4 +507,5 @@ def test_fuhrpark_export_und_kosten_mit_archivierten(tmp_path):
     assert r["kosten"] == ["fz1", "fz3", "fz2"], r
     assert r["gesetzt"] == ["fz1"] and len(r["toast"]) == 1, "archiviertes Fahrzeug darf die Bearbeitung nicht oeffnen"
     a, e = _fn_bereich(q, "function FlotteKostenPanel(props){")
-    assert q[a:e].count("(r.f.kennzeichen||'?')+(_fzArchiviert(r.f)?' (archiviert)':''))") == 2
+    # v3.9.1069: Kennzeichen ueber _fzKzAnzeige (Wechselkennzeichen), die Archiv-Marke bleibt
+    assert q[a:e].count("(_fzKzAnzeige(r.f,fahrzeuge)||'?')+(_fzArchiviert(r.f)?' (archiviert)':''))") == 2

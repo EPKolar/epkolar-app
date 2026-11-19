@@ -124,10 +124,11 @@ def U(node_exe):
 
 def test_nichts_da_zeigt_vier_offene_punkte_ohne_video(U):
     a = U["nichts"]
-    for teil in ("Einrichtung", "Datenbank-Teil noch nicht eingespielt", "Datenmodell noch nicht angelegt",
-                 "KAMERAS_v1_ENTWURF.sql", "Server-Funktion noch nicht aktiv", "kamera-stream",
-                 "Kamera-Server im Büro noch nicht in Betrieb", "WireGuard", "Kameras: erst nach dem Datenbank-Teil",
-                 "4 von 4 Voraussetzungen fehlen noch", "bewusst kein Video", "Wer: Sebastian"):
+    # v3.9.1069 (Auftrag Inhaber): Klartext-Statuszeilen statt Datei-/Secret-/Netznamen; EINE Zeile zur Anleitung
+    for teil in ("Einrichtung", "Datenbank: noch nicht bereit", "Server-Funktion: noch nicht aktiv",
+                 "Kamera-Server im Büro: noch nicht in Betrieb", "Kameras angemeldet: 0",
+                 "4 von 4 Voraussetzungen fehlen noch", "bewusst kein Video",
+                 "Einrichtungsanleitung: docs/kameras/PILOT_HEUTE.md"):
         assert teil in a["text"], teil
     assert a["zeilen"] == 4 and a["videos"] == 0 and a["stream"] == 0
     assert a["pruef"] == ["fn"], "ohne aktive Funktion keine Adresse -> kein Abruf beim Video-Host"
@@ -135,14 +136,27 @@ def test_nichts_da_zeigt_vier_offene_punkte_ohne_video(U):
     assert "Erneut prüfen" in a["knoepfe"] and "Einrichtung" in a["knoepfe"]
 
 
+# v3.9.1069: in KEINER Admin-Szene stehen Entwickler- oder Infrastrukturbegriffe in der Einrichtung
+VERBOTEN_IN_EINRICHTUNG = ("KAMERA_TOKEN_SECRET", "KAMERA_BACKEND_BASE", ".sql", ".env", "Sebastian", "SQL-Editor",
+                           "QNAP", "WireGuard", "Wer:", "supabase/", "tools/", "go2rtc", "Frigate", "Caddy", "Secret")
+
+
+def test_einrichtung_ohne_entwicklertext(U):
+    szenen = ("nichts", "wirft", "leer", "alt", "buero_weg", "buero_404", "http", "inaktiv", "fertig_einr", "handy")
+    for s in szenen:
+        for wort in VERBOTEN_IN_EINRICHTUNG:
+            assert wort not in U[s]["text"], (s, wort)
+        assert U[s]["text"].count("Einrichtungsanleitung: docs/kameras/PILOT_HEUTE.md") == 1, s
+
+
 def test_keine_antwort_der_funktion_gilt_als_nicht_aktiv(U):
-    assert "Server-Funktion noch nicht aktiv" in U["wirft"]["text"] and U["wirft"]["videos"] == 0
+    assert "Server-Funktion: noch nicht aktiv" in U["wirft"]["text"] and U["wirft"]["videos"] == 0
 
 
 def test_tabellen_leer_funktion_ohne_secret_und_ohne_adresse(U):
     t = U["leer"]["text"]
-    for teil in ("Datenbank-Teil eingespielt", "Server-Funktion aktiv, Schlüssel fehlt", "KAMERA_TOKEN_SECRET",
-                 "Keine Adresse hinterlegt", "KAMERA_BACKEND_BASE", "Noch keine Kamera angelegt", "KAMERAS_PILOT_SEED_ENTWURF.sql",
+    for teil in ("Datenbank: bereit", "Server-Funktion: aktiv, Schlüssel fehlt noch",
+                 "Kamera-Server im Büro: noch nicht in Betrieb", "Noch keine Adresse hinterlegt", "Kameras angemeldet: 0",
                  "3 von 4 Voraussetzungen fehlen noch"):
         assert teil in t, teil
     assert U["leer"]["pruef"] == ["fn"], "ohne Adresse kein Gesundheitsabruf"
@@ -150,40 +164,40 @@ def test_tabellen_leer_funktion_ohne_secret_und_ohne_adresse(U):
 
 
 def test_alte_fassung_der_funktion(U):
-    assert "Server-Funktion aktiv (ältere Fassung)" in U["alt"]["text"] and "2 Kameras angelegt, 1 aktiv" in U["alt"]["text"]
+    assert "Server-Funktion: ältere Fassung" in U["alt"]["text"] and "Kameras angemeldet: 2, davon 1 aktiv" in U["alt"]["text"]
 
 
 def test_video_host_nicht_erreichbar_oder_ohne_gesund(U):
     b = U["buero_weg"]
-    assert "Kamera-Server im Büro nicht erreichbar" in b["text"] and b["videos"] == 0 and b["stream"] == 0
+    assert "Kamera-Server im Büro: nicht erreichbar" in b["text"] and b["videos"] == 0 and b["stream"] == 0
     assert b["pruef"] == ["fn", "gesund:https://video.example.test/gesund"], "Basis ohne Schraegstrich am Ende + /gesund"
-    assert "Kamera-Server antwortet unerwartet" in U["buero_404"]["text"]
+    assert "Kamera-Server im Büro: antwortet unerwartet" in U["buero_404"]["text"]
 
 
 def test_http_adresse_wird_nie_angefragt(U):
-    assert U["http"]["pruef"] == ["fn"] and "Keine Adresse hinterlegt" in U["http"]["text"]
+    assert U["http"]["pruef"] == ["fn"] and "Noch keine Adresse hinterlegt" in U["http"]["text"]
 
 
 def test_keine_aktive_kamera(U):
-    assert "1 Kamera angelegt, keine aktiv" in U["inaktiv"]["text"] and U["inaktiv"]["videos"] == 0
+    assert "Kameras angemeldet: 1, keine aktiv" in U["inaktiv"]["text"] and U["inaktiv"]["videos"] == 0
 
 
 def test_alles_da_zeigt_live_kacheln_und_einrichtung_als_reiter(U):
     f = U["fertig"]
     assert f["videos"] == 1 and f["stream"] >= 1 and "Kamera 1" in f["text"]
-    assert "Datenbank-Teil" not in f["text"]
+    assert "Datenbank:" not in f["text"]  # v3.9.1069: neuer Zeilenanfang der Einrichtung
     for k in ("Live", "Aufzeichnungen", "Verwaltung", "Einrichtung"):
         assert k in f["knoepfe"], k
     e = U["fertig_einr"]
     assert "Alle Voraussetzungen sind erfüllt." in e["text"] and e["text"].count("erledigt") == 4 and e["videos"] == 0
-    assert "Kamera-Server im Büro erreichbar" in e["text"]
+    assert "Kamera-Server im Büro: erreichbar" in e["text"]
     assert U["erneut"]["pruef"] == 2, "Erneut pruefen fragt Funktion und Video-Host neu"
     assert U["zurueck"]["videos"] == 1
 
 
 def test_admin_am_handy_sieht_einrichtung_ohne_verwaltung(U):
     h = U["handy"]
-    assert "Server-Funktion noch nicht aktiv" in h["text"] and "Einrichtung" in h["knoepfe"]
+    assert "Server-Funktion: noch nicht aktiv" in h["text"] and "Einrichtung" in h["knoepfe"]
     assert "Verwaltung" not in h["knoepfe"] and "Live" not in h["knoepfe"]
 
 
@@ -193,7 +207,7 @@ def test_verwaltung_trotz_offener_punkte(U):
 
 def test_andere_rollen_pruefen_nichts_und_sehen_keine_einrichtung(U):
     p = U["pl"]
-    assert p["pruef"] == [] and "Einrichtung" not in p["knoepfe"] and "Datenbank-Teil" not in p["text"]
+    assert p["pruef"] == [] and "Einrichtung" not in p["knoepfe"] and "Datenbank:" not in p["text"]
     for k in ("monteur", "helfer"):
         m = U[k]
         assert m["baum"] is None and m["get"] == 0 and m["fetch"] == 0 and m["pruef"] == 0, k

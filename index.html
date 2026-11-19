@@ -2443,6 +2443,13 @@ function _mapFahrzeug(f){
    nicht eingespielt), gilt jedes Fahrzeug als aktiv, und Archivieren meldet ehrlich, dass es erst nach dem DB-Update geht -
    es gibt KEINEN Rueckfall auf DELETE. @FZ-ARCHIV-START */
 function _fzArchiviert(f){return !!(f&&f.archiviert_am!=null&&String(f.archiviert_am).trim()!=="");}
+/* v3.9.1069 Wechselkennzeichen: ein Kennzeichen, zwei Fahrzeuge (BMW X5 "TU-266BP (X5)", Mercedes CL 500 "TU-266BP"). Dispo-Tafel und Wochenplan kuerzen auf das erste Wort - dort stand zweimal "TU-266BP"; andere Stellen zeigten einmal mit, einmal ohne Zusatz.
+   _fzKzAnzeige(f,alle,kurz): traegt ein ZWEITES aktives Fahrzeug (nicht archiviert, nicht stillgelegt) dasselbe gekuerzte Kennzeichen, steht "TU-266BP · X5" bzw. "TU-266BP · CL 500" (Modell, sonst Marke). Sonst wie bisher: kurz=true das erste Wort, sonst das rohe Kennzeichen.
+   NUR Anzeige: Daten, Suche, Sortierung, CSV/PDF-Exporte und Etiketten behalten das rohe Kennzeichen. */
+function _fzKzKurz(kz){var t=String(kz==null?"":kz).trim();return t.split(/\s+/)[0]||t;}
+function _fzKzAktiv(f){return !!f&&!_fzArchiviert(f)&&f.status!=="stillgelegt";}
+function _fzKzAnzeige(f,alle,kurz){if(!f)return "";var roh=String(f.kennzeichen==null?"":f.kennzeichen).trim();var k=_fzKzKurz(roh);var basis=kurz?k:roh;if(!k||!_fzKzAktiv(f))return basis;var K=k.toUpperCase();var dop=(Array.isArray(alle)?alle:[]).some(function(o){return !!o&&o!==f&&!(o.id!=null&&o.id===f.id)&&_fzKzAktiv(o)&&_fzKzKurz(o.kennzeichen).toUpperCase()===K;});if(!dop)return basis;var z=String(f.modell||"").trim()||String(f.marke||"").trim();return z?k+" \u00b7 "+z:basis;}
+function _fzKzAnzeigeVon(fid,roh,alle){var L=Array.isArray(alle)?alle:[];for(var i=0;i<L.length;i++){if(L[i]&&L[i].id===fid)return _fzKzAnzeige(L[i],L);}return roh;}
 function _fzNurAktiv(l){return (Array.isArray(l)?l:[]).filter(function(f){return !_fzArchiviert(f);});}
 function _fzNurArchiv(l){return (Array.isArray(l)?l:[]).filter(_fzArchiviert);}
 function _fzArchivBody(archivieren,wer,jetztIso){if(!archivieren)return {archiviert_am:null,archiviert_von:null};var w=(wer==null)?"":String(wer).trim();return {archiviert_am:jetztIso,archiviert_von:w?w:null};}
@@ -2480,8 +2487,8 @@ function _mapUser(u){
     rolle:u.rolle||(worker?worker.r:"")||"",
     permsOverride:typeof po==='string'&&po?_jo(po):po||null,
     permissions:_jp(u.permissions),
-    active:!!(u.active===true||u.active===1||u.active==="1"),
-    locked:!!(u.locked===true||u.locked===1||u.locked==="1"),
+    active:["1","true","t"].indexOf(String(u.active).trim().toLowerCase())>=0/* v3.9.1069: typ-unabhaengig wie can_edit_urlaub (1/"1"/true/"true"/"t") */,
+    locked:["1","true","t"].indexOf(String(u.locked).trim().toLowerCase())>=0,
     lastLogin:_vwTagLokal(u.lastLogin||u.last_login)/* v3.9.1012: lokales Datum statt UTC-Abschnitt, siehe _vwLoginHeute */,loginCount:parseInt(u.loginCount||u.login_count)||0,
     deactivateAt:((u.deactivateAt||u.deactivate_at||"")+"").split("T")[0]||""/* v3.9.477: geplante Deaktivierung (Kündigungsfrist) */,
     created:u.created||(u.created_at||"").split("T")[0]};
@@ -8537,7 +8544,7 @@ function WochenplanTafel(props){
   const cellOf=(r,d)=>{const v=(r.z||{})[d];return (v&&typeof v==='object'&&Array.isArray(v.ma))?v:{ma:[],fz:[]};};
   const maName=(id,isoTag)=>{const m=monteure.find(x=>x.id===id);return (m&&_wpMaSichtbarAmTag(m,isoTag))?(m.n||''):'';};/* v3.9.988 Frage 27: die Tafel prueft den Austritt jetzt auch. Vorher stand hier `return m?(m.n||''):''` - ohne Tag, ohne Pruefung, und ein Ausgetretener blieb in ALLEN SECHS Tagesspalten stehen, auf dem Bildschirm, den die halbe Firma sieht. KEIN eigener Vergleich auf .austritt: die Austrittsregel steht an EINER Stelle (_wpMaSichtbarAmTag -> _maIstEhemalig), genau wie in WeekPlan an seinen vier Stellen. Gemessen: scripts/tafel_austritt_wirkung.py */
   const maRole=id=>{const m=monteure.find(x=>x.id===id);return m?(m.r||''):'';};
-  const fzKz=id=>{const f=fahrzeuge.find(x=>x.id===id);return f?((f.kennzeichen||'').split(' ')[0]||f.kennzeichen||''):'';};
+  const fzKz=id=>{const f=fahrzeuge.find(x=>x.id===id);return f?_fzKzAnzeige(f,fahrzeuge,true):'';};
   /* v3.9.564: Krankenstand/Urlaub-Zeilen wie Excel-Export (exportXls _absDay/_krankMatch/_urlaubMatch) — abs[Name_YYYY-MM-DD].type, reine Anzeige. */
   const _absNames=(dDate,match)=>{const iso=_ymd(dDate);return absRows.filter(r=>String(r.day||'').slice(0,10)===iso&&match(String(r.atype||'').toLowerCase())).map(r=>r.worker_name).join(' / ');};
   const _krankMatch=t=>t==='krankenstand'||t==='krank';
@@ -8559,7 +8566,7 @@ function WochenplanTafel(props){
   var _fzErr=(typeof window!=='undefined'&&window.__kioskFzErr)?window.__kioskFzErr:null;
   var _diagLine=(typeof _kioskDiagLine==='function')?_kioskDiagLine((typeof APP_VERSION!=='undefined'?String(APP_VERSION).replace('-supabase',''):'?'),(fahrzeuge||[]).length,_spezVisible.length,_fzErr):'';
   const _fzRow=function(f){return h('tr',{key:'fz_'+f.id}
-    ,h('td',{style:{background:_tf.etikett,border:'1px solid '+_tf.linie,padding:'5px 10px',fontSize:14,fontWeight:800,color:V.tx,verticalAlign:'top'}},_tfEt('transporter',((f.kennzeichen||'').split(' ')[0]||f.kennzeichen||'')))
+    ,h('td',{style:{background:_tf.etikett,border:'1px solid '+_tf.linie,padding:'5px 10px',fontSize:14,fontWeight:800,color:V.tx,verticalAlign:'top'}},_tfEt('transporter',_fzKzAnzeige(f,fahrzeuge,true)))
     ,DAYS.map(function(dn,i){var assigned=_spezFzTag(dn,f.id);var conflict=assigned.length>1;var bvh=assigned.map(function(r){return r.bvh||'';}).filter(Boolean).join(' / ');var isToday=i===todayIdx;var isSa=i===5;return h('td',{key:i,style:{background:conflict?'rgba(239,68,68,.12)':(isToday?_tf.heute:(isSa?_tf.sa:_tf.zelle)),border:'1px solid '+_tf.linie,padding:4,verticalAlign:'top',fontSize:13,fontWeight:700,color:conflict?UI.fehler:V.dm,wordBreak:'break-word'},title:conflict?'Doppelbelegung':undefined},conflict?h('span',{style:{display:'inline-flex',alignItems:'flex-start',gap:4}},h('span',{'aria-hidden':'true',style:{display:'inline-flex',flexShrink:0,marginTop:1}},_ik('warnung',14)),bvh):bvh);})
     ,h('td',{style:{background:_tf.zelle,border:'1px solid '+_tf.linie}},''));};
 
@@ -10208,8 +10215,8 @@ function MonteurTafel(props){
     // v3.9.99 Sebastian-Spec: Führungs-Gruppe statt hardcoded pinger
     const _fleetU=_users.filter(u=>u.role==="admin"||u.role==="projektleiter").map(u=>u.id);
     (_fahrzeuge||[]).forEach(f=>{
-      if(f.pickerl&&/^\d{4}-\d{2}-\d{2}/.test(f.pickerl)){const diff=Math.ceil((new Date(f.pickerl+"T00:00:00")-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+(f.kennzeichen||f.id||"Fzg"),diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
-      if(f.naechstService&&/^\d{4}-\d{2}-\d{2}/.test(f.naechstService)){const diff=Math.ceil((new Date(f.naechstService+"T00:00:00")-now)/TIME_DAY);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+(f.kennzeichen||f.id||"Fzg"),"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
+      if(f.pickerl&&/^\d{4}-\d{2}-\d{2}/.test(f.pickerl)){const diff=Math.ceil((new Date(f.pickerl+"T00:00:00")-now)/TIME_DAY);if(diff>=0&&diff<=7)fire("fz_pick_"+f.id,"deadline_fz","🚐 Pickerl "+(_fzKzAnzeige(f,_fahrzeuge)||f.kennzeichen||f.id||"Fzg"),diff===0?"Heute fällig!":"Läuft in "+diff+" Tagen ab",_fleetU);}
+      if(f.naechstService&&/^\d{4}-\d{2}-\d{2}/.test(f.naechstService)){const diff=Math.ceil((new Date(f.naechstService+"T00:00:00")-now)/TIME_DAY);if(diff<=0&&diff>=-7)fire("fz_srv_"+f.id,"deadline_fz","🔧 Service "+(_fzKzAnzeige(f,_fahrzeuge)||f.kennzeichen||f.id||"Fzg"),"Seit "+Math.abs(diff)+" Tagen überfällig",_fleetU);}
     });
     // 4. v3.9.469: Überfällige Tickets/Mängel (PlanRadar) → Eskalation ≥14 Tage, davor sanfte Erinnerung.
     //    Empfänger: Admin/PL + (falls zugewiesen) Monteur-User. *_eskalation zählt via includes() rot in die Glocke; *_due bleibt sanft.
@@ -11233,6 +11240,20 @@ function _vwAvatar(name,gr){gr=gr||34;return React.createElement('div',{'aria-hi
    Und: traegt KEIN einziger Benutzer einen Login-Stempel (Spalte nicht lesbar oder nie geschrieben), ist das kein "0 von 10", sondern unbekannt - dann steht "—" und der Grund. */
 function _vwLoginHeute(users){const L=users||[];if(!L.length||!L.some(u=>u&&u.lastLogin))return {wert:null,sub:"Login-Zeitpunkt nicht lesbar"};const h=td2();return {wert:L.filter(u=>u&&u.lastLogin===h).length,sub:"von "+L.length};}
 function _vwTagLokal(v){if(!v)return "";const t=String(v);if(t.indexOf("T")<0)return t.slice(0,10);const d=new Date(t);return isNaN(d.getTime())?t.split("T")[0]:_ymd(d);}
+/* v3.9.1069 Statistik "Benutzer-Status": jede Zeile stand auf "Inaktiv" und "Logins gesamt 0", obwohl alle 10 Benutzer active=1 tragen und 9 von 10 einen login_count > 0 (gemessen 19.11., Summe 288).
+   Ursache 1: die Zeilen fuer die Tabelle wurden aus users neu gebaut, OHNE active und locked - u.active war dort immer undefined, die Anzeige fiel auf "Inaktiv".
+   Ursache 2: "Logins gesamt" zaehlte nur login-Zeilen aus activity_log der letzten 30 Tage (8 Zeilen, 1 Benutzer); users.login_count (der echte Gesamtzaehler, im Anmeldeweg hochgezaehlt) wurde nie gelesen.
+   _stJaNein: typ-unabhaengig (true/1/"1"/"true"/"t" bzw. false/0/"0"/"false"/"f"); alles andere = null = UNBEKANNT, nicht "nein".
+   _stBenutzerZeile: Status und Gesamtzahl kommen aus einem eigenen users-Lesen (roh). Ist es nicht lesbar (_rlsLeer: 401/403/Netz) oder fehlt die Zeile, steht active=null und total_logins=null - die Anzeige sagt dann "Nicht lesbar" bzw. "—", nie "Inaktiv" bzw. 0. */
+function _stJaNein(v){if(v===true||v===1)return true;if(v===false||v===0)return false;if(typeof v==="string"){var s=v.trim().toLowerCase();if(s==="1"||s==="true"||s==="t")return true;if(s==="0"||s==="false"||s==="f")return false;}return null;}
+function _stBenutzerZeile(u,roh,lastL,totL,alUnlesbar){
+  var id=String((u&&u.id)||"");var r=null;
+  if(!_rlsLeer(roh)&&Array.isArray(roh)){for(var i=0;i<roh.length;i++){if(roh[i]&&String(roh[i].id)===id){r=roh[i];break;}}}
+  var a=(!alUnlesbar&&lastL&&lastL[id])||null;var b=(r&&r.last_login)||null;
+  var ll=(a&&b)?((Date.parse(a)||0)>=(Date.parse(b)||0)?a:b):(a||b||(u&&u.last_login)||null);
+  var lc=r?parseInt(r.login_count,10):NaN;var t30=(!alUnlesbar&&totL&&totL[id])||0;
+  return {active:(r&&("active" in r))?_stJaNein(r.active):null,locked:(r&&("locked" in r))?_stJaNein(r.locked):null,last_login:ll,total_logins:isNaN(lc)?null:Math.max(lc,t30),lesbar:!!r};
+}
 function KVRulesConfig(props){
   const h=React.createElement;
   const isMob=!!props.isMob;
@@ -15324,7 +15345,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     setLoadingStats(true);
     try{
       const _d30=new Date();_d30.setDate(_d30.getDate()-30);const _iso30=_d30.toISOString();
-      const [activeUsers,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifs,logRows,actRows]=await Promise.all([
+      const [activeUsers,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifs,logRows,actRows,usrRoh]=await Promise.all([
         _sbGetUsersSafe("active=eq.1").then(r=>r.length).catch(()=>0),
         _sbGet("projects").then(r=>r.length).catch(()=>0),
         _sbGet("time_entries").then(r=>r.length).catch(()=>0),
@@ -15336,7 +15357,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         _sbGet("notifications").then(r=>r.length).catch(()=>0),
         /* v3.9.914: ZWEI Aenderungen. (1) Der Einzel-Auffangzweig ist WEG - ein geworfener Fehler (Netz, 5xx) landet jetzt im aeusseren catch, der bereits Toast und Leerbild zeigt; das ist die Bauart aus v3.9.909, ohne neue Mechanik. (2) slice() gibt ein FRISCHES Array zurueck und verliert dabei die Marke, die _sbGetOrder seit v3.9.910 auf das leere Array eines 401/403 setzt - ohne das Umhaengen waere _rlsLeer() unten immer falsch und der Umbau saehe aus wie eine Reparatur, ohne eine zu sein. */
         _sbGetOrder("activity_log","created_at.desc","action=like.login*").then(r=>{const _s=r.slice(0,200);try{if(r&&r.__rlsFehler)_s.__rlsFehler=r.__rlsFehler;}catch(_am){}return _s;}),
-        _sbGetOrder("activity_log","created_at.desc","created_at=gte."+encodeURIComponent(_iso30)).then(r=>{const _s=r.slice(0,2000);try{if(r&&r.__rlsFehler)_s.__rlsFehler=r.__rlsFehler;}catch(_am){}return _s;})
+        _sbGetOrder("activity_log","created_at.desc","created_at=gte."+encodeURIComponent(_iso30)).then(r=>{const _s=r.slice(0,2000);try{if(r&&r.__rlsFehler)_s.__rlsFehler=r.__rlsFehler;}catch(_am){}return _s;}),
+        /* v3.9.1069: users roh fuer Status (active/locked) und Gesamtzahl (login_count) - ein Fehler wird zur Lese-Marke, nicht zu "inaktiv" (siehe _stBenutzerZeile) */
+        _sbGetUsersSafe("").catch(e=>_eskLeseMarke(e))
       ]);
       /* v3.9.127: Statistik-Aggregate CLIENT-seitig aus activity_log (30 Tage, max 2000 Rows) — ersetzt das nie gebaute admin_stats-RPC. users (Prop) liefert Namen/Rollen. */
       const _byU={},_byM={},_byA={},_byD={};
@@ -15358,9 +15381,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
       const failedLogins30d=actRows.filter(r=>r.action==="login_failed").length;
       const _lastL={};logRows.forEach(r=>{if(r.action==="login"&&r.user_id&&!_lastL[r.user_id])_lastL[r.user_id]=r.created_at;});
       const _totL={};actRows.forEach(r=>{if(r.action==="login"&&r.user_id)_totL[r.user_id]=(_totL[r.user_id]||0)+1;});
-      const userStatus=(users||[]).map(u=>({id:u.id,name:u.name,username:u.username,role:u.role,last_login:_lastL[u.id]||u.last_login||null,total_logins:_totL[u.id]||0}));
       /* v3.9.914: ein 401/403 auf activity_log kommt seit v3.9.910 als MARKIERTES leeres Array auf dem Erfolgspfad an - kein Wurf, kein Toast. Ohne diese Frage sieht die Statistikseite exakt so aus wie: in 30 Tagen ist nichts passiert. */
       const _alUnlesbar=_rlsLeer(actRows)||_rlsLeer(logRows);
+      const userStatus=(users||[]).map(u=>({id:u.id,name:u.name,username:u.username,role:u.role,..._stBenutzerZeile(u,usrRoh,_lastL,_totL,_alUnlesbar)}));/* v3.9.1069: active/locked/login_count aus users (vorher fehlten sie hier -> alle "Inaktiv", Logins gesamt nur 30 Tage) */
       setStats({users:activeUsers,projects,entries,scheine,photos,defects,fahrzeuge,werkzeuge,notifications:notifs,total:actRows.length,today,logins30d,failedLogins30d,userStatus,byUser,topModules,byAction,daily,alUnlesbar:_alUnlesbar});
       setLogins(logRows);
     }catch(e){console.warn("[adminpanel] Stats laden:",e);_optionalChain([window, 'access', _187 => _187.__toast, 'optionalCall', _188 => _188("⚠️ Statistiken konnten nicht geladen werden","warn")]);}
@@ -15946,9 +15969,9 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                   , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:600}}, React.createElement('div', {}, u.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "@", u.username))
                   , React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([ROLES, 'access', _229 => _229[u.role], 'optionalAccess', _230 => _230.l])||u.role, color: _optionalChain([ROLES, 'access', _231 => _231[u.role], 'optionalAccess', _232 => _232.c])||"#71717a"} ))
                   , React.createElement('td', { style: {...tdSt(),color:isToday?_okG("#22c55e"):daysAgo>7?COLORS.ERROR:V.tx,fontWeight:isToday?700:400}}, ll?ll.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+ll.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}):"Nie")
-                  , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontWeight:700}}, u.total_logins||0)
+                  , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontWeight:700}}, u.total_logins==null?"—":u.total_logins)
                   , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {flex:1,height:6,borderRadius:3,background:V.bd}}, React.createElement('div', { style: {width:Math.min(100,(parseInt(u.actions_7d)||0)*2)+"%",height:6,borderRadius:3,background:"#3b82f6"}} )), React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,minWidth:24,textAlign:"right"}}, u.actions_7d||0)))
-                  , React.createElement('td', { style: tdSt()}, u.locked?React.createElement(Badge, { text: "Gesperrt", color: COLORS.ERROR} ):u.active?React.createElement(Badge, { text: "Aktiv", color: _okG("#22c55e")} ):React.createElement(Badge, { text: "Inaktiv", color: "#eab308"} ))
+                  , React.createElement('td', { style: tdSt()}, u.locked===true?React.createElement(Badge, { text: "Gesperrt", color: COLORS.ERROR} ):u.active===true?React.createElement(Badge, { text: "Aktiv", color: _okG("#22c55e")} ):u.active===false?React.createElement(Badge, { text: "Inaktiv", color: "#eab308"} ):React.createElement('span', { title: "Status nicht lesbar (kein Leserecht oder keine Verbindung) - das heißt nicht inaktiv"}, React.createElement(Badge, { text: "Nicht lesbar", color: COLORS.NEUTRAL} )))
                 ));
               }))
             ))
@@ -16652,11 +16675,11 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
     const _pkBald=pickerFaellig.length-abgelaufen-inToleranz;
     const _pkTeile=[abgelaufen>0?abgelaufen+" abgelaufen":null,inToleranz>0?inToleranz+" in Toleranzfrist":null,_pkBald>0?_pkBald+" bald fällig":null].filter(Boolean).join(" / ");
     const text=`${pickerFaellig.length} Fahrzeug${pickerFaellig.length>1?"e":""}: Pickerl ${_pkTeile}`;
-    alerts.push({type:"warning",icon:"kalender",text,ton:abgelaufen>0?"gefahr":"achtung",go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:f.kennzeichen,model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
+    alerts.push({type:"warning",icon:"kalender",text,ton:abgelaufen>0?"gefahr":"achtung",go:()=>onNav("fahrzeuge"),details:pickerFaellig.map(f=>{const _fr=_pkFr(f);return {label:_fzKzAnzeige(f,fahrzeuge),model:f.modell||"",sub:fdt(f.pickerl)+(_fr.st==='toleranz'?" · Toleranzfrist bis "+fdt(_fr.tolBis):_fr.st==='overdue'?" · abgelaufen":""),status:_fr.st==='toleranz'?'warn':_fr.st};})});
   }
   const serviceFaellig=_fzFk.service;/* v3.9.223 #10: date-only → lokal parsen (sonst UTC-Mitternacht = Stichtag-Flip), konsistent mit Z9062 */
   if(serviceFaellig.length>0){
-    alerts.push({type:"warning",icon:"werkzeug",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,ton:"gefahr",go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>({label:f.kennzeichen,model:f.modell||"",sub:fdt(f.naechstService),status:window._pickerlStatus(f.naechstService)}))});
+    alerts.push({type:"warning",icon:"werkzeug",text:`${serviceFaellig.length} Fahrzeug${serviceFaellig.length>1?"e":""}: Service überfällig`,ton:"gefahr",go:()=>onNav("fahrzeuge"),details:serviceFaellig.map(f=>({label:_fzKzAnzeige(f,fahrzeuge),model:f.modell||"",sub:fdt(f.naechstService),status:window._pickerlStatus(f.naechstService)}))});
   }
   const offeneSchaeden=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).reduce((s,f)=>s+(f.schaeden||[]).filter(x=>x.status==="offen").length,0),[fahrzeuge]);
   if(offeneSchaeden>0)alerts.push({type:"info",icon:"warnung",text:`${offeneSchaeden} offene Fahrzeug-Schadensmeldung${offeneSchaeden>1?"en":""}`,ton:"achtung",go:()=>onNav("fahrzeuge")});
@@ -16879,7 +16902,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
           React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden",borderLeft:"4px solid "+COLORS.EP_GREEN}},
             React.createElement('div', { style: {padding:"14px 16px 10px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}},
               React.createElement('div', {},
-                React.createElement('div', { style: {fontSize:18,fontWeight:800,color:V.tx}}, myFz.kennzeichen),
+                React.createElement('div', { style: {fontSize:18,fontWeight:800,color:V.tx}}, _fzKzAnzeige(myFz,fahrzeuge)),
                 React.createElement('div', { style: {fontSize:12,color:V.dm}}, myFz.marke, " " , myFz.modell, " \xb7 " , myFz.farbe||"")
               ),
               React.createElement('div', { style: {display:"flex",gap:12}},
@@ -17009,9 +17032,9 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
             // Vehicle deadlines — v3.9.299: Monteure sehen NUR ihr zugewiesenes Fahrzeug (fahrer===monteurId); Admin/PL/Lagerleitung/Büro alle
             const _myMid=(curUser&&curUser.monteurId)||"";const _seesAllFz=!!(curUser&&(curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero"||curUser.role==="lagerleitung"||(curUser.rolle||"").toLowerCase()==="lagerleitung"));
             (_seesAllFz?(fahrzeuge||[]):(fahrzeuge||[]).filter(f=>f.fahrer===_myMid)).forEach(f=>{
-              if(f.pickerl){const _pe=_homePickerlEintrag(f.pickerl,Date.now(),_inTagen);/* v1055 (5): dieselbe Toleranzregel wie Fahrzeuge/Fristen */if(_pe)items.push({date:f.pickerl,icon:"kalender",text:`Pickerl ${f.kennzeichen}`,sub:_pe.sub,badge:_pe.badge,urgent:_pe.urgent,color:_pe.farbe==="rot"?COLORS.ERROR:_pe.farbe==="orange"?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
-              if(f.naechstService){const d=new Date(f.naechstService+"T00:00:00");const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"werkzeug",text:`Service ${f.kennzeichen}`,sub:(diff<0?"fällig seit ":"fällig am ")+fdt(f.naechstService),badge:diff<0?"Überfällig":_inTagen(diff),urgent:diff<7,color:diff<0?COLORS.ERROR:diff<14?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
-              (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum+"T00:00:00")-new Date())/TIME_DAY);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"werkzeug":"kalender",text:`${t.beschreibung}`,sub:(f.kennzeichen||"Fzg")+" · "+fdt(t.datum),badge:_inTagen(diff),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
+              if(f.pickerl){const _pe=_homePickerlEintrag(f.pickerl,Date.now(),_inTagen);/* v1055 (5): dieselbe Toleranzregel wie Fahrzeuge/Fristen */if(_pe)items.push({date:f.pickerl,icon:"kalender",text:"Pickerl "+_fzKzAnzeige(f,fahrzeuge),sub:_pe.sub,badge:_pe.badge,urgent:_pe.urgent,color:_pe.farbe==="rot"?COLORS.ERROR:_pe.farbe==="orange"?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
+              if(f.naechstService){const d=new Date(f.naechstService+"T00:00:00");const diff=Math.ceil((d-new Date())/TIME_DAY);if(diff>-30&&diff<60)items.push({date:f.naechstService,icon:"werkzeug",text:"Service "+_fzKzAnzeige(f,fahrzeuge),sub:(diff<0?"fällig seit ":"fällig am ")+fdt(f.naechstService),badge:diff<0?"Überfällig":_inTagen(diff),urgent:diff<7,color:diff<0?COLORS.ERROR:diff<14?COLORS.WARNING:_okG(COLORS.SUCCESS)});}
+              (f.termine||[]).filter(t=>!t.erledigt).forEach(t=>{const diff=Math.ceil((new Date(t.datum+"T00:00:00")-new Date())/TIME_DAY);if(diff>-7&&diff<30)items.push({date:t.datum,icon:t.art==="service"?"werkzeug":"kalender",text:`${t.beschreibung}`,sub:(_fzKzAnzeige(f,fahrzeuge)||"Fzg")+" · "+fdt(t.datum),badge:_inTagen(diff),urgent:diff<3,color:diff<0?"#ef4444":"#0ea5e9"});});
             });
             // Confirmed Arbeitsschein termine
             arbeitsscheine.filter(a=>a.terminBestaetigt&&AS_GRP_OFFEN.includes(a.scheinstatus)).forEach(a=>{
@@ -17070,7 +17093,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
                 , React.createElement('div', { 'aria-hidden': "true", 'data-ik': _teamIk(at2,m), style: {display:"flex",justifyContent:"center",marginBottom:4,color:at2?V.tx:V.dm}}, _ik(_teamIk(at2,m),26))/* P3-A55: Linien-Ikone statt Emoji */
                 , React.createElement('div', { style: {fontSize:13,fontWeight:700}}, m.n)
                 , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:1}}, at2?at2.l:m.r)
-                , fz&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:5}}, fz.kennzeichen)
+                , fz&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:5}}, _fzKzAnzeige(fz,fahrzeuge))
               ));
             })
           )
@@ -17107,7 +17130,7 @@ function HomeView({curUser,projects,arbeitsscheine,entries,abs,absApprovals,werk
         const curMo=td2().slice(0,7);
         const fzMonthCosts=_fzHist.filter(f=>f.status!=="stillgelegt").map(f=>{
           const cost=(f.tankLog||[]).filter(t=>(t.datum||"").startsWith(curMo)).reduce((s,t)=>s+(t.preis||0),0);
-          return {kz:(f.kennzeichen||"")+(_fzArchiviert(f)?" (archiviert)":""),cost,liter:(f.tankLog||[]).filter(t=>(t.datum||"").startsWith(curMo)).reduce((s,t)=>s+(t.liter||0),0)};
+          return {kz:_fzKzAnzeige(f,_fzHist)+(_fzArchiviert(f)?" (archiviert)":""),cost,liter:(f.tankLog||[]).filter(t=>(t.datum||"").startsWith(curMo)).reduce((s,t)=>s+(t.liter||0),0)};
         }).filter(x=>x.cost>0).sort((a,b)=>b.cost-a.cost);
         const maxFzCost=Math.max(...fzMonthCosts.map(x=>x.cost),1);
 
@@ -24372,7 +24395,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
       /* v3.9.970: Tag-Index dazu - ohne ihn kennt das Review-Modell den Tag nicht. */
       const _isoB=dk(dayDate(_dIdx));
       const names=(cell.ma||[]).map(id=>{const m=monteure.find(x=>x.id===id);return (m&&_wpMaSichtbarAmTag(m,_isoB))?{n:m.n,c:_roleClr(m.r)}:null;}).filter(Boolean);
-      const fz=(cell.fz||[]).map(id=>{const f=_fzWpAlle.find(x=>x.id===id);return f?((f.kennzeichen||"").split(" ")[0]||f.kennzeichen||""):null;}).filter(Boolean);
+      const fz=(cell.fz||[]).map(id=>{const f=_fzWpAlle.find(x=>x.id===id);return f?_fzKzAnzeige(f,_fzWpAlle,true):null;}).filter(Boolean);
       return {names,fz};};
     const prows=activeRows.map((r,i)=>{
       const fzAll=new Set();DSHORT.forEach(d=>(((r.z||{})[d]||{}).fz||[]).forEach(f=>fzAll.add(f)));
@@ -24482,7 +24505,7 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
     const isLastPick=isPickCell&&d===pickDays[pickDays.length-1];
     const isDragSel=_optionalChain([selCells, 'optionalAccess', _508b => _508b.rowId])===r.id&&(_optionalChain([selCells, 'optionalAccess', _508c => _508c.days])||[]).includes(d);
     /* v3.9.970: dIdx ist bereits Parameter von renderCell und wird vom einzigen Aufrufer uebergeben - kein DSHORT.indexOf noetig. */const _isoD=dk(dayDate(dIdx));const maNames=(cell.ma||[]).map(id=>{const m=monteure.find(x=>x.id===id);return (m&&_wpMaSichtbarAmTag(m,_isoD))?{id,n:m.n,c:_wpRolleDesk(m.r)}:null;}).filter(Boolean);
-    const fzItems=(cell.fz||[]).map(id=>{const f=_fzWpAlle.find(x=>x.id===id);return f?{id,kz:(f.kennzeichen||"").split(" ")[0]||(f.kennzeichen||""),label:((f.kennzeichen||"")+" "+(f.modell||"")).trim(),conflict:!!fzConflicts[r.id+"-"+d+"-"+id]}:null;}).filter(Boolean);/* v3.9.468: kz = nur Kennzeichen (kompakt), label = voll für Tooltip */
+    const fzItems=(cell.fz||[]).map(id=>{const f=_fzWpAlle.find(x=>x.id===id);return f?{id,kz:_fzKzAnzeige(f,_fzWpAlle,true),label:((f.kennzeichen||"")+" "+(f.modell||"")).trim(),conflict:!!fzConflicts[r.id+"-"+d+"-"+id]}:null;}).filter(Boolean);/* v3.9.468: kz = nur Kennzeichen (kompakt), label = voll für Tooltip */
     const hasContent=maNames.length>0||fzItems.length>0;
     const selBg=isDragSel||isPickCell?"rgba(59,130,246,.15)":hasContent?(_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)"):"transparent";
     const selBorder=isDragSel||isPickCell?"2px solid #3b82f6":"1px solid "+V.bd;
@@ -27869,7 +27892,7 @@ function AuswertungView({arbeitsscheine,monteure,abs,absApprovals,entries,werkze
   const wzWert=_react.useMemo.call(void 0, ()=>Object.entries(WZ_KAT).map(([k,v])=>({l:v.l,v:Math.round(werkzeuge.filter(w=>w.kat===k).reduce((s,w)=>s+(w.wert||0),0)),c:v.c})),[werkzeuge]);
   // ── Data: Fahrzeuge — v3.8.74 Hunt B-023 useMemo
   // v3.9.31 Free-Hunt A-2: Leeres Kennzeichen → "(ohne KZ)"-Fallback statt leerer Label im Chart
-  const _fzLbl=(f)=>((f&&f.kennzeichen)?f.kennzeichen:"(ohne KZ)")+(_fzArchiviert(f)?" (archiviert)":"");/* v3.9.1062: die Auswertung bekommt auch archivierte Fahrzeuge (vergangene Kosten bleiben) - neutral markiert */
+  const _fzLbl=(f)=>((f&&f.kennzeichen)?_fzKzAnzeige(f,fahrzeuge):"(ohne KZ)")+(_fzArchiviert(f)?" (archiviert)":"");/* v3.9.1062: die Auswertung bekommt auch archivierte Fahrzeuge (vergangene Kosten bleiben) - neutral markiert */
   const fzTankProFz=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").map(f=>({l:_fzLbl(f),v:Math.round((f.tankLog||[]).reduce((s,t)=>s+(t.preis||0),0)),c:"#0ea5e9"})),[fahrzeuge]);
   // v3.8.76 Sprint-2 F-2/F-3/F-4: 3 weitere Fahrzeug-Aggregates mit useMemo
   const fzLiterProFz=_react.useMemo.call(void 0, ()=>(fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").map(f=>({l:_fzLbl(f),v:Math.round((f.tankLog||[]).reduce((s,t)=>s+(t.liter||0),0)),c:"#f97316"})),[fahrzeuge]);
@@ -31211,47 +31234,35 @@ async function _kamBueroPruefen(basis){
 }
 /* -> {fertig, zeilen:[{id, stand:'ok'|'offen'|'laedt', titel, text, wer}]} - rein, ohne Abruf */
 function _kamEinrichtung(kd,fn,buero){
+  /* v3.9.1069: kurze Klartext-Zeilen fuer den Admin - keine Datei-, Schluessel-, Netz- oder Personennamen mehr in der App. Die Technik steht in der Einrichtungsanleitung (eine Zeile in KameraEinrichtung). Pruefungen, Stufen und Reihenfolge unveraendert. */
   var z=[];kd=kd||{status:'laedt',rows:[]};
-  if(kd.status==='ok')z.push({id:'db',stand:'ok',titel:'Datenbank-Teil eingespielt',text:'Die Kamera-Tabellen sind vorhanden.',wer:''});
-  else if(kd.status==='fehlt')z.push({id:'db',stand:'offen',titel:'Datenbank-Teil noch nicht eingespielt',
-    text:'Datenmodell noch nicht angelegt: die Kamera-Tabellen fehlen in der Datenbank. Nötig: sql/KAMERAS_v1_ENTWURF.sql einspielen (zuerst der Probe-Block in einer Transaktion, danach die Nachprüfung aus dem Kopf der Datei).',
-    wer:'Sebastian (Supabase, SQL-Editor)'});
-  else if(kd.status==='fehler')z.push({id:'db',stand:'offen',titel:'Datenbank nicht prüfbar',text:'Netzfehler oder keine Berechtigung. Später erneut prüfen.',wer:''});
+  if(kd.status==='ok')z.push({id:'db',stand:'ok',titel:'Datenbank: bereit',text:'',wer:''});
+  else if(kd.status==='fehlt')z.push({id:'db',stand:'offen',titel:'Datenbank: noch nicht bereit',text:'Datenmodell noch nicht angelegt - die Kamera-Daten fehlen in der Datenbank noch.',wer:''});
+  else if(kd.status==='fehler')z.push({id:'db',stand:'offen',titel:'Datenbank: nicht prüfbar',text:'Keine Verbindung oder keine Berechtigung. Später erneut prüfen.',wer:''});
   else z.push({id:'db',stand:'laedt',titel:'Datenbank wird geprüft …',text:'',wer:''});
   var st=fn&&fn.stufe;
   if(!fn)z.push({id:'fn',stand:'laedt',titel:'Server-Funktion wird geprüft …',text:'',wer:''});
-  else if(st==='ok'&&fn.secret)z.push({id:'fn',stand:'ok',titel:'Server-Funktion aktiv',text:'kamera-stream antwortet, der Schlüssel für die Stream-Freigaben ist gesetzt.',wer:''});
-  else if(st==='ok')z.push({id:'fn',stand:'offen',titel:'Server-Funktion aktiv, Schlüssel fehlt',
-    text:'Supabase-Secret KAMERA_TOKEN_SECRET setzen (mindestens 32 Zeichen, derselbe Wert wie in der .env am Video-Host).',wer:'Sebastian (Supabase, Edge Functions, Secrets)'});
-  else if(st==='alt')z.push({id:'fn',stand:'offen',titel:'Server-Funktion aktiv (ältere Fassung)',
-    text:'kamera-stream antwortet, kennt die Einrichtungsprüfung aber noch nicht. Die Fassung aus supabase/functions/kamera-stream neu deployen.',wer:'Sebastian bzw. eine Sitzung mit Deploy-Freigabe'});
-  else if(st==='anmeldung')z.push({id:'fn',stand:'offen',titel:'Server-Funktion: Anmeldung abgelaufen',text:'Ab- und wieder anmelden, dann erneut prüfen.',wer:'Admin'});
+  else if(st==='ok'&&fn.secret)z.push({id:'fn',stand:'ok',titel:'Server-Funktion: aktiv',text:'',wer:''});
+  else if(st==='ok')z.push({id:'fn',stand:'offen',titel:'Server-Funktion: aktiv, Schlüssel fehlt noch',text:'Ohne Schlüssel kann die App keine Live-Bilder freigeben.',wer:''});
+  else if(st==='alt')z.push({id:'fn',stand:'offen',titel:'Server-Funktion: ältere Fassung',text:'Läuft, muss aber auf den neuen Stand gebracht werden.',wer:''});
+  else if(st==='anmeldung')z.push({id:'fn',stand:'offen',titel:'Server-Funktion: Anmeldung abgelaufen',text:'Ab- und wieder anmelden, dann erneut prüfen.',wer:''});
   else if(st==='offline')z.push({id:'fn',stand:'offen',titel:'Keine Internetverbindung',text:'Ohne Verbindung lässt sich nichts prüfen.',wer:''});
-  else if(st==='fehler')z.push({id:'fn',stand:'offen',titel:'Server-Funktion meldet einen Fehler',
-    text:'kamera-stream ist erreichbar, antwortet aber mit einem Fehler (Supabase, Edge Functions, Logs ansehen).',wer:'Sebastian'});
-  else z.push({id:'fn',stand:'offen',titel:'Server-Funktion noch nicht aktiv',
-    text:'Die Edge Function kamera-stream antwortet nicht - sie ist noch nicht deployt. Quelle und Anleitung: supabase/functions/kamera-stream (README).',wer:'Sebastian bzw. eine Sitzung mit Deploy-Freigabe'});
-  var aufbau='Aufbau laut Pilot-Anleitung: Video-Host mit go2rtc, Frigate, Token-Prüfer und Caddy, Zertifikat, Aufnahmen auf dem QNAP, Zugang von außen nur über WireGuard.';
+  else if(st==='fehler')z.push({id:'fn',stand:'offen',titel:'Server-Funktion: meldet einen Fehler',text:'Erreichbar, antwortet aber mit einem Fehler. Später erneut prüfen.',wer:''});
+  else z.push({id:'fn',stand:'offen',titel:'Server-Funktion: noch nicht aktiv',text:'Die Server-Funktion für die Kameras fehlt noch.',wer:''});
   if(!fn)z.push({id:'buero',stand:'laedt',titel:'Kamera-Server im Büro wird geprüft …',text:'',wer:''});
-  else if(st!=='ok')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro noch nicht in Betrieb',
-    text:'Die Adresse des Video-Hosts kennt nur die Server-Funktion - prüfbar, sobald sie aktiv ist. '+aufbau,wer:'Sebastian / IT vor Ort'});
-  else if(buero==='keine_adresse')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro noch nicht in Betrieb',
-    text:'Keine Adresse hinterlegt (Supabase-Secret KAMERA_BACKEND_BASE, https). '+aufbau,wer:'Sebastian / IT vor Ort'});
-  else if(buero==='ok')z.push({id:'buero',stand:'ok',titel:'Kamera-Server im Büro erreichbar',text:'Der Video-Host antwortet.',wer:''});
-  else if(buero==='antwort')z.push({id:'buero',stand:'offen',titel:'Kamera-Server antwortet unerwartet',
-    text:'Der Video-Host antwortet, aber nicht auf /gesund. Proxy-Vorlage aus tools/kamera-proxy-auth/vorlagen übernehmen.',wer:'IT vor Ort'});
-  else if(buero==='nicht_erreichbar')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro nicht erreichbar',
-    text:'Der Video-Host ist nur im Büro-Netz oder über WireGuard erreichbar. Läuft er, gilt das Zertifikat, zeigt der Name auf ihn? Unterwegs ohne WireGuard ist das normal.',wer:'IT vor Ort'});
+  else if(st!=='ok')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: noch nicht in Betrieb',text:'Prüfbar, sobald die Server-Funktion aktiv ist.',wer:''});
+  else if(buero==='keine_adresse')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: noch nicht in Betrieb',text:'Noch keine Adresse hinterlegt.',wer:''});
+  else if(buero==='ok')z.push({id:'buero',stand:'ok',titel:'Kamera-Server im Büro: erreichbar',text:'',wer:''});
+  else if(buero==='antwort')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: antwortet unerwartet',text:'Er antwortet, aber nicht wie erwartet.',wer:''});
+  else if(buero==='nicht_erreichbar')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: nicht erreichbar',text:'Er ist nur aus dem Büro-Netz erreichbar - unterwegs ist das normal.',wer:''});
   else z.push({id:'buero',stand:'laedt',titel:'Kamera-Server im Büro wird geprüft …',text:'',wer:''});
   var rows=Array.isArray(kd.rows)?kd.rows:[];
   var akt=rows.filter(function(x){return x&&x.aktiv!==false;}).length;
   if(kd.status==='laedt')z.push({id:'kam',stand:'laedt',titel:'Kameras werden gezählt …',text:'',wer:''});
-  else if(kd.status!=='ok')z.push({id:'kam',stand:'offen',titel:'Kameras: erst nach dem Datenbank-Teil',text:'Ohne Kamera-Tabellen gibt es noch keine Kamera.',wer:''});
-  else if(!rows.length)z.push({id:'kam',stand:'offen',titel:'Noch keine Kamera angelegt',
-    text:'Am PC unter „Verwaltung“ anlegen (oder Pilot-Seed sql/KAMERAS_PILOT_SEED_ENTWURF.sql). Danach je Kamera eine Zugriffsregel; die Stream-Zuordnung trägt nur Sebastian per SQL ein.',wer:'Admin (Verwaltung) / Sebastian (Zuordnung)'});
-  else if(!akt)z.push({id:'kam',stand:'offen',titel:rows.length+(rows.length===1?' Kamera':' Kameras')+' angelegt, keine aktiv',text:'Unter „Verwaltung“ mindestens eine Kamera aktiv schalten.',wer:'Admin'});
-  else z.push({id:'kam',stand:'ok',titel:rows.length+(rows.length===1?' Kamera':' Kameras')+' angelegt, '+akt+' aktiv',
-    text:'Ob eine Kamera ein Bild liefert, zeigt ihre Kachel (dafür braucht sie eine Zugriffsregel und eine Stream-Zuordnung).',wer:''});
+  else if(kd.status!=='ok')z.push({id:'kam',stand:'offen',titel:'Kameras angemeldet: 0',text:'Erst möglich, wenn die Datenbank bereit ist.',wer:''});
+  else if(!rows.length)z.push({id:'kam',stand:'offen',titel:'Kameras angemeldet: 0',text:'Am PC unter „Verwaltung“ eine Kamera anlegen.',wer:''});
+  else if(!akt)z.push({id:'kam',stand:'offen',titel:'Kameras angemeldet: '+rows.length+', keine aktiv',text:'Unter „Verwaltung“ mindestens eine Kamera aktiv schalten.',wer:''});
+  else z.push({id:'kam',stand:'ok',titel:'Kameras angemeldet: '+rows.length+', davon '+akt+' aktiv',text:'Ob eine Kamera ein Bild liefert, zeigt ihre Kachel.',wer:''});
   return {fertig:z.every(function(x){return x.stand==='ok';}),zeilen:z};
 }
 function KameraEinrichtung(props){
@@ -31263,7 +31274,8 @@ function KameraEinrichtung(props){
     ,_kamKarte(h,[
       h('div',{key:'t',style:{fontSize:UI.fTitel,fontWeight:700,color:UI.tinte,marginBottom:6}},'Einrichtung'),
       h('div',{key:'x',role:'status',style:{fontSize:UI.fKlein,color:UI.grau,lineHeight:1.5}},kopf),
-      h('div',{key:'k',style:{marginTop:10}},h('button',{type:'button',onClick:props.onNeu,disabled:laedt,style:bsS()},'Erneut prüfen'))])
+      h('div',{key:'k',style:{marginTop:10}},h('button',{type:'button',onClick:props.onNeu,disabled:laedt,style:bsS()},'Erneut prüfen')),
+      h('div',{key:'a',style:{fontSize:UI.fMeta,color:UI.grau,marginTop:10}},'Einrichtungsanleitung: docs/kameras/PILOT_HEUTE.md')])
     ,h('ul',{'aria-label':'Voraussetzungen',style:{listStyle:'none',margin:0,padding:0,display:'flex',flexDirection:'column',gap:8}},z.map(function(x){
       var rand=x.stand==='offen'?UI.achtungTxt:UI.linie;
       var ik=x.stand==='ok'?'abnahme':(x.stand==='offen'?'warnung':'uhr');
@@ -31751,7 +31763,7 @@ function FlotteView(props){
     var kopf=h('div',{style:{display:'flex',alignItems:'center',gap:10}}
       ,h('div',{style:{width:44,height:32,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},_fzVanEl(z,40,_fzArt(f)))
       ,h('div',{style:{minWidth:0,flex:1}}
-        ,h('div',{style:{fontWeight:800,fontSize:UI.fTitel,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},f.kennzeichen||'?')
+        ,h('div',{style:{fontWeight:800,fontSize:UI.fTitel,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},_fzKzAnzeige(f,fahrzeuge)||'?')
         ,modell?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},modell):null)
       ,h('button',{onClick:_schliesseInfo,title:'Schließen','aria-label':'Info schließen',style:{background:'transparent',border:'none',color:V.dm,cursor:'pointer',minWidth:44,minHeight:44,display:'inline-flex',alignItems:'center',justifyContent:'center',padding:0,flexShrink:0}},_ik('kreuz',18)));
     return h('div',{role:'dialog','aria-label':'Fahrzeug '+(f.kennzeichen||''),style:{background:V.cd,color:V.tx,padding:'8px 12px 12px',display:'flex',flexDirection:'column',gap:8,boxSizing:'border-box',width:(modus==='popup')?300:'100%',maxWidth:'100%',fontFamily:'inherit'}}
@@ -31795,7 +31807,7 @@ function FlotteView(props){
         cursor:row.hatTracker?'pointer':'default',opacity:row.hatTracker?1:0.7}}
       ,_listVan(row.status,row.f)
       ,h('div',{style:{minWidth:0,flex:'0 0 auto',maxWidth:'58%'}}/* v1049 Tablet hochkant (Befund 19.11.): das Kennzeichen ist der Schluessel der Zeile und schrumpft nie. Vorher flex:1+minWidth:0 gegen einen starren rechten Block (minWidth 110, Ort bis 150 px) - bei ~290 px Listenbreite blieb fuer das Kennzeichen nichts uebrig. Jetzt gibt der rechte Block nach (Zeit/Ort kuerzen mit ...). */
-        ,h('div',{style:{fontWeight:700,fontSize:13,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?')
+        ,h('div',{style:{fontWeight:700,fontSize:13,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},_fzKzAnzeige(row.f,fahrzeuge)||'?')
         ,_fahrerName(row.f)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},''+_fahrerName(row.f)):null)
       ,h('div',{style:{flex:'1 1 auto',minWidth:0,textAlign:'right',overflow:'hidden'}}
         ,seit?h('div',{style:{fontFamily:mono,fontSize:UI.fMeta,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},seit):null
@@ -31816,7 +31828,7 @@ function FlotteView(props){
     return h('div',{key:row.f.id,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderBottom:'1px solid '+V.bd}}
       ,_listVan(row.status,row.f)
       ,h('div',{style:{minWidth:0,flex:1}}
-        ,h('div',{style:{fontWeight:700,fontSize:12,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?'))
+        ,h('div',{style:{fontWeight:700,fontSize:12,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},_fzKzAnzeige(row.f,fahrzeuge)||'?'))
       ,(imeiFid===row.f.id)
         ?h('div',{style:{display:'flex',gap:4,alignItems:'center'}}
           ,h('input',{value:imeiVal,autoFocus:true,inputMode:'numeric',placeholder:'IMEI',
@@ -32300,7 +32312,7 @@ function FlotteFristenPanel(props){
       title:'Fahrzeug öffnen',
       style:{display:'flex',alignItems:isMob?'flex-start':'center',flexWrap:isMob?'wrap':'nowrap',gap:isMob?6:12,padding:'10px 12px',minHeight:44,borderBottom:'1px solid '+V.bd,cursor:'pointer'}}
       ,_fzStufeChip(x.stufe,h)
-      ,h('span',{style:{fontWeight:800,fontSize:UI.fText,color:V.tx,whiteSpace:'nowrap',flexShrink:0,minWidth:isMob?0:96}},x.kennzeichen)
+      ,h('span',{style:{fontWeight:800,fontSize:UI.fText,color:V.tx,whiteSpace:'nowrap',flexShrink:0,minWidth:isMob?0:96}},_fzKzAnzeigeVon(x.fid,x.kennzeichen,fahrzeuge))
       ,h('span',{style:{fontWeight:600,fontSize:UI.fKlein,color:V.tx,whiteSpace:'nowrap',flexShrink:0,minWidth:isMob?0:110}},x.artLabel)
       ,h('span',{style:{flex:'1 1 160px',minWidth:0,fontSize:UI.fKlein,color:V.dm,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:isMob?'normal':'nowrap'}},(wann||x.hinweis)+tol+((wann&&x.hinweis)?(' · '+x.hinweis):''))
     );
@@ -32333,7 +32345,7 @@ function FlotteFristenPanel(props){
         return h('div',{key:r.fid,role:'button',tabIndex:0,onClick:function(){if(props.onOpen)props.onOpen(r.fid);},onKeyDown:function(e){if(e.target!==e.currentTarget)return;if((e.key==='Enter'||e.key===' ')&&props.onOpen){e.preventDefault();props.onOpen(r.fid);}},
           style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,padding:'8px 0',minHeight:44,borderBottom:'1px solid '+V.bd,cursor:'pointer'}}
           ,h('span',{style:{display:'inline-block',minWidth:92,textAlign:'center',padding:'3px 8px',borderRadius:UI.rChip,background:r.stufe==='fehlt'?UI.grau:COLORS.WARNING_FILL,color:'#fff',fontSize:UI.fMeta,fontWeight:700}},fTxt[r.stufe]||r.stufe)
-          ,h('span',{style:{fontWeight:800,color:V.tx,whiteSpace:'nowrap'}},r.kennzeichen)
+          ,h('span',{style:{fontWeight:800,color:V.tx,whiteSpace:'nowrap'}},_fzKzAnzeigeVon(r.fid,r.kennzeichen,fahrzeuge))
           ,h('span',{style:{color:V.tx,fontSize:UI.fKlein}},r.fahrer||'—')
           ,h('span',{style:{color:V.dm,fontSize:UI.fKlein,flex:'1 1 160px',minWidth:0}},r.hinweis));
       }):h('div',{style:{fontSize:UI.fKlein,color:V.dm}},fahrerZeilen.length?'Alle zugewiesenen Fahrer haben eine passende Klasse erfasst.':'Keinem Fahrzeug ist ein Fahrer zugewiesen.')
@@ -32387,7 +32399,7 @@ function FlotteKostenPanel(props){
         ,sortBtn('euro12','Tankkosten'),sortBtn('l100','Verbrauch'),sortBtn('service','Service'),sortBtn('kennzeichen','Kennzeichen')))
     ,isMob
       ?h('div',{},zeilen.map(function(r){var t=r.t;return h('div',{key:r.f.id,role:'button',tabIndex:0,onClick:function(){if(props.onOpen)props.onOpen(r.f.id);},onKeyDown:function(e){if(e.target!==e.currentTarget)return;if((e.key==='Enter'||e.key===' ')&&props.onOpen){e.preventDefault();props.onOpen(r.f.id);}},style:Object.assign({},CC(),{padding:12,marginBottom:8,cursor:'pointer'})}
-          ,h('div',{style:{display:'flex',justifyContent:'space-between',gap:8,alignItems:'baseline'}},h('span',{style:{fontWeight:800,fontSize:UI.fText,color:V.tx,whiteSpace:'nowrap'}},(r.f.kennzeichen||'?')+(_fzArchiviert(r.f)?' (archiviert)':'')),h('span',{style:{fontFamily:mono,fontWeight:700,color:V.tx}},eur(t.euro12)))
+          ,h('div',{style:{display:'flex',justifyContent:'space-between',gap:8,alignItems:'baseline'}},h('span',{style:{fontWeight:800,fontSize:UI.fText,color:V.tx,whiteSpace:'nowrap'}},(_fzKzAnzeige(r.f,fahrzeuge)||'?')+(_fzArchiviert(r.f)?' (archiviert)':'')),h('span',{style:{fontFamily:mono,fontWeight:700,color:V.tx}},eur(t.euro12)))
           ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},'Tankkosten 12 Monate · '+t.anzahl+(t.anzahl===1?' Tankung':' Tankungen'))
           ,h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 12px',marginTop:6,fontSize:UI.fKlein,color:V.tx}}
             ,h('span',{},'Ø L/100 km: ',h('b',{},l100Txt(t))),h('span',{},'€/km: ',h('b',{},isNaN(t.euroKm)?'—':_fzDE(t.euroKm,3)))
@@ -32397,7 +32409,7 @@ function FlotteKostenPanel(props){
         ,h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:UI.fKlein}}
           ,h('thead',{},h('tr',{},['Kennzeichen','Tankungen','Liter','Tank gesamt','12 Monate','Ø €/Monat','Ø €/L','Ø L/100 km','€/km','Service','Letzte Tankung','Offene Schäden'].concat(hatFix?['Leasing €/Monat','Versicherung €/Monat']:[]).map(function(k){return h('th',{key:k,style:thS()},k);})))
           ,h('tbody',{},zeilen.map(function(r){var t=r.t;return h('tr',{key:r.f.id,onClick:function(){if(props.onOpen)props.onOpen(r.f.id);},style:{cursor:'pointer'},title:'Fahrzeug öffnen'}
-            ,h('td',{style:Object.assign({},tdSt(),{textAlign:'left',fontWeight:800,whiteSpace:'nowrap'})},(r.f.kennzeichen||'?')+(_fzArchiviert(r.f)?' (archiviert)':''))
+            ,h('td',{style:Object.assign({},tdSt(),{textAlign:'left',fontWeight:800,whiteSpace:'nowrap'})},(_fzKzAnzeige(r.f,fahrzeuge)||'?')+(_fzArchiviert(r.f)?' (archiviert)':''))
             ,td(String(t.anzahl)),td(t.liter>0?_fzDE(t.liter,0):'—'),td(eur(t.euro)),td(eur(t.euro12),{fontWeight:700}),td(eur(t.euroMonat)),td(isNaN(t.euroProL)?'—':_fzDE(t.euroProL,3))
             ,td(l100Txt(t),t.plausibel?null:{color:V.tx,fontStyle:'italic'}),td(isNaN(t.euroKm)?'—':_fzDE(t.euroKm,3)),td(eur(r.s.euro)),td(t.letzte?_fzDatumAnz(t.letzte):'—'),td(String(r.sch)),hatFix?td(eur(r.fix.leasing)):null,hatFix?td(eur(r.fix.versicherung)):null);}))))
     ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8,lineHeight:1.5}}
@@ -33398,7 +33410,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
     , _fzAvatar(f,isMob?34:40)
     , React.createElement('div', { style: {flex:1,minWidth:0}}
       , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:36}}
-        , React.createElement('span', { style: {fontSize:18,fontWeight:800,letterSpacing:".3px",color:V.tx,overflowWrap:"anywhere"}}, f.kennzeichen||"—")
+        , React.createElement('span', { style: {fontSize:18,fontWeight:800,letterSpacing:".3px",color:V.tx,overflowWrap:"anywhere"}}, _fzKzAnzeige(f,fahrzeuge)||"—")
         , f.id===myFzId&&_fzMeinMarke
         , _fzBetrieb(f)!=="betrieb"&&_fzStatusChip(f))
       , React.createElement('div', { style: {fontSize:13,color:V.dm,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, [_fzModell(f),_fzFahrerName(f)].filter(Boolean).join(" · ")||"—")
@@ -33408,7 +33420,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
     , _fzStern(f));
   const _fzKachel=f=>React.createElement('div', { key: f.id, 'data-fz-kachel': f.id, role: "button", tabIndex: 0, 'aria-label': "Fahrzeug "+(f.kennzeichen||"")+" öffnen", onKeyDown: _fzTaste(()=>setSel(f.id)), onClick: ()=>setSel(f.id), style: {...CC(),cursor:"pointer",borderLeft:"3px solid "+_fzRand(f),padding:"10px 12px",display:"flex",flexDirection:"column",gap:4,minWidth:0}}
     , React.createElement('div', { style: {display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}, _fzAvatar(f,28), f.id===myFzId&&_fzMeinMarke)
-    , React.createElement('div', { style: {fontSize:15,fontWeight:800,wordBreak:"break-word",lineHeight:1.25,color:V.tx}}, f.kennzeichen||"—")
+    , React.createElement('div', { style: {fontSize:15,fontWeight:800,wordBreak:"break-word",lineHeight:1.25,color:V.tx}}, _fzKzAnzeige(f,fahrzeuge)||"—")
     , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, _fzModell(f)||"—")
     , React.createElement('div', { style: {fontFamily:mono,fontSize:12,fontWeight:700}}, _fzKmTxt(f))
     , _fzFristZeile(f,true));

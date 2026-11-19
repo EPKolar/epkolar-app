@@ -348,6 +348,7 @@ def test_ansichten_rendern_ohne_fehler(node_exe, index_html, tmp_path):
                    "FahrzeugAkteKarte", "_n", "_fzDE",  # v1049 UX: Zahlen deutsch
                    "_fzFixkosten",  # v1050: Kosten-Ansicht rechnet Leasing/Versicherung je Monat
                    "_fzArchiviert",  # v3.9.1062: Kosten-Ansicht markiert archivierte Fahrzeuge
+                   "_fzKzKurz", "_fzKzAktiv", "_fzKzAnzeige", "_fzKzAnzeigeVon",  # v3.9.1069: Wechselkennzeichen-Anzeige
                    "_maIstEhemalig")  # Austritt nur ueber die eine Regel (v952)
     fz = [dict(FZ[0], marke="Ford", modell="Transit", fahrer="m1", typ="LKW",
                tankLog=[{"liter": 40, "preis": 60, "km": 1000, "datum": "2026-10-01"},
@@ -404,7 +405,7 @@ def test_ansichten_eingebunden_und_gegated(index_html):
 def test_flotte_zeile_kennzeichen_schrumpft_nie(index_html):
     a = index_html.index("const _fleetZeile=function(row){")
     z = index_html[a:index_html.index("const _imeiZeile=", a)]
-    i = z.index("row.f.kennzeichen||'?'")
+    i = z.index("_fzKzAnzeige(row.f,fahrzeuge)||'?'")  # v3.9.1069: Wechselkennzeichen-Anzeige
     kopf = z[max(0, i - 700):i]
     assert "flex:'0 0 auto'" in kopf, "Kennzeichen-Spalte muss starr sein (Tablet hochkant)"
     assert "{minWidth:0,flex:1}}" not in kopf, "Umkehrprobe: der alte schrumpfende Container ist zurueck"

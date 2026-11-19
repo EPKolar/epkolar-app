@@ -70,5 +70,6 @@ def test_label_stil_wie_absrow(index_html):
     """Gleiche Zeilen-Optik wie Krankenstand/Urlaub: Label-<td> links, DAYS-Zellen."""
     t = _tafel(index_html)
     # v3.9.1015 CI Display: dieselbe Etikett-Funktion wie die _absRow-Zeilen.
-    assert "_tfEt('transporter',((f.kennzeichen||'').split(' ')[0]||f.kennzeichen||''))" in t
+    # v3.9.1069: das erste Wort des Kennzeichens kommt jetzt aus _fzKzAnzeige(...,true) - bei Wechselkennzeichen mit Modell
+    assert "_tfEt('transporter',_fzKzAnzeige(f,fahrzeuge,true))" in t
     assert "_tfEt(ik,label)" in t
