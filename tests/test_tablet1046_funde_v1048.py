@@ -295,8 +295,9 @@ def test_sperrknopf_ueberdeckt_keine_kachel(index_html):
 
 def test_projektakte_kopf_name_vorrang(index_html):
     assert ('{ title: p.name, style: {fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",..._zweiZeilen,'
-            'minWidth:0,flex:"0 1 auto",lineHeight:1.2,display:isMob?"none":"-webkit-box"}}, p.name)') in index_html
-    assert 'className: "topbar-detail", title: (p.kunde||"")+" · "+(p.ort||""), style: {fontSize:12,color:V.dm,flex:"0 100 auto",minWidth:0,overflow:"hidden"}}' in index_html
+            'minWidth:0,flex:"0 1 auto",lineHeight:1.2,display:isMob?"none":"-webkit-box",'
+            '...(!isMob&&ww<1200?{flex:"1 1 0%"}:{})}}, p.name)') in index_html  # Scan 1051 (v1053): unter 1200 Grundbreite 0, Kunde/Ort in eigener Zeile
+    assert 'className: "topbar-detail", title: (p.kunde||"")+" · "+(p.ort||""), style: {fontSize:12,color:V.dm,flex:"0 100 auto",minWidth:0,overflow:"hidden",...(!isMob&&ww<1200?{flexBasis:"100%"}:{})}}' in index_html
     # kein Inline-display am Detail - sonst ueberstimmt es die Regel .topbar-detail{display:none} unter 600 px
     a = index_html.index('className: "topbar-detail", title:')
     assert "display" not in index_html[a:a + 200]
