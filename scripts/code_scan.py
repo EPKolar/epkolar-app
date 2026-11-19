@@ -231,7 +231,11 @@ def eichen(text):
     Gibt (bestanden, gefunden, erwartet) zurueck.
     """
     feld = ist_code(text)
-    stellen = [m.start() for m in re.finditer(r"const isMob\s*=\s*ww\s*<", text)]
+    # v3.9.1065: Seiten wandern auf die gemeinsame Breitenstufe (_layoutStufe). Deren Deklaration
+    # `const _xyStufe=_layoutStufe(` ist ebenso IMMER Code - sie gehoert in die Grundgesamtheit, sonst
+    # schrumpft die Probe mit jeder umgebauten Seite unter die Mindestmenge.
+    stellen = [m.start() for m in re.finditer(
+        r"const (?:isMob\s*=\s*ww\s*<|_\w*Stufe\s*=\s*_layoutStufe\()", text)]
     # Von diesen sind die in Changelog-Kommentaren abzuziehen. Statt sie zu
     # erraten: eine Deklaration steht IMMER hinter einem { oder ; oder einer
     # Zeilengrenze - im Kommentar steht davor Prosa.

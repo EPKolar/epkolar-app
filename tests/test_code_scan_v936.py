@@ -149,3 +149,19 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr():
         "Kein einziges ww<600 gefunden - auch nicht in Kommentaren. Dann "
         "misst dieser Riegel nichts: die drei Changelog-Nennungen muessen da "
         "sein.")
+
+
+def test_eichprobe_kennt_die_breitenstufe():
+    """v3.9.1065: const _xyStufe=_layoutStufe( zaehlt zur Grundgesamtheit (immer Code)."""
+    import code_scan
+    t = "{const isMob=ww<600;}{const _asStufe=_layoutStufe(ww,0);}"
+    ok, gefunden, erwartet = code_scan.eichen(t)
+    assert erwartet == 2 and gefunden == 2  # ok bleibt False: unter 5 Stellen verweigert die Eichung bewusst
+
+
+def test_eichprobe_breitenstufe_im_kommentar_zaehlt_nicht():
+    """Prosa vor der Stelle (Changelog) darf die Grundgesamtheit nicht aufblaehen."""
+    import code_scan
+    t = "/* frueher stand hier const _asStufe=_layoutStufe(ww,0) */{const isMob=ww<600;}"
+    _ok, _g, erwartet = code_scan.eichen(t)
+    assert erwartet == 1
