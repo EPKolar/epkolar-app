@@ -11,16 +11,23 @@
 --     Antwortet IMMER {"ok": true} (auch fuer unbekannte Namen und bei Drosselung) - die Antwort verraet nicht, ob es
 --     den Benutzernamen gibt. Fuer einen vorhandenen Benutzernamen legt sie fuer jeden aktiven Admin eine
 --     Benachrichtigung an (notifications, Typ system) - mit Status des Kontos (aktiv/gesperrt/inaktiv) fuer den Admin.
---     Drosselung (Review 19.11. Fund 8): je Benutzername hoechstens 1 Benachrichtigung pro Stunde (auch bei Flut -
---     ein echter Benutzername wird IMMER gemeldet); die globale Grenze (30 in 10 Minuten) gilt nur fuer das
---     Protokollieren von NICHT-Treffern. Antwort bleibt in jedem Fall gleich.
+--     Drosselung (Sicherheitspruefung 20.11., ersetzt die Fassung zu Review-Fund 8): EINE globale Grenze fuer JEDEN
+--     Aufruf vor dem Nachschlagen (30 Aufrufe in 10 Minuten, Treffer oder nicht); danach laufen Treffer und
+--     Nicht-Treffer denselben Weg (Sperre auf die normalisierte Eingabe, Zaehlung je Name und global, genau eine
+--     Protokollzeile) - nur das Anlegen der Benachrichtigungen unterscheidet sich. Gemeldet wird hoechstens
+--     1x je Benutzername pro Stunde und hoechstens 10x pro Stunde insgesamt (harte Grenze, Admins werden nicht
+--     zugeschuettet). Abwaegung: eine Flut mit erfundenen Namen kann echte Anfragen fuer bis zu 10 Minuten
+--     verschlucken (Antwort trotzdem ok:true) - dann direkt an das Buero wenden. Antwort bleibt in jedem Fall gleich.
 --     created_at (Fund 9): ist die Spalte Text, wird ISO-8601 in UTC geschrieben ('YYYY-MM-DD"T"HH24:MI:SS.MS"Z"').
 --   * public.passwort_hilfe_log - Protokoll (Benutzername klein, Zeitpunkt, Treffer ja/nein), RLS an, KEINE Rechte fuer
 --     anon/authenticated; Eintraege > 30 Tage werden bei jedem Aufruf entfernt.
 --   Die App (>= v3.9.1056) ruft die RPC mit dem anon-Schluessel; 404 (noch nicht eingespielt) -> ehrlicher Text
 --   "Bitte wende dich direkt an das Buero oder den Admin". Erfolg zeigt sie nur bei ok:true.
---   Restrisiko: die Laufzeit unterscheidet sich minimal zwischen Treffer/kein Treffer (Zeitmessung). Bei 10 Konten
---   mit erratbaren Nachnamen ist login_lookup bisher der viel groessere Hebel (in AUTH_HAERTUNG_1 geschlossen).
+--   Restrisiko Zeitmessung: in plpgsql laesst sich die Laufzeit NICHT vollkommen gleich machen - ein Treffer legt
+--   zusaetzlich die Benachrichtigungen an (nur wenn gemeldet wird), Index-/Cache-Zustaende schwanken. Der Unterschied
+--   ist klein gegenueber dem Netzrauschen, und anon erfaehrt hoechstens "Name existiert" mit Rauschen, gedrosselt auf
+--   30 Versuche in 10 Minuten. Bei 10 Konten mit erratbaren Nachnamen ist das gering; login_lookup war der viel
+--   groessere Hebel (in AUTH_HAERTUNG_1 geschlossen).
 --
 -- ROLLBACK: sql/AUTH_HAERTUNG_5_passwort_hilfe_v1056_ROLLBACK.sql
 -- =====================================================================================
@@ -67,8 +74,11 @@ CREATE TABLE IF NOT EXISTS public.passwort_hilfe_log (
   id            bigserial PRIMARY KEY,
   username_norm text        NOT NULL,
   angefragt_am  timestamptz NOT NULL DEFAULT now(),
-  treffer       boolean     NOT NULL DEFAULT false
+  treffer       boolean     NOT NULL DEFAULT false,
+  gemeldet      boolean     NOT NULL DEFAULT false
 );
+-- Sicherheitspruefung 20.11.: falls die Tabelle aus einem frueheren Entwurfslauf schon da ist
+ALTER TABLE public.passwort_hilfe_log ADD COLUMN IF NOT EXISTS gemeldet boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS passwort_hilfe_log_zeit_idx ON public.passwort_hilfe_log (angefragt_am);
 CREATE INDEX IF NOT EXISTS passwort_hilfe_log_name_idx ON public.passwort_hilfe_log (username_norm, angefragt_am);
 ALTER TABLE public.passwort_hilfe_log ENABLE ROW LEVEL SECURITY;
@@ -86,30 +96,32 @@ AS $$
 DECLARE
   v_norm text := lower(btrim(coalesce(p_username, '')));
   v_ok constant jsonb := jsonb_build_object('ok', true);
-  v_n int; v_user record; v_treffer boolean; v_status text; v_jetzt timestamptz := now(); v_zeit_text boolean;
+  v_n int; v_n_name int; v_n_global int; v_user record; v_treffer boolean; v_melden boolean; v_status text;
+  v_jetzt timestamptz := now(); v_zeit_text boolean;
 BEGIN
-  -- AUTH_HAERTUNG_v1056: Antwort immer gleich - verraet nie, ob es den Namen gibt
+  -- AUTH_HAERTUNG_v1056: Antwort immer gleich - verraet nie, ob es den Namen gibt.
+  -- Sicherheitspruefung 20.11.: Treffer und Nicht-Treffer laufen DENSELBEN Weg (Drosselung, Sperre, Zaehlungen,
+  -- genau eine Protokollzeile); nur das Anlegen der Benachrichtigungen unterscheidet sich.
   IF v_norm = '' OR length(v_norm) > 80 THEN RETURN v_ok; END IF;
   DELETE FROM public.passwort_hilfe_log WHERE angefragt_am < v_jetzt - interval '30 days';
+  -- (a) eine globale Drosselung fuer JEDEN Aufruf, VOR dem Nachschlagen: hoechstens 30 Aufrufe in 10 Minuten
+  SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';
+  IF v_n >= 30 THEN RETURN v_ok; END IF;
+  -- (b) Sperren IMMER (global fuer die harte Meldegrenze, dann je normalisierter Eingabe - Treffer oder nicht;
+  --     feste Reihenfolge, daher keine Verklemmung)
+  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:global'));
+  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));
   SELECT u.id, u.name, u.username, u.active, u.locked, u.deactivate_at INTO v_user
     FROM public.users u WHERE lower(u.username) = v_norm LIMIT 1;
   v_treffer := FOUND;
-  IF NOT v_treffer THEN
-    -- Review 19.11. Fund 8: die globale Grenze gilt NUR fuer das Protokollieren von Nicht-Treffern (Flut mit
-    -- erfundenen Namen fuellt das Log nicht und verdraengt keine echte Anfrage)
-    SELECT count(*) INTO v_n FROM public.passwort_hilfe_log
-     WHERE NOT treffer AND angefragt_am > v_jetzt - interval '10 minutes';
-    IF v_n >= 30 THEN RETURN v_ok; END IF;                   -- Flut: Nicht-Treffer nicht mehr protokollieren
-    INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, false);
-    RETURN v_ok;
-  END IF;
-  -- Echter Benutzername: IMMER melden, aber hoechstens 1x je Benutzername und Stunde (auch bei Flut).
-  -- Sperre je Name, damit zwei gleichzeitige Aufrufe nicht beide melden.
-  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));
-  SELECT count(*) INTO v_n FROM public.passwort_hilfe_log
-   WHERE username_norm = v_norm AND treffer AND angefragt_am > v_jetzt - interval '1 hour';
-  IF v_n > 0 THEN RETURN v_ok; END IF;                       -- diese Stunde schon gemeldet
-  INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, true);
+  -- (c) Zaehlungen IMMER: je Name hoechstens 1 Meldung pro Stunde, insgesamt hoechstens 10 Meldungen pro Stunde
+  SELECT count(*) INTO v_n_name FROM public.passwort_hilfe_log
+   WHERE username_norm = v_norm AND gemeldet AND angefragt_am > v_jetzt - interval '1 hour';
+  SELECT count(*) INTO v_n_global FROM public.passwort_hilfe_log
+   WHERE gemeldet AND angefragt_am > v_jetzt - interval '1 hour';
+  v_melden := v_treffer AND v_n_name = 0 AND v_n_global < 10;
+  -- (d) IMMER genau eine Protokollzeile
+  INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);
   v_status := CASE
     WHEN coalesce(v_user.locked::text,'') IN ('1','t','true') THEN 'gesperrt'
     WHEN coalesce(v_user.active::text,'') NOT IN ('1','t','true') THEN 'inaktiv'
@@ -119,7 +131,10 @@ BEGIN
   -- (toISOString: 2026-11-19T08:15:00.000Z) - sonst stuende dort das Sitzungsformat '2026-11-19 08:15:00.123+00'.
   SELECT a.atttypid IN ('text'::regtype, 'character varying'::regtype) INTO v_zeit_text
     FROM pg_attribute a WHERE a.attrelid = 'public.notifications'::regclass AND a.attname = 'created_at' AND NOT a.attisdropped;
-  IF v_zeit_text THEN
+  -- (e) NUR hier unterscheiden sich Treffer und Nicht-Treffer
+  IF NOT v_melden THEN
+    NULL;
+  ELSIF v_zeit_text THEN
     INSERT INTO public.notifications (id, user_id, type, title, body, created_at)
     SELECT 'pwh_' || to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSMS') || '_' || a.id::text,
            a.id, 'system', 'Passwort-Hilfe angefragt',

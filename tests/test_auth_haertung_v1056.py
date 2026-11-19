@@ -522,10 +522,28 @@ def _mangel_sql(name, t, rb):
         # Review 19.11. Fund 3: Wiederverknuepfen statt 23505-Sackgasse
         if ("NOT EXISTS (SELECT 1 FROM public.users pu WHERE pu.auth_user_id = v_vorhanden)" not in code
                 or "AND lower(btrim(coalesce(pu.email,''))) = lower(btrim(p_email))" not in code
-                or "AND pu.auth_user_id IS NULL)) THEN" not in code
+                or "AND pu.auth_user_id IS NULL) THEN" not in code
                 or "IF public.auth_role() IS DISTINCT FROM 'admin' THEN" not in code
                 or "IF length(coalesce(p_password,'')) < 8 THEN" not in code):
             m.append("admin_create_user: kein Wiederverknuepfen (oder Admin-/Laengenpruefung weg)")
+        # Sicherheitspruefung 20.11.: gesperrten Login nie still wieder scharf machen; danach Sitzungen beenden
+        if ("SELECT au.id, au.banned_until INTO v_vorhanden, v_gesperrt_bis" not in code
+                or "IF v_gesperrt_bis IS NOT NULL AND v_gesperrt_bis > now() THEN\n        RAISE EXCEPTION 'admin_create_user: der vorhandene Login zu dieser E-Mail ist GESPERRT" not in code):
+            m.append("Wiederverknuepfen macht gesperrten Login wieder scharf")
+        i_sperr = code.find("IF v_gesperrt_bis IS NOT NULL")
+        i_wv = code.find("v_wiederverknuepft := true;")
+        if not (0 <= i_sperr < i_wv):
+            m.append("Wiederverknuepfen macht gesperrten Login wieder scharf (Reihenfolge)")
+        if ("IF v_wiederverknuepft THEN\n    UPDATE auth.refresh_tokens SET revoked = true WHERE user_id = v_vorhanden::text" not in code
+                or "DELETE FROM auth.sessions WHERE user_id = v_vorhanden;" not in code
+                or "v_wiederverknuepft boolean := false;" not in code):
+            m.append("Wiederverknuepfen beendet alte Sitzungen nicht")
+        i_basis = code.find("v_rumpf := format('v_erg := %s;', v_call);")
+        i_revoke = code.find("IF v_wiederverknuepft THEN")
+        if not (0 <= i_basis < i_revoke):
+            m.append("Wiederverknuepfen beendet alte Sitzungen nicht (erst nach dem Basisaufruf)")
+        if "    EXECUTE v_def;\n    SELECT pg_get_function_identity_arguments(oid) INTO v_idargs" not in _ohne_kommentar(rb):
+            m.append("Rueckweg stellt die Originalfunktion nicht exakt her")
         # Review 19.11. Fund 4: weitere Lesewege fuer den Hash
         if ("information_schema.view_column_usage" not in code or "p.prorettype = 'public.users'::regtype" not in code
                 or "to_jsonb\\s*\\(|row_to_json\\s*\\(" not in code or "select\\s+\\*" not in code
@@ -612,15 +630,29 @@ def _mangel_sql(name, t, rb):
             m.append("Log lesbar")
         if "interval '1 hour'" not in rumpf or "v_n >= 30" not in rumpf:
             m.append("keine Drosselung")
-        # Review 19.11. Fund 8: globale Grenze nur fuer Nicht-Treffer; echte Treffer melden immer (1/Name/Stunde)
-        i_nicht = rumpf.find("IF NOT v_treffer THEN")
-        i_grenze = rumpf.find("v_n >= 30")
-        i_ende = rumpf.find("\n  END IF;", i_nicht) if i_nicht >= 0 else -1   # Ende des Nicht-Treffer-Zweigs
-        if (i_nicht < 0 or not (i_nicht < i_grenze < i_ende)
-                or "WHERE NOT treffer AND angefragt_am > v_jetzt - interval '10 minutes'" not in rumpf):
-            m.append("globale Grenze bremst auch echte Treffer")
-        if "WHERE username_norm = v_norm AND treffer AND angefragt_am > v_jetzt - interval '1 hour'" not in rumpf:
+        # Sicherheitspruefung 20.11. (ersetzt Fund-8-Fassung): gleicher Weg fuer Treffer/Nicht-Treffer
+        i_suche = rumpf.find("FROM public.users u WHERE lower(u.username) = v_norm")
+        i_grenze = rumpf.find("IF v_n >= 30 THEN RETURN v_ok; END IF;")
+        i_sperre = rumpf.find("PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));")
+        if (i_suche < 0 or not (0 <= i_grenze < i_suche)
+                or "SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';" not in rumpf):
+            m.append("keine globale Drosselung fuer jeden Aufruf vor dem Nachschlagen")
+        if not (0 <= i_sperre < i_suche):
+            m.append("Sperre nicht fuer jeden Aufruf (vor dem Nachschlagen)")
+        if re.search(r"\bIF\s+(NOT\s+)?v_treffer\b", rumpf):
+            m.append("Treffer/Nicht-Treffer laufen verschiedene Wege (Zeitmessung)")
+        if (rumpf.count("INSERT INTO public.passwort_hilfe_log") != 1
+                or "INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);" not in rumpf):
+            m.append("nicht genau eine Protokollzeile je Aufruf")
+        if "WHERE username_norm = v_norm AND gemeldet AND angefragt_am > v_jetzt - interval '1 hour'" not in rumpf:
             m.append("keine Drosselung je Benutzername")
+        if ("v_melden := v_treffer AND v_n_name = 0 AND v_n_global < 10;" not in rumpf
+                or "WHERE gemeldet AND angefragt_am > v_jetzt - interval '1 hour';" not in rumpf
+                or "IF NOT v_melden THEN" not in rumpf):
+            m.append("keine harte globale Grenze fuer Benachrichtigungen")
+        kopf5 = t[:t.index("\nBEGIN;")]
+        if "Restrisiko Zeitmessung" not in kopf5 or "NICHT vollkommen gleich" not in kopf5:
+            m.append("Restrisiko Zeitmessung nicht im Kopf")
         # Review 19.11. Fund 9: Text-created_at als ISO-8601 UTC
         if ("to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')" not in rumpf
                 or "IF v_zeit_text THEN" not in rumpf):
@@ -676,10 +708,20 @@ def test_sql_entwurf(name):
     # Fund 6: EXPLAIN nur auskommentiert
     ("AUTH_HAERTUNG_2_gesperrt_v1056", "-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.time_entries;", "", "Messblock"),
     ("AUTH_HAERTUNG_2_gesperrt_v1056", "-- EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.supplier_articles;", "EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT count(*) FROM public.supplier_articles;", "automatisch"),
-    # Fund 8: alte Reihenfolge (globale Grenze vor dem Nachschlagen, gilt fuer alle)
-    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  SELECT u.id, u.name, u.username, u.active, u.locked, u.deactivate_at INTO v_user",
-     "  SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';\n  IF v_n >= 30 THEN RETURN v_ok; END IF;\n  SELECT u.id, u.name, u.username, u.active, u.locked, u.deactivate_at INTO v_user",
-     "echte Treffer"),
+    # Sicherheitspruefung 20.11. (Skript 5): gleicher Weg fuer Treffer/Nicht-Treffer, harte Meldegrenze
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  v_melden := v_treffer AND", "  IF NOT v_treffer THEN RETURN v_ok; END IF;\n  v_melden := v_treffer AND", "verschiedene Wege"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  PERFORM pg_advisory_xact_lock(hashtext('passwort_hilfe:' || v_norm));\n", "", "Sperre nicht"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE angefragt_am > v_jetzt - interval '10 minutes';",
+     "SELECT count(*) INTO v_n FROM public.passwort_hilfe_log WHERE NOT treffer AND angefragt_am > v_jetzt - interval '10 minutes';", "globale Drosselung"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", " AND v_n_global < 10;", ";", "harte globale Grenze"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "  INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);",
+     "  INSERT INTO public.passwort_hilfe_log (username_norm, treffer, gemeldet) VALUES (v_norm, v_treffer, v_melden);\n  INSERT INTO public.passwort_hilfe_log (username_norm, treffer) VALUES (v_norm, true);", "genau eine Protokollzeile"),
+    ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "--   Restrisiko Zeitmessung:", "--   Restrisiko:", "Restrisiko Zeitmessung"),
+    # Sicherheitspruefung 20.11. (Skript 1): Wiederverknuepfen nur ungesperrt, danach Sitzungen beenden; Rueckweg exakt
+    ("AUTH_HAERTUNG_1_users_v1056", "      IF v_gesperrt_bis IS NOT NULL AND v_gesperrt_bis > now() THEN", "      IF false THEN", "wieder scharf"),
+    ("AUTH_HAERTUNG_1_users_v1056", "  IF v_wiederverknuepft THEN\n    UPDATE auth.refresh_tokens", "  IF false THEN\n    UPDATE auth.refresh_tokens", "beendet alte Sitzungen nicht"),
+    ("AUTH_HAERTUNG_1_users_v1056", "    EXECUTE v_def;\n    SELECT pg_get_function_identity_arguments(oid) INTO v_idargs",
+     "    SELECT pg_get_function_identity_arguments(oid) INTO v_idargs", "Originalfunktion nicht exakt"),
     # Fund 9: created_at roh statt ISO
     ("AUTH_HAERTUNG_5_passwort_hilfe_v1056", "           to_char(v_jetzt AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')", "           v_jetzt", "ISO-Format"),
 ])
@@ -697,9 +739,10 @@ def test_umkehrprobe_sql_wiederverknuepfen():
     """Review 19.11. Fund 3: alte Huellen-Bedingung (nur 'schon mit diesem Benutzernamen verknuepft') -> Riegel schlaegt an."""
     name = "AUTH_HAERTUNG_1_users_v1056"
     t, rb = _sql(name), _sql(name, "ROLLBACK")
-    kaputt, n = re.subn(r"\n     -- erlaubt 2 .*?AND pu\.auth_user_id IS NULL\)\) THEN", " THEN", t, count=1, flags=re.S)
+    # Zweig "erlaubt 2" weg -> jede vorhandene E-Mail endet wieder in 23505 (alte Fassung)
+    kaputt, n = re.subn(r"\n    -- erlaubt 2 .*?\n    ELSE\n", "\n    IF true THEN\n", t, count=1, flags=re.S)
     assert n == 1
-    assert "lower(btrim(p_username))) THEN" in kaputt
+    assert "IF true THEN\n      RAISE EXCEPTION 'admin_create_user: fuer diese E-Mail gibt es schon einen Login" in kaputt
     assert any("Wiederverknuepfen" in x for x in _mangel_sql(name, kaputt, rb)), _mangel_sql(name, kaputt, rb)
 
 

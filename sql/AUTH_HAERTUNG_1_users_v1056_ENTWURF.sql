@@ -63,7 +63,10 @@
 --          vorhandenen Kontos still ueberschrieben, ein Tippfehler uebernahm ein fremdes Konto). Ausnahme nur:
 --          das vorhandene Konto ist schon mit genau DIESEM Benutzernamen verknuepft (Wiederholung derselben Anlage),
 --          ODER (Review Fund 3, Wiederverknuepfen statt Sackgasse) das vorhandene Login haengt an KEINER users-Zeile und
---          die users-Zeile mit p_username hat genau diese E-Mail und noch kein auth_user_id.
+--          die users-Zeile mit p_username hat genau diese E-Mail und noch kein auth_user_id. Dabei: ist der Login
+--          gesperrt (auth.users.banned_until > now(), z. B. durch AUTH_HAERTUNG_3) -> Abbruch 42501, der Admin muss
+--          erst ausdruecklich entsperren; nach erfolgreichem Wiederverknuepfen werden Refresh-Tokens und Sitzungen
+--          dieses Logins beendet (wie beim Reset).
 --        * reset: NACH erfolgreichem Original alle Refresh-Tokens des Ziels widerrufen und seine Sitzungen loeschen
 --          (Fund 13: vorher blieb ein Angreifer nach dem Reset angemeldet). Laufende Zugangs-Tokens gelten noch
 --          hoechstens bis zu ihrem Ablauf (Standard 1 h).
@@ -124,6 +127,8 @@ BEGIN
     RAISE EXCEPTION 'Vorpruefung: auth.sessions.user_id (uuid) fehlt'; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='auth' AND table_name='refresh_tokens' AND column_name='revoked') THEN
     RAISE EXCEPTION 'Vorpruefung: auth.refresh_tokens.revoked fehlt'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='auth' AND table_name='users' AND column_name='banned_until') THEN
+    RAISE EXCEPTION 'Vorpruefung: auth.users.banned_until fehlt (Huelle admin_create_user prueft gesperrte Logins)'; END IF;
   -- Huellen-Eigentuemer = Ausfuehrender, sonst darf die Huelle ihre Basis (nur Eigentuemer) nicht aufrufen
   SELECT string_agg(proname||'='||pg_get_userbyid(proowner), ', ') INTO v_liste FROM pg_proc
    WHERE pronamespace='public'::regnamespace AND proname IN ('admin_create_user','admin_reset_password')
@@ -455,22 +460,30 @@ BEGIN
   IF length(coalesce(p_password,'')) < 8 THEN
     RAISE EXCEPTION 'admin_create_user: Passwort mindestens 8 Zeichen' USING ERRCODE = '22023';
   END IF;
-  SELECT au.id INTO v_vorhanden FROM auth.users au WHERE lower(au.email) = lower(btrim(p_email)) LIMIT 1;
+  SELECT au.id, au.banned_until INTO v_vorhanden, v_gesperrt_bis
+    FROM auth.users au WHERE lower(au.email) = lower(btrim(p_email)) LIMIT 1;
   IF v_vorhanden IS NOT NULL
      -- erlaubt 1: Wiederholung derselben Anlage (Login schon mit diesem Benutzernamen verknuepft)
      AND NOT EXISTS (
        SELECT 1 FROM public.users pu
-        WHERE pu.auth_user_id = v_vorhanden AND lower(pu.username) = lower(btrim(p_username)))
-     -- erlaubt 2 (Review Fund 3, Wiederverknuepfen): Login haengt an KEINER users-Zeile UND die users-Zeile mit
-     -- p_username hat genau diese E-Mail und noch kein auth_user_id
-     AND NOT (
-       NOT EXISTS (SELECT 1 FROM public.users pu WHERE pu.auth_user_id = v_vorhanden)
+        WHERE pu.auth_user_id = v_vorhanden AND lower(pu.username) = lower(btrim(p_username))) THEN
+    -- erlaubt 2 (Review Fund 3, Wiederverknuepfen): Login haengt an KEINER users-Zeile UND die users-Zeile mit
+    -- p_username hat genau diese E-Mail und noch kein auth_user_id
+    IF NOT EXISTS (SELECT 1 FROM public.users pu WHERE pu.auth_user_id = v_vorhanden)
        AND EXISTS (SELECT 1 FROM public.users pu
                     WHERE lower(pu.username) = lower(btrim(p_username))
                       AND lower(btrim(coalesce(pu.email,''))) = lower(btrim(p_email))
-                      AND pu.auth_user_id IS NULL)) THEN
-    RAISE EXCEPTION 'admin_create_user: fuer diese E-Mail gibt es schon einen Login - nichts geaendert. E-Mail pruefen oder das Passwort ueber Passwort zuruecksetzen setzen.'
-      USING ERRCODE = '23505';
+                      AND pu.auth_user_id IS NULL) THEN
+      -- Sicherheitspruefung 20.11.: ein gesperrter Login (AUTH_HAERTUNG_3) wird NIE still wieder scharf gemacht
+      IF v_gesperrt_bis IS NOT NULL AND v_gesperrt_bis > now() THEN
+        RAISE EXCEPTION 'admin_create_user: der vorhandene Login zu dieser E-Mail ist GESPERRT (banned_until) - nichts geaendert. Erst ausdruecklich entsperren (Dashboard -> Authentication -> Users -> Unban), dann erneut anlegen.'
+          USING ERRCODE = '42501';
+      END IF;
+      v_wiederverknuepft := true;
+    ELSE
+      RAISE EXCEPTION 'admin_create_user: fuer diese E-Mail gibt es schon einen Login - nichts geaendert. E-Mail pruefen oder das Passwort ueber Passwort zuruecksetzen setzen.'
+        USING ERRCODE = '23505';
+    END IF;
   END IF;$p$;
     ELSE
       v_pruef := $p$
@@ -488,6 +501,13 @@ BEGIN
   -- Fund 13: nach erfolgreichem Reset alle Sitzungen des Ziels beenden
   UPDATE auth.refresh_tokens SET revoked = true WHERE user_id = target_user_id::text AND revoked IS DISTINCT FROM true;
   DELETE FROM auth.sessions WHERE user_id = target_user_id;$r$;
+    ELSE
+      v_rumpf := v_rumpf || $r$
+  -- Sicherheitspruefung 20.11.: wiederverknuepfter Login - alte Sitzungen/Refresh-Tokens beenden (wie beim Reset)
+  IF v_wiederverknuepft THEN
+    UPDATE auth.refresh_tokens SET revoked = true WHERE user_id = v_vorhanden::text AND revoked IS DISTINCT FROM true;
+    DELETE FROM auth.sessions WHERE user_id = v_vorhanden;
+  END IF;$r$;
     END IF;
     v_rumpf := v_rumpf || CASE WHEN v_res = 'void' THEN E'\n  RETURN;' ELSE E'\n  RETURN v_erg;' END;
     EXECUTE format($f$CREATE OR REPLACE FUNCTION public.%1$I(%2$s)
@@ -497,7 +517,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $huelle$
 #variable_conflict use_column
-DECLARE v_vorhanden uuid;%4$s
+DECLARE v_vorhanden uuid; v_gesperrt_bis timestamptz; v_wiederverknuepft boolean := false;%4$s
 BEGIN
   -- AUTH_HAERTUNG_v1056_HUELLE: Original unveraendert in public.%5$I, Sicherung in public._auth_haertung_v1056_sicherung
   IF public.auth_role() IS DISTINCT FROM 'admin' THEN
