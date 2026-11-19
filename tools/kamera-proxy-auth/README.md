@@ -10,6 +10,7 @@ outside the app repo in `C:/repos/epk-kamera-pilot/`.
 | `verify.mjs` | HTTP service + pure decision `entscheide(req, secret, nowMs)` + path grammar `pfadArt(path)` |
 | `token.mjs` | 1:1 port of `signiere` / `pruefeToken` from `logic.ts` (same rule lines, checked word for word by the tests) |
 | `vektoren.json` | shared test vectors (token level + request level); the secret inside is a **test value only** |
+| `vorlagen/` | reviewable proxy templates without real addresses: `nginx.conf` (auth_request, header overwrite/clear, `underscores_in_headers off`) and `Caddyfile` (forward_auth with explicit `header_up`) |
 
 Tests: `tests/test_kameras_phase2_v1056.py` runs `logic.ts` AND `token.mjs` against the same `vektoren.json`,
 signs cross-wise (tokens are byte-identical), checks every URL the Edge Function emits is accepted here, and

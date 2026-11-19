@@ -312,6 +312,25 @@ def test_nur_der_konfigurierte_kopf_zaehlt(R):
     assert sp["nginx_echt_a"] == 204 and sp["caddy_echt_a"] == 204
 
 
+def test_angriff_gueltiges_a_token_mit_gefaelschtem_b_kopf(R):
+    # Token gilt fuer g3_37 (A). Tatsaechlich angefragt: g3_38 (B). Der Proxy setzt den echten Pfad B in seinen
+    # Kopf; der Client schleust den Kopf des ANDEREN Proxys mit Pfad A ein. Darf nie 204 werden.
+    sp = R["spoof"]
+    assert sp["nginx_angriff"] == 403, sp["nginx_angriff"]
+    assert sp["nginx_angriff_nur_uri"] == 403, sp["nginx_angriff_nur_uri"]
+    assert sp["caddy_angriff"] == 403, sp["caddy_angriff"]
+    assert sp["nginx_echt_b"] == 403
+
+
+def test_angriff_eingeschleuster_kopf_und_kein_rueckfall(R):
+    # Jeder Kopf des nicht konfigurierten Paares ist eingeschleust -> 403, auch bei sonst gueltiger Anfrage.
+    # Ohne konfigurierten Kopf kein Rueckfall auf die eigene Anfrage-URL -> 403.
+    sp = R["spoof"]
+    for k in ("caddy_fremd_bei_gutem_pfad", "nginx_fremde_methode", "nginx_leerer_fremdkopf", "caddy_cfg_nur_original"):
+        assert sp[k] == 403, (k, sp[k])
+    assert R["direkt"] == 403, R["direkt"]
+
+
 def test_kopf_konfiguration_ist_pflicht_und_paarweise(R):
     c = R["cfg"]
     assert c["leer"] is None and c["nurUri"] is None and c["gemischt"] is None and c["fremd"] is None
@@ -453,6 +472,44 @@ def test_auth_readme_mit_caddy_und_nginx():
                  "vektoren.json", "204", "401", "403", "kam_t", "query", "delete token"):
         assert teil in r, teil
     assert set(IP_RE.findall(r)) <= {"0.0.0.0"}
+
+
+VORLAGEN = os.path.join(AUTH_DIR, "vorlagen")
+
+
+def test_vorlagen_raeumen_client_koepfe_ab():
+    ng = _lies(os.path.join(VORLAGEN, "nginx.conf")).replace("\r\n", "\n")
+    ca = _lies(os.path.join(VORLAGEN, "Caddyfile")).replace("\r\n", "\n")
+    for t in (ng, ca):
+        assert not IP_RE.search(t), "keine echten Adressen in den Vorlagen"
+    # nginx: Unterstrich-Koepfe aus, vertrauenswuerdiges Paar ueberschrieben, Client-Kopien geleert
+    code = "\n".join(z.split("#", 1)[0] for z in ng.split("\n"))
+    assert re.search(r"^\s*underscores_in_headers off;", code, re.M)
+    i = code.index("location = /_kamera_pruefen {")
+    loc = code[i:code.index("}", i)]
+    assert "internal;" in loc and "proxy_pass_request_body off;" in loc
+    assert re.search(r"proxy_set_header\s+X-Original-URI\s+\$request_uri;", loc)
+    assert re.search(r"proxy_set_header\s+X-Original-Method\s+\$request_method;", loc)
+    assert re.search(r'proxy_set_header\s+X-Forwarded-Uri\s+"";', loc)
+    assert re.search(r'proxy_set_header\s+X-Forwarded-Method\s+"";', loc)
+    assert code.count("auth_request /_kamera_pruefen;") == 3
+    assert "$request_uri" not in code.split("log_format", 1)[1].split(";", 1)[0], "kein Token im Protokoll"
+    assert re.search(r"location / \{ return 404; \}", code)
+    # Caddy: jedes aktive forward_auth setzt das Paar ausdruecklich und entfernt X-Original-*
+    aktiv = "\n".join(z for z in ca.split("\n") if not z.lstrip().startswith("#"))
+    bloecke = aktiv.split("forward_auth kamera-auth:9099 {")[1:]
+    assert len(bloecke) == 3
+    for b in bloecke:
+        b = b[:b.index("\n\t\t\t}")]
+        for zeile in ("uri /pruefen", "header_up -X-Original-URI", "header_up -X-Original-Method",
+                      "header_up X-Forwarded-Uri {http.request.orig_uri}",
+                      "header_up X-Forwarded-Method {http.request.orig_method}"):
+            assert zeile in b, zeile
+    # forward_auth steht in jedem Block VOR dem rewrite
+    for teil in aktiv.split("route {")[1:]:
+        if "rewrite" in teil:
+            assert teil.index("forward_auth") < teil.index("rewrite")
+    assert "delete token" in aktiv and "respond 404" in aktiv
 
 
 # Umkehrproben: die Pruefungen haben Zaehne
