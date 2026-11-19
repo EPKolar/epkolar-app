@@ -217,14 +217,48 @@ def test_deployte_funktion_entspricht_dem_repo():
 
 
 # ── Gegenstueck auf dem Video-Host (ausserhalb des Repos) ───────────────────────
+GATEWAY_SEED = os.path.join(WURZEL, "sql", "KAMERA_GATEWAY_SEED_ENTWURF.sql")
+
+
+def _seed_streams(sql):
+    """Live-Streamnamen der G3 aus dem Gateway-Seed (kamera_backend-insert mit festen Werten, ohne Kommentare)."""
+    code = _code(sql)
+    be = [x for x in re.findall(r"insert into public\.kamera_backend[^;]*;", code, re.S) if "values" in x]
+    return {z[1] for x in be for z in re.findall(r"\('([^']+)',\s*'([^']+)',\s*null,\s*'webrtc'\)", x)}
+
+
+def _vorlage_abgleich(seed_sql, go2rtc_text):
+    yaml = pytest.importorskip("yaml")
+    g = yaml.safe_load(go2rtc_text)
+    s = _seed_streams(seed_sql)
+    b = []
+    if len(s) != 4:
+        b.append("Seed liefert nicht 4 G3-Streams: %s" % sorted(s))
+    if set(g["streams"]) != s:
+        b.append("Vorlage %s != Seed %s" % (sorted(g["streams"]), sorted(s)))
+    return b
+
+
 def test_streamnamen_gleich_go2rtc():
-    # Pin angepasst 20.11.2026: Kamera-Server ist die QNAP; die Vorlage traegt die Gateway-Streams (cam37..hochregal01)
-    # und wird nicht mehr gestartet. Frigate entfaellt (go2rtc = nur Live, Aufnahme bleibt bei Surveillance Station).
+    # Pin angepasst 20.11.2026: der Pilot-Seed (g3_01/g3_lager03) ist SUPERSEDED. Abgeglichen werden jetzt die
+    # Streamnamen des Gateway-Seeds (sql/KAMERA_GATEWAY_SEED_ENTWURF.sql) mit der go2rtc-Vorlage. Frigate ist in der
+    # Vorlage abgeschaltet (nur Live) -> frigate.yml wird nicht mehr verlangt.
     if not os.path.isdir(PILOT_HOST):
         pytest.skip("Vorlagen des Video-Hosts nicht auf diesem Rechner")
-    yaml = pytest.importorskip("yaml")
-    g = yaml.safe_load(_lies(os.path.join(PILOT_HOST, "go2rtc.yaml")))
-    assert set(g["streams"]) == {"cam37", "cam38", "cam39", "hochregal01"}
+    assert _vorlage_abgleich(_lies(GATEWAY_SEED), _lies(os.path.join(PILOT_HOST, "go2rtc.yaml"))) == []
+
+
+def test_umkehrprobe_streamnamen_abgleich():
+    # Ohne Vorlage auf dem Rechner: synthetische Vorlage aus dem Seed selbst - umbenannter Stream muss auffallen
+    pytest.importorskip("yaml")
+    seed = _lies(GATEWAY_SEED)
+    s = sorted(_seed_streams(seed))
+    gut = "streams:\n" + "".join("  %s:\n    - rtsp://${KAM_USER}:${KAM_PW}@kamera/s0\n" % x for x in s)
+    assert _vorlage_abgleich(seed, gut) == []
+    assert _vorlage_abgleich(seed, gut.replace("  " + s[0] + ":", "  " + s[0] + "_alt:", 1)) != []
+    kaputt = re.sub(r"\('" + s[0] + r"',(\s*)'" + s[0] + "'", r"('" + s[0] + r"',\1'g3_01'", seed, count=1)
+    assert kaputt != seed
+    assert _vorlage_abgleich(kaputt, gut) != []
 
 
 # ── Umkehrproben: jede Pruefung schlaegt an, wenn die Datei verdorben wird ─────

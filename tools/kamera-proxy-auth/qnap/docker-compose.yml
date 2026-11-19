@@ -1,0 +1,50 @@
+# EP Kolar Kamera-Gateway auf der QNAP (20.11.2026) - NUR caddy + kamera-auth.
+# go2rtc laeuft bereits separat in Container Station (Host-Netz, API 127.0.0.1:1984, WebRTC 8555) und wird hier
+# NICHT gestartet. Aufnahmen/Surveillance Station: TABU, nichts davon wird hier beruehrt.
+#
+# Netz: beide Dienste im HOST-Netz (network_mode: host), damit Caddy go2rtc unter 127.0.0.1:1984 und den Pruefer
+# unter 127.0.0.1:${KAMERA_AUTH_PORT} erreicht. Im Host-Netz wird nichts "veroeffentlicht" - im LAN offen sind:
+#   ${KAMERA_GATEWAY_PORT} (Standard 443, TCP)  Caddy, einziger Web-Eingang (WHEP-Angebot, MJPEG, Einzelbild, HLS)
+#   8555 TCP+UDP                               go2rtc WebRTC-Medien (laufen DIREKT Browser <-> go2rtc, nicht ueber Caddy)
+# NICHT im LAN erreichbar sein duerfen: 1984 (go2rtc-API) und ${KAMERA_AUTH_PORT} (kamera-auth hoert nur 127.0.0.1).
+# Variablen: ENV.md (nur Namen). Werte in .env neben dieser Datei auf der QNAP, chmod 600, nie ins Repo.
+# Pruefen:  docker compose config >/dev/null && docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile
+
+services:
+  kamera-auth:
+    build:
+      context: ..
+      dockerfile: qnap/Dockerfile
+    image: epk-kamera-auth:1
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      - KAMERA_TOKEN_SECRET=${KAMERA_TOKEN_SECRET:?KAMERA_TOKEN_SECRET fehlt (gleicher Wert wie das Supabase-Secret)}
+      - KAMERA_AUTH_HOST=127.0.0.1
+      - KAMERA_AUTH_PORT=${KAMERA_AUTH_PORT:-9099}
+      - KAMERA_AUTH_URI_HEADER=x-forwarded-uri
+      - KAMERA_AUTH_METHOD_HEADER=x-forwarded-method
+      - KAMERA_AUTH_LOG=${KAMERA_AUTH_LOG:-1}
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [kamera-auth]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      - QNAP_LAN_IP=${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}
+      - KAMERA_GATEWAY_PORT=${KAMERA_GATEWAY_PORT:-443}
+      - KAMERA_AUTH_PORT=${KAMERA_AUTH_PORT:-9099}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_daten:/data            # interne CA + Zertifikate (root.crt fuer die Geraete liegt hier)
+      - caddy_konfig:/config
+      - ./protokoll:/protokoll       # Zugriffsprotokoll OHNE Tokens
+
+volumes:
+  caddy_daten: {}
+  caddy_konfig: {}

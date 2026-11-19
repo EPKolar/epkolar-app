@@ -1,6 +1,6 @@
 # Kamera-Pilot – Reihenfolge am QNAP-Gateway (20.11.2026)
 
-Ziel: die 4 UniFi G3 (`cam37`, `cam38`, `cam39`, `hochregal01`) **nur live** und **nur intern** in der App sehen.
+Ziel: die 4 UniFi G3 (`hochregal01`, `verkauf02`, `elektrolager03`, `cam39`) **nur live** und **nur intern** in der App sehen.
 Kamera-Server = **QNAP EP-KOLAR-QNAP**: go2rtc läuft dort in Container Station (Host-Netz, Port 1984), Quelle RTSP `/s0`.
 Der Browser holt WebRTC (WHEP) bzw. Einzelbild über den Prüf-Proxy (Caddy + kamera-auth) auf der QNAP – nie RTSP.
 Surveillance Station und die Aufnahmen der QNAP bleiben **unberührt (TABU)**; es gibt keine Aufzeichnung in der App.
@@ -18,9 +18,11 @@ absichtlich `503 nicht_konfiguriert` (App: „Kamera-Server noch nicht in Betrie
 2. Nie per Mail/Chat, nie ins Repo. Wechsel des Werts = alle ausgegebenen Tokens sofort ungültig.
 
 ## b) Zertifikat + DNS (Sebastian)
-1. Interner DNS-Name des Gateways (Host-Override auf FW-KOLAR01, Rebind-Schutz beachten) zeigt auf die QNAP.
-2. TLS-Zertifikat für genau diesen Namen (Firmen-Wildcard o. ä.) bereitstellen; NTP auf der QNAP an
-   (der Prüfer erlaubt nur 5 s Uhrversatz).
+1. **Variante ohne DNS/IT:** Caddy auf der QNAP mit `tls internal` (eigene CA) und Zertifikat für die IP;
+   Gateway = `https://<QNAP-LAN-IP>` (optional `:<port>`). Das Caddy-Stammzertifikat einmal auf **jedem** Gerät
+   (PC, Tablet, Handy) installieren – sonst kein Bild und Einrichtung „nicht erreichbar“.
+2. **Variante mit DNS (IT):** `https://kameras.ep-kolar.at`, Split-DNS (FW-KOLAR01) auf die QNAP, Zertifikat per
+   DNS-01, kein Internet. In beiden Fällen NTP auf der QNAP an (der Prüfer erlaubt nur 5 s Uhrversatz).
 
 ## c) Prüf-Proxy auf der QNAP (Chat-Claude)
 1. Caddy + kamera-auth vor go2rtc, Vorlage `tools/kamera-proxy-auth/vorlagen/Caddyfile` (auf der QNAP:
@@ -31,16 +33,17 @@ absichtlich `503 nicht_konfiguriert` (App: „Kamera-Server noch nicht in Betrie
 3. Ergebnis an CC/Sebastian: Gateway-URL `https://<name>` und `curl -s https://<name>/gesund` → `ok`.
 
 ## d) Gateway-Adresse setzen und Kameras anmelden
-1. **Mensch** im Dashboard: Secret `KAMERA_GATEWAY_BASE` = `https://<name>` (nur https, ohne Schrägstrich am Ende).
+1. **Mensch** im Dashboard: Secret `KAMERA_GATEWAY_BASE` = `https://<QNAP-LAN-IP>` oder `https://kameras.ep-kolar.at`
+   (nur https, ohne Zugangsdaten/Query in der Adresse).
    Der alte Name `KAMERA_BACKEND_BASE` wird nur gelesen, wenn `KAMERA_GATEWAY_BASE` fehlt.
 2. Sebastian im SQL-Editor: zuerst `sql/KAMERA_GATEWAY_SEED_PROBE.sql` (BEGIN … ROLLBACK; Ergebnis in der Meldung
    `PROBE_ERGEBNIS …`, jede Zeile `OK`), dann `sql/KAMERA_GATEWAY_SEED_ENTWURF.sql` (BEGIN … COMMIT).
    Ergebnis: 4 Kameras, 4 Zuordnungen in `kamera_backend` (ID = Streamname), Regeln „Admin immer“ und
-   „Büro Mo–Fr 07:00–17:00“. Anzeigenamen sind vorläufig („Kamera .37 (Name folgt)“) – echte Namen in der App setzen.
+   „Büro Mo–Fr 07:00–17:00“. Namen „Hochregal 01“, „Verkauf 02“, „Elektrolager 03“; `cam39` vorläufig (Standort offen).
 3. Abgelöst: `sql/KAMERA_PILOT_HEUTE_ENTWURF.sql` / `sql/KAMERA_PILOT_HEUTE_PROBE.sql` (nie beide). War der Pilot
    eingespielt, bricht der Gateway-Seed ab → zuerst `sql/KAMERA_PILOT_HEUTE_RUECKNAHME.sql`.
-4. Mobotix (`mob32`…`mob36`): zweiter Block im Seed, Standard AUS (Schalter `epk.mobotix_aktiv`). Jeder Mobotix-Stream
-   kostet eine ffmpeg-Umwandlung auf der QNAP-CPU (1024x768 MJPEG → H.264): einzeln einschalten, QNAP-CPU beobachten.
+4. Mobotix (`mob32`…`mob36`): zweiter Block im Seed, Standard AUS (Schalter `epk.mobotix_aktiv`), stream_typ `mjpeg`
+   (go2rtc reicht MJPEG ohne Umwandlung durch). Erst einschalten, wenn der Lese-Benutzer auf jeder Mobotix existiert.
 5. Rücknahme: `sql/KAMERA_GATEWAY_SEED_RUECKNAHME.sql` (oder Kameras in der App auf inaktiv).
 
 ## e) Ende-zu-Ende prüfen

@@ -15,7 +15,7 @@
 -- Jede Zeile: OK = wie erwartet, ABWEICHUNG = NICHT einspielen, Ausgabe an Chat-Claude/CC geben.
 -- KEIN CASCADE. Nichts an bestehenden Tabellen ausser den 3 Kamera-Tabellen (nur in der Probe-Transaktion).
 -- MOBOTIX (zweiter Block, Standard AUS): Schalter unten wie im Seed. 'true' prueft zusaetzlich mob32..mob36
--- (stream_typ webrtc ueber ffmpeg-H.264 auf der QNAP, gleiche Regeln) - vor dem Einschalten im Seed die Probe einmal mit 'true' laufen lassen.
+-- (stream_typ mjpeg, go2rtc reicht MJPEG ohne Umwandlung durch, gleiche Regeln) - vor dem Einschalten im Seed die Probe einmal mit 'true' laufen lassen.
 -- =====================================================================================
 
 begin;
@@ -42,31 +42,31 @@ begin
      or exists (select 1 from public.kamera_backend where stream_name in ('g3_01','g3_lager03')) then
     raise exception 'PROBE_ERGEBNIS ABBRUCH: Pilot-Seed noch eingespielt - zuerst sql/KAMERA_PILOT_HEUTE_RUECKNAHME.sql';
   end if;
-  if exists (select 1 from public.kameras where id in ('cam37','cam38','cam39','hochregal01')) then
+  if exists (select 1 from public.kameras where id in ('elektrolager03','verkauf02','cam39','hochregal01')) then
     r := r || 'HINWEIS Gateway-IDs schon vorhanden (Anwendung lief bereits?); ';
   end if;
 
   -- dieselben Zeilen wie die Anwendung (nur in dieser Transaktion)
   insert into public.kameras (id, name, standort, hersteller, modell, aktiv, aufbewahrung_tage) values
-    ('cam37','Kamera .37 (Name folgt)','Standort folgt','Ubiquiti','UVC G3 Dome',true,3),
-    ('cam38','Kamera .38 (Name folgt)','Standort folgt','Ubiquiti','UVC G3 Dome',true,3),
-    ('cam39','Kamera .39 (Name folgt)','Standort folgt','Ubiquiti','UVC G3 Dome',true,3),
-    ('hochregal01','Kamera .61 (Name folgt)','Standort folgt','Ubiquiti','UVC G3 Dome',true,3)
+    ('elektrolager03','Elektrolager 03','Standort folgt','Ubiquiti','UVC G3 Dome',true,3),
+    ('verkauf02','Verkauf 02','Standort folgt','Ubiquiti','UVC G3 Dome',true,3),
+    ('cam39','Kamera .39 (Name folgt)','offen','Ubiquiti','UVC G3 Dome',true,3),
+    ('hochregal01','Hochregal 01','Standort folgt','Ubiquiti','UVC G3 Dome',true,3)
   on conflict (id) do nothing;
   insert into public.kamera_backend (kamera_id, stream_name, aufzeichnung_quelle, stream_typ) values
-    ('cam37','cam37',null,'webrtc'), ('cam38','cam38',null,'webrtc'),
+    ('elektrolager03','elektrolager03',null,'webrtc'), ('verkauf02','verkauf02',null,'webrtc'),
     ('cam39','cam39',null,'webrtc'), ('hochregal01','hochregal01',null,'webrtc')
   on conflict (kamera_id) do nothing;
   insert into public.kamera_zugriff (kamera_id, rolle, wochentage, von, bis, erlaubt, bemerkung)
   select k, 'admin', '{1,2,3,4,5,6,7}', null, null, true, 'GATEWAY_SEED admin immer'
-    from unnest(array['cam37','cam38','cam39','hochregal01']) k;
+    from unnest(array['elektrolager03','verkauf02','cam39','hochregal01']) k;
   insert into public.kamera_zugriff (kamera_id, rolle, wochentage, von, bis, erlaubt, bemerkung)
   select k, 'buero', '{1,2,3,4,5}', time '07:00', time '17:00', true, 'GATEWAY_SEED buero Mo-Fr 07-17'
-    from unnest(array['cam37','cam38','cam39','hochregal01']) k;
+    from unnest(array['elektrolager03','verkauf02','cam39','hochregal01']) k;
 
   -- MOBOTIX-BLOCK (nur bei Schalter 'true'); SurvStation: .32 Hof, .33 Hochregal03, .34 Hochregal02,
   -- .35 Elektrolager01, .36 Elektrolager02 (nur Kommentar)
-  ids := array['cam37','cam38','cam39','hochregal01'];
+  ids := array['elektrolager03','verkauf02','cam39','hochregal01'];
   if mob then
     insert into public.kameras (id, name, standort, hersteller, modell, aktiv, aufbewahrung_tage) values
       ('mob32','Mobotix .32 (Name folgt)','Standort folgt','Mobotix','Mobotix (Modell folgt)',true,3),
@@ -76,8 +76,8 @@ begin
       ('mob36','Mobotix .36 (Name folgt)','Standort folgt','Mobotix','Mobotix (Modell folgt)',true,3)
     on conflict (id) do nothing;
     insert into public.kamera_backend (kamera_id, stream_name, aufzeichnung_quelle, stream_typ) values
-      ('mob32','mob32',null,'webrtc'), ('mob33','mob33',null,'webrtc'), ('mob34','mob34',null,'webrtc'),
-      ('mob35','mob35',null,'webrtc'), ('mob36','mob36',null,'webrtc')
+      ('mob32','mob32',null,'mjpeg'), ('mob33','mob33',null,'mjpeg'), ('mob34','mob34',null,'mjpeg'),
+      ('mob35','mob35',null,'mjpeg'), ('mob36','mob36',null,'mjpeg')
     on conflict (kamera_id) do nothing;
     insert into public.kamera_zugriff (kamera_id, rolle, wochentage, von, bis, erlaubt, bemerkung)
     select k, 'admin', '{1,2,3,4,5,6,7}', null, null, true, 'GATEWAY_SEED admin immer'
@@ -86,15 +86,15 @@ begin
     select k, 'buero', '{1,2,3,4,5}', time '07:00', time '17:00', true, 'GATEWAY_SEED buero Mo-Fr 07-17'
       from unnest(array['mob32','mob33','mob34','mob35','mob36']) k;
     select count(*) into n from public.kamera_backend
-     where kamera_id in ('mob32','mob33','mob34','mob35','mob36') and stream_name = kamera_id and stream_typ = 'webrtc';
-    r := r || 'mobotix_webrtc_id_gleich_stream=' || n || case when n = 5 then ' OK; ' else ' ABWEICHUNG; ' end;
+     where kamera_id in ('mob32','mob33','mob34','mob35','mob36') and stream_name = kamera_id and stream_typ = 'mjpeg';
+    r := r || 'mobotix_mjpeg_id_gleich_stream=' || n || case when n = 5 then ' OK; ' else ' ABWEICHUNG; ' end;
     ids := ids || array['mob32','mob33','mob34','mob35','mob36'];
   else
     r := r || 'mobotix=aus (Schalter false); ';
   end if;
 
   select count(*) into n from public.kamera_backend
-   where kamera_id in ('cam37','cam38','cam39','hochregal01') and stream_name = kamera_id
+   where kamera_id in ('elektrolager03','verkauf02','cam39','hochregal01') and stream_name = kamera_id
      and stream_typ = 'webrtc' and aufzeichnung_quelle is null;
   r := r || 'zuordnungen_id_gleich_stream=' || n || case when n = 4 then ' OK; ' else ' ABWEICHUNG; ' end;
   select count(*) into n from public.kamera_zugriff
@@ -149,7 +149,7 @@ begin
   r := r || 'buero_mo1659=' || b || case when b then ' OK; ' else ' ABWEICHUNG; ' end;
   select public.kamera_darf_sehen('hochregal01', ((mo + time '17:00') at time zone 'Europe/Vienna')) into b;
   r := r || 'buero_mo1700=' || b || case when not b then ' OK; ' else ' ABWEICHUNG; ' end;
-  select public.kamera_darf_sehen('cam37', ((sa + time '10:00') at time zone 'Europe/Vienna')) into b;
+  select public.kamera_darf_sehen('elektrolager03', ((sa + time '10:00') at time zone 'Europe/Vienna')) into b;
   r := r || 'buero_samstag=' || b || case when not b then ' OK; ' else ' ABWEICHUNG; ' end;
   reset role;
 
@@ -181,4 +181,4 @@ end $probe$;
 rollback;
 
 -- Kontrolle danach (nur lesen) - erwartet 0, solange die Anwendung nicht lief:
--- select count(*) from public.kameras where id in ('cam37','cam38','cam39','hochregal01');
+-- select count(*) from public.kameras where id in ('elektrolager03','verkauf02','cam39','hochregal01');

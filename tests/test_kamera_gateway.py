@@ -38,10 +38,11 @@ VORLAGE = os.path.join(os.path.dirname(WURZEL), "epk-kamera-pilot", "pilot-heute
 # Deploy-Nachweis (MCP deploy_edge_function aus dem committeten Stand, danach get_edge_function verglichen):
 # sha256 der Dateien mit LF-Zeilenenden. Aendert sich index.ts/logic.ts -> Redeploy + diese Werte nachziehen.
 DEPLOYT_VERSION = 3
-DEPLOYT_INDEX_SHA = "TBD"
-DEPLOYT_LOGIC_SHA = "TBD"
+DEPLOYT_INDEX_SHA = "ef5b7b6ad56c1df9e3af40acc9b9a03ee569c06ea53b541a0b72988a4b366a47"
+DEPLOYT_LOGIC_SHA = "eae7dde449fae598df03f7d1acc18fd478a4548fd23439576e41a6180dc5ec75"
 
-G3 = ("cam37", "cam38", "cam39", "hochregal01")
+# Streamnamen = go2rtc auf der QNAP (Entscheid GF 20.11.2026) = kameras.id = kamera_backend.stream_name
+G3 = ("hochregal01", "verkauf02", "elektrolager03", "cam39")
 MOB = ("mob32", "mob33", "mob34", "mob35", "mob36")
 IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
@@ -86,6 +87,7 @@ console.log(JSON.stringify(OUT));
 
 GW = "https://gateway.example.test"
 ALT = "https://alt.example.test"
+IP4 = ".".join(("192", "168", "33", "95"))
 FAELLE = {
     "nur_gateway": {"KAMERA_GATEWAY_BASE": GW},
     "beide": {"KAMERA_GATEWAY_BASE": GW, "KAMERA_BACKEND_BASE": ALT},
@@ -98,6 +100,13 @@ FAELLE = {
     "gateway_schraeg": {"KAMERA_GATEWAY_BASE": GW + "//"},
     "gateway_port_pfad": {"KAMERA_GATEWAY_BASE": GW + ":8443/kam"},
     "keins": {},
+    # Variante ohne DNS (Caddy tls internal, IP-Zertifikat): IPv4-Host mit/ohne Port. IP zusammengesetzt (keine IP im Repo).
+    "ip": {"KAMERA_GATEWAY_BASE": "https://" + IP4},
+    "ip_port": {"KAMERA_GATEWAY_BASE": "https://" + IP4 + ":8443"},
+    "ip_http": {"KAMERA_GATEWAY_BASE": "http://" + IP4},
+    "ip_zugang": {"KAMERA_GATEWAY_BASE": "https://user:pw@" + IP4},
+    "ip_query": {"KAMERA_GATEWAY_BASE": "https://" + IP4 + "/?x=1"},
+    "ip_fragment": {"KAMERA_GATEWAY_BASE": "https://" + IP4 + "#x"},
 }
 
 
@@ -142,6 +151,21 @@ def test_fehlend_fail_closed(E):
     assert E["basis"]["keins"] is None
     assert E["live"]["keins"] == {"status": 503, "json": {"error": "nicht_konfiguriert"}}
     assert E["einr"]["keins"]["json"] == {"einrichtung": True, "secret": True, "basis": ""}
+
+
+def test_ip_gateway_ohne_dns(E):
+    assert E["basis"]["ip"] == "https://" + IP4
+    assert E["basis"]["ip_port"] == "https://" + IP4 + ":8443"
+    assert E["live"]["ip"]["json"]["webrtcUrl"].startswith("https://" + IP4 + "/live/hochregal01/whep?token=")
+    assert E["einr"]["ip_port"]["json"]["basis"] == "https://" + IP4 + ":8443"
+    for f in ("ip_http", "ip_zugang", "ip_query", "ip_fragment"):
+        assert E["basis"][f] is None, f
+        assert E["live"][f] == {"status": 503, "json": {"error": "nicht_konfiguriert"}}, f
+
+
+def test_umkehrprobe_zugangsdaten_in_der_adresse(node_exe):
+    R = _edge(node_exe, _mut(_lies(LOGIC), "if (!/^https:\\/\\/[A-Za-z0-9.-]+", "if (!/^https:\\/\\/[A-Za-z0-9.:@-]+"))
+    assert R["basis"]["ip_zugang"] is not None, "Umkehrprobe: Zugangsdaten-Sperre waere blind"
 
 
 def test_schraegstrich_und_pfad_wie_bisher(E):
@@ -335,7 +359,7 @@ def pruefe_seed(sql):
         b.append("Mobotix-Schalter steht auf true")
     # G3: ID == Stream, webrtc, keine Aufzeichnungsquelle
     be = re.findall(r"insert into public\.kamera_backend[^;]*;", code, re.S)
-    g3 = [x for x in be if "'cam37'" in x]
+    g3 = [x for x in be if "'elektrolager03'" in x]
     if len(g3) != 1:
         b.append("G3-kamera_backend-insert fehlt")
     else:
@@ -347,21 +371,26 @@ def pruefe_seed(sql):
                 b.append("ID != Streamname: " + kid)
             if typ != "webrtc":
                 b.append("G3 nicht webrtc: " + kid)
-    if set(re.findall(r"'(cam\d+|hochregal\d+)'", code)) != set(G3):
+    if set(re.findall(r"'(cam\d+|hochregal\d+|verkauf\d+|elektrolager\d+)'", code)) != set(G3):
         b.append("fremde G3-IDs")
     # Mobotix: jeder insert mit mob-IDs nur hinter dem Schalter; ID == Stream; webrtc
     for ins in re.findall(r"insert into[^;]*;", code, re.S):
         if "'mob3" in ins and SCHALTER_PRUEF not in ins:
             b.append("Mobotix-insert ohne Schalter")
     mob_be = [x for x in be if "'mob3" in x]
-    if len(mob_be) != 1 or not re.search(r"select k\.id, k\.id, null, 'webrtc'", mob_be[0]):
-        b.append("Mobotix-Zuordnung nicht ID=Stream/webrtc")
+    if len(mob_be) != 1 or not re.search(r"select k\.id, k\.id, null, 'mjpeg'", mob_be[0]):
+        b.append("Mobotix-Zuordnung nicht ID=Stream/mjpeg")
     if set(re.findall(r"'(mob\d+)'", code)) != set(MOB):
         b.append("Mobotix-IDs falsch")
-    if re.search(r"'mjpeg'", code):
-        b.append("mjpeg im Seed (Entscheid: Mobotix per ffmpeg -> H.264 = webrtc)")
-    if not re.search(r"'cam37',\s*'Kamera \.37 \(Name folgt\)'", code):
-        b.append("vorlaeufiger Anzeigename fehlt")
+    # mjpeg NUR im Mobotix-Block (Entscheid GF 20.11.: MJPEG durchgereicht, keine Umwandlung auf der QNAP)
+    for ins in re.findall(r"insert into[^;]*;", code, re.S):
+        if "'mjpeg'" in ins and "'mob3" not in ins and "'mob" not in ins and "k.id, k.id" not in ins:
+            b.append("mjpeg ausserhalb des Mobotix-Blocks")
+    for kid, name in (("hochregal01", "Hochregal 01"), ("verkauf02", "Verkauf 02"), ("elektrolager03", "Elektrolager 03")):
+        if not re.search(r"'" + kid + r"',\s*'" + name + r"'", code):
+            b.append("Anzeigename fehlt: " + kid)
+    if not re.search(r"'cam39',\s*'Kamera \.39 \(Name folgt\)',\s*'offen'", code):
+        b.append("cam39 nicht vorlaeufig/offen")
     if not re.search(r"'UVC G3 Dome', true, 3\)", code) or "NICHTS aufgezeichnet" not in sql:
         b.append("aufbewahrung 3 / Hinweis keine Aufzeichnung fehlt")
     rb, _ = _regeln_ok("SEED", code)
@@ -397,13 +426,13 @@ def pruefe_probe(sql):
             b.append("PROBE-Zeile fehlt: " + teil)
     if code.count("' OK; ' else ' ABWEICHUNG; '") < 10:
         b.append("OK/ABWEICHUNG je Zeile fehlt")
-    if re.search(r"'mjpeg'", code):
-        b.append("mjpeg in der Probe")
+    if not re.search(r"\('mob32','mob32',null,'mjpeg'\)", code):
+        b.append("Mobotix in der Probe nicht mjpeg")
     rb, _ = _regeln_ok("PROBE", code)
     return b + rb
 
 
-ALLE_IDS = "('cam37', 'cam38', 'cam39', 'hochregal01', 'mob32', 'mob33', 'mob34', 'mob35', 'mob36')"
+ALLE_IDS = "('elektrolager03', 'verkauf02', 'cam39', 'hochregal01', 'mob32', 'mob33', 'mob34', 'mob35', 'mob36')"
 
 
 def pruefe_ruecknahme(sql):
@@ -452,18 +481,20 @@ def test_pilot_seed_als_superseded_markiert():
 @pytest.mark.parametrize("alt,neu,erwartet", [
     ("true, 3)\non conflict (id) do nothing;", "true, 3)\non conflict (id) do nothing;\ndelete from public.kameras where id = 'x' cascade;", "CASCADE"),
     ("\n" + SCHALTER, "\nset local epk.mobotix_aktiv = 'true';", "Mobotix-Schalter"),
-    ("time '17:00', true, 'GATEWAY_SEED buero Mo-Fr 07-17'\n  from public.kameras k\n where k.id in ('cam37'",
-     "time '17:00:30', true, 'GATEWAY_SEED buero Mo-Fr 07-17'\n  from public.kameras k\n where k.id in ('cam37'", "ganze Minute"),
-    ("('cam38',       'cam38',       null, 'webrtc')", "('cam38',       'g3_38',       null, 'webrtc')", "ID != Streamname"),
-    ("('cam39',       'cam39',       null, 'webrtc')", "('cam39',       'cam39',       null, 'mjpeg')", "nicht webrtc"),
+    ("time '17:00', true, 'GATEWAY_SEED buero Mo-Fr 07-17'\n  from public.kameras k\n where k.id in ('elektrolager03'",
+     "time '17:00:30', true, 'GATEWAY_SEED buero Mo-Fr 07-17'\n  from public.kameras k\n where k.id in ('elektrolager03'", "ganze Minute"),
+    ("('verkauf02',      'verkauf02',      null, 'webrtc')", "('verkauf02',      'g3_38',          null, 'webrtc')", "ID != Streamname"),
+    ("('cam39',          'cam39',          null, 'webrtc')", "('cam39',          'cam39',          null, 'mjpeg')", "nicht webrtc"),
+    ("'Kamera .39 (Name folgt)', 'offen'", "'Kamera .39 (Name folgt)', 'Standort folgt'", "cam39 nicht vorlaeufig"),
+    ("('hochregal01',    'Hochregal 01'", "('hochregal01',    'Elektrolager 03'", "Anzeigename fehlt"),
     ("raise exception 'Pilot-Seed", "raise notice 'Pilot-Seed", "Pilot-IDs"),
-    ("select k.id, k.id, null, 'webrtc'", "select k.id, k.id, null, 'mjpeg'", "Mobotix-Zuordnung"),
-    ("'Standort folgt', 'Ubiquiti', 'UVC G3 Dome', true, 3),\n  ('cam38'",
-     "'" + ".".join(("10", "0", "0", "37")) + "', 'Ubiquiti', 'UVC G3 Dome', true, 3),\n  ('cam38'", "IP-Adresse"),
+    ("select k.id, k.id, null, 'mjpeg'", "select k.id, k.id, null, 'webrtc'", "Mobotix-Zuordnung"),
+    ("'Standort folgt', 'Ubiquiti', 'UVC G3 Dome', true, 3),\n  ('verkauf02'",
+     "'" + ".".join(("10", "0", "0", "37")) + "', 'Ubiquiti', 'UVC G3 Dome', true, 3),\n  ('verkauf02'", "IP-Adresse"),
     ("select k.id, 'buero', '{1,2,3,4,5}', time '07:00', time '17:00', true, 'GATEWAY_SEED buero Mo-Fr 07-17'\n"
-     "  from public.kameras k\n where k.id in ('cam37'",
+     "  from public.kameras k\n where k.id in ('elektrolager03'",
      "select k.id, 'monteur', '{1,2,3,4,5}', time '07:00', time '17:00', true, 'GATEWAY_SEED buero Mo-Fr 07-17'\n"
-     "  from public.kameras k\n where k.id in ('cam37'", "weitere Rolle"),
+     "  from public.kameras k\n where k.id in ('elektrolager03'", "weitere Rolle"),
 ])
 def test_umkehrprobe_seed(alt, neu, erwartet):
     assert any(erwartet in x for x in pruefe_seed(_mut(_lies(SEED), alt, neu))), erwartet
@@ -513,7 +544,8 @@ def pruefe_doku(text):
     pos = [text.find(x) for x in reihe]
     if -1 in pos or pos != sorted(pos):
         b.append("Reihenfolge Zertifikat -> Proxy -> GATEWAY_BASE -> Probe -> Seed -> Testliste: %s" % pos)
-    for teil in ("cam37", "hochregal01", "TABU", "Mensch", "ffmpeg", "QNAP-CPU", "Vorlage – der Kamera-Server ist die QNAP"):
+    for teil in ("hochregal01", "verkauf02", "elektrolager03", "cam39", "TABU", "Mensch", "mjpeg",
+                 "https://kameras.ep-kolar.at", "DNS-01", "Vorlage – der Kamera-Server ist die QNAP"):
         if teil not in text:
             b.append("Doku ohne " + teil)
     return b
@@ -550,7 +582,8 @@ def test_vorlage_go2rtc_gateway_streams_und_mobotix_aus():
             assert "${KAM_USER}:${KAM_PW}@" in z, z
     for nr in range(32, 37):
         netz = ".".join(("192", "168", "33", str(nr)))
-        assert ("  # mob%d: ffmpeg:http://${KAM_USER}:${KAM_PW}@%s/cgi-bin/faststream.jpg?stream=full#video=h264" % (nr, netz)) in roh
+        assert ("  # mob%d: http://${KAM_USER}:${KAM_PW}@%s/cgi-bin/faststream.jpg?stream=full" % (nr, netz)) in roh
+    assert "ffmpeg:" not in roh and "#video=h264" not in roh, "Mobotix: MJPEG durchreichen, keine Umwandlung"
     for f in ("go2rtc.yaml", ".env.beispiel", "docker-compose.yml"):
         assert "MX_USER" not in _lies(os.path.join(VORLAGE, f)) and "MX_PASS" not in _lies(os.path.join(VORLAGE, f)), f
     assert "Vorlage – der Kamera-Server ist die QNAP" in _lies(os.path.join(VORLAGE, "README.md"))
