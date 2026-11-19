@@ -913,7 +913,7 @@ window._runAllTests=async function(){
   await t('JWT nicht abgelaufen',()=>{const tok=_authToken;if(!tok)return false;return _safeJsonParse(atob(tok.split('.')[1]),{}).exp>Date.now()/1000;});
 
   // API
-  await t('Supabase erreichbar',async()=>{const r=await fetch(SUPABASE_URL+"/rest/v1/users?limit=1",{headers:_sbH()});return r.ok;});
+  await t('Supabase erreichbar',async()=>{const r=await fetch(SUPABASE_URL+"/rest/v1/users?select=id&limit=1",{headers:_sbH()});return r.ok;});
   await t('9 Workers in DB',async()=>{const d=await _api.get('workers','select=id');return d.length>=9;});
   await t('Riedmann verknüpft',async()=>{const d=await _api.get('users','username=eq.riedmann&select=auth_user_id');return !!(d[0]&&d[0].auth_user_id);});
   await t('Holter Artikel ≥ 25000',async()=>{const r=await fetch(SUPABASE_URL+"/rest/v1/supplier_articles?select=id&limit=1",{headers:{..._sbH(),'Prefer':'count=exact'}});const cr=r.headers.get('content-range');return cr&&parseInt(cr.split('/')[1]||0)>=25000;});
@@ -1610,7 +1610,7 @@ async function _silentReAuth(){
 async function _sbAuthLogout(){
   /* v3.9.112 Hunt: Token SOFORT synchron nullen — Hintergrund-Writes (juprowaSync/SQ-Flush) dürfen ihn nach Logout-Klick nicht mehr nutzen. DANN mit gekapseltem Token serverseitig ausloggen. */
   const _tok=_authToken;_authToken=null;_authRefreshToken=null;if(_authRefreshTimer){clearTimeout(_authRefreshTimer);_authRefreshTimer=null;}
-  if(_tok&&_isJwtShape(_tok))try{await fetch(_SB_AUTH+"/logout",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_tok}},10000));}catch(_){}
+  if(_tok&&_isJwtShape(_tok))try{await fetch(_SB_AUTH+"/logout?scope=local",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_tok}},10000));/* v3.9.1056 Fund 11: scope=local - ohne meldete GoTrue den Benutzer auf ALLEN Geraeten ab (Werkstatt-Tablet beendet die Handy-Sitzung) */}catch(_){}
   // v3.5.124: zusätzlich epkolar_token/epkolar_refresh entfernen (separate Keys für Smoke-Tests + klareres Debug-Bild)
   try{localStorage.removeItem("epkolar_auth");localStorage.removeItem("epkolar_gc");localStorage.removeItem("epkolar_token");localStorage.removeItem("epkolar_refresh");}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
 }
@@ -1890,6 +1890,44 @@ const _hasTermin = t => !!(t && t > '1900-01-01');
 const _asZeitAnz = z => {const t=String(z==null?"":z).trim();return (t==="00:00"||t==="00:00:00"||t==="0:00")?"":t;};
 // Safe user columns (excludes password_hash for non-auth reads)
 const _USER_SAFE_COLS="id,name,username,email,role,active,monteur_id,permissions,perms_override,last_login,login_count,locked,deactivate_at,created_at,updated_at,auth_user_id";
+/* v3.9.1056 Auth-Haertung (sql/AUTH_HAERTUNG_1..5, Pruefbericht 19.11.). Das Leserecht auf users.password_hash faellt weg. select=* und Schreibantworten mit return=representation verlangen dann Leserecht auf JEDE Spalte und brechen mit 42501 - deshalb fuer users IMMER die Spaltenliste. PW_MIN_LEN: EINE Mindestlaenge fuer alle Kennwort-Masken (vorher 4 und 6 durcheinander, Fund 9). */
+const PW_MIN_LEN=8;
+function _sbSelFuer(table){return table==="users"?"select="+_USER_SAFE_COLS:"select=*";}
+/* Fund 12: Besitzer eines Warteschlangen-Eintrags = users.id des angemeldeten Benutzers (dieselbe Quelle wie der Stempel in SQ.push). */
+function _sqOwnerJetzt(){try{return (JSON.parse(localStorage.getItem("epkolar_user")||"null")||{}).id||"";}catch(_){return "";}}
+/* Fund 3: gesperrt, inaktiv oder ausgeschieden (deactivate_at erreicht) - dieselbe Regel wie login_lookup und ist_aktiver_benutzer() in der Datenbank. */
+function _profGesperrt(p){
+  if(!p)return true;
+  const _wahr=v=>v===true||v===1||v==="1"||v==="true"||v==="t";
+  if(_wahr(p.locked))return true;
+  if(p.active!==undefined&&p.active!==null&&!_wahr(p.active))return true;
+  if(p.deactivate_at){const d=new Date();const h=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");if(String(p.deactivate_at).slice(0,10)<=h)return true;}
+  return false;
+}
+/* Rolle im aktuellen Zugangs-Token (authenticated oder anon). Nur ein angemeldetes Token darf aus einem leeren Profil-Lesen schliessen, dass der Zugang weg ist - mit dem anon-Schluessel ist users immer leer. */
+function _tokRolle(){try{if(!_authToken||!_isJwtShape(_authToken))return "";const b=_authToken.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return (JSON.parse(atob(b))||{}).role||"";}catch(_){return "";}}
+/* Fund 3: Zugang serverseitig weg (Profil leer, gesperrt, inaktiv) - abmelden, Offline-Anmeldung loeschen, ehrlich sagen. Die Warteschlange bleibt (Besitzer-Stempel), sie geht nie unter einem anderen Konto raus. */
+async function _zugangEntzogen(setCU){
+  try{await _sbAuthLogout();}catch(_){}
+  try{API.setToken(null);}catch(_){}
+  try{localStorage.removeItem("epkolar_user");}catch(_){}
+  try{await ODB.del("meta","offlinePwHash");await ODB.del("meta","lastUser");}catch(_){}
+  try{if(typeof setCU==="function")setCU(null);}catch(_){}
+  try{if(window.__toast)window.__toast("Zugang nicht mehr aktiv – bitte Büro oder Admin kontaktieren.","error",9000);}catch(_){}
+}
+/* Fund 4: Passwort vergessen. Ruft die RPC passwort_hilfe_anfragen (sql/AUTH_HAERTUNG_5) IMMER mit dem anon-Schluessel - nie mit einem liegengebliebenen Token des Vorbenutzers. Erfolg NUR, wenn die RPC ok:true sagt. 404 = RPC (noch) nicht eingespielt. */
+async function _passwortHilfeAnfragen(name){
+  const _n=String(name||"").trim().slice(0,80);
+  if(!_n)return{ok:0,grund:"leer"};
+  let r=null;
+  try{r=await fetch(SB_REST+"/rpc/passwort_hilfe_anfragen",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({p_username:_n})},15000));}
+  catch(e){return{ok:0,grund:"netz"};}
+  if(!r)return{ok:0,grund:"netz"};
+  if(r.status===404)return{ok:0,grund:"fehlt",status:r.status};
+  if(!r.ok)return{ok:0,grund:"http",status:r.status};
+  let j=null;try{j=await r.json();}catch(_){j=null;}
+  return (j&&j.ok===true)?{ok:1}:{ok:0,grund:"antwort"};
+}
 // SB_HDR replaced by dynamic _sbWH() — see auth section above
 
 // ═══ SUPABASE STORAGE ═══
@@ -2562,7 +2600,7 @@ function _sbGrenzeMelden(table,filter,rows){
 async function _sbGet(table,filter){
   const hasSelect=filter&&filter.includes("select=");
   const hatGrenze=!!(filter&&/(^|&)limit=/.test(filter));/* v3.9.993 (B3): HIER STAND "limit=5000" OHNE BEDINGUNG. Hatte der Aufrufer eine eigene Grenze gesetzt, trug die Adresse danach ZWEI limit-Parameter - und der des Helfers stand ZULETZT. Genau ein Aufruf ist betroffen und wollte ausdruecklich mehr: der Lieferantenkatalog mit limit=10000, der 5000 Artikel leicht ueberschreitet. Fuer die uebrigen 112 Aufrufe aendert sich nichts. Der dritte Leser _sbGetAnon bleibt unangetastet: er kappt ZWEIFACH, auch per Range-Kopfzeile. */
-  const parts=[hasSelect?"":"select=*",filter||"",hatGrenze?"":"limit=5000"].filter(Boolean);
+  const parts=[hasSelect?"":_sbSelFuer(table),filter||"",hatGrenze?"":"limit=5000"].filter(Boolean);/* v3.9.1056: users mit Spaltenliste (password_hash nicht lesbar) */
   const url=SB_REST+"/"+table+"?"+parts.join("&");
   const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbRH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler (_netzLesen) */
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail(r.status);/* v3.9.910: das leere Array TRAEGT jetzt seinen Grund. Vorher kam ein 401/403 als leere Tabelle im ERFOLGSPFAD an - fuer rund 150 Aufrufer ununterscheidbar von einer wirklich leeren Tabelle, und kein Auffangzweig konnte es sehen. Additiv: .length bleibt 0, Array.isArray bleibt wahr, kein Aufrufer aendert sein Verhalten. Sichtbar wird es ueber window.__EP_RLS. */var _tabRls=(typeof table!=='undefined'&&table)?table:'users';_merkeRlsFehler(_tabRls,r.status);var _leerRls=[];try{_leerRls.__rlsFehler=r.status;_leerRls.__rlsTab=_tabRls;}catch(_lm){}return _leerRls;}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
@@ -2571,7 +2609,7 @@ async function _sbGet(table,filter){
 async function _sbGetOrder(table,order,filter){
   const hasSelect=filter&&filter.includes("select=");
   const hatGrenze=!!(filter&&/(^|&)limit=/.test(filter));/* v3.9.993 (B3): HIER STAND "limit=5000" OHNE BEDINGUNG. Hatte der Aufrufer eine eigene Grenze gesetzt, trug die Adresse danach ZWEI limit-Parameter - und der des Helfers stand ZULETZT. Genau ein Aufruf ist betroffen und wollte ausdruecklich mehr: der Lieferantenkatalog mit limit=10000, der 5000 Artikel leicht ueberschreitet. Fuer die uebrigen 112 Aufrufe aendert sich nichts. Der dritte Leser _sbGetAnon bleibt unangetastet: er kappt ZWEIFACH, auch per Range-Kopfzeile. */
-  const parts=[hasSelect?"":"select=*",filter||"","order="+order,hatGrenze?"":"limit=5000"].filter(Boolean);
+  const parts=[hasSelect?"":_sbSelFuer(table),filter||"","order="+order,hatGrenze?"":"limit=5000"].filter(Boolean);/* v3.9.1056: users mit Spaltenliste */
   const url=SB_REST+"/"+table+"?"+parts.join("&");
   const r=await _authRetry(()=>_netzLesen(()=>fetch(url,_fT({headers:_sbRH()},_netzLeseMs()))));/* v3.9.1043 Lesen: Wiederholung bei Netz-/Zeitfehler (_netzLesen) */
   if(!r.ok){if(_isAuthErr(r.status)){_onAuthFail(r.status);/* v3.9.910: das leere Array TRAEGT jetzt seinen Grund. Vorher kam ein 401/403 als leere Tabelle im ERFOLGSPFAD an - fuer rund 150 Aufrufer ununterscheidbar von einer wirklich leeren Tabelle, und kein Auffangzweig konnte es sehen. Additiv: .length bleibt 0, Array.isArray bleibt wahr, kein Aufrufer aendert sein Verhalten. Sichtbar wird es ueber window.__EP_RLS. */var _tabRls=(typeof table!=='undefined'&&table)?table:'users';_merkeRlsFehler(_tabRls,r.status);var _leerRls=[];try{_leerRls.__rlsFehler=r.status;_leerRls.__rlsTab=_tabRls;}catch(_lm){}return _leerRls;}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
@@ -2634,13 +2672,13 @@ async function _workerRefs(id){
 }
 async function _sbPost(table,data,minimal){/* v3.9.227: minimal=true → Prefer return=minimal (kein RETURNING→SELECT) — Fix Monteur-403 bei notifications-INSERT fuer fremde Empfaenger */
   data=await _dbOhneDateien(table,null,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH(minimal?"return=minimal":"return=representation"),body:JSON.stringify(data)})));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+(table==="users"&&!minimal?"?"+_sbSelFuer(table):""),_fT({method:"POST",headers:_sbWH(minimal?"return=minimal":"return=representation"),body:JSON.stringify(data)})));/* v3.9.1056: Antwort fuer users nur mit Spaltenliste */
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   try{return await r.json();}catch(_){return{ok:1};}
 }
 async function _sbUpsert(table,data,minimal){/* v3.9.227: minimal=true → return=minimal (kein RETURNING) — Fix notifications-403 */
   data=await _dbOhneDateien(table,null,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table,_fT({method:"POST",headers:_sbWH((minimal?"return=minimal":"return=representation")+",resolution=merge-duplicates"),body:JSON.stringify(data)})));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+(table==="users"&&!minimal?"?"+_sbSelFuer(table):""),_fT({method:"POST",headers:_sbWH((minimal?"return=minimal":"return=representation")+",resolution=merge-duplicates"),body:JSON.stringify(data)})));/* v3.9.1056: s.o. */
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   try{return await r.json();}catch(_){return{ok:1};}
 }
@@ -2689,7 +2727,7 @@ async function _sbInsertIfAbsent(table,data){/* v3.9.442 #17: idempotenter AS-PO
 }
 async function _sbPatch(table,id,data){
   data=await _dbOhneDateien(table,id,data);/* v3.9.1042 Dateien nie in die DB: data:-Werte ueber 2 kB vorher in den Speicher (siehe _dbOhneDateien) */
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)})));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id)+(table==="users"?"&"+_sbSelFuer(table):""),_fT({method:"PATCH",headers:_sbWH(),body:JSON.stringify(data)})));/* v3.9.1056: s.o. */
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   /* v3.9.998 (R1): DER WAECHTER SASS NUR IM UEBERSETZER DER WARTESCHLANGE. 21 Schreibaufrufe rufen _sbPatch direkt und liefen baulich daran vorbei; fuenf davon treffen Tabellen, die in der Tafel STEHEN (fahrzeuge dreimal, werkzeuge, fz_termine). Der Eintrag dort war damit eine Attrappe - er sieht nach Deckung aus und konnte von diesen Wegen nie feuern, obwohl genau der stille Tank-/km-Verlust der Grund war, den Waechter zu bauen. Die Pruefung steht jetzt HIER, also an einer Stelle fuer alle Umwege und jeden kuenftigen. Kein Fehlalarm: _sbPatch sendet ueber _sbWH() die Kopfzeile Prefer: return=representation, die Antwort traegt also die geaenderten Zeilen. Leer heisst bei einem Zugriff ueber id=eq.<kennung> wirklich null Zeilen - Zeilenschutz abgewiesen oder Zeile nicht da. Gemeldet wird nur fuer die 23 durchgesehenen Tabellen der Tafel. */
   var _pr;try{_pr=await r.json();}catch(_){return{ok:1};}
@@ -2723,7 +2761,7 @@ function _sbLoeschZahl(table,n){
 }
 async function _sbDelete(table,id){
   /* v3.9.999 (R2): return=representation ist hier billig - ueber id=eq. faellt hoechstens EINE Zeile, die Antwort ist also winzig. KEIN select=id: nicht jede Tabelle hat eine Spalte id (weekplan_rows fuehrt row_id, absences einen zusammengesetzten Schluessel), und ein 400er wuerde den Loeschvorgang ABBRECHEN. */
-  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id),_fT({method:"DELETE",headers:_sbH({"Prefer":"return=representation"})})));
+  const r=await _authRetry(()=>fetch(SB_REST+"/"+table+"?id=eq."+encodeURIComponent(id)+(table==="users"?"&"+_sbSelFuer(table):""),_fT({method:"DELETE",headers:_sbH({"Prefer":"return=representation"})})));/* v3.9.1056: s.o. */
   if(!r.ok){if(r.status===401){_onAuthFail(401);throw new Error("Auth:401");}if(r.status===403){_onAuthFail(403);const _e403=await r.text();throw new Error("HTTP403 "+_e403);}const e=await r.text();throw new Error("HTTP"+r.status+" "+e);/* v3.9.131: HTTP-Status im Fehler → Sync-Drop-Log zeigt 400/409/... für Diagnose */}
   var _dz=0;try{var _dj=await r.json();if(Array.isArray(_dj))_dz=_dj.length;}catch(_de){_dz=-1;}
   _sbLoeschZahl(table,_dz);
@@ -3238,12 +3276,9 @@ async function _translateAndExec(url,method,body){
 
   // Password-Reset: create notification for all admin users
   if(resource==="password-reset"&&method==="POST"){
-    try{
-      const admins=await _sbGetUsersSafe("role=eq.admin&active=eq.1");
-      const username=body&&body.username||"Unbekannt";
-      const notifs=admins.map(a=>({id:Date.now()+"_pwr_"+a.id,user_id:a.id,type:"system",title:"🔑 Passwort-Reset Anfrage",body:"Benutzer '"+username+"' hat eine Passwort-Zurücksetzung angefordert.",link:"",read:0,created_at:new Date().toISOString()}));
-      if(notifs.length)await _sbUpsert("notifications",notifs,true);/* v3.9.227: return=minimal (RETURNING→SELECT→403-Fix) */
-    }catch(e){console.warn("[api] PW-Reset notification:",e);}
+    /* v3.9.1056 Fund 4: der alte Weg las users anonym (immer leer) und meldete trotzdem Erfolg - beim Admin kam nie etwas an. Jetzt die RPC; Erfolg nur bei ok:true. */
+    const _ph=await _passwortHilfeAnfragen(body&&body.username);
+    if(!_ph.ok)throw new Error("Passwort-Hilfe nicht gesendet ("+(_ph.grund||"?")+" HTTP"+(_ph.status||"-")+")");
     return{ok:1};
   }
   if(resource==="export")return{ok:1}; // exports are client-side
@@ -3442,11 +3477,9 @@ async function _translateAndExec(url,method,body){
   // Users special: handle password hashing
   if(resource==="users"&&(method==="POST"||method==="PUT")){
     const d={...body};
-    if(d.password){
-      try{d.password_hash=dcodeIO.bcrypt.hashSync(d.password,10);}
-      catch(e){d.password_hash=d.password;} // fallback
-      delete d.password;
-    }
+    /* v3.9.1056 Fund 10: Kennwoerter laufen NIE mehr ueber die Warteschlange - Login und Kennwort liegen allein bei GoTrue (admin_create_user, admin_reset_password, PUT auth user). Kommt aus einem alten Eintrag doch eines an, wird es verworfen: nie gehasht und nie im Klartext nach users.password_hash (vorher schrieb ein bcrypt-Ausfall den Klartext hinein). */
+    _PW_FELDER.forEach(k=>{delete d[k];});delete d.password_hash;delete d.passwordHash;
+    if(method==="PUT"&&!Object.keys(d).some(k=>k!=="id"))return{ok:1};
     if(d.permissions&&Array.isArray(d.permissions))d.permissions=JSON.stringify(d.permissions);
     if(d.newOv!==undefined){d.permsOverride=d.newOv;delete d.newOv;}
     body=d;
@@ -3611,51 +3644,49 @@ window.API = (function() {
       // v3.8.7 B-020: Jeder Fail-Pfad kriegt unterscheidbaren B20-X Error-Code in console.error
       //   + Error-Message-Prefix, damit beim nächsten Silent-Fail sofort sichtbar ist welcher Branch greift.
       const rpcRes=await fetch(SB_REST+"/rpc/login_lookup",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({p_username:u})},15000));
-      if(!rpcRes.ok){console.error('[B020-A] login_lookup HTTP-Fail',{status:rpcRes.status,username:u});throw new Error("Server nicht erreichbar [B20-A] HTTP"+rpcRes.status);/* v3.9.921: der Status ging nur ins console.error, nicht in den Fehler - und der Fehler ist das, was in der Anmeldemaske steht. Ein 403 (Rechte/RLS) sah damit aus wie ein 500 (Server weg), und das Buero haette einer Netzstoerung nachgejagt, die es nicht gab. Gefunden hat das ein Riegel, der die EIGENSCHAFT misst (jeder Wurf aus einem Antwort-Pruefzweig traegt den Status) - der alte zaehlte 9 von 49 solchen Wuerfen und war dabei gruen. Gemessen in tests/test_hotfix_sync_v3131.py. */}
+      if(!rpcRes.ok){console.error('[B020-A] login_lookup HTTP-Fail',{status:rpcRes.status});throw new Error("Server nicht erreichbar [B20-A] HTTP"+rpcRes.status);/* v3.9.921: der Status ging nur ins console.error, nicht in den Fehler - und der Fehler ist das, was in der Anmeldemaske steht. Ein 403 (Rechte/RLS) sah damit aus wie ein 500 (Server weg), und das Buero haette einer Netzstoerung nachgejagt, die es nicht gab. Gefunden hat das ein Riegel, der die EIGENSCHAFT misst (jeder Wurf aus einem Antwort-Pruefzweig traegt den Status) - der alte zaehlte 9 von 49 solchen Wuerfen und war dabei gruen. Gemessen in tests/test_hotfix_sync_v3131.py. */}
       const user=await rpcRes.json();
-      if(!user||!user.id){console.error('[B020-B] login_lookup returned empty/malformed',{username:u,body:user});throw new Error("Benutzer nicht gefunden [B20-B]");}
-      if(user.locked){console.error('[B020-C] user is locked',{userId:user.id,username:u});throw new Error("Benutzer gesperrt [B20-C]");}
-      // v3.8.7 BLOCK 1 B-020: Root-Cause-Fix — Empty-Email-Accounts HARTE Abweisung.
-      // 4 User (paschinger/barger/cracana/schober) hatten email='' in public.users →
-      // GoTrue verwirft mit 500 → App rannte in silent "eingeschränkter Modus" + Dashboard-Render
-      // mit anon-Key (Security-Smell). Jetzt: throw vor Auth-Attempt, Admin muss Email setzen.
-      if(!user.email||!String(user.email).trim()){
-        console.error('[B020-F] Account unvollständig (leere Email in public.users)',{userId:user.id,username:u,role:user.role});
-        throw new Error("Account unvollständig — Email fehlt. Admin kontaktieren. [B20-F]");
-      }
-      const email=user.email;
+      /* v3.9.1056 Fund 6: login_lookup liefert kuenftig NUR die E-Mail (sql/AUTH_HAERTUNG_1) und nur fuer aktive, nicht gesperrte Konten. Unbekannt, gesperrt, ohne E-Mail und falsches Passwort zeigen DIESELBE Meldung - vorher verrieten drei Texte, ob es den Benutzernamen gibt. Im Protokoll stehen weder Benutzername noch E-Mail. Die alte Server-Fassung (ganze Zeile) wird weiter verstanden. */
+      const _neutral="Anmeldung fehlgeschlagen – Benutzername oder Passwort prüfen";
+      const email=(user&&user.email)?String(user.email).trim():"";
+      if(!email||(user&&user.locked)){console.error('[B020-B] login_lookup ohne verwendbare Antwort (unbekannt, gesperrt oder ohne E-Mail - absichtlich nicht unterschieden)');throw new Error(_neutral+" [B20-B]");}
       // v3.9.213 #2 SECURITY: bcrypt-Fallback gegen login_lookup.password_hash ENTFERNT.
       // GoTrue ist online der alleinige Auth-Pfad (alle 10 User verifiziert migriert). Der frühere
       // Fallback las login_lookup.password_hash (bcrypt-Hash an anon = offline knackbar) → komplett
       // entfernt, damit login_lookup keinen Hash mehr ausliefern muss. Offline-Login laeuft getrennt
       // ueber _OFFPW/offlinePwHash (LoginScreen, navigator.onLine===false) — unangetastet.
-      let gotrue=false;
-      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;/* v3.8.35: epkolar_gc-Cache entfernt (base64-reversible, siehe _silentReAuth-Kommentar) */}catch(authErr){
-        const _st=authErr&&authErr.status;
-        if(_st&&_st>=500){console.error('[B020-D] GoTrue serverseitig nicht erreichbar',{username:u,email,status:_st,gotrueErr:authErr&&authErr.message});throw new Error("Anmeldedienst momentan nicht erreichbar — bitte erneut versuchen [B20-D]");}
-        console.error('[B020-D] GoTrue-Auth fehlgeschlagen',{username:u,email,status:_st,gotrueErr:authErr&&authErr.message});throw new Error("Falsches Passwort [B20-D]");
+      let gotrue=false;let _aUid="";
+      try{const authData=await _sbAuthLogin(email,p);_storeAuth(authData);gotrue=true;_aUid=(authData&&authData.user&&authData.user.id)||"";/* v3.8.35: epkolar_gc-Cache entfernt (base64-reversible, siehe _silentReAuth-Kommentar) */}catch(authErr){
+        /* v3.9.1056 Fund 7/8: Netzfehler (kein Status) gehen unveraendert nach oben - die Anmeldemaske versucht dann den Offline-Weg. 429 und unbestaetigte E-Mail bekommen eigene Texte; vorher war alles Falsches Passwort und man probierte weiter in die Sperre hinein. */
+        const _st=authErr&&authErr.status;const _code=String((authErr&&authErr.code)||"");
+        if(!_st){console.error('[B020-N] Anmeldedienst nicht erreichbar (Netz)',{name:authErr&&authErr.name});throw authErr;}
+        if(_st===429||_code.indexOf("rate_limit")>=0){console.error('[B020-R] Anmeldedienst Rate-Limit',{status:_st,code:_code});throw new Error("Zu viele Versuche – bitte kurz warten [B20-R] HTTP"+_st);}
+        if(_code==="email_not_confirmed"){console.error('[B020-E] E-Mail nicht bestaetigt',{status:_st});throw new Error("Zugang noch nicht freigeschaltet (E-Mail nicht bestätigt) – bitte Büro oder Admin kontaktieren [B20-E]");}
+        if(_st>=500){console.error('[B020-D] GoTrue serverseitig nicht erreichbar',{status:_st});throw new Error("Anmeldedienst momentan nicht erreichbar — bitte erneut versuchen [B20-D] HTTP"+_st);}
+        console.error('[B020-D] GoTrue-Anmeldung abgelehnt',{status:_st,code:_code});throw new Error(_neutral+" [B20-D]");
       }
       // v3.8.7 BLOCK 1 B-020: Belt-and-braces — nach ALLEN Auth-Pfaden MUSS _authToken gesetzt sein.
       // Falls durch race/edge nicht → HARTE Abweisung statt Dashboard-Render mit anon-Key.
-      if(!_authToken){console.error('[B020-H] _authToken null nach Auth-Flow',{username:u,email,gotrueFlag:gotrue});throw new Error("Anmeldung fehlgeschlagen — bitte erneut versuchen [B20-H]");}
+      if(!_authToken){console.error('[B020-H] _authToken null nach Auth-Flow',{gotrueFlag:gotrue});throw new Error("Anmeldung fehlgeschlagen — bitte erneut versuchen [B20-H]");}
       // v3.9.213 #2: Vollprofil (permissions/monteur_id/perms_override/login_count) NACH dem GoTrue-Login
       // ueber den AUTHENTIFIZIERTEN, RLS-geschuetzten Self-Read holen — login_lookup (anon-RPC) muss diese
       // Felder nicht mehr ausliefern. Defensiv: Read leer/fehlerhaft → Fallback aufs login_lookup-Result
       // (Vor-Migration liefert es die Felder weiterhin → kein Regress).
-      let _prof=null;try{const _pr=await _sbGetUsersSafe("id=eq."+encodeURIComponent(user.id));if(Array.isArray(_pr)&&_pr[0])_prof=_pr[0];}catch(e){console.warn('[login-profile]',e&&e.message||e);}
-      // v3.9.214 #2: Leerer Self-Read = users.auth_user_id-Link fehlt/falsch → Profil faellt auf login_lookup-Result
-      // zurueck (vor der Migration ok; danach permissions/monteurId leer). Observierbar machen, NICHT still.
-      if(!_prof){console.error('[B020-PROF] Authentifizierter Profil-Self-Read leer — users.auth_user_id-Verknuepfung pruefen',{userId:user.id,role:user.role});}
-      const _src=_prof||user;
+      /* v3.9.1056 Fund 6/3: login_lookup gibt anonym keine id mehr heraus - das Profil kommt ueber die Anmelde-Identitaet (auth_user_id = Benutzer des frischen Tokens). Liefert ein alter Server noch die id, zweiter Versuch ueber id. Kein Profil, gesperrt, inaktiv oder ausgeschieden: Sitzung sofort beenden, neutrale Meldung - vorher fiel ein leeres Profil still auf das login_lookup-Ergebnis zurueck und man war drin. */
+      let _prof=null;
+      try{if(_aUid){const _pr=await _sbGetUsersSafe("auth_user_id=eq."+encodeURIComponent(_aUid));if(Array.isArray(_pr)&&_pr[0])_prof=_pr[0];}}catch(e){console.warn('[login-profile]',e&&e.message||e);}
+      if(!_prof&&user&&user.id){try{const _pr2=await _sbGetUsersSafe("id=eq."+encodeURIComponent(user.id));if(Array.isArray(_pr2)&&_pr2[0])_prof=_pr2[0];}catch(e){console.warn('[login-profile]',e&&e.message||e);}}
+      if(!_prof||_profGesperrt(_prof)){console.error('[B020-PROF] Kein aktives Profil zu dieser Anmeldung - Sitzung beendet',{profil:!!_prof});try{await _sbAuthLogout();}catch(_){}throw new Error(_neutral+" [B20-P]");}
+      const _src=_prof;
       /* v3.9.166 FIX Login#3: Telemetrie (last_login/activity_log) fire-and-forget statt await — lag synchron im
          kritischen Login-Pfad (verzögerte Dashboard, konnte unnötigen Re-Auth triggern). Ergebnis wird nicht genutzt. */
       // v3.9.214 #2: last_login immer; login_count NUR mit echtem Profil hochzaehlen — sonst (Self-Read leer +
       // nach login_lookup-Migration ohne login_count-Feld) wuerde parseInt(undefined)||0 den Zaehler auf 1 nullen.
-      if(_authToken){const _stamp={last_login:new Date().toISOString()};if(_prof)_stamp.login_count=(parseInt(_src.login_count)||0)+1;_sbPatch("users",user.id,_stamp).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
-      if(_authToken){_sbPost("activity_log",{user_id:user.id,action:"login",details:"gotrue "+(navigator.userAgent||"")},true).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}/* v3.9.355 #1: return=minimal (kein RETURNING→SELECT) — activity_log_select ist staff-only, der SELECT-Back warf bei Monteur-Login 42501. Analog notifications-Fix v3.9.227. Insert selbst ist erlaubt (WITH CHECK=authenticated). */
+      if(_authToken){const _stamp={last_login:new Date().toISOString()};if(_prof)_stamp.login_count=(parseInt(_src.login_count)||0)+1;_sbPatch("users",_prof.id,_stamp).catch(e=>console.warn('[LOGIN-STAMP]',e&&e.message||e));}
+      if(_authToken){_sbPost("activity_log",{user_id:_prof.id,action:"login",details:"gotrue "+(navigator.userAgent||"")},true).catch(e=>console.warn('[LOGIN-AUDIT]',e&&e.message||e));}/* v3.9.355 #1: return=minimal (kein RETURNING→SELECT) — activity_log_select ist staff-only, der SELECT-Back warf bei Monteur-Login 42501. Analog notifications-Fix v3.9.227. Insert selbst ist erlaubt (WITH CHECK=authenticated). */
       let perms=[];try{perms=typeof _src.permissions==='string'?JSON.parse(_src.permissions||'[]'):_src.permissions||[];}catch(e){perms=[];}
       const _po=_src.perms_override||_src.permsOverride;let _poObj=null;try{_poObj=typeof _po==='string'&&_po?JSON.parse(_po):_po||null;}catch(e){_poObj=null;}
-      const userData={id:user.id,name:_src.name||user.name,role:_src.role||user.role,username:_src.username||user.username,email:email,permissions:perms,monteurId:_src.monteur_id||'',permsOverride:_poObj};
+      const userData={id:_prof.id,name:_src.name||(user&&user.name),role:_src.role||(user&&user.role),username:_src.username||(user&&user.username),email:email,permissions:perms,monteurId:_src.monteur_id||'',permsOverride:_poObj};
       _user=userData;
       // v3.5.124: epkolar_token = echter JWT (nicht mehr placeholder 'supabase-session'), epkolar_refresh separat — _storeAuth setzt diese schon bei GoTrue-Login; hier nur bei bcrypt-fallback als Kennzeichen dass bcrypt-Login war
       try{localStorage.setItem('epkolar_user',JSON.stringify(userData));if(_authToken)localStorage.setItem('epkolar_token',_authToken);else localStorage.setItem('epkolar_token','bcrypt-fallback');}catch(e){console.warn('[silent-ls]',e&&e.message||e);}
@@ -3663,41 +3694,40 @@ window.API = (function() {
     },
     me: async function() { if(_user)return{user:_user};throw new Error("Nicht angemeldet"); },
     changePassword: async function(oldPw, newPw) {
+      /* v3.9.1056 Fund 9: das alte Passwort wird gegen GoTrue geprueft (Anmeldung mit E-Mail + altem Passwort), nicht mehr gegen den lokalen bcrypt-Hash in users. Danach NUR GoTrue setzen (PUT auth user mit der frischen Sitzung - erfuellt auch Secure password change). users.password_hash wird nicht mehr gelesen und nicht mehr geschrieben: online meldet sich niemand mehr damit an, offline gilt die PBKDF2-Ablage. Vorher: lokaler Hash zuerst, GoTrue danach - lehnte GoTrue ab, liefen die beiden auseinander. */
       if(!_user)throw new Error("Nicht angemeldet");
-      const users=await _sbGet("users","id=eq."+encodeURIComponent(_user.id));
-      if(!users||!users.length)throw new Error("User not found");
-      // v3.8.33 Bug-Hunt Iter-19: GoTrue-only Accounts haben kein password_hash → bcrypt.compareSync
-      // würde silent throwen → Fehlermeldung "Falsches Passwort" obwohl Altes korrekt wäre.
-      // Explizite Diagnose statt irreführender Message.
-      if(!users[0].password_hash){
-        console.error('[changePassword] Kein lokales password_hash für User',_user.id,'— GoTrue-only Account, Admin-Reset nötig');
-        throw new Error("Dieser Account hat keinen lokalen Passwort-Hash — bitte Admin um Passwort-Reset bitten");
+      if(!newPw||String(newPw).length<PW_MIN_LEN)throw new Error("Neues Passwort: mindestens "+PW_MIN_LEN+" Zeichen");
+      if(typeof navigator!=="undefined"&&navigator.onLine===false)throw new Error("Passwort ändern geht nur mit Verbindung zum Server");
+      const _mail=String(_user.email||"").trim();
+      if(!_mail)throw new Error("Für dieses Konto ist keine E-Mail hinterlegt — bitte Büro oder Admin um ein neues Passwort bitten");
+      let _neu=null;
+      try{_neu=await _sbAuthLogin(_mail,oldPw);}catch(e){
+        const _st=e&&e.status;
+        if(!_st)throw new Error("Keine Verbindung zum Server – Passwort nicht geändert");
+        if(_st===429)throw new Error("Zu viele Versuche – bitte kurz warten");
+        if(_st>=500)throw new Error("Anmeldedienst momentan nicht erreichbar – Passwort nicht geändert");
+        throw new Error("Altes Passwort stimmt nicht");
       }
-      // v3.8.44 S2.2: users[0].password_hash ist hier garantiert gesetzt durch
-      // vorausgehende Guards (L1896 users-length, L1900 password_hash-null).
-      // Defensive try/catch bleibt für bcrypt-Runtime-Errors.
-      let valid=false;try{valid=dcodeIO.bcrypt.compareSync(oldPw,users[0].password_hash);}catch(e){console.warn('[silent-bcrypt]',e&&e.message||e);}
-      if(!valid)throw new Error("Falsches Passwort");
-      // v3.5.131: bcrypt-Library-Check (nicht geladen → Passwort-Change würde mit TypeError crashen statt sauberer Fehlermeldung)
-      let _newHash;
-      try{_newHash=dcodeIO.bcrypt.hashSync(newPw,10);}
-      catch(e){throw new Error("bcrypt-Bibliothek nicht geladen — Passwort-Änderung fehlgeschlagen");}
-      const _pr14=await _sbPatch("users",_user.id,{password_hash:_newHash});if(Array.isArray(_pr14)&&_pr14.length===0)throw new Error("Passwort konnte nicht gespeichert werden (0 Zeilen — fehlende Berechtigung / auth_user_id-Link-Problem). Bitte Admin um Passwort-Reset.");/* v3.9.614 #14: 0-Rows-RLS-Silent-Denial werfen statt stillem Erfolg — users-PATCH war ungeprueft (users nicht in _RLS_SILENT_DENIAL_LABELS); bei kaputtem auth-Link blieb der alte Hash + falsches "geaendert" */
-      // Also update GoTrue password if authenticated
-      // v3.8.17 Bug-Hunt Iter-18: Silent-catch → observability (selbes Pattern wie Iter-7/8/9).
-      // Vorher: bcrypt-Hash in public.users gepatcht, GoTrue-PUT failed silent → next login via GoTrue
-      // würde mit NEUEM pw fehlschlagen, fällt zurück auf bcrypt-Fallback, klappt dort → User
-      // merkt nichts. Aber GoTrue-Session bleibt auf ALTEM Token, Refresh schlägt fehl → subtile
-      // Fehler später. Admin muss Bescheid wissen.
-      let _gtSync=null;// null=nicht versucht, true=ok, false=failed
-      if(_authToken){
-        try{
-          const _r=await fetch(_SB_AUTH+"/user",_fT({method:"PUT",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify({password:newPw})},15000));
-          _gtSync=!!(_r&&_r.ok);
-          if(!_gtSync){console.error('[changePassword] GoTrue PUT /user failed:',_r&&_r.status,await (_r&&_r.text().catch(()=>''))||'');}
-        }catch(e){_gtSync=false;console.error('[changePassword] GoTrue PUT /user threw:',e&&e.message||e);}
+      if(!_neu||!_isJwtShape(_neu.access_token))throw new Error("Anmeldedienst lieferte keine gültige Sitzung – Passwort nicht geändert");
+      const _alt=_authToken;
+      _storeAuth(_neu);
+      /* die Pruef-Anmeldung ist jetzt die Sitzung dieses Geraets - die vorige wird nur hier beendet (scope=local) */
+      if(_alt&&_alt!==_neu.access_token&&_isJwtShape(_alt)){try{fetch(_SB_AUTH+"/logout?scope=local",_fT({method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_alt}},10000)).catch(()=>{});}catch(_){}}
+      let _r=null;
+      try{_r=await fetch(_SB_AUTH+"/user",_fT({method:"PUT",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+_neu.access_token,"Content-Type":"application/json"},body:JSON.stringify({password:newPw})},15000));}
+      catch(e){throw new Error("Keine Verbindung zum Server – Passwort nicht geändert");}
+      if(!_r||!_r.ok){
+        let _b=null;try{_b=await _r.json();}catch(_){_b=null;}
+        const _c=String((_b&&(_b.error_code||_b.code))||"");
+        console.error('[changePassword] GoTrue PUT user abgelehnt',_r&&_r.status,_c);
+        if(_c==="same_password")throw new Error("Das neue Passwort muss sich vom alten unterscheiden (HTTP"+(_r&&_r.status)+")");
+        if(_c==="weak_password")throw new Error("Das neue Passwort ist zu schwach – bitte länger oder anders wählen (HTTP"+(_r&&_r.status)+")");
+        if(_c==="reauthentication_needed")throw new Error("Der Server verlangt eine zusätzliche Bestätigung – bitte Büro oder Admin um ein neues Passwort bitten (HTTP"+(_r&&_r.status)+")");
+        throw new Error("Passwort wurde NICHT geändert (HTTP"+(_r&&_r.status)+")");
       }
-      return{ok:1,gotrue:_gtSync};
+      /* Offline-Anmeldung auf das neue Passwort umstellen - sonst galt offline weiter das alte */
+      try{const _off=await _OFFPW.create(_user.username||"",newPw);await ODB.set("meta","offlinePwHash",_off);}catch(e){console.warn('[changePassword] offline-hash',e&&e.name||e);}
+      return{ok:1,gotrue:true};
     },
     // Data access (read-only — all writes go through SQ.push → _translateAndExec)
     getUsers: function() { return _sbGetUsersSafe("order=name.asc"); },
@@ -4103,6 +4133,32 @@ const SQ={
   async countMine(){try{const q=await ODB.load("syncQueue")||[];const uid=(()=>{try{return (JSON.parse(localStorage.getItem("epkolar_user")||"null")||{}).id||"";}catch(_){return "";}})();return q.filter(it=>!uid||!it.owner||it.owner===uid).length;}catch(e){return 0;}}
 };
 
+/* v3.9.1056 Fund 10: Kennwoerter lagen im Klartext in der Warteschlange (Admin-Reset, Benutzer anlegen) und nach 5 Fehlversuchen in syncQueueFailed. Neue Eintraege tragen keine mehr; alte werden beim Start bereinigt. Nur die Kennwort-Felder fallen weg - die Anlage der Benutzerzeile bleibt erhalten. Protokolliert wird nur die Zahl, nie ein Wert. */
+const _PW_FELDER=["password","new_password","p_password","passwort"];
+async function _sqKennwortPurge(){
+  return SQ._serial(async()=>{
+    let n=0;
+    for(const st of ["syncQueue","syncQueueFailed"]){
+      try{
+        const q=await ODB.load(st);if(!Array.isArray(q)||!q.length)continue;
+        let geaendert=false;const neu=[];
+        for(const it of q){
+          let b=it&&it.body;let warText=false;
+          if(typeof b==="string"){try{b=JSON.parse(b);warText=true;}catch(_){b=null;}}
+          if(b&&typeof b==="object"&&!Array.isArray(b)&&_PW_FELDER.some(k=>Object.prototype.hasOwnProperty.call(b,k))){
+            const nb={...b};_PW_FELDER.forEach(k=>{delete nb[k];});n++;geaendert=true;
+            if(!Object.keys(nb).some(k=>k!=="id"))continue;
+            neu.push({...it,body:warText?JSON.stringify(nb):nb});
+          }else neu.push(it);
+        }
+        if(geaendert)await ODB.set(st,"data",neu);
+      }catch(e){console.warn("[sq-pw-purge]",st,e&&e.name||"Fehler");}
+    }
+    if(n)console.warn("[sq-pw-purge] Kennwort-Felder entfernt aus Eintraegen:",n);
+    return n;
+  });
+}
+try{_sqKennwortPurge();}catch(_){}
 // ═══════════ PHOTO QUEUE: Offline-Fotosync ═══════════
 // Fotos werden lokal in IndexedDB gespeichert und bei Verbindung automatisch hochgeladen
 const PhotoQ={
@@ -4116,7 +4172,7 @@ const PhotoQ={
     return PhotoQ._serial(async()=>{
       try{
         const q=await ODB.load("photoQueue")||[];
-        q.push({...photo,id:photo.id||(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2)),queuedAt:new Date().toISOString(),status:"pending",retries:0});
+        q.push({...photo,id:photo.id||(typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():Date.now()+"_"+Math.random().toString(36).slice(2)),queuedAt:new Date().toISOString(),status:"pending",retries:0,owner:photo.owner||(typeof _sqOwnerJetzt==="function"?_sqOwnerJetzt():"")});/* v3.9.1056 Fund 12: Besitzer stempeln wie in SQ.push */
         await ODB.set("photoQueue","data",q);PhotoQ._meld({art:"add"});/* v3.9.223 #2: ODB.set direkt — wirft bei QuotaExceeded; ODB.save schluckt den Fehler → sonst return true trotz vollem Speicher → "Speicher voll"-Toast feuert nie → stiller Foto-Verlust */
         return true;
       }catch(e){return false;}
@@ -4139,7 +4195,7 @@ const PhotoQ={
       /* 17.11.2026 Ticket-Fotos (nurStorage) haben KEINEN 10er-Deckel: das Ticket verweist schon auf den Pfad, das volle Bild liegt nur hier -
          also so lange versuchen, bis es oben ist. Ein nach Absturz/Neustart haengendes "uploading" wird wieder aufgenommen (Upload mit x-upsert
          auf denselben festen Pfad - doppelt hochladen schadet nicht). Andere Fotos: unveraendert. */
-      const pending=q.filter(x=>(x.status==="pending"||x.status==="error"||(x.nurStorage&&x.status==="uploading"))&&((x.retries||0)<10||x.nurStorage));
+      const _pqUid=(typeof _sqOwnerJetzt==="function"?_sqOwnerJetzt():"");const pending=q.filter(x=>(x.status==="pending"||x.status==="error"||(x.nurStorage&&x.status==="uploading"))&&((x.retries||0)<10||x.nurStorage)).filter(x=>!x.owner||x.owner===_pqUid);/* v3.9.1056 Fund 12: nur eigene (und alte ungestempelte) Fotos senden - fremde bleiben liegen, bis ihr Besitzer wieder angemeldet ist */
       for(const ph of pending){
         try{
           await PhotoQ.update(ph.id,{status:"uploading"});
@@ -7477,8 +7533,8 @@ function PwInput(props){
   const [_show,_setShow]=_react.useState.call(void 0, false);
   const _p={...props};const _st=_p.style||{};delete _p.style;
   return React.createElement('div', { style: {position:"relative",width:"100%"} }
-    , React.createElement('input', {..._p, type: _show?"text":"password", style: {..._st,paddingRight:38,boxSizing:"border-box"}})
-    , React.createElement('button', { type:"button", tabIndex:-1, onClick:()=>_setShow(s=>!s), title: _show?"Passwort verbergen":"Passwort anzeigen", 'aria-label': _show?"Passwort verbergen":"Passwort anzeigen", style: {position:"absolute",right:2,top:0,height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"none",border:"none",cursor:"pointer",fontSize:15,padding:"0 8px",color:V.dm} }, _ik(_show?"augeAus":"auge",18))/* Klein2: Linien-Ikone statt Affe/Auge-Emoji */
+    , React.createElement('input', {..._p, type: _show?"text":"password", style: {..._st,paddingRight:46,boxSizing:"border-box"}})
+    , React.createElement('button', { type:"button", onClick:()=>_setShow(s=>!s), title: _show?"Passwort verbergen":"Passwort anzeigen", 'aria-label': _show?"Passwort verbergen":"Passwort anzeigen", 'aria-pressed': _show, style: {position:"absolute",right:0,top:"50%",marginTop:-22,width:44,height:44,minWidth:44,minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",background:"none",border:"none",borderRadius:8,cursor:"pointer",fontSize:15,padding:0,color:V.dm} }, _ik(_show?"augeAus":"auge",18))/* v3.9.1056 Fund 15: 44 px und per Tastatur erreichbar (vorher tabIndex -1, rund 34 px) *//* Klein2: Linien-Ikone statt Affe/Auge-Emoji */
   );
 }
 function SpeechWrap({children,value,onChange,style}){
@@ -8162,30 +8218,45 @@ function LoginScreen({onLogin,onPortal,projects,isDark,setThemeMode}){
   const [showPwReset,setShowPwReset]=_react.useState.call(void 0, false);
   const [resetUser,setResetUser]=_react.useState.call(void 0, "");
   const [resetMsg,setResetMsg]=_react.useState.call(void 0, "");
+  const [resetBusy,setResetBusy]=_react.useState.call(void 0, false);
+  const [resetOk,setResetOk]=_react.useState.call(void 0, false);
+  /* v3.9.1056 Fund 4: ehrlich - Erfolg nur, wenn die RPC ok sagt. Fehlt sie oder scheitert sie, steht da, dass man sich direkt melden soll. */
+  const sendPwHilfe=async()=>{
+    const _u=resetUser.trim();if(!_u||resetBusy)return;
+    setResetBusy(true);setResetOk(false);setResetMsg("Wird gesendet…");
+    let r={ok:0,grund:"netz"};try{r=await _passwortHilfeAnfragen(_u);}catch(_){r={ok:0,grund:"netz"};}
+    if(r&&r.ok){setResetOk(true);setResetMsg("Danke. Wenn der Benutzername stimmt, bekommt das Büro jetzt eine Nachricht und meldet sich. Dringend? Bitte direkt im Büro melden.");setResetUser("");}
+    else if(r&&r.grund==="netz"){setResetMsg("Keine Verbindung zum Server – nichts gesendet. Bitte Netz prüfen oder direkt im Büro melden.");}
+    else{setResetMsg("Die Anfrage kann gerade nicht automatisch gesendet werden. Bitte wende dich direkt an das Büro oder den Admin.");}
+    setResetBusy(false);
+  };
   const tryLogin=async()=>{
     if(!user.trim()||!pw){setErr("Benutzername und Passwort eingeben");return;}
     setLoading(true);setErr("");
     try{
       // Server login (no demoUsers fallback — removed for security)
-      const data=await API.login(user,pw);
+      const data=await API.login(user.trim(),pw);
       API.setToken(data.token);
       // v3.8.33 Iter-19c: Offline-PW jetzt PBKDF2 statt base64-Klartext.
       try{await ODB.set("meta","lastUser",data.user);const _off=await _OFFPW.create(user,pw);await ODB.set("meta","offlinePwHash",_off);}catch(e){console.error('[login] offlinePwHash create failed:',e&&e.message||e);}
       onLogin(data.user);
     }catch(e){
-      // Offline fallback: check cached credentials
-      if(!navigator.onLine){
+      /* v3.9.1056 Fund 8: schwaches Netz bei navigator.onLine===true (Werkstatt-WLAN) - fetch wirft TypeError/TimeoutError/AbortError. Dann denselben Offline-Weg wie ohne Netz versuchen und sonst deutsch sagen, was los ist. Vorher stand Failed to fetch oder signal timed out in der Maske. */
+      const _netz=(typeof navigator!=="undefined"&&navigator.onLine===false)||!!(e&&(e.name==="TypeError"||e.name==="TimeoutError"||e.name==="AbortError"));
+      if(_netz){
         try{
           const cached=await ODB.get("meta","offlinePwHash");
           const lastUser=await ODB.get("meta","lastUser");
           // v3.8.33 Iter-19c: _OFFPW.verify akzeptiert beides — neuen PBKDF2-Wrapper UND legacy base64.
           if(cached&&lastUser&&await _OFFPW.verify(user,pw,cached)){
-            setErr("");onLogin(lastUser);setLoading(false);return;
+            setErr("");onLogin(lastUser);setLoading(false);
+            if(navigator.onLine!==false&&window.__toast)window.__toast("Server nicht erreichbar – offline angemeldet. Änderungen gehen raus, sobald die Verbindung steht.","warn",8000);
+            return;
           }
-        }catch(ex){console.error('[login-offline] verify threw:',ex&&ex.message||ex);}
-        setErr("Offline — Kein gespeicherter Login für diesen Benutzer");
+        }catch(ex){console.error('[login-offline] verify threw:',ex&&ex.name||ex);}
+        setErr(navigator.onLine===false?"Offline — Kein gespeicherter Login für diesen Benutzer":"Keine Verbindung zum Server – bitte Netz prüfen und erneut versuchen. Ohne Netz geht nur der zuletzt angemeldete Benutzer.");
       } else {
-        setErr(e.message||"Login fehlgeschlagen");
+        setErr((e&&e.message)||"Anmeldung fehlgeschlagen – Benutzername oder Passwort prüfen");
       }
       setShake(true);setTimeout(()=>setShake(false),500);
     }
@@ -8213,45 +8284,45 @@ function LoginScreen({onLogin,onPortal,projects,isDark,setThemeMode}){
         , React.createElement('div', { className: shake?"shake":"", style: {...CC(),padding:28,boxShadow:"0 8px 24px rgba(0,0,0,.08)",borderRadius:14}}
           , React.createElement('div', { style: {marginBottom:16}}
             , React.createElement('label', { htmlFor:"lbl_login_user", style: LL()}, "Benutzername")
-            , React.createElement('input', { className: "epk-form-field", id:"lbl_login_user", autoComplete: "username", value: user, onChange: e=>{setUser(e.target.value);setErr("");}, placeholder: "Benutzername"  , style: {...II(),fontSize:16,padding:"12px 14px",transition:"border-color .2s, box-shadow .2s"}, onFocus: e=>{e.currentTarget.style.borderColor="#009640";e.currentTarget.style.boxShadow="0 0 0 3px rgba(0,150,64,.12)";}, onBlur: e=>{e.currentTarget.style.borderColor="";e.currentTarget.style.boxShadow="";}, onKeyDown: e=>e.key==="Enter"&&tryLogin(), autoFocus: true} )
+            , React.createElement('input', { className: "epk-form-field", id:"lbl_login_user", autoComplete: "username", autoCapitalize: "none", autoCorrect: "off", spellCheck: false, value: user, onChange: e=>{setUser(e.target.value);setErr("");}, placeholder: "Benutzername"  , style: {...II(),fontSize:16,padding:"12px 14px",transition:"border-color .2s, box-shadow .2s"}, onFocus: e=>{e.currentTarget.style.borderColor="#009640";e.currentTarget.style.boxShadow="0 0 0 3px rgba(0,150,64,.12)";}, onBlur: e=>{e.currentTarget.style.borderColor="";e.currentTarget.style.boxShadow="";}, onKeyDown: e=>e.key==="Enter"&&tryLogin(), autoFocus: true} )
           )
           , React.createElement('div', { style: {marginBottom:20}}
             , React.createElement('label', { htmlFor:"lbl_login_pw", style: LL()}, "Passwort")
             , React.createElement(PwInput, { className: "epk-form-field", id:"lbl_login_pw", type: "password", autoComplete: "current-password", value: pw, onChange: e=>{setPw(e.target.value);setErr("");}, placeholder: "Passwort eingeben" , style: {...II(),fontSize:16,padding:"12px 14px",transition:"border-color .2s, box-shadow .2s"}, onFocus: e=>{e.currentTarget.style.borderColor="#009640";e.currentTarget.style.boxShadow="0 0 0 3px rgba(0,150,64,.12)";}, onBlur: e=>{e.currentTarget.style.borderColor="";e.currentTarget.style.boxShadow="";}, onKeyDown: e=>e.key==="Enter"&&tryLogin()} )
           )
-          , err && (React.createElement('div', { style: {padding:"8px 12px",background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.3)",borderRadius:6,fontSize:12,color:COLORS.ERROR,marginBottom:14}}, "⚠️ " , err))
+          , err && (React.createElement('div', { role:"alert", style: {padding:"8px 12px",background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.3)",borderRadius:6,fontSize:13,color:COLORS.ERROR,marginBottom:14,display:"flex",alignItems:"flex-start",gap:8,lineHeight:1.45}}, _ik("warnung",16), React.createElement('span', null, err)))/* v3.9.1056 Fund 15: Linien-Ikone statt Emoji */
           , React.createElement('button', { onClick: tryLogin, disabled: loading, onMouseEnter: (_canHover&&!loading)?e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.background=UI.knopfAktiv;}:undefined, onMouseLeave: _canHover?e=>{e.currentTarget.style.transform="";e.currentTarget.style.background=UI.knopf;}:undefined, style: {width:"100%",padding:"15px 18px",fontSize:16,fontWeight:800,borderRadius:10,border:"none",cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",background:UI.knopf,color:"#ffffff",minHeight:50,touchAction:"manipulation",opacity:loading?.7:1,letterSpacing:".02em",boxShadow:"none",transition:"all .2s ease",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}, loading?React.createElement(_react.Fragment,null,React.createElement('span',{className:"ep-spin-sm"})," ","Wird angemeldet…"):React.createElement(_react.Fragment,null,_ik("schloss",18),"Anmelden"))
         )
         , React.createElement('div', { style: {textAlign:"center",fontSize:UI.fMeta,color:V.mt,marginTop:12}}
-          , !navigator.onLine&&React.createElement('div', { style: {color:(_dark?COLORS.WARNING_DARK:COLORS.WARNING),fontWeight:600,marginBottom:4}}, "📡 Offline — Login nur mit zuletzt gespeichertem Benutzer"        )
+          , !navigator.onLine&&React.createElement('div', { style: {color:(_dark?COLORS.WARNING_DARK:COLORS.WARNING),fontWeight:600,marginBottom:4}}, React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}}, _ik("verbindung",14), "Offline — Login nur mit zuletzt gespeichertem Benutzer"))
           , React.createElement('div', { style: {color:V.dm,marginTop:4,fontSize:12}}, "Zugang über Administrator anfragen")
-          , React.createElement('button', { onClick: ()=>setShowPwReset(true), style: {...btS(),color:V.dm,fontSize:UI.fMeta,textDecoration:"underline",marginTop:8}}/* v3.9.1006 CI: Tertiaerknopf (nur Schrift), jetzt 44 px Tippziel */, "🔑 Passwort vergessen?"  )
+          , React.createElement('button', { onClick: ()=>setShowPwReset(true), style: {...btS(),color:V.dm,fontSize:UI.fMeta,textDecoration:"underline",marginTop:8}}/* v3.9.1006 CI: Tertiaerknopf (nur Schrift), jetzt 44 px Tippziel */, React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}}, _ik("schloss",14), "Passwort vergessen?"))
         )
         , showPwReset&&(React.createElement('div', { style: {marginTop:12,padding:14,background:V.bg,borderRadius:8,textAlign:"left"}}
-          , React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:8}}, "🔑 Passwort zurücksetzen"  )
-          , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:8}}, "Gib deinen Benutzernamen ein. Der Admin bekommt eine Benachrichtigung und setzt dein Passwort zurück."              )
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:8,display:"flex",alignItems:"center",gap:6}}, _ik("schloss",16), "Passwort vergessen")
+          , React.createElement('div', { style: {fontSize:13,color:V.dm,marginBottom:8,lineHeight:1.5}}, "Gib deinen Benutzernamen ein. Das Büro bekommt eine Nachricht und setzt dein Passwort zurück. Dringend? Bitte direkt im Büro melden.")
           , React.createElement('div', { style: {display:"flex",gap:6}}
-            , React.createElement('input', { className: "epk-form-field", value: resetUser, onChange: e=>setResetUser(e.target.value), placeholder: "Benutzername", style: {...II(),flex:1,fontSize:13}} )
-            , React.createElement('button', { onClick: async ()=>{var _u=resetUser.trim();if(!_u)return;setResetMsg("⏳ Wird gesendet…");try{await _translateAndExec("/api/password-reset","POST",{username:_u});setResetMsg("✅ Anfrage an den Admin gesendet.");setResetUser("");}catch(_pre){console.warn('[pw-reset]',_pre&&_pre.message||_pre);setResetMsg("⚠️ Konnte nicht gesendet werden — bitte Internet prüfen und erneut versuchen (oder den Admin direkt kontaktieren).");}}/* v3.9.859 (Bug-Hunt, Falschgruen+versteckter Pfad): vorher setResetMsg("✅ …") VOR einem SQ.push, der nie flushte — doSync bricht bei !_authToken ab, und der Anfragende ist per Definition NICHT eingeloggt (Passwort vergessen) -> das Item blieb ewig in der Queue, der Admin bekam NIE die Notification, der User sah trotzdem gruenes OK. Jetzt Direkt-Send via _translateAndExec (der password-reset-Handler :2408 braucht keine User-Auth) + ehrliche ergebnis-basierte Meldung. */, style: {...bgS,padding:"8px 14px",fontSize:12}}, "Senden")
+            , React.createElement('input', { className: "epk-form-field", 'aria-label': "Benutzername für Passwort-Hilfe", autoComplete: "username", autoCapitalize: "none", autoCorrect: "off", spellCheck: false, value: resetUser, onChange: e=>{setResetUser(e.target.value);setResetMsg("");setResetOk(false);}, onKeyDown: e=>{if(e.key==="Enter")sendPwHilfe();}, placeholder: "Benutzername", style: {...II(),flex:1,fontSize:16,minHeight:44,boxSizing:"border-box"}} )
+            , React.createElement('button', { type:"button", onClick: sendPwHilfe, disabled: resetBusy, style: {...bgS,padding:"8px 14px",fontSize:14,minHeight:44,display:"inline-flex",alignItems:"center",gap:6,opacity:resetBusy?.6:1}}, _ik("senden",16), "Senden")
           )
-          , resetMsg&&React.createElement('div', { style: {fontSize:UI.fMeta,color:_okG(COLORS.SUCCESS),marginTop:6}}, resetMsg)
-          , React.createElement('button', { onClick: ()=>{setShowPwReset(false);setResetMsg("");}, style: {background:"none",border:"none",color:V.dm,fontSize:UI.fMeta,cursor:"pointer",fontFamily:"inherit",marginTop:6}}, "Schließen")
+          , resetMsg&&React.createElement('div', { role:"status", style: {fontSize:13,color:resetOk?_okG(COLORS.SUCCESS):V.tx,marginTop:8,lineHeight:1.5}}, resetMsg)
+          , React.createElement('button', { type:"button", onClick: ()=>{setShowPwReset(false);setResetMsg("");setResetOk(false);}, style: {background:"none",border:"none",color:V.dm,fontSize:13,cursor:"pointer",fontFamily:"inherit",marginTop:6,minHeight:44,padding:"0 4px"}}, "Schließen")
         ))
         , React.createElement('div', { style: {borderTop:"1px solid "+V.bd,marginTop:16,paddingTop:14,textAlign:"center"}}
           , React.createElement(PortalEntry, { onPortal: onPortal, projects: projects||[]} )
         )
         , _isMobileDevice&&!_isStandalone&&(React.createElement('div', { style: {marginTop:14,padding:"14px 16px",background:"linear-gradient(135deg,rgba(0,150,64,.08),rgba(0,110,48,.04))",border:"1px solid rgba(0,150,64,.2)",borderRadius:10,textAlign:"center"}}
-          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#009640",marginBottom:6}}, "📲 App installieren")
+          , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:"#009640",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}, _ik("download",16), "App installieren")
           , React.createElement('div', { style: {fontSize:12,color:V.dm,lineHeight:1.5,marginBottom:10}}, "Installiere EP Kolar als App auf deinem Handy — schneller Zugriff, Vollbild, offline-fähig.")
           , _isIOS?(React.createElement('div', { style: {fontSize:12,color:V.tx,lineHeight:1.8,textAlign:"left",padding:"8px 12px",background:V.cd,borderRadius:8}}
             , React.createElement('div', { style: {fontWeight:700,marginBottom:4}}, "iPhone / iPad:")
-            , React.createElement('div', {}, "1️⃣ Tippe auf ", React.createElement('span', { style: {fontWeight:700,fontSize:16}}, "⬆"), " (Teilen-Symbol unten)")
-            , React.createElement('div', {}, "2️⃣ Scroll nach unten")
-            , React.createElement('div', {}, "3️⃣ Tippe auf ", React.createElement('b', {}, "\"Zum Home-Bildschirm\""))
-            , React.createElement('div', {}, "4️⃣ Tippe auf ", React.createElement('b', {}, "\"Hinzufügen\""))
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}, "1. Tippe auf ", React.createElement('span', { style: {display:"inline-flex"}}, _ik("export",16)), " (Teilen-Symbol unten)")
+            , React.createElement('div', {}, "2. Scroll nach unten")
+            , React.createElement('div', {}, "3. Tippe auf ", React.createElement('b', {}, "\"Zum Home-Bildschirm\""))
+            , React.createElement('div', {}, "4. Tippe auf ", React.createElement('b', {}, "\"Hinzufügen\""))
           )):React.createElement('div', { style: {fontSize:12,color:V.dm}}, "Nach dem Login erscheint die Installations-Aufforderung — einfach bestätigen." )
         ))
-        , _isStandalone&&React.createElement('div', { style: {marginTop:14,textAlign:"center",fontSize:12,color:_okG(COLORS.SUCCESS),fontWeight:600}}, "✅ App installiert — Vollbild-Modus aktiv"    )
+        , _isStandalone&&React.createElement('div', { style: {marginTop:14,display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:12,color:_okG(COLORS.SUCCESS),fontWeight:600}}, _ik("abnahme",14), "App installiert — Vollbild-Modus aktiv")
         , React.createElement('div', { 'data-login-version':"1", style: {textAlign:"center",marginTop:12,fontSize:UI.fMeta,color:V.dm}}, "Version ", APP_VERSION)
       )
     )
@@ -9379,7 +9450,7 @@ function MonteurTafel(props){
           setCurUser(data.user);
           setAppLoading(false);
           // ═ Auto-refresh user role from DB (fixes stale ODB cache) ═
-          if(data.user&&data.user.id){try{const fresh=await _sbGetUsersSafe("id=eq."+encodeURIComponent(data.user.id));if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,rolle:f.rolle||data.user.rolle||"",permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){console.warn('[silent-ls]',ex&&ex.message||ex);}}}}catch(e){console.warn('[silent-ls]',e&&e.message||e);}}
+          if(data.user&&data.user.id){try{const fresh=await _sbGetUsersSafe("id=eq."+encodeURIComponent(data.user.id));/* v3.9.1056 Fund 3: gesperrt, inaktiv, ausgeschieden oder geloescht - nur mit angemeldetem Token und ohne Rechte-/Netzfehler entscheiden */if(_tokRolle()==="authenticated"&&Array.isArray(fresh)&&!fresh.__rlsFehler&&(fresh.length===0||_profGesperrt(fresh[0]))){await _zugangEntzogen(setCurUser);return;}if(fresh&&fresh[0]){const f=_mapUser(fresh[0]);if(f.role!==data.user.role||f.name!==data.user.name||JSON.stringify(f.permsOverride||null)!==JSON.stringify(data.user.permsOverride||null)){const updated={...data.user,role:f.role,name:f.name,monteurId:f.monteurId||data.user.monteurId,rolle:f.rolle||data.user.rolle||"",permsOverride:f.permsOverride||null};setCurUser(updated);try{localStorage.setItem("epkolar_user",JSON.stringify(updated));ODB.set("meta","lastUser",updated);}catch(ex){console.warn('[silent-ls]',ex&&ex.message||ex);}}}}catch(e){console.warn('[silent-ls]',e&&e.message||e);}}
           return;
         }catch(e){
           // Token expired or server unreachable — try offline
@@ -10073,7 +10144,7 @@ function MonteurTafel(props){
             if(p2.role==='anon'||(p2.exp&&p2.exp*1000-Date.now()<60000))await _sbAuthRefresh();
           }
         }catch(_){}
-        const _cuId=(curUser&&curUser.id)||"";const queue=(await SQ.getAll()).filter(it=>!_cuId||!it.owner||it.owner===_cuId);/* v3.9.193 P2: nur eigene (oder legacy un-owned) Items flushen — fremde bleiben für ihren Owner. v3.9.200 FIX: wenn _cuId (noch) leer (mobil Cold-Boot/Race) → ALLES flushen statt zu blockieren (sonst Sync stuck) */
+        const _cuId=(curUser&&curUser.id)||_sqOwnerJetzt();const queue=(await SQ.getAll()).filter(it=>!it.owner||(!!_cuId&&it.owner===_cuId));/* v3.9.1056 Fund 12: ist (noch) kein Benutzer bekannt, gehen nur ungestempelte Eintraege raus - gestempelte warten auf ihren Besitzer statt unter einem fremden Token zu laufen. Vorher ging dann ALLES raus. *//* v3.9.193 P2: nur eigene (oder legacy un-owned) Items flushen — fremde bleiben für ihren Owner. v3.9.200 FIX: wenn _cuId (noch) leer (mobil Cold-Boot/Race) → ALLES flushen statt zu blockieren (sonst Sync stuck) */
         if(queue.length>0){
           let ok=0,fail=0;
           const okIds=[];const skipIds=[];
@@ -11257,7 +11328,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
       const _uRole=_W2U[_wRole]||"monteur";
       const _uMail=String(nf.email||"").trim();
       if(!_uName){_loginMsg=" · Login nicht angelegt (kein Benutzername)";_warn=true;}
-      else if(!nf.loginPw||nf.loginPw.length<4){_loginMsg=" · Login nicht angelegt (Passwort min. 4 Zeichen)";_warn=true;}
+      else if(!nf.loginPw||nf.loginPw.length<PW_MIN_LEN){_loginMsg=" · Login nicht angelegt (Passwort min. "+PW_MIN_LEN+" Zeichen)";_warn=true;}
       else if(!_uMail||_uMail.indexOf('@')<2){_loginMsg=" · Login nicht angelegt (gültige E-Mail nötig)";_warn=true;}
       else if((users||[]).find(u=>u.username===_uName)){_loginMsg=" · Login nicht angelegt (Benutzername '"+_uName+"' vergeben)";_warn=true;}
       else if((users||[]).find(u=>u.monteurId===id)){_loginMsg=" · Login nicht angelegt (Monteur bereits verknüpft)";_warn=true;}
@@ -11267,7 +11338,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
         /* createUser-Sequenz (Z.10959) wiederverwendet: users-POST via SQ + AWAITED admin_create_user + auth_user_id-Link */
         const nid=uid();
         setUsers&&setUsers(prev=>[...prev,{id:nid,username:_uName,name:nf.n,email:_uMail,role:_uRole,active:true,monteurId:id,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);
-        SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:_uName,password:nf.loginPw,name:nf.n,email:_uMail,role:_uRole,monteurId:id,active:1,locked:0}});
+        SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:_uName,name:nf.n,email:_uMail,role:_uRole,monteurId:id,active:1,locked:0}});
         let _ok=true;
         try{
           const _r=await _authRetry(()=>fetch(SB_REST+"/rpc/admin_create_user",_fT({method:"POST",headers:_sbH({"Content-Type":"application/json"}),body:JSON.stringify({p_email:_uMail,p_password:nf.loginPw,p_name:nf.n,p_username:_uName,p_role:_uRole,p_monteur_id:id})})));
@@ -11366,7 +11437,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
   /* v3.9.202 Self-Service: Nicht-Admin/PL/Büro (Monteure etc.) sehen NUR eigene Daten (read-only) + Passwort ändern. */
   const _pRow=(l,v)=>React.createElement('div',{},React.createElement('span',{style:{color:V.dm}},l+": "),React.createElement('span',{style:{fontWeight:600}},v||"—"));
   const meW=monteure.find(m=>m.id===(curUser.monteurId||""));
-  const changeOwnPw=async()=>{if(pwBusy)return;if(!newPw||newPw.length<6){setPwMsg("⚠️ Neues Passwort min. 6 Zeichen");return;}if(newPw!==newPw2){setPwMsg("⚠️ Passwörter stimmen nicht überein");return;}setPwBusy(true);setPwMsg("");try{const r=await API.changePassword(oldPw,newPw);if(r&&r.gotrue!==true){setPwMsg("⚠️ Lokal geändert — Server-Sync unsicher, ggf. neu einloggen.");}else{setPwMsg("✅ Passwort geändert");if(window.__toast)window.__toast("🔑 Passwort geändert");}setOldPw("");setNewPw("");setNewPw2("");}catch(e){setPwMsg("❌ "+(e&&e.message||e));}setPwBusy(false);};
+  const changeOwnPw=async()=>{if(pwBusy)return;if(!newPw||newPw.length<PW_MIN_LEN){setPwMsg("⚠️ Neues Passwort min. "+PW_MIN_LEN+" Zeichen");return;}if(newPw!==newPw2){setPwMsg("⚠️ Passwörter stimmen nicht überein");return;}setPwBusy(true);setPwMsg("");try{const r=await API.changePassword(oldPw,newPw);if(r&&r.gotrue!==true){setPwMsg("⚠️ Lokal geändert — Server-Sync unsicher, ggf. neu einloggen.");}else{setPwMsg("✅ Passwort geändert");if(window.__toast)window.__toast("🔑 Passwort geändert");}setOldPw("");setNewPw("");setNewPw2("");}catch(e){setPwMsg("❌ "+(e&&e.message||e));}setPwBusy(false);};
   if(!isAdmin || (profilMode && _canSeeProfil)){
     /* v3.9.x Aggregator-Cards: Urlaub, Arbeitszeit, Arbeitsscheine — Self-Service-Übersicht.
        v3.9.336: jetzt auch fuer Buero/PL/Lagerleitung erreichbar via profilMode-Toggle. */
@@ -11429,7 +11500,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
       ,_cardUrlaub
       ,_cardZeit
       ,_cardAS
-      ,React.createElement('div',{style:{...CC()}},React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:10}},"Passwort ändern"),React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8,maxWidth:360}},React.createElement(PwInput,{type:"password",value:oldPw,onChange:e=>setOldPw(e.target.value),placeholder:"Aktuelles Passwort",autoComplete:"current-password",style:II()}),React.createElement(PwInput,{type:"password",value:newPw,onChange:e=>setNewPw(e.target.value),placeholder:"Neues Passwort (min. 6 Zeichen)",autoComplete:"new-password",style:II()}),React.createElement(PwInput,{type:"password",value:newPw2,onChange:e=>setNewPw2(e.target.value),placeholder:"Neues Passwort wiederholen",autoComplete:"new-password",style:II()}),React.createElement('button',{onClick:changeOwnPw,disabled:pwBusy,style:{...bpS,opacity:pwBusy?.6:1}},pwBusy?"…":"Passwort ändern"),pwMsg?React.createElement('div',{style:{fontSize:12,fontWeight:600,color:pwMsg.indexOf("✅")===0?_okG("#22c55e"):pwMsg.indexOf("⚠️")===0?"#eab308":"#ef4444"}},pwMsg):null))
+      ,React.createElement('div',{style:{...CC()}},React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:10}},"Passwort ändern"),React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8,maxWidth:360}},React.createElement(PwInput,{type:"password",value:oldPw,onChange:e=>setOldPw(e.target.value),placeholder:"Aktuelles Passwort",autoComplete:"current-password",style:II()}),React.createElement(PwInput,{type:"password",value:newPw,onChange:e=>setNewPw(e.target.value),placeholder:"Neues Passwort (min. 8 Zeichen)",autoComplete:"new-password",style:II()}),React.createElement(PwInput,{type:"password",value:newPw2,onChange:e=>setNewPw2(e.target.value),placeholder:"Neues Passwort wiederholen",autoComplete:"new-password",style:II()}),React.createElement('button',{onClick:changeOwnPw,disabled:pwBusy,style:{...bpS,opacity:pwBusy?.6:1}},pwBusy?"…":"Passwort ändern"),pwMsg?React.createElement('div',{style:{fontSize:12,fontWeight:600,color:pwMsg.indexOf("✅")===0?_okG("#22c55e"):pwMsg.indexOf("⚠️")===0?"#eab308":"#ef4444"}},pwMsg):null))
       ,React.createElement(FahrbewSection,{workerId:(curUser&&curUser.monteurId)||"",canEdit:false,isMob:isMob,curUser:curUser})
       ,React.createElement(AnmeldungSection,{workerId:(curUser&&curUser.monteurId)||"",canEdit:false,isMob:isMob,curUser:curUser})
       ,React.createElement(MAAttesteSection,{workerId:(curUser&&curUser.monteurId)||"",workerName:(curUser&&curUser.name)||"",curUser:curUser,isMob:isMob})/* v3.9.460 (TEIL B): eigene Atteste in "Mein Profil" (Monteur sieht eigene via RLS) */
@@ -11483,7 +11554,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
               , "Login automatisch anlegen")
             , (nf.mkLogin!==false) && React.createElement('div', { className:"form-grid-4", style: {marginTop:8}}
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Benutzername"), React.createElement('input', { className:"epk-form-field", value: nf.loginUser||"", onChange: e=>setNf(p=>({...p,loginUser:e.target.value,loginUserTouched:true})), style: II(), placeholder: "nachname"} ))
-              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Passwort *"), React.createElement('input', { className:"epk-form-field", type:"text", value: nf.loginPw||"", onChange: e=>setNf(p=>({...p,loginPw:e.target.value})), style: II(), placeholder: "min. 4 Zeichen"} ))
+              , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Passwort *"), React.createElement('input', { className:"epk-form-field", type:"text", value: nf.loginPw||"", onChange: e=>setNf(p=>({...p,loginPw:e.target.value})), style: II(), placeholder: "min. 8 Zeichen"} ))
               , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Rolle (Login)"), React.createElement('div', { style: {...II(),display:"flex",alignItems:"center",color:V.dm} }, (_W2U[nf.r]||"monteur")))
               , React.createElement('div', { style: {gridColumn:"span 4",fontSize:UI.fMeta,color:V.dm,lineHeight:1.5}}, "Die E-Mail oben ist Login-Pflichtfeld. Benutzername kommt aus dem Nachnamen (editierbar). Login wird nur ONLINE angelegt und nur bei bestätigter Anlage gemeldet — sonst bleibt der Mitarbeiter angelegt und der Login lässt sich später über „Login erstellen“ in der Benutzerverwaltung nachholen.")))
           : React.createElement('div', { style: {marginBottom:12,fontSize:12,color:V.dm}}, "ℹ Login-Anlage nur durch Admin — über „Login erstellen“ in der Benutzerverwaltung.")
@@ -15184,7 +15255,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(curUser.role!=="admin")return;
     if(_creatingUser.current)return;
     if(!nf.username||!nf.password||!nf.name) return;
-    /* v3.9.70 SPRINT-50 F-2: alert → toast (UX-Konsistenz). */if(nf.password.length<4){_optionalChain([window,'access',_g70a=>_g70a.__toast,'optionalCall',_g70b=>_g70b("⚠️ Passwort muss mindestens 4 Zeichen haben","warn")]);return;}
+    /* v3.9.70 SPRINT-50 F-2: alert → toast (UX-Konsistenz). */if(nf.password.length<PW_MIN_LEN){_optionalChain([window,'access',_g70a=>_g70a.__toast,'optionalCall',_g70b=>_g70b("⚠️ Passwort muss mindestens "+PW_MIN_LEN+" Zeichen haben","warn")]);return;}if(typeof navigator!=="undefined"&&navigator.onLine===false){if(window.__toast)window.__toast("⚠️ Benutzer anlegen geht nur mit Verbindung zum Server – das Passwort wird nie zwischengespeichert.","warn",8000);return;}/* v3.9.1056 Fund 10 */
     // v3.8.7 B-020 Konsistenz: createUser darf keine fake @epkolar.local-Emails mehr erzeugen.
     // Das war genau die Inkonsistenz die B20-F ausgelöst hatte (alte User mit email=''/fake).
     /* v3.9.70 SPRINT-50 F-2: alert → toast. */if(!nf.email||!nf.email.trim()||nf.email.indexOf('@')<2){_optionalChain([window,'access',_g70c=>_g70c.__toast,'optionalCall',_g70d=>_g70d("⚠️ Gültige E-Mail-Adresse erforderlich (für Auth-Login)","warn")]);return;}
@@ -15194,7 +15265,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     /* v3.9.170 FIX MA#1: monteurId-Dedup — monteurId ist 1:1-Identitäts-Anker (AS-Filter "nur eigene", Fahrtenbuch-Edit, Rolleninferenz); zwei User auf denselben Monteur = stille Datenisolations-Verletzung. */
     if(nf.monteurId&&users.find(u=>u.monteurId===nf.monteurId)){if(window.__toast)window.__toast("⚠️ Dieser Monteur ist bereits einem Benutzer zugeordnet","warn");return;}
     _creatingUser.current=true;
-    const nid=uid();const email=nf.email.trim();setUsers(prev=>[...prev,{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,active:true,monteurId:nf.monteurId||null,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:nf.username,password:nf.password,name:nf.name,email:email,role:nf.role,monteurId:nf.monteurId||null,active:1,locked:0}});
+    const nid=uid();const email=nf.email.trim();setUsers(prev=>[...prev,{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,active:true,monteurId:nf.monteurId||null,lastLogin:null,created:td2(),locked:false,permsOverride:null}]);SQ.push({url:"/api/users",method:"POST",body:{id:nid,username:nf.username,name:nf.name,email:email,role:nf.role,monteurId:nf.monteurId||null,active:1,locked:0}});
     /* v3.8.7 Bug-Hunt Iter-7: admin_reset_password silent-catch durch observability ersetzt.
        Vorher: RPC failt → Admin bekommt "✅ angelegt" Toast, User kann sich aber nie einloggen. */
     let _pwRpcOk=true;
@@ -15249,7 +15320,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
     if(!await _confirmModal("Benutzer wirklich löschen?",{variant:"danger"}))return;
     var _urows=null;
     try{
-      const _r=await _authRetry(()=>fetch(SB_REST+"/users?id=eq."+encodeURIComponent(id),_fT({method:"DELETE",headers:_sbWH("return=representation")})));
+      const _r=await _authRetry(()=>fetch(SB_REST+"/users?select=id&id=eq."+encodeURIComponent(id),_fT({method:"DELETE",headers:_sbWH("return=representation")})));
       if(!_r.ok){const _t=await _r.text();throw new Error("HTTP"+_r.status+" "+_t);}
       try{_urows=await _r.json();}catch(_je){_urows=[];}
     }catch(_ue){
@@ -15574,7 +15645,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                 )
                 , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
                   , React.createElement('button', { onClick: ()=>toggleLock(selU.id), style: selU.locked?bgS:bdS, disabled: selU.id===curUser.id}, selU.locked?"Entsperren":"Sperren")
-                  , React.createElement('button', { onClick: async()=>{/* v3.9.30 Free-Hunt A-Fix5: Defense-in-Depth admin-Guard (analog setRole/toggleActive). */if(curUser.role!=="admin")return;/* v3.9.624 FIX admin_reset_password: RPC-Contract ist (target_user_id uuid, new_password text) — vorher p_email/p_password + _sbH() = Param-Mismatch, GoTrue-Reset lief ins Leere (nur lokaler Hash gesetzt). Jetzt target_user_id=selU.auth_user_id + _sbWH() + min-6 (RPC-Vertrag). */const np=prompt("Neues Passwort für "+selU.name+":");if(np&&np.length>=6){/* v3.9.241 FIX Guard-Reihenfolge: Email-Check + return VOR dem lokalen Passwort-PUT. Vorher wurde password_hash lokal gesetzt und ERST danach auf fehlende Email geprüft → bei Email-loser Zeile lokaler PW-Set ohne GoTrue-Sync = inkonsistent. admin_reset_password-Logik unverändert. */if(!selU.email||!String(selU.email).trim()){alert("User hat keine E-Mail-Adresse — bitte zuerst Email setzen, dann Passwort zurücksetzen [B20-konsistent]");return;}SQ.push({url:"/api/users/"+selU.id,method:"PUT",body:{password:np}});let _resetOk=true;try{const _r=await _authRetry(()=>fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbWH(),body:JSON.stringify({target_user_id:selU.auth_user_id,new_password:np})}));if(!_r||!_r.ok){_resetOk=false;console.error('[pwReset] admin_reset_password failed:',_r&&_r.status,await (_r&&_r.text().catch(()=>''))||'');}}catch(e){_resetOk=false;console.error('[pwReset] admin_reset_password threw:',e&&e.message||e);}if(!_resetOk){_optionalChain([window, 'access', _227 => _227.__toast, 'optionalCall', _228 => _228("Lokal gesetzt, aber GoTrue-Sync fehlgeschlagen — User kann evtl. nicht online einloggen. Siehe Console.",10000)]);}else{_optionalChain([window, 'access', _227a => _227a.__toast, 'optionalCall', _228a => _228a("Passwort geändert")]);}}else if(np){alert("Mind. 6 Zeichen!");}}, style: bgS, disabled: selU.id===curUser.id}, "Passwort zurücksetzen"  )
+                  , React.createElement('button', { onClick: async()=>{/* v3.9.30 Free-Hunt A-Fix5: Defense-in-Depth admin-Guard (analog setRole/toggleActive). */if(curUser.role!=="admin")return;/* v3.9.624 FIX admin_reset_password: RPC-Contract ist (target_user_id uuid, new_password text) — vorher p_email/p_password + _sbH() = Param-Mismatch, GoTrue-Reset lief ins Leere (nur lokaler Hash gesetzt). Jetzt target_user_id=selU.auth_user_id + _sbWH() + min-6 (RPC-Vertrag). *//* v3.9.1056 Fund 10/13: nur online, Passwort NIE in die Warteschlange (vorher Klartext in IndexedDB), lokaler Hash entfaellt. Die RPC beendet nach dem Reset die Sitzungen des Benutzers (sql/AUTH_HAERTUNG_1). */if(typeof navigator!=="undefined"&&navigator.onLine===false){alert("Passwort zurücksetzen geht nur mit Verbindung zum Server (das Passwort wird nie zwischengespeichert).");return;}if(!selU.email||!String(selU.email).trim()){alert("User hat keine E-Mail-Adresse — bitte zuerst Email setzen, dann Passwort zurücksetzen [B20-konsistent]");return;}const _tgt=selU.auth_user_id||selU.authUserId||"";if(!_tgt){alert("Für diesen Benutzer ist noch kein Login verknüpft – bitte zuerst den Login anlegen.");return;}const np=prompt("Neues Passwort für "+selU.name+" (mindestens "+PW_MIN_LEN+" Zeichen):");if(!np)return;if(np.length<PW_MIN_LEN){alert("Mindestens "+PW_MIN_LEN+" Zeichen!");return;}let _resetOk=true;try{const _r=await _authRetry(()=>fetch(SB_REST+"/rpc/admin_reset_password",{method:"POST",headers:_sbWH(),body:JSON.stringify({target_user_id:_tgt,new_password:np})}));if(!_r||!_r.ok){_resetOk=false;console.error('[pwReset] admin_reset_password failed:',_r&&_r.status,await (_r&&_r.text().catch(()=>''))||'');}}catch(e){_resetOk=false;console.error('[pwReset] admin_reset_password threw:',e&&e.message||e);}if(!_resetOk){_optionalChain([window, 'access', _227 => _227.__toast, 'optionalCall', _228 => _228("Passwort NICHT geändert – der Server hat abgelehnt oder ist nicht erreichbar. Siehe Console.","error",10000)]);}else{_optionalChain([window, 'access', _227a => _227a.__toast, 'optionalCall', _228a => _228a("Passwort geändert")]);}}, style: bgS, disabled: selU.id===curUser.id}, "Passwort zurücksetzen"  )
                   , React.createElement('button', { onClick: ()=>toggleActive(selU.id), style: selU.active?{...bsS(),borderColor:"#eab308",color:"#eab308"}:bgS, disabled: selU.id===curUser.id}, selU.active?"Deaktivieren":"Aktivieren")
                   , selU.id!==curUser.id && (React.createElement('button', { onClick: ()=>delUser(selU.id), style: bdS}, "Löschen" ))
                 )
@@ -26265,7 +26336,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme,setThemeMode}){
     if(pwBusy)return;
     setPwMsg("");setPwOk(false);
     if(!oldPw||!newPw){setPwMsg("Altes und neues Passwort eingeben");return;}
-    if(newPw.length<4){setPwMsg("Mindestens 4 Zeichen");return;}
+    if(newPw.length<PW_MIN_LEN){setPwMsg("Mindestens "+PW_MIN_LEN+" Zeichen");return;}/* v3.9.1056 Fund 9: dieselbe Mindestlaenge wie im Profil */
     if(newPw!==newPw2){setPwMsg("Passwörter stimmen nicht überein");return;}
     setPwBusy(true);
     try{const _cpRes=await API.changePassword(oldPw,newPw);setPwOk(true);setOldPw("");setNewPw("");setNewPw2("");/* v3.8.17 Iter-18: GoTrue-Sync-Ergebnis surfacen. v3.8.49 Bug-Fix: auch gotrue===null (nicht versucht, kein _authToken) warnen — vorher false-positive "✅ Passwort geändert" wenn GoTrue-Sync komplett übersprungen wurde. */if(_cpRes&&_cpRes.gotrue!==true){const _det=_cpRes.gotrue===false?"fehlgeschlagen":"nicht versucht (keine aktive Session — bitte neu einloggen)";setPwMsg("Lokal geändert, GoTrue-Sync "+_det+" — nächster Online-Login könnte altes Passwort verlangen. Console prüfen.");_optionalChain([window, 'access', _vv1 => _vv1.__toast, 'optionalCall', _vv2 => _vv2("⚠️ PW lokal OK, GoTrue-Sync "+_det,"warn",10000)]);}else{setPwMsg("Passwort geändert");_optionalChain([window, 'access', _vv1a => _vv1a.__toast, 'optionalCall', _vv2a => _vv2a("🔑 Passwort geändert")]);}}
@@ -26301,7 +26372,7 @@ function VerbindungView({ww,curUser,isDark,toggleTheme,setThemeMode}){
         , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Passwort ändern" )
         , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:8,maxWidth:window.innerWidth<400?"100%":320}}
           , React.createElement(PwInput, { type: "password", autoComplete: "current-password", 'aria-label': "Altes Passwort", value: oldPw, onChange: e=>setOldPw(e.target.value), placeholder: "Altes Passwort", style: {...II(),fontSize:16,padding:"10px 12px",minHeight:44}})
-          , React.createElement(PwInput, { type: "password", autoComplete: "new-password", 'aria-label': "Neues Passwort", value: newPw, onChange: e=>setNewPw(e.target.value), placeholder: "Neues Passwort", style: {...II(),fontSize:16,padding:"10px 12px",minHeight:44}})
+          , React.createElement(PwInput, { type: "password", autoComplete: "new-password", 'aria-label': "Neues Passwort", value: newPw, onChange: e=>setNewPw(e.target.value), placeholder: "Neues Passwort (min. 8 Zeichen)", style: {...II(),fontSize:16,padding:"10px 12px",minHeight:44}})
           , React.createElement(PwInput, { type: "password", autoComplete: "new-password", 'aria-label': "Neues Passwort wiederholen", value: newPw2, onChange: e=>setNewPw2(e.target.value), placeholder: "Neues Passwort wiederholen", onKeyDown: e=>{if(e.key==="Enter")doChangePw();}, style: {...II(),fontSize:16,padding:"10px 12px",minHeight:44}})
           , React.createElement('button', { onClick: doChangePw, disabled: pwBusy, style: {...bgS,padding:"8px 16px",fontSize:13,opacity:pwBusy?.6:1}}, pwBusy?React.createElement('span',{},React.createElement('span',{className:'epk-spin',style:{marginRight:6}})," …"):"Passwort ändern" )
           , pwMsg&&React.createElement('div', { style: {fontSize:13,color:pwOk?_okG("#22c55e"):"#ef4444",fontWeight:600}}, pwMsg)

@@ -210,6 +210,6 @@ def test_logout_nulls_token_before_fetch(index_html):
     assert body, "_sbAuthLogout nicht gefunden"
     # Token wird in _tok gekapselt und _authToken SOFORT genullt, DANN fetch mit _tok.
     i_capture = body.index("const _tok=_authToken;_authToken=null")
-    i_fetch = body.index('fetch(_SB_AUTH+"/logout"')
+    i_fetch = body.index('fetch(_SB_AUTH+"/logout?scope=local"')  # v3.9.1056 Fund 11: nur dieses Geraet abmelden
     assert i_capture < i_fetch, "Token muss VOR dem Logout-fetch synchron genullt werden"
     assert '"Bearer "+_tok' in body, "Logout-fetch muss den gekapselten _tok nutzen"

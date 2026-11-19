@@ -93,11 +93,14 @@ def test_version_auf_der_maske_ist_APP_VERSION():
 
 # 4. Auth-Pfad strukturell unveraendert (Pin, gemessen gegen v3.9.1003).
 def test_auth_pfad_unveraendert():
+    # v3.9.1056 Auth-Haertung: Summe BEWUSST neu gesetzt - die Anmeldelogik der Maske wurde in diesem Auftrag
+    # geaendert (neutrale Meldung, Offline-Weg bei schwachem Netz, ehrliche Passwort-Hilfe). Der Riegel bleibt:
+    # jede weitere Aenderung ausserhalb eines Auth-Auftrags faellt hier wieder auf.
     ls = _login_screen()
     k = ls.find("){") + 2
     j = ls.find("  return (")
     assert hashlib.sha256(ls[k:j].encode("utf-8")).hexdigest() == \
-        "0af37530ca20860524bbcd699f58d945700242d9d729e25bbff6dd215cd533f9", \
+        "8b5c9c3bdf6002c657dc94078536168e6bc3b3ac3acd735c3ee0d2a190144338", \
         "Login-Logik (Zustand, Anmeldefunktion) hat sich geaendert - Auth war fuer v3.9.1004 tabu"
     a = SRC.find("React.createElement(LoginScreen, { onLogin:")
     b = SRC.find(", onPortal:", a)
