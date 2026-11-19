@@ -262,8 +262,11 @@ def _pruef_server_loeschung(r):
     a = r["q"][0]
     if (a.get("url"), a.get("method")) != ("/api/fahrzeuge/fz1", "PUT"):
         p.append("falscher Weg: %s %s" % (a.get("method"), a.get("url")))
-    if sorted(a.get("body", {}).keys()) != ["tankLog"]:
+    if sorted(a.get("body", {}).keys()) != ["_tankAtomar", "tankLog"]:
         p.append("Body nicht spaltengenau: %s" % sorted(a.get("body", {}).keys()))
+    # v3.9.1051: Hinweis fuer den Server-Weg (fz_tanklog_del) = nur die id; tankLog bleibt der Rueckfall bei 404
+    if a.get("body", {}).get("_tankAtomar") != {"op": "del", "id": "tkB"}:
+        p.append("_tankAtomar: %r" % a.get("body", {}).get("_tankAtomar"))
     ids = [t.get("id") for t in a.get("body", {}).get("tankLog", [])]
     if ids != ["tkA"]:
         p.append("tank_log danach: %r" % ids)
@@ -297,8 +300,9 @@ def test_batch_abbrechen_schreibt_nichts(node_exe, index_html):
 
 def test_batch_weg_ist_der_tanklog_weg_von_addtank(index_html):
     """Kein neuer Schreibweg: derselbe Diff-PUT der tankLog-Spalte wie beim Tank-Dialog (addTank)."""
-    assert "},u=>({tankLog:u.tankLog,kmStand:u.kmStand}));" in index_html
-    assert "u=>({tankLog:u.tankLog})" in _comp_const(index_html, "batchDel")
+    # v3.9.1051: beide tragen zusaetzlich den _tankAtomar-Hinweis (Server aendert nur den einen Eintrag)
+    assert "kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand}));" in index_html
+    assert "u=>({_tankAtomar:{op:\"del\",id:rowId},tankLog:u.tankLog})" in _comp_const(index_html, "batchDel")
 
 
 # ── Bug 3: Monatsauswertung Tanken ──────────────────────────────────────────
