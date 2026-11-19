@@ -78,9 +78,11 @@ def test_umkehrprobe_ohne_toleranz(node_exe):
 
 def test_alle_pickerl_anzeigen_nutzen_dieselbe_regel():
     # Listenansicht + Kachel-Abzeichen
-    assert "const _pkFr=window._pickerlFrist(f.pickerl)||{};" in HTML
-    assert "const pickerlRot=_pkFr.st==='overdue';" in HTML
-    assert 'pickerlRot?" · abgelaufen":_pkFr.st===\'toleranz\'?" · Toleranzfrist bis "' in HTML
+    # v1049 Fahrzeuge-UX: Liste/Kacheln/Mein-Karte zeigen die Fristzeile _fzFristZeile, der Rand kommt aus _fzRand -
+    # beide nach window._pickerlFrist (dieselbe Toleranzregel)
+    assert "const fr=window._pickerlFrist(f.pickerl)||{};const st=fr.st;" in HTML
+    assert "(st==='overdue'?\" · abgelaufen\":st==='toleranz'?\" · Toleranzfrist bis \"+fdt(fr.tolBis)" in HTML
+    assert "const fr=window._pickerlFrist(f.pickerl)||{};if(_fzOffeneSchaeden(f)>0||fr.st==='overdue'" in HTML
     # QR-Abzeichen
     assert "window._pickerlFrist(fzScannedItem.pickerl)" in HTML
     # Home-Banner: "abgelaufen" zaehlt nach der Toleranzregel, nicht nach _pickerlStatus

@@ -241,8 +241,9 @@ KONTRAST_STELLEN = [
     'style:{..._mbS(_lesbar(COLORS.ERROR)),marginLeft:14},title:"Zeile löschen"}',   # Planung am Handy
     'style: {color:_lesbar("#b45309"),fontWeight:600}}, "Kein Login")',
     'color:_lesbar("#b45309"),display:"flex",alignItems:"center",gap:6}}, "Mitarbeiter ohne Login ("',
-    'color:isFav(f.id)?"#eab308":_lesbar("#555555"),',
-    'color:isFav(sel)?"#eab308":_lesbar("#555555")}',
+    # v1049 Fahrzeuge-UX: Stern jetzt im Helfer _fzStern, gefuellt ebenfalls ueber _lesbar
+    'color:isFav(f.id)?_lesbar("#ca8a04"):_lesbar("#555555")}',
+    'color:isFav(sel)?_lesbar("#ca8a04"):_lesbar("#555555")}',
 ]
 
 

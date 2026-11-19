@@ -25,7 +25,9 @@ def test_fleetview_service_faellig_local_parse():
 def test_fleetview_service_warn_local_parse():
     """Positiv: FleetView serviceWarn (Listen-Karte) parst date-only lokal."""
     text = _txt()
-    assert 'f.naechstService&&new Date(f.naechstService+"T00:00:00")<=new Date()' in text, \
+    # v1049 Fahrzeuge-UX: Liste/Rand/Chip rechnen ueber den gemeinsamen Helfer _fzServiceFaellig (gleiche lokale Regel)
+    assert '_fzServiceFaellig(f)' in text
+    assert 'function _fzServiceFaellig(f){if(!f.naechstService)return false;const d=new Date(f.naechstService+"T00:00:00");return d<=new Date();}' in text, \
         'v3.9.407 Regression: FleetView serviceWarn muss +"T00:00:00" lokal parsen'
 
 
