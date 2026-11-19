@@ -124,8 +124,9 @@ def _p_kwreihe(q):
     for need in ('flexWrap:"nowrap"', 'overflowX:"auto"', "minWidth:0", "_ks.map(k=>"):
         if need not in seg:
             f.append("KW-Reihe: %s fehlt" % need)
-    if "const _ks=savedKws.filter(k=>k!==kw)" not in q:
-        f.append("KW-Reihe zeigt nicht mehr alle gespeicherten Wochen")
+    # GF 19.11.: Leiste bewusst auf aktuelle + 8 kommende Wochen gekuerzt (test_planung_kwleiste_v1056).
+    if "const _ks=_wpKwChipListe(savedKws,kw,yr,curKw,curYr)" not in q:
+        f.append("KW-Reihe nutzt nicht die Wochenfenster-Liste")
     return f
 
 
