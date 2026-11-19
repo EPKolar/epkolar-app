@@ -379,7 +379,7 @@ def test_planung_wetter_und_buero(index_html):
     assert '_ikVw("warnung",noAtt+" Mitarbeiter mit Krankenstand ohne Attest")' in index_html
     assert 'text: _ikVw("bericht",ps.regCnt+" Regie")' in index_html
     # OFFA Excel bleibt byte-gleich
-    assert "📊 OFFA Excel" in index_html
+    assert 'style: {...xBtn("xls")}}, "OFFA Excel"  )' in index_html  # GF-Freigabe 19.11.2026: Beschriftung ohne Emoji
 
 
 # ── Minor ────────────────────────────────────────────────────────────────────

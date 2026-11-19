@@ -248,8 +248,8 @@ def test_7_umkehr(index_html):
 
 
 def test_7_offa_excel_bleibt(index_html):
-    """test_offa_import_removed_v780 pinnt den Wortlaut - bewusst unveraendert."""
-    assert "\U0001F4CA OFFA Excel" in index_html
+    """test_offa_import_removed_v780 pinnt den Wortlaut (seit GF-Freigabe 19.11.2026 ohne Emoji)."""
+    assert 'style: {...xBtn("xls")}}, "OFFA Excel"  )' in index_html
 
 
 # ---------- 8 ----------

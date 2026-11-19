@@ -48,7 +48,7 @@ CHEF_ENDE = "function FahrtenbuchPanel("
 
 AS_REST = [
     # OFFA / Juprowa
-    '"📊 OFFA Excel"',
+    # GF-Freigabe 19.11.2026: OFFA-Excel-Knopf ohne Emoji - keine Ausnahme mehr noetig
     # WARNUNGEN 16.11.: '"⚠ "+"OFFA-Feed' entfaellt - der Feed-Kasten ist jetzt eine Hinweis-Zeile mit Linien-Ikone (keine Emojis)
     '"⚠ "+um.length+" unbekannte Monteur-Codes: "',
     '"❌ ausgeschieden"',
@@ -191,7 +191,7 @@ def test_keine_zierfarbe_in_chef_karten_und_kalender(index_html):
 def test_die_logik_daneben_ist_unberuehrt(index_html):
     """Nur Anzeige: Klickwege, OFFA-Export und Chip-Schluessel bleiben."""
     asb = _bereich(index_html, AS_ANFANG, AS_ENDE)
-    for weg in ("onClick:()=>exportOffa(k)", "onClick: ()=>setShowExportPicker(p=>!p), style: {...xBtn(\"xls\")}}, \"📊 OFFA Excel\"",
+    for weg in ("onClick:()=>exportOffa(k)", "onClick: ()=>setShowExportPicker(p=>!p), style: {...xBtn(\"xls\")}}, \"OFFA Excel\"",
                 "onClick:()=>setQuickFilter(chip.key)", "storno(a.id);", "openEdit(a);", "genAsPdf(a);",
                 "setAsShowQR(asShowQR===a.id?null:a.id);"):
         assert weg in asb, weg
