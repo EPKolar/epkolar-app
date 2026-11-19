@@ -23,8 +23,19 @@ def _block(index_html):
     return index_html[a:b]
 
 
+def _zeitkonst(index_html):
+    """Die echten TIME_*-Konstanten aus index.html (an die Quelle gebunden, keine Attrappe)."""
+    z = re.findall(r"^const TIME_\w+=[^;\r\n]*;", index_html, re.M)
+    assert any(x.startswith("const TIME_DAY=") for x in z), "TIME_DAY fehlt"
+    return nl_join(z)
+
+
+def nl_join(z):
+    return "\n".join(z)
+
+
 def _harness(index_html, *names):
-    teile = [TZ]
+    teile = [TZ, _zeitkonst(index_html)]
     for n in names:
         if n in VARS:
             m = re.search(r"^var " + n + r"=\{.*?\};\r?$", index_html, re.M)
@@ -95,7 +106,7 @@ def _window_pickerl(index_html):
         m = re.search(r"^window\." + n + r"=.*$", index_html, re.M)
         assert m, n
         teile.append(m.group(0).rstrip("\r"))
-    return "var window={};const TIME_DAY=86400000;\n" + "\n".join(teile) + "\n"
+    return "var window={};\n" + "\n".join(teile) + "\n"
 
 
 def test_pickerl_stufe_gleich_wie_bestandsregel(node_exe, index_html):
