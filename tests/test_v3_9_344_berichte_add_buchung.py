@@ -22,7 +22,8 @@ def test_add_buchung_button_label_in_edit_monteur_block(index_html):
     )
     assert m_edit, "editMonteurEntries-Block nicht gefunden"
     block = m_edit.group(0)
-    assert "➕ Buchung hinzufügen" in block, (
+    # v1051: Buero-Portal ohne Emoji - das Label heisst "Buchung hinzufügen" (ohne Plus-Zeichen)
+    assert "Buchung hinzufügen" in block, (
         "Button-Label '➕ Buchung hinzufügen' fehlt im editMonteurEntries-Block — "
         "Regression v3.9.344."
     )

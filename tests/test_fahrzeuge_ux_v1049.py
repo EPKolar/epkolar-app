@@ -39,7 +39,7 @@ GRUND = ("const TIME_SECOND=", "const TIME_MINUTE=", "const TIME_HOUR=", "const 
          "const COLORS=", "function _matFold(", "window._pickerlStatus=",
          "function _fzPickerlFaellig(", "function _fzServiceFaellig(")
 HELFER = ("function _fzArt(", "function _fzBetrieb(", "const _FZ_BETRIEB=", "function _fzBusSvg(",
-          "function _fzBusFarbe(", "function _fzBusFuer(", "function _fzSuchText(",
+          "function _fzBusFarbe(", "const _FZ_ART_NAME=", "function _fzBusFuer(", "function _fzSuchText(",
           "function _fzSuchTreffer(", "function _fzIstMeins(", "function _fzIstFaellig(",
           "function _fzOffeneSchaeden(", "function _fzDE(", "function _fzChipPasst(")
 
@@ -125,8 +125,9 @@ def _code(s):
 # ── 1. Fahrzeug-Bild ────────────────────────────────────────────────────────
 def test_bildart_nach_typ(index_html, node_exe, tmp_path):
     m = _messe(index_html, node_exe, tmp_path, "art.js")
-    assert m["art"] == ["bus", "lkw", "anhaenger", "bus", "bus"], m["art"]
-    assert m["artRoh"] == ["lkw", "anhaenger", "bus", "bus", "bus"], m["artRoh"]
+    # v1051: PKW und Stapler bekommen eigene Zeichnungen (vorher Transporter) - typ unterscheidet sie
+    assert m["art"] == ["bus", "lkw", "anhaenger", "pkw", "bus"], m["art"]
+    assert m["artRoh"] == ["lkw", "anhaenger", "stapler", "bus", "bus"], m["artRoh"]
 
 
 def test_betriebszustand_aus_vorhandenen_werten(index_html, node_exe, tmp_path):
@@ -169,7 +170,8 @@ def test_bild_fuer_fahrzeug_traegt_zustand(index_html, node_exe, tmp_path):
     assert 'aria-label="Transporter, In Betrieb"' in f[0] and "color:#009640" in f[0]
     assert 'aria-label="LKW, Werkstatt"' in f[1] and "color:#c2410c" in f[1]
     assert 'aria-label="Anhänger, In Betrieb"' in f[2]
-    assert 'aria-label="Transporter, Außer Dienst"' in f[3] and "color:#71717a" in f[3]
+    # v1051: Fahrzeug D ist typ PKW -> eigene PKW-Zeichnung und Vorlesetext "PKW" (vorher "Transporter")
+    assert 'aria-label="PKW, Außer Dienst"' in f[3] and "color:#71717a" in f[3] and 'data-fz-art="pkw"' in f[3]
     # ohne _lesbar (Node) die Rohfarben aus COLORS: Marke / WARNING_FILL / NEUTRAL, Unbekanntes = in Betrieb
     assert m["farben"] == ["#009640", "#c2410c", "#71717a", "#009640"], m["farben"]
 

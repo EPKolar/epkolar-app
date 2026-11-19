@@ -11,7 +11,9 @@ import re
 def test_warnkasten_kompakt(index_html):
     # v3.9.785: kompakter lohnrelevanter Warnkasten, Wortlaut auf das 3-Stufen-Modell aktualisiert
     # (frueher "eff. Tage" -> jetzt "Stufe je Tag: klein/mittel/groß").
-    assert "⚠ Entfernungszulage — lohnrelevant: die Kalender-Vergabe (Stufe je Tag: klein/mittel/groß) bestimmt die abgerechnete Menge. Genau eine Stufe pro Tag. Lohnverrechner maßgeblich." in index_html, "kompakter lohnrelevanter Warnkasten fehlt"
+    # v1051: Warnzeichen als Linien-Ikone (_ik('warnung')) vor dem Text statt Zeichen im Text
+    assert ",_ik('warnung',16),h('span',{style:{flex:'1 1 auto'}},'Entfernungszulage — lohnrelevant" in index_html
+    assert "Entfernungszulage — lohnrelevant: die Kalender-Vergabe (Stufe je Tag: klein/mittel/groß) bestimmt die abgerechnete Menge. Genau eine Stufe pro Tag. Lohnverrechner maßgeblich." in index_html, "kompakter lohnrelevanter Warnkasten fehlt"
     assert "⚠ VORSCHAU — der Lohnverrechner ist maßgeblich. Die App-Zahl" not in index_html, "alter langer Dauer-Warnkasten noch vorhanden"
 
 

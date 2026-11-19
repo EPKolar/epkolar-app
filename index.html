@@ -5430,13 +5430,14 @@ function _fzPickerlFaellig(f){const _pkSt=window._pickerlStatus(f.pickerl);retur
 function _fzServiceFaellig(f){if(!f.naechstService)return false;const d=new Date(f.naechstService+"T00:00:00");return d<=new Date();}
 function _fzFaelligkeit(liste){var a=(liste||[]).filter(function(f){return f&&f.status!=="stillgelegt";});var pk=a.filter(_fzPickerlFaellig),sv=a.filter(_fzServiceFaellig);var ids=new Set(pk.concat(sv).map(function(f){return f.id||f.kennzeichen;}));return {pickerl:pk,service:sv,fahrzeuge:ids.size};}
 /* v1049 Fahrzeuge-Bedienung (Monteur am Telefon, Buero am Tablet): reine Helfer - EINE Quelle fuer Fahrzeug-Bild, Betriebszustand, Suche, "Mein" und Filter-Chips. Datenstand: fahrzeuge.status kennt nur "aktiv"/"stillgelegt"; "Werkstatt" ist kein Spaltenwert, sondern ein Schaden mit status "in_reparatur" (abgeleitet, nichts wird geschrieben). */
-function _fzArt(f){var t=_matFold(f&&f.typ).replace(/[^a-z]/g,"");if(t.indexOf("lkw")===0)return "lkw";if(t.indexOf("anhang")===0)return "anhaenger";return "bus";}
+function _fzArt(f){var t=_matFold(f&&f.typ).replace(/[^a-z]/g,"");if(t.indexOf("lkw")===0)return "lkw";if(t.indexOf("anhang")===0)return "anhaenger";if(t.indexOf("pkw")===0)return "pkw";if(t.indexOf("stapler")===0)return "stapler";return "bus";}
 function _fzBetrieb(f){if(!f)return "betrieb";if(f.status==="stillgelegt")return "ausser";var s=f.schaeden;if(Array.isArray(s)&&s.some(function(x){return !!(x&&x.status==="in_reparatur");}))return "werkstatt";return "betrieb";}
 const _FZ_BETRIEB={betrieb:{l:"In Betrieb",h:COLORS.EP_GREEN},werkstatt:{l:"Werkstatt",h:COLORS.WARNING_FILL},ausser:{l:"Außer Dienst",h:COLORS.NEUTRAL}};
-/* _fzBusSvg(opts) -> SVG-Text eines Fahrzeugs in Seitenansicht (eigene Zeichnung, Strichstil, kein Hersteller-Zeichen). Ohne Abhaengigkeiten, damit die Flotten-Karte (Leaflet divIcon braucht Text) denselben Helfer uebernehmen kann. opts: art "bus"|"lkw"|"anhaenger" (sonst bus) - farbe "#rrggbb" (Strich + 16 % Flaeche, sonst Markengruen) - gr Breite in px (Hoehe = 2/3) - titel (Vorlesetext; leer = aria-hidden). */
-function _fzBusSvg(opts){var o=opts||{};var art=(o.art==="lkw"||o.art==="anhaenger")?o.art:"bus";var farbe=/^#[0-9a-fA-F]{6}$/.test(String(o.farbe||""))?String(o.farbe):"#009640";var gr=(+o.gr>0)?Math.round(+o.gr):40;var hoch=Math.round(gr*2/3);var esc=function(t){return String(t).replace(/[&<>\x22]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;";});};var titel=String(o.titel==null?"":o.titel).trim();var L='fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';var F='fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"';var rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.2" '+L+'/><circle cx="'+x+'" cy="'+y+'" r=".9" fill="currentColor"/>';};var k;if(art==="lkw")k='<rect x="3" y="4" width="25" height="16.5" rx="1.5" '+F+'/><path d="M30 22.5V10.5A2 2 0 0 1 32 8.5H38L44 15V22.5H41.7A3.7 3.7 0 0 0 34.3 22.5Z" '+F+'/><path d="M33 11.5H37.2L40.4 15.2H33Z" '+L+'/><path d="M3 22.5H6.3M13.7 22.5H30" '+L+'/>'+rad(10,23)+rad(38,23);else if(art==="anhaenger")k='<rect x="4" y="7" width="30" height="14" rx="1.5" '+F+'/><path d="M34 18.5L44.5 21.5M9 21V26.5M7 26.5H11" '+L+'/><circle cx="45.6" cy="21.8" r="1.3" '+L+'/>'+rad(22,24);else k='<path d="M5 24.5V9.5A3.5 3.5 0 0 1 8.5 6H30.5L37.5 14H41A3 3 0 0 1 44 17V24.5H39.2A4.2 4.2 0 0 0 30.8 24.5H17.2A4.2 4.2 0 0 0 8.8 24.5Z" '+F+'/><path d="M29 9.2H31.4L35.2 13.4H29Z" '+L+'/><path d="M26.5 8.5V22M5 16.5H24.5M42.4 18.6H43.6" '+L+'/>'+rad(13,24.5)+rad(35,24.5);return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" width="'+gr+'" height="'+hoch+'" data-fz-art="'+art+'" style="color:'+farbe+';display:block;flex:0 0 auto"'+(titel?' role="img" aria-label="'+esc(titel)+'"><title>'+esc(titel)+'</title>':' aria-hidden="true" focusable="false">')+k+'</svg>';}
+/* _fzBusSvg(opts) -> SVG-Text eines Fahrzeugs in Seitenansicht (eigene Zeichnung, kein Hersteller-Zeichen). v1051: EINZIGE Fahrzeug-Geometrie der App - Fahrzeuge (Liste/Detail, Strichstil) UND Flotten-Karte/-Liste (_fzVanSvg/_fzVanEl delegieren hierher, Flaechenstil). Ohne Abhaengigkeiten (Leaflet divIcon braucht Text). opts: art bus|lkw|anhaenger|pkw|stapler (sonst bus) - farbe #rrggbb (Strich + 16 % Flaeche, sonst Markengruen) - gr Breite in px (Hoehe = 2/3) - titel (Vorlesetext; leer = aria-hidden) - karte {fill,stroke,dash,fenster,opacity} schaltet auf gefuellte Kartenansicht (Farben nur #hex/none/rgba, Strichelung nur Ziffern) - spiegeln (scaleX(-1), nur mit karte). */
+function _fzBusSvg(opts){var o=opts||{};var art=["lkw","anhaenger","pkw","stapler"].indexOf(o.art)>=0?o.art:"bus";var farbe=/^#[0-9a-fA-F]{6}$/.test(String(o.farbe||""))?String(o.farbe):"#009640";var gr=(+o.gr>0)?Math.round(+o.gr):40;var hoch=Math.round(gr*2/3);var esc=function(t){return String(t).replace(/[&<>\x22]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":"&quot;";});};var titel=String(o.titel==null?"":o.titel).trim();var L='fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';var F='fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"';var G=L,S=L;var rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.2" '+L+'/><circle cx="'+x+'" cy="'+y+'" r=".9" fill="currentColor"/>';};var ks=(o.karte&&typeof o.karte==="object")?o.karte:null;var op=1;if(ks){var fa=function(x,d){x=String(x==null?"":x);return /^(#[0-9a-fA-F]{3,8}|none|rgba\([0-9., ]+\))$/.test(x)?x:d;};var kf=fa(ks.fill,"#94a3b8"),kr=fa(ks.stroke,"#ffffff"),kg=fa(ks.fenster,"#ffffff");var kd=/^[0-9. ]+$/.test(String(ks.dash||""))?' stroke-dasharray="'+ks.dash+'"':"";op=(+ks.opacity>=0&&+ks.opacity<=1)?+ks.opacity:1;F='fill="'+kf+'" stroke="'+kr+'" stroke-width="1.6" stroke-linejoin="round"'+kd;L='fill="none" stroke="'+kg+'" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"';G='fill="'+kg+'" fill-opacity=".9" stroke="none"';S='fill="none" stroke="'+kr+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'+kd;rad=function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="3.4" fill="#1f2937" stroke="#ffffff" stroke-width="1.2"/><circle cx="'+x+'" cy="'+y+'" r="1.2" fill="#cbd5e1"/>';};}var k;if(art==="lkw")k='<rect x="3" y="4" width="25" height="16.5" rx="1.5" '+F+'/><path d="M30 22.5V10.5A2 2 0 0 1 32 8.5H38L44 15V22.5H41.7A3.7 3.7 0 0 0 34.3 22.5Z" '+F+'/><path d="M33 11.5H37.2L40.4 15.2H33Z" '+G+'/><path d="M3 22.5H6.3M13.7 22.5H30" '+S+'/>'+rad(10,23)+rad(38,23);else if(art==="anhaenger")k='<rect x="4" y="7" width="30" height="14" rx="1.5" '+F+'/><path d="M34 18.5L44.5 21.5M9 21V26.5M7 26.5H11" '+S+'/><circle cx="45.6" cy="21.8" r="1.3" '+S+'/>'+rad(22,24);else if(art==="pkw")k='<path d="M4 22.5V17.6A2 2 0 0 1 5.7 15.6L11.6 14.6L16.6 9.3A3 3 0 0 1 18.8 8.3H29.4A3 3 0 0 1 31.6 9.2L37 14.6L41.6 15.4A2.4 2.4 0 0 1 43.6 17.8V22.5H39.2A4.2 4.2 0 0 0 30.8 22.5H17.2A4.2 4.2 0 0 0 8.8 22.5Z" '+F+'/><path d="M18 10.6H24.2V14.4H14.4Z" '+G+'/><path d="M26.2 10.6H30.4L34.2 14.4H26.2Z" '+G+'/><path d="M25.2 10.6V20.5M41.4 17.6H42.6" '+L+'/>'+rad(13,22.5)+rad(35,22.5);else if(art==="stapler")k='<path d="M4 24.5V16.5A3 3 0 0 1 7 13.5H31V24.5H30.7A4.2 4.2 0 0 0 22.3 24.5H15.2A4.2 4.2 0 0 0 6.8 24.5Z" '+F+'/><path d="M8.5 13.5V5.5H25L28.5 13.5M13 13.5V10H17" '+S+'/><rect x="32.5" y="3.5" width="3" height="21" rx="1" '+F+'/><path d="M35.5 25H45M35.5 25V18.5" '+S+'/>'+rad(11,24.5)+rad(26.5,24.5);else k='<path d="M5 24.5V9.5A3.5 3.5 0 0 1 8.5 6H30.5L37.5 14H41A3 3 0 0 1 44 17V24.5H39.2A4.2 4.2 0 0 0 30.8 24.5H17.2A4.2 4.2 0 0 0 8.8 24.5Z" '+F+'/><path d="M29 9.2H31.4L35.2 13.4H29Z" '+G+'/><path d="M26.5 8.5V22M5 16.5H24.5M42.4 18.6H43.6" '+L+'/>'+rad(13,24.5)+rad(35,24.5);var stil=ks?('display:block;flex:0 0 auto;overflow:visible;opacity:'+op+(o.spiegeln?';transform:scaleX(-1)':'')):('color:'+farbe+';display:block;flex:0 0 auto');return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32" width="'+gr+'" height="'+hoch+'" data-fz-art="'+art+'" style="'+stil+'"'+(titel?' role="img" aria-label="'+esc(titel)+'"><title>'+esc(titel)+'</title>':' aria-hidden="true" focusable="false">')+k+'</svg>';}
 function _fzBusFarbe(stufe){var b=_FZ_BETRIEB[stufe]||_FZ_BETRIEB.betrieb;return (typeof _lesbar==="function")?_lesbar(b.h):b.h;}
-function _fzBusFuer(f,gr){var st=_fzBetrieb(f);var a=_fzArt(f);return _fzBusSvg({art:a,farbe:_fzBusFarbe(st),gr:gr,titel:(a==="lkw"?"LKW":a==="anhaenger"?"Anhänger":"Transporter")+", "+_FZ_BETRIEB[st].l});}
+const _FZ_ART_NAME={bus:"Transporter",lkw:"LKW",anhaenger:"Anhänger",pkw:"PKW",stapler:"Stapler"};
+function _fzBusFuer(f,gr){var st=_fzBetrieb(f);var a=_fzArt(f);return _fzBusSvg({art:a,farbe:_fzBusFarbe(st),gr:gr,titel:(_FZ_ART_NAME[a]||"Transporter")+", "+_FZ_BETRIEB[st].l});}
 function _fzSuchText(f,fahrerName){if(!f)return "";var kz=String(f.kennzeichen||"");return _matFold([kz,kz.replace(/[^A-Za-z0-9]/g,""),f.marke,f.modell,f.typ,f.farbe,f.standort,fahrerName].filter(function(x){return x!=null&&x!=="";}).join(" "));}
 function _fzSuchTreffer(f,q,fahrerName){var t=_matFold(q).trim();if(!t)return true;var h=_fzSuchText(f,fahrerName);return t.split(/\s+/).every(function(x){return h.indexOf(x)>=0||h.indexOf(x.replace(/[^a-z0-9]/g,""))>=0;});}
 function _fzIstMeins(f,mid){return !!(f&&mid&&f.fahrer===mid);}
@@ -6867,7 +6868,7 @@ window._exportReviewModal=function(opts){
     box.style.cssText='background:'+bg+';color:'+tx+';border-radius:12px;border:1px solid '+bd+';padding:18px 20px;max-width:min(1600px,96vw);width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:inherit;';
     const head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px;';
     const headL=document.createElement('div');
-    const titleEl=document.createElement('div');titleEl.textContent=title;titleEl.style.cssText='font-size:16px;font-weight:700;margin-bottom:2px;';
+    const titleEl=document.createElement('div');titleEl.style.cssText='font-size:16px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:8px;';(function(){/* v1051: optionale Linien-Ikone (opts.titleIk = IKON-Schluessel, gleiche Pfade wie _ik) vor dem Titel statt Emoji im Titeltext */var pf=(opts.titleIk&&typeof IKON!=='undefined')?IKON[opts.titleIk]:null;if(!pf)return;try{var NS='http://www.w3.org/2000/svg';var sv=document.createElementNS(NS,'svg');[['width','18'],['height','18'],['viewBox','0 0 24 24'],['fill','none'],['stroke','currentColor'],['stroke-width','1.8'],['stroke-linecap','round'],['stroke-linejoin','round'],['aria-hidden','true'],['focusable','false'],['data-ik',String(opts.titleIk)]].forEach(function(a){sv.setAttribute(a[0],a[1]);});sv.style.flex='0 0 auto';pf.forEach(function(d){var p=document.createElementNS(NS,'path');p.setAttribute('d',d);sv.appendChild(p);});titleEl.appendChild(sv);}catch(_e){}})();const titleTx=document.createElement('span');titleTx.textContent=title;titleEl.appendChild(titleTx);
     const subEl=document.createElement('div');subEl.textContent=subtitle;subEl.style.cssText='font-size:12px;color:'+dm+';';
     headL.appendChild(titleEl);headL.appendChild(subEl);
     const counter=document.createElement('div');counter.style.cssText='font-size:11px;color:'+dm+';font-family:'+(typeof mono!=='undefined'?mono:'monospace')+';white-space:nowrap;align-self:center;';
@@ -13323,7 +13324,7 @@ function KVZulagenReport(props){
     _ezSet(ezWid,iso,next,von).then(function(ok){
       if(ok)return;
       setEzFlags(function(prev){var n=Object.assign({},prev);if(prevEntry===undefined)delete n[key];else n[key]=prevEntry;return n;});/* zurueckdrehen */
-      if(!ezMissing&&window.__toast)window.__toast('❌ Entfernungszulage-Stufe nicht gespeichert','error',3500);
+      if(!ezMissing&&window.__toast)window.__toast('Entfernungszulage-Stufe nicht gespeichert','error',3500);
     });
   };
   _react.useEffect.call(void 0, function(){
@@ -13372,7 +13373,7 @@ function KVZulagenReport(props){
     if(_ezRateSaving||!_ezRateVals)return;
     var _num=function(x){var v=String(x==null?'':x).replace(',','.');var n=parseFloat(v);return isNaN(n)?null:n;};
     var nk=_num(_ezRateVals.klein),nm=_num(_ezRateVals.mittel),ng=_num(_ezRateVals.gross);
-    if(nk==null||nm==null||ng==null||nk<0||nm<0||ng<0){if(window.__toast)window.__toast('⚠️ Bitte gültige Sätze (Zahl ≥ 0) eingeben','error');return;}
+    if(nk==null||nm==null||ng==null||nk<0||nm<0||ng<0){if(window.__toast)window.__toast('Bitte gültige Sätze (Zahl ≥ 0) eingeben','error');return;}
     _setEzRateSaving(true);
     try{
       /* volle kv_rules als Basis (window.KV_RULES gemergt auf Fallback) — nur die 3 EZ-Felder ueberschreiben. */
@@ -13382,8 +13383,8 @@ function KVZulagenReport(props){
       await _sbUpsert('system_config',{key:'kv_rules',value:JSON.stringify(base),updated_at:new Date().toISOString(),updated_by:_cu.name||_cu.username||'buero'},true);
       if(typeof window!=='undefined')window.KV_RULES=base;
       _setEzRateEdit(false);
-      if(window.__toast)window.__toast('✅ Zulagensätze gespeichert');
-    }catch(e){if(window.__toast)window.__toast('❌ Speichern fehlgeschlagen: '+((e&&e.message)||e),'error',5000);}
+      if(window.__toast)window.__toast('Zulagensätze gespeichert');
+    }catch(e){if(window.__toast)window.__toast('Speichern fehlgeschlagen: '+((e&&e.message)||e),'error',5000);}
     finally{_setEzRateSaving(false);}
   };
   /* v3.9.776: der CSV-Export (_csv) ist durch den PZE-PDF-Uebergabezettel ersetzt — der Lohnverrechner bekommt
@@ -13403,7 +13404,7 @@ function KVZulagenReport(props){
       ,h('span',{style:{display:'inline-flex',color:V.dm}},_klappIk(open,16)))
     ,open?h('div',{style:{marginTop:12}}
       ,h('div',{style:{fontSize:12,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'6px 10px',fontWeight:600,marginBottom:_ezDetail?6:10,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}
-        ,h('span',{style:{flex:'1 1 auto'}},'⚠ Entfernungszulage — lohnrelevant: die Kalender-Vergabe (Stufe je Tag: klein/mittel/groß) bestimmt die abgerechnete Menge. Genau eine Stufe pro Tag. Lohnverrechner maßgeblich.')
+        ,_ik('warnung',16),h('span',{style:{flex:'1 1 auto'}},'Entfernungszulage — lohnrelevant: die Kalender-Vergabe (Stufe je Tag: klein/mittel/groß) bestimmt die abgerechnete Menge. Genau eine Stufe pro Tag. Lohnverrechner maßgeblich.')
         ,h('button',{onClick:function(){_setEzDetail(function(v){return !v;});},style:{...bsS(),padding:'2px 10px',fontSize:UI.fMeta,minHeight:32}},h('span',{style:{display:'inline-flex',alignItems:'center',gap:6}},'Details',_klappIk(_ezDetail,14))))
       ,_ezDetail?h('div',{style:{fontSize:UI.fMeta,color:V.dm,background:'rgba(0,0,0,.04)',borderRadius:6,padding:'8px 10px',marginBottom:10,lineHeight:1.5}},'Vorbelegung: alle Tage mit Anwesenheit >6h sind als Stufe „klein" vorbelegt (Tages-Summe der Zeiteinträge, KV: einschl. Wegzeit, ausschl. Mittagspause). Per Kalender-Klick wird die Stufe durchgeschaltet (klein → mittel → groß → keine → Vorschlag). GENAU EINE Stufe pro Tag, nie additiv. Sätze: klein '+_eur(_ezSaetze(kv).klein)+' € · mittel '+_eur(_ezSaetze(kv).mittel)+' € · groß '+_eur(_ezSaetze(kv).gross)+' € (KV ab 01.01.2026, LA 2740). Genehmigte Abwesenheit → kein Vorschlag. Lohnverrechner maßgeblich.'):null
       /* v3.9.785 (Sebastian): Zulagensatz-Maske — admin+buero editieren klein/mittel/gross (2027 andere Saetze). */
@@ -13413,7 +13414,7 @@ function KVZulagenReport(props){
           ,['klein','mittel','gross'].map(function(k){return h('div',{key:k,style:{display:'flex',flexDirection:'column',gap:3}}
             ,h('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},(k==='gross'?'groß':k)+' (EUR/Tag)')
             ,h('input',{type:'number',step:'0.01',value:(_ezRateVals[k]!=null?_ezRateVals[k]:''),onChange:function(e){var nv=e.target.value;_setEzRateVals(function(p){var o=Object.assign({},p);o[k]=nv;return o;});},style:{width:100,padding:'7px 9px',borderRadius:6,border:'1px solid '+V.bd,background:V.inputBg,color:V.tx,fontSize:14,minHeight:isMob?42:36,textAlign:'right',fontFamily:mono}}));})
-          ,h('button',{onClick:_ezRateSave,disabled:_ezRateSaving,style:{...bpS,padding:'8px 16px',opacity:_ezRateSaving?.6:1}},_ezRateSaving?'Speichern…':'💾 Speichern')
+          ,h('button',{onClick:_ezRateSave,disabled:_ezRateSaving,style:{...bpS,padding:'8px 16px',opacity:_ezRateSaving?.6:1}},_ezRateSaving?'Speichern…':'Speichern')
           ,h('span',{style:{fontSize:UI.fMeta,color:V.dm,flex:'1 1 100%',lineHeight:1.4}},'Gilt sofort für neue Berechnungen (Overrides nie rückwirkend). Persistiert in system_config.kv_rules; andere KV-Konstanten bleiben unberührt.')):null)
       /* v3.9.775 Outlook-Kalender: Buero flaggt Tage per Klick. Schreibt entfernungszulage_tage (42P01-tolerant),
          wird NOCH NICHT verrechnet — die Ergebnistabelle darunter bleibt die automatische Kontroll-Uebersicht. */
@@ -13439,7 +13440,7 @@ function KVZulagenReport(props){
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:'rgba(148,163,184,.14)',border:'1px dashed #94a3b8',display:'inline-block'}}),'Abwesenheit')
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:V.cd,border:'1px solid '+V.bd,display:'inline-block'}}),h('span',{style:{textDecoration:'line-through'}},'keine'))
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:'transparent',boxShadow:'0 0 0 2px '+V.ac,display:'inline-block'}}),'Ring = heute'))
-        ,ezMissing?h('div',{style:{fontSize:UI.fMeta,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'6px 10px',marginBottom:8,fontWeight:600}},'⚠ Tabelle entfernungszulage_tage fehlt — sql/ENTFERNUNGSZULAGE_TAGE_v1.sql ausführen'):null
+        ,ezMissing?h('div',{style:{fontSize:UI.fMeta,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'6px 10px',marginBottom:8,fontWeight:600,display:'flex',alignItems:'center',gap:6}},_ik('warnung',16),'Tabelle entfernungszulage_tage fehlt — sql/ENTFERNUNGSZULAGE_TAGE_v1.sql ausführen'):null
         ,h(EZKalender,{wid:ezWid,view:ezView,cursor:ezCursor,days:_ezDaysFor(ezWid),flags:ezFlags,absDays:_ezAbsDaysFor(ezWid),onToggle:_ezToggle,isMob:isMob}))
       ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}
         ,h('button',{ title: "Monat zurück", 'aria-label': "Monat zurück",onClick:()=>_shiftYm(-1),style:{...bsS(),padding:'6px 10px',minHeight:isMob?44:0,minWidth:44,display:"inline-flex",alignItems:"center",justifyContent:"center"}},_ik('links',18))
@@ -13500,7 +13501,7 @@ function _pzeBuildRows(worker,von,bis,evs,rules,entries,abs,approvals){
    Funktion — keine Logik-Duplikation. Kein optional chaining. */
 async function _pzePdf(worker,ym,entries,abs,approvals,kontingent,rules,ezFlags){
   var JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
-  if(!JsPDF){if(window.__toast)window.__toast('⚠️ PDF-Bibliothek nicht geladen — bitte App neu laden','error',5000);return;}
+  if(!JsPDF){if(window.__toast)window.__toast('PDF-Bibliothek nicht geladen — bitte App neu laden','error',5000);return;}
   if(!worker||!worker.id){if(window.__toast)window.__toast('Kein Mitarbeiter gewählt','error');return;}
   var _p2=function(n){return String(n).padStart(2,'0');};
   var _eur=function(v){return String(_n(v,2)).replace('.',',');};
@@ -13527,7 +13528,7 @@ async function _pzePdf(worker,ym,entries,abs,approvals,kontingent,rules,ezFlags)
      Ohne diese Frage druckte der Nachweis einen Monat OHNE Stempelzeiten samt Soll/Ist-Saldo, obwohl die
      Zeiten in der Datenbank liegen - ein Beleg aus einem Rechte- oder Netzfehler, derselbe Fall wie das
      Fahrtenbuch in v3.9.913. GEGENFALL: ein wirklich leerer Monat (unmarkiert) wird weiter gedruckt. */
-  if(_rlsLeer(evs)){if(window.__toast)window.__toast("⛔ Stempelzeiten NICHT lesbar (Rechte oder Netz) — der Nachweis wird NICHT erstellt, damit kein leerer Monat als Beleg hinausgeht","error",9000);return;}
+  if(_rlsLeer(evs)){if(window.__toast)window.__toast("Stempelzeiten NICHT lesbar (Rechte oder Netz) — der Nachweis wird NICHT erstellt, damit kein leerer Monat als Beleg hinausgeht","error",9000);return;}
   var rows=_pzeBuildRows(worker,von,bis,evs,rules,entries,abs,approvals);
   var summe=_pzeSummen(rows);
   /* Entfernungszulage: EINE Rechenquelle = _ezEffTage. daysMap = Tages-Anwesenheit aus time_entries (>0h) je
@@ -13739,7 +13740,7 @@ function PZEView(props){
       await SQ.push({url:'/api/stempel-log',method:'POST',body:row});
       setKorr(null);setKMsg('');
       setReload(v=>v+1);/* neu laden — der Nachtrag muss sofort in Saldo und Fehler-Queue sichtbar sein */
-      if(window.__toast)window.__toast('✎ Stempel nachgetragen — '+korr.name+' '+korr.datum+' '+kDir+' '+kZeit);
+      if(window.__toast)window.__toast('Stempel nachgetragen — '+korr.name+' '+korr.datum+' '+kDir+' '+kZeit);
     }catch(e){setKMsg('Konnte nicht speichern: '+((e&&e.message)||e));}
   };
 
@@ -13764,7 +13765,7 @@ function PZEView(props){
     html+='<tr class="sum"><td colspan="5">MONATSSUMME</td><td>'+_pzeFmtHm(_summe.nettoMin)+'</td><td>'+_pzeFmtHm(_summe.sollMin)+'</td><td>'+_pzeFmtHm(_summe.pauseMin)+'</td><td>'+_pzeFmtHm(_summe.saldoMin)+'</td><td>'+_pzeFmtHm(_summe.projMin)+'</td></tr>';
     html+='</table><p style="font-size:9pt;color:#555">Anwesenheit = Stempeluhr (gerundet: Kommen auf, Gehen ab; Pausenabzug je Rolle). Projektzeit = manuelle Zeiterfassung. Eine Abweichung ist normal — die beiden Werte messen Verschiedenes.</p></body></html>';
     _dl(new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'}),'Stempelzeiten_'+String(_worker.name).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,'_')+'_'+von+'.xls');
-    if(window.__toast)window.__toast('📊 Stempelzeiten exportiert');
+    if(window.__toast)window.__toast('Stempelzeiten exportiert');
   };
 
   /* C5 PDF: FinkZeit-Monatsblatt (A4) je MA. v3.9.776 an den modul-globalen _pzePdf delegiert — genau derselbe
@@ -13782,7 +13783,7 @@ function PZEView(props){
   /* ── Korrektur-Dialog (additiv) ── */
   const _korrDlg=korr?h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999,padding:16},onClick:()=>setKorr(null)}
     ,h('div',{onClick:e=>e.stopPropagation(),style:{...CC(),width:'min(420px,94vw)',padding:18}}
-      ,h('div',{style:{fontWeight:800,fontSize:16,marginBottom:4}},'✎ Stempel nachtragen')
+      ,h('div',{style:{fontWeight:800,fontSize:16,marginBottom:4,display:'flex',alignItems:'center',gap:8}},_ik('stift',18),'Stempel nachtragen')
       ,h('div',{style:{fontSize:13,color:V.tx2,marginBottom:12}},korr.name+' · '+korr.datum)
       ,h('div',{style:{fontSize:12,color:V.tx2,marginBottom:12,lineHeight:1.5}},'Der Nachtrag wird als zusätzliche Zeile gespeichert. Die ursprünglichen Stempel bleiben unverändert erhalten — sie sind die lohnrelevante Urkunde.')
       ,h('div',{style:{display:'flex',gap:8,marginBottom:10}}
@@ -13799,7 +13800,7 @@ function PZEView(props){
     ,h('button',{onClick:()=>setOpen(v=>!v),style:{background:'none',border:'none',color:V.tx,fontWeight:800,fontSize:15,cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,minHeight:44}}
       ,_klappIk(open,16),_zpIk('uhr','Stempelzeiten',16))
     ,!open?null:h('div',{style:{marginTop:12}}
-      ,missing?h('div',{style:{background:COLORS.WARNING,color:'#1a1a1a',padding:'10px 12px',borderRadius:8,fontWeight:700,fontSize:13,marginBottom:12}},'⚠ Tabelle stempel_log fehlt — sql/STEMPEL_v1.sql ausführen.'):null
+      ,missing?h('div',{style:{background:COLORS.WARNING,color:'#1a1a1a',padding:'10px 12px',borderRadius:8,fontWeight:700,fontSize:13,marginBottom:12,display:'flex',alignItems:'center',gap:6}},_ik('warnung',16),'Tabelle stempel_log fehlt — sql/STEMPEL_v1.sql ausführen.'):null
       /* Tabs */
       ,h('div',{style:{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}
         ,h('button',{onClick:()=>setTab('pze'),style:{...btnS,background:tab==='pze'?V.ac:V.cd,color:tab==='pze'?'#fff':V.tx}},'Personalzeit')
@@ -13813,8 +13814,8 @@ function PZEView(props){
         ,h('input',{type:'date',value:von,onChange:e=>setVon(e.target.value),style:{padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,background:V.bg,color:V.tx,fontSize:14,minHeight:44}})
         ,h('input',{type:'date',value:bis,'aria-label':'Zeitraum bis',onChange:e=>setBis(e.target.value),style:{padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,background:V.bg,color:V.tx,fontSize:14,minHeight:44}})
         ,h('button',{onClick:()=>_monatPreset(1),style:btnS,'aria-label':'Nächster Monat'},h('span',{style:{display:'inline-flex',alignItems:'center',gap:6,verticalAlign:'middle'}},'Monat',_ik('rechts',16)))
-        ,tab==='pze'&&_worker?h('button',{onClick:_xls,style:{...btnS,background:COLORS.SUCCESS,color:'#fff',border:'none'}},'📊 Excel'):null
-        ,tab==='pze'&&_worker?h('button',{onClick:_pdf,style:{...btnS,background:COLORS.INFO,color:'#fff',border:'none'}},'📄 PDF'):null)
+        ,tab==='pze'&&_worker?h('button',{onClick:_xls,style:{...btnS,background:COLORS.SUCCESS,color:'#fff',border:'none'}},_ikVw('tabelle','Excel')):null
+        ,tab==='pze'&&_worker?h('button',{onClick:_pdf,style:{...btnS,background:COLORS.INFO,color:'#fff',border:'none'}},_ikVw('dokument','PDF')):null)
       ,busy?h('div',{style:{color:V.tx2,fontSize:13,padding:'8px 0'}},'lädt …'):null
 
       /* ── Tab: Personalzeit ── */
@@ -13881,7 +13882,7 @@ function PZEView(props){
                    r.datum.slice(8)+'.'+r.datum.slice(5,7)+'.')
                 ,h('td',cell,['So','Mo','Di','Mi','Do','Fr','Sa'][r.dow])
                 ,h('td',cell,_stack(vb.von))
-                ,h('td',cell,(()=>{const st=_stack(vb.bis);return r.ungerade?h('div',null,st,h('span',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700}},'⚠ unvollständig')):st;})())
+                ,h('td',cell,(()=>{const st=_stack(vb.bis);return r.ungerade?h('div',null,st,h('span',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}},_ik('warnung',12),'unvollständig')):st;})())
                 ,h('td',cell,r.fehlgrund?h('span',{title:r.fehlgrund.genehmigt?'genehmigt — Tag zählt als erfüllt':'nur beantragt — noch keine Gutschrift',
                     style:{background:r.fehlgrund.color,color:'#fff',borderRadius:6,padding:'2px 7px',fontSize:UI.fMeta,fontWeight:700,whiteSpace:'nowrap',opacity:r.fehlgrund.genehmigt?1:0.45}},
                     r.fehlgrund.label+(r.fehlgrund.genehmigt?'':' (beantragt)')):null)
@@ -13891,7 +13892,7 @@ function PZEView(props){
                 ,h('td',Object.assign({},rechts,{fontWeight:700,color:r.saldoMin<0?COLORS.WARNING:(r.saldoMin>0?V.acTx:V.tx2)}),(r.stempelAnzahl||r.sollMin)?_pzeFmtHm(r.saldoMin):'—')
                 ,h('td',cell,(()=>{const bits=[];
                   if(r.ez)bits.push(h('span',{key:'ez',title:'Anwesenheit > 6 h — Entfernungszulage-Tag (Hinweis; maßgeblich ist der Zulagen-Report)',style:{fontSize:UI.fMeta,color:V.acTx,fontWeight:700}},'Entfernungszl.'));
-                  if(r.fehlgrund&&r.fehlgrund.genehmigt&&r.projMin>0){bits.push(h('span',{key:'kf',title:'Konflikt: genehmigte Abwesenheit UND Projektbuchung am selben Tag — bitte prüfen (Datenbereinigung Büro)',style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,whiteSpace:'nowrap'}},'⚠ Konflikt'));
+                  if(r.fehlgrund&&r.fehlgrund.genehmigt&&r.projMin>0){bits.push(h('span',{key:'kf',title:'Konflikt: genehmigte Abwesenheit UND Projektbuchung am selben Tag — bitte prüfen (Datenbereinigung Büro)',style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:3}},_ik('warnung',12),'Konflikt'));
                     if(_isStaff)bits.push(h('button',{key:'kfl',onClick:_konfliktLoesen,style:{fontSize:UI.fMeta,color:V.acTx,fontWeight:700,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'left',textDecoration:'underline',fontFamily:'inherit'}},'Konflikt lösen ▸'));/* v3.9.786 isStaff-Zugang */}
                   return bits.length?h('div',{style:{display:'flex',flexDirection:'column',gap:2}},bits):null;
                 })())
@@ -13930,9 +13931,9 @@ function PZEView(props){
               ,h('div',{style:{fontSize:12,color:V.tx2,marginTop:4}},'Netto '+_pzeFmtHm(r.nettoMin)+' · Soll '+_pzeFmtHm(r.sollMin)+' · Projekt '+_pzeFmtHm(r.projMin))
               ,r.fehlgrund?h('span',{style:{display:'inline-block',marginTop:6,background:r.fehlgrund.color,color:'#fff',borderRadius:6,padding:'2px 7px',fontSize:UI.fMeta,fontWeight:700}},r.fehlgrund.label):null
               ,(r.fehlgrund&&r.fehlgrund.genehmigt&&r.projMin>0)?h('div',{style:{marginTop:4}}
-                ,h('span',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700}},'⚠ Konflikt: Abwesenheit + Projektbuchung')
+                ,h('span',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}},_ik('warnung',12),'Konflikt: Abwesenheit + Projektbuchung')
                 ,_isStaff?h('button',{onClick:_konfliktLoesen,style:{marginLeft:8,fontSize:UI.fMeta,color:V.acTx,fontWeight:700,background:'transparent',border:'none',padding:0,cursor:'pointer',textDecoration:'underline',fontFamily:'inherit'}},'lösen ▸'):null):null/* v3.9.783/786 */
-              ,r.ungerade?h('div',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,marginTop:4}},'⚠ Stempel unvollständig'):null));
+              ,r.ungerade?h('div',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,marginTop:4,display:'flex',alignItems:'center',gap:3}},_ik('warnung',12),'Stempel unvollständig'):null));
           });
           flush();
           out.push(h('div',{key:'total',style:{...CC(),padding:12,background:V.ac,color:'#fff',fontWeight:900,display:'flex',justifyContent:'space-between'}}
@@ -13964,11 +13965,11 @@ function PZEView(props){
             ,h('div',null
               ,h('div',{style:{fontWeight:800,fontSize:13}},f.name+' · '+f.datum)
               ,h('div',{style:{fontSize:12,color:V.tx2,fontFamily:mono,marginTop:2}},f.roh.map(x=>(x.direction==='kommen'?'K':'G')+_pzeFmtUhr(x.ts)).join(' · '))
-              ,h('div',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,marginTop:2}}
-                ,f.ungerade?('⚠ '+f.anzahl+' Stempel — einer fehlt'):'⚠ Offline gebucht — Richtung geraten, bitte prüfen'))
+              ,h('div',{style:{fontSize:UI.fMeta,color:COLORS.WARNING,fontWeight:700,marginTop:2,display:'flex',alignItems:'center',gap:3}}
+                ,_ik('warnung',12),f.ungerade?(f.anzahl+' Stempel — einer fehlt'):'Offline gebucht — Richtung geraten, bitte prüfen'))
             ,h('div',{style:{display:'flex',gap:6}}
               ,h('button',{onClick:()=>{setWid(f.wid);setTab('pze');},style:btnS},'Zum Tag')
-              ,h('button',{onClick:()=>{setKorr({wid:f.wid,name:f.name,datum:f.datum});setKMsg('');},style:{...btnS,background:V.ac,color:'#fff',border:'none'}},'✎ Nachtragen')))))
+              ,h('button',{onClick:()=>{setKorr({wid:f.wid,name:f.name,datum:f.datum});setKMsg('');},style:{...btnS,background:V.ac,color:'#fff',border:'none'}},_ikVw('stift','Nachtragen'))))))
       ):null)
     ,_korrDlg);
 }
@@ -14183,7 +14184,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     const proj=activeProjects.find(p=>p.id===showPreview);
     const w=window.open("","_blank","width=1000,height=800");
     // v3.5.127: Popup-Block Guard + HTML-escape für Projektname im Titel
-    if(!w){window._showToast&&window._showToast("⚠ Popup blockiert — bitte Popups für diese Seite erlauben","warn");return;}
+    if(!w){window._showToast&&window._showToast("Popup blockiert — bitte Popups für diese Seite erlauben","warn");return;}
     const _titleName=(proj?proj.name:"")||"";
     const _esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     w.document.write('<html><head><title>Vorschau '+_esc(_titleName)+'</title><style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:4px 6px;font-size:10pt}th{background:#e8e8e8;font-weight:bold}.sum{background:#f0f0f0;font-weight:bold}.num{text-align:right}.kwh{background:#009640;color:#fff;font-weight:bold}@media print{body{margin:0}}</style></head><body>');
@@ -14323,32 +14324,32 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
      v3.9.344: '➕ Buchung hinzufügen' + Split-Use-Case — neue Zeilen ohne id → POST /api/entries
      (worker_id = der editierte Monteur). PUT/DELETE-Logik unverändert. */
   const editMonteurEntries=async(ms)=>{
-    if(!window._exportReviewModal){window.__toast&&window.__toast("⚠️ Export-Review-Modal nicht geladen — bitte App neu laden","warn");return;}
+    if(!window._exportReviewModal){window.__toast&&window.__toast("Export-Review-Modal nicht geladen — bitte App neu laden","warn");return;}
     const myEntries=allEntries.filter(e=>e.monteur===ms.id).sort((a,b)=>String(b.datum||"").localeCompare(String(a.datum||""))).slice(0,50);
-    if(!myEntries.length){window.__toast&&window.__toast("ℹ️ Keine Zeiteinträge für "+ms.name,"info");return;}
+    if(!myEntries.length){window.__toast&&window.__toast("Keine Zeiteinträge für "+ms.name,"info");return;}
     const reviewRows=myEntries.map(e=>{const p=(projects||[]).find(x=>x.id===e.projekt);return {id:e.id,datum:String(e.datum||"").slice(0,10),projekt_name:p?(p.nr+" — "+p.name):(e.projekt||"—"),taetigkeit:e.taetigkeit||"",stunden:parseFloat(e.stunden)||0,bemerkung:e.bemerkung||""};});
     /* v3.9.344: aktive Projekte für Dropdown der neuen Zeilen — gleiche Filter wie sonst (nicht archiviert),
        Value=project_id, Label="NR — NAME". Wird per selectOptionsFor an die Modal-Render-Schicht uebergeben. */
     const _projOpts=(projects||[]).filter(p=>p&&p.status!=="archiviert"&&!p.archiv&&!p.gesperrt).map(p=>({value:p.id,label:(p.nr?p.nr+" — ":"")+(p.name||"")}));
     const _edited=await window._exportReviewModal({
-      title:"✏️ Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name),
+      title:"Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name),titleIk:"stift",
       subtitle:"Letzte 50 Zeiteinträge. Änderungen werden direkt in die DB gespeichert.",
       /* v3.9.341: textarea fuer Taetigkeit + Bemerkung (lange Texte vorher abgeschnitten),
          readonly Projekt mit Umbruch (lange BVH-Namen wie "DR.-GSCHMEIDLERSTRASSE 10 (PA241923)"),
          dbWrite:true → korrekter DB-Hinweis im Modal. width => minWidth via Modal-CSS. */
       columns:[
-        {key:"datum",label:"📅 Datum",type:"date",width:120},
-        {key:"projekt_name",label:"📁 Projekt",type:"readonly",width:240},
-        {key:"taetigkeit",label:"🛠 Tätigkeit",type:"textarea",rows:2,width:320},
-        {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.5",min:0,max:24},
-        {key:"bemerkung",label:"📌 Bemerkung",type:"textarea",rows:2,width:240}
+        {key:"datum",label:"Datum",type:"date",width:120},
+        {key:"projekt_name",label:"Projekt",type:"readonly",width:240},
+        {key:"taetigkeit",label:"Tätigkeit",type:"textarea",rows:2,width:320},
+        {key:"stunden",label:"Stunden",type:"number",width:80,step:"0.5",min:0,max:24},
+        {key:"bemerkung",label:"Bemerkung",type:"textarea",rows:2,width:240}
       ],
       rows:reviewRows,
-      confirmLabel:"💾 Änderungen speichern",
+      confirmLabel:"Änderungen speichern",
       dbWrite:true,
       /* v3.9.344: addRow + selectOptionsFor — neue leere Zeile mit Datum=heute, Projekt wählbar. */
       addRow:{
-        label:"➕ Buchung hinzufügen",
+        label:"Buchung hinzufügen",
         build:()=>({id:null,_isNew:true,datum:_fmtDate(new Date()),projekt_id:"",projekt_name:"",taetigkeit:"",stunden:0,bemerkung:""})
       },
       selectOptionsFor:(col,row)=>{
@@ -14385,19 +14386,19 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       }
     });
     if(cnt>0){
-      window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
+      window.__toast&&window.__toast(cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
       _syncThenReload();/* v3.9.417: erst SQ-Queue drainen, DANN Reload — sonst überholt der Reload den 1500ms-Batch-Sync und zieht den alten DB-Stand → Änderung "verschwindet" (gleiche Klasse wie saveMatrixCell v3.9.364). */
     }else if(_skipNote>0){
-      window.__toast&&window.__toast("ℹ️ Zeile übersprungen: Stunden + Datum sind Pflicht für neue Buchungen","warn");
+      window.__toast&&window.__toast("Zeile übersprungen: Stunden + Datum sind Pflicht für neue Buchungen","warn");
     }else{
-      window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
+      window.__toast&&window.__toast("Keine Änderungen erkannt","info");
     }
     if(cnt>0&&_skipNote>0){
       /* Zusätzlicher Hinweis falls einige neue Zeilen gespeichert wurden, andere aber wegen Pflichtfeld-Mangel skip */
-      window.__toast&&window.__toast("ℹ️ "+_nWort(_skipNote,"neue Zeile","neue Zeilen")+" übersprungen: Stunden + Datum Pflicht","warn");
+      window.__toast&&window.__toast(""+_nWort(_skipNote,"neue Zeile","neue Zeilen")+" übersprungen: Stunden + Datum Pflicht","warn");
     }
     if(_skipEdit>0){
-      window.__toast&&window.__toast("ℹ️ "+_nWort(_skipEdit,"geänderter Eintrag","geänderte Einträge")+" nicht gespeichert: Stunden müssen zwischen 0 und 24 liegen","warn");
+      window.__toast&&window.__toast(""+_nWort(_skipEdit,"geänderter Eintrag","geänderte Einträge")+" nicht gespeichert: Stunden müssen zwischen 0 und 24 liegen","warn");
     }
   };
   /* v3.9.334: Monteur-Übersicht — pro Monteur aggregierte Daten (Std., Projekte, Berichte). */
@@ -14433,10 +14434,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
     /* v3.9.362 FIX: Projekt explizit übergeben (Inline-Vorschau öffnet via openBWB, showPreview ist dann null
        → ohne projId würden Inline-Edits project_id:null-Waisen anlegen + die echte Buchung verfehlen). */
     const _pid=projId!==undefined?projId:showPreview;
-    if(!canDo("zeit_other",curUser)){window.__toast&&window.__toast("⚠️ NICHT gespeichert — keine Berechtigung","warn");return;}
-    if(!_pid){window.__toast&&window.__toast("⚠️ Kein Projekt-Kontext — nicht gespeichert","warn");return;}
+    if(!canDo("zeit_other",curUser)){window.__toast&&window.__toast("NICHT gespeichert — keine Berechtigung","warn");return;}
+    if(!_pid){window.__toast&&window.__toast("Kein Projekt-Kontext — nicht gespeichert","warn");return;}
     const _h=Math.round(_parseHr(newVal)*100)/100;
-    if(!isFinite(_h)||_h<0||_h>24){window.__toast&&window.__toast("⚠️ Ungültiger Wert (0–24 h) — Zelle zurückgesetzt","warn");return;}/* v3.9.411: 24h-Obergrenze (Parität zu addEntry; gegen Komma-vergessen 80 statt 8,0) */
+    if(!isFinite(_h)||_h<0||_h>24){window.__toast&&window.__toast("Ungültiger Wert (0–24 h) — Zelle zurückgesetzt","warn");return;}/* v3.9.411: 24h-Obergrenze (Parität zu addEntry; gegen Komma-vergessen 80 statt 8,0) */
     if(_h===_parseHr(oldVal))return;/* keine Änderung */
     const _cellKey=w.id+"|"+ds;
     const matches=allEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds&&e.projekt===_pid);
@@ -14446,7 +14447,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       if(_h<=0){/* v3.9.482: 0h auf bestehendem Eintrag → DELETE statt PUT hours:0 (sonst bleibt ein 0h-Zombie in Matrix/DB). Parität zum Add-Pfad (if(_h<=0)return) + Inline-0h-Löschen v3.9.437. */
         SQ.push({url:"/api/entries/"+ent.id,method:"DELETE"});
         setAllEntries(prev=>prev.filter(e=>e.id!==ent.id));
-        window.__toast&&window.__toast("🗑️ Eintrag gelöscht (0 h)","info");
+        window.__toast&&window.__toast("Eintrag gelöscht (0 h)","info");
         _flashOk(_cellKey);
         _syncThenReload();
         return;
@@ -14494,21 +14495,21 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
      betroffenen Einzelbuchungen (Worker+Tag+Projekt). Re-Use des bestehenden Modals. */
   const openMultiEntryEdit=async(w,ds,projId)=>{
     const _pid=projId!==undefined?projId:showPreview;/* v3.9.362: Projekt explizit (Inline = showPreview null) */
-    if(!window._exportReviewModal){window.__toast&&window.__toast("⚠️ Modal nicht geladen","warn");return;}
+    if(!window._exportReviewModal){window.__toast&&window.__toast("Modal nicht geladen","warn");return;}
     const matches=allEntries.filter(e=>e.monteur===w.id&&_fmtDate(e.datum)===ds&&e.projekt===_pid);
     if(!matches.length)return;
     const reviewRows=matches.map(e=>({id:e.id,datum:String(e.datum||"").slice(0,10),taetigkeit:e.taetigkeit||"",stunden:parseFloat(e.stunden)||0,bemerkung:e.bemerkung||""}));
     const _edited=await window._exportReviewModal({
-      title:"✏️ Einzelbuchungen — "+((w.name||"?")+" · "+ds),
+      titleIk:"stift",title:"Einzelbuchungen — "+((w.name||"?")+" · "+ds),
       subtitle:"Mehrere Einträge an diesem Tag/Projekt. Bitte einzeln korrigieren — Summe wird NICHT aufgeteilt.",
       columns:[
-        {key:"datum",label:"📅 Datum",type:"date",width:120},
-        {key:"taetigkeit",label:"🛠 Tätigkeit",type:"textarea",rows:2,width:280},
-        {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.25",min:0,max:24},
-        {key:"bemerkung",label:"📌 Bemerkung",type:"textarea",rows:2,width:200}
+        {key:"datum",label:"Datum",type:"date",width:120},
+        {key:"taetigkeit",label:"Tätigkeit",type:"textarea",rows:2,width:280},
+        {key:"stunden",label:"Stunden",type:"number",width:80,step:"0.25",min:0,max:24},
+        {key:"bemerkung",label:"Bemerkung",type:"textarea",rows:2,width:200}
       ],
       rows:reviewRows,
-      confirmLabel:"💾 Speichern",
+      confirmLabel:"Speichern",
       dbWrite:true
     });
     if(!_edited)return;
@@ -14524,10 +14525,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       }
     });
     if(cnt>0){
-      window.__toast&&window.__toast("✅ "+cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
+      window.__toast&&window.__toast(cnt+" Eintrag"+(cnt>1?"e":"")+" aktualisiert","success");
       _syncThenReload();/* v3.9.417: erst SQ-Drain, dann Reload (sonst überholt Reload den Batch-Sync → "verschwindet", wie v3.9.364) */
     }else{
-      window.__toast&&window.__toast("ℹ️ Keine Änderungen erkannt","info");
+      window.__toast&&window.__toast("Keine Änderungen erkannt","info");
     }
   };
 
@@ -14539,10 +14540,10 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   const _absRows=()=>(monteure||[]).filter(m=>!_maIstEhemalig(m,_abYr+"-01-01")).map(m=>{const ys=_yearStK(abs,approvals,_kontFor,m.n,_abYr);const urlaub=ys.urlaubStd||0,krank=ys.krankenstandStd||0,za=ys.zeitausgleichStd||0,sonder=ys.sonderStdGes||0,pflege=ys.pflegeStdGes||0;return {name:m.n,gesamt:urlaub+krank+za+sonder+pflege,urlaub,krank,za,sonder,rest:_resturlaubK(abs,approvals,_kontFor,m.n,_abYr),std:!!(_abKontEcht&&!_abKontEcht[m.n])};}).sort((a,b)=>a.name.localeCompare(b.name));
   const _krankRows=()=>{const rows=[];(monteure||[]).forEach(m=>{Object.entries(abs||{}).forEach(([key,v])=>{if((v.type!=="krankenstand"&&v.type!=="krank")||!key.startsWith(m.n+"_"))return;/* v3.9.668 Bug-Hunt: Legacy-Alias "krank" mit aufnehmen (sonst aus der Krankenstand-Liste gedroppt). */const date=v.date||key.slice(m.n.length+1);if(!String(date).startsWith(String(_abYr)))return;var _fl=(_bxAtt&&_bxAtt[m.n])||(files&&files[m.n])||[];rows.push({name:m.n,date:date,hours:(parseFloat(v.hours)||_stdVonTagK(new Date(String(date).slice(0,10)+"T00:00:00"),_wocheOfK(_kontFor,m.n))),status:_resolveApprK(abs,approvals,key),hasAtt:!!_fl.length,atts:_fl});/* v3.9.668 Bug-Hunt: Std-Fallback wie in der Bilanz (_yearStK) — fehlende/0 Std = Tagesnorm, sonst zeigte die Krank-Liste 0h waehrend die Bilanz die Tagesnorm zaehlte. */});});return rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||a.name.localeCompare(b.name));};
   /* v3.9.459 (TEIL B): Attest im Büro-Portal direkt ansehen — signierte URL (privater Bucket), Fallback Legacy. */
-  const _bxOpenAttest=async(f)=>{try{let u="";if(f&&f.storage_path)u=await _sbSignedDocUrl(f.storage_path,120);if(!u)u=(f&&(f.fileUrl||f.file_url||f.dataUrl))||"";if(!u){window.__toast&&window.__toast("⚠️ Attest nicht verfügbar","warn");return;}_openAttestViewer(u,(f&&f.name)||"Attest",_isPdfAtt(f));}catch(_e){if(window.__toast)window.__toast("⚠️ Attest konnte nicht geöffnet werden","error");}};
+  const _bxOpenAttest=async(f)=>{try{let u="";if(f&&f.storage_path)u=await _sbSignedDocUrl(f.storage_path,120);if(!u)u=(f&&(f.fileUrl||f.file_url||f.dataUrl))||"";if(!u){window.__toast&&window.__toast("Attest nicht verfügbar","warn");return;}_openAttestViewer(u,(f&&f.name)||"Attest",_isPdfAtt(f));}catch(_e){if(window.__toast)window.__toast("Attest konnte nicht geöffnet werden","error");}};
   /* v3.9.460 (TEIL B): Attest aus Büro-Portal löschen (Büro/Admin/PL) — DB-DELETE + Storage (epkolar-docs) + optimistisch ausblenden. */
   const _bxOffice=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero");
-  const _bxDelAttest=async(f)=>{if(!_bxOffice||!f||!f.id)return;if(!await _confirmModal("Attest \""+((f&&f.name)||"")+"\" wirklich löschen?",{variant:"danger"}))return;if(f.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,f.storage_path);SQ.push({url:"/api/absence-files/"+f.id,method:"DELETE"});_setBxDelSet(p=>({...p,[f.id]:1}));if(window.__toast)window.__toast("🗑️ Attest gelöscht");};
+  const _bxDelAttest=async(f)=>{if(!_bxOffice||!f||!f.id)return;if(!await _confirmModal("Attest \""+((f&&f.name)||"")+"\" wirklich löschen?",{variant:"danger"}))return;if(f.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,f.storage_path);SQ.push({url:"/api/absence-files/"+f.id,method:"DELETE"});_setBxDelSet(p=>({...p,[f.id]:1}));if(window.__toast)window.__toast("Attest gelöscht");};
   const _absExcel=()=>{const rows=_absRows();genXls("📅 Abwesenheiten "+_abYr,COMPANY_FOOTER.name+" · Abwesenheits-Jahresbilanz",["Mitarbeiter","Gesamt (h)","Urlaub (h)","Krank (h)","ZA (h)","Sonder (h)","Rest Urlaub (h)"],rows.map(r=>[r.name,_n(r.gesamt,1),_n(r.urlaub,1),_n(r.krank,1),_n(r.za,1),_n(r.sonder,1),_n(r.rest,1)]),"Abwesenheiten_"+_abYr+".xls",{leftCols:[0]});};
   const _krankExcel=()=>{const rows=_krankRows();genXls("🤒 Krankenstand "+_abYr,COMPANY_FOOTER.name+" · Krankenstand-Übersicht",["Mitarbeiter","Datum","Stunden","Status","Attest"],rows.map(r=>[r.name,r.date,_n(r.hours,1),r.status,r.hasAtt?"ja":"NEIN"]),"Krankenstand_"+_abYr+".xls",{leftCols:[0,1,3,4]});};
 
@@ -14671,7 +14672,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
                               const _origRaw=ev.target.dataset.orig||"";
                               if(_newRaw===_origRaw)return;
                               const _newH=_parseHr(_newRaw);
-                              if(!isFinite(_newH)||_newH<0){ev.target.value=_origRaw;window.__toast&&window.__toast("⚠️ Ungültiger Wert — Zelle zurückgesetzt","warn");return;}
+                              if(!isFinite(_newH)||_newH<0){ev.target.value=_origRaw;window.__toast&&window.__toast("Ungültiger Wert — Zelle zurückgesetzt","warn");return;}
                               try{saveMatrixCell(w,ds,kwKey,_newRaw,_origRaw,projId);}
                               catch(e){ev.target.value=_origRaw;console.warn("[matrix-save]",e&&e.message||e);}
                             },
@@ -29125,14 +29126,9 @@ function _fzHeuteAusTrack(rows,nowMs,limit){/* -> {km,fahrten,teilweise,punkte} 
   var punkte=_fzNormPos(heute).map(function(x){return [x.lat,x.lon];});
   return {km:su.km,fahrten:su.anzahl,teilweise:teilweise,punkte:punkte,gueltig:gueltig};
 }
-/* ── Transporter-Glyphe: EINE Geometrie fuer Karte (HTML-String im L.divIcon) und Liste (React-SVG).
-   Eigene, schlichte Seitenansicht eines Kastenwagens (Laderaum + Fahrerhaus + zwei Raeder), keine
-   Marke, kein Hersteller-Logo. viewBox 0 0 40 26, Front zeigt nach rechts. ── */
-var FZ_VAN_VIEWBOX='0 0 40 26';
-var FZ_VAN_KAROSSE='M2.5 7.5Q2.5 5 5 5H24.6Q26 5 27 6.1L32.3 11.6L36.3 12.8Q38 13.4 38 15.2V19.2Q38 20.5 36.7 20.5H3.8Q2.5 20.5 2.5 19.2Z';
-var FZ_VAN_FENSTER='M25.4 7.1H26.3L30.7 11.7H25.4Z';
-var FZ_VAN_TUER='M19 6.5V18.6';
-var FZ_VAN_RAEDER=[[10,20.5],[30.4,20.5]];
+/* ── Fahrzeug-Glyphe der Karte (v1051): KEINE eigene Geometrie mehr - _fzVanSvg und _fzVanEl delegieren an
+   _fzBusSvg (dieselbe Zeichnung wie die Seite Fahrzeuge, inkl. LKW/Anhaenger/PKW/Stapler). Hier steht nur der
+   Kartenstil je Zustand: Flaechenfarbe, weisser Rand, gestrichelt bei veraltet/kein Signal. Front zeigt nach rechts. ── */
 function _fzVanStil(zustand){/* -> {fill,stroke,dash,fenster,opacity} */
   var z=zustand||'kein_signal';
   var fill=FZ_KARTE_FARBE[z]||FZ_KARTE_FARBE.kein_signal;
@@ -29140,15 +29136,8 @@ function _fzVanStil(zustand){/* -> {fill,stroke,dash,fenster,opacity} */
   if(z==='kein_tracker')return {fill:'none',stroke:'#94a3b8',dash:'',fenster:'#cbd5e1',opacity:0.8};
   return {fill:fill,stroke:'#ffffff',dash:'',fenster:'#ffffff',opacity:1};
 }
-function _fzVanSvg(zustand,breite,spiegeln){/* -> SVG-Markup (nur Konstanten, kein Nutzertext) */
-  var s=_fzVanStil(zustand);var b=Number(breite)||36;var hh=Math.round(b*26/40);
-  var dash=s.dash?(' stroke-dasharray="'+s.dash+'"'):'';
-  var r=FZ_VAN_RAEDER.map(function(w){return '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="3.3" fill="#1f2937" stroke="#ffffff" stroke-width="1.2"/><circle cx="'+w[0]+'" cy="'+w[1]+'" r="1.2" fill="#cbd5e1"/>';}).join('');
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+b+'" height="'+hh+'" viewBox="'+FZ_VAN_VIEWBOX+'" aria-hidden="true" focusable="false" style="display:block;overflow:visible;opacity:'+s.opacity+(spiegeln?';transform:scaleX(-1)':'')+'">'
-    +'<path d="'+FZ_VAN_KAROSSE+'" fill="'+s.fill+'" stroke="'+s.stroke+'" stroke-width="1.6" stroke-linejoin="round"'+dash+'/>'
-    +'<path d="'+FZ_VAN_FENSTER+'" fill="'+s.fenster+'" fill-opacity="0.9"/>'
-    +'<path d="'+FZ_VAN_TUER+'" stroke="'+s.fenster+'" stroke-opacity="0.45" stroke-width="1"/>'
-    +r+'</svg>';
+function _fzVanSvg(zustand,breite,spiegeln,art){/* -> SVG-Markup (nur Konstanten, kein Nutzertext); art wie _fzArt (sonst Transporter) */
+  return _fzBusSvg({art:art,gr:Number(breite)||36,karte:_fzVanStil(zustand),spiegeln:!!spiegeln});
 }
 function _fzEscHtml(x){return String(x===undefined||x===null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\x27/g,'&#39;').replace(/\x22/g,'&quot;');}/* Hausmuster: keine Anfuehrungszeichen in Regex-Literalen (Klammer-Streicher) */
 function _fzVanMarkerHtml(o){/* -> HTML fuer L.divIcon: 44x44 Trefferflaeche, Transporter, Fahrtrichtungs-Zeiger, Kennzeichen-Pille */
@@ -29156,7 +29145,7 @@ function _fzVanMarkerHtml(o){/* -> HTML fuer L.divIcon: 44x44 Trefferflaeche, Tr
   var dreh=_fzVanDreh(z,o.heading);
   var ring=o.gewaehlt?'<div style="position:absolute;inset:1px;border-radius:50%;border:2.5px solid '+COLORS.EP_GREEN+';background:rgba(0,150,64,.16);box-shadow:0 0 0 2px #ffffff"></div>':'';
   var zeiger=(dreh.zeiger!==null)?('<div style="position:absolute;inset:0;transform:rotate('+dreh.zeiger+'deg)"><div style="position:absolute;left:50%;top:-3px;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid '+COLORS.EP_GREEN+';filter:drop-shadow(0 0 1px #ffffff)"></div></div>'):'';
-  var van='<div style="position:absolute;left:4px;top:10px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))">'+_fzVanSvg(z,36,dreh.spiegeln)+'</div>';
+  var van='<div style="position:absolute;left:4px;top:10px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))">'+_fzVanSvg(z,36,dreh.spiegeln,o.art)+'</div>';
   var lbl='<div class="fz-van-lbl" style="position:absolute;top:41px;left:50%;transform:translateX(-50%);background:#ffffff;color:#141A16;border:1px solid rgba(20,26,22,.22);border-radius:6px;padding:0 5px;font:700 11px/16px system-ui,-apple-system,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.28)">'+_fzEscHtml(o.kennzeichen||'?')+'</div>';
   return '<div class="fz-van'+(o.gewaehlt?' fz-van-sel':'')+'" data-zustand="'+z+'" style="position:relative;width:44px;height:44px;cursor:pointer">'+ring+zeiger+van+lbl+'</div>';
 }
@@ -30029,13 +30018,9 @@ function _fzKarteCss(){
     document.head.appendChild(st);
   }catch(_e){}
 }
-function _fzVanEl(zustand,breite){/* v1049 dieselbe Transporter-Geometrie wie auf der Karte, als React-SVG (Liste, Info-Karte) */
-  var h=React.createElement;var s=_fzVanStil(zustand);var b=breite||28;
-  return h('svg',{width:b,height:Math.round(b*26/40),viewBox:FZ_VAN_VIEWBOX,'aria-hidden':'true',focusable:'false',style:{display:'block',flex:'0 0 auto',overflow:'visible',opacity:s.opacity}}
-    ,h('path',{d:FZ_VAN_KAROSSE,fill:s.fill,stroke:(s.stroke==='#ffffff'?'rgba(0,0,0,.28)':s.stroke),strokeWidth:1.4,strokeLinejoin:'round',strokeDasharray:s.dash||undefined})
-    ,h('path',{d:FZ_VAN_FENSTER,fill:s.fenster,fillOpacity:0.9})
-    ,h('path',{d:FZ_VAN_TUER,stroke:s.fenster,strokeOpacity:0.45,strokeWidth:1})
-    ,FZ_VAN_RAEDER.map(function(w,i){return h('g',{key:i},h('circle',{cx:w[0],cy:w[1],r:3.3,fill:'#1f2937',stroke:'#ffffff',strokeWidth:1.2}),h('circle',{cx:w[0],cy:w[1],r:1.2,fill:'#cbd5e1'}));}));
+function _fzVanEl(zustand,breite,art){/* v1051 dieselbe Zeichnung wie Karte und Seite Fahrzeuge (_fzBusSvg), fuer Liste und Info-Karte; auf hellem Grund dunkler Rand statt weiss */
+  var s=_fzVanStil(zustand);var k={fill:s.fill,stroke:(s.stroke==='#ffffff'?'rgba(0,0,0,.28)':s.stroke),dash:s.dash,fenster:s.fenster,opacity:s.opacity};
+  return React.createElement('span',{'aria-hidden':'true',style:{display:'inline-flex',flex:'0 0 auto',lineHeight:0},dangerouslySetInnerHTML:{__html:_fzBusSvg({art:art,gr:breite||28,karte:k})}});
 }
 
 function FlotteView(props){
@@ -30187,7 +30172,7 @@ function FlotteView(props){
       /* v1049: kleiner Transporter statt Kennzeichen-Kaestchen (Sebastian 19.11.). Farbe aus dem Kartenzustand
          (_fzKartenZustand: faehrt gruen, steht/Zuendung an orange, geparkt grau, veraltet hellgrau gestrichelt),
          Fahrtrichtungs-Zeiger nur in Fahrt. Antippen oeffnet die Info-Karte (React, nicht mehr bindPopup-HTML). */
-      var _icd={zustand:_fzKartenZustand(p,now),heading:_fzHeading(p),kennzeichen:f.kennzeichen||'?',gewaehlt:(selFid===f.id)};
+      var _icd={zustand:_fzKartenZustand(p,now),heading:_fzHeading(p),kennzeichen:f.kennzeichen||'?',gewaehlt:(selFid===f.id),art:_fzArt(f)};
       var m=L.marker([_la,_lo],{icon:_fzVanIcon(_icd),title:(f.kennzeichen||'?')+' - '+(FZ_KARTE_LABEL[_icd.zustand]||''),alt:(f.kennzeichen||'?'),keyboard:true,riseOnHover:true,zIndexOffset:_icd.gewaehlt?1000:0});
       m._fzIconDaten=_icd;
       m.on('click',function(){_waehle(f.id);});
@@ -30271,7 +30256,7 @@ function FlotteView(props){
      flackernder Zwischenzustand) - aktiv gruen, inaktiv hellgrau gestrichelt, wartet blass gestrichelt, ohne Tracker nur Umriss.
      Fahrt/Stand/Zuendung zeigen Karte und Info-Karte. */
   var _LIST_ZUSTAND={aktiv:'faehrt',inaktiv:'veraltet',wartet:'kein_signal',kein_tracker:'kein_tracker'};
-  var _listVan=function(status){return h('span',{title:FZ_STATUS_LABEL[status]||'',style:{display:'inline-flex',flexShrink:0,width:32,justifyContent:'center'}},_fzVanEl(_LIST_ZUSTAND[status]||'kein_signal',30));};
+  var _listVan=function(status,f){return h('span',{title:FZ_STATUS_LABEL[status]||'',style:{display:'inline-flex',flexShrink:0,width:32,justifyContent:'center'}},_fzVanEl(_LIST_ZUSTAND[status]||'kein_signal',30,_fzArt(f)));};
 
   /* v3.9.690 Standort je Zeile — NUR aus dem Cache (geo_cache + Session), KEIN Nominatim-Lookup.
      Die Adressen entstehen ohnehin beim Oeffnen des Fahrtenbuchs; hier werden sie nur
@@ -30406,7 +30391,7 @@ function FlotteView(props){
     if(heute&&heute.punkte.length>=2)knoepfe.push(_infoKnopf('karte','Route heute',function(){_showFahrtTrail(heute.punkte);if(modus==='sheet')setSelFid(null);}));
     if(props.onOpenFahrzeug&&!_demo&&!f._demo)knoepfe.push(_infoKnopf('transporter','Fahrzeug öffnen',function(){props.onOpenFahrzeug(f.id);}));
     var kopf=h('div',{style:{display:'flex',alignItems:'center',gap:10}}
-      ,h('div',{style:{width:44,height:32,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},_fzVanEl(z,40))
+      ,h('div',{style:{width:44,height:32,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},_fzVanEl(z,40,_fzArt(f)))
       ,h('div',{style:{minWidth:0,flex:1}}
         ,h('div',{style:{fontWeight:800,fontSize:UI.fTitel,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},f.kennzeichen||'?')
         ,modell?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},modell):null)
@@ -30450,7 +30435,7 @@ function FlotteView(props){
         borderLeft:'3px solid '+((selFid===row.f.id)?COLORS.EP_GREEN:'transparent'),
         background:(selFid===row.f.id)?(_dark?'rgba(0,150,64,.16)':UI.markeBg):'transparent',
         cursor:row.hatTracker?'pointer':'default',opacity:row.hatTracker?1:0.7}}
-      ,_listVan(row.status)
+      ,_listVan(row.status,row.f)
       ,h('div',{style:{minWidth:0,flex:'0 0 auto',maxWidth:'58%'}}/* v1049 Tablet hochkant (Befund 19.11.): das Kennzeichen ist der Schluessel der Zeile und schrumpft nie. Vorher flex:1+minWidth:0 gegen einen starren rechten Block (minWidth 110, Ort bis 150 px) - bei ~290 px Listenbreite blieb fuer das Kennzeichen nichts uebrig. Jetzt gibt der rechte Block nach (Zeit/Ort kuerzen mit ...). */
         ,h('div',{style:{fontWeight:700,fontSize:13,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?')
         ,_fahrerName(row.f)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},''+_fahrerName(row.f)):null)
@@ -30471,7 +30456,7 @@ function FlotteView(props){
 
   const _imeiZeile=function(row){
     return h('div',{key:row.f.id,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderBottom:'1px solid '+V.bd}}
-      ,_listVan(row.status)
+      ,_listVan(row.status,row.f)
       ,h('div',{style:{minWidth:0,flex:1}}
         ,h('div',{style:{fontWeight:700,fontSize:12,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},row.f.kennzeichen||'?'))
       ,(imeiFid===row.f.id)
@@ -32225,14 +32210,14 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
 
       /* ═══ BATCH TANKEN ═══ */
       , batchMode&&!sel&&(React.createElement('div', { className: "fade-in"}
-        , React.createElement('div', { style: {...CC(),border:"2px solid #f97316",marginBottom:14}}
+        , React.createElement('div', { style: {...CC(),border:"2px solid "+COLORS.EP_GREEN,marginBottom:14}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}
             , React.createElement('div', {}
-              , React.createElement('div', { style: {fontSize:17,fontWeight:800,color:"#f97316"}}, "Batch-Tanken" )
+              , React.createElement('div', { style: {fontSize:17,fontWeight:800,color:_lesbar(COLORS.EP_GREEN)}}, "Sammel-Tanken" )
               , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Mehrere Tankbelege schnell hintereinander erfassen"    )
             )
-            , batchRows.length>0&&(React.createElement('div', { style: {background:"rgba(249,115,22,.1)",padding:"6px 14px",borderRadius:8,textAlign:"center"}}
-              , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, batchTotal.count)
+            , batchRows.length>0&&(React.createElement('div', { style: {background:"rgba(0,150,64,.1)",padding:"6px 14px",borderRadius:8,textAlign:"center"}}
+              , React.createElement('div', { style: {fontSize:18,fontWeight:800,color:_lesbar(COLORS.EP_GREEN)}}, batchTotal.count)
               , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "erfasst")
             ))
           )
@@ -32241,7 +32226,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           , React.createElement('div', { style: {marginBottom:14}}
             , React.createElement('span', { style: {...LL(),fontSize:12,fontWeight:700}}, "Fahrzeug wählen" )
             , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
-              , visibleFz.map(f=>{const isMine=f.id===myFzId;return (React.createElement('button', { key: f.id, onClick: ()=>{setBatchFzId(f.id);setBKm(String(f.kmStand||""));setTimeout(()=>_optionalChain([bLitRef, 'access', _697 => _697.current, 'optionalAccess', _698 => _698.focus, 'call', _699 => _699()]),100);}, style: {padding:"8px 14px",borderRadius:8,border:batchFzId===f.id?"2px solid #f97316":isMine?"2px solid rgba(34,197,94,.4)":"2px solid "+V.bd,background:batchFzId===f.id?"rgba(249,115,22,.08)":isMine?"rgba(34,197,94,.04)":"transparent",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:batchFzId===f.id?700:500,color:batchFzId===f.id?"#f97316":V.tx,display:"flex",alignItems:"center",gap:6,minHeight:44}}
+              , visibleFz.map(f=>{const isMine=f.id===myFzId;return (React.createElement('button', { key: f.id, onClick: ()=>{setBatchFzId(f.id);setBKm(String(f.kmStand||""));setTimeout(()=>_optionalChain([bLitRef, 'access', _697 => _697.current, 'optionalAccess', _698 => _698.focus, 'call', _699 => _699()]),100);}, style: {padding:"8px 14px",borderRadius:8,border:batchFzId===f.id?"2px solid "+COLORS.EP_GREEN:isMine?"2px solid rgba(34,197,94,.4)":"2px solid "+V.bd,background:batchFzId===f.id?"rgba(0,150,64,.08)":isMine?"rgba(34,197,94,.04)":"transparent",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:batchFzId===f.id?700:500,color:batchFzId===f.id?_lesbar(COLORS.EP_GREEN):V.tx,display:"flex",alignItems:"center",gap:6,minHeight:44}}
                 , React.createElement('span', { style: {fontSize:16}}, _ikVw(f.typ==="Transporter"||f.typ==="LKW"?"transporter":f.typ==="Anhänger"?"verbindung":"auto",""))
                 , React.createElement('div', { style: {textAlign:"left"}}
                   , React.createElement('div', { style: {fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:4}}
@@ -32256,7 +32241,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
 
           /* Entry form — compact, fast */
-          , batchFzId&&(React.createElement('div', { style: {background:"rgba(249,115,22,.04)",borderRadius:10,padding:14,border:"1px solid rgba(249,115,22,.15)"}}
+          , batchFzId&&(React.createElement('div', { style: {background:"rgba(0,150,64,.04)",borderRadius:10,padding:14,border:"1px solid rgba(0,150,64,.15)"}}
             , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"1fr 1fr 1fr 1fr auto",gap:8,alignItems:"end"}}
               , React.createElement('div', {}
                 , React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Datum")
@@ -32276,7 +32261,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
               )
               , React.createElement('button', { onClick: batchSave, disabled: !bLit||!bPreis, style: {...bpS,padding:"12px 20px",fontSize:14,whiteSpace:"nowrap",minHeight:44,opacity:(!bLit||!bPreis)?.4:1}}, "Speichern" )
             )
-            , bLit&&bPreis&&(React.createElement('div', { style: {marginTop:8,padding:"4px 10px",borderRadius:6,background:"rgba(249,115,22,.08)",fontSize:UI.fMeta,display:"flex",justifyContent:"space-between",color:"#f97316",fontWeight:600}}
+            , bLit&&bPreis&&(React.createElement('div', { style: {marginTop:8,padding:"4px 10px",borderRadius:6,background:"rgba(0,150,64,.08)",fontSize:UI.fMeta,display:"flex",justifyContent:"space-between",color:_lesbar(COLORS.EP_GREEN),fontWeight:600}}
               , React.createElement('span', {}, "€/L: " , _fzDE((parseFloat(bPreis)/parseFloat(bLit)),3))
               , React.createElement('span', {}, _fzDE(parseFloat(bLit),1), " Liter · €"   , _fzDE(parseFloat(bPreis),2))
             ))
@@ -32288,12 +32273,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , batchRows.length>0&&(React.createElement('div', { style: {...CC(),marginBottom:14}}
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
             , React.createElement('div', { style: {fontSize:14,fontWeight:700}}, "Diese Sitzung"  )
-            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, batchTotal.count===1?" Tankung · ":" Tankungen · "   , React.createElement('strong', { style: {color:"#f97316"}}, _fzDE(batchTotal.liter,1), " L" ), " · "  , React.createElement('strong', { style: {color:"#f97316"}}, "€", _fzDE(batchTotal.preis,2)))
+            , React.createElement('div', { style: {fontSize:12,color:V.dm}}, batchTotal.count, batchTotal.count===1?" Tankung · ":" Tankungen · "   , React.createElement('strong', { style: {color:_lesbar(COLORS.EP_GREEN)}}, _fzDE(batchTotal.liter,1), " L" ), " · "  , React.createElement('strong', { style: {color:_lesbar(COLORS.EP_GREEN)}}, "€", _fzDE(batchTotal.preis,2)))
           )
           , React.createElement('div', { style: {display:"flex",flexDirection:"column",gap:4}}
             , batchRows.map((r,i)=>{
               const isLast=i===0;
-              return (React.createElement('div', { key: r.id, className: isLast?"fade-in":"", style: {display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:isLast?"rgba(249,115,22,.06)":"transparent",border:isLast?"1px solid rgba(249,115,22,.15)":"1px solid "+V.bd}}
+              return (React.createElement('div', { key: r.id, className: isLast?"fade-in":"", style: {display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:isLast?"rgba(0,150,64,.06)":"transparent",border:isLast?"1px solid rgba(0,150,64,.15)":"1px solid "+V.bd}}
                 , React.createElement('div', { style: {fontSize:18}}, _optionalChain([fahrzeuge, 'access', _700 => _700.find, 'call', _701 => _701(f=>f.id===r.fzId), 'optionalAccess', _702 => _702.typ])==="Transporter"?_ikVw("transporter",""):_ikVw("auto",""))
                 , React.createElement('div', { style: {flex:1,minWidth:0}}
                   , React.createElement('div', { style: {display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}}
@@ -32302,7 +32287,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
                   )
                   , React.createElement('div', { style: {display:"flex",gap:12,fontSize:12,marginTop:2}}
                     , React.createElement('span', { style: {fontFamily:mono,fontWeight:600}}, _fzDE(r.liter,1), " L" )
-                    , React.createElement('span', { style: {fontFamily:mono,fontWeight:600,color:"#f97316"}}, "€", _fzDE(r.preis,2))
+                    , React.createElement('span', { style: {fontFamily:mono,fontWeight:600,color:_lesbar(COLORS.EP_GREEN)}}, "€", _fzDE(r.preis,2))
                     , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, "€/L: " , _fzDE((r.preis/r.liter),3))
                     , r.km>0&&React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, _fzDE(r.km,0), " km" )
                   )
@@ -32313,11 +32298,11 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
 
           /* Summary bar */
-          , batchRows.length>=2&&(React.createElement('div', { style: {marginTop:12,padding:"10px 14px",borderRadius:8,background:"linear-gradient(135deg,rgba(249,115,22,.08),rgba(249,115,22,.03))",border:"1px solid rgba(249,115,22,.2)",display:"flex",justifyContent:"space-around",textAlign:"center"}}
-            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, batchTotal.count), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Tankungen"))
-            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, _fzDE(batchTotal.liter,1)), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Liter gesamt" ))
-            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, "€", _fzDE(batchTotal.preis,2)), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Kosten gesamt" ))
-            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:"#f97316"}}, "€", _fzDE((batchTotal.preis/batchTotal.liter),3)), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Ø €/Liter" ))
+          , batchRows.length>=2&&(React.createElement('div', { style: {marginTop:12,padding:"10px 14px",borderRadius:8,background:"linear-gradient(135deg,rgba(0,150,64,.08),rgba(0,150,64,.03))",border:"1px solid rgba(0,150,64,.2)",display:"flex",justifyContent:"space-around",textAlign:"center"}}
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:_lesbar(COLORS.EP_GREEN)}}, batchTotal.count), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Tankungen"))
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:_lesbar(COLORS.EP_GREEN)}}, _fzDE(batchTotal.liter,1)), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Liter gesamt" ))
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:_lesbar(COLORS.EP_GREEN)}}, "€", _fzDE(batchTotal.preis,2)), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Kosten gesamt" ))
+            , React.createElement('div', {}, React.createElement('div', { style: {fontSize:18,fontWeight:800,color:_lesbar(COLORS.EP_GREEN)}}, "€", _fzDE((batchTotal.preis/batchTotal.liter),3)), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Ø €/Liter" ))
           ))
         ))
       ))
@@ -33902,7 +33887,7 @@ function WerkzeugView({werkzeuge,setWerkzeuge,monteure,ww,curUser,pushNotif,proj
                 /* v3.9.899 Befund 1 Fall b, der teuerste: diese Liste fragt nur w.status==="verfuegbar". Ein Messgeraet mit ueberfaelliger Kalibrierung hat Status "verfuegbar" und stand hier ohne jeden Hinweis - waehrend die KPI-Kachel im selben Modul es als faellig zaehlte. Es ging unkalibriert auf die Baustelle. */
                 , React.createElement('div', { style: {flex:1,minWidth:120}}, React.createElement('div', { style: {fontWeight:600,fontSize:14}}, _wzKatIk(kat), w.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, w.inventarnr), _wzKalibFaellig(w)&&React.createElement('div', { style: {fontSize:UI.fMeta,color:_lesbar("#eab308"),fontWeight:700,marginTop:2}}, "Kalibrierung fällig" ))
                 , React.createElement('select', { id: "co_"+w.id, 'aria-label': "Monteur für "+(w.name||"Gerät"), style: {...II(),width:isMob?"100%":"auto",minWidth:120,fontSize:isMob?15:UI.fMeta,padding:"5px 8px",minHeight:isMob?48:44}}, React.createElement('option', { value: ""}, "Monteur wählen..." ), _maWaehlbar(monteure,null).map(m=>(React.createElement('option', { key: m.id, value: m.id}, m.n))))
-                , React.createElement('button', { onClick: ()=>{const sel=document.getElementById("co_"+w.id);if(!_optionalChain([sel, 'optionalAccess', _819 => _819.value])){alert("Monteur wählen!");return;}if(_wzKalibFaellig(w)&&!confirm("⚠️ "+w.name+" ist zur Kalibrierung fällig (nächste Kalibrierung: "+(w.naechsteKalib||"kein Datum")+"). Trotzdem ausgeben?"))return;checkout(w.id,sel.value);}, style: {...bpS,padding:"5px 12px",fontSize:isMob?15:UI.fMeta,minHeight:isMob?48:44,width:isMob?"100%":undefined}}, "Ausgeben" )
+                , React.createElement('button', { onClick: async ()=>{/* v1051: App-Rueckfrage statt nativem alert/confirm; Monteur VOR dem Warten gelesen, Abbrechen schreibt nichts */const sel=document.getElementById("co_"+w.id);const _coMid=_optionalChain([sel, 'optionalAccess', _819 => _819.value]);if(!_coMid){if(window.__toast)window.__toast("Bitte zuerst den Monteur wählen","warn");return;}if(_wzKalibFaellig(w)&&!(await window._confirmModal(w.name+" ist zur Kalibrierung fällig (nächste Kalibrierung: "+(w.naechsteKalib||"kein Datum")+"). Trotzdem ausgeben?",{confirmLabel:"Trotzdem ausgeben"})))return;checkout(w.id,_coMid);}, style: {...bpS,padding:"5px 12px",fontSize:isMob?15:UI.fMeta,minHeight:isMob?48:44,width:isMob?"100%":undefined}}, "Ausgeben" )
               ));
             })
           )
