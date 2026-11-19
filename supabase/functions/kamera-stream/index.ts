@@ -6,6 +6,8 @@
 //   ladeNutzer  -> public.users (id, role, active, locked) per auth_user_id, Service-Client
 //   darfSehen   -> rpc kamera_darf_sehen(p_kamera) mit dem JWT DES AUFRUFERS (auth.uid() = Aufrufer),
 //                  OHNE p_zeitpunkt -> die Datenbank nimmt now() (Serverzeit, Wiener Ortszeit in SQL)
+//   darfSehenBereich -> rpc kamera_darf_sehen_bereich(p_kamera, p_von, p_bis) mit dem JWT DES AUFRUFERS
+//                  (nur Aufzeichnung: Regel muss fuer den ganzen Bereich gelten, Bereich in der Aufbewahrung)
 //   ladeBackend -> public.kamera_backend (nur service_role lesbar), Phase 2 mit stream_typ
 //   protokoll   -> public.kamera_abruf_log (nur service_role schreibt)
 // Secrets: KAMERA_TOKEN_SECRET (>= 32 Zeichen), KAMERA_BACKEND_BASE (https://...), optional KAMERA_TOKEN_TTL
@@ -44,6 +46,13 @@ const deps: Deps = {
   },
   darfSehen: async (jwt: string, kameraId: string) => {
     const { data, error } = await aufruferClient(jwt).rpc("kamera_darf_sehen", { p_kamera: kameraId });
+    if (error) throw new Error("db");
+    return data === true;
+  },
+  // Aufzeichnung: Regel fuer JEDEN Augenblick in [von, bis) + Aufbewahrung der Kamera, mit dem JWT DES AUFRUFERS.
+  // von/bis hat logic.ts bereits geprueft und normalisiert (ISO, ganze Sekunden) - dieselben Werte stehen im Token.
+  darfSehenBereich: async (jwt: string, kameraId: string, vonIso: string, bisIso: string) => {
+    const { data, error } = await aufruferClient(jwt).rpc("kamera_darf_sehen_bereich", { p_kamera: kameraId, p_von: vonIso, p_bis: bisIso });
     if (error) throw new Error("db");
     return data === true;
   },

@@ -79,11 +79,12 @@ const BACKEND = {
   cam4: {stream_name: "lager_west", aufzeichnung_quelle: null},
 };
 const ENV_OK = {KAMERA_TOKEN_SECRET: SECRET, KAMERA_BACKEND_BASE: BASE};
+const AUFBEWAHRUNG = {cam1: 3, cam3: 5};
 
 async function lauf(f) {
   const o = Object.assign({wer: "admin", body: {kamera_id: "cam1"}, env: ENV_OK, now: MO_10,
                            origin: "https://epkolar.github.io", method: "POST", auth: undefined}, f);
-  const calls = {auth: 0, nutzer: 0, darf: 0, backend: 0, log: []};
+  const calls = {auth: 0, nutzer: 0, darf: 0, bereich: 0, bereichArgs: null, backend: 0, log: []};
   const deps = {
     env: (n) => o.env[n],
     now: () => o.now,
@@ -96,6 +97,15 @@ async function lauf(f) {
       const wer = /^jwt_([a-z0-9]+)_/.exec(jwt)[1];
       const u = USERS[wer];
       return L.entscheide(REGELN[k] || [], {id: u.id, role: String(u.role || "").trim()}, o.now);
+    },
+    // Attrappe von kamera_darf_sehen_bereich: der ausfuehrbare Spiegel entscheideBereich() aus logic.ts
+    darfSehenBereich: async (jwt, k, vonIso, bisIso) => {
+      calls.bereich++;
+      calls.bereichArgs = [k, vonIso, bisIso];
+      const wer = /^jwt_([a-z0-9]+)_/.exec(jwt)[1];
+      const u = USERS[wer];
+      return L.entscheideBereich(REGELN[k] || [], {id: u.id, role: String(u.role || "").trim()},
+                                 Date.parse(vonIso), Date.parse(bisIso), o.now, AUFBEWAHRUNG[k] || 3);
     },
     ladeBackend: async (k) => { calls.backend++; return BACKEND[k] || null; },
     protokoll: async (e) => { calls.log.push(e); if (o.logWirft) throw new Error("log down"); },
@@ -167,6 +177,18 @@ console.log(JSON.stringify(R));
 
 MO_17 = "MO_17"
 
+
+# Aufzeichnungsbereiche (Wiener Ortszeit, November = CET = UTC+1). Abfragezeit ist immer MO_10 = Mo 23.11.2026 10:00.
+# Regel buero auf cam1: Mo-Fr 07:00-17:00 (bis exklusiv); Aufbewahrung cam1 = 3 Tage.
+def _rec(von, bis, **mehr):
+    b = {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc", "von": von, "bis": bis}
+    b.update(mehr)
+    return b
+
+
+MO_08_09 = ("2026-11-23T07:00:00Z", "2026-11-23T08:00:00Z")      # Mo 08:00-09:00 - Regel gilt durchgehend
+REC_GUT = _rec(*MO_08_09)
+
 FAELLE = {
     "admin": {},
     "admin_ohne_origin": {"origin": None},
@@ -198,20 +220,42 @@ FAELLE = {
     "null_origin": {"origin": "null"},
     "options": {"method": "OPTIONS", "auth": None},
     "get": {"method": "GET"},
-    "rec_buero_pc": {"wer": "buero", "body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc"}},
-    "rec_buero_mobil": {"wer": "buero", "body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "mobil"}},
-    "rec_buero_ohne_geraet": {"wer": "buero", "body": {"kamera_id": "cam1", "scope": "aufzeichnung"}},
-    "rec_lager_pc": {"wer": "lager", "body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc"}},
-    "rec_env_lager": {"wer": "lager", "body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc"},
+    "rec_buero_pc": {"wer": "buero", "body": REC_GUT},
+    "rec_buero_mobil": {"wer": "buero", "body": _rec(*MO_08_09, geraet="mobil")},
+    "rec_buero_ohne_geraet": {"wer": "buero", "body": {k: v for k, v in REC_GUT.items() if k != "geraet"}},
+    "rec_lager_pc": {"wer": "lager", "body": REC_GUT},
+    "rec_env_lager": {"wer": "lager", "body": REC_GUT,
                       "env": {"KAMERA_TOKEN_SECRET": SECRET, "KAMERA_BACKEND_BASE": BASE,
                               "KAMERA_AUFZEICHNUNG_ROLLEN": "lagerleitung,monteur"}},
-    "rec_env_admin": {"body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc"},
+    "rec_env_admin": {"body": REC_GUT,
                       "env": {"KAMERA_TOKEN_SECRET": SECRET, "KAMERA_BACKEND_BASE": BASE,
                               "KAMERA_AUFZEICHNUNG_ROLLEN": "lagerleitung,monteur"}},
-    "rec_monteur_env": {"wer": "monteur", "body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc"},
+    "rec_monteur_env": {"wer": "monteur", "body": REC_GUT,
                         "env": {"KAMERA_TOKEN_SECRET": SECRET, "KAMERA_BACKEND_BASE": BASE,
                                 "KAMERA_AUFZEICHNUNG_ROLLEN": "lagerleitung,monteur"}},
-    "rec_ohne_quelle": {"body": {"kamera_id": "cam3", "scope": "aufzeichnung", "geraet": "pc"}},
+    "rec_ohne_quelle": {"body": dict(REC_GUT, kamera_id="cam3")},
+    # ── Befund 19.11.: Aufzeichnungsbereich (Angriffe) ──
+    # Samstag 21.11. 10-11 unter der Mo-Fr-Regel, abgefragt am Montag 10:00 (Regel gilt JETZT) -> 403
+    "rec_buero_samstag": {"wer": "buero", "body": _rec("2026-11-21T09:00:00Z", "2026-11-21T10:00:00Z")},
+    # teils ausserhalb: Mo 06:30-07:30 (Beginn vor 07:00) und Fr 16:30-17:01 (eine Minute nach 17:00)
+    "rec_buero_teils_morgens": {"wer": "buero", "body": _rec("2026-11-23T05:30:00Z", "2026-11-23T06:30:00Z")},
+    "rec_buero_teils_abends": {"wer": "buero", "body": _rec("2026-11-20T15:30:00Z", "2026-11-20T16:01:00Z")},
+    # Grenzfall erlaubt: Fr 16:00-17:00 (bis exklusiv) und Zeitzonen-Schreibweise +01:00
+    "rec_buero_bis_genau_17": {"wer": "buero", "body": _rec("2026-11-20T16:00:00+01:00", "2026-11-20T17:00:00+01:00")},
+    # ausserhalb der Aufbewahrung (cam1 = 3 Tage): Do 19.11. 10-11 (Werktag im Fenster) -> 403 aus der DB-Pruefung
+    "rec_buero_aufbewahrung": {"wer": "buero", "body": _rec("2026-11-19T09:00:00Z", "2026-11-19T10:00:00Z")},
+    # admin hat eine Regel ohne Fenster: Samstag ist fuer ihn erlaubt (Gegenprobe: Regel, nicht Wochentag, entscheidet)
+    "rec_admin_samstag": {"body": _rec("2026-11-21T09:00:00Z", "2026-11-21T10:00:00Z")},
+    # ungueltige Bereiche -> 400, ohne jede DB-Abfrage
+    "rec_aelter_als_30_tage": {"wer": "buero", "body": _rec("2026-10-01T08:00:00Z", "2026-10-01T09:00:00Z")},
+    "rec_zukunft": {"wer": "buero", "body": _rec("2026-11-23T08:30:00Z", "2026-11-23T09:30:00Z")},
+    "rec_spanne_zu_lang": {"wer": "buero", "body": _rec("2026-11-23T06:59:00Z", "2026-11-23T09:00:00Z")},
+    "rec_von_gleich_bis": {"wer": "buero", "body": _rec("2026-11-23T07:00:00Z", "2026-11-23T07:00:00Z")},
+    "rec_umgekehrt": {"wer": "buero", "body": _rec("2026-11-23T08:00:00Z", "2026-11-23T07:00:00Z")},
+    "rec_ohne_bereich": {"wer": "buero", "body": {"kamera_id": "cam1", "scope": "aufzeichnung", "geraet": "pc"}},
+    "rec_ohne_zone": {"wer": "buero", "body": _rec("2026-11-23T07:00:00", "2026-11-23T08:00:00")},
+    "rec_bruchteil": {"wer": "buero", "body": _rec("2026-11-23T07:00:00.5Z", "2026-11-23T08:00:00Z")},
+    "rec_zahl": {"wer": "buero", "body": _rec(1795417200, 1795420800)},
     "darf_wirft": {"darfWirft": True},
     "log_wirft": {"logWirft": True},
     "kamera_ohne_regel": {"body": {"kamera_id": "cam4"}},
@@ -440,6 +484,67 @@ def test_aufzeichnung_nur_am_pc_und_nur_fuer_aufzeichnungsrollen(R):
     assert R["rec_ohne_quelle"]["status"] == 503
 
 
+# ── Befund 19.11.: Aufzeichnung nur fuer den freigegebenen BEREICH (nicht nur "Regel gilt jetzt") ──────────
+def test_aufzeichnung_bereich_signiert_in_token_und_adresse(R):
+    a = R["rec_buero_pc"]
+    assert a["status"] == 200, a["text"]
+    p = a["payload"]
+    # Mo 23.11.2026 08:00 Wien = 07:00Z
+    assert p["von"] == 1795417200 and p["bis"] == 1795420800, p
+    assert a["json"]["von"] == p["von"] and a["json"]["bis"] == p["bis"]
+    assert a["json"]["aufzeichnungUrl"].endswith("&von=1795417200&bis=1795420800")
+    assert a["calls"]["darf"] == 1 and a["calls"]["bereich"] == 1
+    # an die DB geht der normalisierte Bereich (ISO, UTC) - dieselben Augenblicke wie im Token
+    assert a["calls"]["bereichArgs"] == ["cam1", "2026-11-23T07:00:00.000Z", "2026-11-23T08:00:00.000Z"]
+    assert "von" not in R["admin"]["payload"] and "bis" not in R["admin"]["payload"], "Live-Token ohne Bereich"
+
+
+@pytest.mark.parametrize("k", ["rec_buero_samstag", "rec_buero_teils_morgens", "rec_buero_teils_abends",
+                               "rec_buero_aufbewahrung"])
+def test_angriff_aufzeichnung_ausserhalb_des_bereichs_403(R, k):
+    """Die Regel gilt JETZT (Mo 10:00) - das darf keine Aufnahmen ausserhalb des Fensters freigeben."""
+    f = R[k]
+    assert f["status"] == 403, (k, f["status"], f["text"])
+    assert json.loads(f["text"]) == {"error": "kein_zugriff"}
+    _kein_geheimnis(f)
+    assert f["calls"]["darf"] == 1, "Regel jetzt erfuellt - abgewiesen wird erst durch die Bereichspruefung"
+    assert f["calls"]["bereich"] == 1 and f["calls"]["backend"] == 0
+    assert [e["grund"] for e in f["calls"]["log"]] == ["bereich"]
+
+
+def test_aufzeichnung_bereich_grenzfaelle_erlaubt(R):
+    assert R["rec_buero_bis_genau_17"]["status"] == 200, "bis 17:00 exklusiv - 16:00-17:00 liegt ganz im Fenster"
+    assert R["rec_buero_bis_genau_17"]["payload"]["von"] == 1795186800
+    assert R["rec_admin_samstag"]["status"] == 200, "Regel ohne Fenster deckt auch den Samstag"
+
+
+@pytest.mark.parametrize("k", ["rec_aelter_als_30_tage", "rec_zukunft", "rec_spanne_zu_lang", "rec_von_gleich_bis",
+                               "rec_umgekehrt", "rec_ohne_bereich", "rec_ohne_zone", "rec_bruchteil", "rec_zahl"])
+def test_aufzeichnung_ungueltiger_bereich_400_ohne_abfrage(R, k):
+    f = R[k]
+    assert f["status"] == 400 and json.loads(f["text"]) == {"error": "ungueltig"}, (k, f["status"], f["text"])
+    assert f["calls"]["darf"] == 0 and f["calls"]["bereich"] == 0 and f["calls"]["backend"] == 0
+
+
+def test_geraet_ist_keine_sicherheitsgrenze_dokumentiert():
+    s = _lies(LOGIC)
+    assert "KEINE Sicherheitsgrenze" in s
+    i = s.index("export async function bearbeite(")
+    t = s[i:]
+    # die Bereichspruefung haengt NICHT an geraet und steht vor dem Backend
+    assert t.index("deps.darfSehenBereich(") < t.index("deps.ladeBackend(")
+    zeile = [z for z in t.split("\n") if "deps.darfSehenBereich(" in z][0]
+    assert "geraet" not in zeile
+    r = _lies(README)
+    assert "NOT a security control" in r
+
+
+def test_live_bleibt_bei_jetzt(R):
+    a = R["admin"]
+    assert a["calls"]["bereich"] == 0, "Live fragt keinen Bereich ab"
+    assert R["buero_mo10"]["status"] == 200 and R["buero_sa10"]["status"] == 403
+
+
 # ── Token-Vertrag (Referenz-Pruefer fuer den Reverse-Proxy) ───────────────────
 def test_token_pruefer_vertrag(R):
     t = R["token"]
@@ -463,6 +568,9 @@ def test_index_ts_verdrahtet_mit_dem_jwt_des_aufrufers():
     assert 'from "./logic.ts"' in s
     assert "auth.getUser(jwt)" in s
     assert '.rpc("kamera_darf_sehen", { p_kamera: kameraId })' in s
+    assert '.rpc("kamera_darf_sehen_bereich", { p_kamera: kameraId, p_von: vonIso, p_bis: bisIso })' in s
+    i = s.index("darfSehenBereich: async")
+    assert "aufruferClient(jwt).rpc(" in s[i:s.index("},", i)], "Bereichspruefung mit dem JWT des Aufrufers"
     assert "p_zeitpunkt:" not in s, "Zeitpunkt darf nie vom Aufrufer kommen"
     assert 'Authorization: "Bearer " + jwt' in s
     assert 'select("id, role, active, locked")' in s
@@ -506,8 +614,30 @@ def test_umkehrprobe_ablauf_im_pruefer(node_exe):
 
 
 def test_umkehrprobe_aufzeichnung_am_handy(node_exe):
+    # geraet ist nur Bedienkomfort: ohne den Abgleich kaeme ein Handy mit ERLAUBTEM Bereich durch (das ist ok),
+    # die Angriffe auf den Bereich bleiben trotzdem 403 - die Kontrolle sitzt in Rolle + Bereichspruefung.
     R2 = _lauf(node_exe, _mutiert('(geraet !== "pc" || ', "(false || "))
     assert R2["rec_buero_mobil"]["status"] == 200
+    assert R2["rec_buero_samstag"]["status"] == 403 and R2["rec_lager_pc"]["status"] == 403
+
+
+def test_umkehrprobe_alte_logik_ohne_bereichspruefung(node_exe):
+    """Stand vor dem Fix: Aufzeichnung nur ueber darfSehen(jetzt). Dann kaemen alle Bereichs-Angriffe durch."""
+    R2 = _lauf(node_exe, _mutiert("if (darfBereich !== true) {", "if (false) {"))
+    for k in ("rec_buero_samstag", "rec_buero_teils_morgens", "rec_buero_teils_abends", "rec_buero_aufbewahrung"):
+        assert R2[k]["status"] == 200, (k, R2[k]["status"])
+
+
+def test_umkehrprobe_nur_der_anfang_statt_jeder_minute(node_exe):
+    R2 = _lauf(node_exe, _mutiert("for (let t = Math.floor(vonMs / 60000) * 60000 + 60000; t < bisMs; t += 60000) {",
+                                  "for (let t = bisMs; t < bisMs; t += 60000) {"))
+    assert R2["rec_buero_teils_abends"]["status"] == 200, "Umkehrprobe: Minutenpruefung waere blind"
+    assert R2["rec_buero_samstag"]["status"] == 403
+
+
+def test_umkehrprobe_aufbewahrung_im_spiegel(node_exe):
+    R2 = _lauf(node_exe, _mutiert("if (!(aufbewahrungTage > 0) || vonMs < nowMs - aufbewahrungTage * 24 * 60 * 60 * 1000) return false;", ""))
+    assert R2["rec_buero_aufbewahrung"]["status"] == 200
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -680,8 +810,25 @@ await klick(w, 'Regel speichern');
 OUT.regel_neu = ZAEHL.post.slice();
 await klick(w, 'Aufzeichnungen');
 _kamBackend.fehlt = false;
+// Vortag waehlen (heute 08:00 laege je nach Uhrzeit des Testlaufs noch in der Zukunft)
+const tagKnoepfe = alle(baum, function (n) { return n.tag === 'button' && /^[A-Z][a-z] \d\d\.\d\d\.$/.test(text(n).trim()); });
+OUT.rec_tage = tagKnoepfe.length;
+tagKnoepfe[1].props.onClick({}); await ruhe(w);
 await klick(w, 'Aufzeichnung laden');
 OUT.rec = {text: text(baum), fetch: ZAEHL.fetch.slice()};
+// Server lehnt den Zeitraum ab (403) -> eigener Hinweis
+SZENE.fetch = {status: 403, json: {error: 'kein_zugriff'}};
+_kamBackend.fehlt = false;
+await klick(w, 'Aufzeichnung laden');
+OUT.rec_403 = text(baum);
+// Zeitpunkt in der Zukunft (heute 23:45): kein Abruf, Hinweis
+tagKnoepfe[0].props.onClick({}); await ruhe(w);
+const zeitfeld = alle(baum, function (n) { return n.tag === 'input' && n.props.type === 'time'; })[0];
+zeitfeld.props.onChange({target: {value: '23:45'}}); await ruhe(w);
+const vorher = ZAEHL.fetch.length;
+const jetztStd = new Date().getHours() * 60 + new Date().getMinutes();
+await klick(w, 'Aufzeichnung laden');
+OUT.rec_zukunft = {text: text(baum), neu: ZAEHL.fetch.length - vorher, spaet: jetztStd >= 23 * 60 + 45};
 
 // 2) Monteur: nichts, kein einziger Abruf
 reset({db: {kameras: KAMS}, fein: true});
@@ -770,6 +917,10 @@ H.regel = {ok: mit({}), beides: mit({user_id: 'u2'}), keins: mit({rolle: null}),
 H.rang = [_kamRegelRang({user_id: 'u', erlaubt: false}), _kamRegelRang({user_id: 'u', erlaubt: true}), _kamRegelRang({rolle: 'admin', erlaubt: false}), _kamRegelRang({rolle: 'admin', erlaubt: true})];
 H.tage = [_kamTageText([1, 2, 3, 4, 5, 6, 7]), _kamTageText([5, 4, 3, 2, 1]), _kamTageText([6, 7]), _kamTageText([1, 3])];
 H.tagesliste = [_kamTagesListe(3, Date.UTC(2026, 10, 23, 12)).length, _kamTagesListe(99, 0).length, _kamTagesListe(0, 0).length];
+H.bereich = [_kamBereichIso(Date.UTC(2026, 10, 23, 7), Date.UTC(2026, 10, 23, 9)),
+             _kamBereichIso(Date.UTC(2026, 10, 23, 8, 30), Date.UTC(2026, 10, 23, 9, 0, 30, 500)),
+             _kamBereichIso(Date.UTC(2026, 10, 23, 9), Date.UTC(2026, 10, 23, 9)),
+             _kamBereichIso(NaN, 0)];
 H.pc = [_kamIstPC(1440, true), _kamIstPC(1440, false), _kamIstPC(1199, true), _kamIstPC(1200, true)];
 H.modus = [_kamPlayerModus(true, false, {webrtcUrl: 'https://a', liveUrl: 'https://b'}), _kamPlayerModus(false, true, {webrtcUrl: 'https://a', liveUrl: 'https://b'}),
            _kamPlayerModus(false, false, {webrtcUrl: 'https://a', liveUrl: 'https://b'})];
@@ -832,6 +983,31 @@ def test_aufzeichnung_fragt_den_server_mit_scope_und_pc(UIR):
     assert letzte["scope"] == "aufzeichnung" and letzte["geraet"] == "pc"
 
 
+def test_aufzeichnung_schickt_den_zeitraum_an_den_server(UIR):
+    """Befund 19.11.: die App schickt von/bis (ISO, UTC) - der Server prueft und signiert genau diesen Zeitraum."""
+    assert UIR["rec_tage"] >= 2
+    b = UIR["rec"]["fetch"][-1]["body"]
+    assert set(b) == {"kamera_id", "scope", "geraet", "von", "bis"}
+    for k in ("von", "bis"):
+        assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$", b[k]), b[k]
+    import datetime
+    v = datetime.datetime.fromisoformat(b["von"].replace("Z", "+00:00"))
+    w = datetime.datetime.fromisoformat(b["bis"].replace("Z", "+00:00"))
+    assert (w - v).total_seconds() == 3600
+    assert "Kein Zugriff auf Aufnahmen aus diesem Zeitraum" in UIR["rec_403"]
+    z = UIR["rec_zukunft"]
+    if not z["spaet"]:
+        assert z["neu"] == 0 and "Dieser Zeitpunkt liegt in der Zukunft" in z["text"]
+
+
+def test_aufzeichnung_haengt_nichts_an_die_serveradresse():
+    b = _block()
+    i = b.index("function KameraAufzeichnung(")
+    t = b[i:b.index("\nfunction ", i + 10)]
+    assert "var url=a.aufzeichnungUrl;" in t
+    assert "'&von='" not in t and "'&bis='" not in t, "von/bis nur aus der signierten Serveradresse"
+
+
 @pytest.mark.parametrize("k", ["monteur", "helfer"])
 def test_monteur_und_helfer_sehen_nichts_und_rufen_nichts_ab(UIR, k):
     assert UIR[k]["baum"] is None
@@ -892,6 +1068,9 @@ def test_reine_helfer(UIR):
     assert H["tage"] == ["täglich", "Mo–Fr", "Sa–So", "Mo, Mi"]
     assert H["tagesliste"] == [3, 30, 3]
     assert H["pc"] == [True, False, False, True]
+    assert H["bereich"][0] == {"von": "2026-11-23T07:00:00.000Z", "bis": "2026-11-23T08:00:00.000Z"}
+    assert H["bereich"][1] == {"von": "2026-11-23T08:30:00.000Z", "bis": "2026-11-23T09:00:30.000Z"}, "nie ueber jetzt hinaus"
+    assert H["bereich"][2] is None and H["bereich"][3] is None
     assert H["modus"] == ["webrtc", "hls", "keiner"]
 
 
@@ -1010,6 +1189,29 @@ def test_sql_funktionen_definer_mit_festem_suchpfad_und_rechten():
     assert "revoke all on function public.kamera_darf_sehen(text, timestamptz) from public, anon;" in code
 
 
+def test_sql_bereichspruefung_fuer_aufzeichnungen():
+    """Befund 19.11.: kamera_darf_sehen_bereich - Regel fuer JEDEN Augenblick in [von, bis), Aufbewahrung, nur authenticated."""
+    code = _ohne_kommentare(_lies(SQL))
+    k = "create or replace function public.kamera_darf_sehen_bereich(p_kamera text, p_von timestamptz, p_bis timestamptz)"
+    assert code.count(k) == 1
+    i = code.index(k)
+    kopf = code[i:code.index("as $$", i)]
+    assert "security definer" in kopf and "set search_path = public, pg_temp" in kopf
+    f = code[i:code.index("end $$;", i)]
+    assert "v_auth uuid := auth.uid();" in f, "nur der Aufrufer selbst, kein p_auth-Parameter"
+    assert "p_von >= p_bis or p_bis > now() or p_bis - p_von > interval '2 hours'" in f
+    assert "k.aufbewahrung_tage" in f and "p_von < now() - make_interval(days => v_tage)" in f
+    assert "public.kamera_pruefen(v_auth, p_kamera, p_von) is not true" in f
+    assert "while v_t < p_bis loop" in f and "public.kamera_pruefen(v_auth, p_kamera, v_t) is not true" in f
+    assert "v_t := v_t + interval '1 minute';" in f
+    assert "revoke all on function public.kamera_darf_sehen_bereich(text, timestamptz, timestamptz) from public, anon;" in code
+    assert "grant execute on function public.kamera_darf_sehen_bereich(text, timestamptz, timestamptz) to authenticated;" in code
+    # Exaktheit der Minutenpruefung setzt Regelgrenzen auf ganzen Minuten voraus
+    assert "constraint kamera_zugriff_minuten_chk check ((von is null or extract(second from von) = 0) and (bis is null or extract(second from bis) = 0))" in code
+    s = _lies(SQL)
+    assert "kamera_darf_sehen_bereich('__probe_kam__'" in s and "kamera_zugriff_minuten_chk" in s
+
+
 def test_sql_backend_nur_service_role():
     code = _ohne_kommentare(_lies(SQL))
     assert "on public.kamera_backend for" not in code, "kamera_backend darf KEINE Policy haben"
@@ -1045,7 +1247,9 @@ def test_ruecknahme_raeumt_alles_in_der_richtigen_reihenfolge():
     reihen = [code.index("drop table if exists public." + t + ";") for t in
               ("kamera_abruf_log", "kamera_zugriff", "kamera_backend", "kameras")]
     assert reihen == sorted(reihen)
-    for fn in ("kamera_darf_sehen(text, timestamptz)", "kamera_pruefen(uuid, text, timestamptz)", "kamera_ist_verwalter()",
+    assert code.index("drop function if exists public.kamera_darf_sehen_bereich(") < code.index("drop function if exists public.kamera_pruefen(")
+    for fn in ("kamera_darf_sehen_bereich(text, timestamptz, timestamptz)", "kamera_darf_sehen(text, timestamptz)",
+               "kamera_pruefen(uuid, text, timestamptz)", "kamera_ist_verwalter()",
                "kamera_fenster_trifft(integer[], time, time, integer, time)", "kamera_touch()"):
         assert "drop function if exists public." + fn + ";" in code, fn
     assert code.index("drop policy if exists kameras_select") < reihen[0]

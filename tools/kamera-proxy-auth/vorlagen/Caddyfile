@@ -140,7 +140,10 @@
 	# handle @hls { route { forward_auth kamera-auth:9099 { uri /pruefen } ... reverse_proxy go2rtc:1984 } }
 
 	# ── Aufzeichnung - PHASE 3 (Wiedergabe-Player in der App folgt) ───────────────────────────
-	# Pruefer verlangt sc=aufzeichnung, von < bis, Spanne <= 6 h. Frigate-VOD liefert eine HLS-Playlist mit
+	# Pruefer verlangt sc=aufzeichnung und Query von/bis ZEICHENGLEICH mit dem im Token signierten Bereich (Spanne <= 2 h)
+	# und gibt den signierten Bereich als X-Kamera-Von/-Bis zurueck. Die Frigate-Adresse NUR daraus bauen
+	# (forward_auth copy_headers X-Kamera-Von X-Kamera-Bis), nie aus {query.*}; vor Ort bestaetigen, dass Caddy
+	# Client-Kopien dieser Koepfe verwirft. Frigate-VOD liefert eine HLS-Playlist mit
 	# relativen Teilstuecken -> gleiches Teilstueck-Thema wie oben. Erst mit dem Player umsetzen.
 	# @rec path_regexp rec ^/aufzeichnung/([A-Za-z0-9_-]{1,64})$
 	# handle @rec {
@@ -151,8 +154,9 @@
 	# 			header_up -X-Original-Method
 	# 			header_up X-Forwarded-Uri {http.request.orig_uri}
 	# 			header_up X-Forwarded-Method {http.request.orig_method}
+	# 			copy_headers X-Kamera-Von X-Kamera-Bis
 	# 		}
-	# 		rewrite * /vod/{re.rec.1}/start/{query.von}/end/{query.bis}/index.m3u8
+	# 		rewrite * /vod/{re.rec.1}/start/{http.request.header.X-Kamera-Von}/end/{http.request.header.X-Kamera-Bis}/index.m3u8
 	# 		reverse_proxy frigate:5000
 	# 	}
 	# }

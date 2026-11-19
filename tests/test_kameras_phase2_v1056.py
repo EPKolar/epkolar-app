@@ -78,17 +78,19 @@ const BACKEND = {
   k_rtsp: {stream_name: "mx_36", aufzeichnung_quelle: null, stream_typ: "rtsp"},
 };
 async function lauf(wer, kamera, scope, darf) {
-  const calls = {darf: 0, backend: 0};
+  const calls = {darf: 0, bereich: 0, backend: 0};
   const deps = {
     env: (n) => ({KAMERA_TOKEN_SECRET: SECRET, KAMERA_BACKEND_BASE: BASE})[n],
     now: () => MO_10, nonce: () => "n1",
     authUser: async (jwt) => "auth-" + /^jwt_([a-z]+)_/.exec(jwt)[1],
     ladeNutzer: async (uid) => USERS[uid.slice(5)] || null,
     darfSehen: async () => { calls.darf++; return darf !== false; },
+    darfSehenBereich: async () => { calls.bereich++; return darf !== false; },
     ladeBackend: async (k) => { calls.backend++; return BACKEND[k] || null; },
   };
   const body = {kamera_id: kamera};
   if (scope) { body.scope = scope; body.geraet = "pc"; }
+  if (scope === "aufzeichnung") { body.von = new Date(MO_10 - 3600 * 1000).toISOString(); body.bis = new Date(MO_10).toISOString(); }
   const res = await L.bearbeite(new Request("https://fn.example.test/kamera-stream", {method: "POST",
     headers: {"content-type": "application/json", origin: "https://epkolar.github.io",
               authorization: "Bearer jwt_" + wer + "_0123456789abcdef"}, body: JSON.stringify(body)}), deps);
@@ -102,10 +104,11 @@ async function lauf(wer, kamera, scope, darf) {
       if (!/Url$/.test(key)) continue;
       const u = new URL(out.json[key]);
       let uri = u.pathname + u.search;
-      if (key === "aufzeichnungUrl") uri += "&von=" + (Math.floor(MO_10 / 1000) - 3600) + "&bis=" + Math.floor(MO_10 / 1000);
+      // seit 19.11.: von/bis stehen bereits (signiert) in der Adresse der Edge Function - nichts anhaengen
       const methode = key === "webrtcUrl" ? "POST" : "GET";
       const e = await VF.entscheide({method: "GET", url: "/pruefen", headers: {"x-forwarded-uri": uri, "x-forwarded-method": methode}}, SECRET, MO_10, CADDY);
       out.proxy[key] = {status: e.status, art: (VF.pfadArt(u.pathname) || {}).art || null};
+      if (e.headers["X-Kamera-Von"]) { out.proxy[key].von = e.headers["X-Kamera-Von"]; out.proxy[key].bis = e.headers["X-Kamera-Bis"]; }
     }
   }
   return out;
@@ -236,8 +239,11 @@ def test_unbekannter_typ_503_ohne_adresse(R):
 
 def test_aufzeichnung_unveraendert_und_vom_proxy_angenommen(R):
     e = R["edge"]["rec"]
-    assert e["status"] == 200 and set(e["json"]) == {"aufzeichnungUrl", "exp", "ttl"}
+    assert e["status"] == 200 and set(e["json"]) == {"aufzeichnungUrl", "von", "bis", "exp", "ttl"}
     assert e["proxy"]["aufzeichnungUrl"]["status"] == 204
+    # der Proxy bekommt den signierten Bereich als Kopf (daraus baut er die Frigate-Adresse)
+    assert e["proxy"]["aufzeichnungUrl"]["von"] == str(e["json"]["von"]) and e["proxy"]["aufzeichnungUrl"]["bis"] == str(e["json"]["bis"])
+    assert e["calls"]["bereich"] == 1
     assert R["edge"]["rec_mjpeg"]["status"] == 503, "Mobotix ohne Aufzeichnungsquelle"
 
 
@@ -288,8 +294,53 @@ def test_pruefer_anfragevektoren(R):
             assert v["kopf"]["X-Kamera-Stream"] and v["kopf"]["Cache-Control"] == "no-store"
     namen = {v["name"] for v in R["vek"]["anfragen"]}
     for pflicht in ("gekippt", "abgelaufen", "anderer_stream_im_pfad", "live_token_fuer_aufzeichnung", "go2rtc_api",
-                    "fremdes_secret", "payload_getauscht", "punktpunkt"):
+                    "fremdes_secret", "payload_getauscht", "punktpunkt") + AUFZ_ANGRIFFE:
         assert pflicht in namen, pflicht
+
+
+AUFZ_ANGRIFFE = ("aufzeichnung_von_manipuliert", "aufzeichnung_bis_manipuliert", "aufzeichnung_fenster_verschoben",
+                 "aufzeichnung_von_doppelt", "aufzeichnung_von_kodiert", "aufzeichnung_name_kodiert",
+                 "aufzeichnung_fuehrende_null", "aufzeichnung_teil_falsches_von", "aufzeichnung_ohne_zeit")
+
+
+def test_angriff_aufzeichnung_query_bereich_ungleich_token_403(R):
+    """Befund 19.11.: von/bis stehen signiert im Token; jede Abweichung in der Query (verschoben, doppelt,
+    kodiert, fuehrende Null, fehlend) -> 403 am Pruefer. Der passende Bereich -> 204."""
+    v = {x["name"]: x for x in R["vek"]["anfragen"]}
+    for k in AUFZ_ANGRIFFE:
+        assert v[k]["ist"] == 403, (k, v[k]["ist"])
+    assert v["aufzeichnung_gut"]["ist"] == 204
+    assert v["aufzeichnung_alter_token_ohne_bereich"]["ist"] == 401, "Token ohne signierten Bereich gilt nicht mehr"
+    assert v["aufzeichnung_teil_mit_cookie"]["ist"] == 204
+
+
+def test_aufzeichnung_bereich_als_kopf_fuer_den_proxy(R):
+    v = {x["name"]: x for x in R["vek"]["anfragen"]}
+    for k in ("aufzeichnung_gut", "aufzeichnung_teil_mit_cookie"):
+        assert v[k]["kopf"]["X-Kamera-Von"] == "1795420800" and v[k]["kopf"]["X-Kamera-Bis"] == "1795424400", k
+    assert "X-Kamera-Von" not in v["mjpeg"]["kopf"], "Live ohne Bereichskopf"
+
+
+def test_tokenvektoren_bereich(R):
+    t = {x["name"]: x for x in R["vek"]["token"]}
+    assert t["aufzeichnung_mit_bereich"]["soll"] is True
+    for k in ("aufzeichnung_ohne_bereich", "aufzeichnung_bereich_umgekehrt", "aufzeichnung_bereich_als_text", "live_mit_bereich"):
+        assert t[k]["soll"] is False and t[k]["logic"] is False and t[k]["mjs"] is False, k
+
+
+def test_umkehrprobe_ohne_bereichsbindung_im_pruefer(node_exe):
+    # Stand vor dem Fix: von/bis aus der Query nur auf Form geprueft, nicht gegen das Token -> Fenster verschiebbar
+    R2 = _lauf(node_exe, verify_src=_mut(VERIFY, "if (!ok(\"von\", gv) || !ok(\"bis\", gb)) return nein(403,", "if (false) return nein(403,"))
+    v = {x["name"]: x for x in R2["vek"]["anfragen"]}
+    for k in ("aufzeichnung_von_manipuliert", "aufzeichnung_fenster_verschoben", "aufzeichnung_bis_manipuliert"):
+        assert v[k]["ist"] == 204, (k, v[k]["ist"])
+
+
+def test_umkehrprobe_token_ohne_bereichsregel(node_exe):
+    regel = "if (p.sc === \"aufzeichnung\" && !(Number.isInteger(p.von) && Number.isInteger(p.bis) && Number(p.von) < Number(p.bis))) return null;"
+    R2 = _lauf(node_exe, token_src=_mut(TOKEN_MJS, regel, ""))
+    t = {x["name"]: x for x in R2["vek"]["token"]}
+    assert t["aufzeichnung_ohne_bereich"]["mjs"] is True
 
 
 def test_hls_cookie_eng_gebunden(R):
