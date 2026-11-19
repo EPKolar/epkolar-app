@@ -35,6 +35,8 @@ def _katalog_js(html, server_max=1000, gesamt=25121, fehl_offsets=None):
     fehl = json.dumps(fehl_offsets or {})
     return (
         seiten +
+        # v1055 Tablet-Vollpruefung (10): der Auffang der Seite fragt _matSeiteEnde (416 hinter der letzten Zeile = Ende)
+        html[html.index("function _matSeiteEnde("):html.index("\n", html.index("function _matSeiteEnde("))] + "\n" +
         "let a=true;const _saSel='s';const waits=[];let calls=0;const fehl=" + fehl + ";"
         "globalThis.setTimeout=(f,ms)=>{waits.push(ms);f();return 0;};"
         "async function _sbGet(t,f){calls++;const off=+f.split('offset=')[1];const lim=+/limit=(\\d+)/.exec(f)[1];"

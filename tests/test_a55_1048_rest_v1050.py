@@ -52,8 +52,11 @@ ESK_FNS = ("_rlsLeer", "_netzFehlerArt", "_netzOnline", "_eskLeseMarke", "_eskAu
 def _esk(src, node_exe):
     code = _fns(src, ESK_FNS)
     konst = _zeile_ab(src, "var ESK_NETZ_RUNDEN=")
-    mat = _block(src, '{const _mArt=_eskAusfallArt(openMat);', 'admins);}')
-    frist = _block(src, '{const _fArt=_eskAusfallArt(ovT,ovD);', '_pmU);}')
+    # v1055 Tablet-Vollpruefung (2): Titel/Typ kommen aus ESK_AUSFALL_*, eine gelesene Runde ruft _ausfallErledigt
+    # (markiert alte Ausfall-Meldungen als gelesen) - der Block endet darum hinter diesem Aufruf.
+    konst += "\n" + _zeile_ab(src, "var ESK_AUSFALL_TITEL=") + "\n" + _zeile_ab(src, "var ESK_AUSFALL_TYP=") + "\nfunction _ausfallErledigt(k){}"
+    mat = _block(src, '{const _mArt=_eskAusfallArt(openMat);', '_ausfallErledigt("rls_material");}')
+    frist = _block(src, '{const _fArt=_eskAusfallArt(ovT,ovD);', '_ausfallErledigt("rls_frist");}')
     js = r"""
 var _ls={};var localStorage={getItem:function(k){return k in _ls?_ls[k]:null;},setItem:function(k,v){_ls[k]=String(v);}};
 var navigator={onLine:true};var _jetzt=1000000000000;var _DN=Date.now;Date.now=function(){return _jetzt;};

@@ -141,7 +141,9 @@ def test_zeiterfassung_blau_lesbar(index_html):
 
 def test_team_timeline(index_html):
     assert "const nameW=isMob?96:104;" in index_html
-    assert "{ title: m, style: {overflow:\"hidden\",textOverflow:\"ellipsis\",..._zweiZeilen,minWidth:0," in index_html
+    # v1055 Tablet-Vollpruefung (8): _zweiZeilen (overflowWrap anywhere) brach Namen mitten im Wort ("Lindhube|r").
+    # Jetzt eine Zeile ohne Wortbruch, Resturlaub in eigener Zeile darunter.
+    assert "{ title: m, style: {overflow:\"hidden\",textOverflow:\"ellipsis\",whiteSpace:\"nowrap\",overflowWrap:\"normal\",wordBreak:\"normal\",hyphens:\"none\"," in index_html
     assert '_zpIk("links","Zurück",14))' in index_html
     assert '"Vor", _ik("rechts",14)))' in index_html
 
