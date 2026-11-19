@@ -24593,6 +24593,90 @@ function WeekPlan({ww,curUser,wpHistory,setWpHistory,monteure,projects,fahrzeuge
 function _wocheOfK(kontingent,nm){const ks=kontingent&&kontingent[nm];const w=ks&&ks.woche;return (w&&w>0)?w:38.5;}
 function _stdVonTagK(d,woche){const dow=d.getDay();if(dow===0||dow===6||_isATFeiertag(d))return 0;/* Sa/So+Feiertag=0; Mo-Do 8,5h, Fr 4,5h, skaliert auf Wochenstunden. Wochentagsgenau per Sebastian-Entscheid 03.07.2026: NICHT auf pauschal 7,7 vereinheitlichen (Alt-Absences tragen wochentagsgenaue Werte; konsistent mit V3-Tagesnorm _kvTagesnorm). */const base=dow<=4?8.5:4.5;return base*((woche||38.5)/38.5);}
 function _resolveApprK(abs,approvals,key){const _dec=s=>s==="genehmigt"||s==="abgelehnt";const _av=(approvals||{})[key];if(_dec(_av))return _av;const _vs=abs&&abs[key]&&abs[key].status;if(_dec(_vs))return _vs;return _av||"ausstehend";}
+/* v3.9.1054 ABWESENHEITEN MONAT "ALLE" NEU (Sebastian-Spezifikation 19.11.2026): reine ANZEIGE - kein Datenmodell, kein Schreibweg, kein OFFA.
+   WAHRHEIT = APP: die Typen sind die 15 Schluessel aus AT_T (nicht die U/K/Z/S der Vorlage). Jeder Typ hat GENAU eine Flaeche und GENAU einen
+   Buchstaben, beide eindeutig. KEIN Signalrot (Rot = Loeschen/Storno/Abmelden laut CI) - deshalb eine EIGENE Tafel statt AT_T.c (dort ist
+   Krankenstand COLORS.ERROR). AT_T bleibt unveraendert, andere Ansichten lesen es. Jede Flaeche traegt weisse Schrift mit >= 4,5:1 (im Test
+   nachgerechnet) - in Hell und Dunkel gleich, weil die Schrift auf der EIGENEN Flaeche steht. Beantragt = schraffiert + gestrichelt wie die
+   Team-Zeitleiste (v3.9.262), Schrift dann _lesbar. Abgelehnt erscheint nie (_resolveApprK, dieselbe Quelle wie Kalender/Zeitleiste).
+   HALBE TAGE: das Modell kennt KEIN Vormittag/Nachmittag (absences = Person + Tag + type + hours + status) - also keine halben Zellen, keine 0,5.
+   SUMME: Abwesenheits-ARBEITSTAGE wie _stdVonTagK (Sa/So/Feiertag = 0 Stunden = kein Abwesenheitstag); beantragt zaehlt mit (wie der
+   Resturlaub), abgelehnt nie. */
+const ABW_MON_TYP={urlaub:{c:"#1d4ed8",k:"U"},krankenstand:{c:"#b45309",k:"K"},zeitausgleich:{c:"#0f766e",k:"Z"},pflegefrei:{c:"#7c3aed",k:"P"},pflegefrei2:{c:"#5b21b6",k:"J"},sonder_hochzeit:{c:"#a21caf",k:"H"},sonder_geburt:{c:"#86198f",k:"G"},sonder_tod_partner:{c:"#334155",k:"T"},sonder_tod_eltern:{c:"#57534e",k:"E"},sonder_uebersiedlung:{c:"#713f12",k:"Ü"},sonder_arzt:{c:"#0e7490",k:"A"},sonder_behoerde:{c:"#0369a1",k:"B"},bildungsfreistellung:{c:"#4338ca",k:"W"},feiertag:{c:"#3f6212",k:"F"},sonstiges:{c:"#52525b",k:"S"}};
+function _abwMonTyp(t){if(t==="krank")t="krankenstand";return ABW_MON_TYP[t]?t:"sonstiges";}
+function _abwIso(y,m,d){return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}
+function _abwMonTag(abs,approvals,nm,iso){const key=nm+"_"+iso;const r=abs&&abs[key];if(!r)return null;const st=_resolveApprK(abs,approvals,key);if(st==="abgelehnt")return null;return {t:_abwMonTyp(r.type),gen:st==="genehmigt"};}
+function _abwMonZeile(abs,approvals,nm,yr,mo){const dim=new Date(yr,mo+1,0).getDate();const z=[];for(let i=1;i<=dim;i++)z.push(_abwMonTag(abs,approvals,nm,_abwIso(yr,mo,i)));const gl=(x,c)=>!!x&&x.t===c.t&&x.gen===c.gen;z.forEach((c,i)=>{if(!c)return;c.anf=!gl(z[i-1],c);c.end=!gl(z[i+1],c);});return z;}
+function _abwMonSumme(zeile,yr,mo){let tage=0,offen=0;(zeile||[]).forEach((c,i)=>{if(!c)return;const d=new Date(yr,mo,i+1);const w=d.getDay();if(w===0||w===6||_isATFeiertag(d))return;tage++;if(!c.gen)offen++;});return {tage:tage,offen:offen};}
+function _abwMonZeilen(abs,approvals,namen,yr,mo){return (namen||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),"de")).map(nm=>{const z=_abwMonZeile(abs,approvals,nm,yr,mo);return {nm:nm,z:z,s:_abwMonSumme(z,yr,mo)};});}
+function _abwMonFilter(zeilen,nurAbwesende){return nurAbwesende?(zeilen||[]).filter(r=>r.z.some(Boolean)):(zeilen||[]);}
+function _abwMonTypen(zeilen){const da={};let offen=false;(zeilen||[]).forEach(r=>r.z.forEach(c=>{if(c){da[c.t]=1;if(!c.gen)offen=true;}}));return {typen:Object.keys(ABW_MON_TYP).filter(k=>da[k]),offen:offen};}
+function _abwKW(d){const t=new Date(d.getFullYear(),d.getMonth(),d.getDate());t.setDate(t.getDate()+3-((t.getDay()+6)%7));const j=new Date(t.getFullYear(),0,4);return 1+Math.round(((t-j)/TIME_DAY-3+((j.getDay()+6)%7))/7);}
+function _abwMonWochen(yr,mo){const dim=new Date(yr,mo+1,0).getDate();const w=[];for(let i=1;i<=dim;i++){const d=new Date(yr,mo,i);if(i===1||d.getDay()===1)w.push({ab:i-1,n:0,kw:_abwKW(d)});w[w.length-1].n++;}return w;}
+function _abwMonWer(abs,approvals,namen,heuteISO){const h=new Date(heuteISO+"T00:00:00");const mon=new Date(h);mon.setDate(h.getDate()-((h.getDay()+6)%7));const tage=[];for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);tage.push(_abwIso(d.getFullYear(),d.getMonth(),d.getDate()));}
+  const heute=[],woche=[];(namen||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),"de")).forEach(nm=>{const c=_abwMonTag(abs,approvals,nm,heuteISO);if(c)heute.push({nm:nm,t:c.t,gen:c.gen});const ts=tage.map(iso=>_abwMonTag(abs,approvals,nm,iso)).filter(Boolean);if(ts.length){const typen=[];ts.forEach(x=>{if(typen.indexOf(x.t)<0)typen.push(x.t);});woche.push({nm:nm,n:ts.length,typen:typen,gen:ts.every(x=>x.gen)});}});
+  return {heute:heute,woche:woche,kw:_abwKW(h),von:tage[0],bis:tage[6]};}
+function _abwLaufStil(c){const ty=ABW_MON_TYP[c.t]||ABW_MON_TYP.sonstiges;const r=6;const st={height:22,flex:1,marginLeft:c.anf?2:0,marginRight:c.end?2:0,borderRadius:(c.anf?r:0)+"px "+(c.end?r:0)+"px "+(c.end?r:0)+"px "+(c.anf?r:0)+"px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:UI.fMeta,fontWeight:800,lineHeight:1,boxSizing:"border-box"};
+  if(c.gen){st.background=ty.c;st.color="#fff";}else{const b="1.5px dashed "+ty.c;st.background="repeating-linear-gradient(135deg,"+ty.c+"33 0 3px,transparent 3px 6px)";st.color=_lesbar(ty.c);st.borderTop=b;st.borderBottom=b;st.borderLeft=c.anf?b:"none";st.borderRight=c.end?b:"none";}
+  return st;}
+function _abwBadge(t,gen){return React.createElement('span',{"aria-hidden":"true",style:{..._abwLaufStil({t:t,gen:gen,anf:true,end:true}),flex:"none",width:22,marginLeft:0,marginRight:0}},(ABW_MON_TYP[t]||ABW_MON_TYP.sonstiges).k);}
+function _abwTypL(t){return (AT_T[t]&&AT_T[t].l)||t;}
+/* Wer ist heute / diese Woche weg - am Handy OBEN im Kalender (prominent), am Tablet/Desktop ueber dem Monatsraster. */
+function _abwWerWegKarte(wer,prominent){const h=React.createElement;
+  const chip=(nm,t,gen,zusatz,key)=>h('span',{key:key,title:nm+": "+_abwTypL(t)+(gen?"":" (beantragt)")+(zusatz?" - "+zusatz:""),style:{display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px 3px 4px",borderRadius:999,border:"1px "+(gen?"solid ":"dashed ")+V.bd,background:V.cd,fontSize:UI.fKlein,color:V.tx,lineHeight:1.3}},_abwBadge(t,gen),h('span',{style:{fontWeight:600}},nm),zusatz?h('span',{style:{color:V.dm,fontSize:UI.fMeta,fontVariantNumeric:"tabular-nums"}},zusatz):null);
+  const zeile=(titel,inhalt)=>h('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,marginBottom:4}},h('span',{style:{fontSize:UI.fKlein,fontWeight:700,color:V.tx,marginRight:4,fontVariantNumeric:"tabular-nums"}},titel),inhalt);
+  const leer=h('span',{style:{fontSize:UI.fKlein,color:V.dm}},"niemand abwesend");
+  return h('div',{role:"region","aria-label":"Wer ist abwesend",style:{padding:prominent?"12px 14px":"10px 12px",borderRadius:UI.rKnopf,background:UI.markeBg,borderLeft:"3px solid "+UI.marke,marginBottom:prominent?14:10}}
+    ,zeile("Heute abwesend:",wer.heute.length?wer.heute.map((e,i)=>chip(e.nm,e.t,e.gen,"","h"+i)):leer)
+    ,zeile("Diese Woche (KW "+wer.kw+"):",wer.woche.length?wer.woche.map((e,i)=>chip(e.nm,e.typen[0],e.gen,e.n+(e.n===1?" Tag":" Tage")+(e.typen.length>1?" ("+e.typen.map(t=>ABW_MON_TYP[t].k).join("/")+")":""),"w"+i)):leer));}
+function AbwMonatAlle({abs,approvals,namen,alleNamen,yr,mo,setMo,sel,setSel,isMob}){const h=React.createElement;
+  const [nur,setNur]=_react.useState.call(void 0, false);
+  const scr=_react.useRef.call(void 0, null);
+  const heuteISO=dk(new Date());
+  const dim=new Date(yr,mo+1,0).getDate();
+  const tage=Array.from({length:dim},(_,i)=>new Date(yr,mo,i+1));
+  const heuteIdx=tage.findIndex(d=>dk(d)===heuteISO);
+  const zeilen=_abwMonZeilen(abs,approvals,namen,yr,mo);
+  const sicht=_abwMonFilter(zeilen,nur);
+  const leg=_abwMonTypen(zeilen);
+  const wochen=_abwMonWochen(yr,mo);
+  const cw=isMob?30:28,nw=isMob?104:150,sw=isMob?40:48;
+  /* Handy: Einstieg scrollt das Raster auf die laufende Woche (Spalte des Montags direkt hinter die klebende Namensspalte). */
+  _react.useEffect.call(void 0, ()=>{const el=scr.current;if(!el||!isMob)return;if(heuteIdx<0){el.scrollLeft=0;return;}const mi=heuteIdx-((tage[heuteIdx].getDay()+6)%7);el.scrollLeft=Math.max(0,mi)*cw;},[yr,mo,isMob,heuteIdx]);
+  const frei=d=>d.getDay()===0||d.getDay()===6||_isATFeiertag(d);
+  const spBg=i=>i===heuteIdx?"rgba(0,150,64,.10)":frei(tage[i])?V.weBg:"transparent";
+  const wStart=i=>i>0&&tage[i].getDay()===1;
+  const kleb={position:"sticky",left:0,zIndex:2,background:V.cd,borderRight:"1px solid "+V.bd};
+  const klebR={position:"sticky",right:0,zIndex:2,background:V.cd,borderLeft:"1px solid "+V.bd,textAlign:"center",fontVariantNumeric:"tabular-nums"};
+  const zellen=[];
+  zellen.push(h('div',{key:"kn",style:{...kleb,gridRow:"1 / span 3",gridColumn:"1",display:"flex",alignItems:"flex-end",padding:"4px 8px",fontSize:UI.fMeta,fontWeight:700,color:V.dm,borderBottom:"2px solid "+V.bd}},"Mitarbeiter"));
+  zellen.push(h('div',{key:"ks",title:"Abwesenheitstage im Monat (Arbeitstage - Sa/So/Feiertage zählen nicht, wie beim Resturlaub)",style:{...klebR,gridRow:"1 / span 3",gridColumn:String(dim+2),display:"flex",alignItems:"flex-end",justifyContent:"center",padding:"4px 0",fontSize:UI.fKlein,fontWeight:800,color:V.tx,borderBottom:"2px solid "+V.bd}},"Σ"));
+  wochen.forEach(w=>zellen.push(h('div',{key:"kw"+w.ab,style:{gridRow:"1",gridColumn:(w.ab+2)+" / span "+w.n,fontSize:UI.fMeta,fontWeight:700,color:V.dm,padding:"4px 4px 0",whiteSpace:"nowrap",overflow:"hidden",boxShadow:w.ab>0?"inset 1px 0 0 "+V.bd:undefined,fontVariantNumeric:"tabular-nums"}},w.n>=2?"KW "+w.kw:"")));
+  tage.forEach((d,i)=>{const hz=i===heuteIdx;const fr=frei(d);const basis={gridColumn:String(i+2),textAlign:"center",fontVariantNumeric:"tabular-nums",background:hz?"#009640":fr?V.weBg:"transparent",color:hz?"#fff":fr?V.dm:V.tx,fontWeight:hz?800:600,boxShadow:wStart(i)?"inset 1px 0 0 "+V.bd:undefined};
+    zellen.push(h('div',{key:"dn"+i,title:fdt(dk(d))+(_isATFeiertag(d)?" - Feiertag":""),"aria-current":hz?"date":undefined,style:{...basis,gridRow:"2",fontSize:UI.fKlein,padding:"3px 0 0",borderRadius:hz?"6px 6px 0 0":0}},d.getDate()));
+    zellen.push(h('div',{key:"wd"+i,style:{...basis,gridRow:"3",fontSize:UI.fMeta,fontWeight:hz?800:400,padding:"0 0 3px",borderBottom:"2px solid "+(hz?"#009640":V.bd),color:hz?"#fff":V.dm}},["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()]));});
+  if(!sicht.length)zellen.push(h('div',{key:"leer",style:{gridRow:"4",gridColumn:"1 / span "+(dim+2),padding:"14px 12px",fontSize:UI.fKlein,color:V.dm}},nur?"Niemand im "+MO_DE[mo]+" abwesend":"Keine Mitarbeiter in diesem Monat"));
+  sicht.forEach((r,ri)=>{const row=String(ri+4);const unten="1px solid "+V.bd;
+    zellen.push(h('div',{key:"n_"+r.nm,role:"button",tabIndex:0,title:r.nm+" - Kalender öffnen","aria-label":"Kalender für "+r.nm+" zeigen",onClick:()=>setSel(r.nm),onKeyDown:e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();setSel(r.nm);}},style:{...kleb,gridRow:row,gridColumn:"1",display:"flex",alignItems:"center",padding:"0 8px",minHeight:30,fontSize:UI.fKlein,fontWeight:sel===r.nm?800:500,color:sel===r.nm?_okG("#22c55e"):V.tx,borderBottom:unten,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.nm));
+    r.z.forEach((c,i)=>{const iso=dk(tage[i]);zellen.push(h('div',{key:"c_"+r.nm+"_"+i,title:c?r.nm+": "+_abwTypL(c.t)+" "+fdt(iso)+" ("+(c.gen?"genehmigt":"beantragt")+")":undefined,style:{gridRow:row,gridColumn:String(i+2),height:30,display:"flex",alignItems:"center",background:spBg(i),borderBottom:unten,boxShadow:wStart(i)?"inset 1px 0 0 "+V.bd:undefined}},c?h('div',{style:_abwLaufStil(c)},(ABW_MON_TYP[c.t]||ABW_MON_TYP.sonstiges).k):null));});
+    zellen.push(h('div',{key:"s_"+r.nm,title:r.s.tage+(r.s.tage===1?" Arbeitstag":" Arbeitstage")+" abwesend"+(r.s.offen?" (davon "+r.s.offen+" beantragt)":""),style:{...klebR,gridRow:row,gridColumn:String(dim+2),display:"flex",alignItems:"center",justifyContent:"center",fontSize:UI.fKlein,fontWeight:r.s.tage?800:400,color:r.s.tage?V.tx:V.dm,borderBottom:unten}},String(r.s.tage)));});
+  const navBtn=(t,ik,fn)=>h('button',{type:"button",title:t,"aria-label":t,onClick:fn,style:{...bsS(),minWidth:44,minHeight:44,padding:"6px 10px",display:"inline-flex",alignItems:"center",justifyContent:"center"}},_ik(ik,18));
+  return h('div',{style:{marginTop:14,minWidth:0,maxWidth:"100%"}}
+    ,h('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:8}}
+      ,h('div',{style:{display:"flex",alignItems:"center",gap:6}}
+        ,navBtn("Monat zurück","links",()=>setMo(Math.max(0,mo-1)))
+        ,h('div',{style:{fontSize:UI.fKlein,fontWeight:800,color:V.tx,fontVariantNumeric:"tabular-nums",minWidth:isMob?0:150,textAlign:"center"}},"ALLE — "+MO_DE[mo]+" "+yr)
+        ,navBtn("Monat vor","rechts",()=>setMo(Math.min(11,mo+1))))
+      ,h('button',{type:"button",onClick:()=>setNur(!nur),"aria-pressed":nur,title:"Nur Mitarbeiter mit Abwesenheit in diesem Monat zeigen",style:{...bsS(),minHeight:44,padding:"6px 14px",display:"inline-flex",alignItems:"center",gap:6,fontSize:UI.fKlein,fontWeight:700,...(nur?{border:"2px solid "+UI.marke,background:UI.markeBg}:{})}},_ik("regler",16),"Nur Abwesende"))
+    ,!isMob&&_abwWerWegKarte(_abwMonWer(abs,approvals,alleNamen,heuteISO),false)
+    ,h('div',{ref:scr,style:{overflowX:"auto",WebkitOverflowScrolling:"touch",border:"1px solid "+V.bd,borderRadius:10,background:V.cd,maxWidth:"100%"}}
+      ,h('div',{role:"table","aria-label":"Abwesenheiten aller Mitarbeiter im "+MO_DE[mo]+" "+yr,style:{display:"grid",gridTemplateColumns:nw+"px repeat("+dim+","+cw+"px) "+sw+"px",width:"max-content",fontVariantNumeric:"tabular-nums"}},zellen))
+    ,h('div',{"aria-label":"Legende",style:{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginTop:10,fontSize:UI.fMeta,color:V.dm}}
+      ,leg.typen.length?leg.typen.map(t=>h('span',{key:t,style:{display:"inline-flex",alignItems:"center",gap:6,color:V.tx}},_abwBadge(t,true),_abwTypL(t))):h('span',{},"Keine Abwesenheiten im "+MO_DE[mo])
+      ,leg.offen&&h('span',{style:{display:"inline-flex",alignItems:"center",gap:6}},_abwBadge(leg.typen[0],false),"beantragt (noch offen)")
+      ,h('span',{style:{display:"inline-flex",alignItems:"center",gap:6}},h('span',{style:{width:14,height:14,borderRadius:3,background:"#009640"}}),"Heute")
+      ,h('span',{style:{display:"inline-flex",alignItems:"center",gap:6}},h('span',{style:{width:14,height:14,borderRadius:3,background:V.weBg,border:"1px solid "+V.bd}}),"Wochenende / Feiertag")
+      ,h('span',{},"Σ = Abwesenheitstage (Arbeitstage)")));}
 function _yearStK(abs,approvals,kontingent,m,yr){const r={};Object.keys(AT_T).forEach(t=>{r[t]=0;r[t+"Std"]=0;});r.urlaubGenehmigt=0;r.urlaubStdGen=0;r.urlaubAusstehend=0;r.urlaubStdAusstehend=0;r.sonderGes=0;r.sonderStdGes=0;r.pflegeGes=0;r.pflegeStdGes=0;
   Object.entries(abs||{}).forEach(([key,v])=>{if(key.startsWith(m+"_")){const dateStr=key.replace(m+"_","");if(dateStr.startsWith(String(yr))){const d=new Date(dateStr+"T00:00:00");const h=parseFloat(v.hours)||_stdVonTagK(d,_wocheOfK(kontingent,m));let t=v.type;if(t==="krank")t="krankenstand";else if(t==="za")t="zeitausgleich";/* v3.9.668 Bug-Hunt: Legacy-Kurzformen auf kanonische AT_T-Keys normalisieren — sonst war r[t] undefined und der Eintrag fiel still aus Mirror/Bilanz (nur _absStats hatte die Aliase behandelt). */const _appr=(t==="urlaub")?_resolveApprK(abs,approvals,key):null;if(r[t]!==undefined&&!(t==="urlaub"&&_appr==="abgelehnt")){r[t]++;r[t+"Std"]+=h;}/* v3.9.668 Bug-Hunt: abgelehnter Urlaub zaehlt NICHT als verbraucht → urlaubStd = Gen+Ausstehend (konsistent mit _resturlaubK); fixt Mirror _absRows, Kalender-Pills, Excel-Export, Guenther-Card auf einen Schlag. */if(t==="urlaub"){if(_appr==="genehmigt"){r.urlaubGenehmigt++;r.urlaubStdGen+=h;}else if(_appr!=="abgelehnt"){r.urlaubAusstehend++;r.urlaubStdAusstehend+=h;}}const kat=(AT_T[t]||{}).kat;if(kat==="sonder"){r.sonderGes++;r.sonderStdGes+=h;}if(kat==="pflege"){r.pflegeGes++;r.pflegeStdGes+=h;}}}});return r;}
 function _resturlaubK(abs,approvals,kontingent,m,yr){const ks=(kontingent||{})[m]||{urlaub:25,stunden:192.5,vorjahr:0,woche:38.5};const ys=_yearStK(abs,approvals,kontingent,m,yr);return _ktgStd(ks.stunden)+(ks.vorjahr||0)-ys.urlaubStdGen-(ys.urlaubStdAusstehend||0);}
@@ -25072,6 +25156,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
 
       /* ═══ KALENDER ═══ */
       , subView==="kalender"&&(React.createElement('div', {}
+        /* v3.9.1054: am Handy steht "wer ist heute / diese Woche weg" OBEN (prominent); Tablet/Desktop zeigen es ueber dem Monatsraster. */
+        , isAdmin&&isMob&&_abwWerWegKarte(_abwMonWer(abs,approvals,names,dk(new Date())),true)
         , React.createElement('div', { style: {display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}
           , (isAdmin?names.filter(m=>_absImMonat(m)||m===sel):names.filter(m=>m===myMonteurName)).map(m=>{const s=st(m);const a=sel===m;const ys=yearSt(m);const rest=resturlaub(m);const mp=allEntries.filter(e=>e.name===m&&e.approval==="ausstehend").length;return (React.createElement('button', { key: m, onClick: ()=>setSel(m), style: {padding:isMob?"5px 7px":"8px 14px",borderRadius:8,border:a?"2px solid #22c55e":"2px solid "+V.bd,background:a?"rgba(34,197,94,.1)":"transparent",color:a?_okG("#22c55e"):V.tx,cursor:"pointer",fontWeight:600,fontSize:isMob?9.5:12,fontFamily:"inherit",position:"relative",minHeight:44,opacity:_absEhem(m)&&!a?.6:1}}, m, React.createElement('span', { style: {display:"block",fontSize:UI.fMeta,opacity:.85,fontFamily:mono}}/* v3.9.948 E2: die Pille zeigte einem AUSGETRETENEN einen Resturlaub - gemessen bei 390 und 1440 px stand unter allen fuenf Namen "193h Rest · 0K", auch unter den beiden Ausgetretenen. Der NAME gehoert dorthin: die Pille ist die Auswahl, ueber die man Kalender und Krankenstaende einer Person ansieht, und v3.9.931 haelt ausdruecklich fest, dass diese Liste vollstaendig bleiben muss - wer die alten Krankenstaende eines Ausgetretenen sucht, muss ihn hier finden. Der ANSPRUCH gehoert nicht dorthin, und das sagt derselbe Kommentar mit denselben Worten: "Ein Anspruch fuer jemanden, der nicht mehr da ist, ist keine Historie." v3.9.931 hat Kompaktliste, Detailtabelle und Excel versorgt - die Pille nicht. Aufgeloest wird ueber den Namen, weil `names` genau `monteure.map(m=>m.n)` ist; denselben Namensabgleich macht `resturlaub(m)` schon, also keine neue Klasse von Risiko. Der Krankenstand BLEIBT stehen - der ist Historie und keine Zusage. Schriftgroesse dabei von 9 auf UI.fMeta (D7, Anker c). */, (function(){var _maObj=(monteure||[]).find(x=>x.n===m);var _kt=ys.krankenstand===1?" Krankentag":" Krankentage";/* Handy-Befund AB4: das Kuerzel K war kryptisch. K = ys.krankenstand = Anzahl Krankenstandstage (_yearStK zaehlt je Tag-Schluessel). */if(_maObj&&_maIstEhemalig(_maObj))return React.createElement(React.Fragment,null,"ausgetreten · ",ys.krankenstand,_kt);return React.createElement(React.Fragment,null,"Rest ",(kontUnlesbar?"–":(resturlaub(m).toFixed?_n(resturlaub(m),0):resturlaub(m))+" h")," · ",ys.krankenstand,_kt);})())/* v3.9.118 Mobile: kürzerer Text — Pill clippte sonst 4px */, mp>0&&React.createElement('span', { style: {position:"absolute",top:-4,right:-4,background:"#eab308",color:"#000",borderRadius:"50%",width:16,height:16,fontSize:UI.fMeta,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}, mp)));}).sort((x,y)=>(_absEhem(x.key)?1:0)-(_absEhem(y.key)?1:0))/* Handy-Befund AB4: Ausgetretene ans Ende (stabil sortiert nach key = Name) */
         )
@@ -25137,7 +25223,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
               )
             )
 
-            , !isMob&&isAdmin&&(React.createElement('div', { style: {marginTop:14}}, React.createElement('div', { style: {fontSize:UI.fMeta,fontWeight:700,color:V.dm,fontFamily:mono,marginBottom:6}}, "ALLE — "  , MO_DE[mo]), names.filter(m=>_absImMonat(m)).map(m=>(React.createElement('div', { key: m, style: {display:"grid",gridTemplateColumns:"75px 1fr",gap:3,marginBottom:2,alignItems:"center"}}, React.createElement('div', { style: {fontSize:UI.fMeta,color:sel===m?_okG("#22c55e"):V.dm,fontWeight:sel===m?700:400}}, m), React.createElement('div', { style: {display:"flex",gap:1}}, Array.from({length:dim},(_,i)=>{const d=new Date(yr,mo,i+1);const ab=ga(m,d);const at2=ab?AT_T[ab.type]:null;return (React.createElement('div', { key: i, style: {flex:1,height:9,borderRadius:1,background:at2?at2.c:isWE(d)?V.weBg:V.empty}} ));})))))))
+            /* v3.9.1054 Monat "ALLE" neu (AbwMonatAlle): jetzt auch am Handy (eigener Scrollbehaelter, klebende Namensspalte); Personenliste unveraendert ueber _absImMonat - die v3.9.1049-Zeitraumregel bleibt. */
+            , isAdmin&&React.createElement(AbwMonatAlle, { abs: abs, approvals: approvals, namen: names.filter(m=>_absImMonat(m)), alleNamen: names, yr: yr, mo: mo, setMo: setMo, sel: sel, setSel: setSel, isMob: isMob})
           )
         )
       ))
