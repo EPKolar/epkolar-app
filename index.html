@@ -2762,6 +2762,7 @@ const ROUTE_MAP={
   "bescheinigungen":["bescheinigungen","bescheinigungen"],
   "photos":["photos","photos"],
   "fz-termine":["fz-termine","fz_termine"],
+  "fz-fs-kontrollen":["fz-fs-kontrollen","fz_fs_kontrollen"],/* v1050 Fuehrerscheinkontrolle: nur POST mit Client-id -> generischer Weg -> _sbInsertIfAbsent (idempotent) */
   "wz-service":["wz-service","wz_service"],
   "worker-projects":["worker-projects","worker_projects"],
   "bautagebuch":["bautagebuch","bautagebuch"],
@@ -11368,6 +11369,7 @@ function MitarbeiterView({monteure,setMonteure,monteurProjekte,setMonteurProjekt
               , React.createElement('span', { style: {color:V.dm}}, "Eintritt"), isAdmin?React.createElement('input', { type: "date", value: selM.eintritt||"", onChange: e=>updMonteur(selM.id,"eintritt",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}} ):React.createElement('span', {}, selM.eintritt?fdt(selM.eintritt):"—")
               , React.createElement('span', { style: {color:V.dm}}, "Austritt"), isAdmin?React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}, React.createElement('input', { type: "date", value: selM.austritt||"", onChange: e=>updMonteur(selM.id,"austritt",e.target.value), style: {...II(),padding:"6px 8px",fontSize:13}} ), _maBadge(selM))/* v3.9.823: Admin sah bisher NUR das Datumsfeld, keinerlei Kennzeichnung -> Badge daneben */:React.createElement('span', { style: {color:selM.austritt?COLORS.ERROR:V.dm}}, selM.austritt?fdt(selM.austritt):"aktiv")
             )
+            , isAdmin?React.createElement(FsKontrolleSection,{key:"fsk_"+selM.id,monteur:selM,curUser:curUser,isMob:isMob})/* v1050 Fuehrerscheinkontrolle: nur Buero/PL/Admin (= is_hr der RLS) */:null
             , React.createElement(FahrbewSection,{workerId:selM.id,canEdit:canDo("fahrbewilligung_edit",curUser),isMob:isMob,curUser:curUser})
             , React.createElement(AnmeldungSection,{workerId:selM.id,canEdit:canDo("anmeldung_edit",curUser),isMob:isMob,curUser:curUser})
             , React.createElement(MAAttesteSection,{workerId:selM.id,workerName:selM.n,curUser:curUser,isMob:isMob})/* v3.9.460 (TEIL B): Atteste im Mitarbeiter-Detail */
@@ -30178,7 +30180,7 @@ function _fzPickerlStufe(datum,nowMs){/* -> {stufe,tage,tolBis} oder null. Diese
   return {stufe:(_fzTageBis(tbIso,nowMs)>=0)?'toleranz':'ueberfaellig',tage:tage,tolBis:tbIso};
 }
 var FZ_FRIST_RANG={ueberfaellig:0,toleranz:1,bald:2,ok:3,fehlt:4,ungueltig:4};
-var FZ_FRIST_ART={pickerl:'Pickerl §57a',service:'Service',vignette:'Vignette',termin:'Termin'};
+var FZ_FRIST_ART={pickerl:'Pickerl §57a',service:'Service',vignette:'Vignette',termin:'Termin',leasing:'Leasing-Ende',versicherung:'Versicherung',service_km:'Service (km)'};
 var FZ_FRIST_TXT={ueberfaellig:'überfällig',toleranz:'Toleranzfrist',bald:'bald fällig',ok:'in Ordnung',fehlt:'nicht erfasst',ungueltig:'Datum prüfen'};
 function _fzTerminErledigt(t){/* erledigt kommt als 0/1, "0"/"1" oder true/false */
   if(!t)return false;
@@ -30214,6 +30216,25 @@ function _fzFristen(fahrzeuge,nowMs,termine){/* -> Fristen ueber alle (nicht sti
     var vb=String(f.vignette_bis||'').trim();
     if(vb)out.push(einfach(f,'vignette',vb,30,true,String(f.vignette_typ||'')));
     else if(f.vignette_typ)out.push(mk(f,'vignette','',NaN,'fehlt',null,String(f.vignette_typ)+' - kein Ablaufdatum'));
+    /* v1050 Stammdaten: nur wenn erfasst (kein "fehlt" fuer Felder, die es bis v1049 nicht gab). Leasing 90 Tage Vorlauf, Versicherung 30. */
+    var lei=String(f.leasing_ende===null||f.leasing_ende===undefined?'':f.leasing_ende).trim();
+    if(lei)out.push(einfach(f,'leasing',lei,90,false,f.leasing_geber?String(f.leasing_geber):''));
+    var vab=String(f.versicherung_ablauf===null||f.versicherung_ablauf===undefined?'':f.versicherung_ablauf).trim();
+    if(vab)out.push(einfach(f,'versicherung',vab,30,false,f.versicherung_polizze?('Polizze '+f.versicherung_polizze):''));
+    /* Service nach km: km-Stand gegen naechst_service_km, Warnung ab 1000 km Rest. Ohne Zielwert, aber mit Intervall: letztes Service-km + Intervall. */
+    var zielKm=_fzZahl(f.naechst_service_km),abgel=false;
+    if(!(zielKm>0)){var ivl=_fzZahl(f.service_km_intervall);if(ivl>0){var lsk=_fzServiceStats(f).letzteKm;if(lsk>0){zielKm=lsk+ivl;abgel=true;}}}
+    if(zielKm>0){
+      var kmT=function(x){return String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' km';};
+      var kmIst=_fzZahl(f.kmStand!==undefined&&f.kmStand!==null?f.kmStand:f.km_stand);
+      var zus=abgel?' (letztes Service + Intervall)':'';
+      if(!(kmIst>0))out.push(mk(f,'service_km','',NaN,'fehlt',null,'Service bei '+kmT(zielKm)+zus+' - km-Stand nicht erfasst'));
+      else{
+        var rest=zielKm-kmIst;
+        var eKm=mk(f,'service_km','',NaN,rest<=0?'ueberfaellig':(rest<=1000?'bald':'ok'),null,(rest>0?('noch '+kmT(rest)+' bis '+kmT(zielKm)):(rest===0?('jetzt fällig ('+kmT(zielKm)+')'):(kmT(-rest)+' über '+kmT(zielKm))))+zus);
+        eKm.kmRest=rest;out.push(eKm);
+      }
+    }
     /* Altbestand: Termine als JSON am Fahrzeug. Gleiche Schwellen wie die Termin-Liste im Detail (ueberfaellig erst NACH dem Tag, bald <14 Tage). */
     var tj=Array.isArray(f.termine)?f.termine:[];
     for(j=0;j<tj.length;j++){
@@ -30303,6 +30324,15 @@ function _fzServiceStats(f){/* Serviceheft -> {anzahl,euro,letzte,letzteKm} */
   }
   return r;
 }
+function _fzFixkosten(f){/* v1050 -> {leasing,versicherung,summe} in EUR je Monat; NaN = nicht erfasst (nie eine 0 erfinden).
+     versicherung_praemie ist die JAHRESpraemie (so beschriftet im Formular) -> /12. Getrennt von den Tankkosten. */
+  var r={leasing:NaN,versicherung:NaN,summe:NaN};
+  if(!f)return r;
+  var l=_fzZahl(f.leasing_rate);if(l>=0)r.leasing=l;
+  var p=_fzZahl(f.versicherung_praemie);if(p>=0)r.versicherung=p/12;
+  if(!isNaN(r.leasing)||!isNaN(r.versicherung))r.summe=(isNaN(r.leasing)?0:r.leasing)+(isNaN(r.versicherung)?0:r.versicherung);
+  return r;
+}
 function _fzAkte(f){/* Fahrzeug -> Chronik [{datum,art,text,km,euro}] neueste zuerst, Eintraege ohne gueltiges Datum am Ende.
      km-Zeilen mit id "km_..." legt der Tank-Sync selbst an (abgeleitet aus der Tankung) - die stehen schon als Tankung drin. */
   var out=[];var i;
@@ -30368,7 +30398,7 @@ function _fzTageTxt(tage){
   return 'seit '+(-tage)+(tage===-1?' Tag':' Tagen');
 }
 function _fzDatumAnz(iso){var t=_fzDatumTeile(iso);return t?((t.d<10?'0':'')+t.d+'.'+(t.m<10?'0':'')+t.m+'.'+t.y):'—';}
-if(typeof window!=='undefined'){window._fzZahl=_fzZahl;window._fzDatumTeile=_fzDatumTeile;window._fzTagKey=_fzTagKey;window._fzTageBis=_fzTageBis;window._fzPickerlStufe=_fzPickerlStufe;window._fzFristen=_fzFristen;window._fzTankStats=_fzTankStats;window._fzServiceStats=_fzServiceStats;window._fzAkte=_fzAkte;window._fzFahrerCheck=_fzFahrerCheck;window._fzCsv=_fzCsv;}
+if(typeof window!=='undefined'){window._fzZahl=_fzZahl;window._fzDatumTeile=_fzDatumTeile;window._fzTagKey=_fzTagKey;window._fzTageBis=_fzTageBis;window._fzPickerlStufe=_fzPickerlStufe;window._fzFristen=_fzFristen;window._fzTankStats=_fzTankStats;window._fzServiceStats=_fzServiceStats;window._fzFixkosten=_fzFixkosten;window._fzAkte=_fzAkte;window._fzFahrerCheck=_fzFahrerCheck;window._fzCsv=_fzCsv;}
 
 /* ── Lese-Ansichten ── Farbflaechen mit weisser Schrift nur aus COLORS.*_FILL (>=4,5:1), sonst V-Tokens (hell/dunkel). */
 function _fzStufeChip(stufe,h){
@@ -30445,7 +30475,7 @@ function FlotteFristenPanel(props){
         ,_fzChipBtn(h,filter==='alle','Alle ('+alle.length+')',function(){setFilter('alle');})
         ,_fzChipBtn(h,filter==='daten','Fehlende Daten ('+nDaten+')',function(){setFilter('daten');})
         ,h('select',{value:artF,onChange:function(e){setArtF(e.target.value);},'aria-label':'Art der Frist',style:Object.assign({},II(),{width:'auto',minHeight:44,fontSize:UI.fKlein})}
-          ,h('option',{value:'alle'},'Alle Arten'),h('option',{value:'pickerl'},'Pickerl §57a'),h('option',{value:'service'},'Service'),h('option',{value:'vignette'},'Vignette'),h('option',{value:'termin'},'Termine')))
+          ,h('option',{value:'alle'},'Alle Arten'),h('option',{value:'pickerl'},'Pickerl §57a'),h('option',{value:'service'},'Service'),h('option',{value:'vignette'},'Vignette'),h('option',{value:'termin'},'Termine'),h('option',{value:'leasing'},'Leasing-Ende'),h('option',{value:'versicherung'},'Versicherung'),h('option',{value:'service_km'},'Service (km)')))
       ,nUeb?h('div',{style:{marginTop:8,fontSize:UI.fKlein,fontWeight:700,color:V.tx}},nUeb+(nUeb===1?' Frist ist':' Fristen sind')+' überfällig.'):null
       ,tmHinweis?h('div',{style:{marginTop:6,fontSize:UI.fMeta,color:V.dm}},tmHinweis):null)
     ,h('div',{style:Object.assign({},CC(),{padding:0,overflow:'hidden'})}
@@ -30464,8 +30494,9 @@ function FlotteFristenPanel(props){
           ,h('span',{style:{color:V.tx,fontSize:UI.fKlein}},r.fahrer||'—')
           ,h('span',{style:{color:V.dm,fontSize:UI.fKlein,flex:'1 1 160px',minWidth:0}},r.hinweis));
       }):h('div',{style:{fontSize:UI.fKlein,color:V.dm}},fahrerZeilen.length?'Alle zugewiesenen Fahrer haben eine passende Klasse erfasst.':'Keinem Fahrzeug ist ein Fahrer zugewiesen.')
-      ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Ablaufdatum und regelmäßige Sichtkontrolle des Führerscheins werden noch nicht erfasst.'))
+      ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},props.zeigeFsKtr?'Ablaufdatum und Sichtkontrolle des Führerscheins: siehe Führerscheinkontrolle unten.':'Ablaufdatum und regelmäßige Sichtkontrolle des Führerscheins sehen Büro, Projektleitung und Admin.'))
     :null
+    ,props.zeigeFsKtr?h(FsKontrolleFristenKarte,{monteure:mon,fahrzeuge:fahrzeuge}):null
   );
 }
 function FlotteKostenPanel(props){
@@ -30474,7 +30505,7 @@ function FlotteKostenPanel(props){
   var _s=_react.useState.call(void 0,'euro12');var sortK=_s[0],setSortK=_s[1];
   var now=Date.now();
   var zeilen=fahrzeuge.filter(function(f){return f&&f.status!=='stillgelegt';}).map(function(f){
-    return {f:f,t:_fzTankStats(f,now),s:_fzServiceStats(f),sch:(Array.isArray(f.schaeden)?f.schaeden:[]).filter(function(x){return x&&x.status==='offen';}).length};
+    return {f:f,t:_fzTankStats(f,now),s:_fzServiceStats(f),fix:_fzFixkosten(f),sch:(Array.isArray(f.schaeden)?f.schaeden:[]).filter(function(x){return x&&x.status==='offen';}).length};
   });
   var num=function(v){return (typeof v==='number'&&isFinite(v))?v:-1;};
   zeilen.sort(function(a,b){
@@ -30486,10 +30517,12 @@ function FlotteKostenPanel(props){
   var sum={euro12:0,euro:0,svc:0,lit:0,litP:0,anz:0};
   zeilen.forEach(function(z){sum.euro12+=z.t.euro12;sum.euro+=z.t.euro;sum.svc+=z.s.euro;sum.lit+=z.t.liter;sum.litP+=z.t.literMitPreis;sum.anz+=z.t.anzahl;});
   var eur=function(v){return (typeof v==='number'&&isFinite(v))?fmt$(v):'—';};
+  var hatFix=zeilen.some(function(z){return !isNaN(z.fix.summe);});/* v1050 Leasing/Versicherung: eigene Spalten, nur wenn irgendwo erfasst */
+  var fixSum=zeilen.reduce(function(s,z){return s+(isNaN(z.fix.summe)?0:z.fix.summe);},0);
   var l100Txt=function(t){if(isNaN(t.l100))return '—';return t.plausibel?(_n(t.l100,1)+' L'):'prüfen';};
   var csv=function(){
-    var z=zeilen.map(function(r){var f=r.f,t=r.t;return [f.kennzeichen||'',((f.marke||'')+' '+(f.modell||'')).trim(),String(t.anzahl),_fzCsvZahl(t.liter,1),_fzCsvZahl(t.euro,2),_fzCsvZahl(t.euro12,2),_fzCsvZahl(t.euroMonat,2),_fzCsvZahl(t.euroProL,3),t.plausibel?_fzCsvZahl(t.l100,1):'',_fzCsvZahl(t.euroKm,3),_fzCsvZahl(r.s.euro,2),t.letzte?_fzDatumAnz(t.letzte):'',String(r.sch)];});
-    _fzCsvLaden(_fzCsv(['Kennzeichen','Fahrzeug','Tankungen','Liter','Tankkosten gesamt €','Tankkosten 12 Monate €','Ø € je Monat','Ø € je Liter','Ø L/100 km','Tank € je km','Servicekosten €','Letzte Tankung','Offene Schäden'],z),'Kosten_Fuhrpark_'+_fzTagKey(now)+'.csv');
+    var z=zeilen.map(function(r){var f=r.f,t=r.t;return [f.kennzeichen||'',((f.marke||'')+' '+(f.modell||'')).trim(),String(t.anzahl),_fzCsvZahl(t.liter,1),_fzCsvZahl(t.euro,2),_fzCsvZahl(t.euro12,2),_fzCsvZahl(t.euroMonat,2),_fzCsvZahl(t.euroProL,3),t.plausibel?_fzCsvZahl(t.l100,1):'',_fzCsvZahl(t.euroKm,3),_fzCsvZahl(r.s.euro,2),t.letzte?_fzDatumAnz(t.letzte):'',String(r.sch),_fzCsvZahl(r.fix.leasing,2),_fzCsvZahl(r.fix.versicherung,2)];});
+    _fzCsvLaden(_fzCsv(['Kennzeichen','Fahrzeug','Tankungen','Liter','Tankkosten gesamt €','Tankkosten 12 Monate €','Ø € je Monat','Ø € je Liter','Ø L/100 km','Tank € je km','Servicekosten €','Letzte Tankung','Offene Schäden','Leasing € je Monat','Versicherung € je Monat (Jahresprämie / 12)'],z),'Kosten_Fuhrpark_'+_fzTagKey(now)+'.csv');
   };
   var kachel=function(wert,label){return h('div',{style:{padding:10,borderRadius:8,border:'1px solid '+V.bd,background:V.cd}},h('div',{style:{fontSize:UI.fZahl,fontWeight:800,color:V.tx}},wert),h('div',{style:{fontSize:UI.fMeta,color:V.dm}},label));};
   var sortBtn=function(k,label){return _fzChipBtn(h,sortK===k,label,function(){setSortK(k);});};
@@ -30504,7 +30537,8 @@ function FlotteKostenPanel(props){
         ,kachel(eur(sum.euro12),'Tankkosten letzte 12 Monate')
         ,kachel(eur(sum.svc),'Servicekosten (Serviceheft)')
         ,kachel(sum.litP>0?(_n(sum.euro/sum.litP,3)+' €'):'—','Ø Literpreis Fuhrpark')
-        ,kachel(String(sum.anz),'Tankungen erfasst'))
+        ,kachel(String(sum.anz),'Tankungen erfasst')
+        ,hatFix?kachel(eur(fixSum),'Leasing + Versicherung je Monat'):null)
       ,h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:10,alignItems:'center'}}
         ,h('span',{style:{fontSize:UI.fMeta,color:V.dm}},'Sortieren:')
         ,sortBtn('euro12','Tankkosten'),sortBtn('l100','Verbrauch'),sortBtn('service','Service'),sortBtn('kennzeichen','Kennzeichen')))
@@ -30514,17 +30548,19 @@ function FlotteKostenPanel(props){
           ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},'Tankkosten 12 Monate · '+t.anzahl+(t.anzahl===1?' Tankung':' Tankungen'))
           ,h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 12px',marginTop:6,fontSize:UI.fKlein,color:V.tx}}
             ,h('span',{},'Ø L/100 km: ',h('b',{},l100Txt(t))),h('span',{},'€/km: ',h('b',{},isNaN(t.euroKm)?'—':_n(t.euroKm,3)))
-            ,h('span',{},'Ø €/Monat: ',h('b',{},eur(t.euroMonat))),h('span',{},'Service: ',h('b',{},eur(r.s.euro)))));}))
+            ,h('span',{},'Ø €/Monat: ',h('b',{},eur(t.euroMonat))),h('span',{},'Service: ',h('b',{},eur(r.s.euro)))
+            ,!isNaN(r.fix.leasing)?h('span',{},'Leasing/Monat: ',h('b',{},eur(r.fix.leasing))):null,!isNaN(r.fix.versicherung)?h('span',{},'Versicherung/Monat: ',h('b',{},eur(r.fix.versicherung))):null));}))
       :h('div',{style:Object.assign({},CC(),{padding:0,overflowX:'auto'})}
         ,h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:UI.fKlein}}
-          ,h('thead',{},h('tr',{},['Kennzeichen','Tankungen','Liter','Tank gesamt','12 Monate','Ø €/Monat','Ø €/L','Ø L/100 km','€/km','Service','Letzte Tankung','Offene Schäden'].map(function(k){return h('th',{key:k,style:thS()},k);})))
+          ,h('thead',{},h('tr',{},['Kennzeichen','Tankungen','Liter','Tank gesamt','12 Monate','Ø €/Monat','Ø €/L','Ø L/100 km','€/km','Service','Letzte Tankung','Offene Schäden'].concat(hatFix?['Leasing €/Monat','Versicherung €/Monat']:[]).map(function(k){return h('th',{key:k,style:thS()},k);})))
           ,h('tbody',{},zeilen.map(function(r){var t=r.t;return h('tr',{key:r.f.id,onClick:function(){if(props.onOpen)props.onOpen(r.f.id);},style:{cursor:'pointer'},title:'Fahrzeug öffnen'}
             ,h('td',{style:Object.assign({},tdSt(),{textAlign:'left',fontWeight:800,whiteSpace:'nowrap'})},r.f.kennzeichen||'?')
             ,td(String(t.anzahl)),td(t.liter>0?_n(t.liter,0):'—'),td(eur(t.euro)),td(eur(t.euro12),{fontWeight:700}),td(eur(t.euroMonat)),td(isNaN(t.euroProL)?'—':_n(t.euroProL,3))
-            ,td(l100Txt(t),t.plausibel?null:{color:V.tx,fontStyle:'italic'}),td(isNaN(t.euroKm)?'—':_n(t.euroKm,3)),td(eur(r.s.euro)),td(t.letzte?_fzDatumAnz(t.letzte):'—'),td(String(r.sch)));}))))
+            ,td(l100Txt(t),t.plausibel?null:{color:V.tx,fontStyle:'italic'}),td(isNaN(t.euroKm)?'—':_n(t.euroKm,3)),td(eur(r.s.euro)),td(t.letzte?_fzDatumAnz(t.letzte):'—'),td(String(r.sch)),hatFix?td(eur(r.fix.leasing)):null,hatFix?td(eur(r.fix.versicherung)):null);}))))
     ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8,lineHeight:1.5}}
       ,'Ø L/100 km aus Tankungen mit km-Stand; die erste Tankung zählt nicht mit (ihr Kraftstoff wurde davor verfahren). „prüfen" = Wert außerhalb 2–60 L/100 km, meist ein Tippfehler beim km-Stand.'
-      ,ohneKm?(' '+ohneKm+(ohneKm===1?' Tankung ohne':' Tankungen ohne')+' km-Stand fließen in Kosten, nicht in den Verbrauch ein.'):'')
+      ,ohneKm?(' '+ohneKm+(ohneKm===1?' Tankung ohne':' Tankungen ohne')+' km-Stand fließen in Kosten, nicht in den Verbrauch ein.'):''
+      ,hatFix?' Leasing und Versicherung sind Fixkosten je Monat und NICHT in den Tankkosten enthalten; Versicherung = Jahresprämie ÷ 12.':'')
   );
 }
 function FahrzeugAkteKarte(props){
@@ -30579,6 +30615,389 @@ function FahrzeugAkteKarte(props){
   );
 }
 //@FLOTTE-AUSBAU-END
+//@FLOTTE-STAMM-START
+/* v1050 Fahrzeug-Stammdaten (Leasing, Versicherung, Reifen, Service-Intervall) + Fuehrerscheinkontrolle (Halterpflicht).
+   Schema live seit 19.11.2026: fahrzeuge +11 Spalten, neue Tabelle fz_fs_kontrollen (RLS: Lesen is_hr oder eigene Zeilen, Schreiben nur is_hr).
+   Regeln, die hier gelten:
+   - date-Spalten nehmen KEIN '' -> leer = null. Zahlen: leer = null, nie NaN und nie '' (CHECK lehnt negative Werte und Intervall 0 ab).
+   - Geschrieben wird NUR ueber die vorhandene Warteschlange: Fahrzeug = upd() -> PUT /api/fahrzeuge/{id} mit NUR den geaenderten Spalten;
+     Kontrolle = SQ.push POST /api/fz-fs-kontrollen mit Client-id -> generischer Weg -> _sbInsertIfAbsent (idempotent wie fz_termine seit v1044).
+   - Nachweisfoto nur online in den PRIVATEN Speicher (_dateiZiel -> epkolar-docs, Verweis sbpriv:...), nie base64 in der Zeile.
+   - Spalten-Sniff wie bei tracker_*: traegt der geladene Datensatz die neuen Spalten nicht, bleibt das Formular gesperrt (kein 400 aus PostgREST).
+   Kein optional chaining. */
+var FZ_STAMM_FELDER={
+  leasing_geber:{typ:'text',label:'Leasinggeber',max:120},
+  leasing_ende:{typ:'date',label:'Leasing-Ende'},
+  leasing_rate:{typ:'geld',label:'Leasingrate € / Monat'},
+  leasing_km_limit:{typ:'int',label:'km-Limit Leasing (gesamt)',min:0},
+  versicherung_polizze:{typ:'text',label:'Polizzennummer',max:80},
+  versicherung_ablauf:{typ:'date',label:'Versicherung läuft ab'},
+  versicherung_praemie:{typ:'geld',label:'Versicherungsprämie € / Jahr'},
+  reifen_saison:{typ:'wahl',label:'Reifen montiert',werte:['sommer','winter','ganzjahr']},
+  reifen_lager:{typ:'text',label:'Reifen eingelagert bei',max:120},
+  service_km_intervall:{typ:'int',label:'Service-Intervall (km)',min:1},
+  naechst_service_km:{typ:'int',label:'Nächstes Service bei km',min:0}
+};
+var FZ_STAMM_FINANZ=['leasing_geber','leasing_ende','leasing_rate','leasing_km_limit','versicherung_polizze','versicherung_ablauf','versicherung_praemie'];
+var FZ_STAMM_REIFEN=['reifen_saison','reifen_lager','service_km_intervall','naechst_service_km'];
+var FZ_REIFEN_TXT={sommer:'Sommer',winter:'Winter',ganzjahr:'Ganzjahr'};
+function _fzStammWert(feld,roh){/* Eingabe/DB-Wert -> {ok,wert,fehler}. wert ist IMMER null oder ein gueltiger Spaltenwert: nie '' bei date/Zahl, nie NaN. */
+  var d=FZ_STAMM_FELDER[feld];
+  if(!d)return {ok:false,wert:null,fehler:'unbekanntes Feld'};
+  if(typeof roh==='number'&&!isFinite(roh))return {ok:false,wert:null,fehler:'keine Zahl'};
+  var s=(roh===null||roh===undefined||typeof roh==='boolean')?'':String(roh).trim();
+  if(!s)return {ok:true,wert:null,fehler:''};
+  if(s.indexOf('data:')===0)return {ok:false,wert:null,fehler:'keine Dateien in Stammdaten'};
+  if(d.typ==='text')return {ok:true,wert:s.slice(0,d.max||200),fehler:''};
+  if(d.typ==='wahl')return d.werte.indexOf(s)>=0?{ok:true,wert:s,fehler:''}:{ok:false,wert:null,fehler:'ungültige Auswahl'};
+  if(d.typ==='date'){
+    var de=/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s);
+    if(de)s=de[3]+'-'+(de[2].length<2?'0':'')+de[2]+'-'+(de[1].length<2?'0':'')+de[1];
+    var t=_fzDatumTeile(s);
+    if(!t||!/^\d{4}-\d{2}-\d{2}(T|\s|$)/.test(s))return {ok:false,wert:null,fehler:'Datum unplausibel'};
+    return {ok:true,wert:t.iso,fehler:''};
+  }
+  var z=s.replace(/\s/g,'').replace(/€/g,'');
+  if(/^\d{1,3}(\.\d{3})+$/.test(z))z=z.replace(/\./g,'');/* 15.000 = fuenfzehntausend, nicht 15 */
+  if(d.typ==='int'){
+    if(/^\d+[.,]0+$/.test(z))z=z.replace(/[.,]0+$/,'');/* "15000.0" aus einer numerischen DB-Antwort */
+    if(!/^\d+$/.test(z))return {ok:false,wert:null,fehler:(/^-/.test(z)?'nicht negativ':'nur ganze Zahl')};
+    var n=parseInt(z,10);
+    if(!(n<=2147483647))return {ok:false,wert:null,fehler:'Zahl zu groß'};
+    if(typeof d.min==='number'&&n<d.min)return {ok:false,wert:null,fehler:(d.min>0?'muss größer als 0 sein':'nicht negativ')};
+    return {ok:true,wert:n,fehler:''};
+  }
+  var g=_fzZahl(z);
+  if(isNaN(g))return {ok:false,wert:null,fehler:'keine Zahl'};
+  if(g<0)return {ok:false,wert:null,fehler:'nicht negativ'};
+  if(g>=1e8)return {ok:false,wert:null,fehler:'Zahl zu groß'};
+  return {ok:true,wert:Math.round(g*100)/100,fehler:''};
+}
+function _fzStammAnzeige(feld,v){/* DB-Wert -> Text fuer das Eingabefeld ('' fuer leer, nie "null"/"NaN") */
+  var r=_fzStammWert(feld,v);
+  if(!r.ok)return (v===null||v===undefined)?'':String(v);
+  if(r.wert===null)return '';
+  var d=FZ_STAMM_FELDER[feld];
+  if(d.typ==='geld')return String(r.wert).replace('.',',');
+  return String(r.wert);
+}
+function _fzStammPruef(body){/* letzter Riegel vor der Warteschlange: [] = sauber, sonst Liste der Verstoesse ('' in date, NaN, negativ, Datei ...) */
+  var v=[];if(!body||typeof body!=='object')return ['kein Datensatz'];
+  Object.keys(body).forEach(function(k){
+    var d=FZ_STAMM_FELDER[k];var x=body[k];
+    if(!d){v.push(k+': unbekannte Spalte');return;}
+    if(x===null)return;
+    if(d.typ==='date'){if(!(typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&_fzDatumTeile(x)))v.push(k+': Datum muss JJJJ-MM-TT oder null sein');return;}
+    if(d.typ==='int'){if(!(typeof x==='number'&&isFinite(x)&&Math.floor(x)===x&&x>=(d.min||0)))v.push(k+': ganze Zahl >= '+(d.min||0)+' oder null');return;}
+    if(d.typ==='geld'){if(!(typeof x==='number'&&isFinite(x)&&x>=0))v.push(k+': Betrag >= 0 oder null');return;}
+    if(d.typ==='wahl'){if(d.werte.indexOf(x)<0)v.push(k+': ungültige Auswahl');return;}
+    if(typeof x!=='string'||x===''||x.indexOf('data:')===0)v.push(k+': Text oder null');
+  });
+  return v;
+}
+function _fzStammBody(f,entwurf,felder){/* -> {body,fehler,anzahl}: NUR geaenderte Spalten, normalisiert. Unveraendert = nicht im Rumpf (kein Ueberschreiben paralleler Aenderungen). */
+  var body={},fehler={};var src=f||{};var e=entwurf||{};
+  (felder||Object.keys(FZ_STAMM_FELDER)).forEach(function(k){
+    if(!FZ_STAMM_FELDER[k]||!Object.prototype.hasOwnProperty.call(e,k))return;
+    var neu=_fzStammWert(k,e[k]);
+    if(!neu.ok){fehler[k]=neu.fehler;return;}
+    var alt=_fzStammWert(k,src[k]);
+    if(!alt.ok||alt.wert!==neu.wert)body[k]=neu.wert;
+  });
+  var riegel=_fzStammPruef(body);
+  if(riegel.length)fehler._riegel=riegel.join('; ');
+  return {body:body,fehler:fehler,anzahl:Object.keys(body).length};
+}
+function _fzStammSpalten(fahrzeuge){/* Spalten-Sniff: true, sobald ein geladener Datensatz die neuen Spalten traegt */
+  return (fahrzeuge||[]).some(function(f){return f&&Object.prototype.hasOwnProperty.call(f,'leasing_ende')&&Object.prototype.hasOwnProperty.call(f,'naechst_service_km');});
+}
+
+/* ── Fuehrerscheinkontrolle: reine Rechner ── */
+var FS_KTR_ERGEBNIS={ok:'in Ordnung',mangel:'Mangel',entzogen:'entzogen'};
+var FS_KTR_RANG={entzogen:0,abgelaufen:1,alt:2,fehlt:3,mangel:4,bald:5,ok:6};
+var FS_KTR_TXT={entzogen:'entzogen',abgelaufen:'abgelaufen',alt:'Kontrolle fällig',fehlt:'nie kontrolliert',mangel:'Mangel',bald:'läuft bald ab',ok:'in Ordnung'};
+function _fsPlusMonate(iso,n){/* 'JJJJ-MM-TT' + n Kalendermonate (Monatsende geklemmt: 31.08. + 6 = 28./29.02.); '' bei ungueltig */
+  var t=_fzDatumTeile(iso);if(!t)return '';
+  var m0=t.m-1+n;var ty=t.y+Math.floor(m0/12),tm=((m0%12)+12)%12;
+  var last=new Date(ty,tm+1,0).getDate();var d=Math.min(t.d,last);
+  return ty+'-'+(tm<9?'0':'')+(tm+1)+'-'+(d<10?'0':'')+d;
+}
+function _fsKtrSortiert(rows){/* neueste zuerst: geprueft_am, dann created_at; Zeilen ohne gueltiges Datum ans Ende */
+  return (rows||[]).filter(function(r){return !!r;}).slice().sort(function(a,b){
+    var da=_fzDatumTeile(a.geprueft_am),db=_fzDatumTeile(b.geprueft_am);
+    if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;
+    if(da.iso!==db.iso)return da.iso<db.iso?1:-1;
+    var ca=String(a.created_at||''),cb=String(b.created_at||'');
+    return ca===cb?0:(ca<cb?1:-1);
+  });
+}
+function _fsKtrStatus(rows,nowMs){/* letzte Kontrolle eines Mitarbeiters -> {stufe,letzte,hinweis,faelligAm,tageKtr,gueltigTage}.
+     Halterpflicht: Sichtkontrolle alle 6 Monate; Fuehrerschein gueltig_bis innerhalb 60 Tagen = bald, vorbei = abgelaufen. */
+  var gl=_fsKtrSortiert(rows).filter(function(r){return !!_fzDatumTeile(r.geprueft_am);});
+  if(!gl.length)return {stufe:'fehlt',letzte:null,hinweis:'noch keine Kontrolle erfasst',faelligAm:'',tageKtr:NaN,gueltigTage:NaN};
+  var l=gl[0];var iso=_fzDatumTeile(l.geprueft_am).iso;
+  var faellig=_fsPlusMonate(iso,6);var tk=_fzTageBis(faellig,nowMs);
+  var gb=_fzDatumTeile(l.gueltig_bis);var tg=gb?_fzTageBis(gb.iso,nowMs):NaN;
+  var stufe='ok',hw=[];
+  var setze=function(s,txt){if(FS_KTR_RANG[s]<FS_KTR_RANG[stufe])stufe=s;hw.push(txt);};
+  if(l.ergebnis==='entzogen')setze('entzogen','Lenkberechtigung entzogen (Kontrolle '+_fzDatumAnz(iso)+')');
+  if(!isNaN(tg)&&tg<0)setze('abgelaufen','Führerschein abgelaufen seit '+_fzDatumAnz(gb.iso));
+  else if(!isNaN(tg)&&tg<=60)setze('bald','Führerschein gültig bis '+_fzDatumAnz(gb.iso)+' ('+_fzTageTxt(tg)+')');
+  if(!isNaN(tk)&&tk<0)setze('alt','letzte Kontrolle '+_fzDatumAnz(iso)+' - älter als 6 Monate');
+  if(l.ergebnis==='mangel')setze('mangel','Mangel bei der Kontrolle am '+_fzDatumAnz(iso));
+  if(!hw.length)hw.push('kontrolliert am '+_fzDatumAnz(iso)+' · nächste bis '+_fzDatumAnz(faellig));
+  return {stufe:stufe,letzte:l,hinweis:hw.join(' · '),faelligAm:faellig,tageKtr:tk,gueltigTage:tg};
+}
+function _fsKtrFaellig(monteure,fahrzeuge,rows,nowMs){/* -> [{mid,name,stufe,hinweis,...}] dringendste zuerst.
+     Im Blick: aktive Mitarbeiter, die Fahrer eines aktiven Fahrzeugs sind ODER schon eine Kontrolle haben. Ausgetretene fallen raus. */
+  var heute=_fzTagKey(nowMs);var fahrer={};var byM={};var out=[];
+  (fahrzeuge||[]).forEach(function(f){if(f&&f.fahrer&&f.status!=='stillgelegt'&&f.typ!=='Anhänger')fahrer[f.fahrer]=1;});
+  (rows||[]).forEach(function(r){if(r&&r.monteur_id){(byM[r.monteur_id]=byM[r.monteur_id]||[]).push(r);}});
+  (monteure||[]).forEach(function(m){
+    if(!m||!m.id)return;
+    var aus=_fzDatumTeile(m.austritt);if(aus&&heute&&aus.iso<heute)return;
+    if(!fahrer[m.id]&&!byM[m.id])return;
+    var st=_fsKtrStatus(byM[m.id]||[],nowMs);
+    out.push(Object.assign({mid:m.id,name:(String(m.n||'')+(m.vorname?(' '+m.vorname):'')).trim()||String(m.id),fahrer:!!fahrer[m.id]},st));
+  });
+  out.sort(function(a,b){return (FS_KTR_RANG[a.stufe]-FS_KTR_RANG[b.stufe])||a.name.localeCompare(b.name);});
+  return out;
+}
+function _fsKtrNeu(e,monteurId,id){/* Formular -> {ok,row,fehler}. Leere Datumsfelder = null (date-Spalte nimmt kein ''), keine Datei im Text. */
+  e=e||{};var fehler={};
+  var gp=_fzDatumTeile(e.geprueft_am);
+  if(!gp||!/^\d{4}-\d{2}-\d{2}$/.test(String(e.geprueft_am||'').trim()))fehler.geprueft_am='Datum der Kontrolle fehlt oder ist unplausibel';
+  var erg=String(e.ergebnis||'ok');if(!FS_KTR_ERGEBNIS[erg])fehler.ergebnis='ungültiges Ergebnis';
+  var gbS=String(e.gueltig_bis===null||e.gueltig_bis===undefined?'':e.gueltig_bis).trim();var gb=gbS?_fzDatumTeile(gbS):null;
+  if(gbS&&(!gb||!/^\d{4}-\d{2}-\d{2}$/.test(gbS)))fehler.gueltig_bis='Datum unplausibel';
+  if(!monteurId)fehler.monteur_id='kein Mitarbeiter gewählt';
+  var txt=function(k,max){var s=String(e[k]===null||e[k]===undefined?'':e[k]).trim();if(s.indexOf('data:')===0){fehler[k]='keine Datei als Text';return null;}return s?s.slice(0,max):null;};
+  var row={id:id||null,monteur_id:monteurId||null,geprueft_am:gp?gp.iso:null,ergebnis:erg,klassen:txt('klassen',120),gueltig_bis:gb?gb.iso:null,pruefer:txt('pruefer',120),notiz:txt('notiz',500)};
+  var ok=!Object.keys(fehler).length;
+  return {ok:ok,row:ok?row:null,fehler:fehler};
+}
+var _fsKtrCache={};/* id -> Zeile; geladene + eben erfasste (noch in der Warteschlange) Kontrollen. Nur Sitzungsspeicher, kein localStorage (Personaldaten). */
+function _fsKtrMerken(rows){(rows||[]).forEach(function(r){if(r&&r.id)_fsKtrCache[r.id]=r;});}
+function _fsKtrAusCache(mid){return Object.keys(_fsKtrCache).map(function(k){return _fsKtrCache[k];}).filter(function(r){return r&&(!mid||r.monteur_id===mid);});}
+function _fsKtrChip(stufe,h){
+  var bg=(stufe==='entzogen'||stufe==='abgelaufen'||stufe==='alt')?COLORS.ERROR_FILL:(stufe==='fehlt'||stufe==='mangel')?COLORS.WARNING_FILL:stufe==='bald'?COLORS.INFO_FILL:UI.markeTxt;
+  return h('span',{style:{display:'inline-block',flexShrink:0,minWidth:112,textAlign:'center',padding:'3px 8px',borderRadius:UI.rChip,background:bg,color:'#fff',fontSize:UI.fMeta,fontWeight:700,whiteSpace:'nowrap'}},FS_KTR_TXT[stufe]||stufe);
+}
+
+/* ── Fahrzeug-Detail: Stammdaten-Karte ── */
+function FahrzeugStammKarte(props){
+  var h=React.createElement;
+  var f=props.f||{};
+  var felderAus=function(x){var o={};Object.keys(FZ_STAMM_FELDER).forEach(function(k){o[k]=_fzStammAnzeige(k,x[k]);});return o;};
+  var _e=_react.useState.call(void 0,function(){return felderAus(f);});var entwurf=_e[0],setEntwurf=_e[1];
+  var _d=_react.useState.call(void 0,false);var dirty=_d[0],setDirty=_d[1];
+  var _fe=_react.useState.call(void 0,{});var fehler=_fe[0],setFehler=_fe[1];
+  var _o=_react.useState.call(void 0,!!props.offenStart);var offen=_o[0],setOffen=_o[1];
+  _react.useEffect.call(void 0,function(){if(!dirty)setEntwurf(felderAus(f));},[f]);
+  if(!props.f)return null;
+  var spaltenDa=!!props.spaltenDa,siehtFinanz=!!props.siehtFinanz;
+  var darfFinanz=spaltenDa&&!!props.darfFinanz,darfReifen=spaltenDa&&!!props.darfReifen;
+  var isMob=!!props.isMob;
+  var setze=function(k,v){setEntwurf(function(p){var n=Object.assign({},p);n[k]=v;return n;});setDirty(true);setFehler(function(p){var n=Object.assign({},p);delete n[k];delete n._riegel;return n;});};
+  var editierbar=(darfFinanz?FZ_STAMM_FINANZ:[]).concat(darfReifen?FZ_STAMM_REIFEN:[]);
+  var vorschau=_fzStammBody(f,entwurf,editierbar);
+  var speichern=function(){
+    var r=_fzStammBody(f,entwurf,editierbar);
+    if(Object.keys(r.fehler).length){setFehler(r.fehler);if(window.__toast)window.__toast('Bitte die markierten Felder prüfen','error',4000);return;}
+    if(!r.anzahl){setDirty(false);return;}
+    if(props.onSpeichern)props.onSpeichern(r.body);
+    setDirty(false);setFehler({});
+    if(window.__toast)window.__toast((typeof navigator!=='undefined'&&navigator.onLine===false)?'Gespeichert - wird übertragen, sobald wieder Netz da ist':'Stammdaten gespeichert','success',3000);
+  };
+  var verwerfen=function(){setEntwurf(felderAus(f));setDirty(false);setFehler({});};
+  var lesen=function(k){
+    var r=_fzStammWert(k,f[k]);var d=FZ_STAMM_FELDER[k];
+    if(!r.ok)return String(f[k]);
+    if(r.wert===null)return '—';
+    if(d.typ==='date')return _fzDatumAnz(r.wert);
+    if(d.typ==='geld')return fmt$(r.wert);
+    if(d.typ==='int')return String(r.wert).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+((k==='leasing_km_limit'||k==='service_km_intervall'||k==='naechst_service_km')?' km':'');
+    if(d.typ==='wahl')return FZ_REIFEN_TXT[r.wert]||r.wert;
+    return r.wert;
+  };
+  var feld=function(k,darf){
+    var d=FZ_STAMM_FELDER[k];var fx=fehler[k];var id='fzst_'+k;
+    var inp;
+    if(!darf)inp=h('div',{style:{fontSize:13,color:V.tx,minHeight:24,fontFamily:(d.typ==='int'||d.typ==='geld')?mono:'inherit'}},lesen(k));
+    else if(d.typ==='wahl')inp=h('select',{id:id,value:entwurf[k]||'',onChange:function(ev){setze(k,ev.target.value);},style:Object.assign({},II(),{minHeight:44})}
+      ,h('option',{value:''},'— nicht erfasst —'),d.werte.map(function(w){return h('option',{key:w,value:w},FZ_REIFEN_TXT[w]||w);}));
+    else inp=h('input',{id:id,type:d.typ==='date'?'date':'text',inputMode:d.typ==='int'?'numeric':(d.typ==='geld'?'decimal':undefined),value:entwurf[k]||'',
+      onChange:function(ev){setze(k,ev.target.value);},'aria-invalid':fx?'true':'false',
+      style:Object.assign({},II(),{minHeight:44},fx?{borderColor:COLORS.ERROR}:{},(d.typ==='int'||d.typ==='geld')?{fontFamily:mono}:{})});
+    return h('div',{key:k,style:{minWidth:0}}
+      ,h('label',{htmlFor:darf?id:undefined,style:LL()},d.label)
+      ,inp
+      ,fx?h('div',{role:'alert',style:{fontSize:UI.fMeta,color:COLORS.ERROR,marginTop:2,fontWeight:600}},fx):null);
+  };
+  var gruppe=function(titel,ikon,felder,darf,extra){
+    return h('div',{style:{marginTop:10}}
+      ,h('div',{style:{fontSize:UI.fKlein,fontWeight:800,color:V.tx,display:'flex',alignItems:'center',gap:6,marginBottom:6}},_ik(ikon,16),titel)
+      ,h('div',{style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(auto-fit,minmax(180px,1fr))',gap:8}},felder.map(function(k){return feld(k,darf);}))
+      ,extra||null);
+  };
+  /* Hinweis Service-km: Ist-Stand und Restweg, nur wenn beides erfasst ist */
+  var kmIst=_fzZahl(f.kmStand),ziel=_fzZahl(f.naechst_service_km);
+  var kmHinweis=(kmIst>0&&ziel>0)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Aktueller km-Stand '+String(Math.round(kmIst)).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' km - '+(ziel-kmIst>0?('noch '+String(Math.round(ziel-kmIst)).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' km bis zum Service'):'Service-km erreicht')):null;
+  var vorschlag=null;
+  if(darfReifen){
+    var iv=_fzStammWert('service_km_intervall',entwurf.service_km_intervall);
+    if(iv.ok&&iv.wert>0&&kmIst>0&&!String(entwurf.naechst_service_km||'').trim())
+      vorschlag=h('button',{type:'button',onClick:function(){setze('naechst_service_km',String(Math.round(kmIst)+iv.wert));},style:Object.assign({},bsS(),{minHeight:44,marginTop:6})},'Nächstes Service = km-Stand + Intervall');
+  }
+  var zusammen=[];
+  if(siehtFinanz){var lr=_fzStammWert('leasing_rate',f.leasing_rate);var le=_fzStammWert('leasing_ende',f.leasing_ende);if(le.ok&&le.wert)zusammen.push('Leasing bis '+_fzDatumAnz(le.wert));else if(lr.ok&&lr.wert!==null)zusammen.push('Leasing');var va=_fzStammWert('versicherung_ablauf',f.versicherung_ablauf);if(va.ok&&va.wert)zusammen.push('Versicherung bis '+_fzDatumAnz(va.wert));}
+  var rs=_fzStammWert('reifen_saison',f.reifen_saison);if(rs.ok&&rs.wert)zusammen.push({sommer:'Sommerreifen',winter:'Winterreifen',ganzjahr:'Ganzjahresreifen'}[rs.wert]||rs.wert);
+  var sk=_fzStammWert('naechst_service_km',f.naechst_service_km);if(sk.ok&&sk.wert!==null)zusammen.push('Service bei '+lesen('naechst_service_km'));
+  var kannSpeichern=editierbar.length>0;
+  return h('div',{style:Object.assign({},CC(),{marginTop:8})}
+    ,h('button',{type:'button',onClick:function(){setOffen(function(v){return !v;});},'aria-expanded':offen?'true':'false',
+      style:{width:'100%',minHeight:44,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'4px 2px',border:'none',background:'transparent',color:V.tx,cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}
+      ,h('span',{style:{display:'flex',alignItems:'center',gap:8,minWidth:0,flex:1}},_ik('aktentasche',18)
+        ,h('span',{style:{minWidth:0}},h('span',{style:{fontSize:15,fontWeight:700,display:'block'}},siehtFinanz?'Leasing, Versicherung, Reifen':'Reifen & Service-Intervall')
+          ,h('span',{style:{fontSize:UI.fMeta,color:V.dm,display:'block'}},zusammen.length?zusammen.join(' · '):'noch nichts erfasst')))
+      ,h('span',{'aria-hidden':'true',style:{transform:offen?'rotate(180deg)':'none',transition:'transform .2s'}},'▼'))
+    ,offen?h('div',{}
+      ,!spaltenDa?h('div',{style:{fontSize:UI.fKlein,color:V.tx,padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,marginTop:6}},'Die neuen Stammdaten-Felder sind auf diesem Gerät noch nicht geladen. Bitte online die App neu laden - bis dahin wird hier nichts gespeichert.'):null
+      ,siehtFinanz?gruppe('Leasing & Versicherung','aktentasche',FZ_STAMM_FINANZ,darfFinanz,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Leasingrate je Monat, Versicherungsprämie je Jahr. Beides erscheint in „Kosten" als eigene Spalten, getrennt von den Tankkosten.')):null
+      ,gruppe('Reifen & Service-Intervall','werkzeug',FZ_STAMM_REIFEN,darfReifen,h('div',{},kmHinweis,vorschlag))
+      ,kannSpeichern?h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:12,alignItems:'center'}}
+        ,h('button',{type:'button',onClick:speichern,disabled:!dirty,style:Object.assign({},bpS,{minHeight:44,opacity:dirty?1:.5,display:'inline-flex',alignItems:'center',gap:6})},_ik('speichern',16),'Speichern')
+        ,dirty?h('button',{type:'button',onClick:verwerfen,style:Object.assign({},bsS(),{minHeight:44})},'Verwerfen'):null
+        ,dirty&&vorschau.anzahl?h('span',{style:{fontSize:UI.fMeta,color:V.dm}},vorschau.anzahl+(vorschau.anzahl===1?' Feld geändert':' Felder geändert')):null
+        ,fehler._riegel?h('div',{role:'alert',style:{fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:600,width:'100%'}},fehler._riegel):null)
+      :(spaltenDa?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8}},'Ändern dürfen Büro, Projektleitung und Admin (Reifen/Service auch der eingetragene Fahrer).'):null))
+    :null);
+}
+
+/* ── Mitarbeiter-Detail: Fuehrerscheinkontrolle (nur Buero/PL/Admin) ── */
+function FsKontrolleSection(props){
+  var h=React.createElement;
+  var m=props.monteur||{};var cu=props.curUser||{};var mid=m.id||'';
+  var leer=function(){return {geprueft_am:td2(),ergebnis:'ok',klassen:String(m.fs||''),gueltig_bis:'',pruefer:String(cu.name||''),notiz:''};};
+  var _r=_react.useState.call(void 0,function(){return _fsKtrAusCache(mid);});var rows=_r[0],setRows=_r[1];
+  var _s=_react.useState.call(void 0,'laedt');var status=_s[0],setStatus=_s[1];
+  var _f=_react.useState.call(void 0,false);var formOffen=_f[0],setFormOffen=_f[1];
+  var _e=_react.useState.call(void 0,leer);var ent=_e[0],setEnt=_e[1];
+  var _fe=_react.useState.call(void 0,{});var fehler=_fe[0],setFehler=_fe[1];
+  var _p=_react.useState.call(void 0,'');var foto=_p[0],setFoto=_p[1];
+  var _b=_react.useState.call(void 0,false);var busy=_b[0],setBusy=_b[1];
+  var fotoRef=_react.useRef.call(void 0,null);
+  _react.useEffect.call(void 0,function(){
+    var lebt=true;setRows(_fsKtrAusCache(mid));
+    if(!mid){setStatus('ok');return;}
+    if(typeof navigator!=='undefined'&&navigator.onLine===false){setStatus('offline');return;}
+    setStatus('laedt');
+    _sbGet('fz_fs_kontrollen','monteur_id=eq.'+encodeURIComponent(mid)+'&order=geprueft_am.desc,created_at.desc').then(function(d){
+      if(!lebt)return;_fsKtrMerken(Array.isArray(d)?d:[]);setRows(_fsKtrAusCache(mid));setStatus('ok');
+    },function(){if(lebt)setStatus('fehler');});
+    return function(){lebt=false;};
+  },[mid]);
+  if(!_maStaffRolle(cu)||!mid)return null;
+  var liste=_fsKtrSortiert(rows);
+  var st=_fsKtrStatus(liste,Date.now());
+  var setze=function(k,v){setEnt(function(p){var n=Object.assign({},p);n[k]=v;return n;});setFehler(function(p){var n=Object.assign({},p);delete n[k];return n;});};
+  var fotoWahl=function(ev){
+    var file=ev.target.files&&ev.target.files[0];try{ev.target.value='';}catch(_x){}
+    if(!file)return;
+    _fotoAufbereiten(file,1600,0.82).then(function(ph){setFoto(ph&&ph.dataUrl||'');},function(){});
+  };
+  var speichern=async function(){
+    if(busy)return;
+    var id=uid();var v=_fsKtrNeu(ent,mid,id);
+    if(!v.ok){setFehler(v.fehler);return;}
+    var row=Object.assign({},v.row,{created_at:new Date().toISOString()});
+    setBusy(true);
+    try{
+      if(foto){
+        if(typeof navigator!=='undefined'&&navigator.onLine===false){if(window.__toast)window.__toast('Das Nachweisfoto braucht Internet. Foto entfernen, um die Kontrolle jetzt offline zu speichern.','error',7000);setBusy(false);return;}
+        var z=_dateiZiel('fz_fs_kontrollen','nachweis',id,foto);
+        try{await _sbDateiHoch(z.bucket,z.pfad,foto);}catch(upErr){if(window.__toast)window.__toast('Nachweisfoto konnte nicht hochgeladen werden - Kontrolle NICHT gespeichert. Bitte erneut versuchen oder Foto entfernen.','error',8000);setBusy(false);return;}
+        row.nachweis_path=z.ref;
+      }
+      SQ.push({url:'/api/fz-fs-kontrollen',method:'POST',body:row});
+      _fsKtrMerken([row]);setRows(_fsKtrAusCache(mid));
+      setEnt(leer());setFoto('');setFormOffen(false);setFehler({});
+      if(window.__toast)window.__toast('Führerscheinkontrolle erfasst','success',3000);
+    }finally{setBusy(false);}
+  };
+  var nachweis=async function(r){
+    try{var u=await _dateiSigniert(r.nachweis_path,300);if(!u)throw new Error('kein Zugriff');_openFileUrl(u,'Nachweis Führerscheinkontrolle');}
+    catch(e){if(window.__toast)window.__toast('Nachweis konnte nicht geöffnet werden','error',4000);}
+  };
+  var lbl=function(t,id){return h('label',{htmlFor:id,style:LL()},t);};
+  var err=function(k){return fehler[k]?h('div',{role:'alert',style:{fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:600,marginTop:2}},fehler[k]):null;};
+  var stHinweis=status==='offline'?'Offline: angezeigt werden nur bereits geladene oder eben erfasste Kontrollen.':status==='fehler'?'Kontrollen konnten nicht geladen werden.':status==='laedt'?'Kontrollen werden geladen …':'';
+  return h('div',{style:Object.assign({},CC(),{marginTop:14})}
+    ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:8}}
+      ,h('div',{style:{fontSize:15,fontWeight:700,flex:1,display:'flex',alignItems:'center',gap:8,minWidth:180}},_ik('schild',18),'Führerscheinkontrolle')
+      ,!formOffen?h('button',{type:'button',onClick:function(){setEnt(leer());setFehler({});setFormOffen(true);},style:Object.assign({},bpS,{minHeight:44,display:'inline-flex',alignItems:'center',gap:6})},_ik('plus',16),'Kontrolle erfassen'):null)
+    ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:8}},_fsKtrChip(st.stufe,h),h('span',{style:{fontSize:UI.fKlein,color:V.tx,flex:'1 1 200px',minWidth:0}},st.hinweis))
+    ,stHinweis?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:6}},stHinweis):null
+    ,formOffen?h('div',{style:{padding:10,borderRadius:8,border:'1px solid '+V.bd,marginBottom:10}}
+      ,h('div',{style:{display:'grid',gridTemplateColumns:props.isMob?'1fr':'repeat(auto-fit,minmax(170px,1fr))',gap:8}}
+        ,h('div',{},lbl('Geprüft am *','fsk_dat'),h('input',{id:'fsk_dat',type:'date',value:ent.geprueft_am||'',onChange:function(ev){setze('geprueft_am',ev.target.value);},style:Object.assign({},II(),{minHeight:44})}),err('geprueft_am'))
+        ,h('div',{},lbl('Ergebnis','fsk_erg'),h('select',{id:'fsk_erg',value:ent.ergebnis||'ok',onChange:function(ev){setze('ergebnis',ev.target.value);},style:Object.assign({},II(),{minHeight:44})},Object.keys(FS_KTR_ERGEBNIS).map(function(k){return h('option',{key:k,value:k},FS_KTR_ERGEBNIS[k]);})),err('ergebnis'))
+        ,h('div',{},lbl('Klassen laut Führerschein','fsk_kl'),h('input',{id:'fsk_kl',value:ent.klassen||'',onChange:function(ev){setze('klassen',ev.target.value);},placeholder:'z.B. B,BE,C1',style:Object.assign({},II(),{minHeight:44})}),err('klassen'))
+        ,h('div',{},lbl('Führerschein gültig bis','fsk_gb'),h('input',{id:'fsk_gb',type:'date',value:ent.gueltig_bis||'',onChange:function(ev){setze('gueltig_bis',ev.target.value);},style:Object.assign({},II(),{minHeight:44})}),err('gueltig_bis'))
+        ,h('div',{},lbl('Geprüft von','fsk_pr'),h('input',{id:'fsk_pr',value:ent.pruefer||'',onChange:function(ev){setze('pruefer',ev.target.value);},style:Object.assign({},II(),{minHeight:44})}),err('pruefer')))
+      ,h('div',{style:{marginTop:8}},lbl('Notiz','fsk_no'),h('input',{id:'fsk_no',value:ent.notiz||'',onChange:function(ev){setze('notiz',ev.target.value);},placeholder:'optional',style:Object.assign({},II(),{minHeight:44})}),err('notiz'))
+      ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginTop:8}}
+        ,h('button',{type:'button',onClick:function(){if(fotoRef.current)fotoRef.current.click();},style:Object.assign({},bsS(),{minHeight:44})},_ikVw('kamera',foto?'Foto ersetzen':'Nachweisfoto (optional)'))
+        ,h('input',{ref:fotoRef,type:'file',accept:'image/*',capture:'environment',style:{display:'none'},onChange:fotoWahl})
+        ,foto?h('img',{src:foto,alt:'Nachweis',style:{maxWidth:96,maxHeight:64,borderRadius:6,border:'1px solid '+V.bd}}):null
+        ,foto?h('button',{type:'button',onClick:function(){setFoto('');},style:Object.assign({},bsS(),{minHeight:44})},'Foto entfernen'):null)
+      ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:4}},'Das Foto wird nur online im geschützten Speicher abgelegt. Ohne Foto lässt sich die Kontrolle auch offline erfassen.')
+      ,h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}
+        ,h('button',{type:'button',onClick:speichern,disabled:busy,style:Object.assign({},bpS,{minHeight:44,opacity:busy?0.6:1,display:'inline-flex',alignItems:'center',gap:6})},_ik('speichern',16),busy?'Speichert …':'Speichern')
+        ,h('button',{type:'button',onClick:function(){setFormOffen(false);setFoto('');setFehler({});},style:Object.assign({},bsS(),{minHeight:44})},'Abbrechen')))
+    :null
+    ,liste.length?h('div',{}
+      ,liste.map(function(r){
+        var gb=_fzDatumTeile(r.gueltig_bis);
+        return h('div',{key:r.id,style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'4px 10px',padding:'8px 2px',borderBottom:'1px solid '+V.bd,minHeight:44,fontSize:UI.fKlein}}
+          ,h('span',{style:{fontFamily:mono,color:V.tx,fontWeight:700,whiteSpace:'nowrap',minWidth:92}},_fzDatumAnz(r.geprueft_am))
+          ,h('span',{style:{fontWeight:700,color:r.ergebnis==='ok'?V.tx:COLORS.ERROR,whiteSpace:'nowrap'}},FS_KTR_ERGEBNIS[r.ergebnis]||'—')
+          ,h('span',{style:{color:V.dm,flex:'1 1 160px',minWidth:0}},[r.klassen?('Klassen '+r.klassen):'',gb?('gültig bis '+_fzDatumAnz(gb.iso)):'',r.pruefer?('geprüft von '+r.pruefer):'',r.notiz||''].filter(function(x){return !!x;}).join(' · ')||'—')
+          ,r.nachweis_path?h('button',{type:'button',onClick:function(){nachweis(r);},style:Object.assign({},bsS(),{minHeight:44})},_ikVw('auge','Nachweis')):null);
+      }))
+    :h('div',{style:{fontSize:UI.fKlein,color:V.dm,padding:'4px 0'}},'Noch keine Kontrolle erfasst.')
+    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8}},'Halterpflicht: Führerschein der Fahrer regelmäßig (alle 6 Monate) im Original sichtkontrollieren und hier festhalten.'));
+}
+
+/* ── Fristen-Ansicht: Fuehrerscheinkontrollen aller Fahrer (nur Buero/PL/Admin) ── */
+function FsKontrolleFristenKarte(props){
+  var h=React.createElement;
+  var _t=_react.useState.call(void 0,{rows:_fsKtrAusCache(''),status:'laedt'});var tm=_t[0],setTm=_t[1];
+  _react.useEffect.call(void 0,function(){
+    var lebt=true;
+    if(typeof navigator!=='undefined'&&navigator.onLine===false){setTm({rows:_fsKtrAusCache(''),status:'offline'});return;}
+    var p=null;
+    try{p=_sbGet('fz_fs_kontrollen','select=id,monteur_id,geprueft_am,ergebnis,klassen,gueltig_bis,pruefer,created_at&order=geprueft_am.desc');}catch(e){p=null;}
+    if(!p||typeof p.then!=='function'){setTm({rows:_fsKtrAusCache(''),status:'fehler'});return;}
+    p.then(function(d){if(!lebt)return;_fsKtrMerken(Array.isArray(d)?d:[]);setTm({rows:_fsKtrAusCache(''),status:'ok'});},function(){if(lebt)setTm({rows:_fsKtrAusCache(''),status:'fehler'});});
+    return function(){lebt=false;};
+  },[]);
+  var alle=_fsKtrFaellig(props.monteure||[],props.fahrzeuge||[],tm.rows||[],Date.now());
+  var offen=alle.filter(function(x){return x.stufe!=='ok';});
+  var hinweis=tm.status==='laedt'?'Kontrollen werden geladen …':tm.status==='offline'?'Offline: nur bereits geladene Kontrollen - die Liste kann unvollständig sein.':tm.status==='fehler'?'Kontrollen konnten nicht geladen werden - die Liste kann unvollständig sein.':'';
+  return h('div',{style:Object.assign({},CC(),{padding:12,marginTop:10})}
+    ,h('div',{style:{fontSize:UI.fTitel,fontWeight:800,color:V.tx,display:'flex',alignItems:'center',gap:8,marginBottom:6}},_ik('schild',18),'Führerscheinkontrolle (Halterpflicht)')
+    ,hinweis?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:6}},hinweis):null
+    ,offen.length?offen.map(function(r){
+      return h('div',{key:r.mid,style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,padding:'8px 0',minHeight:44,borderBottom:'1px solid '+V.bd}}
+        ,_fsKtrChip(r.stufe,h)
+        ,h('span',{style:{fontWeight:800,color:V.tx,whiteSpace:'nowrap'}},r.name)
+        ,h('span',{style:{color:V.dm,fontSize:UI.fKlein,flex:'1 1 160px',minWidth:0}},r.hinweis));
+    }):h('div',{style:{fontSize:UI.fKlein,color:V.dm}},alle.length?'Alle Fahrer sind kontrolliert, kein Führerschein läuft in den nächsten 60 Tagen ab.':'Keinem aktiven Fahrzeug ist ein Fahrer zugewiesen.')
+    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Im Blick: zugewiesene Fahrer und alle Mitarbeiter mit erfasster Kontrolle. Erfassen unter Mitarbeiter → Person → Führerscheinkontrolle.'));
+}
+if(typeof window!=='undefined'){window._fzStammWert=_fzStammWert;window._fzStammBody=_fzStammBody;window._fzStammPruef=_fzStammPruef;window._fsKtrStatus=_fsKtrStatus;window._fsKtrFaellig=_fsKtrFaellig;}
+//@FLOTTE-STAMM-END
 
 function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const isMob=ww<BP_MOB;
@@ -31418,7 +31837,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         })
       ))
       /* v1049 Lese-Ansichten Fristen / Kosten (Grundmenge visibleFz wie die Kacheln; Klick oeffnet das Fahrzeug) */
-      , !sel&&!batchMode&&isVAdmin&&view==="fristen"&&React.createElement(FlotteFristenPanel, {fahrzeuge: visibleFz, monteure: (monteure||MONT), isMob: isMob, zeigeFahrer: isVAdmin, onOpen: setSel})
+      , !sel&&!batchMode&&isVAdmin&&view==="fristen"&&React.createElement(FlotteFristenPanel, {fahrzeuge: visibleFz, monteure: (monteure||MONT), isMob: isMob, zeigeFahrer: isVAdmin, zeigeFsKtr: _maStaffRolle(curUser), onOpen: setSel})
       , !sel&&!batchMode&&isVAdmin&&view==="kosten"&&React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz, isMob: isMob, onOpen: setSel})
 
       /* Vehicle Detail */
@@ -31473,6 +31892,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         )
         /* v1049 Fahrzeugakte: Fristen, Kennzahlen, Chronik, CSV - nur lesen */
         , React.createElement(FahrzeugAkteKarte, {key: "akte_"+selFz.id, f: selFz, isMob: isMob})
+        /* v1050 Stammdaten: Betraege (Leasing/Versicherung) sehen nur Verwalter; aendern nur is_hr (Buero/PL/Admin) wie die RLS. Reifen/Service-km darf zusaetzlich der eingetragene Fahrer (RLS: fahrer = current_monteur_id()). Nur geaenderte Spalten gehen in den PUT. */
+        , React.createElement(FahrzeugStammKarte, {key: "stamm_"+selFz.id, f: selFz, isMob: isMob, spaltenDa: _fzStammSpalten(fahrzeuge), siehtFinanz: isVAdmin, darfFinanz: _maStaffRolle(curUser), darfReifen: _maStaffRolle(curUser)||!!(curUser&&curUser.monteurId&&selFz.fahrer===curUser.monteurId), onSpeichern: function(body){upd(sel,function(x){return Object.assign({},x,body);},body);}})
 
         /* km Modal */
         , showKm===sel&&(React.createElement('div', { style: {...CC(),border:"2px solid "+V.ac,marginTop:8}}
