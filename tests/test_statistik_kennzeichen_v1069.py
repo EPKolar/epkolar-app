@@ -135,7 +135,8 @@ def test_umkehrprobe_ohne_users_lesen_waere_alles_unbekannt(node_exe, index_html
 def test_verdrahtung_statistik(index_html):
     assert index_html.count('_sbGetUsersSafe("").catch(e=>_eskLeseMarke(e))') == 1
     assert "notifs,logRows,actRows,usrRoh]=await Promise.all([" in index_html
-    assert "..._stBenutzerZeile(u,usrRoh,_lastL,_totL,_alUnlesbar)}));" in index_html
+    # Tablet-Runde 1077 (4): hinter der Zeile steht jetzt actions_7d (vorher nie gesetzt, "Aktionen (7T)" immer 0)
+    assert "..._stBenutzerZeile(u,usrRoh,_lastL,_totL,_alUnlesbar),actions_7d:_alUnlesbar?null:(_a7[String(u.id)]||0)}));" in index_html
     i = index_html.index("const _alUnlesbar=_rlsLeer(actRows)||_rlsLeer(logRows);")
     assert i < index_html.index("..._stBenutzerZeile(u,usrRoh,_lastL,_totL,_alUnlesbar)"), "erst die Lese-Marke, dann die Zeilen"
     assert 'u.active===false?React.createElement(Badge, { text: "Inaktiv"' in index_html

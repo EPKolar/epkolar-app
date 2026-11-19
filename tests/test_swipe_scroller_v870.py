@@ -25,6 +25,12 @@ FIX: Der Scroller wird beim Beruehren nur GEMERKT. Am Ende entscheidet die
 Tatsache statt der Vermutung - hat sich sein scrollLeft veraendert, hat er die
 Geste verbraucht; sonst zaehlt der Wisch. Der native Riegel haelt die Geste nur
 fest, wenn der Scroller in diese Richtung nicht mehr kann.
+
+NACHTRAG Tablet-Runde 1077: auf Auftrag zurueckgenommen fuer den Fall "Geste beginnt im
+quer rollbaren Kasten" - am Tablet sprang ein Zug in der AS-Tabelle am Anschlag in einen
+anderen Bereich. Die Vorab-Absage steht NICHT im skip-Ausdruck (die Riegel hier bleiben
+gueltig), sondern als eigener Term im ok-Wert (_swQuerrollerSperrt), belegt in
+test_tablet_runde_v1077.py::test_11_*. Wischen ausserhalb der Kaesten bleibt unveraendert.
 """
 import re
 

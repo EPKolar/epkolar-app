@@ -217,7 +217,8 @@ def test_karte_und_tabelle_haengen_an_derselben_entscheidung(roh):
     v = _as_view(roh)
     assert v.count(KARTE) == 1 and v.count(TABELLE) == 1
     assert ", !_asKarte&&_asRollt&&React.createElement(" in v, "Rollhinweis gehoert zur Tabelle und haengt an der gemessenen Ueberbreite"
-    assert "WebkitOverflowScrolling:\"touch\"}, ref: _asRollRef" in v
+    # Tablet-Runde 1077 (1): in mittel rollt der Kasten auch senkrecht (_asRollHoehe) - der Kopf klebt
+    assert "WebkitOverflowScrolling:\"touch\",..._asRollHoehe()}, ref: _asRollRef" in v
     assert "..._asNrKlebt()}, onClick: ()=>_openEditGuarded(a)}, a.nummer" in v, "Nummer klebt links im Rollkasten"
     # Sortierauswahl dort, wo es keine Spaltenkoepfe gibt
     s = v.index("React.createElement('select', { value: sortCol")
@@ -475,7 +476,9 @@ def test_mittel_tabelle_koepfe_ohne_umbruch_und_tippziele(roh):
     _, tabelle = _zweige(v)
     assert "React.createElement('table', { className: _asMittel?\"epk-as-mittel\":undefined," in tabelle
     assert "table.epk-as-mittel th { white-space: nowrap; }" in roh
-    assert "table.epk-as-mittel thead th:first-child { z-index: 2 !important; }" in roh, "NUMMER-Kopf liegt beim Querrollen oben"
+    # Tablet-Runde 1077 (1): alle Koepfe z 2 (ueber den links klebenden Nummer-Zellen z 1), die Ecke z 3
+    assert "table.epk-as-mittel thead th { z-index: 2 !important; }" in roh
+    assert "table.epk-as-mittel thead th:first-child { z-index: 3 !important; }" in roh, "NUMMER-Kopf liegt beim Querrollen oben"
     assert re.search(r'table\.epk-as-mittel td select, table\.epk-as-mittel td input\[type="date"\] \{ min-height: 44px; \}', roh)
     r = re.search(r"table\.epk-as-mittel td button \{([^}]*)\}", roh)
     assert r and "min-width: 44px !important" in r.group(1) and "min-height: 44px !important" in r.group(1)

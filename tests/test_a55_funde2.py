@@ -188,10 +188,11 @@ def test_19_zeiten_drei_spalten_am_handy(index_html):
     # weiter drei Tage je Reihe (repeat(3,minmax(0,1fr))), Tablet hochkant ebenfalls drei mit 150 px
     # Mindestbreite, quer/PC sechs mit 120 px. Der Kern dieses Riegels (kein minWidth:700 am Raster,
     # das die globale Regel ohnehin kappt) bleibt unveraendert.
-    f = lambda s: 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0))),gap:6}}' in s and \
+    # Tablet-Runde 1077 (7): zweites Argument DAYS.length (Sonntag erscheint mit Sonntagseintrag).
+    f = lambda s: 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0)),DAYS.length),gap:6}}' in s and \
         'stufe==="schmal"?"repeat(3,minmax(0,1fr))"' in s and \
         'gridTemplateColumns:"repeat(6,1fr)",gap:6,minWidth:isMob?700:0' not in s
-    _umkehr(f, index_html, 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0))),gap:6}}',
+    _umkehr(f, index_html, 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0)),DAYS.length),gap:6}}',
             'gridTemplateColumns:"repeat(6,1fr)",gap:6,minWidth:isMob?700:0}}')
 
 
