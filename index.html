@@ -30368,7 +30368,34 @@ function _fzTageTxt(tage){
   return 'seit '+(-tage)+(tage===-1?' Tag':' Tagen');
 }
 function _fzDatumAnz(iso){var t=_fzDatumTeile(iso);return t?((t.d<10?'0':'')+t.d+'.'+(t.m<10?'0':'')+t.m+'.'+t.y):'—';}
-if(typeof window!=='undefined'){window._fzZahl=_fzZahl;window._fzDatumTeile=_fzDatumTeile;window._fzTagKey=_fzTagKey;window._fzTageBis=_fzTageBis;window._fzPickerlStufe=_fzPickerlStufe;window._fzFristen=_fzFristen;window._fzTankStats=_fzTankStats;window._fzServiceStats=_fzServiceStats;window._fzAkte=_fzAkte;window._fzFahrerCheck=_fzFahrerCheck;window._fzCsv=_fzCsv;}
+function _fzPruefTerminNeu(form,by,id){/* v1049 Schreibwege-Fix (Werkstatt-/Prueftermine am Fahrzeug): Formular -> Eintrag fuer die
+     termine-Spalte {id,art,beschreibung,datum,erledigt:false,by} oder {ok:false,fehler}. Pflicht: gueltige Art + gueltiges Datum;
+     ein leeres/unberuehrtes Formular (Datum leer) schreibt NIE. Beschreibung darf leer sein (das Feld hat keine Pflichtmarke). */
+  form=form||{};
+  var art=String(form.art==null?'':form.art);
+  if(!Object.prototype.hasOwnProperty.call(FZ_PRUEFTERMIN_ART,art))return {ok:false,fehler:'Bitte eine Termin-Art wählen'};
+  var dt=_fzDatumTeile(form.datum);
+  if(!dt)return {ok:false,fehler:'Bitte ein gültiges Datum eingeben'};
+  if(id===null||id===undefined||id==='')return {ok:false,fehler:'Interner Fehler: keine Termin-ID'};
+  return {ok:true,termin:{id:String(id),art:art,beschreibung:String(form.beschreibung==null?'':form.beschreibung).trim(),datum:dt.iso.slice(0,10),erledigt:false,by:String(by==null?'':by)}};
+}
+var FZ_PRUEFTERMIN_ART={service:1,pickerl:1,reifen:1,werkstatt:1,sonstig:1};
+function _fzTankMonate(f){/* v1049 Monatsauswertung Tanken: Tankbuch -> Zeilen {monat:'JJJJ-MM',anzahl,liter,euro,euroProL,strecke,l100,plausibel},
+     neuester Monat zuerst. km/Verbrauch je Monat ueber _fzTankStats (nur Tankungen mit km>0, erste Tankung zaehlt nicht) - vorher
+     setzte eine Batch/QR-Tankung ohne Tacho (km 0) den Monats-Startpunkt auf 0 ("100.500 km gefahren", 0,1 L/100km).
+     Liter/Kosten zaehlen ALLE Tankungen des Monats; Text-Werte werden ueber _fzZahl gelesen statt verkettet. */
+  var log=f?(f.tankLog||f.tank_log):null;
+  if(!Array.isArray(log))log=[];
+  var by={},keys=[],i;
+  for(i=0;i<log.length;i++){var t=log[i];if(!t)continue;var dt=_fzDatumTeile(t.datum);if(!dt)continue;var k=dt.iso.slice(0,7);if(!by[k]){by[k]=[];keys.push(k);}by[k].push(t);}
+  keys.sort();keys.reverse();
+  return keys.map(function(k){
+    var st=_fzTankStats({tankLog:by[k]},NaN),l=0,e=0,j;
+    for(j=0;j<by[k].length;j++){var x=_fzZahl(by[k][j].liter),p=_fzZahl(by[k][j].preis);if(x>0)l+=x;if(p>0)e+=p;}
+    return {monat:k,anzahl:by[k].length,liter:l,euro:e,euroProL:st.euroProL,strecke:st.strecke,l100:st.l100,plausibel:st.plausibel};
+  });
+}
+if(typeof window!=='undefined'){window._fzZahl=_fzZahl;window._fzDatumTeile=_fzDatumTeile;window._fzTagKey=_fzTagKey;window._fzTageBis=_fzTageBis;window._fzPickerlStufe=_fzPickerlStufe;window._fzFristen=_fzFristen;window._fzTankStats=_fzTankStats;window._fzServiceStats=_fzServiceStats;window._fzAkte=_fzAkte;window._fzFahrerCheck=_fzFahrerCheck;window._fzCsv=_fzCsv;window._fzPruefTerminNeu=_fzPruefTerminNeu;window._fzTankMonate=_fzTankMonate;}
 
 /* ── Lese-Ansichten ── Farbflaechen mit weisser Schrift nur aus COLORS.*_FILL (>=4,5:1), sonst V-Tokens (hell/dunkel). */
 function _fzStufeChip(stufe,h){
@@ -30903,6 +30930,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
   const [tBeschr,setTBeschr]=_react.useState.call(void 0, "");
   const [tDatum,setTDatum]=_react.useState.call(void 0, "");
   const [tArt,setTArt]=_react.useState.call(void 0, "service");
+  /* v1049 Schreibwege-Fix: "+ Termin" rief addTermin(sel) - addTermin nimmt kein Argument und speichert das ANDERE Formular
+     (terminForm der Service-Termine: Typ Service, Datum heute, leere Beschreibung) nach fz_termine. Ergebnis: Leer-Termin statt
+     der Eingabe, und er erschien nicht einmal in dieser Liste (die zeigt selFz.termine). Jetzt: Eingabe (Art/Datum/Beschreibung)
+     pruefen und ueber denselben Weg wie Erledigt/Loeschen dieser Liste schreiben (upd mit Diff-PUT nur termine-Spalte).
+     Leeres/unberuehrtes Formular oder ungueltiges Datum -> kein Schreibvorgang. */
+  const addPruefTermin=()=>{if(!isVAdmin||!sel)return;const _pt=_fzPruefTerminNeu({art:tArt,datum:tDatum,beschreibung:tBeschr},(curUser&&curUser.name)||"",uid());if(!_pt.ok){if(window.__toast)window.__toast("⚠️ "+_pt.fehler,"warn");return;}upd(sel,f=>({...f,termine:[_pt.termin,...(f.termine||[])]}),u=>({termine:u.termine}));setTArt("service");setTDatum("");setTBeschr("");if(window.__toast)window.__toast("📅 Termin angelegt");};
   // Bescheinigung lenkfreier Tage state
   const [showBesch,setShowBesch]=_react.useState.call(void 0, false);
   const [beschForm,setBeschForm]=_react.useState.call(void 0, {fahrer:"",gebDat:"",fsNr:"",seitDat:"",vonDat:"",vonUhr:"00:00",bisDat:"",bisUhr:"24:00",grund:"andere",ort:"Kirchberg"});
@@ -31002,10 +31035,14 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
     setBLit("");setBPreis("");setBKm("");
     setTimeout(()=>_optionalChain([bLitRef, 'access', _678 => _678.current, 'optionalAccess', _679 => _679.focus, 'call', _680 => _680()]),100);
   };
-  const batchDel=(rowId)=>{
+  const batchDel=async(rowId)=>{
     const row=batchRows.find(r=>r.id===rowId);if(!row)return;
-    // Remove from fahrzeuge tankLog
-    setFahrzeuge(p=>p.map(f=>f.id===row.fzId?{...f,tankLog:(f.tankLog||[]).filter(t=>t.id!==rowId)}:f));
+    if(!await _confirmModal("Tankung wirklich entfernen? Sie wird auch aus dem Tankbuch des Fahrzeugs gelöscht.",{variant:"danger"}))return;
+    /* v1049 Schreibwege-Fix: batchSave hat die Tankung bereits per tankLog_add in fahrzeuge.tank_log geschrieben - vorher wurde
+       hier nur der Bildschirm-Zustand gefiltert, nach dem Neuladen war die Tankung wieder da. Jetzt derselbe Schreibweg, mit dem
+       die App tank_log aendert (addTank): upd mit Diff-PUT nur der tankLog-Spalte ueber die SyncQueue (Wiederholung = gleicher
+       Endzustand). Die Warteschlange ist geordnet: ein noch nicht gesendetes tankLog_add laeuft vorher, der PUT danach. */
+    upd(row.fzId,f=>({...f,tankLog:(f.tankLog||[]).filter(t=>!(t&&t.id===rowId))}),u=>({tankLog:u.tankLog}));
     setBatchRows(p=>p.filter(r=>r.id!==rowId));
     _optionalChain([window, 'access', _681 => _681.__toast, 'optionalCall', _682 => _682("🗑️ Tankung entfernt")]);
   };
@@ -31611,7 +31648,7 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
             , React.createElement('select', { value: tArt, onChange: e=>setTArt(e.target.value), style: {...II(),width:"auto",fontSize:13}}, React.createElement('option', { value: "service"}, "Service" ), React.createElement('option', { value: "pickerl"}, "Pickerl/§57a" ), React.createElement('option', { value: "reifen"}, "Reifenwechsel" ), React.createElement('option', { value: "werkstatt"}, "Werkstatt" ), React.createElement('option', { value: "sonstig"}, "Sonstiges" ))
             , React.createElement('input', { type: "date", value: tDatum, onChange: e=>setTDatum(e.target.value), style: {...II(),width:"auto",fontSize:13}} )
             , React.createElement('input', { value: tBeschr, onChange: e=>setTBeschr(e.target.value), placeholder: "Beschreibung...", style: {...II(),flex:1,fontSize:12}} )
-            , React.createElement('button', { onClick: ()=>addTermin(sel), style: {...bpS,fontSize:12}}, "+ Termin" )
+            , React.createElement('button', { onClick: addPruefTermin, disabled: !tDatum, style: {...bpS,fontSize:12,opacity:tDatum?1:.4}}, "+ Termin" )/* v1049: ohne Datum nicht speicherbar */
           )
           , (selFz.termine||[]).map((t,i)=>(React.createElement(Row, { key: t.id||i}
             , React.createElement('span', { style: {fontSize:14}}, _ikVw(t.art==="service"?"werkzeug":t.art==="pickerl"?"bericht":t.art==="reifen"?"auto":t.art==="werkstatt"?"haus":"liste",""))
@@ -31753,11 +31790,10 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         , (selFz.tankLog||[]).length>0&&(React.createElement('div', { style: {...CC(),marginTop:8}}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, "Monatsauswertung Tanken"  )
           , (()=>{
-            const byMonth={};(selFz.tankLog||[]).forEach(t=>{const m=(t.datum||"").slice(0,7);if(!m)return;if(!byMonth[m])byMonth[m]={liter:0,kosten:0,cnt:0,minKm:Infinity,maxKm:0,tanks:[]};byMonth[m].liter+=t.liter||0;byMonth[m].kosten+=t.preis||0;byMonth[m].cnt++;if(t.km<byMonth[m].minKm)byMonth[m].minKm=t.km;if(t.km>byMonth[m].maxKm)byMonth[m].maxKm=t.km;byMonth[m].tanks.push({km:t.km,liter:t.liter||0});});/* v3.9.600 #13: tanks[] je Monat fuer slice(1)-Konsumrechnung */
-            const months=Object.keys(byMonth).sort().reverse();
+            const months=_fzTankMonate(selFz);/* v1049: robuster Monatsrechner (km 0/fehlend zaehlt nicht fuer km/Verbrauch; Liter/Kosten alle) */
             return (React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",fontSize:12}}, React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Monat"), React.createElement('th', { style: thS()}, "Tankungen"), React.createElement('th', { style: thS()}, "Liter ges." ), React.createElement('th', { style: thS()}, "Kosten ges." ), React.createElement('th', { style: thS()}, "Ø €/L" ), React.createElement('th', { style: thS()}, "km gefahren" ), React.createElement('th', { style: thS()}, "Ø L/100km" )))
-            , React.createElement('tbody', {}, months.map(m=>{const d=byMonth[m];const kmDiff=d.maxKm>d.minKm?d.maxKm-d.minKm:0;/* v3.9.600 #13 Bug-Hunt: Verbrauch wie "Ø Verbrauch" (:21805) berechnen — erste Monats-Tankung (bei minKm) NICHT mitzaehlen (ihr Sprit wurde VOR minKm/im Vormonat verfahren), sonst ~Verdopplung + faelschlich rote Ampel. "Liter ges."-Spalte bleibt bewusst d.liter (alle Tankungen). */const _v600S=[...(d.tanks||[])].sort((a,b)=>a.km-b.km);const _v600ConsL=_v600S.slice(1).reduce((s,x)=>s+(x.liter||0),0);const avg=(kmDiff>0&&_v600S.length>1)?_n((_v600ConsL/kmDiff*100),1):"—";const avgPrice=d.liter>0?_n((d.kosten/d.liter),3):"—";const moLabel=m.split("-")[1]+"/"+m.split("-")[0];
-              return (React.createElement('tr', { key: m}, React.createElement('td', { style: {...tdSt(),fontWeight:700}}, moLabel), React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, d.cnt), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, _n(d.liter,1), " L" ), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace",fontWeight:600}}, fmt$(d.kosten) ), React.createElement('td', { style: {...tdSt(),textAlign:"right"}}, avgPrice), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, kmDiff>0?kmDiff.toLocaleString("de-AT")+" km":"—"), React.createElement('td', { style: {...tdSt(),textAlign:"center",fontWeight:700,color:parseFloat(avg)>12?"#ef4444":parseFloat(avg)>8?"#f97316":_okG("#22c55e")}}, avg)));
+            , React.createElement('tbody', {}, months.map(r=>{const m=r.monat;const avg=isNaN(r.l100)?"—":_n(r.l100,1);const avgPrice=isNaN(r.euroProL)?"—":_n(r.euroProL,3);const moLabel=m.split("-")[1]+"/"+m.split("-")[0];
+              return (React.createElement('tr', { key: m}, React.createElement('td', { style: {...tdSt(),fontWeight:700}}, moLabel), React.createElement('td', { style: {...tdSt(),textAlign:"center"}}, r.anzahl), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, _n(r.liter,1), " L" ), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace",fontWeight:600}}, fmt$(r.euro) ), React.createElement('td', { style: {...tdSt(),textAlign:"right"}}, avgPrice), React.createElement('td', { style: {...tdSt(),textAlign:"right",fontFamily:"monospace"}}, r.strecke>0?r.strecke.toLocaleString("de-AT")+" km":"—"), React.createElement('td', { style: {...tdSt(),textAlign:"center",fontWeight:700,color:isNaN(r.l100)?V.dm:r.l100>12?"#ef4444":r.l100>8?"#f97316":_okG("#22c55e")}}, avg)));
             })))));
           })()
           , (()=>{const totalL=(selFz.tankLog||[]).reduce((s,t)=>s+(t.liter||0),0);const totalE=(selFz.tankLog||[]).reduce((s,t)=>s+(t.preis||0),0);
