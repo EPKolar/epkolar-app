@@ -1,6 +1,7 @@
 """v1050 Fahrzeug-Stammdaten (Leasing, Versicherung, Reifen, Service-km) + Fuehrerscheinkontrolle.
 
-Schema live seit 19.11.2026 (fahrzeuge +11 Spalten, Tabelle fz_fs_kontrollen). Die DB nimmt in date-Spalten
+Schema live seit 19.11.2026: fahrzeuge +4 Spalten (Reifen/Service-km), Finanzspalten in fz_finanzen (RLS nur is_hr),
+Tabelle fz_fs_kontrollen. Die DB nimmt in date-Spalten
 KEIN '' und in Zahlspalten weder NaN noch '' noch negative Werte (Service-Intervall > 0).
 
 Verhaltenstests: die ECHTEN Funktionen werden aus index.html ausgeschnitten und in Node ausgefuehrt.
@@ -86,42 +87,108 @@ def test_stammwert_leer_ist_null_und_zahlen_geparst(node_exe, index_html):
 
 def test_stammbody_nur_geaenderte_spalten_ohne_leerstring(node_exe, index_html):
     r = _eval(node_exe, index_html,
-              "(function(){var f={id:'F1',leasing_ende:'2027-01-01',leasing_rate:450,naechst_service_km:null,reifen_saison:'sommer',kennzeichen:'TU-1'};"
-              "var a=_fzStammBody(f,{leasing_ende:'',leasing_rate:'450,00',naechst_service_km:'60.000',reifen_saison:'sommer',versicherung_praemie:''});"
-              "var b=_fzStammBody(f,{leasing_rate:'-1',service_km_intervall:'0',leasing_ende:'2027-13-01'});"
-              "var c=_fzStammBody(f,{leasing_ende:'2027-01-01',leasing_rate:'450'});"
-              "var d=_fzStammBody(f,{leasing_ende:'',naechst_service_km:'5000'},['naechst_service_km']);"
-              "return {a:a,b:b,c:c,d:d,pa:_fzStammPruef(a.body)};})()",
+              "(function(){var f={id:'F1',naechst_service_km:null,reifen_saison:'sommer',kennzeichen:'TU-1'};"
+              "var fin={fahrzeug_id:'F1',leasing_ende:'2027-01-01',leasing_rate:450};"
+              "var a=_fzStammBody(f,{naechst_service_km:'60.000',reifen_saison:'sommer',reifen_lager:''},null,'fahrzeuge');"
+              "var af=_fzStammBody(fin,{leasing_ende:'',leasing_rate:'450,00',versicherung_praemie:''},null,'fz_finanzen');"
+              "var b=_fzStammBody(fin,{leasing_rate:'-1',leasing_ende:'2027-13-01'},null,'fz_finanzen');"
+              "var b2=_fzStammBody(f,{service_km_intervall:'0'},null,'fahrzeuge');"
+              "var c=_fzStammBody(fin,{leasing_ende:'2027-01-01',leasing_rate:'450'},null,'fz_finanzen');"
+              "var d=_fzStammBody(f,{reifen_lager:'Huber',naechst_service_km:'5000'},['naechst_service_km'],'fahrzeuge');"
+              "return {a:a,af:af,b:b,b2:b2,c:c,d:d,pa:_fzStammPruef(a.body,'fahrzeuge'),paf:_fzStammPruef(af.body,'fz_finanzen')};})()",
               *STAMM)
     a = r["a"]
-    assert a["body"] == {"leasing_ende": None, "naechst_service_km": 60000}, a
-    assert a["fehler"] == {} and a["anzahl"] == 2 and r["pa"] == []
-    assert "" not in a["body"].values()
-    b = r["b"]
-    assert b["body"] == {} and set(b["fehler"]) == {"leasing_rate", "service_km_intervall", "leasing_ende"}
-    assert r["c"]["body"] == {} and r["c"]["anzahl"] == 0, "unveraendert = kein PUT-Rumpf"
-    assert r["d"]["body"] == {"naechst_service_km": 5000}, "nur die erlaubten Felder (Fahrer: Reifen/Service)"
+    assert a["body"] == {"naechst_service_km": 60000}, a
+    assert a["fehler"] == {} and a["anzahl"] == 1 and r["pa"] == []
+    af = r["af"]
+    assert af["body"] == {"leasing_ende": None}, "leeres Datum = null; 450,00 == 450 unveraendert"
+    assert r["paf"] == [] and "" not in af["body"].values()
+    assert r["b"]["body"] == {} and set(r["b"]["fehler"]) == {"leasing_rate", "leasing_ende"}
+    assert set(r["b2"]["fehler"]) == {"service_km_intervall"}
+    assert r["c"]["body"] == {} and r["c"]["anzahl"] == 0, "unveraendert = kein Rumpf"
+    assert r["d"]["body"] == {"naechst_service_km": 5000}, "nur die uebergebenen Felder"
+
+
+FIN7 = ["leasing_geber", "leasing_ende", "leasing_rate", "leasing_km_limit", "versicherung_polizze",
+        "versicherung_ablauf", "versicherung_praemie"]
+
+
+def test_fahrzeug_rumpf_nie_mit_finanzspalten(node_exe, index_html):
+    """Seit 19.11. liegen die 7 Finanzspalten in fz_finanzen (nur is_hr). Ein fahrzeuge-PUT mit einer davon waere 400
+    und wuerde Betraege an jeden Leser der Fahrzeuge geben. Umkehrprobe: auch wenn man sie ausdruecklich anbietet."""
+    alle = ("{leasing_geber:'VW',leasing_ende:'2027-01-01',leasing_rate:'450',leasing_km_limit:'60000',versicherung_polizze:'P',"
+            "versicherung_ablauf:'2027-02-01',versicherung_praemie:'1200',reifen_saison:'winter',naechst_service_km:'5000'}")
+    r = _eval(node_exe, index_html,
+              "{ohne:_fzStammBody({}," + alle + ",null,'fahrzeuge').body,"
+              "angeboten:_fzStammBody({}," + alle + ",Object.keys(FZ_STAMM_FELDER),'fahrzeuge').body,"
+              "standard:_fzStammBody({}," + alle + ").body,"
+              "fin:_fzStammBody({}," + alle + ",Object.keys(FZ_STAMM_FELDER),'fz_finanzen').body,"
+              "riegel:_fzStammPruef({leasing_rate:450}),riegelZiel:_fzStammPruef({leasing_rate:450},'fahrzeuge'),"
+              "riegelFin:_fzStammPruef({reifen_saison:'winter'},'fz_finanzen')}", *STAMM)
+    for k in ("ohne", "angeboten", "standard"):
+        assert not set(r[k]) & set(FIN7), (k, r[k])
+        assert set(r[k]) == {"reifen_saison", "naechst_service_km"}
+    assert set(r["fin"]) == set(FIN7), "Finanzrumpf traegt nur Finanzspalten"
+    assert r["riegel"] and r["riegelZiel"] and r["riegelFin"]
+    # letzte Verteidigung im Uebersetzer: auch Altbestand (Cache/Warteschlange) verliert die Spalten
+    snip = (_extract_fn(index_html, "_fzOhneFinanz") + "\nvar o={id:'F',kennzeichen:'A',reifen_saison:'winter'};"
+            + "".join("o['" + k + "']=null;" for k in FIN7)
+            + "process.stdout.write(JSON.stringify(_fzOhneFinanz(o)));")
+    o = json.loads(run_node_snippet(node_exe, snip))
+    assert o == {"id": "F", "kennzeichen": "A", "reifen_saison": "winter"}
+    assert 'if(table==="fahrzeuge")_fzOhneFinanz(mapped);' in index_html
+    assert "const b=_fzOhneFinanz(Object.assign({},body));upd(sel," in index_html
+
+
+def test_finanzen_nur_fuer_hr_geladen(node_exe, index_html):
+    m = re.search(r"^var _fzFin=\{.*?\};", index_html, re.M)
+    assert m
+    snip = ("var navigator={onLine:true};var _rufe=[];function _sbGet(t){_rufe.push(t);return Promise.resolve([{fahrzeug_id:'F1',leasing_rate:450}]);}\n"
+            + _extract_fn(index_html, "_maStaffRolle") + "\n" + m.group(0) + "\n" + _extract_fn(index_html, "_fzFinLaden") + "\n"
+            "var nichtHr=[null,{},{role:'monteur'},{role:'lagerleitung'},{role:'lager_display'},{role:'polier',rolle:'Projektleiter'}].map(function(u){return _fzFinLaden(u);});"
+            "var vorher=_rufe.slice();"
+            "_fzFinLaden({role:'buero'}).then(function(f){process.stdout.write(JSON.stringify({nichtHr:nichtHr,vorher:vorher,nachher:_rufe,status:f.status,rows:f.rows}));});")
+    r = json.loads(run_node_snippet(node_exe, snip))
+    assert r["nichtHr"] == [None] * 6 and r["vorher"] == [], "Nicht-HR fragt fz_finanzen NIE an"
+    assert r["nachher"] == ["fz_finanzen"] and r["status"] == "ok" and r["rows"]["F1"]["leasing_rate"] == 450
+    v = index_html[index_html.index("function FahrzeugView("):]
+    assert "const _darfFin=_maStaffRolle(curUser);" in v and "const _finKarte=_darfFin?_fzFin.rows:null;" in v
+    assert index_html.count("_sbGet('fz_finanzen')") == 1, "einziger Lesezugriff steckt hinter dem Rollen-Riegel"
+    assert "siehtFinanz: isVAdmin" not in index_html, "Lagerleitung sieht keine Betraege mehr"
+
+
+def test_finanzen_schreibweg_upsert(index_html):
+    assert '"fz-finanzen":["fz-finanzen","fz_finanzen"]' in index_html
+    a = index_html.index('if(resource==="fz-finanzen"&&(method==="PUT"||method==="POST")){')
+    z = index_html[a:a + 600]
+    assert 'await _sbUpsert("fz_finanzen",mapped,true);' in z, "Upsert ueber PK: zweite Speicherung aktualisiert"
+    assert "mapped.fahrzeug_id=idOrSub" in z
+    assert a < index_html.index("const entry=ROUTE_MAP[resource];"), "Sonderzweig vor dem generischen Weg"
+    assert 'SQ.push({url:"/api/fz-finanzen/"+encodeURIComponent(fid),method:"PUT",body:Object.assign({fahrzeug_id:fid},body)});' in index_html
+    assert "resolution=merge-duplicates" in index_html[index_html.index("async function _sbUpsert("):][:600]
 
 
 def test_umkehrprobe_riegel_faengt_leerstring_und_nan(node_exe, index_html):
     r = _eval(node_exe, index_html,
-              "{leer:_fzStammPruef({leasing_ende:''}),nan:_fzStammPruef({leasing_rate:NaN}),null0:_fzStammPruef({service_km_intervall:0}),"
-              "neg:_fzStammPruef({naechst_service_km:-1}),bruch:_fzStammPruef({leasing_km_limit:1.5}),txtzahl:_fzStammPruef({leasing_rate:'450'}),"
-              "wahl:_fzStammPruef({reifen_saison:'Sommer'}),fremd:_fzStammPruef({tracker_imei:'1'}),datei:_fzStammPruef({leasing_geber:'data:x'}),"
+              "{leer:_fzStammPruef({leasing_ende:''},'fz_finanzen'),nan:_fzStammPruef({leasing_rate:NaN},'fz_finanzen'),null0:_fzStammPruef({service_km_intervall:0}),"
+              "neg:_fzStammPruef({naechst_service_km:-1}),bruch:_fzStammPruef({leasing_km_limit:1.5},'fz_finanzen'),txtzahl:_fzStammPruef({leasing_rate:'450'},'fz_finanzen'),"
+              "wahl:_fzStammPruef({reifen_saison:'Sommer'}),fremd:_fzStammPruef({tracker_imei:'1'}),datei:_fzStammPruef({leasing_geber:'data:x'},'fz_finanzen'),"
               "leertext:_fzStammPruef({reifen_lager:''}),"
-              "gut:_fzStammPruef({leasing_ende:null,leasing_rate:0,naechst_service_km:0,service_km_intervall:15000,versicherung_ablauf:'2027-05-01',reifen_saison:'ganzjahr',reifen_lager:'Huber'})}",
+              "gut:_fzStammPruef({naechst_service_km:0,service_km_intervall:15000,reifen_saison:'ganzjahr',reifen_lager:'Huber'},'fahrzeuge'),"
+              "gutFin:_fzStammPruef({leasing_ende:null,leasing_rate:0,versicherung_ablauf:'2027-05-01'},'fz_finanzen')}",
               *STAMM)
     for k in ("leer", "nan", "null0", "neg", "bruch", "txtzahl", "wahl", "fremd", "datei", "leertext"):
         assert r[k], "Umkehrprobe: " + k + " muss vom Riegel erkannt werden"
     assert "leasing_ende" in r["leer"][0]
-    assert r["gut"] == []
+    assert r["gut"] == [] and r["gutFin"] == []
 
 
 def test_spalten_sniff(node_exe, index_html):
     r = _eval(node_exe, index_html,
               "[_fzStammSpalten([]),_fzStammSpalten(null),_fzStammSpalten([{kennzeichen:'A'}]),"
-              "_fzStammSpalten([{kennzeichen:'A'},{leasing_ende:null,naechst_service_km:null}])]", *STAMM)
-    assert r == [False, False, False, True]
+              "_fzStammSpalten([{kennzeichen:'A'},{reifen_saison:null,naechst_service_km:null}]),"
+              "_fzStammSpalten([{leasing_ende:null,naechst_service_km:null}])]", *STAMM)
+    assert r == [False, False, False, True, False], "Sniff haengt nur an den Reifen/Service-Spalten"
 
 
 def test_anzeige_nie_null_oder_nan(node_exe, index_html):
@@ -134,20 +201,24 @@ def test_anzeige_nie_null_oder_nan(node_exe, index_html):
 
 # ── Fristen aus den Stammdaten ───────────────────────────────────────────────
 
-def _fristen(node_exe, index_html, fz):
+def _fristen(node_exe, index_html, fz, fin=None):
     return _eval(node_exe, index_html,
-                 "_fzFristen(" + json.dumps(fz) + "," + NOW + ",[])",
+                 "_fzFristen(" + json.dumps(fz) + "," + NOW + ",[]," + json.dumps(fin) + ")",
                  "_fzPickerlStufe", "_fzTerminErledigt", "_fzServiceStats", "_fzFristen")
 
 
 def test_fristen_leasing_versicherung(node_exe, index_html):
     fz = [{"id": "a", "kennzeichen": "TU-1", "pickerl": "2027-06-01", "naechstService": "2027-06-01",
-           "leasing_ende": "2027-01-18", "leasing_geber": "VW Leasing", "versicherung_ablauf": "2026-12-09", "versicherung_polizze": "P-1"},
-          {"id": "b", "kennzeichen": "TU-2", "pickerl": "2027-06-01", "naechstService": "2027-06-01",
-           "leasing_ende": "2027-03-19", "versicherung_ablauf": "2026-12-29"},
-          {"id": "c", "kennzeichen": "TU-3", "pickerl": "2027-06-01", "naechstService": "2027-06-01",
-           "leasing_ende": "2026-11-18", "versicherung_ablauf": "quatsch"}]
-    r = _fristen(node_exe, index_html, fz)
+           "leasing_ende": "2020-01-01"},  # Altbestand am Fahrzeug wird NICHT mehr gelesen
+          {"id": "b", "kennzeichen": "TU-2", "pickerl": "2027-06-01", "naechstService": "2027-06-01"},
+          {"id": "c", "kennzeichen": "TU-3", "pickerl": "2027-06-01", "naechstService": "2027-06-01"}]
+    fin = {"a": {"fahrzeug_id": "a", "leasing_ende": "2027-01-18", "leasing_geber": "VW Leasing", "versicherung_ablauf": "2026-12-09", "versicherung_polizze": "P-1"},
+           "b": {"fahrzeug_id": "b", "leasing_ende": "2027-03-19", "versicherung_ablauf": "2026-12-29"},
+           "c": {"fahrzeug_id": "c", "leasing_ende": "2026-11-18", "versicherung_ablauf": "quatsch"}}
+    ohne = _fristen(node_exe, index_html, fz)
+    assert not [x for x in ohne if x["art"] in ("leasing", "versicherung")], \
+        "ohne Finanzkarte (Nicht-HR) gibt es KEINE Leasing-/Versicherungszeilen - auch kein 'fehlt'"
+    r = _fristen(node_exe, index_html, fz, fin)
     by = {(x["kennzeichen"], x["art"]): x for x in r}
     assert by[("TU-1", "leasing")]["stufe"] == "bald" and by[("TU-1", "leasing")]["tage"] == 60
     assert by[("TU-1", "leasing")]["hinweis"] == "VW Leasing"
@@ -299,9 +370,12 @@ def test_schreibwege_und_gates(index_html):
     assert "fz_fs_kontrollen:1" not in index_html, "Nachweis bleibt PRIVAT (nicht in _DATEI_OEFFENTLICH)"
     # Fahrzeug: nur ueber upd() mit Spalten-Rumpf, Rechte wie RLS
     assert ("React.createElement(FahrzeugStammKarte, {key: \"stamm_\"+selFz.id, f: selFz, isMob: isMob, spaltenDa: _fzStammSpalten(fahrzeuge), "
-            "siehtFinanz: isVAdmin, darfFinanz: _maStaffRolle(curUser), darfReifen: _maStaffRolle(curUser)||!!(curUser&&curUser.monteurId&&selFz.fahrer===curUser.monteurId), "
-            "onSpeichern: function(body){upd(sel,function(x){return Object.assign({},x,body);},body);}})") in index_html
-    assert "zeigeFsKtr: _maStaffRolle(curUser), onOpen: setSel})" in index_html
+            "darfFinanz: _darfFin, fin: _finKarte?(_finKarte[selFz.id]||null):null, finDa: _darfFin&&_fzFin.status===\"ok\", finStatus: _fzFin.status, "
+            "darfReifen: _darfFin||!!(curUser&&curUser.monteurId&&selFz.fahrer===curUser.monteurId), "
+            "onSpeichern: function(body){const b=_fzOhneFinanz(Object.assign({},body));upd(sel,function(x){return Object.assign({},x,b);},b);}, "
+            "onSpeichernFin: function(body){_finSpeichern(sel,body);}})") in index_html
+    assert "zeigeFsKtr: _maStaffRolle(curUser), finanzen: _finKarte, onOpen: setSel})" in index_html
+    assert "React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz, isMob: isMob, finanzen: _finKarte, onOpen: setSel})" in index_html
     assert "isAdmin?React.createElement(FsKontrolleSection,{key:\"fsk_\"+selM.id,monteur:selM,curUser:curUser,isMob:isMob})" in index_html
     assert "if(!_maStaffRolle(cu)||!mid)return null;" in b, "Abschnitt selbst gated"
     assert "function _maStaffRolle(u){\n  return !!(u&&(u.role===\"admin\"||u.role===\"projektleiter\"||u.role===\"buero\"));" in index_html, \
@@ -332,22 +406,25 @@ def test_ansichten_rendern(node_exe, index_html, tmp_path):
     zusatz = ("var _fsKtrCache={};function LL(){return {};}var bpS={};function td2(){return '2026-11-19';}function uid(){return 'u1';}"
               "_react.useRef={call:function(){return {current:null};}};var SQ={push:function(){}};\n")
     fz = [{"id": "F1", "kennzeichen": "TU-1", "pickerl": "2027-06-01", "naechstService": "2027-06-01", "fahrer": "m1", "kmStand": 49200,
-           "leasing_ende": "2027-01-18", "leasing_rate": 450, "versicherung_praemie": 1200, "versicherung_ablauf": "2026-12-09",
-           "leasing_geber": None, "leasing_km_limit": None, "versicherung_polizze": None, "reifen_saison": "winter", "reifen_lager": None,
+           "reifen_saison": "winter", "reifen_lager": None,
            "service_km_intervall": 15000, "naechst_service_km": 50000},
           {"id": "F2", "kennzeichen": "TU-2", "pickerl": "2027-06-01", "naechstService": "2027-06-01"}]
     ma = [{"id": "m1", "n": "Auer", "fs": "B"}]
+    fin = {"F1": {"fahrzeug_id": "F1", "leasing_ende": "2027-01-18", "leasing_rate": 450, "versicherung_praemie": 1200,
+                  "versicherung_ablauf": "2026-12-09", "leasing_geber": None, "leasing_km_limit": None, "versicherung_polizze": None}}
     snip = (_UI_STUBS + zusatz + "\n".join(linien) + "\n" + ui_zeile + "\n"
             + _harness(index_html).replace(TZ, "")
             + "\n".join(_extract_fn(index_html, n) for n in fns) + "\n" + _texte(None) + "\n"
-            "var fz=" + json.dumps(fz) + ",ma=" + json.dumps(ma) + ";var out={};"
+            "var fz=" + json.dumps(fz) + ",ma=" + json.dumps(ma) + ",fin=" + json.dumps(fin) + ";var out={};"
             "var hr={role:'buero',name:'Büro Eva'},mont={role:'monteur',monteurId:'m1'};"
             "[false,true].forEach(function(mob){"
-            "out['fr'+mob]=_tx(FlotteFristenPanel({fahrzeuge:fz,monteure:ma,isMob:mob,zeigeFahrer:true,zeigeFsKtr:true,onOpen:function(){}}));"
-            "out['ko'+mob]=_tx(FlotteKostenPanel({fahrzeuge:fz,isMob:mob,onOpen:function(){}}));"
-            "out['st'+mob]=_tx(FahrzeugStammKarte({f:fz[0],isMob:mob,spaltenDa:true,siehtFinanz:true,darfFinanz:true,darfReifen:true,offenStart:true}));"
-            "out['stLeer'+mob]=_tx(FahrzeugStammKarte({f:fz[1],isMob:mob,spaltenDa:true,siehtFinanz:false,darfFinanz:false,darfReifen:false,offenStart:true}));"
-            "out['stAlt'+mob]=_tx(FahrzeugStammKarte({f:fz[1],isMob:mob,spaltenDa:false,siehtFinanz:true,darfFinanz:true,darfReifen:true,offenStart:true}));"
+            "out['fr'+mob]=_tx(FlotteFristenPanel({fahrzeuge:fz,monteure:ma,isMob:mob,zeigeFahrer:true,zeigeFsKtr:true,finanzen:fin,onOpen:function(){}}));"
+            "out['frOhne'+mob]=_tx(FlotteFristenPanel({fahrzeuge:fz,monteure:ma,isMob:mob,zeigeFahrer:true,onOpen:function(){}}));"
+            "out['ko'+mob]=_tx(FlotteKostenPanel({fahrzeuge:fz,isMob:mob,finanzen:fin,onOpen:function(){}}));"
+            "out['koNichtHr'+mob]=_tx(FlotteKostenPanel({fahrzeuge:fz,isMob:mob,onOpen:function(){}}));"
+            "out['st'+mob]=_tx(FahrzeugStammKarte({f:fz[0],fin:fin.F1,finDa:true,isMob:mob,spaltenDa:true,darfFinanz:true,darfReifen:true,offenStart:true}));"
+            "out['stLeer'+mob]=_tx(FahrzeugStammKarte({f:fz[1],isMob:mob,spaltenDa:true,darfFinanz:false,darfReifen:false,offenStart:true}));"
+            "out['stAlt'+mob]=_tx(FahrzeugStammKarte({f:fz[1],isMob:mob,spaltenDa:false,darfFinanz:true,finDa:false,finStatus:'offline',darfReifen:true,offenStart:true}));"
             "out['fs'+mob]=_tx(FsKontrolleSection({monteur:ma[0],curUser:hr,isMob:mob}));});"
             "out.fsMonteur=FsKontrolleSection({monteur:ma[0],curUser:mont,isMob:false});"
             "out.koOhne=_tx(FlotteKostenPanel({fahrzeuge:[fz[1]],isMob:false}));"
@@ -361,9 +438,11 @@ def test_ansichten_rendern(node_exe, index_html, tmp_path):
         assert "Leasing €/Monat" in ko or mob == "true"
         assert "Leasing + Versicherung je Monat" in ko and "550" in ko
         assert "Leasing & Versicherung" in st and "Reifen & Service-Intervall" in st and "Speichern" in st
-        assert "Leasing & Versicherung" not in r["stLeer" + mob], "Betraege nur fuer Verwalter"
+        assert "Leasing-Ende" not in r["frOhne" + mob] and "Leasing + Versicherung" not in r["koNichtHr" + mob], "ohne Finanzkarte nichts"
+        assert "Leasing & Versicherung" not in r["stLeer" + mob], "Betraege nur fuer is_hr"
         assert "Speichern" not in r["stLeer" + mob]
         assert "noch nicht geladen" in r["stAlt" + mob] and "Speichern" not in r["stAlt" + mob], "Spalten-Sniff sperrt"
+        assert "Offline: Leasing- und Versicherungsdaten" in r["stAlt" + mob]
         assert "Kontrolle erfassen" in r["fs" + mob] and "nie kontrolliert" in r["fs" + mob]
         for t in (fr, ko, st, r["fs" + mob]):
             assert "NaN" not in t and "1970" not in t and "null" not in t and "undefined" not in t

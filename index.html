@@ -2330,6 +2330,11 @@ function _mapProject(p){
     budgetStunden:(p.budgetStunden!=null?p.budgetStunden:(p.budget_stunden!=null?p.budget_stunden:null)),budgetEuro:(p.budgetEuro!=null?p.budgetEuro:(p.budget_euro!=null?p.budget_euro:null))/* v3.9.402 Projekt-Budget Soll */,
     tags:_jp(p.tags)};
 }
+function _fzOhneFinanz(o){/* v1050: entfernt die 7 nach fz_finanzen verschobenen Spalten aus einem fahrzeuge-Schreibrumpf (mutiert, gibt o zurueck) */
+  if(!o||typeof o!=='object')return o;
+  ['leasing_geber','leasing_ende','leasing_rate','leasing_km_limit','versicherung_polizze','versicherung_ablauf','versicherung_praemie'].forEach(function(k){delete o[k];});
+  return o;
+}
 function _mapFahrzeug(f){
   if(!f)return f;
   return{...f,spezTyp:f.spezTyp||f.spez_typ||"",kmStand:parseInt(f.kmStand||f.km_stand)||0,
@@ -2762,6 +2767,7 @@ const ROUTE_MAP={
   "bescheinigungen":["bescheinigungen","bescheinigungen"],
   "photos":["photos","photos"],
   "fz-termine":["fz-termine","fz_termine"],
+  "fz-finanzen":["fz-finanzen","fz_finanzen"],/* v1050 Leasing/Versicherung (nur is_hr): Sonderzweig in _translateAndExec = Upsert ueber PK fahrzeug_id */
   "fz-fs-kontrollen":["fz-fs-kontrollen","fz_fs_kontrollen"],/* v1050 Fuehrerscheinkontrolle: nur POST mit Client-id -> generischer Weg -> _sbInsertIfAbsent (idempotent) */
   "wz-service":["wz-service","wz_service"],
   "worker-projects":["worker-projects","worker_projects"],
@@ -3434,6 +3440,17 @@ async function _translateAndExec(url,method,body){
     return{ok:1};
   }
 
+  /* v1050 fz_finanzen: Upsert ueber den PK fahrzeug_id (resolution=merge-duplicates). Der generische Weg kennt nur POST=insert-if-absent
+     (eine ZWEITE Speicherung wuerde still ignoriert) und PUT=PATCH (traefe beim ersten Mal keine Zeile). Gesetzt werden NUR die
+     mitgeschickten Spalten; Wiederholung nach verlorener Antwort ist harmlos (idempotent). RLS: nur is_hr. */
+  if(resource==="fz-finanzen"&&(method==="PUT"||method==="POST")){
+    const mapped=_mapBody({...(body||{})});
+    if(!mapped.fahrzeug_id&&idOrSub)mapped.fahrzeug_id=idOrSub;
+    if(!mapped.fahrzeug_id){console.warn("[api] fz-finanzen ohne fahrzeug_id - verworfen");return{ok:1};}
+    mapped.updated_at=new Date().toISOString();
+    await _sbUpsert("fz_finanzen",mapped,true);
+    return{ok:1};
+  }
   // Urlaubskontingent special: upsert with auto-generated id
   if(resource==="urlaubskontingent"&&method==="POST"){
     const d={...body};
@@ -3449,6 +3466,7 @@ async function _translateAndExec(url,method,body){
   if(!entry){console.warn("[api] Unknown route:",url);return{ok:1};}
   const table=entry[1];
   const mapped=_mapBody(body||{});
+  if(table==="fahrzeuge")_fzOhneFinanz(mapped);/* v1050: Finanzspalten gibt es dort seit 19.11. nicht mehr -> sonst 400 (auch Altbestand in Cache/Warteschlange) */
 
   // ─── Storage Interception: Upload base64 to Supabase Storage before DB insert ───
   if(method==="POST"&&mapped.file_data&&typeof mapped.file_data==="string"&&mapped.file_data.startsWith("data:")){
@@ -30187,8 +30205,9 @@ function _fzTerminErledigt(t){/* erledigt kommt als 0/1, "0"/"1" oder true/false
   var e=t.erledigt;
   return e===true||e===1||e==='1'||e==='true';
 }
-function _fzFristen(fahrzeuge,nowMs,termine){/* -> Fristen ueber alle (nicht stillgelegten) Fahrzeuge, dringendste zuerst.
-     termine: optional Zeilen aus fz_termine ({fahrzeug_id,typ,datum,erledigt,beschreibung}). */
+function _fzFristen(fahrzeuge,nowMs,termine,finanzen){/* -> Fristen ueber alle (nicht stillgelegten) Fahrzeuge, dringendste zuerst.
+     termine: optional Zeilen aus fz_termine ({fahrzeug_id,typ,datum,erledigt,beschreibung}).
+     finanzen: optional {fahrzeug_id: Zeile aus fz_finanzen} - wird NUR fuer is_hr geladen; ohne Karte gibt es KEINE Leasing-/Versicherungs-Zeilen (auch kein "fehlt"). */
   var out=[];var list=fahrzeuge||[];var byId={};var i,j;
   var mk=function(f,art,datum,tage,stufe,tolBis,hinweis){
     return {fid:f.id,kennzeichen:String(f.kennzeichen||'?'),art:art,artLabel:FZ_FRIST_ART[art]||art,datum:datum||'',tage:tage,stufe:stufe,tolBis:tolBis||null,hinweis:hinweis||''};
@@ -30217,10 +30236,13 @@ function _fzFristen(fahrzeuge,nowMs,termine){/* -> Fristen ueber alle (nicht sti
     if(vb)out.push(einfach(f,'vignette',vb,30,true,String(f.vignette_typ||'')));
     else if(f.vignette_typ)out.push(mk(f,'vignette','',NaN,'fehlt',null,String(f.vignette_typ)+' - kein Ablaufdatum'));
     /* v1050 Stammdaten: nur wenn erfasst (kein "fehlt" fuer Felder, die es bis v1049 nicht gab). Leasing 90 Tage Vorlauf, Versicherung 30. */
-    var lei=String(f.leasing_ende===null||f.leasing_ende===undefined?'':f.leasing_ende).trim();
-    if(lei)out.push(einfach(f,'leasing',lei,90,false,f.leasing_geber?String(f.leasing_geber):''));
-    var vab=String(f.versicherung_ablauf===null||f.versicherung_ablauf===undefined?'':f.versicherung_ablauf).trim();
-    if(vab)out.push(einfach(f,'versicherung',vab,30,false,f.versicherung_polizze?('Polizze '+f.versicherung_polizze):''));
+    var fin=(finanzen&&finanzen[f.id])||null;/* seit 19.11. in fz_finanzen, nicht mehr am Fahrzeug */
+    if(fin){
+      var lei=String(fin.leasing_ende===null||fin.leasing_ende===undefined?'':fin.leasing_ende).trim();
+      if(lei)out.push(einfach(f,'leasing',lei,90,false,fin.leasing_geber?String(fin.leasing_geber):''));
+      var vab=String(fin.versicherung_ablauf===null||fin.versicherung_ablauf===undefined?'':fin.versicherung_ablauf).trim();
+      if(vab)out.push(einfach(f,'versicherung',vab,30,false,fin.versicherung_polizze?('Polizze '+fin.versicherung_polizze):''));
+    }
     /* Service nach km: km-Stand gegen naechst_service_km, Warnung ab 1000 km Rest. Ohne Zielwert, aber mit Intervall: letztes Service-km + Intervall. */
     var zielKm=_fzZahl(f.naechst_service_km),abgel=false;
     if(!(zielKm>0)){var ivl=_fzZahl(f.service_km_intervall);if(ivl>0){var lsk=_fzServiceStats(f).letzteKm;if(lsk>0){zielKm=lsk+ivl;abgel=true;}}}
@@ -30324,7 +30346,7 @@ function _fzServiceStats(f){/* Serviceheft -> {anzahl,euro,letzte,letzteKm} */
   }
   return r;
 }
-function _fzFixkosten(f){/* v1050 -> {leasing,versicherung,summe} in EUR je Monat; NaN = nicht erfasst (nie eine 0 erfinden).
+function _fzFixkosten(f){/* v1050 f = Zeile aus fz_finanzen (nicht das Fahrzeug) -> {leasing,versicherung,summe} in EUR je Monat; NaN = nicht erfasst (nie eine 0 erfinden).
      versicherung_praemie ist die JAHRESpraemie (so beschriftet im Formular) -> /12. Getrennt von den Tankkosten. */
   var r={leasing:NaN,versicherung:NaN,summe:NaN};
   if(!f)return r;
@@ -30457,7 +30479,7 @@ function FlotteFristenPanel(props){
     return function(){lebt=false;};
   },[]);
   var now=Date.now();
-  var alle=_fzFristen(fahrzeuge,now,tm.rows||[]);
+  var alle=_fzFristen(fahrzeuge,now,tm.rows||[],props.finanzen||null);
   var nOffen=0,nDaten=0,nUeb=0;
   alle.forEach(function(x){if(x.stufe==='ueberfaellig'||x.stufe==='toleranz'||x.stufe==='bald')nOffen++;if(x.stufe==='ueberfaellig')nUeb++;if(x.stufe==='fehlt'||x.stufe==='ungueltig')nDaten++;});
   var sicht=alle.filter(function(x){
@@ -30502,7 +30524,7 @@ function FlotteFristenPanel(props){
         ,_fzChipBtn(h,filter==='alle','Alle ('+alle.length+')',function(){setFilter('alle');})
         ,_fzChipBtn(h,filter==='daten','Fehlende Daten ('+nDaten+')',function(){setFilter('daten');})
         ,h('select',{value:artF,onChange:function(e){setArtF(e.target.value);},'aria-label':'Art der Frist',style:Object.assign({},II(),{width:'auto',minHeight:44,fontSize:UI.fKlein})}
-          ,h('option',{value:'alle'},'Alle Arten'),h('option',{value:'pickerl'},'Pickerl §57a'),h('option',{value:'service'},'Service'),h('option',{value:'vignette'},'Vignette'),h('option',{value:'termin'},'Termine'),h('option',{value:'leasing'},'Leasing-Ende'),h('option',{value:'versicherung'},'Versicherung'),h('option',{value:'service_km'},'Service (km)')))
+          ,h('option',{value:'alle'},'Alle Arten'),h('option',{value:'pickerl'},'Pickerl §57a'),h('option',{value:'service'},'Service'),h('option',{value:'vignette'},'Vignette'),h('option',{value:'termin'},'Termine'),props.finanzen?h('option',{value:'leasing'},'Leasing-Ende'):null,props.finanzen?h('option',{value:'versicherung'},'Versicherung'):null,h('option',{value:'service_km'},'Service (km)')))
       ,nUeb?h('div',{style:{marginTop:8,fontSize:UI.fKlein,fontWeight:700,color:V.tx}},nUeb+(nUeb===1?' Frist ist':' Fristen sind')+' überfällig.'):null
       ,tmHinweis?h('div',{style:{marginTop:6,fontSize:UI.fMeta,color:V.dm}},tmHinweis):null)
     ,h('div',{style:Object.assign({},CC(),{padding:0,overflow:'hidden'})}
@@ -30532,7 +30554,7 @@ function FlotteKostenPanel(props){
   var _s=_react.useState.call(void 0,'euro12');var sortK=_s[0],setSortK=_s[1];
   var now=Date.now();
   var zeilen=fahrzeuge.filter(function(f){return f&&f.status!=='stillgelegt';}).map(function(f){
-    return {f:f,t:_fzTankStats(f,now),s:_fzServiceStats(f),fix:_fzFixkosten(f),sch:(Array.isArray(f.schaeden)?f.schaeden:[]).filter(function(x){return x&&x.status==='offen';}).length};
+    return {f:f,t:_fzTankStats(f,now),s:_fzServiceStats(f),fix:_fzFixkosten(props.finanzen?props.finanzen[f.id]:null),sch:(Array.isArray(f.schaeden)?f.schaeden:[]).filter(function(x){return x&&x.status==='offen';}).length};
   });
   var num=function(v){return (typeof v==='number'&&isFinite(v))?v:-1;};
   zeilen.sort(function(a,b){
@@ -30548,8 +30570,8 @@ function FlotteKostenPanel(props){
   var fixSum=zeilen.reduce(function(s,z){return s+(isNaN(z.fix.summe)?0:z.fix.summe);},0);
   var l100Txt=function(t){if(isNaN(t.l100))return '—';return t.plausibel?(_n(t.l100,1)+' L'):'prüfen';};
   var csv=function(){
-    var z=zeilen.map(function(r){var f=r.f,t=r.t;return [f.kennzeichen||'',((f.marke||'')+' '+(f.modell||'')).trim(),String(t.anzahl),_fzCsvZahl(t.liter,1),_fzCsvZahl(t.euro,2),_fzCsvZahl(t.euro12,2),_fzCsvZahl(t.euroMonat,2),_fzCsvZahl(t.euroProL,3),t.plausibel?_fzCsvZahl(t.l100,1):'',_fzCsvZahl(t.euroKm,3),_fzCsvZahl(r.s.euro,2),t.letzte?_fzDatumAnz(t.letzte):'',String(r.sch),_fzCsvZahl(r.fix.leasing,2),_fzCsvZahl(r.fix.versicherung,2)];});
-    _fzCsvLaden(_fzCsv(['Kennzeichen','Fahrzeug','Tankungen','Liter','Tankkosten gesamt €','Tankkosten 12 Monate €','Ø € je Monat','Ø € je Liter','Ø L/100 km','Tank € je km','Servicekosten €','Letzte Tankung','Offene Schäden','Leasing € je Monat','Versicherung € je Monat (Jahresprämie / 12)'],z),'Kosten_Fuhrpark_'+_fzTagKey(now)+'.csv');
+    var z=zeilen.map(function(r){var f=r.f,t=r.t;return [f.kennzeichen||'',((f.marke||'')+' '+(f.modell||'')).trim(),String(t.anzahl),_fzCsvZahl(t.liter,1),_fzCsvZahl(t.euro,2),_fzCsvZahl(t.euro12,2),_fzCsvZahl(t.euroMonat,2),_fzCsvZahl(t.euroProL,3),t.plausibel?_fzCsvZahl(t.l100,1):'',_fzCsvZahl(t.euroKm,3),_fzCsvZahl(r.s.euro,2),t.letzte?_fzDatumAnz(t.letzte):'',String(r.sch)].concat(props.finanzen?[_fzCsvZahl(r.fix.leasing,2),_fzCsvZahl(r.fix.versicherung,2)]:[]);});
+    _fzCsvLaden(_fzCsv(['Kennzeichen','Fahrzeug','Tankungen','Liter','Tankkosten gesamt €','Tankkosten 12 Monate €','Ø € je Monat','Ø € je Liter','Ø L/100 km','Tank € je km','Servicekosten €','Letzte Tankung','Offene Schäden'].concat(props.finanzen?['Leasing € je Monat','Versicherung € je Monat (Jahresprämie / 12)']:[]),z),'Kosten_Fuhrpark_'+_fzTagKey(now)+'.csv');
   };
   var kachel=function(wert,label){return h('div',{style:{padding:10,borderRadius:8,border:'1px solid '+V.bd,background:V.cd}},h('div',{style:{fontSize:UI.fZahl,fontWeight:800,color:V.tx}},wert),h('div',{style:{fontSize:UI.fMeta,color:V.dm}},label));};
   var sortBtn=function(k,label){return _fzChipBtn(h,sortK===k,label,function(){setSortK(k);});};
@@ -30595,7 +30617,7 @@ function FahrzeugAkteKarte(props){
   var _o=_react.useState.call(void 0,false);var offen=_o[0],setOffen=_o[1];/* Hook VOR dem frueheren Ausstieg - feste Hook-Reihenfolge */
   var f=props.f;if(!f)return null;
   var now=Date.now();
-  var fr=_fzFristen([f],now,[]).filter(function(x){return x.stufe!=='ok';});
+  var fr=_fzFristen([f],now,[],props.fin?(function(){var o={};o[f.id]=props.fin;return o;})():null).filter(function(x){return x.stufe!=='ok';});
   var t=_fzTankStats(f,now),s=_fzServiceStats(f);
   var sch=Array.isArray(f.schaeden)?f.schaeden:[];
   var schOffen=sch.filter(function(x){return x&&x.status==='offen';}).length;
@@ -30708,11 +30730,15 @@ function _fzStammAnzeige(feld,v){/* DB-Wert -> Text fuer das Eingabefeld ('' fue
   if(d.typ==='geld')return String(r.wert).replace('.',',');
   return String(r.wert);
 }
-function _fzStammPruef(body){/* letzter Riegel vor der Warteschlange: [] = sauber, sonst Liste der Verstoesse ('' in date, NaN, negativ, Datei ...) */
+function _fzStammPruef(body,ziel){/* letzter Riegel vor der Warteschlange: [] = sauber, sonst Liste der Verstoesse ('' in date, NaN, negativ, Datei,
+     Spalte der falschen Tabelle). ziel 'fz_finanzen' = nur die 7 Finanzspalten; sonst (fahrzeuge) NUR Reifen/Service - eine Finanzspalte im
+     Fahrzeug-PUT waere 400 (seit 19.11. gibt es sie dort nicht mehr) und wuerde Betraege an Nicht-HR-Leser verteilen. */
   var v=[];if(!body||typeof body!=='object')return ['kein Datensatz'];
+  var erlaubt=(ziel==='fz_finanzen')?FZ_STAMM_FINANZ:FZ_STAMM_REIFEN;
   Object.keys(body).forEach(function(k){
     var d=FZ_STAMM_FELDER[k];var x=body[k];
     if(!d){v.push(k+': unbekannte Spalte');return;}
+    if(erlaubt.indexOf(k)<0){v.push(k+': gehört nicht in '+(ziel==='fz_finanzen'?'fz_finanzen':'fahrzeuge'));return;}
     if(x===null)return;
     if(d.typ==='date'){if(!(typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&_fzDatumTeile(x)))v.push(k+': Datum muss JJJJ-MM-TT oder null sein');return;}
     if(d.typ==='int'){if(!(typeof x==='number'&&isFinite(x)&&Math.floor(x)===x&&x>=(d.min||0)))v.push(k+': ganze Zahl >= '+(d.min||0)+' oder null');return;}
@@ -30722,21 +30748,23 @@ function _fzStammPruef(body){/* letzter Riegel vor der Warteschlange: [] = saube
   });
   return v;
 }
-function _fzStammBody(f,entwurf,felder){/* -> {body,fehler,anzahl}: NUR geaenderte Spalten, normalisiert. Unveraendert = nicht im Rumpf (kein Ueberschreiben paralleler Aenderungen). */
+function _fzStammBody(f,entwurf,felder,ziel){/* -> {body,fehler,anzahl}: NUR geaenderte Spalten, normalisiert. Unveraendert = nicht im Rumpf (kein Ueberschreiben paralleler Aenderungen).
+     ziel 'fz_finanzen' -> nur Finanzspalten (f = fz_finanzen-Zeile), sonst fahrzeuge -> nur Reifen/Service. Fremde Felder fallen still heraus. */
   var body={},fehler={};var src=f||{};var e=entwurf||{};
-  (felder||Object.keys(FZ_STAMM_FELDER)).forEach(function(k){
-    if(!FZ_STAMM_FELDER[k]||!Object.prototype.hasOwnProperty.call(e,k))return;
+  var erlaubt=(ziel==='fz_finanzen')?FZ_STAMM_FINANZ:FZ_STAMM_REIFEN;
+  (felder||erlaubt).forEach(function(k){
+    if(!FZ_STAMM_FELDER[k]||erlaubt.indexOf(k)<0||!Object.prototype.hasOwnProperty.call(e,k))return;
     var neu=_fzStammWert(k,e[k]);
     if(!neu.ok){fehler[k]=neu.fehler;return;}
     var alt=_fzStammWert(k,src[k]);
     if(!alt.ok||alt.wert!==neu.wert)body[k]=neu.wert;
   });
-  var riegel=_fzStammPruef(body);
+  var riegel=_fzStammPruef(body,ziel);
   if(riegel.length)fehler._riegel=riegel.join('; ');
   return {body:body,fehler:fehler,anzahl:Object.keys(body).length};
 }
-function _fzStammSpalten(fahrzeuge){/* Spalten-Sniff: true, sobald ein geladener Datensatz die neuen Spalten traegt */
-  return (fahrzeuge||[]).some(function(f){return f&&Object.prototype.hasOwnProperty.call(f,'leasing_ende')&&Object.prototype.hasOwnProperty.call(f,'naechst_service_km');});
+function _fzStammSpalten(fahrzeuge){/* Spalten-Sniff (nur Reifen/Service - die Finanzspalten liegen seit 19.11. in fz_finanzen): true, sobald ein geladener Datensatz sie traegt */
+  return (fahrzeuge||[]).some(function(f){return f&&Object.prototype.hasOwnProperty.call(f,'reifen_saison')&&Object.prototype.hasOwnProperty.call(f,'naechst_service_km');});
 }
 
 /* ── Fuehrerscheinkontrolle: reine Rechner ── */
@@ -30811,35 +30839,60 @@ function _fsKtrChip(stufe,h){
   return h('span',{style:{display:'inline-block',flexShrink:0,minWidth:112,textAlign:'center',padding:'3px 8px',borderRadius:UI.rChip,background:bg,color:'#fff',fontSize:UI.fMeta,fontWeight:700,whiteSpace:'nowrap'}},FS_KTR_TXT[stufe]||stufe);
 }
 
-/* ── Fahrzeug-Detail: Stammdaten-Karte ── */
+/* ── Finanzdaten (fz_finanzen): seit 19.11. eigene Tabelle, RLS FOR ALL nur is_hr (admin/buero/projektleiter).
+   Geladen wird NUR fuer _maStaffRolle - andere Rollen fragen die Tabelle nie an (sie bekaemen ohnehin 0 Zeilen).
+   Sitzungsspeicher, kein localStorage (Personal-/Vertragsdaten). status: aus | laedt | ok | offline | fehler. */
+var _fzFin={rows:{},status:'aus'};
+function _fzFinLaden(cu){/* -> Promise (fertig) oder null, wenn die Rolle keine Finanzdaten sehen darf */
+  if(!_maStaffRolle(cu))return null;
+  if(typeof navigator!=='undefined'&&navigator.onLine===false){if(_fzFin.status!=='ok')_fzFin.status='offline';return Promise.resolve(_fzFin);}
+  var p=null;
+  try{p=_sbGet('fz_finanzen');}catch(e){p=null;}
+  if(!p||typeof p.then!=='function'){if(_fzFin.status!=='ok')_fzFin.status='fehler';return Promise.resolve(_fzFin);}
+  if(_fzFin.status!=='ok')_fzFin.status='laedt';
+  return p.then(function(d){
+    (Array.isArray(d)?d:[]).forEach(function(r){if(r&&r.fahrzeug_id)_fzFin.rows[r.fahrzeug_id]=r;});
+    _fzFin.status='ok';return _fzFin;
+  },function(){if(_fzFin.status!=='ok')_fzFin.status='fehler';return _fzFin;});
+}
+function _fzFinMerken(fid,body){/* lokale Sofortanzeige nach dem Speichern (die Warteschlange schreibt nach) */
+  if(!fid||!body)return;
+  _fzFin.rows[fid]=Object.assign({fahrzeug_id:fid},_fzFin.rows[fid]||{},body);
+}
+
+/* ── Fahrzeug-Detail: Stammdaten-Karte ── Reifen/Service-km -> fahrzeuge (upd/PUT), Leasing/Versicherung -> fz_finanzen (Upsert ueber fahrzeug_id). */
 function FahrzeugStammKarte(props){
   var h=React.createElement;
-  var f=props.f||{};
-  var felderAus=function(x){var o={};Object.keys(FZ_STAMM_FELDER).forEach(function(k){o[k]=_fzStammAnzeige(k,x[k]);});return o;};
-  var _e=_react.useState.call(void 0,function(){return felderAus(f);});var entwurf=_e[0],setEntwurf=_e[1];
+  var f=props.f||{};var fin=props.fin||{};
+  var felderAus=function(x,y){var o={};FZ_STAMM_REIFEN.forEach(function(k){o[k]=_fzStammAnzeige(k,x[k]);});FZ_STAMM_FINANZ.forEach(function(k){o[k]=_fzStammAnzeige(k,y[k]);});return o;};
+  var _e=_react.useState.call(void 0,function(){return felderAus(f,fin);});var entwurf=_e[0],setEntwurf=_e[1];
   var _d=_react.useState.call(void 0,false);var dirty=_d[0],setDirty=_d[1];
   var _fe=_react.useState.call(void 0,{});var fehler=_fe[0],setFehler=_fe[1];
   var _o=_react.useState.call(void 0,!!props.offenStart);var offen=_o[0],setOffen=_o[1];
-  _react.useEffect.call(void 0,function(){if(!dirty)setEntwurf(felderAus(f));},[f]);
+  _react.useEffect.call(void 0,function(){if(!dirty)setEntwurf(felderAus(f,fin));},[props.f,props.fin]);
   if(!props.f)return null;
-  var spaltenDa=!!props.spaltenDa,siehtFinanz=!!props.siehtFinanz;
-  var darfFinanz=spaltenDa&&!!props.darfFinanz,darfReifen=spaltenDa&&!!props.darfReifen;
+  var spaltenDa=!!props.spaltenDa,siehtFinanz=!!props.darfFinanz,finDa=siehtFinanz&&!!props.finDa;
+  var darfFinanz=finDa,darfReifen=spaltenDa&&!!props.darfReifen;
   var isMob=!!props.isMob;
   var setze=function(k,v){setEntwurf(function(p){var n=Object.assign({},p);n[k]=v;return n;});setDirty(true);setFehler(function(p){var n=Object.assign({},p);delete n[k];delete n._riegel;return n;});};
-  var editierbar=(darfFinanz?FZ_STAMM_FINANZ:[]).concat(darfReifen?FZ_STAMM_REIFEN:[]);
-  var vorschau=_fzStammBody(f,entwurf,editierbar);
+  var rumpf=function(){return {fz:_fzStammBody(f,entwurf,darfReifen?FZ_STAMM_REIFEN:[],'fahrzeuge'),fi:_fzStammBody(fin,entwurf,darfFinanz?FZ_STAMM_FINANZ:[],'fz_finanzen')};};
+  var vorschau=rumpf();var nGeaendert=vorschau.fz.anzahl+vorschau.fi.anzahl;
   var speichern=function(){
-    var r=_fzStammBody(f,entwurf,editierbar);
-    if(Object.keys(r.fehler).length){setFehler(r.fehler);if(window.__toast)window.__toast('Bitte die markierten Felder prüfen','error',4000);return;}
-    if(!r.anzahl){setDirty(false);return;}
-    if(props.onSpeichern)props.onSpeichern(r.body);
+    var r=rumpf();
+    var fx=Object.assign({},r.fz.fehler,r.fi.fehler);
+    if(r.fz.fehler._riegel&&r.fi.fehler._riegel)fx._riegel=r.fz.fehler._riegel+'; '+r.fi.fehler._riegel;
+    if(Object.keys(fx).length){setFehler(fx);if(window.__toast)window.__toast('Bitte die markierten Felder prüfen','error',4000);return;}
+    if(!r.fz.anzahl&&!r.fi.anzahl){setDirty(false);return;}
+    if(r.fz.anzahl&&props.onSpeichern)props.onSpeichern(r.fz.body);
+    if(r.fi.anzahl&&props.onSpeichernFin)props.onSpeichernFin(r.fi.body);
     setDirty(false);setFehler({});
     if(window.__toast)window.__toast((typeof navigator!=='undefined'&&navigator.onLine===false)?'Gespeichert - wird übertragen, sobald wieder Netz da ist':'Stammdaten gespeichert','success',3000);
   };
-  var verwerfen=function(){setEntwurf(felderAus(f));setDirty(false);setFehler({});};
+  var verwerfen=function(){setEntwurf(felderAus(f,fin));setDirty(false);setFehler({});};
   var lesen=function(k){
-    var r=_fzStammWert(k,f[k]);var d=FZ_STAMM_FELDER[k];
-    if(!r.ok)return String(f[k]);
+    var src=FZ_STAMM_FINANZ.indexOf(k)>=0?fin:f;
+    var r=_fzStammWert(k,src[k]);var d=FZ_STAMM_FELDER[k];
+    if(!r.ok)return String(src[k]);
     if(r.wert===null)return '—';
     if(d.typ==='date')return _fzDatumAnz(r.wert);
     if(d.typ==='geld')return fmt$(r.wert);
@@ -30864,12 +30917,12 @@ function FahrzeugStammKarte(props){
   var gruppe=function(titel,ikon,felder,darf,extra){
     return h('div',{style:{marginTop:10}}
       ,h('div',{style:{fontSize:UI.fKlein,fontWeight:800,color:V.tx,display:'flex',alignItems:'center',gap:6,marginBottom:6}},_ik(ikon,16),titel)
-      ,h('div',{style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(auto-fit,minmax(180px,1fr))',gap:8}},felder.map(function(k){return feld(k,darf);}))
+      ,felder?h('div',{style:{display:'grid',gridTemplateColumns:isMob?'1fr':'repeat(auto-fit,minmax(180px,1fr))',gap:8}},felder.map(function(k){return feld(k,darf);})):null
       ,extra||null);
   };
-  /* Hinweis Service-km: Ist-Stand und Restweg, nur wenn beides erfasst ist */
   var kmIst=_fzZahl(f.kmStand),ziel=_fzZahl(f.naechst_service_km);
-  var kmHinweis=(kmIst>0&&ziel>0)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Aktueller km-Stand '+String(Math.round(kmIst)).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' km - '+(ziel-kmIst>0?('noch '+String(Math.round(ziel-kmIst)).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' km bis zum Service'):'Service-km erreicht')):null;
+  var kmFmt=function(x){return String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g,'.');};
+  var kmHinweis=(kmIst>0&&ziel>0)?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Aktueller km-Stand '+kmFmt(kmIst)+' km - '+(ziel-kmIst>0?('noch '+kmFmt(ziel-kmIst)+' km bis zum Service'):'Service-km erreicht')):null;
   var vorschlag=null;
   if(darfReifen){
     var iv=_fzStammWert('service_km_intervall',entwurf.service_km_intervall);
@@ -30877,10 +30930,11 @@ function FahrzeugStammKarte(props){
       vorschlag=h('button',{type:'button',onClick:function(){setze('naechst_service_km',String(Math.round(kmIst)+iv.wert));},style:Object.assign({},bsS(),{minHeight:44,marginTop:6})},'Nächstes Service = km-Stand + Intervall');
   }
   var zusammen=[];
-  if(siehtFinanz){var lr=_fzStammWert('leasing_rate',f.leasing_rate);var le=_fzStammWert('leasing_ende',f.leasing_ende);if(le.ok&&le.wert)zusammen.push('Leasing bis '+_fzDatumAnz(le.wert));else if(lr.ok&&lr.wert!==null)zusammen.push('Leasing');var va=_fzStammWert('versicherung_ablauf',f.versicherung_ablauf);if(va.ok&&va.wert)zusammen.push('Versicherung bis '+_fzDatumAnz(va.wert));}
+  if(finDa){var lr=_fzStammWert('leasing_rate',fin.leasing_rate);var le=_fzStammWert('leasing_ende',fin.leasing_ende);if(le.ok&&le.wert)zusammen.push('Leasing bis '+_fzDatumAnz(le.wert));else if(lr.ok&&lr.wert!==null)zusammen.push('Leasing');var va=_fzStammWert('versicherung_ablauf',fin.versicherung_ablauf);if(va.ok&&va.wert)zusammen.push('Versicherung bis '+_fzDatumAnz(va.wert));}
   var rs=_fzStammWert('reifen_saison',f.reifen_saison);if(rs.ok&&rs.wert)zusammen.push({sommer:'Sommerreifen',winter:'Winterreifen',ganzjahr:'Ganzjahresreifen'}[rs.wert]||rs.wert);
   var sk=_fzStammWert('naechst_service_km',f.naechst_service_km);if(sk.ok&&sk.wert!==null)zusammen.push('Service bei '+lesen('naechst_service_km'));
-  var kannSpeichern=editierbar.length>0;
+  var finTxt=props.finStatus==='offline'?'Offline: Leasing- und Versicherungsdaten sind auf diesem Gerät noch nicht geladen.':props.finStatus==='fehler'?'Leasing- und Versicherungsdaten konnten nicht geladen werden - bitte später erneut öffnen.':'Leasing- und Versicherungsdaten werden geladen …';
+  var kannSpeichern=darfFinanz||darfReifen;
   return h('div',{style:Object.assign({},CC(),{marginTop:8})}
     ,h('button',{type:'button',onClick:function(){setOffen(function(v){return !v;});},'aria-expanded':offen?'true':'false',
       style:{width:'100%',minHeight:44,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'4px 2px',border:'none',background:'transparent',color:V.tx,cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}
@@ -30889,13 +30943,15 @@ function FahrzeugStammKarte(props){
           ,h('span',{style:{fontSize:UI.fMeta,color:V.dm,display:'block'}},zusammen.length?zusammen.join(' · '):'noch nichts erfasst')))
       ,h('span',{'aria-hidden':'true',style:{transform:offen?'rotate(180deg)':'none',transition:'transform .2s'}},'▼'))
     ,offen?h('div',{}
-      ,!spaltenDa?h('div',{style:{fontSize:UI.fKlein,color:V.tx,padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,marginTop:6}},'Die neuen Stammdaten-Felder sind auf diesem Gerät noch nicht geladen. Bitte online die App neu laden - bis dahin wird hier nichts gespeichert.'):null
-      ,siehtFinanz?gruppe('Leasing & Versicherung','aktentasche',FZ_STAMM_FINANZ,darfFinanz,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Leasingrate je Monat, Versicherungsprämie je Jahr. Beides erscheint in „Kosten" als eigene Spalten, getrennt von den Tankkosten.')):null
+      ,siehtFinanz?(finDa
+        ?gruppe('Leasing & Versicherung','aktentasche',FZ_STAMM_FINANZ,darfFinanz,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Leasingrate je Monat, Versicherungsprämie je Jahr. Beides erscheint in „Kosten" als eigene Spalten, getrennt von den Tankkosten. Nur Büro, Projektleitung und Admin sehen diese Daten.'))
+        :gruppe('Leasing & Versicherung','aktentasche',null,false,h('div',{style:{fontSize:UI.fKlein,color:V.tx,padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd}},finTxt))):null
+      ,!spaltenDa?h('div',{style:{fontSize:UI.fKlein,color:V.tx,padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,marginTop:6}},'Die Reifen-/Service-Felder sind auf diesem Gerät noch nicht geladen. Bitte online die App neu laden - bis dahin wird hier nichts gespeichert.'):null
       ,gruppe('Reifen & Service-Intervall','werkzeug',FZ_STAMM_REIFEN,darfReifen,h('div',{},kmHinweis,vorschlag))
       ,kannSpeichern?h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:12,alignItems:'center'}}
-        ,h('button',{type:'button',onClick:speichern,disabled:!dirty,style:Object.assign({},bpS,{minHeight:44,opacity:dirty?1:.5,display:'inline-flex',alignItems:'center',gap:6})},_ik('speichern',16),'Speichern')
+        ,h('button',{type:'button',onClick:speichern,disabled:!dirty,style:Object.assign({},bpS,{minHeight:44,opacity:dirty?1:0.5,display:'inline-flex',alignItems:'center',gap:6})},_ik('speichern',16),'Speichern')
         ,dirty?h('button',{type:'button',onClick:verwerfen,style:Object.assign({},bsS(),{minHeight:44})},'Verwerfen'):null
-        ,dirty&&vorschau.anzahl?h('span',{style:{fontSize:UI.fMeta,color:V.dm}},vorschau.anzahl+(vorschau.anzahl===1?' Feld geändert':' Felder geändert')):null
+        ,dirty&&nGeaendert?h('span',{style:{fontSize:UI.fMeta,color:V.dm}},nGeaendert+(nGeaendert===1?' Feld geändert':' Felder geändert')):null
         ,fehler._riegel?h('div',{role:'alert',style:{fontSize:UI.fMeta,color:COLORS.ERROR,fontWeight:600,width:'100%'}},fehler._riegel):null)
       :(spaltenDa?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8}},'Ändern dürfen Büro, Projektleitung und Admin (Reifen/Service auch der eingetragene Fahrer).'):null))
     :null);
@@ -31023,7 +31079,7 @@ function FsKontrolleFristenKarte(props){
     }):h('div',{style:{fontSize:UI.fKlein,color:V.dm}},alle.length?'Alle Fahrer sind kontrolliert, kein Führerschein läuft in den nächsten 60 Tagen ab.':'Keinem aktiven Fahrzeug ist ein Fahrer zugewiesen.')
     ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:6}},'Im Blick: zugewiesene Fahrer und alle Mitarbeiter mit erfasster Kontrolle. Erfassen unter Mitarbeiter → Person → Führerscheinkontrolle.'));
 }
-if(typeof window!=='undefined'){window._fzStammWert=_fzStammWert;window._fzStammBody=_fzStammBody;window._fzStammPruef=_fzStammPruef;window._fsKtrStatus=_fsKtrStatus;window._fsKtrFaellig=_fsKtrFaellig;}
+if(typeof window!=='undefined'){window._fzStammWert=_fzStammWert;window._fzStammBody=_fzStammBody;window._fzStammPruef=_fzStammPruef;window._fsKtrStatus=_fsKtrStatus;window._fsKtrFaellig=_fsKtrFaellig;window._fzFinLaden=_fzFinLaden;}
 //@FLOTTE-STAMM-END
 
 function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
@@ -31138,6 +31194,12 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
      nicht, sind die drei Geraete-Felder gesperrt und es wird nichts geschrieben. Nach dem SQL-Run
      ist die App OHNE Update voll funktionsfaehig. */
   const _trkSpalten=(fahrzeuge||[]).some(function(f){return f&&Object.prototype.hasOwnProperty.call(f,'tracker_typ');});
+  /* v1050 Finanzdaten (fz_finanzen): nur is_hr laedt/sieht/aendert sie - Lagerleitung nicht mehr (RLS liefert 0 Zeilen). */
+  const _darfFin=_maStaffRolle(curUser);
+  const [_finVer,_setFinVer]=_react.useState.call(void 0, 0);
+  _react.useEffect.call(void 0, ()=>{let a=true;const p=_fzFinLaden(curUser);if(p)p.then(()=>{if(a)_setFinVer(v=>v+1);});return ()=>{a=false;};},[_darfFin]);
+  const _finKarte=_darfFin?_fzFin.rows:null;
+  const _finSpeichern=(fid,body)=>{if(!_darfFin||!fid)return;_fzFinMerken(fid,body);_setFinVer(v=>v+1);SQ.push({url:"/api/fz-finanzen/"+encodeURIComponent(fid),method:"PUT",body:Object.assign({fahrzeug_id:fid},body)});};
   const upd=(id,fn,syncBody)=>{setFahrzeuge(prev=>prev.map(f=>{if(f.id===id){const updated=fn({...f});const _body=(typeof syncBody==="function")?syncBody(updated):(syncBody!==undefined?syncBody:updated);SQ.push({url:"/api/fahrzeuge/"+id,method:"PUT",body:_body});return updated;}return f;}));};
   /* v3.9.235 tu-563: Serviceheft-Dokumente (Rechnung/Befund + beliebig viele weitere), PDF-fähig.
      function-syncBody → PUT trägt NUR die serviceheft-Spalte (statt ganzes Fahrzeug mit allen base64-Bildern). */
@@ -31874,8 +31936,8 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
         })
       ))
       /* v1049 Lese-Ansichten Fristen / Kosten (Grundmenge visibleFz wie die Kacheln; Klick oeffnet das Fahrzeug) */
-      , !sel&&!batchMode&&isVAdmin&&view==="fristen"&&React.createElement(FlotteFristenPanel, {fahrzeuge: visibleFz, monteure: (monteure||MONT), isMob: isMob, zeigeFahrer: isVAdmin, zeigeFsKtr: _maStaffRolle(curUser), onOpen: setSel})
-      , !sel&&!batchMode&&isVAdmin&&view==="kosten"&&React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz, isMob: isMob, onOpen: setSel})
+      , !sel&&!batchMode&&isVAdmin&&view==="fristen"&&React.createElement(FlotteFristenPanel, {fahrzeuge: visibleFz, monteure: (monteure||MONT), isMob: isMob, zeigeFahrer: isVAdmin, zeigeFsKtr: _maStaffRolle(curUser), finanzen: _finKarte, onOpen: setSel})
+      , !sel&&!batchMode&&isVAdmin&&view==="kosten"&&React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz, isMob: isMob, finanzen: _finKarte, onOpen: setSel})
 
       /* Vehicle Detail */
       , selFz&&(React.createElement('div', {}
@@ -31928,9 +31990,9 @@ function FahrzeugView({fahrzeuge,setFahrzeuge,monteure,ww,curUser,users}){
           )
         )
         /* v1049 Fahrzeugakte: Fristen, Kennzahlen, Chronik, CSV - nur lesen */
-        , React.createElement(FahrzeugAkteKarte, {key: "akte_"+selFz.id, f: selFz, isMob: isMob})
-        /* v1050 Stammdaten: Betraege (Leasing/Versicherung) sehen nur Verwalter; aendern nur is_hr (Buero/PL/Admin) wie die RLS. Reifen/Service-km darf zusaetzlich der eingetragene Fahrer (RLS: fahrer = current_monteur_id()). Nur geaenderte Spalten gehen in den PUT. */
-        , React.createElement(FahrzeugStammKarte, {key: "stamm_"+selFz.id, f: selFz, isMob: isMob, spaltenDa: _fzStammSpalten(fahrzeuge), siehtFinanz: isVAdmin, darfFinanz: _maStaffRolle(curUser), darfReifen: _maStaffRolle(curUser)||!!(curUser&&curUser.monteurId&&selFz.fahrer===curUser.monteurId), onSpeichern: function(body){upd(sel,function(x){return Object.assign({},x,body);},body);}})
+        , React.createElement(FahrzeugAkteKarte, {key: "akte_"+selFz.id, f: selFz, isMob: isMob, fin: _finKarte?(_finKarte[selFz.id]||null):null})
+        /* v1050 Stammdaten: Betraege (Leasing/Versicherung, Tabelle fz_finanzen) sehen und aendern nur is_hr (Buero/PL/Admin) wie die RLS. Reifen/Service-km darf zusaetzlich der eingetragene Fahrer (RLS: fahrer = current_monteur_id()). Nur geaenderte Spalten gehen in den PUT. */
+        , React.createElement(FahrzeugStammKarte, {key: "stamm_"+selFz.id, f: selFz, isMob: isMob, spaltenDa: _fzStammSpalten(fahrzeuge), darfFinanz: _darfFin, fin: _finKarte?(_finKarte[selFz.id]||null):null, finDa: _darfFin&&_fzFin.status==="ok", finStatus: _fzFin.status, darfReifen: _darfFin||!!(curUser&&curUser.monteurId&&selFz.fahrer===curUser.monteurId), onSpeichern: function(body){const b=_fzOhneFinanz(Object.assign({},body));upd(sel,function(x){return Object.assign({},x,b);},b);}, onSpeichernFin: function(body){_finSpeichern(sel,body);}})
 
         /* km Modal */
         , showKm===sel&&(React.createElement('div', { style: {...CC(),border:"2px solid "+V.ac,marginTop:8}}
