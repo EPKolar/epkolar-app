@@ -163,7 +163,10 @@ def test_die_tankkosten_lassen_stillgelegte_aus(index_html):
 def test_die_kachel_bleibt_auf_aktiven_fahrzeugen(index_html):
     """Gegenprobe: der Nenner war schon richtig und darf sich NICHT aendern -
     sonst waere die Kachel wieder in sich widerspruechlich, nur andersherum."""
-    assert ('value: (fahrzeuge||[]).filter(f=>f.status!=="stillgelegt").length, '
+    # v3.9.1062: die Auswertung bekommt seit dem Fahrzeug-Archiv die volle Liste - der Zaehler
+    # bleibt "aktive Fahrzeuge" und laesst deshalb archivierte zusaetzlich aus (_fzNurAktiv); die
+    # Summe nennt ausdruecklich "inkl. archivierte" (test_archiv_historie_v1062.py).
+    assert ('value: _fzNurAktiv(fahrzeuge).filter(f=>f.status!=="stillgelegt").length, '
             'sub: _eur0(totalTankKosten)') in index_html, (
         # v3.9.1004 (AU1): nur die Anzeige geht jetzt ueber den lokalen
         # Formatierer ("€ 3.142" statt "€3142") - die Summe bleibt dieselbe.

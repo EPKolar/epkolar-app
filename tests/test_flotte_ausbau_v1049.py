@@ -347,6 +347,7 @@ def test_ansichten_rendern_ohne_fehler(node_exe, index_html, tmp_path):
                    "_fzStufeChip", "_fzCsvLaden", "_fzChipBtn", "FlotteFristenPanel", "FlotteKostenPanel",
                    "FahrzeugAkteKarte", "_n", "_fzDE",  # v1049 UX: Zahlen deutsch
                    "_fzFixkosten",  # v1050: Kosten-Ansicht rechnet Leasing/Versicherung je Monat
+                   "_fzArchiviert",  # v3.9.1062: Kosten-Ansicht markiert archivierte Fahrzeuge
                    "_maIstEhemalig")  # Austritt nur ueber die eine Regel (v952)
     fz = [dict(FZ[0], marke="Ford", modell="Transit", fahrer="m1", typ="LKW",
                tankLog=[{"liter": 40, "preis": 60, "km": 1000, "datum": "2026-10-01"},

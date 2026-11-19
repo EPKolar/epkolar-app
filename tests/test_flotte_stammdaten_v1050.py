@@ -375,7 +375,8 @@ def test_schreibwege_und_gates(index_html):
             "onSpeichern: function(body){const b=_fzOhneFinanz(Object.assign({},body));upd(sel,function(x){return Object.assign({},x,b);},b);}, "
             "onSpeichernFin: function(body){_finSpeichern(sel,body);}})") in index_html
     assert "zeigeFsKtr: _maStaffRolle(curUser), finanzen: _finKarte, onOpen: setSel})" in index_html
-    assert "React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz, isMob: isMob, finanzen: _finKarte, onOpen: setSel})" in index_html
+    # v3.9.1062: Kostenuebersicht zaehlt archivierte Fahrzeuge mit (vergangene 12 Monate), oeffnet aber nur aktive
+    assert "React.createElement(FlotteKostenPanel, {fahrzeuge: visibleFz.concat(_fzNurArchiv(fahrzeugeAlle)), isMob: isMob, finanzen: _finKarte, onOpen: (id)=>{if(_fzArchiviert(" in index_html
     assert "isAdmin?React.createElement(FsKontrolleSection,{key:\"fsk_\"+selM.id,monteur:selM,curUser:curUser,isMob:isMob})" in index_html
     assert "if(!_maStaffRolle(cu)||!mid)return null;" in b, "Abschnitt selbst gated"
     assert "function _maStaffRolle(u){\n  return !!(u&&(u.role===\"admin\"||u.role===\"projektleiter\"||u.role===\"buero\"));" in index_html, \
@@ -402,6 +403,7 @@ def test_ansichten_rendern(node_exe, index_html, tmp_path):
     fns = STAMM + FS + ("_fzPickerlStufe", "_fzTerminErledigt", "_fzFristen", "_fzTankStats", "_fzServiceStats", "_fzFixkosten",
                         "_fzFahrerCheck", "_fzCsvZelle", "_fzCsv", "_fzCsvZahl", "_fzStufeChip", "_fzCsvLaden", "_fzChipBtn",
                         "_fsKtrMerken", "_fsKtrAusCache", "_fsKtrChip", "_maStaffRolle", "_n",
+                        "_fzArchiviert",  # v3.9.1062: FlotteKostenPanel markiert archivierte Fahrzeuge
                         "FlotteFristenPanel", "FlotteKostenPanel", "FahrzeugStammKarte", "FsKontrolleSection", "FsKontrolleFristenKarte")
     zusatz = ("var _fsKtrCache={};function LL(){return {};}var bpS={};function td2(){return '2026-11-19';}function uid(){return 'u1';}"
               "_react.useRef={call:function(){return {current:null};}};var SQ={push:function(){}};\n")
