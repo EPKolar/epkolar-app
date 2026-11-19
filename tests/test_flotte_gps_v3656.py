@@ -10,7 +10,8 @@ def test_monteure_prop(index_html):
     # die komplette Props-Liste im Wortlaut — sie bricht sonst bei jedem neuen Prop, ohne dass
     # sich am geprueften Verhalten etwas aendert.
     # v3.9.689: setFahrzeuge kam dazu (IMEI-Zuordnung inline im Fleet-Panel).
-    assert "React.createElement(FlotteView, { fahrzeuge: fahrzeuge, setFahrzeuge: setFahrzeuge" in index_html
+    # v3.9.1059: Flotte bekommt die Liste OHNE archivierte Fahrzeuge (fahrzeugeAktiv), setFahrzeuge bleibt der volle Zustand.
+    assert "React.createElement(FlotteView, { fahrzeuge: fahrzeugeAktiv, setFahrzeuge: setFahrzeuge" in index_html
     assert "const monteure=props.monteure||[];" in index_html
 
 
