@@ -135,7 +135,9 @@ def test_3_umkehrprobe(node_exe, index_html):
 # ── 4 Plaene hochkant ──────────────────────────────────────────────────────
 def pruef_hochkant(src):
     b = []
-    if "const _hochkant=!isMob&&!_dauerListe&&typeof window!==\"undefined\"&&window.innerHeight>window.innerWidth;" not in src:
+    # v1066 Stufe Planung: !isMob&&!_dauerListe heisst jetzt Stufe mittel (dieselbe Menge: nicht schmal, nicht breit);
+    # die Lage (Hoehe > Breite) bleibt die Hochkant-Bedingung.
+    if "const _hochkant=_plStufe===\"mittel\"&&typeof window!==\"undefined\"&&window.innerHeight>window.innerWidth;" not in src:
         b.append("keine Hochkant-Erkennung")
     if "const _gestapelt=_hochkant&&_rechts;" not in src or "Math.round(_stVh*0.45)" not in src:
         b.append("Plan behaelt keine Mindesthoehe")

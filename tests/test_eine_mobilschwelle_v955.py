@@ -68,10 +68,13 @@ import code_scan  # noqa: E402
 PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 
 # Die umschliessende Ansicht je erlaubter Stelle. Reihenfolge = Dateireihenfolge.
+# v1066 Stufe Planung: VPlan ist WEGGEFALLEN - nicht verloren, sondern in die gemeinsame
+# Breitenstufe gewandert (const _plStufe=_layoutStufe(...)). isTab regelte dort nur das
+# Ebenen-Raster; es ist jetzt einspaltig ausser in der Stufe breit (gesichert in
+# tests/test_stufe_planung_v1066.py). Die Tablet-Fassung der Ansicht ist also nicht weg.
 ERLAUBT = [
     "ProjectShell",
     "VDash",
-    "VPlan",
     "VFotos",
     "WerkzeugView",
     "WerkzeugView",

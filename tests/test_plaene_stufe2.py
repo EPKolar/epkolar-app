@@ -44,8 +44,11 @@ def pruef_tablet(src):
     pv = _fn(src, "PlanViewerCanvas")
     li = src[src.index("const TicketListItem = React.memo("):src.index("function _tkFertig(")]
     b = []
-    if "const _dauerListe=ww>=900;" not in v:
-        b.append("keine 900-px-Schwelle fuer die dauerhafte Liste")
+    # v1066 Stufe Planung: die dauerhafte Liste haengt an der gemeinsamen Breitenstufe (breit = ab 1100,
+    # quer schon ab 900) statt an einer eigenen 900-px-Zahl. Tablet quer (1280) bleibt Plan | Liste,
+    # Tablet hochkant (800) bleibt gestapelt - wie vorher.
+    if "const _dauerListe=_plStufe===\"breit\";" not in v or "const _plStufe=_layoutStufe(ww," not in v:
+        b.append("dauerhafte Liste haengt nicht an der Breitenstufe breit")
     if 'const _rechts=!isMob&&subView==="viewer"&&(_dauerListe||showSidebar||' not in v:
         b.append("rechte Spalte ab 900 px nicht dauerhaft")
     if "(!_dauerListe&&(_qtEl||_qdEl))" not in v or "(_qInListe&&_qOffen.id===t.id)" not in v:

@@ -220,8 +220,10 @@ def test_material_reiter_tablet_padding(index_html):
 
 
 def test_plaene_kopf_tablet_hoch(index_html):
-    assert 'flex:isMob?"1 1 0":(ww<1000?"1 1 100%":"2 1 240px")' in index_html
-    assert 'placeholder: ww<1000?"Pin-Nr / Titel suchen…":"Pin-Nr oder Titel suchen…"' in index_html
+    # v1066 Stufe Planung: die eigene 1000-px-Grenze ist in die gemeinsame Stufe gewandert - Tablet hochkant
+    # (800, mittel) behaelt Planname auf eigener Zeile und den kurzen Platzhalter, quer/PC (breit) die lange Form.
+    assert 'flex:isMob?"1 1 0":(_plStufe==="mittel"?"1 1 100%":"2 1 240px")' in index_html
+    assert 'placeholder: _plStufe==="mittel"?"Pin-Nr / Titel suchen…":"Pin-Nr oder Titel suchen…"' in index_html
 
 
 def _km_fmt(src):
