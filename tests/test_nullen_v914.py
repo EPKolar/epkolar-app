@@ -169,7 +169,9 @@ def test_fristen_alle_drei_lesungen_markieren_ihren_ausfall(index_html):
     for tab in ('_sbGet("material_orders","status=eq.angefordert")',
                 '_sbGet("tickets","select=id,title,due_date,status,assignee&due_date=lt."+_today)',
                 '_sbGet("defects","select=id,title,frist,status,zugewiesen,worker&frist=lt."+_today)'):
-        assert (tab + ".catch(()=>{const _e=[];try{_e.__rlsFehler=-1;}catch(_m){}return _e;});") in code, (
+        # v3.9.1050: die Marke kommt jetzt aus _eskLeseMarke (setzt __rlsFehler=-1 UND merkt die Fehlerart,
+        # damit ein kurzer Netzausfall beim Aufwachen nicht wie ein Rechtefehler gemeldet wird)
+        assert (tab + ".catch(_eskLeseMarke);") in code, (
             "Diese Lesung markiert ihren Ausfall nicht: " + tab
         )
         assert (tab + ".catch(()=>[]);") not in code
@@ -180,8 +182,10 @@ def test_fristen_der_ausfall_wird_ueber_die_glocke_gemeldet(index_html):
     die vorhandene Anzeige - also meldet sie ihren eigenen Ausfall. fire() hat
     4h Sperrzeit je Schluessel, das bleibt eine Meldung, kein Dauerpiepen."""
     code = nur_code(index_html)
-    assert 'if(_rlsLeer(openMat))fire("rls_material"' in code
-    assert 'if(_rlsLeer(ovT)||_rlsLeer(ovD))fire("rls_frist"' in code
+    # v3.9.1050: Netzausfall meldet erst nach 3 Runden in Folge, 401/403 sofort (_eskAusfallMelden)
+    assert '{const _mArt=_eskAusfallArt(openMat);const _mSeit=_eskAusfallMelden("rls_material",_mArt);if(_mSeit)fire("rls_material"' in code
+    assert '{const _fArt=_eskAusfallArt(ovT,ovD);const _fSeit=_eskAusfallMelden("rls_frist",_fArt);if(_fSeit)fire("rls_frist"' in code
+    assert "function _eskLeseMarke(e){var l=[];try{l.__rlsFehler=-1;" in code
 
 
 def test_fristen_die_meldung_sagt_was_ausfaellt(index_html):
@@ -220,11 +224,11 @@ def test_selbsttest_die_riegel_schlagen_beim_rueckbau_an(index_html):
         ("const _wipeUnlesbar=(!!SQ._leseFehler)||(!!PhotoQ._leseFehler);",
          "const _wipeUnlesbar=false;",
          test_wipe_liest_den_merker_aus_v912),
-        ('if(_rlsLeer(ovT)||_rlsLeer(ovD))fire("rls_frist"',
+        ('if(_fSeit)fire("rls_frist"',
          'if(false)fire("rls_frost"',
          test_fristen_der_ausfall_wird_ueber_die_glocke_gemeldet),
         ('_sbGet("tickets","select=id,title,due_date,status,assignee&due_date=lt."+_today)'
-         '.catch(()=>{const _e=[];try{_e.__rlsFehler=-1;}catch(_m){}return _e;});',
+         '.catch(_eskLeseMarke);',
          '_sbGet("tickets","select=id,title,due_date,status,assignee&due_date=lt."+_today).catch(()=>[]);',
          test_fristen_alle_drei_lesungen_markieren_ihren_ausfall),
     ]

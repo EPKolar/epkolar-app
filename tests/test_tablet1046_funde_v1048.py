@@ -238,7 +238,7 @@ def test_auftragsart_farben_verschieden(index_html):
     '_zpIk("hochladen","AU hochladen",14))',
     "_ikVw('euro','Entfernungszulage'))",
     "_zpIk('dokument','PZE-PDF (Lohnverrechner)')))",
-    "_zpIk('regler','Zulagensätze bearbeiten ▼',14))",
+    "_zpIk('regler','Zulagensätze bearbeiten',14),_klappIk(_ezRateEdit,14))",  # v3.9.1050: ▼ -> Linien-Chevron
     "justifyContent:'center'}},_ik('links',18))",
     "justifyContent:'center'}},_ik('rechts',18))",
     "_zpIk('links','Monat',16))",
