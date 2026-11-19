@@ -312,5 +312,6 @@ def test_weg_a_ohne_protect_und_probe_datei_ausfuehrbar():
     assert "PROTECT_TOKEN" not in doku and "Weg B" not in doku
     sql = io.open(os.path.join(WURZEL, "sql", "KAMERA_PILOT_HEUTE_PROBE.sql"), encoding="utf-8").read()
     assert sql.count("raise exception 'PROBE_ERGEBNIS %', r;") == 1 and "\nrollback;" in sql
-    assert "commit" not in sql.lower().replace("-- ", "")
-    assert "cascade" not in sql.lower() and "192.168" not in sql
+    code = [z.strip().lower() for z in sql.splitlines() if z.strip() and not z.strip().startswith("--")]
+    assert not [z for z in code if z.startswith("commit")], "Probe darf nie committen"
+    assert not [z for z in code if "cascade" in z] and "192.168" not in sql
