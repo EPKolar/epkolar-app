@@ -89,6 +89,8 @@ def _flotte_basis(src):
         teile.append(src[a:src.index(";", a) + 1])
     if "function _fzTankMonate(" in src:
         teile.append(_top(src, "_fzTankMonate"))
+    if "function _fzOhneArchiv(" in src:  # v3.9.1059: upd() schickt den PUT-Rumpf durch _fzOhneArchiv
+        teile.append(_top(src, "_fzOhneArchiv"))
     return "\n".join(teile) + "\n"
 
 
@@ -250,7 +252,8 @@ def _batch_lauf(node_exe, src, bestaetigt=True):
         "var gefragt=[];function _confirmModal(msg,opts){gefragt.push(String(msg));return Promise.resolve(" + ("true" if bestaetigt else "false") + ");}\n"
         "var toasts=[];var window={__toast:function(m,k){toasts.push(String(m));}};\n"
     )
-    snip = (_opt_chain(src) + "\n" + umgebung + _comp_const(src, "upd") + "\n" + _comp_const(src, "batchDel") + "\n"
+    archiv = (_top(src, "_fzOhneArchiv") + "\n") if "function _fzOhneArchiv(" in src else ""  # v3.9.1059: upd() braucht _fzOhneArchiv
+    snip = (_opt_chain(src) + "\n" + archiv + umgebung + _comp_const(src, "upd") + "\n" + _comp_const(src, "batchDel") + "\n"
             "Promise.resolve(batchDel('tkB')).then(function(){process.stdout.write(JSON.stringify({q:SQ._q,fz:fahrzeuge,rows:batchRows,gefragt:gefragt}));});")
     return _node(node_exe, snip)
 

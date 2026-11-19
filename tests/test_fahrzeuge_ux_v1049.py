@@ -371,7 +371,7 @@ def test_ci_farben_liste(fv):
 
 # ── 7. Schreibwege und Rechte unveraendert ──────────────────────────────────
 HANDLER = {
-    "upd": "20e7ba8d6c6b812b0b49400ef2caf9f7",
+    "upd": "b0a394b6856dc10ff7f8b702f36ede00",  # v3.9.1059 Fahrzeug-Archiv: PUT-Rumpf ohne Archiv-Spalten (_fzOhneArchiv), bewusst neu gehasht
     "addKm": "532f6979ad8e6b597713c9fda235ec54",
     "addTank": "832cdbd6bdaa642329df7a6bfaba1d9f",  # v3.9.1051 Tankbuch atomar (_tankAtomar-Hinweis), bewusst neu gehasht
     "addSchaden": "31c58844425685f1f49f9fb7f92d6a00",
@@ -381,7 +381,7 @@ HANDLER = {
     "batchSave": "2aebc12df5ab699a32d218f82504bea3",
     "batchDel": "1af738b359919fc452fd16aca16d46c3",  # v3.9.1051 Tankbuch atomar (fz_tanklog_del), bewusst neu gehasht
     "addFz": "aa601e73f08d3f41f0dbbb80b7c34aa7",
-    "del": "accf7e1384c8970cbc7b2e10e8381914",
+    "del": "c6d7207e48ad696d2c0858efee2c3339",  # v3.9.1059 GF 19.11.: Archivieren (PATCH, nur Admin) statt DELETE, bewusst neu gehasht
     "addTermin": "dfcc6d696018722f6b5aea97c05bd20d",
     "delTermin": "084d959cc6c925e1f954e86afa33015d",
     "togTermin": "e210143699d9c8bf3ed21734cf025371",
@@ -413,16 +413,17 @@ def test_alle_upd_und_sq_aufrufe_byte_gleich(fv):
     """54 Aufrufe (upd(...) in Handlern UND in onChange der Felder, SQ.push(...)) - als Menge
     vor dem Umbau gehasht. Verschieben ist erlaubt, Aendern nicht."""
     z = _schreibaufrufe(fv)
-    assert len(z) == 54, len(z)
+    # v3.9.1059: SQ.push DELETE /api/fahrzeuge entfaellt (Archivieren per PATCH), der PUT in upd() laeuft ueber _fzOhneArchiv
+    assert len(z) == 53, len(z)
     # v3.9.1051: addTank/batchDel tragen den _tankAtomar-Hinweis (Tankbuch atomar) - bewusst neu gehasht
-    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() == "33d279fe95f6073d5d6bf6d624e4b695"
+    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() == "4455bf75c593d6605c33b926825217d7"
 
 
 def test_koeder_schreibaufruf_aenderung_wird_erkannt(fv):
     alt = 'f.schaeden=[{...data,by_user:'
     assert fv.count(alt) == 1
     z = _schreibaufrufe(fv.replace(alt, 'f.schaeden=[{...data,von:', 1))
-    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() != "33d279fe95f6073d5d6bf6d624e4b695"
+    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() != "4455bf75c593d6605c33b926825217d7"
 
 
 def test_neue_teile_schreiben_nichts(fv):
