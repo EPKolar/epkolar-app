@@ -27,7 +27,11 @@ def test_track_fetcher(index_html):
 
 
 def test_refs(index_html):
-    assert "const _openFid=_react.useRef.call(void 0, null);" in index_html
+    # v1049 Re-Pin: das HTML-Popup am Marker ist durch die React-Info-Karte ersetzt. Welches
+    # Fahrzeug offen ist, steht jetzt im React-State (selFid) und ueberlebt den Marker-Neuaufbau
+    # von selbst - der _openFid-Merker fuers Wiederoeffnen ist damit tot und entfernt.
+    assert "const [selFid,setSelFid]=_react.useState.call(void 0, null);" in index_html
+    assert "_openFid" not in index_html
     assert "const _polling=_react.useRef.call(void 0, false);" in index_html
 
 
@@ -36,17 +40,24 @@ def test_inflight_guard(index_html):
 
 
 def test_popup_restore(index_html):
-    assert "m.on('popupopen',function(){_openFid.current=f.id;});" in index_html
-    assert "if(_openFid.current&&_markers.current[_openFid.current]){try{_markers.current[_openFid.current].openPopup();}catch(_eo){}}" in index_html
-    assert "+_rich+_trkLine,{autoPan:false});" in index_html
+    # v1049 Re-Pin (Absicht unveraendert: der 10-s-Poll darf die offene Info nicht schliessen und
+    # die Karte nicht verschieben). Das Popup ist jetzt EIN eigenstaendiges L.popup, nicht mehr an
+    # den Marker gebunden: der Neuaufbau der Marker beruehrt es nicht, der Poll verankert es nur neu.
+    assert "_popRef.current=L.popup({closeButton:false,autoPan:false," in index_html
+    assert "_popRef.current.setLatLng([_selLat,_selLon]);if(!map.hasLayer(_popRef.current))_popRef.current.openOn(map);" in index_html
+    assert "m.bindPopup(" not in index_html, "Umkehrprobe: das alte, an den Marker gebundene Popup ist zurueck"
 
 
 def test_compass_inactive_guard(index_html):
-    assert "var _rich=(_head!==null&&_head!==''&&!inactive)?" in index_html
+    # v1049 Re-Pin: Himmelsrichtung nur in Fahrt (vorher: nur wenn aktiv). Verhalten in
+    # test_flotte_karte_busse_v1049.py per Node geprueft (stehend/veraltet -> "—").
+    assert "if(_fzKartenZustand(p,nowMs)!=='faehrt')return '—';" in index_html
 
 
 def test_trail_ondemand(index_html):
-    assert "_flotteFetchTrack(fid).then(function(rows){if(!_map.current)return;" in index_html
+    # v1049 Re-Pin: _holeTrack ist der on-demand-Abruf; nur im Admin-Demo kommt die Spur aus dem Speicher.
+    assert "_holeTrack(fid).then(function(rows){if(!_map.current)return;" in index_html
+    assert "var _holeTrack=function(fid){return _demo?Promise.resolve((_demoDaten&&_demoDaten.tracks[fid])||[]):_flotteFetchTrack(fid);};" in index_html
 
 
 def test_focus_clears_follow(index_html):

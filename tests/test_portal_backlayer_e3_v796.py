@@ -103,6 +103,8 @@ _TRAEGER = {
     "AdminPanel": 2,
     # Modal - Zurueck schliesst den PDF-Betrachter
     "PdfViewerModal": 1,
+    # v1049 Bottom-Sheet der Flotte-Info-Karte (Handy) - Zurueck schliesst das Sheet
+    "FlotteView": 1,
 }
 
 

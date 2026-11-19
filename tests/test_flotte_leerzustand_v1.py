@@ -221,7 +221,8 @@ def test_spalten_sniff_degradation(index_html):
 
 def test_geraetetyp_im_popup(index_html):
     assert "if(f.tracker_typ){_trk=String(f.tracker_typ);" in index_html
-    assert "_rich+_trkLine,{autoPan:false});" in index_html
+    # v1049 Re-Pin: Popup-HTML ersetzt durch die Info-Karte; der Geraetetyp steht dort fuer alle.
+    assert "if(_trk)zeilen.push(_infoZeile('Tracker',_trk,'tr'));" in index_html
 
 
 def test_sql_gestaged_und_idempotent(index_html):

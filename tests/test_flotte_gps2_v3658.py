@@ -6,9 +6,11 @@ Controls "Alle einpassen" + "Verlauf loeschen".
 
 
 def test_heading_arrow(index_html):
-    assert "var _arrow=(_head!==null&&_head!==''&&!inactive)?('<span style=\"display:inline-block;transform:rotate('+Math.round(_head)+'deg)" in index_html
-    # Pfeil kommt vor das Kennzeichen ins Label
-    assert "nowrap\">'+_arrow+_esc(f.kennzeichen||'?')" in index_html
+    # v1049 Re-Pin: statt Pfeil im Kennzeichen-Kaestchen traegt der Transporter-Marker einen
+    # Fahrtrichtungs-Zeiger (nur in Fahrt, Verhalten per Node in test_flotte_karte_busse_v1049.py),
+    # das Kennzeichen steht escaped in der Pille darunter.
+    assert "transform:rotate('+dreh.zeiger+'deg)" in index_html
+    assert "_fzEscHtml(o.kennzeichen||'?')" in index_html
 
 
 def test_trail_state(index_html):

@@ -188,7 +188,10 @@ def test_pdf_export(index_html):
 
 
 def test_summenzeile_sichtbar(index_html):
-    assert "'Summe: '+_n(sumKm,1)+' km · '+_fzDauerFmt(sumMin)+' h · '+summe.anzahl" in index_html
+    # v1049 Re-Pin (A55-Befund): Bildschirm-Kilometer im deutschen Format (_fzKmDe statt _n mit
+    # Punkt), ohne Fahrten "—" statt "0.0 km". Die Summenzeile bleibt sichtbar; Exporte bleiben bei _n.
+    assert "summe.anzahl?('Summe: '+_fzKmDe(sumKm,1)+' km · '+_fzDauerFmt(sumMin)+' h · '+summe.anzahl" in index_html
+    assert "):'Summe: —')" in index_html
 
 
 def test_drei_panels_ein_frame(index_html):
