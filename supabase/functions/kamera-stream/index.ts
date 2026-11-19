@@ -1,6 +1,6 @@
 // kamera-stream — kurzlebige Stream-Freigaben fuer die Kameras (EPKolar Phase 1, 19.11.2026)
 //
-// NICHT DEPLOYT. Deploy-Parameter und Token-Vertrag: README.md daneben.
+// DEPLOYT 19.11.2026 als Version 1 (Stand 64fdb53, verify_jwt). Deploy-Parameter und Token-Vertrag: README.md daneben.
 // Die gesamte Entscheidung steht in ./logic.ts (rein, in Node getestet). Diese Datei verdrahtet nur:
 //   authUser    -> auth.getUser(jwt) mit dem Service-Client (prueft Signatur + Ablauf beim Auth-Server)
 //   ladeNutzer  -> public.users (id, role, active, locked) per auth_user_id, Service-Client
