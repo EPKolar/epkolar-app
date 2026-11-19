@@ -35,6 +35,9 @@ def _lies(p):
 # TEIL A: App
 # ══════════════════════════════════════════════════════════════════════════════
 SZENEN = r"""
+// Pin angepasst 20.11.2026 (feature/kamera-gateway): der Aufzeichnungs-Bereich ist in der App aus (Owner: Aufnahmen
+// ueber die Surveillance Station). Diese Szenarien pruefen die vorhandene Aufzeichnungs-Oberflaeche weiter -> Schalter an.
+KAMERA_REC_UI = true;
 function reset(s) { SZENE = s; store.clear(); _kamBackend.fehlt = false; ['get','post','upsert','del','fetch','pruef'].forEach(function (k) { ZAEHL[k].length = 0; }); }
 const KAMS = [{id: 'cam1', name: 'Kamera 1', standort: 'Hof', aktiv: true, aufbewahrung_tage: 3},
               {id: 'cam2', name: 'Kamera 2', standort: 'Lager', aktiv: false, aufbewahrung_tage: 3}];

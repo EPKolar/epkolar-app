@@ -1,6 +1,7 @@
 // kamera-stream — kurzlebige Stream-Freigaben fuer die Kameras (EPKolar Phase 1, 19.11.2026)
 //
-// DEPLOYT 19.11.2026 als Version 1 (Stand 64fdb53, verify_jwt). Deploy-Parameter und Token-Vertrag: README.md daneben.
+// DEPLOYT per MCP deploy_edge_function aus genau diesem Stand (verify_jwt). Version + sha256: tests/test_kamera_gateway.py.
+// Deploy-Parameter und Token-Vertrag: README.md daneben.
 // Die gesamte Entscheidung steht in ./logic.ts (rein, in Node getestet). Diese Datei verdrahtet nur:
 //   authUser    -> auth.getUser(jwt) mit dem Service-Client (prueft Signatur + Ablauf beim Auth-Server)
 //   ladeNutzer  -> public.users (id, role, active, locked) per auth_user_id, Service-Client
@@ -10,7 +11,8 @@
 //                  (nur Aufzeichnung: Regel muss fuer den ganzen Bereich gelten, Bereich in der Aufbewahrung)
 //   ladeBackend -> public.kamera_backend (nur service_role lesbar), Phase 2 mit stream_typ
 //   protokoll   -> public.kamera_abruf_log (nur service_role schreibt)
-// Secrets: KAMERA_TOKEN_SECRET (>= 32 Zeichen), KAMERA_BACKEND_BASE (https://...), optional KAMERA_TOKEN_TTL
+// Secrets: KAMERA_TOKEN_SECRET (>= 32 Zeichen), KAMERA_GATEWAY_BASE (https://..., bevorzugt; alter Name
+// KAMERA_BACKEND_BASE wird nur gelesen, wenn KAMERA_GATEWAY_BASE fehlt), optional KAMERA_TOKEN_TTL
 // (30..120 s, Standard 90) und KAMERA_AUFZEICHNUNG_ROLLEN (Standard admin,projektleiter,buero).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { bearbeite, type Deps, type Nutzer, type Backend, type Protokoll } from "./logic.ts";

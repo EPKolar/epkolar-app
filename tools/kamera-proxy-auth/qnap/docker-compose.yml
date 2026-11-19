@@ -1,0 +1,48 @@
+# EP Kolar Kamera-Gateway auf der QNAP (20.11.2026) - NUR caddy + kamera-auth (Bruecken-Netz dieser compose).
+# go2rtc laeuft als EIGENE Container-Station-App im Host-Netz auf <QNAP-LAN-IP>:1984 (WebRTC-Medien :8555) und
+# wird hier NICHT gestartet. Caddy erreicht go2rtc ueber ${QNAP_LAN_IP}:1984, den Pruefer ueber kamera-auth:9099.
+# Aufnahmen/Surveillance Station: TABU, nichts davon wird hier beruehrt.
+#
+# Im LAN offen: <QNAP-LAN-IP>:443 (Caddy, einziger Web-Eingang) und <QNAP-LAN-IP>:8555 TCP+UDP (go2rtc WebRTC-Medien,
+# direkt Browser <-> go2rtc, NICHT ueber Caddy). kamera-auth ist NICHT veroeffentlicht (nur im compose-Netz).
+# :1984 darf im LAN nicht erreichbar sein (QNAP-Firewall), sonst ginge man ohne Token an go2rtc.
+# Variablen: ENV.md (nur Namen). Werte in .env neben dieser Datei auf der QNAP, chmod 600, nie ins Repo.
+# Pruefen:  docker compose config >/dev/null && docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile
+
+services:
+  kamera-auth:
+    build:
+      context: ..
+      dockerfile: qnap/Dockerfile
+    image: epk-kamera-auth:1
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    expose: ["9099"]
+    environment:
+      - KAMERA_TOKEN_SECRET=${KAMERA_TOKEN_SECRET:?KAMERA_TOKEN_SECRET fehlt (gleicher Wert wie das Supabase-Secret)}
+      - KAMERA_AUTH_HOST=0.0.0.0
+      - KAMERA_AUTH_PORT=9099
+      - KAMERA_AUTH_URI_HEADER=x-forwarded-uri
+      - KAMERA_AUTH_METHOD_HEADER=x-forwarded-method
+      - KAMERA_AUTH_LOG=${KAMERA_AUTH_LOG:-1}
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    depends_on: [kamera-auth]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:443:443"
+    environment:
+      - QNAP_LAN_IP=${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_daten:/data            # interne CA + Zertifikate (root.crt fuer die Firmengeraete liegt hier)
+      - caddy_konfig:/config
+      - ./protokoll:/protokoll       # Zugriffsprotokoll OHNE Tokens
+
+volumes:
+  caddy_daten: {}
+  caddy_konfig: {}

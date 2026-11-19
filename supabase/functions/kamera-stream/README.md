@@ -2,7 +2,8 @@
 
 Edge Function: issues **short-lived, signed stream URLs** for one camera to one authorized user.
 It is the security core of the camera feature — hiding the menu in the client is NOT protection
-(lesson fz_finanzen). **NOT deployed.** No SQL in this folder; the data model is `sql/KAMERAS_v1_ENTWURF.sql`.
+(lesson fz_finanzen). **Deployed** (verify_jwt) from exactly the committed `index.ts` + `logic.ts`; version and
+sha256 proof in `tests/test_kamera_gateway.py`. No SQL in this folder; the data model is `sql/KAMERAS_v1_ENTWURF.sql`.
 
 Files: `index.ts` (Deno wiring, supabase-js), `logic.ts` (pure decision + token logic, no imports,
 tested in Node by `tests/test_kameras_phase1_v1055.py`).
@@ -12,7 +13,8 @@ tested in Node by `tests/test_kameras_phase1_v1055.py`).
 ```
 # from the deploy folder (C:\temp\epkfn, never from a network drive)
 supabase functions deploy kamera-stream --project-ref jiggujpruejkaomgxarp
-supabase secrets set --project-ref jiggujpruejkaomgxarp KAMERA_TOKEN_SECRET=<random, >= 32 chars> KAMERA_BACKEND_BASE=https://<proxy host>
+# secrets: set by a HUMAN in the dashboard (Edge Functions -> Secrets), never by an agent, never in the repo
+#   KAMERA_TOKEN_SECRET=<random, >= 32 chars>   KAMERA_GATEWAY_BASE=https://<gateway host>
 ```
 
 - `verify_jwt = true` (default) — the gateway rejects calls without a JWT; the function additionally calls
@@ -24,11 +26,13 @@ supabase secrets set --project-ref jiggujpruejkaomgxarp KAMERA_TOKEN_SECRET=<ran
 | Secret | Required | Meaning |
 |---|---|---|
 | `KAMERA_TOKEN_SECRET` | yes | HMAC key shared ONLY with the reverse proxy. >= 32 chars, random (`openssl rand -base64 48`). Never in the repo, never in the client. |
-| `KAMERA_BACKEND_BASE` | yes | Public base URL of the reverse proxy, must be `https://`, no trailing slash needed. |
+| `KAMERA_GATEWAY_BASE` | yes (preferred) | Base URL of the camera gateway (Caddy + kamera-auth in front of go2rtc on the QNAP), must be `https://`, optional port/path, trailing slashes are stripped. ONE value for all cameras. |
+| `KAMERA_BACKEND_BASE` | fallback | Old name of the same value, read ONLY when `KAMERA_GATEWAY_BASE` is missing or empty (compatibility). A set but invalid `KAMERA_GATEWAY_BASE` (e.g. `http://`) is NOT replaced by the old name -> 503 (fail closed). |
 | `KAMERA_TOKEN_TTL` | no | Token lifetime in seconds, clamped to 30..120, default 90. |
 | `KAMERA_AUFZEICHNUNG_ROLLEN` | no | Comma list of roles allowed to request recordings, default `admin,projektleiter,buero`. Always intersected with the four camera roles — a typo can never unlock a Monteur. |
 
-Missing/invalid secret or base -> `503 {error:"nicht_konfiguriert"}` (only after the caller passed the role gate).
+Missing/invalid secret or base -> `503 {error:"nicht_konfiguriert"}` (only after the caller passed the role gate);
+the app then shows "Kamera-Server noch nicht in Betrieb" / "Kein Video-Backend verbunden".
 
 ## Request
 
@@ -89,6 +93,7 @@ the mapping stream name -> camera address lives only in the go2rtc config on the
 ```
 typ=webrtc:          { "typ": "webrtc", "liveUrl": "<BASE>/live/<stream>/index.m3u8?token=<T>",
                        "webrtcUrl": "<BASE>/live/<stream>/whep?token=<T>",
+                       "snapshotUrl": "<BASE>/live/<stream>/snapshot.jpg?token=<T>",   // fallback, since gateway
                        "exp": <unix s>, "ttl": <s> }
 typ=llhls:           { "typ": "llhls", "liveUrl": "<BASE>/live/<stream>/index.m3u8?token=<T>", "exp", "ttl" }
 typ=mjpeg:           { "typ": "mjpeg", "mjpegUrl": "<BASE>/live/<stream>/mjpeg?token=<T>", "exp", "ttl" }
@@ -98,7 +103,9 @@ scope=aufzeichnung:  { "aufzeichnungUrl": "<BASE>/aufzeichnung/<quelle>?token=<T
 ```
 
 The client requests a fresh URL per tile and refreshes it about 20 s before `exp`.
-App rendering: `webrtc`/`llhls` -> `<video>` (WHEP, else native HLS); `mjpeg` -> `<img>` on `/live/<s>/mjpeg`
+App rendering: `webrtc`/`llhls` -> `<video>` (WHEP, else native HLS); `webrtc` whose WHEP offer fails (404/5xx,
+network) or whose ICE connection fails, or a device without WebRTC/HLS -> `<img>` snapshot fallback on
+`snapshotUrl` (the gateway template has HLS off, so HLS alone is no fallback there); `mjpeg` -> `<img>` on `/live/<s>/mjpeg`
 (new token URL swapped in before `exp`); `snapshot` -> `<img>` reloaded every 2 s (`&_=<n>`), paused while the tab
 is hidden or the tile is off screen. Image errors / WHEP 404/5xx show "Kamera nicht erreichbar".
 For recordings the server puts `&von=<unix s>&bis=<unix s>` into the URL itself; the same values are signed into

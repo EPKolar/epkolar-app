@@ -26,11 +26,9 @@ PILOT_IDS = ("kam_g3_01", "kam_g3_lager03")
 PILOT_STREAMS = ("g3_01", "g3_lager03")
 IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
-# Deployter Stand (MCP get_edge_function, 19.11.2026): sha256 der Dateien mit LF-Zeilenenden
-DEPLOYT_INDEX_SHA = "e5bc28e2cdf60365c49f487d17d2162fdcee4e74454662a77619b07793912238"
-DEPLOYT_LOGIC_SHA = "f34e1107e374b864d064936f348e015c14a7d9b5aadde5d40a0ec82cf6686762"
-KOPF_ALT = "// NICHT DEPLOYT. Deploy-Parameter und Token-Vertrag: README.md daneben."
-KOPF_NEU = "// DEPLOYT 19.11.2026 als Version 1 (Stand 64fdb53, verify_jwt). Deploy-Parameter und Token-Vertrag: README.md daneben."
+# Deployter Stand: seit 20.11.2026 (feature/kamera-gateway) wird EXAKT der Repo-Stand deployt (keine Kopfzeilen-
+# Abweichung mehr). Die sha256-Werte und die Version stehen an EINER Stelle: tests/test_kamera_gateway.py.
+from test_kamera_gateway import DEPLOYT_INDEX_SHA, DEPLOYT_LOGIC_SHA
 
 
 def _lies(p):
@@ -164,7 +162,8 @@ def pruefe_doku(text):
     koepfe = re.findall(r"^## ([a-e])\)", text, re.M)
     if koepfe != list("abcde"):
         b.append("Reihenfolge a-e: %s" % koepfe)
-    for teil in ("KAMERA_TOKEN_SECRET", "5c83ca0b", "KAMERA_BACKEND_BASE", "docker compose up", "KAM_USER", "KAM_PW",
+    # Pin angepasst 20.11.2026: die go2rtc-App auf der QNAP liest KAM_USER/KAM_PASS (gemessen von Chat-Claude) statt KAM_PW.
+    for teil in ("KAMERA_TOKEN_SECRET", "5c83ca0b", "KAMERA_BACKEND_BASE", "docker compose up", "KAM_USER", "KAM_PASS",
                  # GF 19.11. abends: nur Weg A (direkter RTSP), kein Protect -> PROTECT_TOKEN entfaellt;
                  # dafuer muessen Probe-Datei und die Abschottung (VLAN) in der Anleitung stehen.
                  "KAMERA_PILOT_HEUTE_ENTWURF.sql", "KAMERA_PILOT_HEUTE_PROBE.sql", "PILOT_TESTLISTE.md",
@@ -210,25 +209,57 @@ def test_keine_adressen_in_den_neuen_sql_dateien():
 
 
 # ── Tests: deployt == Repo ─────────────────────────────────────────────────────
-def test_deployte_funktion_entspricht_dem_repo_bis_auf_die_kopfzeile():
+def test_deployte_funktion_entspricht_dem_repo():
+    # Pin angepasst 20.11.2026: Redeploy aus genau den committeten Dateien (Gateway-Basis), daher ohne Kopfzeilen-Tausch.
     s = _lies(os.path.join(FN_DIR, "index.ts"))
-    assert s.count(KOPF_NEU) == 1 and KOPF_ALT not in s
-    assert hashlib.sha256(s.replace(KOPF_NEU, KOPF_ALT).encode("utf-8")).hexdigest() == DEPLOYT_INDEX_SHA
-    # logic.ts unveraendert gegenueber dem deployten Stand. Aendert sich logic.ts, ist ein Redeploy noetig ->
-    # danach DEPLOYT_LOGIC_SHA hier nachziehen.
+    assert hashlib.sha256(s.encode("utf-8")).hexdigest() == DEPLOYT_INDEX_SHA
+    # Aendert sich logic.ts oder index.ts, ist ein Redeploy noetig -> danach die Werte in test_kamera_gateway.py nachziehen.
     assert hashlib.sha256(_lies(os.path.join(FN_DIR, "logic.ts")).encode("utf-8")).hexdigest() == DEPLOYT_LOGIC_SHA
 
 
 # ── Gegenstueck auf dem Video-Host (ausserhalb des Repos) ───────────────────────
-def test_streamnamen_gleich_go2rtc_und_frigate():
+GATEWAY_SEED = os.path.join(WURZEL, "sql", "KAMERA_GATEWAY_SEED_ENTWURF.sql")
+
+
+def _seed_streams(sql):
+    """Live-Streamnamen der G3 aus dem Gateway-Seed (kamera_backend-insert mit festen Werten, ohne Kommentare)."""
+    code = _code(sql)
+    be = [x for x in re.findall(r"insert into public\.kamera_backend[^;]*;", code, re.S) if "values" in x]
+    return {z[1] for x in be for z in re.findall(r"\('([^']+)',\s*'([^']+)',\s*null,\s*'webrtc'\)", x)}
+
+
+def _vorlage_abgleich(seed_sql, go2rtc_text):
+    yaml = pytest.importorskip("yaml")
+    g = yaml.safe_load(go2rtc_text)
+    s = _seed_streams(seed_sql)
+    b = []
+    if len(s) != 4:
+        b.append("Seed liefert nicht 4 G3-Streams: %s" % sorted(s))
+    if set(g["streams"]) != s:
+        b.append("Vorlage %s != Seed %s" % (sorted(g["streams"]), sorted(s)))
+    return b
+
+
+def test_streamnamen_gleich_go2rtc():
+    # Pin angepasst 20.11.2026: der Pilot-Seed (g3_01/g3_lager03) ist SUPERSEDED. Abgeglichen werden jetzt die
+    # Streamnamen des Gateway-Seeds (sql/KAMERA_GATEWAY_SEED_ENTWURF.sql) mit der go2rtc-Vorlage. Frigate ist in der
+    # Vorlage abgeschaltet (nur Live) -> frigate.yml wird nicht mehr verlangt.
     if not os.path.isdir(PILOT_HOST):
         pytest.skip("Vorlagen des Video-Hosts nicht auf diesem Rechner")
-    yaml = pytest.importorskip("yaml")
-    g = yaml.safe_load(_lies(os.path.join(PILOT_HOST, "go2rtc.yaml")))
-    f = yaml.safe_load(_lies(os.path.join(PILOT_HOST, "frigate.yml")))
-    assert set(g["streams"]) == set(PILOT_STREAMS)
-    assert set(f["cameras"]) == set(PILOT_STREAMS)
-    assert f["record"]["retain"]["days"] == 3
+    assert _vorlage_abgleich(_lies(GATEWAY_SEED), _lies(os.path.join(PILOT_HOST, "go2rtc.yaml"))) == []
+
+
+def test_umkehrprobe_streamnamen_abgleich():
+    # Ohne Vorlage auf dem Rechner: synthetische Vorlage aus dem Seed selbst - umbenannter Stream muss auffallen
+    pytest.importorskip("yaml")
+    seed = _lies(GATEWAY_SEED)
+    s = sorted(_seed_streams(seed))
+    gut = "streams:\n" + "".join("  %s:\n    - rtsp://${KAM_USER}:${KAM_PASS}@kamera/s0\n" % x for x in s)
+    assert _vorlage_abgleich(seed, gut) == []
+    assert _vorlage_abgleich(seed, gut.replace("  " + s[0] + ":", "  " + s[0] + "_alt:", 1)) != []
+    kaputt = re.sub(r"\('" + s[0] + r"',(\s*)'" + s[0] + "'", r"('" + s[0] + r"',\1'g3_01'", seed, count=1)
+    assert kaputt != seed
+    assert _vorlage_abgleich(kaputt, gut) != []
 
 
 # ── Umkehrproben: jede Pruefung schlaegt an, wenn die Datei verdorben wird ─────
@@ -301,7 +332,7 @@ def test_umkehrprobe_doku_reihenfolge_und_laenge():
 
 
 def test_umkehrprobe_deploy_nachweis():
-    s = _lies(os.path.join(FN_DIR, "index.ts")).replace(KOPF_NEU, KOPF_ALT)
+    s = _lies(os.path.join(FN_DIR, "index.ts"))
     assert hashlib.sha256((s + " ").encode("utf-8")).hexdigest() != DEPLOYT_INDEX_SHA
     assert hashlib.sha256(s.replace("Deno.serve", "Deno.serveX", 1).encode("utf-8")).hexdigest() != DEPLOYT_INDEX_SHA
 

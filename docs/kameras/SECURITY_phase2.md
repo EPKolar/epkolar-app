@@ -190,6 +190,18 @@ und die Basisadresse des Video-Hosts (nur gültiges `https://`, ohne Zugangsdate
 Streamname, Token oder DB-Abfrage. Ein Monteur endet weiter an der Rollensperre (Abschnitt d). Die Zeilenangaben oben
 beziehen sich weiter auf 110678f. Tests mit Umkehrproben: `tests/test_kameras_einrichtung_v1060.py`.
 
+## Nachtrag `feature/kamera-gateway` (20.11.2026): EINE Gateway-Adresse, Einzelbild-Rueckfall
+
+- Basisadresse = `KAMERA_GATEWAY_BASE` (bevorzugt), sonst der alte Name `KAMERA_BACKEND_BASE` (Kompatibilitaet).
+  Gleiche Pruefung wie bisher (nur `https://`, Host/Port/Pfad-Zeichen begrenzt). Ein **gesetzter, aber ungueltiger**
+  `KAMERA_GATEWAY_BASE` faellt **nicht** auf den alten Namen zurueck -> `503 nicht_konfiguriert` (fail closed).
+  Fehlt beides -> 503, App: "Kamera-Server noch nicht in Betrieb". Token-Signatur unveraendert (Aufzeichnung: Bereich
+  signiert wie seit 1064/1073). Secrets setzt nur ein Mensch im Dashboard.
+- `typ=webrtc` liefert zusaetzlich `snapshotUrl` (`/live/<s>/snapshot.jpg`, **dasselbe** Token, derselbe Stream, erst
+  nach allen Pruefungen 1-8). Der Proxy-Vertrag (Pfadform `/live/<s>/snapshot.jpg`, `sc=live`, Stream gleich `s`)
+  war schon vorher erlaubt - es entsteht kein neuer Zugang, nur ein Rueckfall, wenn WHEP/ICE scheitert.
+- Tests mit Umkehrproben: `tests/test_kamera_gateway.py`.
+
 ## e) Nachtrag `fix/kamera-aufzeichnung-fenster` (19.11.2026): Aufzeichnung nur im freigegebenen Zeitraum, `geraet` ist keine Grenze
 
 Zwei Funde einer automatischen Sicherheitsprüfung von `logic.ts`. Zeilenangaben in diesem Abschnitt beziehen sich auf
