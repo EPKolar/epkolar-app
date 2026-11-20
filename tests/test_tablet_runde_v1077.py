@@ -173,7 +173,11 @@ console.log(JSON.stringify([_pushFehlerKurz('HTTP 500: {"code":"XX000","details"
 
 
 def test_9_chef_zahlen_und_typen(index_html):
-    assert "titel:'Kritisch überfällig'+(ueberfaellige>topOver.length?(' – die ältesten '+topOver.length):''),zahl:ueberfaellige," in index_html
+    # A55 1080 (4): Pin bewusst nachgezogen - topOver ist nicht mehr auf 8 gekappt (Titel "die aeltesten 8",
+    # Plakette 20 und "alle 8 anzeigen" widersprachen sich am Handy). Liste = alle ueberfaelligen, Plakette
+    # bleibt ueberfaellige; Gleichheit Liste/Plakette laeuft in Node in tests/test_a55_funde_v1080.py.
+    assert "titel:'Kritisch überfällig',zahl:ueberfaellige," in index_html
+    assert "localeCompare(b.terminBestaetigt||b.terminVorschlag||'')).slice(0,8),[arbeitsscheine,_td]);" not in index_html
     assert "titel:'Kritisch überfällig',zahl:topOver.length" not in index_html
     assert "((AT_T[a.typ]&&AT_T[a.typ].l)||a.typ)" in index_html
 

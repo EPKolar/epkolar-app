@@ -128,7 +128,7 @@ MD5 = {
     "HomeView": "c86ca7b03e675361a1d9456b7f24ce52",  # 1079: Samsung-Zweig zeigt die Version ueber _verAnzeige (ohne -supabase) - bewusste Aenderung, Pruefsumme nachgezogen
     "WeekPlan": "aee55d9dc37dda2d1c26ccae5970eb0c",
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",
-    "ChefDashboard": "eff8b58aaa03dcd40db33c1b1e446727",
+    "ChefDashboard": "91da847b0545367d5f82b752b9ab2469",  # 1080 A55 (4): topOver ohne Kappung auf 8, Titel 'Kritisch überfällig' ohne 'die ältesten N' - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
     "AuswertungView": "01ec1e729f29416681c33602bfb3365c",
     "KameraView": "035c916b8fb3c7db35e79ae65691eb34",
 }

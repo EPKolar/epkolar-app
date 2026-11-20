@@ -249,7 +249,7 @@ ALT_DEKL = {
 }
 # origin/main v3.9.1077 (9eab816), Ansicht von "\nfunction X(" bis zur naechsten "\nfunction ", LF-normalisiert.
 VORHER_MD5 = {
-    "ProjList": "e999d5417a59efaae6929c45604ce5f3",
+    "ProjList": "66ba75f5967323f9de6b086b32166543",  # 1080 A55 (5): Suchfeld am Handy fuellt die Zeile (flex 1 1 200px, min 200 px statt max 160) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
     "ProjectShell": "a7c3fc48b6eafd9b067a82fc784dbcb1",
     "VDash": "1535894ef6da1b54a5f4ace1ef146a09",
     "VForm": "911d2045f9db2d517980527e2eb9c7c4",

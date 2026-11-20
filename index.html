@@ -233,6 +233,14 @@ table.epk-fv-karten thead { display: none; }
 table.epk-fv-karten tr { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px 10px; padding: 10px 6px; border-bottom: 1px solid rgba(127,127,127,.3); }
 table.epk-fv-karten td { display: block; padding: 0 !important; border: none !important; text-align: left !important; min-width: 0; overflow-wrap: anywhere; }
 table.epk-fv-karten td[data-l]::before { content: attr(data-l); display: block; font-size: 12px; font-weight: 600; opacity: .75; margin-bottom: 2px; }
+/* A55 1080 (1) KV-Zuschlaege (GF-Regel: Lese-Listen am Handy als Karten mit Feldnamen): Name ueber die ganze Zeile, darunter die Stundenwerte in drei Spalten. Die Klasse setzt nur KVZuschlagReport aus _layoutStufe (schmal); mittel/breit bleibt Tabelle. */
+table.epk-kv-karten, table.epk-kv-karten tbody { display: block; width: 100%; min-width: 0 !important; }
+table.epk-kv-karten thead { display: none; }
+table.epk-kv-karten tr { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px 10px; padding: 10px 6px; border-bottom: 1px solid rgba(127,127,127,.3); }
+table.epk-kv-karten td { display: block; padding: 0 !important; border: none !important; text-align: left !important; min-width: 0; overflow-wrap: anywhere; white-space: normal !important; }
+table.epk-kv-karten td:first-child { grid-column: 1 / -1; }
+table.epk-kv-karten td:empty { display: none; }
+table.epk-kv-karten td[data-l]::before { content: attr(data-l); display: block; font-size: 12px; font-weight: 600; opacity: .75; margin-bottom: 2px; }
 @media(max-width:600px) { .kpi-grid.epk-leiste { grid-template-columns: repeat(3,1fr) !important; gap: 6px !important; }
   .kpi-grid.epk-leiste > div { padding: 6px 8px !important; }
   .kpi-grid.epk-leiste > div > div:nth-child(3) { font-size: 16px !important; } }
@@ -15403,6 +15411,8 @@ async function _supplierZugangSpeichern(id,zug,vorhanden){
   return !!(r&&r.ok);
 }
 // ═══════════ ADMIN PANEL ═══════════
+/* A55 1080 (3): Unterzeile der Benutzerliste - nur vorhandene Teile mit ' · ' verbinden (vorher '@lager ·' mit haengendem Trenner bei Benutzer ohne Rolle). PURE. */
+function _adUserZeile(username,rolle){var t=[];if(username!=null&&String(username).trim()!=="")t.push("@"+String(username).trim());if(rolle!=null&&String(rolle).trim()!=="")t.push(String(rolle).trim());return t.join(" · ");}
 function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure,arbeitsscheine}){
   const [sel,setSel]=_react.useState.call(void 0, null);
   useBackLayer(!!sel, ()=>setSel(null));/* v3.9.176: Browser-Back schließt die Detail-Ansicht (statt Tab-Sprung) */
@@ -15810,7 +15820,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                       , _vwAvatar(u.name||u.username,34)
                       , React.createElement('div', {}
                         , React.createElement('div', { style: {fontSize:13,fontWeight:600}}, u.name, isSelf&&" (Du)")
-                        , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "@", u.username, " · "  , _optionalChain([rl2, 'optionalAccess', _215 => _215.l]))
+                        , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _adUserZeile(u.username,(rl2&&rl2.l)||u.role))
                       )
                     )
                     , React.createElement('div', { style: {display:"flex",gap:4,alignItems:"center"}}
@@ -15908,7 +15918,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
                     ):React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "(eigenes Konto — nicht planbar)"  )
                 )
               )
-            ) : (
+            ) : isMob ? null/* A55 1080 (2): am Handy (schmal) steht das Detailfeld UNTER der Liste - der leere Platzhalter 'Benutzer auswaehlen...' war dort nur toter Platz. Detail erscheint erst mit gewaehltem Benutzer; mittel/breit unveraendert. */ : (
               React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}
                 , React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:8,color:V.mt}}, _ik("person",32))
                 , React.createElement('div', { style: {fontSize:13}}, "Benutzer auswählen für Details & Berechtigungen"     )
@@ -17397,7 +17407,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
             , React.createElement('button', { onClick: ()=>setViewMode("liste"), style: {padding:"6px 10px",border:"none",borderLeft:"1px solid "+V.bd,background:viewMode==="liste"?V.ac+"22":"transparent",color:viewMode==="liste"?V.acTx:V.dm,cursor:"pointer",fontSize:14,fontFamily:"inherit",lineHeight:1}, title: "Liste", 'aria-label': "Listenansicht", 'aria-pressed': viewMode==="liste"?"true":"false"}, _ik("liste",17))
           )
           /* v3.9.37 Sprint-22 P-M2: fontSize ≥16 mobile gegen iOS-Auto-Zoom; minWidth statt nur maxWidth damit auf 414/380 brauchbar. */
-          , /* v3.9.935: die Lupe stand IM Platzhaltertext. Ein placeholder ist ein Attribut und nimmt keinen Knoten auf - dort kann kein SVG stehen, und ein Vorleseprogramm liest 'Lupe Projekt Komma Kunde'. Die Ikone sitzt jetzt als echtes Element vor dem Feld, der Text bleibt inhaltlich derselbe. */React.createElement('input', { className: "epk-suche", value: q, onChange: e=>setQ(e.target.value), 'aria-label': "Projekte durchsuchen", placeholder: "Projekt, Kunde..."  , style: {...II(),width:"auto",maxWidth:isMob?160:220,minWidth:isMob?120:0,fontSize:isMob?16:13}} )/* PROJ-HANDY P6: die Lupe davor zieht sich mit marginRight:-26 ins Feld (sie liegt bei 10..26 px), II() setzt aber nur 11 px Innenabstand - Lupe und Platzhalter lagen uebereinander. 34 px = Lupe + 8 px Luft. */
+          , /* v3.9.935: die Lupe stand IM Platzhaltertext. Ein placeholder ist ein Attribut und nimmt keinen Knoten auf - dort kann kein SVG stehen, und ein Vorleseprogramm liest 'Lupe Projekt Komma Kunde'. Die Ikone sitzt jetzt als echtes Element vor dem Feld, der Text bleibt inhaltlich derselbe. */React.createElement('input', { className: "epk-suche", value: q, onChange: e=>setQ(e.target.value), 'aria-label': "Projekte durchsuchen", placeholder: "Projekt, Kunde..."  , style: {...II(),width:"auto",maxWidth:isMob?"none":220,minWidth:isMob?200:0,flex:isMob?"1 1 200px":undefined,fontSize:isMob?16:13}} )/* A55 1080 (5): am Handy war das Feld auf 160 px gedeckelt - 38 px Lupe + 16-px-Schrift: 'Projekt, Kunde..' abgeschnitten. Jetzt fuellt es die Zeile (flex 1 1 200px, min 200 px; die Zeile bricht unter 600 px um, 'Neues Projekt' rutscht darunter). Schrift bleibt 16 px (iOS-Zoom), Hoehe aus II(). *//* PROJ-HANDY P6: die Lupe davor zieht sich mit marginRight:-26 ins Feld (sie liegt bei 10..26 px), II() setzt aber nur 11 px Innenabstand - Lupe und Platzhalter lagen uebereinander. 34 px = Lupe + 8 px Luft. */
           /* v3.9.80 S56-1 A11Y: aria-label icon-only Toggle-Button */
           , isAdmin&&React.createElement('button', { onClick: ()=>{setForm(emptyProj);setEditP(null);setShowNew(!showNew);}, 'aria-label': showNew?"Neues Projekt abbrechen":"Neues Projekt anlegen", title: showNew?"Abbrechen":"Neues Projekt", style: showNew?bsS():bpS}, showNew?React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}}, _ik("kreuz",17), "Schließen")/* v1016: vorher nur ein gruenes Kreuz ohne Text */:React.createElement('span', { style: {display:"inline-flex",alignItems:"center",gap:6}} , _ik("plus",17) , "Neues Projekt" ))
         )
@@ -27334,7 +27344,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
     return {id:p.id,nr:p.nr,name:p.name,kunde:p.kunde,amp,asOpen,asCount,budgetPct,p};
   }),[projects,arbeitsscheine,entries,monteure]);/* v3.9.424: monteure ergänzt (Kalk-Kosten nutzt stundensatz) */
   /* v3.9.58 Perf-Sweep F-4: useMemo für topOver — filter+sort+slice auf ggf. großer AS-Liste. */
-  const topOver=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return _hasTermin(t)&&t<_td;}).sort((a,b)=>(a.terminBestaetigt||a.terminVorschlag||'').localeCompare(b.terminBestaetigt||b.terminVorschlag||'')).slice(0,8),[arbeitsscheine,_td]);
+  const topOver=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!AS_GRP_OFFEN.includes(a.scheinstatus))return false;const t=a.terminBestaetigt||a.terminVorschlag;return _hasTermin(t)&&t<_td;}).sort((a,b)=>(a.terminBestaetigt||a.terminVorschlag||'').localeCompare(b.terminBestaetigt||b.terminVorschlag||'')),[arbeitsscheine,_td]);/* A55 1080 (4): ohne Kappung auf 8 - Ueberschrift 'die aeltesten 8', Plakette 20 und 'alle 8 anzeigen' widersprachen sich. Jetzt ALLE ueberfaelligen (dieselbe Bedingung wie _ueberfaelligeArr), aelteste zuerst; Hinweis zeigt 5 und 'alle N anzeigen' mit N = Plakette. */
   /* v3.8.19 Chef v2 · C.2 Sorgenkind-Widget: 5 Handlungsbedarf-Indikatoren.
      1-3 + 4 sind sync aus props berechnet, 5 (Monatsabrechnung) via _sbGet async. */
   const asOhneMonteur=arbeitsscheine.filter(a=>AS_GRP_OFFEN.includes(a.scheinstatus)&&(!a.monteur||String(a.monteur).trim()==='')).length;
@@ -27665,7 +27675,7 @@ function ChefDashboard({curUser,projects,arbeitsscheine,entries,monteure,fahrzeu
         _metric('Ohne Termin',asOhneTermin,asOhneTermin>0?'#f97316':V.dm),
         _metric('Push-Stau',asPushStau,asPushStau>0?'#ef4444':V.dm)
       ]),
-      topOver.length>0&&React.createElement('div',{key:'o',style:{marginTop:10}},React.createElement(Hinweis,{ton:'gefahr',ik:'uhr',titel:'Kritisch überfällig'+(ueberfaellige>topOver.length?(' – die ältesten '+topOver.length):''),zahl:ueberfaellige,mb:0,aria:'Kritisch überfällig ('+ueberfaellige+')',/* Tablet-Runde 1077 (9): Kachel 'Überfällig 18' und Hinweis 'Kritisch überfällig 8' hatten dieselbe Bedingung, der Hinweis zaehlte aber nur die auf acht gekuerzte Liste - jetzt dieselbe Zahl, der Titel sagt, dass die Liste die aeltesten zeigt *//* WARNUNGEN 16.11.: als HINWEIS mit zugeklappter Liste; Zeile oeffnet den Schein ueber den bestehenden Deep-Link __asOpenId (v3.9.489) */zeilen:topOver.map(function(a){
+      topOver.length>0&&React.createElement('div',{key:'o',style:{marginTop:10}},React.createElement(Hinweis,{ton:'gefahr',ik:'uhr',titel:'Kritisch überfällig',zahl:ueberfaellige,mb:0,aria:'Kritisch überfällig ('+ueberfaellige+')',/* Tablet-Runde 1077 (9): Kachel 'Überfällig 18' und Hinweis 'Kritisch überfällig 8' hatten dieselbe Bedingung, der Hinweis zaehlte aber nur die auf acht gekuerzte Liste - jetzt dieselbe Zahl, der Titel sagt, dass die Liste die aeltesten zeigt *//* WARNUNGEN 16.11.: als HINWEIS mit zugeklappter Liste; Zeile oeffnet den Schein ueber den bestehenden Deep-Link __asOpenId (v3.9.489) */zeilen:topOver.map(function(a){
           const w=monteure.find(function(m){return m.id===a.monteur;});
           const tage=Math.floor((Date.now()-new Date((a.terminBestaetigt||a.terminVorschlag)+"T00:00:00").getTime())/TIME_DAY);
           const _oeffnen=function(){window.__asFilter='alle';window.__asOpenId=a.id;onNav('arbeitsscheine');};
@@ -27874,7 +27884,7 @@ function FahrtenbuchPanel({workerId,curUser,editable,fahrzeuge,projects}){
    massgeblich. Eintraege ohne von/bis: nur So/Feiertag=100% ableitbar, als 'ohne Uhrzeit' gezaehlt. Kein optional chaining. */
 function KVZuschlagReport(props){
   const h=React.createElement;
-  const isMob=(props.ww||0)<600;
+  const isMob=_layoutStufe(props.ww||0,(typeof window!=="undefined"?window.innerHeight:0))==="schmal";/* A55 1080 (1): Breite aus _layoutStufe statt eigenem Vergleich (schmal = unter BP_MOB wie bisher) - schmal zeigt die Lese-Tabelle als gestapelte Zeilen mit Feldnamen (CSS epk-kv-karten, dieselben Zellen), mittel/breit bleibt Tabelle. Vorher 720 px breite Tabelle im 302-px-Kasten, Spalte Ue 100% abgeschnitten. */
   const entries=props.entries||[];
   const monteure=props.monteure||[];
   const [open,setOpen]=_react.useState.call(void 0, false);
@@ -27921,7 +27931,7 @@ function KVZuschlagReport(props){
     return out;
   })();
   var anyOhne=rows.some(function(r){return r.ohneUhr>0;});
-  const _c=(v)=>h('td',{style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,textAlign:'right',fontFamily:mono,fontSize:12,whiteSpace:'nowrap'}},v>0.001?_fzDE(v,1)+' h':'—');/* A55 19.11.: Dezimalkomma und Einheit statt 72.0 */
+  const _c=(v,l)=>h('td',{'data-l':l,style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,textAlign:'right',fontFamily:mono,fontSize:12,whiteSpace:'nowrap'}},v>0.001?_fzDE(v,1)+' h':'—');/* A55 19.11.: Dezimalkomma und Einheit statt 72.0 */
   return h('div',{className:'fade-in',style:{...CC(),marginBottom:14}}
     ,h('button',{onClick:()=>setOpen(v=>!v),style:{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',background:'transparent',border:'none',cursor:'pointer',color:V.tx,padding:0,fontFamily:'inherit',minHeight:36,touchAction:'manipulation'}}
       ,h('span',{style:{fontSize:15,fontWeight:700}},_ikVw("tabelle",'KV-Zuschläge '+_yr+' (Metallgewerbe)'))
@@ -27929,13 +27939,13 @@ function KVZuschlagReport(props){
     ,open?h('div',{style:{marginTop:12}}
       ,h('div',{style:{fontSize:12,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'8px 10px',lineHeight:1.5,fontWeight:600,marginBottom:8}},'Näherung zur Anspruchsführung (tägliche Tagesnorm Mo-Do 8,5 / Fr 4,5; Kumulationssperre: nur höchster Zuschlag). Für die Lohn-/Gehaltsabrechnung bleibt der Lohnverrechner maßgeblich.')
       ,rows.length===0?h('div',{style:{fontSize:13,color:V.dm,padding:'8px 0'}},'Keine Über-/Mehrarbeitsstunden im Jahr '+_yr+' gefunden.'):h('div',{style:{overflowX:'auto'}}
-        ,h('table',{style:{width:isMob?720:'100%',borderCollapse:'collapse',fontSize:12}}
+        ,h('table',{className:isMob?'epk-kv-karten':undefined,'data-kv-tabelle':'zuschlaege',style:{width:'100%',borderCollapse:'collapse',fontSize:12}}
           ,h('thead',{},h('tr',{},['Monteur','Normal','Mehrarbeit','Ü 50%','Ü 100%','Zuschlag-Äq. (h)',''].map(function(t,i){return h('th',{key:i,style:{padding:'5px 8px',borderBottom:'2px solid '+V.bd,textAlign:i===0?'left':'right',fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap'}},t);})))
           ,h('tbody',{},rows.map(function(r){return h('tr',{key:r.wid}
             ,h('td',{style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,fontWeight:600}},r.name)
-            ,_c(r.normal),_c(r.mehrarbeit),_c(r.ue50),_c(r.ue100)
-            ,h('td',{style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,textAlign:'right',fontFamily:mono,fontWeight:800,color:V.acTx,whiteSpace:'nowrap'}},_fzDE(r.zuschlagStd,1)+' h')
-            ,h('td',{style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,textAlign:'right',fontSize:UI.fMeta,color:r.ohneUhr>0?COLORS.WARNING:V.mt}},r.ohneUhr>0?('⚠ '+r.ohneUhr):''));})))
+            ,_c(r.normal,'Normal'),_c(r.mehrarbeit,'Mehrarbeit'),_c(r.ue50,'Ü 50%'),_c(r.ue100,'Ü 100%')
+            ,h('td',{'data-l':'Zuschlag-Äq. (h)',style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,textAlign:'right',fontFamily:mono,fontWeight:800,color:V.acTx,whiteSpace:'nowrap'}},_fzDE(r.zuschlagStd,1)+' h')
+            ,h('td',{'data-l':r.ohneUhr>0?'Ohne Uhrzeit':undefined,style:{padding:'5px 8px',borderBottom:'1px solid '+V.bd,textAlign:'right',fontSize:UI.fMeta,color:r.ohneUhr>0?COLORS.WARNING:V.mt}},r.ohneUhr>0?('⚠ '+r.ohneUhr):''));})))
       )
       ,anyOhne?h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8}},'⚠ = Einträge mit Über-/Mehrarbeit OHNE Uhrzeit (von/bis) — Nacht/nach-19-Zuschlag nicht prüfbar; nur Sonntag/Feiertag als 100% gewertet. Uhrzeiten nachtragen für vollständige Bewertung.'):null)
     :null);
