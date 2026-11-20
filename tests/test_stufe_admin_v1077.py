@@ -205,7 +205,8 @@ def _kopf(src):
 
 
 JUPROWA_MD5 = "3ff4e8bb925e7dee0064d1fe5ee528d1"   # origin/main v3.9.1076, durch Stufe 7 NICHT veraendert
-KOPF_MD5_VORHER = "926238ac300805c48407e0ddcb7d94ff"  # origin/main v3.9.1076 mit const isMob=ww<BP_MOB;
+# 1077: Funde 1077b zaehlt Lieferanten-Artikel exakt (_saAnzahlExakt in fetchSuppliers) - bewusste Logik-Aenderung, Prüfsumme nachgezogen
+KOPF_MD5_VORHER = "10071af7aa5791b70d724755163a5207"  # origin/main v3.9.1076 mit const isMob=ww<BP_MOB;
 
 
 def test_juprowa_reiter_byte_gleich(roh):
