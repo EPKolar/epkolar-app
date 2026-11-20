@@ -83,7 +83,7 @@ AUSDRUCK = {
         '(isMob||_pjMittel)?{overflowX:"auto"}:{overflow:"hidden"}',
         '_pjMittel?{whiteSpace:"nowrap"}:{}',
     ],
-    "ProjectShell": ['(_psMittel ? " sb-rail" : "")', '_psMittel?"10px":"9px 12px"'],
+    "ProjectShell": ['(_psMittel ? " sb-rail" : "")', '_psMittel?"6px 2px":"9px 12px"'],  # 1084 P3: Leiste mit Namen unter der Ikone - Knopf-Innenabstand 10px -> 6px 2px (Riegel in test_p3_funde_v1084.py)
     "VDash": ['isMob?"repeat(2,1fr)":"repeat(4,1fr)"',
               'isMob?"1fr":_dsStufe==="mittel"?"minmax(0,1fr) minmax(0,1fr)":"1fr 1fr"'],
     "VFotos": ['isMob?"repeat(2,1fr)":_vfStufe==="mittel"?"repeat(3,1fr)":"repeat(4,1fr)"'],
@@ -101,7 +101,7 @@ ERWARTET = {
                            {"overflowX": "auto"} if s != "breit" else {"overflow": "hidden"},
                            {"whiteSpace": "nowrap"} if s == "mittel" else {},
                            {"schmal": LISTE_S, "mittel": LISTE_M, "breit": LISTE_B}[s]],
-    "ProjectShell": lambda s: [s, s == "schmal", " sb-rail" if s == "mittel" else "", "10px" if s == "mittel" else "9px 12px"],
+    "ProjectShell": lambda s: [s, s == "schmal", " sb-rail" if s == "mittel" else "", "6px 2px" if s == "mittel" else "9px 12px"],
     "VDash": lambda s: [s, s == "schmal", "repeat(2,1fr)" if s == "schmal" else "repeat(4,1fr)",
                         {"schmal": "1fr", "mittel": "minmax(0,1fr) minmax(0,1fr)"}.get(s, "1fr 1fr")],
     "VFotos": lambda s: [s, s == "schmal", {"schmal": "repeat(2,1fr)", "mittel": "repeat(3,1fr)"}.get(s, "repeat(4,1fr)")],
@@ -249,9 +249,9 @@ ALT_DEKL = {
 }
 # origin/main v3.9.1077 (9eab816), Ansicht von "\nfunction X(" bis zur naechsten "\nfunction ", LF-normalisiert.
 VORHER_MD5 = {
-    "ProjList": "66ba75f5967323f9de6b086b32166543",  # 1080 A55 (5): Suchfeld am Handy fuellt die Zeile (flex 1 1 200px, min 200 px statt max 160) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
-    "ProjectShell": "105f63f457076ab247862198e9aca48a",  # 1081 Render-Fund P3b: Seitenleiste "Dashboard" -> "Übersicht" (einzige Abweichung, Diff gegen 9ccd9ed) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher a7c3fc48b6eafd9b067a82fc784dbcb1
-    "VDash": "1535894ef6da1b54a5f4ace1ef146a09",
+    "ProjList": "009a9a30a3da611e8d20af6f42d6f85c",  # 1084 P3 (4): mgOffen zaehlt ueber _mgIstOffen (offen + in Behebung, Altwerte ueber _mgStSicht) - einzige Abweichung, Diff gegen 24eca7f geprueft, bewusste Aenderung (Riegel in test_p3_funde_v1084.py); vorher 66ba75f5967323f9de6b086b32166543. Davor: 1080 A55 (5): Suchfeld am Handy fuellt die Zeile (flex 1 1 200px, min 200 px statt max 160) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
+    "ProjectShell": "34e67b860edbe44d1112e24745802d10",  # 1084 P3 (1)+(4): Ikonenleiste in mittel mit sichtbarem Namen unter der Ikone (Spalte, 12 px, zwei Zeilen, _psRailL) und Reiterzaehler _pfMgOffen ueber _mgIstOffen - einzige Abweichungen, Diff gegen 24eca7f geprueft, bewusste Aenderung (Riegel in test_p3_funde_v1084.py); vorher 105f63f457076ab247862198e9aca48a. Davor: 1081 Render-Fund P3b: Seitenleiste "Dashboard" -> "Übersicht" (einzige Abweichung, Diff gegen 9ccd9ed) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher a7c3fc48b6eafd9b067a82fc784dbcb1
+    "VDash": "987e68311725a0598ddcc8963ecc308d",  # 1084 P3 (4): "Maengel behoben" zaehlt ueber _mgStSicht (Altwert "erledigt" = behoben) - einzige Abweichung, Diff gegen 24eca7f geprueft, bewusste Aenderung (Riegel in test_p3_funde_v1084.py); vorher 1535894ef6da1b54a5f4ace1ef146a09
     "VForm": "911d2045f9db2d517980527e2eb9c7c4",
     "VCheck": "ccbec7ed48801b845c5652027c17b4cc",  # 1079: Samsung-Zweig setzt colorScheme "only light/only dark" am Eingabefeld - bewusste Aenderung, Pruefsumme nachgezogen
     "VFotos": "c501370f6173b37f745ff49a1a3f8e34",
@@ -307,7 +307,7 @@ def _css(roh):
     return roh[a:roh.index("</style>", a)]
 
 
-CSS_PFLICHT = [".sidebar.sb-rail { width: 56px; }",
+CSS_PFLICHT = [".sidebar.sb-rail { width: 76px; }",  # 1084 P3 (1): 56 -> 76 px, damit der Name unter der Ikone steht (Riegel in test_p3_funde_v1084.py)
                ".sidebar.sb-rail .sb-text, .sidebar.sb-rail .sb-logo-text { display: none; }"]
 
 
