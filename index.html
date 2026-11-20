@@ -211,6 +211,16 @@ table.epk-ze-mittel th { white-space: nowrap; }
 table.epk-ze-mittel thead th:first-child { z-index: 2 !important; }
 table.epk-ze-mittel tbody td { height: 44px; }
 table.epk-ze-tab td { font-variant-numeric: tabular-nums; }
+/* Stufe 7 Administration (GF 19.11.2026): Lese-Tabellen (Login-Verlauf, Benutzer-Status) am Handy als gestapelte Zeilen mit Feldnamen, am Tablet hochkant Tabelle mit klebender erster Spalte; die Benachrichtigungs-Matrix bleibt Tabelle, ihre Schalter werden unter breit fingergross. Die Klassen setzt nur AdminPanel aus _layoutStufe - keine Breitenabfrage hier. */
+table.epk-ad-mittel th { white-space: nowrap; }
+table.epk-ad-mittel thead th:first-child { z-index: 2 !important; }
+table.epk-ad-matrix thead th:first-child { z-index: 2 !important; }
+table.epk-ad-matrix td button { min-width: 36px; min-height: 36px; }
+table.epk-ad-karten, table.epk-ad-karten tbody { display: block; width: 100%; min-width: 0 !important; }
+table.epk-ad-karten thead { display: none; }
+table.epk-ad-karten tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 10px; padding: 10px 6px; border-bottom: 1px solid rgba(127,127,127,.3); }
+table.epk-ad-karten td { display: block; padding: 0 !important; border: none !important; text-align: left !important; min-width: 0; overflow-wrap: anywhere; }
+table.epk-ad-karten td[data-l]::before { content: attr(data-l); display: block; font-size: 12px; font-weight: 600; opacity: .75; margin-bottom: 2px; }
 @media(max-width:600px) { .kpi-grid.epk-leiste { grid-template-columns: repeat(3,1fr) !important; gap: 6px !important; }
   .kpi-grid.epk-leiste > div { padding: 6px 8px !important; }
   .kpi-grid.epk-leiste > div > div:nth-child(3) { font-size: 16px !important; } }
@@ -15387,7 +15397,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const [adminTab,setAdminTab]=_react.useState.call(void 0, _admDefaultTab);
   /* v3.9.794 Navigation Schritt 2 E1 (NUR Administration): Sub-Tab-Wechsel registriert einen Back-Layer wie Fahrzeug/Werkzeug (Muster woertlich: useBackLayer(sub!==default,...)). Browser-/Android-Zurueck auf einem Nicht-Default-Sub-Tab -> zurueck auf den Default-Tab; weiteres Zurueck -> Hauptseiten-Nav unveraendert. System A (useBackLayer/__epkPushLayer). KEIN history.state-Eigenbau, KEIN _navPush-Sub-Weg, KEIN Hash-Write (Kiosk-Tabu HART). */
   useBackLayer(adminTab!==_admDefaultTab, ()=>setAdminTab(_admDefaultTab));
-  const isMob=ww<BP_MOB;
+  const _adStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_adStufe==="schmal";const _adMittel=_adStufe==="mittel";const _adKleb=(bg,auchSchmal)=>(_adMittel||(auchSchmal&&isMob))?{position:"sticky",left:0,zIndex:1,background:bg}:{};/* Stufe 7 Administration (GF 19.11.2026, EINE Oberflaeche, drei Breitenstufen): schmal = Handy (Login-Verlauf und Benutzer-Status als gestapelte Zeilen mit Feldnamen), mittel = Tablet hochkant (Tabellen bleiben Tabellen, erste Spalte klebt, nur der Tabellenkasten rollt quer; Benutzerliste und Details stehen nebeneinander statt untereinander), breit = quer/PC wie bisher. Die Benachrichtigungs-Matrix (Direkt-Schalter) bleibt in jeder Stufe Tabelle; unter breit klebt die Benutzerspalte und die Schalter sind mindestens 36 px gross. Vorher eigene Abfrage der Fensterbreite gegen BP_MOB - dieselbe Handy-Grenze wie die Stufe schmal. Nur Darstellung: Handler, Schreibwege und der Juprowa-Reiter sind unveraendert. */
   const [defaultSB,setDefaultSBState]=_react.useState.call(void 0, _getDefaultSB());
   const [userSearch,setUserSearch]=_react.useState.call(void 0, "");
   const [userSortBy,setUserSortBy]=_react.useState.call(void 0, "role");
@@ -15748,7 +15758,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           )
         )
 
-        , React.createElement('div', { className: "user-grid"}
+        , React.createElement('div', { className: "user-grid", 'data-ad-stufe': _adStufe, style: _adMittel?{gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)"}:undefined}
           , React.createElement('div', {}
             /* Search + Filter + Sort */
             , React.createElement('div', { style: {marginBottom:10}}
@@ -15898,8 +15908,8 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:4}}, "Login-Verlauf" )
           , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 12px"}}, "Letzte 50 Anmeldungen und Fehlversuche"    )
           , logins.length===0&&!loadingStats?React.createElement('div', { style: {...CC(),textAlign:"center",padding:32,color:V.dm,fontSize:12,border:"1px dashed "+V.bd}}, React.createElement('div', { style: {display:"flex",justifyContent:"center",marginBottom:8,color:V.mt}}, _ik("schild",32)), React.createElement('div', { style: {fontSize:13,fontWeight:700,color:V.tx,marginBottom:4}}, "Noch keine Login-Daten"), "Daten werden beim nächsten Server-Login automatisch erfasst."        ):(
-          React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:500}}
-            , React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: thS()}, "Zeit"), React.createElement('th', { style: thS()}, "Benutzer"), React.createElement('th', { style: thS()}, "Status"), React.createElement('th', { style: thS()}, "Auth"), React.createElement('th', { style: thS()}, "Gerät")))
+          React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { className: isMob?"epk-ad-karten":_adMittel?"epk-ad-mittel":undefined, 'data-ad-tabelle': "logins", style: {width:"100%",borderCollapse:"collapse",minWidth:isMob?0:500}}
+            , React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: {...thS(),..._adKleb(V.cd)}}, "Zeit"), React.createElement('th', { style: thS()}, "Benutzer"), React.createElement('th', { style: thS()}, "Status"), React.createElement('th', { style: thS()}, "Auth"), React.createElement('th', { style: thS()}, "Gerät")))
             , React.createElement('tbody', {}, logins.slice(0,50).map((l,i)=>{
               const isFail=l.action==="login_failed";
               const det=typeof l.details==="string"?(()=>{try{return JSON.parse(l.details||"{}");}catch(e){return {_raw:l.details||""};}})():l.details||{};
@@ -15907,11 +15917,11 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               const dt=new Date(l.created_at);
               const uName=(()=>{const u=users.find(x=>x.id===l.user_id||x.username===l.user_id);return u?(u.name||u.username||l.user_id):l.user_id||"?";})();
               return (React.createElement('tr', { key: l.id||i, style: {background:isFail?"rgba(239,68,68,.06)":"transparent"}}
-                , React.createElement('td', { style: {...tdSt(),fontSize:UI.fMeta,whiteSpace:"nowrap"}}, dt.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit"}), " " , dt.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit",second:"2-digit"}))
-                , React.createElement('td', { style: {...tdSt(),fontWeight:600}}, uName)
-                , React.createElement('td', { style: tdSt()}, React.createElement('span', { style: {padding:"2px 8px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:isFail?"#fecaca":"#dcfce7",color:isFail?"#dc2626":_okG("#16a34a")}}, isFail?"Fehlgeschlagen":"Erfolgreich"))
-                , React.createElement('td', { style: {...tdSt(),fontSize:UI.fMeta,fontFamily:mono,color:V.dm}}, (()=>{const raw=det._raw||"";const m=(raw.split(/\s+/)[0]||"").toLowerCase();if(m==="gotrue"||m==="bcrypt")return React.createElement('span',{style:{padding:"2px 6px",borderRadius:3,fontSize:UI.fMeta,fontWeight:600,background:m==="gotrue"?"rgba(34,197,94,.15)":"rgba(251,146,60,.15)",color:m==="gotrue"?_okG("#16a34a"):"#ea580c"}},m.toUpperCase());return"—";})())
-                , React.createElement('td', { style: {...tdSt(),fontSize:UI.fMeta,color:V.dm}}, (()=>{if(isFail){return det.reason==="wrong_password"?"Falsches Passwort":det.reason==="locked"?"Gesperrt":det.reason==="deactivated"?"Deaktiviert":det.reason==="not_found"?"User nicht gefunden":det.reason||"—";}const raw=det._raw||"";const ua=raw.replace(/^(gotrue|bcrypt)\s*/i,"");return _parseUA(ua)||"—";})())
+                , React.createElement('td', { 'data-l': "Zeit", style: {...tdSt(),fontSize:UI.fMeta,whiteSpace:"nowrap",..._adKleb(isFail?"linear-gradient(rgba(239,68,68,.06),rgba(239,68,68,.06)),"+V.cd:V.cd)}}, dt.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit"}), " " , dt.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit",second:"2-digit"}))
+                , React.createElement('td', { 'data-l': "Benutzer", style: {...tdSt(),fontWeight:600}}, uName)
+                , React.createElement('td', { 'data-l': "Status", style: tdSt()}, React.createElement('span', { style: {padding:"2px 8px",borderRadius:4,fontSize:UI.fMeta,fontWeight:700,background:isFail?"#fecaca":"#dcfce7",color:isFail?"#dc2626":_okG("#16a34a")}}, isFail?"Fehlgeschlagen":"Erfolgreich"))
+                , React.createElement('td', { 'data-l': "Auth", style: {...tdSt(),fontSize:UI.fMeta,fontFamily:mono,color:V.dm}}, (()=>{const raw=det._raw||"";const m=(raw.split(/\s+/)[0]||"").toLowerCase();if(m==="gotrue"||m==="bcrypt")return React.createElement('span',{style:{padding:"2px 6px",borderRadius:3,fontSize:UI.fMeta,fontWeight:600,background:m==="gotrue"?"rgba(34,197,94,.15)":"rgba(251,146,60,.15)",color:m==="gotrue"?_okG("#16a34a"):"#ea580c"}},m.toUpperCase());return"—";})())
+                , React.createElement('td', { 'data-l': "Ger\u00e4t", style: {...tdSt(),fontSize:UI.fMeta,color:V.dm}}, (()=>{if(isFail){return det.reason==="wrong_password"?"Falsches Passwort":det.reason==="locked"?"Gesperrt":det.reason==="deactivated"?"Deaktiviert":det.reason==="not_found"?"User nicht gefunden":det.reason||"—";}const raw=det._raw||"";const ua=raw.replace(/^(gotrue|bcrypt)\s*/i,"");return _parseUA(ua)||"—";})())
               ));
             }))
           )))
@@ -16020,19 +16030,19 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
           /* User Status Overview */
           , React.createElement('div', { style: CC()}
             , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:10}}, "Benutzer-Status" )
-            , React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:500}}
-              , React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: {...thS(),textAlign:"left"}}, "Benutzer"), React.createElement('th', { style: thS()}, "Rolle"), React.createElement('th', { style: thS()}, "Letzter Login" ), React.createElement('th', { style: thS()}, "Logins gesamt" ), React.createElement('th', { style: thS()}, "Aktionen (7T)" ), React.createElement('th', { style: thS()}, "Status")))
+            , React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { className: isMob?"epk-ad-karten":_adMittel?"epk-ad-mittel":undefined, 'data-ad-tabelle': "status", style: {width:"100%",borderCollapse:"collapse",minWidth:isMob?0:500}}
+              , React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: {...thS(),textAlign:"left",..._adKleb(V.cd)}}, "Benutzer"), React.createElement('th', { style: thS()}, "Rolle"), React.createElement('th', { style: thS()}, "Letzter Login" ), React.createElement('th', { style: thS()}, "Logins gesamt" ), React.createElement('th', { style: thS()}, "Aktionen (7T)" ), React.createElement('th', { style: thS()}, "Status")))
               , React.createElement('tbody', {}, (stats.userStatus||[]).map((u,i)=>{
                 const ll=u.last_login?new Date(u.last_login):null;
                 const isToday=ll&&ll.toDateString()===new Date().toDateString();
                 const daysAgo=ll?Math.floor((Date.now()-ll.getTime())/864e5):999;
                 return (React.createElement('tr', { key: u.id||i}
-                  , React.createElement('td', { style: {...tdSt(),textAlign:"left",fontWeight:600}}, React.createElement('div', {}, u.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "@", u.username))
-                  , React.createElement('td', { style: tdSt()}, React.createElement(Badge, { text: _optionalChain([ROLES, 'access', _229 => _229[u.role], 'optionalAccess', _230 => _230.l])||u.role, color: _optionalChain([ROLES, 'access', _231 => _231[u.role], 'optionalAccess', _232 => _232.c])||"#71717a"} ))
-                  , React.createElement('td', { style: {...tdSt(),color:isToday?_okG("#22c55e"):daysAgo>7?COLORS.ERROR:V.tx,fontWeight:isToday?700:400}}, ll?ll.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+ll.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}):"Nie")
-                  , React.createElement('td', { style: {...tdSt(),fontFamily:mono,fontWeight:700}}, u.total_logins==null?"—":u.total_logins)
-                  , React.createElement('td', { style: tdSt()}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {flex:1,height:6,borderRadius:3,background:V.bd}}, React.createElement('div', { style: {width:Math.min(100,(parseInt(u.actions_7d)||0)*2)+"%",height:6,borderRadius:3,background:"#3b82f6"}} )), React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,minWidth:24,textAlign:"right"}}, u.actions_7d==null?"—":u.actions_7d)))
-                  , React.createElement('td', { style: tdSt()}, u.locked===true?React.createElement(Badge, { text: "Gesperrt", color: COLORS.ERROR} ):u.active===true?React.createElement(Badge, { text: "Aktiv", color: _okG("#22c55e")} ):u.active===false?React.createElement(Badge, { text: "Inaktiv", color: "#eab308"} ):React.createElement('span', { title: "Status nicht lesbar (kein Leserecht oder keine Verbindung) - das heißt nicht inaktiv"}, React.createElement(Badge, { text: "Nicht lesbar", color: COLORS.NEUTRAL} )))
+                  , React.createElement('td', { 'data-l': "Benutzer", style: {...tdSt(),textAlign:"left",fontWeight:600,..._adKleb(V.cd)}}, React.createElement('div', {}, u.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "@", u.username))
+                  , React.createElement('td', { 'data-l': "Rolle", style: tdSt()}, React.createElement(Badge, { text: _optionalChain([ROLES, 'access', _229 => _229[u.role], 'optionalAccess', _230 => _230.l])||u.role, color: _optionalChain([ROLES, 'access', _231 => _231[u.role], 'optionalAccess', _232 => _232.c])||"#71717a"} ))
+                  , React.createElement('td', { 'data-l': "Letzter Login", style: {...tdSt(),color:isToday?_okG("#22c55e"):daysAgo>7?COLORS.ERROR:V.tx,fontWeight:isToday?700:400}}, ll?ll.toLocaleDateString("de-AT",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+ll.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"}):"Nie")
+                  , React.createElement('td', { 'data-l': "Logins gesamt", style: {...tdSt(),fontFamily:mono,fontWeight:700}}, u.total_logins==null?"—":u.total_logins)
+                  , React.createElement('td', { 'data-l': "Aktionen (7T)", style: tdSt()}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {flex:1,height:6,borderRadius:3,background:V.bd}}, React.createElement('div', { style: {width:Math.min(100,(parseInt(u.actions_7d)||0)*2)+"%",height:6,borderRadius:3,background:"#3b82f6"}} )), React.createElement('span', { style: {fontSize:UI.fMeta,fontFamily:mono,minWidth:24,textAlign:"right"}}, u.actions_7d==null?"—":u.actions_7d)))
+                  , React.createElement('td', { 'data-l': "Status", style: tdSt()}, u.locked===true?React.createElement(Badge, { text: "Gesperrt", color: COLORS.ERROR} ):u.active===true?React.createElement(Badge, { text: "Aktiv", color: _okG("#22c55e")} ):u.active===false?React.createElement(Badge, { text: "Inaktiv", color: "#eab308"} ):React.createElement('span', { title: "Status nicht lesbar (kein Leserecht oder keine Verbindung) - das heißt nicht inaktiv"}, React.createElement(Badge, { text: "Nicht lesbar", color: COLORS.NEUTRAL} )))
                 ));
               }))
             ))
@@ -16317,12 +16327,12 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
         , React.createElement('div', { style: CC()}
           , React.createElement('div', { style: {fontSize:15,fontWeight:800,marginBottom:4}}, "Benachrichtigungen verwalten"  )
           , React.createElement('p', { style: {color:V.dm,fontSize:12,margin:"0 0 14px"}}, "Festlegen welcher Benutzer welche Push-Benachrichtigungen erhält"     )
-          , React.createElement('div', { className: "scroll-x"}, React.createElement('table', { style: {width:"100%",borderCollapse:"collapse",minWidth:600}}
+          , React.createElement('div', { className: "scroll-x"}, React.createElement('table', { className: _adStufe!=="breit"?"epk-ad-matrix":undefined, 'data-ad-tabelle': "benachrichtigungen", style: {width:"100%",borderCollapse:"collapse",minWidth:600}}
             , React.createElement('thead', {}, React.createElement('tr', { style: {borderBottom:"2px solid "+V.bd,background:_dark?"rgba(255,255,255,.03)":"rgba(0,0,0,.03)"}}
-              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:120}}, "Benutzer")
+              , React.createElement('th', { style: {...thS(),textAlign:"left",minWidth:120,..._adKleb(V.cd,true)}}, "Benutzer")
               , Object.entries(NOTIF_CATS).map(([ck,cv])=>(React.createElement('th', { key: ck, colSpan: Object.values(NOTIF_TYPES).filter(t=>t.cat===ck).length, style: {...thS(),textAlign:"center",color:V.acTx,fontSize:UI.fMeta,borderLeft:"1px solid "+V.bd}}, _ikVw(_NOTIF_CAT_IK[ck]||"glocke",cv.l))))
             ), React.createElement('tr', { style: {borderBottom:"1px solid "+V.bd}}
-              , React.createElement('th', { style: {...thS(),fontSize:UI.fMeta,color:V.dm}}
+              , React.createElement('th', { style: {...thS(),fontSize:UI.fMeta,color:V.dm,..._adKleb(V.cd,true)}}
                 , React.createElement('button', { onClick: ()=>{const allOn=Object.values(notifPrefs).every(up=>Object.values(up).every(v=>v));const upd={};users.forEach(u=>{upd[u.id]={};Object.keys(NOTIF_TYPES).forEach(t=>{upd[u.id][t]=!allOn;});});setNotifPrefs(upd);}, style: {border:"none",background:"transparent",color:V.acTx,cursor:"pointer",fontSize:UI.fMeta,fontFamily:"inherit",minHeight:24}}, "Alle ⇆" )
                 , React.createElement('button', { onClick: ()=>{const upd={};users.filter(u=>u.active).forEach(u=>{upd[u.id]={};Object.keys(NOTIF_TYPES).forEach(t=>{upd[u.id][t]=u.role==="admin"||u.role==="projektleiter"||u.role==="buero";});if(u.role==="monteur"||u.role==="helfer"||u.role==="techniker"||u.role==="obermonteur"){upd[u.id].absence_approval=true;upd[u.id].as_new=true;upd[u.id].tool_checkout=true;upd[u.id].kunde_mangel=true;}});setNotifPrefs(upd);_optionalChain([window, 'access', _nrst1 => _nrst1.__toast, 'optionalCall', _nrst2 => _nrst2("🔄 Auf Standardwerte zurückgesetzt")]);}, style: {border:"none",background:"transparent",color:"#f97316",cursor:"pointer",fontSize:UI.fMeta,fontFamily:"inherit",minHeight:24,marginLeft:8}}, "↺ Reset" )
               )
@@ -16332,7 +16342,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
               const prefs=notifPrefs[u.id]||{};const rl=ROLES[u.role];
               const allOn=Object.keys(NOTIF_TYPES).every(t=>prefs[t]);
               return (React.createElement('tr', { key: u.id, style: {borderBottom:"1px solid "+V.bd}}
-                , React.createElement('td', { style: {padding:"6px 8px",fontSize:12}}
+                , React.createElement('td', { style: {padding:"6px 8px",fontSize:12,..._adKleb(V.cd,true)}}
                   , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6}}
                     , React.createElement('span', { 'aria-hidden': "true", style: {display:"inline-flex",color:V.dm}}, _ik(_ROLE_IK[u.role]||"person",16))
                     , React.createElement('div', {}, React.createElement('div', { style: {fontWeight:600,fontSize:UI.fMeta}}, u.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, _optionalChain([rl, 'optionalAccess', _242 => _242.l])))
