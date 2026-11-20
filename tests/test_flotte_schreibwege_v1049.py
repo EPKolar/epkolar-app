@@ -352,6 +352,8 @@ def _monat_lauf(node_exe, src):
         "var fmt$=function(n){return 'EUR '+Number(n).toFixed(2);};\n"
         "var React={createElement:function(t,p){return {t:t,c:Array.prototype.slice.call(arguments,2)};}};\n"
         "function tdSt(){return {};}function thS(){return {};}function _okG(h){return h;}var V={dm:'#999'};\n"
+        # Stufe 9 (1078): die Monatstabelle fragt die Breitenstufe (Klasse, klebende erste Spalte) - nur Darstellung, hier breit
+        "var isMob=false,_fvMittel=false;function _fvKleb(){return {};}\n"
         "var selFz={id:'fz1',tankLog:" + TANKLOG + "};\n"
         "var baum=" + src[s:e] + ";\n"
         "function txt(n){if(n===null||n===undefined||n===false)return '';if(typeof n!=='object')return String(n);"

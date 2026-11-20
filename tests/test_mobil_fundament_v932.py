@@ -203,8 +203,11 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # (isMob = Stufe "schmal" = n<BP_MOB); Schwelle unveraendert (test_stufe_zeiterfassung_v1075, test_stufe_bueroexport_v1076).
     # Stufe 7 Administration (1077): 25 -> 24. AdminPanel fragt _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB);
     # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert (tests/test_stufe_admin_v1077.py).
-    assert roh.count("ww<BP_MOB") == 24, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration
-        "Erwartet 24 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 9 Flotte/Fahrzeuge/Bauprovisorien: -3 (FlotteView, FahrzeugView, BauprovisorienView fragen _layoutStufe,
+    # isMob = Stufe "schmal" = n<BP_MOB; Schwelle unveraendert, tests/test_stufe_flotte_v1078.py). Nur diese drei
+    # Stellen sind hier abgezogen - Projekte-Umbauten auf anderen Zweigen zaehlen dort selbst.
+    assert roh.count("ww<BP_MOB") == 21, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; Stufe 9: Flotte/Fahrzeuge/Bauprovisorien
+        "Erwartet 21 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.

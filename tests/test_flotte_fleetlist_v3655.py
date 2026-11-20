@@ -40,4 +40,7 @@ def test_toggle_button(index_html):
 
 def test_listOpen_state(index_html):
     # Desktop offen, Handy zu
-    assert "const [listOpen,setListOpen]=_react.useState.call(void 0, ww>=600)" in index_html
+    # Stufe 9 (1078): die nackte 600 ist in die gemeinsame Breitenstufe gewandert - !isMob = Stufe nicht "schmal"
+    # = ww>=BP_MOB (600), gleiche Grenze (tests/test_stufe_flotte_v1078.py)
+    assert "const [listOpen,setListOpen]=_react.useState.call(void 0, !isMob)" in index_html
+    assert "useState.call(void 0, ww>=600)" not in index_html
