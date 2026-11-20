@@ -198,8 +198,9 @@ def pruefe_caddy(text):
         b.append("tls internal fehlt")
     if re.search(r"^\s*tls /", c, re.M):
         b.append("Zertifikat-Datei aktiv (nur auskommentiert erlaubt)")
-    if not re.search(r"^https://\{\$QNAP_LAN_IP\} \{$", c, re.M):
-        b.append("Site ohne {$QNAP_LAN_IP}")
+    # Port konfigurierbar (QTS belegt 443): Site = {$QNAP_LAN_IP}:{$GATEWAY_PORT}
+    if not re.search(r"^https://\{\$QNAP_LAN_IP\}:\{\$GATEWAY_PORT\} \{$", c, re.M):
+        b.append("Site ohne {$QNAP_LAN_IP}:{$GATEWAY_PORT}")
     if "kameras.ep-kolar.at" not in text:
         b.append("DNS-Alternative fehlt")
     if not re.search(r"request>uri query \{\s*delete token\s*\}", c):
@@ -271,8 +272,10 @@ def pruefe_compose(text):
     if "KAMERA_AUTH_PORT=9099" not in ka:
         b.append("Pruefer-Port nicht 9099")
     ports = re.findall(r"^\s+- \"([^\"]+)\"$", dienste.get("caddy", "").split("environment:")[0], re.M)
-    if ports != ["${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:443:443"]:
-        b.append("Caddy-ports nicht genau <QNAP_LAN_IP>:443:443: %s" % ports)
+    if ports != ["${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:${GATEWAY_PORT:-8443}:${GATEWAY_PORT:-8443}"]:
+        b.append("Caddy-ports nicht genau <QNAP_LAN_IP>:<GATEWAY_PORT>:<GATEWAY_PORT>: %s" % ports)
+    if "GATEWAY_PORT=${GATEWAY_PORT:-8443}" not in dienste.get("caddy", ""):
+        b.append("GATEWAY_PORT fehlt in der caddy-Umgebung")
     if "KAMERA_AUTH_URI_HEADER=x-forwarded-uri" not in c or "KAMERA_AUTH_METHOD_HEADER=x-forwarded-method" not in c:
         b.append("Kopf-Paar fehlt")
     if not re.search(r"KAMERA_TOKEN_SECRET=\$\{KAMERA_TOKEN_SECRET:\?", c):
@@ -290,7 +293,7 @@ def pruefe_env(text):
         b.append("Wert statt Name")
     # jede Umgebungsvariable, die verify.mjs liest, muss in ENV.md stehen (gemessen, nicht abgeschrieben)
     gelesen = sorted(set(re.findall(r"\benv\.([A-Z][A-Z0-9_]+)", _lies(os.path.join(AUTH, "verify.mjs")))))
-    for n in gelesen + ["QNAP_LAN_IP", "8555", "x-forwarded-uri", "x-forwarded-method", "nie auf privaten Handys"]:
+    for n in gelesen + ["QNAP_LAN_IP", "GATEWAY_PORT", "8443", "8555", "x-forwarded-uri", "x-forwarded-method", "nie auf privaten Handys"]:
         if n not in text:
             b.append("ENV.md ohne " + n)
     return b
@@ -353,7 +356,8 @@ def test_umkehrprobe_docker(alt, neu, erwartet):
 
 @pytest.mark.parametrize("alt,neu,erwartet", [
     ("    expose: [\"9099\"]\n", "    ports:\n      - \"9099:9099\"\n", "kamera-auth veroeffentlicht"),
-    ("      - \"${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:443:443\"", "      - \"443:443\"", "Caddy-ports"),
+    ("      - \"${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:${GATEWAY_PORT:-8443}:${GATEWAY_PORT:-8443}\"", "      - \"443:443\"", "Caddy-ports"),
+    ("      - GATEWAY_PORT=${GATEWAY_PORT:-8443}\n", "", "GATEWAY_PORT fehlt"),
     ("services:\n", "services:\n  go2rtc:\n    image: alexxit/go2rtc\n", "Dienste"),
     ("    restart: unless-stopped\n    read_only", "    network_mode: host\n    restart: unless-stopped\n    read_only", "Host-Netz"),
     ("KAMERA_AUTH_URI_HEADER=x-forwarded-uri", "KAMERA_AUTH_URI_HEADER=x-original-uri", "Kopf-Paar"),
