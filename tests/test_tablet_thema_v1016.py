@@ -53,7 +53,8 @@ def test_kopfskript_folgt_nur_der_app_wahl(index_html, gespeichert, os_dunkel, e
     )
     out = subprocess.run(["node", "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.strip() == "light dark|" + erwartet  # v3.9.1024: Meta bleibt statisch
+    # v3.9.1079: das Meta folgt wieder der App-Wahl (Hell -> only light, Dunkel -> dark); v1024 liess es statisch.
+    assert out.stdout.strip() == ("dark" if erwartet == "only dark" else "only light") + "|" + erwartet
 
 
 def test_deklaration_bleibt_gegen_zwangsabdunkelung(index_html):
@@ -61,12 +62,12 @@ def test_deklaration_bleibt_gegen_zwangsabdunkelung(index_html):
     die AUSWAHL liest das Geraet nicht mehr."""
     assert '<meta name="color-scheme"' in index_html
     kopf = _kopf_skript(index_html)
-    assert '"only dark":"only light"' in kopf and 'setAttribute("content",cs)' not in kopf  # v3.9.1024
+    assert '"only dark":"only light"' in kopf and 'setAttribute("content",mcs)' in kopf  # v3.9.1079 (v1024: Meta statisch)
     assert "documentElement.style.colorScheme=cs" in kopf
     i = index_html.index("function applyTheme(dark)")
     rumpf = index_html[i:i + 4000]
     assert 'document.documentElement.style.colorScheme=dark?"only dark":"only light"' in rumpf
-    assert '_csm.setAttribute(' not in rumpf  # v3.9.1024: Meta bleibt statisch "light dark"
+    assert '_csm.setAttribute("content",dark?"dark":"only light")' in rumpf  # v3.9.1079: Meta zieht live mit
 
 
 def test_kein_geraete_lauscher_mehr(index_html):

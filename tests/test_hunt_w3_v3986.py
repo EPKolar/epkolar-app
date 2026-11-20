@@ -47,4 +47,5 @@ def test_fabn_grid_mobile(index_html):
 
 def test_ii_colorscheme_central(index_html):
     # Dark-Mode: native Select-Popups/Date-Picker via colorScheme in II()
-    assert 'colorScheme:_dark?"dark":"light"}));' in index_html
+    # v3.9.1079: mit "only" - sonst duerfte Chromiums Zwangs-Dunkel die Felder trotz heller Wurzel umfaerben.
+    assert 'colorScheme:_dark?"only dark":"only light"}));' in index_html
