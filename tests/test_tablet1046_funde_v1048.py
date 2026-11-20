@@ -160,7 +160,8 @@ def test_as_liste_aktionen_kleben_rechts(index_html):
     # BESTAETIGT zu und steht dort am Zeilenende im Rollkasten. Die Aufrufstellen
     # gehen deshalb ueber _asAktSpalte, das in breit genau _asAktKlebt liefert.
     assert 'const _asAktSpalte=()=>(_asMittel?{}:_asAktKlebt());' in index_html
-    assert '{...thS(),width:110,textAlign:"center",..._asAktSpalte()}}, "Aktionen")' in index_html
+    # Tablet-Runde 1077: Kopf in mittel deckend (_asKopfDeck)
+    assert '{...thS(),..._asKopfDeck(),width:110,textAlign:"center",..._asAktSpalte()}}, "Aktionen")' in index_html
     assert '{...tdSt(),textAlign:"center",padding:"4px 2px",..._asAktSpalte()}}' in index_html
     # die Schreibwege der Zeile sind unberuehrt
     assert "openEdit(a);}, style: {...bpS,border:\"none\",borderRadius:4" in index_html
