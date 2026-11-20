@@ -290,7 +290,8 @@ def test_verdrahtung(index_html):
     code = nur_code(index_html)
     # Lesen nur fuer GET: keine Zeile mit _netzLesen traegt eine Schreibmethode
     zeilen = [z for z in code.split("\n") if "_netzLesen(()=>" in z]
-    assert len(zeilen) == 6, len(zeilen)
+    # Funde 1077b: +1 Lesestelle _saAnzahlExakt (GET, Content-Range-Zaehlung der Haendlerartikel)
+    assert len(zeilen) == 7, len(zeilen)
     for z in zeilen:
         assert not re.search(r"method:\s*['\"](POST|PATCH|PUT|DELETE)", z), z[:160]
     for n in ("_sbPost", "_sbUpsert", "_sbInsertIfAbsent", "_sbPatch", "_sbDelete", "_juprowaPush"):

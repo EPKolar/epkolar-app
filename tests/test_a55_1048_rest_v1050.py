@@ -160,7 +160,8 @@ def test_glocke_verdrahtung(index_html):
     code = nur_code(index_html)
     assert code.count(".catch(_eskLeseMarke);") == 3
     # die Lesungen laufen weiter ueber _sbGet (das selbst _netzLesen nutzt) - keine neue Lesestelle
-    assert len([z for z in code.split("\n") if "_netzLesen(()=>" in z]) == 6
+    # Funde 1077b: 7 = +1 GET-Lesestelle _saAnzahlExakt (Haendlerartikel zaehlen), nicht die Glocke
+    assert len([z for z in code.split("\n") if "_netzLesen(()=>" in z]) == 7
     sb = _extract_fn(index_html, "_sbGet", r"async\s+function\s+_sbGet\s*\(")
     assert sb and "_authRetry(()=>_netzLesen(()=>fetch(" in sb, "Fristen-Lesung laeuft nicht ueber den Wiederholungsweg"
     # Fusszeile: kein Produktname, Technikzeile nur fuer Admin
