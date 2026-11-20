@@ -253,7 +253,7 @@ VORHER_MD5 = {
     "ProjectShell": "a7c3fc48b6eafd9b067a82fc784dbcb1",
     "VDash": "1535894ef6da1b54a5f4ace1ef146a09",
     "VForm": "911d2045f9db2d517980527e2eb9c7c4",
-    "VCheck": "ec3fb9535adea268f356f83f42becd48",
+    "VCheck": "ccbec7ed48801b845c5652027c17b4cc",  # 1079: Samsung-Zweig setzt colorScheme "only light/only dark" am Eingabefeld - bewusste Aenderung, Pruefsumme nachgezogen
     "VFotos": "c501370f6173b37f745ff49a1a3f8e34",
     "VDoku": "42b03a16097e9a268407e49ed1faa835",
     "VBautag": "b46f143b897badedcccc69775c880fbe",
