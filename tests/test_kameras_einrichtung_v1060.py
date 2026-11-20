@@ -131,7 +131,7 @@ def test_nichts_da_zeigt_vier_offene_punkte_ohne_video(U):
     for teil in ("Einrichtung", "Datenbank: noch nicht bereit", "Server-Funktion: noch nicht aktiv",
                  "Kamera-Server im Büro: noch nicht in Betrieb", "Kameras angemeldet: 0",
                  "4 von 4 Voraussetzungen fehlen noch", "bewusst kein Video",
-                 "Einrichtungsanleitung: docs/kameras/PILOT_HEUTE.md"):
+                 "macht die Technik - diese Seite zeigt nur, was davon schon fertig ist"):
         assert teil in a["text"], teil
     assert a["zeilen"] == 4 and a["videos"] == 0 and a["stream"] == 0
     assert a["pruef"] == ["fn"], "ohne aktive Funktion keine Adresse -> kein Abruf beim Video-Host"
@@ -141,7 +141,8 @@ def test_nichts_da_zeigt_vier_offene_punkte_ohne_video(U):
 
 # v3.9.1069: in KEINER Admin-Szene stehen Entwickler- oder Infrastrukturbegriffe in der Einrichtung
 VERBOTEN_IN_EINRICHTUNG = ("KAMERA_TOKEN_SECRET", "KAMERA_BACKEND_BASE", ".sql", ".env", "Sebastian", "SQL-Editor",
-                           "QNAP", "WireGuard", "Wer:", "supabase/", "tools/", "go2rtc", "Frigate", "Caddy", "Secret")
+                           "QNAP", "WireGuard", "Wer:", "supabase/", "tools/", "go2rtc", "Frigate", "Caddy", "Secret",
+                           "docs/", ".md", "PILOT_HEUTE")  # 1077: auch kein Dateipfad zur Anleitung mehr
 
 
 def test_einrichtung_ohne_entwicklertext(U):
@@ -149,7 +150,7 @@ def test_einrichtung_ohne_entwicklertext(U):
     for s in szenen:
         for wort in VERBOTEN_IN_EINRICHTUNG:
             assert wort not in U[s]["text"], (s, wort)
-        assert U[s]["text"].count("Einrichtungsanleitung: docs/kameras/PILOT_HEUTE.md") == 1, s
+        assert U[s]["text"].count("macht die Technik - diese Seite zeigt nur") == 1, s
 
 
 def test_keine_antwort_der_funktion_gilt_als_nicht_aktiv(U):
