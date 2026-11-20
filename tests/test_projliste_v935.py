@@ -129,13 +129,13 @@ def test_die_kopfzeile_ist_ruhig(rumpf):
 AUSNAHMEN = {
     "⚠": 6,        # Toast: Pflichtfelder
     "✅": 2,        # Toast: angelegt / aktualisiert
-    "✏": 2,        # Toast "Bearbeitung gestartet" + Formularueberschrift
+    "✏": 1,        # Toast "Bearbeitung gestartet"
     "\U0001f4e6": 1,    # Toast: archiviert
     "\U0001f5d1": 1,    # Toast: geloescht
-    "\U0001f3d7": 1,    # Formularueberschrift "Neues Projekt"
-    "\U0001f464": 1,    # Formular "Kundenkontakt"
-    "\U0001f517": 1,    # Formular "Kundenportal"
-    "\U0001f4be": 1,    # Formular, Speichern-Knopf
+    # Render-Funde 1086 (CI: keine Emoji): die Formular-Emoji (Neues Projekt,
+    # Projekt bearbeiten, Kundenkontakt, Kundenportal, Speichern-Knopf) sind
+    # durch _ikT/_ikVw ersetzt. Ausnahmen GESTRICHEN, nicht erweitert - der
+    # Riegel ist damit strenger: jedes dieser Zeichen zaehlt jetzt als neu.
     "→": 1,        # in einem Changelog-Kommentar
 }
 

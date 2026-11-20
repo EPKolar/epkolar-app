@@ -182,10 +182,22 @@ def test_wer_seinen_text_verlieren_kann_hat_einen_namen():
     """Die Aussage. Gemessen an der Eigenschaft, nicht an zwei Zeilen."""
     roh = _lies()
     alle = _klasse(roh)
-    assert alle, (
-        "Kein einziger Knopf dieser Klasse gefunden. Das ist kein gruenes "
-        "Ergebnis - es gibt um 15. Entweder ist der Zaehler blind, oder die "
-        "Knoepfe sind anders geschrieben.")
+    # Render-Funde 1086 (CI: keine Emoji): der letzte echte Vertreter der Klasse,
+    # der Speichern-Knopf im Formular "Neues Projekt" ("\U0001F4BE " , editP?...),
+    # zeichnet das Symbol jetzt als Linien-Ikone (_ikVw) - die Klasse ist im
+    # Bestand damit LEER, und das ist der gewollte Zustand. Damit "leer" nicht
+    # "blind" bedeutet, muss der Zaehler denselben Knopf in seiner ALTEN
+    # Schreibweise als Koeder an echter Stelle weiterhin finden. Nicht
+    # gelockert: ein blinder Zaehler bleibt rot.
+    if not alle:
+        anker = ", React.createElement('button', { title: \"Alle Projekte\""
+        assert anker in roh, "Anker fuer den Koeder fehlt."
+        koeder = ("React.createElement('button',{onClick:()=>0},"
+                  "\"\U0001F4BE \" , editP?\"Aktualisieren\":\"Anlegen\")")
+        alle_k = _klasse(roh.replace(anker, ", " + koeder + anker, 1))
+        assert alle_k, (
+            "Kein einziger Knopf dieser Klasse gefunden - auch nicht der "
+            "Koeder in der alten Schreibweise. Dann ist der Zaehler blind.")
     fehlt = [(a, z, s, w) for a, z, s, w, hat, weg in alle if weg and not hat]
     assert not fehlt, (
         "%d Knopf/Knoepfe koennen ihren Text verlieren und haben dann keinen "

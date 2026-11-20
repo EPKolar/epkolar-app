@@ -4495,6 +4495,18 @@ const COLORS={EP_GREEN:"#009640",SUCCESS:"#22c55e",ERROR:"#ef4444",ERROR_DARK:"#
 // v3.9.73 SPRINT-52: Simple Skeleton-Loader-Helper für Heavy-Lists. Drop-in für `loading?Lade…`-Patterns.
 // Renders N grey placeholder-rows mit pulse-animation (Re-uses bestehende @keyframes pulse aus globalCSS).
 function _Skeleton(rows){const n=rows||4;const bg=(typeof V!=='undefined'&&V&&V.cd)||'#27272a';return React.createElement('div',{style:{padding:12,display:'flex',flexDirection:'column',gap:8},'aria-busy':'true','aria-label':'Lade…'},Array.from({length:n}).map((_,i)=>React.createElement('div',{key:i,style:{height:48,borderRadius:8,background:bg,opacity:.55,animation:'pulse 1.2s ease-in-out infinite',animationDelay:(i*0.08)+'s'}})));}
+/* Render-Funde 1086 (P2): Bautagebuch, Fotos und Material zeigten bei nicht erreichbarem Server nur graue Kaesten -
+   kein Wort, kein Leerzustand. Ein Lesefehler wiederholt sich in _netzLesen (1,5 s + 4 s), bis dahin stand nichts da;
+   danach sagten Fotos/Bautagebuch 'Noch keine ...', obwohl gar nichts gelesen wurde. Jetzt:
+   - _ladeZustand: EINE Regel fuer laden / liste / fehler / leer. Zeilen gehen vor (ein Offline-Vorrat wird gezeigt),
+     ein Lesefehler ohne Zeilen heisst 'fehler' und nie 'leer'. PURE.
+   - _LadeSkelett: das Skelett traegt sofort einen Satz; nach fristMs (4 s) sagt es, dass die Verbindung langsam ist,
+     und bietet 'Erneut laden'.
+   - _LadeFehler: 'Keine Verbindung - Daten konnten nicht geladen werden' + 'Erneut laden'.
+   Abrufwege, Offline-Vorrat und Schreibpfade bleiben unveraendert; 'Erneut laden' startet nur denselben Lesevorgang neu. */
+function _ladeZustand(laedt,fehl,anzahl){if(laedt)return "laden";if((+anzahl||0)>0)return "liste";return fehl?"fehler":"leer";}
+function _LadeSkelett(props){const [lang,setLang]=_react.useState.call(void 0, false);_react.useEffect.call(void 0, ()=>{const t=setTimeout(()=>setLang(true),props.fristMs||4000);return()=>clearTimeout(t);},[]);return React.createElement('div',{'data-epk':"lade-skelett"},React.createElement('div',{role:"status",'aria-live':"polite",style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:8,padding:"12px 12px 0",fontSize:UI.fKlein,color:V.dm}},lang?"Die Verbindung ist langsam – Daten werden noch geladen …":((props.was||"Daten")+" werden geladen …"),lang&&props.onReload?React.createElement('button',{type:"button",onClick:props.onReload,style:{...bsS(),padding:"4px 12px",fontSize:UI.fMeta,minHeight:36}},_ikVw("drehen","Erneut laden")):null),_Skeleton(props.rows));}
+function _LadeFehler(props){return React.createElement('div',{'data-epk':"lade-fehler",role:"alert",style:{...CC(),textAlign:"center",padding:28,color:V.dm}},React.createElement('div',{'aria-hidden':"true",style:{display:"flex",justifyContent:"center",marginBottom:8,color:UI.achtungTxt}},_ik("warnung",36)),React.createElement('div',{style:{fontSize:14,fontWeight:700,color:V.tx,marginBottom:4}},"Keine Verbindung – Daten konnten nicht geladen werden"),React.createElement('div',{style:{fontSize:UI.fMeta,marginBottom:12}},props.hinweis||"Bitte Verbindung prüfen und erneut laden."),props.onReload?React.createElement('button',{type:"button",onClick:props.onReload,style:{...bsS(),padding:"6px 14px",fontSize:UI.fKlein,minHeight:44}},_ikVw("drehen","Erneut laden")):null);}
 // v3.9.83 Sprint-62.2: Centralized relative-time helper.
 /* Tablet-Pruefung 1041 (2): Glocken-Text fuer die ANZEIGE. Bereits gespeicherte Meldungen tragen noch Emoji vorn im Titel und rohe
    Tabellennamen ("tickets war nicht lesbar") - die Daten bleiben, nur das Gezeichnete wird bereinigt. */
@@ -9918,7 +9930,7 @@ function MonteurTafel(props){
                  wird aber NICHT mehr STILL als aktuell ausgegeben. Einmaliger, nicht-blockierender Hinweis. */
             if(!window.__epkWorkerStaleWarned){window.__epkWorkerStaleWarned=true;
               console.error('[workers-load] keine Worker-Daten erhalten (Fehlerart:',window.__epkWorkerLoadErr||'leer',') — Cache bleibt aktiv');
-              if(window.__toast&&!_isLD)window.__toast("⚠️ Mitarbeiterliste konnte nicht aktualisiert werden — angezeigte Daten können veraltet sein.","warn",7000);}/* v3.9.1000 (B3): AUF DER WAND KEIN TOAST - dort steht niemand, der ihn liest, und nach sieben Sekunden ist die Tafel wieder ohne Hinweis. */
+              if(window.__toast&&!_isLD)window.__toast("Mitarbeiterliste konnte nicht aktualisiert werden — angezeigte Daten können veraltet sein.","warn",7000);}/* v3.9.1000 (B3): AUF DER WAND KEIN TOAST - dort steht niemand, der ihn liest, und nach sieben Sekunden ist die Tafel wieder ohne Hinweis. */
             if(_isLD){/* v3.9.1000 (B3): BEI AUSFALL KEINE FALSCHEN NAMEN. Am Schirm gemessen, in sechs von sechs Aufnahmen: scheitert der Abruf, stand auf der Tafel die fest eingebaute Saatliste von 2018 - und die sieht aus wie die heutige Belegschaft. Geleert wird NUR, solange wir noch die Saat halten; haben wir einmal echte Daten geladen, bleiben sie stehen. Ein veralteter echter Stand ist etwas anderes als eine Demoliste, und die Offline-Faehigkeit bleibt unberuehrt. */try{window.__kioskMaErr=window.__epkWorkerLoadErr||"leer";}catch(_ke){}setMonteure(function(_prev){return (_prev===MONT)?[]:_prev;});}
           }
           if(_optionalChain([ent, 'optionalAccess', _40 => _40.length])){/* v3.9.491 Fix-A: Merge statt Voll-Overwrite — pending DELETEs aus Server-Stand filtern, lokal-pending POSTs aus prev erhalten (analog v3.9.349 für tickets/plans). */
@@ -17507,7 +17519,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
       )
 
       , showNew&&(React.createElement('div', { style: {...CC(),marginBottom:16,border:"2px solid "+V.ac}}
-        , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, editP?"✏️ Projekt bearbeiten":"🏗️ Neues Projekt")
+        , React.createElement('div', { style: {fontSize:14,fontWeight:700,marginBottom:10}}, editP?_ikT("stift","Projekt bearbeiten"):_ikT("helm","Neues Projekt"))
         , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "PA-Nr *" ), React.createElement('input', { value: form.nr, onChange: e=>setForm(p=>({...p,nr:e.target.value})), style: II(), placeholder: "PA24xxxx"} ))
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Projektname *" ), React.createElement('input', { value: form.name, onChange: e=>setForm(p=>({...p,name:e.target.value})), style: II(), placeholder: "BVH Muster" } ))
@@ -17532,21 +17544,21 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Status"), React.createElement('select', { value: form.status, onChange: e=>setForm(p=>({...p,status:e.target.value})), style: II()}, React.createElement('option', { value: "aktiv"}, "Aktiv"), React.createElement('option', { value: "abgeschlossen"}, "Abgeschlossen"), React.createElement('option', { value: "archiv"}, "Archiv")))
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Kunden-Nr"), React.createElement('input', { value: form.kundenNr||"", onChange: e=>setForm(p=>({...p,kundenNr:e.target.value})), style: II()} ))
         )
-        , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:V.dm,marginBottom:4,marginTop:4}}, "👤 Kundenkontakt")
+        , React.createElement('div', { style: {fontSize:12,fontWeight:700,color:V.dm,marginBottom:4,marginTop:4}}, _ikT("person","Kundenkontakt"))
         , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Ansprechpartner"), React.createElement('input', { value: form.ansprechpartner||"", onChange: e=>setForm(p=>({...p,ansprechpartner:e.target.value})), style: II(), placeholder: "Hr. / Fr. ..."} ))/* v3.9.481: Straße hier entfernt → ist jetzt bei PLZ/Ort (Baustellen-Adresse); Kundenkontakt = Ansprechpartner/Telefon/E-Mail */
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Telefon"), React.createElement('input', { type: "tel", value: form.telefon||"", onChange: e=>setForm(p=>({...p,telefon:e.target.value})), style: II(), placeholder: "+43 ..."} ))
           , React.createElement('div', {}, React.createElement('label', { style: LL()}, "E-Mail Kunde"), React.createElement('input', { type: "email", value: form.emailKunde||"", onChange: e=>setForm(p=>({...p,emailKunde:e.target.value})), style: II(), placeholder: "kunde@firma.at"} ))
         )
         , React.createElement('div', { style: {marginBottom:8,padding:"8px 12px",background:V.bg,borderRadius:6,display:"flex",alignItems:"center",gap:10}}
-          , React.createElement('span', { style: {fontSize:12,fontWeight:600}}, "🔗 Kundenportal" )
+          , React.createElement('span', { style: {fontSize:12,fontWeight:600}}, _ikT("verbindung","Kundenportal") )
           , form.portalCode?(React.createElement(React.Fragment, null
             , React.createElement('span', { style: {fontFamily:mono,fontSize:16,letterSpacing:3,fontWeight:800,color:V.acTx,background:V.cd,padding:"4px 10px",borderRadius:4}}, form.portalCode)
             , React.createElement('button', { onClick: ()=>setForm(p=>({...p,portalCode:""})), style: {...bdS,padding:"4px 8px",fontSize:UI.fMeta}}, "Deaktivieren")
           )):(React.createElement('button', { onClick: ()=>{const _alpha="ABCDEFGHJKMNPQRSTUVWXYZ23456789";const _gen=()=>{const _rb=(window.crypto&&window.crypto.getRandomValues)?window.crypto.getRandomValues(new Uint8Array(6)):Array.from({length:6},()=>Math.floor(Math.random()*256));return (form.nr||"EP").replace(/[^A-Z0-9]/gi,"").slice(0,3).toUpperCase()+Array.from(_rb).map(b=>_alpha[b%31]).join("");};/* v3.9.154 (Security-Agent P1): crypto-Random 6 Zeichen (~30 bit, kein 0/O/1/I/L) statt Math.random. HINWEIS: echter Access-Boundary ist anon-RLS server-seitig (Code-Match ist client-only) — siehe docs/handoff/PORTAL-RLS-AUDIT. */let c=_gen();/* v3.9.183 FIX Projekte#3: Uniqueness-Guard gegen bestehende portalCodes (Kollision quasi nie, aber korrekt). */for(let _i=0;_i<12&&projects.some(p=>(p.portalCode||p.portal_code)===c);_i++)c=_gen();setForm(p=>({...p,portalCode:c}));}, style: {...bgS,padding:"4px 10px",fontSize:UI.fMeta}}, "Portal aktivieren" ))
         )
         , React.createElement('div', { style: {display:"flex",gap:6}}
-          , React.createElement('button', { onClick: saveProject, className: "epk-btn-hover", style: bpS}, "💾 " , editP?"Aktualisieren":"Anlegen")
+          , React.createElement('button', { onClick: saveProject, className: "epk-btn-hover", style: bpS}, _ikVw("speichern",editP?"Aktualisieren":"Anlegen"))
           , React.createElement('button', { onClick: ()=>{setShowNew(false);setEditP(null);setForm(emptyProj);}, style: bsS()}, "Abbrechen")
         )
       ))
@@ -17555,7 +17567,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
         /* v3.9.37 Sprint-22 P-M3: Tab-Buttons Touch-Target ≥40px mobile. */
         , [{id:"aktiv",l:"Aktiv",c:"#22c55e",n:counts.aktiv},{id:"abgeschlossen",l:"Abgeschlossen",c:"#3b82f6",n:counts.abgeschlossen},{id:"archiv",l:"Archiv",c:V.dm,n:counts.archiv},{id:"alle",l:"Alle",c:V.ac,n:projects.length}].map(t=>(
           React.createElement('button', { key: t.id, onClick: ()=>setTab(t.id), 'aria-pressed': tab===t.id?"true":"false", /* v3.9.935: eine eigene Marke fuer die Filter-Chips. aria-pressed allein reicht zum Auffinden nicht mehr, seit die beiden Ansichtsumschalter es ebenfalls tragen - mein Pruefstand fand dadurch 6 Chips statt 4 und zwei aktive statt einen. Die Marke unterscheidet die Auswahl (welcher Status) von der Darstellung (Kachel oder Liste). */'data-epk': "filter-chip", style: {padding:"0 14px",height:36,minHeight:36,touchAction:"manipulation",borderRadius:UI.rChip,border:tab===t.id?"1px solid "+UI.tinte:"1px solid "+UI.linie,background:tab===t.id?UI.tinte:UI.flaeche,color:tab===t.id?UI.flaeche:UI.neutralTxt,cursor:"pointer",fontWeight:600,fontSize:UI.fKlein,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}
-            , t.l, " " , React.createElement('span', { style: {fontVariantNumeric:"tabular-nums",fontSize:UI.fMeta,opacity:tab===t.id?.85:.7}}, t.n)
+            , t.l, " " , React.createElement('span', { style: {fontVariantNumeric:"tabular-nums",fontSize:UI.fMeta}}, t.n)
           )
         ))
       )
@@ -17570,7 +17582,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
             , React.createElement('div', { style: {minWidth:0,paddingLeft:6}}, React.createElement('div', { title: p.name, style: {fontWeight:600,fontSize:UI.fTitel,color:UI.tinte,overflow:"hidden",textOverflow:"ellipsis",..._zweiZeilen}}, p.name), React.createElement('div', { style: {fontSize:UI.fMeta,color:UI.grau,fontVariantNumeric:"tabular-nums"}}, p.nr))
             , React.createElement('div', { title: (p.kunde||"—")+" · "+(p.ort||""), style: {fontSize:12,color:V.dm,overflow:"hidden",textOverflow:"ellipsis",..._zweiZeilen}}, p.kunde||"—", " · " , p.ort||"")
             , React.createElement('div', { style: {fontSize:UI.fMeta,color:UI.grau}}, p.gewerk||"—") , /* v3.9.935: die neue Stundenspalte. Rechtsbuendig und mit tabular-nums, damit die Zahlen uebereinander stehen und beim Aktualisieren nicht springen. */React.createElement('div', { style: {textAlign:"right",fontSize:UI.fKlein,color:UI.tinte,fontWeight:600,fontVariantNumeric:"tabular-nums"}}, _projStdDE(h), " h")
-            , _seeBetrag&&React.createElement('div', { style: {textAlign:"right",fontFamily:mono,fontWeight:600,fontSize:UI.fMeta,color:p.betrag>0?V.ac:V.dm}}, p.betrag>0?fmt$(p.betrag):"—")
+            , _seeBetrag&&React.createElement('div', { style: {textAlign:"right",fontFamily:mono,fontWeight:600,fontSize:UI.fMeta,color:p.betrag>0?V.acTx:V.dm}}, p.betrag>0?fmt$(p.betrag):"—")
             , React.createElement('div', { style: {textAlign:"center"}}, React.createElement('div', { style: {width:"100%",height:5,background:V.cd,borderRadius:3,overflow:"hidden"}}, React.createElement('div', { style: {width:fPct+"%",height:"100%",background:sc,borderRadius:3}} )), React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm}}, fPct, "%"))
             , isAdmin&&/* v3.9.934: drei gleich grosse Knoepfe - Bearbeiten, Archivieren, Loeschen - sagten, diese drei Dinge tut man gleich oft. Tatsaechlich oeffnet man ein Projekt hundertmal, bevor man es einmal loescht, und Loeschen stand unmittelbar neben Bearbeiten, gleich gross. Jetzt ein Menue; Loeschen darin zuletzt, hinter einer Haarlinie, in achtungTxt. Alle drei Handler woertlich unveraendert. */React.createElement('div', { style: {display:"flex",alignItems:"center",justifyContent:"flex-end",position:"relative"}, onClick: e=>e.stopPropagation()} , _menueKnopf(p) , _menueKasten(p) )
           );})
@@ -17983,7 +17995,7 @@ function VExport({p,entries,forms,monteure,ww,curUser}){
            , buildExportPath("regie",p.nr,p.name)
         )
       )
-      , React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Vollständigkeitsprüfung"), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}, [{l:"Zeitbuchungen",v:pe.length,ok:pe.length>0},{l:"Regieberichte",v:rg.length,ok:rg.length>0},{l:"Abnahmeprotokolle",v:ab.length,ok:ab.length>0},{l:"Ausheizprotokolle",v:ah.length,ok:ah.length>0},{l:"Schließfreigaben",v:sf.length,ok:sf.length>0},{l:"Dichtheitsprüfungen",v:dh.length,ok:dh.length>0},{l:"Mängel offen",v:mgOffen,ok:mgOffen===0}].map((c,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid "+V.bd}}, React.createElement('span', { style: {display:"inline-flex",color:_lesbar(c.ok?"#22c55e":"#eab308")}}, _ik(c.ok?"abnahme":"warnung",16)), React.createElement('span', { style: {flex:1,fontSize:12}}, c.l), React.createElement('span', { style: {fontFamily:mono,fontSize:13,fontWeight:700,color:_lesbar(c.ok?"#22c55e":"#eab308")}}, c.v))))), mgOffen>0&&(React.createElement('div', { style: {marginTop:10,padding:"8px 12px",background:"rgba(234,179,8,.1)",border:"1px solid #eab308",borderRadius:6,fontSize:12,color:"#eab308"}}, _ikVw("warnung","Es sind noch "), mgOffen, " offene Mängel vorhanden."   )))
+      , React.createElement('div', { style: CC()}, React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Vollständigkeitsprüfung"), React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}, [{l:"Zeitbuchungen",v:pe.length,ok:pe.length>0},{l:"Regieberichte",v:rg.length,ok:rg.length>0},{l:"Abnahmeprotokolle",v:ab.length,ok:ab.length>0},{l:"Ausheizprotokolle",v:ah.length,ok:ah.length>0},{l:"Schließfreigaben",v:sf.length,ok:sf.length>0},{l:"Dichtheitsprüfungen",v:dh.length,ok:dh.length>0},{l:"Mängel offen",v:mgOffen,ok:mgOffen===0}].map((c,i)=>(React.createElement('div', { key: i, style: {display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid "+V.bd}}, React.createElement('span', { style: {display:"inline-flex",color:_lesbar(c.ok?"#22c55e":"#eab308")}}, _ik(c.ok?"abnahme":"warnung",16)), React.createElement('span', { style: {flex:1,fontSize:12}}, c.l), React.createElement('span', { style: {fontFamily:mono,fontSize:13,fontWeight:700,color:_lesbar(c.ok?"#22c55e":"#eab308")}}, c.v))))), mgOffen>0&&(React.createElement('div', { style: {marginTop:10,padding:"8px 12px",background:"rgba(234,179,8,.1)",border:"1px solid #eab308",borderRadius:6,fontSize:12,color:UI.achtungTxt}}, _ikVw("warnung","Es sind noch "), mgOffen, " offene Mängel vorhanden."   )))
       , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Export-Optionen")
       , React.createElement('div', { className: "export-grid", style: {marginBottom:14}}
         , [{i:"tabelle",t:"Zeiterfassung Excel",d:"Formatierte Excel-Datei: "+buildExportFilename("arbeitsschein",p.nr,td2(),1,"xls"),fn:genCsv,primary:true},{i:"drucker",t:"Drucken / PDF",d:"Aktuelle Ansicht als PDF drucken",fn:()=>window.print()}].map((x,idx)=>(
@@ -18149,7 +18161,7 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
           var iso=isoDate(i);var arr=weekEntries[iso]||[];var dt=dayTotal(i);var today=isToday(i);var isSa=i>=5;/* Tablet-Runde 1077 (7): Sonntag wie Samstag */
           return React.createElement('div',{key:d,style:{borderRadius:8,border:"1px solid "+(today?"#10b981":V.bd),background:today?(_dark?"rgba(16,185,129,.06)":"rgba(16,185,129,.03)"):(isSa?V.bg:V.cd)/* Tablet-Rest v1040 (f): Samstag neutral wie in der Haupt-Planung (v3.9.1008) - Rot nur fuer echte Gefahr */,overflow:"hidden",minHeight:160,display:"flex",flexDirection:"column"}},
             React.createElement('div',{style:{background:today?"linear-gradient(135deg,#009640,#006e30)":"linear-gradient(135deg,"+(isSa?"#475569,#64748b":"#1e293b,#334155")+")",padding:"8px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4}},
-              React.createElement('div',{},React.createElement('span',{style:{color:"#fff",fontWeight:700,fontSize:14}},d),React.createElement('span',{style:{color:"rgba(255,255,255,.7)",fontSize:UI.fMeta,marginLeft:6}},dateFmt(i))),
+              React.createElement('div',{},React.createElement('span',{style:{color:"#fff",fontWeight:700,fontSize:14}},d),React.createElement('span',{style:{color:"#fff",background:"rgba(0,0,0,.22)",padding:"1px 6px",borderRadius:4,fontSize:UI.fMeta,marginLeft:6}},dateFmt(i))/* Render-Funde 1086: Datum weiss auf abgedunkeltem Feld (5,8:1 auf #009640) statt 70 % Weiss (2,64:1); Kopfgruen unveraendert */),
               dt>0&&React.createElement('span',{style:{color:"#fff",fontWeight:800,fontSize:13,fontFamily:mono,...UI.zahlen,background:"rgba(255,255,255,.15)",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}},_projStdDE(dt,2)," h")
             ),
             React.createElement('div',{style:{flex:1,padding:6,display:"flex",flexDirection:"column",gap:4}},
@@ -19107,11 +19119,11 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
         , React.createElement('button', { onClick: genMangelPdf, title: "Mängel-Report als PDF drucken oder speichern — mit Fotos und EP-Kolar-CI", style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta,borderColor:_lesbar("#ef4444"),color:_lesbar("#ef4444")}}, _ikVw("dokument","PDF-Report"))
         , React.createElement('div', { 'data-epk': "mg-filter-status", style: {display:isMob?"contents":"flex"/* schmal: Gruppe unsichtbar, Umbruch wie bisher */,gap:6,flexWrap:"wrap",alignItems:"center",maxWidth:"100%"}}
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginRight:2,marginLeft:4}}, "Status:" )
-        , ["alle"].concat(MANGEL_ST_SICHT).map(s=>{const cnt=s==="alle"?msF.length:msF.filter(m=>_mgStSicht(m.status)===s).length;/* P3 1084: Chips summieren jetzt zu "alle" */const sc=s==="alle"?V.acTx:_mgStFarbe(s,false).tx;/* Maengel Stufe 2 (4): Legende der Karte - dieselbe Quelle _mgStFarbe (abgelehnt gedaempft, v3.9.895) */const _on=fSt===s;return React.createElement('button', { key: s, onClick: ()=>setFSt(s), title: "Filter: "+s, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?sc+"28":sc+"12",color:sc,fontSize:UI.fMeta,fontWeight:700,border:(_on?"2px solid "+sc:"1px solid "+sc+"40"),display:"inline-flex",gap:5,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:sc,display:"inline-block"}} ), s, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
+        , ["alle"].concat(MANGEL_ST_SICHT).map(s=>{const cnt=s==="alle"?msF.length:msF.filter(m=>_mgStSicht(m.status)===s).length;/* P3 1084: Chips summieren jetzt zu "alle" */const sc=s==="alle"?V.acTx:_mgStFarbe(s,false).tx;/* Maengel Stufe 2 (4): Legende der Karte - dieselbe Quelle _mgStFarbe (abgelehnt gedaempft, v3.9.895) */const _on=fSt===s;return React.createElement('button', { key: s, onClick: ()=>setFSt(s), title: "Filter: "+s, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?sc+"28":sc+"12",color:sc,fontSize:UI.fMeta,fontWeight:700,border:(_on?"2px solid "+sc:"1px solid "+sc+"40"),display:"inline-flex",gap:5,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:sc,display:"inline-block"}} ), s, React.createElement('span', { style: {fontFamily:mono}}, cnt));})
         )
         , React.createElement('div', { 'data-epk': "mg-filter-prio", style: {display:isMob?"contents":"flex"/* schmal: Gruppe unsichtbar, Umbruch wie bisher */,gap:6,flexWrap:"wrap",alignItems:"center",maxWidth:"100%"}}
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginLeft:8}}, "Prio:" )
-        , ["alle","hoch","mittel","niedrig"].map(pr=>{const cnt=pr==="alle"?_msPrioBasis.length:_msPrioBasis.filter(m=>m.prio===pr).length;const pc=pr==="alle"?V.acTx:_mgPrioFarbe(pr).tx;/* Maengel Stufe 2 (4) */const _on=fPr===pr;return React.createElement('button', { key: pr, onClick: ()=>setFPr(pr), title: "Prio: "+pr, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?pc+"25":pc+"10",color:pc,fontSize:UI.fMeta,fontWeight:600,border:(_on?"2px solid "+pc:"1px solid "+pc+"35"),display:"inline-flex",gap:4,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:pc,display:"inline-block"}} ), pr, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
+        , ["alle","hoch","mittel","niedrig"].map(pr=>{const cnt=pr==="alle"?_msPrioBasis.length:_msPrioBasis.filter(m=>m.prio===pr).length;const pc=pr==="alle"?V.acTx:_mgPrioFarbe(pr).tx;/* Maengel Stufe 2 (4) */const _on=fPr===pr;return React.createElement('button', { key: pr, onClick: ()=>setFPr(pr), title: "Prio: "+pr, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?pc+"25":pc+"10",color:pc,fontSize:UI.fMeta,fontWeight:600,border:(_on?"2px solid "+pc:"1px solid "+pc+"35"),display:"inline-flex",gap:4,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:pc,display:"inline-block"}} ), pr, React.createElement('span', { style: {fontFamily:mono}}, cnt));})
         )
       )
       /* v3.9.464 (BLOCK C): Bulk-Aktionsleiste (sticky), sichtbar wenn ≥1 ausgewählt (Admin/PL). */
@@ -21751,6 +21763,7 @@ function VFotos({p,curUser,monteure,ww}){
   const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   const [photos,setPhotos]=_react.useState.call(void 0, []);
   const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [_fotoFehl,_setFotoFehl]=_react.useState.call(void 0, false);const [_fotoNeu,_setFotoNeu]=_react.useState.call(void 0, 0);/* Render-Funde 1086: Lesefehler merken (nicht 'Noch keine Fotos' behaupten) + Erneut laden */
   const [vMode,setVMode]=_react.useState.call(void 0, "grid");
   const [filter,setFilter]=_react.useState.call(void 0, "alle");
   const [lbIdx,setLbIdx]=_react.useState.call(void 0, -1);
@@ -21760,11 +21773,11 @@ function VFotos({p,curUser,monteure,ww}){
   // Load photos
   _react.useEffect.call(void 0, ()=>{
     let active=true;
-    (async()=>{try{setLoading(true);
+    (async()=>{try{setLoading(true);_setFotoFehl(false);
       let _gotServer=false;
       if(API.getToken()){
         const rows=await _sbGetOrder("photos","taken_at.desc","project_id=eq."+encodeURIComponent(p.id));
-        if(_rlsLeer(rows)){/* v3.9.928: bei 401/403 kommt das leere Array auf dem ERFOLGSPFAD. rows kommt
+        if(_rlsLeer(rows)){if(active)_setFotoFehl(true);/* v3.9.928: bei 401/403 kommt das leere Array auf dem ERFOLGSPFAD. rows kommt
           unveraendert aus _sbGetOrder, die Marke ist da. Weder anzeigen noch merken - der Zweig darunter
           faengt den Fall auf, weil _gotServer false bleibt und der Geraetespeicher einspringt. */}
         else if(active&&rows){setPhotos(rows);_gotServer=rows.length>0;}
@@ -21777,11 +21790,11 @@ function VFotos({p,curUser,monteure,ww}){
       /* v3.9.34 Sprint-19 V-Foto-2: stale closure (photos.length immer 0 beim ersten Run) ersetzt durch
          _gotServer-Flag — verhindert dass IDB-Fallback geladen wird wenn Server-rows da sind. */
       if(active&&!_gotServer){const d=await ODB.loadProj("fotos_"+p.id);if(d&&d.length)setPhotos(d);}
-    }catch(e){
+    }catch(e){if(active)_setFotoFehl(true);
       try{const d=await ODB.loadProj("fotos_"+p.id);if(active&&d&&d.length)setPhotos(d);}catch(e){console.warn('[silent-await]',e&&e.message||e);}
     }finally{if(active)setLoading(false);}})();
     return()=>{active=false;};
-  },[p.id]);
+  },[p.id,_fotoNeu]);
   // Filtered — v3.8.95 Sprint-9 F3: useMemo-Wrap (re-render perf)
   const filtered=_react.useMemo.call(void 0, ()=>filter==="alle"?photos:photos.filter(ph=>(ph.entity_type||ph.entityType)===filter),[photos,filter]);
   // KPIs
@@ -21839,7 +21852,8 @@ function VFotos({p,curUser,monteure,ww}){
   // v3.8.95 Sprint-9 F3: visible Foto-Categories useMemo-Wrap (re-render perf)
   const _visibleCats=_react.useMemo.call(void 0, ()=>FOTO_CATS.filter(c=>c.id==="alle"||photos.some(ph=>(ph.entity_type||ph.entityType)===c.id)),[photos]);
   // Render
-  if(loading)return _Skeleton(6); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
+  if(loading)return React.createElement(_LadeSkelett,{rows:6,was:"Fotos",onReload:()=>_setFotoNeu(n=>n+1)}); /* v3.9.75 Skeleton; Render-Funde 1086: mit Text + Erneut laden */
+  if(_ladeZustand(false,_fotoFehl,photos.length)==="fehler")return React.createElement(_LadeFehler,{hinweis:"Fotos dieses Projekts sind auch im Gerätespeicher nicht vorhanden.",onReload:()=>_setFotoNeu(n=>n+1)});
   return (
     React.createElement('div', { style: {maxWidth:1200,margin:"0 auto"}}
       , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}
@@ -22339,6 +22353,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const [btEntries,setBtEntries]=_react.useState.call(void 0, []);
   const [editing,setEditing]=_react.useState.call(void 0, null); // null=list, "new"=create, id=edit
   const [loading,setLoading]=_react.useState.call(void 0, true);
+  const [_btFehl,_setBtFehl]=_react.useState.call(void 0, false);const [_btNeu,_setBtNeu]=_react.useState.call(void 0, 0);/* Render-Funde 1086: Lesefehler merken + Erneut laden */
   const [chipCat,setChipCat]=_react.useState.call(void 0, "elektro");
   const WETTER=[{id:"sonnig",l:"Sonnig"},{id:"bewoelkt",l:"Bewölkt"},{id:"regen",l:"Regen"},{id:"schnee",l:"Schnee"},{id:"nebel",l:"Nebel"},{id:"sturm",l:"Sturm/Gewitter"},{id:"frost",l:"Frost"}];
   const wetterLabel=id=>{const w=WETTER.find(x=>x.id===id);return w?w.l:id||"—";};
@@ -22396,10 +22411,12 @@ function VBautag({p,curUser,monteure,ww,entries}){
   // Load from Supabase + ODB
   _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{
+      _setBtFehl(false);
       try{
         if(API.getToken()){
           const data=await _sbGet("bautagebuch","project_id=eq."+encodeURIComponent(p.id)).catch(()=>null);
           if(!a)return;
+          if(!data||_rlsLeer(data))_setBtFehl(true);/* Render-Funde 1086: null = Lesefehler (catch oben), Rechtefehler traegt die Marke */
           if(data&&data.length){
             const mapped=data.map(d=>({id:d.id,pid:d.project_id,datum:d.datum||(d.created_at||"").split("T")[0],wetter:d.wetter||"",temperatur:(d.temperatur===0?0:(d.temperatur||"")),anwesende:_jp(d.anwesende)/* v3.9.256 FIX (Hunt P3): Temperatur 0 °C ging beim Neuladen verloren (0||"" → "") → 0 jetzt erhalten */,taetigkeiten:d.taetigkeiten||"",besonderheiten:d.besonderheiten||"",material:d.material||"",erstelltVon:d.erstellt_von||"",createdAt:(d.created_at||"").split("T")[0]}));
             setBtEntries(mapped);setLoading(false);
@@ -22413,7 +22430,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
       setLoading(false);
     })();
     return()=>{a=false;};
-  },[p.id]);
+  },[p.id,_btNeu]);
 
   // Save helper
   const persist=(arr)=>{setBtEntries(arr);ODB.saveProj("bt_"+p.id,arr);};
@@ -22476,7 +22493,7 @@ function VBautag({p,curUser,monteure,ww,entries}){
   const sorted=[...btEntries].sort((a,b)=>(b.datum||"").localeCompare(a.datum||""));
 
   // ─── RENDER ───
-  if(loading)return _Skeleton(5); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
+  if(loading)return React.createElement(_LadeSkelett,{rows:5,was:"Einträge",onReload:()=>_setBtNeu(n=>n+1)}); /* v3.9.75 Skeleton; Render-Funde 1086: mit Text + Erneut laden */
 
   // ─── FORM (create/edit) ───
   if(editing!==null){
@@ -22538,7 +22555,8 @@ function VBautag({p,curUser,monteure,ww,entries}){
         )
       )
       , React.createElement('div', { style: {fontSize:12,fontStyle:"italic",color:V.dm,marginBottom:14}}, "Tagesberichte der Baustelle. ", btEntries.length, " Einträge.")
-      , btEntries.length===0&&(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}
+      , _ladeZustand(false,_btFehl,btEntries.length)==="fehler"&&React.createElement(_LadeFehler,{hinweis:"Neue Tagesberichte können trotzdem angelegt werden.",onReload:()=>_setBtNeu(n=>n+1)})/* Render-Funde 1086 */
+      , _ladeZustand(false,_btFehl,btEntries.length)==="leer"&&(React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}
         , React.createElement('div', { style: {fontSize:48,marginBottom:12,display:"flex",justifyContent:"center",color:V.mt}}, _ik("buch",48))
         , React.createElement('div', { style: {fontSize:14,fontWeight:600,marginBottom:6}}, "Noch keine Einträge")
         , React.createElement('div', { style: {fontSize:12}}, "Erstelle den ersten Tagesbericht für dieses Projekt.")
@@ -23915,7 +23933,7 @@ function VMaterial({p,curUser,monteure,ww,entries}){
     );
   };
 
-  if(loading)return _Skeleton(6); /* v3.9.75 Sprint-54.4 FIX-3: Skeleton statt plain text. */
+  if(loading)return React.createElement(_LadeSkelett,{rows:6,was:"Anforderungen",onReload:()=>{loadOrders();}}); /* v3.9.75 Skeleton; Render-Funde 1086: mit Text + Erneut laden */
 
   const tabs=[{id:"warenkorb",ik:"kiste",l:"Warenkorb",badge:posCount/* v3.9.187: Freitext zählt mit */},{id:"verlauf",ik:"uhr",l:"Verlauf",badge:0}];
   if(isLager)tabs.push({id:"lager",ik:"paket",l:"Lager",badge:orders.filter(o=>o.status==="angefordert"||o.status==="in_bearbeitung"||o.status==="offen").length});
@@ -26717,7 +26735,7 @@ function PhotoSyncStatus(){
         , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Speicher")
       )
     )
-    , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:10}}, "Fotos werden automatisch komprimiert (max 2400px, JPEG 88%) und mit GPS-Koordinaten + Zeitstempel gespeichert. Bei Verbindung erfolgt der Upload automatisch."        )
+    , React.createElement('div', { style: {fontSize:12,color:V.dm,marginBottom:10}}, "Fotos werden automatisch komprimiert (max 2400px, JPEG 88%) und mit GPS-Koordinaten + Zeitstempel gespeichert. Bei Verbindung erfolgt das Hochladen automatisch."        )
     , React.createElement('div', { style: {display:"flex",gap:8,flexWrap:"wrap"}}
       , React.createElement('button', { onClick: ()=>{PhotoQ.flush().then(r=>{_optionalChain([window, 'access', _ps1 => _ps1.__toast, 'optionalCall', _ps2 => _ps2(r.ok>0?"📷 "+r.ok+" hochgeladen":"Keine ausstehenden Fotos")]);refresh();if(window.__updatePhotoCount)window.__updatePhotoCount();});}, style: {...bpS,padding:"8px 16px",fontSize:12,minHeight:44}}, _ikVw("drehen","Jetzt synchronisieren")  )
       , errors>0&&React.createElement('button', { onClick: async()=>{try{await Promise.all(items.filter(x=>x.status==="error").map(x=>PhotoQ.update(x.id,{status:"pending",retries:0})));}catch(e){console.warn('[silent-await]',e&&e.message||e);}refresh();}, style: {...bsS(),padding:"8px 16px",fontSize:12}}, _ikVw("drehen","Fehler erneut versuchen")  )

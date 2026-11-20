@@ -124,7 +124,7 @@ def test_umkehr_verschobene_handygrenze_waere_rot(roh, node_exe):
 
 # ── Rueckbau: ganze Komponente byte-gleich mit origin/main ──────────────────
 MD5 = {
-    "App": "ec5715659ec88527283c2feadc72fa0c",  # 1081 Render-Funde: P2-1 Reiter ueber perm-Schluessel (_katNachListe/_katAusVerlauf, katP im Verlauf), P2-3 Kopf-Logo in mittel, P3a addToast mit _fehlerDeutsch, P3d Netzstreifen - bewusste Aenderungen (Zeilendiff gegen 9ccd9ed geprueft), Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher c6d7f9d1cb1e2b8517d3968b14f655e7
+    "App": "5d66679c1460949e9f258826c1d9d575",  # 1086 Render-Funde: Emoji aus dem Toast 'Mitarbeiterliste konnte nicht aktualisiert werden' entfernt (CI) - einzige Abweichung (Zeilendiff gegen 14e139e geprueft), bewusste Aenderung (Riegel in test_render_funde_v1086.py); vorher ec5715659ec88527283c2feadc72fa0c. Davor: 1081 Render-Funde: P2-1 Reiter ueber perm-Schluessel (_katNachListe/_katAusVerlauf, katP im Verlauf), P2-3 Kopf-Logo in mittel, P3a addToast mit _fehlerDeutsch, P3d Netzstreifen - bewusste Aenderungen (Zeilendiff gegen 9ccd9ed geprueft), Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher c6d7f9d1cb1e2b8517d3968b14f655e7
     "HomeView": "c86ca7b03e675361a1d9456b7f24ce52",  # 1079: Samsung-Zweig zeigt die Version ueber _verAnzeige (ohne -supabase) - bewusste Aenderung, Pruefsumme nachgezogen
     "WeekPlan": "33b42034306b2785f38e426cfc688679",  # 1085: beide Zweige zusammen - P3 (Chip bricht in mittel um) + A55 Runde 3 (Kennzeichen am Handy umbrechend, Kopf "Mo .. – Sa .."); einzeln 0aab4acb.. bzw. 41fe6254.., ohne beide aee55d9dc37dda2d1c26ccae5970eb0c
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",
