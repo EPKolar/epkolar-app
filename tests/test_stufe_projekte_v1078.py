@@ -250,7 +250,7 @@ ALT_DEKL = {
 # origin/main v3.9.1077 (9eab816), Ansicht von "\nfunction X(" bis zur naechsten "\nfunction ", LF-normalisiert.
 VORHER_MD5 = {
     "ProjList": "66ba75f5967323f9de6b086b32166543",  # 1080 A55 (5): Suchfeld am Handy fuellt die Zeile (flex 1 1 200px, min 200 px statt max 160) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
-    "ProjectShell": "a7c3fc48b6eafd9b067a82fc784dbcb1",
+    "ProjectShell": "105f63f457076ab247862198e9aca48a",  # 1081 Render-Fund P3b: Seitenleiste "Dashboard" -> "Übersicht" (einzige Abweichung, Diff gegen 9ccd9ed) - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher a7c3fc48b6eafd9b067a82fc784dbcb1
     "VDash": "1535894ef6da1b54a5f4ace1ef146a09",
     "VForm": "911d2045f9db2d517980527e2eb9c7c4",
     "VCheck": "ccbec7ed48801b845c5652027c17b4cc",  # 1079: Samsung-Zweig setzt colorScheme "only light/only dark" am Eingabefeld - bewusste Aenderung, Pruefsumme nachgezogen

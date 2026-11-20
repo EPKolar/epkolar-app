@@ -206,7 +206,10 @@ def _kopf(src):
 
 JUPROWA_MD5 = "3ff4e8bb925e7dee0064d1fe5ee528d1"   # origin/main v3.9.1076, durch Stufe 7 NICHT veraendert
 # 1077: Funde 1077b zaehlt Lieferanten-Artikel exakt (_saAnzahlExakt in fetchSuppliers) - bewusste Logik-Aenderung, Prüfsumme nachgezogen
-KOPF_MD5_VORHER = "10071af7aa5791b70d724755163a5207"  # origin/main v3.9.1076 mit const isMob=ww<BP_MOB;
+# v3.9.1081 Render-Fund P3a: fetchJupConfig zeigt den Fehler ueber die Anzeige-Hilfe _fehlerText(e) statt (e&&e.message||e) -
+# "Failed to fetch" wird "keine Verbindung zum Server". Einzige Abweichung im Kopf (difflib gegen origin/main 9ccd9ed gemessen),
+# alter Wert 10071af7aa5791b70d724755163a5207. Schreibwege/Juprowa-Push unberuehrt.
+KOPF_MD5_VORHER = "d04b894788546b35a586f442795af90a"  # v3.9.1081 mit const isMob=ww<BP_MOB;
 
 
 def test_juprowa_reiter_byte_gleich(roh):

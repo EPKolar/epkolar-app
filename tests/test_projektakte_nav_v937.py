@@ -46,7 +46,9 @@ sys.path.insert(0, str(WURZEL / "tests"))
 from conftest import _extract_fn  # noqa: E402
 
 DIE_DREIZEHN = [
-    ("dashboard", "Dashboard"), ("zeit", "Zeiterfassung"),
+    # v3.9.1081 Render-Fund P3b: bewusst umbenannt - die Seitenleiste sagt jetzt "Übersicht" wie
+    # Ueberschrift und Handy-Reiter (_pfReiter). Seite/Kennung/Berechtigung unveraendert.
+    ("dashboard", "Übersicht"), ("zeit", "Zeiterfassung"),
     ("berichte", "Berichte"), ("plaene", "Pläne"),
     ("formulare", "Formulare"), ("checklisten", "Checklisten"),
     ("maengel", "Mängel"), ("bautagebuch", "Bautagebuch"),

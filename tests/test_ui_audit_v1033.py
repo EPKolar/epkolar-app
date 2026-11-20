@@ -125,7 +125,9 @@ def _teil(html, a, laenge):
 EMOJI_STELLEN = [
     # (Anfang, Laenge) - kurze Fenster um die behobenen Stellen
     ("if(online&&!(pendingCount>0)&&!syncing&&failedCount===0)return null;", 2600),
-    ("(!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { style: {position:\"absolute\",top:-24", 900),
+    # v3.9.1081 Render-Fund P3d: Anker nachgezogen - der Streifen sitzt jetzt per bottom ueber der Fussleiste
+    # (vorher top:-24) und traegt Kennung + aria-label; Fenster deshalb laenger, gleiche Stelle bis zum Text.
+    ("(!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { 'data-epk': \"netz-streifen\", style: {position:\"absolute\",top:\"auto\"", 1500),
     ("React.createElement('span', { style: {display:\"inline-flex\"}}, _ik(!syncStatus.connected?", 300),
     ('"Bauwochenberichte")', 400),
     ('"Daten werden geladen..." )', 60),

@@ -124,7 +124,7 @@ def test_umkehr_verschobene_handygrenze_waere_rot(roh, node_exe):
 
 # ── Rueckbau: ganze Komponente byte-gleich mit origin/main ──────────────────
 MD5 = {
-    "App": "c6d7f9d1cb1e2b8517d3968b14f655e7",
+    "App": "ec5715659ec88527283c2feadc72fa0c",  # 1081 Render-Funde: P2-1 Reiter ueber perm-Schluessel (_katNachListe/_katAusVerlauf, katP im Verlauf), P2-3 Kopf-Logo in mittel, P3a addToast mit _fehlerDeutsch, P3d Netzstreifen - bewusste Aenderungen (Zeilendiff gegen 9ccd9ed geprueft), Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher c6d7f9d1cb1e2b8517d3968b14f655e7
     "HomeView": "c86ca7b03e675361a1d9456b7f24ce52",  # 1079: Samsung-Zweig zeigt die Version ueber _verAnzeige (ohne -supabase) - bewusste Aenderung, Pruefsumme nachgezogen
     "WeekPlan": "aee55d9dc37dda2d1c26ccae5970eb0c",
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",

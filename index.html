@@ -193,6 +193,7 @@ table.epk-be-mittel th { white-space: nowrap; }
 table.epk-be-mittel thead th:first-child { z-index: 2 !important; }
 /* AS Liste mittel (GF 19.11.2026): die Tabelle am Tablet hochkant - Spaltenkoepfe brechen nicht um (der Sortierpfeil blieb allein in der zweiten Zeile), Direkt-Felder und Aktionsknoepfe 44 px hoch, die Knoepfe 44 px breit (nur Ikone). Nur Darstellung. */
 table.epk-as-mittel th { white-space: nowrap; }
+table.epk-as-mittel thead th[role="button"] { height: 44px; }/* v3.9.1081 Render-Fund P3c: die sortierbaren Koepfe sind Tippziele (role=button) und waren bei 800x1280 nur 41 px hoch - jetzt 44 px (Tabellenzelle: height wirkt als Mindesthoehe) */
 table.epk-as-mittel thead th { z-index: 2 !important; }/* Tablet-Runde 1077 (1): der Kopf klebt jetzt auch beim senkrechten Rollen im Kasten - er muss ueber den links klebenden Nummer-Zellen (z-index 1) liegen */
 table.epk-as-mittel thead th:first-child { z-index: 3 !important; }/* gemessen 800x1280: alle Koepfe kleben oben mit z-index 1 (table thead th) - beim Querrollen malte der naechste Kopf ueber den klebenden NUMMER-Kopf */
 table.epk-as-mittel td select, table.epk-as-mittel td input[type="date"] { min-height: 44px; }
@@ -810,7 +811,16 @@ const _toastQ=[];let _toastActive=false;
 // Slide-in-Up Animation (subtler als opacity-only), Bottom-Nav-Offset 90px (statt 80px),
 // dismissible per Tap (Mobile-UX), role/aria-live fuer a11y. Queue-Cap aus v3.5.135 beibehalten.
 const _toastVisible=[];
+/* v3.9.1081 Render-Fund P3a: Browser-Netzfehler kamen englisch in die Oberflaeche ("System-Config laden fehlgeschlagen: Failed to fetch",
+   "Juprowa-Config: Failed to fetch"). Reine ANZEIGE-Hilfe: ersetzt nur die bekannten englischen Netzfehler-Texte der Browser
+   (Chrome "Failed to fetch", Firefox "NetworkError when attempting to fetch resource.", Safari "Load failed") durch Deutsch.
+   Alles andere bleibt woertlich stehen - kein erfundener Grund. Laeuft zusaetzlich in beiden Toast-Wegen als Netz. */
+var _NETZFEHLER_EN=/(?:TypeError:\s*)?(?:Failed to fetch|NetworkError when attempting to fetch resource\.?|Load failed|Network request failed)/g;
+function _fehlerDeutsch(m){if(typeof m!=="string")return m;return m.replace(_NETZFEHLER_EN,"keine Verbindung zum Server");}
+function _fehlerText(e){return _fehlerDeutsch(String((e&&e.message)||e));}
+window._fehlerDeutsch=_fehlerDeutsch;window._fehlerText=_fehlerText;
 window._showToast=function(msg,type,duration){
+  msg=_fehlerDeutsch(msg);/* v3.9.1081 P3a */
   // v3.5.135: Toast-Queue Cap — vorher konnte Error-Cascade (1/sec) Queue unbegrenzt wachsen lassen
   if(_toastQ.length>=20){_toastQ.shift();}
   _toastQ.push({msg,type:type||'info',duration:duration||APP_LIMITS.TOAST_DURATION_MS});
@@ -9463,7 +9473,7 @@ function MonteurTafel(props){
   // Toast notifications
   const [toasts,setToasts]=_react.useState.call(void 0, []);
   /* v3.9.70 SPRINT-50 F-1: addToast erweitert um (a) 3rd dur-Param (ms — viele Caller passten Timeout, wurde silently ignoriert) (b) Toleranz wenn dur in type-Slot landet (legacy-Bug-Sites wie 7418 mit __toast("...",10000)) (c) "info"-Type → blue (war im Renderer nicht abgebildet → fiel auf green=success zurück). Backward-compatible. */
-  const addToast=_react.useCallback.call(void 0, (msg,type="success",dur)=>{if(typeof type==='number'){dur=type;type="success";}const id=Date.now()+"_"+Math.random().toString(36).slice(2,5);setToasts(p=>[...p.slice(-4),{id,msg,type}]);const _ms=(typeof dur==='number'&&dur>500&&dur<30000)?dur:3200;setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),_ms);},[]);
+  const addToast=_react.useCallback.call(void 0, (msg,type="success",dur)=>{if(typeof type==='number'){dur=type;type="success";}msg=_fehlerDeutsch(msg);/* v3.9.1081 P3a: englische Browser-Netzfehler auf Deutsch */const id=Date.now()+"_"+Math.random().toString(36).slice(2,5);setToasts(p=>[...p.slice(-4),{id,msg,type}]);const _ms=(typeof dur==='number'&&dur>500&&dur<30000)?dur:3200;setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),_ms);},[]);
   _react.useEffect.call(void 0, ()=>{window.__toast=addToast;return()=>{delete window.__toast;};},[addToast]);
 
   /* v3.9.41 Sprint-26 M-1..M-4: Global overlay-Panels (showSearch/showPhotoQ/showNotifPanel/showSyncPanel) hatten weder body-scroll-lock noch Escape-Key-Close → Hintergrund-Page scrollte unter Backdrop und User mussten zwingend X-Klick nutzen. Ref-counted _scrollLock + globaler keydown-Handler. */
@@ -10685,10 +10695,16 @@ function MonteurTafel(props){
 
   // Push state when kat changes (main tab navigation)
   _react.useEffect.call(void 0, ()=>{
+    const _umg=_katUmgebogen.current;_katUmgebogen.current=false;/* v3.9.1081 P2-1 */
     if(_skipPush.current>0){_skipPush.current--;return;}
     if(!curUser)return;
+    const _kp=(_tabsListeRef.current[kat]||{}).perm;
+    if(_umg){/* Reiterliste hat sich verschoben, der Nutzer hat NICHT gewechselt: aktuellen Verlaufseintrag nur nachfuehren */
+      try{history.replaceState({...(history.state||{}),kat,katP:_kp},'');}catch(e){console.warn('[kat replace]',e&&e.message||e);}
+      _lastKat.current=kat;return;
+    }
     if(openP)return;// project push is handled separately
-    const s={kat};
+    const s={kat,katP:_kp};
     if(_lastKat.current!==kat||_lastOpenP.current!==null){
       history.pushState(s,'');
     }
@@ -10700,7 +10716,7 @@ function MonteurTafel(props){
     if(_skipPush.current>0){_skipPush.current--;return;}
     if(!curUser)return;
     if(openP){
-      history.pushState({kat,projId:openP.id,projView:'dashboard'},'');
+      history.pushState({kat,katP:(_tabsListeRef.current[kat]||{}).perm,projId:openP.id,projView:'dashboard'},'');
       _lastOpenP.current=openP;
     } else if(_lastOpenP.current){
       // Project closed — don't push, popstate already handled it or user clicked X
@@ -10709,7 +10725,7 @@ function MonteurTafel(props){
   },[openP,curUser]);
 
   // Initial history state
-  _react.useEffect.call(void 0, ()=>{if(curUser)history.replaceState({kat},'');},[curUser]);
+  _react.useEffect.call(void 0, ()=>{if(curUser)history.replaceState({kat,katP:(_tabsListeRef.current[kat]||{}).perm},'');},[curUser]);
 
   // popstate handler — browser back/forward button
   _react.useEffect.call(void 0, ()=>{
@@ -10745,7 +10761,7 @@ function MonteurTafel(props){
       if(!s.projId){
         // Back to main tab — close project if open. v3.9.175: _skipPush exakt = Zahl der feuernden Effekte
         // (openP-close + kat-change) und setKat nur bei echtem Wechsel → kein Counter-Drift bei No-Op (Back-Layer-Reste).
-        const _nk=s.kat||0; const _kc=_nk!==_lastKat.current;
+        const _nk=_katAusVerlauf(s,_tabsListeRef.current); const _kc=_nk!==_lastKat.current;/* v3.9.1081 P2-1: ueber katP (perm), nicht die nackte Zahl */
         _skipPush.current=(openP?1:0)+(_kc?1:0);
         if(openP){setOpenP(null);_lastOpenP.current=null;}
         if(_kc){setKat(_nk);_lastKat.current=_nk;}
@@ -10760,7 +10776,7 @@ function MonteurTafel(props){
   const _unregProjView=_react.useCallback.call(void 0, ()=>{_projViewRef.current=null;},[]);
   const _pushProjView=_react.useCallback.call(void 0, (viewId)=>{
     if(!openP)return;
-    history.pushState({kat,projId:openP.id,projView:viewId},'');
+    history.pushState({kat,katP:(_tabsListeRef.current[kat]||{}).perm,projId:openP.id,projView:viewId},'');
   },[kat,openP]);
   // ═══════════ END HISTORY API ═══════════
 
@@ -10785,7 +10801,7 @@ function MonteurTafel(props){
   /* v3.9.313: Tab-Swipe-Clamp — k+1 ging vorher unbegrenzt, safeKat clampte visuell aber Folge-Swipes hingen
      (zwei Swipes rechts beim letzten Tab → kat=k+2, anschließendes Swipe links setzt nur k=k+1 = immer noch over).
      tabs.length wird per Ref erfasst und unten (nach tabs-Definition) aktualisiert. */
-  const _tabsCountRef=_react.useRef.call(void 0, 1);const _tabsListeRef=_react.useRef.call(void 0, []);/* UI-Folge (8): gerenderte Reiterliste fuer den AS-Deep-Link */
+  const _tabsCountRef=_react.useRef.call(void 0, 1);const _tabsListeRef=_react.useRef.call(void 0, []);const _katUmgebogen=_react.useRef.call(void 0, false);/* v3.9.1081 P2-1 *//* UI-Folge (8): gerenderte Reiterliste fuer den AS-Deep-Link */
   const _swipeVor=()=>setKat(k=>Math.min(k+1,Math.max(0,_tabsCountRef.current-1)));
   const _swipeZurueck=()=>setKat(k=>Math.max(k-1,0));
   const mainSwipe=useSwipe(_swipeVor,_swipeZurueck);
@@ -10869,6 +10885,16 @@ function MonteurTafel(props){
   }):[];
   const safeKat=tabs.length>0?Math.min(kat,tabs.length-1):0;
   _tabsCountRef.current=tabs.length||1;_tabsListeRef.current=tabs;/* v3.9.313: Tab-Swipe-Clamp — Ref-Update nach tabs-Filter */
+  /* v3.9.1081 P2-1: aendert sich die Reiterliste (Kameras kommt nach dem Schalter-Abruf dazu), bleibt der GEWAEHLTE REITER derselbe -
+     die Zahl wird noch im selben Durchlauf umgerechnet (kein Zwischenbild der falschen Seite). Der Verlaufseintrag wird danach im
+     kat-Effekt ersetzt statt neu gelegt (_katUmgebogen). Stabile Hook-Position: vor den Early-Returns. */
+  const _tabsSchlRef=_react.useRef.call(void 0, null);
+  const _tabsSchl=tabs.map(t=>t.perm);
+  if(_tabsSchlRef.current===null||_tabsSchlRef.current.join("|")!==_tabsSchl.join("|")){
+    const _kNeu=_katNachListe(_tabsSchlRef.current,_tabsSchl,kat);
+    _tabsSchlRef.current=_tabsSchl;
+    if(_kNeu!==kat){_katUmgebogen.current=true;setKat(_kNeu);}
+  }
   _react.useEffect.call(void 0, ()=>{if(tabs.length>0&&kat>=tabs.length)setKat(tabs.length-1);},[tabs.length,kat]);
   if(appLoading) return (
     React.createElement('div', { style: {minHeight:"100dvh",background:V.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}
@@ -11007,20 +11033,20 @@ function MonteurTafel(props){
         return React.createElement(S, { onClose: ()=>setShowSearch(false)} );
       })()
       , openP ? (
-        React.createElement(ProjectShell, { key: openP.id/* v3.9.182 FIX Projekte#5: Remount bei Projektwechsel (Suche) → korrekte Sub-View */, p: openP, onBack: ()=>{/* v1016 Bedienung: 'Alle Projekte' fuehrt FEST zur Projektliste. Vorher history.back() - das sprang nur einen Reiter in der Akte zurueck (Tablet-Test 16.11.). Ohne Projekte-Reiter bleibt die Hauptansicht, aus der das Projekt geoeffnet wurde. _skipPush = Zahl der feuernden Effekte (openP immer, kat nur bei Wechsel). */const _pk=tabs.findIndex(t=>t.perm==="projekte");const _zk=_pk>=0?_pk:kat;_skipPush.current=1+(_zk!==kat?1:0);setOpenP(null);_lastOpenP.current=null;setKat(_zk);_lastKat.current=_zk;history.pushState({kat:_zk},'');}, onHome: ()=>{_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(0);_lastKat.current=0;history.pushState({kat:0},'');}, onNav: (perm)=>{const idx=tabs.findIndex(t=>t.perm===perm);if(idx>=0){_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(idx);_lastKat.current=idx;history.pushState({kat:idx},'');}}, navTabs: mainTabs, navTabsAlle: tabs, entries: entries, setEntries: setEntries, forms: forms, setForms: setForms, ww: ww, curUser: curUser, planData: planData, setPlanData: setPlanData, projects: projects, monteure: monteure, monteurProjekte: monteurProjekte, _regProjView: _regProjView, _unregProjView: _unregProjView, _pushProjView: _pushProjView} )
+        React.createElement(ProjectShell, { key: openP.id/* v3.9.182 FIX Projekte#5: Remount bei Projektwechsel (Suche) → korrekte Sub-View */, p: openP, onBack: ()=>{/* v1016 Bedienung: 'Alle Projekte' fuehrt FEST zur Projektliste. Vorher history.back() - das sprang nur einen Reiter in der Akte zurueck (Tablet-Test 16.11.). Ohne Projekte-Reiter bleibt die Hauptansicht, aus der das Projekt geoeffnet wurde. _skipPush = Zahl der feuernden Effekte (openP immer, kat nur bei Wechsel). */const _pk=tabs.findIndex(t=>t.perm==="projekte");const _zk=_pk>=0?_pk:kat;_skipPush.current=1+(_zk!==kat?1:0);setOpenP(null);_lastOpenP.current=null;setKat(_zk);_lastKat.current=_zk;history.pushState({kat:_zk,katP:"projekte"},'');}, onHome: ()=>{_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(0);_lastKat.current=0;history.pushState({kat:0,katP:"_home"},'');}, onNav: (perm)=>{const idx=tabs.findIndex(t=>t.perm===perm);if(idx>=0){_skipPush.current=2;setOpenP(null);_lastOpenP.current=null;setKat(idx);_lastKat.current=idx;history.pushState({kat:idx,katP:perm},'');}}, navTabs: mainTabs, navTabsAlle: tabs, entries: entries, setEntries: setEntries, forms: forms, setForms: setForms, ww: ww, curUser: curUser, planData: planData, setPlanData: setPlanData, projects: projects, monteure: monteure, monteurProjekte: monteurProjekte, _regProjView: _regProjView, _unregProjView: _unregProjView, _pushProjView: _pushProjView} )
       ) : (
         React.createElement('div', { className: "app-col"}/* v3.9.873: Klasse, damit der Hauptbereich sein Scrollen selbst uebernehmen kann — siehe CSS */
           , React.createElement('header', { style: {padding:isMob?"10px 12px":(_isTabletNav?"10px 12px":"12px 20px")/* v3.9.1016: Tablet schmaler Rand - die Kopfzeile passt bei 800 px in eine Zeile */,borderBottom:"1px solid "+V.bd,background:V.sb,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}
-            , React.createElement('div', { style: {display:"flex",alignItems:_isTabletNav?"flex-start":"center",flexDirection:_isTabletNav?"column":"row",gap:_isTabletNav?2:10,minWidth:0,overflow:"hidden"}}/* Tablet-Pruefung 1041 (7): am Tablet stand die Version neben dem Logo und wurde auf einen Strich gekappt - jetzt darunter */
+            , React.createElement('div', { 'data-epk': "kopf-logo", style: {display:"flex",alignItems:_isTabletNav?"flex-start":"center",flexDirection:_isTabletNav?"column":"row",gap:_isTabletNav?2:10,minWidth:0,overflow:"hidden",flexShrink:_isTabletNav?0:1/* v3.9.1081 Render-Fund P2-3: in "mittel" war das Logo gekappt (752 px: 74 von 145 px sichtbar, 800 px: 122/145) - CI: das Logo ist immer ganz zu sehen. Hier steht nur Logo + Version, der Block schrumpft nicht mehr; Platz gibt die Knopfgruppe rechts her. */}}/* Tablet-Pruefung 1041 (7): am Tablet stand die Version neben dem Logo und wurde auf einen Strich gekappt - jetzt darunter */
               , React.createElement('img', { src: LOGO_SM, alt: "EP: Kolar & Sohn" , style: {height:_isTabletNav?24:28,flexShrink:0,display:"block",background:"#fff",borderRadius:6,padding:_dark?"3px 6px":0,boxSizing:"content-box"}} )/* v3.9.1006 CI: Logo-Schild statt weisser Rasterkachel im Dunkel */
               , !isMob && _isTabletNav && React.createElement('div', { style: {fontSize:UI.fMeta,color:_dark?_lesbar(EP_GRAY):EP_GRAY,whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums",lineHeight:1.1}, title: "EP: Kolar & Sohn · Der Haustechnikprofi"}, "v", APP_VERSION.split("-")[0])/* v3.9.1016: auf Tablet-Breite Logo + Version - der Firmentext brach bei 800 px in vier Zeilen und machte den Kopf 172 px hoch. Am Rechner (>=1200) unveraendert. */
               , !isMob && !_isTabletNav && (React.createElement('div', { style: {minWidth:0}}, React.createElement('div', { style: {fontSize:13,fontWeight:700}}, "EP: Kolar & Sohn"   ), React.createElement('div', { style: {fontSize:UI.fMeta,color:_dark?_lesbar(EP_GRAY):EP_GRAY/* Scan 1051 (v1053): #6d6e71 auf dunklem Kopf #181c19 nur 3,38 - im Hellen bleibt das CI-Logograu (5,1 auf Weiss) */,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, "Der Haustechnikprofi · Visionen - Konzepte - Lösungen · v"       , APP_VERSION.split("-")[0])))
             )
-            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,flexShrink:0}}/* v3.9.1016: die Bedienknoepfe schrumpfen nie - wird es eng, kuerzt sich links der Firmentext */
+            , React.createElement('div', { style: {display:"flex",alignItems:"center",gap:8,flexShrink:_isTabletNav?1:0,minWidth:0}}/* v3.9.1016: die Bedienknoepfe schrumpfen nie - wird es eng, kuerzt sich links der Firmentext. v3.9.1081 P2-3: in "mittel" gibt es keinen Firmentext - dort kuerzt sich der Nutzername (Ellipse), die Knoepfe selbst behalten ihre Breite */
               /* v3.9.1016 Juprowa-Sync-Hinweis (vorher am Ende der Reiterleiste): feste Mindestbreite, rechtsbuendig, Platz bleibt auch ohne Wert reserviert - kein Layoutsprung. Inhalt/Rechnung unveraendert. */
               , !isMob&&(()=>{const txt=_alterSeitText(_syncStempelMs(syncStatus.lastSync),Date.now());/* UI-Runde 1072: der Kopf las den Juprowa-Abruf (Speicher/epk_last_juprowa_pull), das Sync-Fenster syncStatus.lastSync - zwei Uhren, "vor 40 Min" neben "Letzter Sync 16:57". Jetzt dieselbe Quelle wie das Fenster; der OFFA-Abruf steht dort als eigene Zeile. Neu gerechnet wird bei jedem Render - der vorhandene 30-s-Herzschlag (setLastHeartbeat/setSyncStatus) rendert den Kopf, kein eigener Zeitgeber. */const da=!!txt;return React.createElement('span', { style: {display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4,minWidth:_isTabletNav?78:92,fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums",flexShrink:0,visibility:da?"visible":"hidden",userSelect:"none",WebkitUserSelect:"none"/* Tablet-Runde 1077 (12): Tipp markierte den Text */}, 'aria-hidden': da?undefined:"true", title: "Letzter Sync: "+_datumDE(syncStatus.lastSync)+(navigator.onLine?"":" · offline")}, _ik("uhr",14), txt, da&&!navigator.onLine?" · offline":null);})()
               /* Sync indicator */
-              , React.createElement('button', { onClick: ()=>{refreshPendingDetail();setShowSyncPanel(!showSyncPanel);}, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+_datumDE(syncStatus.lastSync), style: {border:"none",background:showSyncPanel?"rgba(14,165,233,.12)":syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s"}}
+              , React.createElement('button', { onClick: ()=>{refreshPendingDetail();setShowSyncPanel(!showSyncPanel);}, title: syncStatus.syncing?"Synchronisiere...":(pendingCount>0?pendingCount+" ausstehend — ":"")+"Letzter Sync: "+_datumDE(syncStatus.lastSync), style: {border:"none",background:showSyncPanel?"rgba(14,165,233,.12)":syncStatus.syncing?"rgba(14,165,233,.1)":"transparent",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,minHeight:36,position:"relative",borderRadius:6,transition:"background .2s",flexShrink:0,whiteSpace:"nowrap"/* v3.9.1081 P2-3: Statuswort bricht nicht um, wenn die Kopfgruppe in "mittel" Platz hergibt */}}
                 , syncStatus.syncing?React.createElement('span', { 'aria-hidden': "true", style: {animation:"spin .8s linear infinite",display:"inline-flex"}}, _ik("drehen",16))/* Tablet-Rest v1040 (b) */:React.createElement(WifiStatusIcon,{online:syncStatus.connected&&syncStatus.serverOk,schwach:syncStatus.netz==="schwach",size:18})/* v3.9.447: WLAN-Icon statt 3-Farben-Ampel-Punkt */
                 , pendingCount>0&&React.createElement('span', { style: {position:"absolute",top:-2,right:-4,background:COLORS.WARNING_FILL,color:"#fff",fontSize:UI.fMeta,fontWeight:800,borderRadius:10,padding:"1px 4px",minWidth:14,textAlign:"center"}}, pendingCount)
                 , !isMob&&(!_isTabletNav||syncStatus.syncing||!(syncStatus.connected&&syncStatus.serverOk)||syncStatus.netz==="schwach")/* v3.9.1016: am Tablet steht das Wort nur bei Stoerung/Sync - 'Online' zeigt das WLAN-Zeichen, Name bleibt in title/aria */&&React.createElement('span', { style: {fontSize:UI.fMeta,color:syncStatus.connected&&syncStatus.serverOk?(syncStatus.netz==="schwach"?(_dark?"#fbbf24":"#b45309"):V.dm):(_dark?COLORS.ERROR_DARK:COLORS.ERROR_FILL)}}, syncStatus.syncing?"Sync...":!syncStatus.connected?"Offline":!syncStatus.serverOk?"Kein Server":syncStatus.netz==="schwach"?"Verbindung schwach":(syncStatus.netWeg==="wifi"||syncStatus.netWeg==="ethernet")?"WLAN":syncStatus.netWeg==="cellular"?"Mobil":"Online")
@@ -11039,11 +11065,11 @@ function MonteurTafel(props){
                 , React.createElement('span', { style: {display:"flex",color:V.tx}}, _ik("glocke",18))
                 , unreadCount>0&&(React.createElement('span', { style: {position:"absolute",top:0,right:2,background:eskCount>0?COLORS.ERROR:COLORS.WARNING,color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:UI.fMeta,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid "+V.sb,animation:eskCount>0?"pulse 1.5s infinite":"none"}}, unreadCount>9?"9+":unreadCount))
               )
-              , React.createElement('div', { style: {textAlign:"right"}}
-                , React.createElement('div', { style: {fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}, isMob?(curUser.name||curUser.username||"").split(" ").pop():(curUser.name||curUser.username||""))
-                , !isMob&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap"}}, _optionalChain([rl, 'optionalAccess', _82 => _82.l]), " · KW "   , isoW())
+              , React.createElement('div', { style: {textAlign:"right",minWidth:0,overflow:"hidden"}}
+                , React.createElement('div', { style: _isTabletNav?{fontSize:12,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}:{fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}, title: _isTabletNav?(curUser.name||curUser.username||""):undefined}, isMob?(curUser.name||curUser.username||"").split(" ").pop():(curUser.name||curUser.username||""))
+                , !isMob&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}, _optionalChain([rl, 'optionalAccess', _82 => _82.l]), " · KW "   , isoW())
               )
-              , React.createElement('button', { onClick: async ()=>{/* Handy-Befund H17 (14.11.): der rote Knopf sitzt direkt neben der Glocke; ein Fehltipp meldete ohne Rueckfrage ab (logout fragt nur bei offener Warteschlange/laufendem Timer). Rueckfrage hier am Knopf, NICHT in logout - andere Aufrufer (Sitzungsende) sollen nicht fragen. */if(await _confirmModal("Wirklich abmelden?",{variant:"danger"}))logout();}, 'aria-label': "Abmelden", style: Object.assign(_kioskKnopf('gefahr'),{fontSize:13,marginLeft:isMob?6:10,minHeight:isMob?44:36,minWidth:44,justifyContent:"center",padding:isMob?"6px 10px":"6px 12px"}), title: "Abmelden"}, _ik("abmelden",16), !isMob&&"Abmelden")
+              , React.createElement('button', { onClick: async ()=>{/* Handy-Befund H17 (14.11.): der rote Knopf sitzt direkt neben der Glocke; ein Fehltipp meldete ohne Rueckfrage ab (logout fragt nur bei offener Warteschlange/laufendem Timer). Rueckfrage hier am Knopf, NICHT in logout - andere Aufrufer (Sitzungsende) sollen nicht fragen. */if(await _confirmModal("Wirklich abmelden?",{variant:"danger"}))logout();}, 'aria-label': "Abmelden", style: Object.assign(_kioskKnopf('gefahr'),{fontSize:13,marginLeft:isMob?6:10,minHeight:isMob?44:36,minWidth:44,justifyContent:"center",padding:(isMob||_isTabletNav)?"6px 10px":"6px 12px"}), title: "Abmelden"}, _ik("abmelden",16), !isMob&&!_isTabletNav&&"Abmelden")/* v3.9.1081 P2-3: in "mittel" nur die Ikone (wie am Handy) - aria-label/title bleiben "Abmelden", die Rueckfrage auch */
             )
           )
           /* ═══ NOTIFICATION PANEL ═══ */
@@ -11265,7 +11291,7 @@ function MonteurTafel(props){
           )
           /* ═══ MOBILE BOTTOM NAV — 5 Groups ═══ */
           , React.createElement('div', { className: "bottom-nav", style: {touchAction:"pan-y"}, ...navSwipe}
-            , (!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { style: {position:"absolute",top:-24,left:0,right:0,background:!syncStatus.connected?COLORS.ERROR_FILL:COLORS.WARNING_FILL,color:"#fff",fontSize:UI.fMeta,fontWeight:700,textAlign:"center",padding:"3px 0",letterSpacing:.5}, role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{refreshPendingDetail();setShowSyncPanel(true);})(e);}}, onClick: ()=>{refreshPendingDetail();setShowSyncPanel(true);}}, !syncStatus.connected?"OFFLINE":"SERVER", pendingCount>0?" · "+pendingCount+" ausstehend":"")
+            , (!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { 'data-epk': "netz-streifen", style: {position:"absolute",top:"auto",bottom:"calc(100% + 1px)"/* v3.9.1081 Render-Fund P3d: top:-24 plus die globale 44-px-Mindesthoehe fuer [role=button] liess den Streifen 21 px in die Fussleiste ragen - jetzt sitzt er unabhaengig von seiner Hoehe ganz darueber (+1 px = Oberkante der Leiste, bottom zaehlt ab der Innenkante) */,left:0,right:0,background:!syncStatus.connected?COLORS.ERROR_FILL:COLORS.WARNING_FILL,color:"#fff",fontSize:UI.fMeta,fontWeight:700,textAlign:"center",padding:"3px 8px",display:"flex",alignItems:"center",justifyContent:"center"}, role: "button", tabIndex: 0, 'aria-label': (!syncStatus.connected?"Offline – keine Internetverbindung":"Server nicht erreichbar")+(pendingCount>0?", "+pendingCount+" ausstehend":"")+". Details öffnen", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(()=>{refreshPendingDetail();setShowSyncPanel(true);})(e);}}, onClick: ()=>{refreshPendingDetail();setShowSyncPanel(true);}}, !syncStatus.connected?"Offline – keine Internetverbindung":"Server nicht erreichbar"/* v3.9.1081 P3d: das nackte "SERVER" sagte nicht, was los ist */, pendingCount>0?" · "+pendingCount+" ausstehend":"")
             /* v3.9.69 S49 Riedmann-Sidebar-Fix: Bottom-Nav-Gruppen filtern → leere Gruppen NICHT rendern (Fuhrpark/Mehr für Monteur). Home (g:0) bleibt als Fallback. */
             , [{ik:"haus",l:"Home",g:0,c:"#f59e0b"},{ik:"helm",l:"Baustelle",g:1,c:"#009640"},{ik:"uhr",l:"Zeit",g:2,c:"#3b82f6",ziel:"zeiterfassung"},{ik:"transporter",l:"Fuhrpark",g:3,c:"#0ea5e9"},{ik:"raster",l:"Mehr",g:4,c:"#71717a"}].filter(gr=>{const grTabs=tabs.filter(t=>_fussG(t)===gr.g);return gr.g===0||grTabs.length>0;}).map(gr=>{
               const grTabs=tabs.filter(t=>_fussG(t)===gr.g);/* v3.9.887: Die Gruppe sprang auf ihren ERSTEN Reiter. In Gruppe 2 steht Planung vor Zeiterfassung - der Knopf heisst 'Zeit' und oeffnete die Planung. Der Monteur musste jeden Abend ZWEIMAL tippen, um dorthin zu kommen, wo der Knopf hinzeigt. Statt die Reiterleiste umzusortieren (die soll bleiben, wie sie ist) darf eine Gruppe jetzt ihr Ziel benennen; ohne 'ziel' bleibt alles wie bisher. */var _grZiel=gr.ziel?grTabs.find(function(t){return t.perm===gr.ziel;}):null;const grFirst=_grZiel?tabs.indexOf(_grZiel):(grTabs[0]?tabs.indexOf(grTabs[0]):0);
@@ -15614,7 +15640,7 @@ function AdminPanel({users,setUsers,curUser,ww,notifPrefs,setNotifPrefs,monteure
   const [jupNewPassport,setJupNewPassport]=_react.useState.call(void 0, "");
   const [jupSyncLog,setJupSyncLog]=_react.useState.call(void 0, []);
   // v3.5.161: 15s Timeout — vorher blockierte stalled network die Juprowa-Admin-Panel-Operationen unendlich
-  const fetchJupConfig=async()=>{setJupCfgLoading(true);try{const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};/* v3.8.35 L2-P2: _authRetry-Wrap — Admin-RPC mit 15s-Timeout profitiert von Token-Refresh bei 401 */const r=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_get_config",_fT({method:"POST",headers:rpcH,body:"{}"},15000)));if(r.ok){const d=await r.json();setJupCfg(d);}else{/* v3.8.20 Iter-19: Silent-Catch-Audit L6308 Fix — User sieht sonst endlos Loading ohne Fehler */console.error('[juprowa_get_config] HTTP',r.status);setJupCfg({_lesefehler:true});_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa-Config laden fehlgeschlagen: HTTP "+r.status,"error",10000)]);}}catch(e){console.error('[juprowa_get_config] threw',e&&e.message||e);setJupCfg({_lesefehler:true});_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa-Config: "+(e&&e.message||e),"error",10000)]);}setJupCfgLoading(false);};
+  const fetchJupConfig=async()=>{setJupCfgLoading(true);try{const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};/* v3.8.35 L2-P2: _authRetry-Wrap — Admin-RPC mit 15s-Timeout profitiert von Token-Refresh bei 401 */const r=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_get_config",_fT({method:"POST",headers:rpcH,body:"{}"},15000)));if(r.ok){const d=await r.json();setJupCfg(d);}else{/* v3.8.20 Iter-19: Silent-Catch-Audit L6308 Fix — User sieht sonst endlos Loading ohne Fehler */console.error('[juprowa_get_config] HTTP',r.status);setJupCfg({_lesefehler:true});_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa-Config laden fehlgeschlagen: HTTP "+r.status,"error",10000)]);}}catch(e){console.error('[juprowa_get_config] threw',e&&e.message||e);setJupCfg({_lesefehler:true});_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Juprowa-Config: "+_fehlerText(e),"error",10000)]);}setJupCfgLoading(false);};
   const updatePassport=async()=>{if(!jupNewPassport.trim())return;try{const rpcH=_authToken?_sbWH():{apikey:SUPABASE_KEY,"Content-Type":"application/json"};/* v3.8.35 L2-P2: _authRetry-Wrap — Admin-Write (Juprowa-Passport-Rotation) muss bei 401 retryen statt stumm versagen */const r=await _authRetry(()=>fetch(SB_REST+"/rpc/juprowa_update_passport",_fT({method:"POST",headers:rpcH,body:JSON.stringify({new_passport:jupNewPassport.trim()})},15000)));if(r.ok){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("✅ Passport aktualisiert")]);setJupNewPassport("");fetchJupConfig();}else{_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ Fehler: "+r.status,"error")]);}}catch(e){_optionalChain([window,'access',_=>_.__toast,'optionalCall',_2=>_2("❌ "+e.message,"error")]);}};
   const _zgKachel=(titel,feld)=>{const z=_zugangAnzeige(jupCfg,feld);const fehlt=z.art==="fehlt";return React.createElement('div', {'data-zugang':feld,style:{padding:12,borderRadius:8,background:V.bg,border:"1px solid "+(fehlt?UI.achtung:V.bd)}},React.createElement('div', {style:{fontSize:UI.fMeta,color:V.dm,textTransform:"uppercase",letterSpacing:.5}},titel),React.createElement('div', {style:{fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6,color:z.art==="ok"?V.tx:fehlt?UI.achtungTxt:UI.neutralTxt}},z.art==="ok"?React.createElement('span',{style:{color:UI.markeTxt,display:"inline-flex"}},_ik('schild',14)):fehlt?_ik('warnung',14):null,z.text));};
   const fetchJupSyncLog=async()=>{try{const rows=await _sbGetOrder("activity_log","created_at.desc","action=like.juprowa*").catch(()=>[]);setJupSyncLog(rows.slice(0,20));}catch(e){console.warn('[silent-await]',e&&e.message||e);}};
@@ -17512,6 +17538,25 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
 const NAV_HAUPT=["_home","projekte","arbeitsscheine","wochenplanung","zeiterfassung","urlaub"];
 function _navTeilen(liste){var h=[],m=[];(liste||[]).forEach(function(t){(NAV_HAUPT.indexOf(t.perm)>=0?h:m).push(t);});return {haupt:h,mehr:m};}
 if(typeof window!=='undefined')window._navTeilen=_navTeilen;
+/* v3.9.1081 Render-Fund P2-1: der Hauptreiter steht als ZAHL (kat) im Zustand. Kommt ein Reiter spaeter dazu (Kameras haengt am
+   Schalter-Abruf, der erst nach dem ersten Bild antwortet), rutscht alles dahinter um eins: wer gerade Admin offen hatte, sah
+   4 s spaeter still das Buero-Portal. Diese reine Funktion bildet die Zahl ueber den stabilen Schluessel (perm) auf die neue
+   Liste ab: alteListe/neueListe = Schluessel-Listen, k = bisherige Zahl. Ist der Reiter in der neuen Liste nicht mehr da oder
+   gab es vorher keine Liste, bleibt k (die bestehende Klemme kuemmert sich um zu grosse Zahlen). */
+function _katNachListe(alteListe,neueListe,k){
+  if(!Array.isArray(alteListe)||!Array.isArray(neueListe)||!alteListe.length)return k;
+  var key=alteListe[k];if(key===undefined)return k;
+  if(neueListe[k]===key)return k;
+  var i=neueListe.indexOf(key);return i>=0?i:k;
+}
+if(typeof window!=='undefined')window._katNachListe=_katNachListe;
+/* Gegenstueck fuer den Verlauf: ein gespeicherter Eintrag {kat,katP} wird ueber katP (perm) auf die aktuelle Liste abgebildet; ohne katP (alte Eintraege) gilt die Zahl. */
+function _katAusVerlauf(st,liste){
+  var k=(st&&st.kat)||0;var p=st&&st.katP;
+  if(p&&Array.isArray(liste)){for(var i=0;i<liste.length;i++){if(liste[i]&&liste[i].perm===p)return i;}}
+  return k;
+}
+if(typeof window!=='undefined')window._katAusVerlauf=_katAusVerlauf;
 /* Misst die Leiste, in der er steht: bricht sie um oder laeuft sie quer ueber, nimmt er einen Hauptreiter weg (er wandert ins Mehr). Beim Groessenwechsel und beim Wechsel des aktiven Bereichs (Mehr-Knopf traegt dann einen anderen Namen) wird neu gemessen. */
 function NavPlatzMesser({n,max,setN,schluessel}){
   const ref=_react.useRef.call(void 0, null);
@@ -17637,7 +17682,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,navTabsAlle,entries,setEntr
   const _refreshMatCount=_react.useCallback.call(void 0, async()=>{try{if(API.getToken()){const r=await _sbGet("material_orders","select=id&project_id=eq."+encodeURIComponent(p.id)+"&status=in.(angefordert,in_bearbeitung,offen)");setMatOrderCount(r?r.length:0);}}catch(e){console.warn('[silent-await]',e&&e.message||e);}},[p.id]);
   _react.useEffect.call(void 0, ()=>{_refreshMatCount();window.__refreshMatOrderCount=_refreshMatCount;return()=>{delete window.__refreshMatOrderCount;};},[_refreshMatCount]);
 
-  /* v3.9.937 UMSORTIERT: die fuenf taeglichen zuerst, dann EINE Trennlinie, dann die uebrigen acht. Aus dieser Liste entsteht auch navIds und damit die Reihenfolge, in der ein WISCH durch die Unterseiten blaettert - vorher sprang er von Dashboard nach Zeiterfassung nach Berichte, waehrend die Reiterzeile Uebersicht, Plaene, Maengel, Fotos, Zeiten zeigte. Sichtbare und erwischte Reihenfolge waren verschieden. Jetzt blaettert der Wisch genau die Reiterzeile durch und danach die acht unter 'Mehr'. Das ist eine Verhaltensaenderung, keine Kosmetik. Die Eintraege selbst sind WOERTLICH uebernommen, samt ihrer pm-Berechtigungen; keine Seite wurde umbenannt, zusammengelegt oder entfernt. */const _allNav=[{id:"dashboard",ik:"uebersicht",l:"Dashboard"},{id:"plaene",ik:"karte",l:"Pläne",pm:"plaene"},{id:"maengel",ik:"warnung",l:"Mängel",pm:"maengel"},{id:"fotos",ik:"kamera",l:"Fotos"},{id:"zeit",ik:"uhr",l:"Zeiterfassung",pm:"zeiterfassung"},null,{id:"berichte",ik:"dokument",l:"Berichte"},{id:"formulare",ik:"formular",l:"Formulare",pm:"formulare"},{id:"checklisten",ik:"checkliste",l:"Checklisten",pm:"formulare"},{id:"bautagebuch",ik:"buch",l:"Bautagebuch",pm:"bautagebuch"},{id:"material",ik:"paket",l:"Material",pm:"material"},{id:"dokumente",ik:"ordner",l:"Dokumente"},{id:"offa",ik:"verbindung",l:"OFFA",pm:"offa"},{id:"export",ik:"export",l:"Export",pm:"export"}];
+  /* v3.9.937 UMSORTIERT: die fuenf taeglichen zuerst, dann EINE Trennlinie, dann die uebrigen acht. Aus dieser Liste entsteht auch navIds und damit die Reihenfolge, in der ein WISCH durch die Unterseiten blaettert - vorher sprang er von Dashboard nach Zeiterfassung nach Berichte, waehrend die Reiterzeile Uebersicht, Plaene, Maengel, Fotos, Zeiten zeigte. Sichtbare und erwischte Reihenfolge waren verschieden. Jetzt blaettert der Wisch genau die Reiterzeile durch und danach die acht unter 'Mehr'. Das ist eine Verhaltensaenderung, keine Kosmetik. Die Eintraege selbst sind WOERTLICH uebernommen, samt ihrer pm-Berechtigungen; keine Seite wurde umbenannt, zusammengelegt oder entfernt. */const _allNav=[{id:"dashboard",ik:"uebersicht",l:"Übersicht"/* v3.9.1081 Render-Fund P3b: Seitenleiste sagte "Dashboard", Ueberschrift und Handy-Reiter sagen "Übersicht" */},{id:"plaene",ik:"karte",l:"Pläne",pm:"plaene"},{id:"maengel",ik:"warnung",l:"Mängel",pm:"maengel"},{id:"fotos",ik:"kamera",l:"Fotos"},{id:"zeit",ik:"uhr",l:"Zeiterfassung",pm:"zeiterfassung"},null,{id:"berichte",ik:"dokument",l:"Berichte"},{id:"formulare",ik:"formular",l:"Formulare",pm:"formulare"},{id:"checklisten",ik:"checkliste",l:"Checklisten",pm:"formulare"},{id:"bautagebuch",ik:"buch",l:"Bautagebuch",pm:"bautagebuch"},{id:"material",ik:"paket",l:"Material",pm:"material"},{id:"dokumente",ik:"ordner",l:"Dokumente"},{id:"offa",ik:"verbindung",l:"OFFA",pm:"offa"},{id:"export",ik:"export",l:"Export",pm:"export"}];
   const _filtNav=_allNav.filter(n=>n===null||!n.pm||hasPerm(curUser,n.pm));
   const nav=_filtNav.filter((n,i,a)=>n!==null||i===0||(i>0&&a[i-1]!==null)).filter((n,i,a)=>n!==null||i<a.length-1);
   const navIds=nav.filter(Boolean).map(n=>n.id);
@@ -18987,16 +19032,20 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
           /* Filter-state via _react.useState within IIFE wouldn't work — use module-level constants for filter via window. */
           return null;
       })()
-      , React.createElement('div', { 'data-epk': "mg-filter", style: {display:"flex",gap:6,flexWrap:isMob?"wrap":"nowrap",overflowX:isMob?"visible":"auto",WebkitOverflowScrolling:"touch",paddingBottom:isMob?0:4,margin:"14px 0 10px",alignItems:"center"}}/* Tablet-Pruefung 1041 (7): quer brach die Reihe vor Prio um - jetzt EINE quer rollende Reihe */
+      , React.createElement('div', { 'data-epk': "mg-filter", style: {display:"flex",gap:6,flexWrap:"wrap",overflowX:"visible",margin:"14px 0 10px",alignItems:"center"}}/* v3.9.1081 Render-Fund P2-4: die quer rollende Reihe aus Tablet-Pruefung 1041 (7) war 1535 px in 704 px breit, Status- und Prio-Knoepfe lagen ohne Hinweis ausserhalb des Bildes (auch am Rechner: 1515 in 1004). Jetzt bricht die Leiste in jeder Stufe um; Status und Prio sind je eine Gruppe (Beschriftung + Knoepfe), umgebrochen wird zwischen den Gruppen statt mitten in einer. */
         , React.createElement('input', { type: "search", value: fSearch, onChange: e=>setFSearch(e.target.value), placeholder: "Mangel/Ort/Ebene…", className: "epk-suche", style: {...II(),flex:isMob?"1 1 100%":"0 0 210px",minWidth:0,fontSize:12,padding:"5px 8px"} })
         , isAdmin&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fMeta,color:V.dm,cursor:"pointer",fontWeight:600}, title: "Alle sichtbaren Mängel für Sammelaktion auswählen"}, React.createElement('input', { type: "checkbox", checked: msV.length>0&&msV.every(m=>_bulkSel[m.id]), onChange: _bulkAll, style: {width:24,height:24,cursor:"pointer",accentColor:"#009640"}} ), "Alle")/* v3.9.464 (BLOCK C): Select-All */
         , React.createElement('select', { value: fWorker, 'aria-label': "Verantwortlich filtern", onChange: e=>setFWorker(e.target.value), style: {...II(),width:"auto",fontSize:12,padding:"5px 8px"} }, React.createElement('option', { value: "" }, "Alle Verantwortlichen"), _maFilterliste((monteure||MONT),fWorker,w=>ms.some(m=>m.worker===w.id||m.zugewiesen===w.id||m.assignee===w.id)).map(w=>React.createElement('option', { key: w.id, value: w.id }, w.n)))
         , React.createElement('button', { onClick: ()=>{const hdrs=["Mangel","Ebene","Prio","Status","Verantwortlich","Frist","Ort"];const data=msV.map(m=>{const w=(monteure||MONT).find(x=>x.id===(m.worker||m.zugewiesen||m.assignee));return [m.name||"",m.ebene||"",m.prio||"",m.status||"",(w&&w.n)||"",m.frist?fdt(m.frist):"",m.ort||""];});if(!data.length){window.__toast&&window.__toast("Keine Mängel zum Export","warn");return;}genXls("⚠️ Mängelliste — "+(p.name||""),(p.nr||"")+" · "+data.length+" Mängel",hdrs,data,"Maengel_"+((p.nr||p.name||"x")+"").replace(/[^a-zA-Z0-9]/g,"_")+".xls",{colWidths:[200,90,60,90,110,70,120],leftCols:[0,1,4,6]});}, style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta}}, _ikVw("download","Export"))
         , React.createElement('button', { onClick: genMangelPdf, title: "Mängel-Report als PDF drucken oder speichern — mit Fotos und EP-Kolar-CI", style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta,borderColor:_lesbar("#ef4444"),color:_lesbar("#ef4444")}}, _ikVw("dokument","PDF-Report"))
+        , React.createElement('div', { 'data-epk': "mg-filter-status", style: {display:isMob?"contents":"flex"/* schmal: Gruppe unsichtbar, Umbruch wie bisher */,gap:6,flexWrap:"wrap",alignItems:"center",maxWidth:"100%"}}
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginRight:2,marginLeft:4}}, "Status:" )
         , ["alle"].concat(MANGEL_ST_SICHT).map(s=>{const cnt=s==="alle"?msF.length:msF.filter(m=>m.status===s).length;const sc=s==="alle"?V.acTx:_mgStFarbe(s,false).tx;/* Maengel Stufe 2 (4): Legende der Karte - dieselbe Quelle _mgStFarbe (abgelehnt gedaempft, v3.9.895) */const _on=fSt===s;return React.createElement('button', { key: s, onClick: ()=>setFSt(s), title: "Filter: "+s, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?sc+"28":sc+"12",color:sc,fontSize:UI.fMeta,fontWeight:700,border:(_on?"2px solid "+sc:"1px solid "+sc+"40"),display:"inline-flex",gap:5,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:sc,display:"inline-block"}} ), s, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
+        )
+        , React.createElement('div', { 'data-epk': "mg-filter-prio", style: {display:isMob?"contents":"flex"/* schmal: Gruppe unsichtbar, Umbruch wie bisher */,gap:6,flexWrap:"wrap",alignItems:"center",maxWidth:"100%"}}
         , React.createElement('span', { style: {fontSize:UI.fMeta,color:V.dm,fontWeight:700,marginLeft:8}}, "Prio:" )
         , ["alle","hoch","mittel","niedrig"].map(pr=>{const cnt=pr==="alle"?_msPrioBasis.length:_msPrioBasis.filter(m=>m.prio===pr).length;const pc=pr==="alle"?V.acTx:_mgPrioFarbe(pr).tx;/* Maengel Stufe 2 (4) */const _on=fPr===pr;return React.createElement('button', { key: pr, onClick: ()=>setFPr(pr), title: "Prio: "+pr, style: {padding:"3px 10px",minHeight:24,borderRadius:12,background:_on?pc+"25":pc+"10",color:pc,fontSize:UI.fMeta,fontWeight:600,border:(_on?"2px solid "+pc:"1px solid "+pc+"35"),display:"inline-flex",gap:4,alignItems:"center",cursor:"pointer",fontFamily:"inherit"}}, React.createElement('span', { style: {width:6,height:6,borderRadius:"50%",background:pc,display:"inline-block"}} ), pr, React.createElement('span', { style: {fontFamily:mono,opacity:.85}}, cnt));})
+        )
       )
       /* v3.9.464 (BLOCK C): Bulk-Aktionsleiste (sticky), sichtbar wenn ≥1 ausgewählt (Admin/PL). */
       , isAdmin&&(()=>{const _sel=Object.keys(_bulkSel).filter(k=>_bulkSel[k]);if(!_sel.length)return null;return React.createElement('div', { style: {position:"sticky",bottom:0,zIndex:30,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",padding:"10px 14px",margin:"4px 0 10px",background:V.ac+"1f",border:"2px solid "+V.ac,borderRadius:10,boxShadow:"0 -2px 10px rgba(0,0,0,.12)"}}
@@ -19016,7 +19065,7 @@ function VMang({p,forms,setForms,curUser,monteure,ww,planData,setPlanData}){
           , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}
             , isAdmin&&React.createElement('label', { style: {display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:44,minHeight:44,margin:"-10px 0 -10px -10px",flexShrink:0,cursor:"pointer"}, title: "Für Sammelaktion auswählen"}, React.createElement('input', { type: "checkbox", checked: !!_bulkSel[m.id], onChange: ()=>_bulkToggle(m.id), onClick: e=>e.stopPropagation(), 'aria-label': "Für Sammelaktion auswählen: "+(m.name||"Mangel"), style: {width:24,height:24,cursor:"pointer",margin:0,accentColor:UI.marke}} ))/* Maengel Stufe 2 (4): Tippziel 44 px um den 24-px-Haken *//* v3.9.464 (BLOCK C): Bulk-Checkbox */
             , React.createElement('div', { style: {flex:1,minWidth:0}}, React.createElement('div', { style: {fontSize:13,fontWeight:700,marginBottom:3,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}, React.createElement('span', null, m.name), React.createElement('span', { style: {padding:"1px 7px",borderRadius:UI.rChip,background:_prF.bg,color:_prF.tx,fontSize:UI.fMeta,fontWeight:m.prio==="hoch"?700:600,border:"1px solid "+_prF.c}}, "Prio ", m.prio||"mittel"), overdue&&React.createElement('span', { style: {padding:"1px 7px",borderRadius:UI.rChip,background:UI.fehlerBg,color:UI.fehler,fontSize:UI.fMeta,fontWeight:700,border:"1px solid "+UI.fehler}}, "überfällig" ), (m.plan_id&&m.x!=null)&&React.createElement('span', { style: {padding:"1px 7px",borderRadius:UI.rChip,background:UI.neutralBg,color:UI.neutralTxt,fontSize:UI.fMeta,fontWeight:600}, title: "Auf einem Plan platziert"}, _ikVw("standort","auf Plan") )), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}, React.createElement('span', null, _ikVw("standort",m.ebene||"—")), React.createElement('span', null, "· ", _ikVw("kalender",fdt(m.frist))), m.melder==="Kunde"&&React.createElement('span', { style: {color:UI.achtungTxt,fontWeight:700}}, "· ", _ikVw("brief","Kunde"))))
-            , React.createElement('div', { style: {display:"flex",gap:6,alignItems:"center",flexShrink:0}}
+            , React.createElement('div', { 'data-epk': "mg-aktionen", style: {display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap",maxWidth:"100%"}}/* v3.9.1081 Render-Fund P2-2: am Handy (384 px) war die Reihe 383 px breit und schob die Projektseite 23 px quer, der Loeschknopf war abgeschnitten - jetzt bricht sie um, die Knoepfe bleiben >=44 px */
               /* Quick-Status-Pills statt Dropdown — schneller PlanRadar-Workflow */
               , MANGEL_ST.map(ns=>{const isCur=m.status===ns;const _nsF=_mgStFarbe(ns,false);return React.createElement('button', { key: ns, onClick: ()=>{if(!isCur)updSt(m.id,ns);}, title: "Status: "+ns, 'aria-label': "Status: "+ns, 'aria-pressed': isCur, style: {...bsS(),minHeight:44,minWidth:44,padding:"0 10px",fontSize:UI.fKlein,border:isCur?"2px solid "+_nsF.c:"1px solid "+V.bdK,background:isCur?_nsF.bg:"transparent",color:isCur?_nsF.tx:V.tx,fontWeight:isCur?700:500,cursor:isCur?"default":"pointer"}}, ns==="offen"?"Offen":ns==="in Behebung"?"In Arbeit":"Erledigt");})/* Maengel Stufe 2 (4): Text statt Farb-Emoji, 44 px, CI-Sekundaerknopf; der aktuelle Status traegt seine semantische Farbe */
               , isAdmin&&React.createElement('button', { onClick: ()=>_placeOnPlan(m), style: {...bsS(),minHeight:44,padding:"0 10px",fontSize:UI.fKlein}/* Maengel Stufe 2 (4): CI-Sekundaerknopf statt Hellblau */, title: (m.plan_id&&m.x!=null)?"Pin auf dem Plan versetzen oder entfernen":"Auf dem Plan per Tipp an die richtige Stelle setzen"}, _ikVw("standort",(m.plan_id&&m.x!=null)?"Pin ändern":"Auf Plan setzen"))/* v3.9.1004 A: oeffnet MangelPlanSetzen statt blind 50/50 - und Entfernen ist kein Ein-Tipp-Unfall mehr, es steht im Dialog */
@@ -26817,7 +26866,7 @@ function SystemConfigPanel({curUser}){
   _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{
       try{const d=await _api.get('system_config','select=*&order=key.asc');if(a)setCfg(d||[]);}
-      catch(e){window._showToast?.('System-Config laden fehlgeschlagen: '+e.message,'error');}
+      catch(e){window._showToast?.('System-Config laden fehlgeschlagen: '+_fehlerText(e),'error');}
       if(a)setLoading(false);
     })();
     return()=>{a=false;};

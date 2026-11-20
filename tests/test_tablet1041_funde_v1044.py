@@ -279,8 +279,11 @@ def pruef_klein(html):
         b.append("hh:mm-Feld zu schmal (00:)")
     if "html input[type=radio]{-webkit-appearance:none !important" not in html:
         b.append("Optionsfeld ohne 22-px-Kur")
-    if "'data-epk': \"mg-filter\"" not in html or 'flexWrap:isMob?"wrap":"nowrap",overflowX:isMob?"visible":"auto"' not in html:
-        b.append("Maengel-Filter bricht um")
+    # Pin angepasst (v3.9.1081 Render-Fund P2-4): die quer rollende Reihe versteckte Status/Prio ohne Hinweis
+    # (1535 px in 704 px). Gesichert bleibt der Kern von 1041 (7): kein Umbruch MITTEN in einer Gruppe -
+    # Status und Prio sind je eine Gruppe, umgebrochen wird dazwischen (test_render_funde_v1081).
+    if "'data-epk': \"mg-filter\"" not in html or "'data-epk': \"mg-filter-status\"" not in html or "'data-epk': \"mg-filter-prio\"" not in html:
+        b.append("Maengel-Filter ohne Gruppen")
     if 'fil.length===0?null/*' not in html:
         b.append("leerer Tabellenkopf unter dem Projekt-Leerzustand")
     if '"⌘K")' in html or "matchMedia(\"(pointer: coarse)\").matches)return \"\";" not in html:

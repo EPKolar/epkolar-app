@@ -46,9 +46,12 @@ def test_genau_ein_popstate_handler(index_html):
 
 def test_keine_verhaltensaenderung_altpfade(index_html):
     """Etappe 1 aendert die bestehenden Push-Pfade NICHT (Regressionsschutz)."""
-    # die alten kat/Projekt-Pushes stehen unveraendert
-    assert "history.pushState({kat,projId:openP.id,projView:'dashboard'},'');" in index_html
-    assert "if(curUser)history.replaceState({kat},'');" in index_html
+    # die alten kat/Projekt-Pushes stehen unveraendert.
+    # v3.9.1081 Render-Fund P2-1: bewusst erweitert - jeder Verlaufseintrag traegt zusaetzlich katP (perm des Reiters),
+    # damit Zurueck nach einem Reiter-Einschub (Kameras) auf denselben Reiter fuehrt. Form/Reihenfolge sonst gleich
+    # (Riegel in test_render_funde_v1081.py).
+    assert "history.pushState({kat,katP:(_tabsListeRef.current[kat]||{}).perm,projId:openP.id,projView:'dashboard'},'');" in index_html
+    assert "if(curUser)history.replaceState({kat,katP:(_tabsListeRef.current[kat]||{}).perm},'');" in index_html
     # noch KEIN View ruft _navPush (Umstellung erst Etappe 2+) -> nur die Definition + window-Export existieren
     assert index_html.count("_navPush(") == 1  # nur die Funktionsdefinition selbst (window._navPush=_navPush zaehlt nicht als Call)
 
