@@ -141,7 +141,9 @@ def test_verdrahtung_statistik(index_html):
     assert i < index_html.index("..._stBenutzerZeile(u,usrRoh,_lastL,_totL,_alUnlesbar)"), "erst die Lese-Marke, dann die Zeilen"
     assert 'u.active===false?React.createElement(Badge, { text: "Inaktiv"' in index_html
     assert 'React.createElement(Badge, { text: "Nicht lesbar", color: COLORS.NEUTRAL} )' in index_html
-    assert 'u.total_logins==null?"—":u.total_logins' in index_html
+    # A55 Runde 3 (1084): 0 neben einem Letzten Login heisst "nicht gezaehlt" (Kiosk-Zugang zaehlt nicht) - unbekannt bleibt "—", sonst die Zahl
+    assert 'u.total_logins==null?"—":(u.total_logins===0&&u.last_login)?' in index_html
+    assert '"nicht gezählt"):u.total_logins)' in index_html
     assert "u.total_logins||0" not in index_html, "Umkehrprobe: unbekannt darf nicht als 0 erscheinen"
     assert ':u.active?React.createElement(Badge, { text: "Aktiv"' not in index_html
 

@@ -121,6 +121,12 @@ NUR_DARSTELLUNG = [
     re.escape("className: " + KLASSE_MATRIX),
     re.escape("'data-ad-stufe': _adStufe, style: " + GRID),
     r"\.\.\._adKleb\((?:V\.cd|isFail\?\"linear-gradient\(rgba\(239,68,68,\.06\),rgba\(239,68,68,\.06\)\),\"\+V\.cd:V\.cd)(?:,true)?\)",
+    # A55 Runde 3 (1084): Benachrichtigungs-Matrix unter breit mit eigenem Rollkasten und klebenden
+    # Kopfzeilen - reine Darstellung (Hoehe, Rollen, Raender, Hintergrund, Ausrichtung), exakt gepinnt.
+    re.escape('style: _adStufe!=="breit"?{maxHeight:"70vh",overflow:"auto",overscrollBehavior:"contain"}:undefined'),
+    re.escape('...(_adStufe!=="breit"?{maxHeight:"70vh",overscrollBehavior:"contain",borderCollapse:"separate",borderSpacing:0}:{})'),
+    re.escape('textAlign:_adStufe!=="breit"?"left":"center"'),
+    re.escape('...(_adStufe!=="breit"?{background:V.cd}:{})'),
 ]
 
 
@@ -209,7 +215,10 @@ JUPROWA_MD5 = "3ff4e8bb925e7dee0064d1fe5ee528d1"   # origin/main v3.9.1076, durc
 # v3.9.1081 Render-Fund P3a: fetchJupConfig zeigt den Fehler ueber die Anzeige-Hilfe _fehlerText(e) statt (e&&e.message||e) -
 # "Failed to fetch" wird "keine Verbindung zum Server". Einzige Abweichung im Kopf (difflib gegen origin/main 9ccd9ed gemessen),
 # alter Wert 10071af7aa5791b70d724755163a5207. Schreibwege/Juprowa-Push unberuehrt.
-KOPF_MD5_VORHER = "d04b894788546b35a586f442795af90a"  # v3.9.1081 mit const isMob=ww<BP_MOB;
+# A55 Runde 3 (1084): ACT_LABELS (Anzeigetexte im Kopf) ohne Emoji ("🟢 Login" -> "Anmeldung") und mit
+# deutschen Texten fuer juprowa_push_fail/_status_unbekannt - reine Anzeigetabelle, kein Handler/Schreibweg.
+# Alter Wert d04b894788546b35a586f442795af90a.
+KOPF_MD5_VORHER = "f2ed6cf75b4d9b3a2ca996312f9cd4d4"  # v3.9.1081 mit const isMob=ww<BP_MOB;
 
 
 def test_juprowa_reiter_byte_gleich(roh):
@@ -259,7 +268,7 @@ def _zellen(t):
 
 
 @pytest.mark.parametrize("name,koepfe", [
-    ("logins", ["Zeit", "Benutzer", "Status", "Auth", "Gerät"]),
+    ("logins", ["Zeit", "Benutzer", "Status", "Anmeldeart", "Gerät"]),  # A55 Runde 3 (1084): Spaltenkopf deutsch statt "Auth"
     ("status", ["Benutzer", "Rolle", "Letzter Login", "Logins gesamt", "Aktionen (7T)", "Status"]),
 ])
 def test_jede_zelle_traegt_ihren_feldnamen(roh, name, koepfe):
