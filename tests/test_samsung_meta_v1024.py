@@ -9,6 +9,11 @@ Jetzt: das Meta bleibt STATISCH "light dark" (Signal an Samsung), die Wurzel tra
 only light/only dark (Darstellung = allein die App-Wahl). Dazu ein Hinweis in Einstellungen >
 Darstellung, nur in Samsung Internet und nur bei Wahl Hell - die Zwangsabdunkelung ist per Skript
 nicht messbar (sie passiert beim Zeichnen).
+
+v3.9.1079 Samsung-Hell 3 (A55-Runde 19.11.): auch das statische "light dark" half nicht - Wahl Hell,
+Seite dunkel. Das Meta steht jetzt im HTML auf "only light" (Grundwahl, ab dem ersten Zeichnen) und
+folgt der App-Wahl (Kopfskript + applyTheme: Hell -> only light, Dunkel -> dark). Die Pins unten sind
+darauf umgestellt; die Hinweis-Tests bleiben unveraendert. Neuer Riegel: test_samsung_hell_v1079.py.
 """
 import re
 import shutil
@@ -18,7 +23,7 @@ import pytest
 
 from _hilfen import nur_code
 
-META = '<meta name="color-scheme" content="light dark">'
+META = '<meta name="color-scheme" content="only light">'  # v3.9.1079: vorher "light dark"
 
 
 def _kopf_skript(src):
@@ -35,12 +40,13 @@ def test_meta_steht_statisch_und_einmal(index_html):
     assert index_html.index(META) < index_html.index("<script")
 
 
-def test_niemand_schreibt_das_meta_um(index_html):
+def test_genau_zwei_schreiben_das_meta(index_html):
+    # v3.9.1079: genau zwei Stellen ziehen das Meta auf die App-Wahl - das Kopfskript und applyTheme.
     code = nur_code(index_html)
-    assert _meta_schreiber(code) == []
-    # Umkehrprobe: der alte v1023-Schreiber wird erkannt
-    alt = code + ';var _csm=document.querySelector("meta[name=color-scheme]");if(_csm)_csm.setAttribute("content","only light");'
-    assert len(_meta_schreiber(alt)) == 1
+    assert len(_meta_schreiber(code)) == 2
+    # Umkehrprobe: ein dritter Schreiber wird erkannt
+    alt = code + ';var _x=document.querySelector("meta[name=color-scheme]");if(_x)_x.setAttribute("content","light dark");'
+    assert len(_meta_schreiber(alt)) == 3
 
 
 def test_wurzel_folgt_weiter_der_app_wahl(index_html):
@@ -54,7 +60,7 @@ def test_wurzel_folgt_weiter_der_app_wahl(index_html):
 @pytest.mark.parametrize("gespeichert,erwartet", [
     (None, "only light"), ("light", "only light"), ("system", "only light"), ("dark", "only dark"),
 ])
-def test_kopfskript_meta_bleibt_wurzel_folgt(index_html, gespeichert, erwartet):
+def test_kopfskript_meta_und_wurzel_folgen(index_html, gespeichert, erwartet):
     js = (
         "var meta={c:'light dark',setAttribute:function(k,v){this.c=v;}};"
         "var document={querySelector:function(){return meta;},documentElement:{style:{},setAttribute:function(){}}};"
@@ -66,7 +72,8 @@ def test_kopfskript_meta_bleibt_wurzel_folgt(index_html, gespeichert, erwartet):
     )
     out = subprocess.run(["node", "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.strip() == "light dark|" + erwartet
+    # v3.9.1079: das Meta folgt der Wahl (Hell -> only light, Dunkel -> dark), vorher blieb es "light dark".
+    assert out.stdout.strip() == ("dark" if erwartet == "only dark" else "only light") + "|" + erwartet
 
 
 def _hinweis(code):

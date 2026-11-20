@@ -124,10 +124,12 @@ def test_zahlen_ohne_schreibmaschine(roh):
 
 def test_color_scheme_statisch_vor_dem_ersten_script(roh):
     kopf = roh[:roh.index("</head>")] if "</head>" in roh else roh[:20000]
-    i = kopf.find('<meta name="color-scheme" content="light dark">')
+    # v3.9.1079 Samsung-Hell 3: statisch "only light" (= Grundwahl Hell ab dem ersten Zeichnen), vorher "light dark".
+    i = kopf.find('<meta name="color-scheme" content="only light">')
     assert i >= 0, "Statisches color-scheme-Meta fehlt im Kopf."
     assert i < roh.index("<script"), "Das Meta steht hinter dem ersten <script>."
-    assert re.search(r":root \{[^}]*color-scheme: light dark;", roh), ":root color-scheme fehlt."
+    # v3.9.1079: :root-Grundwert only light (gilt nur ohne Skript; das Kopfskript setzt die Wurzel inline).
+    assert re.search(r":root \{[^}]*color-scheme: only light;", roh), ":root color-scheme fehlt."
 
 
 def test_suchfeld_selektor_schlaegt_die_handyregel(roh):

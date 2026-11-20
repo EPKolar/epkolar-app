@@ -234,7 +234,9 @@ def test_10_color_scheme_folgt_app_wahl(index_html, node_exe):
           "out.push([document.documentElement.style.colorScheme,at['data-epk-thema']]);});console.log(JSON.stringify(out));")
     out = json.loads(run_node_snippet(node_exe, js))
     assert out == [["only light", "hell"], ["only light", "hell"], ["only dark", "dunkel"], ["only light", "hell"]]
-    assert '<meta name="color-scheme" content="light dark">' in index_html
+    # v3.9.1079 Samsung-Hell 3: das statische Meta steht auf der Grundwahl "only light" (vorher "light dark",
+    # am A55 ohne Wirkung); das Kopfskript zieht es auf die App-Wahl (test_samsung_hell_v1079.py).
+    assert '<meta name="color-scheme" content="only light">' in index_html
     assert ':root[data-epk-thema="hell"] { color-scheme: only light;' in index_html
     assert 'document.documentElement.style.colorScheme=dark?"only dark":"only light"' in index_html
 
