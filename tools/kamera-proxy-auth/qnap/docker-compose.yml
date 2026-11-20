@@ -3,7 +3,7 @@
 # wird hier NICHT gestartet. Caddy erreicht go2rtc ueber ${QNAP_LAN_IP}:1984, den Pruefer ueber kamera-auth:9099.
 # Aufnahmen/Surveillance Station: TABU, nichts davon wird hier beruehrt.
 #
-# Im LAN offen: <QNAP-LAN-IP>:443 (Caddy, einziger Web-Eingang) und <QNAP-LAN-IP>:8555 TCP+UDP (go2rtc WebRTC-Medien,
+# Im LAN offen: <QNAP-LAN-IP>:<GATEWAY_PORT> (Caddy, einziger Web-Eingang; Standard 8443, QTS belegt 443) und <QNAP-LAN-IP>:8555 TCP+UDP (go2rtc WebRTC-Medien,
 # direkt Browser <-> go2rtc, NICHT ueber Caddy). kamera-auth ist NICHT veroeffentlicht (nur im compose-Netz).
 # :1984 darf im LAN nicht erreichbar sein (QNAP-Firewall), sonst ginge man ohne Token an go2rtc.
 # Variablen: ENV.md (nur Namen). Werte in .env neben dieser Datei auf der QNAP, chmod 600, nie ins Repo.
@@ -34,9 +34,10 @@ services:
     depends_on: [kamera-auth]
     security_opt: ["no-new-privileges:true"]
     ports:
-      - "${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:443:443"
+      - "${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}:${GATEWAY_PORT:-8443}:${GATEWAY_PORT:-8443}"
     environment:
       - QNAP_LAN_IP=${QNAP_LAN_IP:?QNAP_LAN_IP fehlt}
+      - GATEWAY_PORT=${GATEWAY_PORT:-8443}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_daten:/data            # interne CA + Zertifikate (root.crt fuer die Firmengeraete liegt hier)
