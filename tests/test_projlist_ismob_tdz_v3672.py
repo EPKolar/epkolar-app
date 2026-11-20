@@ -36,7 +36,9 @@ def test_projlist_ismob_vor_gridcols(index_html):
     """
     body = _extract_fn(index_html, "ProjList")
     assert body, "ProjList nicht gefunden"
-    m = re.search(r"const isMob\s*=\s*ww\s*<\s*[A-Za-z0-9_]+\s*;", body)
+    # Stufe 8 Projekte (1078): isMob kommt aus der gemeinsamen Stufe (const isMob=_pjStufe==="schmal";) -
+    # dieselbe Reihenfolge-Aussage, beide Schreibweisen zaehlen.
+    m = re.search(r"const isMob\s*=\s*(?:ww\s*<\s*[A-Za-z0-9_]+|_\w*Stufe\s*===\s*\"schmal\")\s*;", body)
     assert m, ("isMob-Deklaration in ProjList nicht gefunden - weder mit "
                "Zahl noch mit Konstante. Das ist rot, nicht gruen.")
     i_decl = m.start()

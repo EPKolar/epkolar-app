@@ -221,6 +221,9 @@ table.epk-ad-karten thead { display: none; }
 table.epk-ad-karten tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 10px; padding: 10px 6px; border-bottom: 1px solid rgba(127,127,127,.3); }
 table.epk-ad-karten td { display: block; padding: 0 !important; border: none !important; text-align: left !important; min-width: 0; overflow-wrap: anywhere; }
 table.epk-ad-karten td[data-l]::before { content: attr(data-l); display: block; font-size: 12px; font-weight: 600; opacity: .75; margin-bottom: 2px; }
+/* Stufe 8 Projekte (GF 19.11.2026): in der Stufe mittel ist die Seitenleiste der Projektakte eine Ikonenleiste wie bisher nur bis 768 px. Die Klasse setzt ProjectShell aus _layoutStufe - keine Breitenabfrage hier. */
+.sidebar.sb-rail { width: 56px; }
+.sidebar.sb-rail .sb-text, .sidebar.sb-rail .sb-logo-text { display: none; }
 @media(max-width:600px) { .kpi-grid.epk-leiste { grid-template-columns: repeat(3,1fr) !important; gap: 6px !important; }
   .kpi-grid.epk-leiste > div { padding: 6px 8px !important; }
   .kpi-grid.epk-leiste > div > div:nth-child(3) { font-size: 16px !important; } }
@@ -17324,8 +17327,8 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
   const [showNew,setShowNew]=_react.useState.call(void 0, false);
   const [editP,setEditP]=_react.useState.call(void 0, null);
   const [viewMode,setViewMode]=_react.useState.call(void 0, "kacheln");/* v3.9.934: EIN offenes Menue je Liste, gehalten ueber die Projekt-Id. Ein Zustand je Karte waere ein Zustand zu viel - so kann nie mehr als eines offen sein. Der Dokument-Lauscher schliesst es beim naechsten Klick irgendwohin; der Menuekasten haelt seinen Klick selbst auf, sonst wuerde er sich beim Oeffnen sofort wieder schliessen. */const [menuFor,setMenuFor]=_react.useState.call(void 0, null);_react.useEffect.call(void 0, ()=>{if(menuFor==null)return;const _zu=()=>setMenuFor(null);document.addEventListener("click",_zu);return ()=>document.removeEventListener("click",_zu);},[menuFor]);const _meS=(warn)=>({display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"11px 14px",border:"none",background:"transparent",cursor:"pointer",fontFamily:"inherit",fontSize:UI.fText,fontWeight:warn?600:500,color:warn?UI.achtungTxt:UI.tinte,minHeight:44});const _menueKnopf=(p)=>React.createElement('button',{onClick:()=>setMenuFor(menuFor===p.id?null:p.id),title:"Aktionen",'aria-label':"Aktionen für "+(p.name||p.nr||"Projekt"),'aria-haspopup':"menu",'aria-expanded':menuFor===p.id?"true":"false",style:{width:32,height:32,minWidth:32,display:"flex",alignItems:"center",justifyContent:"center",border:"none",background:"transparent",color:UI.grau,cursor:"pointer",borderRadius:UI.rChip,padding:6,margin:-6,touchAction:"manipulation"}},_ik("menue",20));const _menueKasten=(p)=>menuFor===p.id&&/* v3.9.984: role="menu" ist nameFrom:author - es darf seinen Namen NICHT aus dem Inhalt nehmen. Ohne aria-label sagt eine Vorlesehilfe nur "Menue", auch wenn Bearbeiten/Archivieren/Loeschen darin stehen. Dieselbe Krankheit wie die namenlosen Knoepfe, eine Ebene hoeher - und fuer den Melder unsichtbar, dessen Grundgesamtheit role="button" ist. */React.createElement('div',{role:"menu","aria-label":"Projektmenü",style:{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:60,background:UI.flaeche,border:"1px solid "+UI.linie,borderRadius:UI.rKnopf,boxShadow:"0 8px 24px rgba(0,0,0,.14)",minWidth:178,overflow:"hidden"}},React.createElement('button',{role:"menuitem",onClick:()=>{setMenuFor(null);editProject(p);},style:_meS(false)},_ik("stift",17),"Bearbeiten"),p.status!=="archiv"&&React.createElement('button',{role:"menuitem",onClick:()=>{setMenuFor(null);archiveP(p.id);},style:_meS(false)},_ik("kiste",17),"Archivieren"),React.createElement('div',{style:{height:1,background:UI.linie}}),React.createElement('button',{role:"menuitem",onClick:()=>{setMenuFor(null);deleteP(p.id);},style:_meS(true)},_ik("eimer",17),"Löschen"));
-  const isMob=ww<BP_MOB;
-  const _gridCols=isMob?("150px 130px 80px 70px"+(_seeBetrag?" 90px":"")+" 54px"+(isAdmin?" 52px":"")):("2.4fr 1.3fr 1fr 80px"+(_seeBetrag?" 110px":"")+" 90px"+(isAdmin?" 60px":""));/* v3.9.935: STUNDEN sind eine eigene, rechtsbuendige Spalte geworden (70/80px). Vorher standen sie in der Projektzelle hinter der PA-Nummer - eine Zahl mitten im Text, die das Auge suchen muss. Auf dem Handy bleiben alle Spalten fix in px (die Summe ist breiter als das Sichtfeld, dafuer rollt der Kasten waagrecht), am Rechner fr-Spuren wie bisher. *//* v3.9.644 P2-3: auf Handy alle Spalten fixe px (Summe > Viewport) statt fr-Tracks, die neben den 80/50/120px-Fixspalten auf ~40px quetschten; zusammen mit overflowX:auto am Listen-Wrapper -> echtes H-Scroll. Desktop unveraendert (fr). *//* v3.9.672 HOTFIX: von vor der isMob-Deklaration hierher verschoben — _gridCols las isMob vor dessen const-Init (TDZ "Cannot access 'isMob' before initialization") -> ViewBoundary:projekte fing den ReferenceError, Tab Projekte lud nicht. isAdmin/_seeBetrag standen korrekt davor, nur isMob war zu spaet. */
+  const _pjStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_pjStufe==="schmal";const _pjMittel=_pjStufe==="mittel";/* Stufe 8 Projekte (GF 19.11.2026, EINE Oberflaeche, drei Breitenstufen): schmal = Handy wie bisher (isMob = n<BP_MOB, Grenze 599/600 unveraendert); mittel = Tablet hochkant: die Projektliste bleibt Liste (Owner-Vorgabe: Tabellen bleiben Tabellen), Spalten mit Mindestbreite statt gequetscht, Koepfe brechen nicht um, der Kasten rollt quer statt abzuschneiden; Kartenansicht zweispaltig ab 260 px; breit = unveraendert. Nur Darstellung - Handler und Schreibwege unberuehrt. */
+  const _gridCols=isMob?("150px 130px 80px 70px"+(_seeBetrag?" 90px":"")+" 54px"+(isAdmin?" 52px":"")):_pjMittel?("minmax(180px,2.4fr) minmax(130px,1.3fr) minmax(90px,1fr) 80px"+(_seeBetrag?" 110px":"")+" 90px"+(isAdmin?" 60px":"")):("2.4fr 1.3fr 1fr 80px"+(_seeBetrag?" 110px":"")+" 90px"+(isAdmin?" 60px":""));/* v3.9.935: STUNDEN sind eine eigene, rechtsbuendige Spalte geworden (70/80px). Vorher standen sie in der Projektzelle hinter der PA-Nummer - eine Zahl mitten im Text, die das Auge suchen muss. Auf dem Handy bleiben alle Spalten fix in px (die Summe ist breiter als das Sichtfeld, dafuer rollt der Kasten waagrecht), am Rechner fr-Spuren wie bisher. *//* v3.9.644 P2-3: auf Handy alle Spalten fixe px (Summe > Viewport) statt fr-Tracks, die neben den 80/50/120px-Fixspalten auf ~40px quetschten; zusammen mit overflowX:auto am Listen-Wrapper -> echtes H-Scroll. Desktop unveraendert (fr). *//* v3.9.672 HOTFIX: von vor der isMob-Deklaration hierher verschoben — _gridCols las isMob vor dessen const-Init (TDZ "Cannot access 'isMob' before initialization") -> ViewBoundary:projekte fing den ReferenceError, Tab Projekte lud nicht. isAdmin/_seeBetrag standen korrekt davor, nur isMob war zu spaet. */
   const emptyProj={nr:"",name:"",kunde:"",ort:"",plz:"",strasse:"",ansprechpartner:"",telefon:"",emailKunde:"",status:"aktiv",type:"elektro",kundenNr:"",matchcode:"",betrag:0,budgetStunden:null,budgetEuro:null,start:"",ende:"",gewerk:"",fortschritt:0,portalCode:""};
   const [form,setForm]=_react.useState.call(void 0, emptyProj);
 
@@ -17446,8 +17449,8 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
       , /* Tablet-Rest v1040 (f): Abgeschlossen (0) / Archiv (0) zeigten eine leere Flaeche ohne Wort */fil.length===0&&React.createElement('div', { 'data-epk': "proj-leer", style: {...CC(),textAlign:"center",padding:28,color:V.dm,border:"1px dashed "+V.bd,marginBottom:10}}, React.createElement('div', { 'aria-hidden': "true", style: {display:"flex",justifyContent:"center",marginBottom:8,color:V.mt}}, _ik("helm",32)), React.createElement('div', { style: {fontSize:14,fontWeight:700,color:V.tx}}, q.trim()?"Kein Projekt passt zur Suche":tab==="abgeschlossen"?"Keine abgeschlossenen Projekte":tab==="archiv"?"Keine archivierten Projekte":tab==="aktiv"?"Keine aktiven Projekte":"Noch keine Projekte"), q.trim()?React.createElement('div', { style: {fontSize:UI.fMeta,marginTop:4}}, "Suche „"+q.trim()+"“ – anderen Begriff oder den Reiter „Alle“ versuchen"):null)
       , /* PROJ-HANDY P8: Kennzahlen-Kasten entfernt - steht jetzt einmal in der Kopfzeile. */fil.length===0?null/* Tablet-Pruefung 1041 (7): Leerzustand ohne leeren Tabellenkopf */:viewMode==="liste"?
       /* ═══ LISTE VIEW ═══ */
-      React.createElement('div', { style: {borderRadius:8,border:"1px solid "+V.bd,...(isMob?{overflowX:"auto"}:{overflow:"hidden"})/* v3.9.644 P2-3: Handy H-Scroll statt overflow:hidden-Quetschen */}}
-        , /* v3.9.935 KOPFZEILE: 13px/600 grau auf #FAFBFA. Vorher 12px/700 in GROSSBUCHSTABEN mit Sperrung - das liest sich langsamer, und eine Kopfzeile ueberfliegt man hundertmal. Die Spalte Stunden ist neu dazugekommen; keine ist weggefallen. */React.createElement('div', { style: {display:"grid",gridTemplateColumns:_gridCols,gap:0,padding:"10px 12px",background:"#FAFBFA",borderBottom:"1px solid "+UI.linie,fontSize:UI.fKlein,fontWeight:600,color:UI.grau}} , React.createElement('span', {}, "Projekt") , React.createElement('span', {}, "Kunde / Ort") , React.createElement('span', {}, "Gewerk") , React.createElement('span', { style: {textAlign:"right"}}, "Stunden") , _seeBetrag&&React.createElement('span', { style: {textAlign:"right"}}, "Auftragssumme") , React.createElement('span', { style: {textAlign:"center"}}, "Fortschritt") , isAdmin&&React.createElement('span', { style: {textAlign:"right"}}, "Aktionen") )
+      React.createElement('div', { style: {borderRadius:8,border:"1px solid "+V.bd,...((isMob||_pjMittel)?{overflowX:"auto"}:{overflow:"hidden"})/* v3.9.644 P2-3: Handy H-Scroll statt overflow:hidden-Quetschen */}}
+        , /* v3.9.935 KOPFZEILE: 13px/600 grau auf #FAFBFA. Vorher 12px/700 in GROSSBUCHSTABEN mit Sperrung - das liest sich langsamer, und eine Kopfzeile ueberfliegt man hundertmal. Die Spalte Stunden ist neu dazugekommen; keine ist weggefallen. */React.createElement('div', { style: {display:"grid",gridTemplateColumns:_gridCols,gap:0,padding:"10px 12px",background:"#FAFBFA",borderBottom:"1px solid "+UI.linie,fontSize:UI.fKlein,fontWeight:600,color:UI.grau,...(_pjMittel?{whiteSpace:"nowrap"}:{})}} , React.createElement('span', {}, "Projekt") , React.createElement('span', {}, "Kunde / Ort") , React.createElement('span', {}, "Gewerk") , React.createElement('span', { style: {textAlign:"right"}}, "Stunden") , _seeBetrag&&React.createElement('span', { style: {textAlign:"right"}}, "Auftragssumme") , React.createElement('span', { style: {textAlign:"center"}}, "Fortschritt") , isAdmin&&React.createElement('span', { style: {textAlign:"right"}}, "Aktionen") )
         , fil.map((p,idx)=>{const h=hoursByProject[p.id]||0;const fPct=p.fortschritt||0;const sc=p.status==="aktiv"?"#22c55e":p.status==="abgeschlossen"?"#3b82f6":"#71717a";
           return React.createElement('div', { key: p.id, style: {display:"grid",gridTemplateColumns:_gridCols,gap:0,padding:"11px 12px",borderBottom:"1px solid "+UI.linie,cursor:"pointer",fontSize:UI.fKlein,alignItems:"center",background:"transparent",position:"relative",transition:"background .1s"}, /* v3.9.935: der Zebrastreifen ist weg. Haarlinien UND abwechselnde Flaechen sind zwei Trenner fuer dieselbe Aufgabe; einer genuegt, und der ruhigere ist die Linie. */tabIndex: 0, "aria-label": "Projekt "+(p.name||"")+" öffnen", onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();onOpen(p);}}, /* v3.9.964: mit der Tastatur erreichbar. KEIN role="button" - die Zeile enthält selbst den Menü-Knopf, und ein Knopf im Knopf ist ungültiges ARIA. */onClick: ()=>onOpen(p), onMouseEnter: e=>e.currentTarget.style.background=UI.neutralBg, onMouseLeave: e=>e.currentTarget.style.background="transparent"}
             , React.createElement('div', { style: {position:"absolute",left:0,top:0,bottom:0,width:3,background:sc}} )
@@ -17460,7 +17463,7 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
           );})
       ):
       /* ═══ KACHELN VIEW ═══ */
-      React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"repeat(auto-fill,minmax(320px,1fr))",gap:10}}
+      React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":_pjMittel?"repeat(auto-fill,minmax(260px,1fr))":"repeat(auto-fill,minmax(320px,1fr))",gap:10}}
         , fil.map(p=>{const h=hoursByProject[p.id]||0;const fPct=p.fortschritt||0;
           /* v3.9.71 S51-2 ProjList Card-Polish: Hover-Elevation + Border-Glow, prominenter Progress-Bar mit Color-Coding, Top-Right Status Color-Dot. */
           const _sc=p.status==="aktiv"?"#22c55e":p.status==="abgeschlossen"?"#3b82f6":"#71717a";
@@ -17566,8 +17569,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,navTabsAlle,entries,setEntr
   const [mobNav,setMobNav]=_react.useState.call(void 0, false);
   const [photoCount,setPhotoCount]=_react.useState.call(void 0, 0);
   const [matOrderCount,setMatOrderCount]=_react.useState.call(void 0, 0);
-  const isTab=ww<768;
-  const isMob=ww<BP_MOB;
+  const _psStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_psStufe==="schmal";const _psMittel=_psStufe==="mittel";/* Stufe 8 Projekte (GF 19.11.2026): schmal = Handy wie bisher (Grenze 599/600 unveraendert). mittel = Tablet hochkant: die Seitenleiste der Projektakte ist eine 56-px-Ikonenleiste (Klasse sb-rail aus der Stufe, bisher nur bis 768 px per CSS) - die Akte bekommt 180 px mehr Breite; frueher hiess das isTab=ww<768. breit = unveraendert. Der Kopfzeilen-Umbruch unter 1200 px bleibt die Rechner-Schwelle (nicht Teil der Tablet-Stufe). Nur Darstellung. */
   /* v3.9.1016: obere Leiste am Tablet/Rechner nach demselben Muster wie die App (sechs Hauptbereiche + Mehr, aus der gefilterten Reiterliste der App). Auf dem Handy unveraendert navTabs (untere Leiste). */
   const [_pnN,_setPnN]=_react.useState.call(void 0, 99);
   const _pnTeil=_navTeilen(navTabsAlle||navTabs||[]);
@@ -17634,7 +17636,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,navTabsAlle,entries,setEntr
     React.createElement('div', { className: "proj-shell", style: {display:"flex",height:"100dvh",overflow:"hidden"}}
       , isMob && mobNav && (React.createElement('div', { onClick: ()=>setMobNav(false), role: "button", tabIndex: 0, "aria-label": "Mobile Navigation schließen", onKeyDown: e=>{if(e.key==='Enter'||e.key===' '||e.key==='Escape'){e.preventDefault();setMobNav(false);}}, style: {position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:90}} ))
       , null/* A55-2 Fund 7: der Menueknopf stand position:fixed bei top/left 8 UEBER Kopfzeile 1 und verdeckte den Knopf 'Alle Projekte' (44x44 an derselben Stelle). Er steht jetzt IN Zeile 1 vor dem Zurueck-Knopf; Zeile 1 bricht am Handy nicht mehr um (Monteurwahl + Kamera standen in einer eigenen zweiten Zeile). *//* v3.9.1010: Linien-Ikone statt Zeichen; der Name steht im aria-label */
-      , React.createElement('div', { className: "sidebar" + (isMob && mobNav ? " mob-open" : ""), style: {background:V.sb,borderRight:"1px solid "+V.bd,display:"flex",flexDirection:"column",overflowY:"auto"}}
+      , React.createElement('div', { className: "sidebar" + (isMob && mobNav ? " mob-open" : "") + (_psMittel ? " sb-rail" : ""), style: {background:V.sb,borderRight:"1px solid "+V.bd,display:"flex",flexDirection:"column",overflowY:"auto"}}
         , React.createElement('div', { style: {padding:"10px 12px",display:"flex",alignItems:"center",borderBottom:"1px solid "+V.bd}}
           , React.createElement('img', { src: LOGO_SM, alt: "EP: Kolar & Sohn", onClick: onHome, style: {height:26,maxWidth:"100%",objectFit:"contain",cursor:"pointer",background:"#fff",borderRadius:6,padding:_dark?"3px 6px":0,boxSizing:"content-box"}} )
         )
@@ -17642,8 +17644,8 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,navTabsAlle,entries,setEntr
         , React.createElement('div', { style: {height:1,background:V.bd,margin:"4px 8px"}} )
         , React.createElement('div', { style: {flex:1,padding:6}}
           , nav.map((n,i)=>n===null?(React.createElement('div', { key: i, style: {height:1,background:V.bd,margin:"4px 8px"}} )):(
-            React.createElement('button', { key: n.id, onClick: ()=>doNav(n.id), title: n.l, style: {width:"100%",padding:isTab&&!isMob?"10px":"9px 12px",display:"flex",alignItems:"center",gap:8,border:"none",borderRadius:6,background:view===n.id?UI.markeBg:"transparent",color:view===n.id?V.acTx:V.dm/* v3.9.1010 CI: aktiv Markengruen auf Markengruen-Hauch statt Orange-Hauch */,fontSize:12,fontWeight:view===n.id?600:400,cursor:"pointer",fontFamily:"inherit",textAlign:"left",marginBottom:1,justifyContent:isTab&&!isMob?"center":"flex-start"}}
-              , React.createElement('span', { 'aria-hidden': "true", 'data-ik': n.ik, style: {display:"flex",flex:"0 0 auto"}}, _ik(n.ik,isTab&&!isMob?20:18)), React.createElement('span', { className: "sb-text"}, n.l, n.id==="fotos"&&photoCount>0&&React.createElement('span', { style: {marginLeft:6,padding:"1px 6px",borderRadius:10,fontSize:UI.fMeta,fontWeight:700,background:"rgba(249,115,22,.15)",color:"#f97316"}}, photoCount), n.id==="material"&&matOrderCount>0&&React.createElement('span', { style: {marginLeft:6,padding:"1px 6px",borderRadius:10,fontSize:UI.fMeta,fontWeight:700,background:"rgba(59,130,246,.15)",color:"#3b82f6"}}, matOrderCount))
+            React.createElement('button', { key: n.id, onClick: ()=>doNav(n.id), title: n.l, style: {width:"100%",padding:_psMittel?"10px":"9px 12px",display:"flex",alignItems:"center",gap:8,border:"none",borderRadius:6,background:view===n.id?UI.markeBg:"transparent",color:view===n.id?V.acTx:V.dm/* v3.9.1010 CI: aktiv Markengruen auf Markengruen-Hauch statt Orange-Hauch */,fontSize:12,fontWeight:view===n.id?600:400,cursor:"pointer",fontFamily:"inherit",textAlign:"left",marginBottom:1,justifyContent:_psMittel?"center":"flex-start"}}
+              , React.createElement('span', { 'aria-hidden': "true", 'data-ik': n.ik, style: {display:"flex",flex:"0 0 auto"}}, _ik(n.ik,_psMittel?20:18)), React.createElement('span', { className: "sb-text"}, n.l, n.id==="fotos"&&photoCount>0&&React.createElement('span', { style: {marginLeft:6,padding:"1px 6px",borderRadius:10,fontSize:UI.fMeta,fontWeight:700,background:"rgba(249,115,22,.15)",color:"#f97316"}}, photoCount), n.id==="material"&&matOrderCount>0&&React.createElement('span', { style: {marginLeft:6,padding:"1px 6px",borderRadius:10,fontSize:UI.fMeta,fontWeight:700,background:"rgba(59,130,246,.15)",color:"#3b82f6"}}, matOrderCount))
             )
           ))
         )
@@ -17697,6 +17699,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,navTabsAlle,entries,setEntr
 
 // ═══════════ DASHBOARD ═══════════
 function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
+  const _dsStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_dsStufe==="schmal";/* Stufe 8 Projekte (GF 19.11.2026): schmal = Handy (Kennzahlen und Fotos zweispaltig, Gewerk/Eintraege untereinander); mittel = Tablet hochkant: Gewerk und Letzte Eintraege nebeneinander (vorher erst ab 768 px), Kennzahlen und Fotos vierspaltig; breit = unveraendert. Nur Darstellung. */
   const dates=kwD(yr,kw);const pe=_react.useMemo.call(void 0, ()=>entries.filter(x=>x.p===p.id),[entries,p.id]);/* v3.9.126 Perf */
   const we=pe.filter(x=>dates.includes(x.date));const tE=pe.filter(x=>x.date===td2());
   const _h=x=>parseFloat(x.hours||x.stunden)||0;
@@ -17726,7 +17729,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
       )
       /* v3.9.1016 CI Projekt-Uebersicht: Kennzahlen neutral mit Linien-Ikonen statt 📐🎫⚠️⏱, Fortschritt in Markengruen (UI-Regel 1: Marke = Fortschritt), EIN primaerer Knopf (Zeit erfassen), der Rest sekundaer - vorher fuenf bunte Pastellknoepfe (blau/rot/orange/gruen) gleichen Gewichts. Ziele und Bedingungen unveraendert. */
       , (_projTickets.length>0||_projMaengel.length>0||_projPlans>0||setView)&&React.createElement('div', { style: {...CC(),marginBottom:14}}
-        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:ww<BP_MOB?"repeat(2,1fr)":"repeat(4,1fr)",gap:10,marginBottom:setView?10:0}}
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":"repeat(4,1fr)",gap:10,marginBottom:setView?10:0}}
           , [["lineal","Pläne",_projPlans,null],["etikett","Tickets",_projTickets.length,_projTickets.length>0?_ticketPct:null],["warnung","Mängel",_projMaengel.length,_projMaengel.length>0?_mangelPct:null],["uhr","Stunden",_projStdDE(pe.reduce((s,x)=>s+_h(x),0))+" h",null]].map(function(k){return React.createElement('div', { key: k[1], style: {padding:"10px 12px",borderRadius:UI.rKnopf,background:V.bg,border:"1px solid "+V.bd}}, React.createElement('div', { style: {display:"flex",alignItems:"center",gap:6,fontSize:UI.fMeta,color:V.dm,fontWeight:600}}, _ik(k[0],15), k[1], k[3]!=null&&React.createElement('span', { style: {marginLeft:"auto"}}, k[3], " % erledigt")), React.createElement('div', { style: {fontSize:UI.fZahl,fontWeight:800,color:V.tx,marginTop:4}}, k[2]));})
         )
         , (_projTickets.length>0||_projMaengel.length>0)&&React.createElement('div', { style: {marginTop:10}}
@@ -17746,7 +17749,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
         , React.createElement(Kpi, { label: "Gesamt Projekt" , value: _projStdDE(pe.reduce((s,x)=>s+_h(x),0))+" h", sub: _nWort(pe.length,"Buchung","Buchungen"), color: _okG("#22c55e"), i: 2} )
         , (((window._curUser&&window._curUser())||{}).role!=="monteur")&&React.createElement(Kpi, { label: "Auftragssumme", value: fmt$(p.betrag), sub: p.matchcode?("Matchcode: "+p.matchcode):undefined/* PROJ-HANDY PR12: hier stand der rohe Matchcode (z.B. DRGSCHMEIDLERS1) ohne Beschriftung. Das ist der Suchbegriff des Auftrags aus der Warenwirtschaft (kommt mit dem Projektimport, Feld projects.matchcode, steht auch im Zeiterfassungs-Export) - also beschriftet statt entfernt, das Buero sucht damit. Ohne Matchcode keine leere Zeile. */, color: "#eab308", i: 3} )/* v3.9.456 (Chef): Auftragssumme-KPI nicht fuer Monteure */
       )
-      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:ww<768?"1fr":"1fr 1fr",gap:14}}
+      , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":_dsStufe==="mittel"?"minmax(0,1fr) minmax(0,1fr)":"1fr 1fr",gap:14}}
         , React.createElement('div', { style: CC()}
           , React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:12}}, "Stunden nach Gewerk"  )
           , Object.entries(gs).length ? Object.entries(gs).sort((a,b)=>b[1]-a[1]).map(([g,h])=>(
@@ -17771,7 +17774,7 @@ function VDash({p,entries,kw,yr,ww,monteure,setView,forms,planData}){
           , React.createElement('div', { style: {fontSize:15,fontWeight:700}}, "Letzte Fotos" )
           , setView&&React.createElement('button', { onClick: ()=>setView("fotos"), style: {...bsS(),padding:"4px 10px",fontSize:UI.fMeta}}, "Alle →" )
         )
-        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat("+(ww<BP_MOB?2:4)+", 1fr)",gap:8}}
+        , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat("+(isMob?2:4)+", 1fr)",gap:8}}
           , recentPhotos.map(ph=>React.createElement('div', { key: ph.id, style: {borderRadius:8,overflow:"hidden",border:"1px solid "+V.bd,background:V.bg,cursor:"pointer",aspectRatio:"1"}, onClick: ()=>{if(setView)setView("fotos");}}, _phUrl(ph)?React.createElement('img', { src: _phUrl(ph), style: {width:"100%",height:"100%",objectFit:"cover"}, alt: ph.name||"Foto"} ):React.createElement('div', { style: {width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:V.dm}}, _ik("kamera",24))))
         )
       )
@@ -18210,8 +18213,7 @@ ${body}
 
 function VForm({p,forms,setForms,fTab,setFTab,ww}){
   const tabs=[{id:"regie",ik:"bericht",l:"Regiebericht",k:"regie"},{id:"sf",ik:"schild",l:"Schließfreigabe",k:"sf"},{id:"dh",ik:"tropfen",l:"Dichtheit",k:"dh"},{id:"ah",ik:"fieber",l:"Ausheiz",k:"ah"},{id:"abnahme",ik:"abnahme",l:"Abnahme",k:"abnahme"}];/* A55-2 Fund 12: Linien-Ikonen statt Emoji (Reiter, Uebersicht, Liste); am Handy stand im Reiter NUR das Emoji, jetzt Ikone + Name */
-  const isMob=ww<BP_MOB;
-  const _fStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));/* UI-Runde 1072: Reiter umbrechen und Formularzeilen stapeln in schmal/mittel */
+  const _fStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_fStufe==="schmal";/* Stufe 8 Projekte: isMob aus derselben Stufe (schmal = n<BP_MOB, Grenze unveraendert) statt eigener Breitenabfrage. *//* UI-Runde 1072: Reiter umbrechen und Formularzeilen stapeln in schmal/mittel */
   const counts=tabs.map(t=>({...t,cnt:(forms[t.k]||[]).filter(f=>f.pid===p.id).length}));
   const total=counts.reduce((s,c)=>s+(c.cnt||0),0);
   const [search,setSearch]=_react.useState.call(void 0, "");
@@ -18386,7 +18388,7 @@ function _clItemDone(it){ if(!it) return false; var t=it.type||"check"; if(t==="
 try{if(typeof window!=='undefined')window._clItemDone=_clItemDone;}catch(_e){}
 var CL_FIELD_TYPES=[{k:"check",l:"Häkchen",i:"☑️"},{k:"number",l:"Messwert/Zahl",i:"🔢"},{k:"text",l:"Text",i:"✏️"},{k:"date",l:"Datum",i:"📅"},{k:"select",l:"Auswahl",i:"▾"}];
 function VCheck({p,forms,setForms,ww,curUser}){
-  const isMob=ww<BP_MOB;
+  const _vcStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vcStufe==="schmal";/* Stufe 8 Projekte: isMob aus der gemeinsamen Stufe (schmal = n<BP_MOB, Grenze unveraendert); Checklisten haben keine eigene Tablet-Fassung. */
   const cls=(forms.checklisten||[]).filter(c=>c.pid===p.id);
   const [sel,setSel]=_react.useState.call(void 0, null);
   useBackLayer(!!sel, ()=>setSel(null));/* v3.9.176: Browser-Back schließt die Detail-Ansicht (statt Tab-Sprung) */
@@ -21618,8 +21620,7 @@ function VFotos({p,curUser,monteure,ww}){
   const [lbIdx,setLbIdx]=_react.useState.call(void 0, -1);
   const [capCat,setCapCat]=_react.useState.call(void 0, "schnellfoto");
   const capRef=_react.useRef.call(void 0, null);
-  const isMob=ww<BP_MOB;
-  const isTab=ww<768;
+  const _vfStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vfStufe==="schmal";/* Stufe 8 Projekte (GF 19.11.2026): isMob aus der gemeinsamen Stufe (schmal = n<BP_MOB, Grenze unveraendert). Das fruehere isTab=ww<768 (Fotoraster dreispaltig nur 600-767 px) ist die Stufe mittel: am Tablet hochkant drei Spalten, breit vier, schmal zwei. Nur Darstellung. */
   // Load photos
   _react.useEffect.call(void 0, ()=>{
     let active=true;
@@ -21732,7 +21733,7 @@ function VFotos({p,curUser,monteure,ww}){
         )
       )
       , filtered.length===0&&React.createElement('div', { style: {...CC(),textAlign:"center",padding:40,color:V.dm}}, React.createElement('div', { style: {fontSize:48,marginBottom:8,display:"flex",justifyContent:"center",}}, _ik("kamera",48)), filter==="alle"?"Noch keine Fotos in diesem Projekt.":"Keine Fotos in dieser Kategorie." , React.createElement('div', { style: {fontSize:UI.fMeta,marginTop:8}}, "Nutze den Button oben, um Fotos aufzunehmen."))
-      , filtered.length>0&&vMode==="grid"&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":isTab?"repeat(3,1fr)":"repeat(4,1fr)",gap:8}}
+      , filtered.length>0&&vMode==="grid"&&React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":_vfStufe==="mittel"?"repeat(3,1fr)":"repeat(4,1fr)",gap:8}}
         , filtered.map((ph,i)=>{const cat=_fotoCat(ph.entity_type||ph.entityType);return (
           React.createElement('div', { key: ph.id, role: "button", tabIndex: 0, onClick: ()=>setLbIdx(i), onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();setLbIdx(i);}}, style: {...CC(),padding:0,overflow:"hidden",cursor:"pointer",margin:0,position:"relative"}}
             , React.createElement('div', { style: {height:isMob?120:160,background:_dark?"#0a0c14":V.bd,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}
@@ -21826,7 +21827,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const [newSubName,setNewSubName]=_react.useState.call(void 0, "");
   const [treeOpen,setTreeOpen]=_react.useState.call(void 0, true); // mobile toggle
   const fr=_react.useRef.call(void 0, null);
-  const isMob=ww<BP_MOB;
+  const _vdStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vdStufe==="schmal";const _vdMittel=_vdStufe==="mittel";/* Stufe 8 Projekte (GF 19.11.2026): schmal = Handy wie bisher (Ordnerbaum aufklappbar ueber der Liste); mittel = Tablet hochkant: Baum 200 px neben der Liste, Dokumentkacheln ab 240 px (vorher 280 px - neben dem Baum passte am Tablet keine Kachel ohne Querrollen); breit = unveraendert. Nur Darstellung. */
 
   _react.useEffect.call(void 0, ()=>{let a=true;
     (async()=>{try{
@@ -22005,10 +22006,10 @@ function VDoku({p,ww,curUser,forms,setForms}){
   const allFolderOpts=flatFolderOpts("",0);
 
   // ─── RENDER ───
-  const treeW=isMob?"100%":"240px";
+  const treeW=isMob?"100%":_vdMittel?"200px":"240px";
   const rootFolders=getChildren("");
 
-  const treePanel=React.createElement('div', {style:{width:isMob?"100%":treeW,minWidth:isMob?"auto":200,flexShrink:0,borderRight:isMob?"none":"1px solid "+V.bd,paddingRight:isMob?0:10,marginBottom:isMob?10:0,maxHeight:isMob?"none":"70vh",overflowY:"auto"}},
+  const treePanel=React.createElement('div', {style:{width:isMob?"100%":treeW,minWidth:isMob?"auto":_vdMittel?180:200,flexShrink:0,borderRight:isMob?"none":"1px solid "+V.bd,paddingRight:isMob?0:10,marginBottom:isMob?10:0,maxHeight:isMob?"none":"70vh",overflowY:"auto"}},
     React.createElement('div', {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
       React.createElement('div', {style:{fontSize:12,fontWeight:700,color:V.dm,textTransform:"uppercase",borderLeft:"3px solid "+COLORS.EP_GREEN,paddingLeft:8,letterSpacing:.5}},"Ordner"),
       _canEditDoc&&React.createElement('button', { title: showNewFolder?"Abbrechen":"Neuen Ordner anlegen", 'aria-label': showNewFolder?"Abbrechen":"Neuen Ordner anlegen",onClick:()=>setShowNewFolder(!showNewFolder),style:{border:"none",background:"transparent",color:V.acTx,cursor:"pointer",fontSize:12,fontFamily:"inherit",minWidth:24,minHeight:24,fontWeight:700}}, showNewFolder?"✕":"+ Neu")
@@ -22105,7 +22106,7 @@ function VDoku({p,ww,curUser,forms,setForms}){
           ))
 
           /* File grid */
-          , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":"repeat(auto-fill,minmax(280px,1fr))",gap:8}}
+          , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr":_vdMittel?"repeat(auto-fill,minmax(min(100%,240px),1fr))":"repeat(auto-fill,minmax(280px,1fr))",gap:8}}
             , fil.map(d=>{const catInfo=DOC_CATS.find(c=>c.id===d.cat)||DOC_CATS[DOC_CATS.length-1];const ext=_optionalChain([(d.filename||""), 'access', _456 => _456.split, 'call', _457 => _457("."), 'access', _458 => _458.pop, 'call', _459 => _459(), 'optionalAccess', _460 => _460.toUpperCase, 'call', _461 => _461()])||"?";const sizeStr=d.size>BYTES_MB?(_n((d.size/BYTES_MB),1)+"MB"):d.size>0?(_n((d.size/BYTES_KB),0)+"KB"):"";const docFolder=folders.find(f=>f.id===d.folderId);
               return (React.createElement('div', { key: d.id, style: {...CC(),cursor:"pointer",position:"relative"}, onClick: ()=>openDoc(d)}
                 , React.createElement('div', { style: {display:"flex",gap:10,alignItems:"flex-start"}}
@@ -22183,7 +22184,7 @@ const HKLSE_CHIPS=[
   {id:"allgemein",l:"Allgemein",c:"#71717a",chips:["Baustelleneinrichtung","Material","Schlitze stemmen","Durchbrüche","Kernbohrung","Besprechung","Aufmaß","Dokumentation","Übergabe","Mängelbehebung","Reinigung"]}
 ];
 function VBautag({p,curUser,monteure,ww,entries}){
-  /* v3.9.955 VBautag war die EINZIGE Stelle, an der Tabletbreite 'mobil' hiess. Sechs andere Stellen mit ww<768 nennen die Variable isTab oder vergleichen inline - sie meinen ausdruecklich die Tabletschwelle. Hier hiess sie isMob, und damit rendert ein Tablet zwischen 600 und 767 px die HANDY-Fassung, waehrend der Rest der App die Desktop-Fassung zeigt. Zwei Mobilschwellen in einer App sind eine Falle: wer BP_MOB aendert, aendert 28 Stellen und diese eine nicht. VERHALTENSAENDERUNG, gewollt und gemessen: zwischen 600 und 767 px zeigt das Bautagebuch ab jetzt die Desktop-Fassung. Vorher und nachher bei 390, 640, 767 und 1440 px gemessen; der Vorher-Stand liegt als eingefrorene Kopie vor. */const isMob=ww<BP_MOB;const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
+  /* v3.9.955 VBautag war die EINZIGE Stelle, an der Tabletbreite 'mobil' hiess. Sechs andere Stellen mit ww<768 nennen die Variable isTab oder vergleichen inline - sie meinen ausdruecklich die Tabletschwelle. Hier hiess sie isMob, und damit rendert ein Tablet zwischen 600 und 767 px die HANDY-Fassung, waehrend der Rest der App die Desktop-Fassung zeigt. Zwei Mobilschwellen in einer App sind eine Falle: wer BP_MOB aendert, aendert 28 Stellen und diese eine nicht. VERHALTENSAENDERUNG, gewollt und gemessen: zwischen 600 und 767 px zeigt das Bautagebuch ab jetzt die Desktop-Fassung. Vorher und nachher bei 390, 640, 767 und 1440 px gemessen; der Vorher-Stand liegt als eingefrorene Kopie vor. */const _btStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_btStufe==="schmal";/* Stufe 8 Projekte: isMob aus der gemeinsamen Stufe (schmal = n<BP_MOB, Grenze unveraendert). */const isAdmin=curUser.role==="admin"||curUser.role==="projektleiter";
   /* v3.9.25 KRITISCH P1-Followup: VBautag edit-pencil — Field-User darf nur EIGENE Bautagebuch-Berichte editieren.
      Eigen = erstelltVon matched eigenen Namen ODER anwesende enthält eigene monteurId. Admin/PL editieren alles. */
   const _vbIsField=curUser&&!isAdmin&&(curUser.role==="monteur"||curUser.role==="helfer"||curUser.role==="techniker"||curUser.role==="obermonteur");
@@ -34580,7 +34581,7 @@ function AnmeldungSection({workerId,canEdit,isMob,curUser}){
 }
 
 function VGefahrstoff({curUser, ww}){
-  const isMob=ww<BP_MOB;
+  const _gsStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_gsStufe==="schmal";/* Stufe 8 Projekte: isMob aus der gemeinsamen Stufe (schmal = n<BP_MOB, Grenze unveraendert). */
   const canEdit=canDo("gefahrstoff_edit",curUser);
   const [folders,setFolders]=_react.useState.call(void 0, []);
   const [files,setFiles]=_react.useState.call(void 0, []);

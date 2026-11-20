@@ -168,6 +168,6 @@ def test_projektakte_kopf_kunde_ort_eigene_zeile(index_html):
     # die Ellipse innen bleibt als letzter Rueckfall
     a = index_html.index('className: "topbar-detail", title:')
     assert 'whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"' in index_html[a:a + 1200]
-    # ww ist in ProjectShell gebunden (isTab=ww<768 steht vor dem Kopf)
+    # ww ist in ProjectShell gebunden (die Stufen-Deklaration aus ww steht vor dem Kopf; bis 1077 war es isTab=ww<768)
     k = index_html.index('className: "topbar-detail", title:')
-    assert index_html.rfind("const isTab=ww<768;", 0, k) > k - 20000
+    assert index_html.rfind("const _psStufe=_layoutStufe(ww,", 0, k) > k - 20000

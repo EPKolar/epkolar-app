@@ -203,8 +203,10 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # (isMob = Stufe "schmal" = n<BP_MOB); Schwelle unveraendert (test_stufe_zeiterfassung_v1075, test_stufe_bueroexport_v1076).
     # Stufe 7 Administration (1077): 25 -> 24. AdminPanel fragt _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB);
     # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert (tests/test_stufe_admin_v1077.py).
-    assert roh.count("ww<BP_MOB") == 24, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration
-        "Erwartet 24 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 8 Projekte (1078): 24 -> 14. ProjList, ProjectShell, VDash (2 Stellen), VForm, VCheck, VFotos, VDoku, VBautag,
+    # VGefahrstoff fragen _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB); Schwelle unveraendert (tests/test_stufe_projekte_v1078.py).
+    assert roh.count("ww<BP_MOB") == 14, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte
+        "Erwartet 14 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
@@ -212,7 +214,9 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
 # v1066: VPlan weggefallen - in die gemeinsame Breitenstufe gewandert (siehe test_stufe_planung_v1066).
 # Stufe 4 Werkzeuge (19.11.2026): beide WerkzeugView-Stellen weggefallen - Karten/Tabelle fragt _layoutStufe
 # (Karten schmal, Tabelle mittel+breit; siehe test_stufe_werkzeuge_v1073).
-_TABLET_ERLAUBT = ["ProjectShell", "VDash", "VFotos"]
+# Stufe 8 Projekte (1078): ProjectShell, VDash und VFotos weggefallen - Ikonenleiste, Dashboard-Spalten und
+# Fotoraster fragen _layoutStufe (Stufe mittel; siehe test_stufe_projekte_v1078). Die Liste ist jetzt leer.
+_TABLET_ERLAUBT = []
 
 
 def test_die_tablet_schwellen_sind_unangetastet(roh):
@@ -244,7 +248,15 @@ def test_die_tablet_schwellen_sind_unangetastet(roh):
     spannen = _komm_spannen(roh)
     im_code = [m.start() for m in re.finditer(r"ww\s*<\s*768", roh)
                if not _im_kommentar(spannen, m.start())]
-    assert im_code, (
+    # Seit Stufe 8 (1078) gibt es keine erlaubte Stelle mehr. Damit "nichts gefunden" kein blinder Zaehler
+    # ist, bekommt er einen Koeder im CODE vorgelegt, den er finden MUSS.
+    anker = 'const isMob=_vdStufe==="schmal";'
+    assert anker in roh
+    koeder = roh.replace(anker, anker + "const _k768=ww<768;", 1)
+    ksp = _komm_spannen(koeder)
+    assert [m.start() for m in re.finditer(r"ww\s*<\s*768", koeder) if not _im_kommentar(ksp, m.start())], (
+        "KOEDER NICHT GEFUNDEN: der Kommentarzaehler haelt Code fuer Kommentar.")
+    assert im_code or not _TABLET_ERLAUBT, (
         "Keine einzige ww<768-Stelle im Code gefunden. Das ist kein gruenes "
         "Ergebnis: die sechs bewussten Tabletschwellen MUESSEN da sein. "
         "Entweder sind sie verlorengegangen, oder der Kommentarzaehler irrt "

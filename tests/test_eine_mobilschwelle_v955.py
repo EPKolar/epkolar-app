@@ -75,11 +75,11 @@ PFAD = os.path.join(os.path.dirname(__file__), "..", "index.html")
 # Stufe 4 Werkzeuge (19.11.2026): die beiden WerkzeugView-Stellen (ww<768 Karten statt Tabelle) sind
 # WEGGEFALLEN - in die gemeinsame Breitenstufe gewandert (const _wzStufe=_layoutStufe(...)). Karten jetzt
 # nur in schmal, die Tabelle in mittel und breit (gesichert in tests/test_stufe_werkzeuge_v1073.py).
-ERLAUBT = [
-    "ProjectShell",
-    "VDash",
-    "VFotos",
-]
+# Stufe 8 Projekte (1078): ProjectShell (isTab, Ikonenleiste), VDash (Gewerk/Eintraege zweispaltig) und VFotos
+# (Fotoraster dreispaltig) sind WEGGEFALLEN - in die gemeinsame Breitenstufe gewandert (Stufe mittel; gesichert
+# in tests/test_stufe_projekte_v1078.py). Keine ww<768-Stelle bleibt; die Liste ist bewusst leer, ein Neuzugang
+# wird damit rot.
+ERLAUBT = []
 
 
 def _lies():
@@ -128,6 +128,10 @@ def test_vbautag_haengt_an_bp_mob():
     """Die eigentliche Aussage: im Bautagebuch steht BP_MOB, nicht 768."""
     roh = _lies()
     stellen = code_scan.nur_code_stellen(roh, "const isMob=ww<BP_MOB;")
+    # Stufe 8 Projekte (1078): VBautag fragt die gemeinsame Stufe - isMob = Stufe "schmal", und die ist
+    # in _layoutStufe genau n<BP_MOB (tests/test_stufe_projekte_v1078.py fuehrt das fuer 599/600 aus).
+    stellen += code_scan.nur_code_stellen(
+        roh, 'const _btStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_btStufe==="schmal";')
     ansichten = {_umschliessende_ansicht(roh, p) for p in stellen}
     assert "VBautag" in ansichten, (
         "VBautag fuehrt keine Zeile `const isMob=ww<BP_MOB;`. Gefunden wurde "
