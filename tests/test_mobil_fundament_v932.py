@@ -203,10 +203,11 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # (isMob = Stufe "schmal" = n<BP_MOB); Schwelle unveraendert (test_stufe_zeiterfassung_v1075, test_stufe_bueroexport_v1076).
     # Stufe 7 Administration (1077): 25 -> 24. AdminPanel fragt _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB);
     # Schwelle unveraendert, die Stelle ist in die gemeinsame Stufe gewandert (tests/test_stufe_admin_v1077.py).
-    # Stufe 8 Projekte (1078): 24 -> 14. ProjList, ProjectShell, VDash (2 Stellen), VForm, VCheck, VFotos, VDoku, VBautag,
-    # VGefahrstoff fragen _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB); Schwelle unveraendert (tests/test_stufe_projekte_v1078.py).
-    assert roh.count("ww<BP_MOB") == 14, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte
-        "Erwartet 14 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 8 Projekte (1078): -10 (ProjList, ProjectShell, VDash x2, VForm, VCheck, VFotos, VDoku, VBautag, VGefahrstoff);
+    # Stufe 9 (1078): -3 (FlotteView, FahrzeugView, BauprovisorienView). Alle fragen _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB);
+    # Schwelle unveraendert (tests/test_stufe_projekte_v1078.py, tests/test_stufe_flotte_v1078.py). 24 -> 11.
+    assert roh.count("ww<BP_MOB") == 11, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte + Flotte/Fahrzeuge/Bauprovisorien
+        "Erwartet 11 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.

@@ -198,8 +198,8 @@ def test_umkehr_abdeckung_findet_neuen_vergleich(roh):
     assert _fremde_breiten(kaputt, "VBautag")
 
 
-def test_pin_zaehlt_vierzehn(roh):
-    assert roh.count("ww<BP_MOB") == 14
+def test_pin_zaehlt_elf(roh):  # 1078: zusammen mit Stufe 9 (Flotte, -3) sind es 11
+    assert roh.count("ww<BP_MOB") == 11
 
 
 # ── 3. Nur Darstellung: Rueckbau ergibt origin/main byte-gleich ────────────
