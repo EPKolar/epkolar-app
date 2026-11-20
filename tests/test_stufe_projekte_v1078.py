@@ -199,7 +199,8 @@ def test_umkehr_abdeckung_findet_neuen_vergleich(roh):
 
 
 def test_pin_zaehlt_elf(roh):  # 1078: zusammen mit Stufe 9 (Flotte, -3) sind es 11
-    assert roh.count("ww<BP_MOB") == 11
+    # Stufe 10 (1079): StundenzettelView x2 + MitarbeiterView -3 -> 8 (tests/test_stufe_stunden_v1079.py).
+    assert roh.count("ww<BP_MOB") == 8
 
 
 # ── 3. Nur Darstellung: Rueckbau ergibt origin/main byte-gleich ────────────

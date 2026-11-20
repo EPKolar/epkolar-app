@@ -206,8 +206,11 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # Stufe 8 Projekte (1078): -10 (ProjList, ProjectShell, VDash x2, VForm, VCheck, VFotos, VDoku, VBautag, VGefahrstoff);
     # Stufe 9 (1078): -3 (FlotteView, FahrzeugView, BauprovisorienView). Alle fragen _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB);
     # Schwelle unveraendert (tests/test_stufe_projekte_v1078.py, tests/test_stufe_flotte_v1078.py). 24 -> 11.
-    assert roh.count("ww<BP_MOB") == 11, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte + Flotte/Fahrzeuge/Bauprovisorien
-        "Erwartet 11 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 10 Monatsabrechnung/Mitarbeiter: -3 (StundenzettelView x2, MitarbeiterView fragen _layoutStufe,
+    # isMob = Stufe "schmal" = n<BP_MOB; Schwelle unveraendert, tests/test_stufe_stunden_v1079.py). Nur diese drei
+    # Stellen sind hier abgezogen - Umbauten auf anderen Zweigen zaehlen dort selbst. 11 -> 8.
+    assert roh.count("ww<BP_MOB") == 8, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte + Flotte/Fahrzeuge/Bauprovisorien; Stufe 10: Monatsabrechnung + Mitarbeiter
+        "Erwartet 8 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.
@@ -287,7 +290,10 @@ def test_die_endreserve_haengt_an_der_leistenhoehe(roh):
     assert "--epk-bar-h:58px" in roh, "Die Leistenhoehe ist nicht als Groesse hinterlegt."
     assert "--epk-bar-warn:24px" in roh, (
         "Der Sync-Streifen ueber der Leiste ist nicht beruecksichtigt.")
-    m = re.search(r'padding:ww<BP_MOB\?"0 0 ([^"]+)"', roh)
+    # Stufe 10 (1079): die Monatsabrechnung fragt _layoutStufe - dieselbe Reserve haengt jetzt an
+    # isMob (= Stufe "schmal" = n<BP_MOB, tests/test_stufe_stunden_v1079.py). Genau EINE Fundstelle.
+    assert len(re.findall(r'padding:(?:ww<BP_MOB|isMob)\?"0 0 ', roh)) == 1
+    m = re.search(r'padding:(?:ww<BP_MOB|isMob)\?"0 0 ([^"]+)"', roh)
     assert m, "Die Endreserve am rollenden Kasten wurde nicht gefunden."
     ausdruck = m.group(1)
     assert "var(--epk-bar-h" in ausdruck and "var(--epk-bar-warn" in ausdruck, (
