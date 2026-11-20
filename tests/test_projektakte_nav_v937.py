@@ -163,9 +163,11 @@ def test_die_mehr_liste_zeigt_ikone_und_text(rumpf):
 
 def test_der_maengel_zaehler_nimmt_die_formel_aus_projlist(rumpf):
     """Keine neue Berechnung, kein zweites Praedikat."""
-    assert ('(forms&&forms.maengel||[]).filter(x=>x.pid===p.id&&'
-            'x.status==="offen").length') in rumpf, (
-        "Der Maengel-Zaehler rechnet anders als ProjList.")
+    # 1085 (P3-Funde): EINE Offen-Regel _mgIstOffen (offen + in Behebung, alte Statuswerte gemappt) - ProjList und
+    # ProjectShell nutzen weiterhin DIESELBE Formel (vorher x.status==="offen"; zaehlte "in_arbeit" nicht mit).
+    formel = '(forms&&forms.maengel||[]).filter(x=>x.pid===p.id&&_mgIstOffen(x)).length'
+    assert formel in rumpf, "Der Maengel-Zaehler rechnet anders als ProjList."
+    assert 'x.status==="offen").length' not in rumpf
 
 
 # ── 6. Die Leisten haben Platz getauscht ──────────────────────────────────
