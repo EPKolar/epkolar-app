@@ -225,9 +225,13 @@ def _sz_zurueck(src):
     return v
 
 
+# A55 Runde 3 (1084), nur Darstellung - gemessen: nimmt man genau diese zwei Aenderungen zurueck, ergeben
+# sich wieder die alten Werte (ma 2eac1ef87d05cb693777765ab84edd1b, sz d6ec951803b6a6041939cb42eb7c4e3d):
+#   ma: Platzhalter "Mitarbeiter auswaehlen" am Handy weg (isMob ? null, wie Administration 1080)
+#   sz: Monatsabrechnung MA-Filter am Handy eigene Zeile (flex:isMob?"1 1 100%":1)
 MD5 = {
-    "ma": "2eac1ef87d05cb693777765ab84edd1b",
-    "sz": "d6ec951803b6a6041939cb42eb7c4e3d",
+    "ma": "240ee69acea97156c3d1970d09942a88",
+    "sz": "8f5c7ae1c5e2e562db679ef16bd2bcfb",
 }
 ZURUECK = {"ma": _ma_zurueck, "sz": _sz_zurueck}
 

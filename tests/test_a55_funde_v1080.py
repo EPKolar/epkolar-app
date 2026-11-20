@@ -141,7 +141,10 @@ def test_2_admin_platzhalter_nicht_am_handy(roh):
 
 
 def test_2_admin_umkehrprobe(roh):
-    alt = re.sub(r"\) : isMob \? null/\*[^*]*\*/ : \(", ") : (", roh, count=1)
+    # A55 Runde 3 (1084): MitarbeiterView (steht VOR AdminPanel) traegt jetzt dasselbe Muster - die
+    # Umkehr muss deshalb im AdminPanel ansetzen, sonst traefe count=1 den Mitarbeiter-Platzhalter.
+    a = _admin(roh)
+    alt = roh.replace(a, re.sub(r"\) : isMob \? null/\*[^*]*\*/ : \(", ") : (", a, count=1), 1)
     assert alt != roh
     assert not _admin_platzhalter_nur_breit(alt)
 
@@ -155,7 +158,7 @@ console.log(JSON.stringify([_adUserZeile('lager',undefined),_adUserZeile('lager'
     r = json.loads(run_node_snippet(node_exe, js))
     assert r == ["@lager", "@lager", "@lager · Monteur", "Monteur", "", "@x · Büro"]
     a = _admin(roh)
-    assert "_adUserZeile(u.username,(rl2&&rl2.l)||u.role)" in a
+    assert "_adUserZeile(u.username,(rl2&&rl2.l)||_rolleAnzeige(u.role))" in a  # A55 Runde 3 (1084): Kiosk-Rollen deutsch statt Rohschluessel
     # Umkehrprobe: der alte Ausdruck haengte den Trenner immer an
     assert "\"@\", u.username, \" · \"  , _optionalChain([rl2" not in a
     alt = "".join(["@", "lager", " · ", ""])
