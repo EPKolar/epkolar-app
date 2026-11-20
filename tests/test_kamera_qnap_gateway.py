@@ -196,6 +196,9 @@ def pruefe_caddy(text):
         b.append("IP-Adresse")
     if not re.search(r"^\ttls internal$", c, re.M):
         b.append("tls internal fehlt")
+    # Aufruf per IP ohne SNI (Browser/curl): ohne default_sni findet Caddy im Container kein Zertifikat (20.11.2026 gemessen)
+    if not re.search(r"^\tdefault_sni \{\$QNAP_LAN_IP\}$", c, re.M):
+        b.append("default_sni fehlt")
     if re.search(r"^\s*tls /", c, re.M):
         b.append("Zertifikat-Datei aktiv (nur auskommentiert erlaubt)")
     # Port konfigurierbar (QTS belegt 443): Site = {$QNAP_LAN_IP}:{$GATEWAY_PORT}
@@ -332,6 +335,7 @@ def _mjpeg_block_ohne_forward_auth(s):
     (_mjpeg_block_ohne_forward_auth, "forward_auth nicht vor"),
     (lambda s: _mut(s, "\thandle {\n\t\trespond 404\n\t}", ""), "Catch-all"),
     (lambda s: _mut(s, "\ttls internal\n", "\t# tls internal\n"), "tls internal"),
+    (lambda s: _mut(s, "\tdefault_sni {$QNAP_LAN_IP}\n", ""), "default_sni"),
     (lambda s: _mut(s, "\t\t\t\theader_up -X-Original-URI\n", ""), "Kopf-Regel"),
     (lambda s: _mut(s, "reverse_proxy {$QNAP_LAN_IP}:1984 {", "reverse_proxy go2rtc:1984 {"), "reverse_proxy-Ziel"),
     (lambda s: _mut(s, "\t#   tls /zertifikate/kamera.crt", "\ttls /zertifikate/kamera.crt"), "Zertifikat-Datei aktiv"),
