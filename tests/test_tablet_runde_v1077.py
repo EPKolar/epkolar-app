@@ -235,7 +235,8 @@ def test_11_kein_stoppropagation_im_start(index_html):
 
 # ---------------------------------------------------------------- 12 Kleinigkeiten
 def test_12_kleinigkeiten(index_html):
-    assert 'maxWidth:"9em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",verticalAlign:"bottom"}}, akt.l):"Mehr"' in index_html
+    # 1084 P3 (3): 9em -> 10em - "Monatsabrechnung" stand gekappt (108/112 px mittel, 117/121 px breit); der Riegel bleibt: ueberlange Namen kuerzt der Knopf weiter (test_p3_funde_v1084.py)
+    assert 'maxWidth:"10em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",verticalAlign:"bottom"}}, akt.l):"Mehr"' in index_html
     assert 'gap:12,flexWrap:"wrap",rowGap:8}}/* v3.9.1050 A55' in index_html
     assert 'visibility:da?"visible":"hidden",userSelect:"none",WebkitUserSelect:"none"' in index_html
     assert 'curUser&&curUser.role==="admin"&&React.createElement(\'details\', { \'data-technik\': "verbindung"' in index_html

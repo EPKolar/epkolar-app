@@ -576,7 +576,7 @@ def test_zusammenfassung_zaehlt_nicht_die_gefilterte_liste(fn_mangel):
         "Die Kopfzahlen kommen weiter aus der statusgefilterten Liste - "
         "'Behoben 0' auf einem Blatt, auf dem behobene Maengel existieren."
     )
-    assert 'msF.filter(m=>m.status==="behoben").length' in fn_mangel, (
+    assert 'msF.filter(m=>_mgStSicht(m.status)==="behoben").length' in fn_mangel, (  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Zaehler) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
         "Die Kopfzahlen zaehlen nicht aus msF (derselben Menge wie die "
         "Status-Chips am Bildschirm)."
     )
@@ -623,7 +623,7 @@ def test_positivkontrolle_report_druckt_was_man_sieht(index_html, fn_mangel):
     """WIDERLEGTER BEFUND - der Kommentar ueber genMangelPdf sagt "nutzt msF",
     der Code nimmt msV. msV ist das Richtige (v3.9.875: msV = msF + Status =
     WAS MAN WIRKLICH SIEHT). Riegel, damit niemand den Kommentar 'repariert'."""
-    assert "const msV=msF.filter(m=>fSt===\"alle\"||m.status===fSt);" in index_html
+    assert "const msV=msF.filter(m=>fSt===\"alle\"||_mgStSicht(m.status)===fSt);" in index_html  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Zaehler) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
     assert "const list=msV.slice()" in fn_mangel, (
         "Der Report druckt nicht mehr die sichtbare Liste (msV)."
     )
@@ -670,8 +670,8 @@ def test_umkehrprobe_riegel_schlagen_beim_rueckbau_an(index_html):
          "w.id===cl.created_by",
          "false"),
         ("Maengel-Zaehler",
-         'msF.filter(m=>m.status==="behoben").length',
-         'list.filter(m=>m.status==="behoben").length'),
+         'msF.filter(m=>_mgStSicht(m.status)==="behoben").length',  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Zaehler) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
+         'list.filter(m=>_mgStSicht(m.status)==="behoben").length'),
     ]
     for name, neu, alt in rueckbau:
         assert neu in index_html, (

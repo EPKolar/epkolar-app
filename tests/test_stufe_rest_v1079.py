@@ -126,7 +126,7 @@ def test_umkehr_verschobene_handygrenze_waere_rot(roh, node_exe):
 MD5 = {
     "App": "ec5715659ec88527283c2feadc72fa0c",  # 1081 Render-Funde: P2-1 Reiter ueber perm-Schluessel (_katNachListe/_katAusVerlauf, katP im Verlauf), P2-3 Kopf-Logo in mittel, P3a addToast mit _fehlerDeutsch, P3d Netzstreifen - bewusste Aenderungen (Zeilendiff gegen 9ccd9ed geprueft), Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher c6d7f9d1cb1e2b8517d3968b14f655e7
     "HomeView": "c86ca7b03e675361a1d9456b7f24ce52",  # 1079: Samsung-Zweig zeigt die Version ueber _verAnzeige (ohne -supabase) - bewusste Aenderung, Pruefsumme nachgezogen
-    "WeekPlan": "aee55d9dc37dda2d1c26ccae5970eb0c",
+    "WeekPlan": "0aab4acb011c0b14ce1c21b434d74bdc",  # 1084 P3 (2): MA-Chip der Tageszelle bricht in mittel um statt "Pasch..." (whiteSpace normal, Silbentrennung, 3px Innenabstand) - einzige Abweichung, Diff gegen 24eca7f geprueft, bewusste Aenderung (Riegel in test_p3_funde_v1084.py); vorher aee55d9dc37dda2d1c26ccae5970eb0c
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",
     "ChefDashboard": "91da847b0545367d5f82b752b9ab2469",  # 1080 A55 (4): topOver ohne Kappung auf 8, Titel 'Kritisch überfällig' ohne 'die ältesten N' - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
     "AuswertungView": "01ec1e729f29416681c33602bfb3365c",

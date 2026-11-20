@@ -68,7 +68,7 @@ def test_msF_ist_grundmenge_plus_prio(index_html):
 
 def test_msV_ist_das_wirklich_sichtbare(index_html):
     block = _vmang(index_html)
-    assert 'const msV=msF.filter(m=>fSt==="alle"||m.status===fSt);' in block, (
+    assert 'const msV=msF.filter(m=>fSt==="alle"||_mgStSicht(m.status)===fSt);' in block, (  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Chip/Filter) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
         "msV fehlt oder ist veraendert - msV ist die Menge, die der Nutzer sieht.\n" + block[:600]
     )
 
@@ -76,7 +76,7 @@ def test_msV_ist_das_wirklich_sichtbare(index_html):
 def test_prio_basis_laesst_die_prio_frei(index_html):
     """Die Prio-Zaehler duerfen nicht aus einer nach Prio gefilterten Menge zaehlen."""
     block = _vmang(index_html)
-    assert 'const _msPrioBasis=_msWS.filter(m=>fSt==="alle"||m.status===fSt);' in block, (
+    assert 'const _msPrioBasis=_msWS.filter(m=>fSt==="alle"||_mgStSicht(m.status)===fSt);' in block, (  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Chip/Filter) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
         "_msPrioBasis fehlt oder filtert falsch:\n" + block[:600]
     )
     assert "_msPrioBasis=_msF" not in block and "_msPrioBasis=msF" not in block, (
@@ -113,7 +113,7 @@ def test_sammelauswahl_greift_nur_auf_sichtbares(index_html):
 def test_status_zaehler_bleiben_auf_msF(index_html):
     """Bewusste Grenze: die Status-Chips MUESSEN aus msF zaehlen, nicht aus msV -
     sonst zeigt nach einem Klick jeder andere Chip 0."""
-    assert 's==="alle"?msF.length:msF.filter(m=>m.status===s).length' in index_html, (
+    assert 's==="alle"?msF.length:msF.filter(m=>_mgStSicht(m.status)===s).length' in index_html, (  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Chip/Filter) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
         "Die Status-Zaehler wurden auf msV umgestellt. Dann zeigt nach einem Klick "
         "auf 'offen' der Chip 'behoben' 0 an - und niemand filtert zurueck."
     )
@@ -137,7 +137,7 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
     )
 
     alt2 = index_html.replace(
-        'const _msPrioBasis=_msWS.filter(m=>fSt==="alle"||m.status===fSt);', "", 1)
+        'const _msPrioBasis=_msWS.filter(m=>fSt==="alle"||_mgStSicht(m.status)===fSt);', "", 1)  # 1084 P3 (4): Status ueber _mgStSicht (Altwerte wie in_arbeit fielen aus jedem Chip/Filter) - Anker nachgezogen, Riegel unveraendert scharf (test_p3_funde_v1084.py)
     assert alt2 != index_html, "Rueckbau 2 griff nicht - Anker veraltet"
     try:
         _vmang(alt2)
