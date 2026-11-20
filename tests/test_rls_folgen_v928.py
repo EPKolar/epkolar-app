@@ -241,6 +241,9 @@ function _rlsLeer(l){ try{ return !!(l && l.__rlsFehler); }catch(e){ return fals
 var _rowsFuerLauf = null;
 async function _sbGetOrder(){ return _rowsFuerLauf; }
 function setPhotos(x){ _angezeigt = x; }
+// 1086 Render-Funde: der Ladepfad merkt Lesefehler fuer die Fehleranzeige (_setFotoFehl). Fuer diesen
+// Riegel nur Anzeige-Zustand - Ersatz ohne Wirkung, gemessen wird weiter Vorrat/Anzeige.
+function _setFotoFehl(){}
 var API = { getToken: function(){ return "jwt"; } };
 var p = { id: "P-1" };
 var active = true;
