@@ -206,8 +206,11 @@ def test_im_code_steht_keine_nackte_600er_schwelle_mehr(roh):
     # Stufe 8 Projekte (1078): -10 (ProjList, ProjectShell, VDash x2, VForm, VCheck, VFotos, VDoku, VBautag, VGefahrstoff);
     # Stufe 9 (1078): -3 (FlotteView, FahrzeugView, BauprovisorienView). Alle fragen _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB);
     # Schwelle unveraendert (tests/test_stufe_projekte_v1078.py, tests/test_stufe_flotte_v1078.py). 24 -> 11.
-    assert roh.count("ww<BP_MOB") == 11, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte + Flotte/Fahrzeuge/Bauprovisorien
-        "Erwartet 11 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
+    # Stufe 11 Rest (1079): -7 (App-Deklaration, HomeView, WeekPlan, ChartBox, ChefDashboard, AuswertungView, KameraView).
+    # Alle fragen _layoutStufe (isMob = Stufe "schmal" = n<BP_MOB); App main-pad bleibt (gepinnt, test_scan1051_funde_v1053).
+    # Schwelle unveraendert (tests/test_stufe_rest_v1079.py). 11 -> 4.
+    assert roh.count("ww<BP_MOB") == 4, (  # 1067: Planung + Abwesenheiten; 1073: Werkzeuge; 1075: Zeiterfassung; 1076: Buero-Export; 1077: Administration; 1078: Projekte + Flotte/Fahrzeuge/Bauprovisorien
+        "Erwartet 4 umgestellte Stellen, gefunden %d." % roh.count("ww<BP_MOB"))
 
 
 # Die umschliessende Ansicht je erlaubter Tablet-Schwelle, in Dateireihenfolge.

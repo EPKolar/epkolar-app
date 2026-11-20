@@ -199,7 +199,8 @@ def test_umkehr_abdeckung_findet_neuen_vergleich(roh):
 
 
 def test_pin_zaehlt_elf(roh):  # 1078: zusammen mit Stufe 9 (Flotte, -3) sind es 11
-    assert roh.count("ww<BP_MOB") == 11
+    # Stufe 11 Rest (1079): -7 (App-Deklaration, HomeView, WeekPlan, ChartBox, ChefDashboard, AuswertungView, KameraView) -> 4
+    assert roh.count("ww<BP_MOB") == 4
 
 
 # ── 3. Nur Darstellung: Rueckbau ergibt origin/main byte-gleich ────────────

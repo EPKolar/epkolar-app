@@ -187,7 +187,9 @@ def test_der_riegel_wird_bei_einer_neuen_mobilschwelle_rot():
     Fassung vorgelegt, in der sie ROT werden MUESSEN.
     """
     roh = _lies()
-    anker = "const isMob=ww<BP_MOB;"
+    # Stufe 11 (1079): die letzten `const isMob=ww<BP_MOB;` wandern in die gemeinsame Stufe - der Koeder
+    # haengt an einer Stufen-Deklaration, die im Code bleibt (FlotteView, tests/test_stufe_flotte_v1078.py).
+    anker = 'const isMob=_flStufe==="schmal";'
     assert anker in roh, "Anker fuer den Koeder fehlt: %s" % anker
     kaputt = roh.replace(anker, "const isMob=ww<768;" + anker, 1)
 
