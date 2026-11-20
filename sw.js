@@ -44,10 +44,27 @@ self.addEventListener('activate', event => {
   );
 });
 
+function _lokalesNetz(u) {
+  try {
+    const x = new URL(u);
+    if (x.origin === self.location.origin) return false;
+    const hn = x.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (/^(10|127)\.\d+\.\d+\.\d+$/.test(hn) || /^192\.168\.\d+\.\d+$/.test(hn) || /^169\.254\.\d+\.\d+$/.test(hn)) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hn)) return true;
+    if (hn === 'localhost' || /\.local$/.test(hn) || hn === '::1' || /^f[cd][0-9a-f]{0,2}:/.test(hn) || /^fe80:/.test(hn)) return true;
+    // Gateway unter einem DNS-Namen: an den Pfaden erkennbar
+    if (/^\/live\/[A-Za-z0-9_-]{1,64}\//.test(x.pathname) || x.pathname === '/gesund') return true;
+  } catch (e) {}
+  return false;
+}
 self.addEventListener('fetch', event => {
   const url = event.request.url;
   if (!url.startsWith('http://') && !url.startsWith('https://')) return;
   if (url.includes('supabase.co')) return;
+  // v3.9.1083: Kamera-Gateway / lokales Netz NIE durch den SW. Chrome (Local Network Access, ab 142) zeigt die Frage
+  // "Geraete im lokalen Netzwerk" nur fuer Anfragen der SEITE - eine vom SW weitergereichte Anfrage ins lokale Netz
+  // wird ohne Frage abgelehnt (WHEP, Einzelbild, Gesundheitsabruf). Ausserdem keine Token-Adressen im Cache.
+  if (_lokalesNetz(url)) return;
   // v3.9.705: Versions-Poll (index.html?_v=<ts>) NIE durch den SW cachen — sonst sammelt der
   // Kiosk bei jedem 10-min-Poll eine weitere Vollkopie der index.html im Cache an. Netzwerk direkt.
   if (url.includes('index.html?_v=')) return;

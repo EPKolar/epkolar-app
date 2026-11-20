@@ -31064,7 +31064,9 @@ function _kamHinweis(h,titel,text,knopf){
 }
 var KAMERA_STUB_TXT={kein_backend:'Kein Video-Backend verbunden',kein_zugriff:'Kein Zugriff zu dieser Zeit',
   player:'Dieses Gerät kann den Stream nicht abspielen',abbruch:'Verbindung unterbrochen',fehler:'Video nicht verfügbar',laedt:'Verbinde …',
-  offline:'Kamera nicht erreichbar',wartet:'Verbinde …',netz_aus:'Server nicht erreichbar'};
+  offline:'Kamera nicht erreichbar',wartet:'Verbinde …',netz_aus:'Server nicht erreichbar',gateway:'Kamera-Server nicht erreichbar'};
+/* v3.9.1083: Live-Bild UND Einzelbild scheitern und der Kamera-Server antwortet nicht -> kurzer Hinweis fuer vor Ort */
+var KAMERA_NETZ_TIPP='Im Büro-Netz? Stammzertifikat auf diesem Gerät installiert? Zugriff aufs lokale Netzwerk erlaubt?';
 /* Betrieb (20.11.2026): Statuschip je Kachel. Reine Abbildung Phase/Grund -> Schluessel (in Node getestet). */
 var KAMERA_STATUS_TXT={verbindet:'verbindet',live:'live',kein_zugriff:'kein Zugriff jetzt (Zeitfenster)',offline:'Kamera nicht erreichbar',server:'Server nicht erreichbar',spaeter:'später'};
 function _kamStatus(phase,grund){
@@ -31077,6 +31079,16 @@ function _kamStatus(phase,grund){
 /* Netzfehler (fetch wirft): neue Versuche nach 2 s, 5 s, 10 s - danach "Neu laden". 403/503 werden NICHT wiederholt. */
 var KAMERA_RETRY_MS=[2000,5000,10000];
 function _kamBackoff(n){return (n>=0&&n<KAMERA_RETRY_MS.length)?KAMERA_RETRY_MS[n]:null;}
+/* v3.9.1083: WHEP-Antwort kam, aber ICE verbindet nicht (Medienport im Netz gesperrt): Chrome meldet "failed" erst nach
+   rund 30 s - so lange stand eine schwarze "live"-Kachel. Nach KAMERA_ICE_MS ohne Verbindung -> Einzelbild-Rueckfall. */
+var KAMERA_ICE_MS=10000;
+function _kamIceHaengt(c,i){return c!=='connected'&&i!=='connected'&&i!=='completed';}
+/* Gateway-Basis aus einer Token-Adresse (.../live/<s>/...) - fuer den Gesundheitsabruf der Kachel */
+function _kamGatewayBasis(u){
+  if(!_kamIstHttps(u))return '';
+  var m=/^(https:\/\/[^?#]*?)\/live\/[A-Za-z0-9_-]{1,64}\//.exec(u);
+  return m?m[1]:'';
+}
 /* Spalten NUR aus _layoutStufe: schmal 1, mittel 2, breit 2-3 (3 bei 3x3 bzw. mehr als 4 Kacheln) */
 function _kamSpalten(stufe,ansicht,n){
   var z=Math.max(1,Number(n)||1);
@@ -31192,7 +31204,7 @@ function KameraKachel(props){
     return function(){if(beob){try{beob.disconnect();}catch(_d){}}if(typeof document!=='undefined'&&document.removeEventListener)document.removeEventListener('visibilitychange',neuBerechnen);};
   },[k.id]);
   _react.useEffect.call(void 0,function(){
-    var alive=true;var pc=null;var timer=null;var io=null;
+    var alive=true;var pc=null;var timer=null;var io=null;var iceT=null;
     if(!aktiv){setSt({phase:'laedt',grund:'wartet'});setBild({modus:'',url:''});return function(){alive=false;};}
     function takten(){
       if(tickRef.current)clearInterval(tickRef.current);
@@ -31204,6 +31216,7 @@ function KameraKachel(props){
     }
     function schliessen(){
       if(timer){clearTimeout(timer);timer=null;}
+      if(iceT){clearTimeout(iceT);iceT=null;}
       if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}
       if(pc){try{pc.close();}catch(_c){}pc=null;}
       var v=vidRef.current;
@@ -31271,6 +31284,7 @@ function KameraKachel(props){
           pc.onconnectionstatechange=function(){
             if(alive&&pc&&pc.connectionState==='failed'&&_kamErsatzBild(0,a)){ersatz(a);return;}
             if(alive&&pc&&(pc.connectionState==='failed'||pc.connectionState==='closed'))setSt({phase:'stub',grund:'abbruch'});};
+          iceT=setTimeout(function(){iceT=null;if(alive&&pc&&_kamIceHaengt(pc.connectionState,pc.iceConnectionState)&&_kamErsatzBild(0,a))ersatz(a);},KAMERA_ICE_MS);
         }else{v.src=a.liveUrl;}
         try{await v.play();}catch(_p){}
         setSt({phase:'live',grund:''});
@@ -31297,6 +31311,11 @@ function KameraKachel(props){
     if(bild.modus==='mjpeg'||fehlerRef.current>=3){
       if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}
       setBild({modus:'',url:''});setSt({phase:'stub',grund:'offline'});
+      /* v3.9.1083: ein Bild-Element verraet nicht, WARUM es scheitert. Antwortet der Kamera-Server selbst nicht (Zertifikat,
+         nicht im Buero-Netz, Browser-Freigabe fuer das lokale Netz), zeigt die Kachel das statt "Kamera nicht erreichbar". */
+      var gb=_kamGatewayBasis(bild.url);
+      if(gb)_kamBueroPruefen(gb).then(function(r){
+        if(r==='nicht_erreichbar')setSt(function(s){return (s.phase==='stub'&&s.grund==='offline')?{phase:'stub',grund:'gateway'}:s;});});
     }
   };
   return h('div',{style:{minWidth:0,border:'1px solid '+UI.linie,borderRadius:UI.rKarte,overflow:'hidden',background:UI.flaeche}}
@@ -31309,7 +31328,8 @@ function KameraKachel(props){
       ,live?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:10,textAlign:'center',color:'#E6EAE7'}}
         ,h('span',{style:{opacity:.8}},_ik('videokamera',28))
         ,h('span',{style:{fontSize:UI.fKlein,fontWeight:600}},KAMERA_STUB_TXT[st.grund]||KAMERA_STUB_TXT.fehler)
-        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline'||st.grund==='netz_aus')?h('button',{type:'button',onClick:function(){versuchRef.current=0;_kamBackend.fehlt=false;setNeu(neu+1);},
+        ,st.grund==='gateway'?h('span',{style:{fontSize:UI.fMeta,lineHeight:1.4,maxWidth:420,opacity:.9}},KAMERA_NETZ_TIPP):null
+        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline'||st.grund==='netz_aus'||st.grund==='gateway')?h('button',{type:'button',onClick:function(){versuchRef.current=0;_kamBackend.fehlt=false;setNeu(neu+1);},
             style:{...bsS(),color:'#E6EAE7',border:'1px solid #6E7872'}},'Neu laden'):null))
     ,h('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',minHeight:44}}
       ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
@@ -31572,7 +31592,7 @@ function _kamEinrichtung(kd,fn,buero){
   else if(buero==='keine_adresse')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: noch nicht in Betrieb',text:'Noch keine Adresse hinterlegt.',wer:''});
   else if(buero==='ok')z.push({id:'buero',stand:'ok',titel:'Kamera-Server im Büro: erreichbar',text:'',wer:''});
   else if(buero==='antwort')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: antwortet unerwartet',text:'Er antwortet, aber nicht wie erwartet.',wer:''});
-  else if(buero==='nicht_erreichbar')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: nicht erreichbar',text:'Er ist nur aus dem Büro-Netz erreichbar - unterwegs ist das normal.',wer:''});
+  else if(buero==='nicht_erreichbar')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: nicht erreichbar',text:'Er ist nur aus dem Büro-Netz erreichbar - unterwegs ist das normal. Im Büro bitte prüfen: 1. Ist das Stammzertifikat des Kamera-Servers auf diesem Gerät installiert? 2. Ist das Gerät im Büro-WLAN oder am Büro-Netzwerkkabel? 3. Fragt der Browser nach Zugriff auf Geräte im lokalen Netzwerk: erlauben. Danach „Erneut prüfen“.',wer:''});
   else z.push({id:'buero',stand:'laedt',titel:'Kamera-Server im Büro wird geprüft …',text:'',wer:''});
   var rows=Array.isArray(kd.rows)?kd.rows:[];
   var akt=rows.filter(function(x){return x&&x.aktiv!==false;}).length;
