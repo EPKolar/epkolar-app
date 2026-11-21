@@ -241,8 +241,9 @@ def test_p3c_sortkoepfe_44(html):
 
 
 def test_p3d_netzstreifen(html):
-    a = html.index("'data-epk': \"netz-streifen\"")
-    t = re.sub(r"/\*.*?\*/", "", html[a:a + 1500], flags=re.S)
-    assert 'bottom:"calc(100% + 1px)"' in t and "top:-24" not in t
-    assert '"Offline – keine Internetverbindung":"Server nicht erreichbar"' in t
+    # A55 1088 Runde 4: der Streifen ueber der Fussleiste ist ganz entfallen - am Handy stand dieselbe Meldung
+    # oben im Kopf UND unten (~150 px). Es bleibt der Kopf-Streifen; der alte Befund (top:-24 ragte in die
+    # Fussleiste, nacktes "SERVER") kann damit nicht wiederkommen. Riegel fuer den Rest: test_a55_runde4_v1090.py.
+    assert "'data-epk': \"netz-streifen\"" not in html
     assert '"OFFLINE":"SERVER"' not in html
+    assert '" Server nicht erreichbar — Änderungen werden lokal gespeichert"' in html

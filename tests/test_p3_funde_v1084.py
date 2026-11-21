@@ -151,7 +151,8 @@ def test_leiste_traegt_namen_nur_in_mittel(html):
     ps = nur_code(_fn(html, "ProjectShell"))
     assert ps.count("_psMittel?React.createElement('span', { className: \"sb-rail-l\", 'aria-hidden': \"true\", style: "
                     + RAIL_STIL + "}, ") == 2
-    assert "}, _psRailL[n.id]||n.l):null, React.createElement('span', { className: \"sb-text\"}, n.l," in ps
+    # A55 1088 Runde 4: der sb-text-span zeigt am Handy die Kurznamen der Reiterzeile (Zeiten), sonst n.l - Reihenfolge unveraendert
+    assert "}, _psRailL[n.id]||n.l):null, React.createElement('span', { className: \"sb-text\"}, (isMob&&(_pfReiter.find(r=>r[0]===n.id)||[])[1])||n.l" in ps
     # hinter dem sb-text-span, damit die Anker aelterer Riegel (v960, Scan 1045) unveraendert gelten
     assert "React.createElement('span', { className: \"sb-text\"}, \"Alle Projekte\"), _psMittel?React.createElement('span', { className: \"sb-rail-l\"" in ps
     assert "}, \"Alle Projekte\"):null" in ps

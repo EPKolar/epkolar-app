@@ -124,7 +124,7 @@ def test_umkehr_verschobene_handygrenze_waere_rot(roh, node_exe):
 
 # ── Rueckbau: ganze Komponente byte-gleich mit origin/main ──────────────────
 MD5 = {
-    "App": "0945c5465a40b3151f9661e127252869",  # 1087 Kameras Produktion: nur der Kommentar am Kamera-Schalter (KAMERAS_PROD=true, Team-Freigabe) geaendert; vorher 5d66679c1460949e9f258826c1d9d575
+    "App": "b22ffd2e0cb41a0302ae734777b6f673",  # A55 1088 Runde 4: zweiter Netz-Streifen ueber der Fussleiste entfernt (null), Kopf-Streifen am Handy einzeilig, Zaehler nowrap (Riegel in test_a55_runde4_v1090.py) - bewusste Aenderung; vorher 0945c5465a40b3151f9661e127252869. Davor: 1087 Kameras Produktion: nur der Kommentar am Kamera-Schalter (KAMERAS_PROD=true, Team-Freigabe) geaendert; vorher 5d66679c1460949e9f258826c1d9d575
     "HomeView": "c86ca7b03e675361a1d9456b7f24ce52",  # 1079: Samsung-Zweig zeigt die Version ueber _verAnzeige (ohne -supabase) - bewusste Aenderung, Pruefsumme nachgezogen
     "WeekPlan": "00453227eff2cb358e58a36b28adc694",  # Render 1089 P3: leere Zeilennummern V.tx statt #555 (1,40 -> 4,45 unter Deckkraft .5) und MA-Uebersicht overflowWrap break-word fuer ein zu langes Einzelwort - bewusste Aenderungen (Riegel in test_render_funde_v1089.py); vorher 33b42034306b2785f38e426cfc688679. Davor: 1085: beide Zweige zusammen - P3 (Chip bricht in mittel um) + A55 Runde 3 (Kennzeichen am Handy umbrechend, Kopf "Mo .. – Sa .."); einzeln 0aab4acb.. bzw. 41fe6254.., ohne beide aee55d9dc37dda2d1c26ccae5970eb0c
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",

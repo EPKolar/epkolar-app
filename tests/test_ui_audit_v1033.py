@@ -127,7 +127,9 @@ EMOJI_STELLEN = [
     ("if(online&&!(pendingCount>0)&&!syncing&&failedCount===0)return null;", 2600),
     # v3.9.1081 Render-Fund P3d: Anker nachgezogen - der Streifen sitzt jetzt per bottom ueber der Fussleiste
     # (vorher top:-24) und traegt Kennung + aria-label; Fenster deshalb laenger, gleiche Stelle bis zum Text.
-    ("(!syncStatus.connected||!syncStatus.serverOk)&&React.createElement('div', { 'data-epk': \"netz-streifen\", style: {position:\"absolute\",top:\"auto\"", 1500),
+    # A55 1088 Runde 4: der zweite Netz-Streifen ueber der Fussleiste ist entfernt (Meldung stand doppelt);
+    # das Fenster wandert auf den verbleibenden Kopf-Streifen samt neuem Handy-Kurztext (Riegel test_a55_runde4_v1090.py).
+    ("isMob?(!syncStatus.connected?\" Offline – lokal gespeichert\":\" Server nicht erreichbar\")", 1500),
     ("React.createElement('span', { style: {display:\"inline-flex\"}}, _ik(!syncStatus.connected?", 300),
     ('"Bauwochenberichte")', 400),
     ('"Daten werden geladen..." )', 60),
