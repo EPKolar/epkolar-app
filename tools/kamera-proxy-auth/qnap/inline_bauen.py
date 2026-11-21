@@ -173,6 +173,7 @@ services:
       - QNAP_LAN_IP=${{QNAP_LAN_IP:?QNAP_LAN_IP fehlt}}
       - KAMERA_HOST=${{KAMERA_HOST:?KAMERA_HOST fehlt (kameras.ep-kolar.at)}}
       - GATEWAY_PORT=${{GATEWAY_PORT:-8443}}
+      - GO2RTC_BASIC=${{GO2RTC_BASIC:?GO2RTC_BASIC fehlt (base64 von go2rtc-API-Benutzer:Kennwort)}}
       - CADDYFILE_B64={caddy}
       - CADDY_START_B64={start}
     volumes:
