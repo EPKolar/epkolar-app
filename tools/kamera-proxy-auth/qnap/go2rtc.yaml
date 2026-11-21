@@ -1,0 +1,66 @@
+# go2rtc - EP Kolar Kamera-Gateway auf der QNAP (go2rtc 1.9.9, Container Station, Host-Netz). KANONISCHE VORLAGE.
+# Stand 21.11.2026: 4 UniFi G3 (RTSP, H.264) + 5 Mobotix (HTTP-MJPEG, durchgereicht ohne Umwandlung).
+#
+# EINZIGE QUELLE fuer: Streamnamen (= kameras.id = kamera_backend.stream_name in der App) und Quell-Adressen.
+# Die App-Datenbank kennt nur den Streamnamen (sql/KAMERA_GATEWAY_SEED_ENTWURF.sql, sql/KAMERA_MOBOTIX_SEED_ENTWURF.sql).
+# Riegel: tests/test_kamera_mobotix_v1090.py (Namen hier == SQL == Caddy-Route == Pruefskript).
+#
+# KEINE ADRESSEN, KEINE ZUGANGSDATEN in dieser Datei: alles als ${VARIABLE}. go2rtc ersetzt ${VAR} beim Start aus der
+# Umgebung (Doku: internal/app/README.md "Environment variables"); die Werte stehen NUR in
+# /share/Container/go2rtc/kam.env auf der QNAP (chmod 600). Fehlt eine Variable, bleibt der Text "${...}" stehen ->
+# die Quelle schlaegt fehl (sichtbar in scripts/go2rtc_streams_pruefen.py). Variablenliste: docs/kameras/MOBOTIX.md
+# Vorgabe GF: Kamera-IP-Adressen werden NICHT geaendert. Dieser Host liest nur. Keine Aufnahme (Surveillance Station TABU).
+#
+# BEDARFSBETRIEB (bewusst): go2rtc verbindet eine Quelle erst, wenn ein Zuschauer kommt, und trennt sie, wenn der
+# letzte geht (internal/streams/add_consumer.go, producer.go). Bricht eine Quelle ab, verbindet go2rtc neu, solange
+# Zuschauer da sind (Pause 1 s fuer Versuch 0-4, 5 s fuer 5-9, 10 s fuer 10-19, danach 1 min). KEIN Dauerabruf
+# (kein preload, kein ffmpeg) - die ARM-CPU der QNAP nimmt bereits auf.
+
+api:
+  listen: ":1984"          # Caddy (Docker-Bruecke) spricht hierhin ueber die LAN-Adresse -> nur-Loopback geht nicht
+  # Basic-Anmeldung fuer die GANZE HTTP-API (/api/webrtc, /api/stream.mjpeg, /api/frame.jpeg, /api/streams, Oberflaeche).
+  # Caddy sendet sie bei jedem Weiterleiten (header_up Authorization, GO2RTC_BASIC). WebRTC-Medien :8555 sind
+  # nicht HTTP und davon nicht betroffen. ACHTUNG go2rtc: Anfragen von localhost/Unix-Socket gehen OHNE Anmeldung
+  # durch (internal/api/README.md) -> die QNAP-Firewall-Sperre fuer :1984 bleibt Pflicht (zweite Schicht).
+  username: ${GO2RTC_USER}
+  password: ${GO2RTC_PASS}
+  # KEIN origin "*": CORS setzt ausschliesslich Caddy
+
+rtsp:
+  listen: ""               # RTSP-Server AUS (Frigate abgeschaltet; sonst Weiterverteilung aller Kameras ohne Anmeldung)
+
+webrtc:
+  listen: ":8555"          # TCP+UDP, Medien direkt Browser <-> go2rtc
+  candidates:
+    - ${QNAP_LAN_IP}:8555
+
+log:
+  level: warn              # keine URLs im Protokoll
+
+streams:
+  # ── UniFi G3 (RTSP 554, /s0 = H.264 1920x1080, nur Video) ── stream_typ webrtc ──────────────────────────
+  hochregal01:                 # Endung .61 (SurvStation: MP17-Hochregal01)
+    - rtsp://${KAM_USER}:${KAM_PASS}@${CAM_HOCHREGAL01_IP}:554/s0#media=video
+  verkauf02:                   # Endung .38 (SurvStation: MP17-Verkauf02)
+    - rtsp://${KAM_USER}:${KAM_PASS}@${CAM_VERKAUF02_IP}:554/s0#media=video
+  elektrolager03:              # Endung .37 (SurvStation: MP17-Elektrolager03)
+    - rtsp://${KAM_USER}:${KAM_PASS}@${CAM_ELEKTROLAGER03_IP}:554/s0#media=video
+  cam39:                       # Endung .39 (nicht in Surveillance Station)
+    - rtsp://${KAM_USER}:${KAM_PASS}@${CAM_CAM39_IP}:554/s0#media=video
+
+  # ── Mobotix (nur HTTP, kein RTSP) ── stream_typ mjpeg ──────────────────────────────────────────────────
+  # Nativer HTTP-Erzeuger von go2rtc (KEIN ffmpeg): Content-Type multipart/x-mixed-replace wird erkannt und
+  # "proxied without modification" (internal/http/README.md); /api/stream.mjpeg reicht MJPEG ohne Umwandlung durch
+  # (internal/mjpeg/README.md: "The source must contain the MJPEG codec").
+  # Zugang: Lese-Benutzer "nur Live-Ansicht" (gleiches Paar auf allen 5) = MOBOTIX_USER / MOBOTIX_PASS in kam.env.
+  # Pfad zuerst /cgi-bin/faststream.jpg; liefert eine Firmware dort nichts: /control/faststream.jpg (MOBOTIX.md).
+  hof01:                       # Endung .32 (SurvStation: Hof)
+    - http://${MOBOTIX_USER}:${MOBOTIX_PASS}@${CAM_HOF01_IP}/cgi-bin/faststream.jpg?stream=full&needlength&fps=12
+  hochregal03:                 # Endung .33 (SurvStation: Hochregal03)
+    - http://${MOBOTIX_USER}:${MOBOTIX_PASS}@${CAM_HOCHREGAL03_IP}/cgi-bin/faststream.jpg?stream=full&needlength&fps=12
+  hochregal02:                 # Endung .34 (SurvStation: Hochregal02)
+    - http://${MOBOTIX_USER}:${MOBOTIX_PASS}@${CAM_HOCHREGAL02_IP}/cgi-bin/faststream.jpg?stream=full&needlength&fps=12
+  elektrolager01:              # Endung .35 (SurvStation: Elektrolager01)
+    - http://${MOBOTIX_USER}:${MOBOTIX_PASS}@${CAM_ELEKTROLAGER01_IP}/cgi-bin/faststream.jpg?stream=full&needlength&fps=12
+  elektrolager02:              # Endung .36 (SurvStation: Elektrolager02)
+    - http://${MOBOTIX_USER}:${MOBOTIX_PASS}@${CAM_ELEKTROLAGER02_IP}/cgi-bin/faststream.jpg?stream=full&needlength&fps=12

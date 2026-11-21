@@ -27,6 +27,8 @@
 -- in der go2rtc-Konfiguration auf der QNAP. Den Streamnamen kann die App absichtlich NICHT schreiben.
 --
 --
+-- ABGELOEST 21.11.2026: die Mobotix kommen ueber sql/KAMERA_MOBOTIX_SEED_ENTWURF.sql (IDs hof01, hochregal03,
+-- hochregal02, elektrolager01, elektrolager02). Der Schalter unten bleibt fuer immer 'false' - NIE beide.
 -- ZWEITER BLOCK - MOBOTIX (5 Stueck), STANDARD AUS. Schalter oben direkt nach "begin;":
 --     set local epk.mobotix_aktiv = 'false';   -> heute: nur die 4 G3 entstehen
 --     set local epk.mobotix_aktiv = 'true';    -> zusaetzlich mob32, mob33, mob34, mob35, mob36

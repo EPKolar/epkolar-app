@@ -23,7 +23,8 @@ VORLAGE = """# EP Kolar Kamera-Gateway auf der QNAP - image-freie Variante (kein
 # Inhaltlich wie qnap/docker-compose.yml: kamera-auth (Pruefer, nicht veroeffentlicht) + caddy (einziger Web-Eingang).
 # Die Dateien werden beim Start aus der Umgebung dekodiert (tmpfs, Dateisystem sonst read_only).
 # KEINE Secrets, KEINE Adressen hier. .env auf der QNAP (chmod 600, siehe ENV.md):
-#   KAMERA_TOKEN_SECRET (Pflicht, = Supabase-Secret), QNAP_LAN_IP (Pflicht), GATEWAY_PORT (Standard 8443).
+#   KAMERA_TOKEN_SECRET (Pflicht, = Supabase-Secret), QNAP_LAN_IP (Pflicht), GATEWAY_PORT (Standard 8443),
+#   GO2RTC_BASIC (Pflicht, base64 von <go2rtc-API-Benutzer>:<Kennwort>, Caddy meldet sich damit bei go2rtc an).
 # go2rtc laeuft separat (eigene App, Host-Netz :1984). :1984 im LAN sperren; :GATEWAY_PORT + :8555 TCP/UDP offen.
 # Surveillance Station / Aufnahmen: TABU.
 
@@ -65,6 +66,7 @@ services:
     environment:
       - QNAP_LAN_IP=${{QNAP_LAN_IP:?QNAP_LAN_IP fehlt}}
       - GATEWAY_PORT=${{GATEWAY_PORT:-8443}}
+      - GO2RTC_BASIC=${{GO2RTC_BASIC:?GO2RTC_BASIC fehlt (base64 von go2rtc-API-Benutzer:Kennwort)}}
       - CADDYFILE_B64={caddy}
     volumes:
       - caddy_daten:/data            # interne CA + Zertifikate (root.crt fuer die Firmengeraete liegt hier)
