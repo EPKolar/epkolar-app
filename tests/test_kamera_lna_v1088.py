@@ -236,7 +236,7 @@ def test_quelle_kachel_und_klick():
 
 # ── Umkehrproben ──────────────────────────────────────────────────────────
 def _alter_block():
-    b = _block()
+    b = _block().replace("\r\n", "\n")  # Arbeitskopie kann CRLF haben (Windows-Checkout)
     i = b.index("async function _kamBueroPruefen(basis){")
     j = b.index("\n}\n", i) + 3
     return b[:i] + ALT_PRUEFEN + b[j:]

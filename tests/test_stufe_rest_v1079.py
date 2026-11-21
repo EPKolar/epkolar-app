@@ -130,7 +130,7 @@ MD5 = {
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",
     "ChefDashboard": "91da847b0545367d5f82b752b9ab2469",  # 1080 A55 (4): topOver ohne Kappung auf 8, Titel 'Kritisch überfällig' ohne 'die ältesten N' - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
     "AuswertungView": "01ec1e729f29416681c33602bfb3365c",
-    "KameraView": "2ccebbe69990b2c9c900567a72f7a866",  # 1087 Kameras Produktion: Team-Freigabe-Karte + Status-Chip statt Testbetrieb (Riegel test_kameras_prod_v1087); vorher 035c916b8fb3c7db35e79ae65691eb34
+    "KameraView": "473255e66bb76536993ded5fa0b74cb8",  # 1088 LNA-Diagnose: Erneut pruefen stoesst den Abruf in der Nutzergeste an (_kamLnaAnstoss), Kachel-Grund lna/lna_frage (Riegel test_kamera_lna_v1088); vorher 2ccebbe69990b2c9c900567a72f7a866
 }
 
 
