@@ -124,13 +124,13 @@ def test_umkehr_verschobene_handygrenze_waere_rot(roh, node_exe):
 
 # ── Rueckbau: ganze Komponente byte-gleich mit origin/main ──────────────────
 MD5 = {
-    "App": "5d66679c1460949e9f258826c1d9d575",  # 1086 Render-Funde: Emoji aus dem Toast 'Mitarbeiterliste konnte nicht aktualisiert werden' entfernt (CI) - einzige Abweichung (Zeilendiff gegen 14e139e geprueft), bewusste Aenderung (Riegel in test_render_funde_v1086.py); vorher ec5715659ec88527283c2feadc72fa0c. Davor: 1081 Render-Funde: P2-1 Reiter ueber perm-Schluessel (_katNachListe/_katAusVerlauf, katP im Verlauf), P2-3 Kopf-Logo in mittel, P3a addToast mit _fehlerDeutsch, P3d Netzstreifen - bewusste Aenderungen (Zeilendiff gegen 9ccd9ed geprueft), Pruefsumme nachgezogen (Riegel in test_render_funde_v1081.py); vorher c6d7f9d1cb1e2b8517d3968b14f655e7
+    "App": "0945c5465a40b3151f9661e127252869",  # 1087 Kameras Produktion: nur der Kommentar am Kamera-Schalter (KAMERAS_PROD=true, Team-Freigabe) geaendert; vorher 5d66679c1460949e9f258826c1d9d575
     "HomeView": "c86ca7b03e675361a1d9456b7f24ce52",  # 1079: Samsung-Zweig zeigt die Version ueber _verAnzeige (ohne -supabase) - bewusste Aenderung, Pruefsumme nachgezogen
     "WeekPlan": "33b42034306b2785f38e426cfc688679",  # 1085: beide Zweige zusammen - P3 (Chip bricht in mittel um) + A55 Runde 3 (Kennzeichen am Handy umbrechend, Kopf "Mo .. – Sa .."); einzeln 0aab4acb.. bzw. 41fe6254.., ohne beide aee55d9dc37dda2d1c26ccae5970eb0c
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",
     "ChefDashboard": "91da847b0545367d5f82b752b9ab2469",  # 1080 A55 (4): topOver ohne Kappung auf 8, Titel 'Kritisch überfällig' ohne 'die ältesten N' - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
     "AuswertungView": "01ec1e729f29416681c33602bfb3365c",
-    "KameraView": "035c916b8fb3c7db35e79ae65691eb34",
+    "KameraView": "2ccebbe69990b2c9c900567a72f7a866",  # 1087 Kameras Produktion: Team-Freigabe-Karte + Status-Chip statt Testbetrieb (Riegel test_kameras_prod_v1087); vorher 035c916b8fb3c7db35e79ae65691eb34
 }
 
 
