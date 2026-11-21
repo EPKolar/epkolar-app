@@ -890,6 +890,7 @@ const H = {};
 // Phase-1-Semantik OHNE die Admin-Freigabe (KAMERAS_ADMIN, seit v1060) - die Admin-Faelle stehen in
 // tests/test_kameras_einrichtung_v1060.py. Hier bleibt belegt: PL/Buero/Lager/Monteur bleiben ohne Schalter aus.
 KAMERAS_ADMIN = false;
+KAMERAS_PROD = false;/* v1087: Produktionsstand ist true - hier bewusst die Phase-1-Semantik ohne Produktionsweg */
 H.schalter = [
   _kamSchalter({role: 'admin'}, {kameras_testumgebung: true}, true),
   _kamSchalter({role: 'admin'}, {kameras_testumgebung: 'true'}, true),
@@ -907,7 +908,7 @@ KAMERAS_PROD = true;
 H.prod = [_kamSchalter({role: 'projektleiter'}, {kameras_aktiv: true}, false), _kamSchalter({role: 'lagerleitung'}, {kameras_aktiv: 'true'}, false),
           _kamSchalter({role: 'monteur'}, {kameras_aktiv: true}, false), _kamSchalter({role: 'buero'}, {}, false),
           _kamSchalterAbruf({role: 'buero'}, false), _kamSchalterAbruf({role: 'monteur'}, true)];
-KAMERAS_PROD = false;
+KAMERAS_PROD = true;/* v1087: Produktionsstand */
 KAMERAS_ADMIN = true;
 H.url = [_kamUrlSchalter({role: 'monteur'}, '?kameras_test=1'), LS.epk_kameras_test || null,
          _kamUrlSchalter({role: 'admin'}, '?a=b&kameras_test=1'), LS.epk_kameras_test || null, _kamLokalTest(),
@@ -949,7 +950,8 @@ def UIR(node_exe):
 def test_admin_pc_live_raster_mit_stub_kacheln(UIR):
     a = UIR["admin_pc"]
     t = a["text"]
-    for teil in ("Kameras", "Testbetrieb", "Live", "Aufzeichnungen", "Verwaltung", "Einzel", "2×2", "3×3", "Alle",
+    assert "Testbetrieb" not in t, "v1087: Testbetrieb-Chip entfaellt mit KAMERAS_PROD=true"
+    for teil in ("Kameras", "Nur Admin", "Live", "Aufzeichnungen", "Verwaltung", "Einzel", "2×2", "3×3", "Alle",
                  "Kein Video-Backend verbunden", "Kamera 1", "Kamera 3"):
         assert teil in t, teil
     assert "Kamera 2" not in t, "inaktive Kamera darf nicht im Live-Raster stehen"
@@ -1117,10 +1119,12 @@ def test_schalter_hook_fragt_erst_ob_abgerufen_werden_darf():
     assert i < s.index("if(appLoading) return (")
 
 
-def test_produktionsschalter_steht_auf_aus():
+def test_produktionsschalter_steht_auf_an():
+    # v1087 (Auftrag Inhaber 21.11.2026 "Kameras live in die App"): Produktionsweg an. Die Team-Freigabe haengt
+    # weiter an system_config kameras_aktiv (nur Admin schreibt) - Rollenmatrix in test_kameras_prod_v1087.py.
     b = _block()
-    assert b.count("var KAMERAS_PROD=false;") == 1
-    assert "KAMERAS_PROD=true" not in b.replace("KAMERAS_PROD===true", "")
+    assert b.count("var KAMERAS_PROD=true;") == 1
+    assert "var KAMERAS_PROD=false;" not in b
 
 
 def _js_code(b):

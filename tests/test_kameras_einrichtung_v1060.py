@@ -97,6 +97,9 @@ reset({db: {kameras: KAMS}, fein: true});
 w = wurzel('helfer', 390); await ruhe(w); OUT.helfer = {baum: baum, get: ZAEHL.get.length, fetch: ZAEHL.fetch.length, pruef: ZAEHL.pruef.length};
 
 // 9) Schalter mit Admin-Freigabe
+// v1087: KAMERAS_PROD steht in Produktion auf true (Auftrag Inhaber 21.11.2026). Diese Faelle belegen die
+// Admin-Freigabe OHNE Produktionsweg (Notbremse KAMERAS_PROD=false) - der Produktionsweg steht in test_kameras_prod_v1087.py.
+KAMERAS_PROD = false;
 OUT.S = {
   admin_ohne_alles: _kamSchalter({role: 'admin'}, {}, false),
   admin_gross: _kamSchalter({role: ' Admin '}, {}, false),
@@ -113,6 +116,7 @@ KAMERAS_ADMIN = false;
 OUT.S.aus_admin = _kamSchalter({role: 'admin'}, {}, false);
 OUT.S.aus_abruf = _kamSchalterAbruf({role: 'admin'}, false);
 KAMERAS_ADMIN = true;
+KAMERAS_PROD = true;
 OUT.F = [_kamFnAntwort(404, null), _kamFnAntwort(400, {}), _kamFnAntwort(401, null), _kamFnAntwort(403, null), _kamFnAntwort(500, null),
          _kamFnAntwort(200, {einrichtung: true, secret: true, basis: 'https://v.example.test//'}),
          _kamFnAntwort(200, {einrichtung: true, secret: 'true', basis: 'javascript:alert(1)'}),
@@ -235,7 +239,7 @@ def test_antwort_der_funktion_wird_streng_gelesen(U):
 def test_verdrahtung_und_hausregeln():
     s = _index()
     b = _block(s)
-    assert b.count("var KAMERAS_ADMIN=true;") == 1 and b.count("var KAMERAS_PROD=false;") == 1
+    assert b.count("var KAMERAS_ADMIN=true;") == 1 and b.count("var KAMERAS_PROD=true;") == 1  # v1087: Produktionsweg an (Auftrag Inhaber 21.11.2026)
     assert b.count("if(r==='admin'&&KAMERAS_ADMIN===true)return true;") == 2
     # Reiter/Filter/Ansicht unveraendert: Kamerarolle + Schalter, Monteur nie
     assert s.count('if(t.perm==="kameras")return _kamFlag&&!!_kamRolle(curUser);') == 1
