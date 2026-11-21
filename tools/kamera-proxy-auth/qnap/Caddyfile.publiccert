@@ -1,0 +1,183 @@
+# Caddy - EP Kolar Kamera-Gateway, Variante OEFFENTLICHES ZERTIFIKAT (Let's Encrypt per DNS-01, 21.11.2026).
+# Adresse: https://kameras.ep-kolar.at:8443 = https://{$KAMERA_HOST}:{$GATEWAY_PORT}. Kein eingehender Port, die QNAP bleibt
+# im LAN: das Zertifikat holt der Nachbar-Container "acme" (acme.sh, DNS-Alias-Modus ueber deSEC) und legt es in das
+# gemeinsame Volume /certs (hier nur lesend). Kein "tls internal", kein Stammzertifikat auf den Geraeten noetig.
+# Einsatz: qnap-gateway-publiccert-inline.compose.yml (erzeugt von qnap/inline_bauen.py), Schritte: ENV.md.
+#
+# NUR die Kopfzeilen (globale Optionen, Site-Adresse, tls) unterscheiden sich von qnap/Caddyfile. Alles ab
+# "Protokoll OHNE Tokens" ist Zeichen fuer Zeichen gleich (Riegel tests/test_kamera_publiccert.py) - Sicherheitsregeln dort.
+#
+# Entscheidungen:
+#   - KEINE IP-Site mehr: sie braeuchte wieder "tls internal" (oeffentliche CAs stellen keine Zertifikate fuer private
+#     IPs aus). Uebergang = Umschalten in einem Zug (ENV.md): diese Variante starten, sofort das Supabase-Secret
+#     KAMERA_GATEWAY_BASE auf https://kameras.ep-kolar.at:8443 stellen. Die App-CSP erlaubt solange BEIDE Origins.
+#   - default_sni {$KAMERA_HOST}: Aufruf per Name sendet SNI, dann wirkt es nicht. Ohne SNI (Aufruf per IP, Diagnose)
+#     endet der Handschlag sonst mit einem Abbruch (SEC_E_INTERNAL_ERROR, 20.11.2026); mit default_sni bekommt der Client
+#     das Namenszertifikat und meldet klar "Name passt nicht". Harmlos, daher behalten.
+#   - Erneuerung: Caddy liest Datei-Zertifikate NUR beim Start (auch "caddy reload --force" erneuert den Zertifikat-
+#     Zwischenspeicher nicht, caddyserver/caddy#6789, offen #6933). Deshalb startet caddy_start.sh den Prozess neu,
+#     sobald acme.sh nach einer ECHTEN Erneuerung die Marke /certs/.erneuert aendert. admin bleibt aus.
+
+{
+	admin off
+	auto_https disable_redirects
+	default_sni {$KAMERA_HOST}
+}
+
+https://{$KAMERA_HOST}:{$GATEWAY_PORT} {
+	# ── TLS: oeffentliches Zertifikat (Let's Encrypt) aus dem Volume kamera_zertifikate (acme.sh --install-cert) ──
+	tls /certs/kameras.pem /certs/kameras-key.pem
+
+	# ── Protokoll OHNE Tokens ───────────────────────────────────────────────────────────────
+	log {
+		output file /protokoll/zugriff.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					delete token
+				}
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>headers>X-Kamera-Token delete
+				resp_headers>Set-Cookie delete
+				resp_headers>Location delete
+			}
+		}
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Cache-Control "no-store"
+	}
+
+	# ── CORS-Vorabanfrage fuer WHEP (fetch POST application/sdp von https://epkolar.github.io) ─────
+	@vorab {
+		method OPTIONS
+		path /live/*
+	}
+	handle @vorab {
+		header Access-Control-Allow-Origin "https://epkolar.github.io"
+		header Access-Control-Allow-Methods "POST, OPTIONS"
+		header Access-Control-Allow-Headers "content-type"
+		header Access-Control-Allow-Private-Network "true"
+		header Access-Control-Max-Age "600"
+		header Vary "Origin"
+		respond 204
+	}
+
+	# ── WebRTC (WHEP) -> go2rtc /api/webrtc?src=<s> (G3: hochregal01, verkauf02, elektrolager03, cam39) ──
+	@whep path_regexp whep ^/live/([A-Za-z0-9_-]{1,64})/whep$
+	handle @whep {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			header Access-Control-Allow-Origin "https://epkolar.github.io"
+			header Access-Control-Allow-Private-Network "true"
+			header Vary "Origin"
+			rewrite * /api/webrtc?src={re.whep.1}
+			reverse_proxy {$QNAP_LAN_IP}:1984
+		}
+	}
+
+	# ── MJPEG (Bild-Element) -> go2rtc /api/stream.mjpeg?src=<s> (Mobotix mob32..mob36, stream_typ mjpeg) ──
+	@mjpeg path_regexp mjpeg ^/live/([A-Za-z0-9_-]{1,64})/mjpeg$
+	handle @mjpeg {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			rewrite * /api/stream.mjpeg?src={re.mjpeg.1}
+			reverse_proxy {$QNAP_LAN_IP}:1984 {
+				flush_interval -1
+			}
+		}
+	}
+
+	# ── Einzelbild (Rueckfall der App bei WHEP-/ICE-Fehler) -> go2rtc /api/frame.jpeg?src=<s> ─────────────
+	@bild path_regexp bild ^/live/([A-Za-z0-9_-]{1,64})/snapshot\.jpg$
+	handle @bild {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			rewrite * /api/frame.jpeg?src={re.bild.1}
+			reverse_proxy {$QNAP_LAN_IP}:1984
+		}
+	}
+
+	# ── HLS-Rueckfall: Playlist mit Token -> go2rtc /api/stream.m3u8?src=<s> ───────────────────────────────
+	# go2rtc verweist relativ auf hls/playlist.m3u8?id=..., hls/segment.ts|.m4s, hls/init.mp4. Die laedt der
+	# Browser OHNE Query-Token nach -> nach gepruefter Playlist setzt Caddy das (bereits gepruefte) Token als Cookie
+	# kam_t, nur fuer /live/<s>/, hoechstens 120 s (= laengste Token-Laufzeit; der Pruefer prueft exp bei JEDEM Teil).
+	# Grenze: Safari/iOS blockiert Dritt-Cookies -> dort scheitern die Teile (die App nutzt WHEP + Einzelbild).
+	@hls path_regexp hls ^/live/([A-Za-z0-9_-]{1,64})/index\.m3u8$
+	handle @hls {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			header Set-Cookie "kam_t={http.request.uri.query.token}; Path=/live/{re.hls.1}/; Max-Age=120; HttpOnly; Secure; SameSite=None"
+			rewrite * /api/stream.m3u8?src={re.hls.1}
+			reverse_proxy {$QNAP_LAN_IP}:1984
+		}
+	}
+
+	# ── HLS-Teile (Cookie kam_t, vom Pruefer gegen Stream + Ablauf geprueft) -> go2rtc /api/hls/<teil>?id=... ──
+	@hlsteil path_regexp hlsteil ^/live/([A-Za-z0-9_-]{1,64})/hls/([A-Za-z0-9_-][A-Za-z0-9._-]{0,127})$
+	handle @hlsteil {
+		route {
+			forward_auth kamera-auth:9099 {
+				uri /pruefen
+				header_up -X-Original-URI
+				header_up -X-Original-Method
+				header_up X-Forwarded-Uri {http.request.orig_uri}
+				header_up X-Forwarded-Method {http.request.orig_method}
+				copy_headers X-Kamera-User X-Kamera-Stream
+			}
+			rewrite * /api/hls/{re.hlsteil.2}?id={http.request.uri.query.id}
+			reverse_proxy {$QNAP_LAN_IP}:1984
+		}
+	}
+
+	# ── Aufzeichnung: NICHT im Gateway (go2rtc = nur Live; Surveillance Station + Aufnahmen der QNAP sind TABU) ──
+
+	# ── Gesundheitsabruf fuer die App-Ansicht "Einrichtung" (nur "ok", kein Bild, kein go2rtc) ──────────
+	handle /gesund {
+		header Access-Control-Allow-Origin "https://epkolar.github.io"
+		header Access-Control-Allow-Private-Network "true"
+		header Vary "Origin"
+		respond "ok" 200
+	}
+
+	# ── alles andere (go2rtc /api/*, Oberflaeche, Konfiguration, /aufzeichnung/*) ────────────────────────
+	handle {
+		respond 404
+	}
+}

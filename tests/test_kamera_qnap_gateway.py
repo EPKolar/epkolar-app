@@ -296,7 +296,10 @@ def pruefe_env(text):
         b.append("Wert statt Name")
     # jede Umgebungsvariable, die verify.mjs liest, muss in ENV.md stehen (gemessen, nicht abgeschrieben)
     gelesen = sorted(set(re.findall(r"\benv\.([A-Z][A-Z0-9_]+)", _lies(os.path.join(AUTH, "verify.mjs")))))
-    for n in gelesen + ["QNAP_LAN_IP", "GATEWAY_PORT", "8443", "8555", "x-forwarded-uri", "x-forwarded-method", "nie auf privaten Handys"]:
+    for n in gelesen + ["QNAP_LAN_IP", "GATEWAY_PORT", "8443", "8555", "x-forwarded-uri", "x-forwarded-method", "nie auf privaten Handys",
+                         # Variante oeffentliches Zertifikat (21.11.2026, tests/test_kamera_publiccert.py)
+                         "KAMERA_HOST", "DEDYN_TOKEN", "ACME_EMAIL", "ALIAS_ZONE", "--challenge-alias", "--domain-alias",
+                         "Rebind", "Privates DNS", "Abnahmekriterium", "kameras.ep-kolar.at:8443/gesund"]:
         if n not in text:
             b.append("ENV.md ohne " + n)
     return b
