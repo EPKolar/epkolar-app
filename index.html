@@ -10907,7 +10907,7 @@ function MonteurTafel(props){
     }catch(_e){console.warn('[baupro-load]',_e&&_e.message||_e);}})();
     return ()=>{_alv=false;};
   },[curUser]);
-  /* Kameras Phase 1 (19.11.2026): Schalter. Ohne Code-Schalter KAMERAS_PROD und ohne lokalen Admin-Testschalter KEIN Abruf - der Reiter bleibt aus. Details und Begruendung im Kameras-Block vor FlotteView. */
+  /* Kameras Phase 1 (19.11.2026): Schalter. Ohne Code-Schalter KAMERAS_PROD und ohne lokalen Admin-Testschalter KEIN Abruf - der Reiter bleibt aus. v1087: KAMERAS_PROD=true - Kamerarollen lesen kameras_aktiv, Projektleitung/Buero/Lagerleitung sehen den Reiter nur bei kameras_aktiv=true, Monteur nie. Details und Begruendung im Kameras-Block vor FlotteView. */
   const [_kamFlag,_setKamFlag]=_react.useState.call(void 0, false);
   _react.useEffect.call(void 0, ()=>{
     let _alv=true;
@@ -30904,7 +30904,12 @@ function _fzVanEl(zustand,breite,art){/* v1051 dieselbe Zeichnung wie Karte und 
    SCHALTER (fuer Projektleitung/Buero/Lagerleitung in Produktion AUS, nichts schaltet sich selbst ein):
      KAMERAS_ADMIN=true (19.11.2026, Auftrag Inhaber) -> NUR der Admin sieht den Bereich in Produktion, zuerst mit der
      Ansicht Einrichtung (ehrlicher Stand der Voraussetzungen). Alle anderen Rollen: unveraendert aus.
-     KAMERAS_PROD=false  -> der Produktionsweg (system_config kameras_aktiv) wird gar nicht erst gelesen.
+     KAMERAS_PROD=true (v1087, Auftrag Inhaber 21.11.2026 "Kameras live in die App") -> der Produktionsweg ist
+     eingebaut: Projektleitung/Buero/Lagerleitung sehen den Reiter NUR, wenn system_config kameras_aktiv=true ist.
+     Diesen Wert setzt ausschliesslich der Admin in Kameras > Einrichtung (Freigabe-Schalter, erst wenn alle
+     Voraussetzungen erfuellt sind); fehlt der Schluessel, bleibt es aus. Monteur und alle anderen Rollen: nie.
+     Welche Kamera wer wann sieht, entscheiden weiter die Zugriffsregeln am Server (kamera-stream).
+     KAMERAS_PROD=false -> der Produktionsweg (system_config kameras_aktiv) wird gar nicht erst gelesen (Notbremse).
      Testbetrieb: NUR ein Admin, NUR wenn system_config kameras_testumgebung=true UND auf DIESEM Geraet der
      lokale Testschalter gesetzt ist (Adresse mit ?kameras_test=1 setzt ihn, ?kameras_test=0 loescht ihn;
      fuer jede andere Rolle wird der Parameter ignoriert).
@@ -30915,7 +30920,7 @@ function _fzVanEl(zustand,breite,art){/* v1051 dieselbe Zeichnung wie Karte und 
    Schreibwege (nur Admin, RLS prueft nochmal): direkt ueber _sbUpsert/_sbPost/_sbDelete, BEWUSST nicht ueber die
    SyncQueue - eine offline gemerkte Zugriffsregel, die Stunden spaeter nachgespielt wird, waere bei einer
    Ueberwachungsfreigabe die falsche Wirkung; ausserdem muesste dafuer ROUTE_MAP angefasst werden. */
-var KAMERAS_PROD=false;
+var KAMERAS_PROD=true;/* v1087: Produktionsweg an - Team-Freigabe nur ueber system_config kameras_aktiv (Admin-Schalter) */
 var KAMERAS_ADMIN=true;/* Produktionsstandard 19.11.2026: Bereich fuer den Admin sichtbar (Einrichtung + spaeter Live). Der Schutz bleibt am Server (kamera-stream). */
 var KAMERA_ROLLEN=['admin','projektleiter','buero','lagerleitung'];
 var KAMERA_REC_ROLLEN=['admin','projektleiter','buero'];/* Spiegel des Server-Standards KAMERA_AUFZEICHNUNG_ROLLEN - nur fuer die Anzeige; entschieden wird am Server */
@@ -30976,6 +30981,38 @@ async function _kamLadeSchalter(){
     (rows||[]).forEach(function(r){if(r&&r.key)o[r.key]=r.value;});
     return o;
   }catch(e){return {};}
+}
+/* v1087 Team-Freigabe (nur Admin): kameras_aktiv lesen/schreiben. Lesen unterscheidet "nicht gesetzt" (= aus) von
+   "nicht lesbar" (fehler), damit der Admin nie einen erfundenen Stand sieht. Schreiben wie die anderen
+   system_config-Masken (kv_rules, stempel_pause_rules): _sbUpsert mit key/value(Text)/updated_at/updated_by,
+   direkt und NICHT ueber die SyncQueue (siehe oben). RLS system_config_admin_write + Trigger guard_admin_only
+   lassen nur den Admin schreiben. */
+async function _kamLadeFreigabe(){
+  try{
+    var rows=await _sbGet('system_config','key=eq.kameras_aktiv&select=key,value');
+    var r=(rows||[]).filter(function(x){return x&&x.key==='kameras_aktiv';})[0];
+    return {stand:'ok',an:!!(r&&_kamCfgWahr(r.value))};
+  }catch(e){return {stand:'fehler',an:false};}
+}
+async function _kamFreigabeSchreiben(an,cu){
+  cu=cu||{};
+  await _sbUpsert('system_config',{key:'kameras_aktiv',value:an===true?'true':'false',updated_at:new Date().toISOString(),updated_by:cu.name||cu.username||'admin'},true);
+}
+function _kamFreigabeFehler(e){
+  var m=String((e&&e.message)||e||'');
+  if(/Auth:401/.test(m))return 'Nicht gespeichert: Anmeldung abgelaufen. Bitte ab- und wieder anmelden.';
+  if(/HTTP403|42501|Nur Admin/.test(m))return 'Nicht gespeichert: nur ein Admin darf die Freigabe umschalten.';
+  return 'Nicht gespeichert (Netzfehler oder Server nicht erreichbar). Bitte erneut versuchen.';
+}
+/* -> {chip, knopf, an, aktiv, hinweis} - rein, fuer Kopf-Chip und Schalter (Tests in test_kameras_prod_v1087) */
+function _kamFreigabeAnzeige(frei,fertig){
+  frei=frei||{};
+  var an=KAMERAS_PROD===true&&frei.stand==='ok'&&frei.an===true;
+  var chip=frei.stand==='ok'?(an?'Für Team freigeschaltet':'Nur Admin'):'';
+  if(KAMERAS_PROD!==true)return {chip:'Nur Admin',knopf:false,an:false,aktiv:false,hinweis:''};
+  if(frei.stand!=='ok')return {chip:chip,knopf:true,an:false,aktiv:false,hinweis:frei.stand==='fehler'?'Freigabe-Stand nicht lesbar (Netzfehler oder keine Berechtigung).':'Freigabe wird geladen …'};
+  if(an)return {chip:chip,knopf:true,an:true,aktiv:frei.busy!==true,hinweis:'Büro, Projektleitung und Lagerleitung sehen den Bereich Kameras - welche Kamera wann, regeln die Zugriffsregeln.'};
+  return {chip:chip,knopf:true,an:false,aktiv:fertig===true&&frei.busy!==true,hinweis:fertig===true?'Zurzeit sieht nur der Admin den Bereich Kameras.':'Erst wenn alle Voraussetzungen erfüllt sind.'};
 }
 function _kamIstPC(ww,feinerZeiger){return (ww||0)>=1200&&feinerZeiger===true;}
 function _kamRaster(ansicht,n,isMob){
@@ -31753,6 +31790,15 @@ function KameraView(props){
     });
     return function(){alive=false;};
   },[eNeu,isAdmin,demo]);
+  /* v1087 Team-Freigabe: nur der Admin liest kameras_aktiv hier (fuer Kopf-Chip und Schalter); nach jedem Speichern neu lesen */
+  var _fg=_react.useState.call(void 0,{stand:'laedt',an:false,busy:false,msg:''});var frei=_fg[0],setFrei=_fg[1];
+  var _fn=_react.useState.call(void 0,0);var fNeu=_fn[0],setFNeu=_fn[1];
+  _react.useEffect.call(void 0,function(){
+    var alive=true;
+    if(!isAdmin||demo||KAMERAS_PROD!==true)return function(){alive=false;};
+    _kamLadeFreigabe().then(function(r){if(alive)setFrei(function(p){return Object.assign({},p,r);});});
+    return function(){alive=false;};
+  },[fNeu,isAdmin,demo]);
   if(!rolle)return null;
   var titel=h('h2',{style:{fontSize:isMob?UI.fSeiteMob:UI.fSeite,fontWeight:800,color:V.tx,margin:0}},_ikT("videokamera","Kameras"));/* EINE Seitenueberschrift fuer Demo und Betrieb */
   if(demo){
@@ -31777,9 +31823,29 @@ function KameraView(props){
   /* Admin: solange etwas fehlt, kein Live/Aufzeichnung - Verwaltung nur, wenn die Tabellen da sind */
   if(isAdmin&&!fertig&&!(b==='verwaltung'&&kd.status==='ok'))b='einrichtung';
   var aktive=kd.rows.filter(function(x){return x.aktiv!==false;});
+  var fa=isAdmin?_kamFreigabeAnzeige(frei,!!(einr&&einr.fertig)):{chip:'',knopf:false,an:false,aktiv:false,hinweis:''};
+  var _freiSchalten=async function(an){
+    if(!isAdmin||frei.busy)return;
+    if(an&&!(einr&&einr.fertig)){setFrei(function(p){return Object.assign({},p,{msg:'Erst wenn alle Voraussetzungen erfüllt sind.'});});return;}
+    if(an&&!window.confirm('Ab jetzt sehen Büro, Projektleitung und Lagerleitung die freigegebenen Kameras in ihren Zeitfenstern. Fortfahren?'))return;
+    setFrei(function(p){return Object.assign({},p,{busy:true,msg:''});});
+    var fehler='';
+    try{await _kamFreigabeSchreiben(an,cu);}catch(e){fehler=_kamFreigabeFehler(e);}
+    setFrei(function(p){return Object.assign({},p,{busy:false,msg:fehler});});
+    if(!fehler&&window.__toast)window.__toast(an?'Kameras für das Team freigegeben':'Team-Freigabe beendet','ok',2500);
+    setFNeu(function(n){return n+1;});
+  };
+  var freigabeKarte=(isAdmin&&fa.knopf)?_kamKarte(h,[
+    h('div',{key:'t',id:'kam-freigabe-titel',style:{fontSize:UI.fTitel,fontWeight:700,color:UI.tinte,marginBottom:6}},'Kameras für Büro/Projektleitung/Lager freigeben'),
+    h('div',{key:'x',role:'status',style:{fontSize:UI.fKlein,color:UI.grau,lineHeight:1.5}},fa.hinweis),
+    h('div',{key:'k',style:{marginTop:10,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}
+      ,frei.stand==='fehler'?h('button',{type:'button',onClick:function(){setFNeu(fNeu+1);},style:bsS()},'Erneut laden')
+        :h('button',{type:'button',role:'switch','aria-checked':fa.an?'true':'false','aria-labelledby':'kam-freigabe-titel',disabled:!fa.aktiv,
+          onClick:function(){_freiSchalten(!fa.an);},style:fa.an?bsS():bpS},frei.busy?'Wird gespeichert …':(fa.an?'Freigabe: An – ausschalten':'Freigabe: Aus – einschalten'))),
+    frei.msg?h('div',{key:'m',role:'alert',style:{fontSize:UI.fKlein,color:UI.achtungTxt,marginTop:8,lineHeight:1.5}},frei.msg):null]):null;
   var kopf=h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:12,flexWrap:'wrap'}}
     ,titel
-    ,KAMERAS_PROD?null:h('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:UI.achtungTxt,background:UI.achtungBg,borderRadius:UI.rChip,padding:'4px 10px'}},'Testbetrieb'));
+    ,isAdmin&&fa.chip?h('span',{'data-kam-freigabe':fa.an?'an':'aus',style:{fontSize:UI.fMeta,fontWeight:700,color:fa.an?'#fff':UI.grau,background:fa.an?UI.knopf:'transparent',border:'1px solid '+(fa.an?UI.knopf:UI.linie),borderRadius:UI.rChip,padding:'4px 10px',whiteSpace:'nowrap'}},fa.chip):null);
   var reiter=(isPC||isAdmin)?h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}
     ,fertig?_kamChip(h,b==='live','Live',function(){setBereich('live');}):null
     ,darfRec&&fertig?_kamChip(h,b==='aufzeichnung','Aufzeichnungen',function(){setBereich('aufzeichnung');}):null
@@ -31787,7 +31853,7 @@ function KameraView(props){
     ,isAdmin?_kamChip(h,b==='einrichtung','Einrichtung',function(){setBereich('einrichtung');}):null
     ,isAdmin&&!aktive.length&&kd.status!=='laedt'?_kamChip(h,false,'Demo-Ansicht',function(){_kamDemoMerken(true);setDemoAn(true);},'Fertige Ansicht mit Platzhaltern zeigen (kein echtes Bild)'):null):null;
   var inhalt;
-  if(b==='einrichtung')inhalt=h(KameraEinrichtung,{zeilen:einr.zeilen,onNeu:function(){setNeu(neu+1);setENeu(eNeu+1);}});
+  if(b==='einrichtung')inhalt=h('div',null,h(KameraEinrichtung,{zeilen:einr.zeilen,onNeu:function(){setNeu(neu+1);setENeu(eNeu+1);setFNeu(fNeu+1);}}),freigabeKarte?h('div',{style:{marginTop:12}},freigabeKarte):null);
   else if(kd.status==='laedt')inhalt=h('div',{style:{fontSize:UI.fKlein,color:UI.grau,padding:12}},'Lade Kameras …');
   else if(kd.status==='fehlt')inhalt=_kamHinweis(h,'Datenmodell noch nicht angelegt','Die Kamera-Daten fehlen in der Datenbank noch. Bis dahin gibt es hier nichts zu sehen.');
   else if(kd.status==='fehler')inhalt=_kamHinweis(h,'Kameras konnten nicht geladen werden','Netzfehler oder keine Berechtigung.',h('button',{type:'button',onClick:function(){setNeu(neu+1);},style:bsS()},'Erneut laden'));
