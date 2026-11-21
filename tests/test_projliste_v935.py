@@ -113,9 +113,10 @@ def test_die_stunden_stehen_in_ihrer_eigenen_spalte(rumpf):
 
 
 def test_die_kopfzeile_ist_ruhig(rumpf):
-    i = rumpf.find('background:"#FAFBFA"')
-    assert i > 0, "Die Kopfzeile liegt nicht auf #FAFBFA."
-    kopf = rumpf[i:i + 200]
+    # Render 1089 P2-1: hell weiter #FAFBFA, dunkel die Theme-Flaeche V.sb (vorher hell im Dunkeln, 1,88) - Pin nachgezogen
+    i = rumpf.find('background:_dark?V.sb:"#FAFBFA"')
+    assert i > 0, "Die Kopfzeile liegt nicht auf #FAFBFA / V.sb."
+    kopf = rumpf[i:i + 400]  # 1089: Begruendungskommentar in der Zeile
     assert "fontSize:UI.fKlein" in kopf and "fontWeight:600" in kopf, (
         "Die Kopfzeile ist nicht 13px/600.")
     assert "textTransform" not in kopf, (
