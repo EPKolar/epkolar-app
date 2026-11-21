@@ -97,7 +97,8 @@ def test_umkehr_ok_ohne_id_waere_rot(roh, node_exe):
 
 
 def test_feed_nutzt_zusammenfassung_details_nur_admin(roh):
-    i = roh.index("const _zs=_actZusammenfassung(a.action,det);")
+    # Render 1089 P3: dritter Parameter a.details (Login-Zeilen mit reinem Text) - Pin nachgezogen
+    i = roh.index("const _zs=_actZusammenfassung(a.action,det,a.details);")
     blk = roh[i:i + 1600]
     assert "curUser&&curUser.role===\"admin\"&&_roh" in blk
     assert "React.createElement('details'" in blk and "\"Details\"" in blk

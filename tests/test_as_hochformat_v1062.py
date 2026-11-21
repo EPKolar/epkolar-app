@@ -219,7 +219,8 @@ def test_karte_und_tabelle_haengen_an_derselben_entscheidung(roh):
     assert ", !_asKarte&&_asRollt&&React.createElement(" in v, "Rollhinweis gehoert zur Tabelle und haengt an der gemessenen Ueberbreite"
     # Tablet-Runde 1077 (1): in mittel rollt der Kasten auch senkrecht (_asRollHoehe) - der Kopf klebt
     assert "WebkitOverflowScrolling:\"touch\",..._asRollHoehe()}, ref: _asRollRef" in v
-    assert "..._asNrKlebt()}, onClick: ()=>_openEditGuarded(a)}, a.nummer" in v, "Nummer klebt links im Rollkasten"
+    # Owner-Messung 1089: Zeilentoenung (storniert) deckend unter der klebenden Nummer - Pin nachgezogen
+    assert "..._asNrKlebt(isSt?_AS_ST_TON:null)}, onClick: ()=>_openEditGuarded(a)}, a.nummer" in v, "Nummer klebt links im Rollkasten"
     # Sortierauswahl dort, wo es keine Spaltenkoepfe gibt
     s = v.index("React.createElement('select', { value: sortCol")
     z = v.rfind(", _asKarte&&React.createElement('div', { style: {display:\"flex\",gap:6,alignItems:\"center\"}}", 0, s)
@@ -419,7 +420,7 @@ def _direkt_ok(v):
     code = nur_code(zeile)
     # Die Zeile (Felder UND Knoepfe) haengt an keiner Stufe; die Aktionen-
     # Spalte unterscheidet sich nur im Kleben (_asAktSpalte), nicht im Inhalt.
-    rest = code.replace("..._asAktSpalte()", "")
+    rest = code.replace("..._asAktSpalte(isSt?_AS_ST_TON:null)", "")  # 1089: mit Zeilentoenung
     return not any(w in rest for w in STUFEN_WOERTER)
 
 
@@ -448,9 +449,9 @@ def _akt_klebt(node_exe, helfer, mittel):
 
 
 def _akt_helfer(src):
-    i = src.index("const _asAktKlebt=()=>(")
+    i = src.index("const _asAktKlebt=(tn)=>(")  # 1089: optionale Zeilentoenung
     j = src.index(";", src.index("boxShadow:", i)) + 1
-    k = src.index("const _asAktSpalte=()=>(")
+    k = src.index("const _asAktSpalte=(tn)=>(")
     l = src.index(";", k) + 1
     return src[i:j] + "\n" + src[k:l]
 
@@ -462,12 +463,14 @@ def test_aktionen_kleben_nur_in_breit(roh, node_exe):
     assert "position" not in m and "right" not in m, "mittel: die Spalte deckt nichts zu"
     v = _as_view(roh)
     _, tabelle = _zweige(v)
-    assert tabelle.count("..._asAktSpalte()") == 2 and "..._asAktKlebt()" not in tabelle
-    assert "..._asNrKlebt()" in tabelle, "Nummer klebt weiter links"
+    # 1089: Kopf ueber _asKopfKlebt, Zeile mit Zeilentoenung - weiterhin genau zwei Aufrufe, nie _asAktKlebt direkt
+    assert tabelle.count("_asAktSpalte(") == 2 and "_asAktKlebt(" not in tabelle
+    assert "..._asKopfKlebt(_asAktSpalte())" in tabelle and "..._asAktSpalte(isSt?_AS_ST_TON:null)" in tabelle
+    assert "..._asNrKlebt(" in tabelle, "Nummer klebt weiter links"
 
 
 def test_umkehr_klebende_aktionen_in_mittel_waeren_rot(roh, node_exe):
-    h = _akt_helfer(roh).replace("_asMittel?{}:_asAktKlebt()", "_asAktKlebt()")
+    h = _akt_helfer(roh).replace("_asMittel?{}:_asAktKlebt(tn)", "_asAktKlebt(tn)")
     assert _akt_klebt(node_exe, h, True).get("position") == "sticky"
 
 

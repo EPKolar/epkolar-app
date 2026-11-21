@@ -212,7 +212,8 @@ console.log(JSON.stringify([
     assert r[2] == "keine Verbindung zum Server" and r[3] == "keine Verbindung zum Server"
     assert r[4] == "HTTP 500", "fremde Fehler bleiben woertlich - kein erfundener Grund"
     assert r[5] is None
-    assert "_2(\"❌ Juprowa-Config: \"+_fehlerText(e)" in html
+    # Render 1089 P3: Toast ohne Emoji (CI), weiter ueber _fehlerText - Pin nachgezogen
+    assert "_2(\"Juprowa-Konfiguration: \"+_fehlerText(e)" in html
     assert "'System-Config laden fehlgeschlagen: '+_fehlerText(e)" in html
     assert "msg=_fehlerDeutsch(msg);/* v3.9.1081 P3a */" in html
     assert "msg=_fehlerDeutsch(msg);/* v3.9.1081 P3a: englische" in html

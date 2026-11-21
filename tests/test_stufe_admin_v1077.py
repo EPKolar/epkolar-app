@@ -123,10 +123,11 @@ NUR_DARSTELLUNG = [
     r"\.\.\._adKleb\((?:V\.cd|isFail\?\"linear-gradient\(rgba\(239,68,68,\.06\),rgba\(239,68,68,\.06\)\),\"\+V\.cd:V\.cd)(?:,true)?\)",
     # A55 Runde 3 (1084): Benachrichtigungs-Matrix unter breit mit eigenem Rollkasten und klebenden
     # Kopfzeilen - reine Darstellung (Hoehe, Rollen, Raender, Hintergrund, Ausrichtung), exakt gepinnt.
-    re.escape('style: _adStufe!=="breit"?{maxHeight:"70vh",overflow:"auto",overscrollBehavior:"contain"}:undefined'),
-    re.escape('...(_adStufe!=="breit"?{maxHeight:"70vh",overscrollBehavior:"contain",borderCollapse:"separate",borderSpacing:0}:{})'),
+    # Render 1089 P3: der Rollkasten (70vh) und die deckenden Kopf-Hintergruende gelten jetzt in ALLEN Stufen
+    # (Kopf klebt auch unter breit) - sie haengen an keiner Stufe mehr; uebrig bleibt nur die Hoehengrenze
+    # der Tabelle selbst (unter 768 px ist sie der Rollkasten) und die Ausrichtung.
+    re.escape('...(_adStufe!=="breit"?{maxHeight:"70vh",overscrollBehavior:"contain"}:{})'),
     re.escape('textAlign:_adStufe!=="breit"?"left":"center"'),
-    re.escape('...(_adStufe!=="breit"?{background:V.cd}:{})'),
 ]
 
 
@@ -210,7 +211,7 @@ def _kopf(src):
     return v[:v.index("\n  return (\n")]
 
 
-JUPROWA_MD5 = "3ff4e8bb925e7dee0064d1fe5ee528d1"   # origin/main v3.9.1076, durch Stufe 7 NICHT veraendert
+JUPROWA_MD5 = "5f747f49aaa4ffde7fdf05d3f67f98fe"   # Render 1089 P3: nur Anzeige - Emoji (Verbindung/Speichern/Diagramm/Liste/Pull-Push-Sync) durch Linien-Ikonen _ikVw/_ik ersetzt; alter Wert 3ff4e8bb925e7dee0064d1fe5ee528d1 (v3.9.1076, durch Stufe 7 nicht veraendert)
 # 1077: Funde 1077b zaehlt Lieferanten-Artikel exakt (_saAnzahlExakt in fetchSuppliers) - bewusste Logik-Aenderung, Prüfsumme nachgezogen
 # v3.9.1081 Render-Fund P3a: fetchJupConfig zeigt den Fehler ueber die Anzeige-Hilfe _fehlerText(e) statt (e&&e.message||e) -
 # "Failed to fetch" wird "keine Verbindung zum Server". Einzige Abweichung im Kopf (difflib gegen origin/main 9ccd9ed gemessen),
@@ -218,7 +219,9 @@ JUPROWA_MD5 = "3ff4e8bb925e7dee0064d1fe5ee528d1"   # origin/main v3.9.1076, durc
 # A55 Runde 3 (1084): ACT_LABELS (Anzeigetexte im Kopf) ohne Emoji ("🟢 Login" -> "Anmeldung") und mit
 # deutschen Texten fuer juprowa_push_fail/_status_unbekannt - reine Anzeigetabelle, kein Handler/Schreibweg.
 # Alter Wert d04b894788546b35a586f442795af90a.
-KOPF_MD5_VORHER = "f2ed6cf75b4d9b3a2ca996312f9cd4d4"  # v3.9.1081 mit const isMob=ww<BP_MOB;
+# Render 1089 P3: die zwei fetchJupConfig-Toasts ohne Emoji ("❌ Juprowa-Config" -> "Juprowa-Konfiguration") - reine Meldungstexte,
+# kein Handler/Schreibweg/Abruf geaendert. Alter Wert f2ed6cf75b4d9b3a2ca996312f9cd4d4.
+KOPF_MD5_VORHER = "8a7402229c8827766fcef4d9fa53fdeb"  # v3.9.1089 mit const isMob=ww<BP_MOB;
 
 
 def test_juprowa_reiter_byte_gleich(roh):

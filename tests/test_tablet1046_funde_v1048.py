@@ -154,15 +154,17 @@ def test_werkzeug_kalibrierung_lesbar(index_html):
 # ── 7 AS-Liste: Aktionen klebt rechts ────────────────────────────────────
 
 def test_as_liste_aktionen_kleben_rechts(index_html):
-    assert 'const _asAktKlebt=()=>({position:"sticky",right:0,zIndex:1,background:V.cd,' in index_html
+    # Owner-Messung 1089: optionale Zeilentoenung tn, deckend ueber V.cd - ohne tn weiter genau V.cd (Pins nachgezogen)
+    assert 'const _asAktKlebt=(tn)=>({position:"sticky",right:0,zIndex:1,background:tn?"linear-gradient("+tn+","+tn+"),"+V.cd:V.cd,' in index_html
     # Pin nachgezogen (AS Liste mittel, GF 19.11.2026 nach 1065): die Spalte
     # klebt weiter in der Stufe breit; am Tablet hochkant (mittel) deckte sie
     # BESTAETIGT zu und steht dort am Zeilenende im Rollkasten. Die Aufrufstellen
     # gehen deshalb ueber _asAktSpalte, das in breit genau _asAktKlebt liefert.
-    assert 'const _asAktSpalte=()=>(_asMittel?{}:_asAktKlebt());' in index_html
+    assert 'const _asAktSpalte=(tn)=>(_asMittel?{}:_asAktKlebt(tn));' in index_html
     # Tablet-Runde 1077: Kopf in mittel deckend (_asKopfDeck)
-    assert '{...thS(),..._asKopfDeck(),width:110,textAlign:"center",..._asAktSpalte()}}, "Aktionen")' in index_html
-    assert '{...tdSt(),textAlign:"center",padding:"4px 2px",..._asAktSpalte()}}' in index_html
+    # 1089: Kopf ueber _asKopfKlebt deckend getoent (vorher weiss), Zelle mit Zeilentoenung der stornierten Zeile
+    assert '{...thS(),..._asKopfDeck(),width:110,textAlign:"center",..._asKopfKlebt(_asAktSpalte())}}, "Aktionen")' in index_html
+    assert '{...tdSt(),textAlign:"center",padding:"4px 2px",..._asAktSpalte(isSt?_AS_ST_TON:null)}}' in index_html
     # die Schreibwege der Zeile sind unberuehrt
     assert "openEdit(a);}, style: {...bpS,border:\"none\",borderRadius:4" in index_html
 

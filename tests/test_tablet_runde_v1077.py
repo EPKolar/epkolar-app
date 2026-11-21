@@ -51,7 +51,8 @@ console.log(JSON.stringify(r));"""
     a = index_html.index("React.createElement('table', { className: _asMittel?\"epk-as-mittel\"")
     b = index_html.index("React.createElement('tbody', {}, sorted.map", a)
     assert index_html[a:b].count("{...thS(),..._asKopfDeck(),") == 13
-    assert "..._asNrKlebt()}, role: \"button\"" in index_html[a:b]
+    # Owner-Messung 1089: der klebende Nummer-Kopf deckend getoent statt weiss - Pin nachgezogen
+    assert "..._asKopfKlebt(_asNrKlebt())}, role: \"button\"" in index_html[a:b]
     assert "minWidth:112" in index_html[a:b] and "minWidth:104" in index_html[a:b]
 
 
