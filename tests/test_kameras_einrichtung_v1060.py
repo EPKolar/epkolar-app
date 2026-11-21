@@ -79,7 +79,7 @@ reset({db: {kameras: KAMS}, fein: true, einrichtung: FN_OK});
 w = wurzel('admin'); await ruhe(w); OUT.fertig = bild();
 await klick(w, 'Einrichtung'); OUT.fertig_einr = bild();
 const vorher = ZAEHL.pruef.length;
-await klick(w, 'Erneut prüfen'); OUT.erneut = {pruef: ZAEHL.pruef.length - vorher, text: text(baum)};
+await klick(w, 'Erneut prüfen'); OUT.erneut = {pruef: ZAEHL.pruef.length - vorher, liste: ZAEHL.pruef.slice(vorher), text: text(baum)};
 await klick(w, 'Live'); OUT.zurueck = bild();
 // 6) Admin am Handy, nichts da: Einrichtung auch am Handy, ohne Verwaltung
 reset({db: {kameras: FEHLT}, fein: false, einrichtung: {status: 404, json: {}}});
@@ -199,7 +199,10 @@ def test_alles_da_zeigt_live_kacheln_und_einrichtung_als_reiter(U):
     e = U["fertig_einr"]
     assert "Alle Voraussetzungen sind erfüllt." in e["text"] and e["text"].count("erledigt") == 4 and e["videos"] == 0
     assert "Kamera-Server im Büro: erreichbar" in e["text"]
-    assert U["erneut"]["pruef"] == 2, "Erneut pruefen fragt Funktion und Video-Host neu"
+    # Pin angepasst v3.9.1088 (Kamera LNA): der Klick stoesst den Gesundheitsabruf zusaetzlich SOFORT an (Nutzergeste,
+    # damit Chrome die Frage "Geraete im lokalen Netzwerk" zeigen kann) -> 3 statt 2, Reihenfolge fest.
+    assert U["erneut"]["pruef"] == 3, "Erneut pruefen: Anstoss im Klick, dann Funktion und Video-Host neu"
+    assert U["erneut"]["liste"] == ["gesund:https://video.example.test/gesund", "fn", "gesund:https://video.example.test/gesund"]
     assert U["zurueck"]["videos"] == 1
 
 

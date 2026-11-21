@@ -31186,9 +31186,18 @@ function _kamHinweis(h,titel,text,knopf){
 }
 var KAMERA_STUB_TXT={kein_backend:'Kein Video-Backend verbunden',kein_zugriff:'Kein Zugriff zu dieser Zeit',
   player:'Dieses Gerät kann den Stream nicht abspielen',abbruch:'Verbindung unterbrochen',fehler:'Video nicht verfügbar',laedt:'Verbinde …',
-  offline:'Kamera nicht erreichbar',wartet:'Verbinde …',netz_aus:'Server nicht erreichbar',gateway:'Kamera-Server nicht erreichbar'};
+  offline:'Kamera nicht erreichbar',wartet:'Verbinde …',netz_aus:'Server nicht erreichbar',gateway:'Kamera-Server nicht erreichbar',
+  lna:'Browser blockiert das lokale Netzwerk',lna_frage:'Browser-Freigabe fürs lokale Netzwerk fehlt'};
 /* v3.9.1083: Live-Bild UND Einzelbild scheitern und der Kamera-Server antwortet nicht -> kurzer Hinweis fuer vor Ort */
 var KAMERA_NETZ_TIPP='Im Büro-Netz? Stammzertifikat auf diesem Gerät installiert? Zugriff aufs lokale Netzwerk erlaubt?';
+/* v3.9.1088: Browser-Freigabe fuer das lokale Netz (Chrome Local Network Access) - gesperrt bzw. Frage offen/abgelaufen */
+var KAMERA_LNA_WEG='Schloss-Symbol links neben der Adresse → Website-Einstellungen → „Lokales Netzwerk“ (bzw. „Geräte im lokalen Netzwerk“) auf „Zulassen“ – alternativ chrome://settings/content/localNetworkAccess öffnen und diese App (epkolar.github.io) zulassen. Danach Strg+F5 und „Erneut prüfen“.';
+var KAMERA_LNA_GESPERRT_TXT='Der Browser blockiert den Zugriff auf Geräte im lokalen Netzwerk. '+KAMERA_LNA_WEG;
+/* gemessen 21.11. (Buero-PC): Freigabe 'prompt', Abruf scheitert SOFORT mit TypeError, keine Frage sichtbar -> laengeres Warten hilft nicht */
+var KAMERA_LNA_FREIGABE_TXT='Der Browser lässt den Zugriff auf Geräte im lokalen Netzwerk nicht zu und hat nicht nachgefragt. '+KAMERA_LNA_WEG;
+var KAMERA_LNA_FRAGE_TXT='Bitte die Browser-Frage „Auf Geräte im lokalen Netzwerk zugreifen“ mit „Zulassen“ beantworten, dann „Erneut prüfen“.';
+var KAMERA_LNA_TIPP='Schloss-Symbol links neben der Adresse → Website-Einstellungen → „Lokales Netzwerk“ auf „Zulassen“.';
+var KAMERA_LNA_FRAGE_TIPP='Browser-Frage „Auf Geräte im lokalen Netzwerk zugreifen“ mit „Zulassen“ beantworten.';
 /* Betrieb (20.11.2026): Statuschip je Kachel. Reine Abbildung Phase/Grund -> Schluessel (in Node getestet). */
 var KAMERA_STATUS_TXT={verbindet:'verbindet',live:'live',kein_zugriff:'kein Zugriff jetzt (Zeitfenster)',offline:'Kamera nicht erreichbar',server:'Server nicht erreichbar',spaeter:'später'};
 function _kamStatus(phase,grund){
@@ -31206,6 +31215,15 @@ function _kamBackoff(n){return (n>=0&&n<KAMERA_RETRY_MS.length)?KAMERA_RETRY_MS[
 var KAMERA_ICE_MS=10000;
 function _kamIceHaengt(c,i){return c!=='connected'&&i!=='connected'&&i!=='completed';}
 /* Gateway-Basis aus einer Token-Adresse (.../live/<s>/...) - fuer den Gesundheitsabruf der Kachel */
+/* v3.9.1088: Diagnose des Gesundheitsabrufs -> Kachel-Grund ('' = kein Wechsel) */
+var KAMERA_GATEWAY_TIPP={gateway:KAMERA_NETZ_TIPP,lna:KAMERA_LNA_TIPP,lna_frage:KAMERA_LNA_FRAGE_TIPP};
+function _kamGatewayGrund(r){
+  var s=(r&&typeof r==='object')?r.stand:r;
+  if(s==='nicht_erreichbar')return 'gateway';
+  if(s==='lna_gesperrt'||s==='lna_freigabe')return 'lna';
+  if(s==='zeitueberschreitung')return 'lna_frage';
+  return '';
+}
 function _kamGatewayBasis(u){
   if(!_kamIstHttps(u))return '';
   var m=/^(https:\/\/[^?#]*?)\/live\/[A-Za-z0-9_-]{1,64}\//.exec(u);
@@ -31437,7 +31455,9 @@ function KameraKachel(props){
          nicht im Buero-Netz, Browser-Freigabe fuer das lokale Netz), zeigt die Kachel das statt "Kamera nicht erreichbar". */
       var gb=_kamGatewayBasis(bild.url);
       if(gb)_kamBueroPruefen(gb).then(function(r){
-        if(r==='nicht_erreichbar')setSt(function(s){return (s.phase==='stub'&&s.grund==='offline')?{phase:'stub',grund:'gateway'}:s;});});
+        /* v3.9.1088: dieselbe Diagnose wie in der Einrichtung - gesperrte bzw. offene Browser-Freigabe eigens benennen */
+        var g=_kamGatewayGrund(r);
+        if(g)setSt(function(s){return (s.phase==='stub'&&s.grund==='offline')?{phase:'stub',grund:g}:s;});});
     }
   };
   return h('div',{style:{minWidth:0,border:'1px solid '+UI.linie,borderRadius:UI.rKarte,overflow:'hidden',background:UI.flaeche}}
@@ -31450,8 +31470,8 @@ function KameraKachel(props){
       ,live?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:10,textAlign:'center',color:'#E6EAE7'}}
         ,h('span',{style:{opacity:.8}},_ik('videokamera',28))
         ,h('span',{style:{fontSize:UI.fKlein,fontWeight:600}},KAMERA_STUB_TXT[st.grund]||KAMERA_STUB_TXT.fehler)
-        ,st.grund==='gateway'?h('span',{style:{fontSize:UI.fMeta,lineHeight:1.4,maxWidth:420,opacity:.9}},KAMERA_NETZ_TIPP):null
-        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline'||st.grund==='netz_aus'||st.grund==='gateway')?h('button',{type:'button',onClick:function(){versuchRef.current=0;_kamBackend.fehlt=false;setNeu(neu+1);},
+        ,KAMERA_GATEWAY_TIPP[st.grund]?h('span',{style:{fontSize:UI.fMeta,lineHeight:1.4,maxWidth:420,opacity:.9}},KAMERA_GATEWAY_TIPP[st.grund]):null
+        ,(st.grund==='fehler'||st.grund==='abbruch'||st.grund==='kein_backend'||st.grund==='offline'||st.grund==='netz_aus'||st.grund==='gateway'||st.grund==='lna'||st.grund==='lna_frage')?h('button',{type:'button',onClick:function(){versuchRef.current=0;_kamBackend.fehlt=false;setNeu(neu+1);},
             style:{...bsS(),color:'#E6EAE7',border:'1px solid #6E7872'}},'Neu laden'):null))
     ,h('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',minHeight:44}}
       ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
@@ -31685,15 +31705,66 @@ async function _kamFnPruefen(){
     return _kamFnAntwort(r.status,j);
   }catch(e){return {stufe:'fehlt',secret:false,basis:''};}
 }
-async function _kamBueroPruefen(basis){
-  if(!_kamIstHttps(basis))return 'keine_adresse';
+/* v3.9.1088: Chrome "Local Network Access" (ab 142) fragt vor dem ersten Abruf ins lokale Netz "Auf Geraete im lokalen
+   Netzwerk zugreifen" - der Abruf WARTET, bis die Frage beantwortet ist. Mit 8 s lief er vorher ab ("nicht erreichbar",
+   obwohl der Server antwortet); eine gesperrte Freigabe sah genauso aus. Jetzt: Freigabe vorher abfragen ('denied' -> gar
+   nicht erst abrufen), bei offener Frage 45 s warten, Ablauf (AbortError/TimeoutError) getrennt von Netzfehlern melden;
+   offene Frage + sofortiger TypeError (am Buero-PC gemessen, keine Frage sichtbar) -> Anleitung zur Freigabe von Hand.
+   Abgefragt wird 'local-network' (Chrome 145+), den alten Namen 'local-network-access' nur in Chromium ab 142 (laut
+   Chrome-Leitfaden bringt er aeltere Renderer zum Absturz); unbekannter Name wirft -> 'unbekannt'. Kein targetAddressSpace: nur fuer
+   http-Ziele noetig (Mixed Content), bei https unnoetig und bei abweichender Namensaufloesung bricht es den Abruf ab. */
+var KAMERA_LNA_MS=45000;
+function _kamChromium(){
   try{
-    var r=await fetch(basis+KAMERA_GESUND,_fT({method:'GET',cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'},8000));
-    return r.status===200?'ok':'antwort';
-  }catch(e){return 'nicht_erreichbar';}
+    var b=navigator.userAgentData&&navigator.userAgentData.brands;
+    if(b&&b.length){for(var i=0;i<b.length;i++){if(b[i]&&b[i].brand==='Chromium')return parseInt(b[i].version,10)||0;}}
+    var m=/Chrom(?:e|ium)\/(\d+)/.exec(String(navigator.userAgent||''));
+    return m?parseInt(m[1],10):0;
+  }catch(_c){return 0;}
+}
+async function _kamLnaStand(){
+  if(typeof navigator==='undefined'||!navigator||!navigator.permissions||typeof navigator.permissions.query!=='function')return 'unbekannt';
+  var namen=['local-network'];
+  if(_kamChromium()>=142)namen.push('local-network-access');/* Chrome 142-144 kennen nur den alten Namen */
+  for(var i=0;i<namen.length;i++){
+    try{
+      var p=await navigator.permissions.query({name:namen[i]});
+      var s=p&&p.state;
+      if(s==='granted'||s==='prompt'||s==='denied')return s;
+    }catch(_p){}
+  }
+  return 'unbekannt';
+}
+/* -> {stand:'ok'|'antwort'|'keine_adresse'|'lna_gesperrt'|'lna_freigabe'|'zeitueberschreitung'|'nicht_erreichbar', berechtigung, fehler} */
+async function _kamBueroPruefen(basis){
+  if(!_kamIstHttps(basis))return {stand:'keine_adresse',berechtigung:'',fehler:''};
+  var lna=await _kamLnaStand();
+  if(lna==='denied')return {stand:'lna_gesperrt',berechtigung:lna,fehler:''};
+  try{
+    var r=await fetch(basis+KAMERA_GESUND,_fT({method:'GET',cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'},lna==='granted'?8000:KAMERA_LNA_MS));
+    return {stand:r.status===200?'ok':'antwort',berechtigung:lna,fehler:''};
+  }catch(e){
+    var name=String((e&&e.name)||'Fehler').replace(/[^A-Za-z]/g,'').slice(0,40)||'Fehler';
+    var nach=await _kamLnaStand();/* waehrend des Wartens auf "Blockieren" geklickt? */
+    if(nach==='denied')return {stand:'lna_gesperrt',berechtigung:nach,fehler:name};
+    var zeit=name==='AbortError'||name==='TimeoutError';
+    /* Frage offen und Abruf sofort abgelehnt (keine Frage erschienen) -> Freigabe von Hand; nur bei erteilter Freigabe
+       (oder unbekanntem Browser) bleibt der allgemeine Hinweis Zertifikat/Buero-Netz */
+    var st=nach==='granted'?'nicht_erreichbar':(zeit?'zeitueberschreitung':(nach==='prompt'?'lna_freigabe':'nicht_erreichbar'));
+    return {stand:st,berechtigung:nach,fehler:name};
+  }
 }
 /* -> {fertig, zeilen:[{id, stand:'ok'|'offen'|'laedt', titel, text, wer}]} - rein, ohne Abruf */
+/* v3.9.1088: Gesundheitsabruf direkt aus dem Klick auf "Erneut pruefen" (Nutzergeste) - Ergebnis egal, nur Anstoss */
+function _kamLnaAnstoss(basis){
+  if(!_kamIstHttps(basis))return false;
+  try{var p=fetch(basis+KAMERA_GESUND,_fT({method:'GET',cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'},KAMERA_LNA_MS));if(p&&p.catch)p.catch(function(){});}catch(_a){}
+  return true;
+}
 function _kamEinrichtung(kd,fn,buero){
+  /* v3.9.1088: buero ist die Diagnose aus _kamBueroPruefen ({stand,berechtigung,fehler}); ein reiner Zustands-Text geht weiter */
+  var bd=(buero&&typeof buero==='object')?buero:null;if(bd)buero=bd.stand;
+  var tech=bd?('Berechtigung: '+(bd.berechtigung||'unbekannt')+' · Fehler: '+(bd.fehler||'–')):'';
   /* v3.9.1069: kurze Klartext-Zeilen fuer den Admin - keine Datei-, Schluessel-, Netz- oder Personennamen mehr in der App. Die Technik steht in der Einrichtungsanleitung (eine Zeile in KameraEinrichtung). Pruefungen, Stufen und Reihenfolge unveraendert. */
   var z=[];kd=kd||{status:'laedt',rows:[]};
   if(kd.status==='ok')z.push({id:'db',stand:'ok',titel:'Datenbank: bereit',text:'',wer:''});
@@ -31714,7 +31785,10 @@ function _kamEinrichtung(kd,fn,buero){
   else if(buero==='keine_adresse')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: noch nicht in Betrieb',text:'Noch keine Adresse hinterlegt.',wer:''});
   else if(buero==='ok')z.push({id:'buero',stand:'ok',titel:'Kamera-Server im Büro: erreichbar',text:'',wer:''});
   else if(buero==='antwort')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: antwortet unerwartet',text:'Er antwortet, aber nicht wie erwartet.',wer:''});
-  else if(buero==='nicht_erreichbar')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: nicht erreichbar',text:'Er ist nur aus dem Büro-Netz erreichbar - unterwegs ist das normal. Im Büro bitte prüfen: 1. Ist das Stammzertifikat des Kamera-Servers auf diesem Gerät installiert? 2. Ist das Gerät im Büro-WLAN oder am Büro-Netzwerkkabel? 3. Fragt der Browser nach Zugriff auf Geräte im lokalen Netzwerk: erlauben. Danach „Erneut prüfen“.',wer:''});
+  else if(buero==='lna_gesperrt')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: vom Browser blockiert',text:KAMERA_LNA_GESPERRT_TXT,wer:'',technik:tech});
+  else if(buero==='lna_freigabe')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: Browser-Freigabe fehlt',text:KAMERA_LNA_FREIGABE_TXT,wer:'',technik:tech});
+  else if(buero==='zeitueberschreitung')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: Browser-Freigabe fehlt',text:KAMERA_LNA_FRAGE_TXT,wer:'',technik:tech});
+  else if(buero==='nicht_erreichbar')z.push({id:'buero',stand:'offen',titel:'Kamera-Server im Büro: nicht erreichbar',text:'Er ist nur aus dem Büro-Netz erreichbar - unterwegs ist das normal. Im Büro bitte prüfen: 1. Ist das Stammzertifikat des Kamera-Servers auf diesem Gerät installiert? 2. Ist das Gerät im Büro-WLAN oder am Büro-Netzwerkkabel? 3. Fragt der Browser nach Zugriff auf Geräte im lokalen Netzwerk: erlauben. Danach „Erneut prüfen“.',wer:'',technik:tech});
   else z.push({id:'buero',stand:'laedt',titel:'Kamera-Server im Büro wird geprüft …',text:'',wer:''});
   var rows=Array.isArray(kd.rows)?kd.rows:[];
   var akt=rows.filter(function(x){return x&&x.aktiv!==false;}).length;
@@ -31745,7 +31819,8 @@ function KameraEinrichtung(props){
         ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
           ,h('div',{style:{fontSize:UI.fKlein,fontWeight:700,color:UI.tinte}},x.titel)
           ,x.text?h('div',{style:{fontSize:UI.fKlein,color:UI.grau,lineHeight:1.5,marginTop:2,overflowWrap:'anywhere'}},x.text):null
-          ,x.wer?h('div',{style:{fontSize:UI.fMeta,color:UI.grau,marginTop:4}},'Wer: '+x.wer):null)
+          ,x.wer?h('div',{style:{fontSize:UI.fMeta,color:UI.grau,marginTop:4}},'Wer: '+x.wer):null
+          ,x.technik?h('details',{'data-kam-technik':'1',style:{fontSize:UI.fMeta,color:UI.grau,marginTop:6}},h('summary',{style:{cursor:'pointer',minHeight:24}},'Technische Details'),h('div',{style:{marginTop:4,overflowWrap:'anywhere'}},x.technik)):null)
         ,h('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:x.stand==='offen'?UI.achtungTxt:UI.grau,flex:'0 0 auto',whiteSpace:'nowrap'}},
           x.stand==='ok'?'erledigt':(x.stand==='offen'?'offen':'prüft …')));
     })));
@@ -31853,7 +31928,7 @@ function KameraView(props){
     ,isAdmin?_kamChip(h,b==='einrichtung','Einrichtung',function(){setBereich('einrichtung');}):null
     ,isAdmin&&!aktive.length&&kd.status!=='laedt'?_kamChip(h,false,'Demo-Ansicht',function(){_kamDemoMerken(true);setDemoAn(true);},'Fertige Ansicht mit Platzhaltern zeigen (kein echtes Bild)'):null):null;
   var inhalt;
-  if(b==='einrichtung')inhalt=h('div',null,h(KameraEinrichtung,{zeilen:einr.zeilen,onNeu:function(){setNeu(neu+1);setENeu(eNeu+1);setFNeu(fNeu+1);}}),freigabeKarte?h('div',{style:{marginTop:12}},freigabeKarte):null);
+  if(b==='einrichtung')inhalt=h('div',null,h(KameraEinrichtung,{zeilen:einr.zeilen,onNeu:function(){_kamLnaAnstoss(ep.fn&&ep.fn.basis);setNeu(neu+1);setENeu(eNeu+1);setFNeu(fNeu+1);}}),freigabeKarte?h('div',{style:{marginTop:12}},freigabeKarte):null);
   else if(kd.status==='laedt')inhalt=h('div',{style:{fontSize:UI.fKlein,color:UI.grau,padding:12}},'Lade Kameras …');
   else if(kd.status==='fehlt')inhalt=_kamHinweis(h,'Datenmodell noch nicht angelegt','Die Kamera-Daten fehlen in der Datenbank noch. Bis dahin gibt es hier nichts zu sehen.');
   else if(kd.status==='fehler')inhalt=_kamHinweis(h,'Kameras konnten nicht geladen werden','Netzfehler oder keine Berechtigung.',h('button',{type:'button',onClick:function(){setNeu(neu+1);},style:bsS()},'Erneut laden'));
