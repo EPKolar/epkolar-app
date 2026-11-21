@@ -10,6 +10,9 @@
 # selbst (Docker-Bruecke) erreichbar ist - sonst ginge jeder an Token und Betriebsvereinbarung vorbei.
 #
 # SICHERHEIT (aus tools/kamera-proxy-auth/vorlagen/Caddyfile uebernommen, NICHT entfernen):
+#   - go2rtc verlangt Basic-Anmeldung (api username/password aus kam.env): JEDES reverse_proxy zu go2rtc setzt
+#     header_up Authorization "Basic {$GO2RTC_BASIC}" (base64 von <user>:<pass>, nur in .env; ueberschreibt
+#     jeden Authorization-Kopf des Clients). Zweite Schicht neben der Firewall-Sperre fuer :1984.
 #   - jede Route ist "handle { route { forward_auth ... ; rewrite ; reverse_proxy } }": forward_auth laeuft VOR
 #     rewrite und reverse_proxy; weitergeleitet wird NUR nach 2xx von kamera-auth
 #   - X-Forwarded-Uri / X-Forwarded-Method werden von Caddy auf die Originalanfrage UEBERSCHRIEBEN, Client-Kopien
@@ -97,11 +100,13 @@ https://{$QNAP_LAN_IP}:{$GATEWAY_PORT} {
 			header Access-Control-Allow-Private-Network "true"
 			header Vary "Origin"
 			rewrite * /api/webrtc?src={re.whep.1}
-			reverse_proxy {$QNAP_LAN_IP}:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984 {
+				header_up Authorization "Basic {$GO2RTC_BASIC}"
+			}
 		}
 	}
 
-	# ── MJPEG (Bild-Element) -> go2rtc /api/stream.mjpeg?src=<s> (Mobotix mob32..mob36, stream_typ mjpeg) ──
+	# ── MJPEG (Bild-Element) -> go2rtc /api/stream.mjpeg?src=<s> (Mobotix hof01, hochregal03, hochregal02, elektrolager01, elektrolager02) ──
 	@mjpeg path_regexp mjpeg ^/live/([A-Za-z0-9_-]{1,64})/mjpeg$
 	handle @mjpeg {
 		route {
@@ -115,6 +120,7 @@ https://{$QNAP_LAN_IP}:{$GATEWAY_PORT} {
 			}
 			rewrite * /api/stream.mjpeg?src={re.mjpeg.1}
 			reverse_proxy {$QNAP_LAN_IP}:1984 {
+				header_up Authorization "Basic {$GO2RTC_BASIC}"
 				flush_interval -1
 			}
 		}
@@ -133,7 +139,9 @@ https://{$QNAP_LAN_IP}:{$GATEWAY_PORT} {
 				copy_headers X-Kamera-User X-Kamera-Stream
 			}
 			rewrite * /api/frame.jpeg?src={re.bild.1}
-			reverse_proxy {$QNAP_LAN_IP}:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984 {
+				header_up Authorization "Basic {$GO2RTC_BASIC}"
+			}
 		}
 	}
 
@@ -155,7 +163,9 @@ https://{$QNAP_LAN_IP}:{$GATEWAY_PORT} {
 			}
 			header Set-Cookie "kam_t={http.request.uri.query.token}; Path=/live/{re.hls.1}/; Max-Age=120; HttpOnly; Secure; SameSite=None"
 			rewrite * /api/stream.m3u8?src={re.hls.1}
-			reverse_proxy {$QNAP_LAN_IP}:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984 {
+				header_up Authorization "Basic {$GO2RTC_BASIC}"
+			}
 		}
 	}
 
@@ -172,7 +182,9 @@ https://{$QNAP_LAN_IP}:{$GATEWAY_PORT} {
 				copy_headers X-Kamera-User X-Kamera-Stream
 			}
 			rewrite * /api/hls/{re.hlsteil.2}?id={http.request.uri.query.id}
-			reverse_proxy {$QNAP_LAN_IP}:1984
+			reverse_proxy {$QNAP_LAN_IP}:1984 {
+				header_up Authorization "Basic {$GO2RTC_BASIC}"
+			}
 		}
 	}
 
