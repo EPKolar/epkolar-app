@@ -96,8 +96,8 @@ def pruefe_vorlage(text):
             b.append(n + ": nicht faststream.jpg?stream=full&needlength&fps=")
     for n in G3:
         q = st.get(n, [])
-        if len(q) != 1 or not q[0].startswith("rtsp://${KAM_USER}:${KAM_PASS}@${CAM_" + n.upper() + "_IP}:554/"):
-            b.append(n + ": G3-Quelle nicht rtsp://${KAM_USER}:${KAM_PASS}@${CAM_..._IP}:554/")
+        if len(q) != 1 or not q[0].startswith("rtsp://${CAM_" + n.upper() + "_IP}:554/") or "@" in q[0]:  # 1090b: G3 passwortlos (gemessen), keine Zugangsdaten
+            b.append(n + ": G3-Quelle nicht rtsp://${CAM_..._IP}:554/ ohne Zugangsdaten")
     # Zugangsdaten nur als Platzhalter: jedes user:pass@ muss ${..}:${..}@ sein
     for m in re.finditer(r"://([^@\s/]*)@", text):
         if not re.fullmatch(r"\$\{[A-Z_]+\}:\$\{[A-Z_]+\}", m.group(1)):
@@ -164,7 +164,7 @@ def test_vorlage_variablen_in_doku():
     d = _lies(DOKU)
     code = "\n".join(z for z in _lies(GO2RTC).split("\n") if not z.lstrip().startswith("#"))
     gefunden = sorted(set(re.findall(r"\$\{([A-Z0-9_]+)\}", code)))
-    assert len(gefunden) == 16, gefunden   # 9 Adressen + 2 Mobotix + 2 G3 + 2 API + QNAP_LAN_IP
+    assert len(gefunden) == 14, gefunden   # 9 Adressen + 2 Mobotix + 2 API + QNAP_LAN_IP (1090b: G3 ohne KAM_USER/KAM_PASS, gemessen passwortlos)
     for v in gefunden:
         assert "`" + v + "`" in d, v
 

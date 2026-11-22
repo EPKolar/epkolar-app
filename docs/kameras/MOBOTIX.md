@@ -27,7 +27,7 @@ Platzhalter stehen und genau dieser Stream fällt aus.
 |---|---|
 | `MOBOTIX_USER` / `MOBOTIX_PASS` | Lese-Benutzer der Mobotix (neu) |
 | `GO2RTC_USER` / `GO2RTC_PASS` | Anmeldung an der go2rtc-API (neu, gilt für ALLE 9 Streams); Caddy bekommt dasselbe Paar als `GO2RTC_BASIC` (`tools/kamera-proxy-auth/qnap/ENV.md`) |
-| `KAM_USER` / `KAM_PASS` | Zugang der G3 (wie bisher) |
+| `KAM_USER` / `KAM_PASS` | derzeit NICHT gebraucht: die G3 laufen ohne Passwort (gemessen 19.11.), die Vorlage enthaelt fuer sie keine Zugangsdaten |
 | `QNAP_LAN_IP` | LAN-Adresse der QNAP (WebRTC-Candidate `:8555`) |
 | `CAM_HOF01_IP`, `CAM_HOCHREGAL03_IP`, `CAM_HOCHREGAL02_IP`, `CAM_ELEKTROLAGER01_IP`, `CAM_ELEKTROLAGER02_IP` | Mobotix-Adressen (Endung .32/.33/.34/.35/.36) |
 | `CAM_HOCHREGAL01_IP`, `CAM_VERKAUF02_IP`, `CAM_ELEKTROLAGER03_IP`, `CAM_CAM39_IP` | G3-Adressen (Endung .61/.38/.37/.39 – dieselben wie in der laufenden go2rtc.yaml) |

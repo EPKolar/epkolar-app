@@ -19,7 +19,7 @@ Die echte LAN-Adresse der QNAP steht NUR dort (`QNAP_LAN_IP=…`), nie in diesem
 Supabase (setzt ein Mensch im Dashboard, nicht hier): `KAMERA_GATEWAY_BASE` = `https://<QNAP-LAN-IP>:8443`
 (bzw. `https://<QNAP-LAN-IP>` wenn `GATEWAY_PORT=443`; Variante mit DNS: `https://kameras.ep-kolar.at`) und `KAMERA_TOKEN_SECRET`.
 Image-freie Variante für Container Station: `qnap-gateway-inline.compose.yml` (erzeugt von `qnap/inline_bauen.py`, gleiche `.env`).
-go2rtc (eigene App, nicht hier): Zugangsdaten `KAM_USER` / `KAM_PASS`, `MOBOTIX_USER` / `MOBOTIX_PASS` und die API-Anmeldung
+go2rtc (eigene App, nicht hier): Zugangsdaten `MOBOTIX_USER` / `MOBOTIX_PASS` und die API-Anmeldung
 `GO2RTC_USER` / `GO2RTC_PASS` in deren eigener env-Datei (`kam.env`) auf der QNAP; Liste: `docs/kameras/MOBOTIX.md`.
 Reihenfolge: zuerst Caddy mit `GO2RTC_BASIC` neu starten (go2rtc ohne Anmeldung ignoriert den Kopf), dann go2rtc mit
 Anmeldung. Die Firewall-Sperre fuer `:1984` bleibt trotzdem Pflicht (zweite Schicht; go2rtc laesst Anfragen von localhost
