@@ -246,7 +246,7 @@ def _bp_formular(src):
 
 MD5 = {
     "fl": "3290ca4052dfcddd7ab06273bf2a5f1c",      # ganze FlotteView
-    "fv": "d357b02d7f6970d33f5874b5ad495468",      # FahrzeugView bis "return ("
+    "fv": "275b179f5e0f0c9692ea622fd50b1780",      # FahrzeugView bis "return (" - v3.9.1092 Tank-Eingabe text statt number (qDoTank/batchSave/OCR-Vorbelegung ueber _fzZahl/_tankEinDE), bewusst neu gehasht
     "bp": "91e2eaadaf5adba8e313c7661b7eb831",      # BauprovisorienView bis zum Formular-Zweig
     "bpform": "bcabac6f11906f5c0808ea6623e49d41",  # Bauprovisorien-Formular (unveraendert, ohne Rueckbau)
 }

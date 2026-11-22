@@ -198,14 +198,21 @@ def test_pickerl_deadline_local_parse():
 # ── v3.9.411: Input-Validierung (OCR-Dezimal + 24h-Cap) ──
 
 def test_ocr_tank_prefill_dot_decimal():
-    """P2 Positiv: Tank-Modal-Prefill nutzt Punkt-Dezimal (type=number-kompatibel)."""
+    """P2 Positiv: der OCR-Wert geht im Tank-Modal nicht verloren.
+    v3.9.411 drehte Komma in Punkt, weil type=number ein Komma als ungueltig verwarf (Feld leer).
+    v3.9.1092: die Felder sind type=text+inputmode=decimal (App-Regel) - die Vorbelegung zeigt
+    deutsch mit Komma (_tankEinDE), gelesen wird ueber _fzZahl. Der Schutz (OCR-Wert darf das
+    Feld nicht leeren) bleibt: kein type=number mehr, das ihn verwerfen koennte.
+    Laufender Beweis mit echtem Modal: tests/test_tank_eingabe_text_v1092.py."""
     text = _txt()
-    assert "String(init.liter).replace(',','.')" in text, \
-        'v3.9.411 Regression: Liter-Prefill muss Punkt-Dezimal sein (type=number)'
-    assert "String(init.preis).replace(',','.')" in text, \
-        'v3.9.411 Regression: Preis-Prefill muss Punkt-Dezimal sein (type=number)'
-    assert "String(init.liter).replace('.',',')" not in text, \
-        'v3.9.411 Regression: alte Komma-Variante (leert type=number-Feld) zurueckgekehrt'
+    assert "fLiter.inp.value=_tankEinDE(init.liter);" in text, \
+        'v3.9.1092: Liter-Vorbelegung muss ueber _tankEinDE laufen'
+    assert "fPreis.inp.value=_tankEinDE(init.preis);" in text, \
+        'v3.9.1092: Preis-Vorbelegung muss ueber _tankEinDE laufen'
+    assert "mkField('🛢 Liter *','liter','text'," in text and "mkField('💶 Gesamtpreis (€)','preis','text'," in text, \
+        'v3.9.1092: Tank-Modal-Dezimalfelder muessen type=text sein'
+    assert "'liter','number'" not in text and "'preis','number'" not in text, \
+        'v3.9.411-Falle zurueck: type=number verwirft ein Komma und leert das Feld'
 
 
 def test_zeit_24h_cap_matrix_and_inline():

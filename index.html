@@ -7171,19 +7171,19 @@ window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
       return {wrap:wrap,inp:inp};
     }
     const fDatum=mkField('📅 Datum','datum','date',{});
-    const fLiter=mkField('🛢 Liter *','liter','number',{inputmode:'decimal',min:'0',step:'0.01',placeholder:'52.3'});
-    const fPreis=mkField('💶 Gesamtpreis (€)','preis','number',{inputmode:'decimal',min:'0',step:'0.01',placeholder:'89.50'});
-    const fKm=mkField('🛣 km-Stand','km','number',{inputmode:'numeric',pattern:'[0-9]*',min:'0',step:'1',placeholder:String(currentKm||'')});
+    const fLiter=mkField('🛢 Liter *','liter','text',{inputmode:'decimal',autocomplete:'off',placeholder:'52,3'});/* v3.9.1092: Dezimalfeld = text+inputmode decimal (App-Regel), nie type=number - Komma wird getippt und gelesen */
+    const fPreis=mkField('💶 Gesamtpreis (€)','preis','text',{inputmode:'decimal',autocomplete:'off',placeholder:'89,50'});
+    const fKm=mkField('🛣 km-Stand','km','text',{inputmode:'numeric',pattern:'[0-9]*',autocomplete:'off',placeholder:String(currentKm||'')});
     fDatum.inp.value=init.datum||'';
-    fLiter.inp.value=(init.liter!==undefined&&init.liter!==null&&init.liter!=='')?String(init.liter).replace(',','.'):'';/* v3.9.411: type=number braucht Punkt-Dezimal (Komma → ungültig → Feld leer, OCR-Wert verloren) */
-    fPreis.inp.value=(init.preis!==undefined&&init.preis!==null&&init.preis!=='')?String(init.preis).replace(',','.'):'';/* v3.9.411 dito */
+    fLiter.inp.value=_tankEinDE(init.liter);/* v3.9.411 drehte Komma in Punkt, weil type=number nur Punkt annahm (sonst Feld leer, OCR-Wert verloren). v3.9.1092: Feld ist jetzt text -> Anzeige deutsch mit Komma, gelesen ueber _fzZahl */
+    fPreis.inp.value=_tankEinDE(init.preis);/* v3.9.1092 dito */
     fKm.inp.value=(init.km!==undefined&&init.km!==null&&init.km!=='')?String(init.km):'';
     grid.appendChild(fDatum.wrap);grid.appendChild(fLiter.wrap);grid.appendChild(fPreis.wrap);grid.appendChild(fKm.wrap);
     const info=document.createElement('div');info.style.cssText='font-size:12px;color:'+ac+';font-weight:600;min-height:18px;margin:4px 2px 6px;';
     const err=document.createElement('div');err.style.cssText='font-size:12px;color:#ef4444;font-weight:600;min-height:18px;margin:0 2px 8px;white-space:pre-wrap;';
     function updateInfo(){
-      const L=parseFloat(String(fLiter.inp.value||'').replace(',','.'));
-      const P=parseFloat(String(fPreis.inp.value||'').replace(',','.'));
+      const L=_fzZahl(fLiter.inp.value);
+      const P=_fzZahl(fPreis.inp.value);
       if(L>0&&P>0){info.textContent='💰 Literpreis: '+(P/L).toFixed(3).replace('.',',')+' €/L';}else{info.textContent='';}
       err.textContent='';
     }
@@ -7202,7 +7202,7 @@ window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
       const rawK=String(fKm.inp.value||'').trim();
       const datum=String(fDatum.inp.value||'').trim();
       if(!datum){err.textContent='⚠️ Datum ist Pflicht';return null;}
-      const L=parseFloat(rawL.replace(',','.'));
+      const L=_fzZahl(rawL);/* v3.9.1092: "72,77" und "72.77" -> 72.77 wie bisher; "1.234,5" -> 1234.5 statt 1.234 */
       if(!(L>0)){err.textContent='⚠️ Liter ungültig — bitte gültige Zahl > 0 eingeben';fLiter.inp.focus();return null;}
       let P=0;
       if(rawP!==''){if(!/^[0-9]+([.,][0-9]{1,2})?$/.test(rawP)){err.textContent='⚠️ Gesamtpreis ungültig — nur Zahlen erlaubt';fPreis.inp.focus();return null;}P=parseFloat(rawP.replace(',','.'))||0;}
@@ -15420,7 +15420,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
             ))
           )
           ,_tankFotoView&&React.createElement('div',{onClick:()=>_setTankFotoView(null),style:{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,cursor:"zoom-out"}}
-            ,React.createElement('div',{onClick:ev=>ev.stopPropagation(),style:{display:"flex",flexDirection:isMob?"column":"row",gap:16,maxWidth:"95%",maxHeight:"95%",alignItems:"center",cursor:"default"}},React.createElement('img',{src:_tankFotoView.foto,alt:"Tankbeleg",style:{maxWidth:isMob?"100%":"60vw",maxHeight:isMob?"55vh":"90vh",objectFit:"contain",borderRadius:8,background:"#fff"}}),React.createElement('div',{style:{...CC(),padding:16,minWidth:isMob?"auto":240,maxWidth:isMob?"100%":360,display:"flex",flexDirection:"column",gap:10}},React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:4}},"Erfasste Werte"),(!_tankEdit)?React.createElement(React.Fragment,{},[["Kennzeichen",_tankFotoView.kz||"—"],["Datum",window._fmtDate(_tankFotoView.e.datum)],["Liter",_n(_tankFotoView.e.liter,2)+" L"],["Betrag",window._fmtEur(_tankFotoView.e.preis)],["km",(_tankFotoView.e.km!=null&&_tankFotoView.e.km!=="")?Number(_tankFotoView.e.km).toLocaleString("de-AT"):"—"],["Erfasst",_tankFotoView.e.by||"—"]].map(pp=>React.createElement('div',{key:pp[0],style:{display:"flex",justifyContent:"space-between",gap:16,borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},pp[0]),React.createElement('span',{style:{fontSize:13,fontWeight:600,fontFamily:mono}},pp[1]))),React.createElement('button',{onClick:()=>_setTankEdit({datum:String(_tankFotoView.e.datum||"").slice(0,10),liter:_tankFotoView.e.liter,preis:_tankFotoView.e.preis,km:_tankFotoView.e.km}),style:{...bsS(),padding:"6px 14px",fontSize:12,marginTop:6}},_ikVw("stift","Werte korrigieren")),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},"Beleg mit den Werten vergleichen, bei Fehler korrigieren, dann in der Liste „Als kontrolliert markieren“.")):React.createElement(React.Fragment,{},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Kennzeichen"),React.createElement('span',{style:{fontSize:13,fontWeight:600,fontFamily:mono}},_tankFotoView.kz||"—")),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Datum"),React.createElement('input',{type:"date",value:_tankEdit.datum||"",onChange:ev=>_setTankEdit(st=>({...st,datum:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Liter"),React.createElement('input',{type:"number",step:"0.01",inputMode:"decimal",value:_tankEdit.liter,onChange:ev=>_setTankEdit(st=>({...st,liter:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Betrag €"),React.createElement('input',{type:"number",step:"0.01",inputMode:"decimal",value:_tankEdit.preis,onChange:ev=>_setTankEdit(st=>({...st,preis:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"km"),React.createElement('input',{type:"number",inputMode:"numeric",value:(_tankEdit.km==null?"":_tankEdit.km),onChange:ev=>_setTankEdit(st=>({...st,km:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",gap:8,marginTop:8}},React.createElement('button',{onClick:()=>_tankEditSave(_tankFotoView.fzId,_tankFotoView.e.id,{datum:_tankEdit.datum||null,liter:parseFloat(_tankEdit.liter)||0,preis:parseFloat(_tankEdit.preis)||0,km:(_tankEdit.km===""||_tankEdit.km==null)?null:Number(_tankEdit.km)}),style:{...bpS,padding:"6px 14px",fontSize:12,flex:1}},"Speichern"),React.createElement('button',{onClick:()=>_setTankEdit(null),style:{...bsS(),padding:"6px 14px",fontSize:12}},"Abbrechen"))))),React.createElement('button',{onClick:()=>_setTankFotoView(null),style:{position:"absolute",top:16,right:16,...bsS(),padding:"8px 14px",fontSize:14}},"\u2715 Schlie\u00dfen"))
+            ,React.createElement('div',{onClick:ev=>ev.stopPropagation(),style:{display:"flex",flexDirection:isMob?"column":"row",gap:16,maxWidth:"95%",maxHeight:"95%",alignItems:"center",cursor:"default"}},React.createElement('img',{src:_tankFotoView.foto,alt:"Tankbeleg",style:{maxWidth:isMob?"100%":"60vw",maxHeight:isMob?"55vh":"90vh",objectFit:"contain",borderRadius:8,background:"#fff"}}),React.createElement('div',{style:{...CC(),padding:16,minWidth:isMob?"auto":240,maxWidth:isMob?"100%":360,display:"flex",flexDirection:"column",gap:10}},React.createElement('div',{style:{fontSize:15,fontWeight:700,marginBottom:4}},"Erfasste Werte"),(!_tankEdit)?React.createElement(React.Fragment,{},[["Kennzeichen",_tankFotoView.kz||"—"],["Datum",window._fmtDate(_tankFotoView.e.datum)],["Liter",_n(_tankFotoView.e.liter,2)+" L"],["Betrag",window._fmtEur(_tankFotoView.e.preis)],["km",(_tankFotoView.e.km!=null&&_tankFotoView.e.km!=="")?Number(_tankFotoView.e.km).toLocaleString("de-AT"):"—"],["Erfasst",_tankFotoView.e.by||"—"]].map(pp=>React.createElement('div',{key:pp[0],style:{display:"flex",justifyContent:"space-between",gap:16,borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},pp[0]),React.createElement('span',{style:{fontSize:13,fontWeight:600,fontFamily:mono}},pp[1]))),React.createElement('button',{onClick:()=>_setTankEdit({datum:String(_tankFotoView.e.datum||"").slice(0,10),liter:_tankEinDE(_tankFotoView.e.liter),preis:_tankEinDE(_tankFotoView.e.preis),km:_tankFotoView.e.km}),style:{...bsS(),padding:"6px 14px",fontSize:12,marginTop:6}},_ikVw("stift","Werte korrigieren")),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2}},"Beleg mit den Werten vergleichen, bei Fehler korrigieren, dann in der Liste „Als kontrolliert markieren“.")):React.createElement(React.Fragment,{},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Kennzeichen"),React.createElement('span',{style:{fontSize:13,fontWeight:600,fontFamily:mono}},_tankFotoView.kz||"—")),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Datum"),React.createElement('input',{type:"date",value:_tankEdit.datum||"",onChange:ev=>_setTankEdit(st=>({...st,datum:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Liter"),React.createElement('input',{type:"text",inputMode:"decimal",autoComplete:"off",value:_tankEdit.liter,onChange:ev=>_setTankEdit(st=>({...st,liter:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"Betrag €"),React.createElement('input',{type:"text",inputMode:"decimal",autoComplete:"off",value:_tankEdit.preis,onChange:ev=>_setTankEdit(st=>({...st,preis:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",borderBottom:"1px solid "+V.bd,paddingBottom:6}},React.createElement('span',{style:{fontSize:12,color:V.dm}},"km"),React.createElement('input',{type:"text",inputMode:"numeric",pattern:"[0-9]*",autoComplete:"off",value:(_tankEdit.km==null?"":_tankEdit.km),onChange:ev=>_setTankEdit(st=>({...st,km:ev.target.value})),style:{width:120,padding:"4px 6px",fontSize:13,fontFamily:mono,textAlign:"right",border:"1px solid "+V.bd,borderRadius:4,background:"transparent",color:V.tx}})),React.createElement('div',{style:{display:"flex",gap:8,marginTop:8}},React.createElement('button',{onClick:()=>_tankEditSave(_tankFotoView.fzId,_tankFotoView.e.id,{datum:_tankEdit.datum||null,liter:_fzZahl(_tankEdit.liter)||0,preis:_fzZahl(_tankEdit.preis)||0,km:(_tankEdit.km===""||_tankEdit.km==null)?null:Number(_tankEdit.km)}),style:{...bpS,padding:"6px 14px",fontSize:12,flex:1}},"Speichern"),React.createElement('button',{onClick:()=>_setTankEdit(null),style:{...bsS(),padding:"6px 14px",fontSize:12}},"Abbrechen"))))),React.createElement('button',{onClick:()=>_setTankFotoView(null),style:{position:"absolute",top:16,right:16,...bsS(),padding:"8px 14px",fontSize:14}},"\u2715 Schlie\u00dfen"))
         );
       })(),
       !loaded && React.createElement('div', { style: {textAlign:"center",padding:40,color:V.dm}}, "Daten werden geladen..." ),
@@ -32554,6 +32554,12 @@ function _fzZahl(v){/* -> Zahl oder NaN. null/''/Text/true -> NaN, NICHT 0 (Numb
   var n=Number(s);
   return isFinite(n)?n:NaN;
 }
+function _tankEinDE(v){/* v3.9.1092: Wert -> Anzeigetext fuer ein Tank-Textfeld (deutsches Komma, keine Tausenderpunkte,
+   damit _fzZahl den Text beim Speichern wieder exakt liest). null/'' -> ''; Unlesbares bleibt roh stehen (nichts erfinden, nichts verlieren). */
+  if(v===null||v===undefined||v==='')return '';
+  var n=_fzZahl(v);
+  return isFinite(n)?String(n).replace('.',','):String(v);
+}
 function _fzDatumTeile(s){/* 'JJJJ-MM-TT...' -> {y,m,d,iso} oder null. Vor 1980 / 0000-00-00 / 31.02. = Datenmuell, kein Datum */
   if(s===null||s===undefined)return null;
   var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
@@ -32862,7 +32868,7 @@ function _fzTankMonate(f){/* v1049 Monatsauswertung Tanken: Tankbuch -> Zeilen {
     return {monat:k,anzahl:by[k].length,liter:l,euro:e,euroProL:st.euroProL,strecke:st.strecke,l100:st.l100,plausibel:st.plausibel};
   });
 }
-if(typeof window!=='undefined'){window._fzZahl=_fzZahl;window._fzDatumTeile=_fzDatumTeile;window._fzTagKey=_fzTagKey;window._fzTageBis=_fzTageBis;window._fzPickerlStufe=_fzPickerlStufe;window._fzFristen=_fzFristen;window._fzTankStats=_fzTankStats;window._fzServiceStats=_fzServiceStats;window._fzFixkosten=_fzFixkosten;window._fzAkte=_fzAkte;window._fzFahrerCheck=_fzFahrerCheck;window._fzCsv=_fzCsv;window._fzPruefTerminNeu=_fzPruefTerminNeu;window._fzTankMonate=_fzTankMonate;}
+if(typeof window!=='undefined'){window._fzZahl=_fzZahl;window._tankEinDE=_tankEinDE;window._fzDatumTeile=_fzDatumTeile;window._fzTagKey=_fzTagKey;window._fzTageBis=_fzTageBis;window._fzPickerlStufe=_fzPickerlStufe;window._fzFristen=_fzFristen;window._fzTankStats=_fzTankStats;window._fzServiceStats=_fzServiceStats;window._fzFixkosten=_fzFixkosten;window._fzAkte=_fzAkte;window._fzFahrerCheck=_fzFahrerCheck;window._fzCsv=_fzCsv;window._fzPruefTerminNeu=_fzPruefTerminNeu;window._fzTankMonate=_fzTankMonate;}
 
 /* ── Lese-Ansichten ── Farbflaechen mit weisser Schrift nur aus COLORS.*_FILL (>=4,5:1), sonst V-Tokens (hell/dunkel). */
 function _fzStufeChip(stufe,h){
@@ -33744,8 +33750,8 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
         if(_r.ok&&_j&&_j.ok===true){
           let _any=false;
           if(_j.datum){setTankDatum(_j.datum);_any=true;}
-          if(_j.liter){setTankLiter(_j.liter);_any=true;}
-          if(_j.preis){setTankPreis(_j.preis);_any=true;}
+          if(_j.liter){setTankLiter(_tankEinDE(_j.liter));_any=true;}/* v3.9.1092: OCR-Wert deutsch ins Textfeld */
+          if(_j.preis){setTankPreis(_tankEinDE(_j.preis));_any=true;}
           /* v3.9.310: OCR-km nur uebernehmen wenn >= aktueller Fahrzeug-km-Stand. STAN/BATCH-Treffer
              (z.B. 046183/420) liegen typischerweise UNTER dem aktuellen Stand → verwerfen + warnen.
              tankKm wurde beim Dialog-Open bereits mit selFz.kmStand vorbefuellt — die Vorbefuellung bleibt. */
@@ -33942,7 +33948,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
     _optionalChain([window, 'access', _665 => _665.__toast, 'optionalCall', _666 => _666("📏 "+km.toLocaleString("de-AT")+" km eingetragen")]);setFzQuickAction(null);setQKm("");setQKmNote("");
   };
   const qDoTank=()=>{if(!qTankL||!qTankP||!fzScannedItem)return;const fid=fzScannedItem.id;
-    const _qL=parseFloat(String(qTankL).replace(",","."));const _qP=parseFloat(String(qTankP).replace(",","."));
+    const _qL=_fzZahl(qTankL);const _qP=_fzZahl(qTankP);/* v3.9.1092: Feld ist text - "72,77"/"72.77" wie bisher 72.77, "1.234,5" -> 1234.5 (parseFloat machte 1.234) */
     if(!Number.isFinite(_qL)||_qL<=0||!Number.isFinite(_qP)||_qP<=0){_optionalChain([window, 'access', _qtnk1 => _qtnk1.__toast, 'optionalCall', _qtnk2 => _qtnk2("❌ Liter und Preis müssen positive Zahlen sein","warn")]);return;}
     const entry={id:uid(),datum:qTankDat,liter:_qL,preis:_qP,km:parseInt(qTankKm,10)||fzScannedItem.kmStand||0,foto:"",kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
     setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,tankLog:[entry,...(f.tankLog||[])],kmStand:entry.km>=(f.kmStand||0)?entry.km:f.kmStand}:f));
@@ -33960,7 +33966,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
   // ═══ BATCH TANKEN ═══
   const batchSave=()=>{
     if(!bLit||!bPreis||!batchFzId)return;
-    const _bL=parseFloat(String(bLit).replace(",","."));const _bP=parseFloat(String(bPreis).replace(",","."));
+    const _bL=_fzZahl(bLit);const _bP=_fzZahl(bPreis);/* v3.9.1092 wie qDoTank */
     if(!Number.isFinite(_bL)||_bL<=0||!Number.isFinite(_bP)||_bP<=0){_optionalChain([window, 'access', _bsv1 => _bsv1.__toast, 'optionalCall', _bsv2 => _bsv2("❌ Liter und Preis müssen positive Zahlen sein","warn")]);return;}
     const fid=batchFzId;const fz=fahrzeuge.find(f=>f.id===fid);
     const entry={id:uid(),datum:bDat,liter:_bL,preis:_bP,km:parseInt(bKm,10)||_optionalChain([fz, 'optionalAccess', _672 => _672.kmStand])||0,foto:"",kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
@@ -34202,14 +34208,14 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
                   , React.createElement('button', { onClick: ()=>setFzQuickAction(null), 'aria-label': "Tankprotokoll schließen", title: "Schließen", style: {border:"none",background:"transparent",color:V.dm,cursor:"pointer",fontSize:18,fontFamily:"inherit"}}, _ik("kreuz",16))
                 )
                 , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankL, onChange: e=>setQTankL(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "45.0", autoFocus: true} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Preis € *"  ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", value: qTankP, onChange: e=>setQTankP(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "72.50"} ))
-                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", min: "0", step: "1", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: qTankL, onChange: e=>setQTankL(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "45,0", autoFocus: true} )/* v3.9.1092: text+decimal statt number (App-Regel Dezimalfeld) */)
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Preis € *"  ), React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: qTankP, onChange: e=>setQTankP(e.target.value), style: {...II(),fontSize:16,fontFamily:mono}, placeholder: "72,50"} ))
+                  , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand"), React.createElement('input', { type: "text", inputMode:"numeric", pattern:"[0-9]*", autoComplete:"off", value: qTankKm, onChange: e=>setQTankKm(e.target.value), style: {...II(),fontFamily:mono}} ))
                   , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum"), React.createElement('input', { type: "date", value: qTankDat, onChange: e=>setQTankDat(e.target.value), style: II()} ))
                 )
                 , qTankL&&qTankP&&(React.createElement('div', { style: {padding:8,borderRadius:6,background:"rgba(249,115,22,.06)",marginBottom:10,fontSize:12,display:"flex",justifyContent:"space-between"}}
-                  , React.createElement('span', {}, "€/Liter: " , React.createElement('strong', {}, _fzDE((parseFloat(qTankP)/parseFloat(qTankL)),3)))
-                  , React.createElement('span', {}, "Gesamt: " , React.createElement('strong', {}, "€", _fzDE(parseFloat(qTankP),2)), " für "  , React.createElement('strong', {}, _fzDE(parseFloat(qTankL),1), "L"))
+                  , React.createElement('span', {}, "€/Liter: " , React.createElement('strong', {}, _fzDE((_fzZahl(qTankP)/_fzZahl(qTankL)),3)))
+                  , React.createElement('span', {}, "Gesamt: " , React.createElement('strong', {}, "€", _fzDE(_fzZahl(qTankP),2)), " für "  , React.createElement('strong', {}, _fzDE(_fzZahl(qTankL),1), "L"))
                 ))
                 , React.createElement('button', { onClick: qDoTank, disabled: !qTankL||!qTankP, style: {...bpS,width:"100%",padding:"14px",fontSize:15,background:(!qTankL||!qTankP)?"#555":"",opacity:(!qTankL||!qTankP)?.5:1}}, "Tankung speichern"  )
               ))
@@ -34296,21 +34302,21 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
               )
               , React.createElement('div', {}
                 , React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Liter *" )
-                , React.createElement('input', { ref: bLitRef, type: "number", inputMode:"decimal", step: "0.1", value: bLit, onChange: e=>setBLit(e.target.value), style: {...II(),fontSize:16,fontFamily:mono,fontWeight:700}, placeholder: "45.0", onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+                , React.createElement('input', { ref: bLitRef, type: "text", inputMode:"decimal", autoComplete:"off", value: bLit, onChange: e=>setBLit(e.target.value), style: {...II(),fontSize:16,fontFamily:mono,fontWeight:700}, placeholder: "45,0", onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
               )
               , React.createElement('div', {}
                 , React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "Preis € *"  )
-                , React.createElement('input', { type: "number", inputMode:"decimal", step: "0.01", value: bPreis, onChange: e=>setBPreis(e.target.value), style: {...II(),fontSize:16,fontFamily:mono,fontWeight:700}, placeholder: "72.50", onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+                , React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: bPreis, onChange: e=>setBPreis(e.target.value), style: {...II(),fontSize:16,fontFamily:mono,fontWeight:700}, placeholder: "72,50", onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
               )
               , React.createElement('div', {}
                 , React.createElement('span', { style: {...LL(),fontSize:UI.fMeta}}, "km-Stand")
-                , React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", step: "1", value: bKm, onChange: e=>setBKm(e.target.value), style: {...II(),fontSize:13,fontFamily:mono}, onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
+                , React.createElement('input', { type: "text", inputMode:"numeric", pattern:"[0-9]*", autoComplete:"off", value: bKm, onChange: e=>setBKm(e.target.value), style: {...II(),fontSize:13,fontFamily:mono}, onKeyDown: e=>{if(e.key==="Enter"&&bLit&&bPreis)batchSave();}} )
               )
               , React.createElement('button', { onClick: batchSave, disabled: !bLit||!bPreis, style: {...bpS,padding:"12px 20px",fontSize:14,whiteSpace:"nowrap",minHeight:44,opacity:(!bLit||!bPreis)?.4:1}}, "Speichern" )
             )
             , bLit&&bPreis&&(React.createElement('div', { style: {marginTop:8,padding:"4px 10px",borderRadius:6,background:"rgba(0,150,64,.08)",fontSize:UI.fMeta,display:"flex",justifyContent:"space-between",color:_lesbar(COLORS.EP_GREEN),fontWeight:600}}
-              , React.createElement('span', {}, "€/L: " , _fzDE((parseFloat(bPreis)/parseFloat(bLit)),3))
-              , React.createElement('span', {}, _fzDE(parseFloat(bLit),1), " Liter · €"   , _fzDE(parseFloat(bPreis),2))
+              , React.createElement('span', {}, "€/L: " , _fzDE((_fzZahl(bPreis)/_fzZahl(bLit)),3))
+              , React.createElement('span', {}, _fzDE(_fzZahl(bLit),1), " Liter · €"   , _fzDE(_fzZahl(bPreis),2))
             ))
             , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6}}, "Enter drücken zum Speichern — Cursor springt automatisch zurück zu Liter"           )
           ))
@@ -34528,11 +34534,11 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
           )
           , React.createElement('div', { className: "form-grid-4", style: {marginBottom:8}}
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum *" ), React.createElement('input', { type: "date", value: tankDatum, onChange: e=>setTankDatum(e.target.value), style: II()} ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.1", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52.3" , autoFocus: true} ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "number", inputMode:"decimal", min: "0", step: "0.01", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89.50" } ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "number", inputMode:"numeric", pattern:"[0-9]*", min: "0", step: "1", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52,3" , autoFocus: true} )/* v3.9.1092: text+decimal statt number; gelesen im _tankConfirmModal ueber _fzZahl */)
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89,50" } ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "text", inputMode:"numeric", pattern:"[0-9]*", autoComplete:"off", value: tankKm, onChange: e=>setTankKm(e.target.value), style: II()} ))
           )
-          , tankLiter&&tankPreis&&parseFloat(tankLiter)>0&&React.createElement('div', { style: {fontSize:12,color:V.acTx,fontWeight:600,marginBottom:6}}, "Literpreis: "  , _fzDE((parseFloat(tankPreis)/parseFloat(tankLiter)),3), " €/L" )
+          , tankLiter&&tankPreis&&_fzZahl(tankLiter)>0&&React.createElement('div', { style: {fontSize:12,color:V.acTx,fontWeight:600,marginBottom:6}}, "Literpreis: "  , _fzDE((_fzZahl(tankPreis)/_fzZahl(tankLiter)),3), " €/L" )
           , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>addTank(sel), style: bpS}, _ikVw("abnahme","Speichern") ), React.createElement('button', { title: "Abbrechen", 'aria-label': "Abbrechen", onClick: ()=>{setShowTank(null);setTankFoto("");}, style: bsS()}, _ik("kreuz",16)))
         ))
 

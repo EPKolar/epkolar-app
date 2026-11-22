@@ -376,9 +376,9 @@ HANDLER = {
     "addTank": "832cdbd6bdaa642329df7a6bfaba1d9f",  # v3.9.1051 Tankbuch atomar (_tankAtomar-Hinweis), bewusst neu gehasht
     "addSchaden": "31c58844425685f1f49f9fb7f92d6a00",
     "qDoKm": "cc49299a34c3cbbbf787e50d549a6b7d",
-    "qDoTank": "49e73b88ebbe8a7138e634ce24139162",
+    "qDoTank": "5aa434dc61cf61a658a33f2b3c27f601",  # v3.9.1092 Tank-Eingabe text statt number: Liter/Preis ueber _fzZahl statt parseFloat(replace) - gleiche Zahl fuer jede frueher moegliche Eingabe, bewusst neu gehasht
     "qDoSchaden": "6aa09e85b8e7807dcc2e0b3e2c5e1d3a",
-    "batchSave": "2aebc12df5ab699a32d218f82504bea3",
+    "batchSave": "92689ceca8d53c59999b3d80c6626f98",  # v3.9.1092 Tank-Eingabe text statt number: Liter/Preis ueber _fzZahl statt parseFloat(replace) - gleiche Zahl fuer jede frueher moegliche Eingabe, bewusst neu gehasht
     "batchDel": "1af738b359919fc452fd16aca16d46c3",  # v3.9.1051 Tankbuch atomar (fz_tanklog_del), bewusst neu gehasht
     "addFz": "aa601e73f08d3f41f0dbbb80b7c34aa7",
     "del": "c6d7207e48ad696d2c0858efee2c3339",  # v3.9.1059 GF 19.11.: Archivieren (PATCH, nur Admin) statt DELETE, bewusst neu gehasht
