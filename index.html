@@ -3475,7 +3475,7 @@ async function _fzTankAtomar(fzId,d){
   const add=d.tankLog_add||d.tank_log_add;
   let name="",args=null,weg=[];
   if(ta&&ta.op==="del"&&ta.id){name="fz_tanklog_del";args={p_fahrzeug_id:fzId,p_eintrag_id:String(ta.id)};weg=["tankLog","tank_log"];}
-  else if(ta&&ta.op==="add"&&ta.eintrag&&ta.eintrag.id){const km=parseInt(ta.eintrag.km,10)||0;name="fz_tanklog_add";args={p_fahrzeug_id:fzId,p_eintrag:ta.eintrag,p_km:km>0?km:null,p_km_log_id:null};weg=ta.kmForce?["tankLog","tank_log"]:["tankLog","tank_log","kmStand","km_stand"];}
+  else if(ta&&ta.op==="add"&&ta.eintrag&&ta.eintrag.id){const km=parseInt(ta.eintrag.km,10)||0;name="fz_tanklog_add";args={p_fahrzeug_id:fzId,p_eintrag:ta.eintrag,p_km:km>0?km:null,p_km_log_id:null};weg=ta.kmForce?["tankLog","tank_log","kmLogId","km_log_id"]:["tankLog","tank_log","kmStand","km_stand","kmLogId","km_log_id"];}/* v3.9.1096: addTank schickt kmLogId mit (fuer den Rueckfall) - am Server vergibt fz_tanklog_add dieselbe id km_<tankId> selbst */
   else if(add&&add.id){const km=parseInt(d.kmStand||d.km_stand,10)||0;name="fz_tanklog_add";args={p_fahrzeug_id:fzId,p_eintrag:add,p_km:km>0?km:null,p_km_log_id:d.kmLogId||d.km_log_id||null};weg=["tankLog_add","tank_log_add","kmStand","km_stand","kmLogId","km_log_id"];}
   else return false;
   if(args.p_eintrag&&_fzTankHatDatei(args.p_eintrag))return false;
@@ -3612,8 +3612,9 @@ async function _translateAndExec(url,method,body){
           let tl=[];try{tl=JSON.parse(fz[0].tank_log||'[]');if(!Array.isArray(tl))tl=[];}catch(pe){console.error("[fahrzeuge] tank_log-JSON korrupt für id",idOrSub,"— starte neu.");tl=[];}
           const _tAdd=d.tankLog_add||d.tank_log_add;if(!(_tAdd&&_tAdd.id&&tl.some(x=>x&&x.id===_tAdd.id)))tl.push(_tAdd);/* 18.11. Idempotenz (Folge v3.9.1043): eine nach verlorener Antwort wiederholte Sendung haengt denselben Eintrag nicht ein zweites Mal an - gleiche id schon da -> nicht nochmal anhaengen. Ohne id unveraendert. */
           const patch={tank_log:JSON.stringify(tl),updated_at:new Date().toISOString()};
-          if(d.kmStand||d.km_stand){
-            const km=parseInt(d.kmStand||d.km_stand)||0;
+          const _kmT=(d.kmStand||d.km_stand)?(parseInt(d.kmStand||d.km_stand,10)||0):0;
+          if(_kmT>0&&_kmT<=2000000){/* v3.9.1096: nur ein plausibler km-Stand (1..2.000.000) kommt ins km_log - vorher lief z.B. -5 aus QR/Batch-Tankung ungeprueft durch */
+            const km=_kmT;
             let kl=[];try{kl=JSON.parse(fz[0].km_log||'[]');if(!Array.isArray(kl))kl=[];}catch(pe){console.error("[fahrzeuge] km_log-JSON korrupt für id",idOrSub,"— starte neu.");kl=[];}
             const _kmId=d.kmLogId||d.km_log_id||((_tAdd&&_tAdd.id)?"km_"+_tAdd.id:"");/* 18.11.: stabile id der km-Zeile = aus der Tank-id abgeleitet (Tank-id vergibt der Erzeuger beim Einreihen) */
             if(!(_kmId&&kl.some(x=>x&&x.id===_kmId)))kl.push(_kmId?{id:_kmId,km:km,date:_ymd(new Date())}:{km:km,date:_ymd(new Date())});
@@ -3629,7 +3630,7 @@ async function _translateAndExec(url,method,body){
     if(d.kmStand||d.km_stand){
       try{
         const km=parseInt(d.kmStand||d.km_stand)||0;
-        if(km<0){delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;return{ok:1};}
+        if(km<0||km>2000000){delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;return{ok:1};}/* v3.9.1096 Obergrenze wie _fzKmPruef */
         const fz=await _sbGet("fahrzeuge","id=eq."+encodeURIComponent(idOrSub));
         if(fz&&fz[0]){
           /* v3.8.14 Bug-Hunt Iter-14: defensive parse km_log */
@@ -3642,6 +3643,7 @@ async function _translateAndExec(url,method,body){
       delete d.kmStand;delete d.km_stand;delete d.kmLogId;delete d.km_log_id;
       if(Object.keys(d).length===0)return{ok:1};
     }
+    delete d.kmLogId;delete d.km_log_id;if(Object.keys(d).length===0)return{ok:1};/* v3.9.1096: kmLogId ist nur ein Hinweis an den km-Zweig, keine Spalte (sonst PATCH 400) */
     // Continue with regular PATCH for remaining fields
     body=d;
   }
@@ -7207,7 +7209,7 @@ window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
       let P=0;
       if(rawP!==''){if(!/^[0-9]+([.,][0-9]{1,2})?$/.test(rawP)){err.textContent='⚠️ Gesamtpreis ungültig — nur Zahlen erlaubt';fPreis.inp.focus();return null;}P=parseFloat(rawP.replace(',','.'))||0;}
       let K=0;
-      if(rawK!==''){if(!/^[0-9]+$/.test(rawK)){err.textContent='⚠️ km-Stand ungültig — nur Ziffern (keine Buchstaben)';fKm.inp.focus();return null;}K=parseInt(rawK,10)||0;}
+      if(rawK!==''){if(!/^[0-9]+$/.test(rawK)){err.textContent='⚠️ km-Stand ungültig — nur Ziffern (keine Buchstaben)';fKm.inp.focus();return null;}K=parseInt(rawK,10)||0;if(K>2000000){err.textContent='⚠️ km-Stand unplausibel (über 2.000.000 km) - bitte prüfen';fKm.inp.focus();return null;}}/* v3.9.1096 Obergrenze wie _fzKmPruef */
       if(K>0&&currentKm>0&&K<currentKm){
         if(!allowKmDowngrade){err.textContent='⚠️ km-Stand darf nicht kleiner sein als der aktuelle ('+currentKm.toLocaleString('de-DE')+' km)';fKm.inp.focus();return null;}
         /* v3.9.329: Admin-Override — pass-through mit Flag, addTank zeigt den finalen Confirm. */
@@ -32571,6 +32573,20 @@ function _ganzZahl(v){/* v3.9.1093: Ganzzahlfeld (text+inputmode numeric) -> gan
   var n=_fzZahl(s);
   return isFinite(n)?Math.trunc(n):NaN;
 }
+var _FZ_KM_MAX=2000000;/* v3.9.1096 km-Obergrenze fuer jeden Schreibweg eines km-Stands (Fahrzeug, QR, Tankung, Abgleich). Gemessen 22.11.: fz5 trug
+   km_log {km:-999999, datum 2026-03-18} - addKm war bis 20.03. nur parseInt(kmVal)||0 ohne jede Pruefung. Gleiche Zahl steht als Literal in apiPatch,
+   _tankConfirmModal und _fzTankStats (die laufen/werden in Tests einzeln ausgezogen und duerfen nicht auf diese Variable angewiesen sein). */
+function _fzKmPruef(v){/* v3.9.1096: Eingabe -> {ok,km,fehler}. Liest ueber _ganzZahl (v1093): "12,5" -> 12 (vorher replace(/[^\d-]/g) -> "125" -> 125),
+   "12.345" -> 12345. Leer/Text -> Fehler "Zahl", negativ -> Fehler, ueber 2.000.000 km -> Fehler. Der Vergleich mit dem aktuellen Stand bleibt beim Aufrufer. */
+  var km=_ganzZahl(typeof v==='string'?v.trim():v);
+  if(!isFinite(km))return {ok:false,km:NaN,fehler:'km-Stand muss eine Zahl sein'};
+  if(km<0)return {ok:false,km:km,fehler:'km-Stand kann nicht negativ sein'};
+  if(km>2000000)return {ok:false,km:km,fehler:'km-Stand unplausibel (über 2.000.000 km) - bitte prüfen'};
+  return {ok:true,km:km,fehler:''};
+}
+function _fzKmPlausibel(v){/* v3.9.1096 Anzeige: ein gespeicherter km-Stand ist brauchbar, wenn er eine Zahl von 0 bis 2.000.000 ist (sonst: in Auswertungen ignoriert + Hinweis) */
+  var n=_fzZahl(v);return isFinite(n)&&n>=0&&n<=2000000;
+}
 function ZahlEingabe(props){/* v3.9.1093: Zahlenfeld nach App-Regel - IMMER type=text (Dezimal: inputMode decimal, Ganzzahl: inputMode numeric+pattern vom Aufrufer).
    Warum ein eigenes Bauteil: viele Felder rechnen schon im onChange (z.B. parseFloat(..)||38.5) und schreiben die ZAHL zurueck in value.
    Bei einem Textfeld wuerde dann "7," sofort zu "7" und das Komma liesse sich nie tippen. Darum: solange das Feld den Fokus hat, steht dort
@@ -32754,7 +32770,7 @@ function _fzTankStats(f,nowMs){/* Tankbuch eines Fahrzeugs -> Kennzahlen. Unguel
      nicht mit (ihr Sprit wurde VOR dem ersten km-Stand verfahren). */
   var log=f?(f.tankLog||f.tank_log):null;
   if(!Array.isArray(log))log=[];
-  var r={anzahl:0,liter:0,euro:0,literMitPreis:0,literBasis:NaN,euroProL:NaN,l100:NaN,euroKm:NaN,strecke:0,plausibel:true,letzte:'',euro12:0,euroMonat:NaN,ohneKm:0,ohnePreis:0};
+  var r={anzahl:0,liter:0,euro:0,literMitPreis:0,literBasis:NaN,euroProL:NaN,l100:NaN,euroKm:NaN,strecke:0,plausibel:true,letzte:'',euro12:0,euroMonat:NaN,ohneKm:0,ohnePreis:0,kmUnplausibel:0};
   var n=new Date(nowMs);
   var nowMi=isNaN(n.getTime())?NaN:(n.getFullYear()*12+n.getMonth());
   var ersteMi=null,preis12=0,mitKm=[],i;
@@ -32773,7 +32789,7 @@ function _fzTankStats(f,nowMs){/* Tankbuch eines Fahrzeugs -> Kennzahlen. Unguel
       if(ersteMi===null||mi<ersteMi)ersteMi=mi;
       if(p>0&&mi<=nowMi&&mi>nowMi-12){r.euro12+=p;preis12++;}
     }
-    if(k>0)mitKm.push({km:k,l:l,p:(p>0?p:NaN)});else r.ohneKm++;
+    if(k>0&&k<=2000000)mitKm.push({km:k,l:l,p:(p>0?p:NaN)});else if(k<0||k>2000000)r.kmUnplausibel++;else r.ohneKm++;/* v3.9.1096: km unter 0 oder ueber 2.000.000 (z.B. -999999) zaehlt nicht in den Verbrauch, sondern wird als unplausibel gezaehlt und angezeigt */
   }
   if(r.literMitPreis>0)r.euroProL=r.euro/r.literMitPreis;
   if(mitKm.length>=2){
@@ -32838,7 +32854,7 @@ function _fzAkte(f){/* Fahrzeug -> Chronik [{datum,art,text,km,euro}] neueste zu
   var stTxt={offen:'offen',in_reparatur:'in Reparatur',erledigt:'erledigt'};
   for(i=0;i<sc.length;i++){var d=sc[i];if(!d)continue;add(d.datum,'Schaden',String(d.beschreibung||'')+' ('+(stTxt[d.status]||d.status||'offen')+')',null,null);}
   var kl=Array.isArray(f.kmLog||f.km_log)?(f.kmLog||f.km_log):[];
-  for(i=0;i<kl.length;i++){var k=kl[i];if(!k)continue;if(k.id&&String(k.id).indexOf('km_')===0)continue;add(k.datum||k.date,'km-Stand',String(k.note||'')+(k.by?((k.note?' · ':'')+k.by):''),k.km,null);}
+  for(i=0;i<kl.length;i++){var k=kl[i];if(!k)continue;if(k.id&&String(k.id).indexOf('km_')===0)continue;var kZ=_fzZahl(k.km),kOk=!isFinite(kZ)||(kZ>=0&&kZ<=2000000);add(k.datum||k.date,'km-Stand',String(k.note||'')+(k.by?((k.note?' · ':'')+k.by):'')+(kOk?'':((k.note||k.by)?' · ':'')+'unplausibler km-Stand '+String(k.km)+' - ignoriert'),kOk?k.km:null,null);}/* v3.9.1096 */
   var tj=Array.isArray(f.termine)?f.termine:[];
   for(i=0;i<tj.length;i++){var tt=tj[i];if(!tt)continue;add(tt.datum,'Termin',String(tt.beschreibung||tt.art||'')+(tt.erledigt?' (erledigt)':''),null,null);}
   out.sort(function(a,b){if(a.datum===b.datum)return 0;if(!a.datum)return 1;if(!b.datum)return -1;return a.datum<b.datum?1:-1;});
@@ -33049,6 +33065,7 @@ function FlotteKostenPanel(props){
   var sortBtn=function(k,label){return _fzChipBtn(h,sortK===k,label,function(){setSortK(k);});};
   var td=function(v,extra){return h('td',{style:Object.assign({},tdSt(),{textAlign:'right',fontFamily:mono,whiteSpace:'nowrap'},extra||{})},v);};
   var ohneKm=zeilen.reduce(function(s,z){return s+z.t.ohneKm;},0);
+  var kmUnpl=zeilen.reduce(function(s,z){return s+(z.t.kmUnplausibel||0);},0);/* v3.9.1096 */
   return h('div',{className:'fade-in'}
     ,h('div',{style:Object.assign({},CC(),{padding:12,marginBottom:10})}
       ,h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap',marginBottom:10}}
@@ -33081,6 +33098,7 @@ function FlotteKostenPanel(props){
     ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginTop:8,lineHeight:1.5}}
       ,'Ø L/100 km = Liter der Tankungen mit km-Stand ohne die erste (ihr Kraftstoff wurde davor verfahren) geteilt durch die km vom ersten bis zum letzten km-Stand, mal 100 - darunter steht diese Basis. Die Spalte Liter zählt alle Tankungen. „prüfen" = Wert außerhalb 2–60 L/100 km, meist ein Tippfehler beim km-Stand.'
       ,ohneKm?(' '+ohneKm+(ohneKm===1?' Tankung ohne':' Tankungen ohne')+' km-Stand fließen in Kosten, nicht in den Verbrauch ein.'):''
+      ,kmUnpl?(' '+kmUnpl+(kmUnpl===1?' Tankung hat einen unplausiblen':' Tankungen haben einen unplausiblen')+' km-Stand (unter 0 oder über 2.000.000) und werden im Verbrauch ignoriert.'):''
       ,hatFix?' Leasing und Versicherung sind Fixkosten je Monat und NICHT in den Tankkosten enthalten; Versicherung = Jahresprämie ÷ 12.':'')
   );
 }
@@ -33754,9 +33772,8 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
     if(!kmVal)return;
     /* v3.9.39 Sprint-24 F-4: in-flight-Guard gegen Race (confirmModal await + Doppelklick → 2x upd). */
     if(window.__addKmInFlight)return;
-    const km=parseInt(String(kmVal).replace(/[^\d-]/g,""),10);
-    if(isNaN(km)){_optionalChain([window, 'access', _kmn1 => _kmn1.__toast, 'optionalCall', _kmn2 => _kmn2("❌ km-Stand muss eine Zahl sein")]);return;}
-    if(km<0){_optionalChain([window, 'access', _km1 => _km1.__toast, 'optionalCall', _km2 => _km2("❌ km-Stand kann nicht negativ sein")]);return;}
+    const _kmP=_fzKmPruef(kmVal);const km=_kmP.km;/* v3.9.1096: ueber _ganzZahl - "12,5" wurde mit Enter (ohne Blur-Normalisierung) als 125 gespeichert; dazu Obergrenze 2.000.000 */
+    if(!_kmP.ok){_optionalChain([window, 'access', _kmn1 => _kmn1.__toast, 'optionalCall', _kmn2 => _kmn2("❌ "+_kmP.fehler)]);return;}
     const cur=fahrzeuge.find(f=>f.id===fzId);
     window.__addKmInFlight=true;
     try{
@@ -33888,7 +33905,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
         if(_r.kmDowngraded){f.kmStand=_r.km;}
         else if(_r.km>(f.kmStand||0))f.kmStand=_r.km;
         return f;
-      },u=>({_tankAtomar:{op:"add",eintrag:_tkNeu,kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand}));/* v3.9.1051: _tankAtomar = nur dieser eine Eintrag an fz_tanklog_add; fehlt die Funktion (404), geht der Rest wie bisher. v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
+      },u=>({_tankAtomar:{op:"add",eintrag:_tkNeu,kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand,kmLogId:"km_"+_eid}));/* v3.9.1096: kmLogId = stabile id der km-Zeile. Ohne sie haengte der km-Zweig in apiPatch bei JEDER Wiederholung derselben Sendung eine weitere {km,date}-Zeile an (fz1b: 05.07./14.07./15.07. doppelt - damals Base64-Tankfoto im selben PUT, der Rest-PATCH scheiterte, der Eintrag lief erneut). fz_tanklog_add ist am Server nicht angelegt -> dieser Rueckfall ist heute der Normalweg. *//* v3.9.1051: _tankAtomar = nur dieser eine Eintrag an fz_tanklog_add; fehlt die Funktion (404), geht der Rest wie bisher. v3.9.238 #3: Diff-PUT nur tank_log+km_stand — kein Voll-Row-Clobber */
       window.__toast&&window.__toast(_r.kmDowngraded?"⛽ Tankung erfasst · km nach unten korrigiert":"⛽ Tankung erfasst");
       setTankLiter("");setTankPreis("");setTankKm("");setTankDatum(td2());setTankFoto("");setShowTank(null);
     }finally{window.__addTankInFlight=false;}
@@ -34004,6 +34021,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
   const qDoKm=async()=>{if(!qKm||!fzScannedItem)return;const fid=fzScannedItem.id;const km=_ganzZahl(qKm);
     if(!Number.isFinite(km)){_optionalChain([window, 'access', _qkm1n => _qkm1n.__toast, 'optionalCall', _qkm2n => _qkm2n("❌ km-Stand muss eine Zahl sein","warn")]);return;}
     if(km<0){_optionalChain([window, 'access', _qkm1 => _qkm1.__toast, 'optionalCall', _qkm2 => _qkm2("❌ km-Stand kann nicht negativ sein")]);return;}
+    if(!_fzKmPruef(km).ok){_optionalChain([window, 'access', _qkm3 => _qkm3.__toast, 'optionalCall', _qkm4 => _qkm4("❌ "+_fzKmPruef(km).fehler,"warn")]);return;}/* v3.9.1096 Obergrenze wie addKm */
     if(km<(fzScannedItem.kmStand||0)){if(!await _confirmModal("⚠️ Neuer km-Stand ("+km.toLocaleString("de-AT")+") ist niedriger als aktuell ("+(fzScannedItem.kmStand||0).toLocaleString("de-AT")+"). Trotzdem speichern?"))return;}
     upd(fid,f=>{f.kmLog=[{km,datum:td2(),note:qKmNote,by:_optionalChain([curUser, 'optionalAccess', _665n => _665n.name])||""},...(f.kmLog||[])];f.kmStand=km;return f;},u=>({kmLog:u.kmLog,kmStand:u.kmStand}));/* v3.9.843 Hunt: QR-km jetzt wie addKm(:26658) — kanonische Felder note/by (Anzeige :27659 liest k.note/k.by; alt schrieb notiz + kein by -> Notiz/Autor leer) UND km_log-Persist via upd (alt: SQ.push nur {kmStand} -> History-Eintrag ging bei Reload verloren). */
     setFzScannedItem(p=>p?{...p,kmStand:km}:p);
@@ -34012,7 +34030,9 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
   const qDoTank=()=>{if(!qTankL||!qTankP||!fzScannedItem)return;const fid=fzScannedItem.id;
     const _qL=_fzZahl(qTankL);const _qP=_fzZahl(qTankP);/* v3.9.1092: Feld ist text - "72,77"/"72.77" wie bisher 72.77, "1.234,5" -> 1234.5 (parseFloat machte 1.234) */
     if(!Number.isFinite(_qL)||_qL<=0||!Number.isFinite(_qP)||_qP<=0){_optionalChain([window, 'access', _qtnk1 => _qtnk1.__toast, 'optionalCall', _qtnk2 => _qtnk2("❌ Liter und Preis müssen positive Zahlen sein","warn")]);return;}
-    const entry={id:uid(),datum:qTankDat,liter:_qL,preis:_qP,km:parseInt(qTankKm,10)||fzScannedItem.kmStand||0,foto:"",kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
+    const _qKmP=String(qTankKm==null?"":qTankKm).trim()===""?null:_fzKmPruef(qTankKm);/* v3.9.1096: parseInt liess "-5" als km -5 in tank_log UND km_log durch */
+    if(_qKmP&&!_qKmP.ok){_optionalChain([window, 'access', _qtnk3 => _qtnk3.__toast, 'optionalCall', _qtnk4 => _qtnk4("❌ "+_qKmP.fehler,"warn")]);return;}
+    const entry={id:uid(),datum:qTankDat,liter:_qL,preis:_qP,km:(_qKmP?_qKmP.km:0)||fzScannedItem.kmStand||0,foto:"",kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
     setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,tankLog:[entry,...(f.tankLog||[])],kmStand:entry.km>=(f.kmStand||0)?entry.km:f.kmStand}:f));
     SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{tankLog_add:entry,kmStand:entry.km}});
     setFzScannedItem(p=>p?{...p,kmStand:Math.max(entry.km,p.kmStand||0)}:p);
@@ -34031,7 +34051,9 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
     const _bL=_fzZahl(bLit);const _bP=_fzZahl(bPreis);/* v3.9.1092 wie qDoTank */
     if(!Number.isFinite(_bL)||_bL<=0||!Number.isFinite(_bP)||_bP<=0){_optionalChain([window, 'access', _bsv1 => _bsv1.__toast, 'optionalCall', _bsv2 => _bsv2("❌ Liter und Preis müssen positive Zahlen sein","warn")]);return;}
     const fid=batchFzId;const fz=fahrzeuge.find(f=>f.id===fid);
-    const entry={id:uid(),datum:bDat,liter:_bL,preis:_bP,km:parseInt(bKm,10)||_optionalChain([fz, 'optionalAccess', _672 => _672.kmStand])||0,foto:"",kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
+    const _bKmP=String(bKm==null?"":bKm).trim()===""?null:_fzKmPruef(bKm);/* v3.9.1096 wie qDoTank */
+    if(_bKmP&&!_bKmP.ok){_optionalChain([window, 'access', _bsv3 => _bsv3.__toast, 'optionalCall', _bsv4 => _bsv4("❌ "+_bKmP.fehler,"warn")]);return;}
+    const entry={id:uid(),datum:bDat,liter:_bL,preis:_bP,km:(_bKmP?_bKmP.km:0)||_optionalChain([fz, 'optionalAccess', _672 => _672.kmStand])||0,foto:"",kontrolliert:false,kontrolliert_von:null,kontrolliert_am:null};
     // Save to state + DB
     setFahrzeuge(p=>p.map(f=>f.id===fid?{...f,tankLog:[entry,...(f.tankLog||[])],kmStand:entry.km>=(f.kmStand||0)?entry.km:f.kmStand}:f));
     SQ.push({url:"/api/fahrzeuge/"+fid,method:"PUT",body:{tankLog_add:entry,kmStand:entry.km}});
@@ -34843,7 +34865,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
           , _fzSekKopf("tank","Tankprotokoll ("+(selFz.tankLog||[]).length+")")/* A55 1088 Runde 4: Tankprotokoll und Monatsauswertung in EINER Schrift - Zahlenspalten mit tabular-nums statt monospace (vorher Liter/Datum/Von normal, Euro/km Schreibmaschine, auch die Feldnamen am Handy) */
           , React.createElement('div', { style: {overflowX:"auto"}}, React.createElement('table', { className: isMob?"epk-fv-karten":_fvMittel?"epk-fv-mittel":undefined, 'data-fv-tabelle': "tank", style: {width:"100%",borderCollapse:"collapse",fontSize:12}}, React.createElement('thead', {}, React.createElement('tr', {}, React.createElement('th', { style: {...thS(),..._fvKleb(V.cd)}}, "Datum"), React.createElement('th', { style: thS()}, "Liter"), React.createElement('th', { style: thS()}, "Gesamt €" ), React.createElement('th', { style: thS()}, "€/L"), React.createElement('th', { style: thS()}, "km"), React.createElement('th', { style: thS()}, "Von"), React.createElement('th', { style: thS()}, "Beleg")))
           , React.createElement('tbody', {}, (selFz.tankLog||[]).map((t,i)=>(React.createElement('tr', { key: i}, React.createElement('td', { 'data-l': "Datum", style: {...tdSt(),..._fvKleb(V.cd)}}, fdt(t.datum)), React.createElement('td', { 'data-l': "Liter", style: {...tdSt(),textAlign:"center",fontWeight:600,fontVariantNumeric:"tabular-nums"}}, (()=>{const _l=_fzZahl(t.liter);return isFinite(_l)?_fzDE(_l,2)+" L":"—";})()/* A55 1088 Runde 4: stand roh als "72.77 L" (Dezimalpunkt) - jetzt deutsch wie die Monatsauswertung ("72,77 L"); Text-Literwerte ("52,3") ueber _fzZahl */ ), React.createElement('td', { 'data-l': "Gesamt \u20ac", style: {...tdSt(),textAlign:"right",fontVariantNumeric:"tabular-nums"}}, t.preis?fmt$(t.preis):"—"), React.createElement('td', { 'data-l': "\u20ac/L", style: {...tdSt(),textAlign:"right",fontVariantNumeric:"tabular-nums"}}, t.preis&&t.liter?_fzDE((t.preis/t.liter),3):"—"), React.createElement('td', { 'data-l': "km", style: {...tdSt(),textAlign:"right",fontVariantNumeric:"tabular-nums"}}, _fzDE(t.km,0)), React.createElement('td', { 'data-l': "Von", style: {...tdSt(),fontSize:UI.fMeta}}, t.by), React.createElement('td', { 'data-l': "Beleg", style: tdSt()}, t.foto?React.createElement('img', { src: _dateiAnzeige(t.foto), onClick: ()=>_openFileUrl(_dateiAnzeige(t.foto),"Beleg"), style: {width:28,height:28,objectFit:"cover",borderRadius:4,cursor:"pointer"}, alt: "Beleg"} ):"—")))))))
-          , (selFz.tankLog||[]).length>1&&(React.createElement('div', { style: {fontSize:12,color:V.acTx,fontWeight:600,marginTop:6}}, "Ø Verbrauch: "  , (()=>{const _ts=_fzTankStats(selFz,Date.now());if(isNaN(_ts.l100))return"—";return _fzDE(_ts.l100,1)+" L/100km"+(_ts.plausibel?"":" (unplausibel - km-Angaben prüfen)")+" ("+_fzL100Basis(_ts)+", erste Tankung nicht mitgezählt)";})()/* v3.9.1095 Anzeige-Fund 4: Basis sichtbar *//* v1049: robuster Rechner - vorher zaehlten Tankungen mit km 0 (Batch/QR ohne Tacho) als Startpunkt und Text-Literwerte wurden verkettet statt addiert */))
+          , (selFz.tankLog||[]).length>1&&(React.createElement('div', { style: {fontSize:12,color:V.acTx,fontWeight:600,marginTop:6}}, "Ø Verbrauch: "  , (()=>{const _ts=_fzTankStats(selFz,Date.now());if(isNaN(_ts.l100))return"—";return _fzDE(_ts.l100,1)+" L/100km"+(_ts.plausibel?"":" (unplausibel - km-Angaben prüfen)")+" ("+_fzL100Basis(_ts)+", erste Tankung nicht mitgezählt)"+(_ts.kmUnplausibel?" · "+_ts.kmUnplausibel+" Tankung(en) mit unplausiblem km-Stand ignoriert":"");})()/* v3.9.1096 Hinweis *//* v3.9.1095 Anzeige-Fund 4: Basis sichtbar *//* v1049: robuster Rechner - vorher zaehlten Tankungen mit km 0 (Batch/QR ohne Tacho) als Startpunkt und Text-Literwerte wurden verkettet statt addiert */))
         ))
 
         /* Monatsauswertung */
@@ -34869,7 +34891,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
         /* km-Log */
         , (selFz.kmLog||[]).length>0&&(React.createElement('div', { id: "fzsek-km", style: {...CC(),marginTop:8,..._fzSekStil}}
           , _fzSekKopf("lineal","Kilometerprotokoll")
-          , (selFz.kmLog||[]).slice(0,10).map((k,i)=>(React.createElement(Row, { key: i}, React.createElement('div', { style: {fontFamily:"monospace",fontWeight:700,fontSize:13}}, _fzDE(k.km,0), " km" ), React.createElement('div', { style: {flex:1,fontSize:12,color:V.dm}}, k.note||""), React.createElement('div', { style: {fontSize:12,color:V.dm}}, (function(){const _kz=_fzKmZeileAnz(selFz,k);return React.createElement(React.Fragment,{},fdt(_kz.datum)||"—"," · ",React.createElement('span',{title:_kz.grund||undefined},_kz.wer||"—"));})()/* v3.9.1095 Anzeige-Fund 3: Datum aus datum ODER date, Erfasser aus by ODER der Tankung; sonst "—" mit Grund im title */))))
+          , (selFz.kmLog||[]).slice(0,10).map((k,i)=>(React.createElement(Row, { key: i}, React.createElement('div', { style: {fontFamily:"monospace",fontWeight:700,fontSize:13}}, _fzDE(k.km,0), " km" ), React.createElement('div', { style: {flex:1,fontSize:12,color:V.dm}}, k.note||"", _fzKmPlausibel(k.km)?null:React.createElement('span',{title:"km-Stand unter 0 oder über 2.000.000 - wird in Auswertungen ignoriert",style:{color:V.tx,fontWeight:700}},(k.note?" · ":"")+"⚠️ unplausibel, ignoriert")/* v3.9.1096: z.B. -999999 sichtbar markieren statt still mitzuzeigen */), React.createElement('div', { style: {fontSize:12,color:V.dm}}, (function(){const _kz=_fzKmZeileAnz(selFz,k);return React.createElement(React.Fragment,{},fdt(_kz.datum)||"—"," · ",React.createElement('span',{title:_kz.grund||undefined},_kz.wer||"—"));})()/* v3.9.1095 Anzeige-Fund 3: Datum aus datum ODER date, Erfasser aus by ODER der Tankung; sonst "—" mit Grund im title */))))
         ))
         , svcViewer?React.createElement(PdfViewerModal,{name:svcViewer.name,dataUrl:svcViewer.dataUrl,isMob:isMob,onClose:()=>setSvcViewer(null)}):null/* v3.9.444: Serviceheft-Doc-Preview-Modal (gemeinsamer PdfViewerModal wie Personaldokumente) */
       ))

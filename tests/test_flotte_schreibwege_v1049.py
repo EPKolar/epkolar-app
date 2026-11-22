@@ -304,7 +304,8 @@ def test_batch_abbrechen_schreibt_nichts(node_exe, index_html):
 def test_batch_weg_ist_der_tanklog_weg_von_addtank(index_html):
     """Kein neuer Schreibweg: derselbe Diff-PUT der tankLog-Spalte wie beim Tank-Dialog (addTank)."""
     # v3.9.1051: beide tragen zusaetzlich den _tankAtomar-Hinweis (Server aendert nur den einen Eintrag)
-    assert "kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand}));" in index_html
+    # v3.9.1096: addTank schickt zusaetzlich kmLogId km_<tankId> (km-Zeile idempotent bei Wiederholung, fz1b-Duplikate)
+    assert 'kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand,kmLogId:"km_"+_eid}));' in index_html
     assert "u=>({_tankAtomar:{op:\"del\",id:rowId},tankLog:u.tankLog})" in _comp_const(index_html, "batchDel")
 
 

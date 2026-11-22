@@ -72,7 +72,8 @@ def test_addtank_still_pushes_column_scoped_diff(index_html):
     blk = _addtank_block(index_html)
     # Kontroll-/Sync-Semantik unveraendert: weiterhin column-scoped Diff-PUT (tank_log + km_stand).
     # v3.9.1051: plus _tankAtomar-Hinweis (nur der eine Eintrag an fz_tanklog_add), Rueckfall-Spalten unveraendert
-    assert "tankLog:u.tankLog,kmStand:u.kmStand})" in blk and "_tankAtomar:{op:\"add\",eintrag:_tkNeu" in blk
+    # v3.9.1096: plus kmLogId km_<tankId> (idempotente km-Zeile im Rueckfall), Spalten unveraendert
+    assert 'tankLog:u.tankLog,kmStand:u.kmStand,kmLogId:"km_"+_eid})' in blk and "_tankAtomar:{op:\"add\",eintrag:_tkNeu" in blk
 
 
 # ── _mapFahrzeug toleriert fehlendes tank_log (Vorbedingung fuer 1c/Migration) ──

@@ -304,7 +304,8 @@ def test_tank_dialog_reiht_genau_den_lokalen_eintrag_ein(index_html):
     a = index_html.index("const addTank=async")
     blk = index_html[a:index_html.index("const addSchaden=", a)]
     assert "f.tankLog=[_tkNeu,...(f.tankLog||[])];" in blk, "lokaler Stand und Server-Eintrag sind dasselbe Objekt"
-    assert 'u=>({_tankAtomar:{op:"add",eintrag:_tkNeu,kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand})' in blk
+    # v3.9.1096: plus kmLogId km_<tankId> (km-Zeile idempotent; _fzTankAtomar nimmt es im Server-Weg wieder heraus)
+    assert 'u=>({_tankAtomar:{op:"add",eintrag:_tkNeu,kmForce:!!_r.kmDowngraded},tankLog:u.tankLog,kmStand:u.kmStand,kmLogId:"km_"+_eid})' in blk
 
 
 def test_buero_wege_erst_funktion_dann_rueckfall(index_html):
