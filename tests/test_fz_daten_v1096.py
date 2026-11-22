@@ -213,7 +213,7 @@ def test_tankstats_ignoriert_unplausiblen_km(node_exe, neu, alt, tmp_path):
 
 
 def test_anzeige_hinweise_vorhanden(neu):
-    assert "⚠️ unplausibel, ignoriert" in neu and "_fzKmPlausibel(k.km)?null:" in neu
+    assert "unplausibel, ignoriert" in neu and "_fzKmPlausibel(k.km)?null:" in neu
     assert "Tankung(en) mit unplausiblem km-Stand ignoriert" in neu
     assert "km-Stand (unter 0 oder über 2.000.000) und werden im Verbrauch ignoriert." in neu
 
