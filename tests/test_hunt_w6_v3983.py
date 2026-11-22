@@ -49,9 +49,12 @@ def test_iso_week_year_helper(node_exe, index_html):
 
 def test_menge_decimal_comma(index_html):
     # F7: Dezimal-Mengen (2,5m) + Komma-Norm; parseInt schnitt ab
-    assert 'const n=Math.max(0,parseFloat(String(val).replace(",","."))||0);' in index_html
-    assert index_html.count('min: "0", step: "any", placeholder: (lastQtyByArtNr') == 3
-    assert 'min: "0.01", step: "any", value: pos.menge' in index_html
+    # 1093: Mengen sind type=text (ZahlEingabe, inputMode decimal); Lesen ueber _fzZahl (Komma, nie parseInt),
+    # Untergrenze 0 bleibt in der Lese-Logik
+    assert 'const n=Math.max(0,_fzZahl(val)||0);' in index_html
+    assert index_html.count('ZahlEingabe, { inputMode: "decimal", placeholder: (lastQtyByArtNr') == 3
+    assert 'ZahlEingabe, { inputMode: "decimal", value: pos.menge' in index_html
+    assert 'parseInt(val' not in index_html.split('const n=Math.max(0,_fzZahl(val)||0);')[0][-200:]
 
 
 def test_odb_purge_on_user_switch(index_html):

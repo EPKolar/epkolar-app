@@ -19,7 +19,9 @@ def test_as_dauer_comma_normalized(index_html):
 
 def test_projekt_betrag_clamped(index_html):
     # G2: negative Auftragssummen verfälschten Budget-Auswertungen
-    assert 'betrag:Math.max(0,parseFloat(e.target.value)||0)' in index_html
+    # 1093: Feld ist type=text, Lesen ueber _fzZahl (Komma) - die Klemmung auf >= 0 bleibt
+    assert 'betrag:Math.max(0,_fzZahl(e.target.value)||0)' in index_html
+    assert 'betrag:Math.max(0,parseFloat(e.target.value)||0)' not in index_html
 
 
 def test_projekt_datums_plausibilitaet(index_html):
