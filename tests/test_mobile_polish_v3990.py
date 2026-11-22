@@ -27,17 +27,35 @@ def test_mob_shell_nav_wraps(index_html):
     Gemessen wird deshalb das Ziel und nicht das Mittel: die Reiterzeile
     rollt, und was nicht hineinpasst, steht vollstaendig unter "Mehr".
     """
-    i = index_html.find("isMob&&React.createElement('div', { style: {display:\"flex\",gap:0,"
-                        "height:40,minHeight:40")
+    # v3.9.1090 (A55 Runde 4, d8408e3): die Reiterzeile traegt jetzt die Marke
+    # 'data-pf-reiter' und davor einen Begruendungskommentar - der alte Anker
+    # (`{ style: {display:"flex",gap:0,height:40,...` direkt hinter dem div)
+    # traf deshalb nicht mehr. Angekert wird an der Marke; geprueft wird der
+    # STIL-Block dieser Zeile (nicht ein festes Zeichenfenster, das der
+    # Kommentar sonst ueberdeckt). Die Absicht bleibt: die Zeile rollt quer.
+    i = index_html.find("isMob&&React.createElement('div', { 'data-pf-reiter': \"1\"")
     assert i > 0, (
         "Die Reiterzeile der Projektakte wurde nicht gefunden - dann ist ueber "
         "die Erreichbarkeit nichts gesagt."
     )
-    kopf = index_html[i:i + 320]
+    s = index_html.find(", style: {", i)
+    assert 0 < s < i + 1200, "Der Stil der Reiterzeile steht nicht an ihrem div."
+    kopf = index_html[s:index_html.find("}}", s)]
+    assert 'display:"flex",gap:0,height:40,minHeight:40' in kopf, kopf[:200]
     assert 'overflowX:"auto"' in kopf, (
         "Die Reiterzeile rollt nicht quer. Ohne Umbruch UND ohne Rollen sind "
         "die hinteren Reiter unerreichbar."
     )
+    # v3.9.1090: "Mehr" klebt rechts (sticky, eigene Flaeche) - so ist der
+    # Zugang zum Rest auch dann sichtbar, wenn die Reiter breiter sind als
+    # die Zeile. Er muss ein echter Knopf in DIESER Zeile bleiben.
+    m = index_html.find("_pfMehr.length>0&&React.createElement('button', { type: \"button\", "
+                        "'data-pf-mehr': \"1\"", i)
+    assert 0 < m < i + 6000, "Der Mehr-Knopf steht nicht mehr in der Reiterzeile."
+    mehr_stil = index_html[m:index_html.find("}}", m)]
+    assert 'position:"sticky",right:0' in mehr_stil and "flexShrink:0" in mehr_stil, (
+        "\"Mehr\" klebt nicht rechts oder darf schrumpfen - dann kann er beim "
+        "Rollen aus dem Bild laufen oder angeschnitten werden.")
     assert "const _pfMehr=navItems.filter(n=>_pfHauptIds.indexOf(n.id)<0)" in index_html, (
         "Die Mehr-Liste wird nicht aus dem REST gebildet - dann koennte ein "
         "Ziel durchfallen, das weder Reiter noch Mehr-Eintrag ist."

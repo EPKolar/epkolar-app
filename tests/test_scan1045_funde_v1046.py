@@ -52,8 +52,16 @@ def test_sync_leiste_nimmt_fill_token(index_html):
     assert ('background:"transparent"/* Scan 1045: ein weisser Schleier hellte die Flaeche unter '
             'der weissen Schrift auf (2,31:1) */,color:"#fff"') in index_html
     assert 'right:-4,background:COLORS.WARNING_FILL,color:"#fff"' in index_html
-    assert 'background:!syncStatus.connected?COLORS.ERROR_FILL:COLORS.WARNING_FILL,color:"#fff"' in index_html
-    assert '"linear-gradient(90deg,"+COLORS.WARNING_FILL+",#9a3412)"' in index_html
+    # v3.9.1090 (A55 Runde 4, d8408e3): der zweite Netz-Streifen ueber der Fussleiste
+    # (data-epk "netz-streifen", background:!syncStatus.connected?COLORS.ERROR_FILL:COLORS.WARNING_FILL)
+    # ist bewusst entfernt - am Handy stand oben UND unten dieselbe Meldung. Die Eigenschaft
+    # bleibt dieselbe: JEDER Netz-Streifen nimmt ein *_FILL-Token unter weisser Schrift. Darum
+    # (a) der alte Streifen ist wirklich weg (kein Fill-loser Ersatz an seiner Stelle) und
+    # (b) der verbliebene Kopf-Streifen hat in BEIDEN Zustaenden ein *_FILL-Token mit #fff.
+    assert "'data-epk': \"netz-streifen\"" not in index_html
+    assert 'background:!syncStatus.connected?COLORS.ERROR_FILL:COLORS.WARNING_FILL,color:"#fff"' not in index_html
+    assert ('background:!syncStatus.connected?"linear-gradient(90deg,"+COLORS.ERROR_FILL+",#b91c1c)"'
+            ':"linear-gradient(90deg,"+COLORS.WARNING_FILL+",#9a3412)",color:"#fff"') in index_html
     assert index_html.count('{background:"rgba(0,0,0,.18)",borderRadius:10,padding:"2px 8px"') == 2
 
 

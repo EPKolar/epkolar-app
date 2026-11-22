@@ -8,7 +8,10 @@ Exit 0 nur, wenn die go2rtc-Anmeldung wirkt (siehe unten; bei localhost nur mit 
 JEDER erwartete Stream innerhalb des Fensters mindestens einmal
   (a) Bilddaten geliefert hat UND
   (b) in /api/streams waehrenddessen einen VERBUNDENEN Erzeuger (producer) hatte.
-Exit 1 sonst (Liste der fehlenden Streams), Exit 2 bei Bedienfehler.
+Exit 1 sonst (Liste der fehlenden Streams), Exit 2 bei Bedienfehler ODER gescheiterter Selbstprobe
+(eichen(): vor jeder Messung laeuft die Entscheidung gegen eine Attrappe mit Koedern - Erzeuger nur
+"url", kein JPEG, Anstossen scheitert, offene API, Platzhalter gelten - und Gegenproben; sonst waere ein
+"OK" von einem blinden Pruefer nicht zu unterscheiden). Nur die Probe: --eichen.
 
 Warum anstossen: go2rtc verbindet eine Quelle nur, solange ein Zuschauer da ist (Bedarfsbetrieb). Ohne Zuschauer
 steht in /api/streams nur die konfigurierte Quelle ({"url": ...}) - das beweist nichts. Darum oeffnet das Skript je
@@ -171,14 +174,90 @@ def pruefen(basis, erwartet=ERWARTET, fenster=30.0, takt=3.0, oeffne=_oeffne_ech
     return not offen, stand
 
 
+class _Attrappe(object):
+    """go2rtc ohne Netz fuer eichen(): je Stream ein Verhalten, dazu eine API mit oder ohne Anmeldung."""
+
+    class _Antwort(object):
+        def __init__(self, daten):
+            self._d = daten
+
+        def read(self, n=-1):
+            return self._d if n < 0 else self._d[:n]
+
+        def close(self):
+            pass
+
+    def __init__(self, streams=None, api_offen=False, platzhalter_gilt=False, gut=None):
+        self.streams, self.api_offen, self.platzhalter_gilt, self.gut = streams or {}, api_offen, platzhalter_gilt, gut
+
+    def __call__(self, url, timeout, kopf=None):
+        teile = urllib.parse.urlsplit(url)
+        name = urllib.parse.parse_qs(teile.query).get("src", [""])[0]
+        if teile.path == "/api/streams":
+            if not name:   # Anmeldepruefung
+                a = (kopf or {}).get("Authorization", "")
+                klar = base64.b64decode(a[6:]).decode("utf-8") if a.startswith("Basic ") else ""
+                if self.api_offen or (a and a == self.gut) or (self.platzhalter_gilt and klar.startswith("${")):
+                    return self._Antwort(b"{}")
+                raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+            return self._Antwort(json.dumps({name: {"producers": [self.streams[name]["producer"]]}}).encode("utf-8"))
+        s = self.streams[name]
+        if s.get("anstoss_fehler"):
+            raise urllib.error.URLError("Attrappe: Kamera aus")
+        return self._Antwort(s["bytes"])
+
+
+def eichen(_pruefen=pruefen, _anmeldung=anmeldung_pruefen):
+    """Koeder (muessen ROT werden) und Gegenproben (muessen GRUEN bleiben) gegen _Attrappe.
+    Die echten Funktionen sind beim Laden gebunden, damit die Probe die Entscheidung prueft und nicht eine Ersatzfunktion.
+    Rueckgabe: Liste der schiefen Proben (leer = geeicht)."""
+    schief = []
+    verbunden_p = {"url": "rtsp://x", "remote_addr": "10.0.0.1:554", "medias": ["video"]}
+    nur_url = {"url": "rtsp://x"}
+    streams = {
+        "gesund_mjpeg": {"bytes": b"--frame\r\n\xff\xd8\xff", "producer": verbunden_p},
+        "gesund_h264": {"bytes": b"\x00\x00\x00\x18ftypmp42", "producer": verbunden_p},
+        "koeder_nur_url": {"bytes": b"\x00\x00\x00\x18ftypmp42", "producer": nur_url},
+        "koeder_kein_jpeg": {"bytes": b"<html>Fehler</html>", "producer": verbunden_p},
+        "koeder_aus": {"anstoss_fehler": True, "producer": verbunden_p},
+        "koeder_leer": {"bytes": b"", "producer": verbunden_p},
+    }
+    erwartet = (("gesund_mjpeg", "mjpeg"), ("gesund_h264", "h264"), ("koeder_nur_url", "h264"),
+                ("koeder_kein_jpeg", "mjpeg"), ("koeder_aus", "mjpeg"), ("koeder_leer", "h264"))
+    alle_ok, stand = _pruefen("http://attrappe:1984", erwartet=erwartet, fenster=0.0, takt=1.0,
+                              oeffne=_Attrappe(streams), schlafen=lambda _s: None, uhr=lambda: 0.0,
+                              ausgabe=lambda _z: None)
+    if alle_ok:
+        schief.append("Lauf mit vier kaputten Streams meldet ALLE OK")
+    for name in ("koeder_nur_url", "koeder_kein_jpeg", "koeder_aus", "koeder_leer"):
+        if str(stand.get(name, "")).startswith("producer="):
+            schief.append("Koeder %s wird als OK gemeldet (%s)" % (name, stand.get(name)))
+    for name in ("gesund_mjpeg", "gesund_h264"):
+        if not str(stand.get(name, "")).startswith("producer="):
+            schief.append("Gegenprobe %s wird NICHT als OK gemeldet (%s)" % (name, stand.get(name)))
+    kopf = basic_kopf("probe", "probe")
+    gut = kopf.get("Authorization", "")
+    if not gut:
+        schief.append("basic_kopf liefert fuer ein gesetztes Paar keinen Authorization-Kopf")
+    if _anmeldung("http://attrappe:1984", kopf, oeffne=_Attrappe(gut=gut)):
+        schief.append("Gegenprobe: wirksame Anmeldung wird als Befund gemeldet")
+    if not _anmeldung("http://attrappe:1984", kopf, oeffne=_Attrappe(api_offen=True, gut=gut)):
+        schief.append("Koeder: API OHNE Anmeldung offen - kein Befund")
+    if not _anmeldung("http://attrappe:1984", kopf, oeffne=_Attrappe(platzhalter_gilt=True, gut=gut)):
+        schief.append("Koeder: woertliche Platzhalter werden angenommen - kein Befund")
+    return schief
+
+
 def main(argv):
-    basis, fenster, takt, nur_streams = standard_url(), 30.0, 3.0, False
+    basis, fenster, takt, nur_streams, nur_eichen = standard_url(), 30.0, 3.0, False, False
     rest = list(argv)
     try:
         while rest:
             a = rest.pop(0)
             if a == "--nur-streams":
                 nur_streams = True
+            elif a == "--eichen":
+                nur_eichen = True
             elif a == "--fenster":
                 fenster = float(rest.pop(0))
             elif a == "--takt":
@@ -190,6 +269,15 @@ def main(argv):
     except (ValueError, IndexError):
         print(__doc__)
         return 2
+    schief = eichen()
+    if schief:
+        for s in schief:
+            print("SELBSTPROBE ROT  " + s)
+        print("NICHT GEMESSEN - der Pruefer erkennt kaputte Streams/offene API nicht mehr")
+        return 2
+    if nur_eichen:
+        print("SELBSTPROBE GRUEN - 6 Stream-Proben, 3 Anmelde-Proben")
+        return 0
     kopf = basic_kopf(os.environ.get("GO2RTC_USER", ""), os.environ.get("GO2RTC_PASS", ""))
     befunde = []
     if ist_localhost(basis):

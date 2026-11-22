@@ -9,7 +9,10 @@ Prueft mit dem SYSTEM-Vertrauensspeicher (ssl.create_default_context, KEIN eigen
      nur deshalb gruen sein, weil das Caddy-Stammzertifikat hier installiert ist)
   3. GET /gesund mit Origin https://epkolar.github.io -> 200, Text "ok", Access-Control-Allow-Origin passt
      (= was der App-Abruf von epkolar.github.io braucht)
-Rueckgabe 0 nur wenn 1-3 gruen. Zusaetzlich (nur Bericht, kein Ausschlag): DNS-Antwort des Systemresolvers und eines
+Rueckgabe 0 nur wenn 1-3 gruen, 1 wenn rot, 2 wenn die Selbstprobe scheitert (eichen(): vor jeder Messung muss
+entscheide() erfundene Befunde - Caddy-Aussteller, Pruefung gescheitert, kein Zertifikat, /gesund falsch, CORS "*" -
+ROT nennen und einen Let's-Encrypt-Befund GRUEN; sonst ist ein "GRUEN" von einem blinden Pruefer nicht zu
+unterscheiden). Nur die Probe: --eichen. Zusaetzlich (nur Bericht, kein Ausschlag): DNS-Antwort des Systemresolvers und eines
 oeffentlichen DoH-Resolvers (Cloudflare) - erwartet ist in beiden die QNAP-LAN-Adresse (ENV.md Schritte 3+4).
 Abnahmekriterium wortgleich in tools/kamera-proxy-auth/qnap/ENV.md; das A55 (mit/ohne "Privates DNS") prueft ein Mensch.
 """
@@ -110,12 +113,56 @@ def dns_bericht(host, timeout=5):
     return out
 
 
+_LE_PROBE = {"issuer": ((("organizationName", "Let's Encrypt"),), (("commonName", "E6"),)),
+             "subject": ((("commonName", "kameras.ep-kolar.at"),),)}
+_CADDY_PROBE = {"issuer": ((("organizationName", CADDY_LOKAL),), (("commonName", CADDY_LOKAL + " - ECC Intermediate"),)),
+                "subject": ((("commonName", "kameras.ep-kolar.at"),),)}
+
+
+def eichen(_entscheide=entscheide):
+    """Koeder (muessen ROT werden, mit dem passenden Grund) und eine Gegenprobe (muss GRUEN bleiben) - ohne Netz.
+    entscheide() ist beim Laden gebunden: geprueft wird die echte Entscheidung. Rueckgabe: Liste schiefer Proben."""
+    schief = []
+    gesund = {"verify_ok": True, "verify_fehler": "", "cert": _LE_PROBE, "gesund_status": 200, "gesund_text": "ok",
+              "cors": ORIGIN_APP}
+    ok, g = _entscheide(dict(gesund))
+    if not ok or g:
+        schief.append("Gegenprobe Let's Encrypt + /gesund ok wird ROT gemeldet: %s" % g)
+    koeder = (
+        ("Caddy-Aussteller (tls internal)", {"cert": _CADDY_PROBE}, CADDY_LOKAL),
+        ("Pruefung mit Systemvertrauen gescheitert", {"verify_ok": False, "verify_fehler": "probe"}, "Systemvertrauen"),
+        ("kein Zertifikat gelesen", {"cert": None}, "kein Zertifikat"),
+        ("/gesund 404", {"gesund_status": 404}, "/gesund"),
+        ("/gesund Text falsch", {"gesund_text": "nicht ok"}, "/gesund"),
+        ("CORS *", {"cors": "*"}, "CORS"),
+        ("CORS fehlt", {"cors": None}, "CORS"),
+    )
+    for name, aenderung, grund in koeder:
+        b = dict(gesund)
+        b.update(aenderung)
+        ok, g = _entscheide(b)
+        if ok or not any(grund in x for x in g):
+            schief.append("Koeder '%s' nicht erkannt (ok=%s, Gruende=%s)" % (name, ok, g))
+    return schief
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Abnahme Kamera-Gateway (oeffentliches Zertifikat)")
     p.add_argument("--host", default="kameras.ep-kolar.at")
     p.add_argument("--port", type=int, default=8443)
     p.add_argument("--erwartet-ip", default="", help="QNAP-LAN-Adresse (nur fuer den DNS-Bericht)")
+    p.add_argument("--eichen", action="store_true", help="nur die Selbstprobe (ohne Netz)")
     a = p.parse_args(argv)
+
+    schief = eichen()
+    if schief:
+        for x in schief:
+            print("SELBSTPROBE ROT:", x)
+        print("NICHT GEMESSEN - die Entscheidung erkennt ein falsches Zertifikat nicht mehr")
+        return 2
+    if a.eichen:
+        print("SELBSTPROBE GRUEN - 7 Koeder rot, Gegenprobe gruen")
+        return 0
 
     d = dns_bericht(a.host)
     print("DNS Systemresolver :", d["system"])
