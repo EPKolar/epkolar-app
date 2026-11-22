@@ -260,7 +260,9 @@ def test_6_zahlen(index_html):
 
 
 def test_6_umkehrprobe(index_html):
-    assert pruef_zahlen(index_html.replace("_projStdDE(totalH,1))))", "_n(totalH,1))))", 1)) != []
+    # v3.9.1095 Anzeige-Fund 2: der Wochenbericht nimmt fuer Zellen und Summen BER_STD_STELLEN (2) - Anker nachgezogen, Probe unveraendert scharf
+    assert "_projStdDE(totalH,BER_STD_STELLEN))))" in index_html
+    assert pruef_zahlen(index_html.replace("_projStdDE(totalH,BER_STD_STELLEN))))", "_n(totalH,BER_STD_STELLEN))))", 1)) != []
     assert pruef_zahlen(index_html.replace('unit==="€"?_eurKachel(v)', 'unit==="€"?"€"+Math.round(v)', 1)) != []
 
 

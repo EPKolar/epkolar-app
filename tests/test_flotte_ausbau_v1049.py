@@ -348,6 +348,7 @@ def test_ansichten_rendern_ohne_fehler(node_exe, index_html, tmp_path):
                    "FahrzeugAkteKarte", "_n", "_fzDE",  # v1049 UX: Zahlen deutsch
                    "_fzFixkosten",  # v1050: Kosten-Ansicht rechnet Leasing/Versicherung je Monat
                    "_fzArchiviert",  # v3.9.1062: Kosten-Ansicht markiert archivierte Fahrzeuge
+                   "_fzL100Basis",  # v3.9.1095 Anzeige-Fund 4: Kosten-Ansicht zeigt die Verbrauchsbasis (Liter auf km)
                    "_fzKzKurz", "_fzKzAktiv", "_fzKzAnzeige", "_fzKzAnzeigeVon",  # v3.9.1069: Wechselkennzeichen-Anzeige
                    "_maIstEhemalig")  # Austritt nur ueber die eine Regel (v952)
     fz = [dict(FZ[0], marke="Ford", modell="Transit", fahrer="m1", typ="LKW",

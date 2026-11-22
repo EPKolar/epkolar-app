@@ -404,6 +404,8 @@ def test_ansichten_rendern(node_exe, index_html, tmp_path):
                         "_fzFahrerCheck", "_fzCsvZelle", "_fzCsv", "_fzCsvZahl", "_fzStufeChip", "_fzCsvLaden", "_fzChipBtn",
                         "_fsKtrMerken", "_fsKtrAusCache", "_fsKtrChip", "_maStaffRolle", "_n",
                         "_fzArchiviert",  # v3.9.1062: FlotteKostenPanel markiert archivierte Fahrzeuge
+                        "_fzL100Basis",  # v3.9.1095 Anzeige-Fund 4: FlotteKostenPanel zeigt die Verbrauchsbasis
+                        "_fzStammRest",  # v3.9.1095 Anzeige-Fund 5: Stammdaten-Zusammenfassung nennt alle Felder
                         "_fzKzKurz", "_fzKzAktiv", "_fzKzAnzeige", "_fzKzAnzeigeVon",  # v3.9.1069: Wechselkennzeichen-Anzeige
                         "FlotteFristenPanel", "FlotteKostenPanel", "FahrzeugStammKarte", "FsKontrolleSection", "FsKontrolleFristenKarte")
     zusatz = ("var _fsKtrCache={};function LL(){return {};}var bpS={};function td2(){return '2026-11-19';}function uid(){return 'u1';}"

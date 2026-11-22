@@ -129,7 +129,7 @@ MD5 = {
     "WeekPlan": "00453227eff2cb358e58a36b28adc694",  # Render 1089 P3: leere Zeilennummern V.tx statt #555 (1,40 -> 4,45 unter Deckkraft .5) und MA-Uebersicht overflowWrap break-word fuer ein zu langes Einzelwort - bewusste Aenderungen (Riegel in test_render_funde_v1089.py); vorher 33b42034306b2785f38e426cfc688679. Davor: 1085: beide Zweige zusammen - P3 (Chip bricht in mittel um) + A55 Runde 3 (Kennzeichen am Handy umbrechend, Kopf "Mo .. – Sa .."); einzeln 0aab4acb.. bzw. 41fe6254.., ohne beide aee55d9dc37dda2d1c26ccae5970eb0c
     "ChartBox": "0c795027cde4f0d474bc7d4f710eeaef",
     "ChefDashboard": "42a07d678c7b02c53c6a23070d460eed",  # Backlog 1094: Tankkosten-Monat ausgeschrieben (_monatAnz), Karte Gefahrenstoffe wie Navigation - bewusste Anzeige-Aenderung, Riegel+Umkehrprobe in test_backlog_v1094.py; vorher 91da847b0545367d5f82b752b9ab2469 | 1080 A55 (4): topOver ohne Kappung auf 8, Titel 'Kritisch überfällig' ohne 'die ältesten N' - bewusste Aenderung, Pruefsumme nachgezogen (Riegel in test_a55_funde_v1080.py)
-    "AuswertungView": "01ec1e729f29416681c33602bfb3365c",
+    "AuswertungView": "5435e24d66b49127102c5550d3a53097",  # Anzeige 1095 (6): Donut "Werkzeuge nach Status" nennt im Titel die Datum-Faelligkeit (wzKalibDatum ueber _wzKalibFaellig) - bewusste Anzeige-Aenderung, Status-Zaehlung unveraendert; Riegel+Umkehrprobe in test_anzeige_funde_v1095.py; vorher 01ec1e729f29416681c33602bfb3365c
     "KameraView": "473255e66bb76536993ded5fa0b74cb8",  # 1088 LNA-Diagnose: Erneut pruefen stoesst den Abruf in der Nutzergeste an (_kamLnaAnstoss), Kachel-Grund lna/lna_frage (Riegel test_kamera_lna_v1088); vorher 2ccebbe69990b2c9c900567a72f7a866
 }
 
