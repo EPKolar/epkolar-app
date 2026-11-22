@@ -7182,6 +7182,12 @@ window._tankConfirmModal=function(init,currentKm,allowKmDowngrade){
     fPreis.inp.value=_tankEinDE(init.preis);/* v3.9.1092 dito */
     fKm.inp.value=(init.km!==undefined&&init.km!==null&&init.km!=='')?String(init.km):'';
     grid.appendChild(fDatum.wrap);grid.appendChild(fLiter.wrap);grid.appendChild(fPreis.wrap);grid.appendChild(fKm.wrap);
+    const _ko=init.kmOcr||window.__tankKmOcr||null;
+    if(_ko&&_ko.km&&String(init.km)===String(_ko.km)&&(parseInt(_ko.vk,10)||0)===currentKm){/* v3.9.1096: km aus Foto nur vorgeschlagen - Zahl + Fundstelle sichtbar, nie blind OK */
+      const oh=document.createElement('div');oh.className='tank-km-ocr';oh.style.cssText='font-size:11px;color:#f97316;font-weight:600;margin-top:3px;line-height:1.3;word-break:break-word;';
+      oh.textContent='📷 aus Foto erkannt: '+Number(_ko.km).toLocaleString('de-AT')+' km – bitte prüfen'+(_ko.stelle?' · Stelle: »'+_ko.stelle+'«':'');
+      fKm.wrap.appendChild(oh);fKm.inp.addEventListener("input",function(){oh.style.display=fKm.inp.value===String(_ko.km)?'':'none';});
+    }
     const info=document.createElement('div');info.style.cssText='font-size:12px;color:'+ac+';font-weight:600;min-height:18px;margin:4px 2px 6px;';
     const err=document.createElement('div');err.style.cssText='font-size:12px;color:#ef4444;font-weight:600;min-height:18px;margin:0 2px 8px;white-space:pre-wrap;';
     function updateInfo(){
@@ -33641,11 +33647,13 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
   const [tankLiter,setTankLiter]=_react.useState.call(void 0, "");
   const [tankPreis,setTankPreis]=_react.useState.call(void 0, "");
   const [tankKm,setTankKm]=_react.useState.call(void 0, "");
+  const [tankKmOcr,setTankKmOcr]=_react.useState.call(void 0, null);/* v3.9.1096: {feld,km,stelle,unplausibel} aus Foto -> Hinweis am km-Feld, solange das Feld den Wert feld traegt */
   const [tankDatum,setTankDatum]=_react.useState.call(void 0, td2());
   const [tankFoto,setTankFoto]=_react.useState.call(void 0, "");
   const [tankOcr,setTankOcr]=_react.useState.call(void 0, false);
   const [tankOcrProg,setTankOcrProg]=_react.useState.call(void 0, 0);/* v3.9.276 W-OCR: Tesseract-Fortschritt % */
   const tankFotoRef=_react.useRef.call(void 0, null);
+  const tachoFotoRef=_react.useRef.call(void 0, null);
   const [schadBeschr,setSchadBeschr]=_react.useState.call(void 0, "");
   const [schadFoto,setSchadFoto]=_react.useState.call(void 0, "");
   const schadRef=_react.useRef.call(void 0, null);
@@ -33800,33 +33808,89 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
   };
   /* v3.9.321: _extractTankFields (Client-OCR-Parser) entfernt — seit v3.9.304 nicht mehr aufgerufen,
      Tankbeleg-Parsing läuft über ocr_tankbeleg-Edge-Function (Google Vision). Dead-Code-Removal: -20 Zeilen. */
-  // km robust aus OCR-Volltext: KILOMETERSTAND-Zeile, kein STAN/BATCH,
-  // 0 = nicht eingegeben, Plausi gegen aktuellen Tacho (kein Rückwärts).
-  function _kmFromBeleg(raw, curKm){
-    if(!raw) return '';
-    const L=String(raw).split(/\r?\n/);
-    let v='';
+  /*@OCR-KM-START v3.9.1096: km aus Tankbeleg-/Tacho-Foto. Abschrift von kmAusText() in supabase/functions/ocr_tankbeleg/logic.ts
+     (tests/test_ocr_km_v1096.py prueft beide gegen dieselben Proben). Vorher nur das Wort KILOMETERSTAND -> "KM-STAND",
+     "Km:", "Tacho", "123.456 km" liefen leer ("km-Stand wird nie erkannt"). Beleg: nur Zahl hinter km-Bezeichnung oder mit
+     Einheit km; Tacho: naechste ganze Zahl ueber dem bisherigen Stand. Zeit/Datum/Dezimal/STAN fallen raus, nie rueckwaerts. */
+  function _kmTokenZahl(roh){
+    const t=String(roh||'').replace(/[.,:]+$/,'');
+    if(!t||/[:\/]/.test(t)||/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(t))return null;
+    let z='';
+    if(/^\d+$/.test(t))z=t;else if(/^\d{1,3}([.'\u2019]\d{3})+$/.test(t))z=t.replace(/[.'\u2019]/g,'');else return null;
+    const n=parseInt(z,10);return isFinite(n)?n:null;
+  }
+  function _kmZahlenIn(seg){
+    let x=String(seg||'');
+    x=x.replace(/\b\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{2,4}\b/g,' ').replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g,' ');
+    x=x.replace(/(^|[^\d.,])(\d{1,3}(?:[ \u00a0]\d{3})+)(?![\d]|[.,]\d)/g,function(m0,a1,b1){return a1+b1.replace(/[ \u00a0]/g,'');});
+    const out=[];const re=/\d[\d.,:'\u2019\/]*/g;let m;
+    while((m=re.exec(x))){
+      const nach=x.slice(re.lastIndex,re.lastIndex+8);
+      if(/^\s*(km\s*\/\s*h|°|%|l\s*\/|min\b|u\s*\/\s*min|rpm|kw\b|ps\b)/i.test(nach))continue;
+      const n=_kmTokenZahl(m[0]);if(n!==null)out.push(n);
+    }
+    return out;
+  }
+  function _kmAusText(text,vorherKm,art){
+    const leer={km:'',quelle:'',sicher:false,stelle:'',unplausibel:''};
+    const roh=String(text||'');if(!roh.trim())return leer;
+    const vk0=parseInt(String(vorherKm==null?'':vorherKm).replace(/[^\d]/g,''),10);const vk=isFinite(vk0)&&vk0>0?vk0:0;
+    const L=roh.split(/\r?\n/);
+    const kurz=function(z){return String(z||'').replace(/\s+/g,' ').trim().slice(0,80);};
+    const fertig=function(n,q,z){return {km:String(n),quelle:q,sicher:vk>0&&n-vk<=5000,stelle:kurz(z),unplausibel:''};};
+    const plaus=function(n,sprung,minOhne){if(!(n>0)||n>9999999)return false;if(vk>0)return n>=vk&&n<=vk+sprung;return n>=minOhne;};
+    let unpl=null;
+    const merke=function(n,z){if(!unpl&&n>0)unpl={n:n,z:z};};
+    const ende=function(){return unpl?{km:'',quelle:'',sicher:false,stelle:kurz(unpl.z),unplausibel:String(unpl.n)}:leer;};
+    if(art==='tacho'){
+      const ok=[];
+      for(let i=0;i<L.length;i++){const zz=_kmZahlenIn(L[i]);for(let j=0;j<zz.length;j++){if(plaus(zz[j],20000,1000))ok.push({n:zz[j],z:L[i]});else if(vk>0&&zz[j]>=10000)merke(zz[j],L[i]);}}
+      if(!ok.length)return ende();
+      ok.sort(function(a,b){return vk>0?a.n-b.n:b.n-a.n;});
+      return fertig(ok[0].n,'tacho',ok[0].z);
+    }
+    const LABEL=/(KILOMETER\s*-?\s*STAND|KM\s*[-.]?\s*STAND|KM\s*[-.]?\s*STD\b\.?|TACHO\s*-?\s*STAND|TACHO|ODOMETER|LAUFLEISTUNG|KILOMETER(?!\s*-?\s*PREIS)|(?:^|[^A-Z0-9])KM\s*[:=](?!\s*\/)|^\s*KM\b(?!\s*\/))/i;
+    const nurZahl=function(l){return /^[\s\d.,'\u2019]*\d[\s\d.,'\u2019]*(km)?\s*$/i.test(l);};
     for(let i=0;i<L.length;i++){
-      if(/KILOMETERSTAND/i.test(L[i])){
-        let c=L[i].replace(/.*KILOMETERSTAND[^0-9]*/i,'');
-        let m=c.match(/\d[\d.\s]*/);
-        if(!m){ for(let k=1;k<=2&&i+k<L.length;k++){ const mm=L[i+k].match(/^\s*([\d.\s]{1,9})\s*$/); if(mm){ m=[mm[1]]; break; } } }
-        if(m) v=m[0].replace(/[^\d]/g,'');
-        break;
+      const m=L[i].match(LABEL);if(!m)continue;
+      let kand=_kmZahlenIn(L[i].slice((m.index||0)+m[0].length));let z=L[i];
+      if(!kand.length){for(let k=1;k<=2&&i+k<L.length;k++){if(nurZahl(L[i+k])){kand=_kmZahlenIn(L[i+k]);z=L[i]+' '+L[i+k];break;}if(LABEL.test(L[i+k]))break;}}
+      for(let j=0;j<kand.length;j++){if(plaus(kand[j],100000,1))return fertig(kand[j],'beleg_label',z);merke(kand[j],z);}
+    }
+    const reE=/(\d[\d.'\u2019 \u00a0]*)\s*km\b(?!\s*\/)/gi;
+    for(let i=0;i<L.length;i++){
+      let m;reE.lastIndex=0;
+      while((m=reE.exec(L[i]))){
+        const vor=L[i].slice(0,m.index);if(/[,]\s*$|\d[,]$/.test(vor))continue;
+        const zz=_kmZahlenIn(m[1]);const n=zz.length?zz[zz.length-1]:null;
+        if(n===null)continue;
+        if(plaus(n,100000,1000))return fertig(n,'beleg_einheit',L[i]);
+        if(n>=1000)merke(n,L[i]);
       }
     }
-    if(!v) return '';
-    let n=parseInt(v,10);
-    if(!isFinite(n)||n<=0) return '';                 // 0/leer = nicht eingegeben
-    const cur=parseInt(curKm,10);
-    if(isFinite(cur)&&cur>0){
-      if(n<cur) return '';                            // Tacho kann nicht rückwärts
-      if(n>cur+100000) return '';                     // absurder Sprung
-    }
-    return String(n);
+    return ende();
   }
+  /* Antwort der Edge Function -> km. Neue Fassung (km_quelle vorhanden) liest auch Spaltensatz ueber die Wortboxen: ihr km
+     wird nach _ganzZahl + Plausi uebernommen. Alte Fassung (nur rawText) oder kein Treffer: eigene Auswertung des Rohtexts.
+     unplausibel = gefunden, aber unter bisherigem Stand / zu grosser Sprung -> nie vorbelegen, nur markieren. */
+  function _kmAusAntwort(j,vorherKm,art){
+    const vk=_ganzZahl(vorherKm)||0;
+    const neu=!!(j&&j.km_quelle!==undefined);
+    let edgeUnpl='';
+    if(neu&&j.km){
+      const n=_ganzZahl(j.km);
+      if(n>0&&n<=9999999&&(!(vk>0)||(n>=vk&&n<=vk+(art==='tacho'?20000:100000))))return {km:String(n),quelle:String(j.km_quelle||art),sicher:!!j.km_sicher,stelle:String(j.km_stelle||''),unplausibel:''};
+      if(n>0)edgeUnpl=String(n);
+    }
+    const eigen=_kmAusText(j&&j.rawText,vk,art);
+    if(eigen.km||eigen.unplausibel)return eigen;
+    if(neu&&(edgeUnpl||j.km_unplausibel))return {km:'',quelle:'',sicher:false,stelle:String(j.km_stelle||''),unplausibel:String(edgeUnpl||j.km_unplausibel)};
+    return eigen;
+  }
+  function _kmFromBeleg(raw,curKm){return _kmAusText(raw,curKm,'beleg').km;}
+  /*@OCR-KM-END*/
   const parseTankBeleg=(dataUrl)=>{
-    setTankFoto(dataUrl);setTankOcr(true);setTankOcrProg(0);
+    setTankFoto(dataUrl);setTankOcr(true);setTankOcrProg(0);_tankKmVorschlag(null,0);
     if(!tankDatum||tankDatum===td2())setTankDatum(td2());
     const _toast=(m)=>_optionalChain([window, 'access', _to0 => _to0.__toast, 'optionalCall', _to0b => _to0b(m)]);
     /* v3.9.304: Tankbeleg-OCR via Google-Vision-Edge-Function ocr_tankbeleg — server-seitiger Parser, Felder kommen fertig zurück. Offline/HTTP-Fehler/ok:false/Timeout(15s) → KEIN Blocker, Formular bleibt voll nutzbar (manuelle Eingabe). Kein Prozent-Fortschritt → setTankOcrProg(0) = unbestimmter Indikator. */
@@ -33835,7 +33899,8 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
       const _ctl=new AbortController();const _tmo=setTimeout(()=>{try{_ctl.abort();}catch(_ab){}},15000);
       try{
         await (window._ensureAuth&&window._ensureAuth());
-        const _r=await fetch(SUPABASE_URL+"/functions/v1/ocr_tankbeleg",{method:"POST",headers:{...window._sbH(),"Content-Type":"application/json"},body:JSON.stringify({image:dataUrl}),signal:_ctl.signal});
+        const _vk=_ganzZahl(((fahrzeuge||[]).find(f=>f.id===showTank)||{}).kmStand)||0;/* v3.9.1096: bisheriger Stand fuer die km-Plausi in der Edge Function */
+        const _r=await fetch(SUPABASE_URL+"/functions/v1/ocr_tankbeleg",{method:"POST",headers:{...window._sbH(),"Content-Type":"application/json"},body:JSON.stringify({image:dataUrl,kmVorher:_vk}),signal:_ctl.signal});
         const _j=await _r.json().catch(()=>null);
         if(_r.ok&&_j&&_j.ok===true){
           let _any=false;
@@ -33846,10 +33911,11 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
              (z.B. 046183/420) liegen typischerweise UNTER dem aktuellen Stand → verwerfen + warnen.
              tankKm wurde beim Dialog-Open bereits mit selFz.kmStand vorbefuellt — die Vorbefuellung bleibt. */
           /* v3.9.528: km robust aus OCR-Volltext KILOMETERSTAND-Zeile via _kmFromBeleg statt kaputtem _j.km. Helper macht Plausi: >= aktueller Tacho _vk, kein Rückwärts, kein absurder Sprung; '' = nicht übernehmen. */
+          /* v3.9.1096: km ueber _kmAusAntwort (Edge-km mit Plausi, sonst eigene Auswertung des Rohtexts); Hinweis am Feld. */
           {
-            const _vk=parseInt(((fahrzeuge||[]).find(f=>f.id===showTank)||{}).kmStand,10)||0;
-            const _km=_kmFromBeleg(_j.rawText,_vk);
-            if(_km){setTankKm(_km);_any=true;}
+            const _ke=_kmAusAntwort(_j,_vk,'beleg');const _km=_ke.km;
+            if(_km){setTankKm(_km);_tankKmVorschlag({feld:_km,km:_km,stelle:_ke.stelle,unplausibel:''},_vk);_any=true;}
+            else if(_ke.unplausibel){_tankKmVorschlag({feld:tankKm,km:'',stelle:_ke.stelle,unplausibel:_ke.unplausibel},_vk);_toast("⚠️ km vom Beleg unplausibel ("+_ke.unplausibel+") — nicht übernommen, bitte prüfen");}
             else if(_j.km){_toast("⚠️ km vom Beleg unplausibel/nicht erkannt — bitte prüfen");}
           }
           _toast(_any?"📷 Werte aus Beleg erkannt (Google Vision) — bitte prüfen!":"📷 Beleg gespeichert — Werte manuell eingeben");
@@ -33860,11 +33926,35 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
       finally{clearTimeout(_tmo);setTankOcr(false);setTankOcrProg(0);}
     })();
   };
-  const handleTankFoto=(e)=>{
+  /* v3.9.1096: Tacho-Foto -> ocr_tankbeleg art:"tacho" (alte Fassung ignoriert art, dann wertet _kmAusText den Rohtext aus).
+     Nur km wird vorbelegt (Hinweis am Feld), nichts gespeichert; der Beleg-Foto-Pfad bleibt unberuehrt. */
+  /* v3.9.1096: Foto-km-Vorschlag = State (Hinweis am Feld) + window.__tankKmOcr (Kontrolldialog, ohne addTank anzufassen).
+     Gebunden an Fahrzeug + bisherigen km-Stand: nach dem Speichern aendert sich kmStand -> Vorschlag gilt nicht mehr. */
+  const _tankKmVorschlag=(o,vk)=>{const v=o?Object.assign({},o,{fz:showTank,vk:vk}):null;setTankKmOcr(v);try{window.__tankKmOcr=v;}catch(_w){}};
+  const parseTachoFoto=(dataUrl)=>{
+    const _toast=(m)=>{if(window.__toast)window.__toast(m);};
+    if(!navigator.onLine){_toast("📷 Tacho-Foto: offline — km-Stand bitte eintippen");setTankOcr(false);return;}
+    setTankOcr(true);setTankOcrProg(0);_tankKmVorschlag(null,0);
+    (async()=>{
+      const _ctl=new AbortController();const _tmo=setTimeout(()=>{try{_ctl.abort();}catch(_ab){}},15000);
+      try{
+        await (window._ensureAuth&&window._ensureAuth());
+        const _vk=_ganzZahl(((fahrzeuge||[]).find(f=>f.id===showTank)||{}).kmStand)||0;
+        const _r=await fetch(SUPABASE_URL+"/functions/v1/ocr_tankbeleg",{method:"POST",headers:{...window._sbH(),"Content-Type":"application/json"},body:JSON.stringify({image:dataUrl,art:"tacho",kmVorher:_vk}),signal:_ctl.signal});
+        const _j=await _r.json().catch(()=>null);
+        const _ke=(_r.ok&&_j&&_j.ok===true)?_kmAusAntwort(_j,_vk,'tacho'):{km:'',unplausibel:'',stelle:''};const _km=_ke.km;
+        if(_km){setTankKm(_km);_tankKmVorschlag({feld:_km,km:_km,stelle:_ke.stelle,unplausibel:''},_vk);_toast("📷 km-Stand aus Tacho-Foto erkannt — bitte prüfen!");}
+        else if(_ke.unplausibel){_tankKmVorschlag({feld:tankKm,km:'',stelle:_ke.stelle,unplausibel:_ke.unplausibel},_vk);_toast("⚠️ Tacho-Foto: "+_ke.unplausibel+" unplausibel — nicht übernommen, bitte prüfen");}
+        else _toast("📷 km-Stand auf dem Foto nicht erkannt — bitte eintippen");
+      }catch(_e){console.warn('[tacho-ocr]',_e&&_e.message||_e);_toast("📷 Tacho-Foto nicht auswertbar — km-Stand bitte eintippen");}
+      finally{clearTimeout(_tmo);setTankOcr(false);setTankOcrProg(0);}
+    })();
+  };
+  const handleTankFoto=(e,_ziel)=>{
     const file=_optionalChain([e, 'access', _635 => _635.target, 'optionalAccess', _636 => _636.files, 'optionalAccess', _637 => _637[0]]);if(!file)return;
     setTankOcr(true);
     /* v3.9.278 W-OCR Android: Downscale max 1500 (12-50MP-Handyfotos → Speicher/Tempo-Guard VOR OCR), EP-Kolar-Wasserzeichen, dann OCR. */
-    const _draw=(src,sw,sh)=>{try{const cv=document.createElement("canvas");const max=1500;let w=sw,h=sh;if(w>max){h=h*(max/w);w=max;}if(h>max){w=w*(max/h);h=max;}cv.width=Math.max(1,Math.round(w));cv.height=Math.max(1,Math.round(h));const ctx=cv.getContext("2d");ctx.drawImage(src,0,0,cv.width,cv.height);ctx.font="bold 14px Arial";ctx.fillStyle="rgba(0,150,64,.8)";ctx.fillText(new Date().toLocaleString("de-AT")+" — EP Kolar",8,cv.height-10);parseTankBeleg(cv.toDataURL("image/jpeg",0.82));}catch(_d){setTankOcr(false);if(window.__toast)window.__toast("❌ Tank-Beleg konnte nicht verarbeitet werden","error");}};
+    const _draw=(src,sw,sh)=>{try{const cv=document.createElement("canvas");const max=1500;let w=sw,h=sh;if(w>max){h=h*(max/w);w=max;}if(h>max){w=w*(max/h);h=max;}cv.width=Math.max(1,Math.round(w));cv.height=Math.max(1,Math.round(h));const ctx=cv.getContext("2d");ctx.drawImage(src,0,0,cv.width,cv.height);if(!_ziel){ctx.font="bold 14px Arial";ctx.fillStyle="rgba(0,150,64,.8)";ctx.fillText(new Date().toLocaleString("de-AT")+" — EP Kolar",8,cv.height-10);}(_ziel||parseTankBeleg)(cv.toDataURL("image/jpeg",0.82));}catch(_d){setTankOcr(false);if(window.__toast)window.__toast("❌ Tank-Beleg konnte nicht verarbeitet werden","error");}};
     /* v3.8.49: onerror + img.onerror damit OCR-UI nicht hängen bleibt. */
     const _viaReader=()=>{const reader=new FileReader();reader.onerror=()=>{setTankOcr(false);if(window.__toast)window.__toast("❌ Tank-Beleg konnte nicht gelesen werden","error");};reader.onload=ev=>{const img=new Image();img.onerror=()=>{setTankOcr(false);if(window.__toast)window.__toast("❌ Tank-Beleg ungültiges Bildformat","error");};img.onload=()=>_draw(img,img.width,img.height);img.src=ev.target.result;};reader.readAsDataURL(file);};
     /* v3.9.278 W-OCR Android: EXIF-Rotation via createImageBitmap(imageOrientation:'from-image') — Android-Fotos kommen oft gedreht, quer liegende Belege sonst schlecht erkannt. Fallback: FileReader+Image (ohne Auto-Orientierung). */
@@ -34623,6 +34713,8 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
             , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
               , React.createElement('button', { onClick: ()=>_optionalChain([tankFotoRef, 'access', _706 => _706.current, 'optionalAccess', _707 => _707.click, 'call', _708 => _708()]), style: {...bsS(),display:"flex",alignItems:"center",gap:4}}, _ikVw("kamera","Beleg fotografieren")  )
               , React.createElement('input', { ref: tankFotoRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: handleTankFoto} )
+              , React.createElement('button', { onClick: ()=>_optionalChain([tachoFotoRef, 'access', _t1096a => _t1096a.current, 'optionalAccess', _t1096b => _t1096b.click, 'call', _t1096c => _t1096c()]), style: {...bsS(),display:"flex",alignItems:"center",gap:4}, title: "km-Stand vom Tacho ablesen lassen"}, _ikVw("kamera","Tacho fotografieren")  )
+              , React.createElement('input', { ref: tachoFotoRef, type: "file", accept: "image/*", capture: "environment", style: {display:"none"}, onChange: e=>{handleTankFoto(e,parseTachoFoto);try{e.target.value="";}catch(_v){}}} )
               , tankOcr&&React.createElement('span', { style: {fontSize:UI.fMeta,color:"#f97316",fontWeight:600}}, tankOcrProg>0?"⏳ OCR läuft… "+tankOcrProg+"%":"⏳ Beleg wird verarbeitet…"   )
             )
             , tankFoto&&React.createElement('div', { style: {marginTop:6}}, React.createElement('img', { src: tankFoto, style: {maxWidth:200,maxHeight:140,borderRadius:8,border:"2px solid #f97316"}, alt: "Tankbeleg"} ), React.createElement('div', { style: {fontSize:UI.fMeta,color:_okG("#22c55e"),marginTop:2}}, "✅ Beleg gespeichert"  ))
@@ -34631,7 +34723,7 @@ function FahrzeugView({fahrzeuge:fahrzeugeAlle,setFahrzeuge,monteure,ww,curUser,
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Datum *" ), React.createElement('input', { type: "date", value: tankDatum, onChange: e=>setTankDatum(e.target.value), style: II()} ))
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Liter *" ), React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: tankLiter, onChange: e=>setTankLiter(e.target.value), style: II(), placeholder: "z.B. 52,3" , autoFocus: true} )/* v3.9.1092: text+decimal statt number; gelesen im _tankConfirmModal ueber _fzZahl */)
             , React.createElement('div', {}, React.createElement('span', { style: LL()}, "Gesamtpreis (€)" ), React.createElement('input', { type: "text", inputMode:"decimal", autoComplete:"off", value: tankPreis, onChange: e=>setTankPreis(e.target.value), style: II(), placeholder: "z.B. 89,50" } ))
-            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "text", inputMode:"numeric", pattern:"[0-9]*", autoComplete:"off", value: tankKm, onChange: e=>setTankKm(e.target.value), onBlur: e=>setTankKm(_ganzText(e.target.value)), style: II()} ))
+            , React.createElement('div', {}, React.createElement('span', { style: LL()}, "km-Stand *" ), React.createElement('input', { type: "text", inputMode:"numeric", pattern:"[0-9]*", autoComplete:"off", value: tankKm, onChange: e=>setTankKm(e.target.value), onBlur: e=>setTankKm(_ganzText(e.target.value)), style: II()} ), tankKmOcr&&tankKmOcr.fz===showTank&&tankKm===tankKmOcr.feld&&(_ganzZahl(((fahrzeuge||[]).find(f=>f.id===showTank)||{}).kmStand)||0)===tankKmOcr.vk&&React.createElement('div', { style: {fontSize:UI.fMeta,color:"#f97316",fontWeight:600,marginTop:2}}, (tankKmOcr.km?"aus Foto erkannt – bitte prüfen":"Foto zeigt "+tankKmOcr.unplausibel+" – unplausibel, nicht übernommen")+(tankKmOcr.stelle?" · »"+tankKmOcr.stelle+"«":"")))
           )
           , tankLiter&&tankPreis&&_fzZahl(tankLiter)>0&&React.createElement('div', { style: {fontSize:12,color:V.acTx,fontWeight:600,marginBottom:6}}, "Literpreis: "  , _fzDE((_fzZahl(tankPreis)/_fzZahl(tankLiter)),3), " €/L" )
           , React.createElement('div', { style: {display:"flex",gap:6}}, React.createElement('button', { onClick: ()=>addTank(sel), style: bpS}, _ikVw("abnahme","Speichern") ), React.createElement('button', { title: "Abbrechen", 'aria-label': "Abbrechen", onClick: ()=>{setShowTank(null);setTankFoto("");}, style: bsS()}, _ik("kreuz",16)))
