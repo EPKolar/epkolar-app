@@ -231,7 +231,7 @@ def _sz_zurueck(src):
 #   sz: Monatsabrechnung MA-Filter am Handy eigene Zeile (flex:isMob?"1 1 100%":1)
 MD5 = {
     "ma": "240ee69acea97156c3d1970d09942a88",
-    "sz": "8f5c7ae1c5e2e562db679ef16bd2bcfb",
+    "sz": "041fd10ccba590331841544219f0598a",  # v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash 8f5c7ae1c5e2e562db679ef16bd2bcfb
 }
 ZURUECK = {"ma": _ma_zurueck, "sz": _sz_zurueck}
 

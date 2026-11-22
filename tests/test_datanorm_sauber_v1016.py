@@ -52,7 +52,9 @@ def _helfer_quelle(src):
     return "\n".join(_funktion(src, n) for n in (
         "_fixCp850", "_dnZeichensatz", "_dnDekodieren", "_dnBytesZuText",
         "_parseDatanorm", "_parseDatanormFiles",
-        "_supplierSaveBody", "_supplierCredStand"))
+        "_supplierSaveBody", "_supplierCredStand",
+        # v3.9.1093: _supplierSaveBody liest Skonto/Bonus/Intervall jetzt ueber die echten Leser aus index.html
+        "_fzZahl", "_ganzZahl"))
 
 
 # ── synthetische Dateien ────────────────────────────────────────────────────

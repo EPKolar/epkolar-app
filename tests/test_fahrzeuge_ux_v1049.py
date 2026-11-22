@@ -375,12 +375,12 @@ HANDLER = {
     "addKm": "532f6979ad8e6b597713c9fda235ec54",
     "addTank": "832cdbd6bdaa642329df7a6bfaba1d9f",  # v3.9.1051 Tankbuch atomar (_tankAtomar-Hinweis), bewusst neu gehasht
     "addSchaden": "31c58844425685f1f49f9fb7f92d6a00",
-    "qDoKm": "cc49299a34c3cbbbf787e50d549a6b7d",
+    "qDoKm": "43114fce51126af9a5fe1c113182445d",  # v3.9.1093 km/Kosten-Felder text statt number: Leser _ganzZahl/_fzZahl statt parseInt/parseFloat - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash cc49299a34c3cbbbf787e50d549a6b7d
     "qDoTank": "5aa434dc61cf61a658a33f2b3c27f601",  # v3.9.1092 Tank-Eingabe text statt number: Liter/Preis ueber _fzZahl statt parseFloat(replace) - gleiche Zahl fuer jede frueher moegliche Eingabe, bewusst neu gehasht
     "qDoSchaden": "6aa09e85b8e7807dcc2e0b3e2c5e1d3a",
     "batchSave": "92689ceca8d53c59999b3d80c6626f98",  # v3.9.1092 Tank-Eingabe text statt number: Liter/Preis ueber _fzZahl statt parseFloat(replace) - gleiche Zahl fuer jede frueher moegliche Eingabe, bewusst neu gehasht
     "batchDel": "1af738b359919fc452fd16aca16d46c3",  # v3.9.1051 Tankbuch atomar (fz_tanklog_del), bewusst neu gehasht
-    "addFz": "aa601e73f08d3f41f0dbbb80b7c34aa7",
+    "addFz": "7cfaeb135c4485bdade3e2f6a6c052fd",  # v3.9.1093 km/Kosten-Felder text statt number: Leser _ganzZahl/_fzZahl statt parseInt/parseFloat - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash aa601e73f08d3f41f0dbbb80b7c34aa7
     "del": "c6d7207e48ad696d2c0858efee2c3339",  # v3.9.1059 GF 19.11.: Archivieren (PATCH, nur Admin) statt DELETE, bewusst neu gehasht
     "addTermin": "dfcc6d696018722f6b5aea97c05bd20d",
     "delTermin": "084d959cc6c925e1f954e86afa33015d",
@@ -416,14 +416,15 @@ def test_alle_upd_und_sq_aufrufe_byte_gleich(fv):
     # v3.9.1059: SQ.push DELETE /api/fahrzeuge entfaellt (Archivieren per PATCH), der PUT in upd() laeuft ueber _fzOhneArchiv
     assert len(z) == 53, len(z)
     # v3.9.1051: addTank/batchDel tragen den _tankAtomar-Hinweis (Tankbuch atomar) - bewusst neu gehasht
-    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() == "4455bf75c593d6605c33b926825217d7"
+    # v3.9.1093 km/Kosten-Felder text statt number: Leser _ganzZahl/_fzZahl statt parseInt/parseFloat - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash 4455bf75c593d6605c33b926825217d7 (Serviceheft km/Kosten im onChange)
+    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() == "7757af7d11f9740d90e223c58a478501"
 
 
 def test_koeder_schreibaufruf_aenderung_wird_erkannt(fv):
     alt = 'f.schaeden=[{...data,by_user:'
     assert fv.count(alt) == 1
     z = _schreibaufrufe(fv.replace(alt, 'f.schaeden=[{...data,von:', 1))
-    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() != "4455bf75c593d6605c33b926825217d7"
+    assert hashlib.md5("\n".join(z).encode("utf-8")).hexdigest() != "7757af7d11f9740d90e223c58a478501"
 
 
 def test_neue_teile_schreiben_nichts(fv):

@@ -282,7 +282,9 @@ UNBERUEHRT = [
     ("  const _wlwUebernehmen=async()=>{", "  const wlwModal=()=>{", "cb75e471a823b19d4e6686ccd223e3cc"),
     ("  const dayTotal=(off)=>", "  const _nEintrZE=", "699bc7098a09a1aaa54417c453451d78"),
     # Dialog: Von/Bis/Pause/Stunden mit 5-Min-Rundung (_zeitRundVon/_zeitRundBis) und Pausenabzug
-    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "ceca4e0175d8265f7c94de699b306eac"),
+    # v3.9.1093: Stundenfeld text statt number (ZahlEingabe, gelesen ueber _fzZahl) - bewusst neu gehasht.
+    # Die Aenderung im Block ist GENAU diese Ersetzung: test_dialog_rueckbau_ergibt_alten_hash belegt es.
+    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "ed4a6fa584c0ffbb9ad0d529ffb9e98a"),
     # Stunden-Anzeige auf der Karte (Leer-/Komma-Schutz, test_zeit_lohn_v885)
     ("React.createElement('input',{type:\"text\",readOnly:true,tabIndex:-1,\"aria-label\":\"Stunden, ändern über Bearbeiten\"",
      "React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},\"h\"))", "750998533ffe43f76063114a74f80250"),
@@ -303,6 +305,15 @@ def _hashes(src):
 
 def test_rechnung_und_speichern_byte_gleich(roh):
     assert _hashes(roh) == [h for _, _, h in UNBERUEHRT]
+
+
+def test_dialog_rueckbau_ergibt_alten_hash(roh):
+    """v3.9.1093: dreht man NUR die Feld-Umstellung zurueck, ist der Dialog-Block byte-gleich mit v3.9.1074."""
+    rev = roh.replace("React.createElement(ZahlEingabe,{inputMode:\"decimal\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?",
+                      "React.createElement('input',{type:\"number\", inputMode:\"decimal\",step:\"0.5\",min:\"0\",max:\"24\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?")
+    rev = rev.replace("setAddHours(_fzZahl(e.target.value)||0)", "setAddHours(parseFloat(e.target.value)||0)")
+    assert rev != roh
+    assert _hashes(rev)[9] == "ceca4e0175d8265f7c94de699b306eac"
 
 
 def _im_ze(src, alt, neu):

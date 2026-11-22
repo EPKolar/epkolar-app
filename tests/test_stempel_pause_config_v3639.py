@@ -31,5 +31,7 @@ def test_hint_abgrenzung_manuelle_zeiterfassung(index_html):
 
 
 def test_number_input_clamped_0_120(index_html):
-    # StempelPauseConfig-Input min 0 / max 120
-    assert re.search(r"type:\"number\",min:0,max:120", index_html)
+    # StempelPauseConfig-Input 0..120. v3.9.1093: Feld ist text+numeric (App-Regel, nie type=number);
+    # min/max am Feld hielten nie etwas fest - die Grenze 0..120 setzt _clamp beim Speichern (jetzt hier verankert).
+    assert 'const _numInput=(val,onCh)=>h(\'input\',{type:"text",inputMode:"numeric",pattern:"[0-9]*",' in index_html
+    assert "const _clamp=v=>{let n=parseInt(v,10);if(isNaN(n))return null;if(n<0)n=0;if(n>120)n=120;return n;};" in index_html

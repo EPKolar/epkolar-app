@@ -41,7 +41,9 @@ def _quelle(src):
     assert m
     teile = [m.group(0), "var _suppCredTabDa=null;"]
     teile += [_funktion(src, n) for n in ("_suppTabFehlt", "_supplierLaden", "_supplierZugangNeu",
-                                           "_supplierZugangSpeichern", "_supplierCredStand", "_supplierSaveBody")]
+                                           "_supplierZugangSpeichern", "_supplierCredStand", "_supplierSaveBody",
+                                           # v3.9.1093: Skonto/Bonus/Intervall ueber die echten Leser aus index.html
+                                           "_fzZahl", "_ganzZahl")]
     teile.append("async function saveSupplierTest(data){\n" + _save_rumpf(src) + "\n  return await saveSupplier(data);\n}")
     return "\n".join(teile)
 

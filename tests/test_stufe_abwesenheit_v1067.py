@@ -116,10 +116,12 @@ def _zweige(v):
 LISTE = "(isAdmin?_kontNames:_kontNames.filter(n=>n===myMonteurName))"
 HANDLUNGEN = [
     "onClick: ()=>{if(isAdmin){setSel(m);setSubView(\"kalender\");}}",
-    "e=>setKontingent(p=>({...p,[m]:{...ks,woche:parseFloat(e.target.value)||38.5}}))",
-    "e=>setKontingent(p=>({...p,[m]:{...ks,stunden:_ktgStd(e.target.value)}}))",
-    "e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}}))",
-    "e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:parseFloat(e.target.value)||0}}))",
+    # v3.9.1093: Felder text statt number (ZahlEingabe) - gelesen ueber _fzZahl, damit "38,5" nicht 38 wird;
+    # fuer jede frueher gueltige Eingabe dieselbe Zahl (Beweis: test_eingabe_text_rest_v1093.py). Bewusst neu verankert.
+    "e=>setKontingent(p=>({...p,[m]:{...ks,woche:_fzZahl(e.target.value)||38.5}}))",
+    "e=>setKontingent(p=>({...p,[m]:{...ks,stunden:_ktgStd(_fzZahl(e.target.value))}}))",
+    "e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:_fzZahl(e.target.value)||0}}))",
+    "e=>setKontingent(p=>({...p,[m]:{...ks,ueberstunden:_fzZahl(e.target.value)||0}}))",
 ]
 FELDER = ["\"Std/Wo\"", "\"Anspruch h\"", "\"Vorjahr h\"", "\"Gesamt h\"", "AT_T.urlaub.l",
           "AT_T.krankenstand.l", "AT_T.zeitausgleich.l", "\"Sonder\"", "\"Pflege\"", "\"ÜS h\"",
@@ -152,7 +154,7 @@ def test_karte_traegt_alle_felder_und_handlungen(roh):
 def test_umkehr_karte_ohne_eingabe_waere_rot(roh):
     v = _abs(roh)
     karte, _ = _zweige(v)
-    alt = "e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:parseFloat(e.target.value)||0}}))"
+    alt = "e=>setKontingent(p=>({...p,[m]:{...ks,vorjahr:_fzZahl(e.target.value)||0}}))"  # v3.9.1093 Leser _fzZahl
     kaputt = v.replace(karte, karte.replace(alt, "()=>{}"), 1)
     assert kaputt != v and not _karte_ok(kaputt)
 
