@@ -113,13 +113,18 @@ def test_p2_3_neuer_haendler_lesbar(roh):
 
 # ── P3 Planung ─────────────────────────────────────────────────────────────
 def test_p3_planung_leere_nummern(roh):
-    assert 'verticalAlign:"top",color:isEmpty?V.tx:"#009640"' in roh
-    assert "opacity:isEmpty&&!hasAnyContent?0.5:1" in roh
+    # Render-Funde 1096: die Zeilen-Deckkraft .5 ist weg (Nummern 3,35:1, Striche 2,02:1) - die ganz leere Zeile
+    # ist ueber V.mt gedaempft und muss jetzt 4,5:1 halten (strenger als die >= 3 von 1089)
+    assert 'verticalAlign:"top",color:isEmpty&&!hasAnyContent?V.mt:isEmpty?V.tx:"#009640"' in roh
+    assert "opacity:isEmpty&&!hasAnyContent?0.5:1" not in roh
     d, h = _thema(roh, "dark"), _thema(roh, "light")
     for bg in ((35, 39, 36), (30, 35, 32)):  # gemessene Zeilenflaechen (Zebra)
-        assert _k(_misch(_hex(d["tx"]), bg, .5), bg) >= 3
+        assert _k(_hex(d["mt"]), bg) >= 4.5
+        assert _k(_misch(_hex(d["mt"]), bg, .5), bg) < 4.5  # Umkehr: mit der alten Deckkraft waere es rot
         assert _k(_misch(_hex("#555555"), bg, .5), bg) < 1.5  # Umkehr: gemessen 1,40
-    assert _k(_misch(_hex(h["tx"]), (255, 255, 255), .5), (255, 255, 255)) >= 3
+    for bg in ((255, 255, 255), (251, 251, 251)):
+        assert _k(_hex(h["mt"]), bg) >= 4.5
+        assert _k(_misch(_hex(h["mt"]), bg, .5), bg) < 4.5
 
 
 def test_p3_ma_uebersicht_bricht_langes_wort(roh):

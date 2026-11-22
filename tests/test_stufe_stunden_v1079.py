@@ -230,8 +230,8 @@ def _sz_zurueck(src):
 #   ma: Platzhalter "Mitarbeiter auswaehlen" am Handy weg (isMob ? null, wie Administration 1080)
 #   sz: Monatsabrechnung MA-Filter am Handy eigene Zeile (flex:isMob?"1 1 100%":1)
 MD5 = {
-    "ma": "240ee69acea97156c3d1970d09942a88",
-    "sz": "041fd10ccba590331841544219f0598a",  # v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash 8f5c7ae1c5e2e562db679ef16bd2bcfb
+    "ma": "0afaa5ff44120309a82cf3c9d5a1b555",  # Render-Funde 1096: nur Anzeige - "Nicht" (Chip) ueber _lesbar(COLORS.ERROR) (dunkel 4,24:1) - bewusst neu gehasht; der Altstand 5807fce ergibt den alten Hash 240ee69acea97156c3d1970d09942a88
+    "sz": "9181d7ba8929ccbf1cc8c2a4486622e7",  # v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash 8f5c7ae1c5e2e562db679ef16bd2bcfb | Render-Funde 1096: nur Anzeige - "Datei waehlen" gesperrt als Umriss-Knopf in V.mt statt 50 % Deckkraft (2,31:1) - bewusst neu gehasht; der Altstand 5807fce ergibt den alten Hash 041fd10ccba590331841544219f0598a
 }
 ZURUECK = {"ma": _ma_zurueck, "sz": _sz_zurueck}
 

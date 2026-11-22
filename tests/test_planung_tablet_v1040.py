@@ -111,7 +111,8 @@ def _p_zellen(q):
     if 'lang: "de", style: {fontWeight:isEmpty?400:700,fontSize:15,whiteSpace:"normal",hyphens:"auto",overflowWrap:"anywhere"' not in q:
         f.append("BVH-Name ohne Silbentrennung")
     # Render 1089 P3: leere Nummern V.tx statt #555 (unter Zeilen-Deckkraft .5 nur 1,40 dunkel) - Pin nachgezogen
-    if 'textAlign:"center",verticalAlign:"top",color:isEmpty?V.tx:"#009640"' not in q:
+    # Render-Funde 1096: ganz leere Zeile ueber V.mt gedaempft (statt Zeilen-Deckkraft .5) - Pin nachgezogen
+    if 'textAlign:"center",verticalAlign:"top",color:isEmpty&&!hasAnyContent?V.mt:isEmpty?V.tx:"#009640"' not in q:
         f.append("Nr nicht oben ausgerichtet")
     return f
 

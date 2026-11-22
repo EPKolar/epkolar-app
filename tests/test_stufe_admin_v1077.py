@@ -211,7 +211,7 @@ def _kopf(src):
     return v[:v.index("\n  return (\n")]
 
 
-JUPROWA_MD5 = "5f747f49aaa4ffde7fdf05d3f67f98fe"   # Render 1089 P3: nur Anzeige - Emoji (Verbindung/Speichern/Diagramm/Liste/Pull-Push-Sync) durch Linien-Ikonen _ikVw/_ik ersetzt; alter Wert 3ff4e8bb925e7dee0064d1fe5ee528d1 (v3.9.1076, durch Stufe 7 nicht veraendert)
+JUPROWA_MD5 = "75f4e6af6dd8d1458b966da766143807"   # Render 1089 P3: nur Anzeige - Emoji (Verbindung/Speichern/Diagramm/Liste/Pull-Push-Sync) durch Linien-Ikonen _ikVw/_ik ersetzt; alter Wert 3ff4e8bb925e7dee0064d1fe5ee528d1 (v3.9.1076, durch Stufe 7 nicht veraendert) | Render-Funde 1096: nur Anzeige - Cyan/Orange im Worker-Mapping und Sync-Protokoll ueber _lesbar (2,20/2,43/2,80:1) - bewusst neu gehasht; der Altstand 5807fce ergibt den alten Hash 5f747f49aaa4ffde7fdf05d3f67f98fe
 # 1077: Funde 1077b zaehlt Lieferanten-Artikel exakt (_saAnzahlExakt in fetchSuppliers) - bewusste Logik-Aenderung, Prüfsumme nachgezogen
 # v3.9.1081 Render-Fund P3a: fetchJupConfig zeigt den Fehler ueber die Anzeige-Hilfe _fehlerText(e) statt (e&&e.message||e) -
 # "Failed to fetch" wird "keine Verbindung zum Server". Einzige Abweichung im Kopf (difflib gegen origin/main 9ccd9ed gemessen),

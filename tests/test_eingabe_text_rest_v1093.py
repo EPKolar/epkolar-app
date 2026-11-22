@@ -248,7 +248,8 @@ def test_ganzzahlfelder_numeric_pattern(neu):
                   "value:form.km_ende,", "value:f.aufbewahrung_tage,", "value: form.fortschritt,",
                   "value: suppEdit.datanorm_intervall_tage||28,"):
         i = neu.index(marke)
-        kopf = neu[max(neu.rfind("createElement('input'", 0, i), neu.rfind("h('input'", 0, i)):i]
+        # Render-Funde 1096: Fortschritt % und Serviceheft-km laufen ueber ZahlEingabe (erzwingt type text) - der Kopf beginnt dann dort
+        kopf = neu[max(neu.rfind("createElement('input'", 0, i), neu.rfind("h('input'", 0, i), neu.rfind("createElement(ZahlEingabe", 0, i)):i]
         assert re.search(r"""type\s*:\s*["']text["']""", kopf), marke
         assert re.search(r"""inputMode\s*:\s*["']numeric["']""", kopf), marke
         assert "[0-9]*" in kopf, marke

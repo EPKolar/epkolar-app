@@ -248,7 +248,7 @@ MD5 = {
     "fl": "3290ca4052dfcddd7ab06273bf2a5f1c",      # ganze FlotteView
     "fv": "5847268424da811de652bfa2face74cf",      # FahrzeugView bis "return (" - v3.9.1092 Tank-Eingabe text statt number (qDoTank/batchSave/OCR-Vorbelegung ueber _fzZahl/_tankEinDE), bewusst neu gehasht | v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash 275b179f5e0f0c9692ea622fd50b1780
     "bp": "4d8af86d25a526e296ea68c40e3676cf",      # BauprovisorienView bis zum Formular-Zweig | v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash 91e2eaadaf5adba8e313c7661b7eb831
-    "bpform": "803081f9b8fe253ecc8bc07405c95b97",  # Bauprovisorien-Formular (unveraendert, ohne Rueckbau) | v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash bcabac6f11906f5c0808ea6623e49d41
+    "bpform": "8dee397383a62f07378a303b9286df3d",  # Bauprovisorien-Formular (unveraendert, ohne Rueckbau) | v3.9.1093 Zahlenfelder text statt number (ZahlEingabe/_fzZahl/_ganzZahl) - bewusst neu gehasht; Rueckbau genau dieser Ersetzungen ergibt den alten Hash bcabac6f11906f5c0808ea6623e49d41 | Render-Funde 1096: nur Anzeige - Speichern-Knopf EP_GREEN_DARK statt Verlauf ab #00A948 (3,10:1) mit Linien-Haken statt Textzeichen, summary "Kunde nicht im Stamm?" 44 px hoch - bewusst neu gehasht; der Altstand 5807fce ergibt den alten Hash 803081f9b8fe253ecc8bc07405c95b97
 }
 ZURUECK = {"fl": _flotte_zurueck, "fv": _fv_kopf_zurueck, "bp": _bp_kopf_zurueck, "bpform": _bp_formular}
 

@@ -65,7 +65,9 @@ def test_p4_umkehrprobe_alter_regler_wird_erkannt():
 def test_p4_genau_ein_weg_bleibt_das_formular(src):
     rumpf = _fn(src, "ProjList")
     assert '"Fortschritt %"' in rumpf, "Das Bearbeiten-Feld fuer den Fortschritt fehlt."
-    assert "Math.min(100,Math.max(0,parseInt(e.target.value)||0))" in rumpf
+    # Render-Funde 1096: ZahlEingabe + _ganzZahl statt parseInt je Tastendruck ("12,5" wurde 100); die Begrenzung 0..100 bleibt
+    assert "Math.min(100,Math.max(0,_ganzZahl(e.target.value)||0))" in rumpf
+    assert "parseInt(e.target.value)" not in rumpf
     # Kein anderer Ort der App schreibt projects.fortschritt per PUT.
     assert len(re.findall(r"body:\{fortschritt:", src)) == 0
 
