@@ -77,7 +77,9 @@ FIN7 = ["leasing_geber", "leasing_ende", "leasing_rate", "leasing_km_limit", "ve
 
 
 def _stamm_snip(src, szenario):
-    return (_harness(src, *STAMM, "FahrzeugStammKarte") + _MINI_REACT
+    # v3.9.1095: FahrzeugStammKarte ruft _fzStammRest (Zusammenfassung aller Felder); im Altstand gibt es sie nicht
+    rest = ("_fzStammRest",) if "_fzStammRest=" in src or "function _fzStammRest" in src else ()
+    return (_harness(src, *STAMM, *rest, "FahrzeugStammKarte") + _MINI_REACT
             + "var FZ_REIFEN_TXT=FZ_REIFEN_TXT||{};function _fzDatumAnz(x){return String(x);}\n"
             + "var F=" + json.dumps(F1) + ",FIN=" + json.dumps(FIN) + ";var sent={fz:[],fi:[]};\n"
             + "function P(o){return Object.assign({f:F,fin:null,darfFinanz:true,finDa:false,finStatus:'laedt',spaltenDa:true,"
