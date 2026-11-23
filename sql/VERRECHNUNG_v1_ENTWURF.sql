@@ -1,9 +1,10 @@
--- VERRECHNUNG v1 - ENTWURF (Human-Run-Gate; NICHT von CC ausgefuehrt). Erst PROBE, dann diese Datei EINZELN.
+-- VERRECHNUNG v1 - ENTWURF. ANGEWENDET 23.11.2026 auf Prod (Freigabe GF "sql machen"), Migration verrechnung_v1,
+-- nach zwei zurueckgerollten Proben (Monteur/PL: insert+truncate 42501, select 0; Buero: insert ok, truncate 42501).
 -- Zweck: Verrechnungsstand je Auftrag (Buero-Portal > Verrechnung). Ein Satz je Auftrag.
 --   bezug_typ  as | stoerung | projekt | freitext
 --   bezug_ref  arbeitsscheine.id | projects.id | normalisierter Freitext (trim, lower, Leerzeichen zusammengefasst, max 300)
 --   Logik in der App: Eintrag verrechnet, wenn voll=true ODER Eintragsdatum <= verrechnet_bis; sonst offen.
--- Schreiben nur admin/buero (current_user_role), lesen alle angemeldeten ausser Kiosk. Kein CASCADE, keine Fremdschluessel
+-- Lesen und Schreiben nur admin/buero (current_user_role); Kiosk zusaetzlich restriktiv ausgesperrt. Kein CASCADE, keine Fremdschluessel
 -- (Freitext hat kein Ziel; geloeschte Scheine/Projekte lassen nur einen toten Satz zurueck, der nichts zaehlt).
 create table if not exists public.verrechnung (
   bezug_typ      text not null check (bezug_typ in ('as','stoerung','projekt','freitext')),
@@ -20,9 +21,12 @@ alter table public.verrechnung enable row level security;
 
 revoke all on table public.verrechnung from public;
 revoke all on table public.verrechnung from anon;
+-- Probe 23.11.: Supabase-Standardrechte geben authenticated auch TRUNCATE/REFERENCES/TRIGGER (TRUNCATE umgeht RLS) -> erst alles weg, dann nur die vier
+revoke all on table public.verrechnung from authenticated;
 grant select, insert, update, delete on table public.verrechnung to authenticated;
 
-create policy verrechnung_select on public.verrechnung for select to authenticated using (true);
+-- GF 23.11.: "Monteure duerfen das Buero-Portal nicht sehen" -> auch LESEN nur admin/buero (vorher Auftrag: alle lesen)
+create policy verrechnung_select on public.verrechnung for select to authenticated using (public.current_user_role() in ('admin','buero'));
 create policy verrechnung_insert on public.verrechnung for insert to authenticated with check (public.current_user_role() in ('admin','buero'));
 create policy verrechnung_update on public.verrechnung for update to authenticated using (public.current_user_role() in ('admin','buero')) with check (public.current_user_role() in ('admin','buero'));
 create policy verrechnung_delete on public.verrechnung for delete to authenticated using (public.current_user_role() in ('admin','buero'));

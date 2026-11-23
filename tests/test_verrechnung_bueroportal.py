@@ -133,6 +133,10 @@ def test_sql_rls_nur_admin_buero_schreiben():
     assert "enable row level security" in sql
     assert "revoke all on table public.verrechnung from public;" in sql
     assert "revoke all on table public.verrechnung from anon;" in sql
+    # GF 23.11.: auch Lesen nur admin/buero ("Monteure duerfen das Buero-Portal nicht sehen")
+    sel = re.findall(r"create policy verrechnung_select[^;]*;", sql)
+    assert len(sel) == 1 and "public.current_user_role() in ('admin','buero')" in sel[0] and "using (true)" not in sel[0]
+    assert "revoke all on table public.verrechnung from authenticated;" in sql, "TRUNCATE/TRIGGER aus den Standardrechten weg"
     schreib = re.findall(r"create policy verrechnung_(insert|update|delete)[^;]*;", sql)
     assert sorted(schreib) == ["delete", "insert", "update"]
     for pol in re.findall(r"create policy verrechnung_(?:insert|update|delete)[^;]*;", sql):

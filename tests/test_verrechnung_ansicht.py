@@ -78,10 +78,11 @@ eingaben().filter(function (n) { return n.props.type === 'date'; })[0].props.onC
 await ruhe(w);
 await klick(w, 'Speichern');
 OUT.upsert = ZAEHL.upsert; OUT.gets = ZAEHL.get.filter(function (g) { return g.indexOf('verrechnung') === 0; }).length;
-// 3) Monteur sieht kein Erfassen
-SZENE = {db: {verrechnung: []}};
+// 3) Monteur / Projektleitung (Portal per Einzelrecht): nur Hinweis, kein Abruf, kein Erfassen
+SZENE = {db: {verrechnung: []}}; ZAEHL.get = [];
 w = wurzel('monteur'); await ruhe(w);
-OUT.monteur = knopfHat(baum, 'Erfassen');
+OUT.monteur = knopfHat(baum, 'Erfassen'); OUT.monteurText = text(baum); OUT.monteurGets = ZAEHL.get.length;
+w = wurzel('projektleiter'); await ruhe(w); OUT.plText = text(baum);
 // 4) Aufklappen + Nach Monteur
 SZENE = {db: {verrechnung: [{bezug_typ: 'projekt', bezug_ref: 'p1', verrechnet_bis: '2026-10-31', voll: false}]}};
 w = wurzel('admin'); await ruhe(w);
@@ -116,6 +117,8 @@ def test_buero_erfasst_nur_in_verrechnung(R):
 
 def test_monteur_ohne_erfassen(R):
     assert R["monteur"] is False
+    assert "nur Büro und Admin" in R["monteurText"] and "Offen" not in R["monteurText"] and R["monteurGets"] == 0
+    assert "nur Büro und Admin" in R["plText"]
 
 
 def test_stand_aufklappen_und_monteursicht(R):
