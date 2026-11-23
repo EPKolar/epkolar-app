@@ -41,8 +41,8 @@ def _block():
     s = _src()
     i = s.index("var VR_TYP=")
     vr_typ = s[i:s.index("\n", i)]
-    # In der Renderer-Attrappe ist bpS ein Objekt (App: aufrufbar) -> fuer den Test als Aufruf ersetzt
-    return ("\n".join(_fn(s, n) for n in FN) + "\n" + vr_typ + "\n").replace("bpS()", "({minHeight:44})")
+    # bpS ist in App UND Attrappe ein Objekt - KEINE Ersetzung (die fruehere Ersetzung verdeckte "bpS is not a function", 23.11.)
+    return "\n".join(_fn(s, n) for n in FN) + "\n" + vr_typ + "\n"
 
 
 EXTRA = r"""
