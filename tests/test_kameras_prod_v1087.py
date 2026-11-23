@@ -144,8 +144,12 @@ _sbUpsert = async function (tab, row) {
 function wurzel(rolle, ww) { return React.createElement(KameraView, {curUser: {id: 'x', role: rolle, name: 'Anna Admin'}, ww: ww || 1440, users: []}); }
 function knoepfe() { return alle(baum, function (n) { return n.tag === 'button'; }); }
 function schalter() { return alle(baum, function (n) { return n.tag === 'button' && n.props.role === 'switch'; })[0] || null; }
-function cfgGets() { return ZAEHL.get.filter(function (g) { return g.indexOf('system_config') === 0; }).length; }
-function bild() { const s = schalter(); return {text: text(baum), cfg: cfgGets(), upsert: ZAEHL.upsert.slice(), best: BEST.slice(),
+// v3.9.1099: cfg zaehlt die Abrufe des FREIGABE-Stands (kameras_aktiv/kameras_testumgebung). Die Anordnung
+// (system_config.kameras_reihenfolge) lesen bewusst ALLE Kamerarollen beim Laden der Kameras - sie wird
+// getrennt als ord gezaehlt und in test_anordnung_wird_gelesen geprueft. Erwartete Zahlen unveraendert.
+function cfgGets() { return ZAEHL.get.filter(function (g) { return g.indexOf('system_config') === 0 && g.indexOf('kameras_reihenfolge') < 0; }).length; }
+function ordGets() { return ZAEHL.get.filter(function (g) { return g.indexOf('system_config') === 0 && g.indexOf('kameras_reihenfolge') >= 0; }).length; }
+function bild() { const s = schalter(); return {text: text(baum), cfg: cfgGets(), ord: ordGets(), upsert: ZAEHL.upsert.slice(), best: BEST.slice(),
   schalter: s ? {text: text(s).trim(), an: s.props['aria-checked'], aus: !!s.props.disabled} : null,
   chip: (alle(baum, function (n) { return n.props && n.props['data-kam-freigabe']; })[0] || null) ? text(alle(baum, function (n) { return n.props && n.props['data-kam-freigabe']; })[0]).trim() : ''}; }
 async function drueck(w) { schalter().props.onClick({}); await ruhe(w); }
@@ -239,6 +243,11 @@ def test_fehler_deutsch(V):
 def test_andere_rollen_ohne_schalter_und_ohne_abruf(V):
     p = V["pl"]
     assert p["schalter"] is None and p["chip"] == "" and p["cfg"] == 0 and "freigeben" not in p["text"]
+
+
+def test_anordnung_wird_gelesen(V):
+    # v3.9.1099: jede Kamerarolle liest beim Laden die Anordnung genau einmal (PL wie Admin)
+    assert V["pl"]["ord"] == 1 and V["start"]["ord"] >= 1
 
 
 def test_notbremse_prod_aus(V):
