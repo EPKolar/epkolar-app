@@ -14514,12 +14514,235 @@ function PZEView(props){
     ,_korrDlg);
 }
 
+function _vrNorm(s){/* Verrechnung (Buero-Portal, GF 23.11.2026): Schluessel fuer Freitext = getrimmter, kleingeschriebener Text, Mehrfach-Leerzeichen zu einem (time_entries hat fuer Freitext keinen stabilen Schluessel; gemessen 58 Eintraege in 31 Textgruppen). */
+  return String(s==null?"":s).trim().replace(/\s+/g," ").toLowerCase().slice(0,300);
+}
+function _vrBezug(e,projects,scheine){/* Bezug eines Zeiteintrags. Reihenfolge wie buildDayMap der Zeiterfassung: Projekt vor Arbeitsschein vor Freitext.
+     Leere Bezuege stehen in der DB als '' (nicht NULL) -> trim. Stoerung = Arbeitsschein mit scheinart 'stoerung'.
+     offa = OFFA fuehrt den Schein als abgerechnet (scheinstatus) -> Vorbelegung "voll verrechnet". */
+  var pid=String(e.project_id||e.projekt||"").trim();var asId=String(e.arbeitsschein_id||"").trim();
+  if(pid){var p=(projects||[]).find(function(x){return x.id===pid;});return {typ:"projekt",ref:pid,label:p?((p.nr?p.nr+" · ":"")+(p.name||"")):pid,offa:false};}
+  if(asId){
+    var s=(scheine||[]).find(function(x){return x.id===asId;});
+    var st=!!(s&&String(s.scheinart||"").toLowerCase()==="stoerung");
+    var kd=s?(s.kundName||s.kund_name||""):"";
+    return {typ:st?"stoerung":"as",ref:asId,label:s?((s.nummer||asId)+(kd?" · "+kd:"")):asId,offa:!!(s&&s.scheinstatus==="abgerechnet")};
+  }
+  var tx=String(e.taetigkeit||e.task||"").trim();
+  return {typ:"freitext",ref:_vrNorm(tx)||"(ohne text)",label:tx||"(ohne Text)",offa:false};
+}
+function _vrSatzWirksam(satz,offa){/* gespeicherter Satz gewinnt immer (auch gegen OFFA); ohne Satz: OFFA abgerechnet -> voll vorbelegt, sonst offen */
+  if(satz)return {voll:satz.voll===true,bis:String(satz.verrechnet_bis||"").slice(0,10),vorbelegt:false,gespeichert:true};
+  if(offa)return {voll:true,bis:"",vorbelegt:true,gespeichert:false};
+  return {voll:false,bis:"",vorbelegt:false,gespeichert:false};
+}
+function _vrIstVerrechnet(datum,w){/* Eintrag verrechnet, wenn voll oder Eintragsdatum <= verrechnet_bis (Grenzfall: genau am Datum = verrechnet) */
+  if(!w)return false;if(w.voll===true)return true;
+  var d=String(datum||"").slice(0,10);return !!(w.bis&&d&&d<=w.bis);
+}
+function _vrKW(iso){
+  var d=new Date(String(iso||"").slice(0,10)+"T12:00:00");if(isNaN(d.getTime()))return "";
+  var u=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));var wd=u.getUTCDay()||7;u.setUTCDate(u.getUTCDate()+4-wd);
+  var y=u.getUTCFullYear();var w=Math.ceil(((u.getTime()-Date.UTC(y,0,1))/TIME_DAY+1)/7);return "KW "+w+"/"+y;
+}
+function _vrR(x){return Math.round((Number(x)||0)*100)/100;}
+function _vrAuswerten(entries,projects,scheine,saetze){/* -> Auftraege [{key,typ,ref,label,offa,satz,w,von,bis,summe,verrechnet,offen,monteure:{id:{summe,verrechnet,offen}}}] */
+  var sm={};(saetze||[]).forEach(function(s){if(s&&s.bezug_typ)sm[s.bezug_typ+"|"+s.bezug_ref]=s;});
+  var map={};
+  (entries||[]).forEach(function(e){
+    var h=parseFloat(e.stunden||e.hours)||0;
+    var dt=String(e.datum||e.date||"").slice(0,10);
+    var b=_vrBezug(e,projects,scheine);var k=b.typ+"|"+b.ref;
+    var a=map[k];
+    if(!a)a=map[k]={key:k,typ:b.typ,ref:b.ref,label:b.label,offa:b.offa,satz:sm[k]||null,w:_vrSatzWirksam(sm[k],b.offa),von:dt,bis:dt,summe:0,verrechnet:0,offen:0,monteure:{},wochen:{}};
+    if(dt&&(!a.von||dt<a.von))a.von=dt;if(dt&&dt>a.bis)a.bis=dt;
+    var v=_vrIstVerrechnet(dt,a.w);
+    var wid=String(e.worker_id||e.monteur||e.worker||"?");
+    var m=a.monteure[wid]||(a.monteure[wid]={id:wid,summe:0,verrechnet:0,offen:0});
+    a.summe+=h;m.summe+=h;if(v){a.verrechnet+=h;m.verrechnet+=h;}else{a.offen+=h;m.offen+=h;}
+    var kw=_vrKW(dt)||"ohne Datum";var wk=a.wochen[kw]||(a.wochen[kw]={kw:kw,ab:dt,summe:0,verrechnet:0,offen:0,monteure:{}});
+    if(dt&&(!wk.ab||dt<wk.ab))wk.ab=dt;wk.summe+=h;if(v)wk.verrechnet+=h;else wk.offen+=h;
+    var wm=wk.monteure[wid]||(wk.monteure[wid]={id:wid,summe:0,verrechnet:0,offen:0});wm.summe+=h;if(v)wm.verrechnet+=h;else wm.offen+=h;
+  });
+  var out=Object.keys(map).map(function(k){var a=map[k];a.summe=_vrR(a.summe);a.verrechnet=_vrR(a.verrechnet);a.offen=_vrR(a.offen);
+    Object.keys(a.monteure).forEach(function(i){var m=a.monteure[i];m.summe=_vrR(m.summe);m.verrechnet=_vrR(m.verrechnet);m.offen=_vrR(m.offen);});
+    a.wochenListe=Object.keys(a.wochen).map(function(x){var wk=a.wochen[x];wk.summe=_vrR(wk.summe);wk.verrechnet=_vrR(wk.verrechnet);wk.offen=_vrR(wk.offen);
+      Object.keys(wk.monteure).forEach(function(i){var q=wk.monteure[i];q.summe=_vrR(q.summe);q.verrechnet=_vrR(q.verrechnet);q.offen=_vrR(q.offen);});return wk;})
+      .sort(function(x,y){return x.ab<y.ab?-1:(x.ab>y.ab?1:0);});return a;});
+  out.sort(function(x,y){if(x.offen!==y.offen)return y.offen-x.offen;return x.label<y.label?-1:(x.label>y.label?1:0);});
+  return out;
+}
+function _vrNachMonteur(auftraege){/* -> [{id,summe,verrechnet,offen,auftraege:[{key,typ,label,summe,verrechnet,offen}]}] - Summen aus denselben Auftragszeilen */
+  var map={};
+  (auftraege||[]).forEach(function(a){Object.keys(a.monteure).forEach(function(i){var m=a.monteure[i];
+    var z=map[i]||(map[i]={id:i,summe:0,verrechnet:0,offen:0,auftraege:[]});
+    z.summe+=m.summe;z.verrechnet+=m.verrechnet;z.offen+=m.offen;
+    z.auftraege.push({key:a.key,typ:a.typ,label:a.label,summe:m.summe,verrechnet:m.verrechnet,offen:m.offen});});});
+  return Object.keys(map).map(function(i){var z=map[i];z.summe=_vrR(z.summe);z.verrechnet=_vrR(z.verrechnet);z.offen=_vrR(z.offen);return z;})
+    .sort(function(x,y){return y.offen-x.offen;});
+}
+function _vrKennzahlen(auftraege){
+  var s=0,v=0,o=0,n=0;(auftraege||[]).forEach(function(a){s+=a.summe;v+=a.verrechnet;o+=a.offen;if(a.offen>0)n++;});
+  s=_vrR(s);return {summe:s,verrechnet:_vrR(v),offen:_vrR(o),offeneAuftraege:n,prozent:s>0?Math.round(v/s*100):0};
+}
+function _vrH(x){return _vrR(x).toFixed(2).replace(".",",");}
+function _vrDE(iso){var s=String(iso||"");return s.length>=10?s.slice(8,10)+"."+s.slice(5,7)+"."+s.slice(0,4):"";}
+var VR_TYP={projekt:"Projekt",as:"Arbeitsschein",stoerung:"Störung",freitext:"Freitext"};
+function _vrStatusText(a){
+  if(a.w.voll)return a.w.vorbelegt?"voll verrechnet (aus OFFA)":"voll verrechnet";
+  if(a.w.bis)return "verrechnet bis "+_vrDE(a.w.bis);
+  return "offen";
+}
+async function _vrLadeSaetze(){
+  try{
+    var rows=await _sbGet("verrechnung","select=bezug_typ,bezug_ref,verrechnet_bis,voll,verrechnet_am,verrechnet_von");
+    if(_rlsLeer(rows))return {status:"fehler",rows:[]};
+    return {status:"ok",rows:Array.isArray(rows)?rows:[]};
+  }catch(e){var m=String((e&&e.message)||e||"");return {status:/HTTP404|PGRST205|42P01|does not exist|schema cache/i.test(m)?"fehlt":"fehler",rows:[]};}
+}
+async function _vrSatzSchreiben(a,bis,voll,cu){/* NUR die Tabelle verrechnung (Teil-Upsert ueber den Primaerschluessel bezug_typ+bezug_ref) - nichts an time_entries/Arbeitsschein/Projekt, kein OFFA-Push */
+  cu=cu||{};
+  await _sbUpsert("verrechnung",{bezug_typ:a.typ,bezug_ref:a.ref,verrechnet_bis:bis||null,voll:voll===true,verrechnet_am:new Date().toISOString(),verrechnet_von:cu.name||cu.username||""},true);
+}
+function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteure,ww}){
+  /* Buero-Portal > Verrechnung (GF 23.11.2026, fuer das Buero): welche gebuchten Monteurstunden schon verrechnet sind - pro Auftrag und pro Monteur.
+     Stunden aus time_entries (alle Bezuege). OFFA schreibt die Rechnungen, die App fuehrt nur den Stand (Tabelle verrechnung).
+     Schreiben nur admin/buero (RLS serverseitig, hier nur die Bedienung). */
+  const h=React.createElement;
+  const _vrStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vrStufe==="schmal";
+  const darf=!!(curUser&&(curUser.role==="admin"||curUser.role==="buero"));
+  const [sz,setSz]=_react.useState.call(void 0,{status:"laedt",rows:[]});
+  const [neu,setNeu]=_react.useState.call(void 0,0);
+  const [ansicht,setAnsicht]=_react.useState.call(void 0,"auftrag");
+  const [nurOffen,setNurOffen]=_react.useState.call(void 0,false);
+  const [auf,setAuf]=_react.useState.call(void 0,{});
+  const [ed,setEd]=_react.useState.call(void 0,null);
+  _react.useEffect.call(void 0,function(){var alive=true;_vrLadeSaetze().then(function(r){if(alive)setSz(r);});return function(){alive=false;};},[neu]);
+  const auftraege=_react.useMemo.call(void 0,function(){return _vrAuswerten(entries,projects,arbeitsscheine,sz.rows);},[entries,projects,arbeitsscheine,sz]);
+  const proMonteur=_react.useMemo.call(void 0,function(){return _vrNachMonteur(auftraege);},[auftraege]);
+  const kz=_vrKennzahlen(auftraege);
+  const maName=function(id){var m=(monteure||[]).find(function(x){return x.id===id;});return m?(m.n||m.name||id):id;};
+  const zeilenA=auftraege.filter(function(a){return !nurOffen||a.offen>0;});
+  const zeilenM=proMonteur.filter(function(m){return !nurOffen||m.offen>0;});
+  const blau=_lesbar("#3b82f6");
+  const zahl={fontFamily:mono,...UI.zahlen,color:blau,fontWeight:700,whiteSpace:"nowrap"};
+  const balken=function(v,s){var pz=s>0?Math.round(v/s*100):0;return h("div",{style:{minWidth:120}}
+    ,h("div",{role:"img","aria-label":pz+" Prozent verrechnet",style:{height:8,borderRadius:4,background:V.bd,overflow:"hidden"}},h("div",{style:{width:pz+"%",height:"100%",background:V.ac}}))
+    ,h("div",{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2,...UI.zahlen}},_vrH(v)+" h verrechnet · "+_vrH(s-v)+" h offen"));};
+  const umschalt=function(id,txt){var an=ansicht===id;return h("button",{type:"button","aria-pressed":an?"true":"false",onClick:function(){setAnsicht(id);setAuf({});},style:an?bpS():bsS()},txt);};
+  const speichern=async function(){
+    if(!ed)return;var a=auftraege.find(function(x){return x.key===ed.key;});if(!a){setEd(null);return;}
+    setEd(Object.assign({},ed,{busy:true,msg:""}));
+    try{await _vrSatzSchreiben(a,ed.voll?"":ed.bis,ed.voll,curUser);setEd(null);setNeu(neu+1);if(window.__toast)window.__toast("Verrechnungsstand gespeichert");}
+    catch(e){var m=String((e&&e.message)||e||"");setEd(Object.assign({},ed,{busy:false,msg:/HTTP403|42501|row-level/i.test(m)?"Nicht gespeichert: nur Büro oder Admin dürfen den Verrechnungsstand ändern.":(/Auth:401/.test(m)?"Nicht gespeichert: Anmeldung abgelaufen. Bitte neu anmelden.":"Nicht gespeichert (Netzfehler oder Server nicht erreichbar). Bitte erneut versuchen.")}));}
+  };
+  const exportZeilen=function(){
+    if(ansicht==="monteur"){
+      return {titel:"Verrechnung nach Monteur",hdr:["Monteur","Stunden","verrechnet","offen","Fortschritt %"],
+        data:zeilenM.map(function(m){return [maName(m.id),_vrH(m.summe),_vrH(m.verrechnet),_vrH(m.offen),String(m.summe>0?Math.round(m.verrechnet/m.summe*100):0)];})};
+    }
+    return {titel:"Verrechnung nach Auftrag",hdr:["Typ","Nr / Kunde","Zeitraum","Stunden","verrechnet","offen","Stand"],
+      data:zeilenA.map(function(a){return [VR_TYP[a.typ]||a.typ,a.label,_vrKW(a.von)+(a.bis!==a.von?" – "+_vrKW(a.bis):""),_vrH(a.summe),_vrH(a.verrechnet),_vrH(a.offen),_vrStatusText(a)];})};
+  };
+  const exportVrXls=function(){
+    var e=exportZeilen();if(!e.data.length){if(window.__toast)window.__toast("Keine Zeilen zum Exportieren","info");return;}
+    genXls(e.titel,"Stand "+_vrDE(_ezHeuteISO())+" · offen "+_vrH(kz.offen)+" h · verrechnet "+_vrH(kz.verrechnet)+" h",e.hdr,e.data,"Verrechnung_"+(ansicht==="monteur"?"Monteure":"Auftraege")+"_"+_ezHeuteISO()+".xls",{textCols:[1]});
+  };
+  const exportVrPdf=function(){
+    var e=exportZeilen();if(!e.data.length){if(window.__toast)window.__toast("Keine Zeilen zum Exportieren","info");return;}
+    try{
+      var JS=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
+      if(!JS){if(window.__toast)window.__toast("PDF-Bibliothek nicht geladen","error",4000);return;}
+      var doc=new JS({orientation:"landscape",unit:"mm",format:"a4"});var W=297,M=12,nutz=W-2*M;
+      _pdfCIKopf(doc,e.titel,"Stand "+_vrDE(_ezHeuteISO())+"  ·  offen "+_vrH(kz.offen)+" h  ·  verrechnet "+_vrH(kz.verrechnet)+" h  ·  "+kz.prozent+" %",22);
+      var gew=ansicht==="monteur"?[3,1,1,1,1]:[1.2,3.4,2,1,1,1,2.2];var gs=gew.reduce(function(x,y){return x+y;},0);var br=gew.map(function(g){return nutz*g/gs;});
+      var y=30;
+      var kopf=function(){var x=M;doc.setFillColor(0,150,64);doc.rect(M,y-4,nutz,6,"F");doc.setTextColor(255,255,255);doc.setFontSize(7.5);doc.setFont("helvetica","bold");e.hdr.forEach(function(tt,i){doc.text(_pdfStr(tt),x+1,y);x+=br[i];});doc.setTextColor(30,30,30);doc.setFont("helvetica","normal");y+=5.5;};
+      kopf();
+      e.data.forEach(function(zeile,ri){
+        doc.setFontSize(7.5);
+        var zellen=zeile.map(function(c,i){return doc.splitTextToSize(_pdfStr(String(c==null?"":c)),Math.max(4,br[i]-2));});
+        var hz=Math.max.apply(null,zellen.map(function(z){return z.length||1;}))*3.3;
+        if(y+hz>192){doc.addPage();y=20;kopf();}
+        if(ri%2===1){doc.setFillColor(246,246,246);doc.rect(M,y-3.2,nutz,hz+0.6,"F");}
+        var x=M;zellen.forEach(function(z,i){z.forEach(function(ln,li){doc.text(ln,x+1,y+li*3.3);});x+=br[i];});
+        y+=hz+1.2;
+      });
+      _pdfCIFuss(doc,e.titel+" · Stand "+_vrDE(_ezHeuteISO()));
+      doc.save("Verrechnung_"+(ansicht==="monteur"?"Monteure":"Auftraege")+"_"+_ezHeuteISO()+".pdf");
+    }catch(err){if(window.__toast)window.__toast("PDF fehlgeschlagen: "+((err&&err.message)||""),"error",5000);}
+  };
+  const hinweis=sz.status==="fehlt"?h("div",{role:"status",style:{fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid "+V.bdK,padding:"8px 10px",marginBottom:12,background:V.cd}},"Die Tabelle für den Verrechnungsstand ist in der Datenbank noch nicht angelegt. Bis dahin gilt alles als offen; Scheine, die OFFA als abgerechnet führt, sind als voll verrechnet vorbelegt. Erfassen ist erst danach möglich.")
+    :sz.status==="fehler"?h("div",{role:"alert",style:{fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid "+V.bdK,padding:"8px 10px",marginBottom:12,background:V.cd}},"Verrechnungsstand nicht lesbar (Netzfehler oder keine Berechtigung) - die Zahlen zeigen nur die OFFA-Vorbelegung. ",h("button",{type:"button",onClick:function(){setNeu(neu+1);},style:bsS()},"Erneut laden")):null;
+  const editZeile=function(a){
+    return h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",padding:"8px 10px",background:V.cd,border:"1px solid "+V.bd,borderRadius:8,marginTop:6}}
+      ,h("label",{style:{fontSize:UI.fMeta,fontWeight:600,color:V.tx,display:"flex",alignItems:"center",gap:6}},"verrechnet bis",h("input",{type:"date",value:ed.bis,disabled:ed.voll||ed.busy,onChange:function(ev){setEd(Object.assign({},ed,{bis:ev.target.value}));},style:{...II(),minHeight:44,width:"auto"}}))
+      ,h("label",{style:{fontSize:UI.fMeta,fontWeight:600,color:V.tx,display:"flex",alignItems:"center",gap:6,minHeight:44}},h("input",{type:"checkbox",checked:ed.voll,disabled:ed.busy,onChange:function(ev){setEd(Object.assign({},ed,{voll:ev.target.checked}));},style:{width:20,height:20}}),"voll verrechnet")
+      ,h("button",{type:"button",onClick:speichern,disabled:ed.busy,style:bpS()},ed.busy?"Speichert …":"Speichern")
+      ,h("button",{type:"button",onClick:function(){setEd(null);},disabled:ed.busy,style:bsS()},"Abbrechen")
+      ,a.w.vorbelegt?h("span",{style:{fontSize:UI.fMeta,color:V.dm}},"Vorbelegt aus OFFA (abgerechnet) - Teilrechnung oder offen hier überschreiben."):null
+      ,ed.msg?h("div",{role:"alert",style:{flexBasis:"100%",fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid "+V.bdK,padding:"4px 8px"}},ed.msg):null);
+  };
+  const auftragKarte=function(a){
+    var offen=!!auf[a.key];
+    return h("div",{key:a.key,"data-vr-auftrag":a.typ,style:{...CC(),padding:10,marginBottom:8,borderTop:"3px solid "+V.ac}}
+      ,h("div",{style:{display:"grid",gridTemplateColumns:isMob?"1fr":"110px minmax(0,2fr) 170px 90px minmax(150px,1.4fr) minmax(150px,1fr)",gap:8,alignItems:"center"}}
+        ,h("span",{style:{fontSize:UI.fMeta,fontWeight:700,color:V.dm}},VR_TYP[a.typ]||a.typ)
+        ,h("span",{style:{fontWeight:700,color:V.tx,overflowWrap:"anywhere"}},a.label)
+        ,h("span",{style:{fontSize:UI.fMeta,color:V.dm,...UI.zahlen}},_vrKW(a.von)+(a.bis!==a.von?" – "+_vrKW(a.bis):""))
+        ,h("span",{style:zahl},_vrH(a.summe)+" h")
+        ,balken(a.verrechnet,a.summe)
+        ,h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}
+          ,h("span",{style:{fontSize:UI.fMeta,fontWeight:600,color:a.offen>0?V.tx:V.acTx}},_vrStatusText(a))
+          ,darf&&sz.status==="ok"?h("button",{type:"button",onClick:function(){setEd({key:a.key,bis:a.w.bis||"",voll:a.w.voll,busy:false,msg:""});},"aria-label":"Verrechnungsstand erfassen: "+a.label,style:bsS()},_ik("stift",16)," Erfassen"):null
+          ,h("button",{type:"button","aria-expanded":offen?"true":"false","aria-label":"Monteur-Aufteilung "+a.label,onClick:function(){var n=Object.assign({},auf);n[a.key]=!offen;setAuf(n);},style:{...bsS(),minWidth:44}},h("span",{style:{display:"inline-flex",transform:offen?"rotate(180deg)":"none"}},_ik("chevron",16)))))
+      ,ed&&ed.key===a.key?editZeile(a):null
+      ,offen?h("div",{"data-vr-wochen":"1",style:{marginTop:8,display:"grid",gap:6}},a.wochenListe.map(function(wk){
+        var st=wk.offen<=0?"verrechnet":(wk.verrechnet>0?"teilweise":"offen");
+        return h("div",{key:wk.kw,style:{padding:"4px 8px",borderLeft:"2px solid "+(wk.offen<=0?V.ac:V.bd)}}
+          ,h("div",{style:{display:"flex",gap:10,flexWrap:"wrap",alignItems:"baseline"}},h("span",{style:{fontWeight:700,color:V.tx,...UI.zahlen}},wk.kw),h("span",{style:zahl},_vrH(wk.summe)+" h"),h("span",{style:{fontSize:UI.fMeta,color:wk.offen<=0?V.acTx:V.dm,fontWeight:600}},st))
+          ,Object.keys(wk.monteure).map(function(i){var q=wk.monteure[i];
+            return h("div",{key:i,style:{display:"grid",gridTemplateColumns:"minmax(0,2fr) 90px",gap:8,paddingLeft:12,fontSize:UI.fMeta}},h("span",{style:{color:V.tx}},maName(i)),h("span",{style:{...zahl,fontWeight:600}},_vrH(q.summe)+" h"));}));
+      })):null);
+  };
+  const monteurKarte=function(m){
+    var offen=!!auf[m.id];
+    return h("div",{key:m.id,style:{...CC(),padding:10,marginBottom:8,borderTop:"3px solid "+V.ac}}
+      ,h("div",{style:{display:"grid",gridTemplateColumns:isMob?"1fr auto":"minmax(0,2fr) 90px 110px 110px minmax(150px,1.4fr) 44px",gap:8,alignItems:"center"}}
+        ,h("span",{style:{fontWeight:700,color:V.tx}},maName(m.id))
+        ,h("span",{style:zahl},_vrH(m.summe)+" h")
+        ,isMob?null:h("span",{style:{fontSize:UI.fMeta,color:V.dm,...UI.zahlen}},_vrH(m.verrechnet)+" h verr.")
+        ,isMob?null:h("span",{style:{fontSize:UI.fMeta,color:V.tx,fontWeight:600,...UI.zahlen}},_vrH(m.offen)+" h offen")
+        ,isMob?null:balken(m.verrechnet,m.summe)
+        ,h("button",{type:"button","aria-expanded":offen?"true":"false","aria-label":"Aufträge von "+maName(m.id),onClick:function(){var n=Object.assign({},auf);n[m.id]=!offen;setAuf(n);},style:{...bsS(),minWidth:44}},h("span",{style:{display:"inline-flex",transform:offen?"rotate(180deg)":"none"}},_ik("chevron",16))))
+      ,offen?h("div",{style:{marginTop:8,display:"grid",gap:4}},m.auftraege.map(function(z){
+        return h("div",{key:z.key,style:{display:"grid",gridTemplateColumns:isMob?"1fr auto":"110px minmax(0,2fr) 90px minmax(150px,1.4fr)",gap:8,alignItems:"center",padding:"4px 8px",borderLeft:"2px solid "+V.bd}}
+          ,isMob?null:h("span",{style:{fontSize:UI.fMeta,color:V.dm}},VR_TYP[z.typ]||z.typ),h("span",{style:{color:V.tx,overflowWrap:"anywhere"}},z.label),h("span",{style:zahl},_vrH(z.summe)+" h"),isMob?null:balken(z.verrechnet,z.summe));})):null);
+  };
+  if(!loaded)return h("div",{style:{fontSize:UI.fMeta,color:V.dm,padding:12}},"Lade Stunden …");
+  return h("div",{"data-vr":"1"}
+    ,hinweis
+    ,h("div",{className:"kpi-grid"+(_vrStufe==="breit"?"":(" epk-leiste epk-kachel-kompakt "+(isMob?"epk-kachel-zwei":"epk-kachel-vier"))),style:{marginBottom:16}}
+      ,h(Kpi,{label:"Offen",value:_vrH(kz.offen)+" h",sub:"noch nicht verrechnet",color:"#3b82f6",i:0})
+      ,h(Kpi,{label:"Verrechnet",value:_vrH(kz.verrechnet)+" h",sub:"laut Verrechnungsstand",color:V.ac,i:1})
+      ,h(Kpi,{label:"Aufträge mit offenen Std",value:kz.offeneAuftraege,sub:_nWort(auftraege.length,"Auftrag","Aufträge")+" gesamt",color:"#f97316",i:2})
+      ,h(Kpi,{label:"Fortschritt",value:kz.prozent+" %",sub:_vrH(kz.summe)+" h gebucht",color:V.ac,i:3}))
+    ,h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}
+      ,h("div",{role:"group","aria-label":"Ansicht",style:{display:"inline-flex",gap:6,flexWrap:"wrap"}},umschalt("auftrag","Nach Auftrag"),umschalt("monteur","Nach Monteur"))
+      ,h("label",{style:{display:"flex",alignItems:"center",gap:6,fontSize:UI.fMeta,fontWeight:600,color:V.tx,minHeight:44}},h("input",{type:"checkbox",checked:nurOffen,onChange:function(ev){setNurOffen(ev.target.checked);},style:{width:20,height:20}}),"nur offen")
+      ,h("span",{style:{flex:1}})
+      ,h("button",{type:"button",onClick:exportVrXls,style:xBtn("xls")},_ik("tabelle",16),"Excel")
+      ,h("button",{type:"button",onClick:exportVrPdf,style:xBtn("pdf")},_ik("drucker",16),"PDF"))
+    ,ansicht==="monteur"
+      ?(zeilenM.length?zeilenM.map(monteurKarte):h("div",{style:{fontSize:UI.fMeta,color:V.dm,padding:12}},nurOffen?"Keine offenen Stunden.":"Keine Stunden gebucht."))
+      :(zeilenA.length?zeilenA.map(auftragKarte):h("div",{style:{fontSize:UI.fMeta,color:V.dm,padding:12}},nurOffen?"Keine offenen Aufträge.":"Keine Stunden gebucht.")));
+}
 function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,onNav,fahrzeuge,setFahrzeuge,arbeitsscheine,setEntries}){
   const _abYr=new Date().getFullYear();
   const [_bxDelSet,_setBxDelSet]=_react.useState.call(void 0, {});
   /* v3.9.771 Sub-Tabs statt langer Klapp-Scroll-Seite (Sebastian). NUR Navigation — keine Zahl/Rechnung
      beruehrt. Zuletzt gewaehlter Tab pro Geraet in localStorage (kein Kiosk hier). */
-  var BX_TABS=[['projekte','','Projekte'],['zeit','','Zeiterfassung'],['stempel','','Stempelzeiten'],['zulagen','','Zulagen'],['abwesend','','Abwesenheiten'],['tank','','Tank']];/* v3.9.1012: Feld 2 (Emoji) leer - die Reiter tragen nur Text wie die Administration. Die Form [id,_,Name] bleibt, damit Verwender und Riegel nicht wandern. */
+  var BX_TABS=[['projekte','','Projekte'],['zeit','','Zeiterfassung'],['verrechnung','','Verrechnung'],['stempel','','Stempelzeiten'],['zulagen','','Zulagen'],['abwesend','','Abwesenheiten'],['tank','','Tank']];/* v3.9.1012: Feld 2 (Emoji) leer - die Reiter tragen nur Text wie die Administration. Die Form [id,_,Name] bleibt, damit Verwender und Riegel nicht wandern. */
   const [_bxTab,_setBxTabRaw]=_react.useState.call(void 0, function(){try{var _v=localStorage.getItem('epk_bueroexport_tab');for(var _i=0;_i<BX_TABS.length;_i++){if(BX_TABS[_i][0]===_v)return _v;}}catch(_e){}return 'projekte';});
   const _setBxTab=function(_t){_setBxTabRaw(_t);try{localStorage.setItem('epk_bueroexport_tab',_t);}catch(_e){}};
   /* v3.9.796 Navigation E3 (Buero-Portal): Sub-Tab-Back-Layer nach E1-Admin-Muster. Restore-Ziel = der BEIM MOUNT aufgeloeste Default (_bxTab-Startwert: localStorage epk_bueroexport_tab > Fallback 'projekte'), EINMAL in eine Ref eingefroren — NICHT der laufend gespeicherte aktuelle Tab. Nicht-Default-Sub-Tab -> Browser-/Android-Zurueck -> Mount-Default; weiteres Zurueck -> Hauptseiten-Nav. System A useBackLayer, KEIN history.state-Eigenbau, KEIN _navPush, KEIN Hash-Write. */
@@ -15270,6 +15493,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
 
       /* v3.9.1100 Zeiterfassung der Mitarbeiter im Buero-Portal (GF 23.11.): dieselbe Ansicht wie der Reiter Zeiterfassung, im Portal-Modus
          (Mitarbeiter-Auswahl, Uebersicht, Bearbeiten/Loeschen, Lohn-Monatsliste) - nur admin/buero, siehe isAdmin in ZeiterfassungView. */
+      /* Verrechnung (GF 23.11.2026): Stand der verrechneten Monteurstunden je Auftrag/Monteur - Daten aus allEntries (time_entries, alle Bezuege). */
+      _bxTab==='verrechnung' && React.createElement(VerrechnungView, { curUser: curUser, entries: allEntries, loaded: loaded, projects: projects, arbeitsscheine: arbeitsscheine||[], monteure: monteure, ww: ww} ),
       _bxTab==='zeit' && React.createElement(ZeiterfassungView, { curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine||[], entries: entries, setEntries: setEntries||function(){}, ww: ww, abs: abs, approvals: approvals, imPortal: true} ),
 
       /* v3.9.650 KV-V4: Monteur-Zulagen-Report (Entfernungszulage) \u2014 Buero-Portal ist bereits staff-only. */
