@@ -72,7 +72,10 @@ def test_pdf_buttons_all_use_window_print(index_html):
     # und nicht hat — nicht, dass jemand ein besseres Dokument baut. Das Bautagebuch
     # druckte vorher die Live-Ansicht: im Dunkelmodus weisse Schrift auf weissem
     # Papier und nach EINEM Bildschirm abgeschnitten.
-    _eigene_erzeuger = ("_wpPrintPlan", "_genBautagPdf")
+    # v3.9.1098: exportMonatPdf (Lohn-Monatsliste je Mitarbeiter, Zeiterfassung) ist die dritte Ausnahme aus
+    # demselben Grund: eigenes jsPDF-A4-Dokument mit _pdfCIKopf/_pdfCIFuss und Seitenumbruch, haengt nicht
+    # am globalen @media print (es druckt nicht die Bildschirmansicht, sondern die Monatszeilen).
+    _eigene_erzeuger = ("_wpPrintPlan", "_genBautagPdf", "exportMonatPdf")
     for blob in matches:
         assert ("window.print()" in blob) or any(g in blob for g in _eigene_erzeuger), (
             "PDF-Button ohne window.print() und ohne eigenen Dokumenterzeuger — die "
