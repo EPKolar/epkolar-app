@@ -16,7 +16,7 @@ from test_kameras_phase1_v1055 import RENDER_PRELUDE, _render_lauf
 HIER = os.path.dirname(os.path.abspath(__file__))
 HTML = os.path.join(HIER, "..", "index.html")
 FN = ("_vrNorm", "_vrBezug", "_vrSatzWirksam", "_vrIstVerrechnet", "_vrKW", "_vrR", "_vrAuswerten", "_vrNachMonteur",
-      "_vrKennzahlen", "_vrH", "_vrDE", "_vrStatusText", "_vrLadeSaetze", "_vrSatzSchreiben", "VerrechnungView")
+      "_vrKennzahlen", "_vrH", "_vrDE", "_vrZeitraum", "_vrStatusText", "_vrLadeSaetze", "_vrSatzSchreiben", "VerrechnungView")
 
 
 def _src():

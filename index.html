@@ -14588,6 +14588,7 @@ function _vrKennzahlen(auftraege){
 function _vrH(x){return _vrR(x).toFixed(2).replace(".",",");}
 function _vrDE(iso){var s=String(iso||"");return s.length>=10?s.slice(8,10)+"."+s.slice(5,7)+"."+s.slice(0,4):"";}
 var VR_TYP={projekt:"Projekt",as:"Arbeitsschein",stoerung:"Störung",freitext:"Freitext"};
+function _vrZeitraum(a){var k1=_vrKW(a.von),k2=_vrKW(a.bis);return k1===k2?k1:(k1+" – "+k2);}
 function _vrStatusText(a){
   if(a.w.voll)return a.w.vorbelegt?"voll verrechnet (aus OFFA)":"voll verrechnet";
   if(a.w.bis)return "verrechnet bis "+_vrDE(a.w.bis);
@@ -14609,7 +14610,7 @@ function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteur
      Stunden aus time_entries (alle Bezuege). OFFA schreibt die Rechnungen, die App fuehrt nur den Stand (Tabelle verrechnung).
      Schreiben nur admin/buero (RLS serverseitig, hier nur die Bedienung). */
   const h=React.createElement;
-  const _vrStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vrStufe==="schmal";
+  const _vrStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vrStufe==="schmal";const isBreit=_vrStufe==="breit";/* Spaltenraster nur breit; mittel (Tablet 820) und schmal umbrechend - feste Spalten liessen den Auftragsnamen am Tablet buchstabenweise umbrechen (Browser-Lauf 23.11.) */
   const darf=!!(curUser&&(curUser.role==="admin"||curUser.role==="buero"));
   const [sz,setSz]=_react.useState.call(void 0,{status:"laedt",rows:[]});
   const [neu,setNeu]=_react.useState.call(void 0,0);
@@ -14626,7 +14627,7 @@ function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteur
   const zeilenM=proMonteur.filter(function(m){return !nurOffen||m.offen>0;});
   const blau=_lesbar("#3b82f6");
   const zahl={fontFamily:mono,...UI.zahlen,color:blau,fontWeight:700,whiteSpace:"nowrap"};
-  const balken=function(v,s){var pz=s>0?Math.round(v/s*100):0;return h("div",{style:{minWidth:120}}
+  const balken=function(v,s){var pz=s>0?Math.round(v/s*100):0;return h("div",{style:{minWidth:120,flex:isBreit?undefined:"1 1 200px"}}
     ,h("div",{role:"img","aria-label":pz+" Prozent verrechnet",style:{height:8,borderRadius:4,background:V.bd,overflow:"hidden"}},h("div",{style:{width:pz+"%",height:"100%",background:V.ac}}))
     ,h("div",{style:{fontSize:UI.fMeta,color:V.dm,marginTop:2,...UI.zahlen}},_vrH(v)+" h verrechnet · "+_vrH(s-v)+" h offen"));};
   const umschalt=function(id,txt){var an=ansicht===id;return h("button",{type:"button","aria-pressed":an?"true":"false",onClick:function(){setAnsicht(id);setAuf({});},style:an?bpS:bsS()},txt);};
@@ -14642,7 +14643,7 @@ function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteur
         data:zeilenM.map(function(m){return [maName(m.id),_vrH(m.summe),_vrH(m.verrechnet),_vrH(m.offen),String(m.summe>0?Math.round(m.verrechnet/m.summe*100):0)];})};
     }
     return {titel:"Verrechnung nach Auftrag",hdr:["Typ","Nr / Kunde","Zeitraum","Stunden","verrechnet","offen","Stand"],
-      data:zeilenA.map(function(a){return [VR_TYP[a.typ]||a.typ,a.label,_vrKW(a.von)+(a.bis!==a.von?" – "+_vrKW(a.bis):""),_vrH(a.summe),_vrH(a.verrechnet),_vrH(a.offen),_vrStatusText(a)];})};
+      data:zeilenA.map(function(a){return [VR_TYP[a.typ]||a.typ,a.label,_vrZeitraum(a),_vrH(a.summe),_vrH(a.verrechnet),_vrH(a.offen),_vrStatusText(a)];})};
   };
   const exportVrXls=function(){
     var e=exportZeilen();if(!e.data.length){if(window.__toast)window.__toast("Keine Zeilen zum Exportieren","info");return;}
@@ -14686,15 +14687,15 @@ function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteur
   const auftragKarte=function(a){
     var offen=!!auf[a.key];
     return h("div",{key:a.key,"data-vr-auftrag":a.typ,style:{...CC(),padding:10,marginBottom:8,borderTop:"3px solid "+V.ac}}
-      ,h("div",{style:{display:"grid",gridTemplateColumns:isMob?"1fr":"110px minmax(0,2fr) 170px 90px minmax(150px,1.4fr) minmax(150px,1fr)",gap:8,alignItems:"center"}}
-        ,h("span",{style:{fontSize:UI.fMeta,fontWeight:700,color:V.dm}},VR_TYP[a.typ]||a.typ)
-        ,h("span",{style:{fontWeight:700,color:V.tx,overflowWrap:"anywhere"}},a.label)
-        ,h("span",{style:{fontSize:UI.fMeta,color:V.dm,...UI.zahlen}},_vrKW(a.von)+(a.bis!==a.von?" – "+_vrKW(a.bis):""))
+      ,h("div",{style:isBreit?{display:"grid",gridTemplateColumns:"110px minmax(0,2fr) 170px 90px minmax(150px,1.4fr) 330px",gap:8,alignItems:"center"}:{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}
+        ,h("span",{style:{fontSize:UI.fMeta,fontWeight:700,color:V.dm,flex:isBreit?undefined:"0 0 auto"}},VR_TYP[a.typ]||a.typ)
+        ,h("span",{style:{fontWeight:700,color:V.tx,overflowWrap:"anywhere",flex:isBreit?undefined:"1 1 220px",minWidth:0}},a.label)
+        ,h("span",{style:{fontSize:UI.fMeta,color:V.dm,...UI.zahlen}},_vrZeitraum(a))
         ,h("span",{style:zahl},_vrH(a.summe)+" h")
         ,balken(a.verrechnet,a.summe)
-        ,h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}
-          ,h("span",{style:{fontSize:UI.fMeta,fontWeight:600,color:a.offen>0?V.tx:V.acTx}},_vrStatusText(a))
-          ,darf&&sz.status==="ok"?h("button",{type:"button",onClick:function(){setEd({key:a.key,bis:a.w.bis||"",voll:a.w.voll,busy:false,msg:""});},"aria-label":"Verrechnungsstand erfassen: "+a.label,style:bsS()},_ik("stift",16)," Erfassen"):null
+        ,h("div",{style:{display:"flex",gap:6,flexWrap:isBreit?"nowrap":"wrap",alignItems:"center",justifyContent:isBreit?"flex-end":"flex-start",flex:isBreit?undefined:"1 1 100%"}}
+          ,h("span",{style:{fontSize:UI.fMeta,fontWeight:600,color:a.offen>0?V.tx:V.acTx,flex:isBreit?"1 1 auto":"0 1 auto",minWidth:0}},_vrStatusText(a))
+          ,darf&&sz.status==="ok"?h("button",{type:"button",onClick:function(){setEd({key:a.key,bis:a.w.bis||"",voll:a.w.voll,busy:false,msg:""});},"aria-label":"Verrechnungsstand erfassen: "+a.label,style:{...bsS(),display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}},_ik("stift",16),"Erfassen"):null
           ,h("button",{type:"button","aria-expanded":offen?"true":"false","aria-label":"Monteur-Aufteilung "+a.label,onClick:function(){var n=Object.assign({},auf);n[a.key]=!offen;setAuf(n);},style:{...bsS(),minWidth:44}},h("span",{style:{display:"inline-flex",transform:offen?"rotate(180deg)":"none"}},_ik("chevron",16)))))
       ,ed&&ed.key===a.key?editZeile(a):null
       ,offen?h("div",{"data-vr-wochen":"1",style:{marginTop:8,display:"grid",gap:6}},a.wochenListe.map(function(wk){
@@ -14702,14 +14703,14 @@ function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteur
         return h("div",{key:wk.kw,style:{padding:"4px 8px",borderLeft:"2px solid "+(wk.offen<=0?V.ac:V.bd)}}
           ,h("div",{style:{display:"flex",gap:10,flexWrap:"wrap",alignItems:"baseline"}},h("span",{style:{fontWeight:700,color:V.tx,...UI.zahlen}},wk.kw),h("span",{style:zahl},_vrH(wk.summe)+" h"),h("span",{style:{fontSize:UI.fMeta,color:wk.offen<=0?V.acTx:V.dm,fontWeight:600}},st))
           ,Object.keys(wk.monteure).map(function(i){var q=wk.monteure[i];
-            return h("div",{key:i,style:{display:"grid",gridTemplateColumns:"minmax(0,2fr) 90px",gap:8,paddingLeft:12,fontSize:UI.fMeta}},h("span",{style:{color:V.tx}},maName(i)),h("span",{style:{...zahl,fontWeight:600}},_vrH(q.summe)+" h"));}));
+            return h("div",{key:i,style:{display:"grid",gridTemplateColumns:"minmax(0,240px) 90px",gap:8,paddingLeft:12,fontSize:UI.fMeta}},h("span",{style:{color:V.tx}},maName(i)),h("span",{style:{...zahl,fontWeight:600}},_vrH(q.summe)+" h"));}));
       })):null);
   };
   const monteurKarte=function(m){
     var offen=!!auf[m.id];
     return h("div",{key:m.id,style:{...CC(),padding:10,marginBottom:8,borderTop:"3px solid "+V.ac}}
-      ,h("div",{style:{display:"grid",gridTemplateColumns:isMob?"1fr auto":"minmax(0,2fr) 90px 110px 110px minmax(150px,1.4fr) 44px",gap:8,alignItems:"center"}}
-        ,h("span",{style:{fontWeight:700,color:V.tx}},maName(m.id))
+      ,h("div",{style:isBreit?{display:"grid",gridTemplateColumns:"minmax(0,2fr) 90px 110px 110px minmax(150px,1.4fr) 44px",gap:8,alignItems:"center"}:{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}
+        ,h("span",{style:{fontWeight:700,color:V.tx,flex:isBreit?undefined:"1 1 160px",minWidth:0}},maName(m.id))
         ,h("span",{style:zahl},_vrH(m.summe)+" h")
         ,isMob?null:h("span",{style:{fontSize:UI.fMeta,color:V.dm,...UI.zahlen}},_vrH(m.verrechnet)+" h verr.")
         ,isMob?null:h("span",{style:{fontSize:UI.fMeta,color:V.tx,fontWeight:600,...UI.zahlen}},_vrH(m.offen)+" h offen")
