@@ -17,6 +17,18 @@ import io, os
 HIER = os.path.dirname(os.path.abspath(__file__))
 ENTWURF = os.path.join(HIER, "MONATSFREIGABE_v1_ENTWURF.sql")
 ZIEL = os.path.join(HIER, "MONATSFREIGABE_v1_PROBE.sql")
+# GF 24.11.: Nachmessung nach dem Einspielen = dieselben Pruefschritte gegen das eingespielte Modell, OHNE Entwurf.
+# Die Probezeilen (p_*, Periode 1999) werden am Ende trotzdem verworfen, damit keine Testdaten auf Prod bleiben.
+ZIEL_NACH = os.path.join(HIER, "MONATSFREIGABE_v1_NACHMESSUNG.sql")
+SCHEMA = [
+    ("owner", "schema_spalten", "chk", "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='finkzeit' AND column_name IN ('freigabe_bis','admin_freigabe_am','admin_freigabe_von','freigegeben_am','freigegeben_von','ohne_monteur','beanstandung','rueckgabe_grund','snapshot','signatur_pfad','pdf_pfad','admin_vermerk','frist_bei_admin_freigabe','freigabe_hash')", "n14"),
+    ("owner", "schema_policies_finkzeit", "chk", "SELECT count(*) FROM pg_policies WHERE schemaname='public' AND tablename='finkzeit' AND policyname IN ('finkzeit_buero_admin','finkzeit_monteur_select','finkzeit_monteur_update')", "n3"),
+    ("owner", "schema_policies_finkzeit_gesamt", "chk", "SELECT count(*) FROM pg_policies WHERE schemaname='public' AND tablename='finkzeit'", "n3"),
+    ("owner", "schema_storage_regeln", "chk", "SELECT count(*) FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname IN ('epkolar_docs_select','epkolar_docs_insert','epkolar_docs_update','epkolar_docs_delete','monatsfreigabe_monteur_insert')", "n5"),
+    ("owner", "schema_trigger", "chk", "SELECT count(*) FROM pg_trigger WHERE tgname='zz_finkzeit_monatsfreigabe'", "n1"),
+    ("owner", "schema_tabellen", "chk", "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('finkzeit_verlauf','monatsfreigabe_einstellungen')", "n2"),
+    ("owner", "schema_rpc", "chk", "SELECT count(*) FROM pg_proc WHERE proname='monatsfreigabe_beanstanden'", "n1"),
+]
 
 NL = chr(10)
 
@@ -156,7 +168,7 @@ def block(wer, name, art, sql, erw):
         out.append("  PERFORM set_config('request.jwt.claims', '{}', true);")
     return "\n".join(out)
 
-def main():
+def main(nachmessung=False):
     entwurf = io.open(ENTWURF, encoding="utf-8").read()
     kopf = ("-- MONATSFREIGABE_v1_PROBE.sql - GENERIERT von sql/_mf_probe_bauen.py. ENTWURF woertlich + Gegenmessung je Rolle\n"
             "-- in EINER Transaktion; endet IMMER mit RAISE EXCEPTION 'PROBE_ERGEBNIS ...' -> nichts bleibt bestehen.\n"
@@ -176,7 +188,7 @@ def main():
            "  PERFORM set_config('request.jwt.claims', '{}', true);\n")
     teile = []
     vorher = None
-    for st in SCHRITTE:
+    for st in ((SCHEMA + SCHRITTE) if nachmessung else SCHRITTE):
         b = block(*st)
         zeilen = b.split(NL)
         wer = st[0]
@@ -192,8 +204,17 @@ def main():
         teile.append("  EXECUTE 'RESET ROLE';" + NL + "  PERFORM set_config('request.jwt.claims', '{}', true);")
     nach = ("  RAISE EXCEPTION 'PROBE_ERGEBNIS ok=% fail=% %', v_ok, v_fail, r;\n"
             "END $probe$;\nROLLBACK;\n")
+    if nachmessung:
+        kopf2 = ("-- MONATSFREIGABE_v1_NACHMESSUNG.sql - GENERIERT von sql/_mf_probe_bauen.py. NACH dem Einspielen: Schema + dieselben\n"
+                 "-- Pruefschritte je Rolle gegen das eingespielte Modell (ohne Entwurf). Endet mit RAISE + ROLLBACK, damit die\n"
+                 "-- Probezeilen (p_*, Periode 1999) nicht auf Prod bleiben. Erwartung: fail=0.\n"
+                 "BEGIN;\n")
+        io.open(ZIEL_NACH, "w", encoding="utf-8", newline="\n").write(kopf2 + vor + "\n".join(teile) + "\n" + nach)
+        print("geschrieben:", ZIEL_NACH, len(SCHEMA) + len(SCHRITTE), "Schritte")
+        return
     io.open(ZIEL, "w", encoding="utf-8", newline="\n").write(kopf + entwurf + "\n" + vor + "\n".join(teile) + "\n" + nach)
     print("geschrieben:", ZIEL, len(SCHRITTE), "Schritte")
 
 if __name__ == "__main__":
     main()
+    main(nachmessung=True)
