@@ -164,14 +164,13 @@ function plus(iso, n) { const p = iso.split('-'); const d = new Date(Date.UTC(+p
 """
 
 
-def _lauf(node_exe, s, szenen, mutation=None, modell="da"):
+def _lauf(node_exe, s, szenen, mutation=None, modell="da", extra=""):
     blk = _block(s)
-    if mutation:
-        alt, neu = mutation
+    for alt, neu in ([mutation] if mutation and isinstance(mutation[0], str) else (mutation or [])):
         assert blk.count(alt) == 1, alt
         blk = blk.replace(alt, neu)
     echt = "\n".join(_fn(s, n) for n in ECHT)
-    js = PRELUDE + "\n" + _layout(s) + "\n" + echt + "\n" + blk + "\n(async function(){const OUT={};\n" + ("_mfModellStand = 'da';\n" if modell == "da" else "") + szenen + \
+    js = PRELUDE + "\n" + _layout(s) + "\n" + echt + "\n" + extra + "\n" + blk + "\n(async function(){const OUT={};\n" + ("_mfModellStand = 'da';\n" if modell == "da" else "") + szenen + \
         "\nconsole.log(JSON.stringify(OUT));process.exit(0);})().catch(function(e){console.error(e&&e.stack||e);process.exit(3);});\n"
     with tempfile.TemporaryDirectory() as d:
         p = os.path.join(d, "mf.cjs")
@@ -520,3 +519,53 @@ def test_unsichtbar_verdrahtung(src):
     j = src.index("const NOTIF_CATS=")
     assert "monatsabrechnung:{" not in src[j:src.index("};", j)]
     assert "_mfModellPruefen().then(da=>{if(!_alv)return;_setMfAktivS(da);if(!da){_setMfZahlen({});return;}" in src
+
+
+# ── GF 24.11.: EZ-Zaehlung = Zulagen-Report (Lohnpfad), NICHT die Hinweisliste "Entfernungszulage-Tage" ──
+# Lohnpfad (KVZulagenReport): _ezEffTage(_ezTageAusStempel(evs,worker,rules,ym), flags, wid, saetze, _ezAbsSet(abs,approvals,name)).
+# Die Hinweisliste ist _pzeBuildRows(...).filter(r=>r.ez) mit r.ez = nettoMin>360 - an Krankenstandstagen mit Gutschrift
+# (keine Stempelung) steht dort die Sollzeit und damit ein "EZ-Tag". Fall Riedmann, Oktober 2026: 22.10. und 27.10.
+def _pze_quellen(s):
+    namen = set(re.findall(r"\bfunction (_pze\w+|_st[A-Z]\w*|_kv[A-Z]\w*|_resolveApprK|_ezTageAusStempel|_ezAbsSet|_ezStufeFromRow)\(", s))
+    namen = [n for n in sorted(namen) if n not in ("_pzePdf",) and not n.startswith("_stLoad") and ("async function " + n + "(") not in s]
+    teile = [m.group(0).replace("const ", "var ") for m in re.finditer(r"const STEMPEL_[A-Z_]+=[^;]*;", s) if "FALLBACK" not in m.group(0)]
+    teile.append(re.search(r"const isoWof=\(dd\)=>\{.*?\};", s).group(0).replace("const ", "var "))
+    teile.append("var AT_T={krank:{l:'Krankenstand',c:'#c00'}};")
+    for n in namen:
+        if n in ECHT:
+            continue
+        try:
+            teile.append(_fn(s, n))
+        except AssertionError:
+            pass
+    return "\n".join(teile)
+
+
+RIEDMANN = r"""
+const m = {id: 'w9', n: 'Riedmann', r: 'Monteur'};
+const ABS = {'Riedmann_2026-10-22': {type: 'krank', status: 'genehmigt'}, 'Riedmann_2026-10-27': {type: 'krank', status: 'genehmigt'}};
+_ezLadeStempel = async function () { return {status: 'ok', evs: [], rules: null}; };
+_ezFetch = async function () { return {ok: true, missing: false, flags: {}}; };
+const snap = await _mfBaueSnapshot(m, '2026-10', ABS, {});
+OUT.z = snap.summe.z; OUT.min = snap.summe.min; OUT.tage = snap.tage.length;
+const hinweis = _pzeBuildRows({id: 'w9', name: 'Riedmann', role: 'Monteur'}, '2026-10-01', '2026-10-31', [], STEMPEL_PAUSE_FALLBACK, [], ABS, {}).filter(function (x) { return x.ez; }).map(function (x) { return x.datum; });
+OUT.hinweis = hinweis;
+const lohn = _ezEffTage(_ezTageAusStempel([], {id: 'w9', name: 'Riedmann', role: 'Monteur'}, null, '2026-10'), {}, 'w9', {klein: 0, mittel: 0, gross: 0}, _ezAbsSet(ABS, {}, 'Riedmann'));
+OUT.lohn = [lohn.tageKlein, lohn.tageMittel, lohn.tageGross];
+"""
+
+
+def test_riedmann_oktober_krankenstand_mit_gutschrift_ergibt_keine_ez(node_exe, src):
+    R = _lauf(node_exe, src, RIEDMANN, extra=_pze_quellen(src) + "\nvar _ezLadeStempel, _ezFetch;")
+    assert R["hinweis"] == ["2026-10-22", "2026-10-27"]          # der Fall ist echt: die Hinweisliste zaehlt beide Tage
+    assert R["lohn"] == [0, 0, 0]                                  # Zulagen-Report: 0
+    assert R["z"] == {"klein": 0, "mittel": 0, "gross": 0}         # Monatsfreigabe: wie der Zulagen-Report
+    assert R["min"] == 0 and R["tage"] == 0
+
+
+def test_riedmann_umkehrprobe_quelle_hinweisliste_waere_rot(node_exe, src):
+    mut = [("var hMap=_ezTageAusStempel(r[0].evs,worker,r[0].rules,ym);",
+            "var hMap={};_pzeBuildRows(worker,ym+\"-01\",bis,r[0].evs||[],rules,[],abs||{},approvals||{}).forEach(function(x){if(x.ez)hMap[x.datum]=x.nettoMin/60;});"),
+           ("var st=_ezDayEff(h[d],f[_ezKey(wid,d)],!!A[d]);", "var st=(h[d]>6)?\"klein\":\"\";")]
+    R = _lauf(node_exe, src, RIEDMANN, mutation=mut, extra=_pze_quellen(src) + "\nvar _ezLadeStempel, _ezFetch;")
+    assert R["z"]["klein"] == 2   # aus der Hinweisliste gezaehlt -> 2 falsche EZ-Tage; der Riegel oben faengt das
