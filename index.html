@@ -14663,7 +14663,7 @@ function PZEView(props){
         ,h('button',{onClick:()=>setTab('fehler'),style:{...btnS,background:tab==='fehler'?V.ac:V.cd,color:tab==='fehler'?'#fff':V.tx}},'Fehlerhafte Buchungen'+(_fehler.length?' ('+_fehler.length+')':'')))
       /* C1: MA + Zeitraum */
       ,h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:12}}
-        ,tab==='pze'?h('select',{value:wid,onChange:e=>setWid(e.target.value),style:{padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,background:V.bg,color:V.tx,fontSize:14,minHeight:44,flex:isMob?'1 1 100%':'0 0 auto'}}
+        ,(tab==='pze'&&!props.startWid)/* Paket 15: im Mitarbeiter-Monat waehlt der Kopf den Mitarbeiter */?h('select',{value:wid,onChange:e=>setWid(e.target.value),style:{padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,background:V.bg,color:V.tx,fontSize:14,minHeight:44,flex:isMob?'1 1 100%':'0 0 auto'}}
           ,h('option',{value:''},'— Mitarbeiter wählen —')
           ,wk.map(w=>h('option',{key:w.id,value:w.id},w.name))):null
         ,h('button',{onClick:()=>_monatPreset(-1),style:btnS,'aria-label':'Vorheriger Monat'},_zpIk('links','Monat',16))
@@ -15608,9 +15608,9 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       _bxTab==='mamonat' && React.createElement('div',{'data-bx-mamonat':"1"}
         ,React.createElement('h3',{id:"bx-abschnitt-stunden",style:{scrollMarginTop:90,fontSize:16,fontWeight:800,margin:"4px 0 8px",color:V.tx}},"Projektstunden und Monatsliste")
         ,React.createElement(ZeiterfassungView, { key: 'ze'+startWid+startYm, curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine||[], entries: entries, setEntries: setEntries||function(){}, ww: ww, abs: abs, approvals: approvals, imPortal: true, startWid: startWid, startYm: startYm} )
-        ,React.createElement('h3',{id:"bx-abschnitt-zulagen",style:{scrollMarginTop:90,fontSize:16,fontWeight:800,margin:"18px 0 8px",color:V.tx}},"Entfernungszulage")
+        ,React.createElement('div',{id:"bx-abschnitt-zulagen",'aria-hidden':"true",style:{scrollMarginTop:90,height:18}})/* Paket 15: Ueberschrift 'Entfernungszulage' stand doppelt (KVZulagenReport hat dieselbe) - nur noch Sprunganker */
         ,React.createElement(KVZulagenReport, { key: 'kv'+startWid+startYm, entries: entries, monteure: monteure, ww: ww, curUser: curUser, abs: abs, approvals: approvals, kontingent: _kontFor, defaultOpen: true, startYm: startYm, startWid: startWid} )
-        ,React.createElement('h3',{id:"bx-abschnitt-stempel",style:{scrollMarginTop:90,fontSize:16,fontWeight:800,margin:"18px 0 8px",color:V.tx}},"Stempelzeiten (PZE)")
+        ,React.createElement('div',{id:"bx-abschnitt-stempel",'aria-hidden':"true",style:{scrollMarginTop:90,height:18}})/* Paket 15: 'Stempelzeiten (PZE)' stand doppelt ueber 'Stempelzeiten' (PZEView) - nur noch Sprunganker */
         ,React.createElement(PZEView, { key: 'pz'+startWid+startYm, entries: entries, ww: ww, curUser: curUser, abs: abs, approvals: approvals, kontingent: _kontFor, defaultOpen: true, onNav: onNav, startYm: startYm, startWid: startWid} )),
       _bxTab==='zeit' && React.createElement(ZeiterfassungView, { curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine||[], entries: entries, setEntries: setEntries||function(){}, ww: ww, abs: abs, approvals: approvals, imPortal: true} ),
 
@@ -29710,7 +29710,7 @@ ${dayRowsHtml}
           DAYS.map((d,i)=>{const dt=dayTotal(i);return dt>0?React.createElement('button',{key:d,onClick:()=>exportTagesStz(i),style:{padding:"3px 8px",minHeight:24,borderRadius:4,border:"1px solid "+V.bd,background:"transparent",color:V.dm,fontSize:UI.fMeta,cursor:"pointer",fontFamily:"inherit"}},d," ",dateFmt(i)):null;}).filter(Boolean)
         ),
         /* Bauwochenbericht export */
-        _zeBwbDarf&&React.createElement('div',{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center",padding:"8px 10px",background:V.cd,borderRadius:8,border:"1px solid "+V.bd}},
+        _zeBwbDarf&&!(imPortal===true&&startWid)/* Paket 15: im Buero-Portal Mitarbeiter-Monat nur unter Weiteres */&&React.createElement('div',{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center",padding:"8px 10px",background:V.cd,borderRadius:8,border:"1px solid "+V.bd}},
           React.createElement('span',{style:{fontSize:12,fontWeight:700,color:V.tx}},"Bauwochenbericht:"),
           React.createElement('select',{value:bwbProjId,onChange:e=>setBwbProjId(e.target.value),style:{...II(),fontSize:12,padding:"4px 8px",minWidth:180}},
             React.createElement('option',{value:""},"— Projekt wählen —"),
@@ -31525,6 +31525,13 @@ function _bxKwJahr(iso){var d=new Date(String(iso).slice(0,10)+"T12:00:00");var 
 function _bxMonatPlus(ym,d){var y=parseInt(String(ym).slice(0,4),10),m=parseInt(String(ym).slice(5,7),10)+d;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return y+"-"+(m<10?"0":"")+m;}
 function _bxVormonat(heuteISO){return _bxMonatPlus(String(heuteISO||_ezHeuteISO()).slice(0,7),-1);}
 function _bxWerktage(ym){var y=parseInt(ym.slice(0,4),10),m=parseInt(ym.slice(5,7),10);var n=new Date(y,m,0).getDate();var out=[];for(var d=1;d<=n;d++){var dt=new Date(y,m-1,d);var wd=dt.getDay();var iso=ym+"-"+(d<10?"0":"")+d;if(wd>0&&wd<6&&!(typeof _isATFeiertag==="function"&&_isATFeiertag(iso)))out.push(iso);}return out;}
+function _bxKopfListe(monteure,ym){/* Paket 15 (GF 24.11.2026): Kopf-Liste = Vereinigung. _bxMaListe (aktive Projektzeit-Kraefte) zuerst, danach jede weitere Person aus der
+   Mitarbeiterliste (Backoffice, Verkauf/Buchhaltung, Ausgetretene) - das Stempel-Dropdown (PZEView) liest ALLE workers ohne Filter, also darf niemand mit
+   Stempelzeiten aus der Auswahl verschwinden. Zusatz im Namen sagt, warum die Person nicht in der Zeiterfassungs-Liste steht. */
+  var a=_bxMaListe(monteure,ym),ids={};a.forEach(function(m){ids[m.id]=1;});
+  var rest=(monteure||[]).filter(function(m){return m&&m.id&&!ids[m.id];}).sort(function(x,y){return String(x.n||x.id).localeCompare(String(y.n||y.id),'de');});
+  return a.map(function(m){return {m:m,zusatz:''};}).concat(rest.map(function(m){return {m:m,zusatz:_maIstEhemalig(m,ym+'-01')?'ausgetreten':((m.r==='Backoffice'||m.r==='Verkauf/Buchhaltung')?'Büro':'')};}));
+}
 function _bxMaListe(monteure,ym){return (monteure||[]).filter(function(m){return m&&m.id&&m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung"&&!_maIstEhemalig(m,ym+"-01");});}/* v3.9.1106: Buero-Kraefte buchen keine Projektzeit (wie fieldMA der Zeiterfassung) */
 /* Chips je Mitarbeiter: nur lesen. Stunden/Tage aus entries des Monats; Luecken = Werktage vor heute ohne Buchung und ohne genehmigte Abwesenheit;
    Zulagen ueber _ezEffTage (dieselbe Funktion wie Tabelle/PZE-PDF); offene Verrechnung ueber _vrAuswerten/_vrNachMonteur. */
@@ -31579,7 +31586,8 @@ function BueroPortalNeu(props){
   const [ym,setYm]=_react.useState.call(void 0,function(){return _bxVormonat();});
   const [wid,setWid]=_react.useState.call(void 0,"");
   const [weiter,setWeiter]=_react.useState.call(void 0,"projekte");
-  const liste=_bxMaListe(props.monteure,ym);
+  const kopfListe=_bxKopfListe(props.monteure,ym);
+  const liste=kopfListe.map(function(x){return x.m;});/* Paket 15: Kopf, Vorheriger/Naechster und Antipp-Liste folgen der Vereinigung */
   const idx=liste.findIndex(function(m){return m.id===wid;});
   const springe=function(abschnitt){setTimeout(function(){try{var el=document.getElementById("bx-abschnitt-"+abschnitt);if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});}catch(_){}},400);};
   const oeffnen=function(id,abschnitt){setWid(id);if(abschnitt==="verrechnung"){setTab("verrechnung");return;}setTab("mamonat");springe(abschnitt);};
@@ -31590,7 +31598,7 @@ function BueroPortalNeu(props){
     ,h("button",{type:"button","aria-label":"Monat vor",onClick:function(){setYm(_bxMonatPlus(ym,1));},style:knopfKlein},_ik("rechts",18))
     ,h("select",{value:wid,"aria-label":"Mitarbeiter",onChange:function(e){setWid(e.target.value);},style:{...II(),minHeight:44,width:"auto",maxWidth:isMob?"100%":260,fontWeight:600}}
       ,h("option",{value:""},"Alle Mitarbeiter")
-      ,liste.map(function(m){return h("option",{key:m.id,value:m.id},m.n||m.id);})));
+      ,kopfListe.map(function(x){return h("option",{key:x.m.id,value:x.m.id},(x.m.n||x.m.id)+(x.zusatz?(" · "+x.zusatz):""));})));
   const reiter=h("div",{role:"tablist","aria-label":"Büro-Portal",style:isMob?{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6,marginBottom:12}:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}
     ,REITER.map(function(r){var an=tab===r[0];return h("button",{key:r[0],type:"button",role:"tab","aria-selected":an?"true":"false",onClick:function(){setTab(r[0]);},style:an?{...bpS,minHeight:44}:{...bsS(),minHeight:44}},r[1]);}));
   var inhalt=null;
@@ -31618,15 +31626,12 @@ function BueroPortalNeu(props){
     ,h("div",{className:"header-row",style:{marginBottom:10,display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}
       ,h("div",{style:{flex:"1 1 auto",minWidth:0}}
         ,h("h2",{style:{fontSize:isMob?UI.fSeiteMob:UI.fSeite,fontWeight:800,margin:0}},_ikT("aktentasche","Büro-Portal"))
-        ,h("p",{style:{color:V.dm,fontSize:13,margin:0}},UNTER[tab]))
-      ,h("button",{type:"button",onClick:props.onAlteAnsicht,"data-bx-alte-ansicht":"1",title:"Zur bisherigen Ansicht mit 7 Reitern wechseln",style:{...bsS(),minHeight:36,padding:"4px 10px"}},"Alte Ansicht"))
+        ,h("p",{style:{color:V.dm,fontSize:13,margin:0}},UNTER[tab])))/* Paket 15 (GF 24.11.2026): Knopf "Alte Ansicht" entfernt */
     ,kopf,reiter,inhalt);
 }
-function BueroPortal(props){/* Umschalter neu/alt - die alte Ansicht ist das unveraenderte VBueroExport (Sicherung, GF 24.11.) */
-  const [ansicht,setAnsichtRaw]=_react.useState.call(void 0,function(){try{return localStorage.getItem("epk_bueroportal_ansicht")==="alt"?"alt":"neu";}catch(_){return "neu";}});
-  const setAnsicht=function(v){setAnsichtRaw(v);try{localStorage.setItem("epk_bueroportal_ansicht",v);}catch(_){}};
-  if(ansicht==="alt")return React.createElement(VBueroExport,Object.assign({},props,{onNeueAnsicht:function(){setAnsicht("neu");}}));
-  return React.createElement(BueroPortalNeu,Object.assign({},props,{onAlteAnsicht:function(){setAnsicht("alt");}}));
+function BueroPortal(props){/* Paket 15 (GF 24.11.2026): die alte Ansicht ist entfernt, der Umschalter faellt weg - immer das neue Portal.
+   Der gespeicherte Wert epk_bueroportal_ansicht wird nicht mehr gelesen (bleibt im Geraet liegen, schadet nicht). */
+  return React.createElement(BueroPortalNeu,props);
 }
 /* v3.9.1106 Meine Stempelzeiten (GF 24.11.2026): der Mitarbeiter sieht NUR LESEND seine eigenen Stempelungen des Monats
    (Tageszeilen aus _pzeBuildRows - dieselbe Rechnung wie Buero/PZE-PDF) und kann je Tag eine Korrektur beim Buero anfragen

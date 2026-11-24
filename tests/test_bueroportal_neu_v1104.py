@@ -103,14 +103,15 @@ def test_umschalter_und_aufruf():
     assert "React.createElement(BueroPortal, { curUser: curUser," in s
     assert "React.createElement(VBueroExport, {" not in s.split("function BueroPortal(")[0].split("function App(")[-1] or True
     bp = _fn(s, "BueroPortal")
-    assert 'localStorage.getItem("epk_bueroportal_ansicht")==="alt"?"alt":"neu"' in bp
-    assert 'if(ansicht==="alt")return React.createElement(VBueroExport,' in bp
+    # Paket 15 (GF 24.11.2026): alte Ansicht samt Umschalter entfernt - BueroPortal zeigt immer das neue Portal
+    assert 'return React.createElement(BueroPortalNeu,props);' in bp
+    assert 'epk_bueroportal_ansicht")' not in bp and 'VBueroExport' not in bp
     neu = _fn(s, "BueroPortalNeu")
     # Monatsfreigabe (GF 24.11.2026): Reiter freigabe vor Weiteres - bewusst; vorher ohne ["freigabe","Monatsfreigabe"]
     assert '["abschluss","Monatsabschluss"],["mamonat","Mitarbeiter-Monat"],["verrechnung","Verrechnung"],["freigabe","Monatsfreigabe"],["weiteres","Weiteres"]' in neu
     assert "_bxVormonat()" in neu, "Standard = Vormonat"
-    assert "data-bx-alte-ansicht" in neu
-    # die alte Ansicht ist unveraendert erreichbar und kennt ihre 7 Reiter weiter
+    assert "data-bx-alte-ansicht" not in neu  # Paket 15: Knopf 'Alte Ansicht' entfernt
+    # Paket 15: die alte Ansicht ist nicht mehr erreichbar; VBueroExport (eingebettet) kennt seine 7 Reiter weiter
     assert "var BX_TABS=[['projekte','','Projekte'],['zeit','','Zeiterfassung'],['verrechnung','','Verrechnung'],['stempel','','Stempelzeiten'],['zulagen','','Zulagen'],['abwesend','','Abwesenheiten'],['tank','','Tank']];" in s
 
 
