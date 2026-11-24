@@ -10,7 +10,8 @@ in die View gereicht (fuer _ezAbsSet, v783-Abwesenheits-Ausschluss).
 
 
 def test_props_durchgereicht(index_html):
-    assert "function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,approvals}){" in index_html, \
+    # v3.9.1106: Signatur um pushNotif erweitert (Meine Stempelzeiten: Korrektur anfragen) - abs/approvals unveraendert dabei
+    assert "function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,approvals,pushNotif}){" in index_html, \
         "abs/approvals fehlen in der StundenzettelView-Signatur"
     # v3.9.864 KORRIGIERT: hier stand bis v3.9.863 als Wert der nackte Name `approvals`.
     # Der Test war gruen — er hat den WORTLAUT der Callsite geprueft, nicht ob der Wert
@@ -19,8 +20,9 @@ def test_props_durchgereicht(index_html):
     # Render von App, und die GANZE App fiel auf die Fehlerseite. Ein String-Match kann
     # einen ReferenceError festschreiben; deshalb prueft tests/test_stunden_approvals_prop_v864.py
     # zusaetzlich die QUELLE (nur absApprovals erlaubt) statt nur den Text.
+    # v3.9.1106: + pushNotif (Meine Stempelzeiten, Korrektur anfragen)
     assert ("StundenzettelView, { monteure: monteure, ww: ww, curUser: curUser, users: users, "
-            "entries: entries, projects: projects, abs: abs, approvals: absApprovals}" in index_html), \
+            "entries: entries, projects: projects, abs: abs, approvals: absApprovals, pushNotif: pushNotif}" in index_html), \
         "abs/approvals werden am Render-Ort nicht durchgereicht"
 
 

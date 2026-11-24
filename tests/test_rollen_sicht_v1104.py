@@ -256,7 +256,7 @@ console.log(JSON.stringify(out));
 
 def _perm_fehler(out):
     soll = {"admin": True, "buero": True, "projektleiter": False,
-            "monteur": False, "helfer": True, "techniker": True, "obermonteur": True}
+            "monteur": True, "helfer": True, "techniker": True, "obermonteur": True}  # v3.9.1106 GF 24.11.: Monteur bekommt die Monatsabrechnung (Meine Stempelzeiten); vorher False
     return [r for r in soll if out[r] != soll[r]]
 
 
