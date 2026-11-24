@@ -38,7 +38,9 @@ ALTER TABLE public.finkzeit
   DROP COLUMN IF EXISTS snapshot,
   DROP COLUMN IF EXISTS signatur_pfad,
   DROP COLUMN IF EXISTS pdf_pfad,
-  DROP COLUMN IF EXISTS admin_vermerk;
+  DROP COLUMN IF EXISTS admin_vermerk,
+  DROP COLUMN IF EXISTS frist_bei_admin_freigabe,
+  DROP COLUMN IF EXISTS freigabe_hash;
 
 DROP TABLE IF EXISTS public.finkzeit_verlauf;
 DROP TRIGGER IF EXISTS zz_mf_einst_stempel ON public.monatsfreigabe_einstellungen;

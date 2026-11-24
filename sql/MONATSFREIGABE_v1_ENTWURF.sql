@@ -19,8 +19,12 @@
 --   5. Trigger zz_finkzeit_monatsfreigabe (BEFORE INSERT/UPDATE/DELETE): Zustandsautomat, Feld-Whitelist je Rolle,
 --      Admin-only-Uebergang, Frist nie in der Vergangenheit, Sperre nach Freigabe (nur Admin mit Vermerk).
 --      Ohne JWT / service_role / Eigentuemer: frei (Muster Paket 1).
---   6. Storage epkolar-docs: Monteur darf NUR unter monatsfreigabe/<eigene monteur_id>/ hochladen (kein UPDATE ->
---      nicht ueberschreibbar); Projektleitung unter monatsfreigabe/ weder lesen noch schreiben.
+--   6. Storage epkolar-docs, Praefix monatsfreigabe/ (andere Ordner unveraendert, vorher/nachher im Bericht):
+--      Monteur darf NUR seine Unterschrift (monatsfreigabe/<eigene monteur_id>/*_unterschrift_*.png) anlegen;
+--      Projektleitung dort weder lesen noch schreiben; UPDATE/DELETE unter monatsfreigabe/ fuer NIEMANDEN
+--      (abgelegte Unterschriften und PDFs sind unveraenderlich, Upload ohne Ueberschreiben).
+--   Sicherheits-Review 24.11. (3x MEDIUM) eingearbeitet: Frist nach Admin-Freigabe nur verlaengerbar, Frist bei
+--   Admin-Freigabe gespeichert (frist_bei_admin_freigabe), Pruefsumme freigabe_hash, PDF nur vom Buero/Admin.
 --
 -- STATUS (eine Spalte):
 --   in_arbeit -> zur_admin_freigabe (Buero/Admin, Frist Pflicht, nicht in der Vergangenheit, Schnappschuss Pflicht)
@@ -62,7 +66,9 @@ ALTER TABLE public.finkzeit
   ADD COLUMN snapshot           jsonb,
   ADD COLUMN signatur_pfad      text,
   ADD COLUMN pdf_pfad           text,
-  ADD COLUMN admin_vermerk      text;
+  ADD COLUMN admin_vermerk      text,
+  ADD COLUMN frist_bei_admin_freigabe date,
+  ADD COLUMN freigabe_hash      text;
 UPDATE public.finkzeit SET status='entwurf' WHERE status IS NULL OR status='';
 ALTER TABLE public.finkzeit ADD CONSTRAINT finkzeit_status_check CHECK (status IN
   ('entwurf','offen','hochgeladen','genehmigt','in_arbeit','zur_admin_freigabe','zur_freigabe','freigegeben'));
@@ -127,7 +133,7 @@ CREATE POLICY finkzeit_monteur_select ON public.finkzeit FOR SELECT TO authentic
          AND worker_id = public.current_monteur_id() AND status IN ('zur_freigabe','freigegeben'));
 CREATE POLICY finkzeit_monteur_update ON public.finkzeit FOR UPDATE TO authenticated
   USING ((SELECT public.users_konto_aktiv()) AND public.current_user_role() IN ('monteur','helfer')
-         AND worker_id = public.current_monteur_id() AND status IN ('zur_freigabe','freigegeben'))
+         AND worker_id = public.current_monteur_id() AND status = 'zur_freigabe')
   WITH CHECK ((SELECT public.users_konto_aktiv()) AND public.current_user_role() IN ('monteur','helfer')
          AND worker_id = public.current_monteur_id() AND status IN ('zur_freigabe','freigegeben'));
 
@@ -192,6 +198,7 @@ BEGIN
           RAISE EXCEPTION 'Monatsfreigabe: Unterschrift fehlt' USING ERRCODE = '42501'; END IF;
         NEW.beanstandung := OLD.beanstandung;
         NEW.freigegeben_am := now(); NEW.freigegeben_von := v_pk; NEW.ohne_monteur := false;
+        NEW.freigabe_hash := md5(coalesce(OLD.snapshot::text,'') || '|' || NEW.signatur_pfad || '|' || coalesce(OLD.freigabe_bis::text,''));
         INSERT INTO public.finkzeit_verlauf (finkzeit_id, von, rolle, akt, alt, neu) VALUES (NEW.id, v_pk, v_rolle, 'status', OLD.status, NEW.status);
         RETURN NEW;
       ELSIF NEW.status = 'in_arbeit' THEN
@@ -202,13 +209,7 @@ BEGIN
         RETURN NEW;
       END IF;
       RAISE EXCEPTION 'Monatsfreigabe: Uebergang nicht erlaubt' USING ERRCODE = '42501';
-    ELSIF OLD.status = 'freigegeben' AND coalesce(OLD.pdf_pfad,'') = '' THEN
-      v_alt := to_jsonb(OLD) - 'pdf_pfad'; v_neu := to_jsonb(NEW) - 'pdf_pfad';
-      IF v_alt IS DISTINCT FROM v_neu OR coalesce(NEW.pdf_pfad,'') = '' OR left(NEW.pdf_pfad, length(v_pfx)) <> v_pfx
-         OR NOT EXISTS (SELECT 1 FROM storage.objects o WHERE o.bucket_id = 'epkolar-docs' AND o.name = NEW.pdf_pfad) THEN
-        RAISE EXCEPTION 'Monatsfreigabe: nach der Freigabe gesperrt' USING ERRCODE = '42501'; END IF;
-      RETURN NEW;
-    END IF;
+    END IF;  -- PDF legt nur Buero/Admin ab (aus Schnappschuss + Unterschrift), nie der Monteur
     RAISE EXCEPTION 'Monatsfreigabe: nach der Freigabe gesperrt' USING ERRCODE = '42501';
   END IF;
 
@@ -233,11 +234,14 @@ BEGIN
   NEW.admin_freigabe_am := OLD.admin_freigabe_am; NEW.admin_freigabe_von := OLD.admin_freigabe_von;
   NEW.freigegeben_am := OLD.freigegeben_am; NEW.freigegeben_von := OLD.freigegeben_von;
   NEW.ohne_monteur := OLD.ohne_monteur; NEW.signatur_pfad := OLD.signatur_pfad; NEW.pdf_pfad := OLD.pdf_pfad;
+  NEW.frist_bei_admin_freigabe := OLD.frist_bei_admin_freigabe; NEW.freigabe_hash := OLD.freigabe_hash;
 
   -- Frist: nie in der Vergangenheit, jede Aenderung protokolliert
   IF NEW.freigabe_bis IS DISTINCT FROM OLD.freigabe_bis THEN
     IF NEW.freigabe_bis IS NULL AND NEW.status <> 'in_arbeit' THEN RAISE EXCEPTION 'Monatsfreigabe: Frist ist Pflicht'; END IF;
     IF NEW.freigabe_bis IS NOT NULL AND NEW.freigabe_bis < v_heute THEN RAISE EXCEPTION 'Monatsfreigabe: Frist liegt in der Vergangenheit'; END IF;
+    IF OLD.status = 'zur_freigabe' AND NEW.freigabe_bis < OLD.freigabe_bis THEN
+      RAISE EXCEPTION 'Monatsfreigabe: nach der Admin-Freigabe darf die Frist nur verlaengert werden' USING ERRCODE = '42501'; END IF;
     INSERT INTO public.finkzeit_verlauf (finkzeit_id, von, rolle, akt, alt, neu) VALUES (NEW.id, v_pk, v_rolle, 'frist', OLD.freigabe_bis::text, NEW.freigabe_bis::text);
   END IF;
 
@@ -253,14 +257,14 @@ BEGIN
     IF NEW.freigabe_bis IS NULL OR NEW.freigabe_bis < v_heute THEN RAISE EXCEPTION 'Monatsfreigabe: Frist fehlt oder liegt in der Vergangenheit'; END IF;
     IF NEW.snapshot IS NULL OR jsonb_typeof(NEW.snapshot) <> 'object' THEN RAISE EXCEPTION 'Monatsfreigabe: Zahlen fehlen'; END IF;
     NEW.rueckgabe_grund := NULL; NEW.beanstandung := NULL;
-    NEW.admin_freigabe_am := NULL; NEW.admin_freigabe_von := NULL;
+    NEW.admin_freigabe_am := NULL; NEW.admin_freigabe_von := NULL; NEW.frist_bei_admin_freigabe := NULL;
   ELSIF OLD.status = 'zur_admin_freigabe' AND NEW.status = 'zur_freigabe' THEN
     IF v_rolle <> 'admin' THEN RAISE EXCEPTION 'Monatsfreigabe: nur der Admin gibt an den Monteur frei' USING ERRCODE = '42501'; END IF;
     v_alt := to_jsonb(OLD) - 'freigabe_bis' - 'status'; v_neu := to_jsonb(NEW) - 'freigabe_bis' - 'status';
     IF v_alt IS DISTINCT FROM v_neu THEN RAISE EXCEPTION 'Monatsfreigabe: Admin-Freigabe aendert keine Zahlen' USING ERRCODE = '42501'; END IF;
     IF NEW.freigabe_bis IS NULL OR NEW.freigabe_bis < v_heute + v_n THEN
       RAISE EXCEPTION 'Monatsfreigabe: Frist abgelaufen oder zu knapp (mindestens % Tage) - bitte zuerst anpassen', v_n USING ERRCODE = '42501'; END IF;
-    NEW.admin_freigabe_am := now(); NEW.admin_freigabe_von := v_pk;
+    NEW.admin_freigabe_am := now(); NEW.admin_freigabe_von := v_pk; NEW.frist_bei_admin_freigabe := NEW.freigabe_bis;
   ELSIF OLD.status IN ('zur_admin_freigabe','zur_freigabe') AND NEW.status = 'in_arbeit' THEN
     v_grund := btrim(coalesce(NEW.rueckgabe_grund,''));
     IF length(v_grund) < 3 OR NEW.rueckgabe_grund IS NOT DISTINCT FROM OLD.rueckgabe_grund THEN
@@ -269,11 +273,12 @@ BEGIN
     INSERT INTO public.finkzeit_verlauf (finkzeit_id, von, rolle, akt, alt, neu, text) VALUES (NEW.id, v_pk, v_rolle, 'zurueck', OLD.status, NEW.status, v_grund);
     RETURN NEW;
   ELSIF OLD.status = 'zur_freigabe' AND NEW.status = 'freigegeben' THEN
-    IF OLD.freigabe_bis IS NULL OR OLD.freigabe_bis >= v_heute THEN
+    IF OLD.freigabe_bis IS NULL OR OLD.freigabe_bis >= v_heute OR coalesce(OLD.frist_bei_admin_freigabe, OLD.freigabe_bis) >= v_heute THEN
       RAISE EXCEPTION 'Monatsfreigabe: ohne Monteur erst nach Ablauf der Frist' USING ERRCODE = '42501'; END IF;
     v_alt := to_jsonb(OLD) - 'status' - 'notiz'; v_neu := to_jsonb(NEW) - 'status' - 'notiz';
     IF v_alt IS DISTINCT FROM v_neu THEN RAISE EXCEPTION 'Monatsfreigabe: Freigabe aendert keine Zahlen' USING ERRCODE = '42501'; END IF;
     NEW.ohne_monteur := true; NEW.freigegeben_am := now(); NEW.freigegeben_von := v_pk;
+    NEW.freigabe_hash := md5(coalesce(OLD.snapshot::text,'') || '|ohne_monteur|' || coalesce(OLD.freigabe_bis::text,''));
   ELSE
     RAISE EXCEPTION 'Monatsfreigabe: Uebergang % -> % nicht erlaubt', OLD.status, NEW.status USING ERRCODE = '42501';
   END IF;
@@ -311,18 +316,16 @@ CREATE POLICY epkolar_docs_insert ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'epkolar-docs' AND public.is_staff()
               AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'));
 CREATE POLICY epkolar_docs_update ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'epkolar-docs' AND public.is_staff()
-         AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'))
-  WITH CHECK (bucket_id = 'epkolar-docs' AND public.is_staff()
-         AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'));
+  USING (bucket_id = 'epkolar-docs' AND public.is_staff() AND (storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe')
+  WITH CHECK (bucket_id = 'epkolar-docs' AND public.is_staff() AND (storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe');
 CREATE POLICY epkolar_docs_delete ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'epkolar-docs' AND public.is_staff()
-         AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'));
+  USING (bucket_id = 'epkolar-docs' AND public.is_staff() AND (storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe');
 CREATE POLICY monatsfreigabe_monteur_insert ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'epkolar-docs' AND (SELECT public.users_konto_aktiv())
               AND public.current_user_role() IN ('monteur','helfer')
               AND (storage.foldername(name))[1] = 'monatsfreigabe'
-              AND (storage.foldername(name))[2] = public.current_monteur_id());
+              AND (storage.foldername(name))[2] = public.current_monteur_id()
+              AND name LIKE ('monatsfreigabe/' || public.current_monteur_id() || '/%\_unterschrift\_%.png'));
 
 -- 7. Nachpruefung
 DO $nach$

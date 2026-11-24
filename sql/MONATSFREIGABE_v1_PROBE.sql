@@ -23,8 +23,12 @@ BEGIN;
 --   5. Trigger zz_finkzeit_monatsfreigabe (BEFORE INSERT/UPDATE/DELETE): Zustandsautomat, Feld-Whitelist je Rolle,
 --      Admin-only-Uebergang, Frist nie in der Vergangenheit, Sperre nach Freigabe (nur Admin mit Vermerk).
 --      Ohne JWT / service_role / Eigentuemer: frei (Muster Paket 1).
---   6. Storage epkolar-docs: Monteur darf NUR unter monatsfreigabe/<eigene monteur_id>/ hochladen (kein UPDATE ->
---      nicht ueberschreibbar); Projektleitung unter monatsfreigabe/ weder lesen noch schreiben.
+--   6. Storage epkolar-docs, Praefix monatsfreigabe/ (andere Ordner unveraendert, vorher/nachher im Bericht):
+--      Monteur darf NUR seine Unterschrift (monatsfreigabe/<eigene monteur_id>/*_unterschrift_*.png) anlegen;
+--      Projektleitung dort weder lesen noch schreiben; UPDATE/DELETE unter monatsfreigabe/ fuer NIEMANDEN
+--      (abgelegte Unterschriften und PDFs sind unveraenderlich, Upload ohne Ueberschreiben).
+--   Sicherheits-Review 24.11. (3x MEDIUM) eingearbeitet: Frist nach Admin-Freigabe nur verlaengerbar, Frist bei
+--   Admin-Freigabe gespeichert (frist_bei_admin_freigabe), Pruefsumme freigabe_hash, PDF nur vom Buero/Admin.
 --
 -- STATUS (eine Spalte):
 --   in_arbeit -> zur_admin_freigabe (Buero/Admin, Frist Pflicht, nicht in der Vergangenheit, Schnappschuss Pflicht)
@@ -66,7 +70,9 @@ ALTER TABLE public.finkzeit
   ADD COLUMN snapshot           jsonb,
   ADD COLUMN signatur_pfad      text,
   ADD COLUMN pdf_pfad           text,
-  ADD COLUMN admin_vermerk      text;
+  ADD COLUMN admin_vermerk      text,
+  ADD COLUMN frist_bei_admin_freigabe date,
+  ADD COLUMN freigabe_hash      text;
 UPDATE public.finkzeit SET status='entwurf' WHERE status IS NULL OR status='';
 ALTER TABLE public.finkzeit ADD CONSTRAINT finkzeit_status_check CHECK (status IN
   ('entwurf','offen','hochgeladen','genehmigt','in_arbeit','zur_admin_freigabe','zur_freigabe','freigegeben'));
@@ -131,7 +137,7 @@ CREATE POLICY finkzeit_monteur_select ON public.finkzeit FOR SELECT TO authentic
          AND worker_id = public.current_monteur_id() AND status IN ('zur_freigabe','freigegeben'));
 CREATE POLICY finkzeit_monteur_update ON public.finkzeit FOR UPDATE TO authenticated
   USING ((SELECT public.users_konto_aktiv()) AND public.current_user_role() IN ('monteur','helfer')
-         AND worker_id = public.current_monteur_id() AND status IN ('zur_freigabe','freigegeben'))
+         AND worker_id = public.current_monteur_id() AND status = 'zur_freigabe')
   WITH CHECK ((SELECT public.users_konto_aktiv()) AND public.current_user_role() IN ('monteur','helfer')
          AND worker_id = public.current_monteur_id() AND status IN ('zur_freigabe','freigegeben'));
 
@@ -196,6 +202,7 @@ BEGIN
           RAISE EXCEPTION 'Monatsfreigabe: Unterschrift fehlt' USING ERRCODE = '42501'; END IF;
         NEW.beanstandung := OLD.beanstandung;
         NEW.freigegeben_am := now(); NEW.freigegeben_von := v_pk; NEW.ohne_monteur := false;
+        NEW.freigabe_hash := md5(coalesce(OLD.snapshot::text,'') || '|' || NEW.signatur_pfad || '|' || coalesce(OLD.freigabe_bis::text,''));
         INSERT INTO public.finkzeit_verlauf (finkzeit_id, von, rolle, akt, alt, neu) VALUES (NEW.id, v_pk, v_rolle, 'status', OLD.status, NEW.status);
         RETURN NEW;
       ELSIF NEW.status = 'in_arbeit' THEN
@@ -206,13 +213,7 @@ BEGIN
         RETURN NEW;
       END IF;
       RAISE EXCEPTION 'Monatsfreigabe: Uebergang nicht erlaubt' USING ERRCODE = '42501';
-    ELSIF OLD.status = 'freigegeben' AND coalesce(OLD.pdf_pfad,'') = '' THEN
-      v_alt := to_jsonb(OLD) - 'pdf_pfad'; v_neu := to_jsonb(NEW) - 'pdf_pfad';
-      IF v_alt IS DISTINCT FROM v_neu OR coalesce(NEW.pdf_pfad,'') = '' OR left(NEW.pdf_pfad, length(v_pfx)) <> v_pfx
-         OR NOT EXISTS (SELECT 1 FROM storage.objects o WHERE o.bucket_id = 'epkolar-docs' AND o.name = NEW.pdf_pfad) THEN
-        RAISE EXCEPTION 'Monatsfreigabe: nach der Freigabe gesperrt' USING ERRCODE = '42501'; END IF;
-      RETURN NEW;
-    END IF;
+    END IF;  -- PDF legt nur Buero/Admin ab (aus Schnappschuss + Unterschrift), nie der Monteur
     RAISE EXCEPTION 'Monatsfreigabe: nach der Freigabe gesperrt' USING ERRCODE = '42501';
   END IF;
 
@@ -237,11 +238,14 @@ BEGIN
   NEW.admin_freigabe_am := OLD.admin_freigabe_am; NEW.admin_freigabe_von := OLD.admin_freigabe_von;
   NEW.freigegeben_am := OLD.freigegeben_am; NEW.freigegeben_von := OLD.freigegeben_von;
   NEW.ohne_monteur := OLD.ohne_monteur; NEW.signatur_pfad := OLD.signatur_pfad; NEW.pdf_pfad := OLD.pdf_pfad;
+  NEW.frist_bei_admin_freigabe := OLD.frist_bei_admin_freigabe; NEW.freigabe_hash := OLD.freigabe_hash;
 
   -- Frist: nie in der Vergangenheit, jede Aenderung protokolliert
   IF NEW.freigabe_bis IS DISTINCT FROM OLD.freigabe_bis THEN
     IF NEW.freigabe_bis IS NULL AND NEW.status <> 'in_arbeit' THEN RAISE EXCEPTION 'Monatsfreigabe: Frist ist Pflicht'; END IF;
     IF NEW.freigabe_bis IS NOT NULL AND NEW.freigabe_bis < v_heute THEN RAISE EXCEPTION 'Monatsfreigabe: Frist liegt in der Vergangenheit'; END IF;
+    IF OLD.status = 'zur_freigabe' AND NEW.freigabe_bis < OLD.freigabe_bis THEN
+      RAISE EXCEPTION 'Monatsfreigabe: nach der Admin-Freigabe darf die Frist nur verlaengert werden' USING ERRCODE = '42501'; END IF;
     INSERT INTO public.finkzeit_verlauf (finkzeit_id, von, rolle, akt, alt, neu) VALUES (NEW.id, v_pk, v_rolle, 'frist', OLD.freigabe_bis::text, NEW.freigabe_bis::text);
   END IF;
 
@@ -257,14 +261,14 @@ BEGIN
     IF NEW.freigabe_bis IS NULL OR NEW.freigabe_bis < v_heute THEN RAISE EXCEPTION 'Monatsfreigabe: Frist fehlt oder liegt in der Vergangenheit'; END IF;
     IF NEW.snapshot IS NULL OR jsonb_typeof(NEW.snapshot) <> 'object' THEN RAISE EXCEPTION 'Monatsfreigabe: Zahlen fehlen'; END IF;
     NEW.rueckgabe_grund := NULL; NEW.beanstandung := NULL;
-    NEW.admin_freigabe_am := NULL; NEW.admin_freigabe_von := NULL;
+    NEW.admin_freigabe_am := NULL; NEW.admin_freigabe_von := NULL; NEW.frist_bei_admin_freigabe := NULL;
   ELSIF OLD.status = 'zur_admin_freigabe' AND NEW.status = 'zur_freigabe' THEN
     IF v_rolle <> 'admin' THEN RAISE EXCEPTION 'Monatsfreigabe: nur der Admin gibt an den Monteur frei' USING ERRCODE = '42501'; END IF;
     v_alt := to_jsonb(OLD) - 'freigabe_bis' - 'status'; v_neu := to_jsonb(NEW) - 'freigabe_bis' - 'status';
     IF v_alt IS DISTINCT FROM v_neu THEN RAISE EXCEPTION 'Monatsfreigabe: Admin-Freigabe aendert keine Zahlen' USING ERRCODE = '42501'; END IF;
     IF NEW.freigabe_bis IS NULL OR NEW.freigabe_bis < v_heute + v_n THEN
       RAISE EXCEPTION 'Monatsfreigabe: Frist abgelaufen oder zu knapp (mindestens % Tage) - bitte zuerst anpassen', v_n USING ERRCODE = '42501'; END IF;
-    NEW.admin_freigabe_am := now(); NEW.admin_freigabe_von := v_pk;
+    NEW.admin_freigabe_am := now(); NEW.admin_freigabe_von := v_pk; NEW.frist_bei_admin_freigabe := NEW.freigabe_bis;
   ELSIF OLD.status IN ('zur_admin_freigabe','zur_freigabe') AND NEW.status = 'in_arbeit' THEN
     v_grund := btrim(coalesce(NEW.rueckgabe_grund,''));
     IF length(v_grund) < 3 OR NEW.rueckgabe_grund IS NOT DISTINCT FROM OLD.rueckgabe_grund THEN
@@ -273,11 +277,12 @@ BEGIN
     INSERT INTO public.finkzeit_verlauf (finkzeit_id, von, rolle, akt, alt, neu, text) VALUES (NEW.id, v_pk, v_rolle, 'zurueck', OLD.status, NEW.status, v_grund);
     RETURN NEW;
   ELSIF OLD.status = 'zur_freigabe' AND NEW.status = 'freigegeben' THEN
-    IF OLD.freigabe_bis IS NULL OR OLD.freigabe_bis >= v_heute THEN
+    IF OLD.freigabe_bis IS NULL OR OLD.freigabe_bis >= v_heute OR coalesce(OLD.frist_bei_admin_freigabe, OLD.freigabe_bis) >= v_heute THEN
       RAISE EXCEPTION 'Monatsfreigabe: ohne Monteur erst nach Ablauf der Frist' USING ERRCODE = '42501'; END IF;
     v_alt := to_jsonb(OLD) - 'status' - 'notiz'; v_neu := to_jsonb(NEW) - 'status' - 'notiz';
     IF v_alt IS DISTINCT FROM v_neu THEN RAISE EXCEPTION 'Monatsfreigabe: Freigabe aendert keine Zahlen' USING ERRCODE = '42501'; END IF;
     NEW.ohne_monteur := true; NEW.freigegeben_am := now(); NEW.freigegeben_von := v_pk;
+    NEW.freigabe_hash := md5(coalesce(OLD.snapshot::text,'') || '|ohne_monteur|' || coalesce(OLD.freigabe_bis::text,''));
   ELSE
     RAISE EXCEPTION 'Monatsfreigabe: Uebergang % -> % nicht erlaubt', OLD.status, NEW.status USING ERRCODE = '42501';
   END IF;
@@ -315,18 +320,16 @@ CREATE POLICY epkolar_docs_insert ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'epkolar-docs' AND public.is_staff()
               AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'));
 CREATE POLICY epkolar_docs_update ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'epkolar-docs' AND public.is_staff()
-         AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'))
-  WITH CHECK (bucket_id = 'epkolar-docs' AND public.is_staff()
-         AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'));
+  USING (bucket_id = 'epkolar-docs' AND public.is_staff() AND (storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe')
+  WITH CHECK (bucket_id = 'epkolar-docs' AND public.is_staff() AND (storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe');
 CREATE POLICY epkolar_docs_delete ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'epkolar-docs' AND public.is_staff()
-         AND NOT ((storage.foldername(name))[1] = 'monatsfreigabe' AND public.current_user_role() = 'projektleiter'));
+  USING (bucket_id = 'epkolar-docs' AND public.is_staff() AND (storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe');
 CREATE POLICY monatsfreigabe_monteur_insert ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'epkolar-docs' AND (SELECT public.users_konto_aktiv())
               AND public.current_user_role() IN ('monteur','helfer')
               AND (storage.foldername(name))[1] = 'monatsfreigabe'
-              AND (storage.foldername(name))[2] = public.current_monteur_id());
+              AND (storage.foldername(name))[2] = public.current_monteur_id()
+              AND name LIKE ('monatsfreigabe/' || public.current_monteur_id() || '/%\_unterschrift\_%.png'));
 
 -- 7. Nachpruefung
 DO $nach$
@@ -398,9 +401,11 @@ BEGIN
   BEGIN EXECUTE 'UPDATE public.finkzeit SET status=''freigegeben'',signatur_pfad=''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_sig.png'' WHERE id=''p_a_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_freigabe_mit_unterschrift=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET beanstandung=''doch nicht'' WHERE id=''p_a_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
-  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_aenderung_nach_freigabe=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  IF v_got LIKE 'ok0' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_aenderung_nach_freigabe=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'UPDATE public.finkzeit SET pdf_pfad=''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_sig.png'' WHERE id=''p_a_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'ok0' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_pdf_pfad_nach_freigabe=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET status=''zur_freigabe'' WHERE id=''p_a_fg'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
-  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_status_zurueck_nach_freigabe=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  IF v_got LIKE 'ok0' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_status_zurueck_nach_freigabe=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'INSERT INTO public.finkzeit(id,worker_id,period,status) VALUES (''p_x'','||quote_literal(v_a)||',''1999-09'',''in_arbeit'')'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_anlegen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'DELETE FROM public.finkzeit WHERE id=''p_a_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
@@ -409,15 +414,17 @@ BEGIN
   IF v_got LIKE 'n0' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_verlauf_lesen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.monatsfreigabe_einstellungen SET erinnerung_tage=9 WHERE id=1'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'ok0' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_einstellung_aendern=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
-  BEGIN EXECUTE 'INSERT INTO storage.objects(bucket_id,name,owner) VALUES (''epkolar-docs'',''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_eigen.png'','||quote_literal(v_ua)||')'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  BEGIN EXECUTE 'INSERT INTO storage.objects(bucket_id,name,owner) VALUES (''epkolar-docs'',''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_unterschrift_1.png'','||quote_literal(v_ua)||')'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_storage_eigener_praefix=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'INSERT INTO storage.objects(bucket_id,name,owner) VALUES (''epkolar-docs'',''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_freigabe.pdf'','||quote_literal(v_ua)||')'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_storage_kein_pdf=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'INSERT INTO storage.objects(bucket_id,name,owner) VALUES (''epkolar-docs'',''monatsfreigabe/''||'||quote_literal(v_b)||'||''/p_fremd.png'','||quote_literal(v_ua)||')'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_storage_fremder_praefix=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'INSERT INTO storage.objects(bucket_id,name,owner) VALUES (''epkolar-docs'',''docs/''||'||quote_literal(v_a)||'||''/p_doc.pdf'','||quote_literal(v_ua)||')'; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL mA_storage_docs_praefix=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   EXECUTE 'RESET ROLE';
   PERFORM set_config('request.jwt.claims', '{}', true);
-  BEGIN EXECUTE 'SELECT count(*) FROM public.finkzeit WHERE id=''p_a_zf'' AND status=''freigegeben'' AND freigegeben_von='||quote_literal(v_pa)||' AND freigegeben_am IS NOT NULL AND ohne_monteur=false' INTO v_n; v_got := 'n'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err:'||SQLSTATE; END;
+  BEGIN EXECUTE 'SELECT count(*) FROM public.finkzeit WHERE id=''p_a_zf'' AND status=''freigegeben'' AND freigegeben_von='||quote_literal(v_pa)||' AND freigegeben_am IS NOT NULL AND ohne_monteur=false AND freigabe_hash IS NOT NULL AND coalesce(pdf_pfad,'''')=''''' INTO v_n; v_got := 'n'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err:'||SQLSTATE; END;
   IF v_got LIKE 'n1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL pruef_freigabe_server=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   PERFORM set_config('request.jwt.claims', json_build_object('sub',v_ut,'role','authenticated')::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
@@ -469,6 +476,14 @@ BEGIN
   IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_frist_in_vergangenheit=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET freigabe_bis='||quote_literal(v_h)||'::date'||'+20 WHERE id=''p_b_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_frist_aendern=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'UPDATE public.finkzeit SET freigabe_bis='||quote_literal(v_h)||'::date'||'+15 WHERE id=''p_b_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_frist_vorziehen_nach_admin=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'UPDATE storage.objects SET name=name WHERE bucket_id=''epkolar-docs'' AND name LIKE ''monatsfreigabe/%'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'ok0' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_storage_monatsfreigabe_aendern=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'DELETE FROM storage.objects WHERE bucket_id=''epkolar-docs'' AND name LIKE ''monatsfreigabe/%'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_storage_monatsfreigabe_loeschen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'SELECT count(*) FROM storage.objects WHERE bucket_id=''epkolar-docs'' AND name LIKE ''monatsfreigabe/%''' INTO v_n; v_got := 'n'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err:'||SQLSTATE; END;
+  IF v_got LIKE 'n2' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_storage_monatsfreigabe_lesen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET snapshot=''{"x":2}''::jsonb WHERE id=''p_b_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_zahlen_in_zur_freigabe=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET status=''freigegeben'' WHERE id=''p_b_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
@@ -489,7 +504,14 @@ BEGIN
   IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_einstellung_aendern=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   EXECUTE 'RESET ROLE';
   PERFORM set_config('request.jwt.claims', '{}', true);
-  EXECUTE 'UPDATE public.finkzeit SET freigabe_bis='||quote_literal(v_h)||'::date'||'-1 WHERE id=''p_b_zf''';
+  EXECUTE 'UPDATE public.finkzeit SET freigabe_bis='||quote_literal(v_h)||'::date'||'-1,frist_bei_admin_freigabe='||quote_literal(v_h)||'::date'||'+10 WHERE id=''p_b_zf''';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub',v_ubu,'role','authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  BEGIN EXECUTE 'UPDATE public.finkzeit SET status=''freigegeben'' WHERE id=''p_b_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_ohne_monteur_frist_bei_admin_laeuft=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims', '{}', true);
+  EXECUTE 'UPDATE public.finkzeit SET freigabe_bis='||quote_literal(v_h)||'::date'||'-1,frist_bei_admin_freigabe='||quote_literal(v_h)||'::date'||'-1 WHERE id=''p_b_zf''';
   PERFORM set_config('request.jwt.claims', json_build_object('sub',v_ubu,'role','authenticated')::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   BEGIN EXECUTE 'UPDATE public.finkzeit SET status=''freigegeben'' WHERE id=''p_b_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
@@ -498,6 +520,14 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '{}', true);
   BEGIN EXECUTE 'SELECT count(*) FROM public.finkzeit WHERE id=''p_b_zf'' AND ohne_monteur AND freigegeben_von='||quote_literal(v_pbu)||'' INTO v_n; v_got := 'n'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err:'||SQLSTATE; END;
   IF v_got LIKE 'n1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL pruef_ohne_monteur=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  PERFORM set_config('request.jwt.claims', json_build_object('sub',v_ubu,'role','authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  BEGIN EXECUTE 'UPDATE public.finkzeit SET pdf_pfad=''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_sig.png'' WHERE id=''p_a_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_pdf_pfad_nachtragen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'UPDATE public.finkzeit SET pdf_pfad=''monatsfreigabe/''||'||quote_literal(v_a)||'||''/p_unterschrift_1.png'' WHERE id=''p_a_zf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL buero_pdf_pfad_ersetzen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims', '{}', true);
   PERFORM set_config('request.jwt.claims', json_build_object('sub',v_uad,'role','authenticated')::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   BEGIN EXECUTE 'UPDATE public.finkzeit SET status=''zur_freigabe'' WHERE id=''p_a_zaf'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
@@ -514,6 +544,8 @@ BEGIN
   IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL admin_zurueck_mit_grund=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET notiz=''x'' WHERE id=''p_a_fg'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL admin_aendert_freigegebene_ohne_vermerk=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
+  BEGIN EXECUTE 'DELETE FROM storage.objects WHERE bucket_id=''epkolar-docs'' AND name LIKE ''monatsfreigabe/%'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
+  IF v_got LIKE 'err' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL admin_storage_monatsfreigabe_loeschen=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   BEGIN EXECUTE 'UPDATE public.finkzeit SET admin_vermerk=''Korrektur Lohnbuero'',notiz=''x'' WHERE id=''p_a_fg'''; GET DIAGNOSTICS v_n = ROW_COUNT; v_got := 'ok'||v_n; EXCEPTION WHEN OTHERS THEN v_got := 'err'; v_msg := SQLERRM; END;
   IF v_got LIKE 'ok1' THEN v_ok := v_ok + 1; ELSE v_fail := v_fail + 1; r := r || ' | FAIL admin_vermerk_freigegebene=' || v_got || coalesce(' ('||left(v_msg,80)||')',''); END IF; v_msg := NULL;
   EXECUTE 'RESET ROLE';

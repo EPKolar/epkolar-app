@@ -31367,7 +31367,7 @@ async function _ezLadeStempel(ym,wid){/* -> {status:'ok'|'fehler', evs, rules}; 
 var MF_NEU=["in_arbeit","zur_admin_freigabe","zur_freigabe","freigegeben"];
 var MF_MONTEUR_ROLLEN=["monteur","helfer"];
 var MF_STATUS_TXT={in_arbeit:"In Arbeit (Büro)",zur_admin_freigabe:"Wartet auf Admin-Freigabe",zur_freigabe:"Beim Monteur zur Freigabe",freigegeben:"Freigegeben"};
-var MF_SPALTEN="id,worker_id,period,jahr,monat,status,freigabe_bis,admin_freigabe_am,admin_freigabe_von,freigegeben_am,freigegeben_von,ohne_monteur,beanstandung,rueckgabe_grund,snapshot,signatur_pfad,pdf_pfad,admin_vermerk,notiz,worker_name";
+var MF_SPALTEN="id,worker_id,period,jahr,monat,status,freigabe_bis,frist_bei_admin_freigabe,freigabe_hash,admin_freigabe_am,admin_freigabe_von,freigegeben_am,freigegeben_von,ohne_monteur,beanstandung,rueckgabe_grund,snapshot,signatur_pfad,pdf_pfad,admin_vermerk,notiz,worker_name";
 var MF_ERINNERUNG_STANDARD=3;
 /* Zulagenarten datengetrieben: Reihenfolge, Kurzzeichen und Farbe aus _ezStufeMeta. Eine weitere Stufe = ein Eintrag hier. */
 var MF_ZULAGEN_KEYS=["klein","mittel","gross"];
@@ -31578,7 +31578,7 @@ function _mfPdf(o){
   else{doc.text("Vom Mitarbeiter freigegeben am "+_mfZeit(row.freigegeben_am||o.zeit),12,y);y+=4;
     if(o.sig){try{doc.addImage(o.sig,"PNG",12,y,60,30);}catch(e){}y+=34;}
     doc.text("Unterschrift Mitarbeiter",12,y);y+=6;}
-  doc.setFontSize(8);doc.setTextColor(91,102,96);doc.text("Erstellt "+_mfZeit(new Date().toISOString())+" - Stempelstunden laut Stempeluhr, Zulagen laut Büro-Kalender.",12,290);
+  doc.setFontSize(8);doc.setTextColor(91,102,96);doc.text("Erstellt "+_mfZeit(new Date().toISOString())+" - Stempelstunden laut Stempeluhr, Zulagen laut Büro-Kalender."+(row.freigabe_hash?" Prüfsumme "+row.freigabe_hash:""),12,290);
   return doc;
 }
 function _mfZeit(iso){if(!iso)return "";try{var d=new Date(iso);return d.toLocaleDateString("de-AT")+" "+d.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"});}catch(e){return String(iso);}}
@@ -31592,6 +31592,12 @@ async function _mfPdfAblegen(row,name,sig){
   return pfad;
 }
 
+/* Buero/Admin: fuer freigegebene Abrechnungen ohne PDF das PDF einmal je Sitzung erzeugen und ablegen. */
+var _mfPdfVersucht={};
+async function _mfPdfNachziehen(rows,monteure){
+  for(var i=0;i<(rows||[]).length;i++){var r=rows[i];if(!r||r.status!=="freigegeben"||r.pdf_pfad||_mfPdfVersucht[r.id])continue;_mfPdfVersucht[r.id]=1;
+    try{var m=(monteure||[]).find(function(x){return x.id===r.worker_id;});var sig=r.signatur_pfad?await _mfDateiAlsDataUrl(r.signatur_pfad):"";await _mfPdfAblegen(r,(m&&(m.n||m.name))||r.worker_name||r.worker_id,sig);}catch(e){}}
+}
 /* ---- Bausteine der Anzeige ---- */
 function MfKacheln({sum}){
   var h=React.createElement;var s=sum||_mfZaehlen([]);
@@ -31692,7 +31698,7 @@ function MonatsfreigabeMonteur({curUser,users,pushNotif,ww}){
         await _mfPatch(row.id,{status:"freigegeben",signatur_pfad:pfad});
         var nach=await _mfLaden("id=eq."+encodeURIComponent(row.id));var r2=nach[0];
         if(!r2||r2.status!=="freigegeben")throw new Error("Freigabe nicht gespeichert");
-        try{await _mfPdfAblegen(r2,name,sig);}catch(e){/* PDF-Rueckfall: das Buero erzeugt es aus Unterschrift und Schnappschuss */}
+        /* PDF legt das Buero ab (aus Schnappschuss + Unterschrift) - ein vom Monteur-Geraet erzeugtes PDF waere nicht pruefbar (Sicherheits-Review 24.11.) */
         _mfMelden(pushNotif,"mf_freigegeben",r2,{users:users,name:name,stempel:r2.freigegeben_am||Date.now()});
         if(window.__toast)window.__toast("Monatsabrechnung freigegeben");
         setSig("");setNeu(neu+1);_mfZahlAnstossen();
@@ -31755,6 +31761,7 @@ function MonatsfreigabeBuero({ym,monteure,users,curUser,abs,approvals,pushNotif,
       setStand({status:"ok",rows:r[0]});setEinst(r[1]);
       _mfFristAbgelaufen(r[0],heute).forEach(function(x){_mfMelden(pushNotif,"mf_frist_abgelaufen",x,{users:users,name:x.worker_name,stempel:x.freigabe_bis});});
       var ziel=_mfZielNehmen("bueroexport");if(ziel)setOffenId(ziel);
+      _mfPdfNachziehen(r[0],monteure);
     }).catch(function(e){if(lebt)setStand({status:e&&e.fehltModell?"modell":"fehler",rows:[]});});
     return function(){lebt=false;};},[ym,neu]);
   var tun=async function(key,fn,ok){if(busy)return;setBusy(key);try{await fn();if(ok&&window.__toast)window.__toast(ok);setNeu(neu+1);_mfZahlAnstossen();}catch(e){if(window.__toast)window.__toast((e&&e.message)||String(e),"error",7000);}setBusy("");};

@@ -9,6 +9,8 @@ Jede Zeile der Liste: (wer, name, art, sql, erwartet)
            own  -> als Eigentuemer ohne Pruefung (Vorbereitung)
   erwartet Muster fuer LIKE (z. B. 'err', 'ok1', 'n2')
 Aufruf: python sql/_mf_probe_bauen.py
+Hinweis: nach der Freigabe blockt beim Monteur schon die RLS (0 Zeilen, ok0); direktes DELETE auf storage.objects
+verbietet Supabase selbst (err) - der Storage-API-Weg laeuft ueber die Policy epkolar_docs_delete (monatsfreigabe/ ausgenommen).
 """
 import io, os
 
@@ -49,16 +51,18 @@ SCHRITTE = [
     ("owner", "pruef_beanstandet", "chk", "SELECT count(*) FROM %s WHERE id='p_a_zf2' AND status='in_arbeit' AND beanstandung='Am 3. fehlt eine Stunde'" % FZ, "n1"),
     ("mA", "mA_freigabe_faelscht_serverfeld", "run", "UPDATE %s SET status='freigegeben',signatur_pfad='monatsfreigabe/'||$A||'/p_sig.png',freigegeben_von='gefaelscht' WHERE id='p_a_zf'" % FZ, "err"),
     ("mA", "mA_freigabe_mit_unterschrift", "run", "UPDATE %s SET status='freigegeben',signatur_pfad='monatsfreigabe/'||$A||'/p_sig.png' WHERE id='p_a_zf'" % FZ, "ok1"),
-    ("mA", "mA_aenderung_nach_freigabe", "run", "UPDATE %s SET beanstandung='doch nicht' WHERE id='p_a_zf'" % FZ, "err"),
-    ("mA", "mA_status_zurueck_nach_freigabe", "run", "UPDATE %s SET status='zur_freigabe' WHERE id='p_a_fg'" % FZ, "err"),
+    ("mA", "mA_aenderung_nach_freigabe", "run", "UPDATE %s SET beanstandung='doch nicht' WHERE id='p_a_zf'" % FZ, "ok0"),
+    ("mA", "mA_pdf_pfad_nach_freigabe", "run", "UPDATE %s SET pdf_pfad='monatsfreigabe/'||$A||'/p_sig.png' WHERE id='p_a_zf'" % FZ, "ok0"),
+    ("mA", "mA_status_zurueck_nach_freigabe", "run", "UPDATE %s SET status='zur_freigabe' WHERE id='p_a_fg'" % FZ, "ok0"),
     ("mA", "mA_anlegen", "run", "INSERT INTO %s(id,worker_id,period,status) VALUES ('p_x',$A,'1999-09','in_arbeit')" % FZ, "err"),
     ("mA", "mA_loeschen", "run", "DELETE FROM %s WHERE id='p_a_zf'" % FZ, "ok0"),
     ("mA", "mA_verlauf_lesen", "cnt", "SELECT count(*) FROM public.finkzeit_verlauf", "n0"),
     ("mA", "mA_einstellung_aendern", "run", "UPDATE public.monatsfreigabe_einstellungen SET erinnerung_tage=9 WHERE id=1", "ok0"),
-    ("mA", "mA_storage_eigener_praefix", "run", "INSERT INTO storage.objects(bucket_id,name,owner) VALUES ('epkolar-docs','monatsfreigabe/'||$A||'/p_eigen.png',$UA)", "ok1"),
+    ("mA", "mA_storage_eigener_praefix", "run", "INSERT INTO storage.objects(bucket_id,name,owner) VALUES ('epkolar-docs','monatsfreigabe/'||$A||'/p_unterschrift_1.png',$UA)", "ok1"),
+    ("mA", "mA_storage_kein_pdf", "run", "INSERT INTO storage.objects(bucket_id,name,owner) VALUES ('epkolar-docs','monatsfreigabe/'||$A||'/p_freigabe.pdf',$UA)", "err"),
     ("mA", "mA_storage_fremder_praefix", "run", "INSERT INTO storage.objects(bucket_id,name,owner) VALUES ('epkolar-docs','monatsfreigabe/'||$B||'/p_fremd.png',$UA)", "err"),
     ("mA", "mA_storage_docs_praefix", "run", "INSERT INTO storage.objects(bucket_id,name,owner) VALUES ('epkolar-docs','docs/'||$A||'/p_doc.pdf',$UA)", "err"),
-    ("owner", "pruef_freigabe_server", "chk", "SELECT count(*) FROM %s WHERE id='p_a_zf' AND status='freigegeben' AND freigegeben_von=$PA AND freigegeben_am IS NOT NULL AND ohne_monteur=false" % FZ, "n1"),
+    ("owner", "pruef_freigabe_server", "chk", "SELECT count(*) FROM %s WHERE id='p_a_zf' AND status='freigegeben' AND freigegeben_von=$PA AND freigegeben_am IS NOT NULL AND ohne_monteur=false AND freigabe_hash IS NOT NULL AND coalesce(pdf_pfad,'')=''" % FZ, "n1"),
 
     # Techniker / Projektleitung
     ("tech", "tech_sieht", "cnt", "SELECT count(*) FROM %s WHERE id LIKE 'p\\_%%'" % FZ, "n0"),
@@ -81,6 +85,10 @@ SCHRITTE = [
     ("buero", "buero_fertig", "run", "UPDATE %s SET status='zur_admin_freigabe',freigabe_bis=$H+10,snapshot=%s WHERE id='p_a_ia'" % (FZ, SN), "ok1"),
     ("buero", "buero_frist_in_vergangenheit", "run", "UPDATE %s SET freigabe_bis=$H-1 WHERE id='p_b_zf'" % FZ, "err"),
     ("buero", "buero_frist_aendern", "run", "UPDATE %s SET freigabe_bis=$H+20 WHERE id='p_b_zf'" % FZ, "ok1"),
+    ("buero", "buero_frist_vorziehen_nach_admin", "run", "UPDATE %s SET freigabe_bis=$H+15 WHERE id='p_b_zf'" % FZ, "err"),
+    ("buero", "buero_storage_monatsfreigabe_aendern", "run", "UPDATE storage.objects SET name=name WHERE bucket_id='epkolar-docs' AND name LIKE 'monatsfreigabe/%'", "ok0"),
+    ("buero", "buero_storage_monatsfreigabe_loeschen", "run", "DELETE FROM storage.objects WHERE bucket_id='epkolar-docs' AND name LIKE 'monatsfreigabe/%'", "err"),
+    ("buero", "buero_storage_monatsfreigabe_lesen", "cnt", "SELECT count(*) FROM storage.objects WHERE bucket_id='epkolar-docs' AND name LIKE 'monatsfreigabe/%'", "n2"),
     ("buero", "buero_zahlen_in_zur_freigabe", "run", "UPDATE %s SET snapshot='{\"x\":2}'::jsonb WHERE id='p_b_zf'" % FZ, "err"),
     ("buero", "buero_ohne_monteur_vor_frist", "run", "UPDATE %s SET status='freigegeben' WHERE id='p_b_zf'" % FZ, "err"),
     ("buero", "buero_aendert_freigegebene", "run", "UPDATE %s SET notiz='x' WHERE id='p_a_fg'" % FZ, "err"),
@@ -90,9 +98,13 @@ SCHRITTE = [
     ("buero", "buero_rpc_beanstanden", "run", "SELECT public.monatsfreigabe_beanstanden('p_b_zf','Buero spielt Monteur')", "err"),
     ("buero", "buero_verlauf_lesen", "cnt", "SELECT count(*) FROM public.finkzeit_verlauf WHERE finkzeit_id IN ('p_b_zf','p_a_ia')", "n3"),
     ("buero", "buero_einstellung_aendern", "run", "UPDATE public.monatsfreigabe_einstellungen SET erinnerung_tage=3 WHERE id=1", "ok1"),
-    ("owner", "prep_frist_abgelaufen", "own", "UPDATE %s SET freigabe_bis=$H-1 WHERE id='p_b_zf'" % FZ, ""),
+    ("owner", "prep_frist_umgangen", "own", "UPDATE %s SET freigabe_bis=$H-1,frist_bei_admin_freigabe=$H+10 WHERE id='p_b_zf'" % FZ, ""),
+    ("buero", "buero_ohne_monteur_frist_bei_admin_laeuft", "run", "UPDATE %s SET status='freigegeben' WHERE id='p_b_zf'" % FZ, "err"),
+    ("owner", "prep_frist_abgelaufen", "own", "UPDATE %s SET freigabe_bis=$H-1,frist_bei_admin_freigabe=$H-1 WHERE id='p_b_zf'" % FZ, ""),
     ("buero", "buero_ohne_monteur_nach_frist", "run", "UPDATE %s SET status='freigegeben' WHERE id='p_b_zf'" % FZ, "ok1"),
     ("owner", "pruef_ohne_monteur", "chk", "SELECT count(*) FROM %s WHERE id='p_b_zf' AND ohne_monteur AND freigegeben_von=$PBU" % FZ, "n1"),
+    ("buero", "buero_pdf_pfad_nachtragen", "run", "UPDATE %s SET pdf_pfad='monatsfreigabe/'||$A||'/p_sig.png' WHERE id='p_a_zf'" % FZ, "ok1"),
+    ("buero", "buero_pdf_pfad_ersetzen", "run", "UPDATE %s SET pdf_pfad='monatsfreigabe/'||$A||'/p_unterschrift_1.png' WHERE id='p_a_zf'" % FZ, "err"),
 
     # Admin
     ("admin", "admin_frist_zu_knapp", "run", "UPDATE %s SET status='zur_freigabe' WHERE id='p_a_zaf'" % FZ, "err"),
@@ -100,6 +112,7 @@ SCHRITTE = [
     ("owner", "pruef_admin_freigabe_protokoll", "chk", "SELECT count(*) FROM %s WHERE id='p_a_zaf' AND admin_freigabe_von=$PAD AND admin_freigabe_am IS NOT NULL" % FZ, "n1"),
     ("admin", "admin_zurueck_mit_grund", "run", "UPDATE %s SET status='in_arbeit',rueckgabe_grund='Tag 12 pruefen' WHERE id='p_a_zaf2'" % FZ, "ok1"),
     ("admin", "admin_aendert_freigegebene_ohne_vermerk", "run", "UPDATE %s SET notiz='x' WHERE id='p_a_fg'" % FZ, "err"),
+    ("admin", "admin_storage_monatsfreigabe_loeschen", "run", "DELETE FROM storage.objects WHERE bucket_id='epkolar-docs' AND name LIKE 'monatsfreigabe/%'", "err"),
     ("admin", "admin_vermerk_freigegebene", "run", "UPDATE %s SET admin_vermerk='Korrektur Lohnbuero',notiz='x' WHERE id='p_a_fg'" % FZ, "ok1"),
 
     # Gesperrtes Konto

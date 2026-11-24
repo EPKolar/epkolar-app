@@ -337,6 +337,7 @@ def test_monteur_ansicht(node_exe, src):
     assert R["schreib"][0].startswith("POST storage:monatsfreigabe/w4")
     assert R["schreib"][1] == 'PATCH finkzeit {"status":"freigegeben","sig":true}'
     assert R["meld"] == ["mf_freigegeben>u2"]
+    assert len(R["schreib"]) == 2   # Sicherheits-Review: kein PDF vom Monteur-Geraet, nur Unterschrift + Status
 
 
 def test_monteur_umkehrprobe_freigeben_ohne_unterschrift_waere_rot(node_exe, src):
@@ -439,3 +440,20 @@ def test_sql_entwurf_probe_ruecknahme():
             assert ("DROP POLICY IF EXISTS " + name) in r, name
     assert "CREATE POLICY finkzeit_staff_all" in r and "DROP TABLE IF EXISTS public.finkzeit_verlauf" in r
     assert "nur der Admin gibt an den Monteur frei" in e
+
+
+def test_sql_sicherheitsreview_24_11():
+    """3x MEDIUM: Frist nach Admin-Freigabe nur verlaengern + Frist bei Admin-Freigabe gespeichert; kein PDF-Pfad vom
+    Monteur; monatsfreigabe/ in Storage fuer niemanden aenderbar/loeschbar, Monteur legt nur *_unterschrift_*.png an."""
+    e = _lies(os.path.join(SQLD, "MONATSFREIGABE_v1_ENTWURF.sql"))
+    assert "nach der Admin-Freigabe darf die Frist nur verlaengert werden" in e
+    assert "NEW.frist_bei_admin_freigabe := NEW.freigabe_bis" in e
+    assert "coalesce(OLD.frist_bei_admin_freigabe, OLD.freigabe_bis) >= v_heute" in e
+    assert "freigabe_hash := md5(" in e
+    mont = e[e.index("IF v_rolle IN ('monteur','helfer') THEN"):e.index("IF v_rolle NOT IN ('buero','admin') THEN")]
+    assert "pdf_pfad" not in mont
+    for pol in ("epkolar_docs_update", "epkolar_docs_delete"):
+        blk = e[e.index("CREATE POLICY " + pol):]
+        blk = blk[:blk.index(";")]
+        assert "(storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe'" in blk
+    assert "_unterschrift" in e[e.index("CREATE POLICY monatsfreigabe_monteur_insert"):]
