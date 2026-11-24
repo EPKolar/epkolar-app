@@ -133,12 +133,17 @@ function _dataUrlToBlob(d) { return d ? {size: 10, type: 'image/png'} : null; } 
 async function _sbSignedDocUrl(p) { return 'https://sb.test/sign/' + p; }
 async function _confirmModal() { return true; }
 function _maIstEhemalig() { return false; }
-let DB = []; const LOG = [];
+let DB = []; const LOG = []; let MODELL = 'da';
+const NOTIF_TYPES = {system: {l: 'System', cat: 'system'}}; const NOTIF_CATS = {system: {l: 'System'}}; const _NOTIF_SPALTEN = ['system'];
 function _filter(q) { const f = {}; q.split('&').forEach(function (t) { const m = /^([a-z_]+)=(eq|in)\.(.*)$/.exec(t); if (m) f[m[1]] = m[2] === 'eq' ? [decodeURIComponent(m[3])] : m[3].replace(/[()]/g, '').split(','); }); return f; }
 async function fetch(url, init) {
   const meth = (init && init.method) || 'GET'; const body = init && init.body && typeof init.body === 'string' ? JSON.parse(init.body) : (init && init.body) || null;
   LOG.push({url: url, meth: meth, body: body});
   const antw = function (st, j) { return {ok: st < 300, status: st, json: async function () { return j; }, text: async function () { return JSON.stringify(j || {}); }}; };
+  if (url.indexOf('select=freigabe_hash') >= 0 || url.indexOf('/monatsfreigabe_einstellungen?select=id') >= 0) {
+    if (MODELL === 'netz') throw new Error('offline');
+    if (MODELL === 'fehlt') return {ok: false, status: 400, json: async function () { return {}; }, text: async function () { return '{"code":"42703","message":"column finkzeit.freigabe_hash does not exist"}'; }};
+    return antw(200, []); }
   if (url.indexOf('/storage/v1/object/') >= 0) return antw(200, {});
   if (url.indexOf('/monatsfreigabe_einstellungen') >= 0) return antw(200, [{erinnerung_tage: 3}]);
   if (url.indexOf('/finkzeit_verlauf') >= 0) return antw(200, []);
@@ -159,14 +164,14 @@ function plus(iso, n) { const p = iso.split('-'); const d = new Date(Date.UTC(+p
 """
 
 
-def _lauf(node_exe, s, szenen, mutation=None):
+def _lauf(node_exe, s, szenen, mutation=None, modell="da"):
     blk = _block(s)
     if mutation:
         alt, neu = mutation
         assert blk.count(alt) == 1, alt
         blk = blk.replace(alt, neu)
     echt = "\n".join(_fn(s, n) for n in ECHT)
-    js = PRELUDE + "\n" + _layout(s) + "\n" + echt + "\n" + blk + "\n(async function(){const OUT={};\n" + szenen + \
+    js = PRELUDE + "\n" + _layout(s) + "\n" + echt + "\n" + blk + "\n(async function(){const OUT={};\n" + ("_mfModellStand = 'da';\n" if modell == "da" else "") + szenen + \
         "\nconsole.log(JSON.stringify(OUT));process.exit(0);})().catch(function(e){console.error(e&&e.stack||e);process.exit(3);});\n"
     with tempfile.TemporaryDirectory() as d:
         p = os.path.join(d, "mf.cjs")
@@ -417,7 +422,7 @@ def test_verdrahtung(src):
     assert src.count('const _typeTab={deadline_fz:"fahrzeuge"};Object.assign(_typeTab,_mfNotifTab(n));') == 2
     assert '["freigabe","Monatsfreigabe"]' in src
     assert "React.createElement(MonatsfreigabeChef" in src and "React.createElement(MonatsfreigabeMonteur" in src
-    assert "if(tab===\"freigabe\")inhalt=h(MonatsfreigabeBuero" in src
+    assert "if(tab===\"freigabe\"&&_mfIstAktiv())inhalt=h(MonatsfreigabeBuero" in src
     assert "'&status=not.in.(genehmigt,freigegeben)&select=worker_id,monat,status'" in src
     assert "data.filter(d=>!_mfIstNeu(d.status))" in src
     blk = _block(src)
@@ -457,3 +462,61 @@ def test_sql_sicherheitsreview_24_11():
         blk = blk[:blk.index(";")]
         assert "(storage.foldername(name))[1] IS DISTINCT FROM 'monatsfreigabe'" in blk
     assert "_unterschrift" in e[e.index("CREATE POLICY monatsfreigabe_monteur_insert"):]
+
+
+# ── Unsichtbar ohne Datenmodell (Nachtauftrag 24.11.) ───────────────────────
+UNSICHTBAR = r"""
+async function lauf(modell) {
+  MODELL = modell; _mfModellStand = ''; _mfModellLauf = null; LOG.length = 0; MELD.length = 0; store.clear();
+  DB = [{id: 'mf_w4_2026-10', worker_id: 'w4', period: '2026-10', status: 'zur_freigabe', freigabe_bis: '2099-01-01', snapshot: {v: 1, ym: '2026-10', tage: [], summe: {min: 60, arbeitstage: 1, z: {klein: 0, mittel: 0, gross: 0}}}},
+        {id: 'A', worker_id: 'w5', period: '2026-10', status: 'zur_admin_freigabe', freigabe_bis: '2099-01-01', snapshot: null}];
+  const da = await _mfModellPruefen();
+  const o = {da: da, stand: _mfModellStand, typen: Object.keys(NOTIF_TYPES).filter(function (k) { return k.indexOf('mf_') === 0; }).length,
+             spalten: _NOTIF_SPALTEN.filter(function (k) { return k.indexOf('mf_') === 0; }).length, cat: !!NOTIF_CATS.monatsabrechnung};
+  const vorher = LOG.length;
+  const ws = [React.createElement(MonatsfreigabeMonteur, {curUser: {id: 'u4', role: 'monteur', monteurId: 'w4'}, users: USERS, pushNotif: pushNotif, ww: 1440}),
+              React.createElement(MonatsfreigabeBuero, {ym: '2026-10', monteure: [{id: 'w4', n: 'Max'}], users: USERS, curUser: {id: 'u2', role: 'buero'}, abs: {}, approvals: {}, pushNotif: pushNotif, ww: 1440}),
+              React.createElement(MonatsfreigabeChef, {curUser: {id: 'u1', role: 'admin'}, users: USERS, monteure: [], pushNotif: pushNotif, ww: 1440})];
+  o.texte = [];
+  for (const w of ws) { await ruhe(w); o.texte.push(text(baum).trim()); }
+  o.zahlen = await _mfZahlenLaden({id: 'u1', role: 'admin'});
+  o.start = await _mfStartMeldungen({id: 'u4', role: 'monteur', monteurId: 'w4'}, USERS, null, pushNotif);
+  o.abrufeNachPruefung = LOG.length - vorher; o.meld = MELD.length;
+  LOG.length = 0; await _mfModellPruefen(); o.zweiterAbruf = LOG.length;
+  return o;
+}
+OUT.fehlt = await lauf('fehlt'); OUT.netz = await lauf('netz'); OUT.da = await lauf('da');
+"""
+
+
+def test_unsichtbar_ohne_datenmodell_und_sichtbar_mit(node_exe, src):
+    R = _lauf(node_exe, src, UNSICHTBAR, modell="")
+    for k in ("fehlt", "netz"):
+        o = R[k]
+        assert o["da"] is False and o["typen"] == 0 and o["spalten"] == 0 and o["cat"] is False, (k, o)
+        assert o["texte"] == ["", "", ""], (k, o["texte"])
+        assert o["zahlen"] == {"_chef": 0, "stunden": 0, "bueroexport": 0} and o["start"] == 0 and o["meld"] == 0
+        assert o["abrufeNachPruefung"] == 0, (k, o)   # kein einziger Abruf der Monatsfreigabe ohne Datenmodell
+    assert R["fehlt"]["stand"] == "fehlt" and R["fehlt"]["zweiterAbruf"] == 0   # gemerkt
+    assert R["netz"]["stand"] == "" and R["netz"]["zweiterAbruf"] >= 1          # unbekannt -> beim naechsten Mal neu
+    o = R["da"]
+    assert o["da"] is True and o["typen"] == 9 and o["spalten"] == 9 and o["cat"] is True
+    assert "Meine Monatsabrechnung" in o["texte"][0] and "Erinnerung an den Monteur" in o["texte"][1] and "Monatsabrechnungen zur Freigabe" in o["texte"][2]
+    assert o["zahlen"]["_chef"] == 1 and o["zweiterAbruf"] == 0
+
+
+def test_unsichtbar_umkehrprobe_ohne_schalter_waere_sichtbar(node_exe, src):
+    R = _lauf(node_exe, src, UNSICHTBAR, modell="", mutation=('function _mfIstAktiv(){return _mfModellStand==="da";}', 'function _mfIstAktiv(){return true;}'))
+    assert R["fehlt"]["texte"] != ["", "", ""] or R["fehlt"]["abrufeNachPruefung"] > 0
+
+
+def test_unsichtbar_verdrahtung(src):
+    assert ", FINKZEIT_ENABLED&&_mfIstAktiv()&&MF_MONTEUR_ROLLEN.indexOf(curUser.role)>=0&&React.createElement(MonatsfreigabeMonteur," in src
+    assert ",FINKZEIT_ENABLED&&_mfIstAktiv()&&curUser&&curUser.role===\"admin\"&&React.createElement(MonatsfreigabeChef," in src
+    assert '["weiteres","Weiteres"]].filter(function(r){return r[0]!=="freigabe"||_mfIstAktiv();});' in src
+    assert 'if(tab==="freigabe"&&_mfIstAktiv())inhalt=h(MonatsfreigabeBuero,' in src
+    i = src.index("const NOTIF_TYPES={")
+    assert "mf_" not in src[i:src.index("};", i)], "mf-Typen gehoeren erst nach _mfModellPruefen in NOTIF_TYPES"
+    j = src.index("const NOTIF_CATS=")
+    assert "monatsabrechnung:{" not in src[j:src.index("};", j)]
+    assert "_mfModellPruefen().then(da=>{if(!_alv)return;_setMfAktivS(da);if(!da){_setMfZahlen({});return;}" in src
