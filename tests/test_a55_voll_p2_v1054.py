@@ -71,7 +71,9 @@ def test_1_umkehr_alte_auswahl_zeigt_barger(index_html, node_exe):
 def test_1_wert_und_speichern_unveraendert(index_html):
     i = index_html.index(FORM_KIDS_START)
     sel = index_html[index_html.rindex("React.createElement('select'", 0, i):i]
-    assert "value: form.monteur, onChange: e=>{if(isMonteurRole&&!isAdmin)return;setForm(p=>({...p,monteur:e.target.value}));}" in sel
+    # v3.9.1105 GF 24.11. (Rollen-Sicht): Umzuweisen nur noch Buero/Admin/PL - der Riegel gilt jetzt fuer ALLE Feldrollen
+    # (vorher isMonteurRole&&!isAdmin, Obermonteur/Techniker konnten umzuweisen). Wert und Speichern sonst unveraendert.
+    assert "value: form.monteur, onChange: e=>{if(!isAdmin)return;setForm(p=>({...p,monteur:e.target.value}));}" in sel
     # Zeilen-Auswahl der Liste: Rueckfrage-Tor und leere Option bleiben
     assert "value: a.monteur||\"\", title:" in index_html
     assert "_asZeileRueckfrage(a,\"prioritaet\",_np)" in index_html
