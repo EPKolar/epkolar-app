@@ -313,7 +313,8 @@ def test_verdrahtung(index_html):
     assert "AbortSignal.timeout(5000)" not in code
     assert "AbortSignal.timeout(_netzHerzMs())" in code and "_netzProbe(Date.now()-_hb0)" in code
     # Uploads: Zeitgrenze nach Groesse
-    assert code.count("_netzUploadMsFuer(blob.size)") == 5
+    # Monatsfreigabe (24.11.2026): _mfHochladen (Unterschrift/PDF) nutzt dieselbe Zeitgrenze - bewusst 6; vorher 5
+    assert code.count("_netzUploadMsFuer(blob.size)") == 6
     # Anzeige: bernstein, neutraler Text, Hinweis mit Linien-Ikone
     assert code.count('schwach:syncStatus.netz==="schwach"') == 2
     assert code.count('_netzStatusText("schwach",syncStatus.netzPing)') == 2

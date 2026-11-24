@@ -111,7 +111,7 @@ function alle(t, pred, out) { out = out || []; if (!t || typeof t === 'string') 
 function knoepfe(wort) { return alle(baum, function (n) { return n.tag === 'button' && text(n).trim().indexOf(wort) === 0; }); }
 function knopf(wort) { const k = knoepfe(wort); if (!k.length) throw new Error('Knopf fehlt: ' + wort); return k[0]; }
 async function klick(w, k) { await k.props.onClick({}); for (let i = 0; i < 5; i++) { await new Promise(function (r) { setTimeout(r, 5); }); await ruhe(w); } return baum; }
-const NIX = function () {}; const BP_MOB = 600;
+const NIX = function () {}; const BP_MOB = 600; const TIME_DAY = 24 * 3600 * 1000;
 const UI = new Proxy({}, {get: function (_, k) { if (k === 'zahlen') return {}; if (typeof k === 'string' && /^f[A-Z]/.test(k)) return 14; return '#123456'; }});
 const V = new Proxy({}, {get: function () { return '#654321'; }});
 const CC = function () { return {}; }; const II = function () { return {}; };
