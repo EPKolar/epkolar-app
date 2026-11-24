@@ -69,7 +69,8 @@ def test_umkehrprobe_altstand_faellt_durch():
 
 def test_portal_reiter_und_aufruf():
     s = _src()
-    assert "var BX_TABS=[['projekte','','Projekte'],['zeit','','Zeiterfassung'],['stempel','','Stempelzeiten']," in s
+    # Verrechnung (23.11.) steht zwischen Zeiterfassung und Stempelzeiten - geprueft wird der Zeiterfassungs-Reiter direkt hinter Projekte
+    assert "var BX_TABS=[['projekte','','Projekte'],['zeit','','Zeiterfassung']," in s
     assert "_bxTab==='zeit' && React.createElement(ZeiterfassungView, { curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine||[], entries: entries, setEntries: setEntries||function(){}, ww: ww, abs: abs, approvals: approvals, imPortal: true} )" in s
     assert "React.createElement(VBueroExport, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, arbeitsscheine: arbeitsscheine, setEntries: setEntries, ww: ww," in s
     # der Reiter Zeiterfassung (ohne imPortal) zeigt Admin/Buero den Weg ins Portal
