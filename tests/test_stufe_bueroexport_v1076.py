@@ -142,7 +142,9 @@ def test_mittel_und_breit_unterscheiden_nur_darstellung(roh):
 
 def test_umkehr_handlung_nur_breit_waere_rot(roh):
     v = _be(roh)
-    alt = "React.createElement('button', { onClick: ()=>editMonteurEntries(ms), style: _beStiftSt,"
+    # v3.9.1109: Stift stoppt jetzt das Hochblubbern (ganze Zeile klickbar) - Anker nachgezogen;
+    # vorher "React.createElement('button', { onClick: ()=>editMonteurEntries(ms), style: _beStiftSt,"
+    alt = "React.createElement('button', { onClick: e=>{e.stopPropagation();editMonteurEntries(ms);}, onKeyDown: e=>e.stopPropagation(), style: _beStiftSt,"
     assert v.count(alt) == 1
     kaputt = v.replace(alt, "_beMittel?null:" + alt, 1)
     assert _stufen_reste(kaputt)
