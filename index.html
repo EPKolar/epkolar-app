@@ -31503,6 +31503,23 @@ function _mfSnapshot(wid,ym,pzeRows,hMap,flags,absSet){
   var liste=Object.keys(tage).sort().map(function(d){var st=_ezDayEff(h[d],f[_ezKey(wid,d)],!!A[d]);return {d:d,min:minTag[d]||0,st:st||""};});
   return {v:1,ym:ym,wid:wid,tage:liste,summe:_mfZaehlen(liste),erstellt:new Date().toISOString()};
 }
+/* GF 24.11.2026 (3.9.1117): Monat ohne Stempelzeiten erkennen - 0 Stempel-Minuten im Schnappschuss (die Tage tragen min nur aus
+   Stempelzeilen mit stempelAnzahl>0 und nettoMin>0). Kein Schnappschuss -> false (nichts erfinden). Nur Anzeige/Bestaetigung,
+   keine Aenderung an Stempel- oder Zulagen-Rechnung. */
+var MF_OHNE_STEMPEL_TXT="Keine Stempelzeiten in diesem Monat";
+function _mfOhneStempel(snap){if(!snap||typeof snap!=="object")return false;var s=(snap.summe&&typeof snap.summe==="object")?snap.summe:_mfZaehlen(snap.tage||[]);return !(Number(s.min)>0);}
+function _mfOhneStempelBestaetigen(name,ym){return _confirmModal(MF_OHNE_STEMPEL_TXT+": "+name+", "+_zeMonatName(ym)+". Die Abrechnung hat 0 Stempelstunden. Trotzdem an den Admin zur Freigabe senden?",{title:MF_OHNE_STEMPEL_TXT,confirmLabel:"Trotzdem senden",cancelLabel:"Abbrechen"});}
+/* GF 24.11.2026 (3.9.1117): keine Vertretung fuer die Admin-Freigabe - das Buero sieht, seit wann eine Abrechnung beim Admin liegt.
+   Zeitpunkt = juengster Verlaufs-Eintrag akt='status', neu='zur_admin_freigabe' (finkzeit_verlauf, schreibt nur der Trigger, Buero darf lesen).
+   Nicht lesbar -> {} und die Anzeige zeigt den Text ohne Datum. */
+async function _mfAdminWartetSeit(ids){var o={};if(!ids||!ids.length)return o;
+  try{var liste=ids.map(function(x){return '"'+encodeURIComponent(String(x))+'"';}).join(",");
+    var r=await _authRetry(function(){return fetch(SB_REST+"/finkzeit_verlauf?select=finkzeit_id,am&akt=eq.status&neu=eq.zur_admin_freigabe&finkzeit_id=in.("+liste+")&order=am.desc",_fT({headers:_sbH()}));});
+    if(!r.ok)return o;var j=await r.json();(Array.isArray(j)?j:[]).forEach(function(v){if(v&&v.finkzeit_id&&v.am&&!o[v.finkzeit_id])o[v.finkzeit_id]=v.am;});}catch(e){}
+  return o;
+}
+function _mfAdminWartetText(am){return "wartet auf Freigabe durch Admin"+(am?" seit "+_mfZeit(am):"");}
+function _mfOhneStempelHinweis(snap){return _mfOhneStempel(snap)?React.createElement('div',{"data-mf-ohne-stempel":"1",role:"note",style:{fontSize:UI.fMeta,color:V.tx,fontWeight:700,borderLeft:"3px solid "+UI.achtung,background:V.cd,padding:"6px 10px",marginBottom:8}},MF_OHNE_STEMPEL_TXT):null;}
 function _mfZaehlen(liste){
   var z={};MF_ZULAGEN_KEYS.forEach(function(k){z[k]=0;});var min=0,at=0;
   (liste||[]).forEach(function(t){if(!t)return;var m=Number(t.min)||0;min+=m;if(m>0)at++;if(t.st&&z[t.st]!=null)z[t.st]++;});
@@ -31861,6 +31878,7 @@ function MonatsfreigabeBuero({ym,monteure,users,curUser,abs,approvals,pushNotif,
   var [verlauf,setVerlauf]=_react.useState.call(void 0,{});
   var [busy,setBusy]=_react.useState.call(void 0,"");
   var [neu,setNeu]=_react.useState.call(void 0,0);
+  var [wartetSeit,setWartetSeit]=_react.useState.call(void 0,{});
   var heute=_ezHeuteISO();
   _react.useEffect.call(void 0,function(){var lebt=true;
     if(!_mfIstAktiv())return function(){lebt=false;};
@@ -31869,9 +31887,10 @@ function MonatsfreigabeBuero({ym,monteure,users,curUser,abs,approvals,pushNotif,
       _mfFristAbgelaufen(r[0],heute).forEach(function(x){_mfMelden(pushNotif,"mf_frist_abgelaufen",x,{users:users,name:x.worker_name,stempel:x.freigabe_bis});});
       var ziel=_mfZielNehmen("bueroexport");if(ziel)setOffenId(ziel);
       _mfPdfNachziehen(r[0],monteure);
+      _mfAdminWartetSeit((r[0]||[]).filter(function(x){return x&&x.status==="zur_admin_freigabe";}).map(function(x){return x.id;})).then(function(o){if(lebt)setWartetSeit(o);});
     }).catch(function(e){if(lebt)setStand({status:e&&e.fehltModell?"modell":"fehler",rows:[]});});
     return function(){lebt=false;};},[ym,neu]);
-  var tun=async function(key,fn,ok){if(busy)return;setBusy(key);try{await fn();if(ok&&window.__toast)window.__toast(ok);setNeu(neu+1);_mfZahlAnstossen();}catch(e){if(window.__toast)window.__toast((e&&e.message)||String(e),"error",7000);}setBusy("");};
+  var tun=async function(key,fn,ok){if(busy)return;setBusy(key);try{await fn();if(ok&&window.__toast)window.__toast(ok);setNeu(neu+1);_mfZahlAnstossen();}catch(e){if(e&&e.mfAbbruch){if(window.__toast)window.__toast(e.message,"warn");}else if(window.__toast)window.__toast((e&&e.message)||String(e),"error",7000);}setBusy("");};
   var liste=_bxMaListe(monteure,ym);
   if(!_mfIstAktiv())return null;
   if(stand.status==="laedt")return h("div",{style:{fontSize:UI.fMeta,color:V.dm}},"Lade Monatsfreigaben …");
@@ -31891,7 +31910,9 @@ function MonatsfreigabeBuero({ym,monteure,users,curUser,abs,approvals,pushNotif,
     var neuRechnen=function(){return tun("nr"+m.id,async function(){var snap=await _mfBaueSnapshot(m,ym,abs,approvals);await _mfPatch(row.id,{snapshot:snap});},"Zahlen neu berechnet");};
     var fertig=function(){
       if(!fr||_mfTageBis(heute,fr)<0){if(window.__toast)window.__toast("Bitte eine Frist ab heute wählen","warn");return;}
-      return tun("fe"+m.id,async function(){var snap=await _mfBaueSnapshot(m,ym,abs,approvals);await _mfPatch(row.id,{snapshot:snap,status:"zur_admin_freigabe",freigabe_bis:fr});
+      return tun("fe"+m.id,async function(){var snap=await _mfBaueSnapshot(m,ym,abs,approvals);
+        if(_mfOhneStempel(snap)&&!(await _mfOhneStempelBestaetigen(m.n||m.id,ym))){var ab=new Error("Nicht gesendet - "+MF_OHNE_STEMPEL_TXT);ab.mfAbbruch=true;throw ab;}/* GF 24.11.: ohne ausdrueckliche Bestaetigung wird nichts geschrieben */
+        await _mfPatch(row.id,{snapshot:snap,status:"zur_admin_freigabe",freigabe_bis:fr});
         _mfMelden(pushNotif,"mf_admin_bereit",Object.assign({},row,{freigabe_bis:fr}),{users:users,name:m.n||m.id,stempel:Date.now()});},"An den Admin zur Freigabe gemeldet");};
     var fristSpeichern=function(){if(!fr||_mfTageBis(heute,fr)<0){if(window.__toast)window.__toast("Die Frist darf nicht in der Vergangenheit liegen","warn");return;}
       return tun("fr"+m.id,function(){return _mfPatch(row.id,{freigabe_bis:fr});},"Frist geändert");};
@@ -31913,6 +31934,8 @@ function MonatsfreigabeBuero({ym,monteure,users,curUser,abs,approvals,pushNotif,
       ,row&&row.beanstandung&&st==="in_arbeit"?_mfHinweis("Monteur: "+row.beanstandung,"achtung"):null
       ,row&&row.rueckgabe_grund&&st==="in_arbeit"?_mfHinweis("Zurückgegeben: "+row.rueckgabe_grund,"achtung"):null
       ,row&&row.freigabe_bis&&st!=="in_arbeit"&&st!=="freigegeben"?h("div",{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:6}},_mfFristText(row,heute)):null
+      ,st==="zur_admin_freigabe"?h("div",{"data-mf-wartet-admin":row.id,style:{fontSize:UI.fMeta,color:V.tx,marginBottom:6}},_mfAdminWartetText(wartetSeit[row.id])):null
+      ,row&&st!=="freigegeben"?_mfOhneStempelHinweis(row.snapshot):null
       ,h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}
         ,!row?h("button",{type:"button",disabled:!!busy,onClick:anlegen,style:bpS},"Abrechnung anlegen"):null
         ,st==="in_arbeit"?[h("button",{key:"nr",type:"button",disabled:!!busy,onClick:neuRechnen,style:bsS()},"Zahlen neu berechnen"),fristFeld,h("button",{key:"fe",type:"button",disabled:!!busy||!fr,onClick:fertig,style:bpS},"Fertig – zur Admin-Freigabe")]:null
@@ -31990,11 +32013,12 @@ function MonatsfreigabeChef({curUser,users,monteure,pushNotif,ww}){
         ,h("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",...UI.zahlen}}
           ,h("input",{type:"checkbox","aria-label":"Für Sammel-Freigabe wählen",disabled:!war||fs!=="ok",checked:!!gewaehlt[r.id]&&war,onChange:function(e){var o=Object.assign({},gewaehlt);o[r.id]=e.target.checked;setGewaehlt(o);},style:{width:22,height:22}})
           ,h("span",{style:{fontWeight:800,flex:"1 1 140px"}},nameVon(r)+" · "+_zeMonatName(r.period))
+          ,_mfOhneStempel(r.snapshot)?h("span",{"data-mf-ohne-stempel-zeile":r.id,style:{fontSize:UI.fMeta,fontWeight:700,color:UI.achtungTxt,flex:"1 1 100%"}},MF_OHNE_STEMPEL_TXT):null
           ,h("span",null,_mfHM(s.min)+" h · "+_nWort(s.arbeitstage,"Tag","Tage")+" · "+_mfZulagen().map(function(z){return z.k+" "+((s.z&&s.z[z.key])||0);}).join(" / "))
           ,h("span",{style:{fontSize:UI.fMeta,color:fs==="ok"?V.dm:UI.achtungTxt}},"Frist "+_vrDE(r.freigabe_bis)+(fs==="zu_knapp"?" (zu knapp)":fs==="abgelaufen"?" (abgelaufen)":""))
           ,h("button",{type:"button",onClick:function(){if(auf)setOffenId("");else oeffnen(r.id);},style:{...bsS(),minHeight:36,padding:"4px 10px"}},auf?"Schließen":"Öffnen"))
         ,auf?h("div",{"data-mf-chef-offen":r.id,style:{marginTop:10}}
-          ,h(MfKacheln,{sum:s}),r.snapshot?h(MfAnsicht,{snap:r.snapshot,ww:ww}):null
+          ,_mfOhneStempelHinweis(r.snapshot),h(MfKacheln,{sum:s}),r.snapshot?h(MfAnsicht,{snap:r.snapshot,ww:ww}):null
           ,fs!=="ok"?h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginTop:8}}
             ,_mfHinweis(fs==="abgelaufen"?"Frist abgelaufen - bitte zuerst anpassen.":"Frist zu knapp (weniger als "+_nWort(einst.n,"Tag","Tage")+") - bitte zuerst anpassen.","achtung")
             ,h("input",{type:"date",min:heute,value:frist,"aria-label":"Neue Frist",onChange:function(e){setFrist(e.target.value);},style:{...II(),width:"auto",minHeight:44}})
