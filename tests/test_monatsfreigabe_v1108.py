@@ -133,7 +133,7 @@ function _dataUrlToBlob(d) { return d ? {size: 10, type: 'image/png'} : null; } 
 async function _sbSignedDocUrl(p) { return 'https://sb.test/sign/' + p; }
 async function _confirmModal() { return true; }
 function _maIstEhemalig() { return false; }
-let DB = []; const LOG = []; let MODELL = 'da';
+let DB = []; const LOG = []; let MODELL = 'da'; let SCHALTER = '2000-01-01';  /* GF 24.11. abends: system_config monatsfreigabe_aktiv_ab (null = Zeile fehlt) */
 const NOTIF_TYPES = {system: {l: 'System', cat: 'system'}}; const NOTIF_CATS = {system: {l: 'System'}}; const _NOTIF_SPALTEN = ['system'];
 function _filter(q) { const f = {}; q.split('&').forEach(function (t) { const m = /^([a-z_]+)=(eq|in)\.(.*)$/.exec(t); if (m) f[m[1]] = m[2] === 'eq' ? [decodeURIComponent(m[3])] : m[3].replace(/[()]/g, '').split(','); }); return f; }
 async function fetch(url, init) {
@@ -144,6 +144,7 @@ async function fetch(url, init) {
     if (MODELL === 'netz') throw new Error('offline');
     if (MODELL === 'fehlt') return {ok: false, status: 400, json: async function () { return {}; }, text: async function () { return '{"code":"42703","message":"column finkzeit.freigabe_hash does not exist"}'; }};
     return antw(200, []); }
+  if (url.indexOf('/system_config?key=eq.monatsfreigabe_aktiv_ab') >= 0) return antw(200, SCHALTER === null ? [] : [{value: SCHALTER}]);
   if (url.indexOf('/storage/v1/object/') >= 0) return antw(200, {});
   if (url.indexOf('/monatsfreigabe_einstellungen') >= 0) return antw(200, [{erinnerung_tage: 3}]);
   if (url.indexOf('/finkzeit_verlauf') >= 0) return antw(200, []);
@@ -170,7 +171,7 @@ def _lauf(node_exe, s, szenen, mutation=None, modell="da", extra=""):
         assert blk.count(alt) == 1, alt
         blk = blk.replace(alt, neu)
     echt = "\n".join(_fn(s, n) for n in ECHT)
-    js = PRELUDE + "\n" + _layout(s) + "\n" + echt + "\n" + extra + "\n" + blk + "\n(async function(){const OUT={};\n" + ("_mfModellStand = 'da';\n" if modell == "da" else "") + szenen + \
+    js = PRELUDE + "\n" + _layout(s) + "\n" + echt + "\n" + extra + "\n" + blk + "\n(async function(){const OUT={};\n" + ("_mfModellStand = 'da'; if (typeof _mfSchalterAb !== 'undefined') _mfSchalterAb = '2000-01-01';  /* Schalter an (GF 24.11. abends) */\n" if modell == "da" else "") + szenen + \
         "\nconsole.log(JSON.stringify(OUT));process.exit(0);})().catch(function(e){console.error(e&&e.stack||e);process.exit(3);});\n"
     with tempfile.TemporaryDirectory() as d:
         p = os.path.join(d, "mf.cjs")
@@ -466,7 +467,7 @@ def test_sql_sicherheitsreview_24_11():
 # ── Unsichtbar ohne Datenmodell (Nachtauftrag 24.11.) ───────────────────────
 UNSICHTBAR = r"""
 async function lauf(modell) {
-  MODELL = modell; _mfModellStand = ''; _mfModellLauf = null; LOG.length = 0; MELD.length = 0; store.clear();
+  MODELL = modell; _mfModellStand = ''; _mfModellLauf = null; if (typeof _mfSchalterAb !== 'undefined') _mfSchalterAb = ''; LOG.length = 0; MELD.length = 0; store.clear();
   DB = [{id: 'mf_w4_2026-10', worker_id: 'w4', period: '2026-10', status: 'zur_freigabe', freigabe_bis: '2099-01-01', snapshot: {v: 1, ym: '2026-10', tage: [], summe: {min: 60, arbeitstage: 1, z: {klein: 0, mittel: 0, gross: 0}}}},
         {id: 'A', worker_id: 'w5', period: '2026-10', status: 'zur_admin_freigabe', freigabe_bis: '2099-01-01', snapshot: null}];
   const da = await _mfModellPruefen();
@@ -484,7 +485,9 @@ async function lauf(modell) {
   LOG.length = 0; await _mfModellPruefen(); o.zweiterAbruf = LOG.length;
   return o;
 }
-OUT.fehlt = await lauf('fehlt'); OUT.netz = await lauf('netz'); OUT.da = await lauf('da');
+OUT.fehlt = await lauf('fehlt'); OUT.netz = await lauf('netz');
+SCHALTER = null; OUT.daAus = await lauf('da'); SCHALTER = ''; OUT.daLeer = await lauf('da'); SCHALTER = '2099-01-01'; OUT.daZukunft = await lauf('da');
+SCHALTER = '2000-01-01'; OUT.da = await lauf('da');
 """
 
 
@@ -498,6 +501,13 @@ def test_unsichtbar_ohne_datenmodell_und_sichtbar_mit(node_exe, src):
         assert o["abrufeNachPruefung"] == 0, (k, o)   # kein einziger Abruf der Monatsfreigabe ohne Datenmodell
     assert R["fehlt"]["stand"] == "fehlt" and R["fehlt"]["zweiterAbruf"] == 0   # gemerkt
     assert R["netz"]["stand"] == "" and R["netz"]["zweiterAbruf"] >= 1          # unbekannt -> beim naechsten Mal neu
+    # GF 24.11. abends: Datenmodell da, Schalter aus / leer / Datum in der Zukunft -> fuer Monteur, Buero und Admin nichts sichtbar
+    for k in ("daAus", "daLeer", "daZukunft"):
+        o = R[k]
+        assert o["da"] is False and o["stand"] == "da" and o["typen"] == 0 and o["spalten"] == 0 and o["cat"] is False, (k, o)
+        assert o["texte"] == ["", "", ""], (k, o["texte"])
+        assert o["zahlen"] == {"_chef": 0, "stunden": 0, "bueroexport": 0} and o["start"] == 0 and o["meld"] == 0, (k, o)
+        assert o["abrufeNachPruefung"] == 0, (k, o)
     o = R["da"]
     assert o["da"] is True and o["typen"] == 9 and o["spalten"] == 9 and o["cat"] is True
     assert "Meine Monatsabrechnung" in o["texte"][0] and "Erinnerung an den Monteur" in o["texte"][1] and "Monatsabrechnungen zur Freigabe" in o["texte"][2]
@@ -505,7 +515,7 @@ def test_unsichtbar_ohne_datenmodell_und_sichtbar_mit(node_exe, src):
 
 
 def test_unsichtbar_umkehrprobe_ohne_schalter_waere_sichtbar(node_exe, src):
-    R = _lauf(node_exe, src, UNSICHTBAR, modell="", mutation=('function _mfIstAktiv(){return _mfModellStand==="da";}', 'function _mfIstAktiv(){return true;}'))
+    R = _lauf(node_exe, src, UNSICHTBAR, modell="", mutation=('function _mfIstAktiv(){return _mfModellStand==="da"&&_mfSchalterAn();}', 'function _mfIstAktiv(){return true;}'))  # Pin nachgezogen: Schalter (GF 24.11. abends)
     assert R["fehlt"]["texte"] != ["", "", ""] or R["fehlt"]["abrufeNachPruefung"] > 0
 
 
