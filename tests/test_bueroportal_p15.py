@@ -123,3 +123,50 @@ KNOEPFE = ["onClick:exportMonatXls", "onClick:exportMonatPdf", "onClick:exportWo
 @pytest.mark.parametrize("k", KNOEPFE)
 def test_exportknopf_unveraendert_da(index_html, k):
     assert k in index_html, k
+
+
+# ── Paket 15 Nachbau: EINE Export-Leiste je Abschnitt, Leerzustand, Kopf-Monat ────────────────────
+# Verhalten im Browser: tests/test_bueroportal_p15_leiste_browser.py (jeder Exportweg liefert dieselbe Datei wie vorher).
+def test_exportleisten_im_mitarbeiter_monat(index_html):
+    assert "function _bxExporte(kinder){" in index_html and "'data-bx-exporte':'1'" in index_html
+    kv = _block(index_html, "function KVZulagenReport(props){", "\n}")
+    pze = _block(index_html, "function PZEView(props){", "\n}")
+    assert "_imMaMonat?_bxExporte([_pzeKnopf])" in kv
+    assert "_bxExporte([_xlsKnopf,_pdfKnopf])" in pze
+    assert "_zeExpHuelle(isAdmin&&selWorker&&" in index_html
+    assert "return _zeImMaMonat?_bxExporte(k):React.createElement.apply(null,[React.Fragment,{}].concat(k));" in index_html
+
+
+# Die Knopf-Elemente selbst (onClick, Sperre, Beschriftung) sind Wort fuer Wort die alten - nur ihr Platz aendert sich.
+KNOPF_AUSDRUECKE = [
+    "h('button',{onClick:_pzeBtn,disabled:!ezWid||ezStand!=='ok',",
+    "h('button',{onClick:_xls,style:{...btnS,background:COLORS.SUCCESS,color:'#fff',border:'none'}},_ikVw('tabelle','Excel'))",
+    "h('button',{onClick:_pdf,disabled:pzeEzStand!=='ok',",
+    "React.createElement('button',{onClick:exportMonatXls,disabled:zeMonLaedt,style:{...xBtn(\"xls\"),...(zeMonLaedt?_zeAus:{})}},_ik(\"tabelle\",16),\"Monat Excel\")",
+    "React.createElement('button',{onClick:exportMonatPdf,disabled:zeMonLaedt,style:{...xBtn(\"pdf\"),...(zeMonLaedt?_zeAus:{})}},_ik(\"drucker\",16),\"Monat PDF\")",
+    "React.createElement('button',{onClick:exportWochenStz,disabled:!(weekTotal>0),",
+    "React.createElement('button',{onClick:exportXls,disabled:!_nEintrZE,",
+    "React.createElement('button',{onClick:()=>window.print(),disabled:!_nEintrZE,",
+    "onClick:()=>exportTagesStz(i),",
+]
+
+
+@pytest.mark.parametrize("k", KNOPF_AUSDRUECKE)
+def test_knopf_ausdruck_wortgleich(index_html, k):
+    assert index_html.count(k) == 1, k
+
+
+def test_leerzustand_einheitlich(index_html):
+    assert "function _bxLeer(detail){" in index_html
+    b = _block(index_html, "function _bxLeer(detail){", "\n")
+    assert "'Keine Einträge'" in b
+    assert index_html.count("_bxLeer(") >= 5  # Definition + Stunden + Zulagen (2) + Stempelzeiten
+
+
+def test_kopfmonat_ohne_eigene_pfeile(index_html):
+    kv = _block(index_html, "function KVZulagenReport(props){", "\n}")
+    pze = _block(index_html, "function PZEView(props){", "\n}")
+    assert "const _imMaMonat=!!(props.startWid&&props.startYm);" in kv and "const _imMaMonat=!!(props.startWid&&props.startYm);" in pze
+    assert ",_imMaMonat?null:h('button',{onClick:_ezHeute," in kv
+    assert ",_imMaMonat?null:h('input',{type:'date',value:von," in pze and ",_imMaMonat?null:h('input',{type:'date',value:bis," in pze
+    assert "_zeImMaMonat?React.createElement('span',{'data-bx-monat-fest':'1'" in index_html
