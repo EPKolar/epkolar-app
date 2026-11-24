@@ -31520,12 +31520,16 @@ async function _mfLaden(filter,spalten){
   if(!r.ok){var t="";try{t=await r.text();}catch(e){}var err=new Error("HTTP"+r.status+" "+t);err.fehltModell=(r.status===400||r.status===404)&&/freigabe_bis|snapshot|column|42703|PGRST204/.test(t);throw err;}
   var j=await r.json();return Array.isArray(j)?j:[];
 }
-async function _mfSchreiben(methode,pfad,body){
-  var r=await _authRetry(function(){return fetch(SB_REST+pfad,_fT({method:methode,headers:_sbWH("return=minimal"),body:JSON.stringify(body)}));});
+async function _mfSchreiben(methode,pfad,body,mussTreffen){
+  /* mussTreffen (GF 24.11.): 0 geschriebene Zeilen (z. B. Aenderung nach der Freigabe - die RLS blendet die Zeile aus) ist ein Fehlschlag, nie "gespeichert" */
+  var url=SB_REST+pfad+(mussTreffen?(pfad.indexOf("?")>=0?"&":"?")+"select=id":"");
+  var r=await _authRetry(function(){return fetch(url,_fT({method:methode,headers:_sbWH(mussTreffen?"return=representation":"return=minimal"),body:JSON.stringify(body)}));});
   if(!r.ok){var t="";try{t=await r.text();}catch(e){}var msg=t;try{var j=JSON.parse(t);msg=j.message||t;}catch(e){}throw new Error(msg||("HTTP"+r.status));}
+  if(mussTreffen){var z=null;try{z=await r.json();}catch(e){z=null;}
+    if(!Array.isArray(z)||z.length===0)throw new Error("Nicht gespeichert: Die Abrechnung ist in diesem Stand nicht mehr änderbar oder nicht sichtbar. Bitte neu laden.");}
   return true;
 }
-function _mfPatch(id,body){return _mfSchreiben("PATCH","/finkzeit?id=eq."+encodeURIComponent(id),body);}
+function _mfPatch(id,body){return _mfSchreiben("PATCH","/finkzeit?id=eq."+encodeURIComponent(id),body,true);}
 function _mfAnlegen(body){return _mfSchreiben("POST","/finkzeit",body);}
 async function _mfEinstLaden(){
   try{var r=await _authRetry(function(){return fetch(SB_REST+"/monatsfreigabe_einstellungen?id=eq.1&select=erinnerung_tage",_fT({headers:_sbH()}));});

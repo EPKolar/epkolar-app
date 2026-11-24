@@ -151,7 +151,7 @@ async function fetch(url, init) {
     const q = url.split('?')[1] || ''; const f = _filter(q);
     const passt = function (r) { return Object.keys(f).every(function (k) { return k === 'select' || k === 'order' || k === 'limit' || f[k].indexOf(String(r[k])) >= 0; }); };
     if (meth === 'GET') return antw(200, JSON.parse(JSON.stringify(DB.filter(passt))));
-    if (meth === 'PATCH') { DB.filter(passt).forEach(function (r) { Object.assign(r, body); }); return antw(204, null); }
+    if (meth === 'PATCH') { const hit = DB.filter(passt); hit.forEach(function (r) { Object.assign(r, body); }); /* wie PostgREST: Prefer return=representation liefert die geschriebenen Zeilen (Nachtrag 24.11.: 0 Zeilen = Fehlschlag) */ const rep = /return=representation/.test(String((init && init.headers && init.headers.Prefer) || '')); return rep ? antw(200, hit.map(function (r) { return {id: r.id}; })) : antw(204, null); }
     if (meth === 'POST') { DB.push(Object.assign({}, body)); return antw(201, null); }
   }
   return antw(404, {});
@@ -372,7 +372,7 @@ boxen()[0].props.onChange({target: {checked: true}}); await ruhe(W);
 boxen()[1].props.onChange({target: {checked: true}}); await ruhe(W);
 OUT.sammelText = text(alle(baum, function (n) { return n.props && n.props['data-mf-sammel']; })[0]);
 await klick(W, alle(baum, function (n) { return n.props && n.props['data-mf-sammel']; })[0]);
-OUT.patches = LOG.filter(function (l) { return l.meth === 'PATCH'; }).map(function (l) { return l.url.split('id=eq.')[1] + ':' + l.body.status; });
+OUT.patches = LOG.filter(function (l) { return l.meth === 'PATCH'; }).map(function (l) { return l.url.split('id=eq.')[1].split('&')[0] + ':' + l.body.status; });
 OUT.meld = MELD.map(function (m) { return m.type + '>' + m.ziele.join(','); });
 // C: Frist zu knapp -> Freigeben gesperrt
 neu(); SS['epk_mf_geoeffnet'] = JSON.stringify({C: 1}); store.clear(); await ruhe(W);
