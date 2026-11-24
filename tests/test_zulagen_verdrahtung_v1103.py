@@ -8,8 +8,8 @@ Funde und Riegel (jeweils mit Umkehrprobe am Altstand):
 2. Untere Monatsnavigation (_shiftYm) zog den Kalender (ezCursor) nicht mit.
 3. Wochenansicht ueber den Monatswechsel: Tage des Nachbarmonats zeigten 0 h/Vorschlag und waren klickbar,
    obwohl ihre Stufen nicht geladen sind.
-4. Zulagensaetze-Maske fuer Buero: system_config schreibt nur der Admin (RLS + Trigger guard_admin_only,
-   Probe 24.11.: Buero -> P0001) -> Buero sieht die Saetze, Bearbeiten nur Admin.
+4. Zulagensaetze: system_config schrieb nur der Admin (Probe 24.11.: Buero -> P0001). GF 24.11.: Buero darf die
+   Saetze aendern -> DB-Freigabe nur fuer kv_rules (sql/SYSTEM_CONFIG_KV_RULES_BUERO_v1.sql), Maske fuer admin+buero.
 """
 import io
 import os
@@ -83,5 +83,6 @@ def test_3_woche_nachbarmonat_nicht_klickbar():
 
 def test_4_saetze_nur_admin():
     kv = _ohne_kommentare(_fn(_src(), "KVZulagenReport"))
-    assert "!(props.curUser&&props.curUser.role==='admin')?h('span',{'data-ez-saetze-nur-admin':'1'" in kv
-    assert "Ändern kann nur der Admin." in kv
+    # GF 24.11.: Buero darf die Saetze aendern (DB: system_config_kv_rules_buero_v1) - Maske fuer admin UND buero
+    assert "!(props.curUser&&(props.curUser.role==='admin'||props.curUser.role==='buero'))?h('span',{'data-ez-saetze-nur-admin':'1'" in kv
+    assert "Ändern können Büro und Admin." in kv

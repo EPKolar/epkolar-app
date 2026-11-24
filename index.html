@@ -13776,7 +13776,7 @@ function EZKalender(props){
     ,WT.map(function(w){return h('div',{key:w,style:{textAlign:'center',fontSize:UI.fMeta,fontWeight:700,color:V.dm}},w);}));
   if(view==='woche'){
     var wd=_ezWeekDays(cursor);
-    /* v3.9.1102: Stunden und Stufen sind nur fuer den Monat ym geladen - Tage des Nachbarmonats in der Woche zeigen sonst 0 h/Vorschlag und ein Klick ueberschrieb eine nicht geladene Stufe. Jetzt ausgegraut wie in der Monatsansicht. */
+    /* v3.9.1103: nur Tage des geladenen Monats ym klickbar */
     if(props.ym)wd=wd.map(function(o){return {iso:o.iso,inMonth:String(o.iso).slice(0,7)===props.ym};});
     return h('div',{},_kopf,h('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMob?3:5}}
       ,wd.map(function(o){return _cell(o,true);})));
@@ -13810,11 +13810,11 @@ function KVZulagenReport(props){
      42P01-tolerant. RECHNUNG unveraendert-automatisch bis Etappe-3-Freigabe — diese Flags werden NICHT verrechnet. */
   const [ezFlags,setEzFlags]=_react.useState.call(void 0, {});/* _ezKey -> {aktiv:bool} (Abweichung von der Vorbelegung) */
   const [ezMissing,setEzMissing]=_react.useState.call(void 0, false);/* Tabelle fehlt (Run-Gate offen) */
-  const [ezStand,setEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1102 Zulagen-Pruefung 24.11.: 'laedt'|'ok'|'fehler' - _ezFetch lieferte bei Netz-/Serverfehler still {} und die Tabelle/der PZE-PDF rechneten mit der reinen Vorbelegung statt der gesetzten Stufen (lohnrelevant). Jetzt: Hinweis + PZE-PDF gesperrt, bis die Stufen des Monats wirklich geladen sind. */
+  const [ezStand,setEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1103: laedt|ok|fehler - PZE-PDF erst mit geladenen Stufen (test_zulagen_verdrahtung_v1103) */
   const [ezWid,setEzWid]=_react.useState.call(void 0, '');/* gewaehlter Mitarbeiter */
   const [ezView,setEzView]=_react.useState.call(void 0, 'monat');/* 'monat' | 'woche' */
   const [ezCursor,setEzCursor]=_react.useState.call(void 0, ym+'-01');/* ISO-Anker fuer Monat/Woche */
-  const _shiftYm=(delta)=>{var p=ym.split('-');var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1+delta,1);var nym=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');setYm(nym);setEzCursor(nym+'-01');};/* v3.9.1102: Kalender (ezCursor) folgt dem Monat der Tabelle */
+  const _shiftYm=(delta)=>{var p=ym.split('-');var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1+delta,1);var nym=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');setYm(nym);setEzCursor(nym+'-01');};/* v3.9.1103 */
   const _ezMonW=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];const _kvYmDE=function(x){var p=String(x||'').split('-');var k=parseInt(p[1],10)-1;return (p.length===2&&k>=0&&k<12)?_ezMonW[k]+' '+p[0]:String(x||'');};/* Stufe 6: Monat 2026-11 -> November 2026 (Anzeige; PDF-Dateiname bleibt) */
   /* Kalender-Navigation: haelt ym und ezCursor konsistent, damit _ezFetch(ym) immer die sichtbaren Flags laedt. */
   const _ezNav=(delta)=>{
@@ -13953,7 +13953,7 @@ function KVZulagenReport(props){
       ,_ezDetail?h('div',{style:{fontSize:UI.fMeta,color:V.dm,background:'rgba(0,0,0,.04)',borderRadius:6,padding:'8px 10px',marginBottom:10,lineHeight:1.5}},'Vorbelegung: alle Tage mit Anwesenheit >6h sind als Stufe „klein" vorbelegt (Tages-Summe der Zeiteinträge, KV: einschl. Wegzeit, ausschl. Mittagspause). Per Kalender-Klick wird die Stufe durchgeschaltet (klein → mittel → groß → keine → Vorschlag). GENAU EINE Stufe pro Tag, nie additiv. Sätze: klein '+_eur(_ezSaetze(kv).klein)+' € · mittel '+_eur(_ezSaetze(kv).mittel)+' € · groß '+_eur(_ezSaetze(kv).gross)+' € (KV ab 01.01.2026, LA 2740). Genehmigte Abwesenheit → kein Vorschlag. Lohnverrechner maßgeblich.'):null
       /* v3.9.785 (Sebastian): Zulagensatz-Maske — admin+buero editieren klein/mittel/gross (2027 andere Saetze). */
       ,h('div',{style:{marginBottom:10}}
-        ,!(props.curUser&&props.curUser.role==='admin')?h('span',{'data-ez-saetze-nur-admin':'1',style:{fontSize:UI.fMeta,color:V.dm}},'Zulagensätze: '+(function(){var s=_ezSaetze(kv);return _eur(s.klein)+' / '+_eur(s.mittel)+' / '+_eur(s.gross)+' € je Tag (klein/mittel/groß). Ändern kann nur der Admin.';})())
+        ,!(props.curUser&&(props.curUser.role==='admin'||props.curUser.role==='buero'))?h('span',{'data-ez-saetze-nur-admin':'1',style:{fontSize:UI.fMeta,color:V.dm}},'Zulagensätze: '+(function(){var s=_ezSaetze(kv);return _eur(s.klein)+' / '+_eur(s.mittel)+' / '+_eur(s.gross)+' € je Tag (klein/mittel/groß). Ändern können Büro und Admin.';})())
         :h('button',{onClick:function(){if(_ezRateEdit){_setEzRateEdit(false);}else{_ezRateOpen();}},style:{...bsS(),padding:'4px 12px',fontSize:UI.fMeta,minHeight:32}},h('span',{style:{display:'inline-flex',alignItems:'center',gap:6}},_ezRateEdit?'Zulagensätze':_zpIk('regler','Zulagensätze bearbeiten',14),_klappIk(_ezRateEdit,14)))
         ,_ezRateEdit&&_ezRateVals?h('div',{style:{marginTop:8,border:'1px solid '+V.bd,borderRadius:8,padding:isMob?10:12,background:V.bg,display:'flex',flexWrap:'wrap',gap:12,alignItems:'flex-end'}}
           ,['klein','mittel','gross'].map(function(k){return h('div',{key:k,style:{display:'flex',flexDirection:'column',gap:3}}
@@ -14208,7 +14208,7 @@ function PZEView(props){
   const [kZeit,setKZeit]=_react.useState.call(void 0, '16:00');
   const [kMsg,setKMsg]=_react.useState.call(void 0, '');
   const [reload,setReload]=_react.useState.call(void 0, 0);
-  const [pzeEzStand,setPzeEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1102: wie im Zulagen-Report - PDF erst mit geladenen Tagesstufen */
+  const [pzeEzStand,setPzeEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1103 */
   const [ezFlags,setEzFlags]=_react.useState.call(void 0, {});/* v3.9.776: Entfernungszulage-Flags (Abweichung von der Vorbelegung) fuer EZ-Vermerk + Fuss im PDF. EINE Quelle: _ezEffTage. */
 
   const _monatPreset=(delta)=>{const b=new Date(von+'T12:00:00');const d=new Date(b.getFullYear(),b.getMonth()+delta,1);
@@ -14522,12 +14522,10 @@ function PZEView(props){
     ,_korrDlg);
 }
 
-function _vrNorm(s){/* Verrechnung (Buero-Portal, GF 23.11.2026): Schluessel fuer Freitext = getrimmter, kleingeschriebener Text, Mehrfach-Leerzeichen zu einem (time_entries hat fuer Freitext keinen stabilen Schluessel; gemessen 58 Eintraege in 31 Textgruppen). */
+function _vrNorm(s){/* Freitext-Schluessel: trim, lower, Leerzeichen (Befund epk-verrechnung-befund.md) */
   return String(s==null?"":s).trim().replace(/\s+/g," ").toLowerCase().slice(0,300);
 }
-function _vrBezug(e,projects,scheine){/* Bezug eines Zeiteintrags. Reihenfolge wie buildDayMap der Zeiterfassung: Projekt vor Arbeitsschein vor Freitext.
-     Leere Bezuege stehen in der DB als '' (nicht NULL) -> trim. Stoerung = Arbeitsschein mit scheinart 'stoerung'.
-     offa = OFFA fuehrt den Schein als abgerechnet (scheinstatus) -> Vorbelegung "voll verrechnet". */
+function _vrBezug(e,projects,scheine){/* Bezug wie buildDayMap: Projekt > Schein > Freitext; '' = leer; offa = scheinstatus abgerechnet */
   var pid=String(e.project_id||e.projekt||"").trim();var asId=String(e.arbeitsschein_id||"").trim();
   if(pid){var p=(projects||[]).find(function(x){return x.id===pid;});return {typ:"projekt",ref:pid,label:p?((p.nr?p.nr+" · ":"")+(p.name||"")):pid,offa:false};}
   if(asId){
@@ -14609,14 +14607,12 @@ async function _vrLadeSaetze(){
     return {status:"ok",rows:Array.isArray(rows)?rows:[]};
   }catch(e){var m=String((e&&e.message)||e||"");return {status:/HTTP404|PGRST205|42P01|does not exist|schema cache/i.test(m)?"fehlt":"fehler",rows:[]};}
 }
-async function _vrSatzSchreiben(a,bis,voll,cu){/* NUR die Tabelle verrechnung (Teil-Upsert ueber den Primaerschluessel bezug_typ+bezug_ref) - nichts an time_entries/Arbeitsschein/Projekt, kein OFFA-Push */
+async function _vrSatzSchreiben(a,bis,voll,cu){/* nur Tabelle verrechnung, kein OFFA-Push */
   cu=cu||{};
   await _sbUpsert("verrechnung",{bezug_typ:a.typ,bezug_ref:a.ref,verrechnet_bis:bis||null,voll:voll===true,verrechnet_am:new Date().toISOString(),verrechnet_von:cu.name||cu.username||""},true);
 }
 function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteure,ww}){
-  /* Buero-Portal > Verrechnung (GF 23.11.2026, fuer das Buero): welche gebuchten Monteurstunden schon verrechnet sind - pro Auftrag und pro Monteur.
-     Stunden aus time_entries (alle Bezuege). OFFA schreibt die Rechnungen, die App fuehrt nur den Stand (Tabelle verrechnung).
-     Schreiben nur admin/buero (RLS serverseitig, hier nur die Bedienung). */
+  /* Buero-Portal > Verrechnung (GF 23.11.2026); Schreiben nur admin/buero, RLS serverseitig */
   const h=React.createElement;
   const _vrStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_vrStufe==="schmal";const isBreit=_vrStufe==="breit";/* Spaltenraster nur breit; mittel (Tablet 820) und schmal umbrechend - feste Spalten liessen den Auftragsnamen am Tablet buchstabenweise umbrechen (Browser-Lauf 23.11.) */
   const darf=!!(curUser&&(curUser.role==="admin"||curUser.role==="buero"));
@@ -14728,7 +14724,7 @@ function VerrechnungView({curUser,entries,loaded,projects,arbeitsscheine,monteur
         return h("div",{key:z.key,style:{display:"grid",gridTemplateColumns:isMob?"1fr auto":"110px minmax(0,2fr) 90px minmax(150px,1.4fr)",gap:8,alignItems:"center",padding:"4px 8px",borderLeft:"2px solid "+V.bd}}
           ,isMob?null:h("span",{style:{fontSize:UI.fMeta,color:V.dm}},VR_TYP[z.typ]||z.typ),h("span",{style:{color:V.tx,overflowWrap:"anywhere"}},z.label),h("span",{style:zahl},_vrH(z.summe)+" h"),isMob?null:balken(z.verrechnet,z.summe));})):null);
   };
-  /* GF 23.11.: nur Buero und Admin (DB liest ebenfalls nur admin/buero) - ein per Einzelrecht freigeschaltetes Portal zeigt hier nichts Falsches */
+  /* nur Buero/Admin */
   if(!darf)return h("div",{role:"status",style:{fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid "+V.bdK,padding:"8px 10px",background:V.cd}},"Die Verrechnung sehen nur Büro und Admin.");
   if(!loaded)return h("div",{style:{fontSize:UI.fMeta,color:V.dm,padding:12}},"Lade Stunden …");
   return h("div",{"data-vr":"1"}
