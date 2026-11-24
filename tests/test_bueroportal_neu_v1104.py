@@ -106,7 +106,8 @@ def test_umschalter_und_aufruf():
     assert 'localStorage.getItem("epk_bueroportal_ansicht")==="alt"?"alt":"neu"' in bp
     assert 'if(ansicht==="alt")return React.createElement(VBueroExport,' in bp
     neu = _fn(s, "BueroPortalNeu")
-    assert '["abschluss","Monatsabschluss"],["mamonat","Mitarbeiter-Monat"],["verrechnung","Verrechnung"],["weiteres","Weiteres"]' in neu
+    # Monatsfreigabe (GF 24.11.2026): Reiter freigabe vor Weiteres - bewusst; vorher ohne ["freigabe","Monatsfreigabe"]
+    assert '["abschluss","Monatsabschluss"],["mamonat","Mitarbeiter-Monat"],["verrechnung","Verrechnung"],["freigabe","Monatsfreigabe"],["weiteres","Weiteres"]' in neu
     assert "_bxVormonat()" in neu, "Standard = Vormonat"
     assert "data-bx-alte-ansicht" in neu
     # die alte Ansicht ist unveraendert erreichbar und kennt ihre 7 Reiter weiter
