@@ -272,19 +272,19 @@ def test_stufe_steht_im_block_von_zeiterfassungview(roh):
 # (Fehltage), Stunden aendern mit verzoegertem PUT (stzSaveTimers), Loeschen, Bearbeiten,
 # Buchen (Doppel-Tap-Sperre, Konflikt-Rueckfrage), Wie-letzte-Woche, Tages-/Wochensumme, Exporte.
 UNBERUEHRT = [
-    ("  const _hkZE=", "  // ── Add Entry Modal ──", "d32b44b2c6f3115f41c88160546b470b"),
+    ("  const _hkZE=", "  // ── Add Entry Modal ──", "e6031b91feb2453160f0a66492a652e2"),  # v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
     ("  const loadWeek=", "  _react.useEffect.call(void 0, ()=>{loadWeek();}", "b385eb03b69f774d0fda2c645009df8e"),
     ("  const loadAllOverview=()=>{", "  const updateEntryHours=", "cd30063a0ff0c90357bc549f4fca834d"),
     ("  const updateEntryHours=(iso,entryIdx,newHours)=>{", "  const _isFieldRoleZE=", "6269e5f3f81bbbab81a3fdc3c13afed1"),
     ("  const deleteEntry=async(iso,entryIdx)=>{", "  const _startEditEntry=", "4ab9e2c3c729e01e68f051d6a7f915ba"),
-    ("  const _startEditEntry=", "  const _addEntryInFlightRef=", "32eed371fbcd11f70f584e185ac4c977"),
-    ("  const addEntry=async()=>{", "  const _wlwAbs=()=>{", "b9a3b2b4c452d71e2b1cdc83373372cb"),
+    ("  const _startEditEntry=", "  const _addEntryInFlightRef=", "ce43dcdf5ee5072f23343af4180b23bf"),  # v3.9.1110: Bearbeiten ohne erfundene Zeiten, Original fuer Pruefung - vorher 32eed371fbcd11f70f584e185ac4c977
+    ("  const addEntry=async()=>{", "  const _wlwAbs=()=>{", "9413568ee09aace4c3027678aaf1b604"),  # v3.9.1110: Pflicht-/15-min-Pruefung, alte Stunden bleiben - vorher b9a3b2b4c452d71e2b1cdc83373372cb
     ("  const _wlwUebernehmen=async()=>{", "  const wlwModal=()=>{", "cb75e471a823b19d4e6686ccd223e3cc"),
     ("  const dayTotal=(off)=>", "  const _nEintrZE=", "699bc7098a09a1aaa54417c453451d78"),
     # Dialog: Von/Bis/Pause/Stunden mit 5-Min-Rundung (_zeitRundVon/_zeitRundBis) und Pausenabzug
     # v3.9.1093: Stundenfeld text statt number (ZahlEingabe, gelesen ueber _fzZahl) - bewusst neu gehasht.
     # Die Aenderung im Block ist GENAU diese Ersetzung: test_dialog_rueckbau_ergibt_alten_hash belegt es.
-    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "ed4a6fa584c0ffbb9ad0d529ffb9e98a"),
+    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "692eefd1afb392a77bdc07ce3ae18b49"),  # v3.9.1110: Uhrzeit step 900, Pause waehlen, Vorschau exakt - vorher ed4a6fa584c0ffbb9ad0d529ffb9e98a
     # Stunden-Anzeige auf der Karte (Leer-/Komma-Schutz, test_zeit_lohn_v885)
     ("React.createElement('input',{type:\"text\",readOnly:true,tabIndex:-1,\"aria-label\":\"Stunden, ändern über Bearbeiten\"",
      "React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},\"h\"))", "750998533ffe43f76063114a74f80250"),
@@ -313,7 +313,7 @@ def test_dialog_rueckbau_ergibt_alten_hash(roh):
                       "React.createElement('input',{type:\"number\", inputMode:\"decimal\",step:\"0.5\",min:\"0\",max:\"24\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?")
     rev = rev.replace("setAddHours(_fzZahl(e.target.value)||0)", "setAddHours(parseFloat(e.target.value)||0)")
     assert rev != roh
-    assert _hashes(rev)[9] == "ceca4e0175d8265f7c94de699b306eac"
+    assert _hashes(rev)[9] == "a3511b895cdc0d5594c95628de667e9f"  # v3.9.1110 Dialog bewusst geaendert (GF 24.11.) - vorher ceca4e0175d8265f7c94de699b306eac
 
 
 def _im_ze(src, alt, neu):

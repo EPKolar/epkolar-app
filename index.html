@@ -3143,7 +3143,8 @@ if(typeof window!=='undefined'){window._stTagNetto=_stTagNetto;window._stRoundKo
    und erst bei der Auswertung gerundet, das ist ein anderer Vertrag.
 
    Kein optional chaining. */
-const ZEIT_RASTER_MIN=5;
+const ZEIT_RASTER_MIN=1;/* v3.9.1110 GF 24.11.2026 (Korrektur, ersetzt fruehere Fassungen): Projektzeit wird NICHT mehr automatisch gerundet (vorher 5-min-Raster, Von AUF/Bis AB). Raster 1 = _zeitRundVon/_zeitRundBis normalisieren nur noch "7:03" -> "07:03". Stattdessen lehnt die Eingabe krumme Werte ab (ZEIT_EINGABE_RASTER_MIN, _zeitEingabeFehler); alte Eintraege bleiben, wie sie sind. Die Stempeluhr ist davon nicht betroffen (STEMPEL_ROUND_MIN). */
+const ZEIT_EINGABE_RASTER_MIN=15;/* v3.9.1110 GF: 15 min = kleinste Faktura-Einheit */
 function _zeitParse(s){/* "7:03" -> 423 Minuten; Muell -> null */
   if(s===undefined||s===null)return null;
   var t=String(s).trim();
@@ -3165,6 +3166,28 @@ function _zeitFmt(min){/* 425 -> "07:05" */
    habe 10 Stunden gebucht. _zeitEffektiveStunden liefert GENAU die Zahl, die addEntry
    speichern wird - und null, wenn von/bis leer sind (dann zaehlt die Handeingabe, das ist
    die bewusste Hintertuer). EINE Quelle fuer die Anzeige und fuer das Speichern. */
+function _zeitImRaster(s){var v=_zeitParse(String(s===undefined||s===null?'':s).slice(0,5));return v!==null&&v%ZEIT_EINGABE_RASTER_MIN===0;}
+function _stdImRaster(h){var x=parseFloat(h);return isFinite(x)&&Math.abs(x*60/ZEIT_EINGABE_RASTER_MIN-Math.round(x*60/ZEIT_EINGABE_RASTER_MIN))<1e-6;}
+function _zeit5(s){return String(s===undefined||s===null?'':s).slice(0,5);}
+/* v3.9.1110: null = in Ordnung, sonst die Meldung. orig = der bearbeitete alte Eintrag (oder null bei neuer Buchung).
+   Was der Nutzer NICHT geaendert hat, wird nicht geprueft - ein alter krummer Eintrag laesst sich oeffnen und speichern. */
+/* v3.9.1110: Pflichtangaben. Von und Bis gehoeren zusammen; mit Zeiten muss die Pause gewaehlt sein (ausser ein alter
+   Eintrag wird mit unveraenderten Zeiten gespeichert); ohne Zeiten braucht es Stunden. */
+function _zeitPflichtFehler(von,bis,pause,stunden,orig){
+  if(von&&!bis)return "Bitte auch Bis eintragen";
+  if(bis&&!von)return "Bitte auch Von eintragen";
+  if(von&&bis){var o=orig||null;var gleich=o&&_zeit5(o.von)===_zeit5(von)&&_zeit5(o.bis)===_zeit5(bis);
+    if((pause===""||pause===null||pause===undefined)&&!gleich)return "Bitte die Pause wählen";return null;}
+  if(!(parseFloat(String(stunden===undefined||stunden===null?'':stunden).replace(',','.'))>0))return "Bitte Von und Bis oder die Stunden eintragen";
+  return null;
+}
+function _zeitEingabeFehler(von,bis,h,orig){
+  var o=orig||null;
+  if(von&&!(o&&_zeit5(o.von)===_zeit5(von))&&!_zeitImRaster(von))return "Von nur in Viertelstunden (z. B. 07:00, 07:15, 07:30, 07:45)";
+  if(bis&&!(o&&_zeit5(o.bis)===_zeit5(bis))&&!_zeitImRaster(bis))return "Bis nur in Viertelstunden (z. B. 16:00, 16:15, 16:30, 16:45)";
+  if(!(von&&bis)){var oh=o?parseFloat(o.stunden!=null?o.stunden:o.hours):NaN;if(!(o&&Math.abs(oh-h)<1e-9)&&!_stdImRaster(h))return "Stunden nur in 0,25-Schritten (z. B. 7,5 oder 7,75)";}
+  return null;
+}
 function _zeitEffektiveStunden(von,bis,pause){
   var rv=_zeitRundVon(von), rb=_zeitRundBis(bis);
   if(!rv||!rb)return null;
@@ -12784,6 +12807,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     }catch(_e){console.warn('[as-zeit-uebernahme]',_e&&_e.message||_e);}
   };
   const saveAs=()=>{if(!form.kundName&&!form.arbeitsanweisungen) return;
+    {const _asAlt=editId?(arbeitsscheine.find(a=>a.id===editId)||{}):{};const _asKrumm=[["fahrzeit","Fahrzeit"],["stunden","Arbeitszeit"]].find(function(f){var v=form[f[0]];if(v===undefined||v===null||v==="")return false;if(Number(_asAlt[f[0]]||0)===Number(v||0))return false;return Number(v)%ZEIT_EINGABE_RASTER_MIN!==0;});if(_asKrumm){if(window.__toast)window.__toast("⚠️ "+_asKrumm[1]+" nur in Viertelstunden (z. B. 0:15, 0:30, 1:45)","error",6000);return;}}/* v3.9.1110 GF 24.11.: 15-min-Raster; unveraenderte alte Werte bleiben */
     const _now=Date.now();if(_now-_saveAsInFlightRef.current<800){return;}_saveAsInFlightRef.current=_now;
     /* v3.9.42 Sprint-27 F4 Tier-1: Dauer-Sanity — negative/NaN bail out + Toast. min:"0" im input ist nur Hint, Type-Number erlaubt manuelles parsen. */
     if(form.dauer!==""&&form.dauer!=null){const _d=parseFloat(form.dauer);if(!isNaN(_d)&&_d<0){_optionalChain([window,'access',_d42a=>_d42a.__toast,'optionalCall',_d42b=>_d42b("⚠️ Dauer darf nicht negativ sein","warn")]);_saveAsInFlightRef.current=0;return;}}
@@ -14900,7 +14924,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
         {key:"datum",label:"Datum",type:"date",width:120},
         {key:"projekt_name",label:"Projekt",type:"readonly",width:240},
         {key:"taetigkeit",label:"Tätigkeit",type:"textarea",rows:2,width:320},
-        {key:"stunden",label:"Stunden",type:"number",width:80,step:"0.5",min:0,max:24},
+        {key:"stunden",label:"Stunden",type:"number",width:80,step:"0.25",min:0,max:24},
         {key:"bemerkung",label:"Bemerkung",type:"textarea",rows:2,width:240}
       ],
       rows:reviewRows,
@@ -18099,10 +18123,10 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
   const [addDay,setAddDay]=_react.useState.call(void 0, null);
   /* v3.9.129 O-P2: VZeit-Eintrag-Modal Esc-Close + Scroll-Lock (langes Formular, 90vh). Hook unconditional. */
   _react.useEffect.call(void 0, ()=>{if(!addDay)return;try{_scrollLock.acquire();}catch(_){}const _h=e=>{if(e.key==="Escape")setAddDay(null);};window.addEventListener("keydown",_h);return ()=>{window.removeEventListener("keydown",_h);try{_scrollLock.release();}catch(_){}};},[addDay]);
-  const [addVon,setAddVon]=_react.useState.call(void 0, "07:00");
-  const [addBis,setAddBis]=_react.useState.call(void 0, "16:00");
-  const [addPause,setAddPause]=_react.useState.call(void 0, 1);
-  const [addHours,setAddHours]=_react.useState.call(void 0, 8);
+  const [addVon,setAddVon]=_react.useState.call(void 0, "");
+  const [addBis,setAddBis]=_react.useState.call(void 0, "");
+  const [addPause,setAddPause]=_react.useState.call(void 0, "");
+  const [addHours,setAddHours]=_react.useState.call(void 0, "");
   const [addTaetigkeit,setAddTaetigkeit]=_react.useState.call(void 0, "");
   const [addBemerkung,setAddBemerkung]=_react.useState.call(void 0, "");
   const [addWorker,setAddWorker]=_react.useState.call(void 0, selWorker);
@@ -18129,15 +18153,19 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
     /* v3.9.688: Defensiv nochmals durchs Raster — falls jemand das Blur umgeht (Enter, Autofill,
        Touch-Eigenheiten). Erst runden, DANN rechnen; die Stunden folgen den gerundeten Zeiten. */
     const _rVon=_zeitRundVon(addVon), _rBis=_zeitRundBis(addBis);
+    {const _pf=_zeitPflichtFehler(_rVon,_rBis,addPause,addHours,editEntryId?(entries.find(x=>x.id===editEntryId)||null):null);if(_pf){if(window.__toast)window.__toast("⚠️ "+_pf,"error",6000);return;}}/* v3.9.1110 GF: keine Vorbelegung mehr - fehlende Angaben klar ablehnen */
     let _h2=addHours;
     if(_zeitDauerUngueltig(_rVon,_rBis)){if(window.__toast)window.__toast("⚠️ "+ZEIT_BIS_VOR_VON_MSG+" ("+_rVon+" - "+_rBis+")","error",6000);return;}/* v3.9.1005: keine Nachtarbeit - Gehen <= Kommen wird abgewiesen, nicht umgerechnet. */if(_rVon&&_rBis){const _d=_wrapHrs(_rVon,_rBis)-addPause;_h2=Math.round(_d*100)/100;/* v3.9.991: HIER STAND `if(_d>0)`. Das war der Fehler. Sind beide Zeiten da, gilt die Rechnung - auch wenn sie 0 oder negativ ist. Vorher blieb _h2 in diesem Fall auf der Vorbelegung (8 bzw. der getippten Zahl): Von 08:00, Bis 09:00, Pause 1 h ergibt _d = 0, und gespeichert wurden ACHT Stunden - mit den widersprechenden Uhrzeiten im selben Satz, ohne Warnung. Jetzt wird 0 von der Pruefung darunter abgefangen. */if(_d<=0){if(window.__toast)window.__toast("⚠️ Die Pause ist so lang wie die Anwesenheit oder laenger ("+_rVon+"-"+_rBis+", Pause "+addPause+" h). Bitte Zeiten oder Pause korrigieren.","error",6000);return;}}
+    const _vzOrig=editEntryId?(entries.find(x=>x.id===editEntryId)||null):null;
+    if(_vzOrig&&_rVon&&_rBis&&_zeit5(_vzOrig.von)===_zeit5(_rVon)&&_zeit5(_vzOrig.bis)===_zeit5(_rBis)&&parseFloat(_vzOrig.pause)===parseFloat(addPause)){const _oh=parseFloat(_vzOrig.stunden!=null?_vzOrig.stunden:_vzOrig.hours);if(_oh>0)_h2=_oh;}/* v3.9.1110: Zeiten unveraendert -> gespeicherte Stunden bleiben (nichts stillschweigend neu rechnen) */
     const h=_h2;if(!(h>0&&h<=24)||isNaN(h)){if(window.__toast)window.__toast("⚠️ Stunden müssen 0<h≤24 sein (nicht "+addHours+")","error");return;}
-    if(editEntryId){/* v3.9.301: Update-Zweig — Büro/Admin/PL bearbeiten bestehende Einträge */if(!canDo("zeit_other",curUser)){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten fremder Zeit-Einträge","warn");return;}const _orig=entries.find(x=>x.id===editEntryId)||{};const _gw=_orig.gw||sg;const _hh=Math.round(h*100)/100;setEntries(prev=>prev.map(x=>x.id===editEntryId?{...x,von:_rVon,bis:_rBis,pause:addPause,stunden:_hh,hours:_hh,taetigkeit:addTaetigkeit,task:addTaetigkeit,bemerkung:addBemerkung,worker:addWorker,w:addWorker}:x));SQ.push({url:"/api/entries/"+editEntryId,method:"PUT",body:{worker_id:addWorker,date:addDay,hours:_hh,taetigkeit:addTaetigkeit,gewerk:_gw,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});if(window.__toast)window.__toast("✅ Eintrag aktualisiert");setEditEntryId(null);setAddDay(null);setAddTaetigkeit("");setAddBemerkung("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddPause(1);return;}
+    {const _rf=_zeitEingabeFehler(_rVon,_rBis,h,_vzOrig);if(_rf){if(window.__toast)window.__toast("⚠️ "+_rf,"error",6000);return;}}/* v3.9.1110 GF: nur 15-min-Raster */
+    if(editEntryId){/* v3.9.301: Update-Zweig — Büro/Admin/PL bearbeiten bestehende Einträge */if(!canDo("zeit_other",curUser)){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten fremder Zeit-Einträge","warn");return;}const _orig=entries.find(x=>x.id===editEntryId)||{};const _gw=_orig.gw||sg;const _hh=Math.round(h*100)/100;setEntries(prev=>prev.map(x=>x.id===editEntryId?{...x,von:_rVon,bis:_rBis,pause:addPause,stunden:_hh,hours:_hh,taetigkeit:addTaetigkeit,task:addTaetigkeit,bemerkung:addBemerkung,worker:addWorker,w:addWorker}:x));SQ.push({url:"/api/entries/"+editEntryId,method:"PUT",body:{worker_id:addWorker,date:addDay,hours:_hh,taetigkeit:addTaetigkeit,gewerk:_gw,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});if(window.__toast)window.__toast("✅ Eintrag aktualisiert");setEditEntryId(null);setAddDay(null);setAddTaetigkeit("");setAddBemerkung("");setAddHours("");setAddVon("");setAddBis("");setAddPause("");return;}
     const e={id:uid(),pid,p:pid,gw:sg,datum:addDay,date:addDay,von:_rVon,bis:_rBis,pause:addPause,stunden:Math.round(h*100)/100,hours:Math.round(h*100)/100,taetigkeit:addTaetigkeit,task:addTaetigkeit,bemerkung:addBemerkung,worker:addWorker,w:addWorker};
     setEntries(prev=>[...prev,e]);
     SQ.push({url:"/api/entries",method:"POST",body:{id:e.id,worker_id:e.worker,project_id:pid,date:e.datum,hours:e.stunden,taetigkeit:e.taetigkeit,gewerk:e.gw,von:e.von,bis:e.bis,pause:e.pause,bemerkung:e.bemerkung}});
     if(window.__toast)window.__toast("✅ "+_projStdDE(h,1)+" h gespeichert");
-    setAddDay(null);setAddTaetigkeit("");setAddBemerkung("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddPause(1);
+    setAddDay(null);setAddTaetigkeit("");setAddBemerkung("");setAddHours("");setAddVon("");setAddBis("");setAddPause("");
   };
   const delEntry=async(id)=>{if(!_canDelZ)return;
     /* v3.9.25 KRITISCH P1-Followup: Field-User darf nur EIGENE Zeiteinträge löschen (worker===eigene mid). */
@@ -18183,9 +18211,9 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
           /* v3.9.688: Beim Verlassen des Feldes wird sichtbar aufs 5-Minuten-Raster normalisiert
              (von AUF, bis AB) und die Stunden daraus neu gerechnet. WYSIWYG — es darf keine stille
              Differenz zwischen dem angezeigten von/bis und den gebuchten Stunden geben. */
-          React.createElement('div',{},React.createElement('label',{style:LL()},"Von"),React.createElement('input',{type:"time",value:addVon,onChange:e=>{setAddVon(e.target.value);if(e.target.value&&addBis){const d=_wrapHrs(e.target.value,addBis)-addPause;setAddHours(d>0?Math.round(d*2)/2:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const v=_zeitRundVon(e.target.value);setAddVon(v);if(v&&addBis){const b2=_zeitRundBis(addBis);setAddBis(b2);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})),
-          React.createElement('div',{},React.createElement('label',{style:LL()},"Bis"),React.createElement('input',{type:"time",value:addBis,onChange:e=>{setAddBis(e.target.value);if(addVon&&e.target.value){const d=_wrapHrs(addVon,e.target.value)-addPause;setAddHours(d>0?Math.round(d*2)/2:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const b2=_zeitRundBis(e.target.value);setAddBis(b2);if(addVon&&b2){const v=_zeitRundVon(addVon);setAddVon(v);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})),
-          React.createElement('div',{},React.createElement('label',{style:LL()},"Pause"),React.createElement('select',{value:addPause,onChange:e=>{const pp=parseFloat(e.target.value);setAddPause(pp);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-pp;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*2)/2:0);}},style:{...II(),fontSize:13}},React.createElement('option',{value:1},"1 h"),React.createElement('option',{value:0.5},"30 Min"),React.createElement('option',{value:0},"Keine")/* v1016: gleiche Beschriftung wie in der Zeiterfassung */)),
+          React.createElement('div',{},React.createElement('label',{style:LL()},"Von"),React.createElement('input',{type:"time",step:900,value:addVon,onChange:e=>{setAddVon(e.target.value);if(e.target.value&&addBis){const d=_wrapHrs(e.target.value,addBis)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const v=_zeitRundVon(e.target.value);setAddVon(v);if(v&&addBis){const b2=_zeitRundBis(addBis);setAddBis(b2);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})),
+          React.createElement('div',{},React.createElement('label',{style:LL()},"Bis"),React.createElement('input',{type:"time",step:900,value:addBis,onChange:e=>{setAddBis(e.target.value);if(addVon&&e.target.value){const d=_wrapHrs(addVon,e.target.value)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const b2=_zeitRundBis(e.target.value);setAddBis(b2);if(addVon&&b2){const v=_zeitRundVon(addVon);setAddVon(v);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})),
+          React.createElement('div',{},React.createElement('label',{style:LL()},"Pause"),React.createElement('select',{value:addPause,onChange:e=>{const pp=e.target.value===""?"":parseFloat(e.target.value);setAddPause(pp);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-pp;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*100)/100:0);}},style:{...II(),fontSize:13}},React.createElement('option',{value:""},"Pause wählen"),React.createElement('option',{value:1},"1 h"),React.createElement('option',{value:0.5},"30 Min"),React.createElement('option',{value:0},"Keine")/* v1016: gleiche Beschriftung wie in der Zeiterfassung */)),
           React.createElement('div',{},React.createElement('label',{style:LL()},"Stunden"),_zeitDauerUngueltig(addVon,addBis)?React.createElement('div',{role:"alert",title:ZEIT_BIS_VOR_VON_MSG,style:{...II(),color:_dark?"#f87171":"#b91c1c",borderColor:_dark?"#f87171":"#b91c1c",fontWeight:700,textAlign:"center"}},"⚠️ "+ZEIT_BIS_VOR_VON_MSG)/* v3.9.1005: Gehen <= Kommen - keine Stundenzahl, sondern die Meldung */:React.createElement(ZahlEingabe,{inputMode:"decimal",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?_zeitEffektiveStunden(addVon,addBis,addPause):addHours),readOnly:_zeitEffektiveStunden(addVon,addBis,addPause)!=null,title:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?"Errechnet aus Von/Bis minus Pause — zum Aendern die Zeiten anpassen":"Von/Bis sind leer — hier direkt eintragen"),onChange:e=>setAddHours(_fzZahl(e.target.value)||0),/* v3.9.885 LOHN: das Feld war eine Attrappe. addEntry rechnet die Stunden IMMER aus von/bis minus Pause neu, und von/bis sind per Vorbelegung IMMER gesetzt - wer 10 tippte, buchte 8, ohne jeden Hinweis. Jetzt zeigt das Feld GENAU die Zahl, die gespeichert wird, und ist dann nicht beschreibbar. Sind von/bis leer, greift die Handeingabe weiter - das ist die bewusste Hintertuer, deshalb readOnly nicht hart. */ style:{...II(),fontSize:16,fontWeight:800,textAlign:"center",color:_okG("#10b981"),..._zeitStdStil(addVon,addBis,addPause)}}),_zeitStdHinweis(addVon,addBis,addPause))
         ),
         /* v3.9.64 SPRINT-43 DATA-INTEGRITY-7: maxLength gegen Paste-Accidents (DB-Schutz). */
@@ -18243,14 +18271,14 @@ function VZeit({p,entries,setEntries,selW,sg,setSg,monteure,monteurProjekte,curU
                 return React.createElement('div',{key:entry.id||eIdx,style:{background:_dark?"rgba(0,150,64,.08)":"rgba(0,150,64,.04)",border:"1px solid "+V.bd,borderRadius:6,padding:"6px 8px",borderLeft:"3px solid #009640"}},
                   React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                     React.createElement('span',{style:{fontSize:14,fontWeight:700,color:V.acTx,whiteSpace:"nowrap",...UI.zahlen}},_projStdDE((entry.stunden||entry.hours||0),2)," h")/* UI-Runde 1072: '5,00 h' bricht nie zwischen Zahl und Einheit */,
-                    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:2}},canDo("zeit_other",curUser)&&React.createElement('span',{onClick:function(){setEditEntryId(entry.id);setAddWorker(entry.worker||entry.w||"");setAddVon(entry.von||"07:00");setAddBis(entry.bis||"16:00");setAddPause(entry.pause!=null?entry.pause:1);setAddHours(entry.stunden||entry.hours||0);setAddTaetigkeit(entry.taetigkeit||entry.task||"");setAddBemerkung(entry.bemerkung||"");setAddDay(entry.datum||entry.date);},role:"button",tabIndex:0,"aria-label":"Eintrag bearbeiten",title:"Bearbeiten (Büro/Admin)",style:{cursor:"pointer",fontSize:isMob?14:12,color:V.acTx,padding:isMob?"6px 9px":"2px 4px",display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:isMob?0:24,minHeight:isMob?30:24,touchAction:"manipulation"}},_ik("stift",14)),_canDelZ&&React.createElement('span',{onClick:function(){delEntry(entry.id);/* v3.9.7 Modal-Migration: outer native confirm removed — delEntry hat eigenen _confirmModal */},role:"button",tabIndex:0,"aria-label":"Eintrag löschen",title:"Eintrag löschen",onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();delEntry(entry.id);}},style:{cursor:"pointer",fontSize:isMob?14:12,color:_dark?COLORS.ERROR_DARK:COLORS.ERROR_FILL,padding:isMob?"6px 9px":"2px 4px",display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:isMob?0:24,minHeight:isMob?30:24,touchAction:"manipulation"}},_ik("kreuz",14)))
+                    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:2}},canDo("zeit_other",curUser)&&React.createElement('span',{onClick:function(){setEditEntryId(entry.id);setAddWorker(entry.worker||entry.w||"");setAddVon(entry.von?_zeit5(entry.von):"");setAddBis(entry.bis?_zeit5(entry.bis):"");/* v3.9.1110: ohne gespeicherte Zeiten leer lassen - vorher 07:00/16:00, dann rechnete Speichern 8 h */setAddPause(entry.pause!=null?entry.pause:"");setAddHours(entry.stunden||entry.hours||0);setAddTaetigkeit(entry.taetigkeit||entry.task||"");setAddBemerkung(entry.bemerkung||"");setAddDay(entry.datum||entry.date);},role:"button",tabIndex:0,"aria-label":"Eintrag bearbeiten",title:"Bearbeiten (Büro/Admin)",style:{cursor:"pointer",fontSize:isMob?14:12,color:V.acTx,padding:isMob?"6px 9px":"2px 4px",display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:isMob?0:24,minHeight:isMob?30:24,touchAction:"manipulation"}},_ik("stift",14)),_canDelZ&&React.createElement('span',{onClick:function(){delEntry(entry.id);/* v3.9.7 Modal-Migration: outer native confirm removed — delEntry hat eigenen _confirmModal */},role:"button",tabIndex:0,"aria-label":"Eintrag löschen",title:"Eintrag löschen",onKeyDown:function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();delEntry(entry.id);}},style:{cursor:"pointer",fontSize:isMob?14:12,color:_dark?COLORS.ERROR_DARK:COLORS.ERROR_FILL,padding:isMob?"6px 9px":"2px 4px",display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:isMob?0:24,minHeight:isMob?30:24,touchAction:"manipulation"}},_ik("kreuz",14)))
                   ),
                   React.createElement('div',{style:{fontSize:12,color:V.dm}},React.createElement('span',{style:{whiteSpace:"nowrap",...UI.zahlen}},(entry.von||""),"–",(entry.bis||"")),(entry.von&&_zeitPauseText(entry.pause)?" · "+_zeitPauseText(entry.pause):"")/* v1016: Pause sichtbar wie in der Zeiterfassung */," · ",(wk||{}).n||"?"),
                   React.createElement('div',{style:{fontSize:UI.fMeta,color:V.mt,marginTop:1}},React.createElement('span',{title:(wk||{}).r||undefined,style:{display:"inline-block",padding:"1px 5px",borderRadius:3,fontSize:UI.fMeta,fontWeight:600,background:_ROLE_FILL((wk||{}).r),color:"#fff",marginRight:4,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",verticalAlign:"bottom",boxSizing:"border-box"}},(wk||{}).r||"?")/* UI-Runde 1072: lange Rolle (Lagerleitung) kuerzt mit Tooltip statt aus der Spalte zu laufen */),
                   (entry.taetigkeit||entry.task)&&React.createElement('div',{title:entry.taetigkeit||entry.task,style:{fontSize:12,color:V.tx,overflow:"hidden",textOverflow:"ellipsis",..._zweiZeilen,marginTop:2}},React.createElement('span',{style:{overflowWrap:"break-word",hyphens:"manual"}},entry.taetigkeit||entry.task))/* UI-Runde 1072: Umbruch an Wortgrenzen ('Beleuchtung' nicht als 'Beleucht/ung') - _zweiZeilen bricht sonst ueberall *//* Scan 1045: zwei Zeilen statt "Deckenmont..." */
                 );
               }),
-              React.createElement('button',{onClick:function(){setEditEntryId(null);setAddDay(iso);setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddPause(1);setAddTaetigkeit("");setAddBemerkung("");},style:{width:"100%",padding:"6px",borderRadius:6,border:"1px dashed "+V.bd,background:"transparent",color:V.dm,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginTop:"auto"}},"+ Eintrag")
+              React.createElement('button',{onClick:function(){setEditEntryId(null);setAddDay(iso);setAddHours("");setAddVon("");setAddBis("");setAddPause("");setAddTaetigkeit("");setAddBemerkung("");},style:{width:"100%",padding:"6px",borderRadius:6,border:"1px dashed "+V.bd,background:"transparent",color:V.dm,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginTop:"auto"}},"+ Eintrag")
             )
           );
         })
@@ -25601,7 +25629,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
           {key:"datum",label:"📅 Datum",type:"date",width:120},
           {key:"typ",label:"Typ",type:"text",width:120},
           {key:"status",label:"Status",type:"text",width:100},
-          {key:"stunden",label:"⏱ h",type:"number",width:70,step:"0.5",min:0,max:24},
+          {key:"stunden",label:"⏱ h",type:"number",width:70,step:"0.25",min:0,max:24},
           {key:"kontingent",label:"Kontingent h",type:"number",width:90,step:"0.5"},
           {key:"verbraucht",label:"Verbraucht h",type:"number",width:90,step:"0.5"},
           {key:"rest",label:"Rest h",type:"number",width:80,step:"0.5"}
@@ -28395,11 +28423,11 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
   const [addType,setAddType]=_react.useState.call(void 0, "projekt");
   const [addId,setAddId]=_react.useState.call(void 0, "");
   const [addFrei,setAddFrei]=_react.useState.call(void 0, "");
-  const [addHours,setAddHours]=_react.useState.call(void 0, 8);
-  const [addVon,setAddVon]=_react.useState.call(void 0, "07:00");
-  const [addBis,setAddBis]=_react.useState.call(void 0, "16:00");
+  const [addHours,setAddHours]=_react.useState.call(void 0, "");
+  const [addVon,setAddVon]=_react.useState.call(void 0, "");
+  const [addBis,setAddBis]=_react.useState.call(void 0, "");
   const [addBemerkung,setAddBemerkung]=_react.useState.call(void 0, "");
-  const [addPause,setAddPause]=_react.useState.call(void 0, 1);
+  const [addPause,setAddPause]=_react.useState.call(void 0, "");
   const [addTaetigkeit,setAddTaetigkeit]=_react.useState.call(void 0, "");
   const [editEntry,setEditEntry]=_react.useState.call(void 0, null);
   const [bwbProjId,setBwbProjId]=_react.useState.call(void 0, "");
@@ -28583,7 +28611,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
      und macht PUT statt POST + 3-fach-Sync (dayEntries lokal, entries-Prop für VZeit/Dashboard, Toast). */
   const _startEditEntry=(iso,entry)=>{
     if(!_canEditEntry){if(window.__toast)window.__toast("⚠️ Keine Berechtigung zum Bearbeiten","warn");return;}
-    setEditEntry({id:entry.id});
+    setEditEntry({id:entry.id,orig:entry});/* v3.9.1110: Original fuer die Pruefung - unveraenderte Werte bleiben */
     setAddDay(iso);
     setAddType(entry.arbeitsschein_id?'schein':(entry.project_id?'projekt':'frei'));
     setAddId(entry.project_id||entry.arbeitsschein_id||'');
@@ -28592,9 +28620,9 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     setAddTaetigkeit((entry.type!=='frei'&&entry.taetigkeit&&entry.taetigkeit===entry.label)?'':(entry.taetigkeit||''));
     setAddBemerkung(entry.bemerkung||'');
     setAddHours(entry.hours||0);
-    setAddVon(entry.von||'07:00');
-    setAddBis(entry.bis||'16:00');
-    setAddPause(entry.pause!=null?entry.pause:1);
+    setAddVon(entry.von?_zeit5(entry.von):'');/* v3.9.1110: keine erfundenen Zeiten (vorher 07:00/16:00) */
+    setAddBis(entry.bis?_zeit5(entry.bis):'');
+    setAddPause(entry.pause!=null?entry.pause:'');
   };
 
   // Add a new entry to a specific day
@@ -28616,11 +28644,14 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     /* v3.9.688: 5-Minuten-Raster defensiv, falls das Blur umgangen wurde (Enter/Autofill).
        Erst runden, DANN rechnen — die Stunden folgen den gerundeten Zeiten, nie umgekehrt. */
     const _rVon=_zeitRundVon(addVon), _rBis=_zeitRundBis(addBis);
+    {const _pf=_zeitPflichtFehler(_rVon,_rBis,addPause,addHours,(editEntry&&editEntry.orig)||null);if(_pf){if(window.__toast)window.__toast("⚠️ "+_pf,"error",6000);return;}}/* v3.9.1110 GF: keine Vorbelegung mehr - fehlende Angaben klar ablehnen */
     let _h2=parseFloat(addHours)||0;
     if(_zeitDauerUngueltig(_rVon,_rBis)){if(window.__toast)window.__toast("⚠️ "+ZEIT_BIS_VOR_VON_MSG+" ("+_rVon+" - "+_rBis+")","error",6000);return;}/* v3.9.1005: keine Nachtarbeit - Gehen <= Kommen wird abgewiesen, nicht umgerechnet. */if(_rVon&&_rBis){const _d=_wrapHrs(_rVon,_rBis)-addPause;_h2=Math.round(_d*100)/100;/* v3.9.991: HIER STAND `if(_d>0)`. Das war der Fehler. Sind beide Zeiten da, gilt die Rechnung - auch wenn sie 0 oder negativ ist. Vorher blieb _h2 in diesem Fall auf der Vorbelegung (8 bzw. der getippten Zahl): Von 08:00, Bis 09:00, Pause 1 h ergibt _d = 0, und gespeichert wurden ACHT Stunden - mit den widersprechenden Uhrzeiten im selben Satz, ohne Warnung. Jetzt wird 0 von der Pruefung darunter abgefangen. */if(_d<=0){if(window.__toast)window.__toast("⚠️ Die Pause ist so lang wie die Anwesenheit oder laenger ("+_rVon+"-"+_rBis+", Pause "+addPause+" h). Bitte Zeiten oder Pause korrigieren.","error",6000);return;}}
+    {const _o=editEntry&&editEntry.orig;if(_o&&_rVon&&_rBis&&_zeit5(_o.von)===_zeit5(_rVon)&&_zeit5(_o.bis)===_zeit5(_rBis)&&parseFloat(_o.pause)===parseFloat(addPause)){const _oh=parseFloat(_o.hours!=null?_o.hours:_o.stunden);if(_oh>0)_h2=_oh;}}/* v3.9.1110: Zeiten unveraendert -> gespeicherte Stunden bleiben */
     const h=_h2;
     /* v3.9.64 SPRINT-43 DATA-INTEGRITY-2: Upper-Bound 24h (parity mit Wochenplan-addEntry line ~9343). */
     if(!(h>0&&h<=24)||isNaN(h)){if(window.__toast)window.__toast("⚠️ Stunden müssen 0<h≤24 sein (nicht "+addHours+")","error");return;}
+    {const _rf=_zeitEingabeFehler(_rVon,_rBis,h,(editEntry&&editEntry.orig)||null);if(_rf){if(window.__toast)window.__toast("⚠️ "+_rf,"error",6000);return;}}/* v3.9.1110 GF: nur 15-min-Raster */
     /* v3.9.786 Konflikt-Warnung (nicht-blockierend, alle Rollen inkl. Monteur): genehmigte Abwesenheit am
        Buchungstag? Nutzt die durchgereichten abs/approvals (KEIN neuer Fetch) + die PURE v783-Authority _ezAbsSet
        (nur gelesen, EZ-Kern byte-identisch). Bestaetigt -> Eintrag geht normal durch. */
@@ -28661,7 +28692,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
       setEntries(prev=>prev.map(x=>x.id===editEntry.id?{...x,hours:h,stunden:h,taetigkeit:taet,task:taet,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung,date:addDay,datum:addDay,p:type==="projekt"?projId:"",pid:type==="projekt"?projId:"",project_id:projId,arbeitsschein_id:asId,label}:x));
       if(window.__toast)window.__toast("✏️ Eintrag aktualisiert");
       setEditEntry(null);
-      setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
+      setAddDay(null);setAddId("");setAddFrei("");setAddHours("");setAddVon("");setAddBis("");setAddBemerkung("");setAddPause("");setAddTaetigkeit("");
       return;
     }
     const _gw=(_wl&&_wl.gewerk)||"elektro";/* Wie letzte Woche: Gewerk der Vorwoche; das Formular bleibt bei elektro */
@@ -28679,7 +28710,7 @@ function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,set
     SQ.push({url:"/api/entries",method:"POST",body:{id:entryId,worker_id:selWorker,project_id:projId,arbeitsschein_id:asId,date:addDay,hours:h,taetigkeit:taet,gewerk:_gw,von:_rVon,bis:_rBis,pause:addPause,bemerkung:addBemerkung}});
     if(_wl)return true;/* Wie letzte Woche: Sammelmeldung statt einer Meldung je Zeile; das Formular ist nicht offen */
     if(window.__toast)window.__toast("✅ "+_hK(h,2)+"h gespeichert");
-    setAddDay(null);setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");
+    setAddDay(null);setAddId("");setAddFrei("");setAddHours("");setAddVon("");setAddBis("");setAddBemerkung("");setAddPause("");setAddTaetigkeit("");
   };
 
   /* ── Wie letzte Woche ── Vorschau der Vorwoche, Uebernahme Zeile fuer Zeile ueber addEntry. */
@@ -28956,7 +28987,7 @@ ${entryRows}
     /* v3.9.333: Review-Modal — eine Zeile pro Tag, dynamische Spalten je Worker, plus Taetigkeit pro Tag */
     if(window._exportReviewModal){
       const _lastNamesP=workers.map(w=>(w.name||"").split(" ").pop());
-      const _wColumns=workers.map(w=>{const _ln=(w.name||"").split(" ").pop();const _lbl=_lastNamesP.filter(x=>x===_ln).length>1?(w.name||""):_ln;return {key:'w_'+w.name.replace(/[^A-Za-z0-9]/g,'_'),label:_lbl,type:'number',width:80,step:'0.5',min:0,max:24,_workerName:w.name};});
+      const _wColumns=workers.map(w=>{const _ln=(w.name||"").split(" ").pop();const _lbl=_lastNamesP.filter(x=>x===_ln).length>1?(w.name||""):_ln;return {key:'w_'+w.name.replace(/[^A-Za-z0-9]/g,'_'),label:_lbl,type:'number',width:80,step:'0.25',min:0,max:24,_workerName:w.name};});
       const reviewRows=BWB_DAYS.map((dayName,i)=>{const row={tag:dayName,datum:dateFullFmt(i),_i:i,taetigkeit:dayTasksByIdx[i]||""};_wColumns.forEach(col=>{const w=workers.find(x=>x.name===col._workerName);row[col.key]=w?(w.days[i]||0):0;});return row;});/* v3.9.438: BWB_DAYS (7 Tage inkl. So) statt DAYS */
       const _edited=await window._exportReviewModal({
         title:"📋 Bauwochenbericht — "+(projName||"")+" — KW "+kw+"/"+yr+" — Vorschau",
@@ -29066,7 +29097,7 @@ ${dayRowsHtml}
           {key:"projekt",label:"📁 Projekt/Kunde",type:"text",width:240},
           {key:"taetigkeit",label:"🛠 Tätigkeit",type:"text",width:200},
           {key:"typ",label:"Typ",type:"readonly",width:70},
-          {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.5",min:0,max:24},
+          {key:"stunden",label:"⏱ h",type:"number",width:80,step:"0.25",min:0,max:24},
           {key:"von",label:"Von",type:"time",width:90},
           {key:"bis",label:"Bis",type:"time",width:90},
           {key:"bemerkung",label:"📌 Bemerkung",type:"text",width:200}
@@ -29222,16 +29253,16 @@ ${dayRowsHtml}
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"1fr 1fr 1fr 1fr",gap:8,marginBottom:12}},
           React.createElement('div',{},
             React.createElement('label',{style:LL()},"Von"),
-            React.createElement('input',{type:"time",value:addVon,onChange:e=>{setAddVon(e.target.value);if(e.target.value&&addBis){const d=_wrapHrs(e.target.value,addBis)-addPause;setAddHours(d>0?Math.round(d*2)/2:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const v=_zeitRundVon(e.target.value);setAddVon(v);if(v&&addBis){const b2=_zeitRundBis(addBis);setAddBis(b2);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})
+            React.createElement('input',{type:"time",step:900,value:addVon,onChange:e=>{setAddVon(e.target.value);if(e.target.value&&addBis){const d=_wrapHrs(e.target.value,addBis)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const v=_zeitRundVon(e.target.value);setAddVon(v);if(v&&addBis){const b2=_zeitRundBis(addBis);setAddBis(b2);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})
           ),
           React.createElement('div',{},
             React.createElement('label',{style:LL()},"Bis"),
-            React.createElement('input',{type:"time",value:addBis,onChange:e=>{setAddBis(e.target.value);if(addVon&&e.target.value){const d=_wrapHrs(addVon,e.target.value)-addPause;setAddHours(d>0?Math.round(d*2)/2:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const b2=_zeitRundBis(e.target.value);setAddBis(b2);if(addVon&&b2){const v=_zeitRundVon(addVon);setAddVon(v);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})
+            React.createElement('input',{type:"time",step:900,value:addBis,onChange:e=>{setAddBis(e.target.value);if(addVon&&e.target.value){const d=_wrapHrs(addVon,e.target.value)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},onBlur:e=>{const b2=_zeitRundBis(e.target.value);setAddBis(b2);if(addVon&&b2){const v=_zeitRundVon(addVon);setAddVon(v);const d=_wrapHrs(v,b2)-addPause;setAddHours(d>0?Math.round(d*100)/100:0);/* v3.9.997 (N7): HIER STAND if(d>0)... OHNE Gegenzweig - bei d<=0 blieb die VORHERIGE Stundenzahl stehen und sah aus wie gerechnet. Ausfuehrliche Begruendung bei der Pause-Auswahl derselben Maske. */}},style:{...II(),fontSize:13}})
           ),
           React.createElement('div',{},
             React.createElement('label',{style:LL()},"Pause"),
-            React.createElement('select',{value:addPause,onChange:e=>{const p=parseFloat(e.target.value);setAddPause(p);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-p;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*2)/2:0);}},style:{...II(),fontSize:13}},
-              React.createElement('option',{value:1},"1 h"),/* v1016: gleiche Beschriftung wie im Projekt-Dialog */
+            React.createElement('select',{value:addPause,onChange:e=>{const p=e.target.value===""?"":parseFloat(e.target.value);setAddPause(p);if(addVon&&addBis){const d=_wrapHrs(addVon,addBis)-p;/* v3.9.997 (N7): HIER STAND if(d>0)setAddHours(...) OHNE Gegenzweig. Bei d<=0 - etwa 08:00 bis 09:00 mit einer Stunde Pause - blieb die VORHERIGE Stundenzahl im Feld stehen und sah aus wie ein gerechneter Wert. Dieselbe Familie wie Z6 (v3.9.991), nur an der Eingabe statt an der Uebernahme. BEWUSST OHNE HINWEIS: dieser Zweig haengt an einer Auswahl, die man beim Suchen mehrfach durchklickt, und eine Meldung je Auswahl waere die Falle aus v3.9.995 - was zu oft kommt, wird weggeklickt. Statt dessen steht jetzt der WAHRE Wert da: null. */setAddHours(d>0?Math.round(d*100)/100:0);}},style:{...II(),fontSize:13}},
+              React.createElement('option',{value:""},"Pause wählen"),React.createElement('option',{value:1},"1 h"),/* v1016: gleiche Beschriftung wie im Projekt-Dialog */
               React.createElement('option',{value:0.5},"30 Min"),
               React.createElement('option',{value:0},"Keine")
             )
@@ -29456,7 +29487,7 @@ ${dayRowsHtml}
                 ),
 
                 /* Add entry button */
-                React.createElement('button',{onClick:()=>{setAddDay(iso);setAddType("projekt");setAddId("");setAddFrei("");setAddHours(8);setAddVon("07:00");setAddBis("16:00");setAddBemerkung("");setAddPause(1);setAddTaetigkeit("");},style:{
+                React.createElement('button',{onClick:()=>{setAddDay(iso);setAddType("projekt");setAddId("");setAddFrei("");setAddHours("");setAddVon("");setAddBis("");setAddBemerkung("");setAddPause("");setAddTaetigkeit("");},style:{
                   width:"100%",padding:"6px",borderRadius:6,border:"1px dashed "+V.bd,
                   background:"transparent",color:V.dm,fontSize:12,cursor:"pointer",fontFamily:"inherit",
                   display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginTop:"auto",

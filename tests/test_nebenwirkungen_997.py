@@ -130,7 +130,10 @@ def test_n7_beide_schreibweisen_sind_kuriert():
         "  Weniger heisst: eine ist zurueckgefallen. Mehr heisst: eine ist "
         "dazugekommen -\n  dann gehoert diese Zahl angesehen, nicht "
         "weggezaehlt." % (n, ERWARTET_N7))
-    for form in ("Math.round(d*2)/2", "Math.round(d*100)/100"):
+    # v3.9.1110 GF 24.11. "Stunden-Vorschau exakt, gleich dem gespeicherten Wert": die 0,5-Schreibweise
+    # Math.round(d*2)/2 ist bewusst weg, alle Stellen nutzen jetzt Math.round(d*100)/100 (Zahl oben unveraendert).
+    assert "setAddHours(d>0?Math.round(d*2)/2:0);" not in code
+    for form in ("Math.round(d*100)/100",):
         assert ("setAddHours(d>0?%s:0);" % form) in code, (
             "\U0001F534 Die Schreibweise `%s` ist nicht kuriert. Genau so "
             "war mein erster\n  Anker zu eng - er traf vier von acht, und "
