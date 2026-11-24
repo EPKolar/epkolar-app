@@ -154,14 +154,30 @@ $probe$;
 """
 
 
+NACH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DISPO_PLANUNG_v1_NACHMESSUNG.sql")
+
+
 def main():
-    ddl = io.open(ENTWURF, encoding="utf-8").read().replace("\r\n", "\n")
+    ddl =io.open(ENTWURF, encoding="utf-8").read().replace("\r\n", "\n")
     # nur der ausfuehrbare Teil ab dem ersten ALTER TABLE
     i = ddl.index("ALTER TABLE public.arbeitsscheine\n")
     ddl = ddl[i:].rstrip() + "\n"
     assert "$ddl$" not in ddl
     io.open(PROBE, "w", encoding="utf-8", newline="\n").write(KOPF + ERGEBNIS + "\n" + RUMPF.replace("__DDL__", ddl))
     print("geschrieben:", PROBE)
+    # GF 24.11.: Nachmessung NACH dem Einspielen = dieselben Faelle gegen das eingespielte Modell (ohne DDL); endet mit RAISE,
+    # damit die Testschreibvorgaenge verworfen werden.
+    r = RUMPF
+    for a, b in (("  IF EXISTS (SELECT 1 FROM pg_trigger", "  IF NOT EXISTS (SELECT 1 FROM pg_trigger"),
+                 ("  IF EXISTS (SELECT 1 FROM information_schema.columns", "  IF NOT EXISTS (SELECT 1 FROM information_schema.columns"),
+                 ("existiert bereits", "fehlt (Entwurf nicht eingespielt)"),
+                 ("  EXECUTE $ddl$__DDL__$ddl$;", "  -- Nachmessung: kein DDL, Modell ist eingespielt")):
+        assert a in r, a
+        r = r.replace(a, b)
+    kopf = ("-- DISPO PLANUNG v1 - NACHMESSUNG nach dem Einspielen (GENERIERT von sql/_dispo_planung_probe_bauen.py).\n"
+            "-- Gleiche Faelle wie die PROBE gegen das eingespielte Modell; endet mit RAISE -> Testschreibvorgaenge werden verworfen.\n")
+    io.open(NACH, "w", encoding="utf-8", newline="\n").write(kopf + r)
+    print("geschrieben:", NACH)
 
 
 if __name__ == "__main__":
