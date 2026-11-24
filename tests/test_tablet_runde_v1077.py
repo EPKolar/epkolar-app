@@ -81,11 +81,13 @@ def test_2_aufgeschoben_ist_eine_offa_prioritaet(index_html):
 
 # ---------------------------------------------------------------- 3 Abwesenheiten
 def test_3_stunden_mit_komma_und_einer_stelle(node_exe, index_html):
-    js = _fn(index_html, "_n") + "\n" + _const_arrow(index_html, "_absH") + r"""
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _absH ruft fmtStd - zwei Stellen statt einer
+    js = _fn(index_html, "_n") + "\n" + _fn(index_html, "_fzZahl") + "\n" + _fn(index_html, "fmtStd") + "\n" + _const_arrow(index_html, "_absH") + r"""
 console.log(JSON.stringify([_absH(192.5,1),_absH(68.5,1),_absH(38.5,1),_absH(0,1),_n(192.5,0)]));"""
     r = json.loads(run_node_snippet(node_exe, js))
-    assert r[:4] == ["192,5", "68,5", "38,5", "0,0"]
+    assert r[:4] == ["192,50", "68,50", "38,50", "0,00"]
     assert r[4] == "193", "Umkehrprobe: der alte Formatierer rundete 192,5 auf 193"
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _absH ruft fmtStd (zwei Stellen) - die Aufrufe bleiben
     assert '"Rest ",(kontUnlesbar?"–":(resturlaub(m).toFixed?_absH(resturlaub(m),1):resturlaub(m))+" h")' in index_html
     assert "_absH((ys.krankenstandStd||0),1)" in index_html
     assert ":_absH(ks.woche||38.5,1))" in index_html

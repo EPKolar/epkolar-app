@@ -58,7 +58,7 @@ def _teile(s):
 SIM = r"""
 const React={createElement:(t,p,...c)=>({t,p:p||{},c:[].concat(...c.map(x=>Array.isArray(x)?x.flat(9):[x])).filter(x=>x&&typeof x==='object')})};
 const V={bd:'#ccc',bg:'#fff',cd:'#fff',dm:'#777',tx:'#000'},UI={fMeta:12,zahlen:{}};
-const _beKleb=()=>({}),_projStdDE=x=>String(x),_beStiftSt={},_ik=()=>null;
+const _beKleb=()=>({}),_projStdDE=x=>String(x),fmtStd=x=>String(x)/* Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen */,_beStiftSt={},_ik=()=>null;
 const ruf=[];const editMonteurEntries=ms=>ruf.push(ms.id);
 const monteurStats=[{id:'w1',name:'Huber',vorname:'Anton',rolle:'monteur',hrs:1,projCnt:1,btCnt:0,regCnt:0},
                     {id:'w2',name:'Maier',vorname:'Berta',rolle:'monteur',hrs:2,projCnt:1,btCnt:0,regCnt:0}];

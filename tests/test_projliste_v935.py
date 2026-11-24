@@ -109,7 +109,8 @@ def test_die_stunden_stehen_in_ihrer_eigenen_spalte(rumpf):
         "Die Stunden stehen noch in der Projektzelle.")
     # PROJ-HANDY PR6: die Spalte formatiert seit dem Handy-Befund mit Komma
     # (_projStdDE, de-AT) statt _n (toFixed, Punkt). Gleiche Quelle h.
-    assert '_projStdDE(h), " h")' in rumpf, "Die Stundenspalte rechnet nichts."
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
+    assert 'fmtStd(h), " h")' in rumpf, "Die Stundenspalte rechnet nichts."
 
 
 def test_die_kopfzeile_ist_ruhig(rumpf):

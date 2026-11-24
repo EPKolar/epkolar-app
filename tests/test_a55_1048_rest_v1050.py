@@ -212,10 +212,11 @@ def test_darstellung_umkehrprobe(index_html, node_exe):
 
 def test_buero_abwesenheiten_einheit_und_standard(index_html):
     code = nur_code(index_html)
-    assert ',fontSize:15}},_projStdDE(r.rest,1)+" h"),r.std?_abStdHinweis():null)),' in code
-    assert 'UI.markeTxt}},_projStdDE(r.rest,1)+" h",r.std?_abStdHinweis():null)' in code
-    assert 'pp[1]>0?_projStdDE(pp[1],1)+" h":"—"' in code
-    assert 'v>0?_projStdDE(v,1)+" h":"\\u2014"' in code
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
+    assert ',fontSize:15}},fmtStd(r.rest)+" h"),r.std?_abStdHinweis():null)),' in code
+    assert 'UI.markeTxt}},fmtStd(r.rest)+" h",r.std?_abStdHinweis():null)' in code
+    assert 'pp[1]>0?fmtStd(pp[1])+" h":"—"' in code
+    assert 'v>0?fmtStd(v)+" h":"\\u2014"' in code
     assert "std:!!(_abKontEcht&&!_abKontEcht[m.n])" in code
     # Kontingent vom Server; Lesefehler -> keine Markierung (unbekannt), nicht 'Standard'
     assert 'const d=await _sbGet("urlaubskontingent","jahr=eq."+_abYr);if(!a||_rlsLeer(d)||!Array.isArray(d))return;' in code

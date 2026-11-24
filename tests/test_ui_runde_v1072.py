@@ -170,7 +170,7 @@ def test_zeiterfassung_raster(index_html):
     teil = index_html[i:index_html.index("function BerCell(", i)]
     # Tablet-Runde 1077 (7): zweites Argument DAYS.length (Sonntag erscheint mit Sonntagseintrag)
     assert 'gridTemplateColumns:_zeWochenSpalten(_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0)),DAYS.length),gap:6}}' in teil
-    assert 'color:V.acTx,whiteSpace:"nowrap",...UI.zahlen}},_projStdDE((entry.stunden||entry.hours||0),2)," h")' in teil
+    assert 'color:V.acTx,whiteSpace:"nowrap",...UI.zahlen}},fmtStd((entry.stunden||entry.hours||0))," h")' in teil  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
     assert "React.createElement('span',{style:{whiteSpace:\"nowrap\",...UI.zahlen}},(entry.von||\"\"),\"–\",(entry.bis||\"\"))" in teil
     assert 'title:(wk||{}).r||undefined' in teil and 'maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"' in teil
     assert "React.createElement('span',{style:{overflowWrap:\"break-word\",hyphens:\"manual\"}},entry.taetigkeit||entry.task)" in teil

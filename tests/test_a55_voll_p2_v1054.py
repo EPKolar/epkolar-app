@@ -106,7 +106,8 @@ def test_4_kv_deutsch_mit_einheit(index_html, node_exe):
     a = index_html.index("function KVZuschlagReport")
     b = index_html.index("function AuswertungView", a)
     kv = index_html[a:b]
-    assert "v>0.001?_fzDE(v,1)+' h':'—'" in kv and "_fzDE(r.zuschlagStd,1)+' h'" in kv
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
+    assert "v>0.001?fmtStd(v)+' h':'—'" in kv and "fmtStd(r.zuschlagStd)+' h'" in kv
     assert "_n(v,1)" not in kv and "_n(r.zuschlagStd,1)" not in kv
     fz = _one_liner(index_html, "_fzDE")
     out = run_node_snippet(node_exe, fz + "console.log(JSON.stringify([_fzDE(72,1)+' h',_fzDE(783.8,1)+' h',_fzDE(1234.5,1)]));")

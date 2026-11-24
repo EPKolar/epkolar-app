@@ -102,7 +102,8 @@ def test_cell_zeigt_stunden(index_html):
     """Struktur-Pin: die Kachel zeigt die gebuchten Stunden des Tages (aus derselben daysMap)."""
     blk = _ez_kalender_block(index_html)
     assert "var stdN=parseFloat(std)||0;" in blk
-    assert "_n(std,1)+' h'" in blk, "Stunden-Anzeige in der Kachel fehlt"
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
+    assert "fmtStd(std)+' h'" in blk, "Stunden-Anzeige in der Kachel fehlt"
 
 
 def test_cell_status_label_statt_punkt(index_html):

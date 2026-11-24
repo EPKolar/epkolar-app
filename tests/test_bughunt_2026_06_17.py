@@ -113,7 +113,9 @@ def test_tagesstz_mehrstunden_diff_not_full():
     weiter geprueft, nur nicht mehr am festen Wert 8.5.
     """
     text = _txt()
-    _diff_ok = ('"eventuelle Mehrstunden: "+_n(dt-_tagNorm,1)+"h"' in text
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Tagesstundenzettel (Excel) bleibt beim Punkt, jetzt mit zwei Stellen
+    _diff_ok = ('"eventuelle Mehrstunden: "+_n(dt-_tagNorm,2)+"h"' in text
+                or '"eventuelle Mehrstunden: "+_n(dt-_tagNorm,1)+"h"' in text
                 or '"eventuelle Mehrstunden: "+_n(dt-8.5,1)+"h"' in text)
     assert _diff_ok, \
         'v3.9.409/879 Regression: Tages-Mehrstunden muss eine DIFFERENZ gegen die Tagesnorm sein'

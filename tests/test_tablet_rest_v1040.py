@@ -255,11 +255,11 @@ def test_f_plan_legende_nicht_unter_plusknopf(index_html):
 def test_g_anzeige_mit_komma_dateien_unveraendert(index_html):
     code = nur_code(index_html)
     assert '_n(kwTotal,2), "h")' not in code and '_n(ps.hrs,1)+" Std."' not in code
-    assert '_projStdDE(kwTotal,2), " h")' in code and '_projStdDE(ps.hrs,1)+" Std."' in code
+    assert 'fmtStd(kwTotal), " h")' in code and 'fmtStd(ps.hrs)+" Std."' in code  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
     # Export-HTML (Datei) bleibt beim Punkt-Format von _n
     assert code.count("html+='<td class=\"num\">'+_n(kwTotal,2)+'</td>") == 2
 
 
 def test_g_umkehrprobe(index_html):
-    alt = index_html.replace('_projStdDE(ps.hrs,1)+" Std."', '_n(ps.hrs,1)+" Std."', 1)
+    alt = index_html.replace('fmtStd(ps.hrs)+" Std."', '_n(ps.hrs,1)+" Std."', 1)
     assert '_n(ps.hrs,1)+" Std."' in nur_code(alt)

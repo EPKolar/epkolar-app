@@ -229,12 +229,12 @@ def _quelle(src, anf):
 
 # md5 des Quelltexts (LF) - Stand origin/main v3.9.1074, durch Stufe 6 NICHT veraendert.
 EXPORT_MD5 = {
-    "const genXls=(title,subtitle,headers,rows,filename,opts={})=>{": "8472db9de0084b7a6cdf1a492758c930",
+    "const genXls=(title,subtitle,headers,rows,filename,opts={})=>{": "3d91fb63551846ec08715ad213381e94",  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: opts.stdCols (Stunden-Spalten bleiben Zahl, Format 0,00) - vorher 8472db9de0084b7a6cdf1a492758c930
     "  const generateBWB=(proj,useFilters,scopeKW)=>{": "e72868132f574a32a53df0185a1bdad8",
     "  const generateAll=()=>{": "aea0f49dde6f0c3945b21bd87a31dcc9",
     "  const getProjectData=(projId)=>{": "3084cd316af562b72e5daaa03273f7bd",
-    "  const _absExcel=()=>": "f32536f4e32674641996528bcc72d7d7",
-    "  const _krankExcel=()=>": "2e70fb11e3561d48bbe75caf23e08b7c",
+    "  const _absExcel=()=>": "73f0fa27df15c6558df90d73b19dad68",  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _n(..,2) + stdCols - vorher f32536f4e32674641996528bcc72d7d7
+    "  const _krankExcel=()=>": "010cb545e53df39e837f309233e9a685",  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _n(..,2) + stdCols - vorher 2e70fb11e3561d48bbe75caf23e08b7c
     "  const _absRows=()=>": "8ccbb08003ce7ccde70d98f016f2485b",
     "  const _krankRows=()=>": "2319691cb0cf9f849bc363ad71d5be4d",
     "  const _pzeBtn=()=>{": "ed90b7902cf89328558d2f74c5f48397",
@@ -345,9 +345,9 @@ def test_umkehr_ohne_zuordnungsrest_waere_rot(roh, node_exe):
 
 def test_summenzeile_wird_angezeigt(roh):
     v = _be(roh)
-    assert v.count("_projStdDE(_beMaSumme+_beOhneMa,1)") == 2  # Tabelle (tfoot) + Handy-Summenkarte
+    assert v.count("fmtStd(_beMaSumme+_beOhneMa)") == 2  # Tabelle (tfoot) + Handy-Summenkarte (Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen)
     assert "React.createElement('tfoot', null, React.createElement('tr', { 'data-be-summe': \"1\"" in v
-    assert "\"inkl. \"+_projStdDE(_beOhneMa,1)+\" h ohne Mitarbeiter-Zuordnung\"" in v
+    assert "\"inkl. \"+fmtStd(_beOhneMa)+\" h ohne Mitarbeiter-Zuordnung\"" in v
     assert "Summe = alle Zeiteintr\\u00e4ge = Kachel \\u201eStunden auf Projekten\\u201c samt Unterzeile" in v
 
 
@@ -390,7 +390,7 @@ def test_krankenstand_werte_stehen_in_ihren_spalten(roh):
     keys = re.findall(r"React\.createElement\('td',\{key:\"(\w)\"", breit)
     assert keys == ["n", "d", "h", "s", "t"], keys
     assert "colSpan" not in breit
-    assert "_projStdDE(b.h,1))" in breit and "},_bSt)," in breit and "Attest vorhanden" in breit
+    assert "fmtStd(b.h))" in breit and "},_bSt)," in breit and "Attest vorhanden" in breit
     assert '_kStTxt(r.status)' in k and "},r.status)" not in k
     assert "\"Zeiträume\")+\" · \"+kr.length+\" von \"+_krAll.length+\" Tagen\"" in k
 

@@ -91,6 +91,9 @@ GRUND = {
     #    Abschreiben waere eine Attrappe, die auseinanderlaeuft; `_schnitt`
     #    holt die echte Fassung und besteht auf Eindeutigkeit.
     "ktgStd": ("function _ktgStd(v){", "return isNaN(_k)?192.5:_k;}"),
+    # Paket 13 (GF 24.11.2026): die Kontingent-Anzeige ruft fmtStd (zwei Nachkommastellen) - GESCHNITTEN wie _ktgStd.
+    "fzZahl": ("function _fzZahl(v){", "\n}"),
+    "fmtStd": ("function fmtStd(v){", "\n}"),
     # P3-A55 (16.11.): die Team-Kachel zeichnet ihre Ikone ueber `_teamIk(at2,m)`
     # (Linien-Ikone statt Emoji). GESCHNITTEN wie _ktgStd, nicht nachgebaut.
     "teamIk": ("const AT_KAT_IK={", 'return (m&&m.r==="Geschäftsführer")?"aktentasche":"person";}'),
@@ -118,7 +121,7 @@ S_KONT = {
     "kontKompakt": ("        , !kontExpanded&&(React.createElement('div', { style: "
                     "{display:\"flex\",flexDirection:\"column\",gap:6}}, (isAdmin?_kontNames",
                     "        })))"),
-    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9});"),
+    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9,stdCols:[2,3,4,5,6,7,8,9,10]});"),  # Paket 13 (GF 24.11.2026): Stunden-Spalten im Kontingent-Excel als Zahl mit Format 0,00 - Suchanker nachgezogen, Eigenschaft unveraendert
 }
 
 S_HIST = {
@@ -169,7 +172,7 @@ S_KONT_ALT = {
     "kontKompakt": ("        , !kontExpanded&&(React.createElement('div', { style: "
                     "{display:\"flex\",flexDirection:\"column\",gap:6}}, (isAdmin?names",
                     "        })))"),
-    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9});"),
+    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9,stdCols:[2,3,4,5,6,7,8,9,10]});"),  # Paket 13: Suchanker wie oben
 }
 
 UMKEHR_ZUW = [
@@ -209,6 +212,8 @@ var UI={fMeta:12,fKlein:13,fText:14,fTitel:15,fTitelGross:17,
 %(fzKzAnzeige)s
 %(waehlbar)s
 %(ktgStd)s
+%(fzZahl)s
+%(fmtStd)s
 %(teamIk)s
 /* P3-A55: _ik zeichnet im echten Code ein SVG; hier nur der Schluessel. */
 function _ik(n){ return {ik:n}; }

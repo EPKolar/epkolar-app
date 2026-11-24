@@ -246,7 +246,7 @@ def pruef_zahlen(html):
     ber = _teil(html, "function BerCell({h})", "\nfunction printForm(")
     if re.search(r"[^A-Za-z_.]_n\((h|sum|totalH),", ber):
         b.append("Wochenbericht zeigt Punkt-Zahlen")
-    if '_projStdDE(_mySummary.ist,1)+" h"' not in html:
+    if 'fmtStd(_mySummary.ist)+" h"' not in html:  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
         b.append("Monatsabrechnung Ist-Stunden mit Punkt")
     if '"€"+Math.round(v)' in html or '_n(it.value,0)+" €"' in html or 'Math.round(moData.reduce((a,b)=>a+b,0)), " €"' in html:
         b.append("Home-Tankkosten: Euro uneinheitlich")
@@ -261,14 +261,14 @@ def test_6_zahlen(index_html):
 
 def test_6_umkehrprobe(index_html):
     # v3.9.1095 Anzeige-Fund 2: der Wochenbericht nimmt fuer Zellen und Summen BER_STD_STELLEN (2) - Anker nachgezogen, Probe unveraendert scharf
-    assert "_projStdDE(totalH,BER_STD_STELLEN))))" in index_html
-    assert pruef_zahlen(index_html.replace("_projStdDE(totalH,BER_STD_STELLEN))))", "_n(totalH,BER_STD_STELLEN))))", 1)) != []
+    assert "fmtStd(totalH))))" in index_html  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
+    assert pruef_zahlen(index_html.replace("fmtStd(totalH))))", "_n(totalH,BER_STD_STELLEN))))", 1)) != []
     assert pruef_zahlen(index_html.replace('unit==="€"?_eurKachel(v)', 'unit==="€"?"€"+Math.round(v)', 1)) != []
 
 
 def test_6_exporte_bleiben(index_html):
     """Druck und Excel behalten _n - nur die Anzeige ist deutsch."""
-    assert "${_n(totalStd,1)}" in index_html
+    assert "${fmtStd(totalStd)}" in index_html  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Bautagesbericht ist ein Druckblatt (window.print), kein Excel - Anzeige mit Komma
     assert '"eventuelle Mehrstunden: "+_n(diff,1)+"h"' in index_html or '"eventuelle Mehrstunden: "+_n(diff,2)+"h"' in index_html
 
 
@@ -299,7 +299,7 @@ def pruef_klein(html):
     # rollt in ihrem Kasten und Kaestchen + Inventar-Nr. kleben links (test_stufe_werkzeuge_v1073).
     if "minWidth:_wzMittel?0:800" not in html or "const _wzKlebSp=(links,bg)=>_wzMittel?{position:\"sticky\"" not in html:
         b.append("Werkzeug-Tabelle hoch abgeschnitten")
-    for t in ('kontUnlesbar?"– (nicht gemessen)"', 'kontUnlesbar?"–":(_n(rest,1)', 'kontUnlesbar?"–":(_absH(mRest,1)+"h")',
+    for t in ('kontUnlesbar?"– (nicht gemessen)"', 'kontUnlesbar?"–":(fmtStd(rest)', 'kontUnlesbar?"–":(_absH(mRest,1)+"h")',
               'sub: kontUnlesbar?"nicht gemessen":"von "+'):
         # Pin angepasst (Stufe 3, 19.11.2026): Rest in der Personen-Pille mit EINER Nachkommastelle wie im
         # Kontingent (Tablet-Vollpruefung: Kontingent 192,5 h, Pille "Rest 193 h"). Gesichert bleibt dieselbe

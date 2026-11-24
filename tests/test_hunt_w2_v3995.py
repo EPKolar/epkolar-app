@@ -20,7 +20,8 @@ def test_juprowa_prio_rev_offa_7_codes(index_html):
 
 def test_exportxls_sumcol_is_hours(index_html):
     # Die KW-Zeiterfassungs-Export-genXls muss die Stunden-Spalte (5) summieren, nicht Typ (4).
-    assert 'leftCols:[0,1,2,3,5,6,7],boldCols:[2],sumCol:5}' in index_html, (
+    # Paket 13 (GF 24.11.2026): stdCols:[5] dazu (Stunden-Spalte als Zahl mit Format 0,00) - sumCol bleibt 5
+    assert 'leftCols:[0,1,2,3,5,6,7],boldCols:[2],sumCol:5,stdCols:[5]}' in index_html, (
         "exportXls muss sumCol:5 (Stunden) nutzen, nicht 4 (Typ-String → Gesamt 0,00)"
     )
 

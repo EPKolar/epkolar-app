@@ -60,6 +60,8 @@ function _kvTagesnorm(){return 8;}
 function _kvHundert100(){return false;}
 function _kvTagZuschlag(){return {normal:8,mehrarbeit:1,ue50:2,ue100:0.5,zuschlagStd:3};}
 function _fzDE(v,d){return v.toFixed(d);}
+function fmtStd(v){return (v===null||v===undefined||v==="")?"":Number(v).toFixed(2).replace(".",",");}/* Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen */
+function fmtStd(v){return (v===null||v===undefined||v==="")?"":Number(v).toFixed(2).replace(".",",");}/* Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen */
 function _ikVw(i,t){return t;}
 function _klappIk(){return null;}
 function finde(n,f,out){if(!n||typeof n!=='object')return out;if(f(n))out.push(n);(n.c||[]).forEach(function(k){if(Array.isArray(k))k.forEach(function(x){finde(x,f,out);});else finde(k,f,out);});return out;}

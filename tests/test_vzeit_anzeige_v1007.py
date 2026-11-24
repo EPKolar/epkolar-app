@@ -25,7 +25,7 @@ def test_stunden_gesamt_ueber_die_eine_quelle(index_html):
     v = _vzeit(index_html)
     i = v.find('"Stunden gesamt"')
     assert i != -1
-    assert '_projStdDE(totalH,1), " h")' in v[i:i + 300]
+    assert 'fmtStd(totalH), " h")' in v[i:i + 300]  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
 
 
 def test_kein_blau_als_auswahl_oder_ziffer(index_html):

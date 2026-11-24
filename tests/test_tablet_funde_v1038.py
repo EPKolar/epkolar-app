@@ -223,13 +223,13 @@ def test_6_umkehrprobe(index_html):
 def pruef_komma(src):
     b = []
     # v1044 (Tablet-Pruefung 1041, Fund 9): Euro jetzt ueber _eurKachel ("€ 711", wie die Home-Kacheln) - der Riegel prueft weiter das Komma der Literzahl
-    if 'v>0?(unit==="€"?_eurKachel(v):_projStdDE(v,1)):""' not in src:
+    if 'v>0?(unit==="€"?_eurKachel(v):fmtStd(v)):""' not in src:  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
         b.append("Balkenwerte mit Punkt")
     for k in ("Stunden gesamt", "Diese Woche", "Letzte Woche"):
         z = src[src.index('_statBox("%s",' % k):][:120]
-        if 'toLocaleString("de-AT")' not in z:
+        if 'fmtStd(_zeitStats.' not in z:  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
             b.append(k + " mit Punkt")
-    if '_statBox("Ø Woche",_wochenSchnitt.toLocaleString("de-AT")' not in src:
+    if '_statBox("Ø Woche",fmtStd(_zeitStats.totalH/_wkVerstrichen)' not in src:  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
         b.append("Ø Woche mit Punkt")
     if '((Math.round((o.dauerMin||0)/60*10)/10).toLocaleString("de-AT")+"h")' not in src:
         b.append("Dispo-Dauer mit Punkt")
@@ -239,13 +239,14 @@ def pruef_komma(src):
 @needs_node
 def test_7_dezimalkomma(node_exe, index_html):
     assert pruef_komma(index_html) == []
-    js = _zeile(index_html, "function _projStdDE(v,d){") + (
-        "\nconsole.log(JSON.stringify([_projStdDE(8.5,1),_projStdDE(165,1),(Math.round(8.46*10)/10).toLocaleString('de-AT')]));")
-    assert json.loads(run_node_snippet(node_exe, js)) == ["8,5", "165,0", "8,5"]
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: die Kacheln zeigen jetzt fmtStd (zwei Stellen)
+    js = _zeile(index_html, "function _projStdDE(v,d){") + "\n" + "\n".join(index_html[index_html.index(k):index_html.index("\n}", index_html.index(k)) + 2] for k in ("function _fzZahl(v){", "function fmtStd(v){")) + (
+        "\nconsole.log(JSON.stringify([_projStdDE(8.5,1),_projStdDE(165,1),fmtStd(8.46),fmtStd(165)]));")
+    assert json.loads(run_node_snippet(node_exe, js)) == ["8,5", "165,0", "8,46", "165,00"]
 
 
 def test_7_umkehrprobe(index_html):
-    kaputt = index_html.replace('_projStdDE(v,1)):""', '_n(v,1)):""', 1)
+    kaputt = index_html.replace('fmtStd(v)):""', '_n(v,1)):""', 1)
     assert pruef_komma(kaputt)
 
 

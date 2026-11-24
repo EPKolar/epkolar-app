@@ -90,7 +90,8 @@ def test_untertitel_behauptet_keine_festen_38_5(index_html):
 
 
 def test_untertitel_zeigt_das_echte_sollper(index_html):
-    assert "String(_n(_kapSel.sollPer,1)).replace('.',',')" in index_html, (
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
+    assert "fmtStd(_kapSel.sollPer)" in index_html, (
         "Der Untertitel zeigt nicht mehr _kapSel.sollPer - genau den Wert, mit "
         "dem kapSoll multipliziert.")
 
@@ -191,11 +192,11 @@ def test_selbsttest_riegel_schlagen_beim_rueckbau_an(index_html):
         "Umkehrprobe: der Zaehler-Riegel wuerde nicht anschlagen")
 
     z3 = index_html.replace(
-        "× '+String(_n(_kapSel.sollPer,1)).replace('.',',')+' h '"
+        "× '+fmtStd(_kapSel.sollPer)+' h '"
         "+(kapZeit==='woche'?'in dieser Woche':'in diesem Monat')+'",
         "× 38,5 h/Woche", 1)
     assert z3 != index_html, "Rueckbau 3 griff nicht"
-    assert "String(_n(_kapSel.sollPer,1)).replace('.',',')" not in z3, (
+    assert "fmtStd(_kapSel.sollPer)" not in z3, (
         "Umkehrprobe: der Untertitel-Riegel wuerde nicht anschlagen")
     assert "aktive Monteure × 38,5 h/Woche" in nur_code(z3), (
         "Umkehrprobe: der 38,5-Riegel wuerde den Rueckbau nicht sehen")

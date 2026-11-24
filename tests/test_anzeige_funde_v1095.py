@@ -73,9 +73,10 @@ def pruef_wochenbericht(src):
     feh = []
     if not re.search(r"const BER_STD_STELLEN=2;", b):
         feh.append("Stellenzahl nicht 2")
+    # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Zelle, Zeilensumme und Gesamt laufen ueber fmtStd (immer zwei Stellen).
     for v in ("h", "sum", "totalH"):
-        if "_projStdDE(" + v + ",BER_STD_STELLEN)" not in b:
-            feh.append(v + " nicht ueber BER_STD_STELLEN")
+        if "fmtStd(" + v + ")" not in b:
+            feh.append(v + " nicht ueber fmtStd")
     if re.search(r"_projStdDE\((h|sum|totalH),\d\)", b):
         feh.append("feste Stellenzahl im Wochenbericht")
     return feh
@@ -83,13 +84,13 @@ def pruef_wochenbericht(src):
 
 def test_2_wochenbericht_einheitlich(index_html, node_exe):
     assert pruef_wochenbericht(index_html) == []
-    f = _fn(index_html, "_projStdDE")
-    out = run_node_snippet(node_exe, f + "process.stdout.write([_projStdDE(3,2),_projStdDE(7.75,2)].join('|'));")
+    f = _fn(index_html, "_fzZahl") + "\n" + _fn(index_html, "fmtStd")
+    out = run_node_snippet(node_exe, f + "process.stdout.write([fmtStd(3),fmtStd(7.75)].join('|'));")
     assert out == "3,00|7,75"
 
 
 def test_2_umkehr_summe_mit_einer_stelle(index_html):
-    kaputt = index_html.replace("_projStdDE(sum,BER_STD_STELLEN)", "_projStdDE(sum,1)", 1)
+    kaputt = index_html.replace("fmtStd(sum)", "_projStdDE(sum,1)", 1)
     assert kaputt != index_html and pruef_wochenbericht(kaputt) != []
 
 

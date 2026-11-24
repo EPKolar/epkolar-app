@@ -272,7 +272,7 @@ def test_stufe_steht_im_block_von_zeiterfassungview(roh):
 # (Fehltage), Stunden aendern mit verzoegertem PUT (stzSaveTimers), Loeschen, Bearbeiten,
 # Buchen (Doppel-Tap-Sperre, Konflikt-Rueckfrage), Wie-letzte-Woche, Tages-/Wochensumme, Exporte.
 UNBERUEHRT = [
-    ("  const _hkZE=", "  // ── Add Entry Modal ──", "edd258c0affe6623a32a0b40490df7d5"),  # v3.9.1111 Timer/WLW-State entfernt (GF 24.11.), vorher e6031b91feb2453160f0a66492a652e2 | v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
+    ("  const _hkZE=", "  // ── Add Entry Modal ──", "2a74fd86a2eddee6e21a44991b7fa6ba"),  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _hK ruft fmtStd - vorher edd258c0affe6623a32a0b40490df7d5 | v3.9.1111 Timer/WLW-State entfernt (GF 24.11.), vorher e6031b91feb2453160f0a66492a652e2 | v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
     ("  const loadWeek=", "  _react.useEffect.call(void 0, ()=>{loadWeek();}", "b385eb03b69f774d0fda2c645009df8e"),
     ("  const loadAllOverview=()=>{", "  const updateEntryHours=", "cd30063a0ff0c90357bc549f4fca834d"),
     ("  const updateEntryHours=(iso,entryIdx,newHours)=>{", "  const _isFieldRoleZE=", "6269e5f3f81bbbab81a3fdc3c13afed1"),
@@ -284,7 +284,7 @@ UNBERUEHRT = [
     # Dialog: Von/Bis/Pause/Stunden mit 5-Min-Rundung (_zeitRundVon/_zeitRundBis) und Pausenabzug
     # v3.9.1093: Stundenfeld text statt number (ZahlEingabe, gelesen ueber _fzZahl) - bewusst neu gehasht.
     # Die Aenderung im Block ist GENAU diese Ersetzung: test_dialog_rueckbau_ergibt_alten_hash belegt es.
-    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "692eefd1afb392a77bdc07ce3ae18b49"),  # v3.9.1110: Uhrzeit step 900, Pause waehlen, Vorschau exakt - vorher ed4a6fa584c0ffbb9ad0d529ffb9e98a
+    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "aebe5ef378de1d1c4d54b5fb3f6d4bb8"),  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Stundenfeld ZahlEingabe stunden:true (ohne Fokus 9,50) - Rueckbau in test_dialog_rueckbau_ergibt_alten_hash - vorher 692eefd1afb392a77bdc07ce3ae18b49 | v3.9.1110: Uhrzeit step 900, Pause waehlen, Vorschau exakt - vorher ed4a6fa584c0ffbb9ad0d529ffb9e98a
     # Stunden-Anzeige auf der Karte (Leer-/Komma-Schutz, test_zeit_lohn_v885)
     ("React.createElement('input',{type:\"text\",readOnly:true,tabIndex:-1,\"aria-label\":\"Stunden, ändern über Bearbeiten\"",
      "React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},\"h\"))", "750998533ffe43f76063114a74f80250"),
@@ -309,7 +309,8 @@ def test_rechnung_und_speichern_byte_gleich(roh):
 
 def test_dialog_rueckbau_ergibt_alten_hash(roh):
     """v3.9.1093: dreht man NUR die Feld-Umstellung zurueck, ist der Dialog-Block byte-gleich mit v3.9.1074."""
-    rev = roh.replace("React.createElement(ZahlEingabe,{inputMode:\"decimal\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?",
+    rev = roh.replace("ZahlEingabe,{stunden:true,inputMode", "ZahlEingabe,{inputMode")  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Stunden-Formatierung ohne Fokus zuerst zurueck
+    rev = rev.replace("React.createElement(ZahlEingabe,{inputMode:\"decimal\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?",
                       "React.createElement('input',{type:\"number\", inputMode:\"decimal\",step:\"0.5\",min:\"0\",max:\"24\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?")
     rev = rev.replace("setAddHours(_fzZahl(e.target.value)||0)", "setAddHours(parseFloat(e.target.value)||0)")
     assert rev != roh

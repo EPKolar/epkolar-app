@@ -127,7 +127,7 @@ def test_z7_exportknoepfe_bei_leerer_woche_gesperrt(index_html):
 
 def test_z9_formatierer_setzt_komma(index_html):
     b = _ze(index_html)
-    assert 'const _hK=(v,d)=>String(_n(v,d)).replace(".",",");' in b
+    assert 'const _hK=(v,d)=>fmtStd(v);' in b  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen
 
 
 def test_z9_exporte_bleiben_beim_punkt(index_html):
