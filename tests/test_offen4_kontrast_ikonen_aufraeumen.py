@@ -80,7 +80,8 @@ def _ohne_kommentare_toasts(t):
 
 def _teile(src):
     a = src.index("function OfflineBanner(")
-    banner = src[a:src.index("\nfunction TimerBanner(", a)]
+    # v3.9.1111: TimerBanner entfernt (GF 24.11.) - Ende jetzt am naechsten Abschnitt; vorher "\nfunction TimerBanner("
+    banner = src[a:src.index("\n// ═══════════ HOME DASHBOARD", a)]
     p = src.index("showPhotoQ&&(React.createElement('div'")
     photoq = src[p:src.index("/* ═══ SYNC DETAIL PANEL ═══ */", p)]
     w = src.index("const mc=MATERIAL_CATS[kat.gewerk]")

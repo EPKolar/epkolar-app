@@ -137,14 +137,15 @@ def test_beispiel_aus_der_betriebsregel(node_exe, index_html):
 # ── Struktur-Guards ─────────────────────────────────────────────────────────
 
 def test_timer_faellt_unter_dieselbe_regel(index_html):
-    # Der Timer nutzt die ms-basierten Stempel-Helper — keine dritte Kopie der Logik.
-    assert "const _vonMs=_stRoundKommen(s.startAt);const _bisMs=_stRoundGehen(_endAt);" in index_html
-    assert "const hours=Math.max(0,(_bisMs-_vonMs)/TIME_HOUR);" in index_html
+    # v3.9.1111 GF 24.11.: Timer ENTFERNT (er buchte am 15-min-Raster vorbei). Vorher hielt dieser Test fest, dass der
+    # Timer die Stempel-Helper nutzt; jetzt gilt: es gibt keinen Timer-Buchungsweg mehr (test_projektzeit_raster_timer_wlw_v1111).
+    assert "window._epkTimer" not in index_html
+    assert "const _vonMs=_stRoundKommen(s.startAt)" not in index_html
 
 
 def test_timer_unter_5min_wird_verworfen(index_html):
-    # Eine 0h-Buchung waere ein Geisterdatensatz in der Lohnbasis.
-    assert 'window.__toast("⏱ Timer-Lauf unter 5 Minuten — nicht gebucht (5-Minuten-Raster)"' in index_html
+    # v3.9.1111: Timer entfernt - es gibt keine Timer-Buchung (auch keine 0h-Buchung) mehr.
+    assert "Timer-Lauf unter 5 Minuten" not in index_html
 
 
 def test_beide_erfassungs_komponenten(index_html):

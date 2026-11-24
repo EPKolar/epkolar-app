@@ -272,14 +272,14 @@ def test_stufe_steht_im_block_von_zeiterfassungview(roh):
 # (Fehltage), Stunden aendern mit verzoegertem PUT (stzSaveTimers), Loeschen, Bearbeiten,
 # Buchen (Doppel-Tap-Sperre, Konflikt-Rueckfrage), Wie-letzte-Woche, Tages-/Wochensumme, Exporte.
 UNBERUEHRT = [
-    ("  const _hkZE=", "  // ── Add Entry Modal ──", "e6031b91feb2453160f0a66492a652e2"),  # v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
+    ("  const _hkZE=", "  // ── Add Entry Modal ──", "edd258c0affe6623a32a0b40490df7d5"),  # v3.9.1111 Timer/WLW-State entfernt (GF 24.11.), vorher e6031b91feb2453160f0a66492a652e2 | v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
     ("  const loadWeek=", "  _react.useEffect.call(void 0, ()=>{loadWeek();}", "b385eb03b69f774d0fda2c645009df8e"),
     ("  const loadAllOverview=()=>{", "  const updateEntryHours=", "cd30063a0ff0c90357bc549f4fca834d"),
     ("  const updateEntryHours=(iso,entryIdx,newHours)=>{", "  const _isFieldRoleZE=", "6269e5f3f81bbbab81a3fdc3c13afed1"),
     ("  const deleteEntry=async(iso,entryIdx)=>{", "  const _startEditEntry=", "4ab9e2c3c729e01e68f051d6a7f915ba"),
     ("  const _startEditEntry=", "  const _addEntryInFlightRef=", "ce43dcdf5ee5072f23343af4180b23bf"),  # v3.9.1110: Bearbeiten ohne erfundene Zeiten, Original fuer Pruefung - vorher 32eed371fbcd11f70f584e185ac4c977
-    ("  const addEntry=async()=>{", "  const _wlwAbs=()=>{", "9413568ee09aace4c3027678aaf1b604"),  # v3.9.1110: Pflicht-/15-min-Pruefung, alte Stunden bleiben - vorher b9a3b2b4c452d71e2b1cdc83373372cb
-    ("  const _wlwUebernehmen=async()=>{", "  const wlwModal=()=>{", "cb75e471a823b19d4e6686ccd223e3cc"),
+    ("  const addEntry=async()=>{", "  // Totals", "4f47d836a3fd58828c321eb26ebb3266"),  # v3.9.1111: Wie letzte Woche entfernt (GF 24.11.) - Ende jetzt "// Totals", vorher "const _wlwAbs" / 9413568ee09aace4c3027678aaf1b604  # v3.9.1110: Pflicht-/15-min-Pruefung, alte Stunden bleiben - vorher b9a3b2b4c452d71e2b1cdc83373372cb
+    # v3.9.1111: Block _wlwUebernehmen entfernt (GF 24.11.: Wie letzte Woche weg) - vorher cb75e471a823b19d4e6686ccd223e3cc
     ("  const dayTotal=(off)=>", "  const _nEintrZE=", "699bc7098a09a1aaa54417c453451d78"),
     # Dialog: Von/Bis/Pause/Stunden mit 5-Min-Rundung (_zeitRundVon/_zeitRundBis) und Pausenabzug
     # v3.9.1093: Stundenfeld text statt number (ZahlEingabe, gelesen ueber _fzZahl) - bewusst neu gehasht.
@@ -313,7 +313,8 @@ def test_dialog_rueckbau_ergibt_alten_hash(roh):
                       "React.createElement('input',{type:\"number\", inputMode:\"decimal\",step:\"0.5\",min:\"0\",max:\"24\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?")
     rev = rev.replace("setAddHours(_fzZahl(e.target.value)||0)", "setAddHours(parseFloat(e.target.value)||0)")
     assert rev != roh
-    assert _hashes(rev)[9] == "a3511b895cdc0d5594c95628de667e9f"  # v3.9.1110 Dialog bewusst geaendert (GF 24.11.) - vorher ceca4e0175d8265f7c94de699b306eac
+    # v3.9.1111: ein Block weniger (WLW entfernt) -> Dialog jetzt Index 8 (vorher 9)
+    assert _hashes(rev)[8] == "a3511b895cdc0d5594c95628de667e9f"  # v3.9.1110 Dialog bewusst geaendert (GF 24.11.) - vorher ceca4e0175d8265f7c94de699b306eac
 
 
 def _im_ze(src, alt, neu):
