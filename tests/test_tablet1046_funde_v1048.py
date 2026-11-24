@@ -286,7 +286,7 @@ def test_dispo_meta_ikone_verzweigt_richtig(node_exe, index_html, tmp_path):
 
 
 def test_offa_excel_unberuehrt(index_html):
-    assert "📊 OFFA Excel" in index_html or "OFFA Excel" in index_html
+    assert '"EXCEL Export"' in index_html  # GF 24.11.2026: Beschriftung 'OFFA Excel' -> 'EXCEL Export' (nur Text; Export, Spalten, Format unveraendert); vorher "OFFA Excel"
 
 
 # ── 14 Dispo-Sperrknopf ──────────────────────────────────────────────────

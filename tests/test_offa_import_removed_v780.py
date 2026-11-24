@@ -70,7 +70,7 @@ def test_offa_excel_export_untouched(index_html):
     """Der OFFA-EXCEL-EXPORT bleibt vollstaendig erhalten."""
     assert "const exportOffa=" in index_html, "exportOffa-Funktion fehlt — Export darf NICHT entfernt werden."
     # GF-Freigabe 19.11.2026: Emoji aus der Beschriftung (CI: keine Emoji). Export/exportOffa unveraendert.
-    assert 'style: {...xBtn("xls")}}, "OFFA Excel"  )' in index_html, "'OFFA Excel'-Export-Button fehlt."
+    assert 'style: {...xBtn("xls")}}, "EXCEL Export"  )' in index_html, "'OFFA Excel'-Export-Button fehlt."
     assert "\U0001F4CA OFFA Excel" not in index_html.replace("setShowExportPicker/\"\U0001F4CA OFFA Excel\")", ""), "Emoji wieder in der Beschriftung"
     assert "setShowExportPicker" in index_html, "Export-Picker-State (setShowExportPicker) fehlt."
 

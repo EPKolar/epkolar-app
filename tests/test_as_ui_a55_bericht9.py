@@ -249,7 +249,7 @@ def test_7_umkehr(index_html):
 
 def test_7_offa_excel_bleibt(index_html):
     """test_offa_import_removed_v780 pinnt den Wortlaut (seit GF-Freigabe 19.11.2026 ohne Emoji)."""
-    assert 'style: {...xBtn("xls")}}, "OFFA Excel"  )' in index_html
+    assert 'style: {...xBtn("xls")}}, "EXCEL Export"  )' in index_html  # GF 24.11.2026: Beschriftung 'OFFA Excel' -> 'EXCEL Export' (nur Text; Export, Spalten, Format unveraendert)
 
 
 # ---------- 8 ----------

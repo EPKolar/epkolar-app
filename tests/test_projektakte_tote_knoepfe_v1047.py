@@ -54,5 +54,5 @@ def test_umkehrprobe_alter_stand_wird_erkannt():
 
 def test_echter_offa_excel_export_unberuehrt():
     src = _src()
-    assert '"📊 OFFA Excel"' in src or "OFFA Excel" in src
+    assert '"EXCEL Export"' in src  # GF 24.11.2026: Beschriftung 'OFFA Excel' -> 'EXCEL Export' (nur Text; Export, Spalten, Format unveraendert); vorher '"📊 OFFA Excel"' oder "OFFA Excel"
     assert "exportOffa" in src
