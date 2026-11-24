@@ -72,8 +72,8 @@ AS_REST = [
     '"⚠ Kopieren fehlgeschlagen',
     '"📋 Link kopiert (Fallback)":"⚠ Clipboard nicht verfügbar"',
     '"⚠ Clipboard nicht verfügbar — Link manuell markieren"',
-    '"✓ Vorschlag übernommen',
-    '"✓ "+_nr+',
+    # 24.11.2026 Dispo mobil (Weg B): die zwei Dispo-Toasts '"✓ Vorschlag übernommen' und '"✓ "+_nr+' entfallen -
+    # Verschieben/Uebernehmen melden jetzt ohne Zeichen (dispoPlanen), die Toast-Art traegt den Erfolg.
     '"🔓 Sperre aufgehoben"',
     '"🚫 Tag gesperrt: "',
     '"⚠️ Sperren-Tabelle',

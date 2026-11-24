@@ -126,7 +126,8 @@ def test_dispo_field_praedikat_woertlich(index_html):
 
 def test_dispopanel_header_ohne_monteur(index_html):
     """Kopfzeile zeigt 'ohne Monteur' + 'nicht unterbringbar' (Damen sehen fehlende Zuweisung)."""
-    start = index_html.index("function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})")
+    # Pin nachgezogen 24.11.2026 (Dispo mobil, Weg B): neue Prop onBestaetigen (Termin bestaetigen). Alt: ...onToggleBlock,onRefreshScheine})
+    start = index_html.index("function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen})")
     end = index_html.index("function ArbeitsscheinView(", start)
     body = index_html[start:end]
     assert "ohne Monteur" in body, "Kopfzeile ohne 'ohne Monteur'-Zaehler"

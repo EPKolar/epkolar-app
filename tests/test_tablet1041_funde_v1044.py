@@ -192,7 +192,8 @@ def test_3_umkehrprobe(index_html):
 
 # ── 4 Kalender ─────────────────────────────────────────────────────────────
 def pruef_kalender(html):
-    m = _teil(html, 'calView==="monat"&&React.createElement(', "/* ═══ WOCHENANSICHT ═══ */")
+    # Pin nachgezogen 24.11.2026 (Dispo mobil): der Monatsraster steht jetzt hinter !_kalMob (am Handy KalMonatZahl). Alt: 'calView==="monat"&&React.createElement('
+    m = _teil(html, 'calView==="monat"&&!_kalMob&&React.createElement(', "/* ═══ WOCHENANSICHT ═══ */")
     b = []
     if 'repeat(7,1fr)' in m:
         b.append("1fr-Spalten (wachsen mit dem Inhalt je Woche)")

@@ -22,16 +22,19 @@ def test_chip_button_calls_onuebernehmen(index_html):
     # v3.9.733 #20: 4. Arg = effektive Dauer (_eff), 5. Arg = Startzeit (HH:MM aus _dispoAblauf) -> terminZeit.
     assert "onUebernehmen(c.scheinId,m.id,t.iso,_eff,_dispoMinToHHMM(_win.startMin))" in body
     # Übernahme-Button nur wenn Callback da (read-only bleibt möglich)
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})" in index_html
+    # Pin nachgezogen 24.11.2026 (Dispo mobil, Weg B): neue Prop onBestaetigen (Termin bestaetigen). Alt: ...onToggleBlock,onRefreshScheine})
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen})" in index_html
 
 
 def test_uebernahme_uses_regular_updAs(index_html):
-    # Der Callback in ArbeitsscheinView schreibt via updAs (byte-gleich zu manuell), Felder termin/monteur/dauer + (v733) terminZeit.
-    assert "onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{" in index_html
-    assert 'updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,dauer:_dispoMinToHHMM(dauerMin),terminZeit:startHHMM||""})' in index_html
-    # KEIN eigener SQ.push/Bulk-Sonderpfad im Callback (nur updAs)
-    seg = index_html.split("onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{", 1)[1][:320]
+    # Pin nachgezogen 24.11.2026 (GF-Entscheid Weg B): alt updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,...}).
+    # neu: Planung ueber dispoPlanen; der einzige Weg zu den Terminfeldern ist "Termin bestaetigen" (updAs, ein Push).
+    i = index_html.index("onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{")
+    seg = index_html[i:index_html.index("}, onOpenSchein:", i)]
+    assert "dispoPlanen(scheinId," in seg and "updAs(" not in seg
+    # KEIN eigener SQ.push/Bulk-Sonderpfad im Callback
     assert "SQ.push" not in seg
+    assert "const terminBestaetigen=(id)=>{const s=arbeitsscheine.find(x=>x.id===id);const r=_asTerminBestaetigen(s,curUser.role,updAs);" in index_html
 
 
 def test_fz_bedarf_not_written_on_uebernahme(index_html):

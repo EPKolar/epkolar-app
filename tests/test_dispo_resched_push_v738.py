@@ -11,10 +11,11 @@ dauer waere sogar riskant (Dispo HH:MM vs. Formular-Dezimal). Dieser Guard siche
 
 
 def test_reschedule_schreibt_via_updAs_terminBestaetigt(index_html):
-    # v3.9.740 #22a: der Reschedule laeuft jetzt ueber den einheitlichen onDrop-Write (terminBestaetigt+terminZeit+dauer).
-    i = index_html.index("onDrop:")
-    seg = index_html[i:i + 360]
-    assert "updAs(" in seg and "terminBestaetigt" in seg, "Drop-Write schreibt nicht terminBestaetigt via updAs"
+    # Pin nachgezogen 24.11.2026 (GF-Entscheid Weg B): alt "updAs( ... terminBestaetigt" im Drop-Write.
+    # neu: Verschieben schreibt NUR die Planung; terminBestaetigt kommt erst ueber "Termin bestaetigen".
+    i = index_html.index("onDrop: (scheinId,iso,startHHMM,dauerMin)=>{")
+    seg = index_html[i:index_html.index("}, onToggleBlock:", i)]
+    assert "dispoPlanen(" in seg and "terminBestaetigt" not in seg.split("*/")[-1], "Drop-Write schreibt wieder terminBestaetigt"
     assert "SQ.push" not in seg, "Drop-Write darf keinen eigenen SQ.push-Sonderpfad haben"
 
 

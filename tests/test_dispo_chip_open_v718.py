@@ -15,7 +15,8 @@ def _panel(index_html):
 
 
 def test_dispopanel_signature_onopenschein(index_html):
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})" in index_html
+    # Pin nachgezogen 24.11.2026 (Dispo mobil, Weg B): neue Prop onBestaetigen (Termin bestaetigen). Alt: ...onToggleBlock,onRefreshScheine})
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen})" in index_html
 
 
 def test_chip_oeffnet_schein(index_html):

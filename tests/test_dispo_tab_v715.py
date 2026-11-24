@@ -6,7 +6,8 @@ Struktur-Pins; die _dispoBuildInput->_dispoPlan-Kette wird im Browser-Smoke ausg
 
 
 def test_dispopanel_component_present(index_html):
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})" in index_html
+    # Pin nachgezogen 24.11.2026 (Dispo mobil, Weg B): neue Prop onBestaetigen (Termin bestaetigen). Alt: ...onToggleBlock,onRefreshScheine})
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen})" in index_html
     assert "Vorschlagsplanung" in index_html
 
 

@@ -87,7 +87,8 @@ def test_panel_startzeit_struktur(index_html):
 
 
 def test_uebernahme_schreibt_startzeit(index_html):
-    # onUebernehmen-Callsite in ArbeitsscheinView schreibt terminZeit (DB termin_zeit) via updAs.
-    i = index_html.index("onUebernehmen: (scheinId,monteurId,iso")
-    seg = index_html[i:i + 400]
-    assert "terminZeit" in seg, "Uebernahme schreibt keine Startzeit (terminZeit) via updAs"
+    # Pin nachgezogen 24.11.2026 (GF-Entscheid Weg B): alt "terminZeit" via updAs; neu die Startzeit als Planung (zeit -> dispo_zeit).
+    i = index_html.index("onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{")
+    seg = index_html[i:index_html.index("}, onOpenSchein:", i)]
+    assert "zeit:startHHMM" in seg, "Uebernahme schreibt keine Startzeit in die Planung"
+

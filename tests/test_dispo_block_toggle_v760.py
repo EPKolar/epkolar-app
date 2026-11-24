@@ -24,7 +24,8 @@ def _panel(index_html):
 # ---------------------------------------------------------------- static wiring
 
 def test_ontoggleblock_in_signatur(index_html):
-    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine})" in index_html, \
+    # Pin nachgezogen 24.11.2026 (Dispo mobil, Weg B): neue Prop onBestaetigen (Termin bestaetigen). Alt: ...onToggleBlock,onRefreshScheine})
+    assert "function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen})" in index_html, \
         "onToggleBlock fehlt in der DispoPanel-Signatur (ReferenceError-Risiko, v741-Lektion)"
 
 

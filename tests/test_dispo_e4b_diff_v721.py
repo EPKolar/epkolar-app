@@ -15,11 +15,13 @@ diese Felder -> ein manueller Listen-Inline-Edit derselben Felder erzeugt densel
 
 
 def test_uebernahme_callback_ist_updAs(index_html):
-    # v3.9.733 #20: Signatur +startHHMM, updAs schreibt zusaetzlich terminZeit (DB termin_zeit) — byte-gleich
-    # zu einem manuellen Buero-Edit derselben Felder (updAs bleibt der einzige Schreibpfad).
-    assert "onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{" in index_html
-    assert ('updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,dauer:_dispoMinToHHMM(dauerMin),terminZeit:startHHMM||""})'
-            in index_html)
+    # Pin nachgezogen 24.11.2026 (GF-Entscheid Weg B): alt
+    # updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,dauer:_dispoMinToHHMM(dauerMin),terminZeit:startHHMM||""})
+    # neu: Uebernehmen schreibt dieselben vier Werte als Planung (dispoPlanen), kein updAs, kein Push.
+    i = index_html.index("onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{")
+    seg = index_html[i:index_html.index("}, onOpenSchein:", i)]
+    assert 'dispoPlanen(scheinId,{datum:iso,zeit:startHHMM||"",dauer:_dispoMinToHHMM(dauerMin),monteur:monteurId}' in seg
+    assert "updAs(" not in seg
 
 
 def test_uebernahme_felder_sind_push_felder(index_html):

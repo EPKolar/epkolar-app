@@ -73,8 +73,13 @@ def test_panel_dropwrite_struktur(index_html):
 
 
 def test_callsite_ondrop_ist_updAs_drei_felder(index_html):
-    i = index_html.index("onDrop:")
-    seg = index_html[i:i + 600]
-    assert "updAs(" in seg, "onDrop schreibt nicht via updAs"
-    assert "terminBestaetigt" in seg and "terminZeit" in seg and "dauer" in seg, "onDrop schreibt nicht alle 3 Felder"
+    # Pin nachgezogen 24.11.2026 (GF-Entscheid Dispo mobil, Weg B "Verschieben ist nicht bestaetigt"):
+    # alt: onDrop schrieb {terminBestaetigt,terminZeit,dauer} via updAs (Push-Felder -> Auto-Push an OFFA).
+    # neu: onDrop schreibt dieselben drei Werte als PLANUNG (dispoPlanen -> dispo_datum/zeit/dauer), kein updAs, kein Push.
+    i = index_html.index("onDrop: (scheinId,iso,startHHMM,dauerMin)=>{")
+    seg = index_html[i:index_html.index("}, onToggleBlock:", i)]
+    assert "dispoPlanen(" in seg, "onDrop schreibt nicht ueber dispoPlanen"
+    assert "datum:iso" in seg and "zeit:startHHMM" in seg and "dauer:_dispoMinToHHMM(dauerMin)" in seg, "onDrop schreibt nicht alle 3 Planungswerte"
+    assert "updAs(" not in seg, "onDrop schreibt wieder ueber updAs (Terminfelder + Push)"
     assert "SQ.push" not in seg, "onDrop darf keinen eigenen SQ.push-Sonderpfad haben"
+

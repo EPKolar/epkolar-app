@@ -92,5 +92,6 @@ def test_kein_as_pull_im_panel_body(index_html):
 
 def test_dispopanel_signatur_v767(index_html):
     assert ("function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,"
-            "onOpenSchein,onDrop,onToggleBlock,onRefreshScheine}){") in index_html, \
+            # Pin nachgezogen 24.11.2026 (Dispo mobil, Weg B): neue Prop onBestaetigen (Termin bestaetigen). Alt: ...onToggleBlock,onRefreshScheine})
+            "onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen}){") in index_html, \
         "DispoPanel-Signatur veraendert — Prop-Pins v715-718/v734/v760 mitziehen"

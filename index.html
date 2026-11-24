@@ -2636,6 +2636,7 @@ function _mapArbeitsschein(a){
     terminZeit:a.terminZeit||a.termin_zeit||"",
     terminVorschlag:a.terminVorschlag||a.termin_vorschlag||"",
     terminVorschlagZeit:a.terminVorschlagZeit||a.termin_vorschlag_zeit||"",
+    dispoDatum:a.dispoDatum||a.dispo_datum||"",dispoZeit:a.dispoZeit||a.dispo_zeit||"",dispoDauer:a.dispoDauer||a.dispo_dauer||"",dispoMonteur:a.dispoMonteur||a.dispo_monteur||"",/* Dispo mobil (GF 24.11.2026): Planungsfelder - fehlt die Spalte noch, bleibt es leer */
     aufgZeit:a.aufgZeit||a.aufg_zeit||"",bearbeitetVon:a.bearbeitetVon||a.bearbeitet_von||"",
     material:_jp(a.material),fotos:_jp(a.fotos),
     unterschriftKunde:a.unterschriftKunde||a.unterschrift_kunde||"",
@@ -6775,6 +6776,7 @@ function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,g
   /* v3.9.751 #29d: gelernter Median je Dauer-Klasse aus den abgeschlossenen Scheinen (ueberstimmt ab n>=8). */
   var _gelernt=_dispoMedianJeKlasse(scheine,DISPO_DAUER_REGELN);
   var _typMed=_dispoMedianJeTyp(scheine);/* v3.9.807 3B: Typ-Median (je scheinart) analog _gelernt, an dieselben _dispoDauer-Lesestellen (Plan-Chips + Kapazitaets-Abzug fixer Termine) durchgereicht. */
+  scheine=(typeof _asMitPlanung==="function")?(scheine||[]).map(_asMitPlanung):scheine;/* Dispo mobil (GF 24.11.2026): Planung vor Termin - die Rechnung sieht das GELTENDE Datum, Monteur und Dauer (Kopien, __stand = Zustand). _gelernt/_typMed oben lernen weiter aus den Originalen. Geschrieben wird nie aus diesen Kopien. */
   var _geo=geoMap||{}, _mx=distMatrix||{}, _firmaPlz="3470";
   /* v3.9.744 #24: Ort-Index aus plz_geo (plz->ort) als Match-Basis fuer die PLZ-Ermittlung aus dem Arbeitstext. */
   var _ortIdx=_ortIdxAus(_geo);
@@ -6878,7 +6880,7 @@ function _dispoBuildInput(scheine,monteure,wpHistory,absMap,now,horizontWochen,g
     kapAbzug[s.monteur][iso]=(kapAbzug[s.monteur][iso]||0)+d;
     if(!fixMap[s.monteur])fixMap[s.monteur]={};
     if(!fixMap[s.monteur][iso])fixMap[s.monteur][iso]=[];
-    fixMap[s.monteur][iso].push({scheinId:s.id,bvh:(s.kundName||s.nummer||s.arbeitsort||"AS"),dauerMin:d,dauerGeschaetzt:!!_ddf.geschaetzt,terminZeit:s.terminZeit||""});
+    fixMap[s.monteur][iso].push({scheinId:s.id,bvh:(s.kundName||s.nummer||s.arbeitsort||"AS"),dauerMin:d,dauerGeschaetzt:!!_ddf.geschaetzt,terminZeit:s.terminZeit||"",stand:(s.__stand||"")});
   });
   var _tageDiff=function(a,b){try{return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/864e5);}catch(e){return 0;}};
   var planScheine=offen.map(function(s){var t=_termISO(s);var ueb=(t&&t<_heute);
@@ -9237,7 +9239,7 @@ function StempelTafel(props){
 
 function MonteurTafel(props){
   const h=React.createElement;
-  const ascheine=props.arbeitsscheine||[];
+  const ascheine=(props.arbeitsscheine||[]).map(function(a){return (typeof _asMitPlanung==="function")?_asMitPlanung(a):a;});/* Dispo mobil (GF 24.11.2026): Planung vor Termin, Zustand in __stand; nur Anzeige - die Tafel schreibt nie aus diesen Kopien */
   const monteure=props.monteure||[];
   const [mode,setMode]=_react.useState.call(void 0, "woche");
   /* v3.9.634: Auto-Fit — Inhalt natuerliche Hoehe, dann per transform:scale in den Viewport skalieren (Clamp 0.6..1.25). Messung bei Render/60s-Poll/resize/fullscreenchange. Kein optional chaining. */
@@ -9296,7 +9298,7 @@ function MonteurTafel(props){
   const tile=(a,key)=>{const st=AS_STATUS[a.scheinstatus]||{c:V.dm,i:'',l:a.scheinstatus};const done=st.grp==='fertig';const z=_stz(a);const ort=((a.arbeitsort||'').trim()||[a.kundStr,a.kundOrt].map(s=>(s||'').trim()).filter(Boolean).join(', '));return h('div',{key:key,style:{border:'1px solid '+V.bd,borderLeft:'4px solid '+st.c,background:done?'transparent':V.cd,borderRadius:6,padding:'2px 6px',marginBottom:3,overflow:'hidden'}}/* v3.9.1015 einheitliche Karte: Status nur am linken Streifen; erledigt = ohne Flaeche statt Deckkraft 0,55 (die drueckte Text unter 4,5:1) */
     ,h('div',{style:{display:'flex',gap:5,alignItems:'baseline',whiteSpace:'nowrap',overflow:'hidden'}}
       ,z?h('span',{style:{fontSize:13,fontWeight:800,color:V.tx,fontVariantNumeric:'tabular-nums',flexShrink:0}},z):null
-      ,h('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:V.dm,fontVariantNumeric:'tabular-nums',flexShrink:0,overflow:'hidden',textOverflow:'ellipsis'}},a.nummer||''))
+      ,(a.__stand&&a.__stand!=="bestaetigt")?_asStandMarke(a.__stand,12):null,h('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:V.dm,fontVariantNumeric:'tabular-nums',flexShrink:0,overflow:'hidden',textOverflow:'ellipsis'}},a.nummer||''))
     ,h('div',{style:{fontSize:14,fontWeight:700,color:V.tx,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2}},a.kundName||'—')
     ,ort?h('div',{style:{fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2}},ort):null
   );};
@@ -9338,7 +9340,7 @@ function MonteurTafel(props){
         ,h('div',{style:{display:'flex',alignItems:'baseline',gap:6,flexWrap:'wrap',marginBottom:1}}
           ,z?h('span',{style:{fontSize:15,fontWeight:800,color:V.tx,fontVariantNumeric:'tabular-nums'}},z):null
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:5,fontSize:UI.fMeta,fontWeight:700,color:V.tx,background:UI.neutralBg,borderRadius:UI.rChip,padding:'1px 7px'}},h('span',{'aria-hidden':'true',style:{width:8,height:8,borderRadius:'50%',background:st.c,flexShrink:0}}),(st.l||a.scheinstatus))/* v3.9.1015: Status-Punkt + Wort statt Weiss auf Statusfarbe (gelb #eab308 trug Weiss mit 2:1) */
-          ,h('span',{style:{fontSize:12,fontWeight:700,color:V.dm,fontVariantNumeric:'tabular-nums'}},a.nummer||''))
+          ,a.__stand?_asStandMarke(a.__stand,13):null,h('span',{style:{fontSize:12,fontWeight:700,color:V.dm,fontVariantNumeric:'tabular-nums'}},a.nummer||''))
         ,h('div',{style:{fontSize:15,fontWeight:700,color:V.tx,lineHeight:1.2}},a.kundName||'—')
         ,ort?h('div',{style:{fontSize:12,color:V.dm,marginTop:1,display:'flex',alignItems:'center',gap:4}},h('span',{'aria-hidden':'true',style:{display:'inline-flex',flexShrink:0}},_ik('standort',12)),ort):null
         ,aw?h('div',{style:{fontSize:12,color:V.tx,marginTop:2,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}},aw):null
@@ -12040,7 +12042,253 @@ const _DP_IK={"🤒":"fieber","🏖️":"sonne","🏖":"sonne","⏰":"uhr","🚫
 /* Tablet 1046: die Begruendung aus _dispoPlan (md5-geschuetzt) beginnt mit "⚡ Stoerungsdienst" oder "vor 🏗 <BVH>" - die DATEN bleiben, die Kachel zeichnet die Linien-Ikone. */
 function _dpMetaIk(t){t=String(t||"");var _b="vor 🏗 ";if(t.indexOf("⚡ ")===0)return React.createElement(React.Fragment,null,_zpIkI("blitz"),t.slice(2));if(t.indexOf(_b)===0)return React.createElement(React.Fragment,null,"vor ",_zpIkI("helm"),t.slice(_b.length));return t;}
 function _dpIkTxt(ic,txt){return React.createElement('span',{style:{display:"inline-flex",alignItems:"flex-start",gap:4,maxWidth:"100%"}},React.createElement('span',{'aria-hidden':"true",'data-ik':_DP_IK[ic]||"kalender",style:{display:"inline-flex",flexShrink:0,marginTop:1}},_ik(_DP_IK[ic]||"kalender",14)),React.createElement('span',{style:{minWidth:0}},txt));}
-function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine}){
+//@DISPOMOBIL-START
+/* Dispo mobil + Verschieben ist nicht bestaetigt (GF 24.11.2026, Weg B).
+   (1) Eigene Planungsfelder dispo_datum, dispo_zeit, dispo_dauer, dispo_monteur (Entwurf sql/DISPO_PLANUNG_v1_ENTWURF.sql).
+       Verschieben in der Dispo und Uebernehmen schreiben NUR diese Felder - kein Terminfeld, kein Push an OFFA.
+       Fehlen die Spalten noch, schlaegt das Schreiben sichtbar fehl (fail closed) und schreibt nie ersatzweise Terminfelder.
+   (2) Termin bestaetigen kopiert die Planung in die Terminfelder (Monteur und Dauer nur, wenn geplant) und meldet ueber den
+       bestehenden updAs-Weg genau einmal an OFFA. Nur Buero, Projektleitung, Admin.
+   (3) Drei Zustaende ueberall unterscheidbar: Wunsch (OFFA-Vorschlag), geplant (Planungsfelder), bestaetigt (termin_bestaetigt).
+       Weicht eine Planung von einem bestaetigten Termin ab, steht das dran, bis neu bestaetigt ist; OFFA behaelt bis dahin den alten Termin.
+   (4) Mobil nur lesen: Ziehen beginnt ausschliesslich mit pointerType mouse und nur in der Stufe breit. Ein Handy quer mit
+       weniger als 500 px Hoehe bleibt bei den Tageskarten, auch wenn es 900 px oder breiter ist. */
+Object.assign(IKON,{info:["M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0Z","M12 16v-4","M12 8h.01"]});/* info = Lucide info (ISC-Lizenz wie oben) */
+var DISPO_PLAN_ROLLEN=["admin","buero","projektleiter"];
+var DISPO_PLAN_FELDER={datum:"dispo_datum",zeit:"dispo_zeit",dauer:"dispo_dauer",monteur:"dispo_monteur"};
+var DISPO_PLAN_LOKAL={datum:"dispoDatum",zeit:"dispoZeit",dauer:"dispoDauer",monteur:"dispoMonteur"};
+function _dpIso(d){var x=String(d||"").slice(0,10);return (/^\d{4}-\d{2}-\d{2}$/.test(x)&&x>"1900-01-01")?x:"";}
+function _dpHHMM(z){var m=/^(\d{1,2}):(\d{2})/.exec(String(z||"").trim());if(!m)return "";var r=(m[1].length<2?"0"+m[1]:m[1])+":"+m[2];return r==="00:00"?"":r;}
+function _dpF(a,c,k){return Object.prototype.hasOwnProperty.call(a,c)?a[c]:a[k];}/* camelCase gewinnt, wenn vorhanden (lokal geleerte Planung darf nicht vom geladenen snake_case-Rest wieder auftauchen) */
+function _dpHeute(now){var d=now?new Date(now):new Date();try{return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Vienna",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);}catch(e){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}}
+/* PURE: der Planungsstand eines Scheins. stand = wunsch | geplant | bestaetigt | abweichend | leer.
+   datum/zeit/monteur/dauer = was gilt (Planung vor bestaetigtem Termin). Bestaetigter Termin und Planung gleich = bestaetigt. */
+function _asPlanung(a){a=a||{};
+  var pd=_dpIso(_dpF(a,"dispoDatum","dispo_datum")),td=_dpIso(_dpF(a,"terminBestaetigt","termin_bestaetigt")),wd=_dpIso(_dpF(a,"terminVorschlag","termin_vorschlag"));
+  var pz=_dpHHMM(_dpF(a,"dispoZeit","dispo_zeit")),tz=_dpHHMM(_dpF(a,"terminZeit","termin_zeit"));
+  var pm=String(_dpF(a,"dispoMonteur","dispo_monteur")||""),mon=String(a.monteur||"");
+  var pdau=_dpHHMM(_dpF(a,"dispoDauer","dispo_dauer")),dau=_dpHHMM(a.dauer);
+  var abw=!!(pd&&td&&(pd!==td||(pz&&pz!==tz)||(pm&&pm!==mon)||(pdau&&pdau!==dau)));
+  var stand=pd?(td?(abw?"abweichend":"bestaetigt"):"geplant"):(td?"bestaetigt":(wd?"wunsch":""));
+  return {stand:stand,abweichend:abw,geplant:pd,bestaetigt:td,wunsch:wd,datum:pd||td||"",
+    zeit:pd?(pz||(pd===td?tz:"")):tz,monteur:pm||mon,
+    dauer:pd?(String(_dpF(a,"dispoDauer","dispo_dauer")||"")||String(a.dauer||"")):String(a.dauer||""),
+    bestaetigtZeit:tz,wunschZeit:_dpHHMM(_dpF(a,"terminVorschlagZeit","termin_vorschlag_zeit"))};}
+/* PURE: Kopie des Scheins mit den GELTENDEN Werten (Planung vor Termin) fuer die Dispo-Rechnung; __stand traegt den Zustand.
+   Das Original bleibt unberuehrt - geschrieben wird nie aus dieser Kopie. */
+function _asMitPlanung(s){if(!s)return s;var p=_asPlanung(s);var c=Object.assign({},s);c.__stand=p.stand;
+  if(p.geplant){c.terminBestaetigt=p.geplant;c.terminZeit=p.zeit;if(p.monteur)c.monteur=p.monteur;var dd=String(_dpF(s,"dispoDauer","dispo_dauer")||"");if(dd)c.dauer=dd;}
+  return c;}
+/* Ansichtsstufe der Dispo und des Kalenders: _layoutStufe, nur ein Handy quer (Hoehe unter 500) bleibt schmal. */
+function _dispoAnsicht(w,h){var n=Number(w),m=Number(h);if(!(n>0)){try{n=window.innerWidth;}catch(e){n=0;}}if(!(m>0)){try{m=window.innerHeight;}catch(e){m=0;}}
+  if(n>0&&m>0&&n>m&&m<500)return "schmal";return _layoutStufe(n,m);}
+/* Ziehen nur mit der Maus und nur in der Stufe breit - nie mit Finger oder Stift, auf keinem Geraet und keiner Breite. */
+function _dispoDragErlaubt(e,stufe){return !!(e&&e.pointerType==="mouse"&&stufe==="breit");}
+/* PURE: Planung -> Datenbankkoerper. Nur Schluessel aus DISPO_PLAN_FELDER; leer oder null = Feld leeren. */
+function _dispoPlanBody(plan){var b={};Object.keys(DISPO_PLAN_FELDER).forEach(function(k){if(plan&&Object.prototype.hasOwnProperty.call(plan,k)){var v=plan[k];b[DISPO_PLAN_FELDER[k]]=(v===null||v===undefined||v==="")?null:String(v);}});return b;}
+function _dispoPlanLokal(plan){var b={};Object.keys(DISPO_PLAN_LOKAL).forEach(function(k){if(plan&&Object.prototype.hasOwnProperty.call(plan,k)){var v=plan[k];b[DISPO_PLAN_LOKAL[k]]=(v===null||v===undefined)?"":String(v);}});return b;}
+function _dispoPlanFehler(e){var m=String((e&&e.message)||e||"");
+  if(/HTTP403|42501|Auth:401/.test(m))return "Planung nicht gespeichert: keine Berechtigung (nur Büro, Projektleitung, Admin). Termin und OFFA bleiben unverändert.";
+  if(/PGRST204|42703|dispo_(datum|zeit|dauer|monteur)/i.test(m))return "Planung nicht gespeichert: die Datenbank kennt die Planungsfelder noch nicht (SQL DISPO_PLANUNG_v1 fehlt). Termin und OFFA bleiben unverändert.";
+  if(/Failed to fetch|NetworkError|network|offline|abort|timeout/i.test(m))return "Planung nicht gespeichert: keine Verbindung. Termin und OFFA bleiben unverändert.";
+  return "Planung nicht gespeichert: "+m.slice(0,120);}
+/* Schreibt NUR Planungsfelder, direkt und synchron bestaetigt (keine Warteschlange: eine fehlende Spalte darf die
+   Warteschlange nicht verstopfen und darf nicht als Erfolg gemeldet werden). Kein Push, kein Terminfeld. */
+async function _dispoPlanSchreiben(id,plan,rolle,patchFn){
+  if(DISPO_PLAN_ROLLEN.indexOf(rolle)<0)return {ok:false,text:"Planen nur durch Büro, Projektleitung oder Admin."};
+  var body=_dispoPlanBody(plan);var ks=Object.keys(body);
+  if(!ks.length)return {ok:false,text:"Nichts zu planen."};
+  for(var i=0;i<ks.length;i++){if(ks[i].indexOf("dispo_")!==0)return {ok:false,text:"Planung nicht gespeichert (unerlaubtes Feld)."};}
+  try{var r=await patchFn("arbeitsscheine",id,body);if(Array.isArray(r)&&r.length===0)return {ok:false,text:"Planung nicht gespeichert: keine Schreibberechtigung. Termin und OFFA bleiben unverändert."};return {ok:true,lokal:_dispoPlanLokal(plan)};}
+  catch(e){return {ok:false,text:_dispoPlanFehler(e)};}}
+/* PURE: Termin bestaetigen = Planung in die Terminfelder (Monteur/Dauer nur wenn geplant und anders) + Planung leeren.
+   terminBestaetigt steht IMMER drin - es ist das Push-Feld, an dem die Zeit (AK_TERMIN) mitreitet. */
+function _asBestaetigungsPatch(s){var p=_asPlanung(s);if(!p.geplant)return null;var u={terminBestaetigt:p.geplant,terminZeit:p.zeit||""};
+  var pm=String(_dpF(s,"dispoMonteur","dispo_monteur")||"");if(pm&&pm!==String(s.monteur||""))u.monteur=pm;
+  var pdau=String(_dpF(s,"dispoDauer","dispo_dauer")||"");if(pdau&&_dpHHMM(pdau)!==_dpHHMM(s.dauer))u.dauer=pdau;
+  u.dispoDatum=null;u.dispoZeit=null;u.dispoDauer=null;u.dispoMonteur=null;return u;}
+function _asTerminBestaetigen(s,rolle,updAsFn){
+  if(DISPO_PLAN_ROLLEN.indexOf(rolle)<0)return {ok:false,text:"Termin bestätigen nur durch Büro, Projektleitung oder Admin."};
+  if(!s)return {ok:false,text:"Schein nicht gefunden."};
+  var u=_asBestaetigungsPatch(s);if(!u)return {ok:false,text:"Keine Planung zum Bestätigen."};
+  var r=updAsFn(s.id,u);return r===false?{ok:false,text:"Termin nicht bestätigt."}:{ok:true,patch:u};}
+var _DP_STAND={wunsch:{l:"Wunsch",lang:"Wunschtermin aus OFFA, nicht eingeplant",ik:"uhr",rand:"dotted"},
+  geplant:{l:"Geplant",lang:"Geplant, noch nicht bestätigt, nicht an OFFA gemeldet",ik:"kalender",rand:"dashed"},
+  bestaetigt:{l:"Bestätigt",lang:"Termin bestätigt und an OFFA gemeldet",ik:"abnahme",rand:"solid"},
+  abweichend:{l:"Weicht ab",lang:"Planung weicht vom bestätigten Termin ab - OFFA hat noch den alten Termin",ik:"warnung",rand:"solid"}};
+function _dpStandFarbe(stand){return stand==="bestaetigt"?{tx:UI.markeTxt,bg:UI.markeBg,rand:UI.marke}:stand==="abweichend"?{tx:UI.achtungTxt,bg:UI.achtungBg,rand:UI.achtung}:stand==="geplant"?{tx:UI.markeTxt,bg:"transparent",rand:UI.marke}:{tx:UI.neutralTxt,bg:UI.neutralBg,rand:V.bdK};}
+function _asStandMarke(stand,gr){var d=_DP_STAND[stand];if(!d)return null;var f=_dpStandFarbe(stand);
+  return React.createElement('span',{'data-stand':stand,title:d.lang,style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:gr||13,fontWeight:700,lineHeight:1.25,color:f.tx,background:f.bg,border:"1px "+d.rand+" "+f.rand,borderRadius:UI.rChip,padding:"1px 6px",whiteSpace:"nowrap"}},_ik(d.ik,12),d.l);}
+/* PURE: Merkmale eines Termins fuer die Tageskarte. */
+function _dkFlags(a,p,heute){var f=[];
+  if(String(a.projektnr||"").trim())f.push({k:"baustelle",l:"Baustelle",ik:"helm"});
+  if(a.prioritaet==="FIXTERMIN"||(p.stand==="bestaetigt"&&p.zeit))f.push({k:"fix",l:"fixer Termin",ik:"schloss"});
+  if(a.scheinart==="stoerung")f.push({k:"stoerung",l:"Störung",ik:"blitz"});
+  if(p.datum&&heute&&p.datum<heute&&AS_GRP_OFFEN.indexOf(a.scheinstatus)>=0)f.push({k:"ueberfaellig",l:"überfällig",ik:"warnung"});
+  return f;}
+/* Tag eines Scheins: Dispo = geltendes Datum, sonst Wunsch; Kalender = geltendes Datum, sonst wie bisher das Aufnahmedatum. */
+function _dkTagDispo(a){var p=_asPlanung(a);return p.datum||p.wunsch||"";}
+function _dkTagKal(a){var p=_asPlanung(a);if(p.datum)return p.datum;return (!_dpIso(a.terminBestaetigt)&&a.aufgenommen)?String(a.aufgenommen).slice(0,10):"";}
+function _dkZaehlt(a){return !!a&&a.scheinstatus!=="storniert";}
+function _dkAnzahl(scheine,iso,tagVon){var n=0;(scheine||[]).forEach(function(a){if(_dkZaehlt(a)&&tagVon(a)===iso)n++;});return n;}
+function _dkFeld(monteure,iso){return (monteure||[]).filter(function(m){return m&&["Backoffice","Verkauf/Buchhaltung","Geschäftsführer"].indexOf(m.r)<0&&!_maIstEhemalig(m,iso);});}
+function _dkAbw(abs,m,iso){var ab=abs&&m&&abs[(m.n||"")+"_"+iso];if(!ab)return null;var l=(typeof _dispoAbwLabel==="function")?_dispoAbwLabel(ab.type):{label:String(ab.type||"abwesend")};return {label:(l&&l.label)||"abwesend",beantragt:ab.status&&ab.status!=="genehmigt"};}
+/* PURE: ein Tag, nach Monteur gruppiert. Jeder gezaehlte Schein landet in GENAU einer Gruppe (Monteurzeile oder ohne),
+   damit die Monatszahl immer der Tagesansicht entspricht. */
+function _dkTag(scheine,monteure,iso,tagVon,abs,heute,alleFeld){
+  var zeilen=[],idx={},ohne=[],n=0;
+  var feld=alleFeld?_dkFeld(monteure,iso):[];
+  feld.forEach(function(m){idx[m.id]={m:m,jobs:[],abw:_dkAbw(abs,m,iso)};zeilen.push(idx[m.id]);});
+  (scheine||[]).forEach(function(a){if(!_dkZaehlt(a)||tagVon(a)!==iso)return;n++;var p=_asPlanung(a);var j={a:a,p:p,flags:_dkFlags(a,p,heute)};
+    var mid=p.monteur;if(mid&&!idx[mid]){var mm=(monteure||[]).find(function(x){return x&&x.id===mid;});if(mm){idx[mid]={m:mm,jobs:[],abw:_dkAbw(abs,mm,iso)};zeilen.push(idx[mid]);}}
+    if(mid&&idx[mid])idx[mid].jobs.push(j);else ohne.push(j);});
+  var nach=function(x,y){var zx=(x.p.zeit||(x.p.stand==="wunsch"?x.p.wunschZeit:""))||"99:99",zy=(y.p.zeit||(y.p.stand==="wunsch"?y.p.wunschZeit:""))||"99:99";return zx<zy?-1:zx>zy?1:String(x.a.nummer||"").localeCompare(String(y.a.nummer||""));};
+  zeilen.forEach(function(z){z.jobs.sort(nach);});ohne.sort(nach);
+  zeilen.sort(function(x,y){var d=(y.jobs.length>0)-(x.jobs.length>0);return d||String(x.m.n||"").localeCompare(String(y.m.n||""));});
+  return {zeilen:zeilen,ohne:ohne,anzahl:n};}
+function _dkIsoPlus(iso,t){var d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+t);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function _dkMontag(iso){var d=new Date(iso+"T00:00:00");var w=d.getDay()||7;return _dkIsoPlus(iso,1-w);}
+var _DK_WT=["So","Mo","Di","Mi","Do","Fr","Sa"];
+function _dkLabel(iso,lang){var d=new Date(iso+"T00:00:00");return (lang?["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"][d.getDay()]+", ":_DK_WT[d.getDay()]+" ")+iso.slice(8,10)+"."+iso.slice(5,7)+".";}
+/* Die Woche des Tags: Mo-Fr immer, Sa/So nur wenn dort etwas liegt. */
+function _dkWoche(scheine,iso,tagVon){var mo=_dkMontag(iso);var t=[];for(var i=0;i<7;i++){var x=_dkIsoPlus(mo,i);var n=_dkAnzahl(scheine,x,tagVon);if(i<5||n>0||x===iso)t.push({iso:x,n:n});}return t;}
+function _dkTasten(fn){return function(e){if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();fn(e);}};}
+var _DK_RUND={minWidth:44,minHeight:44,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"0 10px"};
+/* Erklaerung + Legende hinter der Info-Ikone (eine Quelle fuer Dispo und Kalender). */
+function DkInfo(props){var h=React.createElement;
+  return h('div',{'data-dk-info':"1",style:{border:"1px solid "+V.bd,borderRadius:UI.rKarte,background:V.cd,padding:12,marginBottom:10,fontSize:UI.fKlein,color:V.tx,lineHeight:1.45}}
+    ,h('div',{style:{marginBottom:8}},props.text||"")
+    ,h('div',{style:{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}},["wunsch","geplant","bestaetigt","abweichend"].map(function(k){return h('span',{key:k,style:{display:"inline-flex",alignItems:"center",gap:6}},_asStandMarke(k,13),h('span',{style:{color:V.dm,fontSize:UI.fKlein}},_DP_STAND[k].lang));}))
+    ,h('div',{style:{display:"flex",flexWrap:"wrap",gap:12,color:V.dm}},[["helm","Baustelle"],["schloss","fixer Termin"],["blitz","Störung"],["warnung","überfällig"]].map(function(x){return h('span',{key:x[0],style:{display:"inline-flex",alignItems:"center",gap:4}},_ik(x[0],14),x[1]);})));}
+function DkInfoKnopf(props){return React.createElement('button',{type:"button",onClick:props.onClick,'aria-label':"Erklärung und Legende",'aria-expanded':props.offen?"true":"false",title:"Erklärung und Legende",style:{...bsS(),..._DK_RUND,padding:0}},_ik("info",20));}
+/* Lese-Ansicht eines Scheins (Blatt von unten). Nur lesen; Schein oeffnen ist ein eigener, ausdruecklicher Schritt. */
+function AsLeseBlatt(props){var h=React.createElement;var a=props.schein;var p=_asPlanung(a);var heute=props.heute||_dpHeute();
+  _react.useEffect.call(void 0,function(){var k=function(e){if(e.key==="Escape")props.onClose();};try{document.addEventListener("keydown",k);}catch(_){}return function(){try{document.removeEventListener("keydown",k);}catch(_){}};},[]);
+  var mon=((props.monteure||[]).find(function(m){return m&&m.id===p.monteur;})||{}).n||"ohne Monteur";
+  var ort=String(a.arbeitsort||"").trim()||[a.kundStr,a.kundOrt].filter(Boolean).join(", ");var tel=String(a.telefon||"").trim()||String(a.kundTel||"").trim();
+  var zeile=function(k,v){return v?h('div',{style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr)",gap:8,padding:"6px 0",borderBottom:"1px solid "+V.bd}},h('span',{style:{color:V.dm,fontSize:UI.fKlein}},k),h('span',{style:{fontSize:UI.fText,color:V.tx,overflowWrap:"anywhere"}},v)):null;};
+  var dt=function(iso,z){return iso?(_dkLabel(iso,true)+iso.slice(0,4)+(z?" · "+z:"")):"";};
+  return h('div',{'data-as-lese':"1",onClick:props.onClose,style:{position:"fixed",inset:0,zIndex:1200,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+    ,h('div',{role:"dialog",'aria-modal':"true",'aria-label':"Arbeitsschein "+(a.nummer||""),onClick:function(e){e.stopPropagation();},style:{background:V.cd,color:V.tx,width:"100%",maxWidth:640,maxHeight:"85vh",overflowY:"auto",borderRadius:"16px 16px 0 0",padding:16,boxSizing:"border-box"}}
+      ,h('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}},h('span',{style:{fontSize:UI.fTitel,fontWeight:800,fontVariantNumeric:"tabular-nums"}},a.nummer||""),_asStandMarke(p.stand,13),_dkFlags(a,p,heute).map(function(f){return h('span',{key:f.k,style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fKlein,color:f.k==="ueberfaellig"?UI.achtungTxt:V.dm,fontWeight:600}},_ik(f.ik,14),f.l);}))
+      ,h('div',{style:{fontSize:UI.fText,fontWeight:700,marginBottom:6}},a.kundName||"—")
+      ,p.abweichend?h('div',{style:{fontSize:UI.fKlein,color:UI.achtungTxt,background:UI.achtungBg,borderRadius:UI.rChip,padding:"6px 8px",marginBottom:6}},"Planung weicht vom bestätigten Termin ab - OFFA hat noch "+dt(p.bestaetigt,p.bestaetigtZeit)):null
+      ,zeile(p.geplant?"Geplant":"Termin",dt(p.datum,p.zeit))
+      ,zeile("Wunsch",p.wunsch?dt(p.wunsch,p.wunschZeit):"")
+      ,zeile("Monteur",mon)
+      ,zeile("Dauer",(typeof _dauerKurzDE==="function"?_dauerKurzDE(p.dauer):"")||"")
+      ,zeile("Ort",ort)
+      ,zeile("Telefon",tel?h('a',{href:"tel:"+tel.replace(/[^0-9+]/g,""),onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},style:{color:V.acTx,fontWeight:700}},tel):"")
+      ,zeile("Arbeit",String(a.arbeitsanweisungen||a.stoerungsmelder||"").trim())
+      ,h('div',{style:{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}
+        ,h('button',{type:"button",onClick:props.onClose,style:{...bsS(),flex:"1 1 120px"}},"Schließen")
+        ,props.beimOeffnen?h('button',{type:"button",onClick:function(){props.onClose();props.beimOeffnen(a.id);},style:{...bpS,flex:"1 1 120px"}},"Schein öffnen"):null)));}
+/* Ein Termin auf der Tageskarte (tippen = Lese-Ansicht). */
+function _dkJob(h,j,onTap){var a=j.a,p=j.p;var f=_dpStandFarbe(p.stand);var d=_DP_STAND[p.stand];var zeit=p.zeit||(p.stand==="wunsch"?p.wunschZeit:"");
+  var ort=String(a.arbeitsort||"").trim()||[a.kundOrt].filter(Boolean).join(", ");
+  return h('div',{key:a.id,role:"button",tabIndex:0,'data-dk-job':a.id,'data-stand':p.stand||"",onClick:function(){onTap(a);},onKeyDown:_dkTasten(function(){onTap(a);}),
+    style:{minHeight:44,boxSizing:"border-box",padding:"8px 10px",marginTop:6,borderRadius:8,border:"1px "+(d?d.rand:"solid")+" "+(d?f.rand:V.bd),borderLeft:"4px "+(d?d.rand:"solid")+" "+(d?f.rand:V.bd),background:V.cd,cursor:"pointer",touchAction:"manipulation",minWidth:0}}
+    ,h('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}
+      ,h('span',{style:{fontSize:UI.fText,fontWeight:800,fontVariantNumeric:"tabular-nums",color:V.tx}},zeit||"ohne Zeit")
+      ,_asStandMarke(p.stand,13)
+      ,h('span',{style:{fontSize:UI.fKlein,color:V.dm,fontVariantNumeric:"tabular-nums",marginLeft:"auto"}},a.nummer||""))
+    ,h('div',{style:{fontSize:UI.fText,fontWeight:700,color:V.tx,marginTop:2,overflowWrap:"anywhere"}},a.kundName||String(a.arbeitsanweisungen||"").slice(0,60)||"—")
+    ,ort?h('div',{style:{fontSize:UI.fKlein,color:V.dm,marginTop:1,display:"flex",alignItems:"center",gap:4,overflowWrap:"anywhere"}},_ik("standort",14),ort):null
+    ,j.flags.length?h('div',{style:{display:"flex",flexWrap:"wrap",gap:10,marginTop:3}},j.flags.map(function(x){return h('span',{key:x.k,'data-flag':x.k,style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:UI.fKlein,fontWeight:600,color:x.k==="ueberfaellig"?UI.achtungTxt:V.dm}},_ik(x.ik,14),x.l);})):null
+    ,p.abweichend?h('div',{style:{fontSize:UI.fKlein,color:UI.achtungTxt,marginTop:3}},"Weicht ab vom bestätigten Termin "+_dkLabel(p.bestaetigt)+(p.bestaetigtZeit?" "+p.bestaetigtZeit:"")):null);}
+/* GEMEINSAME Tageskarten fuer Dispo und Kalender (Stufe schmal). Nur lesen - kein Ziehen, kein Schreiben. */
+function DispoTagKarten(props){var h=React.createElement;var heute=props.heute||_dpHeute();
+  var _s=_react.useState.call(void 0,props.iso||heute);var isoEigen=_s[0],setIsoEigen=_s[1];
+  var _i=_react.useState.call(void 0,false);var info=_i[0],setInfo=_i[1];
+  var _b=_react.useState.call(void 0,null);var blatt=_b[0],setBlatt=_b[1];
+  var iso=props.setIso?(props.iso||heute):isoEigen;var setIso=props.setIso||setIsoEigen;
+  var tagVon=props.tagVon||_dkTagDispo;var scheine=props.scheine||[];
+  var tag=_dkTag(scheine,props.monteure,iso,tagVon,props.abs,heute,props.alleFeld!==false);
+  var woche=_dkWoche(scheine,iso,tagVon);
+  var mitJobs=tag.zeilen.filter(function(z){return z.jobs.length;}),frei=tag.zeilen.filter(function(z){return !z.jobs.length;});
+  var _offen=function(a){setBlatt(a);};
+  var karte=function(z,key,titel){return h('div',{key:key,'data-dk-karte':key,style:{background:V.cd,border:"1px solid "+V.bd,borderRadius:UI.rKarte,padding:12,marginBottom:10,minWidth:0}}
+    ,h('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}
+      ,h('span',{style:{fontSize:UI.fTitel,fontWeight:800,color:V.tx,overflowWrap:"anywhere"}},titel)
+      ,h('span',{style:{fontSize:UI.fKlein,color:V.dm,marginLeft:"auto",fontVariantNumeric:"tabular-nums"}},_nWort(z.jobs.length,"Termin","Termine")))
+    ,z.abw?h('div',{'data-dk-abw':"1",style:{display:"inline-flex",alignItems:"center",gap:6,marginTop:6,fontSize:UI.fKlein,fontWeight:700,color:UI.achtungTxt,background:UI.achtungBg,borderRadius:UI.rChip,padding:"2px 8px"}},_ik("kalender",14),z.abw.label+(z.abw.beantragt?" (beantragt)":"")):null
+    ,z.jobs.map(function(j){return _dkJob(h,j,_offen);}));};
+  return h('div',{'data-dispo-mobil':props.modus||"dispo",style:{maxWidth:"100%",minWidth:0,overflowX:"hidden",fontSize:UI.fKlein}}
+    ,h('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}}
+      ,props.mitNav!==false?h('button',{type:"button",onClick:function(){setIso(_dkIsoPlus(iso,-1));},'aria-label':"Vorheriger Tag",style:{...bsS(),..._DK_RUND,padding:0}},_ik("links",20)):null
+      ,h('div',{style:{flex:1,minWidth:0,textAlign:props.mitNav!==false?"center":"left"}}
+        ,h('div',{style:{fontSize:UI.fTitel,fontWeight:800,color:iso===heute?V.acTx:V.tx}},_dkLabel(iso,true)+(iso===heute?" · Heute":""))
+        ,h('div',{style:{fontSize:UI.fKlein,color:V.dm}},_nWort(tag.anzahl,"Termin","Termine")+(frei.length?" · "+frei.length+" frei":"")))
+      ,props.mitNav!==false?h('button',{type:"button",onClick:function(){setIso(_dkIsoPlus(iso,1));},'aria-label':"Nächster Tag",style:{...bsS(),..._DK_RUND,padding:0}},_ik("rechts",20)):null
+      ,h(DkInfoKnopf,{offen:info,onClick:function(){setInfo(!info);}}))
+    ,info?h(DkInfo,{text:props.infoText||"Nur zum Ansehen. Planen und Verschieben geht am PC mit der Maus. Geplant heißt: in der Dispo eingeplant, noch nicht an OFFA gemeldet. Bestätigt heißt: Termin bestätigt und an OFFA gemeldet. Wunsch heißt: Wunschtermin aus OFFA."}):null
+    ,h('div',{role:"group",'aria-label':"Wochentage",style:{display:"flex",gap:4,marginBottom:10}}
+      ,woche.map(function(t){var akt=t.iso===iso;return h('button',{key:t.iso,type:"button",onClick:function(){setIso(t.iso);},'aria-pressed':akt?"true":"false",'aria-label':_dkLabel(t.iso,true)+": "+_nWort(t.n,"Termin","Termine"),
+        style:{flex:"1 1 0",minWidth:44,minHeight:44,padding:"4px 2px",borderRadius:8,border:"1px solid "+(akt?UI.knopf:V.bdK),background:akt?UI.knopf:(t.iso===heute?UI.markeBg:"transparent"),color:akt?"#fff":V.tx,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",lineHeight:1.15,touchAction:"manipulation"}}
+        ,h('span',{style:{fontSize:UI.fKlein,fontWeight:700}},_DK_WT[new Date(t.iso+"T00:00:00").getDay()])
+        ,h('span',{style:{fontSize:UI.fKlein,fontVariantNumeric:"tabular-nums"}},t.iso.slice(8,10)+".")
+        ,h('span',{style:{fontSize:UI.fKlein,fontWeight:700,fontVariantNumeric:"tabular-nums"}},String(t.n)));}))
+    ,mitJobs.map(function(z){return karte(z,z.m.id,z.m.n||"—");})
+    ,tag.ohne.length?karte({jobs:tag.ohne,abw:null},"__ohne","Ohne Monteur"):null
+    ,(!mitJobs.length&&!tag.ohne.length)?h('div',{style:{padding:16,textAlign:"center",color:V.dm,fontSize:UI.fKlein}},"Für diesen Tag ist nichts eingetragen."):null
+    ,frei.length?h('div',{'data-dk-frei':"1",style:{background:V.cd,border:"1px solid "+V.bd,borderRadius:UI.rKarte,padding:12,marginBottom:10}}
+      ,h('div',{style:{fontSize:UI.fKlein,fontWeight:700,color:V.dm,marginBottom:6}},"Frei"+(frei.some(function(z){return z.abw;})?" oder abwesend":""))
+      ,h('div',{style:{display:"flex",flexWrap:"wrap",gap:6}},frei.map(function(z){return h('span',{key:z.m.id,style:{fontSize:UI.fKlein,color:z.abw?UI.achtungTxt:V.tx,background:z.abw?UI.achtungBg:UI.neutralBg,borderRadius:UI.rChip,padding:"3px 8px",overflowWrap:"anywhere"}},(z.m.n||"—")+(z.abw?" · "+z.abw.label+(z.abw.beantragt?" (beantragt)":""):" · frei"));}))):null
+    ,blatt?h(AsLeseBlatt,{schein:blatt,monteure:props.monteure,heute:heute,onClose:function(){setBlatt(null);},beimOeffnen:props.beimOeffnen}):null);}
+/* Stufe mittel (Tablet hochkant): Wochenuebersicht nur lesen - Monteur x Tag, tippen = Lese-Ansicht. */
+function DispoWocheLesen(props){var h=React.createElement;var heute=props.heute||_dpHeute();
+  var _w=_react.useState.call(void 0,0);var wo=_w[0],setWo=_w[1];
+  var _i=_react.useState.call(void 0,false);var info=_i[0],setInfo=_i[1];
+  var _b=_react.useState.call(void 0,null);var blatt=_b[0],setBlatt=_b[1];
+  var tagVon=props.tagVon||_dkTagDispo;var scheine=props.scheine||[];
+  var mo=_dkIsoPlus(_dkMontag(heute),7*wo);var tage=_dkWoche(scheine,mo,tagVon).filter(function(t){return t.iso>=mo;});
+  var proTag=tage.map(function(t){return _dkTag(scheine,props.monteure,t.iso,tagVon,props.abs,heute,true);});
+  var mids=[],namen={};proTag.forEach(function(T){T.zeilen.forEach(function(z){if(!namen[z.m.id]){namen[z.m.id]=z.m.n||"—";mids.push(z.m.id);}});});
+  mids.sort(function(x,y){return String(namen[x]).localeCompare(String(namen[y]));});
+  var ohneDa=proTag.some(function(T){return T.ohne.length>0;});
+  var zelle=function(T,mid){var z=mid==="__ohne"?{jobs:T.ohne,abw:null}:(T.zeilen.find(function(x){return x.m.id===mid;})||{jobs:[],abw:null});
+    return h('td',{key:mid,style:{verticalAlign:"top",padding:4,borderBottom:"1px solid "+V.bd,borderLeft:"1px solid "+V.bd,minWidth:0}}
+      ,z.abw?h('div',{style:{fontSize:UI.fKlein,fontWeight:700,color:UI.achtungTxt,overflowWrap:"anywhere"}},z.abw.label):null
+      ,z.jobs.map(function(j){var p=j.p;var f=_dpStandFarbe(p.stand);var d=_DP_STAND[p.stand];return h('div',{key:j.a.id,role:"button",tabIndex:0,'data-dk-job':j.a.id,'data-stand':p.stand||"",onClick:function(){setBlatt(j.a);},onKeyDown:_dkTasten(function(){setBlatt(j.a);}),title:(d?d.lang:"")+" · "+(j.a.kundName||""),
+        style:{minHeight:44,boxSizing:"border-box",padding:"4px 6px",marginBottom:4,borderRadius:6,borderLeft:"4px "+(d?d.rand:"solid")+" "+(d?f.rand:V.bd),background:d?f.bg:"transparent",cursor:"pointer",fontSize:UI.fKlein,lineHeight:1.25,overflowWrap:"anywhere"}}
+        ,h('div',{style:{fontWeight:800,fontVariantNumeric:"tabular-nums"}},(p.zeit||(p.stand==="wunsch"?p.wunschZeit:"")||"—")+" ",h('span',{style:{fontWeight:600,color:V.dm}},(d?d.l:"")))
+        ,h('div',{style:{color:V.tx}},j.a.kundName||j.a.nummer||""),j.flags.length?h('div',{style:{display:"flex",gap:4,color:V.dm}},j.flags.map(function(x){return h('span',{key:x.k,title:x.l,'data-flag':x.k},_ik(x.ik,14));})):null);}));};
+  return h('div',{'data-dispo-mobil':"woche",style:{maxWidth:"100%",minWidth:0}}
+    ,h('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}}
+      ,h('button',{type:"button",onClick:function(){setWo(wo-1);},'aria-label':"Vorherige Woche",style:{...bsS(),..._DK_RUND,padding:0}},_ik("links",20))
+      ,h('div',{style:{flex:1,textAlign:"center",fontSize:UI.fTitel,fontWeight:800}},"KW "+isoWof(new Date(mo+"T00:00:00"))+" · "+_dkLabel(mo)+" – "+_dkLabel(tage[tage.length-1].iso))
+      ,h('button',{type:"button",onClick:function(){setWo(wo+1);},'aria-label':"Nächste Woche",style:{...bsS(),..._DK_RUND,padding:0}},_ik("rechts",20))
+      ,h(DkInfoKnopf,{offen:info,onClick:function(){setInfo(!info);}}))
+    ,info?h(DkInfo,{text:"Wochenübersicht nur zum Ansehen. Planen und Verschieben geht am PC mit der Maus (breite Ansicht). Tippen auf einen Termin zeigt den Schein."}):null
+    ,h('table',{style:{width:"100%",tableLayout:"fixed",borderCollapse:"collapse",background:V.cd,border:"1px solid "+V.bd,borderRadius:UI.rKarte}}
+      ,h('thead',null,h('tr',null,h('th',{style:{width:"18%",textAlign:"left",padding:6,fontSize:UI.fKlein,color:V.dm,borderBottom:"2px solid "+V.bd}},"Monteur"),tage.map(function(t){return h('th',{key:t.iso,style:{padding:6,fontSize:UI.fKlein,color:t.iso===heute?V.acTx:V.tx,background:t.iso===heute?UI.markeBg:"transparent",borderBottom:"2px solid "+V.bd,borderLeft:"1px solid "+V.bd}},_dkLabel(t.iso)+" · "+t.n);})))
+      ,h('tbody',null,mids.map(function(mid){return h('tr',{key:mid},h('th',{scope:"row",style:{textAlign:"left",verticalAlign:"top",padding:6,fontSize:UI.fKlein,fontWeight:700,borderBottom:"1px solid "+V.bd,overflowWrap:"anywhere"}},namen[mid]),proTag.map(function(T,ti){return h(React.Fragment,{key:ti},zelle(T,mid));}));})
+        ,ohneDa?h('tr',{key:"__ohne"},h('th',{scope:"row",style:{textAlign:"left",padding:6,fontSize:UI.fKlein,borderBottom:"1px solid "+V.bd}},"Ohne Monteur"),proTag.map(function(T,ti){return h(React.Fragment,{key:ti},zelle(T,"__ohne"));})):null))
+    ,blatt?h(AsLeseBlatt,{schein:blatt,monteure:props.monteure,heute:heute,onClose:function(){setBlatt(null);},beimOeffnen:props.beimOeffnen}):null);}
+/* Kalender schmal, Monat: je Tag NUR die Zahl (+ Merker bei Stoerung oder ueberfaellig); tippen = Tagesansicht. */
+function KalMonatZahl(props){var h=React.createElement;var heute=props.heute||_dpHeute();var tagVon=props.tagVon||_dkTagKal;var scheine=props.scheine||[];
+  var erster=props.jahr+"-"+String(props.monat+1).padStart(2,"0")+"-01";var start=_dkMontag(erster);var zellen=[];
+  for(var i=0;i<42;i++){var x=_dkIsoPlus(start,i);if(i>=35&&x.slice(5,7)!==erster.slice(5,7))break;zellen.push(x);}
+  return h('div',{'data-dispo-mobil':"monat",style:{maxWidth:"100%",minWidth:0}}
+    ,h('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:2}}
+      ,["Mo","Di","Mi","Do","Fr","Sa","So"].map(function(d){return h('div',{key:d,style:{textAlign:"center",fontSize:UI.fKlein,fontWeight:700,color:V.dm,padding:"4px 0"}},d);})
+      ,zellen.map(function(x){var n=0,mark=false;scheine.forEach(function(a){if(!_dkZaehlt(a)||tagVon(a)!==x)return;n++;var p=_asPlanung(a);if(a.scheinart==="stoerung"||(p.datum&&p.datum<heute&&AS_GRP_OFFEN.indexOf(a.scheinstatus)>=0))mark=true;});
+        var inM=x.slice(5,7)===erster.slice(5,7);
+        return h('button',{key:x,type:"button",'data-kal-tag':x,'data-anzahl':n,onClick:function(){props.onTag(x);},'aria-label':_dkLabel(x,true)+": "+_nWort(n,"Termin","Termine")+(mark?", mit Störung oder überfällig":""),
+          style:{minHeight:52,minWidth:0,padding:"4px 2px",border:"1px solid "+(x===heute?UI.marke:V.bd),borderRadius:8,background:x===heute?UI.markeBg:V.cd,opacity:inM?1:.72,color:V.tx,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,touchAction:"manipulation"}}
+          ,h('span',{style:{fontSize:UI.fKlein,color:V.dm,fontVariantNumeric:"tabular-nums"}},String(parseInt(x.slice(8,10),10)))
+          ,n?h('span',{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:UI.fText,fontWeight:800,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}},String(n),mark?h('span',{'data-kal-merker':"1",style:{color:UI.achtungTxt,display:"inline-flex"}},_ik("warnung",13)):null):h('span',{style:{fontSize:UI.fKlein,color:V.dm}},"–"));})));}
+/* Kalender schmal, Woche: je Tag eine Zeile mit Zahl und den ersten Terminen; tippen = Tagesansicht. */
+function KalWocheListe(props){var h=React.createElement;var heute=props.heute||_dpHeute();var tagVon=props.tagVon||_dkTagKal;var scheine=props.scheine||[];var mo=_dkMontag(props.iso||heute);
+  var tage=[];for(var i=0;i<7;i++)tage.push(_dkIsoPlus(mo,i));
+  return h('div',{'data-dispo-mobil':"kalwoche",style:{maxWidth:"100%",minWidth:0}},tage.map(function(x){var T=_dkTag(scheine,props.monteure,x,tagVon,null,heute,false);var alle=[];T.zeilen.forEach(function(z){alle=alle.concat(z.jobs);});alle=alle.concat(T.ohne);
+    return h('button',{key:x,type:"button",'data-kal-tag':x,'data-anzahl':T.anzahl,onClick:function(){props.onTag(x);},style:{...bsS(),display:"block",width:"100%",textAlign:"left",marginBottom:6,background:x===heute?UI.markeBg:"transparent",minHeight:44,padding:"8px 10px"}}
+      ,h('div',{style:{display:"flex",alignItems:"center",gap:8}},h('span',{style:{fontSize:UI.fText,fontWeight:800}},_dkLabel(x)),h('span',{style:{marginLeft:"auto",fontSize:UI.fKlein,color:V.dm}},_nWort(T.anzahl,"Termin","Termine")))
+      ,alle.slice(0,3).map(function(j){return h('div',{key:j.a.id,style:{display:"flex",alignItems:"center",gap:6,fontSize:UI.fKlein,marginTop:3,minWidth:0}},h('span',{style:{fontWeight:700,fontVariantNumeric:"tabular-nums"}},j.p.zeit||"—"),_asStandMarke(j.p.stand,13),h('span',{style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}},j.a.kundName||j.a.nummer||""));})
+      ,alle.length>3?h('div',{style:{fontSize:UI.fKlein,color:V.dm,marginTop:2}},"+ "+(alle.length-3)+" weitere"):null);}));}
+if(typeof window!=='undefined'){window._asPlanung=_asPlanung;window._dispoAnsicht=_dispoAnsicht;window._dispoDragErlaubt=_dispoDragErlaubt;}
+//@DISPOMOBIL-END
+function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenSchein,onDrop,onToggleBlock,onRefreshScheine,onBestaetigen}){
   var h=React.createElement;
   var _t=_react.useState.call(void 0,0); var _tick=_t[0], _setTick=_t[1];
   /* v3.9.725 #14: KW-Navigation — durchschalten statt aufklappen. Aktive KW als eigener State
@@ -12113,6 +12361,10 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
     document.addEventListener('visibilitychange',_onDispoVis);
     return function(){document.removeEventListener('visibilitychange',_onDispoVis);};
   },[]);
+  /* Dispo mobil (GF 24.11.2026): schmal = Tageskarten, mittel = Wochenuebersicht, beides nur lesen (kein Ziehen, kein Schreiben, kein Neu berechnen). Steht NACH allen Hooks (Hook-Reihenfolge). breit = das Raster unten; Ziehen dort nur mit der Maus. */
+  var _dpAns=_dispoAnsicht();
+  if(_dpAns!=="breit"){var _dpOffen=(arbeitsscheine||[]).filter(function(a){return a&&AS_GRP_OFFEN.indexOf(a.scheinstatus)>=0;});var _dpOeffnen=function(id){window.__asOpenId=id;if(onOpenSchein)onOpenSchein(id);};
+    return _dpAns==="schmal"?h(DispoTagKarten,{modus:"dispo",scheine:_dpOffen,monteure:monteure,abs:abs,tagVon:_dkTagDispo,beimOeffnen:_dpOeffnen}):h(DispoWocheLesen,{scheine:_dpOffen,monteure:monteure,abs:abs,tagVon:_dkTagDispo,beimOeffnen:_dpOeffnen});}
   if(!_built||!_res)return h('div',{style:{padding:20,color:V.dm}},"Vorschlagsplanung konnte nicht berechnet werden.");
   var wochen=_built.wochen||[], mon=_built.monteure;
   var _ohneM=_res.warteliste.filter(function(w){return w.ohneMonteur;}).length;
@@ -12144,6 +12396,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
      -> Drag mit Geist-Element; Drop auf eine Tageszelle DERSELBEN Monteur-Zeile fixiert den Termin (Pin), fremde
      Zeile -> Hinweis (Monteur kommt aus dem AS). Unter der Schwelle bleibt es ein Klick (oeffnet den Schein, P1-b). */
   var _chipDrag=function(scheinId,mid,label,dauerMin,opts){return function(e){
+    if(!_dispoDragErlaubt(e,_dispoAnsicht()))return;/* Dispo mobil: nur Maus + breit */
     if(!mid)return; /* ohne Monteur (Warteliste) nicht ziehbar — Monteur kommt aus dem AS */
     /* v3.9.737 (Sebastian, endgueltig): keine Text-Markierung waehrend der Geste (selectstart-Blocker +
        body userSelect none + Selektion leeren; Restore bei pointerup UND pointercancel). */
@@ -12190,6 +12443,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
   var DISPO_PX_PER_MIN=0.8;
   var DISPO_DAUER_PXSTEP=DISPO_PX_PER_MIN*DISPO_ZEITRASTER_MIN; /* px je 15-min-Schritt am Hoehen-Griff */
   var _dauerDrag=function(scheinId,baseMin,normMin){return function(e){
+    if(!_dispoDragErlaubt(e,_dispoAnsicht()))return;/* Dispo mobil: Dauer-Griff ebenfalls nur Maus + Stufe breit */
     if(e&&e.stopPropagation)e.stopPropagation();
     if(e&&e.preventDefault)e.preventDefault();
     /* v3.9.737 (Sebastian: "ziehen der dauer geht nicht mehr, wird nur text markiert" / "endgueltig sauber"):
@@ -12205,11 +12459,11 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
      (orange). Identische Infozeilen: Nummer(+⚠), Kunde/BVH (fett), Arbeit (~60 ellipst), Dauer·km·meta,
      Zeitfenster Start–Ende (fix ohne Zeit -> Badge "ohne Zeit"). Unterschiede NUR: Farbe/Rand+📌 und (nur
      Vorschlag) Uebernehmen-Button + Hoehen-Griff. Ein Pfad statt zwei -> keine kuenftige Divergenz mehr. */
-  var _chipBox=function(o){var isFix=(o.kind==="fix");var _ac=isFix?V.ac:"#f97316";
+  var _chipBox=function(o){var isFix=(o.kind==="fix");var _ac=isFix?(o.stand==="abweichend"?UI.achtung:V.ac):"#f97316";var _rs=isFix?(o.stand==="geplant"?"1px dashed ":"1px solid "):"1px dashed ";/* Dispo mobil (GF 24.11.2026): geplant = gestrichelt gruen, bestaetigt = durchgezogen gruen, weicht ab = Achtung-Ton */
     return h('div',{key:o.key,title:o.title,onPointerDown:o.drag||null,onClick:o.open,
-      style:{position:"relative",display:"flex",flexWrap:"wrap"/* Tablet-Runde 1077 (10) */,alignItems:"stretch",minHeight:o.blkH||0,border:(isFix?"1px solid ":"1px dashed ")+_ac,borderLeft:"3px solid "+_ac,borderRadius:6,padding:"3px 6px",paddingBottom:(o.grip?10:4),marginBottom:3,background:isFix?(_dark?"rgba(0,150,64,.10)":"rgba(0,150,64,.06)"):(_dark?"rgba(249,115,22,.08)":"rgba(249,115,22,.05)"),fontSize:UI.fMeta,cursor:o.drag?"grab":"pointer",touchAction:o.drag?"none":"auto",userSelect:"none",WebkitUserSelect:"none"}}
+      style:{position:"relative",display:"flex",flexWrap:"wrap"/* Tablet-Runde 1077 (10) */,alignItems:"stretch",minHeight:o.blkH||0,border:_rs+_ac,borderLeft:"3px solid "+_ac,borderRadius:6,padding:"3px 6px",paddingBottom:(o.grip?10:4),marginBottom:3,background:isFix?(_dark?"rgba(0,150,64,.10)":"rgba(0,150,64,.06)"):(_dark?"rgba(249,115,22,.08)":"rgba(249,115,22,.05)"),fontSize:UI.fMeta,cursor:o.drag?"grab":"pointer",touchAction:"manipulation"/* Dispo mobil: nie none - Finger rollen immer */,userSelect:"none",WebkitUserSelect:"none"}}
       ,h('div',{style:{flex:"1 1 90px",minWidth:0}}/* Tablet-Runde 1077 (10): Text mindestens 90 px breit - am Tablet hochkant blieben neben der Uhrzeit-Spalte ~50 px, Woerter brachen mitten in der Silbe */
-        ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600,letterSpacing:.2,whiteSpace:"nowrap"}},(isFix?_dpIkTxt("📌",o.nummer||""):(o.nummer||"")))
+        ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600,letterSpacing:.2,whiteSpace:"nowrap"}},(isFix?_dpIkTxt("📌",o.nummer||""):(o.nummer||""))),o.stand?h('div',{style:{marginTop:2}},_asStandMarke(o.stand,12)):null
         ,o.ueberfaelligVon?h('div',{style:{fontSize:UI.fMeta,color:_dark?COLORS.ERROR_DARK:"#b91c1c",fontWeight:700}},_dpIkTxt("⚠","war "+o.ueberfaelligVon.slice(8,10)+"."+o.ueberfaelligVon.slice(5,7)+".")):null
         ,o.konflikt?h('div',{style:{fontSize:UI.fMeta,color:_dark?COLORS.ERROR_DARK:"#b91c1c",fontWeight:700}},_dpIkTxt("⚠","überschneidet "+o.konflikt)):null/* v3.9.749 #27c: fix-vs-fix-Zeitkonflikt melden (nicht aufloesen) */
         ,o.abwesend?h('div',{'data-abw-konflikt':"1",style:{fontSize:UI.fMeta,color:_dark?COLORS.ERROR_DARK:"#b91c1c",fontWeight:700,overflowWrap:"normal",wordBreak:"normal",hyphens:"manual"}},_dpIkTxt("⚠",o.abwesend)):null/* v1055 (4): Schein an einem Abwesenheitstag */
@@ -12217,7 +12471,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
         ,o.arbeit?h('div',{lang:"de",style:{color:V.tx,fontSize:UI.fMeta,overflowWrap:"normal",wordBreak:"normal",hyphens:"auto",overflow:"hidden"}},o.arbeit):null
         ,h('div',{style:{color:V.dm,fontSize:UI.fMeta},title:(o.dauerGeschaetzt?"Dauer geschaetzt (gelernter Median oder Regel) — nicht mit dem Kunden vereinbart":"")},(o.dauerGeschaetzt?"≈":"")+((Math.round((o.dauerMin||0)/60*10)/10).toLocaleString("de-AT")+"h")+(o.editMark?" ✎":"")+(o.meta?" · ":""),o.meta?_dpMetaIk(o.meta):null)/* v3.9.892: ≈ heisst 'geraten, nicht vereinbart'. Verschwindet, sobald jemand die Dauer selbst gezogen hat (_dauerOv) - dann ist sie eine Entscheidung, keine Schaetzung mehr. */
         ,o.tel?h('a',{href:"tel:"+String(o.tel).replace(/[^0-9+]/g,""),title:"Kunde anrufen: "+o.tel,onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},style:{display:"block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1,fontSize:UI.fMeta,fontWeight:700,color:V.ac,textDecoration:"none"}},_zpIkI("telefon"),o.tel)/* Tablet-Pruefung 1041 (5): eigene Zeile - quer lief die Nummer in den Uebernehmen-Knopf */:null/* v3.9.893: Kundennummer am Chip, direkt anwaehlbar. Die Kachel haengt an onPointerDown (Ziehen) UND onClick (Schein oeffnen) - der Link muss BEIDES stoppen, sonst verschiebt ein Anruf-Tipp den Termin. */
-        ,o.uebernehmen||null)
+        ,o.uebernehmen||null,o.bestaetigen||null)
       /* v3.9.746 #25: vereinbarte Zeit (fett) vs. geplante Zeit (o.geplant -> "~", kursiv/gedimmt + Label
          "geplant" + Tooltip). Ganz ohne planbare Zeit -> Badge "ohne Zeit". Vereinbarte Zeit NIE mit Tilde. */
       ,h('div',{title:o.keineLuecke?"An diesem Tag ist keine freie Lücke — wandert in Folgetag/Warteliste":(o.geplant?"Uhrzeit nicht vereinbart — von der Dispo eingeplant":undefined),style:{display:"flex",flexDirection:"column",justifyContent:"space-between",alignItems:"flex-end",marginLeft:"auto",paddingLeft:6,minWidth:44}}/* Tablet-Runde 1077 (10): rutscht die Spalte in eine eigene Zeile, steht sie rechts */
@@ -12353,6 +12607,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
       var _km=_dispoStreckeLabel(_dispoStrecke("3470",_fpr.plz||"",_geo.geoMap,_geo.distMatrix));
       if(_fpr.estimate&&_km.indexOf("~")<0&&_km.indexOf("?")<0)_km="~"+_km;
       return _chipBox({kind:"fix",key:"fx"+fi,
+        stand:(f.stand||""),bestaetigen:(typeof onBestaetigen==="function"&&(f.stand==="geplant"||f.stand==="abweichend"))?h('button',{type:"button",'data-dp-bestaetigen':f.scheinId,onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();onBestaetigen(f.scheinId);},style:{display:"block",marginTop:3,padding:"2px 6px",minHeight:_dpGrob?44:24,fontSize:UI.fMeta,border:"1px solid "+UI.knopf,borderRadius:4,background:"transparent",color:V.acTx,cursor:"pointer",fontFamily:"inherit"}},_zpIk("abnahme","Termin bestätigen",12)):null,/* Dispo mobil: erst dieser Knopf meldet an OFFA */
         title:"Ziehen = auf anderen Tag verschieben · Klick = Schein öffnen"+(_hasT?(" · "+_tz):"")+(_fpr.estimate&&_fpr.ort?(" · Ort aus Arbeitstext: "+_fpr.ort):""),
         drag:onDrop?_chipDrag(f.scheinId,m.id,_fs.nummer||f.bvh,f.dauerMin,{startHHMM:(_hasT?_tz:_planStart),srcIso:t.key}):null,
         open:function(){if(Date.now()-(_suppressClickRef.current||0)<350)return;window.__asOpenId=f.scheinId;if(onOpenSchein)onOpenSchein(f.scheinId);},
@@ -12367,7 +12622,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
        Kachel greifen = Termin fixieren (Pin, #16a), Klick = Schein oeffnen (P1-b). */
     ,chips.map(function(c,ci){var _cs=_scheinById(c.scheinId);var _eff=_effDauer(c);var _rawWin=_ab[ci];var _keineL=(!_rawWin||_rawWin.startMin==null||_rawWin.startMin<DISPO_TAG_START_MIN);var _win=_keineL?{startMin:DISPO_TAG_START_MIN,endMin:DISPO_TAG_START_MIN+_eff}:_rawWin;var _blkH=Math.max(46,Math.round(_eff*DISPO_PX_PER_MIN));
       var _ueb=onUebernehmen?h('button',{onPointerDown:function(e){if(e&&e.stopPropagation)e.stopPropagation();},onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();onUebernehmen(c.scheinId,m.id,t.iso,_eff,_dispoMinToHHMM(_win.startMin));},style:{display:"block",marginTop:3,padding:"2px 6px",minHeight:24,fontSize:UI.fMeta,border:"1px solid #f97316",borderRadius:4,background:"transparent",color:_dark?"#fdba74":"#9a3412",cursor:"pointer",fontFamily:"inherit"}},_zpIk("abnahme","Übernehmen",12)):null;
-      var _grip=h('div',{onPointerDown:_dauerDrag(c.scheinId,_eff,t.normMin),onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},title:"Unteren Rand ziehen = Dauer (15-min-Schritte)",style:{position:"absolute",left:0,right:0,bottom:0,height:10,cursor:"ns-resize",touchAction:"none",display:"flex",alignItems:"center",justifyContent:"center"}},h('div',{style:{width:28,height:3,borderRadius:2,background:"#f97316",opacity:.65}}));
+      var _grip=h('div',{onPointerDown:_dauerDrag(c.scheinId,_eff,t.normMin),onClick:function(e){if(e&&e.stopPropagation)e.stopPropagation();},title:"Unteren Rand ziehen = Dauer (15-min-Schritte)",style:{position:"absolute",left:0,right:0,bottom:0,height:10,cursor:"ns-resize",touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center"}},h('div',{style:{width:28,height:3,borderRadius:2,background:"#f97316",opacity:.65}}));
       return _chipBox({kind:"vorschlag",key:ci,abwesend:_dispoAbwKonflikt((_built.abwTag||{})[m.id+"_"+t.key]),
         title:"Ziehen = auf den Tag speichern · Klick = Schein öffnen · unterer Rand = Dauer"+(c.plzEstimate&&c.plzOrt?(" · Ort aus Arbeitstext: "+c.plzOrt):""),
         drag:_chipDrag(c.scheinId,m.id,_cs.nummer||c.bvh,_eff,{startHHMM:_dispoMinToHHMM(_win.startMin),srcIso:t.key}),
@@ -12463,8 +12718,8 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
           }
           _doDispoRefresh();
         },style:{...bpS,padding:"6px 12px",fontSize:12,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}},_zpIk("drehen","Neu berechnen",14))))
-    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:10,lineHeight:1.4}},"Reiner Vorschlag, rollierender "+(_built.horizont||1)+"-Wochen-Horizont: ein Schein, der nicht mehr in die Wochennorm passt, wandert in die nächste Woche. Hält Tagesnorm (harte Wand), 60-min-Reserve, Abwesenheiten und Belegung ein. Alle km ab Firma Kirchberg (Tagesrundfahrt, Firma→Stopps→Firma) — echte Fahrzeiten/km folgen mit den Geo-Daten. Ziehen speichert sofort in den Schein und meldet an OFFA.")
-    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}},[["🖐","Ziehen speichert & meldet an OFFA"],["⚡","Störungsdienst"],["🏗","auf Baustelle (Störung vorher möglich)"],["🏖️","Urlaub"],["🚫","gesperrt"],["📌","fixer Termin"],["⚠","überfällig (neu geplant)"]].map(function(x){return h('span',{key:x[1]},_dpIkTxt(x[0],x[1]));}),h('span',{key:"park"},"'aufgeschoben' = Parkplatz (Dispo lässt in Ruhe)"))/* Legende: Ikone + Wort statt Emoji (dieselben Ikonen wie in den Zellen) */
+    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:10,lineHeight:1.4}},"Reiner Vorschlag, rollierender "+(_built.horizont||1)+"-Wochen-Horizont: ein Schein, der nicht mehr in die Wochennorm passt, wandert in die nächste Woche. Hält Tagesnorm (harte Wand), 60-min-Reserve, Abwesenheiten und Belegung ein. Alle km ab Firma Kirchberg (Tagesrundfahrt, Firma→Stopps→Firma) — echte Fahrzeiten/km folgen mit den Geo-Daten. Ziehen mit der Maus plant nur (nicht an OFFA gemeldet) - erst Termin bestätigen meldet den Termin an OFFA.")
+    ,h('div',{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}},[["🖐","Ziehen = nur geplant"],["⚡","Störungsdienst"],["🏗","auf Baustelle (Störung vorher möglich)"],["🏖️","Urlaub"],["🚫","gesperrt"],["📌","fixer Termin"],["⚠","überfällig (neu geplant)"]].map(function(x){return h('span',{key:x[1]},_dpIkTxt(x[0],x[1]));}),["geplant","bestaetigt","abweichend"].map(function(k){return h('span',{key:"st_"+k},_asStandMarke(k,12));})/* Dispo mobil: die drei Zustaende in der Legende */,h('span',{key:"park"},"'aufgeschoben' = Parkplatz (Dispo lässt in Ruhe)"))/* Legende: Ikone + Wort statt Emoji (dieselben Ikonen wie in den Zellen) */
     /* v3.9.725 #14: KW-Tabs (Wochenplanungs-Stil) — durchschalten statt aufklappen, Desktop == Mobile.
        ◀/▶ blaettert durch den Horizont (am Rand disabled), aktive KW gefuellt, "(N geplant)" + Auslastung%. */
     ,h('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"nowrap"}}/* v1058 (5): die Wochen brechen INNEN um, die Pfeile bleiben links/rechts */
@@ -12494,7 +12749,7 @@ function DispoPanel({arbeitsscheine,monteure,wpHistory,abs,onUebernehmen,onOpenS
         var _wlDrag=(!w.ohneMonteur&&w.monteurId)?w.monteurId:null;
         return h('div',{key:w.scheinId,title:_wlDrag?"Ziehen = auf einen Tag fixieren · Klick = Schein öffnen":"Zum Arbeitsschein",
           onPointerDown:_wlDrag?_chipDrag(w.scheinId,_wlDrag,s.nummer||_txt,_dispoDauer(s,null,(_built&&_built.gelernt)||null,(_built&&_built.typMed)||null).min/* v3.9.886: dieselbe Dauer-Quellenkette wie der Plan - vorher einarmig */,{startHHMM:"",srcIso:""}):null,
-          role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(function(){/* v3.9.718 P1-b: Wartelisten-Eintrag oeffnet den Schein; nach einem Drag unterdrueckt (v3.9.731). */ if(Date.now()-(_suppressClickRef.current||0)<350)return; window.__asOpenId=w.scheinId;if(onOpenSchein)onOpenSchein(w.scheinId);})(e);}}, onClick:function(){/* v3.9.718 P1-b: Wartelisten-Eintrag oeffnet den Schein; nach einem Drag unterdrueckt (v3.9.731). */ if(Date.now()-(_suppressClickRef.current||0)<350)return; window.__asOpenId=w.scheinId;if(onOpenSchein)onOpenSchein(w.scheinId);},style:{display:"flex",justifyContent:"space-between",gap:10,padding:"5px 8px",borderBottom:"1px solid "+V.bd,fontSize:12,cursor:_wlDrag?"grab":"pointer",touchAction:_wlDrag?"none":"auto",alignItems:"baseline"}}
+          role: "button", tabIndex: 0, onKeyDown: e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();(function(){/* v3.9.718 P1-b: Wartelisten-Eintrag oeffnet den Schein; nach einem Drag unterdrueckt (v3.9.731). */ if(Date.now()-(_suppressClickRef.current||0)<350)return; window.__asOpenId=w.scheinId;if(onOpenSchein)onOpenSchein(w.scheinId);})(e);}}, onClick:function(){/* v3.9.718 P1-b: Wartelisten-Eintrag oeffnet den Schein; nach einem Drag unterdrueckt (v3.9.731). */ if(Date.now()-(_suppressClickRef.current||0)<350)return; window.__asOpenId=w.scheinId;if(onOpenSchein)onOpenSchein(w.scheinId);},style:{display:"flex",justifyContent:"space-between",gap:10,padding:"5px 8px",borderBottom:"1px solid "+V.bd,fontSize:12,cursor:_wlDrag?"grab":"pointer",touchAction:"manipulation",alignItems:"baseline"}}
         ,h('span',{style:{fontWeight:600,wordBreak:"break-word",flex:1}},(_wlDrag?"⠿ ":"")+_txt)
         ,h('span',{style:{color:V.dm,whiteSpace:"nowrap"}},"— "+w.grund));})):null);
 }
@@ -12851,7 +13106,7 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
          Sonst lehnt die RLS (as_write with_check: monteur=current_monteur_id()) die neue Zeile ab → 403
          → Sync bricht still. Genau Bargers Fall. Zuweisung wird daher für JEDEN Monteur-Edit auf Original
          geforct — UI-Select ist ohnehin disabled, dies ist die Sync-sichere Defense-in-Depth. */
-      const _MT_ASSIGN=['monteur'];
+      const _MT_ASSIGN=['monteur','dispoDatum','dispoZeit','dispoDauer','dispoMonteur'];/* Dispo mobil: Planungsfelder wie die Zuweisung */
       const _MT_GRUND=['terminBestaetigt','terminZeit','terminVorschlag','terminVorschlagZeit','stoerungsmelder','arbeitsanweisungen','projektnr','prioritaet','scheinart','verrechnung','sachbearbeiter','kontakt','scheinstatus'];
       const _isMt=isMonteurRole&&!isAdmin;
       const _lockedKeys=[..._OFFA_KUNDE,...(_isMt?_MT_ASSIGN:[]),...(_asMtLocked?_MT_GRUND:[])];
@@ -12881,6 +13136,9 @@ function ArbeitsscheinView({arbeitsscheine,setArbeitsscheine,monteure,ww,curUser
     const pp=s&&s.juprowa_id&&Object.keys(JUPROWA_PUSH_FIELDS).some(k=>k in updates);setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...updates,push_pending:pp?true:a.push_pending}:a));SQ.push({url:"/api/arbeitsscheine/"+id,method:"PUT",body:pp?{...updates,push_pending:true,local_updated_at:new Date().toISOString()}:updates});/* v3.9.756 #31g-Konsolidierung: kein W2-Direktwrite + kein Sofort-Push mehr — Push laeuft ueber die per-Schein-Debounce-Klammer (nach dem SQ-Flush -> genau 1 Push, kein Heilzyklus). */if(pp&&navigator.onLine&&typeof _juprowaSchedulePush==="function")_juprowaSchedulePush(id);return true;/* v3.9.876: Rueckgabewert, damit der Aufrufer einen still geblockten Write nicht als Erfolg meldet. Bisher ignorierten alle Aufrufer den Rueckgabewert - additiv, kein bestehendes Verhalten geaendert. */
   };
 
+  /* Dispo mobil (GF 24.11.2026, Weg B): Planen schreibt NUR dispo_* direkt (kein updAs, keine Warteschlange, kein Push an OFFA) und meldet einen Fehler sichtbar. Termin bestaetigen geht ueber updAs - genau ein Push. */
+  const dispoPlanen=async(id,plan,was)=>{if(plan&&plan.monteur&&Array.isArray(monteure)&&monteure.length>0&&!monteure.some(m=>m&&m.id===plan.monteur)){if(window.__toast)window.__toast("Unbekannter Monteur - Planung nicht gespeichert","warn");return false;}const r=await _dispoPlanSchreiben(id,plan,curUser.role,_sbPatch);if(!r.ok){if(window.__toast)window.__toast(r.text,"error",9000);return false;}setArbeitsscheine(prev=>prev.map(a=>a.id===id?{...a,...r.lokal}:a));if(window.__toast){const _s=(arbeitsscheine||[]).find(x=>x.id===id);const _nr=(_s&&_s.nummer)||id;const _d=plan.datum||"";window.__toast(_nr+" "+(was||"geplant")+": "+(_d?_dkLabel(_d):"")+(plan.zeit?" "+plan.zeit:"")+" - nur geplant, NICHT an OFFA gemeldet. Termin bestätigen meldet an OFFA.","success",6000);}return true;};
+  const terminBestaetigen=(id)=>{const s=arbeitsscheine.find(x=>x.id===id);const r=_asTerminBestaetigen(s,curUser.role,updAs);if(window.__toast)window.__toast(r.ok?"Termin bestätigt - an OFFA gemeldet":r.text,r.ok?"success":"warn");if(r.ok&&editId===id)setForm(f=>({...f,...r.patch}));return r.ok;};
   const exportOffa=(statusFilter)=>{setShowExportPicker(false);/* v3.9.1017: HIER STAND ein Vollabruf ueber die API-Methode exportOffa (= _sbGet arbeitsscheine, bis 5000 Zeilen) - sein Ergebnis wurde verworfen, die Datei entsteht seit jeher aus der lokalen Liste. Entfernt: Datei byte-gleich, eine Serverlast weniger je Klick. */
     /* v3.9.1019 GF: "die Scheinnummer muss unbedingt dazu" - Spalte 1 war nur die laufende Zeilennummer (i+1), jetzt die Scheinnummer (Text, siehe _XKENN "scheinn"). */const hdrs=["Scheinnr.","KdNr","Kunde","ProjNr","Art","Status","Monteur","Datum","Arbeitsanweisung","Durchgeführt","Verrechnung","Sachbearbeiter"];
     /* v3.9.1017 GF: "Aktuelle Ansicht" exportiert genau die gefilterte+sortierte Liste vom Bildschirm (Suche, Monteur, Art, SB, Schnellfilter); alle anderen Optionen unveraendert. */const _ansicht=statusFilter==="ansicht";/* v3.9.1017 GF: Ansicht = genau die Bildschirmliste (sorted), in der Datei nach Scheinnummer numerisch-natuerlich sortiert; Text VOLL (geht nicht an OFFA). Der Zweig "fertig" ist entfernt - das Menue bietet ihn nicht an. */const src=_ansicht?[...sorted].sort((x,y)=>String(x.nummer||"").localeCompare(String(y.nummer||""),"de",{numeric:true})):statusFilter==="alle"?arbeitsscheine:arbeitsscheine.filter(a=>statusFilter==="offen_bearb"?AS_GRP_OFFEN.includes(a.scheinstatus):a.scheinstatus===statusFilter);const _asTxt=t=>_ansicht?String(t||"").replace(/\r?\n/g," "):(t||"").replace(/[\n;]/g," ").slice(0,80);
@@ -13084,11 +13342,11 @@ function sharePdf(){
   const stats=_react.useMemo.call(void 0, ()=>arbeitsscheine.reduce((s,a)=>{s.total++;const st=a.scheinstatus;if(AS_GRP_OFFEN.includes(st))s.offen++;if(AS_GRP_FERTIG.includes(st))s.fertig++;if(st==="storniert")s.storno++;s[st]=(s[st]||0)+1;return s;},{total:0,offen:0,fertig:0,storno:0}),[arbeitsscheine]);
 
   /* v3.9.346: Voice-Anlege-Helpers (Parser, Start/Stop, Confirm/Retry, Escape-useEffect) komplett entfernt — kein UI-Caller mehr (Voice-Button + Voice-Modal raus). Scheine kommen IMMER aus OFFA. */
-  const calDays=weeksOf(calYr,calMo);
+  const calDays=weeksOf(calYr,calMo);const _kalMob=_dispoAnsicht(ww,(typeof window!=="undefined"?window.innerHeight:0))==="schmal";/* Dispo mobil: Kalender am Handy als Tageskarten/Zahlenmonat */
   /* v3.9.60 Sprint-39 F-4: useMemo — calAs ist Basis für getAsDay-Lookup im Render-Loop pro Tag.
      Re-Filter über arbeitsscheine bei jeder Render-Iteration unnötig. */
-  const calAs=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;if(calMonteur==="__alle__")return isAdmin;/* v1016: Auswahl 'Alle Monteure' (nur Chef/Buero/PL) */return a.monteur===calMonteur;}),[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]);
-  const getAsDay=d=>{const ds=dk(d);return calAs.filter(a=>{const tb=_hasTermin(a.terminBestaetigt)?a.terminBestaetigt:"";return tb===ds||(!tb&&a.aufgenommen===ds);});};/* v3.9.381 FIX: Sentinel-terminBestaetigt (0001-01-01) ist truthy → Schein verschwand aus dem Kalender (weder ===ds noch aufgenommen-Fallback). _hasTermin-Guard wie an den anderen Termin-Stellen. */
+  const calAs=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter(a=>{if(!isAdmin&&calMonteur!==curUser.monteurId&&isMonteurRole)return false;if(calMonteur==="__alle__")return isAdmin;/* v1016: Auswahl 'Alle Monteure' (nur Chef/Buero/PL) */return _asPlanung(a).monteur===calMonteur;}),[arbeitsscheine,isAdmin,calMonteur,curUser,isMonteurRole]);/* Dispo mobil: geltender (geplanter) Monteur */
+  const getAsDay=d=>{const ds=dk(d);return calAs.filter(a=>_dkTagKal(a)===ds);};/* Dispo mobil (GF 24.11.2026): geplantes Datum vor bestaetigtem, sonst wie bisher Aufnahmedatum - EINE Regel mit den Tageskarten (_dkTagKal) *//* v3.9.381 FIX: Sentinel-terminBestaetigt (0001-01-01) ist truthy → Schein verschwand aus dem Kalender (weder ===ds noch aufgenommen-Fallback). _hasTermin-Guard wie an den anderen Termin-Stellen. */
   // Week view helpers
   const getWeekDays=(d)=>{const mon=new Date(d);const dow=mon.getDay()||7;mon.setDate(mon.getDate()-(dow-1));return Array.from({length:7},(_,i)=>{const dd=new Date(mon);dd.setDate(mon.getDate()+i);return dd;});};
   const calWeekDays=getWeekDays(calDate);
@@ -13337,7 +13595,8 @@ function sharePdf(){
         )
 
         /* ═══ MONATSANSICHT ═══ */
-        , calView==="monat"&&React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}/* Tablet-Pruefung 1041 (4): 1fr heisst minmax(auto,1fr) - jede Wochenzeile ist ein eigenes Raster, ein langer Schein-Titel (nowrap) verbreiterte seine Spalte nur in SEINER Woche, die Linien sprangen von Zeile zu Zeile. minmax(0,1fr) + minWidth:0 in der Zelle = sieben gleiche Spalten in Kopf und allen Wochen, der Titel kuerzt sich mit Auslassung. */
+        , calView==="monat"&&_kalMob&&React.createElement(KalMonatZahl,{scheine:calAs,jahr:calYr,monat:calMo,tagVon:_dkTagKal,onTag:iso=>{const _d=new Date(iso+"T00:00:00");setCalDate(_d);setCalView("tag");}})
+        , calView==="monat"&&!_kalMob&&React.createElement('div', { style: {...CC(),padding:0,overflow:"hidden"}}/* Tablet-Pruefung 1041 (4): 1fr heisst minmax(auto,1fr) - jede Wochenzeile ist ein eigenes Raster, ein langer Schein-Titel (nowrap) verbreiterte seine Spalte nur in SEINER Woche, die Linien sprangen von Zeile zu Zeile. minmax(0,1fr) + minWidth:0 in der Zelle = sieben gleiche Spalten in Kopf und allen Wochen, der Titel kuerzt sich mit Auslassung. */
           , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))"}}
             , ["Mo","Di","Mi","Do","Fr","Sa","So"].map(d=>React.createElement('div', { key: d, style: {padding:"8px 4px",textAlign:"center",fontSize:UI.fMeta,fontWeight:700,color:_dark?"#c8ced8":"#374151",borderBottom:"2px solid "+V.bd,background:_dark?"rgba(255,255,255,.03)":"rgba(0,0,0,.03)",letterSpacing:".03em"}}, d))
           )
@@ -13345,7 +13604,7 @@ function sharePdf(){
             , wk.map((day,di)=>{const inM=day.getMonth()===calMo;const we=isWE(day);const today=dk(day)===td2();const dayAs=getAsDay(day);
               return (React.createElement('div', { key: di, onClick: ()=>{setCalDate(new Date(day));setCalView("tag");}, style: {padding:isMob?"6px 3px":"4px 4px",minHeight:isMob?50:85,borderBottom:wi<calDays.length-1?"1px solid "+V.grid+"":"none",borderRight:di<6?"1px solid "+V.grid+"":"none",background:today?UI.markeBg:we?V.weBg:"transparent",opacity:inM?1:.72/* Tablet 1046: .3 liess die Vormonats-Eintraege bei 1,3:1 verschwinden - .72 bleibt gedaempft und haelt >= 3:1 */,touchAction:"manipulation",cursor:"pointer",minWidth:0,overflow:"hidden"}}
                 , React.createElement('div', { style: {fontSize:12,fontWeight:today?700:400,color:today?V.acTx:V.tx,fontFamily:mono,marginBottom:2}}, day.getDate())
-                , dayAs.slice(0,isMob?1:3).map(a=>{const st=AS_STATUS[a.scheinstatus];const mntName=_optionalChain([monteure, 'access', _cmnt1 => _cmnt1.find, 'call', _cmnt2 => _cmnt2(m=>m.id===a.monteur), 'optionalAccess', _cmnt3 => _cmnt3.n])||"?";return React.createElement('div', { key: a.id, onClick: e=>{e.stopPropagation();openEdit(a);}, title: a.nummer+" — "+(a.kundName||"?")+"\nMonteur: "+mntName+" · "+(_optionalChain([st, 'optionalAccess', _179t1 => _179t1.l])||a.scheinstatus)+"\nTermin: "+(a.terminBestaetigt||"kein Termin")+(a.terminZeit?" "+a.terminZeit:"")+"\n"+(a.arbeitsanweisungen||"").substring(0,100), style: {fontSize:UI.fMeta,padding:isMob?"3px 4px":"2px 5px",borderRadius:3,background:(_optionalChain([st, 'optionalAccess', _179 => _179.c])||"#666")+"18",color:_lesbar(_optionalChain([st, 'optionalAccess', _180 => _180.c])||"#666",true),marginBottom:2,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,lineHeight:"1.4",minHeight:isMob?24:"auto"}}, (a.nummer||"").slice(-3), " " , (a.arbeitsanweisungen||"").substring(0,isMob?12:25));})
+                , dayAs.slice(0,isMob?1:3).map(a=>{const st=AS_STATUS[a.scheinstatus];const mntName=_optionalChain([monteure, 'access', _cmnt1 => _cmnt1.find, 'call', _cmnt2 => _cmnt2(m=>m.id===a.monteur), 'optionalAccess', _cmnt3 => _cmnt3.n])||"?";return React.createElement('div', { key: a.id, onClick: e=>{e.stopPropagation();openEdit(a);}, title: a.nummer+" — "+(a.kundName||"?")+"\nMonteur: "+mntName+" · "+(_optionalChain([st, 'optionalAccess', _179t1 => _179t1.l])||a.scheinstatus)+"\nTermin: "+(a.terminBestaetigt||"kein Termin")+(a.terminZeit?" "+a.terminZeit:"")+"\n"+(a.arbeitsanweisungen||"").substring(0,100), style: {fontSize:UI.fMeta,padding:isMob?"3px 4px":"2px 5px",borderRadius:3,background:(_optionalChain([st, 'optionalAccess', _179 => _179.c])||"#666")+"18",color:_lesbar(_optionalChain([st, 'optionalAccess', _180 => _180.c])||"#666",true),marginBottom:2,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,lineHeight:"1.4",minHeight:isMob?24:"auto"}}, (()=>{const _sp=_asPlanung(a);return (_sp.stand&&_sp.stand!=="bestaetigt")?React.createElement('span',{'data-stand':_sp.stand,title:_DP_STAND[_sp.stand].lang,style:{display:"inline-flex",verticalAlign:"-2px",marginRight:3}},_ik(_DP_STAND[_sp.stand].ik,12)):null;})(), (a.nummer||"").slice(-3), " " , (a.arbeitsanweisungen||"").substring(0,isMob?12:25));})
                 , dayAs.length>(isMob?1:3)&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "+", dayAs.length-(isMob?1:3))
               ));
             })
@@ -13353,7 +13612,8 @@ function sharePdf(){
         )
 
         /* ═══ WOCHENANSICHT ═══ */
-        , calView==="woche"&&React.createElement('div', { style: {...CC(),padding:0,overflow:"auto"}}
+        , calView==="woche"&&_kalMob&&React.createElement(KalWocheListe,{scheine:calAs,monteure:monteure,iso:dk(calDate),tagVon:_dkTagKal,onTag:iso=>{const _d=new Date(iso+"T00:00:00");setCalDate(_d);setCalMo(_d.getMonth());setCalYr(_d.getFullYear());setCalView("tag");}})
+        , calView==="woche"&&!_kalMob&&React.createElement('div', { style: {...CC(),padding:0,overflow:"auto"}}
           , React.createElement('div', { style: {display:"grid",gridTemplateColumns:"50px repeat(7,1fr)",...(isMob?{width:700}:{minWidth:700})/* v3.9.640 P2-1: auf Handy width statt minWidth — sonst kappt die globale Regel #root [gridTemplateColumns][minWidth]{min-width:0} (Z.163) den 700px-Scroll und die 8 Spalten quetschen. Desktop unveraendert (minWidth). */}}
             /* Header row */
             , React.createElement('div', { style: {padding:4,borderBottom:"2px solid "+V.bd,borderRight:"1px solid "+V.bd,background:_dark?"rgba(255,255,255,.03)":"rgba(0,0,0,.03)"}})
@@ -13366,14 +13626,14 @@ function sharePdf(){
                 const hourAs=dayAs.filter(a=>{
                   if(!a.terminBestaetigt&&!a.aufgenommen)return h===8;
                   /* v3.9.27 K-F2: 00:00-Termine (tH=0) wurden fälschlich in 08:00-Bucket gebucht — Number.isFinite-Guard statt ||8 */
-                  const tStr=a.terminZeit||"08:00";const _tH=parseInt(tStr.split(":")[0]);const tH=Number.isFinite(_tH)?_tH:8;
+                  const tStr=(_dpIso(a.dispoDatum)?_asPlanung(a).zeit:a.terminZeit)||"08:00";const _tH=parseInt(tStr.split(":")[0]);const tH=Number.isFinite(_tH)?_tH:8;
                   return tH===h;
                 });
                 return React.createElement('div', { key: di, style: {borderRight:di<6?"1px solid "+V.grid:"none",borderBottom:"1px solid "+V.grid,padding:"1px 2px",minHeight:48,background:today?UI.markeBg:we?V.weBg:"transparent",verticalAlign:"top"}}
                   , hourAs.map(a=>{const st=AS_STATUS[a.scheinstatus];const dur=parseFloat(a.dauer)||1;const mntName=_optionalChain([monteure, 'access', _wmnt1 => _wmnt1.find, 'call', _wmnt2 => _wmnt2(m=>m.id===a.monteur), 'optionalAccess', _wmnt3 => _wmnt3.n])||"?";
                     return React.createElement('div', { key: a.id, onClick: ()=>_openEditGuarded(a), title: a.nummer+" — "+(a.kundName||"?")+"\nMonteur: "+mntName+" · "+(_optionalChain([st, 'optionalAccess', _wt1 => _wt1.l])||a.scheinstatus)+"\nTermin: "+(a.terminBestaetigt||"")+(a.terminZeit?" "+a.terminZeit:"")+"\n"+(a.arbeitsanweisungen||"").substring(0,100), style: {fontSize:UI.fMeta,padding:"3px 5px",borderRadius:4,background:(_optionalChain([st, 'optionalAccess', _179b => _179b.c])||"#666")+"22",color:_lesbar(_optionalChain([st, 'optionalAccess', _180b => _180b.c])||"#666",true),marginBottom:2,cursor:"pointer",borderLeft:"3px solid "+(_optionalChain([st, 'optionalAccess', _181 => _181.c])||"#666"),minHeight:Math.max(22,dur*40),overflow:"hidden"}}
                       , React.createElement('div', { style: {fontWeight:700,fontSize:UI.fMeta}}, (a.nummer||"").slice(-4), " ", a.terminZeit||"", _dauerKurzDE(a.dauer)?(" · "+_dauerKurzDE(a.dauer)):"", calMonteur==="__alle__"?(" · "+mntName):"")
-                      , React.createElement('div', { style: {fontSize:UI.fMeta,opacity:.8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.kundName||_kurz(a.arbeitsanweisungen,25))
+                      , _asStandMarke(_asPlanung(a).stand,12), React.createElement('div', { style: {fontSize:UI.fMeta,opacity:.8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, a.kundName||_kurz(a.arbeitsanweisungen,25))
                     );
                   })
                 );
@@ -13383,7 +13643,8 @@ function sharePdf(){
         )
 
         /* ═══ TAGESANSICHT ═══ */
-        , calView==="tag"&&(()=>{
+        , calView==="tag"&&_kalMob&&React.createElement(DispoTagKarten,{modus:"kalender",scheine:calAs,monteure:calMonteur==="__alle__"?monteure:monteure.filter(m=>m.id===calMonteur),abs:abs,tagVon:_dkTagKal,iso:dk(calDate),setIso:iso=>{const _d=new Date(iso+"T00:00:00");setCalDate(_d);setCalMo(_d.getMonth());setCalYr(_d.getFullYear());},mitNav:false,beimOeffnen:id=>{const _a=arbeitsscheine.find(x=>x.id===id);if(_a)openEdit(_a);},infoText:"Kalender am Handy: tippen auf einen Termin zeigt den Schein. Geplant heißt: in der Dispo eingeplant, noch nicht an OFFA gemeldet. Bestätigt heißt: Termin bestätigt und an OFFA gemeldet. Wunsch heißt: Wunschtermin aus OFFA. Ohne Termin steht ein Schein am Aufnahmetag."})
+        , calView==="tag"&&!_kalMob&&(()=>{
           const dayAs=getAsDay(calDate);const today=dk(calDate)===td2();
           return React.createElement('div', { style: CC()}
             , React.createElement('div', { style: {fontSize:14,fontWeight:700,color:today?V.acTx:V.tx,marginBottom:12}}, calDate.getDate(), ". ", MO_DE[calDate.getMonth()], " ", calDate.getFullYear(), today?" (Heute)":"", " · ", dayAs.length, " Arbeitsschein", dayAs.length!==1?"e":"")
@@ -13392,7 +13653,7 @@ function sharePdf(){
             , React.createElement('div', { style: {position:"relative"}}
               , HOURS.map(h=>{
                 /* v3.9.27 K-F2: 00:00-Termine (tH=0) wurden fälschlich in 08:00-Bucket gebucht — Number.isFinite-Guard statt ||8 */
-                const hourAs=dayAs.filter(a=>{const tStr=a.terminZeit||"08:00";const _tH=parseInt(tStr.split(":")[0]);const tH=Number.isFinite(_tH)?_tH:8;return tH===h;});
+                const hourAs=dayAs.filter(a=>{const tStr=(_dpIso(a.dispoDatum)?_asPlanung(a).zeit:a.terminZeit)||"08:00";const _tH=parseInt(tStr.split(":")[0]);const tH=Number.isFinite(_tH)?_tH:8;return tH===h;});
                 return React.createElement('div', { key: h, style: {display:"flex",gap:8,minHeight:hourAs.length>0?"auto":36,borderBottom:"1px solid "+V.grid,alignItems:"flex-start"}}
                   , React.createElement('div', { style: {width:50,fontSize:UI.fMeta,color:V.dm,fontFamily:mono,padding:"4px 0",textAlign:"right",flexShrink:0}}, String(h).padStart(2,"0"), ":00")
                   , React.createElement('div', { style: {flex:1,display:"flex",flexDirection:"column",gap:4,padding:"3px 0"}}
@@ -13401,7 +13662,7 @@ function sharePdf(){
                       return React.createElement('div', { key: a.id, onClick: ()=>_openEditGuarded(a), style: {padding:"8px 12px",borderRadius:8,background:(_optionalChain([st, 'optionalAccess', _179c => _179c.c])||"#666")+"18",borderLeft:"4px solid "+(_optionalChain([st, 'optionalAccess', _180c => _180c.c])||"#666"),cursor:"pointer"}}
                         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}
                           , React.createElement('span', { style: {fontWeight:700,fontSize:13,color:_lesbar(_optionalChain([st, 'optionalAccess', _181c => _181c.c])||"#666",true)}}, a.nummer)
-                          , React.createElement(Badge, { text: _optionalChain([st, 'optionalAccess', _182 => _182.l])||a.scheinstatus, color: _optionalChain([st, 'optionalAccess', _183 => _183.c])||"#666"} )
+                          , React.createElement(Badge, { text: _optionalChain([st, 'optionalAccess', _182 => _182.l])||a.scheinstatus, color: _optionalChain([st, 'optionalAccess', _183 => _183.c])||"#666"} ), _asStandMarke(_asPlanung(a).stand,12)
                         )
                         , React.createElement('div', { style: {fontSize:12,fontWeight:600,marginBottom:2}}, a.kundName||"—", calMonteur==="__alle__"&&React.createElement('span', { style: {fontWeight:400,color:V.dm}}, " · ", (((monteure||[]).find(m=>m.id===a.monteur)||{}).n)||"ohne Monteur"))
                         , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, [a.terminZeit||"", _dauerKurzDE(a.dauer), _kurz(a.arbeitsanweisungen,60)].filter(Boolean).join(" · "))/* A55 19.11.: kein Trenner am Zeilenanfang */
@@ -13418,13 +13679,13 @@ function sharePdf(){
           );
         })()
 
-        , React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,flexWrap:"wrap",fontSize:UI.fMeta}}, Object.entries(AS_STATUS).map(([k,v])=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {width:8,height:8,borderRadius:2,background:v.c}} ), v.l)))
+        , !_kalMob&&React.createElement('div', { style: {display:"flex",gap:8,marginTop:10,flexWrap:"wrap",fontSize:UI.fMeta}}, Object.entries(AS_STATUS).map(([k,v])=>React.createElement('div', { key: k, style: {display:"flex",alignItems:"center",gap:4}}, React.createElement('div', { style: {width:8,height:8,borderRadius:2,background:v.c}} ), v.l)))
       ))
 
       /* v3.9.780 dead-code entfernt: OFFA-Import-Vorschau-Render-Zweig (manueller PDF-Import) — sub/setSub-Sub-Tab-State unberuehrt. */
 
       /* v3.9.719 P1-c: AS-Vorlagen Sub-Tab + Panel entfernt (Anlage nur in OFFA) */
-      , sub==="dispo"&&React.createElement(DispoPanel, {arbeitsscheine: arbeitsscheine, monteure: monteure, wpHistory: wpHistory, abs: abs, onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{/* v3.9.733 #20: Startzeit (terminZeit -> DB termin_zeit, was MonteurTafel v536 liest) reitet via terminBestaetigt->AK_TERMIN mit, kein eigener Push-Key. */updAs(scheinId,{terminBestaetigt:iso,monteur:monteurId,dauer:_dispoMinToHHMM(dauerMin),terminZeit:startHHMM||""});if(window.__toast)window.__toast("✓ Vorschlag übernommen — Termin "+(startHHMM||"")+" + Monteur gesetzt, Push läuft");}, onOpenSchein: (scheinId)=>{/* v3.9.718 P1-b: Chip/Warteliste -> Schein im Edit-Formular oeffnen (setSub liste + openEdit) */ setSub("liste");var _a=(arbeitsscheine||[]).find(x=>x.id===scheinId);if(_a){delete window.__asOpenId;openEdit(_a,"liste");/* v3.9.795 E2: aus der Dispo geoeffnet -> Ursprung explizit liste (Panel setzt selbst setSub liste) */}}, onDrop: (scheinId,iso,startHHMM,dauerMin)=>{/* v3.9.740 #22a: EIN Schreibgesetz — jede Dispo-Geste schreibt {terminBestaetigt,terminZeit,dauer} via updAs (byte-gleich zu ✓ Uebernehmen); terminBestaetigt+dauer sind Push-Felder -> Auto-Push zu OFFA, terminZeit reitet via AK_TERMIN mit. Nur der angefasste Schein (Kaskaden-Push-Verbot). */updAs(scheinId,{terminBestaetigt:iso,terminZeit:startHHMM||"",dauer:_dispoMinToHHMM(dauerMin)});if(window.__toast){var _s=(arbeitsscheine||[]).find(x=>x.id===scheinId);var _nr=(_s&&_s.nummer)||scheinId;var _wt=["So","Mo","Di","Mi","Do","Fr","Sa"][new Date(iso+"T00:00:00").getDay()];var _h=Math.round((dauerMin||0)/60*10)/10;window.__toast("✓ "+_nr+" → "+_wt+" "+iso.slice(8,10)+"."+iso.slice(5,7)+". "+(startHHMM||"")+", "+_h+"h — gespeichert & an OFFA gemeldet");}}, onToggleBlock: canSync?function(workerId,iso,grund){/* v3.9.760 #1 Teil 2: Sperren-Write auf dispo_blocks (EIGENE Tabelle — NICHT arbeitsscheine, Whitelist bleibt 5; KEIN Push-Feld, KEIN Juprowa/OFFA). grund===null -> DELETE, sonst INSERT. window.__dispoBlocks sofort spiegeln, damit der Panel-Recompute (_setTick) die Sperre sieht (Kap 0 + data-hardblock, #22a greift automatisch). r.ok-gated: nie grün ohne Erfolg; 42P01/404 -> sichtbarer Hinweis statt stillem Fehlschlag (v699). Direkter REST (kein SQ), weil r.ok synchron gebraucht wird. */return (async function(){try{if(grund===null){await _sbDeleteWhere("dispo_blocks","worker_id=eq."+encodeURIComponent(workerId)+"&datum=eq."+encodeURIComponent(iso));var _b=window.__dispoBlocks||{};delete _b[workerId+"_"+iso];window.__dispoBlocks=_b;if(window.__toast)window.__toast("🔓 Sperre aufgehoben");}else{await _sbPost("dispo_blocks",{worker_id:workerId,datum:iso,grund:grund});var _b2=window.__dispoBlocks||{};_b2[workerId+"_"+iso]=grund;window.__dispoBlocks=_b2;if(window.__toast)window.__toast("🚫 Tag gesperrt: "+grund);}return{ok:true};}catch(e){var _m=String(e&&e.message||e);if(/42P01|HTTP404|does not exist|could not find the table|relation .*dispo_blocks/i.test(_m)){if(window.__toast)window.__toast("⚠️ Sperren-Tabelle noch nicht angelegt (dispo_blocks) — SQL DISPO_BLOCKS_v1.sql ausführen","error",6000);}else{if(window.__toast)window.__toast("❌ Sperre nicht gespeichert: "+_m.slice(0,120),"error");}return{ok:false};}})();}:null, onRefreshScheine: ()=>_asPullFresh(setArbeitsscheine)})
+      , sub==="dispo"&&React.createElement(DispoPanel, {arbeitsscheine: arbeitsscheine, monteure: monteure, wpHistory: wpHistory, abs: abs, onUebernehmen: (scheinId,monteurId,iso,dauerMin,startHHMM)=>{/* Dispo mobil (GF 24.11.2026, Weg B): Uebernehmen schreibt NUR die Planung (Datum, Zeit, Dauer, Monteur) - kein Terminfeld, kein Push. Termin bestaetigen meldet an OFFA. */dispoPlanen(scheinId,{datum:iso,zeit:startHHMM||"",dauer:_dispoMinToHHMM(dauerMin),monteur:monteurId},"Vorschlag übernommen");}, onOpenSchein: (scheinId)=>{/* v3.9.718 P1-b: Chip/Warteliste -> Schein im Edit-Formular oeffnen (setSub liste + openEdit) */ setSub("liste");var _a=(arbeitsscheine||[]).find(x=>x.id===scheinId);if(_a){delete window.__asOpenId;openEdit(_a,"liste");/* v3.9.795 E2: aus der Dispo geoeffnet -> Ursprung explizit liste (Panel setzt selbst setSub liste) */}}, onBestaetigen: canSync?terminBestaetigen:null, onDrop: (scheinId,iso,startHHMM,dauerMin)=>{/* Dispo mobil (GF 24.11.2026, Weg B): Ziehen schreibt NUR die Planung (dispo_datum, dispo_zeit, dispo_dauer) - vorher {terminBestaetigt,terminZeit,dauer} per updAs mit Auto-Push an OFFA. Die Zeile eines anderen Monteurs lehnt _dispoDropOk weiterhin ab (kein Monteurwechsel per Ziehen). */dispoPlanen(scheinId,{datum:iso,zeit:startHHMM||"",dauer:_dispoMinToHHMM(dauerMin)},"verschoben");}, onToggleBlock: canSync?function(workerId,iso,grund){/* v3.9.760 #1 Teil 2: Sperren-Write auf dispo_blocks (EIGENE Tabelle — NICHT arbeitsscheine, Whitelist bleibt 5; KEIN Push-Feld, KEIN Juprowa/OFFA). grund===null -> DELETE, sonst INSERT. window.__dispoBlocks sofort spiegeln, damit der Panel-Recompute (_setTick) die Sperre sieht (Kap 0 + data-hardblock, #22a greift automatisch). r.ok-gated: nie grün ohne Erfolg; 42P01/404 -> sichtbarer Hinweis statt stillem Fehlschlag (v699). Direkter REST (kein SQ), weil r.ok synchron gebraucht wird. */return (async function(){try{if(grund===null){await _sbDeleteWhere("dispo_blocks","worker_id=eq."+encodeURIComponent(workerId)+"&datum=eq."+encodeURIComponent(iso));var _b=window.__dispoBlocks||{};delete _b[workerId+"_"+iso];window.__dispoBlocks=_b;if(window.__toast)window.__toast("🔓 Sperre aufgehoben");}else{await _sbPost("dispo_blocks",{worker_id:workerId,datum:iso,grund:grund});var _b2=window.__dispoBlocks||{};_b2[workerId+"_"+iso]=grund;window.__dispoBlocks=_b2;if(window.__toast)window.__toast("🚫 Tag gesperrt: "+grund);}return{ok:true};}catch(e){var _m=String(e&&e.message||e);if(/42P01|HTTP404|does not exist|could not find the table|relation .*dispo_blocks/i.test(_m)){if(window.__toast)window.__toast("⚠️ Sperren-Tabelle noch nicht angelegt (dispo_blocks) — SQL DISPO_BLOCKS_v1.sql ausführen","error",6000);}else{if(window.__toast)window.__toast("❌ Sperre nicht gespeichert: "+_m.slice(0,120),"error");}return{ok:false};}})();}:null, onRefreshScheine: ()=>_asPullFresh(setArbeitsscheine)})
 
       , sub==="form"&&(React.createElement('div', { className: "epk-tab-fade", key: "as-form", 'data-as-form': "1", style: {scrollMarginTop:8} }
         , React.createElement('div', { style: {display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}/* v3.9.250 Mobile: Header umbrechen — Titel + Juprowa/Push-Badges + Buttons ragten sonst über den Rand */
@@ -13454,6 +13715,7 @@ function sharePdf(){
                 , React.createElement('div', {}, React.createElement('label', { htmlFor:"lbl_asForm_dauer", style: LL()}, "Dauer (hh:mm)" ), React.createElement('input', { id:"lbl_asForm_dauer", className: "epk-form-field", value: _dauerStr, onChange: e=>{const _v=e.target.value;setDauerStr(_v);const _d=window._displayToDauer(_v);if(_d!==null)setForm(p=>({...p,dauer:_d}));}, onBlur: e=>{const _d=window._displayToDauer(e.target.value);if(_d!==null)setDauerStr(window._dauerToDisplay(_d));}, type:"text", inputMode:"numeric", style: II(), placeholder: "z.B. 03:00" } ))
                 , React.createElement('div', {}, React.createElement('label', { style: LL()}, "Monteur"), React.createElement('select', { value: form.monteur, onChange: e=>{if(!isAdmin)return;setForm(p=>({...p,monteur:e.target.value}));}, disabled: !isAdmin, title: isMonteurRole&&!isAdmin?"Monteure legen Arbeitsscheine nur für sich selbst an":"", style: {...II(),opacity:(isMonteurRole&&!isAdmin)?0.7:1,cursor:(isMonteurRole&&!isAdmin)?"not-allowed":"pointer"}}, _optLeer("\u2014 ohne Monteur \u2014"), (form.monteur&&_optFremd(_maWaehlbar(monteure,form.monteur).map(m=>String(m.id)),form.monteur))?_optNeutral(form.monteur):null, _maWaehlbar(monteure,form.monteur).map(m=>React.createElement('option', { key: m.id, value: m.id}, m.n))), isMonteurRole&&!isAdmin&&React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:2,fontStyle:"italic"}}, "🔒 Du legst nur für dich selbst an"), (!_dispoMonteurUebertragbar(form.monteur))&&React.createElement('div', { style: {fontSize:UI.fMeta,color:"#dc2626",marginTop:2,fontWeight:600}}, "⚠ Monteur nicht nach OFFA übertragbar (kein Juprowa-Code)"))
               )
+              , editId&&(()=>{const _pl=_asPlanung(form);if(!_pl.stand)return null;const _mn=_pl.monteur?(((monteure||[]).find(m=>m.id===_pl.monteur)||{}).n||_pl.monteur):"";/* Dispo mobil (GF 24.11.2026): Stand des Termins (Wunsch/geplant/bestaetigt/weicht ab) und Termin bestaetigen - nur Buero/PL/Admin; erst das meldet an OFFA */return React.createElement('div',{'data-as-planung':"1",style:{marginTop:10,paddingTop:10,borderTop:"1px solid "+V.bd}},React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}},React.createElement('span',{style:{fontSize:12,fontWeight:600}},"Stand"),_asStandMarke(_pl.stand,13)),_pl.geplant?React.createElement('div',{style:{fontSize:13,color:V.tx,marginBottom:6}},"Geplant: "+fdt(_pl.geplant)+(_pl.zeit?" "+_pl.zeit:"")+(_mn?" · "+_mn:"")+(_dauerKurzDE(_pl.dauer)?" · "+_dauerKurzDE(_pl.dauer):"")):null,_pl.abweichend?React.createElement('div',{style:{fontSize:13,color:UI.achtungTxt,background:UI.achtungBg,borderRadius:6,padding:"6px 8px",marginBottom:6}},"Planung weicht vom bestätigten Termin ab - OFFA hat noch "+fdt(_pl.bestaetigt)+(_pl.bestaetigtZeit?" "+_pl.bestaetigtZeit:"")+"."):null,(_pl.geplant&&isAdmin)?React.createElement('button',{type:"button",'data-as-bestaetigen':"1",onClick:()=>terminBestaetigen(editId),style:{...bpS}},_zpIk("abnahme","Termin bestätigen",16)):null,(_pl.geplant&&isAdmin)?React.createElement('div',{style:{fontSize:12,color:V.dm,marginTop:4}},"Erst Termin bestätigen meldet den Termin an OFFA."):null);})()
               , editId&&isAdmin/* v3.9.1108 GF 24.11.: Termin verschieben aendert das Bestaetigt-Datum - nur Admin/PL/Buero */&&!_asMtLocked/* v3.9.547 TASK C: Termin verschieben jetzt in der Termin-Sektion (statt separat neben Aktualisieren/PDF) */&&(React.createElement('div', { style: {marginTop:10,paddingTop:10,borderTop:"1px solid "+V.bd}}
                 , React.createElement('div', { style: {fontSize:12,fontWeight:600,marginBottom:6}}, "Termin verschieben"  )
                 , React.createElement('div', { style: {display:"flex",gap:4,flexWrap:isMob?"wrap":"nowrap"}}, React.createElement('input', { type: "date", id: "__vdate_"+(editId||""), style: {...II(),fontSize:isMob?16:UI.fMeta,padding:"6px 8px",flex:1,minWidth:isMob?120:0}} ), React.createElement('input', { type: "time", id: "__vtime_"+(editId||""), style: {...II(),fontSize:isMob?16:UI.fMeta,padding:"6px 8px",width:isMob?100:80}} ), React.createElement('button', { onClick: ()=>{const v=_optionalChain([document, 'access', _181 => _181.getElementById, 'call', _182 => _182("__vdate_"+(editId||"")), 'optionalAccess', _183 => _183.value]);const t=_optionalChain([document, 'access', _184 => _184.getElementById, 'call', _185 => _185("__vtime_"+(editId||"")), 'optionalAccess', _186 => _186.value]);if(!v){_optionalChain([window,'access',_v42a=>_v42a.__toast,'optionalCall',_v42b=>_v42b("⚠️ Bitte Datum wählen","warn")]);return;}verschieben(editId,v);setForm(f=>({...f,terminBestaetigt:v,terminZeit:t||f.terminZeit||""}));}, style: {...beS,padding:isMob?"9px 14px":"4px 8px",fontSize:isMob?12:UI.fMeta,minHeight:isMob?40:0}}, "Verschieben"))
