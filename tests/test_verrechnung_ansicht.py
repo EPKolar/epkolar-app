@@ -16,7 +16,7 @@ from test_kameras_phase1_v1055 import RENDER_PRELUDE, _render_lauf
 HIER = os.path.dirname(os.path.abspath(__file__))
 HTML = os.path.join(HIER, "..", "index.html")
 FN = ("_vrNorm", "_vrBezug", "_vrSatzWirksam", "_vrIstVerrechnet", "_vrKW", "_vrR", "_vrAuswerten", "_vrNachMonteur",
-      "_vrKennzahlen", "_vrH", "_vrDE", "_vrZeitraum", "_vrStatusText", "_vrLadeSaetze", "_vrSatzSchreiben", "VerrechnungView")
+      "_vrKennzahlen", "_vrH", "_vrDE", "_vrZeitraum", "_vrStatusText", "_vrLadeSaetze", "_vrLadeHaken", "_vrHakenSchreiben", "_vrSatzSchreiben", "VerrechnungView", "_zeMonatName")
 
 
 def _src():
@@ -77,7 +77,7 @@ await klick(w, 'Erfassen');
 eingaben().filter(function (n) { return n.props.type === 'date'; })[0].props.onChange({target: {value: '2026-10-31'}});
 await ruhe(w);
 await klick(w, 'Speichern');
-OUT.upsert = ZAEHL.upsert; OUT.gets = ZAEHL.get.filter(function (g) { return g.indexOf('verrechnung') === 0; }).length;
+OUT.upsert = ZAEHL.upsert; OUT.gets = ZAEHL.get.filter(function (g) { return g.indexOf('verrechnung?') === 0; }).length; OUT.hakenGets = ZAEHL.get.filter(function (g) { return g.indexOf('verrechnung_haken?') === 0; }).length;
 // 3) Monteur / Projektleitung (Portal per Einzelrecht): nur Hinweis, kein Abruf, kein Erfassen
 SZENE = {db: {verrechnung: []}}; ZAEHL.get = [];
 w = wurzel('monteur'); await ruhe(w);
@@ -113,6 +113,7 @@ def test_buero_erfasst_nur_in_verrechnung(R):
     assert u["row"]["bezug_typ"] == "projekt" and u["row"]["bezug_ref"] == "p1"
     assert u["row"]["verrechnet_bis"] == "2026-10-31" and u["row"]["voll"] is False and u["row"]["verrechnet_von"] == "Lucia"
     assert R["gets"] == 2, "nach dem Speichern neu gelesen"
+    assert R["hakenGets"] == 2, "v3.9.1104: Haekchen werden mit den Saetzen gelesen"
 
 
 def test_monteur_ohne_erfassen(R):

@@ -11,7 +11,8 @@ def test_a_addentry_guard(index_html):
     """(a) Projektzeit-Erfassung: addEntry (async) warnt bei genehmigter Abwesenheit am Buchungstag; bestaetigt -> durch."""
     # ZeiterfassungView bekommt abs/approvals (App-Ebene, kein neuer Fetch)
     # v3.9.1100: Signatur um imPortal erweitert (Zeiterfassung der Mitarbeiter im Buero-Portal) - abs/approvals unveraendert dabei
-    assert "function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,setEntries,ww,abs,approvals,imPortal}){" in index_html
+    # v3.9.1104: Signatur um startWid/startYm erweitert (Buero-Portal neu: Startwerte aus der Kopfleiste) - abs/approvals unveraendert dabei
+    assert "function ZeiterfassungView({curUser,monteure,projects,arbeitsscheine,entries,setEntries,ww,abs,approvals,imPortal,startWid,startYm}){" in index_html
     assert "React.createElement(ZeiterfassungView, { curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine, entries: entries, setEntries: setEntries, ww: ww, abs: abs, approvals: absApprovals}" in index_html
     # addEntry ist async und prueft via _ezAbsSet (read-only) + _confirmModal
     assert "const addEntry=async()=>{" in index_html

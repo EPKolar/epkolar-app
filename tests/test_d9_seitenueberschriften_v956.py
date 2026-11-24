@@ -371,8 +371,10 @@ def test_die_gesamtzahl_der_seitenueberschriften():
     st = code_scan.element_stellen(roh, "h2", als_tag=True)
     # Kameras Phase 1 (v1055): 30 -> 31. Die neue Ansicht KameraView hat ihre
     # Seitenueberschrift (h2 mit _ikT videokamera/Kameras) - eine dazu, keine verloren.
-    assert len(st) == 31, (
-        "%d h2-Aufrufe im Code, erwartet 31. Sinkt die Zahl, ist eine "
+    # v3.9.1104: 31 -> 32. Die neue Ansicht BueroPortalNeu hat ihre Seitenueberschrift
+    # (h2 mit _ikT aktentasche/Buero-Portal); die alte Ansicht (VBueroExport) behaelt ihre - eine dazu, keine verloren.
+    assert len(st) == 32, (
+        "%d h2-Aufrufe im Code, erwartet 32. Sinkt die Zahl, ist eine "
         "Seitenueberschrift verschwunden - das ist ein Fehler und kein "
         "Aufraeumen. Steigt sie, pruefen: in welcher Ansicht, und woher "
         "kommt der Text?" % len(st))

@@ -271,7 +271,8 @@ def test_wurzel_reicht_nur_aktive_weiter():
         i = q.index("React.createElement(%s, {" % comp)
         teil = q[i:q.index("\n", i)]
         assert "fahrzeuge: fahrzeugeAktiv," in teil and "fahrzeuge: fahrzeuge," not in teil, comp
-    for comp in ["MitarbeiterView", "AuswertungView", "VBueroExport"]:
+    # v3.9.1104: die App ruft BueroPortal (Umschalter neu/alt), das die Props unveraendert an VBueroExport/BueroPortalNeu weitergibt - die Wurzel-Verdrahtung wird dort geprueft.
+    for comp in ["MitarbeiterView", "AuswertungView", "BueroPortal"]:
         i = q.index("React.createElement(%s, {" % comp)
         teil = q[i:q.index("\n", i)]
         assert "fahrzeuge: fahrzeuge," in teil and "fahrzeugeAktiv" not in teil, comp

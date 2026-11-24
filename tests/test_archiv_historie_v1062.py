@@ -217,7 +217,8 @@ def _buero_lauf(q, tmp_path):
     v = q[a:e]
     rows = _schnitt(v, "const rows=(fahrzeuge||[]).flatMap(f=>(f.tankLog||[])", ";\r\n", ab=1)
     assert v.count("const rows=(fahrzeuge||[]).flatMap(f=>(f.tankLog||[])") == 1
-    prop = _wurzel_prop(q, "VBueroExport", "fahrzeuge")
+    # v3.9.1104: die App ruft BueroPortal (Umschalter neu/alt), das die Props unveraendert an VBueroExport/BueroPortalNeu weitergibt - die Wurzel-Verdrahtung wird dort geprueft.
+    prop = _wurzel_prop(q, "BueroPortal", "fahrzeuge")
     prog = (_fz_helfer(q) + DATEN + "function lauf(fahrzeuge){" + rows +
             "return rows.map(function(r){return r.f.id+'/'+r.e.preis;});}\n"
             "console.log(JSON.stringify(lauf(ausdruck(" + json.dumps(prop) + "))));\n")
@@ -236,7 +237,7 @@ def test_buero_tankkontrolle_zeigt_archivierte(tmp_path):
 
 def test_buero_umkehrprobe(tmp_path):
     q = _q()
-    i = _einmal(q, "React.createElement(VBueroExport, {")
+    i = _einmal(q, "React.createElement(BueroPortal, {")
     zeile = q[i:q.index("\n", i)]
     alt = q.replace(zeile, zeile.replace("fahrzeuge: fahrzeuge,", "fahrzeuge: fahrzeugeAktiv,", 1), 1)
     prop, r = _buero_lauf(alt, tmp_path)
@@ -250,7 +251,7 @@ def test_arbeitsansichten_bleiben_aktiv():
     for comp in ("HomeView", "ChefDashboard", "WeekPlan", "FlotteView"):
         assert _wurzel_prop(q, comp, "fahrzeuge") == "fahrzeugeAktiv", comp
         assert _wurzel_prop(q, comp, "fahrzeugeAlle") == "fahrzeuge", comp
-    for comp in ("AuswertungView", "VBueroExport", "MitarbeiterView"):
+    for comp in ("AuswertungView", "BueroPortal", "MitarbeiterView"):
         assert _wurzel_prop(q, comp, "fahrzeuge") == "fahrzeuge", comp
     assert _wurzel_prop(q, "FahrzeugView", "fahrzeuge") == "fahrzeuge"
     assert "WochenplanTafel,{wpHistory:wpHistory,monteure:monteure,fahrzeuge:fahrzeugeAktiv," in q  # Kiosk

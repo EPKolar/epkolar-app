@@ -72,6 +72,7 @@ def test_portal_reiter_und_aufruf():
     # Verrechnung (23.11.) steht zwischen Zeiterfassung und Stempelzeiten - geprueft wird der Zeiterfassungs-Reiter direkt hinter Projekte
     assert "var BX_TABS=[['projekte','','Projekte'],['zeit','','Zeiterfassung']," in s
     assert "_bxTab==='zeit' && React.createElement(ZeiterfassungView, { curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine||[], entries: entries, setEntries: setEntries||function(){}, ww: ww, abs: abs, approvals: approvals, imPortal: true} )" in s
-    assert "React.createElement(VBueroExport, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, arbeitsscheine: arbeitsscheine, setEntries: setEntries, ww: ww," in s
+    # v3.9.1104: Aufruf ueber den Umschalter BueroPortal (gleiche Props)
+    assert "React.createElement(BueroPortal, { curUser: curUser, projects: projects, monteure: monteure, entries: entries, arbeitsscheine: arbeitsscheine, setEntries: setEntries, ww: ww," in s
     # der Reiter Zeiterfassung (ohne imPortal) zeigt Admin/Buero den Weg ins Portal
     assert "_zeZumPortal=imPortal!==true&&(curUser.role===\"admin\"||curUser.role===\"buero\")" in _ze(s)
