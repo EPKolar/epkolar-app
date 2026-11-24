@@ -11017,7 +11017,7 @@ function MonteurTafel(props){
      Desktop>=1200 (volle Single-Row-Nav) bleiben unberührt; andere isMob-Nutzungen NICHT angefasst. */
   const _isTabletNav=ww>=600&&ww<1200;
   /* v3.9.1016 NAVIGATION KOMPAKT: ab 600 px eine Zeile (sechs Hauptbereiche + Mehr). Auf dem Handy rendert die Leiste weiter alle Reiter - sie ist dort per CSS ausgeblendet, es gilt die Fussleiste. */
-  const _navTeil=_navTeilen(tabs);
+  const _navTeil=_navTeilBreit(tabs,ww,_navN);/* PWA-Navigation 24.11.: am Rechner Buero-Portal, Flotte, Kameras als eigene Reiter hinter Abwesenheiten (siehe _navTeilBreit); Handy/Tablet unveraendert */
   const _navSicht=isMob?tabs:_navTeil.haupt.slice(0,_navN);
   const _navMehr=isMob?[]:_navTeil.haupt.slice(_navN).concat(_navTeil.mehr);
   /* v3.9.118 Mobile: "Mehr" zeigt ALLE Tabs — die Top-Leiste scrollt quer und schnitt die hinteren
@@ -17679,6 +17679,19 @@ function ProjList({onOpen,entries,ww,projects,setProjects,curUser,monteurProjekt
 const NAV_HAUPT=["_home","projekte","arbeitsscheine","wochenplanung","zeiterfassung","urlaub"];
 function _navTeilen(liste){var h=[],m=[];(liste||[]).forEach(function(t){(NAV_HAUPT.indexOf(t.perm)>=0?h:m).push(t);});return {haupt:h,mehr:m};}
 if(typeof window!=='undefined')window._navTeilen=_navTeilen;
+/* PWA-Navigation (Owner 24.11.2026): am Rechner (ab NAV_BREIT_AB = 1200, dieselbe Grenze wie _isTabletNav in App) stehen Buero-Portal, Flotte und Kameras als eigene Reiter gleich hinter Abwesenheiten statt im Mehr - und dort dann NICHT mehr (kein Doppel). NUR DARSTELLUNG: die Liste ist die bereits nach Rolle gefilterte (tabs bzw. navTabsAlle) - wer einen Bereich heute im Mehr nicht sieht (Kameras nie fuer Monteur, Buero-Portal nur mit Recht bueroexport, Flotte nur Staff), sieht ihn auch hier nicht. Handy und Tablet (unter 1200) bekommen unveraendert _navTeilen. Passt die erweiterte Zeile nicht ganz (der Platzmesser hat n unter ihre Laenge gesenkt), gehen die drei als Gruppe zurueck ins Mehr - nie quer rollend, nie gequetscht. */
+const NAV_BREIT_AB=1200;
+const NAV_BREIT_DAZU=["bueroexport","flotte","kameras"];
+function _navTeilBreit(liste,ww,n){
+  var t=_navTeilen(liste);
+  if(!(ww>=NAV_BREIT_AB))return t;
+  var dazu=[];
+  NAV_BREIT_DAZU.forEach(function(p){for(var i=0;i<t.mehr.length;i++){if(t.mehr[i].perm===p){dazu.push(t.mehr[i]);return;}}});
+  if(!dazu.length)return t;
+  var b={haupt:t.haupt.concat(dazu),mehr:t.mehr.filter(function(e){return dazu.indexOf(e)<0;})};
+  return n>=b.haupt.length?b:t;
+}
+if(typeof window!=='undefined')window._navTeilBreit=_navTeilBreit;
 /* v3.9.1081 Render-Fund P2-1: der Hauptreiter steht als ZAHL (kat) im Zustand. Kommt ein Reiter spaeter dazu (Kameras haengt am
    Schalter-Abruf, der erst nach dem ersten Bild antwortet), rutscht alles dahinter um eins: wer gerade Admin offen hatte, sah
    4 s spaeter still das Buero-Portal. Diese reine Funktion bildet die Zahl ueber den stabilen Schluessel (perm) auf die neue
@@ -17778,7 +17791,7 @@ function ProjectShell({p,onBack,onHome,onNav,navTabs,navTabsAlle,entries,setEntr
   const _psStufe=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0));const isMob=_psStufe==="schmal";const _psMittel=_psStufe==="mittel";/* Stufe 8 Projekte (GF 19.11.2026): schmal = Handy wie bisher (Grenze 599/600 unveraendert). mittel = Tablet hochkant: die Seitenleiste der Projektakte ist eine 56-px-Ikonenleiste (Klasse sb-rail aus der Stufe, bisher nur bis 768 px per CSS) - die Akte bekommt 180 px mehr Breite; frueher hiess das isTab=ww<768. breit = unveraendert. Der Kopfzeilen-Umbruch unter 1200 px bleibt die Rechner-Schwelle (nicht Teil der Tablet-Stufe). Nur Darstellung. */const _psRailL={dashboard:"\u00DCber\u00ADsicht",zeit:"Zeiten",formulare:"Formu\u00ADlare",checklisten:"Check\u00ADlisten",bautagebuch:"Bau\u00ADtage\u00ADbuch",material:"Mate\u00ADrial",dokumente:"Doku\u00ADmente"};/* P3 1084: Leistennamen in mittel mit weichem Trennstrich (\u00AD) - der Name bleibt n.l, nur die Trennstelle ist vorgegeben. Einzige Ausnahme "Zeiten" fuer Zeiterfassung: "erfassung" passt in 76 px nicht in eine Zeile (gemessen: drei Zeilen), und "Zeiten" ist schon der Handy-Reitername derselben Seite (_pfReiter); der volle Name steht in title und aria-label */
   /* v3.9.1016: obere Leiste am Tablet/Rechner nach demselben Muster wie die App (sechs Hauptbereiche + Mehr, aus der gefilterten Reiterliste der App). Auf dem Handy unveraendert navTabs (untere Leiste). */
   const [_pnN,_setPnN]=_react.useState.call(void 0, 99);
-  const _pnTeil=_navTeilen(navTabsAlle||navTabs||[]);
+  const _pnTeil=_navTeilBreit(navTabsAlle||navTabs||[],ww,_pnN);/* PWA-Navigation 24.11.: dieselbe Aufteilung wie die App-Leiste */
   const _pnSicht=isMob?(navTabs||[]):_pnTeil.haupt.slice(0,_pnN);
   const _pnMehr=isMob?[]:_pnTeil.haupt.slice(_pnN).concat(_pnTeil.mehr);
   /* A55-2 Fund 7 (A55 16.11.): am Handy lag hier die ganze Reiterliste quer in der Fussleiste (Home, Chef, Projekte, Arbeitsscheine, Planung, 'Zeiter...' - rechts abgeschnitten, Rest nur per Querwischen). Jetzt dieselben fuenf Gruppen wie die Fussleiste der App (Home, Baustelle, Zeit, Fuhrpark, Mehr; Chef unter Mehr wie dort). Nur Wegwahl: das Ziel geht unveraendert ueber onNav(perm), die Liste ist die bereits nach Rechten gefilterte navTabsAlle. In der Projektakte ist 'Baustelle' markiert. Mehr oeffnet hier die Liste aller Bereiche (wie in der App am Handy), die Akte bleibt bis zur Wahl offen. */
