@@ -99,7 +99,7 @@ def test_edit_monteur_entries_uses_dbWrite_flag(index_html):
     der korrekte DB-Hinweis statt des Excel-Hinweises angezeigt wird."""
     # Such die editMonteurEntries-Funktion und prueft auf dbWrite:true
     m = re.search(
-        r"const\s+editMonteurEntries\s*=[\s\S]{0,3000}?dbWrite\s*:\s*true",
+        r"const\s+editMonteurEntries\s*=[\s\S]{0,6000}?dbWrite\s*:\s*true",  # Paket 14: Fenster 3000->6000 (KW-Auswahl davor)
         index_html,
     )
     assert m, (
@@ -172,7 +172,7 @@ def test_edit_monteur_entries_column_widths(index_html):
     setzen — Sebastian-Vorgabe wegen langer Texte."""
     # Suche im editMonteurEntries-Block
     m_edit = re.search(
-        r"const\s+editMonteurEntries\s*=[\s\S]{0,3000}?confirmLabel",
+        r"const\s+editMonteurEntries\s*=[\s\S]{0,6000}?confirmLabel",  # Paket 14: Fenster 3000->6000 (KW-Auswahl davor)
         index_html,
     )
     assert m_edit, "editMonteurEntries-Block nicht gefunden"

@@ -7251,6 +7251,15 @@ window._exportReviewModal=function(opts){
      Beides nur aktiv wenn der Aufrufer es passiert — die 3 Excel-only-Aufrufer bleiben unverändert. */
   const addRow=opts.addRow&&typeof opts.addRow.build==='function'?opts.addRow:null;
   const selectOptionsFor=typeof opts.selectOptionsFor==='function'?opts.selectOptionsFor:null;
+  /* Paket 14 (GF 24.11.2026) - nur wenn der Aufrufer es setzt (editMonteurEntries), die Excel-Aufrufer bleiben unveraendert:
+     kwNav={kw,yr,maxKw(yr)} -> Wochenleiste (zurueck/vor, KW- und Jahr-Wahl); ein Wechsel loest das Promise mit {_nav:{kw,yr}} auf.
+     leerText -> Hinweis statt leerer Tabelle (leere KW und Ladefehler sind verschiedene Texte, der Aufrufer waehlt).
+     zeilenHinweis(row) -> kurzer Hinweis unter der Zeile (Datum wandert in eine andere KW). summe(rows) -> Fusszeile (Wochensumme).
+     Ungespeicherte Aenderungen: Wechsel/Zurueck/Esc fragen in einem Seitendialog IN der App (kein confirm()). */
+  const kwNav=(opts.kwNav&&typeof opts.kwNav==='object')?opts.kwNav:null;
+  const leerText=opts.leerText?String(opts.leerText):'';
+  const zeilenHinweis=typeof opts.zeilenHinweis==='function'?opts.zeilenHinweis:null;
+  const summeFn=typeof opts.summe==='function'?opts.summe:null;
   return new Promise(function(resolve){
     const bg=V.bg||'#1c1f2e';const tx=V.tx||'#f0f0f2';const bd=V.bd||'#363b50';const cd=V.cd||'#1c1f2e';const dm=V.dm||'#a3a8b7';const ac=V.ac||'#009640';const inputBg=V.inputBg||cd;
     /* v3.9.347 OVERLAY-SINGLETON-GUARANTEE — verhindert verlorene Speicherungen.
@@ -7273,7 +7282,7 @@ window._exportReviewModal=function(opts){
     /* v3.9.350: max-width 1100px war auf Desktop zu schmal — Berichte-bearbeiten mit
        Datum/Projekt/Taetigkeit/h/Bemerkung/✕ wurde rechts abgeschnitten (H-Scroll noetig).
        min(1600px,96vw) gibt auf grossen Displays fast volle Breite, bleibt mobil sicher. */
-    box.style.cssText='background:'+bg+';color:'+tx+';border-radius:12px;border:1px solid '+bd+';padding:18px 20px;max-width:min(1600px,96vw);width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:inherit;';
+    box.style.cssText='background:'+bg+';color:'+tx+';border-radius:12px;border:1px solid '+bd+';padding:18px 20px;max-width:min(1600px,96vw);width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:inherit;'+(kwNav?'position:relative;overflow:hidden;':'');
     const head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:12px;';
     const headL=document.createElement('div');
     const titleEl=document.createElement('div');titleEl.style.cssText='font-size:16px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:8px;';(function(){/* v1051: optionale Linien-Ikone (opts.titleIk = IKON-Schluessel, gleiche Pfade wie _ik) vor dem Titel statt Emoji im Titeltext */var pf=(opts.titleIk&&typeof IKON!=='undefined')?IKON[opts.titleIk]:null;if(!pf)return;try{var NS='http://www.w3.org/2000/svg';var sv=document.createElementNS(NS,'svg');[['width','18'],['height','18'],['viewBox','0 0 24 24'],['fill','none'],['stroke','currentColor'],['stroke-width','1.8'],['stroke-linecap','round'],['stroke-linejoin','round'],['aria-hidden','true'],['focusable','false'],['data-ik',String(opts.titleIk)]].forEach(function(a){sv.setAttribute(a[0],a[1]);});sv.style.flex='0 0 auto';pf.forEach(function(d){var p=document.createElementNS(NS,'path');p.setAttribute('d',d);sv.appendChild(p);});titleEl.appendChild(sv);}catch(_e){}})();const titleTx=document.createElement('span');titleTx.textContent=title;titleEl.appendChild(titleTx);
@@ -7298,7 +7307,28 @@ window._exportReviewModal=function(opts){
     }
     headR.appendChild(counter);
     head.appendChild(headL);head.appendChild(headR);
-    function refreshCounter(){counter.textContent=rows.length+' Zeile'+(rows.length===1?'':'n');}
+    function refreshCounter(){counter.textContent=rows.length+' Zeile'+(rows.length===1?'':'n');if(typeof _summeAkt==='function')_summeAkt();}
+    var _stand=JSON.stringify(rows);/* Paket 14: Stand beim Oeffnen - ungespeichert, sobald rows davon abweicht */
+    function _geaendert(){try{return JSON.stringify(rows)!==_stand;}catch(e){return true;}}
+    var _navBar=null;
+    if(kwNav){
+      _navBar=document.createElement('div');_navBar.setAttribute('data-kw-leiste','1');_navBar.setAttribute('role','group');_navBar.setAttribute('aria-label','Kalenderwoche waehlen');
+      _navBar.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;';
+      var _kNow=Number(kwNav.kw)||1,_yNow=Number(kwNav.yr)||new Date().getFullYear();
+      var _maxKw=function(y){try{return typeof kwNav.maxKw==='function'?kwNav.maxKw(y):52;}catch(e){return 52;}};
+      var _knopf=function(txt,lbl,fn){var b=document.createElement('button');b.type='button';b.textContent=txt;b.setAttribute('aria-label',lbl);b.title=lbl;b.style.cssText='min-width:44px;min-height:44px;border-radius:7px;border:1px solid '+bd+';background:'+cd+';color:'+tx+';font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;';b.onclick=fn;return b;};
+      var _wahl=function(lbl,von,bis,wert){var sl=document.createElement('select');sl.setAttribute('aria-label',lbl);sl.style.cssText='min-height:44px;padding:6px 8px;border-radius:7px;border:1px solid '+bd+';background:'+inputBg+';color:'+tx+';font-size:13px;font-family:inherit;color-scheme:'+(typeof _dark!=='undefined'&&_dark?'only dark':'only light')+';';for(var i=von;i<=bis;i++){var o=document.createElement('option');o.value=String(i);o.textContent=(lbl==='Kalenderwoche'?'KW ':'')+i;if(i===wert)o.selected=true;sl.appendChild(o);}return sl;};
+      var _ziel=function(k,y){var mx=_maxKw(y);if(k<1){y=y-1;k=_maxKw(y);}else if(k>mx){y=y+1;k=1;}_wechsel({kw:k,yr:y});};
+      var _selKw=_wahl('Kalenderwoche',1,_maxKw(_yNow),_kNow);
+      var _selYr=_wahl('Jahr',_yNow-3,_yNow+1,_yNow);
+      _selKw.onchange=function(){_ziel(parseInt(_selKw.value,10),_yNow);};
+      _selYr.onchange=function(){var y=parseInt(_selYr.value,10);_ziel(Math.min(_kNow,_maxKw(y)),y);};
+      _navBar.appendChild(_knopf('\u2039','Vorige Kalenderwoche',function(){_ziel(_kNow-1,_yNow);}));
+      _navBar.appendChild(_selKw);_navBar.appendChild(_selYr);
+      _navBar.appendChild(_knopf('\u203a','Naechste Kalenderwoche',function(){_ziel(_kNow+1,_yNow);}));
+    }
+    var _summeEl=null,_summeAkt=null;
+    if(summeFn){_summeEl=document.createElement('div');_summeEl.setAttribute('data-kw-summe','1');_summeEl.style.cssText='font-size:13px;font-weight:700;color:'+tx+';margin:8px 2px 0;text-align:right;font-variant-numeric:tabular-nums;';_summeAkt=function(){try{_summeEl.textContent=String(summeFn(rows)||'');}catch(e){_summeEl.textContent='';}};}
     refreshCounter();
     const scroll=document.createElement('div');scroll.style.cssText='overflow:auto;border:1px solid '+bd+';border-radius:8px;flex:1;min-height:200px;';
     const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;font-size:12px;';
@@ -7316,6 +7346,7 @@ window._exportReviewModal=function(opts){
     const tbody=document.createElement('tbody');table.appendChild(tbody);
     function renderRows(){
       tbody.innerHTML='';
+      if(leerText&&!rows.length){var _trL=document.createElement('tr');var _tdL=document.createElement('td');_tdL.colSpan=columns.length+1;_tdL.setAttribute('data-kw-leer','1');_tdL.textContent=leerText;_tdL.style.cssText='padding:18px 12px;color:'+dm+';font-size:13px;text-align:center;';_trL.appendChild(_tdL);tbody.appendChild(_trL);}
       rows.forEach(function(r,rowIdx){
         const tr=document.createElement('tr');
         tr.style.cssText='border-bottom:1px solid '+bd+';';
@@ -7354,14 +7385,17 @@ window._exportReviewModal=function(opts){
             inp.type=col.type==='time'?'time':(col.type==='date'?'date':'text');/* v3.9.1093: Zahlenspalte = text+inputmode decimal (App-Regel), nie type=number - Komma wird getippt und ueber _fzZahl gelesen */
             if(col.type==='number'){inp.inputMode='decimal';inp.autocomplete='off';}
             else{if(col.step)inp.step=String(col.step);if(col.min!==undefined)inp.min=String(col.min);if(col.max!==undefined)inp.max=String(col.max);}
-            inp.value=v==null?'':(col.type==='number'?_tankEinDE(v):String(v));
+            inp.value=v==null?'':(col.type==='number'?((col.key==='stunden')?fmtStd(v):_tankEinDE(v)):String(v));/* Paket 13/14: Stunden-Spalte zeigt zwei Nachkommastellen, beim Verlassen neu formatiert (Wert bleibt) */
+            if(col.type==='number'&&col.key==='stunden')inp.addEventListener('blur',function(){var _n0=_fzZahl(inp.value);if(isFinite(_n0))inp.value=fmtStd(_n0);});
             inp.style.cssText='width:100%;padding:6px 8px;border-radius:5px;border:1px solid '+bd+';background:'+inputBg+';color:'+tx+';font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;min-height:32px;';
             inp.addEventListener('input',function(){
               const raw=inp.value;
               if(col.type==='number'){const n=_fzZahl(raw);r[col.key]=isNaN(n)?'':n;}/* v3.9.1093: "7,5" -> 7.5 (parseFloat machte 7). Unlesbar -> '' wie frueher: type=number lieferte bei ungueltiger Eingabe '' */
               else r[col.key]=raw;
+              if(typeof _summeAkt==='function')_summeAkt();if(typeof zeilenHinweis==='function'&&typeof _hinw!=='undefined'&&_hinw){var _ht=zeilenHinweis(r);_hinw.textContent=_ht||'';_hinw.style.display=_ht?'block':'none';}/* typeof: der Eingabe-Pruefstand (test_eingabe_text_rest_v1093) laesst diesen Rumpf allein laufen */
             });
             td.appendChild(inp);
+            var _hinw=null;if(zeilenHinweis&&col.type==='date'){_hinw=document.createElement('div');_hinw.setAttribute('data-kw-hinweis','1');var _ht0=zeilenHinweis(r);_hinw.textContent=_ht0||'';_hinw.style.cssText='font-size:12px;color:'+tx+';border-left:3px solid '+ac+';padding:2px 6px;margin-top:4px;display:'+(_ht0?'block':'none')+';';td.appendChild(_hinw);}
           }
           tr.appendChild(td);
         });
@@ -7401,14 +7435,31 @@ window._exportReviewModal=function(opts){
       resolve(answer);
     }
     function keyHandler(e){
-      if(e.key==='Escape'){e.preventDefault();cleanup(null);return;}
+      if(e.key==='Escape'){e.preventDefault();if(_seite){try{_seite.remove();}catch(_e){}_seite=null;return;}_abbrechen();return;}
     }
-    btnCancel.onclick=function(){cleanup(null);};
+    /* Paket 14: Seitendialog in der App statt confirm() - nur mit kwNav und nur bei ungespeicherten Aenderungen */
+    var _seite=null;
+    function _seitendialog(weiter){
+      if(_seite){try{_seite.remove();}catch(e){}_seite=null;}
+      _seite=document.createElement('div');_seite.setAttribute('data-kw-seitendialog','1');_seite.setAttribute('role','dialog');_seite.setAttribute('aria-modal','true');_seite.setAttribute('aria-label','Ungespeicherte Aenderungen');
+      _seite.style.cssText='position:absolute;top:0;right:0;bottom:0;width:min(360px,100%);background:'+cd+';color:'+tx+';border-left:3px solid '+ac+';box-shadow:-12px 0 30px rgba(0,0,0,.25);padding:18px;display:flex;flex-direction:column;gap:12px;z-index:5;';
+      var t1=document.createElement('div');t1.textContent='Ungespeicherte \u00c4nderungen';t1.style.cssText='font-size:15px;font-weight:700;';
+      var t2=document.createElement('div');t2.textContent='In dieser Woche sind \u00c4nderungen noch nicht gespeichert. Ohne Speichern gehen sie verloren.';t2.style.cssText='font-size:13px;color:'+dm+';line-height:1.4;';
+      var bZur=document.createElement('button');bZur.type='button';bZur.textContent='Weiter bearbeiten';bZur.style.cssText='min-height:44px;padding:9px 14px;border-radius:7px;border:none;background:'+ac+';color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;';
+      var bVerw=document.createElement('button');bVerw.type='button';bVerw.textContent='\u00c4nderungen verwerfen';bVerw.style.cssText='min-height:44px;padding:9px 14px;border-radius:7px;border:1px solid '+bd+';background:'+bg+';color:'+tx+';font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;';
+      bZur.onclick=function(){try{_seite.remove();}catch(e){}_seite=null;};
+      bVerw.onclick=function(){try{_seite.remove();}catch(e){}_seite=null;weiter();};
+      _seite.appendChild(t1);_seite.appendChild(t2);_seite.appendChild(bZur);_seite.appendChild(bVerw);box.appendChild(_seite);
+      try{bZur.focus();}catch(e){}
+    }
+    function _abbrechen(){if(kwNav&&_geaendert()){_seitendialog(function(){cleanup(null);});return;}cleanup(null);}
+    function _wechsel(ziel){if(_geaendert()){_seitendialog(function(){cleanup({_nav:ziel});});return;}cleanup({_nav:ziel});}
+    btnCancel.onclick=function(){_abbrechen();};
     btnConfirm.onclick=function(){cleanup(rows);};
-    overlay.onclick=function(e){if(e.target===overlay)cleanup(null);};
+    overlay.onclick=function(e){if(e.target===overlay)_abbrechen();};
     document.addEventListener('keydown',keyHandler);
     row.appendChild(btnCancel);row.appendChild(btnConfirm);
-    box.appendChild(head);box.appendChild(scroll);box.appendChild(note);box.appendChild(row);
+    box.appendChild(head);if(_navBar)box.appendChild(_navBar);box.appendChild(scroll);if(_summeEl)box.appendChild(_summeEl);box.appendChild(note);box.appendChild(row);
     overlay.appendChild(box);document.body.appendChild(overlay);
     try{btnConfirm.focus();}catch(e){}
   });
@@ -14654,6 +14705,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   const _kwDates=(yr,kw)=>{const jan4=new Date(yr,0,4);const dow=jan4.getDay()||7;const firstMon=new Date(yr,0,4-dow+1);const mon=new Date(firstMon);mon.setDate(firstMon.getDate()+(kw-1)*7);const days=[];for(let i=0;i<7;i++){const dd=new Date(mon);dd.setDate(mon.getDate()+i);days.push(dd);}return days;};
   const _localD=(d)=>typeof d==='string'&&/^\d{4}-/.test(d)?new Date(parseInt(d.slice(0,4)),parseInt(d.slice(5,7))-1,parseInt(d.slice(8,10))):new Date(d);
   const _kwFromDate=(d)=>{const dt=_localD(d);const u=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));const day=u.getUTCDay()||7;u.setUTCDate(u.getUTCDate()+4-day);const ys=new Date(Date.UTC(u.getUTCFullYear(),0,1));return Math.max(1,Math.ceil((((u-ys)/864e5)+1)/7));};/* v3.9.153 (Agent P1): UTC-ISO-Woche statt ms-Division — vorher KW-1 nach Frühjahrs-DST (~6 Mon/Jahr falsche KW im Bauwochenbericht) */
+  const _beKwEintraege=(liste,wid,yr,kw)=>(liste||[]).filter(e=>e&&e.monteur===wid&&e.datum&&_kwFromDate(e.datum)===kw&&_kwYearFromDate(e.datum)===yr).sort((a,b)=>String(a.datum||"").slice(0,10).localeCompare(String(b.datum||"").slice(0,10)));/* Paket 14 (GF 24.11.2026): Eintraege EINER ISO-KW eines Monteurs, aufsteigend nach Datum - dieselben KW-Funktionen wie der Export (_kwFromDate/_kwYearFromDate, Mo-So, Jahreswechsel nach ISO-Wochenjahr) */
   const _kwYearFromDate=(d)=>{const dt=_localD(d);const u=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));const day=u.getUTCDay()||7;u.setUTCDate(u.getUTCDate()+4-day);return u.getUTCFullYear();};/* v3.9.158: ISO-Wochenjahr — KW-Key/Filter mischten Kalenderjahr+ISO-Woche → Off-by-one an Jahresgrenzen im BWB-Export */
   const _fmtDate=(d)=>{if(typeof d==='string'&&/^\d{4}-\d{2}-\d{2}/.test(d))return d.slice(0,10);const dd=_localD(d);return dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");};
 
@@ -14865,15 +14917,28 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
      (worker_id = der editierte Monteur). PUT/DELETE-Logik unverändert. */
   const editMonteurEntries=async(ms)=>{
     if(!window._exportReviewModal){window.__toast&&window.__toast("Export-Review-Modal nicht geladen — bitte App neu laden","warn");return;}
-    const myEntries=allEntries.filter(e=>e.monteur===ms.id).sort((a,b)=>String(b.datum||"").localeCompare(String(a.datum||""))).slice(0,50);
-    if(!myEntries.length){window.__toast&&window.__toast("Keine Zeiteinträge für "+ms.name,"info");return;}
+    /* Paket 14 (GF 24.11.2026): statt "letzte 50" EINE Kalenderwoche (Start: aktuelle KW), Wechsel ueber die Wochenleiste im Dialog.
+       Ein Wechsel schliesst den Dialog mit {_nav} und oeffnet ihn fuer die neue KW (ungespeicherte Aenderungen fragt der Dialog vorher in der App).
+       Speichern unten ist unveraendert (PUT/POST je Zeile wie v3.9.341/344). */
+    const _heuteD=new Date();let _kwSel={kw:_kwFromDate(_heuteD),yr:_kwYearFromDate(_heuteD)};
+    let myEntries=[],_edited=null;
+    for(;;){
+    myEntries=_beKwEintraege(allEntries,ms.id,_kwSel.yr,_kwSel.kw);
+    const _kwTage=_kwDates(_kwSel.yr,_kwSel.kw);const _kwVon=_ymd(_kwTage[0]),_kwBis=_ymd(_kwTage[6]);
+    const _kwTxt="KW "+_kwSel.kw+"/"+_kwSel.yr;
+    const _kwKopf=_kwTxt+" · "+String(_kwTage[0].getDate()).padStart(2,"0")+"."+String(_kwTage[0].getMonth()+1).padStart(2,"0")+".–"+String(_kwTage[6].getDate()).padStart(2,"0")+"."+String(_kwTage[6].getMonth()+1).padStart(2,"0")+".";
     const reviewRows=myEntries.map(e=>{const p=(projects||[]).find(x=>x.id===e.projekt);return {id:e.id,datum:String(e.datum||"").slice(0,10),projekt_name:p?(p.nr+" — "+p.name):(e.projekt||"—"),taetigkeit:e.taetigkeit||"",stunden:parseFloat(e.stunden)||0,bemerkung:e.bemerkung||""};});
     /* v3.9.344: aktive Projekte für Dropdown der neuen Zeilen — gleiche Filter wie sonst (nicht archiviert),
        Value=project_id, Label="NR — NAME". Wird per selectOptionsFor an die Modal-Render-Schicht uebergeben. */
     const _projOpts=(projects||[]).filter(p=>p&&p.status!=="archiviert"&&!p.archiv&&!p.gesperrt).map(p=>({value:p.id,label:(p.nr?p.nr+" — ":"")+(p.name||"")}));
-    const _edited=await window._exportReviewModal({
-      title:"Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name),titleIk:"stift",
-      subtitle:"Letzte 50 Zeiteinträge. Änderungen werden direkt in die DB gespeichert.",
+    const _kwSel0=_kwSel;
+    const _antwort=await window._exportReviewModal({
+      title:"Berichte bearbeiten — "+((ms.vorname?ms.vorname+" ":"")+ms.name)+" · "+_kwKopf,titleIk:"stift",
+      subtitle:"Alle Zeiteinträge dieser Kalenderwoche, aufsteigend nach Datum. Änderungen werden direkt in die DB gespeichert.",
+      kwNav:{kw:_kwSel.kw,yr:_kwSel.yr,maxKw:_getMaxKW},
+      leerText:loaded?("Keine Zeiteinträge in "+_kwTxt+" ("+_kwKopf.split(" · ")[1]+"). Mit „Buchung hinzufügen“ eine Buchung in dieser Woche anlegen oder eine andere Woche wählen."):"Zeiteinträge konnten nicht geladen werden – bitte oben „Neu laden“ tippen. Die Woche ist nicht leer, sondern nicht gelesen.",
+      summe:(rs)=>"Summe "+_kwTxt+": "+fmtStd((rs||[]).reduce((a,r)=>{const _d=String(r.datum||"").slice(0,10);if(!(_d>=_kwVon&&_d<=_kwBis))return a;const _x=_fzZahl(r.stunden);return a+(isFinite(_x)?_x:0);},0))+" h",
+      zeilenHinweis:(r)=>{const _d=String((r&&r.datum)||"").slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(_d)||(_d>=_kwVon&&_d<=_kwBis))return null;return "Datum liegt in KW "+_kwFromDate(_d)+"/"+_kwYearFromDate(_d)+" – die Buchung steht nach dem Speichern dort, nicht mehr in "+_kwTxt+".";},
       /* v3.9.341: textarea fuer Taetigkeit + Bemerkung (lange Texte vorher abgeschnitten),
          readonly Projekt mit Umbruch (lange BVH-Namen wie "DR.-GSCHMEIDLERSTRASSE 10 (PA241923)"),
          dbWrite:true → korrekter DB-Hinweis im Modal. width => minWidth via Modal-CSS. */
@@ -14890,13 +14955,16 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       /* v3.9.344: addRow + selectOptionsFor — neue leere Zeile mit Datum=heute, Projekt wählbar. */
       addRow:{
         label:"Buchung hinzufügen",
-        build:()=>({id:null,_isNew:true,datum:_fmtDate(new Date()),projekt_id:"",projekt_name:"",taetigkeit:"",stunden:0,bemerkung:""})
+        build:()=>{const _h=_ymd(new Date());return {id:null,_isNew:true,datum:(_h>=_kwVon&&_h<=_kwBis)?_h:_kwVon/* Paket 14: in der gewaehlten KW (heute, sonst deren Montag) */,projekt_id:"",projekt_name:"",taetigkeit:"",stunden:0,bemerkung:""};}
       },
       selectOptionsFor:(col,row)=>{
         if(row&&row._isNew&&col&&col.key==="projekt_name")return _projOpts;
         return null;
       }
     });
+    if(_antwort&&_antwort._nav&&_antwort._nav.kw){_kwSel={kw:Number(_antwort._nav.kw),yr:Number(_antwort._nav.yr)||_kwSel0.yr};continue;}
+    _edited=_antwort;break;
+    }
     if(!_edited)return;
     let cnt=0;
     let _skipNote=0;
@@ -15288,7 +15356,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       /* v3.9.334: Monteur-\u00dcbersicht \u2014 Buero sieht auf einen Blick wer wieviele Stunden auf wievielen Projekten gemacht hat. */
       _bxTab==='projekte' && loaded && monteurStats.length>0 && React.createElement('div', { style: {...CC(),marginBottom:12,padding:12}},
         React.createElement('div', { style: {fontSize:15,fontWeight:700,marginBottom:8}}, _ikVw("personen","Monteur-\u00dcbersicht (alle Daten)")),
-        React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:6}}, "Klick auf die Zeile oder den Knopf ",_zpIkI("stift")," \u00f6ffnet die letzten 50 Zeiteintr\u00e4ge des Monteurs zum Bearbeiten \u2014 \u00c4nderungen gehen direkt in die DB."),
+        React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginBottom:6}}, "Klick auf die Zeile oder den Knopf ",_zpIkI("stift")," \u00f6ffnet die Zeiteintr\u00e4ge des Monteurs je Kalenderwoche zum Bearbeiten (Start: aktuelle KW, Wechsel mit den Pfeilen oder der KW-Wahl) \u2014 \u00c4nderungen gehen direkt in die DB."),
         /* Stufe 6: schmal = Karten je Mitarbeiter + Summenkarte; mittel/breit = EINE Tabelle (gleiche Knoepfe), am Tablet hochkant klebt die Namensspalte und nur der Kasten rollt quer. */
         isMob?(React.createElement('div',{'data-be-monteure':"karten"},monteurStats.map(function(ms){return React.createElement('div',{key:ms.id,className:"epk-zeile-klick",role:"button",tabIndex:0,'data-be-zeile':ms.id,'aria-label':"Letzte 50 Eintr\u00e4ge von "+(ms.name||"")+" bearbeiten",onClick:function(){editMonteurEntries(ms);},onKeyDown:function(e){if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();editMonteurEntries(ms);}},style:{background:V.bg,border:"1px solid "+V.bd,borderRadius:8,padding:"10px 12px",marginBottom:8}},React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}},React.createElement('div',{style:{minWidth:0}},React.createElement('div',{style:{fontWeight:700,fontSize:14}},(ms.vorname?ms.vorname+" ":"")+ms.name),React.createElement('div',{style:{fontSize:UI.fMeta,color:V.dm}},ms.rolle||"\u2014")),React.createElement('button',{onClick:function(e){e.stopPropagation();editMonteurEntries(ms);},onKeyDown:function(e){e.stopPropagation();},style:_beStiftSt,title:"Letzte 50 Eintr\u00e4ge bearbeiten",'aria-label':"Letzte 50 Eintr\u00e4ge von "+(ms.name||"")+" bearbeiten"},_ik("stift",16))),React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:"4px 16px",fontSize:12,...UI.zahlen}},[["Std",fmtStd(ms.hrs)],["Projekte",ms.projCnt],["Tagesber.",ms.btCnt],["Regie",ms.regCnt]].map(function(pp){return React.createElement('span',{key:pp[0]},React.createElement('span',{style:{color:V.dm}},pp[0]+": "),React.createElement('span',{style:{fontWeight:700,color:V.tx}},pp[1]));})));}),React.createElement('div',{'data-be-summe':"1",style:{border:"1px solid "+V.bd,borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",gap:8,fontWeight:700,...UI.zahlen}},React.createElement('span',{},"Summe"),React.createElement('span',{},fmtStd(_beMaSumme+_beOhneMa)+" h")))):(
         React.createElement('div', { className: "scroll-x", 'data-be-monteure': _beStufe},

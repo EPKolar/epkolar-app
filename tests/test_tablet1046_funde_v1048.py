@@ -238,7 +238,7 @@ def test_auftragsart_farben_verschieden(index_html):
     '(o.meta?" · ":""),o.meta?_dpMetaIk(o.meta):null)',
     'function _dpMetaIk(t){',
     '_ikVw("personen","Monteur-\\u00dcbersicht (alle Daten)"))',
-    '"Klick auf die Zeile oder den Knopf ",_zpIkI("stift")," \\u00f6ffnet die letzten 50',  # v3.9.1109 GF: Hinweis angepasst; vorher "Der Knopf ",_zpIkI("stift"),"öffnet ...
+    '"Klick auf die Zeile oder den Knopf ",_zpIkI("stift")," \\u00f6ffnet die Zeiteintr\\u00e4ge des Monteurs je Kalenderwoche',  # Paket 14 (GF 24.11.2026): KW-Auswahl statt letzte 50 - Text nachgezogen | v3.9.1109 GF: Hinweis angepasst; vorher "Der Knopf ",_zpIkI("stift"),"öffnet ...
     '_ik("stift",16))',
     '_ikVw("kalender","KW-Filter"))',
     '_ikVw("kalender","Abwesenheiten "+_abYr))',
