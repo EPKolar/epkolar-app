@@ -31990,7 +31990,7 @@ function KameraKachel(props){
   var tickRef=_react.useRef.call(void 0,null);
   var fehlerRef=_react.useRef.call(void 0,0);
   var versuchRef=_react.useRef.call(void 0,0);
-  var _zs=_react.useState.call(void 0,'');var zeigeSnap=_zs[0],setZeigeSnap=_zs[1];/* v3.9.1105 GF 24.11. "Kamerabilder zucken": Einzelbild alle 2 s - das sichtbare img wechselte die Quelle sofort und blitzte bis zum Laden leer. Jetzt Doppelpuffer: unsichtbar vorladen, erst nach onload tauschen. */
+  var _zs=_react.useState.call(void 0,{an:'',neu:''});var snap=_zs[0],setSnap=_zs[1];/* v3.9.1110 GF 24.11. "Zucken ist noch da": der 1105-Puffer lud unsichtbar vor und tauschte dann die Quelle am SICHTBAREN img - ohne Zwischenspeicher lud der Browser dort neu und die Kachel blitzte leer. Jetzt zwei Ebenen: an = sichtbar, neu = laedt darueber unsichtbar und wird erst mit onLoad zu an (dasselbe img-Element per key, kein zweites Laden). Vorher: v3.9.1105 GF 24.11. "Kamerabilder zucken": Einzelbild alle 2 s - das sichtbare img wechselte die Quelle sofort und blitzte bis zum Laden leer. Jetzt Doppelpuffer: unsichtbar vorladen, erst nach onload tauschen. */
   /* MJPEG: an = Strom mit erstem Bild (sichtbar), neu = Strom im Anlauf (unsichtbar, ersetzt an erst mit seinem ersten Bild) */
   var _mj=_react.useState.call(void 0,{an:null,neu:null});var mj=_mj[0],setMj=_mj[1];
   var mjVersuchRef=_react.useRef.call(void 0,0);
@@ -32182,23 +32182,22 @@ function KameraKachel(props){
     return function(){clearTimeout(t);clearInterval(p);};
   },[mjNeuK]);
   _react.useEffect.call(void 0,function(){
-    if(bild.modus!=='snapshot'||!bild.url){setZeigeSnap('');return function(){};}
-    var lebt=true;var ziel=_kamSnapshotUrl(bild.url,takt);
-    if(typeof Image==='undefined'){setZeigeSnap(ziel);return function(){lebt=false;};}/* ohne Image (Node-Tests): direkt anzeigen wie bisher */
-    var im=new Image();
-    try{im.referrerPolicy='no-referrer';im.decoding='async';}catch(_r){}
-    im.onload=function(){if(!lebt)return;fehlerRef.current=0;setZeigeSnap(ziel);};
-    im.onerror=function(){if(lebt)_bildFehler();};
-    im.src=ziel;
-    return function(){lebt=false;im.onload=null;im.onerror=null;};
+    if(bild.modus!=='snapshot'||!bild.url){setSnap(function(s){return (s.an||s.neu)?{an:'',neu:''}:s;});return function(){};}
+    var ziel=_kamSnapshotUrl(bild.url,takt);
+    /* laedt das vorige neue Bild noch, wird es ersetzt (kein Stapel); das sichtbare bleibt stehen */
+    setSnap(function(s){return s.an===ziel||s.neu===ziel?s:{an:s.an,neu:ziel};});
+    return function(){};
   },[bild.modus,bild.url,takt]);
+  function snapDa(u){fehlerRef.current=0;setSnap(function(s){return s.neu===u?{an:u,neu:''}:s;});}
+  function snapFehl(u){setSnap(function(s){return s.neu===u?{an:s.an,neu:''}:s;});_bildFehler();if(fehlerRef.current<3)setTakt(function(x){return x+1;});}/* Fehlbild: altes bleibt stehen, sofort ein neues anfordern; nach 3 Fehlern in Folge Hinweis wie bisher */
   return h('div',{style:{minWidth:0,border:'1px solid '+UI.linie,borderRadius:UI.rKarte,overflow:'hidden',background:UI.flaeche}}
     ,h('div',{ref:boxRef,style:{position:'relative',width:'100%',aspectRatio:'16 / 9',background:'#0b0d0c'}}
       ,h('video',{ref:vidRef,muted:true,playsInline:true,autoPlay:true,'aria-label':'Live-Bild '+(k.name||''),
           style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:(live&&!mitBild)?'block':'none'}})
-      ,(mitBild&&bild.modus==='snapshot'&&zeigeSnap)?h('img',{src:zeigeSnap,alt:'Live-Bild '+(k.name||''),
-          referrerPolicy:'no-referrer',decoding:'async',onLoad:function(){fehlerRef.current=0;},onError:_bildFehler,
-          style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block'}}):null
+      ,(mitBild&&bild.modus==='snapshot')?[snap.an,snap.neu].filter(Boolean).map(function(u){var laedt=u===snap.neu;
+          return h('img',{key:u,src:u,alt:'Live-Bild '+(k.name||''),'data-kam-snap':laedt?'laedt':'an',
+            referrerPolicy:'no-referrer',decoding:'async',onLoad:laedt?function(){snapDa(u);}:undefined,onError:laedt?function(){snapFehl(u);}:undefined,
+            style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block',opacity:laedt?0:1}});}):null
       ,bild.modus==='mjpeg'?[mj.an,mj.neu].filter(Boolean).map(function(e){var laedt=e===mj.neu;
           return h('img',{key:e.k,src:e.u,alt:'Live-Bild '+(k.name||''),'data-kam-mjpeg':laedt?'anlauf':'an',ref:laedt?mjImgRef:undefined,
             referrerPolicy:'no-referrer',decoding:'async',onLoad:laedt?function(){mjDa(e.k);}:undefined,
