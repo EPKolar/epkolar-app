@@ -13776,6 +13776,8 @@ function EZKalender(props){
     ,WT.map(function(w){return h('div',{key:w,style:{textAlign:'center',fontSize:UI.fMeta,fontWeight:700,color:V.dm}},w);}));
   if(view==='woche'){
     var wd=_ezWeekDays(cursor);
+    /* v3.9.1102: Stunden und Stufen sind nur fuer den Monat ym geladen - Tage des Nachbarmonats in der Woche zeigen sonst 0 h/Vorschlag und ein Klick ueberschrieb eine nicht geladene Stufe. Jetzt ausgegraut wie in der Monatsansicht. */
+    if(props.ym)wd=wd.map(function(o){return {iso:o.iso,inMonth:String(o.iso).slice(0,7)===props.ym};});
     return h('div',{},_kopf,h('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMob?3:5}}
       ,wd.map(function(o){return _cell(o,true);})));
   }
@@ -13808,10 +13810,11 @@ function KVZulagenReport(props){
      42P01-tolerant. RECHNUNG unveraendert-automatisch bis Etappe-3-Freigabe — diese Flags werden NICHT verrechnet. */
   const [ezFlags,setEzFlags]=_react.useState.call(void 0, {});/* _ezKey -> {aktiv:bool} (Abweichung von der Vorbelegung) */
   const [ezMissing,setEzMissing]=_react.useState.call(void 0, false);/* Tabelle fehlt (Run-Gate offen) */
+  const [ezStand,setEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1102 Zulagen-Pruefung 24.11.: 'laedt'|'ok'|'fehler' - _ezFetch lieferte bei Netz-/Serverfehler still {} und die Tabelle/der PZE-PDF rechneten mit der reinen Vorbelegung statt der gesetzten Stufen (lohnrelevant). Jetzt: Hinweis + PZE-PDF gesperrt, bis die Stufen des Monats wirklich geladen sind. */
   const [ezWid,setEzWid]=_react.useState.call(void 0, '');/* gewaehlter Mitarbeiter */
   const [ezView,setEzView]=_react.useState.call(void 0, 'monat');/* 'monat' | 'woche' */
   const [ezCursor,setEzCursor]=_react.useState.call(void 0, ym+'-01');/* ISO-Anker fuer Monat/Woche */
-  const _shiftYm=(delta)=>{var p=ym.split('-');var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1+delta,1);setYm(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));};
+  const _shiftYm=(delta)=>{var p=ym.split('-');var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1+delta,1);var nym=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');setYm(nym);setEzCursor(nym+'-01');};/* v3.9.1102: Kalender (ezCursor) folgt dem Monat der Tabelle */
   const _ezMonW=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];const _kvYmDE=function(x){var p=String(x||'').split('-');var k=parseInt(p[1],10)-1;return (p.length===2&&k>=0&&k<12)?_ezMonW[k]+' '+p[0]:String(x||'');};/* Stufe 6: Monat 2026-11 -> November 2026 (Anzeige; PDF-Dateiname bleibt) */
   /* Kalender-Navigation: haelt ym und ezCursor konsistent, damit _ezFetch(ym) immer die sichtbaren Flags laedt. */
   const _ezNav=(delta)=>{
@@ -13870,7 +13873,8 @@ function KVZulagenReport(props){
   _react.useEffect.call(void 0, function(){
     if(!open)return;/* erst laden, wenn der Report aufgeklappt ist — kein Request auf Verdacht */
     var lebt=true;
-    _ezFetch(ym).then(function(r){if(!lebt)return;setEzMissing(!!r.missing);setEzFlags(r.flags||{});});
+    setEzStand('laedt');
+    _ezFetch(ym).then(function(r){if(!lebt)return;setEzMissing(!!r.missing);setEzFlags(r.flags||{});setEzStand((r&&(r.ok||r.missing))?'ok':'fehler');});
     return function(){lebt=false;};
   },[ym,open]);
   const rows=(function(){
@@ -13949,7 +13953,8 @@ function KVZulagenReport(props){
       ,_ezDetail?h('div',{style:{fontSize:UI.fMeta,color:V.dm,background:'rgba(0,0,0,.04)',borderRadius:6,padding:'8px 10px',marginBottom:10,lineHeight:1.5}},'Vorbelegung: alle Tage mit Anwesenheit >6h sind als Stufe „klein" vorbelegt (Tages-Summe der Zeiteinträge, KV: einschl. Wegzeit, ausschl. Mittagspause). Per Kalender-Klick wird die Stufe durchgeschaltet (klein → mittel → groß → keine → Vorschlag). GENAU EINE Stufe pro Tag, nie additiv. Sätze: klein '+_eur(_ezSaetze(kv).klein)+' € · mittel '+_eur(_ezSaetze(kv).mittel)+' € · groß '+_eur(_ezSaetze(kv).gross)+' € (KV ab 01.01.2026, LA 2740). Genehmigte Abwesenheit → kein Vorschlag. Lohnverrechner maßgeblich.'):null
       /* v3.9.785 (Sebastian): Zulagensatz-Maske — admin+buero editieren klein/mittel/gross (2027 andere Saetze). */
       ,h('div',{style:{marginBottom:10}}
-        ,h('button',{onClick:function(){if(_ezRateEdit){_setEzRateEdit(false);}else{_ezRateOpen();}},style:{...bsS(),padding:'4px 12px',fontSize:UI.fMeta,minHeight:32}},h('span',{style:{display:'inline-flex',alignItems:'center',gap:6}},_ezRateEdit?'Zulagensätze':_zpIk('regler','Zulagensätze bearbeiten',14),_klappIk(_ezRateEdit,14)))
+        ,!(props.curUser&&props.curUser.role==='admin')?h('span',{'data-ez-saetze-nur-admin':'1',style:{fontSize:UI.fMeta,color:V.dm}},'Zulagensätze: '+(function(){var s=_ezSaetze(kv);return _eur(s.klein)+' / '+_eur(s.mittel)+' / '+_eur(s.gross)+' € je Tag (klein/mittel/groß). Ändern kann nur der Admin.';})())
+        :h('button',{onClick:function(){if(_ezRateEdit){_setEzRateEdit(false);}else{_ezRateOpen();}},style:{...bsS(),padding:'4px 12px',fontSize:UI.fMeta,minHeight:32}},h('span',{style:{display:'inline-flex',alignItems:'center',gap:6}},_ezRateEdit?'Zulagensätze':_zpIk('regler','Zulagensätze bearbeiten',14),_klappIk(_ezRateEdit,14)))
         ,_ezRateEdit&&_ezRateVals?h('div',{style:{marginTop:8,border:'1px solid '+V.bd,borderRadius:8,padding:isMob?10:12,background:V.bg,display:'flex',flexWrap:'wrap',gap:12,alignItems:'flex-end'}}
           ,['klein','mittel','gross'].map(function(k){return h('div',{key:k,style:{display:'flex',flexDirection:'column',gap:3}}
             ,h('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},(k==='gross'?'groß':k)+' (EUR/Tag)')
@@ -13981,12 +13986,13 @@ function KVZulagenReport(props){
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:V.cd,border:'1px solid '+V.bd,display:'inline-block'}}),h('span',{style:{textDecoration:'line-through'}},'keine'))
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:'transparent',boxShadow:'0 0 0 2px '+V.ac,display:'inline-block'}}),'Ring = heute'))
         ,ezMissing?h('div',{style:{fontSize:UI.fMeta,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'6px 10px',marginBottom:8,fontWeight:600,display:'flex',alignItems:'center',gap:6}},_ik('warnung',16),'Tabelle entfernungszulage_tage fehlt — sql/ENTFERNUNGSZULAGE_TAGE_v1.sql ausführen'):null
-        ,h(EZKalender,{wid:ezWid,view:ezView,cursor:ezCursor,days:_ezDaysFor(ezWid),flags:ezFlags,absDays:_ezAbsDaysFor(ezWid),onToggle:_ezToggle,isMob:isMob}))
+        ,ezStand==='fehler'?h('div',{role:'alert','data-ez-ladefehler':'1',style:{fontSize:UI.fMeta,color:V.tx,borderLeft:'3px solid '+COLORS.ERROR,background:V.cd,padding:'6px 10px',marginBottom:8,fontWeight:600}},'Tagesstufen für '+_kvYmDE(ym)+' konnten nicht geladen werden (Netz oder Server). Beträge unten sind NICHT verlässlich, PZE-PDF gesperrt. ',h('button',{type:'button',onClick:function(){setEzStand('laedt');_ezFetch(ym).then(function(r){setEzMissing(!!r.missing);setEzFlags(r.flags||{});setEzStand((r&&(r.ok||r.missing))?'ok':'fehler');});},style:{...bsS(),padding:'2px 10px',minHeight:32,marginLeft:6}},'Erneut laden')):null
+        ,h(EZKalender,{wid:ezWid,view:ezView,cursor:ezCursor,ym:ym,days:_ezDaysFor(ezWid),flags:ezFlags,absDays:_ezAbsDaysFor(ezWid),onToggle:ezStand==='ok'?_ezToggle:function(){if(window.__toast)window.__toast('Tagesstufen noch nicht geladen - bitte warten bzw. erneut laden','warn');},isMob:isMob}))
       ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}
         ,h('button',{ title: "Monat zurück", 'aria-label': "Monat zurück",onClick:()=>_shiftYm(-1),style:{...bsS(),padding:'6px 10px',minHeight:isMob?44:0,minWidth:44,display:"inline-flex",alignItems:"center",justifyContent:"center"}},_ik('links',18))
         ,h('span',{style:{fontWeight:700,fontSize:15,minWidth:130,textAlign:'center',whiteSpace:'nowrap'}},_kvYmDE(ym))
         ,h('button',{ title: "Monat vor", 'aria-label': "Monat vor",onClick:()=>_shiftYm(1),style:{...bsS(),padding:'6px 10px',minHeight:isMob?44:0,minWidth:44,display:"inline-flex",alignItems:"center",justifyContent:"center"}},_ik('rechts',18))
-        ,h('button',{onClick:_pzeBtn,disabled:!ezWid,style:{...bpS,marginLeft:'auto',opacity:ezWid?1:.5,cursor:ezWid?'pointer':'default'}},_zpIk('dokument','PZE-PDF (Lohnverrechner)')))
+        ,h('button',{onClick:_pzeBtn,disabled:!ezWid||ezStand!=='ok',title:ezStand==='ok'?undefined:(ezStand==='laedt'?'Tagesstufen werden geladen':'Tagesstufen nicht geladen - PDF gesperrt'),style:{...bpS,marginLeft:'auto',opacity:(ezWid&&ezStand==='ok')?1:.5,cursor:(ezWid&&ezStand==='ok')?'pointer':'default'}},_zpIk('dokument','PZE-PDF (Lohnverrechner)')))
       ,zeilen.length===0?h('div',{style:{fontSize:13,color:V.dm,padding:'8px 0'}},'Keine Zulagen im '+_kvYmDE(ym)+'.'):h('div',{style:{overflowX:'auto'}}
         ,h('table',{style:{width:isMob?760:'100%',borderCollapse:'collapse',fontSize:12}}
           ,h('thead',{},h('tr',{},['Monteur','klein','mittel','groß','Entfernungszulage'].map(function(t,i){return h('th',{key:i,style:{padding:'5px 8px',borderBottom:'2px solid '+V.bd,textAlign:i===0?'left':'right',fontSize:UI.fMeta,color:V.dm,whiteSpace:'nowrap'}},t);})))
@@ -14202,6 +14208,7 @@ function PZEView(props){
   const [kZeit,setKZeit]=_react.useState.call(void 0, '16:00');
   const [kMsg,setKMsg]=_react.useState.call(void 0, '');
   const [reload,setReload]=_react.useState.call(void 0, 0);
+  const [pzeEzStand,setPzeEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1102: wie im Zulagen-Report - PDF erst mit geladenen Tagesstufen */
   const [ezFlags,setEzFlags]=_react.useState.call(void 0, {});/* v3.9.776: Entfernungszulage-Flags (Abweichung von der Vorbelegung) fuer EZ-Vermerk + Fuss im PDF. EINE Quelle: _ezEffTage. */
 
   const _monatPreset=(delta)=>{const b=new Date(von+'T12:00:00');const d=new Date(b.getFullYear(),b.getMonth()+delta,1);
@@ -14233,7 +14240,8 @@ function PZEView(props){
   _react.useEffect.call(void 0, function(){
     if(!open||!wid)return;
     var lebt=true;var ym=String(von).slice(0,7);
-    _ezFetch(ym).then(function(r){if(lebt)setEzFlags((r&&r.flags)||{});});
+    setPzeEzStand('laedt');
+    _ezFetch(ym).then(function(r){if(lebt){setEzFlags((r&&r.flags)||{});setPzeEzStand((r&&(r.ok||r.missing))?'ok':'fehler');}});
     return function(){lebt=false;};
   },[open,von,wid]);
 
@@ -14355,7 +14363,7 @@ function PZEView(props){
         ,h('input',{type:'date',value:bis,'aria-label':'Zeitraum bis',onChange:e=>setBis(e.target.value),style:{padding:'8px 10px',borderRadius:8,border:'1px solid '+V.bd,background:V.bg,color:V.tx,fontSize:14,minHeight:44}})
         ,h('button',{onClick:()=>_monatPreset(1),style:btnS,'aria-label':'Nächster Monat'},h('span',{style:{display:'inline-flex',alignItems:'center',gap:6,verticalAlign:'middle'}},'Monat',_ik('rechts',16)))
         ,tab==='pze'&&_worker?h('button',{onClick:_xls,style:{...btnS,background:COLORS.SUCCESS,color:'#fff',border:'none'}},_ikVw('tabelle','Excel')):null
-        ,tab==='pze'&&_worker?h('button',{onClick:_pdf,style:{...btnS,background:COLORS.INFO,color:'#fff',border:'none'}},_ikVw('dokument','PDF')):null)
+        ,tab==='pze'&&_worker?h('button',{onClick:_pdf,disabled:pzeEzStand!=='ok',title:pzeEzStand==='ok'?undefined:(pzeEzStand==='laedt'?'Entfernungszulage-Stufen werden geladen':'Entfernungszulage-Stufen nicht geladen - PDF gesperrt'),style:{...btnS,background:COLORS.INFO,color:'#fff',border:'none',opacity:pzeEzStand==='ok'?1:.5}},_ikVw('dokument','PDF')):null)
       ,busy?h('div',{style:{color:V.tx2,fontSize:13,padding:'8px 0'}},'lädt …'):null
 
       /* ── Tab: Personalzeit ── */
