@@ -272,7 +272,7 @@ def test_stufe_steht_im_block_von_zeiterfassungview(roh):
 # (Fehltage), Stunden aendern mit verzoegertem PUT (stzSaveTimers), Loeschen, Bearbeiten,
 # Buchen (Doppel-Tap-Sperre, Konflikt-Rueckfrage), Wie-letzte-Woche, Tages-/Wochensumme, Exporte.
 UNBERUEHRT = [
-    ("  const _hkZE=", "  // ── Add Entry Modal ──", "2a74fd86a2eddee6e21a44991b7fa6ba"),  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _hK ruft fmtStd - vorher edd258c0affe6623a32a0b40490df7d5 | v3.9.1111 Timer/WLW-State entfernt (GF 24.11.), vorher e6031b91feb2453160f0a66492a652e2 | v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
+    ("  const _hkZE=", "  // ── Add Entry Modal ──", "a6f8ea04d0ad6c542dc0b09624dffacc"),  # Z9-Sperre (GF 24.11.2026 abends): exportTagesStz/exportXls/exportAllXls wieder byte-gleich zu 3.9.1114 (dfc369b), _hK bleibt fmtStd - vorher 2a74fd86a2eddee6e21a44991b7fa6ba | Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _hK ruft fmtStd - vorher edd258c0affe6623a32a0b40490df7d5 | v3.9.1111 Timer/WLW-State entfernt (GF 24.11.), vorher e6031b91feb2453160f0a66492a652e2 | v3.9.1110 GF 24.11.: Vorbelegungen leer, Pflicht-/Rasterpruefung - vorher d32b44b2c6f3115f41c88160546b470b
     ("  const loadWeek=", "  _react.useEffect.call(void 0, ()=>{loadWeek();}", "b385eb03b69f774d0fda2c645009df8e"),
     ("  const loadAllOverview=()=>{", "  const updateEntryHours=", "cd30063a0ff0c90357bc549f4fca834d"),
     ("  const updateEntryHours=(iso,entryIdx,newHours)=>{", "  const _isFieldRoleZE=", "6269e5f3f81bbbab81a3fdc3c13afed1"),

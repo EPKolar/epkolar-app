@@ -121,7 +121,7 @@ S_KONT = {
     "kontKompakt": ("        , !kontExpanded&&(React.createElement('div', { style: "
                     "{display:\"flex\",flexDirection:\"column\",gap:6}}, (isAdmin?_kontNames",
                     "        })))"),
-    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9,stdCols:[2,3,4,5,6,7,8,9,10]});"),  # Paket 13 (GF 24.11.2026): Stunden-Spalten im Kontingent-Excel als Zahl mit Format 0,00 - Suchanker nachgezogen, Eigenschaft unveraendert
+    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9});"),  # Paket 13a (GF 24.11.2026 abends): 3.9.1115 aendert KEINE Exportdatei - Excel-Aenderungen liegen auf feature/excel-stunden-zahl (test_exporte_golden_v1114.py) - Suchanker wieder wie 3.9.1114
 }
 
 S_HIST = {
@@ -172,7 +172,7 @@ S_KONT_ALT = {
     "kontKompakt": ("        , !kontExpanded&&(React.createElement('div', { style: "
                     "{display:\"flex\",flexDirection:\"column\",gap:6}}, (isAdmin?names",
                     "        })))"),
-    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9,stdCols:[2,3,4,5,6,7,8,9,10]});"),  # Paket 13: Suchanker wie oben
+    "kontBlatt": ("const hdrs=[\"Nr\",\"Mitarbeiter\",\"Std/Wo\"", "sumCol:9});"),  # Paket 13a: Suchanker wie oben (wieder wie 3.9.1114)
 }
 
 UMKEHR_ZUW = [

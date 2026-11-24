@@ -31,7 +31,9 @@ def _node(js):
 
 
 def _fmt_js(src):
-    return _fn(src, "function _fzZahl(v){") + "\n" + _fn(src, "function fmtStd(v){") + "\n"
+    # Tausender-Nachtrag 24.11.2026: Eingabefelder und Excel-Zelltexte rufen fmtStdEingabe (ohne Gruppierung) - mitschneiden, sofern vorhanden.
+    ein = (_fn(src, "function fmtStdEingabe(v){") + "\n") if "function fmtStdEingabe(v){" in src else ""
+    return _fn(src, "function _fzZahl(v){") + "\n" + _fn(src, "function fmtStd(v){") + "\n" + ein
 
 
 # ── 1 der Formatierer ───────────────────────────────────────────────────────
@@ -61,10 +63,7 @@ ANZEIGE = [
     "fmtStd(ys.urlaubStd)", "fmtStd(rest)",
     # Ueberstunden-Uebersicht (KV)
     "fmtStd(r.zuschlagStd)+' h'",
-    # FinkZeit-Abgleich (Druck)
-    "${fmtStd(epH)}h",
-    # Bautagesbericht (Druck + PDF)
-    "${fmtStd(totalStd)}", 'doc.text(_pdfStr(fmtStd(sum)+" h"),M+100,y);',
+    # Paket 13a (GF 24.11. abends): FinkZeit-Druckblatt, Regiebericht-Druck und Bautagesbericht-PDF bleiben wie 3.9.1114
 ]
 
 
@@ -93,11 +92,6 @@ def test_stempelzeit_bleibt_hmm(index_html):
     assert 'zeile("Stempelstunden gesamt:",_mfHM(sum.min)+" h");' in index_html
 
 
-def test_bautagesbericht_summe_liest_komma(index_html):
-    """Die PDF-Summe liest die angezeigten Stunden zurueck - mit "9,50 h" muss das Komma gelesen werden."""
-    assert 'const hv=_fzZahl(String(h).replace(" h",""));if(!isNaN(hv))sum+=hv;' in index_html
-
-
 # ── 3 Stunden-Eingaben ──────────────────────────────────────────────────────
 @needs_node
 def test_stundenfeld_zeigt_ohne_fokus_zwei_stellen(index_html):
@@ -118,37 +112,5 @@ def test_stundenfelder_tragen_stunden_true(index_html):
         assert ('{ stunden:true, inputMode:"decimal", ' + feld) in index_html, feld
 
 
-# ── 4 Excel: Zahl bleibt Zahl, Format 0,00 ──────────────────────────────────
-def _xls_js(src):
-    a = src.index("const _XNUM=")
-    b = src.index("const genXls=(title,subtitle,headers,rows,filename,opts={})=>{")
-    e = src.index("\n};", b) + 3
-    return (_fn(src, "function _n(v,d){") + "\n" + _fmt_js(src)
-            + "const _nullishCoalesce=(v,f)=>(v!=null?v:f());const CF_HTML_AGB='',CF_HTML_LINE1='',CF_HTML_LINE2='',COMPANY_FOOTER={web:'',name:''};const window={},_optionalChain=()=>undefined;let OUT=null;const _dl=(blob,fn)=>{OUT={blob,fn};};\n"
-            + src[a:b] + src[b:e] + "\n")
-
-
-@needs_node
-def test_excel_stundenspalte_bleibt_zahl_mit_format(index_html):
-    js = _xls_js(index_html) + r"""
-genXls("Test","t",["Name","Stunden"],[["A","9.50"],["B","4.75"],["C",""]],"t.xls",{stdCols:[1],sumCol:1});
-OUT.blob.text().then(t=>console.log(JSON.stringify(t)));"""
-    t = json.loads(_node(js))
-    assert 'td.xs{mso-number-format:"0\\.00";}' in t
-    assert 'class="xs" x:num="9.50"' in t and ">9,50</td>" in t
-    assert 'class="xs" x:num="4.75"' in t and ">4,75</td>" in t
-    assert 'class="xs" x:num="14.25"' in t, "Summenzeile bleibt Zahl mit Format 0,00"
-
-
-@pytest.mark.parametrize("aufruf", [
-    '"Abwesenheiten_"+_abYr+".xls",{leftCols:[0],stdCols:[1,2,3,4,5,6]}',
-    '"Krankenstand_"+_abYr+".xls",{leftCols:[0,1,3,4],stdCols:[2]}',
-    "boldCols:[2,4],sumCol:5,stdCols:[5]}",
-    "boldCols:[1],stdCols:[5,6,7,8],statusMap:",
-    "sumCol:9,stdCols:[2,3,4,5,6,7,8,9,10]}",
-    "boldCols:[2],sumCol:5,stdCols:[5]}",
-    "leftCols:[0,1],boldCols:[1],stdCols:[2,3,4,5,6,7,8]}",
-    "boldCols:[2],sumCol:8,stdCols:[7,8]}",
-])
-def test_stunden_exporte_haben_stdcols(index_html, aufruf):
-    assert aufruf in index_html
+# ── 4 Excel: Paket 13a (GF 24.11.2026 abends) - KEIN Export aendert sich in 3.9.1115; die Excel-Tests liegen mit den
+#    Excel-Aenderungen auf feature/excel-stunden-zahl. Ausgabe-Riegel: test_exporte_golden_v1114.py.

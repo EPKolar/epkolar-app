@@ -5862,12 +5862,19 @@ function _ktgStd(v){if(v===null||v===undefined||v==="")return 192.5;const _k=par
 function _n(v,d){const n=parseFloat(v);return (isNaN(n)||!isFinite(n))?(d!==undefined?(0).toFixed(d):0):d!==undefined?n.toFixed(d):n;}
 function fmtStd(v){/* Paket 13 (GF 24.11.2026): EINE Stunden-ANZEIGE fuer die ganze App - genau zwei Nachkommastellen mit Komma (5 -> "5,00", 9.5 -> "9,50", 4.75 -> "4,75", 8.1666 -> "8,17").
    Nur Anzeige: gespeicherte Werte, Summen und Rundungen bleiben unveraendert (der Wert wird nicht zurueckgeschrieben). Leer bleibt leer: null/undefined/""/Unlesbares -> "" (nicht "0,00", nichts erfinden).
-   Keine Tausenderpunkte: "1.650,00" waere in einem Eingabefeld mehrdeutig. Halbe Cent-Stellen runden kaufmaennisch ueber die Exponent-Schreibweise (1.005 -> "1,01", nicht toFixed-Binaerfehler). Stempelzeiten bleiben H:MM (eigene Formatierer). */
+   Tausender (GF 24.11.2026 abends): die ANZEIGE gruppiert wie frueher toLocaleString("de-AT") mit dem geschuetzten Leerzeichen U+00A0 ("1\u00a0234,50", Monteur-Uebersicht "1\u00a0126,8" vor Paket 13);
+   Eingabefelder (ZahlEingabe stunden:true) und Excel-Zelltexte nehmen fmtStdEingabe und bleiben OHNE Gruppierung ("1234,50") - ein Punkt waere dort mehrdeutig. _fzZahl liest beides (\s entfernt U+00A0).
+   Halbe Cent-Stellen runden kaufmaennisch ueber die Exponent-Schreibweise (1.005 -> "1,01", nicht toFixed-Binaerfehler). Stempelzeiten bleiben H:MM (eigene Formatierer). */
   if(v===null||v===undefined||v==="")return "";
   var n=(typeof v==="number")?v:_fzZahl(v);
   if(typeof n!=="number"||!isFinite(n))return "";
   var neg=n<0,a=Math.abs(n);var r=Number(Math.round(Number(a+"e2"))+"e-2");if(!isFinite(r))r=Math.round(a*100)/100;
-  return ((neg&&r>0)?"-":"")+r.toFixed(2).replace(".",",");
+  var t=r.toFixed(2).replace(".",",");
+  if(r>=1000){var k=t.length-3,g=t.slice(k);t=t.slice(0,k);while(t.length>3){g="\u00a0"+t.slice(-3)+g;t=t.slice(0,-3);}t=t+g;}
+  return ((neg&&r>0)?"-":"")+t;
+}
+function fmtStdEingabe(v){/* Tausender-Nachtrag 24.11.2026: wie fmtStd, aber OHNE Tausender-Gruppierung - fuer Eingabefelder und Excel-Zelltexte ("1234,50", 5 -> "5,00", leer -> ""). */
+  return fmtStd(v).replace(/\u00a0/g,"");
 }
 /* v1016 Sammel (GF): Stunden/Fahrzeit im Regiebericht sind abrechnungsrelevant. parseFloat("0,5") ergibt 0 - die
    Eingabe "0,5" h Fahrzeit fiel in der Gesamt-Zeile weg. EIN Leser fuer Dezimalkomma UND -punkt: "0,5"->0.5,
@@ -6023,7 +6030,6 @@ const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
   const leftCols=opts.leftCols||[0,1]; // columns with left-aligned text
   const boldCols=opts.boldCols||[1]; // columns with bold text
   const statusMap=opts.statusMap||{}; // {cellValue: "#hexColor"} for colored status badges
-  const _stdCol=headers.map((h,i)=>Array.isArray(opts.stdCols)&&opts.stdCols.indexOf(i)>=0);/* Paket 13: Stunden-Spalten - Zelle bleibt ZAHL (x:num), Excel-Zahlenformat 0,00 */
   const rowH=opts.rowHeight||20; // v3.9.520: opt-in höhere Datenzeilen (Wochenplanung + MA-Übersicht). Fußzeile/Briefkopf sind eigene Tabellen, unberührt.
   const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
@@ -6031,7 +6037,7 @@ const genXls=(title,subtitle,headers,rows,filename,opts={})=>{
 <style>
   @page{margin:1cm .7cm;mso-header-data:"&L&8Andreas Kolar && Sohn GesmbH";mso-footer-data:"&L&8${esc(filename)}&R&8Seite &P von &N";}
   body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;}
-  td,th{mso-number-format:\\@;font-family:Arial,Helvetica,sans-serif;vertical-align:middle;}td.xn{mso-number-format:General;}td.xs{mso-number-format:"0\\.00";}${_ci?'td.xd{mso-number-format:"dd\\.mm\\.yyyy";}':''}
+  td,th{mso-number-format:\\@;font-family:Arial,Helvetica,sans-serif;vertical-align:middle;}td.xn{mso-number-format:General;}${_ci?'td.xd{mso-number-format:"dd\\.mm\\.yyyy";}':''}
 </style></head><body>
 
 <!-- ═══ BRIEFKOPF ═══ -->
@@ -6068,14 +6074,13 @@ ${rows.map((r,ri)=>{
     if(stColor) style+="background:"+stColor+";color:#fff;font-weight:bold;font-size:8pt;text-align:center;";
     if(!_ci&&cs&&!stColor&&!isNr&&ci>1) style+="background:"+(alt?"#f0f7f2":"#e8f5e9")+";";
     if(_txtCol[ci])return '<td style="'+style+'">'+_xBr(esc(cs))+'</td>';
-    if(_stdCol[ci]&&(_XNUM.test(cs)||_XINT.test(cs)))return '<td class="xs" x:num="'+cs+'" style="'+style+'">'+esc(fmtStd(cs))+'</td>';
     return '<td'+(_ci?_xAttrCI(cs):_xAttr(cs))+' style="'+style+'">'+(_ci?_xTextCI(cs,esc):_xText(cs,esc))+'</td>';
   }).join("")+'</tr>';
 }).join("\n")}
 ${sumCol>=0?'<tr style="height:26px;">'+headers.map((_,ci)=>{
   if(ci===0) return '<td colspan="'+sumCol+'" style="background:#006e30;color:#fff;font-weight:bold;font-size:9pt;padding:5px 8px;border:1px solid #004d1a;text-align:right;">Gesamt</td>';
   if(ci>0&&ci<sumCol) return '';
-  if(ci===sumCol){const _sv=_n(rows.reduce((s,r)=>s+(parseFloat(r[ci])||0),0),2);return '<td'+(_stdCol[ci]?' class="xs" x:num="'+_sv+'"':_xAttr(_sv))+' style="background:#006e30;color:#fff;font-weight:bold;font-size:10pt;padding:5px 8px;border:1px solid #004d1a;text-align:center;">'+_xText(_sv,esc)+'</td>';}
+  if(ci===sumCol){const _sv=_n(rows.reduce((s,r)=>s+(parseFloat(r[ci])||0),0),2);return '<td'+_xAttr(_sv)+' style="background:#006e30;color:#fff;font-weight:bold;font-size:10pt;padding:5px 8px;border:1px solid #004d1a;text-align:center;">'+_xText(_sv,esc)+'</td>';}
   return '<td style="background:#006e30;border:1px solid #004d1a;"></td>';
 }).filter(Boolean).join("")+'</tr>':""}
 </table>
@@ -15081,8 +15086,8 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
   /* v3.9.460 (TEIL B): Attest aus Büro-Portal löschen (Büro/Admin/PL) — DB-DELETE + Storage (epkolar-docs) + optimistisch ausblenden. */
   const _bxOffice=curUser&&(curUser.role==="admin"||curUser.role==="projektleiter"||curUser.role==="buero");
   const _bxDelAttest=async(f)=>{if(!_bxOffice||!f||!f.id)return;if(!await _confirmModal("Attest \""+((f&&f.name)||"")+"\" wirklich löschen?",{variant:"danger"}))return;if(f.storage_path)_sbDeleteObj(SB_DOCS_BUCKET,f.storage_path);SQ.push({url:"/api/absence-files/"+f.id,method:"DELETE"});_setBxDelSet(p=>({...p,[f.id]:1}));if(window.__toast)window.__toast("Attest gelöscht");};
-  const _absExcel=()=>{const rows=_absRows();genXls("📅 Abwesenheiten "+_abYr,COMPANY_FOOTER.name+" · Abwesenheits-Jahresbilanz",["Mitarbeiter","Gesamt (h)","Urlaub (h)","Krank (h)","ZA (h)","Sonder (h)","Rest Urlaub (h)"],rows.map(r=>[r.name,_n(r.gesamt,2),_n(r.urlaub,2),_n(r.krank,2),_n(r.za,2),_n(r.sonder,2),_n(r.rest,2)]),"Abwesenheiten_"+_abYr+".xls",{leftCols:[0],stdCols:[1,2,3,4,5,6]});};
-  const _krankExcel=()=>{const rows=_krankRows();genXls("🤒 Krankenstand "+_abYr,COMPANY_FOOTER.name+" · Krankenstand-Übersicht",["Mitarbeiter","Datum","Stunden","Status","Attest"],rows.map(r=>[r.name,r.date,_n(r.hours,2),r.status,r.hasAtt?"ja":"NEIN"]),"Krankenstand_"+_abYr+".xls",{leftCols:[0,1,3,4],stdCols:[2]});};
+  const _absExcel=()=>{const rows=_absRows();genXls("📅 Abwesenheiten "+_abYr,COMPANY_FOOTER.name+" · Abwesenheits-Jahresbilanz",["Mitarbeiter","Gesamt (h)","Urlaub (h)","Krank (h)","ZA (h)","Sonder (h)","Rest Urlaub (h)"],rows.map(r=>[r.name,_n(r.gesamt,1),_n(r.urlaub,1),_n(r.krank,1),_n(r.za,1),_n(r.sonder,1),_n(r.rest,1)]),"Abwesenheiten_"+_abYr+".xls",{leftCols:[0]});};
+  const _krankExcel=()=>{const rows=_krankRows();genXls("🤒 Krankenstand "+_abYr,COMPANY_FOOTER.name+" · Krankenstand-Übersicht",["Mitarbeiter","Datum","Stunden","Status","Attest"],rows.map(r=>[r.name,r.date,_n(r.hours,1),r.status,r.hasAtt?"ja":"NEIN"]),"Krankenstand_"+_abYr+".xls",{leftCols:[0,1,3,4]});};
 
   const renderPreview=()=>{
     if(!showPreview)return null;
@@ -17938,7 +17943,7 @@ function VExport({p,entries,forms,monteure,ww,curUser}){
     const fname=buildExportFilename("arbeitsschein",p.nr,td2(),1,"xls");
     const hdrs=["Nr","Datum","Mitarbeiter","Gewerk","Tätigkeit","Stunden","PA-Nr","Kunde","Matchcode"];
     const data=pe.map((x,i)=>{const w=(monteure||MONT).find(y=>y.id===x.w);return [i+1,fdt(x.date),_optionalChain([w, 'optionalAccess', _315 => _315.n])||"",_optionalChain([GW, 'access', _316 => _316[x.gw], 'optionalAccess', _317 => _317.l])||"",(x.taetigkeit||x.task||""),_n((parseFloat(x.hours||x.stunden)||0),2),p.nr,p.kunde,p.matchcode];});
-    genXls("⏱️ Zeiterfassung — "+p.name,p.nr+" · "+p.kunde+" · "+pe.length+" Buchungen",hdrs,data,fname,{colWidths:[35,75,110,85,200,55,60,110,85],leftCols:[0,1,2,3,4,6,7,8],boldCols:[2,4],sumCol:5,stdCols:[5]});
+    genXls("⏱️ Zeiterfassung — "+p.name,p.nr+" · "+p.kunde+" · "+pe.length+" Buchungen",hdrs,data,fname,{colWidths:[35,75,110,85,200,55,60,110,85],leftCols:[0,1,2,3,4,6,7,8],boldCols:[2,4],sumCol:5});
   };
   // Server folder structure display
   const srvFolders=SRV_FOLDERS.map(f=>{
@@ -18258,7 +18263,7 @@ td{padding:5px 8px;border:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}
 <div style="font-size:11px;font-weight:700;margin-bottom:4px">Personal:</div>
 <table><thead><tr><th>Monteur</th><th style="width:70px">Stunden</th><th style="width:70px">Fahrzeit</th><th>Bemerkung</th></tr></thead>
 <tbody>${(d.personal||[]).filter(r=>r.name).map(r=>`<tr><td><b>${esc(r.name)}</b></td><td style="text-align:center">${esc(r.stunden)}</td><td style="text-align:center">${esc(r.fahrzeit)}</td><td>${esc(r.bemerkung)}</td></tr>`).join("")}
-<tr style="background:#e8f5e9;font-weight:700"><td>Gesamt</td><td style="text-align:center">${fmtStd(totalStd)}</td><td style="text-align:center">${fmtStd(totalFz)}</td><td></td></tr></tbody></table>
+<tr style="background:#e8f5e9;font-weight:700"><td>Gesamt</td><td style="text-align:center">${_n(totalStd,1)}</td><td style="text-align:center">${_n(totalFz,1)}</td><td></td></tr></tbody></table>
 <div style="font-size:11px;font-weight:700;margin-bottom:4px">Material:</div>
 <table><thead><tr><th>Material</th><th style="width:60px">Stück</th><th style="width:80px">Art.Nr.</th><th>Bemerkung</th></tr></thead>
 <tbody>${(d.material||[]).filter(r=>r.name).map(r=>`<tr><td>${esc(r.name)}</td><td style="text-align:center">${esc(r.stueck)}</td><td style="text-align:center">${esc(r.artikelNr)}</td><td>${esc(r.bemerkung)}</td></tr>`).join("")}</tbody></table>
@@ -19703,7 +19708,7 @@ async function _genBautagPdf(rows,proj,monteure,curUser,entries){
         if(String(t.datum||t.date||"").split("T")[0]!==datum)continue;
         if((t.w||t.worker||t.worker_id)!==wid)continue;
         const h=parseFloat(t.hours||t.stunden||0);if(!isNaN(h)){s+=h;got=true;}}
-      return got?(fmtStd(s)+" h"):"";
+      return got?(String(Math.round(s*100)/100)+" h"):"";
     };
     const _blk=function(titel,text,y0,PAST){
       let y=y0;
@@ -19762,13 +19767,13 @@ async function _genBautagPdf(rows,proj,monteure,curUser,entries){
         for(let i=0;i<anw.length;i++){
           if(y>PAST){doc.addPage();y=20;}
           const h=_std(e.datum,anw[i]);
-          const hv=_fzZahl(String(h).replace(" h",""));if(!isNaN(hv))sum+=hv;/* Paket 13: Anzeige jetzt "9,50 h" - parseFloat laese nur 9, _fzZahl liest das Komma */
+          const hv=parseFloat(String(h).replace(" h",""));if(!isNaN(hv))sum+=hv;
           doc.text(_pdfStr(_mName(anw[i])),M+2,y);
           doc.text(_pdfStr(h||"-"),M+100,y);
           y+=5;
         }
         doc.setFont("helvetica","bold");
-        doc.text("Summe",M+2,y);doc.text(_pdfStr(fmtStd(sum)+" h"),M+100,y);
+        doc.text("Summe",M+2,y);doc.text(_pdfStr(String(Math.round(sum*100)/100)+" h"),M+100,y);
         doc.setFont("helvetica","normal");y+=8;
       }
       y=_blk("Ausgefuehrte Arbeiten",e.taetigkeiten,y,PAST);
@@ -25529,8 +25534,8 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
       reviewRows.length=0;_edited.forEach(r=>reviewRows.push(r));
     }
     const hdrs=["Nr","Mitarbeiter","Datum","Typ","Status","Stunden","Kontingent h","Verbraucht h","Rest h"];
-    const csvRows=reviewRows.map((r,i)=>[i+1,r.mitarbeiter,r.datum,r.typ,r.status,_n(r.stunden,2),_n(r.kontingent,2),_n(r.verbraucht,2),_n(r.rest,2)]);
-    genXls("🏖️ Abwesenheit — "+yr,COMPANY_FOOTER.name+" · "+_expNames.length+" Mitarbeiter",hdrs,csvRows,"Abwesenheit_"+yr+".xls",{colWidths:[35,110,75,90,75,55,65,65,55],leftCols:[0,1,2,3],boldCols:[1],stdCols:[5,6,7,8],statusMap:{"Urlaub":"#3b82f6","Krankenstand":"#ef4444","Zeitausgleich":"#a855f7","Pflegefreistellung":"#f97316","genehmigt":"#22c55e","abgelehnt":"#ef4444","ausstehend":"#eab308"}});
+    const csvRows=reviewRows.map((r,i)=>[i+1,r.mitarbeiter,r.datum,r.typ,r.status,_n(r.stunden,1),_n(r.kontingent,1),_n(r.verbraucht,1),_n(r.rest,1)]);
+    genXls("🏖️ Abwesenheit — "+yr,COMPANY_FOOTER.name+" · "+_expNames.length+" Mitarbeiter",hdrs,csvRows,"Abwesenheit_"+yr+".xls",{colWidths:[35,110,75,90,75,55,65,65,55],leftCols:[0,1,2,3],boldCols:[1],statusMap:{"Urlaub":"#3b82f6","Krankenstand":"#ef4444","Zeitausgleich":"#a855f7","Pflegefreistellung":"#f97316","genehmigt":"#22c55e","abgelehnt":"#ef4444","ausstehend":"#eab308"}});
   };
   /* v3.9.308: Abwesenheits-TXT-Export entfernt — Buero nutzt Excel. */
   /* GF 19.11.: Firmenserver-Export-Knopf entfernt - der Handler lud nur die Zeitbuchungen und verwarf sie, auf den Server wurde nie etwas geschrieben. */
@@ -25640,7 +25645,7 @@ function AbsView({abs,setAbs,approvals,setApprovals,files,setFiles,ww,curUser,pu
         , React.createElement('div', { style: {display:"flex",gap:6,flexWrap:"wrap"}}
           , isAdmin&&React.createElement('button', { onClick: ()=>{setEditMode(!editMode);if(editMode)setEditEntry(null);}, style: editMode?{...bdS,fontSize:12}:{...xBtn("csv"),fontSize:12}}, editMode?"✕ Bearbeiten beenden":_zpIk("stift","Einträge bearbeiten"))
           , editMode&&isAdmin&&pendingCount>0&&React.createElement('button', { onClick: bulkApprove, style: {...bsS(),fontSize:12,background:"rgba(34,197,94,.15)",border:"2px solid rgba(34,197,94,.4)",color:_okG("#22c55e")}}, "Alle genehmigen (",pendingCount,")")
-          , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>{const hdrs=["Nr","Mitarbeiter","Std/Wo","Anspruch h","Vorjahr h","Gesamt h","Urlaub h","Krank h","ZA h","Rest h","ÜS h"];const data=[];_kontNames.forEach(function(m,i){const ks=kontingent[m]||{stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};const ys=yearSt(m);const rest=resturlaub(m);data.push([i+1,m,ks.woche||38.5,_n(_ktgStd(ks.stunden),2),_n((ks.vorjahr||0),2),_n((_ktgStd(ks.stunden)+(ks.vorjahr||0)),2),_n(ys.urlaubStd,2),_n(ys.krankenstandStd,2),_n(ys.zeitausgleichStd,2),_n(rest,2),_n(ks.ueberstunden||0,2)]);});genXls("📊 Urlaubskontingent "+yr,COMPANY_FOOTER.name+" · "+_kontNames.length+" Mitarbeiter · Std/Woche-basiert",hdrs,data,"Kontingent_"+yr+".xls",{colWidths:[35,130,55,65,60,60,60,60,55,60,55],leftCols:[0,1],boldCols:[1],sumCol:9,stdCols:[2,3,4,5,6,7,8,9,10]});}, style: {...xBtn("xls"),fontSize:12}}, _ik("tabelle",16),"Excel Export")
+          , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>{const hdrs=["Nr","Mitarbeiter","Std/Wo","Anspruch h","Vorjahr h","Gesamt h","Urlaub h","Krank h","ZA h","Rest h","ÜS h"];const data=[];_kontNames.forEach(function(m,i){const ks=kontingent[m]||{stunden:192.5,vorjahr:0,woche:38.5,ueberstunden:0};const ys=yearSt(m);const rest=resturlaub(m);data.push([i+1,m,ks.woche||38.5,_n(_ktgStd(ks.stunden),1),_n((ks.vorjahr||0),1),_n((_ktgStd(ks.stunden)+(ks.vorjahr||0)),1),_n(ys.urlaubStd,1),_n(ys.krankenstandStd,1),_n(ys.zeitausgleichStd,1),_n(rest,1),_n(ks.ueberstunden||0,1)]);});genXls("📊 Urlaubskontingent "+yr,COMPANY_FOOTER.name+" · "+_kontNames.length+" Mitarbeiter · Std/Woche-basiert",hdrs,data,"Kontingent_"+yr+".xls",{colWidths:[35,130,55,65,60,60,60,60,55,60,55],leftCols:[0,1],boldCols:[1],sumCol:9});}, style: {...xBtn("xls"),fontSize:12}}, _ik("tabelle",16),"Excel Export")
           , editMode&&isAdmin&&React.createElement('button', { onClick: ()=>window.print(), style: {...xBtn("pdf"),fontSize:12}, title: "Drucken / als PDF speichern"}, _ik("drucker",16),"PDF" )/* v3.9.319 */
         )
       )
@@ -26453,9 +26458,9 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
           <td>${_e(z.dateiName)}</td>
           <td>${z.hochgeladenAm?new Date(z.hochgeladenAm).toLocaleDateString("de-AT"):"—"}</td>
           <td class="${z.status==="freigegeben"?"ok":"open"}">${z.status==="freigegeben"?"Freigegeben":"Offen"}</td>
-          <td><b>${fmtStd(epH)}h</b></td>
-          <td>${fH>0?fmtStd(fH)+"h":"—"}</td>
-          <td class="${fH&&Math.abs(diff)<0.5?"ok":fH?"open":""}">${fH?(diff>0?"+":"")+fmtStd(diff)+"h":"—"}</td>
+          <td><b>${_n(epH,1)}h</b></td>
+          <td>${fH>0?_n(fH,1)+"h":"—"}</td>
+          <td class="${fH&&Math.abs(diff)<0.5?"ok":fH?"open":""}">${fH?(diff>0?"+":"")+_n(diff,1)+"h":"—"}</td>
           <td class="${z.abgeglichen?"ok":"open"}">${z.abgeglichen?"Ja":"—"}</td>
           <td>${z.freigegebenAm?new Date(z.freigegebenAm).toLocaleDateString("de-AT"):"—"}</td>
           <td>${z.unterschrift&&/^data:image\//.test(z.unterschrift)?`<img class="sig-img" src="${z.unterschrift}" alt="Unterschrift">`:z.status==="freigegeben"?"✓":"—"}</td>
@@ -28739,13 +28744,13 @@ ${dayRows}
 ${entryRows}
 <tr style="height:16px;">
 <td colspan="2" style="${bdr}padding:6px 8px;font-weight:bold;font-size:12pt;">Tagesstunden</td>
-<td colspan="2" style="${bdr}text-align:center;font-weight:bold;font-size:12pt;">${_n(dt,2)/* Paket 13: zwei Stellen wie der Wochenzettel (Export bleibt beim Punkt) */}</td>
+<td colspan="2" style="${bdr}text-align:center;font-weight:bold;font-size:12pt;">${_n(dt,1)}</td>
 <td style="${bdr}padding:6px;font-weight:bold;font-size:12pt;">Stunden</td>
 <td style="${bdr}padding:6px;font-weight:bold;font-size:15pt;">Mittagspause: ${pauseStr}</td>
 </tr>
 <tr><td colspan="6" style="${bdrN}height:6px;"></td></tr>
 <tr>
-<td colspan="2" style="${bdr}padding:4px 8px;font-weight:bold;font-size:12pt;">${dt>_tagNorm?"eventuelle Mehrstunden: "+_n(dt-_tagNorm,2)+"h":"eventuelle Mehrstunden:"}</td>
+<td colspan="2" style="${bdr}padding:4px 8px;font-weight:bold;font-size:12pt;">${dt>_tagNorm?"eventuelle Mehrstunden: "+_n(dt-_tagNorm,1)+"h":"eventuelle Mehrstunden:"}</td>
 <td colspan="2" style="${bdr}padding:4px 8px;font-weight:bold;font-size:12pt;"></td>
 <td colspan="2" style="${bdr}padding:4px 8px;font-weight:bold;font-size:12pt;">Die Stundenscheine sind täglich<br/>im Büro abzugeben!</td>
 </tr>
@@ -28915,19 +28920,19 @@ ${dayRowsHtml}
     }
     /* Reihen reagiren auf Lösch-Buttons im Modal — re-numbering jetzt */
     const hdrs=["Nr","Tag","Projekt/Kunde","Tätigkeit","Typ","Stunden","Von","Bis","Bemerkung"];
-    const data=reviewRows.map((r,i)=>[i+1,r.tag,r.projekt,r.taetigkeit,r.typ,_n(r.stunden,2),r.von||"—",r.bis||"—",r.bemerkung||""]);
+    const data=reviewRows.map((r,i)=>[i+1,r.tag,r.projekt,r.taetigkeit,r.typ,_n(r.stunden,1),r.von||"—",r.bis||"—",r.bemerkung||""]);
     /* v3.9.253 FIX Doppel-Summe: manuelle SUMME-Zeile entfernt — genXls erzeugt via sumCol:5 die einzige, korrekte „Gesamt"-Zeile. Vorher summierte sumCol auch die manuelle SUMME-Zeile mit → Gesamt = 2× + zwei Summenzeilen. */
-    genXls("⏱️ Zeiterfassung — "+wName+" — KW "+kw+"/"+yr,"Kalenderwoche "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_"+wName+"_KW"+kw+"_"+yr+".xls",{colWidths:[35,70,200,70,55,55,55,150,150],leftCols:[0,1,2,3,5,6,7],boldCols:[2],sumCol:5,stdCols:[5]});/* v3.9.110 Hunt: sumCol 4→5 — Spalte 4 ist "Typ" (String), 5 ist "Stunden". Vorher summierte Excel die Typ-Spalte → "Gesamt 0,00". 9. colWidth ergänzt. */
+    genXls("⏱️ Zeiterfassung — "+wName+" — KW "+kw+"/"+yr,"Kalenderwoche "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_"+wName+"_KW"+kw+"_"+yr+".xls",{colWidths:[35,70,200,70,55,55,55,150,150],leftCols:[0,1,2,3,5,6,7],boldCols:[2],sumCol:5});/* v3.9.110 Hunt: sumCol 4→5 — Spalte 4 ist "Typ" (String), 5 ist "Stunden". Vorher summierte Excel die Typ-Spalte → "Gesamt 0,00". 9. colWidth ergänzt. */
   };
   /* v3.9.308: Zeiterfassungs-TXT-Export entfernt — Buero nutzt Excel + Wochen-Stundenbestaetigung. */
 
   // All workers overview export
   const exportAllXls=()=>{
     const hdrs=["Nr","Mitarbeiter",...DAYS.map((d,i)=>d+" "+dateFmt(i)),"Summe"];
-    const data=allData.filter(m=>m.total>0).map((m,i)=>[i+1,m.n,...DAYS.map(d=>m.dayTotals[d]>0?_n(m.dayTotals[d],2):"—"),_n(m.total,2)]);
+    const data=allData.filter(m=>m.total>0).map((m,i)=>[i+1,m.n,...DAYS.map(d=>m.dayTotals[d]>0?_n(m.dayTotals[d],1):"—"),_n(m.total,1)]);
     const gTotal=allData.reduce((s,m)=>s+m.total,0);
-    data.push(["","SUMME",...DAYS.map(d=>_n(allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0),2)),_n(gTotal,2)]);
-    genXls("⏱️ Zeiterfassung Übersicht — KW "+kw+"/"+yr,"Alle Monteure · KW "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_Alle_KW"+kw+"_"+yr+".xls",{colWidths:[35,160,70,70,70,70,70,70,70],leftCols:[0,1],boldCols:[1],stdCols:[2,3,4,5,6,7,8]});/* v3.9.253 FIX Doppel-Summe: sumCol:8 entfernt — die manuelle SUMME-Zeile (mit Tages-Spalten-Summen + Gesamt) ist die einzige Summe; sumCol hätte Spalte 8 inkl. dieser Zeile ein zweites Mal summiert → 2× + Doppelzeile. */
+    data.push(["","SUMME",...DAYS.map(d=>_n(allData.reduce((s,m)=>s+(m.dayTotals[d]||0),0),1)),_n(gTotal,1)]);
+    genXls("⏱️ Zeiterfassung Übersicht — KW "+kw+"/"+yr,"Alle Monteure · KW "+kw+" · "+dateFmt(0)+" – "+dateFmt(5),hdrs,data,"Zeiterfassung_Alle_KW"+kw+"_"+yr+".xls",{colWidths:[35,160,70,70,70,70,70,70,70],leftCols:[0,1],boldCols:[1]});/* v3.9.253 FIX Doppel-Summe: sumCol:8 entfernt — die manuelle SUMME-Zeile (mit Tages-Spalten-Summen + Gesamt) ist die einzige Summe; sumCol hätte Spalte 8 inkl. dieser Zeile ein zweites Mal summiert → 2× + Doppelzeile. */
   };
 
   const switchKw=(newKw,newYr)=>{const _z=_kwZiel(yr,newKw,newYr);setKw(_z[1]);setYr(_z[0]);};/* v3.9.1012 Jahreswechsel: rollt ueber die Jahresgrenze (_kwZiel) statt bei 1/_getMaxKW(yr) stehenzubleiben. *//* v3.9.544 Bug-Hunt: KW-Cap via _getMaxKW(yr) (52/53 je Jahr) statt hardcodiert 53 — in 52-Wochen-Jahren war KW53 fälschlich anwählbar (zeigte KW1 des Folgejahrs). Konsistent mit den anderen KW-Views. */
@@ -28964,7 +28969,7 @@ ${dayRowsHtml}
       const r=await _zeMonatHolen();if(!r)return;
       const hdrs=["Datum","Tag","Projekt / Freitext","Typ","Tätigkeit","Von","Bis","Pause (h)","Stunden","Bemerkung"];
       const data=r.zeilen.map(z=>[_zeDatDE(z.datum),_zeTagKurz(z.datum),z.ziel,z.typ,z.taetigkeit,z.von||"-",z.bis||"-",_n(z.pause,2),_n(z.stunden,2),z.bemerkung]);
-      genXls("Zeiterfassung - "+workerName+" - "+_zeMonatName(zeMon),"Monatsliste Projektzeit · "+_nWort(r.zeilen.length,"Eintrag","Einträge")+" · erstellt "+_zeDatDE(_ezHeuteISO()),hdrs,data,_zeMonDatei()+".xls",{colWidths:[75,35,220,80,180,50,50,60,60,180],leftCols:[0,1,2,3,4,5,6,9],boldCols:[2],sumCol:8,stdCols:[7,8]});
+      genXls("Zeiterfassung - "+workerName+" - "+_zeMonatName(zeMon),"Monatsliste Projektzeit · "+_nWort(r.zeilen.length,"Eintrag","Einträge")+" · erstellt "+_zeDatDE(_ezHeuteISO()),hdrs,data,_zeMonDatei()+".xls",{colWidths:[75,35,220,80,180,50,50,60,60,180],leftCols:[0,1,2,3,4,5,6,9],boldCols:[2],sumCol:8});
     }finally{setZeMonLaedt(false);}
   };
   const exportMonatPdf=async()=>{
@@ -33782,8 +33787,8 @@ function ZahlEingabe(props){/* v3.9.1093: Zahlenfeld nach App-Regel - IMMER type
   if(!p.inputMode)p.inputMode='decimal';
   if(p.autoComplete===undefined)p.autoComplete='off';
   var _std=!!p.stunden;delete p.stunden;/* Paket 13: Stunden-Feld - ohne Fokus fmtStd ("9,50"), mit Fokus der getippte Text; Komma oder Punkt, gelesen ueber _fzZahl. Der Wert selbst bleibt unveraendert. */
-  p.value=(txt!==null)?txt:(_std?fmtStd(aussen):_tankEinDE(aussen));
-  p.onFocus=function(e){setTxt(_std?fmtStd(aussen):_tankEinDE(aussen));if(onFo)onFo(e);};
+  p.value=(txt!==null)?txt:(_std?fmtStdEingabe(aussen):_tankEinDE(aussen));/* Tausender-Nachtrag 24.11.: Eingabe ohne Gruppierung (1234,50) */
+  p.onFocus=function(e){setTxt(_std?fmtStdEingabe(aussen):_tankEinDE(aussen));if(onFo)onFo(e);};
   p.onBlur=function(e){setTxt(null);if(onBl)onBl(e);};
   p.onChange=function(e){setTxt(e.target.value);if(onCh)onCh(e);};
   return React.createElement('input',p);

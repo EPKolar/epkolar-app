@@ -268,7 +268,7 @@ def test_6_umkehrprobe(index_html):
 
 def test_6_exporte_bleiben(index_html):
     """Druck und Excel behalten _n - nur die Anzeige ist deutsch."""
-    assert "${fmtStd(totalStd)}" in index_html  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Bautagesbericht ist ein Druckblatt (window.print), kein Excel - Anzeige mit Komma
+    assert "${_n(totalStd,1)}" in index_html  # Paket 13a (GF 24.11.2026 abends): 3.9.1115 aendert KEINE Exportdatei - Excel-Aenderungen liegen auf feature/excel-stunden-zahl (test_exporte_golden_v1114.py) (Regiebericht-Druck wieder wie 3.9.1114) | frueher: Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Bautagesbericht ist ein Druckblatt (window.print), kein Excel - Anzeige mit Komma
     assert '"eventuelle Mehrstunden: "+_n(diff,1)+"h"' in index_html or '"eventuelle Mehrstunden: "+_n(diff,2)+"h"' in index_html
 
 

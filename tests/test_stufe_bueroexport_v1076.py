@@ -229,12 +229,12 @@ def _quelle(src, anf):
 
 # md5 des Quelltexts (LF) - Stand origin/main v3.9.1074, durch Stufe 6 NICHT veraendert.
 EXPORT_MD5 = {
-    "const genXls=(title,subtitle,headers,rows,filename,opts={})=>{": "3d91fb63551846ec08715ad213381e94",  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: opts.stdCols (Stunden-Spalten bleiben Zahl, Format 0,00) - vorher 8472db9de0084b7a6cdf1a492758c930
+    "const genXls=(title,subtitle,headers,rows,filename,opts={})=>{": "8472db9de0084b7a6cdf1a492758c930",  # Paket 13a (GF 24.11.2026 abends): 3.9.1115 aendert KEINE Exportdatei - Excel-Aenderungen liegen auf feature/excel-stunden-zahl (test_exporte_golden_v1114.py), Hash wieder wie 3.9.1114 | Z9-Sperre (GF 24.11.2026 abends): CSS-Regel td.xs nur mit stdCols - Aufrufe ohne stdCols liefern dieselbe Datei wie 3.9.1114 (test_z9_exporte_unveraendert_p13c) - vorher 3d91fb63551846ec08715ad213381e94 | Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: opts.stdCols (Stunden-Spalten bleiben Zahl, Format 0,00) - vorher 8472db9de0084b7a6cdf1a492758c930
     "  const generateBWB=(proj,useFilters,scopeKW)=>{": "e72868132f574a32a53df0185a1bdad8",
     "  const generateAll=()=>{": "aea0f49dde6f0c3945b21bd87a31dcc9",
     "  const getProjectData=(projId)=>{": "3084cd316af562b72e5daaa03273f7bd",
-    "  const _absExcel=()=>": "73f0fa27df15c6558df90d73b19dad68",  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _n(..,2) + stdCols - vorher f32536f4e32674641996528bcc72d7d7
-    "  const _krankExcel=()=>": "010cb545e53df39e837f309233e9a685",  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _n(..,2) + stdCols - vorher 2e70fb11e3561d48bbe75caf23e08b7c
+    "  const _absExcel=()=>": "f32536f4e32674641996528bcc72d7d7",  # Paket 13a (GF 24.11.2026 abends): 3.9.1115 aendert KEINE Exportdatei - Excel-Aenderungen liegen auf feature/excel-stunden-zahl (test_exporte_golden_v1114.py), Hash wieder wie 3.9.1114 | Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _n(..,2) + stdCols - vorher f32536f4e32674641996528bcc72d7d7
+    "  const _krankExcel=()=>": "2e70fb11e3561d48bbe75caf23e08b7c",  # Paket 13a (GF 24.11.2026 abends): 3.9.1115 aendert KEINE Exportdatei - Excel-Aenderungen liegen auf feature/excel-stunden-zahl (test_exporte_golden_v1114.py), Hash wieder wie 3.9.1114 | Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: _n(..,2) + stdCols - vorher 2e70fb11e3561d48bbe75caf23e08b7c
     "  const _absRows=()=>": "8ccbb08003ce7ccde70d98f016f2485b",
     "  const _krankRows=()=>": "2319691cb0cf9f849bc363ad71d5be4d",
     "  const _pzeBtn=()=>{": "ed90b7902cf89328558d2f74c5f48397",
