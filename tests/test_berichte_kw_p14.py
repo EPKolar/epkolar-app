@@ -159,5 +159,8 @@ def test_andere_aufrufer_unveraendert(index_html):
 
 def test_stunden_spalte_im_dialog_zwei_stellen(index_html):
     m = _modal(index_html)
-    assert "((col.key==='stunden')?fmtStd(v):_tankEinDE(v))" in m
+    # GF 24.11. abends: Eingabefelder ohne Tausender-Gruppierung -> fmtStdEingabe ("1234,50"), Anzeige bleibt fmtStd
+    assert "((col.key==='stunden')?fmtStdEingabe(v):_tankEinDE(v))" in m
     assert "if(col.type==='number'&&col.key==='stunden')inp.addEventListener('blur'" in m
+    assert "inp.value=fmtStdEingabe(_n0);" in m
+    assert "?fmtStd(v):_tankEinDE(v)" not in m

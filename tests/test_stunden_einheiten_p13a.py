@@ -60,6 +60,8 @@ STUNDEN_AUFRUFE = {
     '_hK(weekTotal,2)': 4,
     'fmtStd((entry.stunden||entry.hours||0))': 1,
     'fmtStd((parseFloat(x.hours||x.stunden)||0))': 1,
+    # Paket 14 (3.9.1115): Summe der Stunden in der KW-Vorschau 'Berichte bearbeiten' - Stunden
+    'fmtStd((rs||[]).reduce((a,r)=>{const _d=String(r.datum||"").slice(0,10);if(!(_d>=_kwVon&&_d<=_kwBis))return a;const _x=_fzZahl(r.stunden);return a+(isFinite(_x)?_x:0);},0))': 1,
     'fmtStd(Math.abs(diff))': 1,
     'fmtStd(_beMaSumme+_beOhneMa)': 2,
     'fmtStd(_beOhneMa)': 1,
@@ -143,7 +145,7 @@ def test_nur_stunden_aufrufe(index_html):
     neu = {k: v for k, v in ist.items() if STUNDEN_AUFRUFE.get(k) != v}
     weg = {k: v for k, v in STUNDEN_AUFRUFE.items() if ist.get(k) != v}
     assert not neu and not weg, ("neu/geaendert", neu, "fehlt", weg)
-    assert sum(ist.values()) == 140
+    assert sum(ist.values()) == 141  # 140 aus Paket 13a + 1 Summe aus Paket 14
 
 
 def test_umkehrprobe_km_waere_rot(index_html):
