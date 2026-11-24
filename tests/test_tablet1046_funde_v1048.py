@@ -245,7 +245,9 @@ def test_auftragsart_farben_verschieden(index_html):
     '_ikVw("fieber","Krankenstand "+_abYr))',
     '_zpIk("hochladen","AU hochladen",14))',
     "_ikVw('euro','Entfernungszulage'))",
-    "_zpIk('dokument','PZE-PDF (Lohnverrechner)')))",
+    # Paket 15 Nachbau: der Knopf steht jetzt als Konstante _pzeKnopf (Monatszeile ODER Export-Leiste) - die dritte
+    # Klammer schloss vorher die Monatszeile; alter Wert: "_zpIk('dokument','PZE-PDF (Lohnverrechner)')))"
+    "_zpIk('dokument','PZE-PDF (Lohnverrechner)'));",
     "_zpIk('regler','Zulagensätze bearbeiten',14),_klappIk(_ezRateEdit,14))",  # v3.9.1050: ▼ -> Linien-Chevron
     "justifyContent:'center'}},_ik('links',18))",
     "justifyContent:'center'}},_ik('rechts',18))",
