@@ -31881,6 +31881,7 @@ function KameraKachel(props){
   var tickRef=_react.useRef.call(void 0,null);
   var fehlerRef=_react.useRef.call(void 0,0);
   var versuchRef=_react.useRef.call(void 0,0);
+  var _zs=_react.useState.call(void 0,'');var zeigeSnap=_zs[0],setZeigeSnap=_zs[1];/* v3.9.1105 GF 24.11. "Kamerabilder zucken": Einzelbild alle 2 s - das sichtbare img wechselte die Quelle sofort und blitzte bis zum Laden leer. Jetzt Doppelpuffer: unsichtbar vorladen, erst nach onload tauschen. */
   /* Strom nur, wenn die Kachel im Bild liegt UND die Seite sichtbar ist (kein Stapel paralleler Stroeme am Handy);
      verlassen/verborgen -> Strom zu. Ohne IntersectionObserver (alte Geraete) gilt die Kachel als sichtbar. */
   var _ak=_react.useState.call(void 0,function(){return typeof IntersectionObserver==='undefined'&&!(typeof document!=='undefined'&&document.hidden===true);});
@@ -32012,11 +32013,22 @@ function KameraKachel(props){
         if(g)setSt(function(s){return (s.phase==='stub'&&s.grund==='offline')?{phase:'stub',grund:g}:s;});});
     }
   };
+  _react.useEffect.call(void 0,function(){
+    if(bild.modus!=='snapshot'||!bild.url){setZeigeSnap('');return function(){};}
+    var lebt=true;var ziel=_kamSnapshotUrl(bild.url,takt);
+    if(typeof Image==='undefined'){setZeigeSnap(ziel);return function(){lebt=false;};}/* ohne Image (Node-Tests): direkt anzeigen wie bisher */
+    var im=new Image();
+    try{im.referrerPolicy='no-referrer';im.decoding='async';}catch(_r){}
+    im.onload=function(){if(!lebt)return;fehlerRef.current=0;setZeigeSnap(ziel);};
+    im.onerror=function(){if(lebt)_bildFehler();};
+    im.src=ziel;
+    return function(){lebt=false;im.onload=null;im.onerror=null;};
+  },[bild.modus,bild.url,takt]);
   return h('div',{style:{minWidth:0,border:'1px solid '+UI.linie,borderRadius:UI.rKarte,overflow:'hidden',background:UI.flaeche}}
     ,h('div',{ref:boxRef,style:{position:'relative',width:'100%',aspectRatio:'16 / 9',background:'#0b0d0c'}}
       ,h('video',{ref:vidRef,muted:true,playsInline:true,autoPlay:true,'aria-label':'Live-Bild '+(k.name||''),
           style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:(live&&!mitBild)?'block':'none'}})
-      ,mitBild?h('img',{src:bild.modus==='snapshot'?_kamSnapshotUrl(bild.url,takt):bild.url,alt:'Live-Bild '+(k.name||''),
+      ,(mitBild&&(bild.modus!=='snapshot'||zeigeSnap))?h('img',{src:bild.modus==='snapshot'?zeigeSnap:bild.url,alt:'Live-Bild '+(k.name||''),
           referrerPolicy:'no-referrer',decoding:'async',onLoad:function(){fehlerRef.current=0;},onError:_bildFehler,
           style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block'}}):null
       ,live?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:10,textAlign:'center',color:'#E6EAE7'}}
