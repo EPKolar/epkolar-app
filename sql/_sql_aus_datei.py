@@ -28,6 +28,23 @@ import urllib.error
 import urllib.request
 
 PROJEKT = "jiggujpruejkaomgxarp"
+FEST = "jiggujpruejkaomgxarp"  # GF 24.11.: der Schluessel gilt fuer das ganze Konto - das Skript ist fest an DIESES Projekt gebunden
+
+
+def projekt_pruefen(argv=()):
+    """Bricht ab, sobald irgendwo eine andere Projekt-ID im Spiel ist (Konstante, Umgebung, Argument)."""
+    kandidaten = [("Konstante PROJEKT", PROJEKT)]
+    for var in ("SUPABASE_PROJECT_REF", "SUPABASE_PROJECT_ID", "PROJECT_REF"):
+        if os.environ.get(var):
+            kandidaten.append(("Umgebung " + var, os.environ[var].strip()))
+    for i, a in enumerate(argv):
+        if a.startswith("--projekt="):
+            kandidaten.append(("Argument --projekt", a.split("=", 1)[1]))
+        elif a == "--projekt" and i + 1 < len(argv):
+            kandidaten.append(("Argument --projekt", argv[i + 1]))
+    for quelle, wert in kandidaten:
+        if wert != FEST:
+            raise SystemExit("ABBRUCH: falsches Projekt %r (%s) - dieses Skript arbeitet nur auf %s. Nichts gesendet." % (wert, quelle, FEST))
 HIER = os.path.dirname(os.path.abspath(__file__))
 LOG = os.path.join(os.path.dirname(os.path.dirname(HIER)), "epk-sql-laeufe.log")  # ausserhalb des Repos
 
@@ -77,11 +94,14 @@ def protokoll(satz, modus, m, ergebnis):
 
 
 def senden(sql_bytes):
+    projekt_pruefen(sys.argv)
     token = os.environ.get("SUPABASE_ACCESS_TOKEN", "")
     if not token:
         raise SystemExit("ABBRUCH: SUPABASE_ACCESS_TOKEN fehlt in der Umgebung - nichts gesendet.")
     body = json.dumps({"query": sql_bytes.decode("utf-8")}).encode("utf-8")
-    req = urllib.request.Request("https://api.supabase.com/v1/projects/%s/database/query" % PROJEKT, data=body, method="POST",
+    url = "https://api.supabase.com/v1/projects/%s/database/query" % FEST
+    assert "/projects/" + FEST + "/" in url and PROJEKT == FEST
+    req = urllib.request.Request(url, data=body, method="POST",
                                  headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",
                                           "User-Agent": "epk-sql-aus-datei"})
     try:
@@ -171,6 +191,7 @@ def main(argv):
         print(__doc__)
         return 2
     satz, modus = argv[1], argv[2]
+    projekt_pruefen(argv)
     if modus == "md5":
         print(json.dumps(alle_md5(satz), indent=1))
         return 0
