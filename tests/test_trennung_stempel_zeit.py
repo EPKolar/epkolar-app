@@ -127,9 +127,11 @@ def test_ez_vorbelegung_erwartet_stunden_grenze_6():
     r = _node(code, "[_ezDayEff(6,undefined,false),_ezDayEff(6.25,undefined,false),_ezDayEff(360,undefined,false),_ezDayEff(0.5,undefined,false)]")
     # 6 h -> nein, 6,25 h -> klein; 360 (Minuten statt Stunden) wuerde faelschlich klein -> Eingang muss Stunden sein
     assert r == ["", "klein", "klein", ""]
-    for n in ("KVZulagenReport", "_pzePdf", "_bxMaStand"):
+    # v3.9.1107 GF 24.11. "Zulage auf Stempeluhr": die Tagesmenge kommt jetzt aus nettoMin - Eingang muss trotzdem STUNDEN sein
+    for n in ("_ezTageAusStempel", "_pzePdf"):
         f = _fn(s, n)
-        assert "nettoMin" not in f.split("_ezEffTage(")[0][-800:], n + ": EZ-Tagesmenge darf nicht aus Minuten kommen"
+        assert "Math.round(r.nettoMin/60*100)/100" in f, n + ": Minuten muessen in Stunden umgerechnet werden"
+    assert "_ezTageAusStempel(stz&&stz.evs" in _fn(s, "_bxMaStand")
 
 
 def test_monatsabschluss_chip_heisst_projektstunden():

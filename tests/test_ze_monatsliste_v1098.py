@@ -83,7 +83,7 @@ def test_monatsname_und_liste():
 def test_bedienung_nur_buero_admin_und_kein_blatt_bei_ladefehler():
     s = _src()
     ze = _fn(s, "ZeiterfassungView")
-    assert "isAdmin&&selWorker&&React.createElement('div',{role:\"group\",\"aria-label\":\"Monatsliste für die Lohnabrechnung\"" in ze
+    assert "isAdmin&&selWorker&&React.createElement('div',{role:\"group\",\"aria-label\":\"Monatsliste Projektzeit\"" in ze
     holen = ze[ze.index("const _zeMonatHolen=async()=>{"):ze.index("const _zeTagKurz=")]
     assert "if(!isAdmin||!selWorker)return null;" in holen
     assert "_rlsLeer(data)" in holen

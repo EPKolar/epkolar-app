@@ -13811,7 +13811,8 @@ function KVZulagenReport(props){
      42P01-tolerant. RECHNUNG unveraendert-automatisch bis Etappe-3-Freigabe — diese Flags werden NICHT verrechnet. */
   const [ezFlags,setEzFlags]=_react.useState.call(void 0, {});/* _ezKey -> {aktiv:bool} (Abweichung von der Vorbelegung) */
   const [ezMissing,setEzMissing]=_react.useState.call(void 0, false);/* Tabelle fehlt (Run-Gate offen) */
-  const [ezStand,setEzStand]=_react.useState.call(void 0, 'laedt');/* v3.9.1103: laedt|ok|fehler - PZE-PDF erst mit geladenen Stufen (test_zulagen_verdrahtung_v1103) */
+  const [ezStand,setEzStand]=_react.useState.call(void 0, 'laedt');
+  const [stz,setStz]=_react.useState.call(void 0, {status:'laedt',evs:[],rules:null});/* v3.9.1107 Stempeluhr des Monats *//* v3.9.1103: laedt|ok|fehler - PZE-PDF erst mit geladenen Stufen (test_zulagen_verdrahtung_v1103) */
   const [ezWid,setEzWid]=_react.useState.call(void 0, props.startWid||'');/* gewaehlter Mitarbeiter */
   const [ezView,setEzView]=_react.useState.call(void 0, 'monat');/* 'monat' | 'woche' */
   const [ezCursor,setEzCursor]=_react.useState.call(void 0, ym+'-01');/* ISO-Anker fuer Monat/Woche */
@@ -13841,7 +13842,7 @@ function KVZulagenReport(props){
   };
   /* Vorbelegungs-Quelle: dieselbe Tages-Anwesenheit wie die Ergebnistabelle (byW[wid].days) — hier fuer den
      gewaehlten MA gefiltert. NICHT umgebaut, gleiche Extraktion (Summe der time_entries je Tag im ym, >0h). */
-  const _ezDaysFor=(wid)=>{var d={};if(!wid)return d;entries.forEach(function(e){if(!e)return;var iso=String(e.date||e.datum||'').slice(0,10);if(iso.slice(0,7)!==ym)return;if((e.w||e.worker||e.worker_id||'?')!==wid)return;var hrs=parseFloat(e.hours||e.stunden)||0;if(hrs<=0)return;d[iso]=(d[iso]||0)+hrs;});return d;};
+  const _ezDaysFor=(wid)=>wid?_ezTageAusStempel(stz.evs,_ezWorker(monteure,wid),stz.rules,ym):{};/* v3.9.1107: Tagesstunden laut Stempeluhr */
   /* v3.9.783 (LOHNRELEVANT): genehmigte Abwesenheitstage des gewaehlten MA als {iso:{label,color}}. Der
      Ausschluss-Kern kommt aus der PURE-Authority _ezAbsSet (dieselbe {iso:true}-Menge, die die Ergebnistabelle
      _ezEffTage abzieht) — das Label (AT_T) haengt nur der Anzeige an, keine Divergenz zur abgerechneten Menge. */
@@ -13875,21 +13876,13 @@ function KVZulagenReport(props){
     if(!open)return;/* erst laden, wenn der Report aufgeklappt ist — kein Request auf Verdacht */
     var lebt=true;
     setEzStand('laedt');
-    _ezFetch(ym).then(function(r){if(!lebt)return;setEzMissing(!!r.missing);setEzFlags(r.flags||{});setEzStand((r&&(r.ok||r.missing))?'ok':'fehler');});
+    Promise.all([_ezFetch(ym),_ezLadeStempel(ym)]).then(function(rr){if(!lebt)return;var r=rr[0],s=rr[1];setEzMissing(!!r.missing);setEzFlags(r.flags||{});setStz(s);setEzStand((r&&(r.ok||r.missing))&&s.status==='ok'?'ok':'fehler');});
     return function(){lebt=false;};
   },[ym,open]);
   const rows=(function(){
-    var byW={};
-    entries.forEach(function(e){
-      if(!e)return;
-      var dstr=String(e.date||e.datum||'').slice(0,10);
-      if(dstr.slice(0,7)!==ym)return;
-      var hrs=parseFloat(e.hours||e.stunden)||0;if(hrs<=0)return;
-      var wid=e.w||e.worker||e.worker_id||'?';
-      if(!byW[wid])byW[wid]={days:{},baustelle:0};
-      byW[wid].days[dstr]=(byW[wid].days[dstr]||0)+hrs;
-      byW[wid].baustelle+=hrs;
-    });
+    var byW={};/* v3.9.1107: Tagesstunden laut Stempeluhr je Mitarbeiter (vorher Summe der Zeiteintraege) */
+    var wids={};(stz.evs||[]).forEach(function(e){if(e&&e.worker_id)wids[e.worker_id]=true;});
+    Object.keys(wids).forEach(function(wid){var d=_ezTageAusStempel(stz.evs,_ezWorker(monteure,wid),stz.rules,ym);if(Object.keys(d).length)byW[wid]={days:d,baustelle:0};});
     var out=[];Object.keys(byW).forEach(function(wid){
       var m=monteure.find(function(x){return x.id===wid;});
       var tageStd=Object.keys(byW[wid].days).map(function(k){return byW[wid].days[k];});
@@ -13951,7 +13944,7 @@ function KVZulagenReport(props){
       ,h('div',{style:{fontSize:12,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'6px 10px',fontWeight:600,marginBottom:_ezDetail?6:10,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}
         ,_ik('warnung',16),h('span',{style:{flex:'1 1 auto'}},'Entfernungszulage — lohnrelevant: die Kalender-Vergabe (Stufe je Tag: klein/mittel/groß) bestimmt die abgerechnete Menge. Genau eine Stufe pro Tag. Lohnverrechner maßgeblich.')
         ,h('button',{onClick:function(){_setEzDetail(function(v){return !v;});},style:{...bsS(),color:'#1a1a1a',border:'1px solid rgba(0,0,0,.45)',padding:'2px 10px',fontSize:UI.fMeta,minHeight:32}}/* Render-Funde 1096: steht auf dem orangen Hinweis - dunkle Schrift wie der Hinweis selbst (vorher V.tx dunkel 2,46:1) */,h('span',{style:{display:'inline-flex',alignItems:'center',gap:6}},'Details',_klappIk(_ezDetail,14))))
-      ,_ezDetail?h('div',{style:{fontSize:UI.fMeta,color:V.dm,background:'rgba(0,0,0,.04)',borderRadius:6,padding:'8px 10px',marginBottom:10,lineHeight:1.5}},'Vorbelegung: alle Tage mit Anwesenheit >6h sind als Stufe „klein" vorbelegt (Tages-Summe der Zeiteinträge, KV: einschl. Wegzeit, ausschl. Mittagspause). Per Kalender-Klick wird die Stufe durchgeschaltet (klein → mittel → groß → keine → Vorschlag). GENAU EINE Stufe pro Tag, nie additiv. Sätze: klein '+_eur(_ezSaetze(kv).klein)+' € · mittel '+_eur(_ezSaetze(kv).mittel)+' € · groß '+_eur(_ezSaetze(kv).gross)+' € (KV ab 01.01.2026, LA 2740). Genehmigte Abwesenheit → kein Vorschlag. Lohnverrechner maßgeblich.'):null
+      ,_ezDetail?h('div',{style:{fontSize:UI.fMeta,color:V.dm,background:'rgba(0,0,0,.04)',borderRadius:6,padding:'8px 10px',marginBottom:10,lineHeight:1.5}},'Vorbelegung: alle Tage mit mehr als 6 h Anwesenheit laut Stempeluhr (netto, nach Pause) sind als Stufe „klein" vorbelegt. Ohne Stempelung gibt es keinen Vorschlag. Per Kalender-Klick wird die Stufe durchgeschaltet (klein → mittel → groß → keine → Vorschlag). GENAU EINE Stufe pro Tag, nie additiv. Sätze: klein '+_eur(_ezSaetze(kv).klein)+' € · mittel '+_eur(_ezSaetze(kv).mittel)+' € · groß '+_eur(_ezSaetze(kv).gross)+' € (KV ab 01.01.2026, LA 2740). Genehmigte Abwesenheit → kein Vorschlag. Lohnverrechner maßgeblich.'):null
       /* v3.9.785 (Sebastian): Zulagensatz-Maske — admin+buero editieren klein/mittel/gross (2027 andere Saetze). */
       ,h('div',{style:{marginBottom:10}}
         ,!(props.curUser&&(props.curUser.role==='admin'||props.curUser.role==='buero'))?h('span',{'data-ez-saetze-nur-admin':'1',style:{fontSize:UI.fMeta,color:V.dm}},'Zulagensätze: '+(function(){var s=_ezSaetze(kv);return _eur(s.klein)+' / '+_eur(s.mittel)+' / '+_eur(s.gross)+' € je Tag (klein/mittel/groß). Ändern können Büro und Admin.';})())
@@ -13987,7 +13980,7 @@ function KVZulagenReport(props){
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:V.cd,border:'1px solid '+V.bd,display:'inline-block'}}),h('span',{style:{textDecoration:'line-through'}},'keine'))
           ,h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},h('span',{style:{width:12,height:12,borderRadius:3,background:'transparent',boxShadow:'0 0 0 2px '+V.ac,display:'inline-block'}}),'Ring = heute'))
         ,ezMissing?h('div',{style:{fontSize:UI.fMeta,color:'#1a1a1a',background:COLORS.WARNING,borderRadius:6,padding:'6px 10px',marginBottom:8,fontWeight:600,display:'flex',alignItems:'center',gap:6}},_ik('warnung',16),'Tabelle entfernungszulage_tage fehlt — sql/ENTFERNUNGSZULAGE_TAGE_v1.sql ausführen'):null
-        ,ezStand==='fehler'?h('div',{role:'alert','data-ez-ladefehler':'1',style:{fontSize:UI.fMeta,color:V.tx,borderLeft:'3px solid '+COLORS.ERROR,background:V.cd,padding:'6px 10px',marginBottom:8,fontWeight:600}},'Tagesstufen für '+_kvYmDE(ym)+' konnten nicht geladen werden (Netz oder Server). Beträge unten sind NICHT verlässlich, PZE-PDF gesperrt. ',h('button',{type:'button',onClick:function(){setEzStand('laedt');_ezFetch(ym).then(function(r){setEzMissing(!!r.missing);setEzFlags(r.flags||{});setEzStand((r&&(r.ok||r.missing))?'ok':'fehler');});},style:{...bsS(),padding:'2px 10px',minHeight:32,marginLeft:6}},'Erneut laden')):null
+        ,ezStand==='fehler'?h('div',{role:'alert','data-ez-ladefehler':'1',style:{fontSize:UI.fMeta,color:V.tx,borderLeft:'3px solid '+COLORS.ERROR,background:V.cd,padding:'6px 10px',marginBottom:8,fontWeight:600}},'Tagesstufen oder Stempelzeiten für '+_kvYmDE(ym)+' konnten nicht geladen werden (Netz oder Server). Beträge unten sind NICHT verlässlich, PZE-PDF gesperrt. ',h('button',{type:'button',onClick:function(){setEzStand('laedt');Promise.all([_ezFetch(ym),_ezLadeStempel(ym)]).then(function(rr){var r=rr[0],s=rr[1];setEzMissing(!!r.missing);setEzFlags(r.flags||{});setStz(s);setEzStand((r&&(r.ok||r.missing))&&s.status==='ok'?'ok':'fehler');});},style:{...bsS(),padding:'2px 10px',minHeight:32,marginLeft:6}},'Erneut laden')):null
         ,h(EZKalender,{wid:ezWid,view:ezView,cursor:ezCursor,ym:ym,days:_ezDaysFor(ezWid),flags:ezFlags,absDays:_ezAbsDaysFor(ezWid),onToggle:ezStand==='ok'?_ezToggle:function(){if(window.__toast)window.__toast('Tagesstufen noch nicht geladen - bitte warten bzw. erneut laden','warn');},isMob:isMob}))
       ,h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}
         ,h('button',{ title: "Monat zurück", 'aria-label': "Monat zurück",onClick:()=>_shiftYm(-1),style:{...bsS(),padding:'6px 10px',minHeight:isMob?44:0,minWidth:44,display:"inline-flex",alignItems:"center",justifyContent:"center"}},_ik('links',18))
@@ -14082,8 +14075,8 @@ async function _pzePdf(worker,ym,entries,abs,approvals,kontingent,rules,ezFlags)
      Tag im Monat, EXAKT wie KVZulagenReport (byW[wid].days). Satz aus KV_RULES.taggeldAb6h (nie hart 11,71). */
   var kv=(typeof window!=='undefined'&&window.KV_RULES)?window.KV_RULES:KV_RULES_FALLBACK;
   var saetze=_ezSaetze(kv);/* v3.9.785: {klein,mittel,gross} aus KV_RULES */
-  var daysMap={};
-  (entries||[]).forEach(function(e){if(!e)return;var iso=String(e.date||e.datum||'').slice(0,10);if(iso.slice(0,7)!==ym)return;var ew=e.w||e.worker||e.worker_id;if(ew!==worker.id)return;var hrs=parseFloat(e.hours||e.stunden)||0;if(hrs<=0)return;daysMap[iso]=(daysMap[iso]||0)+hrs;});
+  var daysMap={};/* v3.9.1107: Tagesstunden laut Stempeluhr (dieselben Zeilen wie die Tabelle oben) */
+  rows.forEach(function(r){if(r&&r.stempelAnzahl>0&&r.nettoMin>0)daysMap[r.datum]=Math.round(r.nettoMin/60*100)/100;});
   var ezF=ezFlags||{};
   /* v3.9.783 (LOHNRELEVANT): genehmigte Abwesenheit (abs/approvals, Key worker.name_iso) schliesst die
      EZ-Vorbelegung aus (LA 2740). Dieselbe PURE-Authority wie der Zulagen-Report — kein zweiter Rechenpfad.
@@ -15283,7 +15276,7 @@ function VBueroExport({curUser,projects,monteure,entries,ww,abs,approvals,files,
       /* Verrechnung (GF 23.11.2026): Stand der verrechneten Monteurstunden je Auftrag/Monteur - Daten aus allEntries (time_entries, alle Bezuege). */
       _bxTab==='verrechnung' && React.createElement(VerrechnungView, { curUser: curUser, entries: allEntries, loaded: loaded, projects: projects, arbeitsscheine: arbeitsscheine||[], monteure: monteure, ww: ww, ym: startYm||''} ),
       _bxTab==='mamonat' && React.createElement('div',{'data-bx-mamonat':"1"}
-        ,React.createElement('h3',{id:"bx-abschnitt-stunden",style:{scrollMarginTop:90,fontSize:16,fontWeight:800,margin:"4px 0 8px",color:V.tx}},"Stunden und Lohn-Monatsliste")
+        ,React.createElement('h3',{id:"bx-abschnitt-stunden",style:{scrollMarginTop:90,fontSize:16,fontWeight:800,margin:"4px 0 8px",color:V.tx}},"Projektstunden und Monatsliste")
         ,React.createElement(ZeiterfassungView, { key: 'ze'+startWid+startYm, curUser: curUser, monteure: monteure, projects: projects, arbeitsscheine: arbeitsscheine||[], entries: entries, setEntries: setEntries||function(){}, ww: ww, abs: abs, approvals: approvals, imPortal: true, startWid: startWid, startYm: startYm} )
         ,React.createElement('h3',{id:"bx-abschnitt-zulagen",style:{scrollMarginTop:90,fontSize:16,fontWeight:800,margin:"18px 0 8px",color:V.tx}},"Entfernungszulage")
         ,React.createElement(KVZulagenReport, { key: 'kv'+startWid+startYm, entries: entries, monteure: monteure, ww: ww, curUser: curUser, abs: abs, approvals: approvals, kontingent: _kontFor, defaultOpen: true, startYm: startYm, startWid: startWid} )
@@ -26285,6 +26278,8 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
   const _kvR=(typeof window!=='undefined'&&window.KV_RULES)?window.KV_RULES:(typeof KV_RULES_FALLBACK!=='undefined'?KV_RULES_FALLBACK:{});
   const _ymSel=(selMonat>=0)?(selJahr+"-"+String(selMonat+1).padStart(2,"0")):"";
   _react.useEffect.call(void 0, ()=>{let a=true;if(_ymSel&&typeof _ezFetch==="function"){_ezFetch(_ymSel).then(r=>{if(a)setEzFlags((r&&r.flags)||{});}).catch(()=>{});}return()=>{a=false;};},[_ymSel]);
+  const [_myStz,_setMyStz]=_react.useState.call(void 0, {status:'laedt',evs:[],rules:null});/* v3.9.1107 eigene Stempelungen fuer die Zulage */
+  _react.useEffect.call(void 0, ()=>{let a=true;const _w=curUser.monteurId||curUser.monteur_id||"";if(_ymSel&&_w){_ezLadeStempel(_ymSel,_w).then(s=>{if(a)_setMyStz(s);});}return()=>{a=false;};},[_ymSel]);
   const _myWid=curUser.monteurId||curUser.monteur_id||"";
   const _myName=((_m)=>_m?(_m.n||_m.name||_myWid):_myWid)((monteure||[]).find(m=>m.id===_myWid));
   const _mySummary=_react.useMemo.call(void 0, ()=>{
@@ -26292,9 +26287,10 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
     const days={};let ist=0;
     (entries||[]).forEach(e=>{if(!e)return;const dt=String(e.date||e.datum||"").slice(0,10);if(dt.slice(0,7)!==_ymSel)return;const wid=e.w||e.worker||e.worker_id||"";if(wid!==_myWid)return;const hrs=parseFloat(e.hours||e.stunden)||0;if(hrs<=0)return;days[dt]=(days[dt]||0)+hrs;ist+=hrs;});
     let ez={tageKlein:0,tageMittel:0,tageGross:0,sum:0};
-    try{if(typeof _ezEffTage==="function")ez=_ezEffTage(days,ezFlags,_myWid,(typeof _ezSaetze==="function"?_ezSaetze(_kvR):{}),(typeof _ezAbsSet==="function"?_ezAbsSet(abs||{},approvals,_myName):{}));}catch(_ee){console.warn('[stz-ez]',_ee&&_ee.message||_ee);}
+    const _ezDays=_ezTageAusStempel(_myStz.evs,_ezWorker(monteure,_myWid),_myStz.rules,_ymSel);/* v3.9.1107 Zulage laut Stempeluhr */
+    try{if(typeof _ezEffTage==="function")ez=_ezEffTage(_ezDays,ezFlags,_myWid,(typeof _ezSaetze==="function"?_ezSaetze(_kvR):{}),(typeof _ezAbsSet==="function"?_ezAbsSet(abs||{},approvals,_myName):{}));}catch(_ee){console.warn('[stz-ez]',_ee&&_ee.message||_ee);}
     return{ist:ist,ez:ez};
-  },[entries,_myWid,_ymSel,ezFlags,abs,approvals,_myName]);
+  },[entries,_myWid,_ymSel,ezFlags,abs,approvals,_myName,_myStz]);
 
   /* Hilfsfunktionen: Zeiteinträge für einen Monteur im Monat */
   /* v3.8.49 Bug-Fix: Stundenzettel.mitarbeiterId kann users.id (u1..) ODER workers.id (w1..)
@@ -26579,7 +26575,7 @@ function StundenzettelView({monteure,ww,curUser,users,entries,projects,abs,appro
       , (_mySummary&&_mySummary.ist>0)&&React.createElement('div', { style: {...CC(),borderLeft:"3px solid "+V.ac,marginBottom:12}}
         , React.createElement('div', { style: {fontSize:13,fontWeight:800,marginBottom:8}}, "Meine Monatssumme"+(selMonat>=0?(" — "+MONATE[selMonat]+" "+selJahr):""))
         , React.createElement('div', { style: {display:"grid",gridTemplateColumns:isMob?"1fr 1fr":"repeat(auto-fit,minmax(130px,1fr))",gap:10}}
-          , React.createElement('div', {}, React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Ist-Stunden"), React.createElement('div', { style: {fontSize:20,fontWeight:800}}, _projStdDE(_mySummary.ist,1)+" h"))
+          , React.createElement('div', {}, React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Projektstunden"), React.createElement('div', { style: {fontSize:20,fontWeight:800}}, _projStdDE(_mySummary.ist,1)+" h"))
           , React.createElement('div', {}, React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm}}, "Entfernungszulage"), React.createElement('div', { style: {fontSize:20,fontWeight:800,color:V.ac}}, String(_n(_mySummary.ez.sum,2)).replace(".",",")+" €"), React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:2}}, (_mySummary.ez.tageKlein||0)+" klein · "+(_mySummary.ez.tageMittel||0)+" mittel · "+(_mySummary.ez.tageGross||0)+" groß"))
         )
         , React.createElement('div', { style: {fontSize:UI.fMeta,color:V.dm,marginTop:6}}, "Entfernungszulage laut Kalender-Vergabe · Lohnverrechnung maßgeblich")
@@ -29128,7 +29124,7 @@ ${dayRowsHtml}
       const r=await _zeMonatHolen();if(!r)return;
       const hdrs=["Datum","Tag","Projekt / Freitext","Typ","Tätigkeit","Von","Bis","Pause (h)","Stunden","Bemerkung"];
       const data=r.zeilen.map(z=>[_zeDatDE(z.datum),_zeTagKurz(z.datum),z.ziel,z.typ,z.taetigkeit,z.von||"-",z.bis||"-",_n(z.pause,2),_n(z.stunden,2),z.bemerkung]);
-      genXls("Zeiterfassung - "+workerName+" - "+_zeMonatName(zeMon),"Lohn-Monatsliste · "+_nWort(r.zeilen.length,"Eintrag","Einträge")+" · erstellt "+_zeDatDE(_ezHeuteISO()),hdrs,data,_zeMonDatei()+".xls",{colWidths:[75,35,220,80,180,50,50,60,60,180],leftCols:[0,1,2,3,4,5,6,9],boldCols:[2],sumCol:8});
+      genXls("Zeiterfassung - "+workerName+" - "+_zeMonatName(zeMon),"Monatsliste Projektzeit · "+_nWort(r.zeilen.length,"Eintrag","Einträge")+" · erstellt "+_zeDatDE(_ezHeuteISO()),hdrs,data,_zeMonDatei()+".xls",{colWidths:[75,35,220,80,180,50,50,60,60,180],leftCols:[0,1,2,3,4,5,6,9],boldCols:[2],sumCol:8});
     }finally{setZeMonLaedt(false);}
   };
   const exportMonatPdf=async()=>{
@@ -29139,7 +29135,7 @@ ${dayRowsHtml}
       if(!JS){if(window.__toast)window.__toast("PDF-Bibliothek nicht geladen","error",4000);return;}
       const doc=new JS({orientation:"landscape",unit:"mm",format:"a4"});
       const W=297,M=12,nutz=W-2*M;
-      _pdfCIKopf(doc,"Zeiterfassung "+workerName,"Lohn-Monatsliste "+_zeMonatName(zeMon)+"  ·  "+_nWort(r.zeilen.length,"Eintrag","Einträge")+"  ·  "+String(_n(r.summe,2)).replace(".",",")+" h",22);
+      _pdfCIKopf(doc,"Zeiterfassung "+workerName,"Monatsliste Projektzeit "+_zeMonatName(zeMon)+"  ·  "+_nWort(r.zeilen.length,"Eintrag","Einträge")+"  ·  "+String(_n(r.summe,2)).replace(".",",")+" h",22);
       const hdr=["Datum","Tag","Projekt / Freitext","Typ","Tätigkeit","Von","Bis","Pause","Stunden","Bemerkung"];
       const gew=[1.3,0.6,3.4,1.2,2.6,0.8,0.8,0.8,0.9,2.6];
       const gs=gew.reduce((a,b)=>a+b,0);const br=gew.map(g=>nutz*g/gs);
@@ -29499,8 +29495,8 @@ ${dayRowsHtml}
         ),
 
         /* v3.9.1098 Lohn-Monatsliste je Mitarbeiter (Buero/Admin) */
-        isAdmin&&selWorker&&React.createElement('div',{role:"group","aria-label":"Monatsliste für die Lohnabrechnung",style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",padding:"8px 10px",background:V.cd,borderRadius:8,border:"1px solid "+V.bd}},
-          React.createElement('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:V.tx}},"Monatsliste (Lohn):"),
+        isAdmin&&selWorker&&React.createElement('div',{role:"group","aria-label":"Monatsliste Projektzeit",style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",padding:"8px 10px",background:V.cd,borderRadius:8,border:"1px solid "+V.bd}},
+          React.createElement('span',{style:{fontSize:UI.fMeta,fontWeight:700,color:V.tx}},"Monatsliste Projektzeit:"),
           React.createElement('select',{value:zeMon,onChange:e=>setZeMon(e.target.value),"aria-label":"Monat",style:{...II(),fontSize:13,padding:"6px 10px",minHeight:44,width:"auto"}},
             _zeMonatListe(_ezHeuteISO()).map(ym=>React.createElement('option',{key:ym,value:ym},_zeMonatName(ym)))
           ),
@@ -31344,12 +31340,12 @@ function _bxWerktage(ym){var y=parseInt(ym.slice(0,4),10),m=parseInt(ym.slice(5,
 function _bxMaListe(monteure,ym){return (monteure||[]).filter(function(m){return m&&m.id&&m.r!=="Backoffice"&&m.r!=="Verkauf/Buchhaltung"&&!_maIstEhemalig(m,ym+"-01");});}/* v3.9.1106: Buero-Kraefte buchen keine Projektzeit (wie fieldMA der Zeiterfassung) */
 /* Chips je Mitarbeiter: nur lesen. Stunden/Tage aus entries des Monats; Luecken = Werktage vor heute ohne Buchung und ohne genehmigte Abwesenheit;
    Zulagen ueber _ezEffTage (dieselbe Funktion wie Tabelle/PZE-PDF); offene Verrechnung ueber _vrAuswerten/_vrNachMonteur. */
-function _bxMaStand(m,ym,entries,abs,approvals,ezFlags,kv,heute,vrOffen){
+function _bxMaStand(m,ym,entries,abs,approvals,ezFlags,kv,heute,vrOffen,stz){
   var days={},sum=0,n=0;
   (entries||[]).forEach(function(e){if(!e)return;var iso=String(e.date||e.datum||"").slice(0,10);if(iso.slice(0,7)!==ym)return;if((e.w||e.worker||e.worker_id||e.monteur)!==m.id)return;var h=parseFloat(e.hours||e.stunden)||0;if(h<=0)return;days[iso]=(days[iso]||0)+h;sum+=h;n++;});
   var absSet=_ezAbsSet(abs||{},approvals,m.n||m.id);
   var luecken=_bxWerktage(ym).filter(function(iso){return iso<heute&&!days[iso]&&!absSet[iso];});
-  var ez=_ezEffTage(days,ezFlags||{},m.id,_ezSaetze(kv),absSet);
+  var ez=_ezEffTage(_ezTageAusStempel(stz&&stz.evs,{id:m.id,name:m.n||m.id,role:m.r||""},stz&&stz.rules,ym),ezFlags||{},m.id,_ezSaetze(kv),absSet);/* v3.9.1107 Zulage laut Stempeluhr */
   return {stunden:_vrR(sum),buchungen:n,tage:Object.keys(days).length,luecken:luecken,ez:ez,vrOffen:vrOffen||0};
 }
 function MonatsabschlussView({ym,monteure,entries,projects,arbeitsscheine,abs,approvals,onOeffnen,ww}){
@@ -31357,7 +31353,8 @@ function MonatsabschlussView({ym,monteure,entries,projects,arbeitsscheine,abs,ap
   const isMob=_layoutStufe(ww,(typeof window!=="undefined"?window.innerHeight:0))==="schmal";
   const [ez,setEz]=_react.useState.call(void 0,{stand:"laedt",flags:{}});
   const [vr,setVr]=_react.useState.call(void 0,{saetze:[],haken:[],ok:false});
-  _react.useEffect.call(void 0,function(){var lebt=true;setEz({stand:"laedt",flags:{}});_ezFetch(ym).then(function(r){if(lebt)setEz({stand:(r&&(r.ok||r.missing))?"ok":"fehler",flags:(r&&r.flags)||{}});});return function(){lebt=false;};},[ym]);
+  const [stz,setStz]=_react.useState.call(void 0,{status:"laedt",evs:[],rules:null});
+  _react.useEffect.call(void 0,function(){var lebt=true;setEz({stand:"laedt",flags:{}});Promise.all([_ezFetch(ym),_ezLadeStempel(ym)]).then(function(rr){if(!lebt)return;var r=rr[0];setStz(rr[1]);setEz({stand:(r&&(r.ok||r.missing))&&rr[1].status==="ok"?"ok":"fehler",flags:(r&&r.flags)||{}});});return function(){lebt=false;};},[ym]);
   _react.useEffect.call(void 0,function(){var lebt=true;Promise.all([_vrLadeSaetze(),_vrLadeHaken()]).then(function(r){if(lebt)setVr({saetze:r[0].rows,haken:r[1].rows,ok:r[0].status==="ok"});});return function(){lebt=false;};},[]);
   const kv=(typeof window!=="undefined"&&window.KV_RULES)?window.KV_RULES:KV_RULES_FALLBACK;
   const heute=_ezHeuteISO();
@@ -31367,10 +31364,10 @@ function MonatsabschlussView({ym,monteure,entries,projects,arbeitsscheine,abs,ap
   const chip=function(txt,art,onClick,titel){var farbe=art==="ok"?V.ac:(art==="warn"?"#d97706":V.bdK);return h("button",{type:"button",onClick:onClick,title:titel||txt,style:{display:"inline-flex",alignItems:"center",gap:4,padding:"6px 10px",minHeight:36,borderRadius:16,border:"1px solid "+farbe,background:"transparent",color:V.tx,fontSize:UI.fMeta,fontWeight:600,cursor:"pointer",fontFamily:"inherit",...UI.zahlen}},h("span",{"aria-hidden":"true",style:{width:8,height:8,borderRadius:4,background:farbe,display:"inline-block"}}),txt);};
   return h("div",{"data-bx-abschluss":"1"}
     ,h("div",{style:{fontSize:UI.fMeta,color:V.dm,marginBottom:10}},"Je Mitarbeiter der Stand für "+_zeMonatName(ym)+". Ein Klick öffnet den passenden Abschnitt.")
-    ,ez.stand==="fehler"?h("div",{role:"alert",style:{fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid "+COLORS.ERROR,background:V.cd,padding:"6px 10px",marginBottom:10}},"Tagesstufen der Entfernungszulage nicht geladen - Zulagen-Zahlen hier vorläufig."):null
+    ,ez.stand==="fehler"?h("div",{role:"alert",style:{fontSize:UI.fMeta,color:V.tx,borderLeft:"3px solid "+COLORS.ERROR,background:V.cd,padding:"6px 10px",marginBottom:10}},"Tagesstufen oder Stempelzeiten nicht geladen - Zulagen-Zahlen hier vorläufig."):null
     ,liste.length===0?h("div",{style:{fontSize:UI.fMeta,color:V.dm,padding:12}},"Keine Mitarbeiter in diesem Monat."):null
     ,liste.map(function(m){
-      var s=_bxMaStand(m,ym,entries,abs,approvals,ez.flags,kv,heute,vrJeMa[m.id]);
+      var s=_bxMaStand(m,ym,entries,abs,approvals,ez.flags,kv,heute,vrJeMa[m.id],stz);
       var ezTxt=s.ez.tageKlein+" klein / "+s.ez.tageMittel+" mittel / "+s.ez.tageGross+" groß";
       return h("div",{key:m.id,"data-bx-ma":m.id,style:{...CC(),padding:10,marginBottom:8,borderTop:"3px solid "+V.ac}}
         ,h("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}
@@ -31493,6 +31490,29 @@ function MeineStempelzeiten({wid,ym,monteure,entries,abs,approvals,curUser,pushN
             ,h("input",{type:"text",value:korr.text,maxLength:300,placeholder:"z. B. Gehen war 16:30, nicht 15:30","aria-label":"Was stimmt nicht?",onChange:function(e){setKorr({datum:r.datum,text:e.target.value});},style:{...II(),flex:"1 1 220px",minHeight:44}})
             ,h("button",{type:"button",onClick:function(){senden(r.datum);},style:bpS},"An das Büro senden")):null);})
       ,h("div",{style:{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,fontWeight:800,...UI.zahlen}},"Summe "+_msHM(summe)+" h")));
+}
+/* v3.9.1107 Entfernungszulage aus der STEMPELUHR (GF 24.11.2026: "auf Stempeluhr umstellen jetzt", Variante "nur Stempeluhr ab sofort").
+   Tagesstunden = Netto laut Stempeluhr (_pzeBuildRows, dieselbe Tageszeile wie Buero/PZE-PDF), nur Tage mit Stempelung.
+   _ezEffTage/_ezDayEff (Vorbelegung >6 h, Kalender-Stufen, Abwesenheit) bleiben unveraendert - nur die Quelle der Stunden wechselt.
+   Ohne Stempelung schlaegt die App keine Zulage vor; vom Buero im Kalender gesetzte Stufen zaehlen weiter. */
+function _ezTageAusStempel(evs,worker,rules,ym){
+  if(!worker||!worker.id||!ym)return {};
+  var y=parseInt(String(ym).slice(0,4),10),m=parseInt(String(ym).slice(5,7),10);
+  var bis=ym+"-"+String(new Date(y,m,0).getDate()).padStart(2,"0");
+  var rows=_pzeBuildRows(worker,ym+"-01",bis,evs||[],rules||STEMPEL_PAUSE_FALLBACK,[],{},[]);
+  var out={};rows.forEach(function(r){if(r&&r.stempelAnzahl>0&&r.nettoMin>0)out[r.datum]=Math.round(r.nettoMin/60*100)/100;});
+  return out;
+}
+function _ezWorker(monteure,wid){var m=(monteure||[]).find(function(x){return x.id===wid;})||{};return {id:wid,name:m.n||m.name||wid,role:m.r||""};}
+async function _ezLadeStempel(ym,wid){/* -> {status:'ok'|'fehler', evs, rules}; wid optional (eigene Sicht) */
+  try{
+    var y=parseInt(String(ym).slice(0,4),10),m=parseInt(String(ym).slice(5,7),10);
+    var von=new Date(y,m-1,1),bis=new Date(y,m,1);
+    var f=(wid?"worker_id=eq."+encodeURIComponent(wid)+"&":"")+"ts=gte."+encodeURIComponent(von.toISOString())+"&ts=lt."+encodeURIComponent(bis.toISOString())+"&order=ts.asc";
+    var r=await Promise.all([_sbGet("stempel_log",f),_stLoadPauseRules()]);
+    if(_rlsLeer(r[0]))return {status:"fehler",evs:[],rules:r[1]};
+    return {status:"ok",evs:Array.isArray(r[0])?r[0]:[],rules:r[1]};
+  }catch(e){return {status:"fehler",evs:[],rules:null};}
 }
 //@KAMERAS-START
 /* Kameras Phase 1 (19.11.2026, Freigabe Inhaber, Betriebsvereinbarung unterschrieben). Doku: docs/kameras/PHASE1_2026-11-19.md.

@@ -29,7 +29,9 @@ def test_props_durchgereicht(index_html):
 def test_ez_autoritativ_verdrahtet(index_html):
     # Die Monatssumme nutzt die AUTORITATIVEN EZ-Helfer (kein hand-gerechnetes EZ).
     assert "_ezFetch(_ymSel)" in index_html, "EZ-Flags werden nicht via _ezFetch geladen"
-    assert "_ezEffTage(days,ezFlags,_myWid," in index_html, "EZ nicht ueber _ezEffTage berechnet"
+    # v3.9.1107 GF 24.11.: Zulage laut Stempeluhr - Tagesstunden aus _ezTageAusStempel, weiter ueber _ezEffTage
+    assert "_ezEffTage(_ezDays,ezFlags,_myWid," in index_html, "EZ nicht ueber _ezEffTage berechnet"
+    assert "const _ezDays=_ezTageAusStempel(_myStz.evs,_ezWorker(monteure,_myWid),_myStz.rules,_ymSel);" in index_html
     assert "_ezAbsSet(abs||{},approvals,_myName)" in index_html, "v783-Abwesenheits-Ausschluss (_ezAbsSet) fehlt"
     assert "_ezSaetze(_kvR)" in index_html, "EZ-Saetze nicht ueber _ezSaetze(kv) bezogen"
     # kv aus der globalen Quelle (window.KV_RULES), wie KVZulagenReport.
@@ -47,7 +49,7 @@ def test_monatssumme_block_und_nav(index_html):
 def test_kein_juprowa(index_html):
     # Die neue Sektion darf keinen Juprowa/Push-Bezug haben (reine Lese-/Anzeige-Sicht).
     a = index_html.index("Monteur-Eigensicht: EZ-Flags des Monats")
-    b = index_html.index("_myName]);", a) + len("_myName]);")  # nur mein State-/EZ-Block, nicht die bestehenden setFink*-Writes
+    b = index_html.index("_myName,_myStz]);", a) + len("_myName,_myStz]);")  # v3.9.1107: + _myStz in den Abhaengigkeiten  # nur mein State-/EZ-Block, nicht die bestehenden setFink*-Writes
     block = index_html[a:b]
     assert "juprowa" not in block.lower(), "Monatssummen-Sektion darf keinen Juprowa-Bezug haben"
     assert "SQ.push" not in block, "Monatssummen-Sektion schreibt (SQ.push) — darf reine Anzeige sein"

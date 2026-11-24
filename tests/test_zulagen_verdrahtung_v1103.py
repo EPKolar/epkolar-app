@@ -35,7 +35,8 @@ def _ohne_kommentare(t):
 
 def _pruef_ladezustand(kv):
     k = _ohne_kommentare(kv)
-    ok = ("setEzStand((r&&(r.ok||r.missing))?'ok':'fehler');" in k
+    # v3.9.1107: Stand erst ok, wenn Tagesstufen UND Stempeluhr geladen sind
+    ok = ("setEzStand((r&&(r.ok||r.missing))&&s.status==='ok'?'ok':'fehler');" in k
           and "disabled:!ezWid||ezStand!=='ok'" in k
           and "onToggle:ezStand==='ok'?_ezToggle:" in k
           and "ezStand==='fehler'?h('div',{role:'alert','data-ez-ladefehler':'1'" in k)
