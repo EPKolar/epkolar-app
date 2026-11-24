@@ -191,7 +191,14 @@ OUT.kamera_weg = {text: text(baum), pruef: ZAEHL.pruef.slice()};
 // e) MJPEG bricht ab, Gateway weg
 reset({db: {kameras: KAMS}, fein: true, fetch: {status: 200, json: {typ: 'mjpeg', mjpegUrl: G + '/live/mob32/mjpeg?token=T', exp: 1e12}}, gesund: {wirft: true}});
 w = wurzel(); await ruhe(w);
-bilder()[0].props.onError({}); await ruhe(w); await warte(5); await ruhe(w);
+// Pin angepasst 24.11.2026 (feature/kamera-kachel-reconnect): alt = EIN onError -> Hinweis. Neu erst nach Anlauf +
+// 3 automatischen Wiederholungen (Pausen verkuerzt); die Diagnose danach ist unveraendert.
+KAMERA_MJPEG_RETRY_MS = [5, 5, 5];
+for (let i = 0; i < 4; i++) {
+  for (let j = 0; j < 100 && !bilder().length; j++) { await warte(5); await ruhe(w); }
+  const bi = bilder(); if (bi.length) { bi[bi.length - 1].props.onError({}); await ruhe(w); }
+}
+await warte(5); await ruhe(w); await warte(5); await ruhe(w);
 OUT.mjpeg_gateway = text(baum);
 
 OUT.H = {basis: [_kamGatewayBasis(G + '/live/cam1/snapshot.jpg?token=T&_=4'), _kamGatewayBasis('https://h.example.test/kam/live/c_2/mjpeg?token=T'),

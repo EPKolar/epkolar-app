@@ -618,15 +618,25 @@ const KAMS = [{id: 'cam1', name: 'Kamera 1', standort: 'Hof', aktiv: true, aufbe
 function wurzel(rolle) { return React.createElement(KameraView, {curUser: {id: 'x', role: rolle}, ww: 1440, users: []}); }
 function bilder() { return alle(baum, function (n) { return n.tag === 'img'; }); }
 function videos() { return alle(baum, function (n) { return n.tag === 'video'; }); }
+function warte(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 reset({db: {kameras: KAMS}, fein: true, fetch: {status: 200, json: {typ: 'mjpeg', mjpegUrl: 'https://p/live/mx_32/mjpeg?token=T1', exp: 1e12, ttl: 90}}});
 let w = wurzel('projektleiter'); await ruhe(w);
 let b = bilder();
 OUT.mjpeg = {n: b.length, src: b.length ? b[0].props.src : '', ref: b.length ? b[0].props.referrerPolicy : '', text: text(baum),
              videoSichtbar: videos().map(function (v) { return v.props.style.display; })};
-b[0].props.onError({}); await ruhe(w);
+// Pin angepasst 24.11.2026 (feature/kamera-kachel-reconnect, Owner: Mobotix-Kacheln nur nach "Neu laden"):
+// alt = EIN onError -> sofort "Kamera nicht erreichbar". Neu: Anlauf + 3 automatische Wiederholungen (neues Token),
+// erst danach der Hinweis. Pausen hier verkuerzt; jeder Versuch scheitert sofort.
+KAMERA_MJPEG_RETRY_MS = [5, 5, 5];
+for (let i = 0; i < 4; i++) {
+  for (let j = 0; j < 100 && !bilder().length; j++) { await warte(5); await ruhe(w); }
+  const bi = bilder(); if (bi.length) { bi[bi.length - 1].props.onError({}); await ruhe(w); }
+}
+for (let j = 0; j < 4; j++) { await warte(5); await ruhe(w); }
+KAMERA_MJPEG_RETRY_MS = [2000, 5000, 10000];
 // Pin angepasst 20.11.2026: Knopf heisst jetzt 'Neu laden' (Owner-Vorgabe Kamera-Oberflaeche)
-OUT.mjpeg_weg = {n: bilder().length, text: text(baum), neu: knopfHat(baum, 'Neu laden')};
+OUT.mjpeg_weg = {n: bilder().length, text: text(baum), neu: knopfHat(baum, 'Neu laden'), fetch: ZAEHL.fetch.length};
 
 reset({db: {kameras: KAMS}, fein: true, fetch: {status: 200, json: {typ: 'snapshot', snapshotUrl: 'https://p/live/mx_33/snapshot.jpg?token=T2', exp: 1e12, ttl: 90}}});
 w = wurzel('projektleiter'); await ruhe(w);
@@ -680,6 +690,7 @@ def test_mjpeg_kachel_ist_bild_am_token_link(UI2):
 def test_mjpeg_abbruch_zeigt_kamera_nicht_erreichbar(UI2):
     w = UI2["mjpeg_weg"]
     assert w["n"] == 0 and "Kamera nicht erreichbar" in w["text"] and w["neu"] is True
+    assert w["fetch"] == 4, "Anlauf + 3 Wiederholungen mit je neuem Token (alt: 1)"
 
 
 def test_snapshot_mit_zaehler_und_erst_nach_drei_fehlern_offline(UI2):

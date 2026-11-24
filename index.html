@@ -31860,6 +31860,13 @@ function _kamStatus(phase,grund){
 /* Netzfehler (fetch wirft): neue Versuche nach 2 s, 5 s, 10 s - danach "Neu laden". 403/503 werden NICHT wiederholt. */
 var KAMERA_RETRY_MS=[2000,5000,10000];
 function _kamBackoff(n){return (n>=0&&n<KAMERA_RETRY_MS.length)?KAMERA_RETRY_MS[n]:null;}
+/* Mobotix/MJPEG (Owner 24.11.: Kacheln erst nach "Neu laden"): go2rtc startet den Strom erst auf Abruf, ffmpeg braucht
+   Sekunden fuer das erste Bild. Anlauf = verbindet, kein Fehler: erstes Bild bis KAMERA_MJPEG_START_MS abwarten. Scheitert
+   der Anlauf oder bricht der Strom ab -> neues Token + neuer Strom nach Pause (2 s, 5 s, 10 s); erst nach allen Versuchen
+   "Kamera nicht erreichbar". Das letzte gute Bild bleibt stehen, bis der neue Strom sein erstes Bild geliefert hat. */
+var KAMERA_MJPEG_START_MS=10000;
+var KAMERA_MJPEG_RETRY_MS=[2000,5000,10000];
+function _kamMjpegPause(n){return (n>=0&&n<KAMERA_MJPEG_RETRY_MS.length)?KAMERA_MJPEG_RETRY_MS[n]:null;}
 /* v3.9.1083: WHEP-Antwort kam, aber ICE verbindet nicht (Medienport im Netz gesperrt): Chrome meldet "failed" erst nach
    rund 30 s - so lange stand eine schwarze "live"-Kachel. Nach KAMERA_ICE_MS ohne Verbindung -> Einzelbild-Rueckfall. */
 var KAMERA_ICE_MS=10000;
@@ -31980,6 +31987,63 @@ function KameraKachel(props){
   var fehlerRef=_react.useRef.call(void 0,0);
   var versuchRef=_react.useRef.call(void 0,0);
   var _zs=_react.useState.call(void 0,'');var zeigeSnap=_zs[0],setZeigeSnap=_zs[1];/* v3.9.1105 GF 24.11. "Kamerabilder zucken": Einzelbild alle 2 s - das sichtbare img wechselte die Quelle sofort und blitzte bis zum Laden leer. Jetzt Doppelpuffer: unsichtbar vorladen, erst nach onload tauschen. */
+  /* MJPEG: an = Strom mit erstem Bild (sichtbar), neu = Strom im Anlauf (unsichtbar, ersetzt an erst mit seinem ersten Bild) */
+  var _mj=_react.useState.call(void 0,{an:null,neu:null});var mj=_mj[0],setMj=_mj[1];
+  var mjVersuchRef=_react.useRef.call(void 0,0);
+  var mjTimerRef=_react.useRef.call(void 0,null);
+  var mjGenRef=_react.useRef.call(void 0,0);
+  var mjNrRef=_react.useRef.call(void 0,0);
+  var mjLaedtRef=_react.useRef.call(void 0,'');
+  var mjImgRef=_react.useRef.call(void 0,null);
+  function kachelWeg(url){
+    if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}
+    setBild({modus:'',url:''});setSt({phase:'stub',grund:'offline'});
+    /* v3.9.1083: ein Bild-Element verraet nicht, WARUM es scheitert. Antwortet der Kamera-Server selbst nicht (Zertifikat,
+       nicht im Buero-Netz, Browser-Freigabe fuer das lokale Netz), zeigt die Kachel das statt "Kamera nicht erreichbar". */
+    var gb=_kamGatewayBasis(url);
+    if(gb)_kamBueroPruefen(gb).then(function(r){
+      /* v3.9.1088: dieselbe Diagnose wie in der Einrichtung - gesperrte bzw. offene Browser-Freigabe eigens benennen */
+      var g=_kamGatewayGrund(r);
+      if(g)setSt(function(s){return (s.phase==='stub'&&s.grund==='offline')?{phase:'stub',grund:g}:s;});});
+  }
+  function mjNeu(url){
+    mjNrRef.current++;var e={u:url,k:'mj'+mjNrRef.current};
+    mjLaedtRef.current=e.k;
+    setMj(function(m){return {an:m.an,neu:e};});
+  }
+  function mjDa(key){
+    if(mjLaedtRef.current!==key)return;
+    mjLaedtRef.current='';mjVersuchRef.current=0;
+    setMj(function(m){return (m.neu&&m.neu.k===key)?{an:m.neu,neu:null}:m;});
+    setSt({phase:'live',grund:''});
+  }
+  function mjNochmal(url){
+    var gen=mjGenRef.current;var ms=_kamMjpegPause(mjVersuchRef.current);
+    if(ms===null){mjVersuchRef.current=0;mjLaedtRef.current='';setMj({an:null,neu:null});kachelWeg(url);return;}
+    mjVersuchRef.current++;
+    setSt(function(s){return s.phase==='live'?{phase:'live',grund:'wartet'}:{phase:'laedt',grund:'wartet'};});
+    if(mjTimerRef.current)clearTimeout(mjTimerRef.current);
+    mjTimerRef.current=setTimeout(async function(){
+      mjTimerRef.current=null;
+      if(gen!==mjGenRef.current)return;
+      var b=await _kamStreamHolen(k.id,'live',props.geraet);
+      if(gen!==mjGenRef.current)return;
+      if(b.ok&&b.mjpegUrl){setBild({modus:'mjpeg',url:b.mjpegUrl});mjNeu(b.mjpegUrl);return;}
+      if(!b.ok&&b.grund==='kein_zugriff'){setMj({an:null,neu:null});setBild({modus:'',url:''});setSt({phase:'stub',grund:'kein_zugriff'});return;}
+      mjNochmal(url);
+    },ms);
+  }
+  function mjFehl(key,url){
+    if(mjLaedtRef.current!==key)return;
+    mjLaedtRef.current='';
+    setMj(function(m){return {an:m.an,neu:null};});
+    mjNochmal(url);
+  }
+  function mjAbbruch(url){if(mjLaedtRef.current||mjTimerRef.current)return;mjNochmal(url);}
+  function mjStopp(){
+    mjGenRef.current++;mjLaedtRef.current='';mjVersuchRef.current=0;
+    if(mjTimerRef.current){clearTimeout(mjTimerRef.current);mjTimerRef.current=null;}
+  }
   /* Strom nur, wenn die Kachel im Bild liegt UND die Seite sichtbar ist (kein Stapel paralleler Stroeme am Handy);
      verlassen/verborgen -> Strom zu. Ohne IntersectionObserver (alte Geraete) gilt die Kachel als sichtbar. */
   var _ak=_react.useState.call(void 0,function(){return typeof IntersectionObserver==='undefined'&&!(typeof document!=='undefined'&&document.hidden===true);});
@@ -32027,7 +32091,7 @@ function KameraKachel(props){
         /* HLS: Playlist mit frischem Token neu laden. WebRTC: die laufende Sitzung braucht keins (Token gilt fuer den Aufbau). */
         if(modus==='hls'){var v=vidRef.current;if(v)v.src=b.liveUrl;}
         /* MJPEG/Einzelbild: neuer Token-Link; der Browser schliesst die alte Verbindung selbst */
-        if(modus==='mjpeg'&&b.mjpegUrl)setBild({modus:'mjpeg',url:b.mjpegUrl});
+        if(modus==='mjpeg'&&b.mjpegUrl){setBild({modus:'mjpeg',url:b.mjpegUrl});if(!mjLaedtRef.current&&!mjTimerRef.current)mjNeu(b.mjpegUrl);}
         if(modus==='snapshot'&&b.snapshotUrl)setBild({modus:'snapshot',url:b.snapshotUrl});
         planen(b.exp,modus);
       },_kamRefreshIn(exp,Date.now()));
@@ -32059,7 +32123,8 @@ function KameraKachel(props){
       if(bm==='mjpeg'||bm==='snapshot'){
         fehlerRef.current=0;
         setBild({modus:bm,url:bm==='mjpeg'?a.mjpegUrl:a.snapshotUrl});
-        setSt({phase:'live',grund:''});
+        if(bm==='mjpeg'){mjNeu(a.mjpegUrl);setSt({phase:'laedt',grund:'laedt'});}
+        else setSt({phase:'live',grund:''});
         if(bm==='snapshot')takten();
         planen(a.exp,bm);
         return;
@@ -32091,26 +32156,27 @@ function KameraKachel(props){
     }
     setSt({phase:'laedt',grund:'laedt'});
     setBild({modus:'',url:''});
+    mjStopp();setMj(function(m){return (m.an||m.neu)?{an:null,neu:null}:m;});
     start();
-    return function(){alive=false;schliessen();if(io){try{io.disconnect();}catch(_d){}}};
+    return function(){alive=false;schliessen();mjStopp();if(io){try{io.disconnect();}catch(_d){}}};
   },[k.id,props.geraet,neu,aktiv]);
   var live=st.phase==='live';
   var mitBild=live&&!!bild.url;
   var _bildFehler=function(){
     fehlerRef.current++;
-    /* MJPEG bricht ab = Kamera weg; Einzelbild: erst nach drei Fehlschlaegen in Folge */
-    if(bild.modus==='mjpeg'||fehlerRef.current>=3){
-      if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}
-      setBild({modus:'',url:''});setSt({phase:'stub',grund:'offline'});
-      /* v3.9.1083: ein Bild-Element verraet nicht, WARUM es scheitert. Antwortet der Kamera-Server selbst nicht (Zertifikat,
-         nicht im Buero-Netz, Browser-Freigabe fuer das lokale Netz), zeigt die Kachel das statt "Kamera nicht erreichbar". */
-      var gb=_kamGatewayBasis(bild.url);
-      if(gb)_kamBueroPruefen(gb).then(function(r){
-        /* v3.9.1088: dieselbe Diagnose wie in der Einrichtung - gesperrte bzw. offene Browser-Freigabe eigens benennen */
-        var g=_kamGatewayGrund(r);
-        if(g)setSt(function(s){return (s.phase==='stub'&&s.grund==='offline')?{phase:'stub',grund:g}:s;});});
-    }
+    /* Einzelbild: erst nach drei Fehlschlaegen in Folge (MJPEG: mjFehl/mjAbbruch mit Wiederholung) */
+    if(fehlerRef.current>=3)kachelWeg(bild.url);
   };
+  /* MJPEG-Anlauf: kein erstes Bild in KAMERA_MJPEG_START_MS = Fehlversuch. Erstes Bild = onload ODER das Bild hat Masse
+     (alle 500 ms geprueft - nicht jeder Browser meldet onload fuer einen MJPEG-Strom). */
+  var mjNeuK=mj.neu?mj.neu.k:'';
+  _react.useEffect.call(void 0,function(){
+    var e=mj.neu;if(!e)return undefined;
+    function hatBild(){var el=mjImgRef.current;return !!(el&&el.naturalWidth>0);}
+    var p=setInterval(function(){if(hatBild())mjDa(e.k);},500);
+    var t=setTimeout(function(){if(hatBild())mjDa(e.k);else mjFehl(e.k,e.u);},KAMERA_MJPEG_START_MS);
+    return function(){clearTimeout(t);clearInterval(p);};
+  },[mjNeuK]);
   _react.useEffect.call(void 0,function(){
     if(bild.modus!=='snapshot'||!bild.url){setZeigeSnap('');return function(){};}
     var lebt=true;var ziel=_kamSnapshotUrl(bild.url,takt);
@@ -32126,9 +32192,14 @@ function KameraKachel(props){
     ,h('div',{ref:boxRef,style:{position:'relative',width:'100%',aspectRatio:'16 / 9',background:'#0b0d0c'}}
       ,h('video',{ref:vidRef,muted:true,playsInline:true,autoPlay:true,'aria-label':'Live-Bild '+(k.name||''),
           style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:(live&&!mitBild)?'block':'none'}})
-      ,(mitBild&&(bild.modus!=='snapshot'||zeigeSnap))?h('img',{src:bild.modus==='snapshot'?zeigeSnap:bild.url,alt:'Live-Bild '+(k.name||''),
+      ,(mitBild&&bild.modus==='snapshot'&&zeigeSnap)?h('img',{src:zeigeSnap,alt:'Live-Bild '+(k.name||''),
           referrerPolicy:'no-referrer',decoding:'async',onLoad:function(){fehlerRef.current=0;},onError:_bildFehler,
           style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block'}}):null
+      ,bild.modus==='mjpeg'?[mj.an,mj.neu].filter(Boolean).map(function(e){var laedt=e===mj.neu;
+          return h('img',{key:e.k,src:e.u,alt:'Live-Bild '+(k.name||''),'data-kam-mjpeg':laedt?'anlauf':'an',ref:laedt?mjImgRef:undefined,
+            referrerPolicy:'no-referrer',decoding:'async',onLoad:laedt?function(){mjDa(e.k);}:undefined,
+            onError:laedt?function(){mjFehl(e.k,e.u);}:function(){mjAbbruch(e.u);},
+            style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block',opacity:laedt?0:1}});}):null
       ,live?null:h('div',{role:'status',style:{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:10,textAlign:'center',color:'#E6EAE7'}}
         ,h('span',{style:{opacity:.8}},_ik('videokamera',28))
         ,h('span',{style:{fontSize:UI.fKlein,fontWeight:600}},KAMERA_STUB_TXT[st.grund]||KAMERA_STUB_TXT.fehler)
@@ -32139,7 +32210,7 @@ function KameraKachel(props){
       ,h('div',{style:{flex:'1 1 auto',minWidth:0}}
         ,h('div',{style:{fontSize:UI.fKlein,fontWeight:700,color:UI.tinte,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},k.name||'Kamera')
         ,k.standort?h('div',{style:{fontSize:UI.fMeta,color:UI.grau,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},k.standort):null)
-      ,_kamStatusChip(h,_kamStatus(st.phase,st.grund))
+      ,_kamStatusChip(h,(st.phase==='live'&&st.grund==='wartet')?'verbindet':_kamStatus(st.phase,st.grund))
       ,props.onGross?h('button',{type:'button',onClick:props.onGross,'aria-label':'Nur diese Kamera zeigen',title:'Einzeln zeigen',style:{...bsS(),padding:'6px 12px',minHeight:44}},'Einzeln'):null
       ,props.onVoll?h('button',{type:'button',onClick:props.onVoll,'aria-label':'Vollbild '+(k.name||''),title:'Vollbild',style:{...bsS(),padding:'6px 10px',minHeight:44,minWidth:44}},_ik('vollbild',18)):null));
 }
