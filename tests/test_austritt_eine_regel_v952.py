@@ -19,7 +19,7 @@ DIE EINORDNUNG ALLER 22 ZUGRIFFE - keiner fehlt
 ───────────────────────────────────────────────
 DATEN (bleiben, sie bilden das Feld ab):
     _mapWorker        Serverfeld -> Objekt
-    App               Saat-Nutzlast
+    App               Saat-Nutzlast (seit v3.9.1120 entfernt - der Seed existiert nicht mehr)
     MitarbeiterView   Anlegen (lokal und Warteschlange), Datumsfeld
 ANZEIGE (bleiben, sie zeigen das Datum oder faerben danach):
     MitarbeiterView   "Ausgetreten <Datum>" - die Bedingung davor ist bereits
@@ -75,7 +75,7 @@ def _code_feld(roh):
 ERLAUBT = {
     # DATEN
     '.austritt||"",stundensatz:parseFlo': "DATEN _mapWorker: Serverfeld -> Objekt",
-    '.austritt,active:1}));}catch(e){co': "DATEN App: Saat-Nutzlast",
+    # v3.9.1120: Eintrag "DATEN App: Saat-Nutzlast" entfernt - der MONT->workers-Seed ist samt Nutzlast weg.
     '.austritt||""}]);     setMonteurP': "DATEN MitarbeiterView: Anlegen, lokal",
     '.austritt||""}});     /* 2) Login': "DATEN MitarbeiterView: Anlegen, Warteschlange",
     '.austritt||"", onChange: e=>setNf(': "DATEN MitarbeiterView: Datumsfeld neu",
