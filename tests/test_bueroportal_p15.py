@@ -7,7 +7,10 @@
 - Stempelzeiten im Mitarbeiter-Monat ohne eigene MA-Wahl (Kopf waehlt).
 - Bauwochenbericht im Mitarbeiter-Monat ausgeblendet (nur unter Weiteres); der Export selbst bleibt.
 - Exporte: KEINER entfernt oder umbenannt - die Erzeuger-Funktionen sind byte-gleich zum Stand vor Paket 15
-  (md5 je Funktion, gemessen an feature/kw-auswahl = Paket 14), die Knoepfe stehen alle noch im Code.
+  (md5 je Funktion, gemessen am Stapel-Stand direkt vor Paket 15 = 803a6ce, 3.9.1117; Export-Code dort gleich
+  live 3.9.1113 adbfcf8), die Knoepfe stehen alle noch im Code.
+  25.11.: Pins neu gemessen - die alten stammten vom verworfenen Zweig feature/kw-auswahl 82c622c (mit den
+  abgespaltenen 13b-Exportaenderungen) und passten zu keinem Stand im neuen Stapel.
 """
 import hashlib
 import json
@@ -96,11 +99,11 @@ EXPORTE = {
     "_pzePdf": ("function _pzePdf", "\n}", None),
     "generateBWB": ("  const generateBWB=", "\n  const ", None),
 }
-MD5 = {  # gemessen am Stand vor Paket 15 (feature/kw-auswahl, Paket 14) - vorher == nachher
-    "_pzePdf": "28ce27f39a9ca80a1da2459c9f56ac5a", "exportAllXls": "9fc06b3d1f76a2fa4ed339ffea1fe9a3",
+MD5 = {  # gemessen am Stand vor Paket 15 (803a6ce = 3.9.1117; Export-Code = live 3.9.1113) - vorher == nachher
+    "_pzePdf": "28ce27f39a9ca80a1da2459c9f56ac5a", "exportAllXls": "455bd880ba495ce2b213339f63ae24a9",
     "exportBauwochenbericht": "5f9d538915a4fb03a775d5e3f007621f", "exportMonatPdf": "64b8b5fa3b504d0b17ecfffd3c167885",
-    "exportMonatXls": "bc89976dad783210788e3693e0287a1b", "exportTagesStz": "817a5d0372c98ae173e3d4211d44ff9f",
-    "exportWochenStz": "d26cc4f053fea48a7819e61959523199", "genXls": "3d91fb63551846ec08715ad213381e94",
+    "exportMonatXls": "9da056ce95edf3fb89816f754da83338", "exportTagesStz": "8d9fa729062aa44f9500e87128f74f31",
+    "exportWochenStz": "d26cc4f053fea48a7819e61959523199", "genXls": "8472db9de0084b7a6cdf1a492758c930",
     "generateBWB": "85fd68a888fd0aaca5a390129f5f157c",
 }
 

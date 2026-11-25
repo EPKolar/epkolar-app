@@ -28,7 +28,7 @@ import pytest
 
 WURZEL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GIT = os.environ.get("EPK_P15_GIT", WURZEL)
-VORHER = "bb45370"
+VORHER = "803a6ce"  # Stapel-Stand direkt vor Paket 15 (3.9.1117); vorher bb45370 = verworfener alter Zweig
 UHR = "2026-11-24T10:00:00"
 
 sync_api = pytest.importorskip("playwright.sync_api")
