@@ -80,6 +80,10 @@ window.__exp=[];
   var ac=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){merk(this);if(this.download)return;return ac.apply(this,arguments);};
   var ad=HTMLAnchorElement.prototype.dispatchEvent;HTMLAnchorElement.prototype.dispatchEvent=function(ev){if(this.download&&ev&&ev.type==='click'){merk(this);return true;}return ad.apply(this,arguments);};
   window.print=function(){window.__exp.push({druck:1});};
+  // Flake-Fix 25.11.2026: offene fetch-Abrufe zaehlen, damit die Tests auf "Netz ruhig" warten statt auf feste Zeiten
+  window.__offen=0;var of=window.fetch;
+  window.fetch=function(){window.__offen++;var p;try{p=of.apply(this,arguments);}catch(e){window.__offen--;throw e;}
+    return p.then(function(r){window.__offen--;return r;},function(e){window.__offen--;throw e;});};
 })();
 """
 
@@ -139,6 +143,31 @@ def _vorher_index():
     return r.stdout
 
 
+# Flake-Fix 25.11.2026: der Test scheiterte einmal im vollen Tor (zwei Suite-Haelften parallel, wenig Speicher) und lief
+# allein gruen. Ursache: feste Wartezeiten (wait_for_timeout 300..5000 ms). Ersetzt durch echte Bedingungen mit grossem
+# Zeitrahmen (WARTE_MS); die Zusicherungen sind unveraendert.
+WARTE_MS = 30000
+
+# Ruhe: keine offenen Abrufe und der beobachtete Zustand (DOM-Ausschnitt + Exporte) seit RUHE_MS unveraendert.
+# Ruhe: keine offenen Abrufe und der beobachtete Zustand (DOM-Ausschnitt + Exporte) seit ruhe_ms unveraendert.
+# Gezaehlt in Abfragen (je 100 ms), nicht ueber Date.now - die Seitenuhr steht fest (siehe _seite).
+RUHIG = """([sel, noetig]) => { const w=document.querySelector(sel); const h=(w?w.innerHTML:'-')+'|'+JSON.stringify((window.__exp||[]).map(x=>[x.datei||'',x.druck||0,x.typ||'',x.text==null?-1:x.text.length]));
+  const st=window.__ruhe;
+  if(!st||st.sel!==sel||st.h!==h||window.__offen>0){window.__ruhe={sel:sel,h:h,n:0};return false;}
+  st.n++; return st.n>=noetig; }"""
+
+
+def _ruhig(s, sel="body", ruhe_ms=800):
+    s.evaluate("() => { window.__ruhe = null; }")
+    s.wait_for_function(RUHIG, arg=[sel, max(1, ruhe_ms // 100)], polling=100, timeout=WARTE_MS)
+
+
+SICHTBAR = """(t) => [...document.querySelectorAll('button,[role=tab]')].some(b=>(b.textContent||'').replace(/\\s+/g,' ').trim().indexOf(t)>=0 && b.getBoundingClientRect().height>0)"""
+
+APP_BEREIT = """() => [...document.querySelectorAll('button,[role=tab]')].some(b=>(b.textContent||'').indexOf('Büro-Portal')>=0 && b.getBoundingClientRect().height>0)
+  || [...document.querySelectorAll('button[aria-label]')].some(x=>/Menü|Menu|Mehr/i.test(x.getAttribute('aria-label')) && x.getBoundingClientRect().height>0)"""
+
+
 def _seite(browser, url, body, breite=1366, hoehe=900):
     log = {"schreib": [], "fehler": []}
 
@@ -164,11 +193,14 @@ def _seite(browser, url, body, breite=1366, hoehe=900):
     ctx.route("**/*", weiter)
     ctx.route("**/index.html", lambda r: r.fulfill(status=200, content_type="text/html; charset=utf-8", body=body))
     s = ctx.new_page()
-    s.clock.install(time=UHR)
-    s.clock.resume()
+    # Flake-Fix 25.11.2026: Uhr FEST statt laufend. Einige Exporte schreiben "erstellt am <Datum Uhrzeit:Sekunde>";
+    # mit laufender Uhr hing der Vergleich vorher/nachher davon ab, dass beide Laeufe gleich lange brauchen
+    # (unter Last nicht der Fall). set_fixed_time haelt Date fest, Zeitgeber (setTimeout/Intervalle) laufen normal.
+    s.clock.set_fixed_time(UHR)
     s.on("pageerror", lambda e: log["fehler"].append(str(e)[:200]))
     s.goto(url, wait_until="domcontentloaded")
-    s.wait_for_timeout(5000)
+    s.wait_for_function(APP_BEREIT, polling=100, timeout=WARTE_MS)  # App gerendert (Navigation sichtbar)
+    _ruhig(s)  # Erst-Abgleich: alle Abrufe beantwortet, Oberflaeche steht
     return ctx, s, log
 
 
@@ -185,16 +217,23 @@ WAHL = """(nm) => { const sel=document.querySelector('[data-bx-kopfleiste] selec
 MENUE = """() => { const b=[...document.querySelectorAll('button[aria-label]')].find(x=>/Menü|Menu|Mehr/i.test(x.getAttribute('aria-label')) && x.getBoundingClientRect().height>0); if(b){b.click();return true;} return false; }"""
 
 
+PERSON_WAEHLBAR = """(nm) => { const sel=document.querySelector('[data-bx-kopfleiste] select'); return !!sel && [...sel.options].some(x=>x.textContent.indexOf(nm)===0); }"""
+PERSON_GEWAEHLT = """(v) => { const sel=document.querySelector('[data-bx-kopfleiste] select'); return !!sel && sel.value===v; }"""
+
+
 def _mamonat(s, name):
     if not s.evaluate(NAV, "Büro-Portal"):
         s.evaluate(MENUE)  # Handy: Buero-Portal steht im Menue
-        s.wait_for_timeout(800)
+        s.wait_for_function(SICHTBAR, arg="Büro-Portal", polling=100, timeout=WARTE_MS)
         assert s.evaluate(NAV, "Büro-Portal"), "Buero-Portal nicht erreichbar"
-    s.wait_for_timeout(2000)
-    s.evaluate(WAHL, name)
-    s.wait_for_timeout(300)
+    s.wait_for_function(PERSON_WAEHLBAR, arg=name, polling=100, timeout=WARTE_MS)  # Kopfleiste mit Personenliste geladen
+    _ruhig(s)
+    v = s.evaluate(WAHL, name)
+    s.wait_for_function(PERSON_GEWAEHLT, arg=v, polling=100, timeout=WARTE_MS)
+    s.wait_for_function(SICHTBAR, arg="Mitarbeiter-Monat", polling=100, timeout=WARTE_MS)
     s.evaluate(NAV, "Mitarbeiter-Monat")
-    s.wait_for_timeout(5000)
+    s.wait_for_selector("[data-bx-mamonat]", state="attached", timeout=WARTE_MS)
+    _ruhig(s, "[data-bx-mamonat]", 1000)  # Abschnitte (Stunden, Zulagen, Stempel) fertig geladen
 
 
 # Exportwege im Mitarbeiter-Monat: (Beschriftung, Index unter gleich beschrifteten Knoepfen im Abschnitt)
@@ -211,10 +250,19 @@ BESTAETIGEN = """() => { const b=[...document.querySelectorAll('button')].find(x
   if(b){b.click();return true;} return false; }"""
 
 
+DIALOG_DA = """() => [...document.querySelectorAll('button')].some(x=>/Excel exportieren|exportieren$/.test((x.textContent||'').trim()) && x.getBoundingClientRect().height>0 && !x.closest('[data-bx-mamonat]'))"""
+ERSTER_SCHRITT = "() => window.__exp.length>0 || (" + DIALOG_DA + ")()"
+
+
 def _ernte(s):
-    s.wait_for_timeout(1000)
-    s.evaluate(BESTAETIGEN)  # Vorschau-Dialog (Uebersicht Excel): unveraendert bestaetigen
-    s.wait_for_timeout(2500)
+    # Export hat etwas geliefert ODER der Vorschau-Dialog steht
+    s.wait_for_function(ERSTER_SCHRITT, polling=100, timeout=WARTE_MS)
+    if s.evaluate(DIALOG_DA):
+        s.evaluate(BESTAETIGEN)  # Vorschau-Dialog (Uebersicht Excel): unveraendert bestaetigen
+        s.wait_for_function("() => window.__exp.length>0", polling=100, timeout=WARTE_MS)
+    # alle Blob-Inhalte gelesen, keine offenen Abrufe, keine weiteren Exporte mehr
+    s.wait_for_function("() => window.__exp.every(x=>!x.typ || x.text!=null)", polling=100, timeout=WARTE_MS)
+    _ruhig(s, "body", 1000)
     return s.evaluate("() => window.__exp.map(x=>({datei:x.datei||null, druck:x.druck||0, typ:x.typ||null, text:x.text==null?null:x.text}))")
 
 
