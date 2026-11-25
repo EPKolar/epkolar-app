@@ -114,7 +114,8 @@ def _messe(html, node_exe, tmp_path, name, ersetze=None):
 @pytest.fixture(scope="module")
 def fv(index_html):
     a = index_html.index("function FahrzeugView(")
-    b = index_html.index("\nconst DEMO_FZ=[", a)
+    # Endmarke angepasst 25.11.2026 (v3.9.1120): DEMO_FZ (stand direkt hinter FahrzeugView) ist entfernt.
+    b = index_html.index("\n/* ═══════════ GEFAHRSTOFFE / SICHERHEITSDATENBL", a)
     return index_html[a:b]
 
 

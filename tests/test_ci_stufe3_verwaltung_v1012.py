@@ -45,7 +45,9 @@ BEREICHE = [
     ("Einstellungen", "\nfunction VerbindungView(", "\nfunction SmokeTestPanel("),
     ("Auswertungen", "\nfunction AuswertungView(", "\nfunction ZeiterfassungView("),
     ("Flotte", "\nfunction FlotteView(", "\nfunction FahrzeugView("),
-    ("Fahrzeuge", "\nfunction FahrzeugView(", "\nconst DEMO_FZ=["),
+    # Endmarke angepasst 25.11.2026 (v3.9.1120): DEMO_FZ (stand direkt hinter FahrzeugView) ist entfernt -
+    # der Bereich endet jetzt am naechsten Abschnittskopf. Inhalt des Bereichs unveraendert.
+    ("Fahrzeuge", "\nfunction FahrzeugView(", "\n/* ═══════════ GEFAHRSTOFFE / SICHERHEITSDATENBL"),
     ("Gefahrenstoffe", "\nfunction VGefahrstoff(", "\nfunction BauprovisorienView("),
     ("Bauprovisorien", "\nfunction BauprovisorienView(", "\nfunction WerkzeugView("),
     ("Werkzeuge", "\nfunction WerkzeugView(", "\nvar App=exports.default"),
