@@ -284,7 +284,7 @@ UNBERUEHRT = [
     # Dialog: Von/Bis/Pause/Stunden mit 5-Min-Rundung (_zeitRundVon/_zeitRundBis) und Pausenabzug
     # v3.9.1093: Stundenfeld text statt number (ZahlEingabe, gelesen ueber _fzZahl) - bewusst neu gehasht.
     # Die Aenderung im Block ist GENAU diese Ersetzung: test_dialog_rueckbau_ergibt_alten_hash belegt es.
-    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "aebe5ef378de1d1c4d54b5fb3f6d4bb8"),  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Stundenfeld ZahlEingabe stunden:true (ohne Fokus 9,50) - Rueckbau in test_dialog_rueckbau_ergibt_alten_hash - vorher 692eefd1afb392a77bdc07ce3ae18b49 | v3.9.1110: Uhrzeit step 900, Pause waehlen, Vorschau exakt - vorher ed4a6fa584c0ffbb9ad0d529ffb9e98a
+    ("React.createElement('label',{style:LL()},\"Von\"),", "\"Mittagspause: 12:00", "4c8f35ea21ee77c15716d66164b9b675"),  # v3.9.1124 GF 26.11.2026: Von/Bis ueber ViertelZeitWahl statt Geraete-Uhr (type=time) - Pin bewusst nachgezogen; einzige Aenderung im Block ist der Feldtausch, test_dialog_rueckbau_ergibt_alten_hash belegt es - vorher aebe5ef378de1d1c4d54b5fb3f6d4bb8 | Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Stundenfeld ZahlEingabe stunden:true (ohne Fokus 9,50) - Rueckbau in test_dialog_rueckbau_ergibt_alten_hash - vorher 692eefd1afb392a77bdc07ce3ae18b49 | v3.9.1110: Uhrzeit step 900, Pause waehlen, Vorschau exakt - vorher ed4a6fa584c0ffbb9ad0d529ffb9e98a
     # Stunden-Anzeige auf der Karte (Leer-/Komma-Schutz, test_zeit_lohn_v885)
     ("React.createElement('input',{type:\"text\",readOnly:true,tabIndex:-1,\"aria-label\":\"Stunden, ändern über Bearbeiten\"",
      "React.createElement('span',{style:{fontSize:UI.fMeta,color:V.dm,fontWeight:600}},\"h\"))", "750998533ffe43f76063114a74f80250"),
@@ -309,6 +309,9 @@ def test_rechnung_und_speichern_byte_gleich(roh):
 
 def test_dialog_rueckbau_ergibt_alten_hash(roh):
     """v3.9.1093: dreht man NUR die Feld-Umstellung zurueck, ist der Dialog-Block byte-gleich mit v3.9.1074."""
+    # v3.9.1124: zuerst den Feldtausch Geraete-Uhr -> ViertelZeitWahl zurueckdrehen (GF 26.11.2026)
+    roh = roh.replace('React.createElement(ViertelZeitWahl,{feld:"Von",isMob:isMob,value:addVon,', 'React.createElement(\'input\',{type:"time",step:900,value:addVon,')
+    roh = roh.replace('React.createElement(ViertelZeitWahl,{feld:"Bis",gegenVon:addVon,isMob:isMob,value:addBis,', 'React.createElement(\'input\',{type:"time",step:900,value:addBis,')
     rev = roh.replace("ZahlEingabe,{stunden:true,inputMode", "ZahlEingabe,{inputMode")  # Paket 13 (GF 24.11.2026): Stunden-Anzeige zentral ueber fmtStd (genau zwei Nachkommastellen, Komma, leer bleibt leer) - Pin bewusst nachgezogen: Stunden-Formatierung ohne Fokus zuerst zurueck
     rev = rev.replace("React.createElement(ZahlEingabe,{inputMode:\"decimal\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?",
                       "React.createElement('input',{type:\"number\", inputMode:\"decimal\",step:\"0.5\",min:\"0\",max:\"24\",value:(_zeitEffektiveStunden(addVon,addBis,addPause)!=null?")
