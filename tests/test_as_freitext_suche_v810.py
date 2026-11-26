@@ -33,7 +33,7 @@ def test_haystack_v810_sb_und_monteur_static(index_html):
     # Projekt-Verbot optional chaining nicht eingeschleppt.
     assert "?." not in line, "optional chaining im Haystack (Projekt-Verbot)"
     # monteure in den useMemo-Deps.
-    assert "[arbeitsscheine,monteure,isMonteurRole,isAdmin,curUser.monteurId,filterStatus,filterArt,filterMonteur,filterSB,search,quickFilter,_todayStr]" in index_html, "monteure fehlt in den useMemo-Deps"
+    assert "[_asSicht,monteure,isMonteurRole,isAdmin,curUser.monteurId,filterStatus,filterArt,filterMonteur,filterSB,search,quickFilter,_todayStr]" in index_html, "monteure fehlt in den useMemo-Deps"
 
 
 def test_suche_trifft_prio_typ_sb_monteur(node_exe, index_html):

@@ -60,9 +60,9 @@ def _zeile(src, name):
 def _teile(src):
     m = re.search(r"const exportOffa=(\(statusFilter\)=>\{.*?\n  \});", src, re.S)
     assert m, "exportOffa-Anker veraltet"
-    a0 = "const filtered=_react.useMemo.call(void 0, ()=>arbeitsscheine.filter("
+    a0 = "const filtered=_react.useMemo.call(void 0, ()=>_asSicht.filter("  # v1126: Liste = _asFuerRolle(arbeitsscheine) (fuer Admin/Buero/PL identisch)
     a = src.index(a0) + len(a0)
-    flt = src[a:src.index("),[arbeitsscheine,monteure,isMonteurRole", a)]
+    flt = src[a:src.index("),[_asSicht,monteure,isMonteurRole", a)]
     s0 = "const sorted=_react.useMemo.call(void 0, ()=>[...filtered].sort("
     s = src.index(s0) + len(s0)
     srt = src[s:src.index("),[filtered,sortCol", s)]

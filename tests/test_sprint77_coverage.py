@@ -97,7 +97,7 @@ def test_visibleAS_useMemo_present(index_html):
     assert "useMemo" in line, "_visibleAS must use useMemo"
     assert "_hvIsField" in line, "_visibleAS must check _hvIsField (monteur role)"
     assert "_hvMid" in line, "_visibleAS must filter by monteurId (_hvMid)"
-    assert "arbeitsscheine.filter" in line, "_visibleAS must filter arbeitsscheine"
+    assert "_asFuerRolle(arbeitsscheine,curUser.role).filter" in line, "_visibleAS must filter arbeitsscheine (v1126: ueber die Rollen-Sicht)"
 
 
 def test_visibleAS_monteur_filter_exact(index_html):

@@ -99,7 +99,7 @@ def test_die_reiterleiste_bleibt_unveraendert(index_html):
 # ══ 2 - Die Scheinauswahl ═══════════════════════════════════════════════════
 
 def test_die_eigenen_scheine_kommen_zuerst(index_html):
-    assert 'var _mine=(arbeitsscheine||[]).filter(function(a){return a&&(!selWorker||a.monteur===selWorker);});' in index_html, (
+    assert 'var _mine=_zeAs.filter(function(a){return a&&(!selWorker||a.monteur===selWorker);});' in index_html, (  # v1126: _zeAs = Auswahl ohne erledigte/abgerechnete fuer Feldrollen
         "Die Scheinauswahl sortiert die eigenen nicht mehr nach vorn - dann kann "
         "der eigene offene Schein wieder ausserhalb der Kappung liegen."
     )

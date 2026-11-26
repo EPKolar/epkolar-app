@@ -34,7 +34,7 @@ def test_bisherige_zweige_unveraendert(index_html):
 
 def test_sorted_ist_die_bildschirmliste(index_html):
     # dieselbe Liste, deren Laenge die Seite als "n von m Arbeitsscheine" zeigt
-    assert 'sorted.length, " von "  , arbeitsscheine.length, " Arbeitsscheine"' in index_html
+    assert 'sorted.length, " von "  , _asSicht.length, " Arbeitsscheine"' in index_html  # v1126: _asSicht = Rollen-Sicht der Liste
     i = index_html.index("const sorted=_react.useMemo.call(void 0, ()=>[...filtered].sort(")
     assert i < index_html.index("const exportOffa=(statusFilter)=>{")
 

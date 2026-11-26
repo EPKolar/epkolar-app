@@ -133,7 +133,7 @@ def _bereiche(src):
     b = src.index("function ArbeitsscheinView(")
     # Druckvorlage (genAsPdf) liegt dazwischen und ist kein Bildschirm-Layout
     g0 = src.index("const genAsPdf=", b)
-    g1 = src.index("const stats=_react.useMemo.call(void 0, ()=>arbeitsscheine.reduce(", g0)
+    g1 = src.index("const stats=_react.useMemo.call(void 0, ()=>_asSicht.reduce(", g0)  # v1126
     ende = src.index("\nfunction ", g1)
     return {"DispoPanel": src[a:b], "ArbeitsscheinView": src[b:g0] + src[g1:ende]}
 
