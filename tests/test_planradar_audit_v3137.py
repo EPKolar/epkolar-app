@@ -48,4 +48,5 @@ def test_sync_tier_functional(index_html):
     assert "const [_pendingTicketIds,_setPendingTicketIds]=_react.useState.call(void 0, ()=>new Set());" in index_html
     assert "pendingIds: _pendingTicketIds," in index_html
     # v3.9.184: Signatur um Pin-Drag-Props erweitert (draggable, pctFromClient, onPinMove)
-    assert "function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure, zoom, pendingIds, draggable, pctFromClient, onPinMove})" in index_html
+    # v3.9.1125: + gesperrt (gesetzter Pin, Rolle darf nicht verschieben -> Hinweis statt Ziehen)
+    assert "function PlanCanvasPinMarker({ticket, idx, isSelected, xPct, yPct, onClick, layers, monteure, zoom, pendingIds, draggable, pctFromClient, onPinMove, gesperrt})" in index_html
