@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""v3.9.1126 Arbeitsscheine: Sicht der Feldrollen auf erledigte und abgerechnete Scheine - EIN Schalter.
+"""v3.9.1126 Arbeitsscheine: Sicht der Feldrollen auf abgeschlossene Scheine - EIN Schalter, ausgeliefert "eingeklappt".
+
+GF-Entscheidung 26.11. (C:/repos/epk-overnight-ENTSCHEIDUNGEN.md): Stellung EINGEKLAPPT, Bereich "Erledigt (n)"
+am Ende der Liste, zugeklappt; Monteur, Helfer, Techniker, Obermonteur; storniert und bar bezahlt ebenfalls im
+Bereich, je Karte am Status erkennbar; im Bereich bleibt alles wie heute bedienbar; in der Schein-Auswahl der
+Zeiterfassung bleibt ein abgeschlossener Schein auffindbar (Gruppe "Erledigt (n)" am Ende); Suche findet ihn.
+Die anderen Varianten bleiben ueber den Schalter erreichbar und getestet.
 
 GF 26.11. abends (woertlich): "erledigte und abgerechnete as soll der monteur nicht mehr sehen".
 GF-Nachtrag: das WIE entscheidet er selbst. Darum ein Schalter AS_FELD_SICHT={modus,tage}:
@@ -28,7 +34,7 @@ import pytest
 
 WURZEL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HTML = os.path.join(WURZEL, "index.html")
-SCHALTER = 'const AS_FELD_SICHT={modus:"alle",tage:7};'
+SCHALTER = 'const AS_FELD_SICHT={modus:"eingeklappt",tage:7};'
 
 ROLLEN_ALLE = ["admin", "buero", "projektleiter"]
 ROLLEN_FELD = ["monteur", "techniker", "helfer", "obermonteur"]
@@ -54,7 +60,7 @@ def _neutralisiert(s):
     return s.replace(alt2, 'function _asFeldSichtbar(a,role){return true;}')
 
 
-def test_standard_ist_alle():
+def test_ausgeliefert_ist_eingeklappt():
     assert _html().count(SCHALTER) == 1
 
 
@@ -78,10 +84,10 @@ ALLE_IDS = [f[0] for f in FAELLE]
 ERWARTET_FELD = {
     "alle": ALLE_IDS,
     "sofort": ["auf", "frei", "bearb", "aufg", "bar", "storno"],
-    "eingeklappt": ["auf", "frei", "bearb", "aufg", "bar", "storno"],
+    "eingeklappt": ["auf", "frei", "bearb", "aufg"],
     "nach_tagen": ["auf", "frei", "bearb", "aufg", "erl_neu", "erl_absch", "bar", "storno"],
 }
-ERWARTET_EKL = {"alle": [], "sofort": [], "nach_tagen": [], "eingeklappt": ["erl_neu", "erl_alt", "erl_absch", "erl_ohne", "abger"]}
+ERWARTET_EKL = {"alle": [], "sofort": [], "nach_tagen": [], "eingeklappt": ["erl_neu", "erl_alt", "erl_absch", "erl_ohne", "abger", "bar", "storno"]}
 
 
 def _helfer_js(s):
@@ -117,7 +123,7 @@ def _pruefe(m, modus):
         else:
             assert m[r]["einzel"] == ERWARTET_FELD[modus], (modus, r, m[r])
         assert m[r]["ekl"] == ERWARTET_EKL[modus], (modus, r, m[r])
-        verb = {"alle": set(), "sofort": {"erledigt", "abgerechnet"}, "eingeklappt": {"erledigt", "abgerechnet"},
+        verb = {"alle": set(), "sofort": {"erledigt", "abgerechnet"}, "eingeklappt": {"erledigt", "abgerechnet", "bar_bezahlt", "storniert"},
                 "nach_tagen": {"abgerechnet"}}[modus]
         assert m[r]["status"] == [st for st in STATUS if st not in verb], (modus, r, m[r])
     assert m["_leer"] == 0
@@ -143,10 +149,10 @@ def test_umkehrprobe_helfer_neutralisiert_ist_rot():
 def test_helfer_wird_an_allen_anzeigestellen_benutzt():
     s = _html()
     assert s.count("_asFuerRolle(arbeitsscheine,curUser.role)") == 2  # ArbeitsscheinView + Home
-    assert s.count("_asFuerRolle(arbeitsscheine,curUser&&curUser.role)") == 1  # globale Suche
+    assert s.count("_asAuffindbar(arbeitsscheine,curUser&&curUser.role)") == 1  # globale Suche: eingeklappt = auffindbar
     assert "const filtered=_react.useMemo.call(void 0, ()=>_asSicht.filter(" in s
     assert "const calAs=_react.useMemo.call(void 0, ()=>_asSicht.filter(" in s
-    assert "a.id===addId||_asFeldSichtbar(a,curUser&&curUser.role)" in s
+    assert "(a.id===addId&&!_asEingeklappt([a],curUser&&curUser.role).length)||_asFeldSichtbar(a,curUser&&curUser.role)" in s
     # Beschriftung der Stundeneintraege + Speichern lesen die VOLLE Liste
     assert "const schein=asId?arbeitsscheine.find(s=>s.id===asId):null;" in s
     assert 'const s=arbeitsscheine.find(x=>x.id===addId);if(s){label=s.nummer+" — "+(s.kundName||"");asId=s.id;}' in s
@@ -157,7 +163,7 @@ def test_helfer_wird_an_allen_anzeigestellen_benutzt():
 sync_api = pytest.importorskip("playwright.sync_api")
 
 UHR = "2026-11-23T09:00:00"  # Montag
-ST_DATEN = ["aufgenommen", "freigegeben", "in_bearbeitung", "aufgeschoben", "erledigt", "abgerechnet", "erledigt", "abgerechnet", "storniert", "in_bearbeitung"]
+ST_DATEN = ["aufgenommen", "freigegeben", "in_bearbeitung", "aufgeschoben", "erledigt", "abgerechnet", "erledigt", "abgerechnet", "storniert", "in_bearbeitung", "bar_bezahlt"]
 SYNC = {4: "2026-11-21T10:00:00Z", 6: "2026-10-20T10:00:00Z"}  # S079004 frisch erledigt, S079006 alt erledigt
 SCHEINE = [{"id": "A%d" % k, "nummer": "S0790%02d" % k, "kund_name": "Testkunde %d" % k, "arbeitsort": "Musterweg %d, 3500 Krems" % k,
             "monteur": "w1", "scheinstatus": st, "prioritaet": "normal", "push_pending": False, "juprowa_id": 500 + k,
@@ -168,6 +174,8 @@ NR_ALLE = sorted(x["nummer"] for x in SCHEINE)
 NR_FERTIG = sorted(x["nummer"] for x in SCHEINE if x["scheinstatus"] in ("erledigt", "abgerechnet"))
 NR_SOFORT = sorted(x["nummer"] for x in SCHEINE if x["scheinstatus"] not in ("erledigt", "abgerechnet"))
 NR_NACH_TAGEN = sorted(NR_SOFORT + ["S079004"])
+NR_EKL = sorted(x["nummer"] for x in SCHEINE if x["scheinstatus"] not in ("aufgenommen", "freigegeben", "in_bearbeitung", "aufgeschoben"))
+NR_OFFEN = sorted(x["nummer"] for x in SCHEINE if x["nummer"] not in NR_EKL)
 WORKERS = [{"id": "w1", "name": "Max Mustermann", "role": "Monteur"}]
 EINTRAG = {"id": "e1", "worker_id": "w1", "date": "2026-11-23", "arbeitsschein_id": "A5", "hours": 2,
            "von": "07:00", "bis": "09:00", "pause": 0, "taetigkeit": "Montage"}  # auf einem ABGERECHNETEN Schein
@@ -250,18 +258,27 @@ NAV = """(w) => { const v = b => b.getBoundingClientRect().height > 0;
   const t = [...document.querySelectorAll('button')].filter(b => (b.textContent || '').trim() === w && v(b));
   if (t.length) { t[0].click(); return 'text'; } return 'nicht-gefunden'; }"""
 
-# "x von y Arbeitsscheine"; Nummern ausserhalb des eingeklappten Abschnitts; Zustand des Abschnitts
 LISTE = """() => { const t = document.body.innerText; const m = t.match(/(\\d+) von (\\d+) Arbeitsscheine/);
   const ekl = document.querySelector('[data-as-eingeklappt]');
   const alle = [...new Set((document.body.textContent.match(/S0790\\d\\d/g) || []))];
   const inEkl = ekl ? [...new Set((ekl.textContent.match(/S0790\\d\\d/g) || []))] : [];
+  const st = {}; document.querySelectorAll('[data-as-ekl-nr]').forEach(b => { const x = b.querySelector('[data-as-ekl-status]'); st[b.getAttribute('data-as-ekl-nr')] = x ? (x.getAttribute('data-as-ekl-status') + '|' + x.textContent.trim()) : ''; });
   return {von: m ? +m[1] : -1, gesamt: m ? +m[2] : -1, nr: alle.filter(n => inEkl.indexOf(n) < 0).sort(),
           ekl: ekl ? ekl.getAttribute('data-as-eingeklappt') : null, eklText: ekl ? ekl.innerText : '',
-          eklNr: [...document.querySelectorAll('[data-as-ekl-nr]')].map(b => b.getAttribute('data-as-ekl-nr')).sort(),
+          eklNr: [...document.querySelectorAll('[data-as-ekl-nr]')].map(b => b.getAttribute('data-as-ekl-nr')).sort(), eklStatus: st,
           erledigtChip: [...document.querySelectorAll('button')].some(b => (b.textContent || '').trim() === 'Erledigt')}; }"""
 
+# Maske nach dem Oeffnen: dieselben Bedienelemente wie beim Oeffnen aus der normalen Liste
+MASKE = """() => { const t = document.body.innerText;
+  const ta = [...document.querySelectorAll('textarea')].filter(x => x.getBoundingClientRect().height > 0);
+  return {offen: [...document.querySelectorAll('input,textarea')].some(i => i.value === 'Testkunde 5') && (t.indexOf('abgeschlossen') >= 0 || ta.length > 0),
+          banner: t.indexOf('Dieser Schein ist abgeschlossen') >= 0,
+          textFrei: ta.filter(x => !x.disabled).length, textGesperrt: ta.filter(x => x.disabled).length,
+          material: /Material/.test(t), datei: document.querySelectorAll('input[type=file]').length,
+          speichern: [...document.querySelectorAll('button')].some(b => /speichern/i.test(b.textContent || ''))}; }"""
 
-def _liste(browser, server, rolle, index_body=None, aufklappen=False):
+
+def _liste(browser, server, rolle, index_body=None, aufklappen=False, oeffne=None):
     ctx, s, fehler, schreib = _seite(browser, server, rolle, index_body)
     try:
         assert s.evaluate(NAV, "Arbeitsscheine") != "nicht-gefunden"
@@ -271,9 +288,16 @@ def _liste(browser, server, rolle, index_body=None, aufklappen=False):
             s.evaluate("() => document.querySelector('[data-as-eingeklappt] button').click()")
             s.wait_for_timeout(500)
             r["auf"] = s.evaluate(LISTE)
+        if oeffne == "abschnitt":
             s.evaluate("() => document.querySelector('[data-as-ekl-nr=\"S079005\"]').click()")
-            s.wait_for_timeout(800)
-            r["formular"] = s.evaluate("() => document.body.innerText.indexOf('abgeschlossen') >= 0")
+            s.wait_for_timeout(900)
+            r["maske"] = s.evaluate(MASKE)
+        elif oeffne == "liste":  # Vergleich: derselbe Schein aus der normalen Liste (Variante alle)
+            s.evaluate("""() => { const k = [...document.querySelectorAll('*')].find(e => e.children.length === 0 && (e.textContent || '').trim() === 'S079005');
+              let c = k; while (c && !(c.querySelector && [...c.querySelectorAll('button')].some(b => (b.textContent || '').trim() === 'Bearbeiten'))) c = c.parentElement;
+              [...c.querySelectorAll('button')].find(b => (b.textContent || '').trim() === 'Bearbeiten').click(); }""")
+            s.wait_for_timeout(900)
+            r["maske"] = s.evaluate(MASKE)
         r["fehler"] = fehler
         r["schreib"] = schreib
         return r
@@ -281,8 +305,57 @@ def _liste(browser, server, rolle, index_body=None, aufklappen=False):
         ctx.close()
 
 
-def test_standard_monteur_sieht_alles_wie_bisher(browser, server):
-    r = _liste(browser, server, "monteur")
+def test_ausgeliefert_monteur_liste_eingeklappt(browser, server):
+    r = _liste(browser, server, "monteur", aufklappen=True)
+    assert r["fehler"] == [] and r["schreib"] == [], r
+    assert r["gesamt"] == len(NR_OFFEN) and r["von"] == len(NR_OFFEN), r
+    assert r["nr"] == NR_OFFEN, r["nr"]
+    assert r["ekl"] == "zu" and "Erledigt (%d)" % len(NR_EKL) in r["eklText"] and r["eklNr"] == [], r
+    assert r["erledigtChip"] is False, r
+    a = r["auf"]
+    assert a["ekl"] == "auf" and a["eklNr"] == NR_EKL, a
+    for x in SCHEINE:  # jede Karte traegt ihren Status als Abzeichen
+        if x["nummer"] in NR_EKL:
+            assert a["eklStatus"][x["nummer"]].split("|")[0] == x["scheinstatus"], (x["nummer"], a["eklStatus"])
+    assert {v.split("|")[1] for v in a["eklStatus"].values()} == {"erledigt", "abgerechnet", "storniert", "bar bezahlt"}, a["eklStatus"]
+
+
+@pytest.mark.parametrize("rolle", ["techniker", "helfer", "obermonteur"])
+def test_ausgeliefert_andere_feldrollen(browser, server, rolle):
+    r = _liste(browser, server, rolle)
+    assert r["fehler"] == [], r["fehler"]
+    assert r["gesamt"] == len(NR_OFFEN) and r["ekl"] == "zu" and "Erledigt (%d)" % len(NR_EKL) in r["eklText"], r
+
+
+@pytest.mark.parametrize("rolle", ROLLEN_ALLE)
+def test_ausgeliefert_buero_pl_admin_sehen_alles(browser, server, rolle):
+    r = _liste(browser, server, rolle)
+    assert r["fehler"] == [], r["fehler"]
+    assert r["gesamt"] == len(SCHEINE) and r["von"] == len(SCHEINE) and r["ekl"] is None, r
+    assert r["erledigtChip"] is True, r
+
+
+def test_im_bereich_bedienbar_wie_aus_der_liste(browser, server):
+    """GF: im eingeklappten Bereich bleibt alles wie heute bedienbar. Die Maske aus dem Bereich ist dieselbe
+    wie aus der normalen Liste (Variante alle): Sperrhinweis, freie/gesperrte Felder, Material, Foto, Speichern."""
+    neu = _liste(browser, server, "monteur", aufklappen=True, oeffne="abschnitt")
+    alt = _liste(browser, server, "monteur", index_body=_mit_modus(_html(), "alle"), oeffne="liste")
+    assert neu["fehler"] == [] and alt["fehler"] == [], (neu["fehler"], alt["fehler"])
+    assert neu["maske"]["offen"] is True, neu["maske"]
+    assert neu["maske"] == alt["maske"], (neu["maske"], alt["maske"])
+    assert neu["maske"]["textFrei"] > 0 and neu["maske"]["material"] and neu["maske"]["speichern"], neu["maske"]
+
+
+def test_umkehrprobe_bereich_nicht_anklickbar_ist_rot(browser, server):
+    s0 = _html()
+    alt = """onClick: ()=>openEdit(a,"liste"), "data-as-ekl-nr": a.nummer"""
+    assert s0.count(alt) == 1
+    r = _liste(browser, server, "monteur", index_body=s0.replace(alt, '"data-as-ekl-nr": a.nummer'), aufklappen=True, oeffne="abschnitt")
+    assert r["maske"]["offen"] is False, r["maske"]
+
+
+def test_variante_alle_wie_bisher(browser, server):
+    r = _liste(browser, server, "monteur", _mit_modus(_html(), "alle"))
     assert r["fehler"] == [] and r["schreib"] == [], r
     assert r["gesamt"] == len(SCHEINE) and r["von"] == len(SCHEINE), r
     assert r["ekl"] is None and r["erledigtChip"] is True, r
@@ -300,12 +373,9 @@ def test_sofort_feldrolle(browser, server, rolle):
     assert r["ekl"] is None and r["erledigtChip"] is False, r
 
 
-@pytest.mark.parametrize("rolle", ROLLEN_ALLE)
-def test_sofort_buero_pl_admin_sehen_alles(browser, server, rolle):
-    r = _liste(browser, server, rolle, _mit_modus(_html(), "sofort"))
-    assert r["fehler"] == [], r["fehler"]
-    assert r["gesamt"] == len(SCHEINE) and r["von"] == len(SCHEINE), r
-    assert r["erledigtChip"] is True, r
+def test_sofort_buero_sieht_alles(browser, server):
+    r = _liste(browser, server, "buero", _mit_modus(_html(), "sofort"))
+    assert r["gesamt"] == len(SCHEINE) and r["erledigtChip"] is True, r
 
 
 def test_nach_tagen_monteur(browser, server):
@@ -316,30 +386,20 @@ def test_nach_tagen_monteur(browser, server):
     assert r["erledigtChip"] is True and r["ekl"] is None, r
 
 
-def test_eingeklappt_monteur(browser, server):
-    r = _liste(browser, server, "monteur", _mit_modus(_html(), "eingeklappt"), aufklappen=True)
-    assert r["fehler"] == [] and r["schreib"] == [], r
-    assert r["gesamt"] == len(NR_SOFORT) and r["von"] == len(NR_SOFORT), r
-    assert r["ekl"] == "zu" and "Erledigt (%d)" % len(NR_FERTIG) in r["eklText"] and r["eklNr"] == [], r
-    assert r["auf"]["ekl"] == "auf" and r["auf"]["eklNr"] == NR_FERTIG, r["auf"]
-    assert r["formular"] is True, "Schein aus dem eingeklappten Abschnitt oeffnet nicht (gesperrte Maske erwartet)"
-
-
-def test_eingeklappt_buero_ohne_abschnitt(browser, server):
-    r = _liste(browser, server, "buero", _mit_modus(_html(), "eingeklappt"))
-    assert r["gesamt"] == len(SCHEINE) and r["ekl"] is None, r
-
-
 def test_umkehrprobe_liste_ohne_filter_zeigt_verborgene(browser, server):
-    r = _liste(browser, server, "monteur", index_body=_neutralisiert(_mit_modus(_html(), "sofort")))
+    r = _liste(browser, server, "monteur", index_body=_neutralisiert(_html()))
     assert r["gesamt"] == len(SCHEINE), r  # Altverhalten: alle zehn
 
 
 AUSWAHL = """() => { const x = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.text === '— Schein wählen —'));
-  if (!x) return null; return [...new Set([...x.options].map(o => (o.text.match(/S0790\\d\\d/) || [''])[0]).filter(Boolean))].sort(); }"""
+  if (!x) return null; const nr = o => (o.text.match(/S0790\\d\\d/) || [''])[0];
+  const g = x.querySelector('optgroup');
+  return {alle: [...new Set([...x.options].map(nr).filter(Boolean))].sort(),
+          gruppe: g ? g.label : null, inGruppe: g ? [...g.querySelectorAll('option')].map(nr).sort() : [],
+          gruppeLetzte: g ? x.lastElementChild === g : null}; }"""
 
 
-def _zeit_auswahl(browser, server, rolle, index_body=None):
+def _zeit(browser, server, rolle, index_body=None, buchen=None):
     ctx, s, fehler, schreib = _seite(browser, server, rolle, index_body)
     try:
         assert s.evaluate(NAV, "Zeit") != "nicht-gefunden"
@@ -348,29 +408,51 @@ def _zeit_auswahl(browser, server, rolle, index_body=None):
         s.wait_for_timeout(600)
         s.evaluate("() => [...document.querySelectorAll('button')].find(b => (b.textContent || '').trim() === 'Schein/Störung').click()")
         s.wait_for_timeout(600)
-        nr = s.evaluate(AUSWAHL)
+        r = s.evaluate(AUSWAHL)
+        if buchen:
+            s.locator("select:has(option:text('— Schein wählen —'))").select_option(buchen)
+            s.wait_for_timeout(300)
+            r["wert"] = s.evaluate("() => [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.text === '— Schein wählen —')).value")
         assert fehler == [], fehler
-        return nr
+        return r
     finally:
         ctx.close()
 
 
-def test_zeiterfassung_auswahl_standard_unveraendert(browser, server):
-    assert _zeit_auswahl(browser, server, "monteur") == NR_ALLE
+def test_zeiterfassung_ausgeliefert_abgeschlossene_als_gruppe_am_ende(browser, server):
+    r = _zeit(browser, server, "monteur", buchen="A6")
+    assert r["alle"] == NR_ALLE, r  # nichts geht verloren
+    assert r["gruppe"] == "Erledigt (%d)" % len(NR_EKL) and r["inGruppe"] == NR_EKL and r["gruppeLetzte"] is True, r
+    assert r["wert"] == "A6", r  # ein erledigter Schein ist waehlbar (Stunden buchen wie heute)
+
+
+def test_umkehrprobe_zeiterfassung_ohne_gruppe_waere_rot(browser, server):
+    s0 = _html()
+    alt = "if(_ekl.length){var _eM="
+    assert s0.count(alt) == 1
+    r = _zeit(browser, server, "monteur", index_body=s0.replace(alt, "if(false){var _eM="))
+    assert r["gruppe"] is None and not (set(NR_EKL) & set(r["alle"])), r
+
+
+def test_zeiterfassung_variante_alle_unveraendert(browser, server):
+    r = _zeit(browser, server, "monteur", _mit_modus(_html(), "alle"))
+    assert r["alle"] == NR_ALLE and r["gruppe"] is None, r
 
 
 @pytest.mark.parametrize("rolle", ["monteur", "techniker"])
-def test_zeiterfassung_auswahl_sofort_feldrolle(browser, server, rolle):
-    assert _zeit_auswahl(browser, server, rolle, _mit_modus(_html(), "sofort")) == NR_SOFORT
+def test_zeiterfassung_sofort_feldrolle(browser, server, rolle):
+    r = _zeit(browser, server, rolle, _mit_modus(_html(), "sofort"))
+    assert r["alle"] == NR_SOFORT and r["gruppe"] is None, r
 
 
-def test_zeiterfassung_auswahl_sofort_buero_alle(browser, server):
-    assert _zeit_auswahl(browser, server, "buero", _mit_modus(_html(), "sofort")) == NR_ALLE
+def test_zeiterfassung_buero_alle_ohne_gruppe(browser, server):
+    r = _zeit(browser, server, "buero")
+    assert r["alle"] == NR_ALLE and r["gruppe"] is None, r
 
 
 def test_umkehrprobe_zeiterfassung_auswahl_ohne_filter(browser, server):
-    nr = _zeit_auswahl(browser, server, "monteur", index_body=_neutralisiert(_mit_modus(_html(), "sofort")))
-    assert set(NR_FERTIG) <= set(nr), nr
+    r = _zeit(browser, server, "monteur", index_body=_neutralisiert(_mit_modus(_html(), "sofort")))
+    assert set(NR_FERTIG) <= set(r["alle"]), r
 
 
 ZEIT = """() => { const t = document.body.innerText; return {hat: t.indexOf('S079005 — Testkunde 5') >= 0}; }"""
@@ -399,11 +481,28 @@ def test_bearbeiten_eines_eintrags_auf_verborgenem_schein_behaelt_auswahl(browse
           if (k.length !== 1) return k.length; k[0].click(); return true; }""")
         assert geklickt is True, geklickt
         s.wait_for_timeout(800)
-        nr = s.evaluate(AUSWAHL)
-        assert nr is not None, "Bearbeitungsmaske nicht offen"
+        r = s.evaluate(AUSWAHL)
+        assert r is not None, "Bearbeitungsmaske nicht offen"
+        nr = r["alle"]
         wert = s.evaluate("""() => { const x = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.text === '— Schein wählen —')); return x.value; }""")
         assert wert == "A5", wert
         assert "S079005" in nr and not ({"S079004", "S079006", "S079007"} & set(nr)), nr
+        assert fehler == [], fehler
+    finally:
+        ctx.close()
+
+
+def test_bearbeiten_eingeklappt_eintrag_steht_in_der_gruppe(browser, server):
+    ctx, s, fehler, schreib = _seite(browser, server, "monteur")
+    try:
+        assert s.evaluate(NAV, "Zeit") != "nicht-gefunden"
+        s.wait_for_timeout(2500)
+        assert s.evaluate("""() => { const k = [...document.querySelectorAll('[aria-label="Eintrag bearbeiten"]')].filter(x => x.getBoundingClientRect().height > 0);
+          if (k.length !== 1) return k.length; k[0].click(); return true; }""") is True
+        s.wait_for_timeout(800)
+        r = s.evaluate(AUSWAHL)
+        wert = s.evaluate("""() => [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.text === '— Schein wählen —')).value""")
+        assert wert == "A5" and "S079005" in r["inGruppe"] and r["alle"].count("S079005") == 1, (wert, r)
         assert fehler == [], fehler
     finally:
         ctx.close()
