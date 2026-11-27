@@ -32,7 +32,7 @@ from conftest import _extract_fn, run_node_snippet  # noqa: E402
 
 sync_api = pytest.importorskip("playwright.sync_api")
 
-HINWEIS = "Pin verschieben nur Admin/Projektleitung"
+HINWEIS = "Pin verschieben nur Admin/Projektleitung. Bitte dort melden."  # Wortlaut GF 27.11.
 LAGE = ("x", "y", "plan_id", "page")
 
 
