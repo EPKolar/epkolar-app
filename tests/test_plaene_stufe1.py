@@ -129,7 +129,10 @@ def test_langer_tipp_rechnet_auf_den_plan(index_html, node_exe):
 # Fotos -> Storage, PUT nur geaenderte Felder - neu gemessen an feature/plaene-stufe3)
 SCHREIBWEGE_MD5 = {
     "createTicket": "951a7a90b9c5d572ba94821aa1d525a1",
-    "updateTicket": "14605d6bb657baab3592a962708e36db",
+    # v3.9.1125 neu gemessen (bewusste Aenderung, Sebastian 26.11.): Pin-Sperre - ohne Admin/PL bleibt die gespeicherte
+    # Lage stehen (_pinVerschiebenErlaubt/_pinPosGeaendert), und der Maengel-Spiegel-PUT traegt x/y/plan_id/page nur noch,
+    # wenn sich die Lage aendert. Sonst nichts an updateTicket geaendert (Diff gegen d4ec61e: genau diese zwei Stellen).
+    "updateTicket": "e4ae3687991f2d785e6128a5f124d30e",
 }
 
 

@@ -355,7 +355,7 @@ def test_hochladen_umkehrprobe(index_html, alt, neu):
 # ── 6 Schreibwege unveraendert ─────────────────────────────────────────────
 SCHREIB_MD5 = {   # gemessen an origin/main v3.9.1025; create/updateTicket neu gemessen fuer Plaene Stufe 3 (bewusste Aenderung)
     "createTicket": "951a7a90b9c5d572ba94821aa1d525a1",
-    "updateTicket": "14605d6bb657baab3592a962708e36db",
+    "updateTicket": "e4ae3687991f2d785e6128a5f124d30e",   # v3.9.1125 neu gemessen (bewusste Aenderung): Pin-Sperre (Lage bleibt ohne Admin/PL) + Maengel-Spiegel traegt die Lage nur bei Lage-Aenderung; sonst unveraendert
     "deleteTicket": "c8aef3ad2e09bb2d5948642505313c12",   # Offen-4 17.11.2026 neu gemessen: Storage-Fotos des geloeschten Tickets aufraeumen, an Projekt+Ticket gebunden (bewusste Aenderung, Auftrag Punkt 4 + Sicherheits-Nachzug)
     "_qdEl": "70e8d515018b401da91ee98ea1b93f15",
 }

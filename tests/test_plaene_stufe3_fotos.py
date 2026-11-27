@@ -47,11 +47,14 @@ def _stueck(src, a, b):
 
 def _helfer(src):
     teile = [_extract_fn(src, n) for n in ("_optionalChain", "_tkFlag", "_tkNurGeaendert", "_tkFotoUrl",
-                                            "_tkFotoSrc", "_tkFotoEintrag", "_tkFotosAuslagern")]
+                                            "_tkFotoSrc", "_tkFotoEintrag", "_tkFotosAuslagern",
+                                            "_pinVerschiebenErlaubt", "_pinPosGeaendert")]  # v3.9.1125: updateTicket prueft die Pin-Sperre
     assert all(teile), "Helfer fehlt"
     m = re.search(r"const _tkAusgelagert=[^\n]*", src)
     assert m, "_tkAusgelagert fehlt"
-    return "\n".join(teile) + "\n" + m.group(0) + "\n"
+    h = re.search(r"const _PIN_VERSCHIEBEN_HINWEIS=[^;]*;", src)  # v3.9.1125: Hinweistext der Pin-Sperre
+    assert h, "_PIN_VERSCHIEBEN_HINWEIS fehlt"
+    return "\n".join(teile) + "\n" + m.group(0) + "\n" + h.group(0) + "\n"
 
 
 PRELUDE = r"""
@@ -63,6 +66,7 @@ var sq=[];var SQ={push:a=>{sq.push(JSON.parse(JSON.stringify(a)));}};
 function _tkThumb(){return Promise.resolve("data:image/jpeg;base64,THUMB");}
 function td2(){return "2026-11-17";}function uid(){return "NEU1";}
 var _TICKET2MANGEL_ST={},forms={maengel:[]},layers=[],_vpMid="m1",_vpIsField=false,isAdmin=true,selPlan={id:"PL1"};
+var curUser={role:"admin"};/* v3.9.1125: updateTicket liest die Rolle fuer die Pin-Sperre - passend zu isAdmin=true */
 function setForms(){}function _mgVerlaufFeld(){return {};}function _mgVerlaufPut(){}
 function setSelTicket(){}function setNewTicket(){}function setSideMode(){}function setPendingPin(){}
 var BIG="data:image/jpeg;base64,"+"A".repeat(200000);
